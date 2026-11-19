@@ -86,6 +86,14 @@ func ToIface_CodeConsumer[T interface {
 	return v
 }
 
+func Upcast_CodeConsumer[T CodeConsumer](v T) CodeConsumer {
+	var vi CodeConsumer = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.CodeConsumer
 type CodeConsumerBase struct {
 	self_               CodeConsumer

@@ -195,10 +195,10 @@ func ReportDecoder_CreateProfileOfStaticallyUsedCode(mapping j2gort.Ext_java_uti
 	_ = instrumentationArrayName
 	var matcher *j2gort.Ext_java_util_regex_Matcher = j2gort.Ext_java_util_regex_Pattern_Compile_1((j2gort.StrValString(instrumentationArrayName) + "\\.push\\(['\"](.*?)['\"]\\)")).Matcher(j2gort.BoxString(fileContent))
 	_ = matcher
-	var encodedPoints j2gort.LocalOrderedSet[string] = j2gort.NewLocalOrderedSet[string]()
+	var encodedPoints j2gort.PlainSet[string] = j2gort.NewPlainSetVal[string]()
 	_ = encodedPoints
 	for matcher.Find_0() {
-		encodedPoints.Add(matcher.Group_1_int32(int32(1)))
+		encodedPoints.AddVoid(matcher.Group_1_int32(int32(1)))
 	}
 	var instrumentationPoints j2gort.Ext_java_util_stream_Stream = j2gort.AsIface[j2gort.Ext_java_util_Set](mapping.EntrySet()).Stream().Map(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_2 any) any {
 		entry := j2gort.AsIface[j2gort.Ext_java_util_Map_Entry](lp_2)

@@ -311,7 +311,7 @@ func (this_ *CheckSuper) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_
 		}
 	default:
 	}
-	if n == currentContext.GetContextNode() {
+	if n == currentContext.GetCheckSuper_ContextBase().GetContextNode() {
 		currentContext.VisitContextNode(t)
 		this_.contextStack.Pop()
 	}
@@ -374,6 +374,14 @@ func ToIface_CheckSuper_Context[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_CheckSuper_Context[T CheckSuper_Context](v T) CheckSuper_Context {
+	var vi CheckSuper_Context = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.CheckSuper.Context

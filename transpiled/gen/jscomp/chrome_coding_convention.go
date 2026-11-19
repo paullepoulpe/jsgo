@@ -124,6 +124,6 @@ func (this_ *ChromeCodingConvention) ApplySingletonGetter(classType *pkg_rhino.N
 	var defSite pkg_rhino.Node = classType.Constructor().GetSource()
 	_ = defSite
 	classType.DeclareConstructorProperty("getInstance", pkg_rhino.ToIface_JSType(getterType), defSite)
-	classType.DeclareConstructorProperty("instance_", j2gort.AsIface[pkg_rhino.JSType](classType.Instance()), defSite)
+	classType.DeclareConstructorProperty("instance_", pkg_rhino.Upcast_JSType(classType.Instance()), defSite)
 }
 

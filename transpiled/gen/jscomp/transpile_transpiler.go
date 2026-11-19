@@ -42,6 +42,14 @@ func ToIface_Transpile_Transpiler[T interface {
 	return v
 }
 
+func Upcast_Transpile_Transpiler[T Transpile_Transpiler](v T) Transpile_Transpiler {
+	var vi Transpile_Transpiler = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.transpile.Transpiler", "com.google.javascript.jscomp.transpile.Transpiler", func(v_ any) bool {
 		return j2gort.InstanceOf[Transpile_Transpiler](v_)

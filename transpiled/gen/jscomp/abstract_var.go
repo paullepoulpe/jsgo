@@ -71,6 +71,14 @@ func ToIface_AbstractVar[T interface {
 	return v
 }
 
+func Upcast_AbstractVar[T AbstractVar](v T) AbstractVar {
+	var vi AbstractVar = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.AbstractVar
 type AbstractVarBase struct {
 	ScopedNameBase
@@ -141,7 +149,7 @@ func InitAbstractVar(this_ *AbstractVarBase, name string, nameNode pkg_rhino.Nod
 	_ = implicitGoogNamespaceDefinition
 	InitScopedName(&this_.ScopedNameBase, j2gort.CheckNotNullString(name), func() pkg_rhino.Node {
 		if scope != nil && !scope.IsJavaNil_() {
-			return scope.GetRootNode_0()
+			return scope.GetAbstractScopeBase().GetRootNode_0()
 		}
 		return pkg_rhino.Node(0)
 	}())
@@ -177,7 +185,7 @@ func (this_ *AbstractVarBase) GetSourceFile() pkg_rhino.StaticSourceFile {
 		if this_.nameNode != 0 {
 			return this_.nameNode
 		}
-		return this_.scope.GetRootNode_0()
+		return this_.scope.GetAbstractScopeBase().GetRootNode_0()
 	}()).GetStaticSourceFile()
 }
 
@@ -224,15 +232,19 @@ func (this_ *AbstractVarBase) GetIndex() int32 {
 
 // Java method: AbstractVar.isGlobal()
 func (this_ *AbstractVarBase) IsGlobal() bool {
-	return this_.scope.IsGlobal()
+	return this_.scope.GetAbstractScopeBase(
+
+	// Java method: AbstractVar.isLocal()
+	).IsGlobal()
 }
 
-// Java method: AbstractVar.isLocal()
 func (this_ *AbstractVarBase) IsLocal() bool {
-	return this_.scope.IsLocal()
+	return this_.scope.GetAbstractScopeBase(
+
+	// Java method: AbstractVar.isExtern()
+	).IsLocal()
 }
 
-// Java method: AbstractVar.isExtern()
 func (this_ *AbstractVarBase) IsExtern() bool {
 	return ((this_.input == nil) || this_.input.IsExtern())
 }
@@ -330,12 +342,12 @@ func (this_ *AbstractVarBase) IsArguments() bool {
 		sr_1 := "arguments"
 		se_2 := this_.GetScopedNameBase().name
 		return j2gort.CheckNotNullString(sr_1) == se_2
-	}() && this_.scope.IsFunctionScope())
+	}() && this_.scope.GetAbstractScopeBase().IsFunctionScope())
 }
 
 // Java method: AbstractVar.isGoogModuleExports()
 func (this_ *AbstractVarBase) IsGoogModuleExports() bool {
-	return ((this_.scope.IsModuleScope() && func() bool {
+	return ((this_.scope.GetAbstractScopeBase().IsModuleScope() && func() bool {
 		sr_3 := "exports"
 		se_4 := this_.GetScopedNameBase().name
 		return j2gort.CheckNotNullString(sr_3) == se_4
@@ -348,7 +360,7 @@ func (this_ *AbstractVarBase) IsThis() bool {
 		sr_5 := "this"
 		se_6 := this_.GetScopedNameBase().name
 		return j2gort.CheckNotNullString(sr_5) == se_6
-	}() && this_.scope.IsFunctionScope())
+	}() && this_.scope.GetAbstractScopeBase().IsFunctionScope())
 }
 
 // Java method: AbstractVar.isImplicit()

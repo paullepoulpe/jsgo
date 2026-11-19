@@ -82,6 +82,7 @@ func InitNoResolvedType(this_ *NoResolvedType, registry *JSTypeRegistry, referen
 	_ = templateTypes
 	InitObjectType_2_JSTypeRegistry_int32(&this_.ObjectTypeBase, registry, int32(8))
 	this_.initFields_NoResolvedType()
+	this_.GetJSTypeBase().jstypeFlags = int8((int32(this_.GetJSTypeBase().jstypeFlags) | int32(int8(32))))
 	this_.referenceName = j2gort.CheckNotNullString(referenceName)
 	this_.templateTypes = templateTypes
 	this_.EagerlyResolveToSelf()

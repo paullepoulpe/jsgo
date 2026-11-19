@@ -39,6 +39,14 @@ func ToIface_Matcher[T interface {
 	return v
 }
 
+func Upcast_Matcher[T Matcher](v T) Matcher {
+	var vi Matcher = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.refactoring.Matcher", "com.google.javascript.refactoring.Matcher", func(v_ any) bool {
 		return j2gort.InstanceOf[Matcher](v_)

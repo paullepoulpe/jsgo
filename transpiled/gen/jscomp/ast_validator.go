@@ -482,7 +482,7 @@ func (this_ *AstValidator) priv_AstValidator_validateTypeInformation_759(n pkg_r
 		if iifeCond_1 {
 			var type_ pkg_rhino.JSType = n.GetJSType()
 			_ = type_
-			if (type_ != nil && !type_.IsJavaNil_()) && !(type_.IsResolved()) {
+			if (type_ != nil && !type_.IsJavaNil_()) && !(type_.GetJSTypeBase().IsResolved()) {
 				this_.priv_AstValidator_violation_887(("Found unresolved type " + j2gort.StrVal(type_)), n)
 			}
 		}
@@ -506,12 +506,12 @@ func (this_ *AstValidator) priv_AstValidator_validateCallType_760(callNode pkg_r
 		_ = callee
 		var calleeType pkg_rhino.JSType = j2gort.CheckNotNullIface(callee.GetJSType())
 		_ = calleeType
-		if calleeType.IsFunctionType() {
+		if calleeType.GetJSTypeBase().IsFunctionType() {
 			var calleeFunctionType *pkg_rhino.FunctionType = calleeType.ToMaybeFunctionType()
 			_ = calleeFunctionType
 			var returnType pkg_rhino.JSType = calleeFunctionType.GetReturnType()
 			_ = returnType
-			if j2gort.IfaceEquals[pkg_rhino.JSType](callNode.GetJSTypeBeforeCast(), nil) && !(returnType.IsUnknownType()) {
+			if j2gort.IfaceEquals[pkg_rhino.JSType](callNode.GetJSTypeBeforeCast(), nil) && !(returnType.GetJSTypeBase().IsUnknownType()) {
 				this_.priv_AstValidator_expectMatchingTypeInformation_762(callNode, returnType)
 			}
 		}
@@ -558,7 +558,7 @@ func AstValidator_GetTypeAnnotationString(typeI pkg_rhino.JSType) string {
 	if typeI == nil || typeI.IsJavaNil_() {
 		return "NO TYPE INFORMATION"
 	} else {
-		return ("{" + j2gort.StrValString(typeI.ToAnnotationString(pkg_rhino.StaticGet_JSType_Nullability_EXPLICIT())) + "}")
+		return ("{" + j2gort.StrValString(typeI.GetJSTypeBase().ToAnnotationString(pkg_rhino.StaticGet_JSType_Nullability_EXPLICIT())) + "}")
 	}
 }
 
@@ -2714,6 +2714,14 @@ func ToIface_AstValidator_ViolationHandler[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_AstValidator_ViolationHandler[T AstValidator_ViolationHandler](v T) AstValidator_ViolationHandler {
+	var vi AstValidator_ViolationHandler = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

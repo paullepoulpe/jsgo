@@ -54,6 +54,14 @@ func ToIface_Config[T interface {
 	return v
 }
 
+func Upcast_Config[T Config](v T) Config {
+	var vi Config = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.parsing.Config
 type ConfigBase struct {
 	self_   Config
@@ -145,7 +153,7 @@ func (this_ *ConfigBase) ToBuilder() Config_Builder {
 
 // Java static method: Config.builder()
 func Config_S_Builder() Config_Builder {
-	return NewAutoValue_Config_Builder().SetLanguageMode(StaticGet_Config_LanguageMode_UNSUPPORTED()).SetStrictMode(StaticGet_Config_StrictMode_STRICT()).SetJsDocParsingMode(StaticGet_Config_JsDocParsing_TYPES_ONLY()).SetRunMode(StaticGet_Config_RunMode_STOP_AFTER_ERROR()).SetExtraAnnotationNames(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableSet_Of_0())).SetSuppressionNames(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableSet_Of_0())).SetClosurePrimitiveNames(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableSet_Of_0())).SetParseInlineSourceMaps(false)
+	return NewAutoValue_Config_Builder().SetLanguageMode(StaticGet_Config_LanguageMode_UNSUPPORTED()).SetStrictMode(StaticGet_Config_StrictMode_STRICT()).SetJsDocParsingMode(StaticGet_Config_JsDocParsing_TYPES_ONLY()).SetRunMode(StaticGet_Config_RunMode_STOP_AFTER_ERROR()).GetConfig_BuilderBase().SetExtraAnnotationNames(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableSet_Of_0())).SetSuppressionNames(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableSet_Of_0())).SetClosurePrimitiveNames(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableSet_Of_0())).SetParseInlineSourceMaps(false)
 }
 
 // Java static method: Config.buildAnnotations(java.lang.Iterable<java.lang.String> allowlist)
@@ -787,6 +795,14 @@ func ToIface_Config_Builder[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_Config_Builder[T Config_Builder](v T) Config_Builder {
+	var vi Config_Builder = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.parsing.Config.Builder

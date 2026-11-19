@@ -105,7 +105,7 @@ func (this_ *InjectTranspilationRuntimeLibraries) Process_2(externs pkg_rhino.No
 	var outputFeatures *pkg_parser.FeatureSet = this_.compiler.GetOptions().GetOutputFeatureSet()
 	_ = outputFeatures
 	if (!(outputFeatures.Contains_1_FeatureSet(used))) {
-		NodeUtil_VisitPostOrder_3(root, func() NodeUtil_Visitor { bound_1 := this_; return NewLambda_NodeUtil_Visitor(func(mrp0_ pkg_rhino.Node) { bound_1.priv_InjectTranspilationRuntimeLibraries_checkForClassExtends_3210(mrp0_) }) }(), j2gort.NewNodeLambda_Ext_com_google_common_base_Predicate(func(rawNode_2 uint32) bool {
+		NodeUtil_VisitPostOrder_3(root, func() NodeUtil_Visitor { bound_1 := this_; return NewLambda_NodeUtil_Visitor(func(mrp0_ pkg_rhino.Node) { bound_1.priv_InjectTranspilationRuntimeLibraries_checkForClassExtends_3207(mrp0_) }) }(), j2gort.NewNodeLambda_Ext_com_google_common_base_Predicate(func(rawNode_2 uint32) bool {
 	unused := pkg_rhino.Node(rawNode_2)
 	_ = unused
 	return !(this_.injectedClassExtendsLibraries)
@@ -185,7 +185,7 @@ func InjectTranspilationRuntimeLibraries_GetScriptFeatures(script pkg_rhino.Node
 }
 
 // Java method: InjectTranspilationRuntimeLibraries.checkForClassExtends(com.google.javascript.rhino.Node n)
-func (this_ *InjectTranspilationRuntimeLibraries) priv_InjectTranspilationRuntimeLibraries_checkForClassExtends_3210(n pkg_rhino.Node) {
+func (this_ *InjectTranspilationRuntimeLibraries) priv_InjectTranspilationRuntimeLibraries_checkForClassExtends_3207(n pkg_rhino.Node) {
 	_ = n
 	if (!(n.IsClass())) {
 		return

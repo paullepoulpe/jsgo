@@ -46,6 +46,7 @@ type SymbolType interface {
 	GetSymbolTypeBase() *SymbolTypeBase
 	ValueType
 }
+
 func ToIface_SymbolType[T interface {
 	SymbolType
 	comparable
@@ -55,6 +56,14 @@ func ToIface_SymbolType[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_SymbolType[T SymbolType](v T) SymbolType {
+	var vi SymbolType = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.rhino.jstype.SymbolType
@@ -67,7 +76,9 @@ func (this_ *SymbolTypeBase) BindSelf_(s any) {
 	this_.ValueTypeBase.BindSelf_(s)
 }
 func (this_ *SymbolTypeBase) IsJavaNil_() bool { return this_ == nil }
-func (*SymbolTypeBase) JavaClassInfo_() (string, string) { return "com.google.javascript.rhino.jstype.SymbolType", "SymbolType" }
+func (*SymbolTypeBase) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.rhino.jstype.SymbolType", "SymbolType"
+}
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.jstype.SymbolType", "com.google.javascript.rhino.jstype.SymbolType", func(v_ any) bool {
 		return j2gort.InstanceOf[SymbolType](v_)
@@ -81,8 +92,8 @@ func (this_ *SymbolTypeBase) self_SymbolType_() SymbolType {
 	return nil
 }
 func (*SymbolTypeBase) Implements_rhino_SymbolType() {}
-func (*SymbolTypeBase) Implements_rhino_ValueType() {}
-func (*SymbolTypeBase) Implements_rhino_JSType() {}
+func (*SymbolTypeBase) Implements_rhino_ValueType()  {}
+func (*SymbolTypeBase) Implements_rhino_JSType()     {}
 
 func (this_ *SymbolTypeBase) initFields_SymbolType() {
 	_ = this_
@@ -126,10 +137,10 @@ func (this_ *SymbolTypeBase) TestForEquality(that JSType) pkg_base.Tri {
 	_ = that
 	var result pkg_base.Tri = this_.ValueTypeBase.TestForEquality(that)
 	_ = result
-	if ((result != 0)) {
+	if result != 0 {
 		return result
 	}
-	if ((that.CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_TYPE())) || that.CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_OBJECT_TYPE())))) {
+	if that.GetJSTypeBase().CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_TYPE())) || that.GetJSTypeBase().CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_OBJECT_TYPE())) {
 		return pkg_base.StaticGet_Tri_UNKNOWN()
 	}
 	return pkg_base.StaticGet_Tri_FALSE()
@@ -175,4 +186,3 @@ func (this_ *SymbolTypeBase) Visit_1(visitor Visitor) any {
 	_ = visitor
 	return visitor.CaseSymbolType(this_.self_SymbolType_())
 }
-

@@ -144,13 +144,13 @@ func (this_ *J2clChecksPass) Visit_3(unused *NodeTraversal, n pkg_rhino.Node, pa
 	if (firstSource == j2gort.NullString) && (lastSource == j2gort.NullString) {
 		return
 	}
-	this_.priv_J2clChecksPass_reportIfMatches_3452(n, firstSource, lastSource, "java.lang.Integer", "java/lang/Integer.impl.java.js")
-	this_.priv_J2clChecksPass_reportIfMatches_3452(n, firstSource, lastSource, "java.lang.Float", "java/lang/Float.impl.java.js")
-	this_.priv_J2clChecksPass_reportIfMatches_3452(n, firstSource, lastSource, "goog.math.Long", "javascript/closure/math/long.js")
+	this_.priv_J2clChecksPass_reportIfMatches_3449(n, firstSource, lastSource, "java.lang.Integer", "java/lang/Integer.impl.java.js")
+	this_.priv_J2clChecksPass_reportIfMatches_3449(n, firstSource, lastSource, "java.lang.Float", "java/lang/Float.impl.java.js")
+	this_.priv_J2clChecksPass_reportIfMatches_3449(n, firstSource, lastSource, "goog.math.Long", "javascript/closure/math/long.js")
 }
 
 // Java method: J2clChecksPass.reportIfMatches(com.google.javascript.rhino.Node n, java.lang.@org.jspecify.annotations.Nullable String firstSource, java.lang.@org.jspecify.annotations.Nullable String lastSource, java.lang.String typeName, java.lang.String fileName)
-func (this_ *J2clChecksPass) priv_J2clChecksPass_reportIfMatches_3452(n pkg_rhino.Node, firstSource string, lastSource string, typeName string, fileName string) {
+func (this_ *J2clChecksPass) priv_J2clChecksPass_reportIfMatches_3449(n pkg_rhino.Node, firstSource string, lastSource string, typeName string, fileName string) {
 	_ = n
 	_ = firstSource
 	_ = lastSource
@@ -168,7 +168,8 @@ func J2clChecksPass_IsNullType(jsType pkg_rhino.JSType) bool {
 	if jsType == nil || jsType.IsJavaNil_() {
 		return false
 	}
-	return (jsType.IsNullType() || jsType.IsVoidType())
+	base_jsType_ := jsType.GetJSTypeBase()
+	return (base_jsType_.IsNullType() || base_jsType_.IsVoidType())
 }
 
 // Java static method: J2clChecksPass.matchesAnyTargetPattern(java.lang.@org.jspecify.annotations.Nullable String sourceName)
@@ -185,15 +186,16 @@ func J2clChecksPass_GetRestrictedJ2clSourceName(jsType pkg_rhino.JSType) string 
 	if jsType == nil || jsType.IsJavaNil_() {
 		return j2gort.NullString
 	}
+	base_jsType_ := jsType.GetJSTypeBase()
 	var union *pkg_rhino.UnionType
 	_ = union
 	var ok_1 bool
 	union, ok_1 = j2gort.TryCast[*pkg_rhino.UnionType](jsType)
 	if !ok_1 {
-		if jsType.IsNullType() || jsType.IsVoidType() {
+		if base_jsType_.IsNullType() || base_jsType_.IsVoidType() {
 			return j2gort.NullString
 		}
-		var src string = J2clChecksPass_GetObjectSourceName(jsType.ToMaybeObjectType())
+		var src string = J2clChecksPass_GetObjectSourceName(base_jsType_.ToMaybeObjectType())
 		_ = src
 		if J2clChecksPass_MatchesAnyTargetPattern(src) {
 			return src
@@ -217,10 +219,10 @@ func J2clChecksPass_GetRestrictedJ2clSourceName(jsType pkg_rhino.JSType) string 
 		for ; i < n; i = i + 1 {
 			var alt pkg_rhino.JSType = union.GetAlternateAt(i)
 			_ = alt
-			if (alt.IsNullType() || alt.IsVoidType()) || alt.IsNoType() {
+			if (alt.GetJSTypeBase().IsNullType() || alt.GetJSTypeBase().IsVoidType()) || alt.GetJSTypeBase().IsNoType() {
 				continue
 			}
-			if alt.IsUnionType() {
+			if alt.GetJSTypeBase().IsUnionType() {
 				hasNestedUnion = true
 				break
 			}
@@ -228,13 +230,13 @@ func J2clChecksPass_GetRestrictedJ2clSourceName(jsType pkg_rhino.JSType) string 
 			if nonNullCount == int32(1) {
 				singleNonNull = alt
 			}
-			if j2gort.IfaceEquals[pkg_rhino.ObjectType](alt.ToMaybeObjectType(), nil) {
+			if j2gort.IfaceEquals[pkg_rhino.ObjectType](alt.GetJSTypeBase().ToMaybeObjectType(), nil) {
 				allNonNullAreObjects = false
 			}
 		}
 	}
 	if hasNestedUnion {
-		var src_2 string = J2clChecksPass_GetObjectSourceName(union.RestrictByNotNullOrUndefined().ToMaybeObjectType())
+		var src_2 string = J2clChecksPass_GetObjectSourceName(union.RestrictByNotNullOrUndefined().GetJSTypeBase().ToMaybeObjectType())
 		_ = src_2
 		if J2clChecksPass_MatchesAnyTargetPattern(src_2) {
 			return src_2
@@ -246,7 +248,7 @@ func J2clChecksPass_GetRestrictedJ2clSourceName(jsType pkg_rhino.JSType) string 
 		return j2gort.NullString
 	}
 	if nonNullCount == int32(1) {
-		var src_3 string = J2clChecksPass_GetObjectSourceName(singleNonNull.ToMaybeObjectType())
+		var src_3 string = J2clChecksPass_GetObjectSourceName(singleNonNull.GetJSTypeBase().ToMaybeObjectType())
 		_ = src_3
 		if J2clChecksPass_MatchesAnyTargetPattern(src_3) {
 			return src_3
@@ -265,7 +267,7 @@ func J2clChecksPass_GetRestrictedJ2clSourceName(jsType pkg_rhino.JSType) string 
 		for ; i_2 < n; i_2 = i_2 + 1 {
 			var alt_2 pkg_rhino.JSType = union.GetAlternateAt(i_2)
 			_ = alt_2
-			if ((!(alt_2.IsNullType()) && !(alt_2.IsVoidType())) && !(alt_2.IsNoType())) && J2clChecksPass_MatchesAnyTargetPattern(J2clChecksPass_GetObjectSourceName(alt_2.ToMaybeObjectType())) {
+			if ((!(alt_2.GetJSTypeBase().IsNullType()) && !(alt_2.GetJSTypeBase().IsVoidType())) && !(alt_2.GetJSTypeBase().IsNoType())) && J2clChecksPass_MatchesAnyTargetPattern(J2clChecksPass_GetObjectSourceName(alt_2.GetJSTypeBase().ToMaybeObjectType())) {
 				hasJ2clCandidate = true
 				break
 			}
@@ -274,7 +276,7 @@ func J2clChecksPass_GetRestrictedJ2clSourceName(jsType pkg_rhino.JSType) string 
 	if !(hasJ2clCandidate) {
 		return j2gort.NullString
 	}
-	var src_4 string = J2clChecksPass_GetObjectSourceName(union.RestrictByNotNullOrUndefined().ToMaybeObjectType())
+	var src_4 string = J2clChecksPass_GetObjectSourceName(union.RestrictByNotNullOrUndefined().GetJSTypeBase().ToMaybeObjectType())
 	_ = src_4
 	if J2clChecksPass_MatchesAnyTargetPattern(src_4) {
 		return src_4

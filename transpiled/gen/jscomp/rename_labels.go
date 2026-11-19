@@ -257,15 +257,15 @@ func (this_ *RenameLabels_ProcessLabels) Visit_3(t *NodeTraversal, node pkg_rhin
 	_ = parent
 	switch node.TokenSwitchOrd_() {
 	case int32(92) /* Token.LABEL */ :
-		this_.priv_ProcessLabels_visitLabel_4797(t, node)
+		this_.priv_ProcessLabels_visitLabel_4794(t, node)
 	case int32(82) /* Token.BREAK */, int32(83) /* Token.CONTINUE */ :
-		this_.priv_ProcessLabels_visitBreakOrContinue_4796(t, node)
+		this_.priv_ProcessLabels_visitBreakOrContinue_4793(t, node)
 	default:
 	}
 }
 
 // Java method: ProcessLabels.visitBreakOrContinue(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node node)
-func (this_ *RenameLabels_ProcessLabels) priv_ProcessLabels_visitBreakOrContinue_4796(t *NodeTraversal, node pkg_rhino.Node) {
+func (this_ *RenameLabels_ProcessLabels) priv_ProcessLabels_visitBreakOrContinue_4793(t *NodeTraversal, node pkg_rhino.Node) {
 	_ = t
 	_ = node
 	var nameNode pkg_rhino.Node = node.GetFirstChild()
@@ -296,7 +296,7 @@ func (this_ *RenameLabels_ProcessLabels) priv_ProcessLabels_visitBreakOrContinue
 }
 
 // Java method: ProcessLabels.visitLabel(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node node)
-func (this_ *RenameLabels_ProcessLabels) priv_ProcessLabels_visitLabel_4797(t *NodeTraversal, node pkg_rhino.Node) {
+func (this_ *RenameLabels_ProcessLabels) priv_ProcessLabels_visitLabel_4794(t *NodeTraversal, node pkg_rhino.Node) {
 	_ = t
 	_ = node
 	var nameNode pkg_rhino.Node = node.GetFirstChild()

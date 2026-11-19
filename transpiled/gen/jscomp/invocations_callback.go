@@ -41,6 +41,14 @@ func ToIface_InvocationsCallback[T interface {
 	return v
 }
 
+func Upcast_InvocationsCallback[T InvocationsCallback](v T) InvocationsCallback {
+	var vi InvocationsCallback = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.InvocationsCallback
 type InvocationsCallbackBase struct {
 	NodeTraversal_AbstractPostOrderCallbackBase

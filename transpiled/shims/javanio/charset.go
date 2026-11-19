@@ -427,10 +427,23 @@ func NewStringFromBytes(b []byte, cs *Charset) string {
 
 // --- Reader / Writer Charset Bridges ---
 
+const charsetWriterBufSize = 8192
+
+var (
+	charsetWriterBufChan = make(chan *[charsetWriterBufSize]byte, 16)
+	charsetWriterBufPool = sync.Pool{
+		New: func() any {
+			return new([charsetWriterBufSize]byte)
+		},
+	}
+)
+
 type charsetWriter struct {
 	out    io.Writer
 	closer io.Closer
 	cs     *Charset
+	buf    *[charsetWriterBufSize]byte
+	n      int
 	closed bool
 }
 
@@ -450,6 +463,28 @@ func NewOutputStreamWriterWithEncoder(out io.Writer, enc *CharsetEncoder) javaio
 	return NewOutputStreamWriterWithCharset(out, cs)
 }
 
+func (w *charsetWriter) ensureBuf() *[charsetWriterBufSize]byte {
+	if w.buf == nil {
+		select {
+		case b := <-charsetWriterBufChan:
+			w.buf = b
+		default:
+			w.buf = charsetWriterBufPool.Get().(*[charsetWriterBufSize]byte)
+		}
+	}
+	return w.buf
+}
+
+func (w *charsetWriter) flushBuf() {
+	if w.n > 0 {
+		n := w.n
+		w.n = 0
+		if _, err := w.out.Write(w.buf[:n]); err != nil {
+			panic(javaio.NewIOException(err.Error()))
+		}
+	}
+}
+
 func (w *charsetWriter) Write(s string) {
 	if w.closed {
 		panic(javaio.NewIOException("Stream closed"))
@@ -457,25 +492,62 @@ func (w *charsetWriter) Write(s string) {
 	if len(s) == 0 {
 		return
 	}
-	if sw, ok := w.out.(io.StringWriter); ok {
-		if (w.cs == StandardCharsets_UTF_8 && (javalang.IsASCII(s) || utf8.ValidString(s))) ||
-			((w.cs == StandardCharsets_US_ASCII || w.cs == StandardCharsets_ISO_8859_1) && javalang.IsASCII(s)) {
-			if _, err := sw.WriteString(s); err != nil {
-				panic(javaio.NewIOException(err.Error()))
+	if (w.cs == StandardCharsets_UTF_8 && (javalang.IsASCII(s) || utf8.ValidString(s))) ||
+		((w.cs == StandardCharsets_US_ASCII || w.cs == StandardCharsets_ISO_8859_1) && javalang.IsASCII(s)) {
+		if len(s) >= charsetWriterBufSize {
+			w.flushBuf()
+			if sw, ok := w.out.(io.StringWriter); ok {
+				if _, err := sw.WriteString(s); err != nil {
+					panic(javaio.NewIOException(err.Error()))
+				}
+				return
+			}
+			buf := w.ensureBuf()
+			for len(s) >= charsetWriterBufSize {
+				copy(buf[:], s[:charsetWriterBufSize])
+				if _, err := w.out.Write(buf[:]); err != nil {
+					panic(javaio.NewIOException(err.Error()))
+				}
+				s = s[charsetWriterBufSize:]
+			}
+			if len(s) > 0 {
+				copy(buf[:], s)
+				w.n = len(s)
 			}
 			return
 		}
+		buf := w.ensureBuf()
+		if w.n+len(s) > charsetWriterBufSize {
+			w.flushBuf()
+		}
+		copy(buf[w.n:], s)
+		w.n += len(s)
+		return
 	}
-	if len(s) <= 512 {
-		var tmp [512]byte
-		if _, err := w.out.Write(w.cs.AppendEncoded(tmp[:0], s)); err != nil {
+	if (w.cs == StandardCharsets_UTF_8 || w.cs == StandardCharsets_US_ASCII || w.cs == StandardCharsets_ISO_8859_1) &&
+		len(s) <= charsetWriterBufSize {
+		buf := w.ensureBuf()
+		if w.n+len(s) > charsetWriterBufSize {
+			w.flushBuf()
+		}
+		out := w.cs.AppendEncoded(buf[w.n:w.n], s)
+		w.n += len(out)
+		return
+	}
+	enc := w.cs.Encode(s)
+	if len(enc) >= charsetWriterBufSize {
+		w.flushBuf()
+		if _, err := w.out.Write(enc); err != nil {
 			panic(javaio.NewIOException(err.Error()))
 		}
 		return
 	}
-	if _, err := w.out.Write(w.cs.Encode(s)); err != nil {
-		panic(javaio.NewIOException(err.Error()))
+	buf := w.ensureBuf()
+	if w.n+len(enc) > charsetWriterBufSize {
+		w.flushBuf()
 	}
+	copy(buf[w.n:], enc)
+	w.n += len(enc)
 }
 
 func (w *charsetWriter) AppendCharSequence(s string) {
@@ -483,17 +555,62 @@ func (w *charsetWriter) AppendCharSequence(s string) {
 }
 
 func (w *charsetWriter) AppendCharacter(c uint16) {
+	if w.closed {
+		panic(javaio.NewIOException("Stream closed"))
+	}
+	if c < 0x80 && (w.cs == StandardCharsets_UTF_8 || w.cs == StandardCharsets_US_ASCII || w.cs == StandardCharsets_ISO_8859_1) {
+		buf := w.ensureBuf()
+		if w.n == charsetWriterBufSize {
+			w.flushBuf()
+		}
+		buf[w.n] = byte(c)
+		w.n++
+		return
+	}
 	w.Write(javalang.StringFromChar(c))
+}
+
+func (w *charsetWriter) WriteChar(c uint16) {
+	w.AppendCharacter(c)
+}
+
+func (w *charsetWriter) WriteChars(cbuf []uint16, off, length int) {
+	if w.closed {
+		panic(javaio.NewIOException("Stream closed"))
+	}
+	if length <= 0 {
+		return
+	}
+	sub := cbuf[off : off+length]
+	if w.cs == StandardCharsets_UTF_8 || w.cs == StandardCharsets_US_ASCII || w.cs == StandardCharsets_ISO_8859_1 {
+		buf := w.ensureBuf()
+		for i, u := range sub {
+			if u >= 0x80 {
+				w.Write(javalang.StringFromUTF16(sub[i:]))
+				return
+			}
+			if w.n == charsetWriterBufSize {
+				w.flushBuf()
+			}
+			buf[w.n] = byte(u)
+			w.n++
+		}
+		return
+	}
+	w.Write(javalang.StringFromUTF16(sub))
 }
 
 func (w *charsetWriter) Flush() {
 	if w.closed {
 		panic(javaio.NewIOException("Stream closed"))
 	}
+	w.flushBuf()
 	if f, ok := w.out.(interface{ Flush() error }); ok {
 		if err := f.Flush(); err != nil {
 			panic(javaio.NewIOException(err.Error()))
 		}
+	} else if f2, ok := w.out.(interface{ Flush() }); ok {
+		f2.Flush()
 	}
 }
 
@@ -502,10 +619,29 @@ func (w *charsetWriter) Close() {
 		return
 	}
 	w.closed = true
-	if w.closer != nil {
-		if err := w.closer.Close(); err != nil {
-			panic(javaio.NewIOException(err.Error()))
+	var flushErr error
+	if w.n > 0 {
+		n := w.n
+		w.n = 0
+		_, flushErr = w.out.Write(w.buf[:n])
+	}
+	if w.buf != nil {
+		select {
+		case charsetWriterBufChan <- w.buf:
+		default:
+			charsetWriterBufPool.Put(w.buf)
 		}
+		w.buf = nil
+	}
+	var closeErr error
+	if w.closer != nil {
+		closeErr = w.closer.Close()
+	}
+	if flushErr != nil {
+		panic(javaio.NewIOException(flushErr.Error()))
+	}
+	if closeErr != nil {
+		panic(javaio.NewIOException(closeErr.Error()))
 	}
 }
 

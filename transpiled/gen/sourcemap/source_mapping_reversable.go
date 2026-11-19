@@ -40,6 +40,14 @@ func ToIface_SourceMappingReversable[T interface {
 	return v
 }
 
+func Upcast_SourceMappingReversable[T SourceMappingReversable](v T) SourceMappingReversable {
+	var vi SourceMappingReversable = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.debugging.sourcemap.SourceMappingReversable", "com.google.debugging.sourcemap.SourceMappingReversable", func(v_ any) bool {
 		return j2gort.InstanceOf[SourceMappingReversable](v_)

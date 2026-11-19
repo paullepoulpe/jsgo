@@ -50,6 +50,14 @@ func ToIface_UnresolvedModule[T interface {
 	return v
 }
 
+func Upcast_UnresolvedModule[T UnresolvedModule](v T) UnresolvedModule {
+	var vi UnresolvedModule = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.modules.UnresolvedModule
 type UnresolvedModuleBase struct {
 	self_ UnresolvedModule

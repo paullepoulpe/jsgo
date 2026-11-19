@@ -31,7 +31,8 @@ type FunctionTypeBuilder struct {
 	compiler                     AbstractCompiler                                   `gson:"compiler"`
 	codingConvention             CodingConvention                                   `gson:"codingConvention"`
 	typeRegistry                 *pkg_rhino.JSTypeRegistry                          `gson:"typeRegistry"`
-	contents                     FunctionTypeBuilder_FunctionContents               `gson:"contents"`
+	reusableParamBuilder         *pkg_rhino.FunctionParamBuilder                    `gson:"reusableParamBuilder"`
+	reusableFnBuilder            *pkg_rhino.FunctionType_Builder                    `gson:"reusableFnBuilder"`
 	syntacticFnName              string                                             `gson:"syntacticFnName"`
 	returnType                   pkg_rhino.JSType                                   `gson:"returnType"`
 	implementedInterfaces        j2gort.Ext_java_util_List                          `gson:"implementedInterfaces"`
@@ -44,7 +45,9 @@ type FunctionTypeBuilder struct {
 	declarationScope             *TypedScope                                        `gson:"declarationScope"`
 	templateScope                pkg_rhino.StaticTypedScope                         `gson:"templateScope"`
 	errorRoot                    pkg_rhino.Node                                     `gson:"errorRoot"`
+	contentsSourceNode           pkg_rhino.Node                                     `gson:"contentsSourceNode"`
 	idHash_                      atomic.Int32
+	contentsHasNonEmptyReturns   bool                       `gson:"contentsHasNonEmptyReturns"`
 	returnTypeInferred           bool                       `gson:"returnTypeInferred"`
 	isClass                      bool                       `gson:"isClass"`
 	isConstructor                bool                       `gson:"isConstructor"`
@@ -79,6 +82,17 @@ func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.FunctionTypeBuilder", "com.google.javascript.jscomp.FunctionTypeBuilder", func(v_ any) bool {
 		return j2gort.InstanceOf[*FunctionTypeBuilder](v_)
 	})
+}
+
+var static_FunctionTypeBuilder_EMPTY_TEMPLATE_TYPES j2gort.Ext_com_google_common_collect_ImmutableList
+
+func StaticGet_FunctionTypeBuilder_EMPTY_TEMPLATE_TYPES() j2gort.Ext_com_google_common_collect_ImmutableList {
+	clinit_FunctionTypeBuilder()
+	return static_FunctionTypeBuilder_EMPTY_TEMPLATE_TYPES
+}
+func StaticSet_FunctionTypeBuilder_EMPTY_TEMPLATE_TYPES(v j2gort.Ext_com_google_common_collect_ImmutableList) {
+	clinit_FunctionTypeBuilder()
+	static_FunctionTypeBuilder_EMPTY_TEMPLATE_TYPES = v
 }
 
 var static_FunctionTypeBuilder_EXTENDS_WITHOUT_TYPEDEF *DiagnosticType
@@ -217,6 +231,7 @@ func clinitSlow_FunctionTypeBuilder() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_FunctionTypeBuilder, &clinitDone_FunctionTypeBuilder)
+	static_FunctionTypeBuilder_EMPTY_TEMPLATE_TYPES = j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()
 	static_FunctionTypeBuilder_EXTENDS_WITHOUT_TYPEDEF = DiagnosticType_Warning("JSC_EXTENDS_WITHOUT_TYPEDEF", "@extends used without @constructor or @interface for {0}")
 	static_FunctionTypeBuilder_EXTENDS_NON_OBJECT = DiagnosticType_Warning("JSC_EXTENDS_NON_OBJECT", "{0} @extends non-object type {1}")
 	static_FunctionTypeBuilder_RESOLVED_TAG_EMPTY = DiagnosticType_Warning("JSC_RESOLVED_TAG_EMPTY", "Could not resolve type in {0} tag of {1}")
@@ -233,11 +248,11 @@ func clinitSlow_FunctionTypeBuilder() {
 func (this_ *FunctionTypeBuilder) initFields_FunctionTypeBuilder() {
 	_ = this_
 	this_.fnName = j2gort.NullString
-	this_.contents = FunctionTypeBuilder_UnknownFunctionContents_Get()
+
 	this_.syntacticFnName = j2gort.NullString
 
-	this_.templateTypeNames = j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()
-	this_.constructorTemplateTypeNames = j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()
+	this_.templateTypeNames = StaticGet_FunctionTypeBuilder_EMPTY_TEMPLATE_TYPES()
+	this_.constructorTemplateTypeNames = StaticGet_FunctionTypeBuilder_EMPTY_TEMPLATE_TYPES()
 
 }
 
@@ -262,6 +277,8 @@ func InitFunctionTypeBuilder(this_ *FunctionTypeBuilder, fnName string, compiler
 	this_.errorRoot = errorRoot
 	this_.compiler = compiler
 	this_.templateScope = pkg_rhino.ToIface_StaticTypedScope(scope)
+	this_.reusableParamBuilder = pkg_rhino.NewFunctionParamBuilder_1(this_.typeRegistry)
+	this_.reusableFnBuilder = pkg_rhino.FunctionType_S_Builder(this_.typeRegistry)
 }
 
 // Java method: FunctionTypeBuilder.createExtendedTypeValidator()
@@ -272,6 +289,61 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_createExtendedTypeVal
 // Java method: FunctionTypeBuilder.createImplementedTypeValidator()
 func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_createImplementedTypeValidator_2965() *FunctionTypeBuilder_ImplementedTypeValidator {
 	return NewFunctionTypeBuilder_ImplementedTypeValidator(this_.errorRoot, this_.compiler, this_.FormatFnName())
+}
+
+// Java method: FunctionTypeBuilder.reset(java.lang.String fnName, com.google.javascript.rhino.Node errorRoot, com.google.javascript.jscomp.TypedScope scope)
+func (this_ *FunctionTypeBuilder) Reset(fnName string, errorRoot pkg_rhino.Node, scope *TypedScope) {
+	_ = fnName
+	_ = errorRoot
+	_ = scope
+	j2gort.CheckNotNullNode(errorRoot)
+	this_.fnName = j2gort.Ext_com_google_common_base_Strings_NullToEmpty(fnName)
+	this_.errorRoot = errorRoot
+	this_.contentsSourceNode = pkg_rhino.Node(0)
+	this_.contentsHasNonEmptyReturns = false
+	this_.syntacticFnName = j2gort.NullString
+	this_.returnType = nil
+	this_.returnTypeInferred = false
+	this_.implementedInterfaces = nil
+	this_.extendedInterfaces = nil
+	this_.baseType = nil
+	this_.thisType = nil
+	this_.isClass = false
+	this_.isConstructor = false
+	this_.makesStructs = false
+	this_.makesUnrestricted = false
+	this_.makesDicts = false
+	this_.isInterface = false
+	this_.isRecord = false
+	this_.isAbstract = false
+	this_.isKnownAmbiguous = false
+	this_.parameters = nil
+	this_.closurePrimitiveId = pkg_rhino.ClosurePrimitive(0)
+	this_.templateTypeNames = StaticGet_FunctionTypeBuilder_EMPTY_TEMPLATE_TYPES()
+	this_.constructorTemplateTypeNames = StaticGet_FunctionTypeBuilder_EMPTY_TEMPLATE_TYPES()
+	this_.declarationScope = nil
+	this_.templateScope = pkg_rhino.ToIface_StaticTypedScope(scope)
+}
+
+// Java method: FunctionTypeBuilder.clearForPool()
+func (this_ *FunctionTypeBuilder) ClearForPool() {
+	this_.fnName = j2gort.NullString
+	this_.errorRoot = pkg_rhino.Node(0)
+	this_.contentsSourceNode = pkg_rhino.Node(0)
+	this_.contentsHasNonEmptyReturns = false
+	this_.syntacticFnName = j2gort.NullString
+	this_.returnType = nil
+	this_.implementedInterfaces = nil
+	this_.extendedInterfaces = nil
+	this_.baseType = nil
+	this_.thisType = nil
+	this_.parameters = nil
+	this_.closurePrimitiveId = pkg_rhino.ClosurePrimitive(0)
+	this_.templateTypeNames = StaticGet_FunctionTypeBuilder_EMPTY_TEMPLATE_TYPES()
+	this_.constructorTemplateTypeNames = StaticGet_FunctionTypeBuilder_EMPTY_TEMPLATE_TYPES()
+	this_.declarationScope = nil
+	this_.templateScope = nil
+	this_.reusableParamBuilder.Reset()
 }
 
 // Java method: FunctionTypeBuilder.formatFnName()
@@ -290,12 +362,12 @@ func (this_ *FunctionTypeBuilder) SetSyntacticFunctionName(syntacticFnName strin
 	return this_
 }
 
-// Java method: FunctionTypeBuilder.setContents(com.google.javascript.jscomp.FunctionTypeBuilder.@org.jspecify.annotations.Nullable FunctionContents contents)
-func (this_ *FunctionTypeBuilder) SetContents(contents FunctionTypeBuilder_FunctionContents) *FunctionTypeBuilder {
-	_ = contents
-	if contents != nil && !contents.IsJavaNil_() {
-		this_.contents = contents
-	}
+// Java method: FunctionTypeBuilder.setAstContents(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node sourceNode, boolean hasNonEmptyReturns)
+func (this_ *FunctionTypeBuilder) SetAstContents(sourceNode pkg_rhino.Node, hasNonEmptyReturns bool) *FunctionTypeBuilder {
+	_ = sourceNode
+	_ = hasNonEmptyReturns
+	this_.contentsSourceNode = sourceNode
+	this_.contentsHasNonEmptyReturns = hasNonEmptyReturns
 	return this_
 }
 
@@ -319,11 +391,12 @@ func (this_ *FunctionTypeBuilder) InferFromOverriddenFunction(oldType *pkg_rhino
 	if paramsParent == 0 {
 		this_.parameters = oldType.GetParameterArray()
 		if this_.parameters == nil {
-			this_.parameters = pkg_rhino.NewFunctionParamBuilder_1(this_.typeRegistry).BuildArray()
+			this_.parameters = pkg_rhino.StaticGet_FunctionType_EMPTY_PARAMETERS()
 		}
 	} else {
-		var paramBuilder *pkg_rhino.FunctionParamBuilder = pkg_rhino.NewFunctionParamBuilder_1(this_.typeRegistry)
+		var paramBuilder *pkg_rhino.FunctionParamBuilder = this_.reusableParamBuilder
 		_ = paramBuilder
+		paramBuilder.Reset()
 		var oldParams []pkg_rhino.FunctionType_Parameter = oldType.GetParameterArray()
 		_ = oldParams
 		var oldParamsLen int32 = int32(len(oldParams))
@@ -357,7 +430,7 @@ func (this_ *FunctionTypeBuilder) InferFromOverriddenFunction(oldType *pkg_rhino
 				} else {
 					warnedAboutArgList = func() bool {
 						ba_3 := warnedAboutArgList
-						bb_4 := this_.priv_FunctionTypeBuilder_addParameter_2990(paramBuilder, this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()), warnedAboutArgList, ((this_.codingConvention.IsOptionalParameter(currentParam) || oldParamsListHitOptArgs) || currentParam.IsDefaultValue()), this_.codingConvention.IsVarArgsParameter(currentParam))
+						bb_4 := this_.priv_FunctionTypeBuilder_addParameter_2992(paramBuilder, this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()), warnedAboutArgList, ((this_.codingConvention.IsOptionalParameter(currentParam) || oldParamsListHitOptArgs) || currentParam.IsDefaultValue()), this_.codingConvention.IsVarArgsParameter(currentParam))
 						return ba_3 || bb_4
 					}()
 				}
@@ -416,15 +489,15 @@ func (this_ *FunctionTypeBuilder) InferKind(info *pkg_rhino.JSDocInfo) *Function
 		this_.makesStructs = ((info == nil) || (!(this_.makesDicts) && !(info.MakesUnrestricted())))
 	}
 	if this_.makesStructs && !(this_.isConstructor || this_.isInterface) {
-		this_.priv_FunctionTypeBuilder_reportWarning_2997(StaticGet_FunctionTypeBuilder_CONSTRUCTOR_REQUIRED(), []string{"@struct", this_.FormatFnName()})
+		this_.priv_FunctionTypeBuilder_reportWarning_2999(StaticGet_FunctionTypeBuilder_CONSTRUCTOR_REQUIRED(), []string{"@struct", this_.FormatFnName()})
 	} else if this_.makesDicts && !(this_.isConstructor) {
-		this_.priv_FunctionTypeBuilder_reportWarning_2997(StaticGet_FunctionTypeBuilder_CONSTRUCTOR_REQUIRED(), []string{"@dict", this_.FormatFnName()})
+		this_.priv_FunctionTypeBuilder_reportWarning_2999(StaticGet_FunctionTypeBuilder_CONSTRUCTOR_REQUIRED(), []string{"@dict", this_.FormatFnName()})
 	}
 	return this_
 }
 
 // Java method: FunctionTypeBuilder.maybeUseNativeClassTemplateNames(com.google.javascript.rhino.JSDocInfo info)
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_maybeUseNativeClassTemplateNames_2974(info *pkg_rhino.JSDocInfo) bool {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_maybeUseNativeClassTemplateNames_2976(info *pkg_rhino.JSDocInfo) bool {
 	_ = info
 	var nativeKeys j2gort.Ext_com_google_common_collect_ImmutableList = this_.typeRegistry.MaybeGetTemplateTypesOfBuiltin(pkg_rhino.ToIface_StaticScope(this_.declarationScope), this_.fnName)
 	_ = nativeKeys
@@ -443,16 +516,16 @@ func (this_ *FunctionTypeBuilder) InferInheritance(info *pkg_rhino.JSDocInfo, cl
 		if this_.isConstructor || this_.isInterface {
 			var infoBaseType pkg_rhino.JSType = info.GetBaseType().Evaluate(this_.templateScope, this_.typeRegistry)
 			_ = infoBaseType
-			if !(FunctionTypeBuilder_AreCompatibleExtendsTypes(infoBaseType.ToMaybeObjectType(), classExtendsType)) {
+			if !(FunctionTypeBuilder_AreCompatibleExtendsTypes(infoBaseType.GetJSTypeBase().ToMaybeObjectType(), classExtendsType)) {
 				this_.isKnownAmbiguous = true
 			}
 			if infoBaseType.SetValidator(j2gort.ToIface_Ext_com_google_common_base_Predicate(this_.priv_FunctionTypeBuilder_createExtendedTypeValidator_2964())) {
-				this_.baseType = infoBaseType.ToObjectType()
+				this_.baseType = infoBaseType.GetJSTypeBase().ToObjectType()
 			} else {
 				this_.isKnownAmbiguous = true
 			}
 		} else {
-			this_.priv_FunctionTypeBuilder_reportWarning_2997(StaticGet_FunctionTypeBuilder_EXTENDS_WITHOUT_TYPEDEF(), []string{this_.FormatFnName()})
+			this_.priv_FunctionTypeBuilder_reportWarning_2999(StaticGet_FunctionTypeBuilder_EXTENDS_WITHOUT_TYPEDEF(), []string{this_.FormatFnName()})
 			this_.isKnownAmbiguous = true
 		}
 	} else if (classExtendsType != nil && !classExtendsType.IsJavaNil_()) && (this_.isConstructor || this_.isInterface) {
@@ -477,9 +550,9 @@ func (this_ *FunctionTypeBuilder) InferInheritance(info *pkg_rhino.JSDocInfo, cl
 				}
 			}
 		} else if this_.isInterface {
-			this_.priv_FunctionTypeBuilder_reportWarning_2997(StaticGet_TypeCheck_CONFLICTING_IMPLEMENTED_TYPE(), []string{this_.FormatFnName()})
+			this_.priv_FunctionTypeBuilder_reportWarning_2999(StaticGet_TypeCheck_CONFLICTING_IMPLEMENTED_TYPE(), []string{this_.FormatFnName()})
 		} else {
-			this_.priv_FunctionTypeBuilder_reportWarning_2997(StaticGet_FunctionTypeBuilder_CONSTRUCTOR_REQUIRED(), []string{"@implements", this_.FormatFnName()})
+			this_.priv_FunctionTypeBuilder_reportWarning_2999(StaticGet_FunctionTypeBuilder_CONSTRUCTOR_REQUIRED(), []string{"@implements", this_.FormatFnName()})
 		}
 	}
 	if this_.isInterface {
@@ -498,11 +571,11 @@ func (this_ *FunctionTypeBuilder) InferInheritance(info *pkg_rhino.JSDocInfo, cl
 					if maybeInterfaceType != nil && !maybeInterfaceType.IsJavaNil_() {
 						var isValid bool = maybeInterfaceType.SetValidator(j2gort.ToIface_Ext_com_google_common_base_Predicate(this_.priv_FunctionTypeBuilder_createExtendedTypeValidator_2964()))
 						_ = isValid
-						if isValid && !(j2gort.IfaceEquals[pkg_rhino.ObjectType](maybeInterfaceType.ToMaybeObjectType(), nil)) {
-							this_.extendedInterfaces.Add_1(maybeInterfaceType.ToMaybeObjectType())
+						if isValid && !(j2gort.IfaceEquals[pkg_rhino.ObjectType](maybeInterfaceType.GetJSTypeBase().ToMaybeObjectType(), nil)) {
+							this_.extendedInterfaces.Add_1(maybeInterfaceType.GetJSTypeBase().ToMaybeObjectType())
 						}
 					}
-					if (classExtendsType != nil && !classExtendsType.IsJavaNil_()) && maybeInterfaceType.IsSubtypeOf_1(j2gort.AsIface[pkg_rhino.JSType](classExtendsType)) {
+					if (classExtendsType != nil && !classExtendsType.IsJavaNil_()) && maybeInterfaceType.GetJSTypeBase().IsSubtypeOf_1(pkg_rhino.Upcast_JSType(classExtendsType)) {
 						classExtendsType = nil
 					}
 				}
@@ -523,7 +596,7 @@ func FunctionTypeBuilder_AreCompatibleExtendsTypes(annotated pkg_rhino.ObjectTyp
 	if (extendsClause == nil || extendsClause.IsJavaNil_()) || (annotated == extendsClause || ((annotated == nil || annotated.IsJavaNil_()) && (extendsClause == nil || extendsClause.IsJavaNil_()))) {
 		return true
 	}
-	return (annotated.IsTemplatizedType() && j2gort.IfaceEquals[pkg_rhino.ObjectType](annotated.ToMaybeTemplatizedType().GetReferencedType(), extendsClause))
+	return (annotated.GetObjectTypeBase().IsTemplatizedType() && j2gort.IfaceEquals[pkg_rhino.ObjectType](annotated.ToMaybeTemplatizedType().GetReferencedType(), extendsClause))
 }
 
 // Java method: FunctionTypeBuilder.inferThisType(com.google.javascript.rhino.JSDocInfo info, com.google.javascript.rhino.jstype.JSType type)
@@ -535,7 +608,7 @@ func (this_ *FunctionTypeBuilder) InferThisType_2(info *pkg_rhino.JSDocInfo, typ
 		var objType pkg_rhino.ObjectType = pkg_rhino.ObjectType_Cast(type_)
 		_ = objType
 		if (objType != nil && !objType.IsJavaNil_()) && ((info == nil) || !(info.HasType())) {
-			this_.thisType = j2gort.AsIface[pkg_rhino.JSType](objType)
+			this_.thisType = pkg_rhino.Upcast_JSType(objType)
 		}
 	}
 	return this_
@@ -600,8 +673,9 @@ func (this_ *FunctionTypeBuilder) InferParameterTypes_2(paramsParent pkg_rhino.N
 	} else {
 		oldParameterType = (pkg_rhino.FunctionType_Parameter{})
 	}
-	var builder *pkg_rhino.FunctionParamBuilder = pkg_rhino.NewFunctionParamBuilder_1(this_.typeRegistry)
+	var builder *pkg_rhino.FunctionParamBuilder = this_.reusableParamBuilder
 	_ = builder
+	builder.Reset()
 	var warnedAboutArgList bool = false
 	_ = warnedAboutArgList
 	var jsDocParamCount int32
@@ -639,8 +713,8 @@ func (this_ *FunctionTypeBuilder) InferParameterTypes_2(paramsParent pkg_rhino.N
 				paramLhs = j2gort.CheckNotNullNode(param.GetFirstChild())
 				isOptionalParam = true
 			} else {
-				isVarArgs = this_.priv_FunctionTypeBuilder_isVarArgsParameterByConvention_2987(param)
-				isOptionalParam = this_.priv_FunctionTypeBuilder_isOptionalParameterByConvention_2986(param)
+				isVarArgs = this_.priv_FunctionTypeBuilder_isVarArgsParameterByConvention_2989(param)
+				isOptionalParam = this_.priv_FunctionTypeBuilder_isOptionalParameterByConvention_2988(param)
 				paramLhs = param
 			}
 			var paramName string = j2gort.NullString
@@ -696,7 +770,7 @@ func (this_ *FunctionTypeBuilder) InferParameterTypes_2(paramsParent pkg_rhino.N
 			}
 			warnedAboutArgList = func() bool {
 				ba_11 := warnedAboutArgList
-				bb_12 := this_.priv_FunctionTypeBuilder_addParameter_2990(builder, parameterType, warnedAboutArgList, isOptionalParam, isVarArgs)
+				bb_12 := this_.priv_FunctionTypeBuilder_addParameter_2992(builder, parameterType, warnedAboutArgList, isOptionalParam, isVarArgs)
 				return ba_11 || bb_12
 			}()
 			if oldParamIdx < oldParamLen {
@@ -738,7 +812,7 @@ func (this_ *FunctionTypeBuilder) InferParameterTypes_2(paramsParent pkg_rhino.N
 						matched = matchedJsDocParamsExtra[i]
 					}
 					if !(matched) {
-						this_.priv_FunctionTypeBuilder_reportWarning_2997(StaticGet_FunctionTypeBuilder_INEXISTENT_PARAM(), []string{info.GetParameterNameAt(i), this_.FormatFnName()})
+						this_.priv_FunctionTypeBuilder_reportWarning_2999(StaticGet_FunctionTypeBuilder_INEXISTENT_PARAM(), []string{info.GetParameterNameAt(i), this_.FormatFnName()})
 					}
 				}
 			}
@@ -749,7 +823,7 @@ func (this_ *FunctionTypeBuilder) InferParameterTypes_2(paramsParent pkg_rhino.N
 }
 
 // Java method: FunctionTypeBuilder.registerTemplates(java.lang.Iterable<com.google.javascript.rhino.jstype.TemplateType> templates, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node scopeRoot)
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_registerTemplates_2980(templates j2gort.Ext_java_lang_Iterable, scopeRoot pkg_rhino.Node) {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_registerTemplates_2982(templates j2gort.Ext_java_lang_Iterable, scopeRoot pkg_rhino.Node) {
 	_ = templates
 	_ = scopeRoot
 	if !(j2gort.Ext_com_google_common_collect_Iterables_IsEmpty(templates)) {
@@ -761,7 +835,7 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_registerTemplates_298
 }
 
 // Java method: FunctionTypeBuilder.registerTemplatesWithOwner(com.google.common.collect.ImmutableList<com.google.javascript.rhino.jstype.TemplateType> templates, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable TemplateTypeMap ownerMap, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node scopeRoot)
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_registerTemplatesWithOwner_2981(templates j2gort.Ext_com_google_common_collect_ImmutableList, ownerMap *pkg_rhino.TemplateTypeMap, scopeRoot pkg_rhino.Node) {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_registerTemplatesWithOwner_2983(templates j2gort.Ext_com_google_common_collect_ImmutableList, ownerMap *pkg_rhino.TemplateTypeMap, scopeRoot pkg_rhino.Node) {
 	_ = templates
 	_ = ownerMap
 	_ = scopeRoot
@@ -793,7 +867,7 @@ func (this_ *FunctionTypeBuilder) InferConstructorParameters(argsParent pkg_rhin
 	_ = argsParent
 	_ = info
 	if info != nil {
-		this_.priv_FunctionTypeBuilder_setConstructorTemplateTypeNames_2985(j2gort.AsIface[j2gort.Ext_java_util_List](this_.priv_FunctionTypeBuilder_buildTemplateTypesFromJSDocInfo_2988(info, true)), argsParent.GetParent())
+		this_.priv_FunctionTypeBuilder_setConstructorTemplateTypeNames_2987(j2gort.AsIface[j2gort.Ext_java_util_List](this_.priv_FunctionTypeBuilder_buildTemplateTypesFromJSDocInfo_2990(info, true)), argsParent.GetParent())
 	}
 	this_.InferParameterTypes_2(argsParent, info)
 	return this_
@@ -816,7 +890,7 @@ func (this_ *FunctionTypeBuilder) InferClosurePrimitive(info *pkg_rhino.JSDocInf
 }
 
 // Java method: FunctionTypeBuilder.setConstructorTemplateTypeNames(java.util.List<com.google.javascript.rhino.jstype.TemplateType> templates, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node ctor)
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_setConstructorTemplateTypeNames_2985(templates j2gort.Ext_java_util_List, ctor pkg_rhino.Node) {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_setConstructorTemplateTypeNames_2987(templates j2gort.Ext_java_util_List, ctor pkg_rhino.Node) {
 	_ = templates
 	_ = ctor
 	if !(templates.IsEmpty()) {
@@ -826,12 +900,12 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_setConstructorTemplat
 		} else {
 			this_.templateTypeNames = (&j2gort.Ext_com_google_common_collect_ImmutableList_Builder{}).AddAllSelf_(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.templateTypeNames)).AddAllSelf_(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.constructorTemplateTypeNames)).BuildImmList_()
 		}
-		this_.priv_FunctionTypeBuilder_registerTemplates_2980(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](templates), ctor)
+		this_.priv_FunctionTypeBuilder_registerTemplates_2982(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](templates), ctor)
 	}
 }
 
 // Java method: FunctionTypeBuilder.isOptionalParameterByConvention(com.google.javascript.rhino.Node param)
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_isOptionalParameterByConvention_2986(param pkg_rhino.Node) bool {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_isOptionalParameterByConvention_2988(param pkg_rhino.Node) bool {
 	_ = param
 	if param.IsDestructuringPattern() {
 		return false
@@ -840,7 +914,7 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_isOptionalParameterBy
 }
 
 // Java method: FunctionTypeBuilder.isVarArgsParameterByConvention(com.google.javascript.rhino.Node param)
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_isVarArgsParameterByConvention_2987(param pkg_rhino.Node) bool {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_isVarArgsParameterByConvention_2989(param pkg_rhino.Node) bool {
 	_ = param
 	if param.IsDestructuringPattern() {
 		return false
@@ -849,7 +923,7 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_isVarArgsParameterByC
 }
 
 // Java method: FunctionTypeBuilder.buildTemplateTypesFromJSDocInfo(com.google.javascript.rhino.JSDocInfo info, boolean allowTypeTransformations)
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_buildTemplateTypesFromJSDocInfo_2988(info *pkg_rhino.JSDocInfo, allowTypeTransformations bool) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_buildTemplateTypesFromJSDocInfo_2990(info *pkg_rhino.JSDocInfo, allowTypeTransformations bool) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = info
 	_ = allowTypeTransformations
 	var infoTypeKeys j2gort.Ext_com_google_common_collect_ImmutableMap = info.GetTemplateTypes()
@@ -882,9 +956,9 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_buildTemplateTypesFro
 			var typeBound pkg_rhino.JSType = this_.typeRegistry.EvaluateTypeExpression(j2gort.Cast[pkg_rhino.JSTypeExpression](cur_18.GetValue()), this_.templateScope)
 			_ = typeBound
 			if expr.IsExplicitUnknownTemplateBound() {
-				this_.priv_FunctionTypeBuilder_reportError_2998(StaticGet_FunctionTypeBuilder_TEMPLATE_TYPE_ILLEGAL_BOUND(), []string{j2gort.StrVal(typeBound), cur_18.KeyStr()})
+				this_.priv_FunctionTypeBuilder_reportError_3000(StaticGet_FunctionTypeBuilder_TEMPLATE_TYPE_ILLEGAL_BOUND(), []string{j2gort.StrVal(typeBound), cur_18.KeyStr()})
 			}
-			var template *pkg_rhino.TemplateType = this_.typeRegistry.GetType_2(j2gort.AsIface[pkg_rhino.StaticScope](this_.templateScope), cur_18.KeyStr()).ToMaybeTemplateType()
+			var template *pkg_rhino.TemplateType = this_.typeRegistry.GetType_2(pkg_rhino.Upcast_StaticScope(this_.templateScope), cur_18.KeyStr()).ToMaybeTemplateType()
 			_ = template
 			if template != nil {
 				templatesToBounds.Put(template, typeBound)
@@ -910,7 +984,7 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_buildTemplateTypesFro
 			if allowTypeTransformations {
 				templates = append(templates, j2gort.CheckNotNullElem(this_.typeRegistry.CreateTemplateTypeWithTransformation(cur_20.KeyStr(), j2gort.CastNode[pkg_rhino.Node](cur_20.GetValue()))))
 			} else {
-				this_.priv_FunctionTypeBuilder_reportWarning_2997(StaticGet_FunctionTypeBuilder_TEMPLATE_TRANSFORMATION_ON_CLASS(), []string{cur_20.KeyStr()})
+				this_.priv_FunctionTypeBuilder_reportWarning_2999(StaticGet_FunctionTypeBuilder_TEMPLATE_TRANSFORMATION_ON_CLASS(), []string{cur_20.KeyStr()})
 			}
 		}
 	}
@@ -922,7 +996,7 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_buildTemplateTypesFro
 
 			_ = template_3
 			if template_3.ContainsCycle() {
-				this_.priv_FunctionTypeBuilder_reportError_2998(StaticGet_RhinoErrorReporter_CYCLIC_INHERITANCE_ERROR(), []string{("Cycle detected in inheritance chain of type " + j2gort.StrValString(template_3.GetReferenceName()))})
+				this_.priv_FunctionTypeBuilder_reportError_3000(StaticGet_RhinoErrorReporter_CYCLIC_INHERITANCE_ERROR(), []string{("Cycle detected in inheritance chain of type " + j2gort.StrValString(template_3.GetReferenceName()))})
 			}
 		}
 	}
@@ -933,8 +1007,8 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_buildTemplateTypesFro
 func (this_ *FunctionTypeBuilder) InferTemplateTypeName(info *pkg_rhino.JSDocInfo, ownerType pkg_rhino.JSType) *FunctionTypeBuilder {
 	_ = info
 	_ = ownerType
-	if (info != nil) && !(this_.priv_FunctionTypeBuilder_maybeUseNativeClassTemplateNames_2974(info)) {
-		var templates j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_FunctionTypeBuilder_buildTemplateTypesFromJSDocInfo_2988(info, !(this_.isConstructor || this_.isInterface))
+	if (info != nil) && !(this_.priv_FunctionTypeBuilder_maybeUseNativeClassTemplateNames_2976(info)) {
+		var templates j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_FunctionTypeBuilder_buildTemplateTypesFromJSDocInfo_2990(info, !(this_.isConstructor || this_.isInterface))
 		_ = templates
 		if !(templates.IsEmpty()) {
 			this_.templateTypeNames = templates
@@ -948,13 +1022,13 @@ func (this_ *FunctionTypeBuilder) InferTemplateTypeName(info *pkg_rhino.JSDocInf
 		ownerTypeMap = nil
 	}
 	if !(this_.templateTypeNames.IsEmpty()) || ((ownerTypeMap != nil) && !(ownerTypeMap.IsEmpty())) {
-		this_.priv_FunctionTypeBuilder_registerTemplatesWithOwner_2981(this_.templateTypeNames, ownerTypeMap, this_.contents.GetSourceNode())
+		this_.priv_FunctionTypeBuilder_registerTemplatesWithOwner_2983(this_.templateTypeNames, ownerTypeMap, this_.contentsSourceNode)
 	}
 	return this_
 }
 
 // Java method: FunctionTypeBuilder.addParameter(com.google.javascript.rhino.jstype.FunctionParamBuilder builder, com.google.javascript.rhino.jstype.JSType paramType, boolean warnedAboutArgList, boolean isOptional, boolean isVarArgs)
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_addParameter_2990(builder *pkg_rhino.FunctionParamBuilder, paramType pkg_rhino.JSType, warnedAboutArgList bool, isOptional bool, isVarArgs bool) bool {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_addParameter_2992(builder *pkg_rhino.FunctionParamBuilder, paramType pkg_rhino.JSType, warnedAboutArgList bool, isOptional bool, isVarArgs bool) bool {
 	_ = builder
 	_ = paramType
 	_ = warnedAboutArgList
@@ -963,21 +1037,21 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_addParameter_2990(bui
 	var emittedWarning bool = false
 	_ = emittedWarning
 	if isOptional {
-		if !(builder.AddOptionalParams([]pkg_rhino.JSType{paramType})) && !(warnedAboutArgList) {
-			this_.priv_FunctionTypeBuilder_reportWarning_2997(StaticGet_FunctionTypeBuilder_VAR_ARGS_MUST_BE_LAST(), []string{})
+		if !(builder.AddOptionalParam(paramType)) && !(warnedAboutArgList) {
+			this_.priv_FunctionTypeBuilder_reportWarning_2999(StaticGet_FunctionTypeBuilder_VAR_ARGS_MUST_BE_LAST(), []string{})
 			emittedWarning = true
 		}
 	} else if isVarArgs {
 		if !(builder.AddVarArgs(paramType)) && !(warnedAboutArgList) {
-			this_.priv_FunctionTypeBuilder_reportWarning_2997(StaticGet_FunctionTypeBuilder_VAR_ARGS_MUST_BE_LAST(), []string{})
+			this_.priv_FunctionTypeBuilder_reportWarning_2999(StaticGet_FunctionTypeBuilder_VAR_ARGS_MUST_BE_LAST(), []string{})
 			emittedWarning = true
 		}
 	} else {
-		if !(builder.AddRequiredParams([]pkg_rhino.JSType{paramType})) && !(warnedAboutArgList) {
+		if !(builder.AddRequiredParam(paramType)) && !(warnedAboutArgList) {
 			if builder.HasVarArgs() {
-				this_.priv_FunctionTypeBuilder_reportWarning_2997(StaticGet_FunctionTypeBuilder_VAR_ARGS_MUST_BE_LAST(), []string{})
+				this_.priv_FunctionTypeBuilder_reportWarning_2999(StaticGet_FunctionTypeBuilder_VAR_ARGS_MUST_BE_LAST(), []string{})
 			} else {
-				this_.priv_FunctionTypeBuilder_reportWarning_2997(StaticGet_FunctionTypeBuilder_OPTIONAL_ARG_AT_END(), []string{})
+				this_.priv_FunctionTypeBuilder_reportWarning_2999(StaticGet_FunctionTypeBuilder_OPTIONAL_ARG_AT_END(), []string{})
 			}
 			emittedWarning = true
 		}
@@ -985,14 +1059,25 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_addParameter_2990(bui
 	return emittedWarning
 }
 
+// Java static method: FunctionTypeBuilder.mayHaveSingleThrow(com.google.javascript.rhino.Node n)
+func FunctionTypeBuilder_MayHaveSingleThrow(n pkg_rhino.Node) bool {
+	clinit_FunctionTypeBuilder()
+	_ = n
+	var block pkg_rhino.Node = n.GetLastChild()
+	_ = block
+	return (block.HasOneChild() && block.GetFirstChild().IsThrow())
+}
+
 // Java method: FunctionTypeBuilder.provideDefaultReturnType()
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_provideDefaultReturnType_2991() {
-	if (this_.contents.GetSourceNode() != 0) && this_.contents.GetSourceNode().IsAsyncGeneratorFunction() {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_provideDefaultReturnType_2993() {
+	var srcNode pkg_rhino.Node = this_.contentsSourceNode
+	_ = srcNode
+	if (srcNode != 0) && srcNode.IsAsyncGeneratorFunction() {
 		var generatorType pkg_rhino.ObjectType = this_.typeRegistry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_ASYNC_GENERATOR_TYPE())
 		_ = generatorType
 		this_.returnType = pkg_rhino.ToIface_JSType(this_.typeRegistry.CreateTemplatizedType_2_ObjectType_JSType(generatorType, []pkg_rhino.JSType{this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())}))
 		return
-	} else if (this_.contents.GetSourceNode() != 0) && this_.contents.GetSourceNode().IsGeneratorFunction() {
+	} else if (srcNode != 0) && srcNode.IsGeneratorFunction() {
 		var generatorType_2 pkg_rhino.ObjectType = this_.typeRegistry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_GENERATOR_TYPE())
 		_ = generatorType_2
 		this_.returnType = pkg_rhino.ToIface_JSType(this_.typeRegistry.CreateTemplatizedType_2_ObjectType_JSType(generatorType_2, []pkg_rhino.JSType{this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())}))
@@ -1000,11 +1085,11 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_provideDefaultReturnT
 	}
 	var inferredReturnType pkg_rhino.JSType = this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	_ = inferredReturnType
-	if (!(this_.contents.MayHaveNonEmptyReturns()) && !(this_.contents.MayHaveSingleThrow())) && !(this_.contents.MayBeFromExterns()) {
+	if (((srcNode != 0) && !(this_.contentsHasNonEmptyReturns)) && !(FunctionTypeBuilder_MayHaveSingleThrow(srcNode))) && !(srcNode.IsFromExterns()) {
 		inferredReturnType = this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 		this_.returnTypeInferred = true
 	}
-	if (this_.contents.GetSourceNode() != 0) && this_.contents.GetSourceNode().IsAsyncFunction() {
+	if (srcNode != 0) && srcNode.IsAsyncFunction() {
 		var promiseType pkg_rhino.ObjectType = this_.typeRegistry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_PROMISE_TYPE())
 		_ = promiseType
 		this_.returnType = pkg_rhino.ToIface_JSType(this_.typeRegistry.CreateTemplatizedType_2_ObjectType_JSType(promiseType, []pkg_rhino.JSType{inferredReturnType}))
@@ -1016,7 +1101,7 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_provideDefaultReturnT
 // Java method: FunctionTypeBuilder.buildAndRegister()
 func (this_ *FunctionTypeBuilder) BuildAndRegister() *pkg_rhino.FunctionType {
 	if this_.returnType == nil || this_.returnType.IsJavaNil_() {
-		this_.priv_FunctionTypeBuilder_provideDefaultReturnType_2991()
+		this_.priv_FunctionTypeBuilder_provideDefaultReturnType_2993()
 		j2gort.CheckNotNullIface(this_.returnType)
 	}
 	if this_.parameters == nil {
@@ -1025,19 +1110,12 @@ func (this_ *FunctionTypeBuilder) BuildAndRegister() *pkg_rhino.FunctionType {
 	var fnType *pkg_rhino.FunctionType = nil
 	_ = fnType
 	if this_.isConstructor {
-		fnType = this_.priv_FunctionTypeBuilder_getOrCreateConstructor_2995()
+		fnType = this_.priv_FunctionTypeBuilder_getOrCreateConstructor_2997()
 	} else if this_.isInterface {
-		fnType = this_.priv_FunctionTypeBuilder_getOrCreateInterface_2996()
+		fnType = this_.priv_FunctionTypeBuilder_getOrCreateInterface_2998()
 	} else {
-		var fb_ pkg_rhino.FunctionType_Builder
-		this_.priv_FunctionTypeBuilder_createDefaultBuilder_2994(&fb_)
-		(&fb_).WithParameterArray(this_.parameters)
-		(&fb_).WithReturnType_2(this_.returnType, this_.returnTypeInferred)
-		(&fb_).WithTypeOfThis(this_.thisType)
-		(&fb_).WithIsAbstract(this_.isAbstract)
-		(&fb_).WithClosurePrimitiveId(this_.closurePrimitiveId)
-		fnType = j2gort.CastPtr[pkg_rhino.FunctionType]((&fb_).Build())
-		this_.priv_FunctionTypeBuilder_maybeSetBaseType_2993(fnType)
+		fnType = j2gort.CastPtr[pkg_rhino.FunctionType](this_.priv_FunctionTypeBuilder_createDefaultBuilder_2996().WithParameterArray(this_.parameters).WithReturnType_2(this_.returnType, this_.returnTypeInferred).WithTypeOfThis(this_.thisType).WithIsAbstract(this_.isAbstract).WithClosurePrimitiveId(this_.closurePrimitiveId).Build())
+		this_.priv_FunctionTypeBuilder_maybeSetBaseType_2995(fnType)
 	}
 	if (this_.implementedInterfaces != nil) && fnType.IsConstructor() {
 		fnType.SetImplementedInterfaces(this_.implementedInterfaces)
@@ -1052,35 +1130,23 @@ func (this_ *FunctionTypeBuilder) BuildAndRegister() *pkg_rhino.FunctionType {
 }
 
 // Java method: FunctionTypeBuilder.maybeSetBaseType(com.google.javascript.rhino.jstype.FunctionType fnType)
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_maybeSetBaseType_2993(fnType *pkg_rhino.FunctionType) {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_maybeSetBaseType_2995(fnType *pkg_rhino.FunctionType) {
 	_ = fnType
 	if !(fnType.HasInstanceType()) || (this_.baseType == nil || this_.baseType.IsJavaNil_()) {
 		return
 	}
 	fnType.SetPrototypeBasedOn_1(this_.baseType)
-	fnType.GetInstanceType().MergeSupertypeTemplateTypes(this_.baseType)
+	fnType.GetInstanceType().GetObjectTypeBase().MergeSupertypeTemplateTypes(this_.baseType)
 }
 
 // Java method: FunctionTypeBuilder.createDefaultBuilder()
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_createDefaultBuilder_2994(fb_ *pkg_rhino.FunctionType_Builder) {
-	pkg_rhino.InitFunctionType_Builder(fb_, this_.typeRegistry)
-	fb_.WithName(this_.fnName)
-	fb_.WithSourceNode(this_.contents.GetSourceNode())
-	fb_.WithTemplateKeys_1_Ext_com_google_common_collect_ImmutableList(this_.templateTypeNames)
-	fb_.SetIsKnownAmbiguous(this_.isKnownAmbiguous)
-	fb_.SetGoogModuleId(TypedScopeCreator_ContainingGoogModuleIdOf(this_.declarationScope))
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_createDefaultBuilder_2996() *pkg_rhino.FunctionType_Builder {
+	return this_.reusableFnBuilder.Reset().WithName(this_.fnName).WithSourceNode(this_.contentsSourceNode).WithTemplateKeys_1_Ext_com_google_common_collect_ImmutableList(this_.templateTypeNames).SetIsKnownAmbiguous(this_.isKnownAmbiguous).SetGoogModuleId(TypedScopeCreator_ContainingGoogModuleIdOf(this_.declarationScope))
 }
 
 // Java method: FunctionTypeBuilder.getOrCreateConstructor()
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_getOrCreateConstructor_2995() *pkg_rhino.FunctionType {
-	var fb_ pkg_rhino.FunctionType_Builder
-	this_.priv_FunctionTypeBuilder_createDefaultBuilder_2994(&fb_)
-	(&fb_).ForConstructor()
-	(&fb_).WithParameterArray(this_.parameters)
-	(&fb_).WithReturnType_1(this_.returnType)
-	(&fb_).WithConstructorTemplateKeys(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.constructorTemplateTypeNames))
-	(&fb_).WithIsAbstract(this_.isAbstract)
-	var fnType *pkg_rhino.FunctionType = j2gort.CastPtr[pkg_rhino.FunctionType]((&fb_).Build())
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_getOrCreateConstructor_2997() *pkg_rhino.FunctionType {
+	var fnType *pkg_rhino.FunctionType = j2gort.CastPtr[pkg_rhino.FunctionType](this_.priv_FunctionTypeBuilder_createDefaultBuilder_2996().ForConstructor().WithParameterArray(this_.parameters).WithReturnType_1(this_.returnType).WithConstructorTemplateKeys(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.constructorTemplateTypeNames)).WithIsAbstract(this_.isAbstract).Build())
 	_ = fnType
 	if this_.makesStructs {
 		fnType.SetStruct()
@@ -1098,67 +1164,63 @@ func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_getOrCreateConstructo
 			var existingFn *pkg_rhino.FunctionType
 			_ = existingFn
 			if isInstanceObject {
-				existingFn = existingType.ToObjectType().GetConstructor()
+				existingFn = existingType.GetJSTypeBase().ToObjectType().GetConstructor()
 			} else {
 				existingFn = this_.typeRegistry.GetNativeFunctionType(pkg_rhino.StaticGet_JSTypeNative_FUNCTION_FUNCTION_TYPE())
 			}
 			if existingFn.GetSource() == 0 {
-				existingFn.SetSource(this_.contents.GetSourceNode())
+				existingFn.SetSource(this_.contentsSourceNode)
 			}
 			if !(existingFn.HasEqualCallType(fnType)) {
-				this_.priv_FunctionTypeBuilder_reportWarning_2997(StaticGet_FunctionTypeBuilder_TYPE_REDEFINITION(), []string{this_.FormatFnName(), fnType.String(), existingFn.String()})
+				this_.priv_FunctionTypeBuilder_reportWarning_2999(StaticGet_FunctionTypeBuilder_TYPE_REDEFINITION(), []string{this_.FormatFnName(), fnType.String(), existingFn.String()})
 			}
 			return existingFn
 		} else {
 		}
 	}
-	this_.priv_FunctionTypeBuilder_maybeSetBaseType_2993(fnType)
+	this_.priv_FunctionTypeBuilder_maybeSetBaseType_2995(fnType)
 	if !(j2gort.CheckNotNullString(this_.syntacticFnName) == "") && !(javalang.StringStartsWith(j2gort.CheckNotNullString(this_.syntacticFnName), "this.")) {
-		this_.typeRegistry.DeclareTypeForExactScope(pkg_rhino.ToIface_StaticScope(this_.declarationScope), this_.syntacticFnName, j2gort.AsIface[pkg_rhino.JSType](fnType.GetInstanceType()))
+		this_.typeRegistry.DeclareTypeForExactScope(pkg_rhino.ToIface_StaticScope(this_.declarationScope), this_.syntacticFnName, pkg_rhino.Upcast_JSType(fnType.GetInstanceType()))
 	}
 	return fnType
 }
 
 // Java method: FunctionTypeBuilder.getOrCreateInterface()
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_getOrCreateInterface_2996() *pkg_rhino.FunctionType {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_getOrCreateInterface_2998() *pkg_rhino.FunctionType {
 	var fnType *pkg_rhino.FunctionType = nil
 	_ = fnType
 	var type_ pkg_rhino.JSType = this_.typeRegistry.GetType_2(pkg_rhino.ToIface_StaticScope(this_.declarationScope), this_.syntacticFnName)
 	_ = type_
 	if (type_ != nil && !type_.IsJavaNil_()) && type_.IsInstanceType() {
-		var ctor *pkg_rhino.FunctionType = type_.ToMaybeObjectType().GetConstructor()
+		var ctor *pkg_rhino.FunctionType = type_.GetJSTypeBase().ToMaybeObjectType().GetConstructor()
 		_ = ctor
 		if ctor.IsInterface() {
 			fnType = ctor
-			fnType.SetSource(this_.contents.GetSourceNode())
+			fnType.SetSource(this_.contentsSourceNode)
 		}
 	}
 	if fnType == nil {
-		var fb_ pkg_rhino.FunctionType_Builder
-		this_.priv_FunctionTypeBuilder_createDefaultBuilder_2994(&fb_)
-		(&fb_).ForInterface()
-		(&fb_).WithParameters_0()
-		fnType = j2gort.CastPtr[pkg_rhino.FunctionType]((&fb_).Build())
+		fnType = j2gort.CastPtr[pkg_rhino.FunctionType](this_.priv_FunctionTypeBuilder_createDefaultBuilder_2996().ForInterface().WithParameters_0().Build())
 		if this_.makesStructs {
 			fnType.SetStruct()
 		}
 		if !(j2gort.CheckNotNullString(this_.fnName) == "") {
-			this_.typeRegistry.DeclareTypeForExactScope(pkg_rhino.ToIface_StaticScope(this_.declarationScope), this_.syntacticFnName, j2gort.AsIface[pkg_rhino.JSType](fnType.GetInstanceType()))
+			this_.typeRegistry.DeclareTypeForExactScope(pkg_rhino.ToIface_StaticScope(this_.declarationScope), this_.syntacticFnName, pkg_rhino.Upcast_JSType(fnType.GetInstanceType()))
 		}
-		this_.priv_FunctionTypeBuilder_maybeSetBaseType_2993(fnType)
+		this_.priv_FunctionTypeBuilder_maybeSetBaseType_2995(fnType)
 	}
 	return fnType
 }
 
 // Java method: FunctionTypeBuilder.reportWarning(com.google.javascript.jscomp.DiagnosticType warning, java.lang.String[] args)
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_reportWarning_2997(warning *DiagnosticType, args []string) {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_reportWarning_2999(warning *DiagnosticType, args []string) {
 	_ = warning
 	_ = args
 	this_.compiler.Report_1(JSError_Make_3(this_.errorRoot, warning, args))
 }
 
 // Java method: FunctionTypeBuilder.reportError(com.google.javascript.jscomp.DiagnosticType error, java.lang.String[] args)
-func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_reportError_2998(error_ *DiagnosticType, args []string) {
+func (this_ *FunctionTypeBuilder) priv_FunctionTypeBuilder_reportError_3000(error_ *DiagnosticType, args []string) {
 	_ = error_
 	_ = args
 	this_.compiler.Report_1(JSError_Make_3(this_.errorRoot, error_, args))
@@ -1175,7 +1237,7 @@ func FunctionTypeBuilder_IsFunctionTypeDeclaration(info *pkg_rhino.JSDocInfo) bo
 func FunctionTypeBuilder_HasMoreTagsToResolve(objectType pkg_rhino.ObjectType) bool {
 	clinit_FunctionTypeBuilder()
 	_ = objectType
-	if !(objectType.IsUnknownType()) {
+	if !(objectType.GetObjectTypeBase().IsUnknownType()) {
 		j2gort.CheckArgument(false)
 	}
 	var ctor *pkg_rhino.FunctionType = objectType.GetConstructor()
@@ -1187,14 +1249,14 @@ func FunctionTypeBuilder_HasMoreTagsToResolve(objectType pkg_rhino.ObjectType) b
 				rawElem_24 := cur_23.Next()
 				interfaceType := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_24)
 				_ = interfaceType
-				if !(interfaceType.IsResolved()) {
+				if !(interfaceType.GetObjectTypeBase().IsResolved()) {
 					return true
 				}
 			}
 		}
 	}
 	if !(j2gort.IfaceEquals[pkg_rhino.ObjectType](objectType.GetImplicitPrototype(), nil)) {
-		return !(objectType.GetImplicitPrototype().IsResolved())
+		return !(objectType.GetImplicitPrototype().GetObjectTypeBase().IsResolved())
 	}
 	return false
 }
@@ -1218,6 +1280,14 @@ func ToIface_FunctionTypeBuilder_ValidatorBase[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_FunctionTypeBuilder_ValidatorBase[T FunctionTypeBuilder_ValidatorBase](v T) FunctionTypeBuilder_ValidatorBase {
+	var vi FunctionTypeBuilder_ValidatorBase = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.FunctionTypeBuilder.ValidatorBase
@@ -1354,15 +1424,16 @@ func (this_ *FunctionTypeBuilder_ExtendedTypeValidator) Apply(arg_25 any) bool {
 	var objectType pkg_rhino.ObjectType = pkg_rhino.ObjectType_Cast(type_)
 	_ = objectType
 	if objectType == nil || objectType.IsJavaNil_() {
-		this_.ReportWarning(StaticGet_FunctionTypeBuilder_EXTENDS_NON_OBJECT(), []string{this_.formattedFnName, type_.String()})
+		this_.ReportWarning(StaticGet_FunctionTypeBuilder_EXTENDS_NON_OBJECT(), []string{this_.formattedFnName, type_.GetJSTypeBase().String()})
 		return false
 	}
-	if objectType.IsEmptyType() {
+	base_objectType_ := objectType.GetObjectTypeBase()
+	if base_objectType_.IsEmptyType() {
 		this_.ReportWarning(StaticGet_FunctionTypeBuilder_RESOLVED_TAG_EMPTY(), []string{"@extends", this_.formattedFnName})
 		return false
 	}
-	if objectType.IsUnknownType() {
-		if FunctionTypeBuilder_HasMoreTagsToResolve(objectType) || type_.IsTemplateType() {
+	if base_objectType_.IsUnknownType() {
+		if FunctionTypeBuilder_HasMoreTagsToResolve(objectType) || type_.GetJSTypeBase().IsTemplateType() {
 			return true
 		} else {
 			this_.ReportWarning(StaticGet_FunctionTypeBuilder_RESOLVED_TAG_EMPTY(), []string{"@extends", this_.formattedFnName})
@@ -1436,10 +1507,10 @@ func (this_ *FunctionTypeBuilder_ImplementedTypeValidator) Apply(arg_26 any) boo
 	if objectType == nil || objectType.IsJavaNil_() {
 		this_.ReportError(StaticGet_TypeCheck_BAD_IMPLEMENTED_TYPE(), []string{this_.formattedFnName})
 		return false
-	} else if objectType.IsEmptyType() {
+	} else if objectType.GetObjectTypeBase().IsEmptyType() {
 		this_.ReportWarning(StaticGet_FunctionTypeBuilder_RESOLVED_TAG_EMPTY(), []string{"@implements", this_.formattedFnName})
 		return false
-	} else if objectType.IsUnknownType() {
+	} else if objectType.GetObjectTypeBase().IsUnknownType() {
 		if FunctionTypeBuilder_HasMoreTagsToResolve(objectType) {
 			return true
 		} else {
@@ -1449,209 +1520,4 @@ func (this_ *FunctionTypeBuilder_ImplementedTypeValidator) Apply(arg_26 any) boo
 	} else {
 		return true
 	}
-}
-
-// Java interface: com.google.javascript.jscomp.FunctionTypeBuilder.FunctionContents
-type FunctionTypeBuilder_FunctionContents interface {
-	Implements_jscomp_FunctionTypeBuilder_FunctionContents()
-	IsJavaNil_() bool
-	GetSourceNode() pkg_rhino.Node
-	MayBeFromExterns() bool
-	MayHaveNonEmptyReturns() bool
-	MayHaveSingleThrow() bool
-}
-
-func ToIface_FunctionTypeBuilder_FunctionContents[T interface {
-	FunctionTypeBuilder_FunctionContents
-	comparable
-}](v T) FunctionTypeBuilder_FunctionContents {
-	var z T
-	if v == z {
-		return nil
-	}
-	return v
-}
-
-func init() {
-	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.FunctionTypeBuilder.FunctionContents", "com.google.javascript.jscomp.FunctionTypeBuilder$FunctionContents", func(v_ any) bool {
-		return j2gort.InstanceOf[FunctionTypeBuilder_FunctionContents](v_)
-	})
-}
-
-// Java class: com.google.javascript.jscomp.FunctionTypeBuilder.UnknownFunctionContents
-type FunctionTypeBuilder_UnknownFunctionContents struct {
-	idHash_ atomic.Int32
-}
-
-func (this_ *FunctionTypeBuilder_UnknownFunctionContents) BindSelf_(s any) {
-	_ = s
-}
-func (this_ *FunctionTypeBuilder_UnknownFunctionContents) IsJavaNil_() bool { return this_ == nil }
-func (*FunctionTypeBuilder_UnknownFunctionContents) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.jscomp.FunctionTypeBuilder$UnknownFunctionContents", "UnknownFunctionContents"
-}
-func (this_ *FunctionTypeBuilder_UnknownFunctionContents) IdentityHash_() int32 {
-	if this_ == nil {
-		return 0
-	}
-	if h := this_.idHash_.Load(); h != 0 {
-		return h
-	}
-	return j2gort.AssignIdentHash(&this_.idHash_)
-}
-func (*FunctionTypeBuilder_UnknownFunctionContents) HasIdentityEquals_() {}
-func init() {
-	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.FunctionTypeBuilder.UnknownFunctionContents", "com.google.javascript.jscomp.FunctionTypeBuilder$UnknownFunctionContents", func(v_ any) bool {
-		return j2gort.InstanceOf[*FunctionTypeBuilder_UnknownFunctionContents](v_)
-	})
-}
-func (*FunctionTypeBuilder_UnknownFunctionContents) Implements_jscomp_FunctionTypeBuilder_FunctionContents() {
-}
-
-var static_FunctionTypeBuilder_UnknownFunctionContents_singleton *FunctionTypeBuilder_UnknownFunctionContents
-
-func StaticGet_FunctionTypeBuilder_UnknownFunctionContents_Singleton() *FunctionTypeBuilder_UnknownFunctionContents {
-	clinit_FunctionTypeBuilder_UnknownFunctionContents()
-	return static_FunctionTypeBuilder_UnknownFunctionContents_singleton
-}
-func StaticSet_FunctionTypeBuilder_UnknownFunctionContents_Singleton(v *FunctionTypeBuilder_UnknownFunctionContents) {
-	clinit_FunctionTypeBuilder_UnknownFunctionContents()
-	static_FunctionTypeBuilder_UnknownFunctionContents_singleton = v
-}
-
-var clinitDone_FunctionTypeBuilder_UnknownFunctionContents uint32
-var clinitState_FunctionTypeBuilder_UnknownFunctionContents j2gort.ClinitState
-
-func clinit_FunctionTypeBuilder_UnknownFunctionContents() {
-	if atomic.LoadUint32(&clinitDone_FunctionTypeBuilder_UnknownFunctionContents) != 0 {
-		return
-	}
-	clinitSlow_FunctionTypeBuilder_UnknownFunctionContents()
-}
-
-func clinitSlow_FunctionTypeBuilder_UnknownFunctionContents() {
-	if !j2gort.EnterClinit(&clinitState_FunctionTypeBuilder_UnknownFunctionContents, &clinitDone_FunctionTypeBuilder_UnknownFunctionContents) {
-		return
-	}
-	defer j2gort.ExitClinit(&clinitState_FunctionTypeBuilder_UnknownFunctionContents, &clinitDone_FunctionTypeBuilder_UnknownFunctionContents)
-	static_FunctionTypeBuilder_UnknownFunctionContents_singleton = NewFunctionTypeBuilder_UnknownFunctionContents()
-}
-
-func (this_ *FunctionTypeBuilder_UnknownFunctionContents) initFields_FunctionTypeBuilder_UnknownFunctionContents() {
-	_ = this_
-}
-
-// Java constructor: UnknownFunctionContents()
-func NewFunctionTypeBuilder_UnknownFunctionContents() *FunctionTypeBuilder_UnknownFunctionContents {
-	clinit_FunctionTypeBuilder_UnknownFunctionContents()
-	this_ := &FunctionTypeBuilder_UnknownFunctionContents{}
-	InitFunctionTypeBuilder_UnknownFunctionContents(this_)
-	return this_
-}
-
-func InitFunctionTypeBuilder_UnknownFunctionContents(this_ *FunctionTypeBuilder_UnknownFunctionContents) {
-	this_.initFields_FunctionTypeBuilder_UnknownFunctionContents()
-}
-
-// Java static method: UnknownFunctionContents.get()
-func FunctionTypeBuilder_UnknownFunctionContents_Get() FunctionTypeBuilder_FunctionContents {
-	clinit_FunctionTypeBuilder_UnknownFunctionContents()
-	return ToIface_FunctionTypeBuilder_FunctionContents(StaticGet_FunctionTypeBuilder_UnknownFunctionContents_Singleton())
-}
-
-// Java method: UnknownFunctionContents.getSourceNode()
-func (this_ *FunctionTypeBuilder_UnknownFunctionContents) GetSourceNode() pkg_rhino.Node {
-	return pkg_rhino.Node(0)
-}
-
-// Java method: UnknownFunctionContents.mayBeFromExterns()
-func (this_ *FunctionTypeBuilder_UnknownFunctionContents) MayBeFromExterns() bool {
-	return true
-}
-
-// Java method: UnknownFunctionContents.mayHaveNonEmptyReturns()
-func (this_ *FunctionTypeBuilder_UnknownFunctionContents) MayHaveNonEmptyReturns() bool {
-	return true
-}
-
-// Java method: UnknownFunctionContents.mayHaveSingleThrow()
-func (this_ *FunctionTypeBuilder_UnknownFunctionContents) MayHaveSingleThrow() bool {
-	return true
-}
-
-// Java class: com.google.javascript.jscomp.FunctionTypeBuilder.AstFunctionContents
-type FunctionTypeBuilder_AstFunctionContents struct {
-	n                  pkg_rhino.Node `gson:"n"`
-	idHash_            atomic.Int32
-	hasNonEmptyReturns bool `gson:"hasNonEmptyReturns"`
-}
-
-func (this_ *FunctionTypeBuilder_AstFunctionContents) BindSelf_(s any) {
-	_ = s
-}
-func (this_ *FunctionTypeBuilder_AstFunctionContents) IsJavaNil_() bool { return this_ == nil }
-func (*FunctionTypeBuilder_AstFunctionContents) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.jscomp.FunctionTypeBuilder$AstFunctionContents", "AstFunctionContents"
-}
-func (this_ *FunctionTypeBuilder_AstFunctionContents) IdentityHash_() int32 {
-	if this_ == nil {
-		return 0
-	}
-	if h := this_.idHash_.Load(); h != 0 {
-		return h
-	}
-	return j2gort.AssignIdentHash(&this_.idHash_)
-}
-func (*FunctionTypeBuilder_AstFunctionContents) HasIdentityEquals_() {}
-func init() {
-	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.FunctionTypeBuilder.AstFunctionContents", "com.google.javascript.jscomp.FunctionTypeBuilder$AstFunctionContents", func(v_ any) bool {
-		return j2gort.InstanceOf[*FunctionTypeBuilder_AstFunctionContents](v_)
-	})
-}
-func (*FunctionTypeBuilder_AstFunctionContents) Implements_jscomp_FunctionTypeBuilder_FunctionContents() {
-}
-
-func (this_ *FunctionTypeBuilder_AstFunctionContents) initFields_FunctionTypeBuilder_AstFunctionContents() {
-	_ = this_
-
-}
-
-// Java constructor: AstFunctionContents(com.google.javascript.rhino.Node n)
-func NewFunctionTypeBuilder_AstFunctionContents(n pkg_rhino.Node) *FunctionTypeBuilder_AstFunctionContents {
-	this_ := &FunctionTypeBuilder_AstFunctionContents{}
-	InitFunctionTypeBuilder_AstFunctionContents(this_, n)
-	return this_
-}
-
-func InitFunctionTypeBuilder_AstFunctionContents(this_ *FunctionTypeBuilder_AstFunctionContents, n pkg_rhino.Node) {
-	_ = n
-	this_.initFields_FunctionTypeBuilder_AstFunctionContents()
-	this_.n = n
-}
-
-// Java method: AstFunctionContents.getSourceNode()
-func (this_ *FunctionTypeBuilder_AstFunctionContents) GetSourceNode() pkg_rhino.Node {
-	return this_.n
-}
-
-// Java method: AstFunctionContents.mayBeFromExterns()
-func (this_ *FunctionTypeBuilder_AstFunctionContents) MayBeFromExterns() bool {
-	return this_.n.IsFromExterns()
-}
-
-// Java method: AstFunctionContents.mayHaveNonEmptyReturns()
-func (this_ *FunctionTypeBuilder_AstFunctionContents) MayHaveNonEmptyReturns() bool {
-	return this_.hasNonEmptyReturns
-}
-
-// Java method: AstFunctionContents.recordNonEmptyReturn()
-func (this_ *FunctionTypeBuilder_AstFunctionContents) RecordNonEmptyReturn() {
-	this_.hasNonEmptyReturns = true
-}
-
-// Java method: AstFunctionContents.mayHaveSingleThrow()
-func (this_ *FunctionTypeBuilder_AstFunctionContents) MayHaveSingleThrow() bool {
-	var block pkg_rhino.Node = this_.n.GetLastChild()
-	_ = block
-	return (block.HasOneChild() && block.GetFirstChild().IsThrow())
 }

@@ -211,7 +211,7 @@ func (this_ *Property) HashCode() int32 {
 		if hi_1 == nil || hi_1.IsJavaNil_() {
 			return 0
 		}
-		return hi_1.HashCode()
+		return hi_1.GetJSTypeBase().HashCode()
 	}())
 }
 
@@ -341,6 +341,14 @@ func ToIface_Property_Key[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_Property_Key[T Property_Key](v T) Property_Key {
+	var vi Property_Key = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {
@@ -598,7 +606,7 @@ func (this_ *Property_OwnedProperty) GetValue() *Property {
 
 // Java method: OwnedProperty.getOwnerInstanceType()
 func (this_ *Property_OwnedProperty) GetOwnerInstanceType() ObjectType {
-	if this_.owner.IsFunctionPrototypeType() {
+	if this_.owner.GetObjectTypeBase().IsFunctionPrototypeType() {
 		return this_.owner.GetOwnerFunction().GetInstanceType()
 	} else {
 		return this_.owner
@@ -607,9 +615,9 @@ func (this_ *Property_OwnedProperty) GetOwnerInstanceType() ObjectType {
 
 // Java method: OwnedProperty.isOwnedByInterface()
 func (this_ *Property_OwnedProperty) IsOwnedByInterface() bool {
-	if this_.owner.IsFunctionPrototypeType() {
+	if this_.owner.GetObjectTypeBase().IsFunctionPrototypeType() {
 		return this_.owner.GetOwnerFunction().IsInterface()
 	} else {
-		return this_.owner.IsInterface()
+		return this_.owner.GetObjectTypeBase().IsInterface()
 	}
 }

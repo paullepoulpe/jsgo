@@ -41,6 +41,14 @@ func ToIface_GraphvizGraph[T interface {
 	return v
 }
 
+func Upcast_GraphvizGraph[T GraphvizGraph](v T) GraphvizGraph {
+	var vi GraphvizGraph = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.graph.GraphvizGraph", "com.google.javascript.jscomp.graph.GraphvizGraph", func(v_ any) bool {
 		return j2gort.InstanceOf[GraphvizGraph](v_)
@@ -63,6 +71,14 @@ func ToIface_GraphvizGraph_GraphvizNode[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_GraphvizGraph_GraphvizNode[T GraphvizGraph_GraphvizNode](v T) GraphvizGraph_GraphvizNode {
+	var vi GraphvizGraph_GraphvizNode = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {
@@ -88,6 +104,14 @@ func ToIface_GraphvizGraph_GraphvizEdge[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_GraphvizGraph_GraphvizEdge[T GraphvizGraph_GraphvizEdge](v T) GraphvizGraph_GraphvizEdge {
+	var vi GraphvizGraph_GraphvizEdge = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

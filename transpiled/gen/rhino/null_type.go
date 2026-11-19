@@ -49,14 +49,16 @@ func (this_ *NullType) BindSelf_(s any) {
 	this_.ValueTypeBase.BindSelf_(s)
 }
 func (this_ *NullType) IsJavaNil_() bool { return this_ == nil }
-func (*NullType) JavaClassInfo_() (string, string) { return "com.google.javascript.rhino.jstype.NullType", "NullType" }
+func (*NullType) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.rhino.jstype.NullType", "NullType"
+}
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.jstype.NullType", "com.google.javascript.rhino.jstype.NullType", func(v_ any) bool {
 		return j2gort.InstanceOf[*NullType](v_)
 	})
 }
 func (*NullType) Implements_rhino_ValueType() {}
-func (*NullType) Implements_rhino_JSType() {}
+func (*NullType) Implements_rhino_JSType()    {}
 
 func (this_ *NullType) initFields_NullType() {
 	_ = this_
@@ -116,13 +118,14 @@ func (this_ *NullType) TestForEquality(that JSType) pkg_base.Tri {
 	_ = that
 	var result pkg_base.Tri = this_.ValueTypeBase.TestForEquality(that)
 	_ = result
-	if ((result != 0)) {
+	if result != 0 {
 		return result
 	}
-	if ((that.IsNullType() || that.IsVoidType())) {
+	base_that_ := that.GetJSTypeBase()
+	if base_that_.IsNullType() || base_that_.IsVoidType() {
 		return pkg_base.StaticGet_Tri_TRUE()
 	}
-	if ((that.IsUnknownType() || that.IsNullable())) {
+	if base_that_.IsUnknownType() || that.IsNullable() {
 		return pkg_base.StaticGet_Tri_UNKNOWN()
 	}
 	return pkg_base.StaticGet_Tri_FALSE()
@@ -143,4 +146,3 @@ func (this_ *NullType) Visit_1(visitor Visitor) any {
 	_ = visitor
 	return visitor.CaseNullType()
 }
-

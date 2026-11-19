@@ -94,15 +94,15 @@ func CodePrinter_ToSource(root pkg_rhino.Node, outputFormat CodePrinter_Format, 
 	} else {
 		mcp = NewCodePrinter_PrettyCodePrinter(options.GetLineLengthThreshold(), gatherSourceMapInfo, options.GetSourceMapDetailLevel(), licenseTracker)
 	}
-	var cg CodeGenerator = codeGeneratorFactory.GetCodeGenerator(outputFormat, j2gort.AsIface[CodeConsumer](mcp))
+	var cg CodeGenerator = codeGeneratorFactory.GetCodeGenerator(outputFormat, Upcast_CodeConsumer(mcp))
 	_ = cg
 	if tagAsTypeSummary {
-		cg.TagAsTypeSummary()
+		cg.GetCodeGeneratorBase().TagAsTypeSummary()
 	}
 	if tagAsStrict {
-		cg.TagAsStrict()
+		cg.GetCodeGeneratorBase().TagAsStrict()
 	}
-	cg.Add_1_Node(root)
+	cg.GetCodeGeneratorBase().Add_1_Node(root)
 	mcp.EndFile()
 	var val_1 CodePrinter_SourceAndMappings
 	InitCodePrinter_SourceAndMappings(&val_1)
@@ -110,10 +110,10 @@ func CodePrinter_ToSource(root pkg_rhino.Node, outputFormat CodePrinter_Format, 
 	_ = result
 	{
 		r_2 := result
-		r_2.source = mcp.GetCode()
+		r_2.source = mcp.GetCodePrinter_MappedCodePrinterBase().GetCode()
 	}
 	if gatherSourceMapInfo {
-		mcp.FinishSourceMappings(result.source, result)
+		mcp.GetCodePrinter_MappedCodePrinterBase().FinishSourceMappings(result.source, result)
 	}
 	return result
 }
@@ -140,6 +140,14 @@ func ToIface_CodePrinter_MappedCodePrinter[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_CodePrinter_MappedCodePrinter[T CodePrinter_MappedCodePrinter](v T) CodePrinter_MappedCodePrinter {
+	var vi CodePrinter_MappedCodePrinter = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.CodePrinter.MappedCodePrinter
@@ -1137,6 +1145,14 @@ func ToIface_CodePrinter_LicenseTracker[T interface {
 	return v
 }
 
+func Upcast_CodePrinter_LicenseTracker[T CodePrinter_LicenseTracker](v T) CodePrinter_LicenseTracker {
+	var vi CodePrinter_LicenseTracker = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.CodePrinter.LicenseTracker", "com.google.javascript.jscomp.CodePrinter$LicenseTracker", func(v_ any) bool {
 		return j2gort.InstanceOf[CodePrinter_LicenseTracker](v_)
@@ -1310,6 +1326,14 @@ func ToIface_CodePrinter_Builder_CodeGeneratorFactory[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_CodePrinter_Builder_CodeGeneratorFactory[T CodePrinter_Builder_CodeGeneratorFactory](v T) CodePrinter_Builder_CodeGeneratorFactory {
+	var vi CodePrinter_Builder_CodeGeneratorFactory = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

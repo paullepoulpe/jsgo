@@ -91,7 +91,7 @@ func (this_ *ConvertTypesToColors) Process_2(externs pkg_rhino.Node, root pkg_rh
 	var externsAndJsRoot pkg_rhino.Node = root.GetParent()
 	_ = externsAndJsRoot
 	if !(this_.compiler.HasTypeCheckingRun()) {
-		NodeTraversal_Traverse(this_.compiler, externsAndJsRoot, j2gort.AsIface[NodeTraversal_Callback](NewConvertTypesToColors_RemoveTypes()))
+		NodeTraversal_Traverse(this_.compiler, externsAndJsRoot, Upcast_NodeTraversal_Callback(NewConvertTypesToColors_RemoveTypes()))
 		this_.compiler.ClearJSTypeRegistry()
 		this_.compiler.InitRuntimeLibraryTypedAsts(j2gort.Ext_com_google_common_base_Optional_Absent())
 		return
@@ -134,6 +134,14 @@ func ToIface_ConvertTypesToColors_RemoveTypes[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_ConvertTypesToColors_RemoveTypes[T ConvertTypesToColors_RemoveTypes](v T) ConvertTypesToColors_RemoveTypes {
+	var vi ConvertTypesToColors_RemoveTypes = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.serialization.ConvertTypesToColors.RemoveTypes

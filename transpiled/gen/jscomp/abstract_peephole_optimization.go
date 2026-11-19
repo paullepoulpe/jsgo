@@ -67,6 +67,14 @@ func ToIface_AbstractPeepholeOptimization[T interface {
 	return v
 }
 
+func Upcast_AbstractPeepholeOptimization[T AbstractPeepholeOptimization](v T) AbstractPeepholeOptimization {
+	var vi AbstractPeepholeOptimization = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.AbstractPeepholeOptimization
 type AbstractPeepholeOptimizationBase struct {
 	self_       AbstractPeepholeOptimization

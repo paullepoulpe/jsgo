@@ -42,21 +42,22 @@ type Node uint32
 // NilNode is the nil node handle.
 const NilNode Node = 0
 
-// NodeData is the pointer-free 36-byte in-memory representation of an AST node.
+// NodeData is the pointer-free 32-byte in-memory representation of an AST node.
 // Because it contains zero Go pointers, blocks of NodeData allocated in chunked
 // arrays are marked noscan by the Go runtime, eliminating GC traversal overhead.
+// At 32 bytes (exact half of a 64-byte L1D cache line), records never straddle
+// cache lines and block indexing uses a single << 5 shift.
 type NodeData struct {
 	Next         Node   // 0..3: next sibling (0 = none)
 	First        Node   // 4..7: first child (0 = none)
 	Token        uint8  // 8: AST token kind
 	KindFlags    uint8  // 9: bits 0..2 kind; bits 3..7 internal flags
-	Length16     uint16 // 10..11: 0..65534 inline; 0xFFFF = overflow in NodeStore.aux
+	SourceFile16 uint16 // 10..11: 0 = none, 1..65534 = inline StaticSourceFile handle, 0xFFFF = overflow
 	Parent       Node   // 12..15: parent node (0 = none)
 	Previous     Node   // 16..19: previous sibling (circular linked list)
 	Payload      uint32 // 20..23: kind-specific payload (StringID, numHandle, or inline ChangeTime/OrigName on plain kind=0 nodes)
-	SourceFile   uint32 // 24..27: 1-based StaticSourceFile handle (0 = none)
-	PropFlags    uint32 // 28..31: boolean & small-int property bitflags
-	LinenoCharno int32  // 32..35: line (high 20 bits) and column (low 12 bits)
+	PropFlags    uint32 // 24..27: boolean & small-int property bitflags
+	LinenoCharno int32  // 28..31: line (high 20 bits) and column (low 12 bits)
 }
 
 // IsNil reports whether n is the nil node (handle 0).
@@ -85,7 +86,7 @@ func (n Node) Equals(o any) bool {
 	return ok && m == n
 }
 
-// Rec returns a pointer to the 36-byte NodeData record in the arena.
+// Rec returns a pointer to the 32-byte NodeData record in the arena.
 // Record lookup requires two memory dereferences without mutexes; an unmapped
 // or nil handle faults on the nil *nodeBlock dereference (recovered as NPE).
 func (n Node) Rec() *NodeData {
@@ -210,62 +211,105 @@ func (n Node) SetLinenoCharno(lineno, charno int) {
 	rec.LinenoCharno = int32((lineno << 12) | charno)
 }
 
-// Length returns the source code character length (0..65534 inline in Length16, or from lenOverflowTop).
+// Length returns the source code character length (0..65534 in len16Top, or from lenOverflowTop).
 func (n Node) Length() int32 {
 	return getNodeLength(n, getLengthOverflowSlow)
 }
 
 func getNodeLength(n Node, slow func(Node) int32) int32 {
-	if blk := nodeBlocks[n>>blockShift].Load(); blk != nil {
-		if l16 := blk[n&blockMask].Length16; l16 != 0xFFFF {
-			return int32(l16)
-		}
-		return slow(n)
+	if l16 := len16Top[n>>len16TopShift].Load()[uint8(n>>len16PageShift)].Load()[n&len16PageMask]; l16 != 0xFFFF {
+		return int32(l16)
 	}
-	return 0
+	return slow(n)
 }
 
 //go:noinline
 func getLengthOverflowSlow(n Node) int32 {
-	return int32(lenOverflowTop[n>>lenOverflowTopShift].Load()[(n>>lenOverflowShift)&lenOverflowSubMask].Load()[n&lenOverflowMask])
+	if p := loadLenOverflowPage(uint32(n) >> lenOverflowShift); p != nil {
+		return int32(p[uint32(n)&lenOverflowMask])
+	}
+	return 0
 }
 
-// SetLength sets the source code character length (0..65534 inline in Length16, or in NodeStore.aux / lenOverflowPages).
+// SetLength sets the source code character length (0..65534 lazily in len16Top, or in lenOverflowTop / NodeStore.aux).
 func (n Node) SetLength(v int32) {
-	setNodeLength(n, v, setLengthOverflowSlow)
+	setNodeLength(n, v, setLengthSlow)
 }
 
 func setNodeLength(n Node, v int32, slow func(Node, int32)) {
-	if r := &nodeBlocks[n>>blockShift].Load()[n&blockMask]; uint32(v)|uint32(r.Length16) < 0xFFFF {
-		r.Length16 = uint16(v)
+	if p := &len16WriteTop[n>>len16TopShift].Load()[uint8(n>>len16PageShift)].Load()[n&len16PageMask]; uint32(v)|uint32(*p) < 0xFFFF {
+		*p = uint16(v)
 	} else {
 		slow(n, v)
 	}
 }
 
 //go:noinline
-func setLengthOverflowSlow(n Node, v int32) {
-	rec := n.Rec()
+func setLengthSlow(n Node, v int32) {
+	_ = n.Rec().Token
+	idx := uint32(n) >> len16PageShift
+	if v == 0 && loadLen16Page(idx) == &emptyLen16Page {
+		return
+	}
+	pg := ensureLen16Page(n, idx)
+	off := uint32(n) & len16PageMask
 	s := storeForNode(n)
 	if uint32(v) < 0xFFFF {
-		rec.Length16 = uint16(v)
-		setLenOverflow(n, 0)
-		s.setAuxLengthOverflow(uint32(n), 0)
+		if pg[off] == 0xFFFF {
+			setLenOverflow(n, 0)
+			s.setAuxLengthOverflow(uint32(n), 0)
+		}
+		pg[off] = uint16(v)
 		return
 	}
 	setLenOverflow(n, uint32(v))
 	s.setAuxLengthOverflow(uint32(n), v)
-	rec.Length16 = 0xFFFF
+	pg[off] = 0xFFFF
 }
 
-// SourceFile returns the source file identifier.
+// SourceFile returns the source file identifier (0..65534 inline in SourceFile16, or from sfOverflowTop).
 func (n Node) SourceFile() uint32 {
-	return n.Rec().SourceFile
+	return getNodeSourceFile(n, getSourceFileOverflowSlow)
 }
 
-// SetSourceFile sets the source file identifier.
+func getNodeSourceFile(n Node, slow func(Node) uint32) uint32 {
+	if sf16 := n.Rec().SourceFile16; sf16 != 0xFFFF {
+		return uint32(sf16)
+	}
+	return slow(n)
+}
+
+//go:noinline
+func getSourceFileOverflowSlow(n Node) uint32 {
+	if p := loadSFOverflowPage(uint32(n) >> sfOverflowShift); p != nil {
+		return p[uint32(n)&sfOverflowMask]
+	}
+	return 0
+}
+
+// SetSourceFile sets the source file identifier (0..65534 inline in SourceFile16, or in sfOverflowTop).
 func (n Node) SetSourceFile(sf uint32) {
-	n.Rec().SourceFile = sf
+	setNodeSourceFile(n, sf, setSourceFileOverflowSlow)
+}
+
+func setNodeSourceFile(n Node, sf uint32, slow func(Node, *NodeData, uint32)) {
+	rec := n.Rec()
+	if sf|uint32(rec.SourceFile16) < 0xFFFF {
+		rec.SourceFile16 = uint16(sf)
+		return
+	}
+	slow(n, rec, sf)
+}
+
+//go:noinline
+func setSourceFileOverflowSlow(n Node, rec *NodeData, sf uint32) {
+	if sf < 0xFFFF {
+		setSFOverflow(n, 0)
+		rec.SourceFile16 = uint16(sf)
+		return
+	}
+	setSFOverflow(n, sf)
+	rec.SourceFile16 = 0xFFFF
 }
 
 // Payload returns the raw payload word.

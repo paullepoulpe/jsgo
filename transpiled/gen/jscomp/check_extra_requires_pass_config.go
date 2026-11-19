@@ -77,7 +77,7 @@ func (this_ *CheckExtraRequiresPassConfig) GetChecks() *PassListBuilder {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_2)
 		_ = compiler
 		return NewCombinedCompilerPass_2_AbstractCompiler_Ext_java_util_List(compiler, j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.ImmListOfPtr(NewCheckExtraRequires(compiler, this_.GetPassConfigBase().options.GetUnusedImportsToRemove()))))
-	})).Build())
+	})).GetPassFactory_BuilderBase().Build())
 	return passes
 }
 

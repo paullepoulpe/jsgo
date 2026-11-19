@@ -250,7 +250,7 @@ func (this_ *AstAnalyzer) priv_AstAnalyzer_isTypedAsString_603(n pkg_rhino.Node)
 		if type_ != nil && !type_.IsJavaNil_() {
 			var nativeStringType pkg_rhino.JSType = this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
 			_ = nativeStringType
-			if type_.Equals(nativeStringType) {
+			if type_.GetJSTypeBase().EqualsJSType(nativeStringType) {
 				return true
 			}
 		}
@@ -570,6 +570,14 @@ func ToIface_AstAnalyzer_Options_Builder[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_AstAnalyzer_Options_Builder[T AstAnalyzer_Options_Builder](v T) AstAnalyzer_Options_Builder {
+	var vi AstAnalyzer_Options_Builder = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

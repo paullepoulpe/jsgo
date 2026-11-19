@@ -65,6 +65,14 @@ func ToIface_RelationshipVisitor[T interface {
 	return v
 }
 
+func Upcast_RelationshipVisitor[T RelationshipVisitor](v T) RelationshipVisitor {
+	var vi RelationshipVisitor = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.jstype.RelationshipVisitor", "com.google.javascript.rhino.jstype.RelationshipVisitor", func(v_ any) bool {
 		return j2gort.InstanceOf[RelationshipVisitor](v_)

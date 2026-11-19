@@ -181,8 +181,8 @@ func (this_ *RandomNameGenerator) Reset_4(reservedNames j2gort.Ext_java_util_Set
 	this_.nameCount = int32(0)
 	this_.firstChars = j2gort.Ext_com_google_common_collect_Sets_Difference(j2gort.AsIface[j2gort.Ext_java_util_Set](StaticGet_RandomNameGenerator_FIRST_CHAR()), reservedFirstCharacters).ImmutableCopy()
 	this_.nonFirstChars = j2gort.Ext_com_google_common_collect_Sets_Difference(j2gort.AsIface[j2gort.Ext_java_util_Set](StaticGet_RandomNameGenerator_NONFIRST_CHAR()), reservedNonFirstCharacters).ImmutableCopy()
-	this_.priv_RandomNameGenerator_checkPrefix_4615(prefix)
-	this_.priv_RandomNameGenerator_shuffleAlphabets_4616()
+	this_.priv_RandomNameGenerator_checkPrefix_4612(prefix)
+	this_.priv_RandomNameGenerator_shuffleAlphabets_4613()
 }
 
 // Java method: RandomNameGenerator.clone(java.util.Set<java.lang.String> reservedNames, java.lang.String prefix, java.util.Set<java.lang.Character> reservedCharacters)
@@ -205,7 +205,7 @@ func RandomNameGenerator_AsSet(chars []uint16) j2gort.Ext_com_google_common_coll
 }
 
 // Java method: RandomNameGenerator.checkPrefix(java.lang.String prefix)
-func (this_ *RandomNameGenerator) priv_RandomNameGenerator_checkPrefix_4615(prefix string) {
+func (this_ *RandomNameGenerator) priv_RandomNameGenerator_checkPrefix_4612(prefix string) {
 	_ = prefix
 	if j2gort.JStrLen(prefix) > int32(0) {
 		if !(this_.firstChars.Contains(j2gort.ValueOfChar(j2gort.JStrCharAt(prefix, int32(0))))) {
@@ -235,7 +235,7 @@ func RandomNameGenerator_ShuffleAndCopyAlphabet(input j2gort.Ext_java_util_Set, 
 }
 
 // Java method: RandomNameGenerator.shuffleAlphabets()
-func (this_ *RandomNameGenerator) priv_RandomNameGenerator_shuffleAlphabets_4616() {
+func (this_ *RandomNameGenerator) priv_RandomNameGenerator_shuffleAlphabets_4613() {
 	this_.shuffledFirst = RandomNameGenerator_ShuffleAndCopyAlphabet(j2gort.AsIface[j2gort.Ext_java_util_Set](this_.firstChars), this_.random)
 	var builder []string = []string{}
 	_ = builder
@@ -250,7 +250,7 @@ func (this_ *RandomNameGenerator) priv_RandomNameGenerator_shuffleAlphabets_4616
 }
 
 // Java method: RandomNameGenerator.getNameLength(int position, int nameIdx)
-func (this_ *RandomNameGenerator) priv_RandomNameGenerator_getNameLength_4617(position int32, nameIdx int32) int32 {
+func (this_ *RandomNameGenerator) priv_RandomNameGenerator_getNameLength_4614(position int32, nameIdx int32) int32 {
 	_ = position
 	_ = nameIdx
 	var length int32 = int32(0)
@@ -273,12 +273,12 @@ func (this_ *RandomNameGenerator) priv_RandomNameGenerator_getNameLength_4617(po
 }
 
 // Java method: RandomNameGenerator.generateSuffix(int position, int nameIdx)
-func (this_ *RandomNameGenerator) priv_RandomNameGenerator_generateSuffix_4618(position int32, nameIdx int32) string {
+func (this_ *RandomNameGenerator) priv_RandomNameGenerator_generateSuffix_4615(position int32, nameIdx int32) string {
 	_ = position
 	_ = nameIdx
 	var name *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 	_ = name
-	var length int32 = this_.priv_RandomNameGenerator_getNameLength_4617(position, nameIdx)
+	var length int32 = this_.priv_RandomNameGenerator_getNameLength_4614(position, nameIdx)
 	_ = length
 	nameIdx = nameIdx + 1
 	for doFirst_2 := true; doFirst_2 || (nameIdx > int32(0)); doFirst_2 = false {
@@ -310,7 +310,7 @@ func (this_ *RandomNameGenerator) priv_RandomNameGenerator_generateSuffix_4618(p
 // Java method: RandomNameGenerator.generateNextName()
 func (this_ *RandomNameGenerator) GenerateNextName() string {
 	for {
-		var name string = (j2gort.StrValString(this_.prefix) + j2gort.StrValString(this_.priv_RandomNameGenerator_generateSuffix_4618(j2gort.JStrLen(this_.prefix), func() int32 { old_3 := this_.nameCount; nw_4 := old_3 + 1; this_.nameCount = nw_4; return old_3 }())))
+		var name string = (j2gort.StrValString(this_.prefix) + j2gort.StrValString(this_.priv_RandomNameGenerator_generateSuffix_4615(j2gort.JStrLen(this_.prefix), func() int32 { old_3 := this_.nameCount; nw_4 := old_3 + 1; this_.nameCount = nw_4; return old_3 }())))
 		_ = name
 		if (pkg_rhino.TokenStream_IsKeyword(name) || j2gort.SetContainsStr(this_.reservedNames, name)) || DefaultNameGenerator_IsBadName(name) {
 			continue

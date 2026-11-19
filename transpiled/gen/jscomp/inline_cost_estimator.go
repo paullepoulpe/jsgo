@@ -174,10 +174,12 @@ func (this_ *InlineCostEstimator_CompiledSizeEstimator) Add_1_Node(root pkg_rhin
 	_ = root
 	var cg CodeGenerator = CodeGenerator_ForCostEstimation(this_)
 	_ = cg
-	cg.Add_1_Node(root)
+	cg.GetCodeGeneratorBase(
+
+	// Java method: CompiledSizeEstimator.getCost()
+	).Add_1_Node(root)
 }
 
-// Java method: CompiledSizeEstimator.getCost()
 func (this_ *InlineCostEstimator_CompiledSizeEstimator) GetCost() int32 {
 	return this_.cost
 }

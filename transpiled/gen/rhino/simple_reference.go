@@ -59,6 +59,14 @@ func ToIface_SimpleReference[T interface {
 	return v
 }
 
+func Upcast_SimpleReference[T SimpleReference](v T) SimpleReference {
+	var vi SimpleReference = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.rhino.jstype.SimpleReference
 type SimpleReferenceBase struct {
 	symbol StaticTypedSlot `gson:"symbol"`

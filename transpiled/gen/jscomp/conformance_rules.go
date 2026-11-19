@@ -405,7 +405,7 @@ func ConformanceRules_IsLooseObject(type_ pkg_rhino.JSType, registry *pkg_rhino.
 	clinit_ConformanceRules()
 	_ = type_
 	_ = registry
-	return type_.Equals(registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE()))
+	return type_.GetJSTypeBase().EqualsJSType(registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE()))
 }
 
 // Java class: com.google.javascript.jscomp.ConformanceRules.ConformanceResult
@@ -763,6 +763,14 @@ func ToIface_ConformanceRules_AbstractRule[T interface {
 	return v
 }
 
+func Upcast_ConformanceRules_AbstractRule[T ConformanceRules_AbstractRule](v T) ConformanceRules_AbstractRule {
+	var vi ConformanceRules_AbstractRule = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.ConformanceRules.AbstractRule
 type ConformanceRules_AbstractRuleBase struct {
 	self_                     ConformanceRules_AbstractRule
@@ -1071,6 +1079,14 @@ func ToIface_ConformanceRules_AbstractTypeRestrictionRule[T interface {
 	return v
 }
 
+func Upcast_ConformanceRules_AbstractTypeRestrictionRule[T ConformanceRules_AbstractTypeRestrictionRule](v T) ConformanceRules_AbstractTypeRestrictionRule {
+	var vi ConformanceRules_AbstractTypeRestrictionRule = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.ConformanceRules.AbstractTypeRestrictionRule
 type ConformanceRules_AbstractTypeRestrictionRuleBase struct {
 	ConformanceRules_AbstractRuleBase
@@ -1129,7 +1145,7 @@ func (this_ *ConformanceRules_AbstractTypeRestrictionRuleBase) IsAllowlistedType
 	if (this_.allowlistedTypes != nil && !this_.allowlistedTypes.IsJavaNil_()) && !(j2gort.IfaceEquals[pkg_rhino.JSType](n.GetJSType(), nil)) {
 		var targetType pkg_rhino.JSType = n.GetJSType().RestrictByNotNullOrUndefined()
 		_ = targetType
-		if targetType.IsSubtypeOf_1(this_.allowlistedTypes) {
+		if targetType.GetJSTypeBase().IsSubtypeOf_1(this_.allowlistedTypes) {
 			return true
 		}
 	}
@@ -1147,7 +1163,7 @@ func (this_ *ConformanceRules_AbstractTypeRestrictionRuleBase) IsNativeObjectTyp
 	_ = n
 	var type_ pkg_rhino.JSType = n.GetJSType().RestrictByNotNullOrUndefined()
 	_ = type_
-	return type_.Equals(this_.nativeObjectType)
+	return type_.GetJSTypeBase().EqualsJSType(this_.nativeObjectType)
 }
 
 // Java static method: AbstractTypeRestrictionRule.isTop(com.google.javascript.rhino.Node n)
@@ -1155,7 +1171,7 @@ func ConformanceRules_AbstractTypeRestrictionRule_IsTop(n pkg_rhino.Node) bool {
 	_ = n
 	var type_ pkg_rhino.JSType = n.GetJSType()
 	_ = type_
-	return ((type_ != nil && !type_.IsJavaNil_()) && type_.IsAllType())
+	return ((type_ != nil && !type_.IsJavaNil_()) && type_.GetJSTypeBase().IsAllType())
 }
 
 // Java static method: AbstractTypeRestrictionRule.isUnknown(com.google.javascript.rhino.Node n)
@@ -1163,7 +1179,7 @@ func ConformanceRules_AbstractTypeRestrictionRule_IsUnknown(n pkg_rhino.Node) bo
 	_ = n
 	var type_ pkg_rhino.JSType = n.GetJSType()
 	_ = type_
-	return ((type_ == nil || type_.IsJavaNil_()) || type_.IsUnknownType())
+	return ((type_ == nil || type_.IsJavaNil_()) || type_.GetJSTypeBase().IsUnknownType())
 }
 
 // Java static method: AbstractTypeRestrictionRule.isTemplateType(com.google.javascript.rhino.Node n)
@@ -1171,20 +1187,21 @@ func ConformanceRules_AbstractTypeRestrictionRule_IsTemplateType(n pkg_rhino.Nod
 	_ = n
 	var type_ pkg_rhino.JSType = n.GetJSType()
 	_ = type_
-	if type_.IsUnionType() {
+	base_type__ := type_.GetJSTypeBase()
+	if base_type__.IsUnionType() {
 		{
-			cur_19 := j2gort.NewIterCursor(j2gort.CheckNotNull(type_.GetUnionMembers()))
+			cur_19 := j2gort.NewIterCursor(j2gort.CheckNotNull(base_type__.GetUnionMembers()))
 			for cur_19.HasNext() {
 				rawElem_20 := cur_19.Next()
 				member := j2gort.AsIface[pkg_rhino.JSType](rawElem_20)
 				_ = member
-				if member.IsTemplateType() {
+				if member.GetJSTypeBase().IsTemplateType() {
 					return true
 				}
 			}
 		}
 	}
-	return type_.IsTemplateType()
+	return base_type__.IsTemplateType()
 }
 
 // Java static method: AbstractTypeRestrictionRule.isBottom(com.google.javascript.rhino.Node n)
@@ -1192,7 +1209,7 @@ func ConformanceRules_AbstractTypeRestrictionRule_IsBottom(n pkg_rhino.Node) boo
 	_ = n
 	var type_ pkg_rhino.JSType = n.GetJSType().RestrictByNotNullOrUndefined()
 	_ = type_
-	return type_.IsEmptyType()
+	return type_.GetJSTypeBase().IsEmptyType()
 }
 
 // Java method: AbstractTypeRestrictionRule.union(java.util.List<java.lang.String> typeNames)
@@ -1312,7 +1329,7 @@ func (this_ *ConformanceRules_InferredConstCheck) CheckConformance_2(t *NodeTrav
 		}
 		var type_ pkg_rhino.JSType = n.GetJSType()
 		_ = type_
-		if ((type_ != nil && !type_.IsJavaNil_()) && type_.IsUnknownType()) && !(NodeUtil_IsNamespaceDecl(n)) {
+		if ((type_ != nil && !type_.IsJavaNil_()) && type_.GetJSTypeBase().IsUnknownType()) && !(NodeUtil_IsNamespaceDecl(n)) {
 			return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
 		}
 	}
@@ -1690,7 +1707,7 @@ func InitConformanceRules_BannedProperty(this_ *ConformanceRules_BannedProperty,
 			if type_ == nil || type_.IsJavaNil_() {
 				type_ = this_.registry.ResolveViaClosureNamespace(typename)
 			}
-			if ((type_ == nil || type_.IsJavaNil_()) || type_.IsUnknownType()) || type_.IsEmptyType() {
+			if ((type_ == nil || type_.IsJavaNil_()) || type_.GetJSTypeBase().IsUnknownType()) || type_.GetJSTypeBase().IsEmptyType() {
 				continue
 			}
 			j2gort.MultimapBuilderPutStr(builder, property, type_)
@@ -1739,26 +1756,26 @@ func (this_ *ConformanceRules_BannedProperty) CheckConformance_2(t *NodeTraversa
 func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_matchTypes_2148(foundType pkg_rhino.JSType, checkType pkg_rhino.JSType) *ConformanceRules_ConformanceResult {
 	_ = foundType
 	_ = checkType
-	var foundObj pkg_rhino.ObjectType = foundType.ToMaybeObjectType()
+	var foundObj pkg_rhino.ObjectType = foundType.GetJSTypeBase().ToMaybeObjectType()
 	_ = foundObj
 	if foundObj != nil && !foundObj.IsJavaNil_() {
-		if foundObj.IsFunctionPrototypeType() {
+		if foundObj.GetObjectTypeBase().IsFunctionPrototypeType() {
 			var ownerFun *pkg_rhino.FunctionType = foundObj.GetOwnerFunction()
 			_ = ownerFun
 			if ownerFun.IsConstructor() {
-				foundType = j2gort.AsIface[pkg_rhino.JSType](ownerFun.GetInstanceType())
+				foundType = pkg_rhino.Upcast_JSType(ownerFun.GetInstanceType())
 			}
-		} else if foundObj.IsTemplatizedType() {
-			foundType = j2gort.AsIface[pkg_rhino.JSType](foundObj.GetRawType())
+		} else if foundObj.GetObjectTypeBase().IsTemplatizedType() {
+			foundType = pkg_rhino.Upcast_JSType(foundObj.GetObjectTypeBase().GetRawType())
 		}
 	}
-	if (((foundType.IsUnknownType() || foundType.IsTemplateType()) || foundType.IsEmptyType()) || foundType.IsAllType()) || ConformanceRules_IsLooseObject(foundType, this_.registry) {
+	if (((foundType.GetJSTypeBase().IsUnknownType() || foundType.GetJSTypeBase().IsTemplateType()) || foundType.GetJSTypeBase().IsEmptyType()) || foundType.GetJSTypeBase().IsAllType()) || ConformanceRules_IsLooseObject(foundType, this_.registry) {
 		if this_.GetConformanceRules_AbstractRuleBase().reportLooseTypeViolations {
 			return StaticGet_ConformanceRules_ConformanceResult_POSSIBLE_VIOLATION_DUE_TO_LOOSE_TYPES()
 		}
-	} else if foundType.IsSubtypeOf_1(checkType) {
+	} else if foundType.GetJSTypeBase().IsSubtypeOf_1(checkType) {
 		return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
-	} else if checkType.IsSubtypeWithoutStructuralTyping(foundType) {
+	} else if checkType.GetJSTypeBase().IsSubtypeWithoutStructuralTyping(foundType) {
 		if this_.priv_BannedProperty_matchesPrototype_2149(checkType, foundType) {
 			return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
 		} else if this_.GetConformanceRules_AbstractRuleBase().reportLooseTypeViolations {
@@ -1772,10 +1789,10 @@ func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_matchTypes_214
 func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_matchesPrototype_2149(type_ pkg_rhino.JSType, maybePrototype pkg_rhino.JSType) bool {
 	_ = type_
 	_ = maybePrototype
-	var methodClassObjectType pkg_rhino.ObjectType = type_.ToMaybeObjectType()
+	var methodClassObjectType pkg_rhino.ObjectType = type_.GetJSTypeBase().ToMaybeObjectType()
 	_ = methodClassObjectType
 	if methodClassObjectType != nil && !methodClassObjectType.IsJavaNil_() {
-		if methodClassObjectType.GetImplicitPrototype().Equals(maybePrototype) {
+		if methodClassObjectType.GetImplicitPrototype().GetObjectTypeBase().GetJSTypeBase().EqualsJSType(maybePrototype) {
 			return true
 		}
 	}
@@ -2175,7 +2192,8 @@ func ConformanceRules_ConformanceUtil_IsCallTarget(n pkg_rhino.Node) bool {
 // Java static method: ConformanceUtil.isLooseType(com.google.javascript.rhino.jstype.JSType type)
 func ConformanceRules_ConformanceUtil_IsLooseType(type_ pkg_rhino.JSType) bool {
 	_ = type_
-	return ((type_.IsUnknownType() || type_.IsNoResolvedType()) || type_.IsAllType())
+	base_type__ := type_.GetJSTypeBase()
+	return ((base_type__.IsUnknownType() || base_type__.IsNoResolvedType()) || base_type__.IsAllType())
 }
 
 // Java static method: ConformanceUtil.evaluateTypeString(com.google.javascript.jscomp.AbstractCompiler compiler, java.lang.String expression)
@@ -2214,7 +2232,7 @@ func ConformanceRules_ConformanceUtil_ValidateThis(callOrNew pkg_rhino.Node, fun
 	}
 	var thisType pkg_rhino.JSType = functionType.GetTypeOfThis()
 	_ = thisType
-	if (thisType == nil || thisType.IsJavaNil_()) || thisType.IsUnknownType() {
+	if (thisType == nil || thisType.IsJavaNil_()) || thisType.GetJSTypeBase().IsUnknownType() {
 		return true
 	}
 	var thisNode pkg_rhino.Node
@@ -2226,7 +2244,7 @@ func ConformanceRules_ConformanceUtil_ValidateThis(callOrNew pkg_rhino.Node, fun
 	}
 	var thisNodeType pkg_rhino.JSType = thisNode.GetJSType().RestrictByNotNullOrUndefined()
 	_ = thisNodeType
-	return thisNodeType.IsSubtypeOf_1(thisType)
+	return thisNodeType.GetJSTypeBase().IsSubtypeOf_1(thisType)
 }
 
 // Java static method: ConformanceUtil.validateParameterList(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.rhino.Node callOrNew, com.google.javascript.rhino.jstype.FunctionType functionType, boolean isCallInvocation)
@@ -2360,7 +2378,7 @@ func ConformanceRules_ConformanceUtil_InferStringValue(scope *Scope, node pkg_rh
 		if type_ == nil || type_.IsJavaNil_() {
 			return j2gort.NullString
 		}
-		if type_.IsEnumElementType() {
+		if type_.GetJSTypeBase().IsEnumElementType() {
 			var enumSource pkg_rhino.Node = type_.ToMaybeEnumElementType().GetEnumType().GetSource()
 			_ = enumSource
 			if enumSource == 0 {
@@ -2370,7 +2388,7 @@ func ConformanceRules_ConformanceUtil_InferStringValue(scope *Scope, node pkg_rh
 				return j2gort.NullString
 			}
 			return ConformanceRules_ConformanceUtil_InferStringValue(nil, NodeUtil_GetFirstPropMatchingKey(enumSource, node.GetString()), globalNamespaceSupplier)
-		} else if type_.IsString() {
+		} else if type_.GetJSTypeBase().IsString() {
 			var gns *GlobalNamespace = j2gort.CastPtr[GlobalNamespace](globalNamespaceSupplier.Get())
 			_ = gns
 			if gns == nil {
@@ -2694,7 +2712,7 @@ func (this_ *ConformanceRules_RestrictedMethodCall) priv_RestrictedMethodCall_ch
 			if this_.GetConformanceRules_AbstractRuleBase().reportLooseTypeViolations && !(ConformanceRules_ConformanceUtil_ValidateCall(this_.GetConformanceRules_AbstractRuleBase().compiler, n.GetParent(), r.restrictedCallType, isCallInvocation)) {
 				return StaticGet_ConformanceRules_ConformanceResult_POSSIBLE_VIOLATION_DUE_TO_LOOSE_TYPES()
 			}
-		} else if targetType.IsSubtypeOf_1(methodClassType) {
+		} else if targetType.GetJSTypeBase().IsSubtypeOf_1(methodClassType) {
 			if !(ConformanceRules_ConformanceUtil_ValidateCall(this_.GetConformanceRules_AbstractRuleBase().compiler, n.GetParent(), r.restrictedCallType, isCallInvocation)) {
 				return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
 			}
@@ -2870,7 +2888,7 @@ func (this_ *ConformanceRules_RestrictedPropertyWrite) CheckConformance_2(t *Nod
 							iifeCond_1 = j2gort.CheckNotNullString(sr_34) == se_35
 						}
 						if iifeCond_1 {
-							if !(rhsType.IsSubtypeOf_1(r.restrictedType)) {
+							if !(rhsType.GetJSTypeBase().IsSubtypeOf_1(r.restrictedType)) {
 								if ConformanceRules_ConformanceUtil_IsLooseType(targetType) {
 									if this_.GetConformanceRules_AbstractRuleBase().reportLooseTypeViolations {
 										return StaticGet_ConformanceRules_ConformanceResult_POSSIBLE_VIOLATION_DUE_TO_LOOSE_TYPES()
@@ -2879,7 +2897,7 @@ func (this_ *ConformanceRules_RestrictedPropertyWrite) CheckConformance_2(t *Nod
 									if targetNotNullType == nil || targetNotNullType.IsJavaNil_() {
 										targetNotNullType = targetType.RestrictByNotNullOrUndefined()
 									}
-									if targetNotNullType.IsSubtypeOf_1(r.type_) {
+									if targetNotNullType.GetJSTypeBase().IsSubtypeOf_1(r.type_) {
 										return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
 									}
 								}
@@ -3179,6 +3197,14 @@ func ToIface_ConformanceRules_CustomRuleProxy_CustomRuleFactory[T interface {
 	return v
 }
 
+func Upcast_ConformanceRules_CustomRuleProxy_CustomRuleFactory[T ConformanceRules_CustomRuleProxy_CustomRuleFactory](v T) ConformanceRules_CustomRuleProxy_CustomRuleFactory {
+	var vi ConformanceRules_CustomRuleProxy_CustomRuleFactory = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.ConformanceRules.CustomRuleProxy.CustomRuleFactory", "com.google.javascript.jscomp.ConformanceRules$CustomRuleProxy$CustomRuleFactory", func(v_ any) bool {
 		return j2gort.InstanceOf[ConformanceRules_CustomRuleProxy_CustomRuleFactory](v_)
@@ -3380,7 +3406,7 @@ func (this_ *ConformanceRules_BanThrowOfNonErrorTypes) CheckConformance_2(t *Nod
 		var thrown pkg_rhino.JSType = n.GetFirstChild().GetJSType()
 		_ = thrown
 		if thrown != nil && !thrown.IsJavaNil_() {
-			if ((!(thrown.IsUnknownType()) && !(thrown.IsAllType())) && !(thrown.IsEmptyType())) && !(thrown.IsSubtypeOf_1(this_.errorObjType)) {
+			if ((!(thrown.GetJSTypeBase().IsUnknownType()) && !(thrown.GetJSTypeBase().IsAllType())) && !(thrown.GetJSTypeBase().IsEmptyType())) && !(thrown.GetJSTypeBase().IsSubtypeOf_1(this_.errorObjType)) {
 				return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
 			}
 		}
@@ -3469,7 +3495,7 @@ func (this_ *ConformanceRules_BanNullDeref) priv_BanNullDeref_invalidDeref_2157(
 	_ = n
 	var type_ pkg_rhino.JSType = n.GetJSType()
 	_ = type_
-	return (!(type_.IsAllType()) && (type_.IsNullable() || type_.IsVoidable()))
+	return (!(type_.GetJSTypeBase().IsAllType()) && (type_.IsNullable() || type_.IsVoidable()))
 }
 
 // Java class: com.google.javascript.jscomp.ConformanceRules.BanUnknownThis
@@ -3535,7 +3561,7 @@ func (this_ *ConformanceRules_BanUnknownThis) CheckConformance_2(t *NodeTraversa
 	if n.IsThis() {
 		var type_ pkg_rhino.JSType = n.GetJSType()
 		_ = type_
-		if ((type_ != nil && !type_.IsJavaNil_()) && type_.IsUnknownType()) && !(this_.IsTypeImmediatelyTightened(n)) {
+		if ((type_ != nil && !type_.IsJavaNil_()) && type_.GetJSTypeBase().IsUnknownType()) && !(this_.IsTypeImmediatelyTightened(n)) {
 			var root pkg_rhino.Node = t.GetScopeRoot()
 			_ = root
 			if !(this_.reports.Contains(root)) {
@@ -3624,7 +3650,7 @@ func ConformanceRules_BanUnknownDirectThisPropsReferences_IsExplicitlyUnknown(n 
 	var prop *pkg_rhino.Property
 	_ = prop
 	if owner != nil && !owner.IsJavaNil_() {
-		prop = owner.GetSlot_1_string(n.GetString())
+		prop = owner.GetObjectTypeBase().GetSlot_1_string(n.GetString())
 	} else {
 		prop = nil
 	}
@@ -3696,7 +3722,7 @@ func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) CheckConforma
 	if (((((getprop.IsGetProp() && ConformanceRules_AbstractTypeRestrictionRule_IsUnknown(getprop)) && this_.IsUsed(getprop)) && !(this_.IsTypeImmediatelyTightened(getprop))) && this_.priv_BanUnknownTypedClassPropsReferences_isCheckablePropertySource_2158(getprop.GetFirstChild())) && !(ConformanceRules_AbstractTypeRestrictionRule_IsTemplateType(getprop))) && !(this_.priv_BanUnknownTypedClassPropsReferences_isDeclaredUnknown_2160(getprop)) {
 		var propName string = getprop.GetString()
 		_ = propName
-		var typeName string = getprop.GetFirstChild().GetJSType().String()
+		var typeName string = getprop.GetFirstChild().GetJSType().GetJSTypeBase().String()
 		_ = typeName
 		return NewConformanceRules_ConformanceResult_2(StaticGet_ConformanceRules_ConformanceLevel_VIOLATION(), ("The property \"" + j2gort.StrValString(propName) + "\" on type \"" + j2gort.StrValString(typeName) + "\""))
 	}
@@ -3712,7 +3738,7 @@ func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) priv_BanUnkno
 // Java method: BanUnknownTypedClassPropsReferences.isClassType(com.google.javascript.rhino.Node n)
 func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) priv_BanUnknownTypedClassPropsReferences_isClassType_2159(n pkg_rhino.Node) bool {
 	_ = n
-	var type_ pkg_rhino.ObjectType = n.GetJSType().RestrictByNotNullOrUndefined().ToMaybeObjectType()
+	var type_ pkg_rhino.ObjectType = n.GetJSType().RestrictByNotNullOrUndefined().GetJSTypeBase().ToMaybeObjectType()
 	_ = type_
 	if (type_ == nil || type_.IsJavaNil_()) || !(type_.IsInstanceType()) {
 		return false
@@ -3734,12 +3760,12 @@ func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) priv_BanUnkno
 	_ = n
 	var target pkg_rhino.Node = n.GetFirstChild()
 	_ = target
-	var targetType pkg_rhino.ObjectType = target.GetJSType().RestrictByNotNullOrUndefined().ToMaybeObjectType()
+	var targetType pkg_rhino.ObjectType = target.GetJSType().RestrictByNotNullOrUndefined().GetJSTypeBase().ToMaybeObjectType()
 	_ = targetType
 	if targetType == nil || targetType.IsJavaNil_() {
 		return false
 	}
-	var info *pkg_rhino.JSDocInfo = targetType.GetPropertyJSDocInfo_1_string(n.GetString())
+	var info *pkg_rhino.JSDocInfo = targetType.GetObjectTypeBase().GetPropertyJSDocInfo_1_string(n.GetString())
 	_ = info
 	if (info == nil) || !(info.HasType()) {
 		return false
@@ -3837,11 +3863,12 @@ func ConformanceRules_BanUnresolvedType_GetNonConformingPart(type_ pkg_rhino.JST
 	if type_ == nil || type_.IsJavaNil_() {
 		return j2gort.NullString
 	}
-	if type_.IsUnionType() {
+	base_type__ := type_.GetJSTypeBase()
+	if base_type__.IsUnionType() {
 		var nonConformingParts j2gort.Ext_java_util_ArrayList = nil
 		_ = nonConformingParts
 		{
-			cur_37 := j2gort.NewIterCursor(j2gort.CheckNotNull(type_.GetUnionMembers()))
+			cur_37 := j2gort.NewIterCursor(j2gort.CheckNotNull(base_type__.GetUnionMembers()))
 			for cur_37.HasNext() {
 				rawElem_38 := cur_37.Next()
 				part := j2gort.AsIface[pkg_rhino.JSType](rawElem_38)
@@ -3861,8 +3888,8 @@ func ConformanceRules_BanUnresolvedType_GetNonConformingPart(type_ pkg_rhino.JST
 		if nonConformingParts != nil {
 			return j2gort.Ext_com_google_common_base_Joiner_On_1_uint16(uint16(124)).Join_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](nonConformingParts))
 		}
-	} else if type_.IsNoResolvedType() {
-		var noResolvedType pkg_rhino.ObjectType = type_.ToObjectType()
+	} else if base_type__.IsNoResolvedType() {
+		var noResolvedType pkg_rhino.ObjectType = base_type__.ToObjectType()
 		_ = noResolvedType
 		return noResolvedType.GetReferenceName()
 	}
@@ -4289,7 +4316,7 @@ func (this_ *ConformanceRules_BanCreateElement) priv_BanCreateElement_checkCreat
 			return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 		}
 	}
-	if ((this_.domHelperType != nil && !this_.domHelperType.IsJavaNil_()) && this_.domHelperType.IsSubtypeOf_1(type_)) || ((this_.documentType != nil && !this_.documentType.IsJavaNil_()) && this_.documentType.IsSubtypeOf_1(type_)) {
+	if ((this_.domHelperType != nil && !this_.domHelperType.IsJavaNil_()) && this_.domHelperType.GetJSTypeBase().IsSubtypeOf_1(type_)) || ((this_.documentType != nil && !this_.documentType.IsJavaNil_()) && this_.documentType.GetJSTypeBase().IsSubtypeOf_1(type_)) {
 		return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
 	}
 	return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
@@ -4417,9 +4444,10 @@ func (this_ *ConformanceRules_BanCreateDom) CheckConformance_2(t *NodeTraversal,
 	if attrsType == nil || attrsType.IsJavaNil_() {
 		return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 	}
-	var isClassName bool = (!(attrsType.IsUnknownType()) && attrsType.IsSubtypeOf_1(this_.classNameTypes))
+	base_attrsType_ := attrsType.GetJSTypeBase()
+	var isClassName bool = (!(base_attrsType_.IsUnknownType()) && base_attrsType_.IsSubtypeOf_1(this_.classNameTypes))
 	_ = isClassName
-	if attrs.IsNull() || ((attrsType != nil && !attrsType.IsJavaNil_()) && attrsType.IsVoidType()) {
+	if attrs.IsNull() || ((attrsType != nil && !attrsType.IsJavaNil_()) && base_attrsType_.IsVoidType()) {
 		return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 	}
 	{
@@ -4491,12 +4519,12 @@ func (this_ *ConformanceRules_BanCreateDom) priv_BanCreateDom_getTagNames_2164(t
 	}
 	var type_ pkg_rhino.JSType = tag.GetJSType()
 	_ = type_
-	if (type_ == nil || type_.IsJavaNil_()) || !(type_.IsTemplatizedType()) {
+	if (type_ == nil || type_.IsJavaNil_()) || !(type_.GetJSTypeBase().IsTemplatizedType()) {
 		return nil
 	}
-	var typeAsObj pkg_rhino.ObjectType = type_.ToMaybeObjectType()
+	var typeAsObj pkg_rhino.ObjectType = type_.GetJSTypeBase().ToMaybeObjectType()
 	_ = typeAsObj
-	if j2gort.CheckNotNullString(typeAsObj.GetRawType().GetDisplayName()) == "goog.dom.TagName" {
+	if j2gort.CheckNotNullString(typeAsObj.GetObjectTypeBase().GetRawType().GetDisplayName()) == "goog.dom.TagName" {
 		var tagType pkg_rhino.JSType = j2gort.AsIface[pkg_rhino.JSType](j2gort.Ext_com_google_common_collect_Iterables_GetOnlyElement_1(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](typeAsObj.GetTemplateTypes())))
 		_ = tagType
 		return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](j2gort.MultimapGetStr(StaticGet_ConformanceRules_BanCreateDom_ELEMENT_TAG_NAMES(), tagType.GetDisplayName()))
@@ -4537,7 +4565,7 @@ func (this_ *ConformanceRules_BanCreateDom) priv_BanCreateDom_isCreateDomCall_21
 	if type_ == nil || type_.IsJavaNil_() {
 		return false
 	}
-	if type_.Equals(this_.domHelperType) {
+	if type_.GetJSTypeBase().EqualsJSType(this_.domHelperType) {
 		return true
 	}
 	return false
@@ -4899,7 +4927,7 @@ func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribut
 	if type_ == nil || type_.IsJavaNil_() {
 		return j2gort.Ext_com_google_common_base_Optional_Absent()
 	}
-	if (this_.elementType != nil && !this_.elementType.IsJavaNil_()) && type_.RestrictByNotNullOrUndefined().IsSubtypeOf_1(this_.elementType) {
+	if (this_.elementType != nil && !this_.elementType.IsJavaNil_()) && type_.RestrictByNotNullOrUndefined().GetJSTypeBase().IsSubtypeOf_1(this_.elementType) {
 		return j2gort.Ext_com_google_common_base_Optional_Of(j2gort.BoxString(propertyName))
 	}
 	return j2gort.Ext_com_google_common_base_Optional_Absent()
@@ -4932,10 +4960,11 @@ func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribut
 	if (keyType == nil || keyType.IsJavaNil_()) || ConformanceRules_ConformanceUtil_IsXid(keyType) {
 		return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 	}
+	base_keyType_ := keyType.GetJSTypeBase()
 	if this_.priv_BanElementSetAttribute_hasElementType_2173(getElementNode) {
-		if keyType.IsString() {
+		if base_keyType_.IsString() {
 			return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
-		} else if keyType.IsUnionType() {
+		} else if base_keyType_.IsUnionType() {
 			var union *pkg_rhino.UnionType = keyType.ToMaybeUnionType()
 			_ = union
 			{
@@ -4944,7 +4973,7 @@ func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribut
 				var n int32 = union.GetAlternatesCount()
 				_ = n
 				for ; i < n; i = i + 1 {
-					if union.GetAlternateAt(i).IsString() {
+					if union.GetAlternateAt(i).GetJSTypeBase().IsString() {
 						return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
 					}
 				}
@@ -4963,7 +4992,7 @@ func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribut
 		return false
 	}
 	objType = objType.RestrictByNotNullOrUndefined()
-	if (objType.IsUnknownType() || objType.IsEmptyType()) || !(objType.IsSubtypeOf_1(this_.elementType)) {
+	if (objType.GetJSTypeBase().IsUnknownType() || objType.GetJSTypeBase().IsEmptyType()) || !(objType.GetJSTypeBase().IsSubtypeOf_1(this_.elementType)) {
 		return false
 	}
 	return true
@@ -5123,7 +5152,7 @@ func (this_ *ConformanceRules_BanSettingAttributes) priv_BanSettingAttributes_ge
 					se_60 := restricted.property
 					iifeCond_1 = j2gort.CheckNotNullString(sr_59) == se_60
 				}
-				if (iifeCond_1 && (restricted.type_ != nil && !restricted.type_.IsJavaNil_())) && type_.IsSubtypeOf_1(restricted.type_) {
+				if (iifeCond_1 && (restricted.type_ != nil && !restricted.type_.IsJavaNil_())) && type_.GetJSTypeBase().IsSubtypeOf_1(restricted.type_) {
 					return j2gort.Ext_com_google_common_base_Optional_Of(j2gort.BoxString(propertyName))
 				}
 			}
@@ -5279,7 +5308,7 @@ func (this_ *ConformanceRules_BanExecCommand) priv_BanExecCommand_isBannedProper
 	}
 	var documentType pkg_rhino.JSType = this_.GetConformanceRules_AbstractRuleBase().compiler.GetTypeRegistry().GetGlobalType("Document")
 	_ = documentType
-	if (documentType == nil || documentType.IsJavaNil_()) || !(type_.RestrictByNotNullOrUndefined().IsSubtypeOf_1(documentType)) {
+	if (documentType == nil || documentType.IsJavaNil_()) || !(type_.RestrictByNotNullOrUndefined().GetJSTypeBase().IsSubtypeOf_1(documentType)) {
 		return false
 	}
 	return true

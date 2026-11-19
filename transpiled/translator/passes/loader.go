@@ -88,12 +88,45 @@ func parseModulePath(gomod []byte) string {
 // standard library packages and on-demand source type-checking for module
 // and workspace packages.
 type ModuleImporter struct {
-	mu         sync.Mutex
-	stdlib     types.Importer
-	roots      []moduleInfo
-	cache      map[string]*types.Package
-	inProgress map[string]bool
-	dirCache   map[string]string
+	mu                     sync.Mutex
+	stdlib                 types.Importer
+	roots                  []moduleInfo
+	cache                  map[string]*types.Package
+	cacheKeys              []string
+	inProgress             map[string]bool
+	dirCache               map[string]string
+	targetDirs             []string
+	crossPkgOverrides      map[string]map[string]bool
+	crossPkgOverridesReady bool
+}
+
+func (m *ModuleImporter) setCacheLocked(path string, pkg *types.Package) {
+	if _, exists := m.cache[path]; !exists {
+		m.cacheKeys = append(m.cacheKeys, path)
+	}
+	m.cache[path] = pkg
+}
+
+// SetTargetDirs records all resolved target package directories for cross-package analysis.
+func (m *ModuleImporter) SetTargetDirs(dirs []string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.targetDirs = append([]string(nil), dirs...)
+	m.crossPkgOverrides = nil
+	m.crossPkgOverridesReady = false
+}
+
+// CachedPackages returns a snapshot of currently cached non-stdlib *types.Package instances.
+func (m *ModuleImporter) CachedPackages() []*types.Package {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]*types.Package, 0, len(m.cacheKeys))
+	for _, k := range m.cacheKeys {
+		if pkg := m.cache[k]; pkg != nil {
+			out = append(out, pkg)
+		}
+	}
+	return out
 }
 
 // NewModuleImporter creates a cached module-aware types.Importer.
@@ -138,7 +171,7 @@ func (m *ModuleImporter) RegisterPackage(path string, pkg *types.Package) {
 			delete(m.cache, k)
 		}
 	}
-	m.cache[path] = pkg
+	m.setCacheLocked(path, pkg)
 }
 
 func pkgImportsTarget(cur, target *types.Package, visited map[*types.Package]bool) bool {
@@ -204,7 +237,7 @@ func (m *ModuleImporter) Import(path string) (*types.Package, error) {
 	}
 
 	m.mu.Lock()
-	m.cache[path] = pkg
+	m.setCacheLocked(path, pkg)
 	m.mu.Unlock()
 	return pkg, nil
 }
@@ -596,4 +629,251 @@ func goListDirs(pattern string, roots []moduleInfo) ([]string, error) {
 		}
 	}
 	return dirs, nil
+}
+
+// CrossPkgAbstractOverrides scans target package directories (and module-internal sibling
+// package directories when running on a single subpackage) once via fast AST inspection to
+// record every method M overridden on any struct S != <I>Base that declares
+// `Implements_<ifacePkg>_<I>()`. Keys are "<ifacePkg>.<I>".
+func (m *ModuleImporter) CrossPkgAbstractOverrides() map[string]map[string]bool {
+	m.mu.Lock()
+	if m.crossPkgOverridesReady {
+		res := m.crossPkgOverrides
+		m.mu.Unlock()
+		return res
+	}
+	baseDirs := append([]string(nil), m.targetDirs...)
+	roots := append([]moduleInfo(nil), m.roots...)
+	m.mu.Unlock()
+
+	if len(baseDirs) == 0 {
+		m.mu.Lock()
+		m.crossPkgOverridesReady = true
+		m.mu.Unlock()
+		return nil
+	}
+
+	dirSeen := make(map[string]bool, len(baseDirs)*2)
+	var scanDirs []string
+	addScanDir := func(d string) {
+		abs, err := filepath.Abs(d)
+		if err != nil || dirSeen[abs] {
+			return
+		}
+		dirSeen[abs] = true
+		scanDirs = append(scanDirs, abs)
+	}
+	for _, d := range baseDirs {
+		addScanDir(d)
+	}
+	// If invoked on a single package directory inside a multi-package module (e.g. gen/rhino),
+	// include sibling package directories under its parent directory when that parent lies within
+	// a discovered module root so cross-package subclasses (e.g. gen/jscomp) are visible.
+	if len(baseDirs) == 1 {
+		parentDir := filepath.Dir(scanDirs[0])
+		withinRoot := false
+		for _, r := range roots {
+			if parentDir == r.rootDir || strings.HasPrefix(parentDir, r.rootDir+string(filepath.Separator)) {
+				withinRoot = true
+				break
+			}
+		}
+		if withinRoot {
+			if entries, err := os.ReadDir(parentDir); err == nil {
+				for _, ent := range entries {
+					if !ent.IsDir() {
+						continue
+					}
+					name := ent.Name()
+					if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "vendor" || name == "testdata" {
+						continue
+					}
+					addScanDir(filepath.Join(parentDir, name))
+				}
+			}
+		}
+	}
+
+	overrides := scanAbstractOverridesInDirs(scanDirs)
+
+	m.mu.Lock()
+	m.crossPkgOverrides = overrides
+	m.crossPkgOverridesReady = true
+	m.mu.Unlock()
+	return overrides
+}
+
+func scanAbstractOverridesInDirs(dirs []string) map[string]map[string]bool {
+	overrides := make(map[string]map[string]bool)
+	implMarker := []byte("Implements_")
+
+	for _, dir := range dirs {
+		goFiles, err := listPackageGoFiles(dir, false)
+		if err != nil || len(goFiles) == 0 {
+			continue
+		}
+		rawByFile := make([][]byte, len(goFiles))
+		hasImpl := false
+		for i, fp := range goFiles {
+			raw, rErr := os.ReadFile(fp)
+			if rErr != nil {
+				continue
+			}
+			rawByFile[i] = raw
+			if !hasImpl && bytes.Contains(raw, implMarker) {
+				hasImpl = true
+			}
+		}
+		if !hasImpl {
+			continue
+		}
+
+		fset := token.NewFileSet()
+		var pkgName string
+		var structOrder []string
+		structSeen := make(map[string]bool)
+		structEmbeds := make(map[string][]string)
+		structMethods := make(map[string][]string)
+		structImpls := make(map[string][][2]string)
+
+		noteStruct := func(s string) {
+			if s != "" && !structSeen[s] {
+				structSeen[s] = true
+				structOrder = append(structOrder, s)
+			}
+		}
+
+		for i, fp := range goFiles {
+			if len(rawByFile[i]) == 0 {
+				continue
+			}
+			af, pErr := parser.ParseFile(fset, fp, rawByFile[i], 0)
+			if pErr != nil {
+				continue
+			}
+			if pkgName == "" && af.Name != nil {
+				pkgName = af.Name.Name
+			}
+			for _, decl := range af.Decls {
+				switch d := decl.(type) {
+				case *ast.GenDecl:
+					if d.Tok != token.TYPE {
+						continue
+					}
+					for _, spec := range d.Specs {
+						ts, ok := spec.(*ast.TypeSpec)
+						if !ok || ts.Name == nil {
+							continue
+						}
+						st, ok := ts.Type.(*ast.StructType)
+						if !ok || st.Fields == nil {
+							continue
+						}
+						sName := ts.Name.Name
+						noteStruct(sName)
+						for _, fld := range st.Fields.List {
+							if len(fld.Names) != 0 {
+								continue
+							}
+							if embName := extractEmbeddedLocalStructName(fld.Type); embName != "" {
+								structEmbeds[sName] = append(structEmbeds[sName], embName)
+							}
+						}
+					}
+				case *ast.FuncDecl:
+					if d.Recv == nil || len(d.Recv.List) != 1 || d.Name == nil {
+						continue
+					}
+					recvName := extractRecvStructName(d.Recv.List[0].Type)
+					if recvName == "" {
+						continue
+					}
+					noteStruct(recvName)
+					mName := d.Name.Name
+					if ifacePkg, ifaceName, ok := splitImplementsMethodName(mName); ok {
+						structImpls[recvName] = append(structImpls[recvName], [2]string{ifacePkg, ifaceName})
+						continue
+					}
+					if ast.IsExported(mName) {
+						structMethods[recvName] = append(structMethods[recvName], mName)
+					}
+				}
+			}
+		}
+
+		for _, sName := range structOrder {
+			impls := structImpls[sName]
+			if len(impls) == 0 {
+				continue
+			}
+			for _, pair := range impls {
+				ifacePkg, ifaceName := pair[0], pair[1]
+				if ifacePkg == "j2gort" {
+					continue
+				}
+				baseName := ifaceName + "Base"
+				if pkgName == ifacePkg && sName == baseName {
+					continue
+				}
+				key := ifacePkg + "." + ifaceName
+				visited := make(map[string]bool)
+				var walk func(cur string)
+				walk = func(cur string) {
+					if cur == "" || visited[cur] {
+						return
+					}
+					if pkgName == ifacePkg && cur == baseName {
+						return
+					}
+					visited[cur] = true
+					for _, mName := range structMethods[cur] {
+						if overrides[key] == nil {
+							overrides[key] = make(map[string]bool)
+						}
+						overrides[key][mName] = true
+					}
+					for _, emb := range structEmbeds[cur] {
+						walk(emb)
+					}
+				}
+				walk(sName)
+			}
+		}
+	}
+	return overrides
+}
+
+func extractEmbeddedLocalStructName(expr ast.Expr) string {
+	cur := stripParens(expr)
+	if st, ok := cur.(*ast.StarExpr); ok {
+		cur = stripParens(st.X)
+	}
+	switch x := cur.(type) {
+	case *ast.IndexExpr:
+		cur = stripParens(x.X)
+	case *ast.IndexListExpr:
+		cur = stripParens(x.X)
+	}
+	if id, ok := cur.(*ast.Ident); ok {
+		return id.Name
+	}
+	return ""
+}
+
+func extractRecvStructName(expr ast.Expr) string {
+	return extractEmbeddedLocalStructName(expr)
+}
+
+func splitImplementsMethodName(mName string) (ifacePkg, ifaceName string, ok bool) {
+	if !strings.HasPrefix(mName, "Implements_") {
+		return "", "", false
+	}
+	rest := strings.TrimPrefix(mName, "Implements_")
+	for i := 1; i < len(rest); i++ {
+		c := rest[i]
+		if c >= 'A' && c <= 'Z' && rest[i-1] == '_' {
+			return rest[:i-1], rest[i:], true
+		}
+	}
+	return "", "", false
 }

@@ -89,7 +89,7 @@ func Normalize_S_Builder(compiler AbstractCompiler) *Normalize_Builder {
 }
 
 // Java method: Normalize.reportCodeChange(java.lang.String changeDescription, com.google.javascript.rhino.Node n)
-func (this_ *Normalize) priv_Normalize_reportCodeChange_4024(changeDescription string, n pkg_rhino.Node) {
+func (this_ *Normalize) priv_Normalize_reportCodeChange_4021(changeDescription string, n pkg_rhino.Node) {
 	_ = changeDescription
 	_ = n
 	if this_.assertOnChange {
@@ -361,7 +361,7 @@ func InitNormalize_NormalizeStatements(this_ *Normalize_NormalizeStatements, com
 }
 
 // Java method: NormalizeStatements.reportCodeChange(java.lang.String changeDescription, com.google.javascript.rhino.Node n)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_reportCodeChange_4027(changeDescription string, n pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_reportCodeChange_4024(changeDescription string, n pkg_rhino.Node) {
 	_ = changeDescription
 	_ = n
 	if this_.assertOnChange {
@@ -397,7 +397,7 @@ func (this_ *Normalize_NormalizeStatements) ShouldTraverse_3(t *NodeTraversal, n
 	}
 	var oldParent pkg_rhino.Node = n.GetParent()
 	_ = oldParent
-	this_.priv_NormalizeStatements_doStatementNormalizations_4033(n)
+	this_.priv_NormalizeStatements_doStatementNormalizations_4030(n)
 	if !(n.GetParent() == oldParent) {
 		j2gort.CheckStateStr(false, "n's parent changed during normalization. It needs to stay the same so that we properly visit any added nodes.")
 	}
@@ -422,14 +422,14 @@ func (this_ *Normalize_NormalizeStatements) Visit_3(t *NodeTraversal, n pkg_rhin
 		empty.SrcrefIfMissing(n)
 		empty.InsertBefore(expr)
 		empty.CloneNode_0().InsertAfter(expr)
-		this_.priv_NormalizeStatements_reportCodeChange_4027("WHILE node", n)
+		this_.priv_NormalizeStatements_reportCodeChange_4024("WHILE node", n)
 	case int32(46) /* Token.ARRAYLIT */, int32(28) /* Token.CALL */, int32(49) /* Token.PARAM_LIST */, int32(23) /* Token.NEW */, int32(47) /* Token.OBJECTLIT */, int32(31) /* Token.OPTCHAIN_CALL */ :
 		n.SetTrailingComma(false)
 	case int32(32) /* Token.NAME */ :
-		this_.priv_NormalizeStatements_annotateConstantsByConvention_4028(n)
-		this_.priv_NormalizeStatements_annotateFunctionExpressionNameAsConstant_4029(n)
+		this_.priv_NormalizeStatements_annotateConstantsByConvention_4025(n)
+		this_.priv_NormalizeStatements_annotateFunctionExpressionNameAsConstant_4026(n)
 	case int32(104) /* Token.DESTRUCTURING_LHS */ :
-		this_.priv_NormalizeStatements_normalizeDestructuringLhs_4034(n)
+		this_.priv_NormalizeStatements_normalizeDestructuringLhs_4031(n)
 	case int32(64) /* Token.ASSIGN_OR */, int32(65) /* Token.ASSIGN_AND */, int32(66) /* Token.ASSIGN_COALESCE */ :
 		this_.rewriteLogicalAssignmentOperatorsHelper.VisitLogicalAssignmentOperator(t, n)
 	default:
@@ -437,7 +437,7 @@ func (this_ *Normalize_NormalizeStatements) Visit_3(t *NodeTraversal, n pkg_rhin
 }
 
 // Java method: NormalizeStatements.annotateConstantsByConvention(com.google.javascript.rhino.Node n)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_annotateConstantsByConvention_4028(n pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_annotateConstantsByConvention_4025(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsName()) {
 		j2gort.CheckState(false)
@@ -454,7 +454,7 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_annotateCon
 }
 
 // Java method: NormalizeStatements.annotateFunctionExpressionNameAsConstant(com.google.javascript.rhino.Node n)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_annotateFunctionExpressionNameAsConstant_4029(n pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_annotateFunctionExpressionNameAsConstant_4026(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsName()) {
 		j2gort.CheckStateFmt(false, "Expected NAME node but got %s", j2gort.BoxString(j2gort.CheckNotNullEnum(n.GetToken()).String()))
@@ -465,7 +465,7 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_annotateFun
 }
 
 // Java method: NormalizeStatements.splitExportDeclaration(com.google.javascript.rhino.Node n)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_splitExportDeclaration_4030(n pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_splitExportDeclaration_4027(n pkg_rhino.Node) {
 	_ = n
 	if n.GetBooleanProp(pkg_rhino.StaticGet_Node_EXPORT_DEFAULT()) {
 		return
@@ -483,12 +483,12 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_splitExport
 			var name pkg_rhino.Node = c.GetFirstChild()
 			_ = name
 			c.InsertBefore(n)
-			this_.priv_NormalizeStatements_addNameNodeToExportSpecs_4031(exportSpecs, name)
+			this_.priv_NormalizeStatements_addNameNodeToExportSpecs_4028(exportSpecs, name)
 		} else {
 			NodeUtil_VisitLhsNodesInNode(c, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_1 any) {
 				name_2 := j2gort.CastNode[pkg_rhino.Node](lp_1)
 				_ = name_2
-				this_.priv_NormalizeStatements_addNameNodeToExportSpecs_4031(exportSpecs, name_2)
+				this_.priv_NormalizeStatements_addNameNodeToExportSpecs_4028(exportSpecs, name_2)
 			}))
 			{
 				var child pkg_rhino.Node = c.GetFirstChild()
@@ -509,15 +509,15 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_splitExport
 		}
 		for _, destructuringLhsNode := range destructuringLhsNodes {
 			_ = destructuringLhsNode
-			this_.priv_NormalizeStatements_normalizeDestructuringLhs_4034(destructuringLhsNode)
+			this_.priv_NormalizeStatements_normalizeDestructuringLhs_4031(destructuringLhsNode)
 		}
 
-		this_.priv_NormalizeStatements_reportCodeChange_4027("combined export and declaration", n.GetParent())
+		this_.priv_NormalizeStatements_reportCodeChange_4024("combined export and declaration", n.GetParent())
 	}
 }
 
 // Java method: NormalizeStatements.addNameNodeToExportSpecs(com.google.javascript.rhino.Node exportSpecs, com.google.javascript.rhino.Node name)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_addNameNodeToExportSpecs_4031(exportSpecs pkg_rhino.Node, name pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_addNameNodeToExportSpecs_4028(exportSpecs pkg_rhino.Node, name pkg_rhino.Node) {
 	_ = exportSpecs
 	_ = name
 	var exportSpec pkg_rhino.Node = pkg_rhino.NewNode_1(pkg_rhino.StaticGet_Token_EXPORT_SPEC()).Srcref(name)
@@ -528,7 +528,7 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_addNameNode
 }
 
 // Java method: NormalizeStatements.normalizeBlocklessFunction(com.google.javascript.rhino.Node n)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_normalizeBlocklessFunction_4032(n pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_normalizeBlocklessFunction_4029(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsFunction()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
@@ -540,53 +540,53 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_normalizeBl
 		_ = body
 		body.SrcrefTreeIfMissing(returnValue)
 		n.AddChildToBack(body)
-		this_.priv_NormalizeStatements_reportCodeChange_4027("blockless arrow function", body)
+		this_.priv_NormalizeStatements_reportCodeChange_4024("blockless arrow function", body)
 	}
 }
 
 // Java method: NormalizeStatements.doStatementNormalizations(com.google.javascript.rhino.Node n)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_doStatementNormalizations_4033(n pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_doStatementNormalizations_4030(n pkg_rhino.Node) {
 	_ = n
 	if n.IsLabel() {
-		this_.priv_NormalizeStatements_normalizeLabels_4037(n)
+		this_.priv_NormalizeStatements_normalizeLabels_4034(n)
 	}
 	if NodeUtil_IsStatementBlock(n) || n.IsLabel() {
-		this_.priv_NormalizeStatements_extractForInitializer_4038(n, pkg_rhino.Node(0), pkg_rhino.Node(0))
+		this_.priv_NormalizeStatements_extractForInitializer_4035(n, pkg_rhino.Node(0), pkg_rhino.Node(0))
 	}
 	if NodeUtil_IsStatementBlock(n) {
-		this_.priv_NormalizeStatements_splitVarDeclarations_4039(n)
+		this_.priv_NormalizeStatements_splitVarDeclarations_4036(n)
 	}
 	if n.IsFunction() {
-		this_.priv_NormalizeStatements_normalizeBlocklessFunction_4032(n)
-		this_.priv_NormalizeStatements_moveNamedFunctions_4040(n.GetLastChild())
+		this_.priv_NormalizeStatements_normalizeBlocklessFunction_4029(n)
+		this_.priv_NormalizeStatements_moveNamedFunctions_4037(n.GetLastChild())
 	}
 	if NodeUtil_IsClassStaticBlock(n) {
-		this_.priv_NormalizeStatements_moveNamedFunctions_4040(n)
+		this_.priv_NormalizeStatements_moveNamedFunctions_4037(n)
 	}
 	if n.IsExport() {
-		this_.priv_NormalizeStatements_splitExportDeclaration_4030(n)
+		this_.priv_NormalizeStatements_splitExportDeclaration_4027(n)
 	}
 	if NodeUtil_IsCompoundAssignmentOp(n) && !(NodeUtil_IsLogicalAssignmentOp(n)) {
-		this_.priv_NormalizeStatements_normalizeAssignShorthand_4041(n)
+		this_.priv_NormalizeStatements_normalizeAssignShorthand_4038(n)
 	}
 }
 
 // Java method: NormalizeStatements.normalizeDestructuringLhs(com.google.javascript.rhino.Node n)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_normalizeDestructuringLhs_4034(n pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_normalizeDestructuringLhs_4031(n pkg_rhino.Node) {
 	_ = n
-	if this_.priv_NormalizeStatements_isVarDestructuringDeclaration_4035(n) {
-		this_.priv_NormalizeStatements_rewriteVarDestructuringDeclaration_4036(n)
+	if this_.priv_NormalizeStatements_isVarDestructuringDeclaration_4032(n) {
+		this_.priv_NormalizeStatements_rewriteVarDestructuringDeclaration_4033(n)
 	}
 }
 
 // Java method: NormalizeStatements.isVarDestructuringDeclaration(com.google.javascript.rhino.Node n)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_isVarDestructuringDeclaration_4035(n pkg_rhino.Node) bool {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_isVarDestructuringDeclaration_4032(n pkg_rhino.Node) bool {
 	_ = n
 	return ((n.IsDestructuringLhs() && (n.GetFirstChild().IsArrayPattern() || n.GetFirstChild().IsObjectPattern())) && n.GetParent().IsVar())
 }
 
 // Java method: NormalizeStatements.rewriteVarDestructuringDeclaration(com.google.javascript.rhino.Node destructuringLhs)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_rewriteVarDestructuringDeclaration_4036(destructuringLhs pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_rewriteVarDestructuringDeclaration_4033(destructuringLhs pkg_rhino.Node) {
 	_ = destructuringLhs
 	if !(!(destructuringLhs.GetGrandparent().IsExport())) {
 		j2gort.CheckStateStr(false, "Export destructuring declarations should be already handled in `splitExportDeclaration` during pre-order traversal.")
@@ -623,11 +623,11 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_rewriteVarD
 	expr.Srcref(var_)
 	var_.ReplaceWith(expr)
 	destructuringLhs.Detach()
-	this_.priv_NormalizeStatements_reportCodeChange_4027("Var destructuring declaration rewritten", expr)
+	this_.priv_NormalizeStatements_reportCodeChange_4024("Var destructuring declaration rewritten", expr)
 }
 
 // Java method: NormalizeStatements.normalizeLabels(com.google.javascript.rhino.Node n)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_normalizeLabels_4037(n pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_normalizeLabels_4034(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsLabel()) {
 		j2gort.CheckArgument(false)
@@ -643,13 +643,13 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_normalizeLa
 		block.SrcrefIfMissing(last)
 		last.ReplaceWith(block)
 		block.AddChildToFront(last)
-		this_.priv_NormalizeStatements_reportCodeChange_4027("LABEL normalization", n)
+		this_.priv_NormalizeStatements_reportCodeChange_4024("LABEL normalization", n)
 		return
 	}
 }
 
 // Java method: NormalizeStatements.extractForInitializer(com.google.javascript.rhino.Node n, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node before, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node beforeParent)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_extractForInitializer_4038(n pkg_rhino.Node, before pkg_rhino.Node, beforeParent pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_extractForInitializer_4035(n pkg_rhino.Node, before pkg_rhino.Node, beforeParent pkg_rhino.Node) {
 	_ = n
 	_ = before
 	_ = beforeParent
@@ -676,7 +676,7 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_extractForI
 			}
 			switch c.TokenSwitchOrd_() {
 			case int32(92) /* Token.LABEL */ :
-				this_.priv_NormalizeStatements_extractForInitializer_4038(c, insertBefore, insertBeforeParent)
+				this_.priv_NormalizeStatements_extractForInitializer_4035(c, insertBefore, insertBeforeParent)
 			case int32(81) /* Token.FOR_IN */, int32(112) /* Token.FOR_OF */, int32(113) /* Token.FOR_AWAIT_OF */ :
 				var first pkg_rhino.Node = c.GetFirstChild()
 				_ = first
@@ -707,7 +707,7 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_extractForI
 						first.ReplaceWith(name)
 						newStatement.InsertBefore(insertBefore)
 					}
-					this_.priv_NormalizeStatements_reportCodeChange_4027("FOR-IN var declaration", n)
+					this_.priv_NormalizeStatements_reportCodeChange_4024("FOR-IN var declaration", n)
 				}
 			case int32(80) /* Token.FOR */ :
 				if !(c.GetFirstChild().IsEmpty()) {
@@ -728,7 +728,7 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_extractForI
 						newStatement_2 = NodeUtil_NewExpr(init)
 					}
 					newStatement_2.InsertBefore(insertBefore)
-					this_.priv_NormalizeStatements_reportCodeChange_4027("FOR initializer", n)
+					this_.priv_NormalizeStatements_reportCodeChange_4024("FOR initializer", n)
 				}
 			default:
 			}
@@ -737,7 +737,7 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_extractForI
 }
 
 // Java method: NormalizeStatements.splitVarDeclarations(com.google.javascript.rhino.Node n)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_splitVarDeclarations_4039(n pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_splitVarDeclarations_4036(n pkg_rhino.Node) {
 	_ = n
 	{
 		var next pkg_rhino.Node = pkg_rhino.Node(0)
@@ -757,7 +757,7 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_splitVarDec
 					var newVar pkg_rhino.Node = pkg_rhino.NewNode_2(c.GetToken(), name).Srcref(n)
 					_ = newVar
 					newVar.InsertBefore(c)
-					this_.priv_NormalizeStatements_reportCodeChange_4027("VAR with multiple children", n)
+					this_.priv_NormalizeStatements_reportCodeChange_4024("VAR with multiple children", n)
 				}
 			}
 		}
@@ -765,7 +765,7 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_splitVarDec
 }
 
 // Java method: NormalizeStatements.moveNamedFunctions(com.google.javascript.rhino.Node body)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_moveNamedFunctions_4040(body pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_moveNamedFunctions_4037(body pkg_rhino.Node) {
 	_ = body
 	if !(body.GetParent().IsFunction() || NodeUtil_IsClassStaticBlock(body)) {
 		j2gort.CheckState(false)
@@ -784,14 +784,14 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_moveNamedFu
 		if NodeUtil_IsFunctionDeclaration(current) {
 			current.Detach()
 			insertAfter = Normalize_NormalizeStatements_AddToFront(body, current, insertAfter)
-			this_.priv_NormalizeStatements_reportCodeChange_4027("Move function declaration not at top of function or class static block", body)
+			this_.priv_NormalizeStatements_reportCodeChange_4024("Move function declaration not at top of function or class static block", body)
 		}
 		current = next
 	}
 }
 
 // Java method: NormalizeStatements.normalizeAssignShorthand(com.google.javascript.rhino.Node shorthand)
-func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_normalizeAssignShorthand_4041(shorthand pkg_rhino.Node) {
+func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_normalizeAssignShorthand_4038(shorthand pkg_rhino.Node) {
 	_ = shorthand
 	if !(shorthand.GetFirstChild().IsName()) {
 		return
@@ -813,7 +813,7 @@ func (this_ *Normalize_NormalizeStatements) priv_NormalizeStatements_normalizeAs
 	lhs.CopyTypeFrom(shorthand)
 	shorthand.AddChildToBack(lhs)
 	shorthand.AddChildToBack(opNode)
-	this_.priv_NormalizeStatements_reportCodeChange_4027("assign shorthand", shorthand)
+	this_.priv_NormalizeStatements_reportCodeChange_4024("assign shorthand", shorthand)
 }
 
 // Java static method: NormalizeStatements.addToFront(com.google.javascript.rhino.Node parent, com.google.javascript.rhino.Node newChild, com.google.javascript.rhino.Node after)
@@ -904,18 +904,18 @@ func (this_ *Normalize_DuplicateDeclarationHandler) OnRedeclaration(s *Scope, na
 		if v.GetParentNode().IsVar() {
 			s.Undeclare(ToIface_AbstractVar(v))
 			s.Declare(name, n, v.GetInput())
-			this_.priv_DuplicateDeclarationHandler_replaceVarWithAssignment_4043(v.GetNameNode(), v.GetParentNode(), v.GetParentNode().GetParent())
+			this_.priv_DuplicateDeclarationHandler_replaceVarWithAssignment_4040(v.GetNameNode(), v.GetParentNode(), v.GetParentNode().GetParent())
 		}
 	} else if parent.IsVar() {
 		if !(parent.HasOneChild()) {
 			j2gort.CheckState(false)
 		}
-		this_.priv_DuplicateDeclarationHandler_replaceVarWithAssignment_4043(n, parent, parent.GetParent())
+		this_.priv_DuplicateDeclarationHandler_replaceVarWithAssignment_4040(n, parent, parent.GetParent())
 	}
 }
 
 // Java method: DuplicateDeclarationHandler.replaceVarWithAssignment(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent, com.google.javascript.rhino.Node grandparent)
-func (this_ *Normalize_DuplicateDeclarationHandler) priv_DuplicateDeclarationHandler_replaceVarWithAssignment_4043(n pkg_rhino.Node, parent pkg_rhino.Node, grandparent pkg_rhino.Node) {
+func (this_ *Normalize_DuplicateDeclarationHandler) priv_DuplicateDeclarationHandler_replaceVarWithAssignment_4040(n pkg_rhino.Node, parent pkg_rhino.Node, grandparent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	_ = grandparent
@@ -931,13 +931,13 @@ func (this_ *Normalize_DuplicateDeclarationHandler) priv_DuplicateDeclarationHan
 		var statement pkg_rhino.Node = NodeUtil_NewExpr(replacement)
 		_ = statement
 		parent.ReplaceWith(statement)
-		this_.outer_.priv_Normalize_reportCodeChange_4024("Duplicate VAR declaration", statement)
+		this_.outer_.priv_Normalize_reportCodeChange_4021("Duplicate VAR declaration", statement)
 	} else {
 		if !(NodeUtil_IsStatementBlock(grandparent)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(grandparent))
 		}
 		parent.Detach()
-		this_.outer_.priv_Normalize_reportCodeChange_4024("Duplicate VAR declaration", grandparent)
+		this_.outer_.priv_Normalize_reportCodeChange_4021("Duplicate VAR declaration", grandparent)
 	}
 }
 func (*Normalize_PropagateConstantPropertyOverVars) AlwaysShouldTraverse_()      {}

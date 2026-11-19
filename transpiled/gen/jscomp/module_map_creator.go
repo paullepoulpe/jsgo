@@ -127,7 +127,7 @@ func InitModuleMapCreator(this_ *ModuleMapCreator, compiler AbstractCompiler, mo
 }
 
 // Java method: ModuleMapCreator.create()
-func (this_ *ModuleMapCreator) priv_ModuleMapCreator_create_6731() *ModuleMap {
+func (this_ *ModuleMapCreator) priv_ModuleMapCreator_create_6737() *ModuleMap {
 	this_.unresolvedModules.Clear()
 	this_.unresolvedModulesByClosureNamespace.Clear()
 	{
@@ -136,14 +136,14 @@ func (this_ *ModuleMapCreator) priv_ModuleMapCreator_create_6731() *ModuleMap {
 			rawElem_2 := cur_1.Next()
 			moduleMetadata := j2gort.AsIface[ModuleMetadataMap_ModuleMetadata](rawElem_2)
 			_ = moduleMetadata
-			this_.priv_ModuleMapCreator_process_6733(moduleMetadata)
+			this_.priv_ModuleMapCreator_process_6739(moduleMetadata)
 		}
 	}
-	return this_.priv_ModuleMapCreator_resolve_6732()
+	return this_.priv_ModuleMapCreator_resolve_6738()
 }
 
 // Java method: ModuleMapCreator.resolve()
-func (this_ *ModuleMapCreator) priv_ModuleMapCreator_resolve_6732() *ModuleMap {
+func (this_ *ModuleMapCreator) priv_ModuleMapCreator_resolve_6738() *ModuleMap {
 	var requestResolver ModuleRequestResolver = NewModuleMapCreator_ModuleRequestResolverImpl(this_)
 	_ = requestResolver
 	var resolvedModules j2gort.OrderedMap[string, *Module] = j2gort.NewOrderedMap[string, *Module]()
@@ -158,7 +158,7 @@ func (this_ *ModuleMapCreator) priv_ModuleMapCreator_resolve_6732() *ModuleMap {
 			for cur_4.HasNext() {
 				key := cur_4.NextStr()
 				_ = key
-				var resolved *Module = this_.unresolvedModules.Get(key).Resolve_1(requestResolver)
+				var resolved *Module = this_.unresolvedModules.Get(key).GetUnresolvedModuleBase().Resolve_1(requestResolver)
 				_ = resolved
 				resolvedModules.Put(key, resolved)
 				{
@@ -180,7 +180,7 @@ func (this_ *ModuleMapCreator) priv_ModuleMapCreator_resolve_6732() *ModuleMap {
 			for cur_7.HasNext() {
 				namespace_2 := cur_7.NextStr()
 				_ = namespace_2
-				resolvedClosureModules.Put(namespace_2, this_.unresolvedModulesByClosureNamespace.Get(namespace_2).Resolve_1(requestResolver))
+				resolvedClosureModules.Put(namespace_2, this_.unresolvedModulesByClosureNamespace.Get(namespace_2).GetUnresolvedModuleBase().Resolve_1(requestResolver))
 			}
 		}
 	}
@@ -190,7 +190,7 @@ func (this_ *ModuleMapCreator) priv_ModuleMapCreator_resolve_6732() *ModuleMap {
 }
 
 // Java method: ModuleMapCreator.process(com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata moduleMetadata)
-func (this_ *ModuleMapCreator) priv_ModuleMapCreator_process_6733(moduleMetadata ModuleMetadataMap_ModuleMetadata) {
+func (this_ *ModuleMapCreator) priv_ModuleMapCreator_process_6739(moduleMetadata ModuleMetadataMap_ModuleMetadata) {
 	_ = moduleMetadata
 	var processor ModuleMapCreator_ModuleProcessor = nil
 	_ = processor
@@ -225,7 +225,7 @@ func (this_ *ModuleMapCreator) priv_ModuleMapCreator_process_6733(moduleMetadata
 func (this_ *ModuleMapCreator) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	this_.compiler.SetModuleMap(this_.priv_ModuleMapCreator_create_6731())
+	this_.compiler.SetModuleMap(this_.priv_ModuleMapCreator_create_6737())
 }
 
 // Java class: com.google.javascript.jscomp.modules.ModuleMapCreator.ModuleRequestResolverImpl
@@ -281,7 +281,7 @@ func InitModuleMapCreator_ModuleRequestResolverImpl(this_ *ModuleMapCreator_Modu
 }
 
 // Java method: ModuleRequestResolverImpl.getFallbackForMissingNonClosureModule(com.google.javascript.jscomp.deps.ModuleLoader.ModulePath path)
-func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) priv_ModuleRequestResolverImpl_getFallbackForMissingNonClosureModule_6734(path *ModuleLoader_ModulePath) UnresolvedModule {
+func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) priv_ModuleRequestResolverImpl_getFallbackForMissingNonClosureModule_6740(path *ModuleLoader_ModulePath) UnresolvedModule {
 	_ = path
 	var metadata ModuleMetadataMap_ModuleMetadata = ModuleMetadataMap_ModuleMetadata_S_Builder().RootNode(pkg_rhino.Node(0)).Path(path).ModuleType_1(StaticGet_ModuleMetadataMap_ModuleType_ES6_MODULE()).IsTestOnly(false).UsesClosure(false).Build()
 	_ = metadata
@@ -289,54 +289,54 @@ func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) priv_ModuleRequestResol
 }
 
 // Java method: ModuleRequestResolverImpl.getFallbackForMissingClosureModule(java.lang.String namespace)
-func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) priv_ModuleRequestResolverImpl_getFallbackForMissingClosureModule_6735(namespace string) UnresolvedModule {
+func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) priv_ModuleRequestResolverImpl_getFallbackForMissingClosureModule_6741(namespace string) UnresolvedModule {
 	_ = namespace
-	return this_.outer_.nonEsModuleProcessor.Process(ModuleMetadataMap_ModuleMetadata_S_Builder().AddGoogNamespace(namespace).IsTestOnly(false).ModuleType_1(StaticGet_ModuleMetadataMap_ModuleType_GOOG_PROVIDE()).Path(nil).RootNode(pkg_rhino.Node(0)).UsesClosure(true).Build(), nil, pkg_rhino.Node(0))
+	return this_.outer_.nonEsModuleProcessor.Process(ModuleMetadataMap_ModuleMetadata_S_Builder().GetModuleMetadataMap_ModuleMetadata_BuilderBase().AddGoogNamespace(namespace).IsTestOnly(false).ModuleType_1(StaticGet_ModuleMetadataMap_ModuleType_GOOG_PROVIDE()).Path(nil).RootNode(pkg_rhino.Node(0)).UsesClosure(true).Build(), nil, pkg_rhino.Node(0))
 }
 
 // Java method: ModuleRequestResolverImpl.resolve(com.google.javascript.jscomp.modules.Import i)
 func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) Resolve_1_Import(i *Import) UnresolvedModule {
 	_ = i
 	if i.ModulePath() == nil {
-		return this_.priv_ModuleRequestResolverImpl_resolveForClosure_6738(i.ModuleRequest())
+		return this_.priv_ModuleRequestResolverImpl_resolveForClosure_6744(i.ModuleRequest())
 	}
-	return this_.priv_ModuleRequestResolverImpl_resolve_6739(i.ModuleRequest(), i.ModulePath(), i.ImportNode())
+	return this_.priv_ModuleRequestResolverImpl_resolve_6745(i.ModuleRequest(), i.ModulePath(), i.ImportNode())
 }
 
 // Java method: ModuleRequestResolverImpl.resolve(com.google.javascript.jscomp.modules.Export e)
 func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) Resolve_1_Export(e *Export) UnresolvedModule {
 	_ = e
-	return this_.priv_ModuleRequestResolverImpl_resolve_6739(e.ModuleRequest(), e.ModulePath(), e.ExportNode())
+	return this_.priv_ModuleRequestResolverImpl_resolve_6745(e.ModuleRequest(), e.ModulePath(), e.ExportNode())
 }
 
 // Java method: ModuleRequestResolverImpl.resolveForClosure(java.lang.String namespace)
-func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) priv_ModuleRequestResolverImpl_resolveForClosure_6738(namespace string) UnresolvedModule {
+func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) priv_ModuleRequestResolverImpl_resolveForClosure_6744(namespace string) UnresolvedModule {
 	_ = namespace
 	return func() UnresolvedModule {
 		bound_9 := this_
 		return j2gort.OrderedMapComputeIfAbsent(&this_.outer_.unresolvedModulesByClosureNamespace, namespace, nil, func(mrp0_ string) UnresolvedModule {
-			return bound_9.priv_ModuleRequestResolverImpl_getFallbackForMissingClosureModule_6735(mrp0_)
+			return bound_9.priv_ModuleRequestResolverImpl_getFallbackForMissingClosureModule_6741(mrp0_)
 		})
 	}()
 
 }
 
 // Java method: ModuleRequestResolverImpl.resolve(java.lang.String moduleRequest, com.google.javascript.jscomp.deps.ModuleLoader.ModulePath modulePath, com.google.javascript.rhino.Node forLineInfo)
-func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) priv_ModuleRequestResolverImpl_resolve_6739(moduleRequest string, modulePath *ModuleLoader_ModulePath, forLineInfo pkg_rhino.Node) UnresolvedModule {
+func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) priv_ModuleRequestResolverImpl_resolve_6745(moduleRequest string, modulePath *ModuleLoader_ModulePath, forLineInfo pkg_rhino.Node) UnresolvedModule {
 	_ = moduleRequest
 	_ = modulePath
 	_ = forLineInfo
 	if GoogEsImports_IsGoogImportSpecifier(moduleRequest) {
 		var namespace string = GoogEsImports_GetClosureIdFromGoogImportSpecifier(moduleRequest)
 		_ = namespace
-		return this_.priv_ModuleRequestResolverImpl_resolveForClosure_6738(namespace)
+		return this_.priv_ModuleRequestResolverImpl_resolveForClosure_6744(namespace)
 	}
 	var requestedPath *ModuleLoader_ModulePath = modulePath.ResolveJsModule(moduleRequest, forLineInfo.GetSourceFileName(), forLineInfo.GetLineno(), forLineInfo.GetCharno())
 	_ = requestedPath
 	if requestedPath == nil {
 		requestedPath = modulePath.ResolveModuleAsPath(moduleRequest)
 		if !(this_.outer_.unresolvedModules.ContainsKey(requestedPath.ToModuleName())) {
-			var module UnresolvedModule = this_.priv_ModuleRequestResolverImpl_getFallbackForMissingNonClosureModule_6734(requestedPath)
+			var module UnresolvedModule = this_.priv_ModuleRequestResolverImpl_getFallbackForMissingNonClosureModule_6740(requestedPath)
 			_ = module
 			this_.outer_.unresolvedModules.Put(requestedPath.ToModuleName(), module)
 			return module
@@ -361,6 +361,14 @@ func ToIface_ModuleMapCreator_ModuleProcessor[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_ModuleMapCreator_ModuleProcessor[T ModuleMapCreator_ModuleProcessor](v T) ModuleMapCreator_ModuleProcessor {
+	var vi ModuleMapCreator_ModuleProcessor = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {
@@ -444,5 +452,5 @@ func (this_ *ModuleMapCreator__Anon_123) ResolveExport_5(moduleRequestResolver M
 	_ = exportName
 	_ = resolveSet
 	_ = exportStarSet
-	return ResolveExportResult_Of(Binding_From_2(Export_S_Builder().LocalName(exportName).ModuleMetadata(this_.cap_1_metadata).ModulePath(this_.cap_0_path).ClosureNamespace(j2gort.NullString).Build(), pkg_rhino.Node(0)))
+	return ResolveExportResult_Of(Binding_From_2(Export_S_Builder().LocalName(exportName).ModuleMetadata(this_.cap_1_metadata).ModulePath(this_.cap_0_path).ClosureNamespace(j2gort.NullString).GetExport_BuilderBase().Build(), pkg_rhino.Node(0)))
 }

@@ -683,6 +683,14 @@ func ToIface_JsMessage_Part[T interface {
 	return v
 }
 
+func Upcast_JsMessage_Part[T JsMessage_Part](v T) JsMessage_Part {
+	var vi JsMessage_Part = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.JsMessage.Part", "com.google.javascript.jscomp.JsMessage$Part", func(v_ any) bool {
 		return j2gort.InstanceOf[JsMessage_Part](v_)
@@ -1489,6 +1497,14 @@ func ToIface_JsMessage_IdGenerator[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_JsMessage_IdGenerator[T JsMessage_IdGenerator](v T) JsMessage_IdGenerator {
+	var vi JsMessage_IdGenerator = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

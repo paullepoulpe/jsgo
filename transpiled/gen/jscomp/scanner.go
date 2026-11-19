@@ -44,6 +44,14 @@ func ToIface_Scanner[T interface {
 	return v
 }
 
+func Upcast_Scanner[T Scanner](v T) Scanner {
+	var vi Scanner = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.refactoring.Scanner
 type ScannerBase struct {
 	idHash_ atomic.Int32

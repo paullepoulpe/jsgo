@@ -38,6 +38,14 @@ func ToIface_ReferenceMap[T interface {
 	return v
 }
 
+func Upcast_ReferenceMap[T ReferenceMap](v T) ReferenceMap {
+	var vi ReferenceMap = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.ReferenceMap", "com.google.javascript.jscomp.ReferenceMap", func(v_ any) bool {
 		return j2gort.InstanceOf[ReferenceMap](v_)

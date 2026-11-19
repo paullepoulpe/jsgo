@@ -59,6 +59,14 @@ func ToIface_CodeReplacement[T interface {
 	return v
 }
 
+func Upcast_CodeReplacement[T CodeReplacement](v T) CodeReplacement {
+	var vi CodeReplacement = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.refactoring.CodeReplacement
 type CodeReplacementBase struct {
 	self_   CodeReplacement

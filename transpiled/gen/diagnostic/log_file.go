@@ -50,6 +50,14 @@ func ToIface_LogFile[T interface {
 	return v
 }
 
+func Upcast_LogFile[T LogFile](v T) LogFile {
+	var vi LogFile = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.diagnostic.LogFile
 type LogFileBase struct {
 	idHash_ atomic.Int32
@@ -168,6 +176,14 @@ func ToIface_LogFile_StreamedJsonProducer[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_LogFile_StreamedJsonProducer[T LogFile_StreamedJsonProducer](v T) LogFile_StreamedJsonProducer {
+	var vi LogFile_StreamedJsonProducer = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

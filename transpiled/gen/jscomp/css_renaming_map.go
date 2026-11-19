@@ -43,6 +43,14 @@ func ToIface_CssRenamingMap[T interface {
 	return v
 }
 
+func Upcast_CssRenamingMap[T CssRenamingMap](v T) CssRenamingMap {
+	var vi CssRenamingMap = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.CssRenamingMap", "com.google.javascript.jscomp.CssRenamingMap", func(v_ any) bool {
 		return j2gort.InstanceOf[CssRenamingMap](v_)
@@ -168,6 +176,14 @@ func ToIface_CssRenamingMap_ByPart[T interface {
 	return v
 }
 
+func Upcast_CssRenamingMap_ByPart[T CssRenamingMap_ByPart](v T) CssRenamingMap_ByPart {
+	var vi CssRenamingMap_ByPart = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.CssRenamingMap.ByPart
 type CssRenamingMap_ByPartBase struct {
 	idHash_ atomic.Int32
@@ -232,6 +248,14 @@ func ToIface_CssRenamingMap_ByWhole[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_CssRenamingMap_ByWhole[T CssRenamingMap_ByWhole](v T) CssRenamingMap_ByWhole {
+	var vi CssRenamingMap_ByWhole = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.CssRenamingMap.ByWhole

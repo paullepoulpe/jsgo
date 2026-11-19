@@ -150,7 +150,7 @@ func (this_ *GraphReachability[N, E]) Compute(entry N) {
 	var entryNode DiGraph_DiGraphNode[N, E] = j2gort.AsIface[DiGraph_DiGraphNode[N, E]](this_.graph.GetNode(entry))
 	_ = entryNode
 	entryNode.SetAnnotation(StaticGet_GraphReachability_REACHABLE())
-	this_.priv_GraphReachability_propagate_6315(entryNode, j2gort.NewExt_java_util_ArrayDeque())
+	this_.priv_GraphReachability_propagate_6321(entryNode, j2gort.NewExt_java_util_ArrayDeque())
 }
 
 // Java method: GraphReachability.recompute(N reachableNode)
@@ -162,7 +162,7 @@ func (this_ *GraphReachability[N, E]) Recompute(reachableNode N) {
 		j2gort.CheckState(false)
 	}
 	newReachable.SetAnnotation(StaticGet_GraphReachability_REACHABLE())
-	this_.priv_GraphReachability_propagate_6315(newReachable, j2gort.NewExt_java_util_ArrayDeque())
+	this_.priv_GraphReachability_propagate_6321(newReachable, j2gort.NewExt_java_util_ArrayDeque())
 }
 
 // Java static method: GraphReachability.computeReachability(com.google.javascript.jscomp.graph.DiGraph<N,E> graph, N entry, com.google.javascript.jscomp.graph.GraphReachability.@org.jspecify.annotations.Nullable EdgeFilter<N,E> edgeFilter, java.util.ArrayDeque<com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E>> workQueue)
@@ -195,7 +195,7 @@ func GraphReachability_RecomputeReachability[N comparable, E any](graph DiGraph[
 }
 
 // Java method: GraphReachability.propagate(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E> startNode, java.util.ArrayDeque<com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E>> workQueue)
-func (this_ *GraphReachability[N, E]) priv_GraphReachability_propagate_6315(startNode DiGraph_DiGraphNode[N, E], workQueue *j2gort.Ext_java_util_ArrayDeque) {
+func (this_ *GraphReachability[N, E]) priv_GraphReachability_propagate_6321(startNode DiGraph_DiGraphNode[N, E], workQueue *j2gort.Ext_java_util_ArrayDeque) {
 	_ = startNode
 	_ = workQueue
 	if this_.edgePredicate == nil {
@@ -313,6 +313,14 @@ func ToIface_GraphReachability_EdgeFilter[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_GraphReachability_EdgeFilter[T GraphReachability_EdgeFilter](v T) GraphReachability_EdgeFilter {
+	var vi GraphReachability_EdgeFilter = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

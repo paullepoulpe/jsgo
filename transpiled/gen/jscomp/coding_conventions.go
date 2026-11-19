@@ -109,6 +109,14 @@ func ToIface_CodingConventions_Proxy[T interface {
 	return v
 }
 
+func Upcast_CodingConventions_Proxy[T CodingConventions_Proxy](v T) CodingConventions_Proxy {
+	var vi CodingConventions_Proxy = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.CodingConventions.Proxy
 type CodingConventions_ProxyBase struct {
 	self_          CodingConventions_Proxy
@@ -208,7 +216,7 @@ func (this_ *CodingConventions_ProxyBase) IsExported_2(name string, local bool) 
 // Java method: Proxy.isExported(java.lang.String name)
 func (this_ *CodingConventions_ProxyBase) IsExported_1(name string) bool {
 	_ = name
-	return IfaceDefault_CodingConvention_IsExported_1(j2gort.AsIface[CodingConvention](this_.self_), name)
+	return IfaceDefault_CodingConvention_IsExported_1(Upcast_CodingConvention(this_.self_), name)
 }
 
 // Java method: Proxy.getPackageName(com.google.javascript.rhino.StaticSourceFile source)
@@ -632,10 +640,12 @@ func (this_ *CodingConventions_DefaultCodingConvention) GetObjectLiteralCast(cal
 
 // Java method: DefaultCodingConvention.getAssertionFunctions()
 func (this_ *CodingConventions_DefaultCodingConvention) GetAssertionFunctions() any {
-	return j2gort.Ext_com_google_common_collect_ImmutableSet_Of_2(CodingConvention_AssertionFunctionSpec_ForTruthy().SetClosurePrimitive(pkg_rhino.StaticGet_ClosurePrimitive_ASSERTS_TRUTHY()).Build(), CodingConvention_AssertionFunctionSpec_ForMatchesReturn().SetClosurePrimitive(pkg_rhino.StaticGet_ClosurePrimitive_ASSERTS_MATCHES_RETURN()).Build())
+	return j2gort.Ext_com_google_common_collect_ImmutableSet_Of_2(CodingConvention_AssertionFunctionSpec_ForTruthy().SetClosurePrimitive(pkg_rhino.StaticGet_ClosurePrimitive_ASSERTS_TRUTHY()).GetCodingConvention_AssertionFunctionSpec_BuilderBase().Build(), CodingConvention_AssertionFunctionSpec_ForMatchesReturn().SetClosurePrimitive(pkg_rhino.StaticGet_ClosurePrimitive_ASSERTS_MATCHES_RETURN()).GetCodingConvention_AssertionFunctionSpec_BuilderBase(
+
+	// Java method: DefaultCodingConvention.describeFunctionBind(com.google.javascript.rhino.Node n, boolean checkTypes)
+	).Build())
 }
 
-// Java method: DefaultCodingConvention.describeFunctionBind(com.google.javascript.rhino.Node n, boolean checkTypes)
 func (this_ *CodingConventions_DefaultCodingConvention) DescribeFunctionBind(n pkg_rhino.Node, checkTypes bool) *CodingConvention_Bind {
 	_ = n
 	_ = checkTypes

@@ -141,6 +141,11 @@ func Run(patterns []string, passList []Pass, opts Options) (*Stats, error) {
 	if err != nil {
 		return nil, err
 	}
+	targetDirs := make([]string, len(targets))
+	for i, tgt := range targets {
+		targetDirs[i] = tgt.dir
+	}
+	imp.SetTargetDirs(targetDirs)
 
 	totalStats := newStats(passList)
 	for _, tgt := range targets {

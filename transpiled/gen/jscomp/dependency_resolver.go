@@ -41,6 +41,14 @@ func ToIface_DependencyResolver[T interface {
 	return v
 }
 
+func Upcast_DependencyResolver[T DependencyResolver](v T) DependencyResolver {
+	var vi DependencyResolver = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.deps.DependencyResolver", "com.google.javascript.jscomp.deps.DependencyResolver", func(v_ any) bool {
 		return j2gort.InstanceOf[DependencyResolver](v_)

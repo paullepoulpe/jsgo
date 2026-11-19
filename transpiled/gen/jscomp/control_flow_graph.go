@@ -368,6 +368,14 @@ func ToIface_ControlFlowGraph_AbstractCfgNodeTraversalCallback[T interface {
 	return v
 }
 
+func Upcast_ControlFlowGraph_AbstractCfgNodeTraversalCallback[T ControlFlowGraph_AbstractCfgNodeTraversalCallback](v T) ControlFlowGraph_AbstractCfgNodeTraversalCallback {
+	var vi ControlFlowGraph_AbstractCfgNodeTraversalCallback = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.ControlFlowGraph.AbstractCfgNodeTraversalCallback
 type ControlFlowGraph_AbstractCfgNodeTraversalCallbackBase struct {
 	idHash_ atomic.Int32

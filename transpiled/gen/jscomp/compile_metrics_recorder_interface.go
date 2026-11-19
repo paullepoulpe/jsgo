@@ -41,6 +41,14 @@ func ToIface_CompileMetricsRecorderInterface[T interface {
 	return v
 }
 
+func Upcast_CompileMetricsRecorderInterface[T CompileMetricsRecorderInterface](v T) CompileMetricsRecorderInterface {
+	var vi CompileMetricsRecorderInterface = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.CompileMetricsRecorderInterface", "com.google.javascript.jscomp.CompileMetricsRecorderInterface", func(v_ any) bool {
 		return j2gort.InstanceOf[CompileMetricsRecorderInterface](v_)

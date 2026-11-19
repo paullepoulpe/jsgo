@@ -84,11 +84,11 @@ func (this_ SourcePosition) GetOffset() int32 {
 
 // Java method: SourcePosition.toString()
 func (this_ SourcePosition) String() string {
-	return j2gort.Ext_java_lang_String_Format_2("%s(%d, %d)", []any{j2gort.BoxString(this_.priv_SourcePosition_shortSourceName_7630()), j2gort.ValueOfInt((this_.line + int32(1))), j2gort.ValueOfInt((this_.column + int32(1)))})
+	return j2gort.Ext_java_lang_String_Format_2("%s(%d, %d)", []any{j2gort.BoxString(this_.priv_SourcePosition_shortSourceName_7636()), j2gort.ValueOfInt((this_.line + int32(1))), j2gort.ValueOfInt((this_.column + int32(1)))})
 }
 
 // Java method: SourcePosition.shortSourceName()
-func (this_ SourcePosition) priv_SourcePosition_shortSourceName_7630() string {
+func (this_ SourcePosition) priv_SourcePosition_shortSourceName_7636() string {
 	if ((this_.source == nil)) {
 		return ""
 	}

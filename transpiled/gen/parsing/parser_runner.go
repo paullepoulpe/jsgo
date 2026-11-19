@@ -164,7 +164,7 @@ func ParserRunner_CreateConfig_6(languageMode *Config_LanguageMode, jsdocParsing
 		effectiveAnnotationNames = j2gort.NewExt_java_util_LinkedHashSet_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](StaticGet_ParserRunner_AnnotationNames()))
 		effectiveAnnotationNames.AddAll_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](extraAnnotationNames))
 	}
-	return Config_S_Builder().SetExtraAnnotationNames(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](effectiveAnnotationNames)).SetJsDocParsingMode(jsdocParsingMode).SetRunMode(runMode).SetSuppressionNames(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](StaticGet_ParserRunner_SuppressionNames())).SetClosurePrimitiveNames(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](StaticGet_ParserRunner_ClosurePrimitiveNames())).SetLanguageMode(languageMode).SetParseInlineSourceMaps(parseInlineSourceMaps).SetStrictMode(strictMode).Build()
+	return Config_S_Builder().GetConfig_BuilderBase().SetExtraAnnotationNames(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](effectiveAnnotationNames)).SetJsDocParsingMode(jsdocParsingMode).SetRunMode(runMode).SetSuppressionNames(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](StaticGet_ParserRunner_SuppressionNames())).SetClosurePrimitiveNames(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](StaticGet_ParserRunner_ClosurePrimitiveNames())).SetLanguageMode(languageMode).SetParseInlineSourceMaps(parseInlineSourceMaps).SetStrictMode(strictMode).Build()
 }
 
 // Java static method: ParserRunner.getReservedVars()
@@ -264,7 +264,7 @@ func ParserRunner_Parse(sourceFile pkg_rhino.StaticSourceFile, sourceString stri
 						rawElem_6 := cur_5.Next()
 						element := j2gort.AsIface[pkg_parser.ParseTree](rawElem_6)
 						_ = element
-						builder.AddVoid_(element.FieldGet_location())
+						builder.AddVoid_(element.GetParseTreeBase().FieldGet_location())
 					}
 				}
 				topLevelStatementRanges = builder.BuildImmList_()

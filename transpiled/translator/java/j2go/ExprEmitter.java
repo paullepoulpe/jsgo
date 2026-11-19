@@ -732,17 +732,49 @@ public final class ExprEmitter {
       return "nil";
     }
     if (srcGo == null
+        || srcGo.equals("any")
+        || srcGo.startsWith("[]")
         || !(ser instanceof DeclaredType sdt)
         || !(sdt.asElement() instanceof TypeElement ste)
-        || (!srcGo.startsWith("*") && !resolver.isValueEnum(ste))
         || !resolver.isSourceType(ste)
-        || resolver.isNodeClass(ste)) {
+        || resolver.runtime.mapsToAny(ste)
+        || resolver.isNodeClass(ste)
+        || resolver.isValueStructClass(ste)) {
       return null;
     }
     if (!(der instanceof DeclaredType ddt) || !(ddt.asElement() instanceof TypeElement dte)) {
       return null;
     }
-    if (resolver.runtime.mapsToAny(dte) || resolver.runtime.isShimException(dte)) {
+    if (resolver.runtime.mapsToAny(dte)
+        || resolver.runtime.isShimException(dte)
+        || dstGo.equals("any")
+        || dstGo.startsWith("*")) {
+      return null;
+    }
+
+    if (resolver.isSourceType(dte)
+        && resolver.isGoInterfaceType(der)
+        && !resolver.hasEffectiveTypeParameters(dte)
+        && dstGo.indexOf('[') < 0
+        && resolver.types.isSubtype(resolver.safeErasure(ser), resolver.safeErasure(der))) {
+      int dot = dstGo.indexOf('.');
+      if (srcGo.startsWith("*") || resolver.isValueEnum(ste)) {
+        String fn =
+            dot >= 0
+                ? (dstGo.substring(0, dot + 1) + "ToIface_" + dstGo.substring(dot + 1))
+                : ("ToIface_" + dstGo);
+        return fn + "(" + expr + ")";
+      }
+      if (resolver.isGoInterfaceType(ser)) {
+        String fn =
+            dot >= 0
+                ? (dstGo.substring(0, dot + 1) + "Upcast_" + dstGo.substring(dot + 1))
+                : ("Upcast_" + dstGo);
+        return fn + "(" + expr + ")";
+      }
+    }
+
+    if (!srcGo.startsWith("*") && !resolver.isValueEnum(ste)) {
       return null;
     }
     if (!resolver.isSourceType(dte)
@@ -3406,7 +3438,13 @@ public final class ExprEmitter {
           inferredStaticArgs);
       String fnName = resolver.getStaticMethodGoName(ee) + staticTypeArgSuffix;
       String rawCall;
-      if (resolver.isSourceType(owner)) {
+      if (owner.getQualifiedName().contentEquals("com.google.javascript.rhino.RhinoStringPool")
+          && mName.equals("fastHash32")
+          && args.size() == 1
+          && ee.getParameters().size() == 1
+          && resolver.isStringType(ee.getParameters().get(0).asType())) {
+        rawCall = rtPrefix(ctx) + "FastStrHash32(" + args.get(0) + ")";
+      } else if (resolver.isSourceType(owner)) {
         String ownerPkg = resolver.planner.getGoPkg(owner);
         String alias = ctx.imports.ext(resolver.planner.getGoImportPath(ownerPkg), ownerPkg);
         String prefix = alias.isEmpty() ? "" : (alias + ".");
@@ -3481,8 +3519,8 @@ public final class ExprEmitter {
             ifaceSiteTm = sup;
           }
         }
-        String ifaceGo = resolver.goType(ifaceSiteTm, ctx.imports);
-        String selfIface = rtPrefix(ctx) + "AsIface[" + ifaceGo + "](" + resolveImplicitThisValue(owner, ctx) + ")";
+        String selfIface =
+            convert(resolveImplicitThisValue(owner, ctx), ownerSiteTm, ifaceSiteTm, false, ctx);
         List<String> allArgs = new ArrayList<>();
         allArgs.add(selfIface);
         allArgs.addAll(args);
@@ -8525,6 +8563,20 @@ public final class ExprEmitter {
               false,
               ctx)
           + ", 10)";
+    }
+
+    if (qn.equals("com.google.javascript.rhino.RhinoStringPool")
+        && m.equals("fastHash32")
+        && arity == 1) {
+      return rt
+          + "FastStrHash32("
+          + convert(
+              rawParams.get(startIdx),
+              rawParamTypes.get(startIdx),
+              resolver.elements.getTypeElement("java.lang.String").asType(),
+              false,
+              ctx)
+          + ")";
     }
 
     List<String> args = new ArrayList<>();

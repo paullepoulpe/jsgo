@@ -136,7 +136,7 @@ func (this_ *Module) HashCode() int32 {
 		hi_1 := this_.metadata
 		h_ = 31 * h_
 		if hi_1 != nil && !hi_1.IsJavaNil_() {
-			h_ += hi_1.HashCode()
+			h_ += hi_1.GetModuleMetadataMap_ModuleMetadataBase().HashCode()
 		}
 	}
 	{
@@ -186,6 +186,14 @@ func ToIface_Module_Builder[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_Module_Builder[T Module_Builder](v T) Module_Builder {
+	var vi Module_Builder = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.modules.Module.Builder

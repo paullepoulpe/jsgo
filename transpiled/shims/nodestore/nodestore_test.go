@@ -14,8 +14,8 @@ import (
 
 func TestNodeDataMemoryLayout(t *testing.T) {
 	sz := reflect.TypeFor[NodeData]().Size()
-	if sz != 36 {
-		t.Fatalf("expected NodeData size to be 36 bytes, got %d", sz)
+	if sz != 32 {
+		t.Fatalf("expected NodeData size to be 32 bytes, got %d", sz)
 	}
 
 	typ := reflect.TypeFor[NodeData]()
@@ -1514,7 +1514,7 @@ func TestSourceFileOverflowHandlesAndClonePropsFrom(t *testing.T) {
 	prev := SetCurrentNodeStore(s1)
 	defer SetCurrentNodeStore(prev)
 
-	// 1. Inline 32-bit SourceFile handles across the full uint32 range directly in NodeData.SourceFile!
+	// 1. SourceFile16 inline (< 0xFFFF) + sfOverflowTop (>= 0xFFFF) across the full uint32 range!
 	n := AllocNodeInit(1)
 	fullSeq := []uint32{0, 1, 42, 65534, 0xFFFF, 65536, 100000, 5, 0xCAFEBABE, 0, 0xFFFFFFFF, 65534, 77777}
 	for _, want := range fullSeq {
@@ -1522,8 +1522,12 @@ func TestSourceFileOverflowHandlesAndClonePropsFrom(t *testing.T) {
 		if got := n.SourceFile(); got != want {
 			t.Fatalf("after SetSourceFile(%d): SourceFile() = %d", want, got)
 		}
-		if n.Rec().SourceFile != want {
-			t.Fatalf("expected inline NodeData.SourceFile = 0x%X, got 0x%X", want, n.Rec().SourceFile)
+		wantSF16 := uint16(0xFFFF)
+		if want < 0xFFFF {
+			wantSF16 = uint16(want)
+		}
+		if n.Rec().SourceFile16 != wantSF16 {
+			t.Fatalf("expected NodeData.SourceFile16 = 0x%X, got 0x%X", wantSF16, n.Rec().SourceFile16)
 		}
 	}
 
@@ -3259,9 +3263,9 @@ func TestWave24A36ByteLayoutInlinePayloadAndJSTypeBeforeCast(t *testing.T) {
 		fn()
 	}
 
-	// 1. 36-byte noscan NodeData layout + widened 256-slot (1 KiB) PagedColumn verification.
-	if sz := reflect.TypeFor[NodeData]().Size(); sz != 36 {
-		t.Fatalf("sizeof(NodeData) = %d, want 36", sz)
+	// 1. 32-byte noscan NodeData layout + widened 256-slot (1 KiB) PagedColumn verification.
+	if sz := reflect.TypeFor[NodeData]().Size(); sz != 32 {
+		t.Fatalf("sizeof(NodeData) = %d, want 32", sz)
 	}
 	if hasGoPointers(reflect.TypeFor[NodeData]()) {
 		t.Fatalf("NodeData contains Go pointers")
@@ -3316,8 +3320,9 @@ func TestWave24A36ByteLayoutInlinePayloadAndJSTypeBeforeCast(t *testing.T) {
 			if got := n.Length(); got != inl {
 				t.Fatalf("target[%d] inline SetLength(%d): got %d", idx, inl, got)
 			}
-			if n.Rec().Length16 != uint16(inl) {
-				t.Fatalf("target[%d] expected Length16=%d, got %d", idx, inl, n.Rec().Length16)
+			pg := loadLen16Page(uint32(n) >> len16PageShift)
+			if pg[n&len16PageMask] != uint16(inl) {
+				t.Fatalf("target[%d] expected len16=%d, got %d", idx, inl, pg[n&len16PageMask])
 			}
 		}
 	}
@@ -3332,15 +3337,16 @@ func TestWave24A36ByteLayoutInlinePayloadAndJSTypeBeforeCast(t *testing.T) {
 			if got := n.Length(); got != want {
 				t.Fatalf("target[%d] SetLength(%d): got %d", idx, want, got)
 			}
+			pg := loadLen16Page(uint32(n) >> len16PageShift)
 			if want >= 0 && want < 0xFFFF {
-				if n.Rec().Length16 != uint16(want) {
-					t.Fatalf("target[%d] SetLength(%d) did not restore inline Length16: got 0x%X", idx, want, n.Rec().Length16)
+				if pg[n&len16PageMask] != uint16(want) {
+					t.Fatalf("target[%d] SetLength(%d) did not restore len16: got 0x%X", idx, want, pg[n&len16PageMask])
 				}
 				if gotLO := s1.getAuxLengthOverflow(uint32(n)); gotLO != 0 {
 					t.Fatalf("target[%d] SetLength(%d) left stale aux lengthOverflow=%d", idx, want, gotLO)
 				}
-			} else if n.Rec().Length16 != 0xFFFF {
-				t.Fatalf("target[%d] SetLength(%d) expected Length16=0xFFFF, got 0x%X", idx, want, n.Rec().Length16)
+			} else if pg[n&len16PageMask] != 0xFFFF {
+				t.Fatalf("target[%d] SetLength(%d) expected len16=0xFFFF, got 0x%X", idx, want, pg[n&len16PageMask])
 			}
 		}
 	}
@@ -3348,20 +3354,20 @@ func TestWave24A36ByteLayoutInlinePayloadAndJSTypeBeforeCast(t *testing.T) {
 		t.Fatalf("Length16/overflow transitions clobbered String/Number Payload")
 	}
 
-	// 3. SourceFile inline uint32 (> 65535) with fast inline SetTemplate (tmplCold == false).
+	// 3. SourceFile overflow (>= 65535) via SetTemplate (tmplCold == true -> ClonePropsFrom).
 	highSFTmpl := AllocNodeToken(0, 94)
 	highSFTmpl.SetSourceFile(75_000)
 	highSFTmpl.SetPropFlags(0x22446688)
 	alloc.InitLocal()
 	alloc.SetTemplate(highSFTmpl)
-	if alloc.tmplCold {
-		t.Fatalf("expected tmplCold == false for SourceFile=75000")
+	if !alloc.tmplCold {
+		t.Fatalf("expected tmplCold == true for overflow SourceFile=75000")
 	}
 	sfChild1 := alloc.AllocNode1Cached(10)
 	sfChild2 := alloc.AllocStringNodeCached(38, sid)
 	alloc.Flush()
 	if sfChild1.SourceFile() != 75_000 || sfChild2.SourceFile() != 75_000 || sfChild2.PropFlags() != 0x22446688 {
-		t.Fatalf("inline uint32 SourceFile template stamping failed: %d / %d", sfChild1.SourceFile(), sfChild2.SourceFile())
+		t.Fatalf("overflow SourceFile template stamping failed: %d / %d", sfChild1.SourceFile(), sfChild2.SourceFile())
 	}
 
 	// 4. Plain-node (kind == 0) inline ChangeTime + inline OrigNameID + both coexistence orders!
@@ -3690,12 +3696,12 @@ func TestWave24A36ByteLayoutInlinePayloadAndJSTypeBeforeCast(t *testing.T) {
 
 func TestWave25ANodeDataCacheLineGroupingAndPartialWriteFastPaths(t *testing.T) {
 	typ := reflect.TypeFor[NodeData]()
-	if typ.Size() != 36 {
-		t.Fatalf("reflect.TypeFor[NodeData]().Size() = %d, want 36", typ.Size())
+	if typ.Size() != 32 {
+		t.Fatalf("reflect.TypeFor[NodeData]().Size() = %d, want 32", typ.Size())
 	}
-	// Verify Next, First, Token, KindFlags, Length16 all sit in bytes 0..11 so
-	// FirstNextTok's 64-byte cache-line straddle rate is <= 12.5% (2/16).
-	for _, name := range []string{"Next", "First", "Token", "KindFlags", "Length16"} {
+	// Verify Next, First, Token, KindFlags, SourceFile16 all sit in bytes 0..11,
+	// and at 32 bytes (exact half cache line), 0% of NodeData records ever straddle a 64-byte cache line.
+	for _, name := range []string{"Next", "First", "Token", "KindFlags", "SourceFile16"} {
 		f, ok := typ.FieldByName(name)
 		if !ok {
 			t.Fatalf("missing field %s", name)
@@ -4864,4 +4870,119 @@ func TestWave33CSetJSTypeBeforeCastFastNoopAndLengthBoundaries(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+
+func TestWave38CNodeData32ByteLayoutSourceFileAndLazyLength(t *testing.T) {
+	if sz := reflect.TypeFor[NodeData]().Size(); sz != 32 {
+		t.Fatalf("reflect.TypeFor[NodeData]().Size() = %d, want 32", sz)
+	}
+	if sz := reflect.TypeFor[NodeBlock]().Size(); sz != 512*1024 {
+		t.Fatalf("reflect.TypeFor[NodeBlock]().Size() = %d, want %d", sz, 512*1024)
+	}
+	if hasGoPointers(reflect.TypeFor[NodeData]()) {
+		t.Fatal("NodeData contains Go pointers")
+	}
+
+	s1 := NewNodeStore()
+	s2 := NewNodeStore()
+	prev := SetCurrentNodeStore(s1)
+	defer SetCurrentNodeStore(prev)
+
+	// 1. Lazy Length: allocating nodes and calling SetLength(0) on unallocated pages must allocate 0 len16Pages!
+	nLazy := AllocNodeToken(0, 40)
+	if nLazy.Length() != 0 {
+		t.Fatalf("fresh Length() = %d, want 0", nLazy.Length())
+	}
+	nLazy.SetLength(0)
+	if len(s1.len16Pages) != 0 || len(s1.lengthOverflows) != 0 {
+		t.Fatalf("SetLength(0) allocated pages eagerly: len16Pages=%d lengthOverflows=%d",
+			len(s1.len16Pages), len(s1.lengthOverflows))
+	}
+	// Node(0).SetLength(0) must still fault with runtime.Error!
+	func() {
+		defer func() {
+			r := recover()
+			if _, ok := r.(runtime.Error); !ok {
+				t.Fatalf("Node(0).SetLength(0): expected runtime.Error, got %T (%v)", r, r)
+			}
+		}()
+		Node(0).SetLength(0)
+	}()
+
+	// 2. Length across 0, 1..65534, >= 65535, and < 0.
+	lengths := []int32{0, 1, 255, 0xFF00, 0x00FF, 65534, 65535, 65536, 500_000, math.MaxInt32, -1, -42, math.MinInt32, 1234, 0}
+	for _, want := range lengths {
+		nLazy.SetLength(want)
+		if got := nLazy.Length(); got != want {
+			t.Fatalf("SetLength(%d) -> Length() = %d", want, got)
+		}
+	}
+
+	// 3. SourceFile < 65535 inline (0 sfOverflows) vs >= 65535 overflow, ClonePropsFrom, and NodeAllocator!
+	nSF := AllocNodeToken(0, 41)
+	for _, sf := range []uint32{0, 1, 19430, 65534} {
+		nSF.SetSourceFile(sf)
+		if got := nSF.SourceFile(); got != sf {
+			t.Fatalf("inline SetSourceFile(%d) -> %d", sf, got)
+		}
+	}
+	if len(s1.sfOverflows) != 0 {
+		t.Fatalf("inline SourceFile (< 65535) allocated sfOverflows: %d", len(s1.sfOverflows))
+	}
+
+	for _, sf := range []uint32{65535, 65536, 98765, 0xCAFEBABE, 0xFFFFFFFF, 42, 0, 77777} {
+		nSF.SetSourceFile(sf)
+		if got := nSF.SourceFile(); got != sf {
+			t.Fatalf("overflow SetSourceFile(%d) -> %d", sf, got)
+		}
+	}
+	nSFClone := AllocNodeToken(0, 42)
+	if !nSFClone.ClonePropsFrom(nSF) || nSFClone.SourceFile() != 77777 {
+		t.Fatalf("ClonePropsFrom overflow SourceFile = %d, want 77777", nSFClone.SourceFile())
+	}
+
+	// NodeAllocator with tmplSourceFile < 65535 (inline) AND >= 65535 (overflow) across all AllocNode* methods!
+	for _, tmplSF := range []uint32{19430, 65535, 123456} {
+		tmpl := AllocNodeToken(0, 94)
+		tmpl.SetSourceFile(tmplSF)
+		tmpl.SetPropFlags(0x11223344)
+
+		var a NodeAllocator
+		a.InitLocal()
+		a.SetTemplate(tmpl)
+		sid := a.Intern("wave38c_ident")
+
+		c1 := a.AllocNode1Cached(10)
+		c2 := a.AllocNode1(11, tmpl)
+		c3 := a.AllocStringNodeCached(38, sid)
+		c4 := a.AllocStringNode(38, sid, tmpl)
+		c5 := a.AllocNumberNode(39, 3.5, tmpl)
+		p2 := a.AllocNode2(20, c1, tmpl)
+		p3 := a.AllocNode3(21, c2, c3, tmpl)
+		p4 := a.AllocNode4(22, c4, c5, p2, tmpl)
+		a.Flush()
+
+		for idx, n := range []Node{c1, c2, c3, c4, c5, p2, p3, p4} {
+			if n.SourceFile() != tmplSF || n.PropFlags() != 0x11223344 {
+				t.Fatalf("tmplSF=%d node[%d]: SourceFile()=%d PropFlags()=0x%X",
+					tmplSF, idx, n.SourceFile(), n.PropFlags())
+			}
+		}
+	}
+
+	// 4. Store switch unregister/re-register clears and restores both len16Top and sfOverflowTop!
+	nLazy.SetLength(99999)
+	nSF.SetSourceFile(88888)
+	SetCurrentNodeStore(s2)
+	if nLazy.Length() != 0 {
+		t.Fatalf("unregistered s1 Length visible in s2: %d", nLazy.Length())
+	}
+	if getSourceFileOverflowSlow(nSF) != 0 {
+		t.Fatalf("unregistered s1 sfOverflowTop visible in s2: %d", getSourceFileOverflowSlow(nSF))
+	}
+	SetCurrentNodeStore(s1)
+	if nLazy.Length() != 99999 || nSF.SourceFile() != 88888 {
+		t.Fatalf("re-registered s1 lost Length (%d) or SourceFile (%d)", nLazy.Length(), nSF.SourceFile())
+	}
 }

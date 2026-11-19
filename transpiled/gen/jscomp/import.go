@@ -185,6 +185,14 @@ func ToIface_Import_Builder[T interface {
 	return v
 }
 
+func Upcast_Import_Builder[T Import_Builder](v T) Import_Builder {
+	var vi Import_Builder = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.modules.Import.Builder
 type Import_BuilderBase struct {
 	idHash_ atomic.Int32

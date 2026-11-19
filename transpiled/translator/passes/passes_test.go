@@ -39,10 +39,10 @@ func TestPassFlagParsing(t *testing.T) {
 		t.Fatalf("ParsePassesFlag(none) = (%v, %v), want empty", none, err)
 	}
 	all, err := passes.ParsePassesFlag("all")
-	if err != nil || len(all) != 10 {
-		t.Fatalf("ParsePassesFlag(all) = (%d passes, %v), want 10 passes", len(all), err)
+	if err != nil || len(all) != 11 {
+		t.Fatalf("ParsePassesFlag(all) = (%d passes, %v), want 11 passes", len(all), err)
 	}
-	wantOrder := []string{"native_slice_lowering", "native_set_lowering", "native_map_lowering", "immutable_list_lowering", "native_deque_lowering", "string_builder_lowering", "slab_alloc_lowering", "node_traversal_lowering", "dead_cast_cleanup", "j2gort_peephole"}
+	wantOrder := []string{"native_slice_lowering", "native_set_lowering", "native_map_lowering", "immutable_list_lowering", "native_deque_lowering", "string_builder_lowering", "slab_alloc_lowering", "node_traversal_lowering", "dead_cast_cleanup", "abstract_base_devirt", "j2gort_peephole"}
 	for i, wantName := range wantOrder {
 		if all[i].Name() != wantName {
 			t.Fatalf("AllPasses()[%d] = %q, want %q", i, all[i].Name(), wantName)

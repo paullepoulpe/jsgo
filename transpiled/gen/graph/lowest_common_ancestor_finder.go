@@ -124,7 +124,7 @@ func (this_ *LowestCommonAncestorFinder[N, E]) FindAll(roots j2gort.Ext_java_uti
 			this_.searchColoring.Merge(rootNode, j2gort.PtrToAny(color), j2gort.NewLambda_Ext_java_util_function_BiFunction(func(mrp0_ any, mrp1_ any) any {
 				return j2gort.PtrToAny(j2gort.CastPtr[LowestCommonAncestorFinder_Color](mrp0_).Mix(j2gort.CastPtr[LowestCommonAncestorFinder_Color](mrp1_)))
 			}))
-			this_.priv_LowestCommonAncestorFinder_paintAncestors_6359(rootNode, color)
+			this_.priv_LowestCommonAncestorFinder_paintAncestors_6365(rootNode, color)
 			bitForRoot = javalang.Shl32(bitForRoot, int(int32(1)))
 		}
 	}
@@ -134,7 +134,7 @@ func (this_ *LowestCommonAncestorFinder[N, E]) FindAll(roots j2gort.Ext_java_uti
 		color_2 := j2gort.CastPtr[LowestCommonAncestorFinder_Color](lp_5)
 		_ = color_2
 		if color_2.Equals(j2gort.PtrToAny(allColor)) {
-			this_.priv_LowestCommonAncestorFinder_paintAncestors_6359(node, StaticGet_LowestCommonAncestorFinder_Color_NOT_LOWEST())
+			this_.priv_LowestCommonAncestorFinder_paintAncestors_6365(node, StaticGet_LowestCommonAncestorFinder_Color_NOT_LOWEST())
 		}
 	}))
 	var results j2gort.Ext_com_google_common_collect_ImmutableSet_Builder = j2gort.Ext_com_google_common_collect_ImmutableSet_S_Builder()
@@ -154,7 +154,7 @@ func (this_ *LowestCommonAncestorFinder[N, E]) FindAll(roots j2gort.Ext_java_uti
 }
 
 // Java method: LowestCommonAncestorFinder.paintAncestors(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E> root, com.google.javascript.jscomp.graph.LowestCommonAncestorFinder.Color color)
-func (this_ *LowestCommonAncestorFinder[N, E]) priv_LowestCommonAncestorFinder_paintAncestors_6359(root DiGraph_DiGraphNode[N, E], color *LowestCommonAncestorFinder_Color) {
+func (this_ *LowestCommonAncestorFinder[N, E]) priv_LowestCommonAncestorFinder_paintAncestors_6365(root DiGraph_DiGraphNode[N, E], color *LowestCommonAncestorFinder_Color) {
 	_ = root
 	_ = color
 	if !(this_.searchQueue.IsEmpty()) {

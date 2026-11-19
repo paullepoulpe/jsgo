@@ -45,6 +45,14 @@ func ToIface_ProcessConstJsdocCallback[T interface {
 	return v
 }
 
+func Upcast_ProcessConstJsdocCallback[T ProcessConstJsdocCallback](v T) ProcessConstJsdocCallback {
+	var vi ProcessConstJsdocCallback = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.ijs.ProcessConstJsdocCallback
 type ProcessConstJsdocCallbackBase struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
@@ -166,7 +174,7 @@ func (this_ *ProcessConstJsdocCallbackBase) Visit_3(t *NodeTraversal, n pkg_rhin
 		}
 	case int32(108) /* Token.MEMBER_FIELD_DEF */ :
 		if NodeUtil_GetRValueOfLValue(n) != 0 {
-			this_.priv_ProcessConstJsdocCallback_processDeclarationWithRhs_6426(t, n)
+			this_.priv_ProcessConstJsdocCallback_processDeclarationWithRhs_6432(t, n)
 		}
 		this_.currentFile.RecordMemberFieldDef(n)
 	case int32(73) /* Token.FUNCTION */ :
@@ -192,7 +200,7 @@ func (this_ *ProcessConstJsdocCallbackBase) Visit_3(t *NodeTraversal, n pkg_rhin
 					this_.currentFile.RecordDefine(expr)
 				}
 			case int32(51) /* Token.ASSIGN */ :
-				this_.priv_ProcessConstJsdocCallback_recordDeclaration_6424(t, expr.GetFirstChild(), expr.GetLastChild())
+				this_.priv_ProcessConstJsdocCallback_recordDeclaration_6430(t, expr.GetFirstChild(), expr.GetLastChild())
 			case int32(26) /* Token.GETPROP */ :
 				this_.currentFile.RecordNameDeclaration(expr)
 			case int32(27) /* Token.GETELEM */ :
@@ -204,10 +212,10 @@ func (this_ *ProcessConstJsdocCallbackBase) Visit_3(t *NodeTraversal, n pkg_rhin
 		if !(n.HasOneChild()) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
 		}
-		this_.priv_ProcessConstJsdocCallback_recordDeclaration_6424(t, n.GetFirstChild(), n.GetFirstChild().GetLastChild())
+		this_.priv_ProcessConstJsdocCallback_recordDeclaration_6430(t, n.GetFirstChild(), n.GetFirstChild().GetLastChild())
 	case int32(100) /* Token.STRING_KEY */ :
 		if parent.IsObjectLit() && n.HasOneChild() {
-			this_.priv_ProcessConstJsdocCallback_processDeclarationWithRhs_6426(t, n)
+			this_.priv_ProcessConstJsdocCallback_processDeclarationWithRhs_6432(t, n)
 			this_.currentFile.RecordStringKeyDeclaration(n)
 		}
 	default:
@@ -215,7 +223,7 @@ func (this_ *ProcessConstJsdocCallbackBase) Visit_3(t *NodeTraversal, n pkg_rhin
 }
 
 // Java method: ProcessConstJsdocCallback.recordDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node lhs, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node rhs)
-func (this_ *ProcessConstJsdocCallbackBase) priv_ProcessConstJsdocCallback_recordDeclaration_6424(t *NodeTraversal, lhs pkg_rhino.Node, rhs pkg_rhino.Node) {
+func (this_ *ProcessConstJsdocCallbackBase) priv_ProcessConstJsdocCallback_recordDeclaration_6430(t *NodeTraversal, lhs pkg_rhino.Node, rhs pkg_rhino.Node) {
 	_ = t
 	_ = lhs
 	_ = rhs
@@ -224,15 +232,15 @@ func (this_ *ProcessConstJsdocCallbackBase) priv_ProcessConstJsdocCallback_recor
 	} else if lhs.IsGetElem() {
 		return
 	} else {
-		this_.priv_ProcessConstJsdocCallback_recordNameDeclaration_6425(lhs, rhs)
+		this_.priv_ProcessConstJsdocCallback_recordNameDeclaration_6431(lhs, rhs)
 		if !(lhs.IsDestructuringLhs()) && (rhs != 0) {
-			this_.priv_ProcessConstJsdocCallback_processDeclarationWithRhs_6426(t, lhs)
+			this_.priv_ProcessConstJsdocCallback_processDeclarationWithRhs_6432(t, lhs)
 		}
 	}
 }
 
 // Java method: ProcessConstJsdocCallback.recordNameDeclaration(com.google.javascript.rhino.Node lhs, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node rhs)
-func (this_ *ProcessConstJsdocCallbackBase) priv_ProcessConstJsdocCallback_recordNameDeclaration_6425(lhs pkg_rhino.Node, rhs pkg_rhino.Node) {
+func (this_ *ProcessConstJsdocCallbackBase) priv_ProcessConstJsdocCallback_recordNameDeclaration_6431(lhs pkg_rhino.Node, rhs pkg_rhino.Node) {
 	_ = lhs
 	_ = rhs
 	if !(NodeUtil_IsNameDeclaration(lhs.GetParent()) || lhs.GetParent().IsAssign()) {
@@ -254,7 +262,7 @@ func (this_ *ProcessConstJsdocCallbackBase) priv_ProcessConstJsdocCallback_recor
 }
 
 // Java method: ProcessConstJsdocCallback.processDeclarationWithRhs(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node lhs)
-func (this_ *ProcessConstJsdocCallbackBase) priv_ProcessConstJsdocCallback_processDeclarationWithRhs_6426(t *NodeTraversal, lhs pkg_rhino.Node) {
+func (this_ *ProcessConstJsdocCallbackBase) priv_ProcessConstJsdocCallback_processDeclarationWithRhs_6432(t *NodeTraversal, lhs pkg_rhino.Node) {
 	_ = t
 	_ = lhs
 	if !((lhs.IsQualifiedName() || lhs.IsStringKey()) || lhs.IsMemberFieldDef()) {

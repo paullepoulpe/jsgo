@@ -85,6 +85,14 @@ func ToIface_AbstractCommandLineRunner[T interface {
 	return v
 }
 
+func Upcast_AbstractCommandLineRunner[T AbstractCommandLineRunner](v T) AbstractCommandLineRunner {
+	var vi AbstractCommandLineRunner = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.AbstractCommandLineRunner
 type AbstractCommandLineRunnerBase struct {
 	self_                       AbstractCommandLineRunner
@@ -549,7 +557,7 @@ func (this_ *AbstractCommandLineRunnerBase) SetRunOptions(options *CompilerOptio
 		InitJsonErrorReportGenerator(&val_17, this_.GetErrorPrintStream(), ToIface_SourceExcerptProvider(this_.compiler))
 		var errorGenerator *JsonErrorReportGenerator = &val_17
 		_ = errorGenerator
-		this_.compiler.SetErrorManager(j2gort.AsIface[ErrorManager](NewSortingErrorManager(j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.Ext_com_google_common_collect_ImmutableSet_Of_1(errorGenerator)))))
+		this_.compiler.SetErrorManager(Upcast_ErrorManager(NewSortingErrorManager(j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.Ext_com_google_common_collect_ImmutableSet_Of_1(errorGenerator)))))
 	}
 	if this_.config.printTree || this_.config.printTreeJson {
 		options.SetParseJsDocDocumentation(pkg_parsing.StaticGet_Config_JsDocParsing_INCLUDE_ALL_COMMENTS())

@@ -48,6 +48,14 @@ func ToIface_AbstractMessageFormatter[T interface {
 	return v
 }
 
+func Upcast_AbstractMessageFormatter[T AbstractMessageFormatter](v T) AbstractMessageFormatter {
+	var vi AbstractMessageFormatter = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.AbstractMessageFormatter
 type AbstractMessageFormatterBase struct {
 	source   SourceExcerptProvider `gson:"source"`

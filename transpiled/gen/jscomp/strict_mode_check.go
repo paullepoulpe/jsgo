@@ -238,27 +238,27 @@ func (this_ *StrictModeCheck) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent
 	_ = n
 	_ = parent
 	if n.IsAssign() {
-		this_.priv_StrictModeCheck_checkAssignment_5168(n)
+		this_.priv_StrictModeCheck_checkAssignment_5165(n)
 	} else if n.IsDelProp() {
-		this_.priv_StrictModeCheck_checkDelete_5169(t, n)
+		this_.priv_StrictModeCheck_checkDelete_5166(t, n)
 	} else if n.IsObjectLit() {
-		this_.priv_StrictModeCheck_checkObjectLiteralOrClass_5170(n)
+		this_.priv_StrictModeCheck_checkObjectLiteralOrClass_5167(n)
 	} else if n.IsClass() {
-		this_.priv_StrictModeCheck_checkObjectLiteralOrClass_5170(n.GetLastChild())
+		this_.priv_StrictModeCheck_checkObjectLiteralOrClass_5167(n.GetLastChild())
 	} else if n.IsWith() {
-		this_.priv_StrictModeCheck_checkWith_5167(n)
+		this_.priv_StrictModeCheck_checkWith_5164(n)
 	}
 }
 
 // Java method: StrictModeCheck.checkWith(com.google.javascript.rhino.Node n)
-func (this_ *StrictModeCheck) priv_StrictModeCheck_checkWith_5167(n pkg_rhino.Node) {
+func (this_ *StrictModeCheck) priv_StrictModeCheck_checkWith_5164(n pkg_rhino.Node) {
 	_ = n
 	var info *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 	_ = info
 	var allowWith bool = ((info != nil) && j2gort.SetContainsStr(info.GetSuppressions(), "with"))
 	_ = allowWith
 	if !(allowWith) {
-		this_.priv_StrictModeCheck_report_5171(n, StaticGet_StrictModeCheck_USE_OF_WITH(), []string{})
+		this_.priv_StrictModeCheck_report_5168(n, StaticGet_StrictModeCheck_USE_OF_WITH(), []string{})
 	}
 }
 
@@ -280,7 +280,7 @@ func StrictModeCheck_IsDeclaration(n pkg_rhino.Node) bool {
 }
 
 // Java method: StrictModeCheck.checkAssignment(com.google.javascript.rhino.Node n)
-func (this_ *StrictModeCheck) priv_StrictModeCheck_checkAssignment_5168(n pkg_rhino.Node) {
+func (this_ *StrictModeCheck) priv_StrictModeCheck_checkAssignment_5165(n pkg_rhino.Node) {
 	_ = n
 	if n.GetFirstChild().IsName() {
 		{
@@ -292,7 +292,7 @@ func (this_ *StrictModeCheck) priv_StrictModeCheck_checkAssignment_5168(n pkg_rh
 				iifeCond_2 = j2gort.CheckNotNullString(sr_1) == se_2
 			}
 			if iifeCond_2 {
-				this_.priv_StrictModeCheck_report_5171(n, StaticGet_StrictModeCheck_ARGUMENTS_ASSIGNMENT(), []string{})
+				this_.priv_StrictModeCheck_report_5168(n, StaticGet_StrictModeCheck_ARGUMENTS_ASSIGNMENT(), []string{})
 			} else {
 				var iifeCond_1 bool
 				{
@@ -302,7 +302,7 @@ func (this_ *StrictModeCheck) priv_StrictModeCheck_checkAssignment_5168(n pkg_rh
 					iifeCond_1 = j2gort.CheckNotNullString(sr_3) == se_4
 				}
 				if iifeCond_1 {
-					this_.priv_StrictModeCheck_report_5171(n, StaticGet_StrictModeCheck_EVAL_ASSIGNMENT(), []string{})
+					this_.priv_StrictModeCheck_report_5168(n, StaticGet_StrictModeCheck_EVAL_ASSIGNMENT(), []string{})
 				}
 			}
 		}
@@ -310,20 +310,20 @@ func (this_ *StrictModeCheck) priv_StrictModeCheck_checkAssignment_5168(n pkg_rh
 }
 
 // Java method: StrictModeCheck.checkDelete(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *StrictModeCheck) priv_StrictModeCheck_checkDelete_5169(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *StrictModeCheck) priv_StrictModeCheck_checkDelete_5166(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if n.GetFirstChild().IsName() {
 		var v *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(n.GetFirstChild().GetString()))
 		_ = v
 		if v != nil {
-			this_.priv_StrictModeCheck_report_5171(n, StaticGet_StrictModeCheck_DELETE_VARIABLE(), []string{})
+			this_.priv_StrictModeCheck_report_5168(n, StaticGet_StrictModeCheck_DELETE_VARIABLE(), []string{})
 		}
 	}
 }
 
 // Java method: StrictModeCheck.checkObjectLiteralOrClass(com.google.javascript.rhino.Node n)
-func (this_ *StrictModeCheck) priv_StrictModeCheck_checkObjectLiteralOrClass_5170(n pkg_rhino.Node) {
+func (this_ *StrictModeCheck) priv_StrictModeCheck_checkObjectLiteralOrClass_5167(n pkg_rhino.Node) {
 	_ = n
 	var getters *j2gort.Ext_java_util_LinkedHashSet = j2gort.NewExt_java_util_LinkedHashSet()
 	_ = getters
@@ -351,7 +351,7 @@ func (this_ *StrictModeCheck) priv_StrictModeCheck_checkObjectLiteralOrClass_517
 					set = getters
 				}
 				if !(j2gort.SetAddStr(set, keyName)) {
-					this_.priv_StrictModeCheck_report_5171(key, StaticGet_StrictModeCheck_DUPLICATE_MEMBER(), []string{keyName})
+					this_.priv_StrictModeCheck_report_5168(key, StaticGet_StrictModeCheck_DUPLICATE_MEMBER(), []string{keyName})
 				}
 			}
 			if !(key.IsGetterDef()) {
@@ -363,7 +363,7 @@ func (this_ *StrictModeCheck) priv_StrictModeCheck_checkObjectLiteralOrClass_517
 					set_2 = setters
 				}
 				if !(j2gort.SetAddStr(set_2, keyName)) {
-					this_.priv_StrictModeCheck_report_5171(key, StaticGet_StrictModeCheck_DUPLICATE_MEMBER(), []string{keyName})
+					this_.priv_StrictModeCheck_report_5168(key, StaticGet_StrictModeCheck_DUPLICATE_MEMBER(), []string{keyName})
 				}
 			}
 		}
@@ -376,11 +376,11 @@ func StrictModeCheck_IsFunctionType(n pkg_rhino.Node) bool {
 	_ = n
 	var type_ pkg_rhino.JSType = n.GetJSType()
 	_ = type_
-	return ((type_ != nil && !type_.IsJavaNil_()) && type_.IsFunctionType())
+	return ((type_ != nil && !type_.IsJavaNil_()) && type_.GetJSTypeBase().IsFunctionType())
 }
 
 // Java method: StrictModeCheck.report(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.DiagnosticType diagnostic, java.lang.String[] args)
-func (this_ *StrictModeCheck) priv_StrictModeCheck_report_5171(n pkg_rhino.Node, diagnostic *DiagnosticType, args []string) {
+func (this_ *StrictModeCheck) priv_StrictModeCheck_report_5168(n pkg_rhino.Node, diagnostic *DiagnosticType, args []string) {
 	_ = n
 	_ = diagnostic
 	_ = args
@@ -440,14 +440,14 @@ func (this_ *StrictModeCheck_NonExternChecks) Visit_3(t *NodeTraversal, n pkg_rh
 	_ = n
 	_ = parent
 	if n.IsName() && StrictModeCheck_IsDeclaration(n) {
-		this_.priv_NonExternChecks_checkDeclaration_5172(n)
+		this_.priv_NonExternChecks_checkDeclaration_5169(n)
 	} else if n.IsGetProp() {
-		this_.priv_NonExternChecks_checkGetProp_5173(n)
+		this_.priv_NonExternChecks_checkGetProp_5170(n)
 	}
 }
 
 // Java method: NonExternChecks.checkDeclaration(com.google.javascript.rhino.Node n)
-func (this_ *StrictModeCheck_NonExternChecks) priv_NonExternChecks_checkDeclaration_5172(n pkg_rhino.Node) {
+func (this_ *StrictModeCheck_NonExternChecks) priv_NonExternChecks_checkDeclaration_5169(n pkg_rhino.Node) {
 	_ = n
 	{
 		var iifeCond_2 bool
@@ -458,7 +458,7 @@ func (this_ *StrictModeCheck_NonExternChecks) priv_NonExternChecks_checkDeclarat
 			iifeCond_2 = j2gort.CheckNotNullString(sr_5) == se_6
 		}
 		if iifeCond_2 {
-			this_.outer_.priv_StrictModeCheck_report_5171(n, StaticGet_StrictModeCheck_EVAL_DECLARATION(), []string{})
+			this_.outer_.priv_StrictModeCheck_report_5168(n, StaticGet_StrictModeCheck_EVAL_DECLARATION(), []string{})
 		} else {
 			var iifeCond_1 bool
 			{
@@ -468,14 +468,14 @@ func (this_ *StrictModeCheck_NonExternChecks) priv_NonExternChecks_checkDeclarat
 				iifeCond_1 = j2gort.CheckNotNullString(sr_7) == se_8
 			}
 			if iifeCond_1 {
-				this_.outer_.priv_StrictModeCheck_report_5171(n, StaticGet_StrictModeCheck_ARGUMENTS_DECLARATION(), []string{})
+				this_.outer_.priv_StrictModeCheck_report_5168(n, StaticGet_StrictModeCheck_ARGUMENTS_DECLARATION(), []string{})
 			}
 		}
 	}
 }
 
 // Java method: NonExternChecks.checkGetProp(com.google.javascript.rhino.Node n)
-func (this_ *StrictModeCheck_NonExternChecks) priv_NonExternChecks_checkGetProp_5173(n pkg_rhino.Node) {
+func (this_ *StrictModeCheck_NonExternChecks) priv_NonExternChecks_checkGetProp_5170(n pkg_rhino.Node) {
 	_ = n
 	var target pkg_rhino.Node = n.GetFirstChild()
 	_ = target
@@ -483,16 +483,16 @@ func (this_ *StrictModeCheck_NonExternChecks) priv_NonExternChecks_checkGetProp_
 	_ = name
 	if j2gort.CheckNotNullString(name) == "callee" {
 		if target.IsName() && (j2gort.CheckNotNullString(target.GetString()) == "arguments") {
-			this_.outer_.priv_StrictModeCheck_report_5171(n, StaticGet_StrictModeCheck_ARGUMENTS_CALLEE_FORBIDDEN(), []string{})
+			this_.outer_.priv_StrictModeCheck_report_5168(n, StaticGet_StrictModeCheck_ARGUMENTS_CALLEE_FORBIDDEN(), []string{})
 		}
 	} else if j2gort.CheckNotNullString(name) == "caller" {
 		if target.IsName() && (j2gort.CheckNotNullString(target.GetString()) == "arguments") {
-			this_.outer_.priv_StrictModeCheck_report_5171(n, StaticGet_StrictModeCheck_ARGUMENTS_CALLER_FORBIDDEN(), []string{})
+			this_.outer_.priv_StrictModeCheck_report_5168(n, StaticGet_StrictModeCheck_ARGUMENTS_CALLER_FORBIDDEN(), []string{})
 		} else if StrictModeCheck_IsFunctionType(target) {
-			this_.outer_.priv_StrictModeCheck_report_5171(n, StaticGet_StrictModeCheck_FUNCTION_CALLER_FORBIDDEN(), []string{})
+			this_.outer_.priv_StrictModeCheck_report_5168(n, StaticGet_StrictModeCheck_FUNCTION_CALLER_FORBIDDEN(), []string{})
 		}
 	} else if (j2gort.CheckNotNullString(name) == "arguments") && StrictModeCheck_IsFunctionType(target) {
-		this_.outer_.priv_StrictModeCheck_report_5171(n, StaticGet_StrictModeCheck_FUNCTION_ARGUMENTS_PROP_FORBIDDEN(), []string{})
+		this_.outer_.priv_StrictModeCheck_report_5168(n, StaticGet_StrictModeCheck_FUNCTION_ARGUMENTS_PROP_FORBIDDEN(), []string{})
 	}
 }
 func (*StrictModeCheck) AlwaysShouldTraverse_()                      {}

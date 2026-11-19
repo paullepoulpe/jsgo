@@ -54,6 +54,14 @@ func ToIface_StaticTypedRef[T interface {
 	return v
 }
 
+func Upcast_StaticTypedRef[T StaticTypedRef](v T) StaticTypedRef {
+	var vi StaticTypedRef = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.jstype.StaticTypedRef", "com.google.javascript.rhino.jstype.StaticTypedRef", func(v_ any) bool {
 		return j2gort.InstanceOf[StaticTypedRef](v_)

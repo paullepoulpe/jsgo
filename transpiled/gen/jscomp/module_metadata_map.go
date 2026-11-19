@@ -281,6 +281,14 @@ func ToIface_ModuleMetadataMap_ModuleMetadata[T interface {
 	return v
 }
 
+func Upcast_ModuleMetadataMap_ModuleMetadata[T ModuleMetadataMap_ModuleMetadata](v T) ModuleMetadataMap_ModuleMetadata {
+	var vi ModuleMetadataMap_ModuleMetadata = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata
 type ModuleMetadataMap_ModuleMetadataBase struct {
 	self_ ModuleMetadataMap_ModuleMetadata
@@ -477,6 +485,14 @@ func ToIface_ModuleMetadataMap_ModuleMetadata_Builder[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_ModuleMetadataMap_ModuleMetadata_Builder[T ModuleMetadataMap_ModuleMetadata_Builder](v T) ModuleMetadataMap_ModuleMetadata_Builder {
+	var vi ModuleMetadataMap_ModuleMetadata_Builder = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata.Builder

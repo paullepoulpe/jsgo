@@ -39,6 +39,14 @@ func ToIface_MessageFormatter[T interface {
 	return v
 }
 
+func Upcast_MessageFormatter[T MessageFormatter](v T) MessageFormatter {
+	var vi MessageFormatter = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.MessageFormatter", "com.google.javascript.jscomp.MessageFormatter", func(v_ any) bool {
 		return j2gort.InstanceOf[MessageFormatter](v_)

@@ -203,7 +203,7 @@ func (this_ *Binding) HashCode() int32 {
 		hi_7 := this_.metadata
 		h_ = 31 * h_
 		if hi_7 != nil && !hi_7.IsJavaNil_() {
-			h_ += hi_7.HashCode()
+			h_ += hi_7.GetModuleMetadataMap_ModuleMetadataBase().HashCode()
 		}
 	}
 	h_ = 31*h_ + int32(this_.sourceNode)

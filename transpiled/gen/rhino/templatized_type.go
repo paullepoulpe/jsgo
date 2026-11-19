@@ -135,7 +135,7 @@ func InitTemplatizedType(this_ *TemplatizedType, registry *JSTypeRegistry, objec
 	_ = registry
 	_ = objectType
 	_ = templateTypes
-	InitProxyObjectType_4(&this_.ProxyObjectTypeBase, registry, j2gort.AsIface[JSType](objectType), objectType.GetTemplateTypeMap().CopyFilledWithValues(templateTypes), int32(4096))
+	InitProxyObjectType_4(&this_.ProxyObjectTypeBase, registry, Upcast_JSType(objectType), objectType.GetTemplateTypeMap().CopyFilledWithValues(templateTypes), int32(4096))
 	this_.initFields_TemplatizedType()
 	var paramCount int32 = objectType.GetTemplateParamCount()
 	_ = paramCount
@@ -152,7 +152,7 @@ func InitTemplatizedType(this_ *TemplatizedType, registry *JSTypeRegistry, objec
 		var resolved0 JSType = this_.GetTemplateTypeMap().GetResolvedTemplateType(key0)
 		_ = resolved0
 		this_.templateTypes = []JSType{j2gort.CheckNotNullElem(resolved0)}
-		this_.isSpecializedOnlyWithUnknown = unknownType.Equals(resolved0)
+		this_.isSpecializedOnlyWithUnknown = unknownType.GetJSTypeBase().EqualsJSType(resolved0)
 	} else if paramCount == int32(2) {
 		var objMap_2 *TemplateTypeMap = objectType.GetTemplateTypeMap()
 		_ = objMap_2
@@ -165,7 +165,7 @@ func InitTemplatizedType(this_ *TemplatizedType, registry *JSTypeRegistry, objec
 		var resolved1 JSType = ownMap.GetResolvedTemplateType(objMap_2.GetTemplateKeyAt((start + int32(1))))
 		_ = resolved1
 		this_.templateTypes = []JSType{j2gort.CheckNotNullElem(resolved0_2), j2gort.CheckNotNullElem(resolved1)}
-		this_.isSpecializedOnlyWithUnknown = (unknownType.Equals(resolved0_2) && unknownType.Equals(resolved1))
+		this_.isSpecializedOnlyWithUnknown = (unknownType.GetJSTypeBase().EqualsJSType(resolved0_2) && unknownType.GetJSTypeBase().EqualsJSType(resolved1))
 	} else {
 		var objMap_3 *TemplateTypeMap = objectType.GetTemplateTypeMap()
 		_ = objMap_3
@@ -187,7 +187,7 @@ func InitTemplatizedType(this_ *TemplatizedType, registry *JSTypeRegistry, objec
 				_ = resolvedType
 				builder.AddVoid_(resolvedType)
 				if maybeIsSpecializedOnlyWithUnknown {
-					maybeIsSpecializedOnlyWithUnknown = unknownType.Equals(resolvedType)
+					maybeIsSpecializedOnlyWithUnknown = unknownType.GetJSTypeBase().EqualsJSType(resolvedType)
 				}
 			}
 		}
@@ -217,7 +217,7 @@ func (this_ *TemplatizedType) GetCtorImplementedInterfaces() any {
 			if resolvedImplementedInterfaces == nil {
 				resolvedImplementedInterfaces = j2gort.NewExt_java_util_LinkedHashSet()
 			}
-			resolvedImplementedInterfaces.Add_1(this_.GetJSTypeBase().registry.ReplaceTemplateTypesPartial(j2gort.AsIface[JSType](obj), ownMap).ToObjectType())
+			resolvedImplementedInterfaces.Add_1(this_.GetJSTypeBase().registry.ReplaceTemplateTypesPartial(Upcast_JSType(obj), ownMap).GetJSTypeBase().ToObjectType())
 		}
 	}
 	if resolvedImplementedInterfaces != nil {
@@ -242,7 +242,7 @@ func (this_ *TemplatizedType) GetCtorExtendedInterfaces() any {
 			if resolvedExtendedInterfaces == nil {
 				resolvedExtendedInterfaces = j2gort.NewExt_java_util_LinkedHashSet()
 			}
-			resolvedExtendedInterfaces.Add_1(this_.GetJSTypeBase().registry.ReplaceTemplateTypesPartial(j2gort.AsIface[JSType](obj), ownMap).ToObjectType())
+			resolvedExtendedInterfaces.Add_1(this_.GetJSTypeBase().registry.ReplaceTemplateTypesPartial(Upcast_JSType(obj), ownMap).GetJSTypeBase().ToObjectType())
 		}
 	}
 	if resolvedExtendedInterfaces != nil {
@@ -314,7 +314,7 @@ func (this_ *TemplatizedType) GetPropertyType_1_Property_Key(propertyName Proper
 // Java method: TemplatizedType.wrapsSameRawType(com.google.javascript.rhino.jstype.JSType that)
 func (this_ *TemplatizedType) WrapsSameRawType(that JSType) bool {
 	_ = that
-	return (that.IsTemplatizedType() && this_.GetReferencedTypeInternal().Equals(that.ToMaybeTemplatizedType().GetReferencedTypeInternal()))
+	return (that.GetJSTypeBase().IsTemplatizedType() && this_.GetReferencedTypeInternal().GetJSTypeBase().EqualsJSType(that.ToMaybeTemplatizedType().GetReferencedTypeInternal()))
 }
 
 // Java method: TemplatizedType.getGreatestSubtypeHelper(com.google.javascript.rhino.jstype.JSType rawThat)
@@ -324,7 +324,7 @@ func (this_ *TemplatizedType) GetGreatestSubtypeHelper(rawThat JSType) JSType {
 	if !(this_.WrapsSameRawType(rawThat)) {
 		if this_.IsSubtype_1(rawThat) {
 			return this_
-		} else if rawThat.IsSubtypeOf_1(this_) {
+		} else if rawThat.GetJSTypeBase().IsSubtypeOf_1(this_) {
 			return rawThat
 		}
 		if this_.IsObject() && rawThat.IsObject() {
@@ -335,10 +335,10 @@ func (this_ *TemplatizedType) GetGreatestSubtypeHelper(rawThat JSType) JSType {
 	var that *TemplatizedType = rawThat.ToMaybeTemplatizedType()
 	_ = that
 	j2gort.CheckNotNullPtr(that)
-	if this_.Equals(j2gort.PtrToAny(that)) {
+	if this_.EqualsJSType(ToIface_JSType(that)) {
 		return this_
 	}
-	return j2gort.AsIface[JSType](this_.GetReferencedObjTypeInternal())
+	return Upcast_JSType(this_.GetReferencedObjTypeInternal())
 }
 
 // Java method: TemplatizedType.getTemplateTypeMap()
@@ -389,7 +389,7 @@ func (this_ *TemplatizedType) ClearCachedResolveResult() {
 // Java method: TemplatizedType.resolveInternal(com.google.javascript.rhino.ErrorReporter reporter)
 func (this_ *TemplatizedType) ResolveInternal(reporter ErrorReporter) JSType {
 	_ = reporter
-	var baseTypeBefore JSType = j2gort.AsIface[JSType](this_.GetReferencedType())
+	var baseTypeBefore JSType = Upcast_JSType(this_.GetReferencedType())
 	_ = baseTypeBefore
 	this_.ProxyObjectTypeBase.ResolveInternal(reporter)
 	var rebuild bool = !(j2gort.IfaceEquals[JSType](baseTypeBefore, this_.GetReferencedType()))
@@ -407,7 +407,7 @@ func (this_ *TemplatizedType) ResolveInternal(reporter ErrorReporter) JSType {
 		for ; i < n; i = i + 1 {
 			var type_ JSType = this_.templateTypes[i]
 			_ = type_
-			var resolved JSType = type_.Resolve(reporter)
+			var resolved JSType = type_.GetJSTypeBase().Resolve(reporter)
 			_ = resolved
 			if builder != nil {
 				builder.AddVoid_(resolved)

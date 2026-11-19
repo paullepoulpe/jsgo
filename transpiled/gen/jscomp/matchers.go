@@ -248,13 +248,14 @@ func Matchers_GetJsType_2_NodeMetadata_JSTypeNative(metadata *NodeMetadata, nati
 func Matchers_AreTypesEquivalentIgnoringGenerics(a pkg_rhino.JSType, b pkg_rhino.JSType) bool {
 	_ = a
 	_ = b
-	var equivalent bool = a.Equals(b)
+	base_a_ := a.GetJSTypeBase()
+	var equivalent bool = base_a_.EqualsJSType(b)
 	_ = equivalent
 	if equivalent {
 		return true
 	}
-	if a.IsTemplatizedType() {
-		return a.ToMaybeTemplatizedType().GetReferencedType().Equals(b)
+	if base_a_.IsTemplatizedType() {
+		return a.ToMaybeTemplatizedType().GetReferencedType().GetObjectTypeBase().GetJSTypeBase().EqualsJSType(b)
 	}
 	return false
 }
@@ -284,7 +285,7 @@ func Matchers_MatchesPrototypeInstanceVar(node pkg_rhino.Node, metadata *NodeMet
 		return false
 	}
 	jsType = jsType.RestrictByNotNullOrUndefined()
-	if (!(jsType.IsUnknownType()) && !(jsType.IsAllType())) && jsType.IsSubtypeOf_1(providedJsType) {
+	if (!(jsType.GetJSTypeBase().IsUnknownType()) && !(jsType.GetJSTypeBase().IsAllType())) && jsType.GetJSTypeBase().IsSubtypeOf_1(providedJsType) {
 		if node.IsName() && func() bool {
 			sr_1 := propertyName
 			se_2 := node.GetString()
@@ -824,7 +825,7 @@ func (this_ *Matchers__Anon_145) Matches(node pkg_rhino.Node, metadata *NodeMeta
 	_ = metadata
 	var jsType pkg_rhino.JSType = node.GetJSType()
 	_ = jsType
-	return ((jsType != nil && !jsType.IsJavaNil_()) && jsType.IsEnumType())
+	return ((jsType != nil && !jsType.IsJavaNil_()) && jsType.GetJSTypeBase().IsEnumType())
 }
 
 // Java class:
@@ -875,7 +876,7 @@ func (this_ *Matchers__Anon_146) Matches(node pkg_rhino.Node, metadata *NodeMeta
 	providedJsType = providedJsType.RestrictByNotNullOrUndefined()
 	var jsType pkg_rhino.JSType = node.GetJSType()
 	_ = jsType
-	return (((jsType != nil && !jsType.IsJavaNil_()) && jsType.IsEnumType()) && providedJsType.Equals(jsType.ToMaybeEnumType().GetElementsType().GetPrimitiveType()))
+	return (((jsType != nil && !jsType.IsJavaNil_()) && jsType.GetJSTypeBase().IsEnumType()) && providedJsType.GetJSTypeBase().EqualsJSType(jsType.ToMaybeEnumType().GetElementsType().GetPrimitiveType()))
 }
 
 // Java class:
@@ -976,7 +977,7 @@ func (this_ *Matchers__Anon_148) Matches(node pkg_rhino.Node, metadata *NodeMeta
 	}
 	var jsType pkg_rhino.JSType = node.GetJSType()
 	_ = jsType
-	return ((((jsDoc != nil) && jsDoc.HasType()) && (jsType != nil && !jsType.IsJavaNil_())) && providedJsType.Equals(jsType.RestrictByNotNullOrUndefined()))
+	return ((((jsDoc != nil) && jsDoc.HasType()) && (jsType != nil && !jsType.IsJavaNil_())) && providedJsType.GetJSTypeBase().EqualsJSType(jsType.RestrictByNotNullOrUndefined()))
 }
 
 // Java class:
@@ -1133,9 +1134,9 @@ func (this_ *Matchers__Anon_151) Matches(node pkg_rhino.Node, metadata *NodeMeta
 		if jsType == nil || jsType.IsJavaNil_() {
 			return false
 		} else if this_.cap_0_requireFunctionType {
-			return jsType.CanCastTo(fnJsType)
+			return jsType.GetJSTypeBase().CanCastTo(fnJsType)
 		} else {
-			return !(jsType.CanCastTo(fnJsType))
+			return !(jsType.GetJSTypeBase().CanCastTo(fnJsType))
 		}
 	}
 	return false

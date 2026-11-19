@@ -93,8 +93,8 @@ func (this_ *UnknownType) GetTypeClass() JSTypeClass {
 	return StaticGet_JSTypeClass_UNKNOWN()
 }
 
-// Java method: UnknownType.isUnknownType()
-func (this_ *UnknownType) IsUnknownType() bool {
+// Java method: UnknownType.isUnknownTypeSlow()
+func (this_ *UnknownType) IsUnknownTypeSlow() bool {
 	return true
 }
 

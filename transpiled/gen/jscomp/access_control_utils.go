@@ -33,7 +33,9 @@ func (this_ *AccessControlUtils) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *AccessControlUtils) IsJavaNil_() bool { return this_ == nil }
-func (*AccessControlUtils) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.AccessControlUtils", "AccessControlUtils" }
+func (*AccessControlUtils) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.AccessControlUtils", "AccessControlUtils"
+}
 func (this_ *AccessControlUtils) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -74,21 +76,21 @@ func AccessControlUtils_GetEffectiveNameVisibility(name pkg_rhino.Node, var_ *Va
 	_ = jsDocInfo
 	var raw pkg_rhino.JSDocInfo_Visibility
 	_ = raw
-	if (((jsDocInfo == nil) || (jsDocInfo.GetVisibility() == 0))) {
+	if (jsDocInfo == nil) || (jsDocInfo.GetVisibility() == 0) {
 		raw = pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED()
 	} else {
 		raw = jsDocInfo.GetVisibility()
 	}
-	if ((raw != pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED())) {
+	if raw != pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED() {
 		return raw
 	}
 	var defaultVisibilityForFile pkg_rhino.JSDocInfo_Visibility = j2gort.Cast[pkg_rhino.JSDocInfo_Visibility](fileVisibilityMap.Get(var_.GetSourceFile()))
 	_ = defaultVisibilityForFile
 	var type_ pkg_rhino.JSType = name.GetJSType()
 	_ = type_
-	var createdFromGoogProvide bool = (((type_ != nil && !type_.IsJavaNil_()) && type_.IsLiteralObject()))
+	var createdFromGoogProvide bool = ((type_ != nil && !type_.IsJavaNil_()) && type_.GetJSTypeBase().IsLiteralObject())
 	_ = createdFromGoogProvide
-	if ((createdFromGoogProvide || (defaultVisibilityForFile == 0))) {
+	if createdFromGoogProvide || (defaultVisibilityForFile == 0) {
 		return raw
 	} else {
 		return defaultVisibilityForFile
@@ -112,7 +114,7 @@ func AccessControlUtils_GetEffectivePropertyVisibility(property pkg_rhino.Node, 
 	_ = isOverride
 	var objectType pkg_rhino.ObjectType = AccessControlUtils_GetObjectType(referenceType, isOverride, propertyName)
 	_ = objectType
-	if (isOverride) {
+	if isOverride {
 		var overridden pkg_rhino.JSDocInfo_Visibility = AccessControlUtils_GetOverriddenPropertyVisibility(objectType, propertyName)
 		_ = overridden
 		return AccessControlUtils_GetEffectiveVisibilityForOverriddenProperty(overridden, fileOverviewVisibility, propertyName)
@@ -126,10 +128,10 @@ func AccessControlUtils_GetDefiningSource(node pkg_rhino.Node, referenceType pkg
 	_ = node
 	_ = referenceType
 	_ = propertyName
-	if ((referenceType != nil && !referenceType.IsJavaNil_())) {
-		var propDefNode pkg_rhino.Node = referenceType.GetPropertyDefSite_1_string(propertyName)
+	if referenceType != nil && !referenceType.IsJavaNil_() {
+		var propDefNode pkg_rhino.Node = referenceType.GetObjectTypeBase().GetPropertyDefSite_1_string(propertyName)
 		_ = propDefNode
-		if ((propDefNode != 0)) {
+		if propDefNode != 0 {
 			return propDefNode.GetStaticSourceFile()
 		}
 	}
@@ -141,7 +143,7 @@ func AccessControlUtils_GetObjectType(referenceType pkg_rhino.ObjectType, isOver
 	_ = referenceType
 	_ = isOverride
 	_ = propertyName
-	if ((referenceType == nil || referenceType.IsJavaNil_())) {
+	if referenceType == nil || referenceType.IsJavaNil_() {
 		return nil
 	}
 	var current pkg_rhino.ObjectType
@@ -151,10 +153,10 @@ func AccessControlUtils_GetObjectType(referenceType pkg_rhino.ObjectType, isOver
 	} else {
 		current = referenceType
 	}
-	for ; (current != nil && !current.IsJavaNil_()); current = current.GetImplicitPrototype() {
-		var docInfo *pkg_rhino.JSDocInfo = current.GetOwnPropertyJSDocInfo_1_string(propertyName)
+	for ; current != nil && !current.IsJavaNil_(); current = current.GetImplicitPrototype() {
+		var docInfo *pkg_rhino.JSDocInfo = current.GetObjectTypeBase().GetOwnPropertyJSDocInfo_1_string(propertyName)
 		_ = docInfo
-		if (((docInfo != nil) && (docInfo.GetVisibility() != pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED()))) {
+		if (docInfo != nil) && (docInfo.GetVisibility() != pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED()) {
 			return current
 		}
 	}
@@ -165,8 +167,8 @@ func AccessControlUtils_GetObjectType(referenceType pkg_rhino.ObjectType, isOver
 func AccessControlUtils_GetOverriddenPropertyVisibility(objectType pkg_rhino.ObjectType, propertyName string) pkg_rhino.JSDocInfo_Visibility {
 	_ = objectType
 	_ = propertyName
-	if (objectType != nil && !objectType.IsJavaNil_()) {
-		return objectType.GetOwnPropertyJSDocInfo_1_string(propertyName).GetVisibility()
+	if objectType != nil && !objectType.IsJavaNil_() {
+		return objectType.GetObjectTypeBase().GetOwnPropertyJSDocInfo_1_string(propertyName).GetVisibility()
 	} else {
 		return pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED()
 	}
@@ -177,7 +179,7 @@ func AccessControlUtils_GetEffectiveVisibilityForOverriddenProperty(visibility p
 	_ = visibility
 	_ = fileOverviewVisibility
 	_ = propertyName
-	if (((fileOverviewVisibility != 0) && (visibility == pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED()))) {
+	if (fileOverviewVisibility != 0) && (visibility == pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED()) {
 		return fileOverviewVisibility
 	} else {
 		return visibility
@@ -193,17 +195,16 @@ func AccessControlUtils_GetEffectiveVisibilityForNonOverriddenProperty(getprop p
 	_ = propertyName
 	var raw pkg_rhino.JSDocInfo_Visibility = pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED()
 	_ = raw
-	if ((objectType != nil && !objectType.IsJavaNil_())) {
-		raw = objectType.GetOwnPropertyJSDocInfo_1_string(propertyName).GetVisibility()
+	if objectType != nil && !objectType.IsJavaNil_() {
+		raw = objectType.GetObjectTypeBase().GetOwnPropertyJSDocInfo_1_string(propertyName).GetVisibility()
 	}
 	var type_ pkg_rhino.JSType = getprop.GetJSType()
 	_ = type_
-	var createdFromGoogProvide bool = (((type_ != nil && !type_.IsJavaNil_()) && type_.IsLiteralObject()))
+	var createdFromGoogProvide bool = ((type_ != nil && !type_.IsJavaNil_()) && type_.GetJSTypeBase().IsLiteralObject())
 	_ = createdFromGoogProvide
-	if ((((raw != pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED()) || (fileOverviewVisibility == 0)) || createdFromGoogProvide)) {
+	if ((raw != pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED()) || (fileOverviewVisibility == 0)) || createdFromGoogProvide {
 		return raw
 	} else {
 		return fileOverviewVisibility
 	}
 }
-

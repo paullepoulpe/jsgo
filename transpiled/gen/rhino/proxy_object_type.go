@@ -64,6 +64,14 @@ func ToIface_ProxyObjectType[T interface {
 	return v
 }
 
+func Upcast_ProxyObjectType[T ProxyObjectType](v T) ProxyObjectType {
+	var vi ProxyObjectType = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.rhino.jstype.ProxyObjectType
 type ProxyObjectTypeBase struct {
 	ObjectTypeBase
@@ -179,7 +187,7 @@ func InitProxyObjectType_4(this_ *ProxyObjectTypeBase, registry *JSTypeRegistry,
 // Java method: ProxyObjectType.hasKindMaskProxy(int mask)
 func (this_ *ProxyObjectTypeBase) HasKindMaskProxy(mask int32) bool {
 	_ = mask
-	return this_.referencedType.HasKindMask(mask)
+	return this_.referencedType.GetJSTypeBase().HasKindMask(mask)
 }
 
 // Java method: ProxyObjectType.getTypeClass()
@@ -225,6 +233,13 @@ func (this_ *ProxyObjectTypeBase) SetReferencedType(referencedType JSType) {
 	_ = referencedType
 	j2gort.CheckNotNullIface(referencedType)
 	this_.referencedType = referencedType
+	var resolver *JSTypeResolver = this_.GetJSTypeBase().registry.GetResolver()
+	_ = resolver
+	if (((int32(referencedType.GetJSTypeBase().jstypeFlags) & int32(int8(32))) != int32(0)) && (resolver != nil)) && resolver.IsClosed() {
+		this_.GetJSTypeBase().jstypeFlags = int8((int32(this_.GetJSTypeBase().jstypeFlags) | int32(int8(32))))
+	} else {
+		this_.GetJSTypeBase().jstypeFlags = int8((int32(this_.GetJSTypeBase().jstypeFlags) & ^(int32(int8(32)))))
+	}
 	var objectType ObjectType
 	_ = objectType
 	var ok_1 bool
@@ -286,9 +301,14 @@ func (this_ *ProxyObjectTypeBase) IsStructuralType() bool {
 	return this_.referencedType.IsStructuralType()
 }
 
-// Java method: ProxyObjectType.isUnknownType()
-func (this_ *ProxyObjectTypeBase) IsUnknownType() bool {
-	return this_.referencedType.IsUnknownType()
+// Java method: ProxyObjectType.isUnknownTypeSlow()
+func (this_ *ProxyObjectTypeBase) IsUnknownTypeSlow() bool {
+	var unknown bool = this_.referencedType.GetJSTypeBase().IsUnknownType()
+	_ = unknown
+	if !(unknown) && this_.GetJSTypeBase().registry.GetResolver().IsClosed() {
+		this_.GetJSTypeBase().jstypeFlags = int8((int32(this_.GetJSTypeBase().jstypeFlags) | int32(int8(32))))
+	}
+	return unknown
 }
 
 // Java method: ProxyObjectType.isNullable()
@@ -386,7 +406,7 @@ func (this_ *ProxyObjectTypeBase) GetCtorExtendedInterfaces() any {
 
 // Java method: ProxyObjectType.recursionUnsafeHashCode()
 func (this_ *ProxyObjectTypeBase) RecursionUnsafeHashCode() int32 {
-	return this_.referencedType.HashCode()
+	return this_.referencedType.GetJSTypeBase().HashCode()
 }
 
 // Java method: ProxyObjectType.appendTo(com.google.javascript.rhino.jstype.TypeStringBuilder sb)
@@ -425,13 +445,13 @@ func (this_ *ProxyObjectTypeBase) DefineProperty_4_Property_Key_JSType_bool_Node
 // Java method: ProxyObjectType.findPropertyTypeWithoutConsideringTemplateTypes(com.google.javascript.rhino.jstype.Property.Key propertyName)
 func (this_ *ProxyObjectTypeBase) FindPropertyTypeWithoutConsideringTemplateTypes_1_Property_Key(propertyName Property_Key) JSType {
 	_ = propertyName
-	return this_.referencedType.FindPropertyType_1_Property_Key(propertyName)
+	return this_.referencedType.GetJSTypeBase().FindPropertyType_1_Property_Key(propertyName)
 }
 
 // Java method: ProxyObjectType.findPropertyTypeWithoutConsideringTemplateTypes(java.lang.String propertyName)
 func (this_ *ProxyObjectTypeBase) FindPropertyTypeWithoutConsideringTemplateTypes_1_string(propertyName string) JSType {
 	_ = propertyName
-	return this_.referencedType.FindPropertyType_1_string(propertyName)
+	return this_.referencedType.GetJSTypeBase().FindPropertyType_1_string(propertyName)
 }
 
 // Java method: ProxyObjectType.getJSDocInfo()
@@ -512,7 +532,7 @@ func (this_ *ProxyObjectTypeBase) Visit_2(visitor RelationshipVisitor, that JSTy
 // Java method: ProxyObjectType.resolveInternal(com.google.javascript.rhino.ErrorReporter reporter)
 func (this_ *ProxyObjectTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
 	_ = reporter
-	this_.SetReferencedType(this_.referencedType.Resolve(reporter))
+	this_.SetReferencedType(this_.referencedType.GetJSTypeBase().Resolve(reporter))
 	return this_.JSTypeBase.self_
 }
 
@@ -526,7 +546,7 @@ func (this_ *ProxyObjectTypeBase) GetTypeOfThis() JSType {
 
 // Java method: ProxyObjectType.collapseUnion()
 func (this_ *ProxyObjectTypeBase) CollapseUnion() JSType {
-	if this_.referencedType.IsUnionType() {
+	if this_.referencedType.GetJSTypeBase().IsUnionType() {
 		return this_.referencedType.CollapseUnion()
 	}
 	return this_.JSTypeBase.self_
@@ -550,7 +570,7 @@ func (this_ *ProxyObjectTypeBase) ToMaybeTemplateType() *TemplateType {
 
 // Java method: ProxyObjectType.hasAnyTemplateTypesInternal()
 func (this_ *ProxyObjectTypeBase) HasAnyTemplateTypesInternal() bool {
-	return this_.referencedType.HasAnyTemplateTypes()
+	return this_.referencedType.GetJSTypeBase().HasAnyTemplateTypes()
 }
 
 // Java method: ProxyObjectType.getTemplateTypeMap()

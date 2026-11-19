@@ -59,6 +59,14 @@ func ToIface_StaticScope[T interface {
 	return v
 }
 
+func Upcast_StaticScope[T StaticScope](v T) StaticScope {
+	var vi StaticScope = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.StaticScope", "com.google.javascript.rhino.StaticScope", func(v_ any) bool {
 		return j2gort.InstanceOf[StaticScope](v_)

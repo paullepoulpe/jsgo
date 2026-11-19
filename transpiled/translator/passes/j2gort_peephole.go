@@ -110,6 +110,7 @@ func (p *J2gortPeepholePass) Apply(ctx *PassContext) (int, error) {
 func (p *J2gortPeepholePass) applyFile(file *ast.File, pkg *types.Package, info *types.Info, safeBitSetParams map[bitSetParamKey]bool, exports peepholeExports) int {
 	parents, postOrder := buildParentMap(file)
 	facts := collectPeepholeFileFacts(file, info, parents)
+	jsEqMeta := resolveJSTypeEqualsMeta(pkg)
 	count := 0
 
 	applyReplacement := func(parent ast.Node, call *ast.CallExpr, replacement ast.Expr) bool {
@@ -152,6 +153,14 @@ func (p *J2gortPeepholePass) applyFile(file *ast.File, pkg *types.Package, info 
 				count++
 			}
 			continue
+		}
+
+		// Specialize `<JSType>.Equals(<JSType>)` -> `<*JSTypeBase>.EqualsJSType(<JSType>)` when available.
+		if jsEqMeta != nil {
+			if repl, ok := p.tryRewriteJSTypeEquals(call, file, pkg, facts, jsEqMeta, info); ok && applyReplacement(parent, call, repl) {
+				count++
+				continue
+			}
 		}
 
 		fnName, fnObj, _, isJ2 := isJ2gortCall(call, info)
@@ -297,7 +306,12 @@ func (p *J2gortPeepholePass) simplifySingleArgCall(
 			return nil, false
 		}
 		if innerCall, ok := inner.(*ast.CallExpr); ok && len(innerCall.Args) == 1 && !innerCall.Ellipsis.IsValid() {
+			_, innerIsJ2AsIface := false, false
 			if innerFn, _, _, ok := isJ2gortCall(innerCall, info); ok && innerFn == "AsIface" {
+				innerIsJ2AsIface = true
+			}
+			_, innerIsUpcast := isUpcastCall(innerCall, info)
+			if innerIsJ2AsIface || innerIsUpcast {
 				innerType := info.Types[innerCall].Type
 				if innerType != nil {
 					if types.Identical(callType, innerType) {
@@ -312,6 +326,9 @@ func (p *J2gortPeepholePass) simplifySingleArgCall(
 						if isGuaranteedNeverTypedNil(y, facts, info) &&
 							exprContextPreservesInterfaceType(call, callType, yTV.Type, parent, parents, pkg, info) {
 							return y, true
+						}
+						if replUp, okUp := tryMakeUpcastCall(call, callType, y, yTV.Type, info); okUp {
+							return replUp, true
 						}
 						collapsed := &ast.CallExpr{
 							Fun:    call.Fun,
@@ -332,6 +349,11 @@ func (p *J2gortPeepholePass) simplifySingleArgCall(
 			isGuaranteedNeverTypedNil(inner, facts, info) &&
 			exprContextPreservesInterfaceType(call, callType, innerTV.Type, parent, parents, pkg, info) {
 			return inner, true
+		}
+		if ok && !innerTV.IsType() && !innerTV.IsBuiltin() && !innerTV.IsNil() && innerTV.Type != nil && !isInvalidOrUntyped(innerTV.Type) {
+			if replUp, okUp := tryMakeUpcastCall(call, callType, inner, innerTV.Type, info); okUp {
+				return replUp, true
+			}
 		}
 
 	case "StrVal", "StrValString":
@@ -4847,7 +4869,6 @@ func peepholeVarAssignedInBlock(body *ast.BlockStmt, target *types.Var, info *ty
 	return assigned
 }
 
-
 // --- Wave 29C Task 1: Zero-Allocation Node.GetAncestors() Enhanced-For Loop Lowering ---
 
 func fileHasGetAncestorsCall(file *ast.File) bool {
@@ -7832,12 +7853,12 @@ func (p *J2gortPeepholePass) rewriteStackNodeTraversalBuilders(ctx *PassContext)
 
 	sBuilderCallsClinit := false
 	safeSetters := map[string]bool{
-		"SetCompiler":                                    true,
-		"SetCallback":                                    true,
-		"SetCallback_1_NodeTraversal_Callback":           true,
-		"SetScopeCreator":                                true,
+		"SetCompiler":                          true,
+		"SetCallback":                          true,
+		"SetCallback_1_NodeTraversal_Callback": true,
+		"SetScopeCreator":                      true,
 		"SetObeyDestructuringAndDefaultValueExecutionOrder": true,
-		"SetObeyDestructuring":                           true,
+		"SetObeyDestructuring":                              true,
 	}
 	safeTerminals := map[string]bool{
 		"Traverse":          true,
@@ -8426,4 +8447,341 @@ func pickFreshNtbLocalName(enclosingBlk *ast.BlockStmt, exprs []ast.Expr) string
 			return cand
 		}
 	}
+}
+
+type jsTypeEqualsMeta struct {
+	rhinoPkg      *types.Package
+	jsTypeNamed   *types.Named
+	jsTypeIface   *types.Interface
+	jsTypeBasePtr *types.Pointer
+	baseEqualsFn  *types.Func
+	hasToIface    bool
+	hasUpcast     bool
+}
+
+func resolveJSTypeEqualsMeta(pkg *types.Package) *jsTypeEqualsMeta {
+	if pkg == nil {
+		return nil
+	}
+	var rhinoPkg *types.Package
+	var findRhino func(cur *types.Package, visited map[*types.Package]bool)
+	findRhino = func(cur *types.Package, visited map[*types.Package]bool) {
+		if rhinoPkg != nil || cur == nil || visited[cur] {
+			return
+		}
+		visited[cur] = true
+		if cur.Name() == "rhino" && cur.Scope() != nil && cur.Scope().Lookup("JSType") != nil && cur.Scope().Lookup("JSTypeBase") != nil {
+			rhinoPkg = cur
+			return
+		}
+		for _, imp := range cur.Imports() {
+			findRhino(imp, visited)
+		}
+	}
+	findRhino(pkg, make(map[*types.Package]bool))
+	if rhinoPkg == nil || rhinoPkg.Scope() == nil {
+		return nil
+	}
+	jtTN, ok1 := rhinoPkg.Scope().Lookup("JSType").(*types.TypeName)
+	jtbTN, ok2 := rhinoPkg.Scope().Lookup("JSTypeBase").(*types.TypeName)
+	if !ok1 || !ok2 || jtTN == nil || jtbTN == nil {
+		return nil
+	}
+	jtNamed := namedOrigin(jtTN.Type())
+	jtbNamed := namedOrigin(jtbTN.Type())
+	if jtNamed == nil || jtbNamed == nil {
+		return nil
+	}
+	jtIface, okI := jtNamed.Underlying().(*types.Interface)
+	if !okI {
+		return nil
+	}
+	jtbPtr := types.NewPointer(jtbNamed)
+
+	// Dynamically check whether *JSTypeBase exports EqualsJSType(JSType) bool.
+	eqObj, _, _ := types.LookupFieldOrMethod(jtbPtr, true, rhinoPkg, "EqualsJSType")
+	eqFn, okFn := eqObj.(*types.Func)
+	if !okFn || eqFn == nil || !eqFn.Exported() {
+		return nil
+	}
+	eqSig, okSig := eqFn.Type().(*types.Signature)
+	if !okSig || eqSig.Params().Len() != 1 || eqSig.Results().Len() != 1 ||
+		!types.Identical(eqSig.Params().At(0).Type(), jtNamed) ||
+		!types.Identical(eqSig.Results().At(0).Type(), types.Typ[types.Bool]) {
+		return nil
+	}
+
+	bEqObj, _, _ := types.LookupFieldOrMethod(jtbPtr, true, rhinoPkg, "Equals")
+	bEqFn, _ := bEqObj.(*types.Func)
+	_, hasToIface := rhinoPkg.Scope().Lookup("ToIface_JSType").(*types.Func)
+	_, hasUpcast := rhinoPkg.Scope().Lookup("Upcast_JSType").(*types.Func)
+
+	return &jsTypeEqualsMeta{
+		rhinoPkg:      rhinoPkg,
+		jsTypeNamed:   jtNamed,
+		jsTypeIface:   jtIface,
+		jsTypeBasePtr: jtbPtr,
+		baseEqualsFn:  bEqFn,
+		hasToIface:    hasToIface,
+		hasUpcast:     hasUpcast,
+	}
+}
+
+func (p *J2gortPeepholePass) tryRewriteJSTypeEquals(
+	call *ast.CallExpr,
+	file *ast.File,
+	pkg *types.Package,
+	facts *peepholeFileFacts,
+	meta *jsTypeEqualsMeta,
+	info *types.Info,
+) (ast.Expr, bool) {
+	if call == nil || len(call.Args) != 1 || call.Ellipsis.IsValid() || meta == nil {
+		return nil, false
+	}
+	selExpr, ok := stripParens(call.Fun).(*ast.SelectorExpr)
+	if !ok || selExpr.Sel == nil || selExpr.Sel.Name != "Equals" {
+		return nil, false
+	}
+	sel := info.Selections[selExpr]
+	if sel == nil || sel.Kind() != types.MethodVal {
+		return nil, false
+	}
+	recvTV, ok := info.Types[selExpr.X]
+	if !ok || recvTV.IsType() || recvTV.IsBuiltin() || recvTV.IsNil() || recvTV.Type == nil || isInvalidOrUntyped(recvTV.Type) {
+		return nil, false
+	}
+	recvType := types.Unalias(recvTV.Type)
+	if _, isTP := recvType.(*types.TypeParam); isTP {
+		return nil, false
+	}
+	if !types.Implements(recvType, meta.jsTypeIface) {
+		return nil, false
+	}
+	if !isInterfaceType(recvType) && meta.baseEqualsFn != nil && sel.Obj() != meta.baseEqualsFn {
+		return nil, false
+	}
+
+	arg := stripParens(call.Args[0])
+	if argCall, isAC := arg.(*ast.CallExpr); isAC && len(argCall.Args) == 1 && !argCall.Ellipsis.IsValid() {
+		if fnName, _, _, isJ2 := isJ2gortCall(argCall, info); isJ2 && (fnName == "PtrToAny" || fnName == "ToAny") {
+			inner := stripParens(argCall.Args[0])
+			if innerTV, okI := info.Types[inner]; okI && innerTV.Type != nil && !isInvalidOrUntyped(innerTV.Type) {
+				ut := types.Unalias(innerTV.Type)
+				if _, isTP := ut.(*types.TypeParam); !isTP && types.Implements(ut, meta.jsTypeIface) {
+					arg = inner
+				}
+			}
+		}
+	}
+
+	argTV, ok := info.Types[arg]
+	if !ok || argTV.IsType() || argTV.IsBuiltin() || argTV.IsNil() || argTV.Type == nil || isInvalidOrUntyped(argTV.Type) {
+		return nil, false
+	}
+	argType := types.Unalias(argTV.Type)
+	if _, isTP := argType.(*types.TypeParam); isTP {
+		return nil, false
+	}
+	if !types.Implements(argType, meta.jsTypeIface) {
+		return nil, false
+	}
+
+	var recvBase ast.Expr
+	if types.Identical(recvType, meta.jsTypeBasePtr) {
+		recvBase = wrapPrimaryTarget(selExpr.X)
+	} else {
+		recvBase = &ast.CallExpr{
+			Fun: &ast.SelectorExpr{
+				X:   wrapPrimaryTarget(selExpr.X),
+				Sel: &ast.Ident{NamePos: selExpr.Sel.Pos(), Name: "GetJSTypeBase"},
+			},
+		}
+	}
+
+	var argJSType ast.Expr
+	if isInterfaceType(argType) || (types.AssignableTo(argType, meta.jsTypeNamed) && isProvablyNonNilExpr(arg, facts, info)) {
+		argJSType = arg
+	} else {
+		adapterName := ""
+		if meta.hasToIface {
+			adapterName = "ToIface_JSType"
+		} else if meta.hasUpcast {
+			adapterName = "Upcast_JSType"
+		}
+		if adapterName == "" {
+			return nil, false
+		}
+		var adapterFun ast.Expr
+		if pkg == meta.rhinoPkg {
+			adapterFun = &ast.Ident{NamePos: arg.Pos(), Name: adapterName}
+		} else {
+			alias := findImportedPkgAliasInFile(file, meta.rhinoPkg, info)
+			if alias == "" {
+				return nil, false
+			}
+			adapterFun = &ast.SelectorExpr{
+				X:   &ast.Ident{NamePos: arg.Pos(), Name: alias},
+				Sel: &ast.Ident{NamePos: arg.Pos(), Name: adapterName},
+			}
+		}
+		argJSType = &ast.CallExpr{
+			Fun:  adapterFun,
+			Args: []ast.Expr{arg},
+		}
+	}
+
+	repl := &ast.CallExpr{
+		Fun: &ast.SelectorExpr{
+			X:   wrapPrimaryTarget(recvBase),
+			Sel: &ast.Ident{NamePos: selExpr.Sel.Pos(), Name: "EqualsJSType"},
+		},
+		Lparen: call.Lparen,
+		Args:   []ast.Expr{argJSType},
+		Rparen: call.Rparen,
+	}
+	info.Types[repl] = types.TypeAndValue{Type: types.Typ[types.Bool]}
+	return repl, true
+}
+
+func findImportedPkgAliasInFile(file *ast.File, targetPkg *types.Package, info *types.Info) string {
+	if file == nil || targetPkg == nil {
+		return ""
+	}
+	wantPath := targetPkg.Path()
+	for _, spec := range file.Imports {
+		if spec.Path == nil {
+			continue
+		}
+		impPath, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || impPath != wantPath {
+			continue
+		}
+		if spec.Name != nil {
+			if spec.Name.Name == "_" || spec.Name.Name == "." {
+				continue
+			}
+			return spec.Name.Name
+		}
+		if info != nil {
+			return targetPkg.Name()
+		}
+	}
+	return ""
+}
+
+func isUpcastCall(call *ast.CallExpr, info *types.Info) (types.Type, bool) {
+	if call == nil || info == nil || len(call.Args) != 1 || call.Ellipsis.IsValid() {
+		return nil, false
+	}
+	fn, _ := calleeFunc(call, info)
+	if fn == nil {
+		return nil, false
+	}
+	name := fn.Name()
+	if !strings.HasPrefix(name, "Upcast_") || len(name) <= len("Upcast_") {
+		return nil, false
+	}
+	origSig, ok := fn.Origin().Type().(*types.Signature)
+	if !ok || origSig.Recv() != nil || origSig.Variadic() || origSig.Params().Len() != 1 || origSig.Results().Len() != 1 {
+		return nil, false
+	}
+	if origSig.TypeParams() == nil || origSig.TypeParams().Len() != 1 {
+		return nil, false
+	}
+	callType := info.Types[call].Type
+	if !isInterfaceType(callType) {
+		return nil, false
+	}
+	return callType, true
+}
+
+func tryMakeUpcastCall(
+	asIfaceCall *ast.CallExpr,
+	callType types.Type,
+	expr ast.Expr,
+	exprType types.Type,
+	info *types.Info,
+) (ast.Expr, bool) {
+	if asIfaceCall == nil || callType == nil || expr == nil || exprType == nil || info == nil {
+		return nil, false
+	}
+	utExpr := types.Unalias(exprType)
+	if isEmptyInterfaceType(utExpr) {
+		return nil, false
+	}
+	if _, isTP := utExpr.(*types.TypeParam); isTP {
+		return nil, false
+	}
+
+	targetNamed, ok := types.Unalias(callType).(*types.Named)
+	if !ok || targetNamed == nil || targetNamed.Obj() == nil {
+		return nil, false
+	}
+	if targetNamed.TypeArgs() != nil && targetNamed.TypeArgs().Len() > 0 {
+		return nil, false
+	}
+	if targetNamed.TypeParams() != nil && targetNamed.TypeParams().Len() > 0 {
+		return nil, false
+	}
+	targetIface, ok := targetNamed.Underlying().(*types.Interface)
+	if !ok || !types.Implements(utExpr, targetIface) {
+		return nil, false
+	}
+	targetPkg := targetNamed.Obj().Pkg()
+	if targetPkg == nil || targetPkg.Scope() == nil {
+		return nil, false
+	}
+	upcastName := "Upcast_" + targetNamed.Obj().Name()
+	upcastFn, ok := targetPkg.Scope().Lookup(upcastName).(*types.Func)
+	if !ok || upcastFn == nil || !upcastFn.Exported() {
+		return nil, false
+	}
+	upSig, ok := upcastFn.Type().(*types.Signature)
+	if !ok || upSig.Recv() != nil || upSig.Variadic() || upSig.Params().Len() != 1 || upSig.Results().Len() != 1 ||
+		upSig.TypeParams() == nil || upSig.TypeParams().Len() != 1 ||
+		!types.Identical(upSig.Results().At(0).Type(), targetNamed) {
+		return nil, false
+	}
+	constraintIface, ok := upSig.TypeParams().At(0).Constraint().Underlying().(*types.Interface)
+	if !ok || !types.Satisfies(utExpr, constraintIface) {
+		return nil, false
+	}
+
+	idxExpr, ok := stripParens(asIfaceCall.Fun).(*ast.IndexExpr)
+	if !ok {
+		return nil, false
+	}
+	pos := asIfaceCall.Pos()
+	var funExpr ast.Expr
+	switch tIdx := stripParens(idxExpr.Index).(type) {
+	case *ast.Ident:
+		id := &ast.Ident{NamePos: pos, Name: upcastName}
+		info.Uses[id] = upcastFn
+		funExpr = id
+	case *ast.SelectorExpr:
+		pkgId, okP := stripParens(tIdx.X).(*ast.Ident)
+		if !okP {
+			return nil, false
+		}
+		pObj, okU := info.Uses[pkgId].(*types.PkgName)
+		if !okU || pObj.Imported() != targetPkg {
+			return nil, false
+		}
+		newPkgId := &ast.Ident{NamePos: pos, Name: pkgId.Name}
+		info.Uses[newPkgId] = pObj
+		selId := &ast.Ident{NamePos: pos, Name: upcastName}
+		info.Uses[selId] = upcastFn
+		funExpr = &ast.SelectorExpr{X: newPkgId, Sel: selId}
+	default:
+		return nil, false
+	}
+
+	repl := &ast.CallExpr{
+		Fun:    funExpr,
+		Lparen: asIfaceCall.Lparen,
+		Args:   []ast.Expr{expr},
+		Rparen: asIfaceCall.Rparen,
+	}
+	info.Types[repl] = types.TypeAndValue{Type: callType}
+	return repl, true
 }

@@ -595,7 +595,7 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_rewriteCallExpressi
 	if this_.astFactory.IsAddingTypes() {
 		var fnType pkg_rhino.JSType = first.GetJSType()
 		_ = fnType
-		if fnType.IsFunctionType() {
+		if fnType.GetJSTypeBase().IsFunctionType() {
 			fnCallType = fnType.ToMaybeFunctionType().GetPropertyType_1_string("call")
 		} else {
 			fnCallType = this_.unknownType

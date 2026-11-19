@@ -26,8 +26,8 @@ import (
 
 // Java class: com.google.javascript.jscomp.deps.DependencyFile
 type DependencyFile struct {
-	dependencies j2gort.OrderedMap[string, DependencyInfo] `gson:"dependencies"`
-	delegate     Deps_SourceFile                           `gson:"delegate"`
+	dependencies j2gort.PlainMap[string, DependencyInfo] `gson:"dependencies"`
+	delegate     Deps_SourceFile                         `gson:"delegate"`
 	idHash_      atomic.Int32
 }
 
@@ -86,10 +86,12 @@ func clinitSlow_DependencyFile() {
 
 func (this_ *DependencyFile) initFields_DependencyFile() {
 	_ = this_
-	this_.dependencies = j2gort.NewOrderedMap[string, DependencyInfo]()
+	this_.dependencies = j2gort.NewPlainMapVal[string, DependencyInfo](
+
+	// Java constructor: DependencyFile(com.google.javascript.jscomp.deps.SourceFile delegate)
+	)
 }
 
-// Java constructor: DependencyFile(com.google.javascript.jscomp.deps.SourceFile delegate)
 func NewDependencyFile(delegate Deps_SourceFile) *DependencyFile {
 	clinit_DependencyFile()
 	this_ := &DependencyFile{}
@@ -121,7 +123,7 @@ func (this_ *DependencyFile) WasModified() bool {
 // Java method: DependencyFile.ensureUpToDate()
 func (this_ *DependencyFile) EnsureUpToDate() {
 	if this_.dependencies.IsEmpty() || this_.WasModified() {
-		this_.priv_DependencyFile_loadGraph_6057()
+		this_.priv_DependencyFile_loadGraph_6063()
 	}
 }
 
@@ -132,7 +134,7 @@ func (this_ *DependencyFile) GetDependencyInfo(symbol string) DependencyInfo {
 }
 
 // Java method: DependencyFile.loadGraph()
-func (this_ *DependencyFile) priv_DependencyFile_loadGraph_6057() {
+func (this_ *DependencyFile) priv_DependencyFile_loadGraph_6063() {
 	this_.dependencies.Clear()
 	StaticGet_DependencyFile_Logger().Info_1_string("Loading dependency graph")
 	var errorManager ErrorManager = NewLoggerErrorManager_1(StaticGet_DependencyFile_Logger())
@@ -160,7 +162,7 @@ func (this_ *DependencyFile) priv_DependencyFile_loadGraph_6057() {
 					if (existing != nil && !existing.IsJavaNil_()) && !(javalang.ObjectsEquals(j2gort.CheckNotNull(existing), depInfo)) {
 						panic(NewServiceException(("Duplicate provide of " + j2gort.StrValString(provide) + ". Was provided by " + j2gort.StrValString(existing.GetPathRelativeToClosureBase()) + " and " + j2gort.StrValString(depInfo.GetPathRelativeToClosureBase()))))
 					}
-					this_.dependencies.Put(provide, depInfo)
+					this_.dependencies.PutVoid(provide, depInfo)
 				}
 			}
 		}
@@ -168,7 +170,7 @@ func (this_ *DependencyFile) priv_DependencyFile_loadGraph_6057() {
 	var provides j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList()
 	_ = provides
 	provides.Add_1("goog")
-	this_.dependencies.Put("goog", SimpleDependencyInfo_S_Builder("base.js", "base.js").SetProvides_1_Ext_java_util_Collection(provides).Build())
+	this_.dependencies.PutVoid("goog", SimpleDependencyInfo_S_Builder("base.js", "base.js").SetProvides_1_Ext_java_util_Collection(provides).Build())
 	errorManager.GenerateReport()
 	StaticGet_DependencyFile_Logger().Info_1_string("Dependencies loaded")
 }

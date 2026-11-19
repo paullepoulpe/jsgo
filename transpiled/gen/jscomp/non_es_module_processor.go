@@ -141,15 +141,15 @@ func (this_ *NonEsModuleProcessor_NonEsModule) ResolveExport_5(moduleRequestReso
 	_ = namespace
 	if (moduleSpecifier != j2gort.NullString) && GoogEsImports_IsGoogImportSpecifier(moduleSpecifier) {
 		namespace = GoogEsImports_GetClosureIdFromGoogImportSpecifier(moduleSpecifier)
-	} else if this_.metadata.IsGoogProvide() {
+	} else if this_.metadata.GetModuleMetadataMap_ModuleMetadataBase().IsGoogProvide() {
 		namespace = moduleSpecifier
 	}
-	if this_.metadata.IsCommonJs() {
+	if this_.metadata.GetModuleMetadataMap_ModuleMetadataBase().IsCommonJs() {
 		if !(j2gort.CheckNotNullString(exportName) == "default") {
 			return StaticGet_ResolveExportResult_NOT_FOUND()
 		}
 	}
-	return ResolveExportResult_Of(Binding_From_2(Export_S_Builder().ExportName(exportName).ModuleMetadata(this_.metadata).ModulePath(this_.path).ClosureNamespace(namespace).Build(), this_.scriptNode))
+	return ResolveExportResult_Of(Binding_From_2(Export_S_Builder().ExportName(exportName).ModuleMetadata(this_.metadata).ModulePath(this_.path).ClosureNamespace(namespace).GetExport_BuilderBase().Build(), this_.scriptNode))
 }
 
 // Java method: NonEsModule.reset()

@@ -323,7 +323,7 @@ func (this_ *DotFormatter) Key(n pkg_rhino.Node) int32 {
 		_ = type_
 		if type_ != nil && !type_.IsJavaNil_() {
 			this_.builder.Append_1_any(" : ")
-			this_.builder.Append_1_any(j2gort.BoxString(type_.String()))
+			this_.builder.Append_1_any(j2gort.BoxString(type_.GetJSTypeBase().String()))
 		}
 		if (this_.printAnnotations && (this_.cfg != nil && !this_.cfg.IsJavaNil_())) && this_.cfg.HasNode(n) {
 			var annotation any = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.cfg.GetNode(n)).GetAnnotation()

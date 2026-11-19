@@ -40,6 +40,14 @@ func ToIface_MessageBundle[T interface {
 	return v
 }
 
+func Upcast_MessageBundle[T MessageBundle](v T) MessageBundle {
+	var vi MessageBundle = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.MessageBundle", "com.google.javascript.jscomp.MessageBundle", func(v_ any) bool {
 		return j2gort.InstanceOf[MessageBundle](v_)

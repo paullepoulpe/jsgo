@@ -776,8 +776,8 @@ func clinitSlow_DefaultPassConfig() {
 	defer j2gort.ExitClinit(&clinitState_DefaultPassConfig, &clinitDone_DefaultPassConfig)
 	static_DefaultPassConfig_GLOBAL_SYMBOL_NAMESPACE_PATTERN = j2gort.Ext_java_util_regex_Pattern_Compile_1("^[a-zA-Z0-9$_]+$")
 	static_DefaultPassConfig_GENERATE_EXPORTS_ERROR = DiagnosticType_Error("JSC_GENERATE_EXPORTS_ERROR", "Exports can only be generated if export symbol/property functions are set.")
-	static_DefaultPassConfig_forbidDynamicImportUsage = PassFactory_S_Builder().SetName("FORBID_DYNAMIC_IMPORT").SetInternalFactory(lambdaSingleton_default_pass_config_1).Build()
-	static_DefaultPassConfig_rewriteDynamicImports = PassFactory_S_Builder().SetName("REWRITE_DYNAMIC_IMPORT").SetInternalFactory(lambdaSingleton_default_pass_config_2).Build()
+	static_DefaultPassConfig_forbidDynamicImportUsage = PassFactory_S_Builder().SetName("FORBID_DYNAMIC_IMPORT").SetInternalFactory(lambdaSingleton_default_pass_config_1).GetPassFactory_BuilderBase().Build()
+	static_DefaultPassConfig_rewriteDynamicImports = PassFactory_S_Builder().SetName("REWRITE_DYNAMIC_IMPORT").SetInternalFactory(lambdaSingleton_default_pass_config_2).GetPassFactory_BuilderBase().Build()
 }
 
 func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
@@ -787,8 +787,8 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_2)
 		_ = compiler
 		return NewCheckSideEffects(compiler, this_.GetPassConfigBase().options.GetCheckSuspiciousCode(), this_.GetPassConfigBase().options.ShouldProtectHiddenSideEffects())
-	})).Build()
-	this_.stripSideEffectProtection = PassFactory_S_Builder().SetName("stripSideEffectProtection").SetInternalFactory(lambdaSingleton_default_pass_config_3).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.stripSideEffectProtection = PassFactory_S_Builder().SetName("stripSideEffectProtection").SetInternalFactory(lambdaSingleton_default_pass_config_3).GetPassFactory_BuilderBase().Build()
 	this_.suspiciousCode = PassFactory_S_Builder().SetName("suspiciousCode").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_3 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_3)
 		_ = compiler
@@ -805,14 +805,14 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 			sharedCallbacks.Add_1(NewCheckDebuggerStatement(compiler))
 		}
 		return DefaultPassConfig_CombineChecks(compiler, sharedCallbacks)
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.extraRequires = PassFactory_S_Builder().SetName("checkExtraRequires").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_4 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_4)
 		_ = compiler
 		return NewCheckExtraRequires(compiler, this_.GetPassConfigBase().options.GetUnusedImportsToRemove())
-	})).Build()
-	this_.checkMissingRequires = PassFactory_S_Builder().SetName("checkMissingRequires").SetInternalFactory(lambdaSingleton_default_pass_config_4).Build()
-	this_.checkJsDocAndEs6Modules = PassFactory_S_Builder().SetName("checkJsDocAndEs6Modules").SetInternalFactory(lambdaSingleton_default_pass_config_5).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.checkMissingRequires = PassFactory_S_Builder().SetName("checkMissingRequires").SetInternalFactory(lambdaSingleton_default_pass_config_4).GetPassFactory_BuilderBase().Build()
+	this_.checkJsDocAndEs6Modules = PassFactory_S_Builder().SetName("checkJsDocAndEs6Modules").SetInternalFactory(lambdaSingleton_default_pass_config_5).GetPassFactory_BuilderBase().Build()
 	this_.generateExports = PassFactory_S_Builder().SetName("generateExports").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_7 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_7)
 		_ = compiler
@@ -824,23 +824,23 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 		var pass *GenerateExports = &val_8
 		_ = pass
 		return NewDefaultPassConfig__Anon_22(this_, pass, compiler)
-	})).Build()
-	this_.generateIjs = PassFactory_S_Builder().SetName("generateIjs").SetInternalFactory(lambdaSingleton_default_pass_config_6).Build()
-	this_.removeExtraRequires = PassFactory_S_Builder().SetName("removeExtraRequires").SetInternalFactory(lambdaSingleton_default_pass_config_7).Build()
-	this_.exportTestFunctions = PassFactory_S_Builder().SetName("exportTestFunctions").SetInternalFactory(lambdaSingleton_default_pass_config_8).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.generateIjs = PassFactory_S_Builder().SetName("generateIjs").SetInternalFactory(lambdaSingleton_default_pass_config_6).GetPassFactory_BuilderBase().Build()
+	this_.removeExtraRequires = PassFactory_S_Builder().SetName("removeExtraRequires").SetInternalFactory(lambdaSingleton_default_pass_config_7).GetPassFactory_BuilderBase().Build()
+	this_.exportTestFunctions = PassFactory_S_Builder().SetName("exportTestFunctions").SetInternalFactory(lambdaSingleton_default_pass_config_8).GetPassFactory_BuilderBase().Build()
 	this_.gatherRawExports = PassFactory_S_Builder().SetName("gatherRawExports").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_10 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_10)
 		_ = compiler
 		var pass *GatherRawExports = NewGatherRawExports(compiler)
 		_ = pass
 		return NewDefaultPassConfig__Anon_23(this_, pass, compiler)
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.closurePrimitives = PassFactory_S_Builder().SetName("closurePrimitives").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_11 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_11)
 		_ = compiler
 		this_.preprocessorSymbolTableFactory.MaybeInitialize(compiler)
 		return NewProcessClosurePrimitives(compiler)
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.closureProvidesRequires = PassFactory_S_Builder().SetName("closureProvidesRequires").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_12 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_12)
 		_ = compiler
@@ -856,44 +856,44 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 			pass.Process_2(externs, root)
 			compiler.AddExportedNames(pass.GetExportedVariableNames())
 		})
-	})).Build()
-	this_.angularPass = PassFactory_S_Builder().SetName("angularPass").SetInternalFactory(lambdaSingleton_default_pass_config_9).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.angularPass = PassFactory_S_Builder().SetName("angularPass").SetInternalFactory(lambdaSingleton_default_pass_config_9).GetPassFactory_BuilderBase().Build()
 	this_.replaceMessagesForChrome = PassFactory_S_Builder().SetName("replaceMessages").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_14 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_14)
 		_ = compiler
 		return NewReplaceMessagesForChrome(compiler, NewGoogleJsMessageIdGenerator(this_.GetPassConfigBase().options.GetTcProjectId()))
-	})).Build()
-	this_.closureGoogScopeAliasesForIjs = PassFactory_S_Builder().SetName("closureGoogScopeAliasesForIjs").SetInternalFactory(lambdaSingleton_default_pass_config_10).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.closureGoogScopeAliasesForIjs = PassFactory_S_Builder().SetName("closureGoogScopeAliasesForIjs").SetInternalFactory(lambdaSingleton_default_pass_config_10).GetPassFactory_BuilderBase().Build()
 	this_.closureGoogScopeAliases = PassFactory_S_Builder().SetName("closureGoogScopeAliases").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_16 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_16)
 		_ = compiler
 		this_.preprocessorSymbolTableFactory.MaybeInitialize(compiler)
 		return j2gort.PtrToAny(ScopedAliases_S_Builder(compiler).SetPreprocessorSymbolTable(this_.preprocessorSymbolTableFactory.GetInstanceOrNull()).SetModuleMetadataMap(compiler.GetModuleMetadataMap()).SetInvalidModuleGetHandling(StaticGet_ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME()).Build())
-	})).Build()
-	this_.injectRuntimeLibraries = PassFactory_S_Builder().SetName("InjectRuntimeLibraries").SetInternalFactory(lambdaSingleton_default_pass_config_11).Build()
-	this_.removeWeakSources = PassFactory_S_Builder().SetName("removeWeakSources").SetInternalFactory(lambdaSingleton_default_pass_config_12).Build()
-	this_.declaredGlobalExternsOnWindow = PassFactory_S_Builder().SetName("declaredGlobalExternsOnWindow").SetInternalFactory(lambdaSingleton_default_pass_config_13).Build()
-	this_.checkTypeImportCodeReferences = PassFactory_S_Builder().SetName("checkTypeImportCodeReferences").SetInternalFactory(lambdaSingleton_default_pass_config_14).Build()
-	this_.closureCheckModule = PassFactory_S_Builder().SetName("closureCheckModule").SetInternalFactory(lambdaSingleton_default_pass_config_15).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.injectRuntimeLibraries = PassFactory_S_Builder().SetName("InjectRuntimeLibraries").SetInternalFactory(lambdaSingleton_default_pass_config_11).GetPassFactory_BuilderBase().Build()
+	this_.removeWeakSources = PassFactory_S_Builder().SetName("removeWeakSources").SetInternalFactory(lambdaSingleton_default_pass_config_12).GetPassFactory_BuilderBase().Build()
+	this_.declaredGlobalExternsOnWindow = PassFactory_S_Builder().SetName("declaredGlobalExternsOnWindow").SetInternalFactory(lambdaSingleton_default_pass_config_13).GetPassFactory_BuilderBase().Build()
+	this_.checkTypeImportCodeReferences = PassFactory_S_Builder().SetName("checkTypeImportCodeReferences").SetInternalFactory(lambdaSingleton_default_pass_config_14).GetPassFactory_BuilderBase().Build()
+	this_.closureCheckModule = PassFactory_S_Builder().SetName("closureCheckModule").SetInternalFactory(lambdaSingleton_default_pass_config_15).GetPassFactory_BuilderBase().Build()
 	this_.closureRewriteModule = PassFactory_S_Builder().SetName("closureRewriteModule").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_19 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_19)
 		_ = compiler
 		this_.preprocessorSymbolTableFactory.MaybeInitialize(compiler)
 		return NewClosureRewriteModule(compiler, this_.preprocessorSymbolTableFactory.GetInstanceOrNull(), compiler.GetTopScope())
-	})).Build()
-	this_.checkClosureImports = PassFactory_S_Builder().SetName("checkGoogRequires").SetInternalFactory(lambdaSingleton_default_pass_config_16).Build()
-	this_.rewriteGoogJsImports = PassFactory_S_Builder().SetName("rewriteGoogJsImports").SetInternalFactory(lambdaSingleton_default_pass_config_17).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.checkClosureImports = PassFactory_S_Builder().SetName("checkGoogRequires").SetInternalFactory(lambdaSingleton_default_pass_config_16).GetPassFactory_BuilderBase().Build()
+	this_.rewriteGoogJsImports = PassFactory_S_Builder().SetName("rewriteGoogJsImports").SetInternalFactory(lambdaSingleton_default_pass_config_17).GetPassFactory_BuilderBase().Build()
 	this_.closureReplaceGetCssName = PassFactory_S_Builder().SetName("closureReplaceGetCssName").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_22 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_22)
 		_ = compiler
 		return NewDefaultPassConfig__Anon_24(this_, compiler)
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.createSyntheticBlocks = PassFactory_S_Builder().SetName("createSyntheticBlocks").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_23 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_23)
 		_ = compiler
 		return NewCreateSyntheticBlocks(compiler, this_.GetPassConfigBase().options.GetSyntheticBlockStartMarker(), this_.GetPassConfigBase().options.GetSyntheticBlockEndMarker())
-	})).Build()
-	this_.earlyPeepholeOptimizations = PassFactory_S_Builder().SetName("earlyPeepholeOptimizations").SetInternalFactory(lambdaSingleton_default_pass_config_18).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.earlyPeepholeOptimizations = PassFactory_S_Builder().SetName("earlyPeepholeOptimizations").SetInternalFactory(lambdaSingleton_default_pass_config_18).GetPassFactory_BuilderBase().Build()
 	this_.earlyInlineVariables = PassFactory_S_Builder().SetName("earlyInlineVariables").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_25 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_25)
 		_ = compiler
@@ -907,10 +907,10 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 			panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "No variable inlining option set.")))
 		}
 		return NewInlineVariables(compiler, mode)
-	})).Build()
-	this_.peepholeOptimizations = PassFactory_S_Builder().SetName("peepholeOptimizations").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_19).Build()
-	this_.peepholeOptimizationsOnceNormalized = PassFactory_S_Builder().SetName("peepholeOptimizations").SetInternalFactory(lambdaSingleton_default_pass_config_20).Build()
-	this_.peepholeOptimizationsOnceNonNormalized = PassFactory_S_Builder().SetName("peepholeOptimizations").SetInternalFactory(lambdaSingleton_default_pass_config_21).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.peepholeOptimizations = PassFactory_S_Builder().SetName("peepholeOptimizations").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_19).GetPassFactory_BuilderBase().Build()
+	this_.peepholeOptimizationsOnceNormalized = PassFactory_S_Builder().SetName("peepholeOptimizations").SetInternalFactory(lambdaSingleton_default_pass_config_20).GetPassFactory_BuilderBase().Build()
+	this_.peepholeOptimizationsOnceNonNormalized = PassFactory_S_Builder().SetName("peepholeOptimizations").SetInternalFactory(lambdaSingleton_default_pass_config_21).GetPassFactory_BuilderBase().Build()
 	this_.latePeepholeOptimizations = PassFactory_S_Builder().SetName("latePeepholeOptimizations").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_29 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_29)
 		_ = compiler
@@ -919,29 +919,29 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 		var useTypesForOptimization bool = this_.GetPassConfigBase().options.ShouldUseTypesForLocalOptimization()
 		_ = useTypesForOptimization
 		return NewPeepholeOptimizationsPass_3_AbstractCompiler_string_AbstractPeepholeOptimization(compiler, "latePeepholeOptimizations", []AbstractPeepholeOptimization{NewStatementFusion(), NewPeepholeRemoveDeadCode(), NewPeepholeMinimizeConditions(late), NewPeepholeSubstituteAlternateSyntax(late), NewPeepholeReplaceKnownMethods(late, useTypesForOptimization), NewPeepholeFoldConstants(late, useTypesForOptimization)})
-	})).Build()
-	this_.checkVars = PassFactory_S_Builder().SetName("checkVars").SetInternalFactory(lambdaSingleton_default_pass_config_22).Build()
-	this_.inferConsts = PassFactory_S_Builder().SetName("inferConsts").SetInternalFactory(lambdaSingleton_default_pass_config_23).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.checkVars = PassFactory_S_Builder().SetName("checkVars").SetInternalFactory(lambdaSingleton_default_pass_config_22).GetPassFactory_BuilderBase().Build()
+	this_.inferConsts = PassFactory_S_Builder().SetName("inferConsts").SetInternalFactory(lambdaSingleton_default_pass_config_23).GetPassFactory_BuilderBase().Build()
 	this_.checkRegExp = PassFactory_S_Builder().SetName("checkRegExp").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_30 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_30)
 		_ = compiler
 		var pass *CheckRegExp = NewCheckRegExp(compiler, this_.GetPassConfigBase().options.GetAssumePropertiesAreStaticallyAnalyzable(), true)
 		_ = pass
 		return NewDefaultPassConfig__Anon_25(this_, pass, compiler)
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.checkRegExpForOptimizations = PassFactory_S_Builder().SetName("checkRegExpForOptimizations").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_31 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_31)
 		_ = compiler
 		var regExpCheck *CheckRegExp = NewCheckRegExp(compiler, this_.GetPassConfigBase().options.GetAssumePropertiesAreStaticallyAnalyzable(), false)
 		_ = regExpCheck
 		return NewDefaultPassConfig__Anon_26(this_, regExpCheck, compiler)
-	})).Build()
-	this_.checkVariableReferences = PassFactory_S_Builder().SetName("checkVariableReferences").SetInternalFactory(lambdaSingleton_default_pass_config_24).Build()
-	this_.checkSuper = PassFactory_S_Builder().SetName("checkSuper").SetInternalFactory(lambdaSingleton_default_pass_config_25).Build()
-	this_.clearTypedScopeCreatorPass = PassFactory_S_Builder().SetName("clearTypedScopeCreatorPass").SetInternalFactory(lambdaSingleton_default_pass_config_26).Build()
-	this_.clearTopTypedScopePass = PassFactory_S_Builder().SetName("clearTopTypedScopePass").SetInternalFactory(lambdaSingleton_default_pass_config_27).Build()
-	this_.inferTypes = PassFactory_S_Builder().SetName("inferTypes").SetInternalFactory(lambdaSingleton_default_pass_config_28).Build()
-	this_.inferJsDocInfo = PassFactory_S_Builder().SetName("inferJsDocInfo").SetInternalFactory(lambdaSingleton_default_pass_config_29).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.checkVariableReferences = PassFactory_S_Builder().SetName("checkVariableReferences").SetInternalFactory(lambdaSingleton_default_pass_config_24).GetPassFactory_BuilderBase().Build()
+	this_.checkSuper = PassFactory_S_Builder().SetName("checkSuper").SetInternalFactory(lambdaSingleton_default_pass_config_25).GetPassFactory_BuilderBase().Build()
+	this_.clearTypedScopeCreatorPass = PassFactory_S_Builder().SetName("clearTypedScopeCreatorPass").SetInternalFactory(lambdaSingleton_default_pass_config_26).GetPassFactory_BuilderBase().Build()
+	this_.clearTopTypedScopePass = PassFactory_S_Builder().SetName("clearTopTypedScopePass").SetInternalFactory(lambdaSingleton_default_pass_config_27).GetPassFactory_BuilderBase().Build()
+	this_.inferTypes = PassFactory_S_Builder().SetName("inferTypes").SetInternalFactory(lambdaSingleton_default_pass_config_28).GetPassFactory_BuilderBase().Build()
+	this_.inferJsDocInfo = PassFactory_S_Builder().SetName("inferJsDocInfo").SetInternalFactory(lambdaSingleton_default_pass_config_29).GetPassFactory_BuilderBase().Build()
 	this_.checkTypes = PassFactory_S_Builder().SetName("checkTypes").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_38 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_38)
 		_ = compiler
@@ -953,7 +953,7 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 			check.Process_2(externs, root)
 			compiler.GetErrorManager().SetTypedPercent(check.GetTypedPercent())
 		})
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.checkControlFlow = PassFactory_S_Builder().SetName("checkControlFlow").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_39 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_39)
 		_ = compiler
@@ -966,11 +966,11 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 			callbacks.Add_1(NewCheckMissingReturn(compiler))
 		}
 		return DefaultPassConfig_CombineChecks(compiler, callbacks)
-	})).Build()
-	this_.checkAccessControls = PassFactory_S_Builder().SetName("checkAccessControls").SetInternalFactory(lambdaSingleton_default_pass_config_30).Build()
-	this_.lintChecks = PassFactory_S_Builder().SetName("lintChecks").SetInternalFactory(lambdaSingleton_default_pass_config_31).Build()
-	this_.analyzerChecks = PassFactory_S_Builder().SetName("analyzerChecks").SetInternalFactory(lambdaSingleton_default_pass_config_32).Build()
-	this_.checkRequiresAndProvidesSorted = PassFactory_S_Builder().SetName("checkRequiresAndProvidesSorted").SetInternalFactory(lambdaSingleton_default_pass_config_33).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.checkAccessControls = PassFactory_S_Builder().SetName("checkAccessControls").SetInternalFactory(lambdaSingleton_default_pass_config_30).GetPassFactory_BuilderBase().Build()
+	this_.lintChecks = PassFactory_S_Builder().SetName("lintChecks").SetInternalFactory(lambdaSingleton_default_pass_config_31).GetPassFactory_BuilderBase().Build()
+	this_.analyzerChecks = PassFactory_S_Builder().SetName("analyzerChecks").SetInternalFactory(lambdaSingleton_default_pass_config_32).GetPassFactory_BuilderBase().Build()
+	this_.checkRequiresAndProvidesSorted = PassFactory_S_Builder().SetName("checkRequiresAndProvidesSorted").SetInternalFactory(lambdaSingleton_default_pass_config_33).GetPassFactory_BuilderBase().Build()
 	this_.checkStrictMode = PassFactory_S_Builder().SetName("checkStrictMode").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_43 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_43)
 		_ = compiler
@@ -982,59 +982,59 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 			defaultLevel = StaticGet_CheckLevel_OFF()
 		}
 		return NewStrictModeCheck(compiler, defaultLevel)
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.processTweaks = PassFactory_S_Builder().SetName("processTweaks").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_44 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_44)
 		_ = compiler
 		return NewDefaultPassConfig__Anon_27(this_, compiler)
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.processDefinesCheck = this_.priv_DefaultPassConfig_createProcessDefines_2382(StaticGet_ProcessDefines_Mode_CHECK())
 	this_.processDefinesOptimize = this_.priv_DefaultPassConfig_createProcessDefines_2382(StaticGet_ProcessDefines_Mode_OPTIMIZE())
 	this_.stripCode = PassFactory_S_Builder().SetName("stripCode").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_45 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_45)
 		_ = compiler
 		return NewDefaultPassConfig__Anon_28(this_, compiler)
-	})).Build()
-	this_.checkConsts = PassFactory_S_Builder().SetName("checkConsts").SetInternalFactory(lambdaSingleton_default_pass_config_34).Build()
-	this_.rewriteCallerCodeLocation = PassFactory_S_Builder().SetName("rewriteCallerCodeLocation").SetInternalFactory(lambdaSingleton_default_pass_config_35).Build()
-	this_.replaceToggles = PassFactory_S_Builder().SetName("replaceToggles").SetInternalFactory(lambdaSingleton_default_pass_config_36).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.checkConsts = PassFactory_S_Builder().SetName("checkConsts").SetInternalFactory(lambdaSingleton_default_pass_config_34).GetPassFactory_BuilderBase().Build()
+	this_.rewriteCallerCodeLocation = PassFactory_S_Builder().SetName("rewriteCallerCodeLocation").SetInternalFactory(lambdaSingleton_default_pass_config_35).GetPassFactory_BuilderBase().Build()
+	this_.replaceToggles = PassFactory_S_Builder().SetName("replaceToggles").SetInternalFactory(lambdaSingleton_default_pass_config_36).GetPassFactory_BuilderBase().Build()
 	this_.replaceIdGenerators = PassFactory_S_Builder().SetName("replaceIdGenerators").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_46 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_46)
 		_ = compiler
 		return NewDefaultPassConfig__Anon_29(this_, compiler)
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.replaceStrings = PassFactory_S_Builder().SetName("replaceStrings").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_47 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_47)
 		_ = compiler
 		return NewDefaultPassConfig__Anon_30(this_, compiler)
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.closureCodeRemoval = PassFactory_S_Builder().SetName("closureCodeRemoval").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_48 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_48)
 		_ = compiler
 		return NewClosureCodeRemoval(compiler, this_.GetPassConfigBase().options.ShouldRemoveAbstractMethods(), this_.GetPassConfigBase().options.ShouldRemoveClosureAsserts())
-	})).Build()
-	this_.closureOptimizePrimitives = PassFactory_S_Builder().SetName("closureOptimizePrimitives").SetInternalFactory(lambdaSingleton_default_pass_config_37).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.closureOptimizePrimitives = PassFactory_S_Builder().SetName("closureOptimizePrimitives").SetInternalFactory(lambdaSingleton_default_pass_config_37).GetPassFactory_BuilderBase().Build()
 	this_.rescopeGlobalSymbols = PassFactory_S_Builder().SetName("rescopeGlobalSymbols").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_50 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_50)
 		_ = compiler
 		return NewRescopeGlobalSymbols_4(compiler, this_.GetPassConfigBase().options.GetRenamePrefixNamespace(), this_.GetPassConfigBase().options.AssumeCrossChunkNamesForRenamePrefixNamespace(), this_.GetPassConfigBase().options.GetOptimizeLocalAccessForGlobalSymbolNamespace())
-	})).Build()
-	this_.convertChunksToESModules = PassFactory_S_Builder().SetName("convertChunksToESModules").SetInternalFactory(lambdaSingleton_default_pass_config_38).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.convertChunksToESModules = PassFactory_S_Builder().SetName("convertChunksToESModules").SetInternalFactory(lambdaSingleton_default_pass_config_38).GetPassFactory_BuilderBase().Build()
 	this_.inlineAndCollapseProperties = PassFactory_S_Builder().SetName("inlineAndCollapseProperties").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_52 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_52)
 		_ = compiler
 		return j2gort.PtrToAny(InlineAndCollapseProperties_S_Builder(compiler).SetPropertyCollapseLevel(this_.GetPassConfigBase().options.GetPropertyCollapseLevel()).SetChunkOutputType(this_.GetPassConfigBase().options.GetChunkOutputType()).SetHaveModulesBeenRewritten(this_.GetPassConfigBase().options.GetProcessCommonJSModules()).SetModuleResolutionMode(this_.GetPassConfigBase().options.GetModuleResolutionMode()).Build())
-	})).SetPreconditionCheck(lambdaSingleton_default_pass_config_39).Build()
-	this_.collapseObjectLiterals = PassFactory_S_Builder().SetName("collapseObjectLiterals").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_40).Build()
+	})).SetPreconditionCheck(lambdaSingleton_default_pass_config_39).GetPassFactory_BuilderBase().Build()
+	this_.collapseObjectLiterals = PassFactory_S_Builder().SetName("collapseObjectLiterals").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_40).GetPassFactory_BuilderBase().Build()
 	this_.disambiguateProperties = PassFactory_S_Builder().SetName("disambiguateProperties").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_54 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_54)
 		_ = compiler
 		return NewDisambiguateProperties(compiler, this_.GetPassConfigBase().options.GetPropertiesThatMustDisambiguate())
-	})).SetPreconditionCheck(lambdaSingleton_default_pass_config_41).Build()
-	this_.devirtualizeMethods = PassFactory_S_Builder().SetName("devirtualizeMethods").SetInternalFactory(lambdaSingleton_default_pass_config_43).SetPreconditionCheck(lambdaSingleton_default_pass_config_42).Build()
-	this_.optimizeCalls = PassFactory_S_Builder().SetName("optimizeCalls").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_45).SetPreconditionCheck(lambdaSingleton_default_pass_config_44).Build()
-	this_.optimizeConstructors = PassFactory_S_Builder().SetName("optimizeConstructors").SetRunInFixedPointLoop(false).SetInternalFactory(lambdaSingleton_default_pass_config_46).Build()
-	this_.markPureFunctions = PassFactory_S_Builder().SetName("markPureFunctions").SetInternalFactory(lambdaSingleton_default_pass_config_48).SetPreconditionCheck(lambdaSingleton_default_pass_config_47).Build()
+	})).SetPreconditionCheck(lambdaSingleton_default_pass_config_41).GetPassFactory_BuilderBase().Build()
+	this_.devirtualizeMethods = PassFactory_S_Builder().SetName("devirtualizeMethods").SetInternalFactory(lambdaSingleton_default_pass_config_43).SetPreconditionCheck(lambdaSingleton_default_pass_config_42).GetPassFactory_BuilderBase().Build()
+	this_.optimizeCalls = PassFactory_S_Builder().SetName("optimizeCalls").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_45).SetPreconditionCheck(lambdaSingleton_default_pass_config_44).GetPassFactory_BuilderBase().Build()
+	this_.optimizeConstructors = PassFactory_S_Builder().SetName("optimizeConstructors").SetRunInFixedPointLoop(false).SetInternalFactory(lambdaSingleton_default_pass_config_46).GetPassFactory_BuilderBase().Build()
+	this_.markPureFunctions = PassFactory_S_Builder().SetName("markPureFunctions").SetInternalFactory(lambdaSingleton_default_pass_config_48).SetPreconditionCheck(lambdaSingleton_default_pass_config_47).GetPassFactory_BuilderBase().Build()
 	this_.inlineVariables = PassFactory_S_Builder().SetName("inlineVariables").SetRunInFixedPointLoop(true).SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_58 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_58)
 		_ = compiler
@@ -1048,40 +1048,40 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 			panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "No variable inlining option set.")))
 		}
 		return NewInlineVariables(compiler, mode)
-	})).Build()
-	this_.inlineConstants = PassFactory_S_Builder().SetName("inlineConstants").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_49).Build()
-	this_.inlineSimpleMethods = PassFactory_S_Builder().SetName("inlineSimpleMethods").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_51).SetPreconditionCheck(lambdaSingleton_default_pass_config_50).Build()
-	this_.deadAssignmentsElimination = PassFactory_S_Builder().SetName("deadAssignmentsElimination").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_52).Build()
-	this_.deadPropertyAssignmentElimination = PassFactory_S_Builder().SetName("deadPropertyAssignmentElimination").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_54).SetPreconditionCheck(lambdaSingleton_default_pass_config_53).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.inlineConstants = PassFactory_S_Builder().SetName("inlineConstants").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_49).GetPassFactory_BuilderBase().Build()
+	this_.inlineSimpleMethods = PassFactory_S_Builder().SetName("inlineSimpleMethods").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_51).SetPreconditionCheck(lambdaSingleton_default_pass_config_50).GetPassFactory_BuilderBase().Build()
+	this_.deadAssignmentsElimination = PassFactory_S_Builder().SetName("deadAssignmentsElimination").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_52).GetPassFactory_BuilderBase().Build()
+	this_.deadPropertyAssignmentElimination = PassFactory_S_Builder().SetName("deadPropertyAssignmentElimination").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_54).SetPreconditionCheck(lambdaSingleton_default_pass_config_53).GetPassFactory_BuilderBase().Build()
 	this_.inlineFunctions = PassFactory_S_Builder().SetName("inlineFunctions").SetRunInFixedPointLoop(true).SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_60 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_60)
 		_ = compiler
 		return NewInlineFunctions(compiler, j2gort.AsIface[j2gort.Ext_java_util_function_Supplier](compiler.GetUniqueNameIdSupplier()), this_.GetPassConfigBase().options.GetInlineFunctionsLevel(), (this_.GetPassConfigBase().options.AssumeStrictThis() || this_.GetPassConfigBase().options.ExpectStrictModeInput()), this_.GetPassConfigBase().options.GetMaxFunctionSizeAfterInlining())
-	})).Build()
-	this_.inlineProperties = PassFactory_S_Builder().SetName("inlineProperties").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_55).Build()
-	this_.isolatePolyfills = PassFactory_S_Builder().SetName("IsolatePolyfills").SetInternalFactory(lambdaSingleton_default_pass_config_56).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.inlineProperties = PassFactory_S_Builder().SetName("inlineProperties").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_55).GetPassFactory_BuilderBase().Build()
+	this_.isolatePolyfills = PassFactory_S_Builder().SetName("IsolatePolyfills").SetInternalFactory(lambdaSingleton_default_pass_config_56).GetPassFactory_BuilderBase().Build()
 	this_.removeUnusedCode = PassFactory_S_Builder().SetName("removeUnusedCode").SetRunInFixedPointLoop(true).SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_61 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_61)
 		_ = compiler
 		return j2gort.PtrToAny(NewRemoveUnusedCode_Builder(compiler).RemoveLocalVars(this_.GetPassConfigBase().options.ShouldRemoveUnusedLocalVariables()).RemoveGlobals(this_.GetPassConfigBase().options.ShouldRemoveUnusedVariables()).PreserveFunctionExpressionNames(false).RemoveUnusedPrototypeProperties(this_.GetPassConfigBase().options.ShouldRemoveUnusedPrototypeProperties()).RemoveUnusedThisProperties(this_.GetPassConfigBase().options.IsRemoveUnusedClassProperties()).RemoveUnusedObjectDefinePropertiesDefinitions(this_.GetPassConfigBase().options.IsRemoveUnusedClassProperties()).RemoveUnusedPolyfills((this_.GetPassConfigBase().options.GetForceLibraryInjectionList().IsEmpty() && (this_.GetPassConfigBase().options.GetInjectPolyfillsNewerThan() == 0))).AssumeGettersArePure(this_.GetPassConfigBase().options.GetAssumeGettersArePure()).DisambiguateProperties(this_.GetPassConfigBase().options.ShouldDisambiguateProperties()).Build())
-	})).Build()
-	this_.removeUnusedCodeOnce = this_.removeUnusedCode.ToBuilder().SetRunInFixedPointLoop(false).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.removeUnusedCodeOnce = this_.removeUnusedCode.ToBuilder().SetRunInFixedPointLoop(false).GetPassFactory_BuilderBase().Build()
 	this_.crossChunkCodeMotion = PassFactory_S_Builder().SetName("crossChunkCodeMotion").SetRunInFixedPointLoop(true).SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_62 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_62)
 		_ = compiler
 		return NewCrossChunkCodeMotion(compiler, compiler.GetChunkGraph(), this_.GetPassConfigBase().options.GetParentChunkCanSeeSymbolsDeclaredInChildren())
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.crossChunkMethodMotion = PassFactory_S_Builder().SetName("crossChunkMethodMotion").SetRunInFixedPointLoop(true).SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_63 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_63)
 		_ = compiler
 		return NewCrossChunkMethodMotion(compiler, compiler.GetCrossChunkIdGenerator(), false, this_.GetPassConfigBase().options.GetCrossChunkCodeMotionNoStubMethods())
-	})).Build()
-	this_.flowSensitiveInlineVariables = PassFactory_S_Builder().SetName("flowSensitiveInlineVariables").SetInternalFactory(lambdaSingleton_default_pass_config_57).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.flowSensitiveInlineVariables = PassFactory_S_Builder().SetName("flowSensitiveInlineVariables").SetInternalFactory(lambdaSingleton_default_pass_config_57).GetPassFactory_BuilderBase().Build()
 	this_.coalesceVariableNames = PassFactory_S_Builder().SetName("coalesceVariableNames").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_64 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_64)
 		_ = compiler
 		return NewCoalesceVariableNames(compiler, this_.GetPassConfigBase().options.ShouldGeneratePseudoNames())
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.postNormalizePeephole = PassFactory_S_Builder().SetName("postNormalizePeephole").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_65 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_65)
 		_ = compiler
@@ -1094,8 +1094,8 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 			optimizations.AddVoid_(NewOptimizeLetAndConstPeephole(this_.GetPassConfigBase().options.ShouldTreatGlobalScopeAsIsolated()))
 		}
 		return NewPeepholeOptimizationsPass_3_AbstractCompiler_string_Ext_java_util_List(compiler, "postNormalizePeephole", j2gort.AsIface[j2gort.Ext_java_util_List](optimizations.BuildImmList_()))
-	})).Build()
-	this_.collapseVariableDeclarations = PassFactory_S_Builder().SetName("collapseVariableDeclarations").SetInternalFactory(lambdaSingleton_default_pass_config_58).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.collapseVariableDeclarations = PassFactory_S_Builder().SetName("collapseVariableDeclarations").SetInternalFactory(lambdaSingleton_default_pass_config_58).GetPassFactory_BuilderBase().Build()
 	this_.extractPrototypeMemberDeclarations = PassFactory_S_Builder().SetName("extractPrototypeMemberDeclarations").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_66 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_66)
 		_ = compiler
@@ -1112,33 +1112,33 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 			panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "unexpected")))
 		}
 		return NewExtractPrototypeMemberDeclarations(compiler, pattern)
-	})).SetPreconditionCheck(lambdaSingleton_default_pass_config_59).Build()
-	this_.rewriteFunctionExpressions = PassFactory_S_Builder().SetName("rewriteFunctionExpressions").SetInternalFactory(lambdaSingleton_default_pass_config_60).Build()
-	this_.collapseAnonymousFunctions = PassFactory_S_Builder().SetName("collapseAnonymousFunctions").SetInternalFactory(lambdaSingleton_default_pass_config_61).Build()
-	this_.rewriteGlobalDeclarationsForTryCatchWrapping = PassFactory_S_Builder().SetName("rewriteGlobalDeclarationsForTryCatchWrapping").SetInternalFactory(lambdaSingleton_default_pass_config_62).Build()
+	})).SetPreconditionCheck(lambdaSingleton_default_pass_config_59).GetPassFactory_BuilderBase().Build()
+	this_.rewriteFunctionExpressions = PassFactory_S_Builder().SetName("rewriteFunctionExpressions").SetInternalFactory(lambdaSingleton_default_pass_config_60).GetPassFactory_BuilderBase().Build()
+	this_.collapseAnonymousFunctions = PassFactory_S_Builder().SetName("collapseAnonymousFunctions").SetInternalFactory(lambdaSingleton_default_pass_config_61).GetPassFactory_BuilderBase().Build()
+	this_.rewriteGlobalDeclarationsForTryCatchWrapping = PassFactory_S_Builder().SetName("rewriteGlobalDeclarationsForTryCatchWrapping").SetInternalFactory(lambdaSingleton_default_pass_config_62).GetPassFactory_BuilderBase().Build()
 	this_.aliasStrings = PassFactory_S_Builder().SetName("aliasStrings").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_67 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_67)
 		_ = compiler
 		return NewAliasStrings(compiler, compiler.GetChunkGraph(), this_.GetPassConfigBase().options.ShouldOutputJsStringUsage(), this_.GetPassConfigBase().options.GetAliasStringsMode())
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.ambiguateProperties = PassFactory_S_Builder().SetName("ambiguateProperties").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_68 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_68)
 		_ = compiler
 		return NewAmbiguateProperties(compiler, j2gort.AsIface[j2gort.Ext_java_util_Set](this_.GetPassConfigBase().options.GetPropertyReservedNamingFirstChars()), j2gort.AsIface[j2gort.Ext_java_util_Set](this_.GetPassConfigBase().options.GetPropertyReservedNamingNonFirstChars()), j2gort.AsIface[j2gort.Ext_java_util_Set](compiler.GetExternProperties()))
-	})).SetPreconditionCheck(lambdaSingleton_default_pass_config_63).Build()
+	})).SetPreconditionCheck(lambdaSingleton_default_pass_config_63).GetPassFactory_BuilderBase().Build()
 	this_.markUnnormalized = PassFactory_S_Builder().SetName("markUnnormalized").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_69 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_69)
 		_ = compiler
 		return NewDefaultPassConfig__Anon_31(this_, compiler)
-	})).Build()
-	this_.normalize = PassFactory_S_Builder().SetName("normalize").SetInternalFactory(lambdaSingleton_default_pass_config_64).Build()
-	this_.externExports = PassFactory_S_Builder().SetName("externExports").SetInternalFactory(lambdaSingleton_default_pass_config_65).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.normalize = PassFactory_S_Builder().SetName("normalize").SetInternalFactory(lambdaSingleton_default_pass_config_64).GetPassFactory_BuilderBase().Build()
+	this_.externExports = PassFactory_S_Builder().SetName("externExports").SetInternalFactory(lambdaSingleton_default_pass_config_65).GetPassFactory_BuilderBase().Build()
 	this_.denormalize = PassFactory_S_Builder().SetName("denormalize").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_70 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_70)
 		_ = compiler
 		return NewDenormalize(compiler, this_.GetPassConfigBase().options.GetOutputFeatureSet())
-	})).Build()
-	this_.invertContextualRenaming = PassFactory_S_Builder().SetName("invertContextualRenaming").SetInternalFactory(lambdaSingleton_default_pass_config_66).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.invertContextualRenaming = PassFactory_S_Builder().SetName("invertContextualRenaming").SetInternalFactory(lambdaSingleton_default_pass_config_66).GetPassFactory_BuilderBase().Build()
 	this_.renameProperties = PassFactory_S_Builder().SetName("renameProperties").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_71 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_71)
 		_ = compiler
@@ -1148,75 +1148,77 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 		var prevPropertyMap *VariableMap = this_.GetPassConfigBase().options.GetInputPropertyMap()
 		_ = prevPropertyMap
 		return NewDefaultPassConfig__Anon_32(this_, compiler, prevPropertyMap)
-	})).SetPreconditionCheck(lambdaSingleton_default_pass_config_67).Build()
-	this_.removePropertyRenamingCalls = PassFactory_S_Builder().SetName("removePropertyRenamingCalls").SetInternalFactory(lambdaSingleton_default_pass_config_68).Build()
+	})).SetPreconditionCheck(lambdaSingleton_default_pass_config_67).GetPassFactory_BuilderBase().Build()
+	this_.removePropertyRenamingCalls = PassFactory_S_Builder().SetName("removePropertyRenamingCalls").SetInternalFactory(lambdaSingleton_default_pass_config_68).GetPassFactory_BuilderBase().Build()
 	this_.renameVars = PassFactory_S_Builder().SetName("renameVars").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_72 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_72)
 		_ = compiler
 		var prevVariableMap *VariableMap = this_.GetPassConfigBase().options.GetInputVariableMap()
 		_ = prevVariableMap
 		return NewDefaultPassConfig__Anon_33(this_, compiler, prevVariableMap)
-	})).Build()
-	this_.renameLabels = PassFactory_S_Builder().SetName("renameLabels").SetInternalFactory(lambdaSingleton_default_pass_config_69).Build()
-	this_.convertToDottedProperties = PassFactory_S_Builder().SetName("convertToDottedProperties").SetInternalFactory(lambdaSingleton_default_pass_config_70).Build()
-	this_.checkAstValidity = PassFactory_S_Builder().SetName("checkAstValidity").SetInternalFactory(lambdaSingleton_default_pass_config_71).Build()
-	this_.varCheckValidity = PassFactory_S_Builder().SetName("varCheckValidity").SetInternalFactory(lambdaSingleton_default_pass_config_72).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.renameLabels = PassFactory_S_Builder().SetName("renameLabels").SetInternalFactory(lambdaSingleton_default_pass_config_69).GetPassFactory_BuilderBase().Build()
+	this_.convertToDottedProperties = PassFactory_S_Builder().SetName("convertToDottedProperties").SetInternalFactory(lambdaSingleton_default_pass_config_70).GetPassFactory_BuilderBase().Build()
+	this_.checkAstValidity = PassFactory_S_Builder().SetName("checkAstValidity").SetInternalFactory(lambdaSingleton_default_pass_config_71).GetPassFactory_BuilderBase().Build()
+	this_.varCheckValidity = PassFactory_S_Builder().SetName("varCheckValidity").SetInternalFactory(lambdaSingleton_default_pass_config_72).GetPassFactory_BuilderBase().Build()
 	this_.instrumentForCodeCoverage = PassFactory_S_Builder().SetName("instrumentForCodeCoverage").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_74 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_74)
 		_ = compiler
 		return NewCoverageInstrumentationPass_4(compiler, StaticGet_CoverageInstrumentationPass_CoverageReach_CONDITIONAL(), this_.GetPassConfigBase().options.GetInstrumentForCoverageOption(), this_.GetPassConfigBase().options.GetProductionInstrumentationArrayName())
-	})).Build()
+	})).GetPassFactory_BuilderBase().Build()
 	this_.gatherExternPropertiesCheck = this_.priv_DefaultPassConfig_createGatherExternProperties_2384(StaticGet_GatherExternProperties_Mode_CHECK())
 	this_.gatherExternPropertiesOptimize = this_.priv_DefaultPassConfig_createGatherExternProperties_2384(StaticGet_GatherExternProperties_Mode_OPTIMIZE())
-	this_.polymerPass = PassFactory_S_Builder().SetName("polymerPass").SetInternalFactory(lambdaSingleton_default_pass_config_73).Build()
-	this_.chromePass = PassFactory_S_Builder().SetName("chromePass").SetInternalFactory(lambdaSingleton_default_pass_config_74).Build()
-	this_.j2clConstantHoisterPass = PassFactory_S_Builder().SetName("j2clConstantHoisterPass").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_75).Build()
-	this_.j2clClinitPass = PassFactory_S_Builder().SetName("j2clClinitPass").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_76).Build()
-	this_.j2clPropertyInlinerPass = PassFactory_S_Builder().SetName("j2clPropertyInlinerPass").SetInternalFactory(lambdaSingleton_default_pass_config_77).Build()
-	this_.j2clPass = PassFactory_S_Builder().SetName("j2clPass").SetInternalFactory(lambdaSingleton_default_pass_config_78).Build()
-	this_.j2clUtilGetDefineRewriterPass = PassFactory_S_Builder().SetName("j2clUtilGetDefineRewriterPass").SetInternalFactory(lambdaSingleton_default_pass_config_79).Build()
-	this_.j2clAssertRemovalPass = PassFactory_S_Builder().SetName("j2clAssertRemovalPass").SetInternalFactory(lambdaSingleton_default_pass_config_80).Build()
-	this_.j2clSourceFileChecker = PassFactory_S_Builder().SetName("j2clSourceFileChecker").SetInternalFactory(lambdaSingleton_default_pass_config_81).Build()
-	this_.j2clChecksPass = PassFactory_S_Builder().SetName("j2clChecksPass").SetInternalFactory(lambdaSingleton_default_pass_config_82).Build()
+	this_.polymerPass = PassFactory_S_Builder().SetName("polymerPass").SetInternalFactory(lambdaSingleton_default_pass_config_73).GetPassFactory_BuilderBase().Build()
+	this_.chromePass = PassFactory_S_Builder().SetName("chromePass").SetInternalFactory(lambdaSingleton_default_pass_config_74).GetPassFactory_BuilderBase().Build()
+	this_.j2clConstantHoisterPass = PassFactory_S_Builder().SetName("j2clConstantHoisterPass").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_75).GetPassFactory_BuilderBase().Build()
+	this_.j2clClinitPass = PassFactory_S_Builder().SetName("j2clClinitPass").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_76).GetPassFactory_BuilderBase().Build()
+	this_.j2clPropertyInlinerPass = PassFactory_S_Builder().SetName("j2clPropertyInlinerPass").SetInternalFactory(lambdaSingleton_default_pass_config_77).GetPassFactory_BuilderBase().Build()
+	this_.j2clPass = PassFactory_S_Builder().SetName("j2clPass").SetInternalFactory(lambdaSingleton_default_pass_config_78).GetPassFactory_BuilderBase().Build()
+	this_.j2clUtilGetDefineRewriterPass = PassFactory_S_Builder().SetName("j2clUtilGetDefineRewriterPass").SetInternalFactory(lambdaSingleton_default_pass_config_79).GetPassFactory_BuilderBase().Build()
+	this_.j2clAssertRemovalPass = PassFactory_S_Builder().SetName("j2clAssertRemovalPass").SetInternalFactory(lambdaSingleton_default_pass_config_80).GetPassFactory_BuilderBase().Build()
+	this_.j2clSourceFileChecker = PassFactory_S_Builder().SetName("j2clSourceFileChecker").SetInternalFactory(lambdaSingleton_default_pass_config_81).GetPassFactory_BuilderBase().Build()
+	this_.j2clChecksPass = PassFactory_S_Builder().SetName("j2clChecksPass").SetInternalFactory(lambdaSingleton_default_pass_config_82).GetPassFactory_BuilderBase().Build()
 	this_.checkConformance = PassFactory_S_Builder().SetName("checkConformance").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_76 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_76)
 		_ = compiler
 		return NewCheckConformance_3(compiler, this_.GetPassConfigBase().options.GetConformanceConfigs(), this_.GetPassConfigBase().options.GetConformanceReportingMode())
-	})).Build()
-	this_.removeCastNodes = PassFactory_S_Builder().SetName("removeCastNodes").SetInternalFactory(lambdaSingleton_default_pass_config_83).Build()
-	this_.typesToColors = PassFactory_S_Builder().SetName("typesToColors").SetInternalFactory(lambdaSingleton_default_pass_config_84).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.removeCastNodes = PassFactory_S_Builder().SetName("removeCastNodes").SetInternalFactory(lambdaSingleton_default_pass_config_83).GetPassFactory_BuilderBase().Build()
+	this_.typesToColors = PassFactory_S_Builder().SetName("typesToColors").SetInternalFactory(lambdaSingleton_default_pass_config_84).GetPassFactory_BuilderBase().Build()
 	this_.serializeTypedAst = PassFactory_S_Builder().SetName("serializeTypedAst").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_79 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_79)
 		_ = compiler
 		return j2gort.PtrToAny(SerializeTypedAstPass_CreateFromPath(compiler, this_.GetPassConfigBase().options.GetTypedAstOutputFile(), SerializationOptions_S_Builder().SetIncludeDebugInfo(compiler.GetOptions().ShouldSerializeExtraDebugInfo()).SetRuntimeLibraries(compiler.GetRuntimeJsLibManager().GetInjectedLibraries()).Build()))
-	})).Build()
-	this_.removeUnnecessarySyntheticExterns = PassFactory_S_Builder().SetName("removeUnnecessarySyntheticExterns").SetInternalFactory(lambdaSingleton_default_pass_config_85).Build()
-	this_.optimizeToEs6 = PassFactory_S_Builder().SetName("optimizeToEs6").SetInternalFactory(lambdaSingleton_default_pass_config_86).Build()
-	this_.whitespaceWrapGoogModules = PassFactory_S_Builder().SetName("whitespaceWrapGoogModules").SetInternalFactory(lambdaSingleton_default_pass_config_87).Build()
-	this_.rewriteCommonJsModules = PassFactory_S_Builder().SetName("rewriteCommonJsModules").SetInternalFactory(lambdaSingleton_default_pass_config_88).Build()
-	this_.rewriteScriptsToEs6Modules = PassFactory_S_Builder().SetName("rewriteScriptsToEs6Modules").SetInternalFactory(lambdaSingleton_default_pass_config_89).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.removeUnnecessarySyntheticExterns = PassFactory_S_Builder().SetName("removeUnnecessarySyntheticExterns").SetInternalFactory(lambdaSingleton_default_pass_config_85).GetPassFactory_BuilderBase().Build()
+	this_.optimizeToEs6 = PassFactory_S_Builder().SetName("optimizeToEs6").SetInternalFactory(lambdaSingleton_default_pass_config_86).GetPassFactory_BuilderBase().Build()
+	this_.whitespaceWrapGoogModules = PassFactory_S_Builder().SetName("whitespaceWrapGoogModules").SetInternalFactory(lambdaSingleton_default_pass_config_87).GetPassFactory_BuilderBase().Build()
+	this_.rewriteCommonJsModules = PassFactory_S_Builder().SetName("rewriteCommonJsModules").SetInternalFactory(lambdaSingleton_default_pass_config_88).GetPassFactory_BuilderBase().Build()
+	this_.rewriteScriptsToEs6Modules = PassFactory_S_Builder().SetName("rewriteScriptsToEs6Modules").SetInternalFactory(lambdaSingleton_default_pass_config_89).GetPassFactory_BuilderBase().Build()
 	this_.gatherModuleMetadataPass = PassFactory_S_Builder().SetName("gatherModuleMetadata").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_80 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_80)
 		_ = compiler
 		compiler.GetSynthesizedExternsInput()
 		return NewGatherModuleMetadata(compiler, this_.GetPassConfigBase().options.GetProcessCommonJSModules(), this_.GetPassConfigBase().options.GetModuleResolutionMode())
-	})).Build()
-	this_.createModuleMapPass = PassFactory_S_Builder().SetName("createModuleMap").SetInternalFactory(lambdaSingleton_default_pass_config_90).Build()
-	this_.gatherGettersAndSetters = PassFactory_S_Builder().SetName("gatherGettersAndSetters").SetInternalFactory(lambdaSingleton_default_pass_config_91).Build()
-	this_.addSyntheticScript = PassFactory_S_Builder().SetName("ADD_SYNTHETIC_SCRIPT").SetInternalFactory(lambdaSingleton_default_pass_config_92).Build()
-	this_.removeSyntheticScript = PassFactory_S_Builder().SetName("REMOVE_SYNTHETIC_SCRIPT").SetInternalFactory(lambdaSingleton_default_pass_config_93).Build()
-	this_.mergeSyntheticScript = PassFactory_S_Builder().SetName("MERGE_SYNTHETIC_SCRIPT").SetInternalFactory(lambdaSingleton_default_pass_config_94).Build()
-	this_.protectLocaleData = PassFactory_S_Builder().SetName("protectLocaleData").SetInternalFactory(lambdaSingleton_default_pass_config_95).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.createModuleMapPass = PassFactory_S_Builder().SetName("createModuleMap").SetInternalFactory(lambdaSingleton_default_pass_config_90).GetPassFactory_BuilderBase().Build()
+	this_.gatherGettersAndSetters = PassFactory_S_Builder().SetName("gatherGettersAndSetters").SetInternalFactory(lambdaSingleton_default_pass_config_91).GetPassFactory_BuilderBase().Build()
+	this_.addSyntheticScript = PassFactory_S_Builder().SetName("ADD_SYNTHETIC_SCRIPT").SetInternalFactory(lambdaSingleton_default_pass_config_92).GetPassFactory_BuilderBase().Build()
+	this_.removeSyntheticScript = PassFactory_S_Builder().SetName("REMOVE_SYNTHETIC_SCRIPT").SetInternalFactory(lambdaSingleton_default_pass_config_93).GetPassFactory_BuilderBase().Build()
+	this_.mergeSyntheticScript = PassFactory_S_Builder().SetName("MERGE_SYNTHETIC_SCRIPT").SetInternalFactory(lambdaSingleton_default_pass_config_94).GetPassFactory_BuilderBase().Build()
+	this_.protectLocaleData = PassFactory_S_Builder().SetName("protectLocaleData").SetInternalFactory(lambdaSingleton_default_pass_config_95).GetPassFactory_BuilderBase().Build()
 	this_.substituteLocaleData = PassFactory_S_Builder().SetName("SubstituteLocaleData").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_86 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_86)
 		_ = compiler
 		return NewDefaultPassConfig__Anon_35(this_, compiler)
-	})).Build()
-	this_.transpileOnlyClosureUnaware = PassFactory_S_Builder().SetName("TranspileOnlyClosureUnaware").SetInternalFactory(lambdaSingleton_default_pass_config_96).Build()
-	this_.transpileAndOptimizeClosureUnaware = PassFactory_S_Builder().SetName("TranspileAndOptimizeClosureUnaware").SetInternalFactory(lambdaSingleton_default_pass_config_97).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.transpileOnlyClosureUnaware = PassFactory_S_Builder().SetName("TranspileOnlyClosureUnaware").SetInternalFactory(lambdaSingleton_default_pass_config_96).GetPassFactory_BuilderBase().Build()
+	this_.transpileAndOptimizeClosureUnaware = PassFactory_S_Builder().SetName("TranspileAndOptimizeClosureUnaware").SetInternalFactory(lambdaSingleton_default_pass_config_97).GetPassFactory_BuilderBase(
+
+	// Java constructor: DefaultPassConfig(com.google.javascript.jscomp.CompilerOptions options)
+	).Build()
 }
 
-// Java constructor: DefaultPassConfig(com.google.javascript.jscomp.CompilerOptions options)
 func NewDefaultPassConfig(options *CompilerOptions) *DefaultPassConfig {
 	clinit_DefaultPassConfig()
 	this_ := &DefaultPassConfig{}
@@ -1940,28 +1942,34 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getFullReplaceMessagesPas
 		compiler := j2gort.AsIface[AbstractCompiler](lp_99)
 		_ = compiler
 		return NewReplaceMessages(compiler, this_.GetPassConfigBase().options.GetMessageBundle(), this_.GetPassConfigBase().options.GetStrictMessageReplacement()).GetFullReplacementPass()
-	})).Build()
+	})).GetPassFactory_BuilderBase(
+
+	// Java method: DefaultPassConfig.getProtectMessagesPass()
+	).Build()
 }
 
-// Java method: DefaultPassConfig.getProtectMessagesPass()
 func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getProtectMessagesPass_2380() PassFactory {
 	return PassFactory_S_Builder().SetName("protectMessages").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_100 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_100)
 		_ = compiler
 		return NewReplaceMessages(compiler, this_.GetPassConfigBase().options.GetMessageBundle(), this_.GetPassConfigBase().options.GetStrictMessageReplacement()).GetMsgProtectionPass()
-	})).Build()
+	})).GetPassFactory_BuilderBase(
+
+	// Java method: DefaultPassConfig.getReplaceProtectedMessagesPass()
+	).Build()
 }
 
-// Java method: DefaultPassConfig.getReplaceProtectedMessagesPass()
 func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getReplaceProtectedMessagesPass_2381() PassFactory {
 	return PassFactory_S_Builder().SetName("replaceProtectedMessages").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_101 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_101)
 		_ = compiler
 		return NewReplaceMessages(compiler, this_.GetPassConfigBase().options.GetMessageBundle(), this_.GetPassConfigBase().options.GetStrictMessageReplacement()).GetReplacementCompletionPass()
-	})).Build()
+	})).GetPassFactory_BuilderBase(
+
+	// Java static method: DefaultPassConfig.createPeepholeOptimizationsPass(com.google.javascript.jscomp.AbstractCompiler compiler, java.lang.String passName, boolean expectAstIsNormalized)
+	).Build()
 }
 
-// Java static method: DefaultPassConfig.createPeepholeOptimizationsPass(com.google.javascript.jscomp.AbstractCompiler compiler, java.lang.String passName, boolean expectAstIsNormalized)
 func DefaultPassConfig_CreatePeepholeOptimizationsPass(compiler AbstractCompiler, passName string, expectAstIsNormalized bool) CompilerPass {
 	clinit_DefaultPassConfig()
 	_ = compiler
@@ -2011,10 +2019,12 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_createProcessDefines_2382
 		compiler := j2gort.AsIface[AbstractCompiler](lp_102)
 		_ = compiler
 		return j2gort.PtrToAny(NewProcessDefines_Builder(compiler).PutReplacements(DefaultPassConfig_GetAdditionalReplacements(this_.GetPassConfigBase().options)).PutReplacements(j2gort.AsIface[j2gort.Ext_java_util_Map](this_.GetPassConfigBase().options.GetDefineReplacements())).SetMode(mode).SetRecognizeClosureDefines(compiler.GetOptions().GetClosurePass()).SetEnableZonesDefineName(this_.GetPassConfigBase().options.GetEnableZonesDefineName()).SetZoneInputPattern(this_.GetPassConfigBase().options.GetZoneInputPattern()).SetUnknownDefinesToIgnore(this_.GetPassConfigBase().options.GetUnknownDefinesToIgnore()).Build())
-	})).Build()
+	})).GetPassFactory_BuilderBase(
+
+	// Java method: DefaultPassConfig.runVariableRenaming(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.VariableMap prevVariableMap, com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
+	).Build()
 }
 
-// Java method: DefaultPassConfig.runVariableRenaming(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.VariableMap prevVariableMap, com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
 func (this_ *DefaultPassConfig) priv_DefaultPassConfig_runVariableRenaming_2383(compiler AbstractCompiler, prevVariableMap *VariableMap, externs pkg_rhino.Node, root pkg_rhino.Node) *VariableMap {
 	_ = compiler
 	_ = prevVariableMap
@@ -2045,20 +2055,24 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_createGatherExternPropert
 		compiler := j2gort.AsIface[AbstractCompiler](lp_104)
 		_ = compiler
 		return NewGatherExternProperties(compiler, mode)
-	})).Build()
+	})).GetPassFactory_BuilderBase(
+
+	// Java method: DefaultPassConfig.getCustomPasses(com.google.javascript.jscomp.CustomPassExecutionTime executionTime)
+	).Build()
 }
 
-// Java method: DefaultPassConfig.getCustomPasses(com.google.javascript.jscomp.CustomPassExecutionTime executionTime)
 func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getCustomPasses_2385(executionTime CustomPassExecutionTime) PassFactory {
 	_ = executionTime
 	return PassFactory_S_Builder().SetName("runCustomPasses").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_105 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_105)
 		_ = compiler
 		return DefaultPassConfig_RunInSerial(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.GetPassConfigBase().options.GetCustomPassesAt(executionTime)))
-	})).Build()
+	})).GetPassFactory_BuilderBase(
+
+	// Java static method: DefaultPassConfig.runInSerial(java.util.Collection<com.google.javascript.jscomp.CompilerPass> passes)
+	).Build()
 }
 
-// Java static method: DefaultPassConfig.runInSerial(java.util.Collection<com.google.javascript.jscomp.CompilerPass> passes)
 func DefaultPassConfig_RunInSerial(passes j2gort.Ext_java_util_Collection) CompilerPass {
 	clinit_DefaultPassConfig()
 	_ = passes

@@ -201,7 +201,7 @@ func (this_ *Export) HashCode() int32 {
 		hi_6 := this_.moduleMetadata
 		h_ = 31 * h_
 		if hi_6 != nil && !hi_6.IsJavaNil_() {
-			h_ += hi_6.HashCode()
+			h_ += hi_6.GetModuleMetadataMap_ModuleMetadataBase().HashCode()
 		}
 	}
 	{
@@ -251,6 +251,14 @@ func ToIface_Export_Builder[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_Export_Builder[T Export_Builder](v T) Export_Builder {
+	var vi Export_Builder = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.modules.Export.Builder
@@ -361,9 +369,9 @@ func (this_ *Export_BuilderBase) AutoBuild() *Export {
 func (this_ *Export_BuilderBase) Build() *Export {
 	var e *Export = this_.self_.AutoBuild()
 	_ = e
-	if e.ModuleMetadata().IsEs6Module() {
-		this_.priv_Builder_validateEsModule_6710(e)
-	} else if e.ModuleMetadata().IsGoogModule() {
+	if e.ModuleMetadata().GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module() {
+		this_.priv_Builder_validateEsModule_6716(e)
+	} else if e.ModuleMetadata().GetModuleMetadataMap_ModuleMetadataBase().IsGoogModule() {
 		Export_Builder_ValidateGoogModule(e)
 	} else {
 		Export_Builder_ValidateOtherModule(e)
@@ -372,7 +380,7 @@ func (this_ *Export_BuilderBase) Build() *Export {
 }
 
 // Java method: Builder.validateEsModule(com.google.javascript.jscomp.modules.Export e)
-func (this_ *Export_BuilderBase) priv_Builder_validateEsModule_6710(e *Export) {
+func (this_ *Export_BuilderBase) priv_Builder_validateEsModule_6716(e *Export) {
 	_ = e
 	if !(e.ClosureNamespace() == j2gort.NullString) {
 		j2gort.CheckState(false)

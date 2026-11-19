@@ -49,14 +49,16 @@ func (this_ *NumberType) BindSelf_(s any) {
 	this_.ValueTypeBase.BindSelf_(s)
 }
 func (this_ *NumberType) IsJavaNil_() bool { return this_ == nil }
-func (*NumberType) JavaClassInfo_() (string, string) { return "com.google.javascript.rhino.jstype.NumberType", "NumberType" }
+func (*NumberType) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.rhino.jstype.NumberType", "NumberType"
+}
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.jstype.NumberType", "com.google.javascript.rhino.jstype.NumberType", func(v_ any) bool {
 		return j2gort.InstanceOf[*NumberType](v_)
 	})
 }
 func (*NumberType) Implements_rhino_ValueType() {}
-func (*NumberType) Implements_rhino_JSType() {}
+func (*NumberType) Implements_rhino_JSType()    {}
 
 func (this_ *NumberType) initFields_NumberType() {
 	_ = this_
@@ -86,10 +88,11 @@ func (this_ *NumberType) TestForEquality(that JSType) pkg_base.Tri {
 	_ = that
 	var result pkg_base.Tri = this_.ValueTypeBase.TestForEquality(that)
 	_ = result
-	if ((result != 0)) {
+	if result != 0 {
 		return result
 	}
-	if ((((((that.IsUnknownType() || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_OBJECT_TYPE()))) || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_NUMBER_TYPE()))) || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_STRING_TYPE()))) || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_BOOLEAN_TYPE()))) || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_BIGINT_TYPE())))) {
+	base_that_ := that.GetJSTypeBase()
+	if ((((base_that_.IsUnknownType() || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_OBJECT_TYPE()))) || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_NUMBER_TYPE()))) || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_STRING_TYPE()))) || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_BOOLEAN_TYPE()))) || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_BIGINT_TYPE())) {
 		return pkg_base.StaticGet_Tri_UNKNOWN()
 	}
 	return pkg_base.StaticGet_Tri_FALSE()
@@ -130,4 +133,3 @@ func (this_ *NumberType) Visit_1(visitor Visitor) any {
 func (this_ *NumberType) AutoboxesTo() JSType {
 	return this_.GetNativeType(StaticGet_JSTypeNative_NUMBER_OBJECT_TYPE())
 }
-

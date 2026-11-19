@@ -335,6 +335,14 @@ func ToIface_FunctionRewriter_Reducer[T interface {
 	return v
 }
 
+func Upcast_FunctionRewriter_Reducer[T FunctionRewriter_Reducer](v T) FunctionRewriter_Reducer {
+	var vi FunctionRewriter_Reducer = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.FunctionRewriter.Reducer
 type FunctionRewriter_ReducerBase struct {
 	idHash_ atomic.Int32
@@ -480,6 +488,14 @@ func ToIface_FunctionRewriter_SingleReturnStatementReducer[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_FunctionRewriter_SingleReturnStatementReducer[T FunctionRewriter_SingleReturnStatementReducer](v T) FunctionRewriter_SingleReturnStatementReducer {
+	var vi FunctionRewriter_SingleReturnStatementReducer = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.FunctionRewriter.SingleReturnStatementReducer

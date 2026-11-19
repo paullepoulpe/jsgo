@@ -44,6 +44,14 @@ func ToIface_ScopedName[T interface {
 	return v
 }
 
+func Upcast_ScopedName[T ScopedName](v T) ScopedName {
+	var vi ScopedName = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.ScopedName
 type ScopedNameBase struct {
 	name string `gson:"name"`
@@ -120,13 +128,13 @@ func (this_ *ScopedNameBase) HashCode() int32 {
 	var h int32 = this_.cachedHashCode
 	_ = h
 	if ((h == int32(0))) {
-		return this_.priv_ScopedName_computeHashCode_5044()
+		return this_.priv_ScopedName_computeHashCode_5041()
 	}
 	return h
 }
 
 // Java method: ScopedName.computeHashCode()
-func (this_ *ScopedNameBase) priv_ScopedName_computeHashCode_5044() int32 {
+func (this_ *ScopedNameBase) priv_ScopedName_computeHashCode_5041() int32 {
 	var result int32 = (int32(31) + javalang.StringHashCode(j2gort.CheckNotNullString(this_.name)))
 	_ = result
 	var rootHash int32 = int32(0)

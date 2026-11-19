@@ -107,19 +107,19 @@ func (this_ *ContainsUpperBoundSuperTypeVisitor) CaseDefault(type_ JSType) any {
 // Java method: ContainsUpperBoundSuperTypeVisitor.caseTemplateType(com.google.javascript.rhino.jstype.TemplateType type)
 func (this_ *ContainsUpperBoundSuperTypeVisitor) CaseTemplateType(type_ *TemplateType) any {
 	_ = type_
-	return j2gort.BoxNullableVal(this_.priv_ContainsUpperBoundSuperTypeVisitor_caseForwardingType_8832(ToIface_JSType(type_), type_.GetBound()))
+	return j2gort.BoxNullableVal(this_.priv_ContainsUpperBoundSuperTypeVisitor_caseForwardingType_8839(ToIface_JSType(type_), type_.GetBound()))
 }
 
 // Java method: ContainsUpperBoundSuperTypeVisitor.caseNamedType(com.google.javascript.rhino.jstype.NamedType type)
 func (this_ *ContainsUpperBoundSuperTypeVisitor) CaseNamedType(type_ *NamedType) any {
 	_ = type_
-	return j2gort.BoxNullableVal(this_.priv_ContainsUpperBoundSuperTypeVisitor_caseForwardingType_8832(ToIface_JSType(type_), type_.GetReferencedType()))
+	return j2gort.BoxNullableVal(this_.priv_ContainsUpperBoundSuperTypeVisitor_caseForwardingType_8839(ToIface_JSType(type_), type_.GetReferencedType()))
 }
 
 // Java method: ContainsUpperBoundSuperTypeVisitor.caseTemplatizedType(com.google.javascript.rhino.jstype.TemplatizedType type)
 func (this_ *ContainsUpperBoundSuperTypeVisitor) CaseTemplatizedType(type_ *TemplatizedType) any {
 	_ = type_
-	return j2gort.BoxNullableVal(this_.priv_ContainsUpperBoundSuperTypeVisitor_caseForwardingType_8832(ToIface_JSType(type_), j2gort.AsIface[JSType](type_.GetReferencedType())))
+	return j2gort.BoxNullableVal(this_.priv_ContainsUpperBoundSuperTypeVisitor_caseForwardingType_8839(ToIface_JSType(type_), Upcast_JSType(type_.GetReferencedType())))
 }
 
 // Java method: ContainsUpperBoundSuperTypeVisitor.caseUnionType(com.google.javascript.rhino.jstype.UnionType type)
@@ -145,7 +145,7 @@ func (this_ *ContainsUpperBoundSuperTypeVisitor) CaseUnionType(type_ *UnionType)
 }
 
 // Java method: ContainsUpperBoundSuperTypeVisitor.caseForwardingType(com.google.javascript.rhino.jstype.JSType type, com.google.javascript.rhino.jstype.JSType reference)
-func (this_ *ContainsUpperBoundSuperTypeVisitor) priv_ContainsUpperBoundSuperTypeVisitor_caseForwardingType_8832(type_ JSType, reference JSType) ContainsUpperBoundSuperTypeVisitor_Result {
+func (this_ *ContainsUpperBoundSuperTypeVisitor) priv_ContainsUpperBoundSuperTypeVisitor_caseForwardingType_8839(type_ JSType, reference JSType) ContainsUpperBoundSuperTypeVisitor_Result {
 	_ = type_
 	_ = reference
 	if type_ == this_.target || ((type_ == nil || type_.IsJavaNil_()) && (this_.target == nil || this_.target.IsJavaNil_())) {

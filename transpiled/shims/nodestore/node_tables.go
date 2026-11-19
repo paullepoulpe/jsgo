@@ -42,7 +42,7 @@ import (
 )
 
 // Side tables for sparse and cold node attributes, keeping NodeData exactly
-// 36 bytes with zero Go pointers for noscan allocation.
+// 32 bytes with zero Go pointers for noscan allocation.
 
 const (
 	tableBlockShift = 12
@@ -454,16 +454,131 @@ func (f *pagedColumnField) unregister(first uint32, cols []*PagedColumn) {
 	}
 }
 
-// --- Sparse Length Overflow Pages (8 KiB noscan per 2048-node page with >=65535 length) ---
+// --- Lazy 2-Level uint16 Length Side Table (8 KiB noscan per 4096-node page) ---
 
 const (
-	lenOverflowShift    = 11
+	len16PageShift = 12
+	len16PageLen   = 1 << len16PageShift // 4096 uint16 entries (8 KiB)
+	len16PageMask  = len16PageLen - 1
+	len16SubShift  = 8
+	len16SubLen    = 1 << len16SubShift // 256 sub slots (2 KiB)
+	len16SubMask   = len16SubLen - 1
+	len16TopShift  = len16PageShift + len16SubShift // 20 -> 4096 top slots (32 KiB BSS)
+	len16TopLen    = 1 << (32 - len16TopShift)
+)
+
+type len16Page [len16PageLen]uint16
+type len16Sub [len16SubLen]atomic.Pointer[len16Page]
+
+type len16Record struct {
+	idx  uint32
+	page *len16Page
+}
+
+var (
+	len16Mu               sync.Mutex
+	emptyLen16Page        len16Page
+	unallocWriteLen16Page len16Page
+	emptyLen16Sub         len16Sub
+	emptyLen16WriteSub    len16Sub
+	len16Top              [len16TopLen]atomic.Pointer[len16Sub]
+	len16WriteTop         [len16TopLen]atomic.Pointer[len16Sub]
+)
+
+func initLen16Top() {
+	for i := range unallocWriteLen16Page {
+		unallocWriteLen16Page[i] = 0xFFFF
+	}
+	for i := range emptyLen16Sub {
+		emptyLen16Sub[i].Store(&emptyLen16Page)
+		emptyLen16WriteSub[i].Store(&unallocWriteLen16Page)
+	}
+	for i := range len16Top {
+		len16Top[i].Store(&emptyLen16Sub)
+		len16WriteTop[i].Store(&emptyLen16WriteSub)
+	}
+}
+
+func ensureLen16Subs(topIdx uint32) (*len16Sub, *len16Sub) {
+	rSub := len16Top[topIdx].Load()
+	wSub := len16WriteTop[topIdx].Load()
+	if rSub == &emptyLen16Sub || wSub == &emptyLen16WriteSub {
+		len16Mu.Lock()
+		rSub = len16Top[topIdx].Load()
+		wSub = len16WriteTop[topIdx].Load()
+		if rSub == &emptyLen16Sub {
+			freshR := new(len16Sub)
+			freshW := new(len16Sub)
+			for i := range freshR {
+				freshR[i].Store(&emptyLen16Page)
+				freshW[i].Store(&unallocWriteLen16Page)
+			}
+			len16Top[topIdx].Store(freshR)
+			len16WriteTop[topIdx].Store(freshW)
+			rSub = freshR
+			wSub = freshW
+		}
+		len16Mu.Unlock()
+	}
+	return rSub, wSub
+}
+
+func loadLen16Page(idx uint32) *len16Page {
+	return len16Top[idx>>len16SubShift].Load()[idx&len16SubMask].Load()
+}
+
+func storeLen16Page(idx uint32, p *len16Page) {
+	rSub, wSub := ensureLen16Subs(idx >> len16SubShift)
+	subIdx := idx & len16SubMask
+	rSub[subIdx].Store(p)
+	wSub[subIdx].Store(p)
+}
+
+func casLen16Page(idx uint32, old *len16Page) {
+	topIdx := idx >> len16SubShift
+	subIdx := idx & len16SubMask
+	if wSub := len16WriteTop[topIdx].Load(); wSub != &emptyLen16WriteSub {
+		wSub[subIdx].CompareAndSwap(old, &unallocWriteLen16Page)
+	}
+	if rSub := len16Top[topIdx].Load(); rSub != &emptyLen16Sub {
+		rSub[subIdx].CompareAndSwap(old, &emptyLen16Page)
+	}
+}
+
+func ensureLen16Page(n Node, idx uint32) *len16Page {
+	if p := loadLen16Page(idx); p != &emptyLen16Page {
+		return p
+	}
+	s := storeForNode(n)
+	s.mu.Lock()
+	p := loadLen16Page(idx)
+	if p == &emptyLen16Page {
+		for _, r := range s.len16Pages {
+			if r.idx == idx {
+				p = r.page
+				break
+			}
+		}
+		if p == &emptyLen16Page || p == nil {
+			p = new(len16Page)
+			s.len16Pages = append(s.len16Pages, len16Record{idx: idx, page: p})
+		}
+		storeLen16Page(idx, p)
+	}
+	s.mu.Unlock()
+	return p
+}
+
+// --- Sparse Length Overflow Pages (1 KiB noscan per 256-node page with <0 or >=65535 length) ---
+
+const (
+	lenOverflowShift    = 8
 	lenOverflowLen      = 1 << lenOverflowShift
 	lenOverflowMask     = lenOverflowLen - 1
-	lenOverflowSubShift = 10
+	lenOverflowSubShift = 11
 	lenOverflowSubLen   = 1 << lenOverflowSubShift
 	lenOverflowSubMask  = lenOverflowSubLen - 1
-	lenOverflowTopShift = lenOverflowShift + lenOverflowSubShift // 21 -> 2048 top slots (16 KiB BSS)
+	lenOverflowTopShift = lenOverflowShift + lenOverflowSubShift // 19 -> 8192 top slots (64 KiB BSS)
 	lenOverflowTopLen   = 1 << (32 - lenOverflowTopShift)
 )
 
@@ -545,6 +660,99 @@ func setLenOverflowSlow(n Node, idx, v uint32) {
 	}
 	s.mu.Unlock()
 	p[uint32(n)&lenOverflowMask] = v
+}
+
+// --- Sparse SourceFile Overflow Pages (8 KiB noscan per 2048-node page with >=65535 handle) ---
+
+const (
+	sfOverflowShift    = 11
+	sfOverflowLen      = 1 << sfOverflowShift
+	sfOverflowMask     = sfOverflowLen - 1
+	sfOverflowSubShift = 10
+	sfOverflowSubLen   = 1 << sfOverflowSubShift
+	sfOverflowSubMask  = sfOverflowSubLen - 1
+	sfOverflowTopShift = sfOverflowShift + sfOverflowSubShift // 21 -> 2048 top slots (16 KiB BSS)
+	sfOverflowTopLen   = 1 << (32 - sfOverflowTopShift)
+)
+
+type sfOverflowPage [sfOverflowLen]uint32
+type sfOverflowSub [sfOverflowSubLen]atomic.Pointer[sfOverflowPage]
+
+type sfOverflowRecord struct {
+	idx  uint32
+	page *sfOverflowPage
+}
+
+var (
+	sfOverflowMu  sync.Mutex
+	sfOverflowTop [sfOverflowTopLen]atomic.Pointer[sfOverflowSub]
+)
+
+func ensureSFOverflowSub(topIdx uint32) *sfOverflowSub {
+	sub := sfOverflowTop[topIdx].Load()
+	if sub == nil {
+		sfOverflowMu.Lock()
+		sub = sfOverflowTop[topIdx].Load()
+		if sub == nil {
+			sub = new(sfOverflowSub)
+			sfOverflowTop[topIdx].Store(sub)
+		}
+		sfOverflowMu.Unlock()
+	}
+	return sub
+}
+
+func loadSFOverflowPage(idx uint32) *sfOverflowPage {
+	if sub := sfOverflowTop[idx>>sfOverflowSubShift].Load(); sub != nil {
+		return sub[idx&sfOverflowSubMask].Load()
+	}
+	return nil
+}
+
+func storeSFOverflowPage(idx uint32, p *sfOverflowPage) {
+	ensureSFOverflowSub(idx >> sfOverflowSubShift)[idx&sfOverflowSubMask].Store(p)
+}
+
+func casSFOverflowPage(idx uint32, old *sfOverflowPage) {
+	if sub := sfOverflowTop[idx>>sfOverflowSubShift].Load(); sub != nil {
+		sub[idx&sfOverflowSubMask].CompareAndSwap(old, nil)
+	}
+}
+
+func setSFOverflow(n Node, v uint32) {
+	idx := uint32(n) >> sfOverflowShift
+	if p := loadSFOverflowPage(idx); p != nil {
+		if v != 0 || p[uint32(n)&sfOverflowMask] != 0 {
+			p[uint32(n)&sfOverflowMask] = v
+		}
+		return
+	}
+	if v == 0 {
+		return
+	}
+	setSFOverflowSlow(n, idx, v)
+}
+
+//go:noinline
+func setSFOverflowSlow(n Node, idx, v uint32) {
+	s := storeForNode(n)
+	s.mu.Lock()
+	p := loadSFOverflowPage(idx)
+	if p == nil {
+		for _, r := range s.sfOverflows {
+			if r.idx == idx {
+				p = r.page
+				break
+			}
+		}
+		if p == nil {
+			p = new(sfOverflowPage)
+			s.sfOverflows = append(s.sfOverflows, sfOverflowRecord{idx: idx, page: p})
+		}
+		storeSFOverflowPage(idx, p)
+	}
+	s.mu.Unlock()
+	p[uint32(n)&sfOverflowMask] = v
 }
 
 // --- Per-Block Exact Cast Presence Bitmap (2 KiB noscan per block with casts) ---
@@ -1898,16 +2106,29 @@ func SourceFileByHandle(h uint32) any {
 	return sourceFileHandles.Load(h)
 }
 
-// SourceFileObj returns the StaticSourceFile object stored via NodeData.SourceFile for node n.
+// SourceFileObj returns the StaticSourceFile object stored via NodeData.SourceFile16 for node n.
 func (n Node) SourceFileObj() any {
+	return sourceFileObj(n, sourceFileObjOverflowSlow)
+}
+
+func sourceFileObj(n Node, slow func(Node) any) any {
 	if blk := nodeBlocks[n>>blockShift].Load(); blk != nil {
-		if h := blk[n&blockMask].SourceFile; h-1 < tableMaxBlocks*tableBlockLen-1 {
-			if ab := sourceFileHandles.blocks[h>>tableBlockShift].Load(); ab != nil {
-				return ab[h&tableBlockMask]
+		if sf16 := blk[n&blockMask].SourceFile16; sf16 != 0 {
+			if sf16 != 0xFFFF {
+				if ab := sourceFileHandles.blocks[sf16>>tableBlockShift].Load(); ab != nil {
+					return ab[sf16&tableBlockMask]
+				}
+				return nil
 			}
+			return slow(n)
 		}
 	}
 	return nil
+}
+
+//go:noinline
+func sourceFileObjOverflowSlow(n Node) any {
+	return sourceFileHandles.Load(getSourceFileOverflowSlow(n))
 }
 
 // SetSourceFileObj stores the StaticSourceFile object via a 32-bit handle for node n.
@@ -2207,18 +2428,19 @@ func setChangeTimeSlow(n Node, v int32) {
 	rec.KindFlags = flags | kindFlagHasChangeTime
 }
 
-// ClonePropsFrom copies inline SourceFile, PropFlags, JSDoc, TypeBeforeCast, ChangeTime, and cold PropList from other to n.
+// ClonePropsFrom copies inline SourceFile16 (plus overflow SourceFile), PropFlags, JSDoc, TypeBeforeCast, ChangeTime, and cold PropList from other to n.
 // It returns false without modifying n if n already has any property set.
 func (n Node) ClonePropsFrom(other Node) bool {
 	thisRec := n.Rec()
-	if thisRec.SourceFile != 0 || thisRec.PropFlags != 0 || thisRec.KindFlags&kindFlagClonedMask != 0 {
+	if thisRec.SourceFile16 != 0 || thisRec.PropFlags != 0 || thisRec.KindFlags&kindFlagClonedMask != 0 {
 		return false
 	}
 	otherRec := other.Rec()
-	thisRec.SourceFile = otherRec.SourceFile
+	sf16 := otherRec.SourceFile16
+	thisRec.SourceFile16 = sf16
 	thisRec.PropFlags = otherRec.PropFlags
 	otherFlags := otherRec.KindFlags
-	if otherFlags&kindFlagClonedMask != 0 {
+	if otherFlags&kindFlagClonedMask != 0 || sf16 == 0xFFFF {
 		n.cloneColdPropsFrom(thisRec, other, otherFlags)
 	}
 	return true
@@ -2226,6 +2448,9 @@ func (n Node) ClonePropsFrom(other Node) bool {
 
 //go:noinline
 func (n Node) cloneColdPropsFrom(thisRec *NodeData, other Node, otherFlags uint8) {
+	if thisRec.SourceFile16 == 0xFFFF {
+		setSFOverflow(n, getSourceFileOverflowSlow(other))
+	}
 	if otherFlags&kindFlagHasJSDocOrCast != 0 {
 		otherStore := storeForNode(other)
 		otherID := uint32(other)

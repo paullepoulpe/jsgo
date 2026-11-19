@@ -155,7 +155,7 @@ func (this_ *CheckNestedNames) Visit_3(t *NodeTraversal, n pkg_rhino.Node, paren
 		}
 		var ownerName string = owner.GetString()
 		_ = ownerName
-		var declarationKind CheckNestedNames_DeclarationKind = this_.priv_CheckNestedNames_getNestedDeclarationKind_6541(n, parent)
+		var declarationKind CheckNestedNames_DeclarationKind = this_.priv_CheckNestedNames_getNestedDeclarationKind_6547(n, parent)
 		_ = declarationKind
 		if StaticGet_CheckNestedNames_NESTED_KIND_TO_REPORT().ContainsKey(j2gort.BoxNullableVal(declarationKind)) {
 			var nestedKind string = j2gort.CastString(StaticGet_CheckNestedNames_NESTED_KIND_TO_REPORT().Get(j2gort.BoxNullableVal(declarationKind)))
@@ -186,7 +186,7 @@ func CheckNestedNames_IsDotPrototype(getProp pkg_rhino.Node) bool {
 }
 
 // Java method: CheckNestedNames.getNestedDeclarationKind(com.google.javascript.rhino.Node lhs, com.google.javascript.rhino.Node parent)
-func (this_ *CheckNestedNames) priv_CheckNestedNames_getNestedDeclarationKind_6541(lhs pkg_rhino.Node, parent pkg_rhino.Node) CheckNestedNames_DeclarationKind {
+func (this_ *CheckNestedNames) priv_CheckNestedNames_getNestedDeclarationKind_6547(lhs pkg_rhino.Node, parent pkg_rhino.Node) CheckNestedNames_DeclarationKind {
 	_ = lhs
 	_ = parent
 	if !(lhs.IsFirstChildOf(parent)) {
@@ -198,11 +198,11 @@ func (this_ *CheckNestedNames) priv_CheckNestedNames_getNestedDeclarationKind_65
 	var type_ pkg_rhino.JSType = lhs.GetJSType()
 	_ = type_
 	if type_ != nil && !type_.IsJavaNil_() {
-		if type_.IsEnumType() {
+		if type_.GetJSTypeBase().IsEnumType() {
 			return StaticGet_CheckNestedNames_DeclarationKind_ENUM()
-		} else if type_.IsInterface() {
+		} else if type_.GetJSTypeBase().IsInterface() {
 			return StaticGet_CheckNestedNames_DeclarationKind_INTERFACE()
-		} else if type_.IsConstructor() {
+		} else if type_.GetJSTypeBase().IsConstructor() {
 			return StaticGet_CheckNestedNames_DeclarationKind_CLASS()
 		}
 	}

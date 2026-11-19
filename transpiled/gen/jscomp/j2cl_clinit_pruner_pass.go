@@ -84,17 +84,17 @@ func (this_ *J2clClinitPrunerPass) Process_2(externs pkg_rhino.Node, root pkg_rh
 	if !(J2clSourceFileChecker_ShouldRunJ2clPasses(this_.compiler)) {
 		return
 	}
-	this_.priv_J2clClinitPrunerPass_removeRedundantClinits_3453(root, this_.initialChangedScopeNodes)
-	this_.priv_J2clClinitPrunerPass_pruneEmptyClinits_3454(root, this_.initialChangedScopeNodes)
+	this_.priv_J2clClinitPrunerPass_removeRedundantClinits_3450(root, this_.initialChangedScopeNodes)
+	this_.priv_J2clClinitPrunerPass_pruneEmptyClinits_3451(root, this_.initialChangedScopeNodes)
 	if this_.emptiedClinitMethods.IsEmpty() {
 		return
 	}
-	var clinitReferences j2gort.Ext_com_google_common_collect_Multimap = this_.priv_J2clClinitPrunerPass_collectClinitReferences_3457(root)
+	var clinitReferences j2gort.Ext_com_google_common_collect_Multimap = this_.priv_J2clClinitPrunerPass_collectClinitReferences_3454(root)
 	_ = clinitReferences
 	for doFirst_1 := true; doFirst_1 || (!(this_.emptiedClinitMethods.IsEmpty())); doFirst_1 = false {
-		var newChangedScopes j2gort.Ext_java_util_List = this_.priv_J2clClinitPrunerPass_cleanEmptyClinitReferences_3458(clinitReferences)
+		var newChangedScopes j2gort.Ext_java_util_List = this_.priv_J2clClinitPrunerPass_cleanEmptyClinitReferences_3455(clinitReferences)
 		_ = newChangedScopes
-		this_.priv_J2clClinitPrunerPass_pruneEmptyClinits_3454(root, newChangedScopes)
+		this_.priv_J2clClinitPrunerPass_pruneEmptyClinits_3451(root, newChangedScopes)
 	}
 	{
 		var val_2 PureFunctionIdentifier_Driver
@@ -104,31 +104,31 @@ func (this_ *J2clClinitPrunerPass) Process_2(externs pkg_rhino.Node, root pkg_rh
 }
 
 // Java method: J2clClinitPrunerPass.removeRedundantClinits(com.google.javascript.rhino.Node root, java.util.@org.jspecify.annotations.Nullable List<com.google.javascript.rhino.Node> changedScopeNodes)
-func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_removeRedundantClinits_3453(root pkg_rhino.Node, changedScopeNodes j2gort.Ext_java_util_List) {
+func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_removeRedundantClinits_3450(root pkg_rhino.Node, changedScopeNodes j2gort.Ext_java_util_List) {
 	_ = root
 	_ = changedScopeNodes
 	var changedRoots j2gort.Ext_java_util_List = J2clClinitPrunerPass_GetNonNestedParentScopeNodes(changedScopeNodes)
 	_ = changedRoots
-	this_.priv_J2clClinitPrunerPass_traverseScopeRootsWithFallback_3455(root, changedRoots, NewJ2clClinitPrunerPass_RedundantClinitPruner(this_, j2gort.AsIface[j2gort.Ext_java_lang_Iterable](changedRoots)), true)
-	this_.priv_J2clClinitPrunerPass_traverseScopeRootsWithFallback_3455(root, changedScopeNodes, NewJ2clClinitPrunerPass_LookAheadRedundantClinitPruner(this_), false)
+	this_.priv_J2clClinitPrunerPass_traverseScopeRootsWithFallback_3452(root, changedRoots, NewJ2clClinitPrunerPass_RedundantClinitPruner(this_, j2gort.AsIface[j2gort.Ext_java_lang_Iterable](changedRoots)), true)
+	this_.priv_J2clClinitPrunerPass_traverseScopeRootsWithFallback_3452(root, changedScopeNodes, NewJ2clClinitPrunerPass_LookAheadRedundantClinitPruner(this_), false)
 }
 
 // Java method: J2clClinitPrunerPass.pruneEmptyClinits(com.google.javascript.rhino.Node root, java.util.@org.jspecify.annotations.Nullable List<com.google.javascript.rhino.Node> changedScopes)
-func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_pruneEmptyClinits_3454(root pkg_rhino.Node, changedScopes j2gort.Ext_java_util_List) {
+func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_pruneEmptyClinits_3451(root pkg_rhino.Node, changedScopes j2gort.Ext_java_util_List) {
 	_ = root
 	_ = changedScopes
 	this_.emptiedClinitMethods.Clear()
-	this_.priv_J2clClinitPrunerPass_traverseScopeRootsWithFallback_3455(root, changedScopes, NewJ2clClinitPrunerPass_EmptyClinitPruner(this_), false)
+	this_.priv_J2clClinitPrunerPass_traverseScopeRootsWithFallback_3452(root, changedScopes, NewJ2clClinitPrunerPass_EmptyClinitPruner(this_), false)
 	{
 		cur_3 := this_.emptiedClinitMethods.IterEntries()
 		for cur_3.NextEntry() {
-			cur_3.SetValue(this_.priv_J2clClinitPrunerPass_resolveReplacement_3456(cur_3.Value()))
+			cur_3.SetValue(this_.priv_J2clClinitPrunerPass_resolveReplacement_3453(cur_3.Value()))
 		}
 	}
 }
 
 // Java method: J2clClinitPrunerPass.traverseScopeRootsWithFallback(com.google.javascript.rhino.Node root, java.util.@org.jspecify.annotations.Nullable List<com.google.javascript.rhino.Node> scopeRoots, com.google.javascript.jscomp.NodeTraversal.Callback callback, boolean traverseNested)
-func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_traverseScopeRootsWithFallback_3455(root pkg_rhino.Node, scopeRoots j2gort.Ext_java_util_List, callback NodeTraversal_Callback, traverseNested bool) {
+func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_traverseScopeRootsWithFallback_3452(root pkg_rhino.Node, scopeRoots j2gort.Ext_java_util_List, callback NodeTraversal_Callback, traverseNested bool) {
 	_ = root
 	_ = scopeRoots
 	_ = callback
@@ -141,7 +141,7 @@ func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_traverseScopeRootsW
 }
 
 // Java method: J2clClinitPrunerPass.resolveReplacement(com.google.javascript.rhino.Node node)
-func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_resolveReplacement_3456(node pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_resolveReplacement_3453(node pkg_rhino.Node) pkg_rhino.Node {
 	_ = node
 	if node == 0 {
 		return pkg_rhino.Node(0)
@@ -149,14 +149,14 @@ func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_resolveReplacement_
 	var clinitName string = J2clClinitPrunerPass_GetClinitMethodName(node)
 	_ = clinitName
 	if this_.emptiedClinitMethods.ContainsKey(clinitName) {
-		return this_.priv_J2clClinitPrunerPass_resolveReplacement_3456(this_.emptiedClinitMethods.Get(clinitName))
+		return this_.priv_J2clClinitPrunerPass_resolveReplacement_3453(this_.emptiedClinitMethods.Get(clinitName))
 	} else {
 		return node
 	}
 }
 
 // Java method: J2clClinitPrunerPass.collectClinitReferences(com.google.javascript.rhino.Node root)
-func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_collectClinitReferences_3457(root pkg_rhino.Node) j2gort.Ext_com_google_common_collect_Multimap {
+func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_collectClinitReferences_3454(root pkg_rhino.Node) j2gort.Ext_com_google_common_collect_Multimap {
 	_ = root
 	var clinitReferences j2gort.Ext_com_google_common_collect_Multimap = j2gort.AsIface[j2gort.Ext_com_google_common_collect_Multimap](j2gort.Ext_com_google_common_collect_HashMultimap_Create_0())
 	_ = clinitReferences
@@ -165,7 +165,7 @@ func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_collectClinitRefere
 }
 
 // Java method: J2clClinitPrunerPass.cleanEmptyClinitReferences(com.google.common.collect.Multimap<java.lang.String,com.google.javascript.rhino.Node> clinitReferences)
-func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_cleanEmptyClinitReferences_3458(clinitReferences j2gort.Ext_com_google_common_collect_Multimap) j2gort.Ext_java_util_List {
+func (this_ *J2clClinitPrunerPass) priv_J2clClinitPrunerPass_cleanEmptyClinitReferences_3455(clinitReferences j2gort.Ext_com_google_common_collect_Multimap) j2gort.Ext_java_util_List {
 	_ = clinitReferences
 	var newChangedScopes []pkg_rhino.Node = []pkg_rhino.Node{}
 	_ = newChangedScopes
@@ -315,7 +315,7 @@ func InitJ2clClinitPrunerPass_RedundantClinitPruner(this_ *J2clClinitPrunerPass_
 }
 
 // Java method: RedundantClinitPruner.acquireHierarchicalSet(com.google.javascript.jscomp.J2clClinitPrunerPass.@org.jspecify.annotations.Nullable HierarchicalSet parent)
-func (this_ *J2clClinitPrunerPass_RedundantClinitPruner) priv_RedundantClinitPruner_acquireHierarchicalSet_3459(parent *J2clClinitPrunerPass_HierarchicalSet) *J2clClinitPrunerPass_HierarchicalSet {
+func (this_ *J2clClinitPrunerPass_RedundantClinitPruner) priv_RedundantClinitPruner_acquireHierarchicalSet_3456(parent *J2clClinitPrunerPass_HierarchicalSet) *J2clClinitPrunerPass_HierarchicalSet {
 	_ = parent
 	var s *J2clClinitPrunerPass_HierarchicalSet = this_.freeSetHead
 	_ = s
@@ -331,7 +331,7 @@ func (this_ *J2clClinitPrunerPass_RedundantClinitPruner) priv_RedundantClinitPru
 }
 
 // Java method: RedundantClinitPruner.releaseHierarchicalSet(com.google.javascript.jscomp.J2clClinitPrunerPass.HierarchicalSet s)
-func (this_ *J2clClinitPrunerPass_RedundantClinitPruner) priv_RedundantClinitPruner_releaseHierarchicalSet_3460(s *J2clClinitPrunerPass_HierarchicalSet) {
+func (this_ *J2clClinitPrunerPass_RedundantClinitPruner) priv_RedundantClinitPruner_releaseHierarchicalSet_3457(s *J2clClinitPrunerPass_HierarchicalSet) {
 	_ = s
 	s.Clear()
 	{
@@ -347,15 +347,15 @@ func (this_ *J2clClinitPrunerPass_RedundantClinitPruner) ShouldTraverse_3(t *Nod
 	_ = node
 	_ = parent
 	if j2gort.SetContainsNode(this_.roots, node) {
-		this_.clinitsCalledAtBranch = this_.priv_RedundantClinitPruner_acquireHierarchicalSet_3459(nil)
+		this_.clinitsCalledAtBranch = this_.priv_RedundantClinitPruner_acquireHierarchicalSet_3456(nil)
 		this_.stateStack.Clear()
 	}
 	if NodeUtil_IsFunctionDeclaration(node) || node.IsScript() {
 		this_.stateStack.AddLast(this_.clinitsCalledAtBranch)
-		this_.clinitsCalledAtBranch = this_.priv_RedundantClinitPruner_acquireHierarchicalSet_3459(nil)
+		this_.clinitsCalledAtBranch = this_.priv_RedundantClinitPruner_acquireHierarchicalSet_3456(nil)
 	}
-	if this_.priv_RedundantClinitPruner_isNewControlBranch_3462(parent) {
-		this_.clinitsCalledAtBranch = this_.priv_RedundantClinitPruner_acquireHierarchicalSet_3459(this_.clinitsCalledAtBranch)
+	if this_.priv_RedundantClinitPruner_isNewControlBranch_3459(parent) {
+		this_.clinitsCalledAtBranch = this_.priv_RedundantClinitPruner_acquireHierarchicalSet_3456(this_.clinitsCalledAtBranch)
 		if J2clClinitPrunerPass_IsClinitMethod(parent) {
 			this_.clinitsCalledAtBranch.Add(J2clClinitPrunerPass_GetQualifiedNameOfFunction(parent))
 		}
@@ -368,21 +368,21 @@ func (this_ *J2clClinitPrunerPass_RedundantClinitPruner) Visit_3(t *NodeTraversa
 	_ = t
 	_ = node
 	_ = parent
-	this_.priv_RedundantClinitPruner_tryRemovingClinit_3461(node)
-	if this_.priv_RedundantClinitPruner_isNewControlBranch_3462(parent) {
+	this_.priv_RedundantClinitPruner_tryRemovingClinit_3458(node)
+	if this_.priv_RedundantClinitPruner_isNewControlBranch_3459(parent) {
 		var finished *J2clClinitPrunerPass_HierarchicalSet = this_.clinitsCalledAtBranch
 		_ = finished
 		this_.clinitsCalledAtBranch = finished.parent
-		this_.priv_RedundantClinitPruner_releaseHierarchicalSet_3460(finished)
+		this_.priv_RedundantClinitPruner_releaseHierarchicalSet_3457(finished)
 	}
 	if NodeUtil_IsFunctionDeclaration(node) || node.IsScript() {
-		this_.priv_RedundantClinitPruner_releaseHierarchicalSet_3460(this_.clinitsCalledAtBranch)
+		this_.priv_RedundantClinitPruner_releaseHierarchicalSet_3457(this_.clinitsCalledAtBranch)
 		this_.clinitsCalledAtBranch = this_.stateStack.RemoveLast()
 	}
 }
 
 // Java method: RedundantClinitPruner.tryRemovingClinit(com.google.javascript.rhino.Node node)
-func (this_ *J2clClinitPrunerPass_RedundantClinitPruner) priv_RedundantClinitPruner_tryRemovingClinit_3461(node pkg_rhino.Node) {
+func (this_ *J2clClinitPrunerPass_RedundantClinitPruner) priv_RedundantClinitPruner_tryRemovingClinit_3458(node pkg_rhino.Node) {
 	_ = node
 	var clinitName string = J2clClinitPrunerPass_GetClinitMethodName(node)
 	_ = clinitName
@@ -396,7 +396,7 @@ func (this_ *J2clClinitPrunerPass_RedundantClinitPruner) priv_RedundantClinitPru
 }
 
 // Java method: RedundantClinitPruner.isNewControlBranch(com.google.javascript.rhino.Node n)
-func (this_ *J2clClinitPrunerPass_RedundantClinitPruner) priv_RedundantClinitPruner_isNewControlBranch_3462(n pkg_rhino.Node) bool {
+func (this_ *J2clClinitPrunerPass_RedundantClinitPruner) priv_RedundantClinitPruner_isNewControlBranch_3459(n pkg_rhino.Node) bool {
 	_ = n
 	return ((n != 0) && (((((NodeUtil_IsControlStructure(n) || n.IsDefaultValue()) || n.IsHook()) || n.IsAnd()) || n.IsOr()) || n.IsFunction()))
 }
@@ -469,7 +469,7 @@ func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) Visit_3(t *Nod
 	if clinitName == j2gort.NullString {
 		return
 	}
-	var callOrNewNode pkg_rhino.Node = this_.priv_LookAheadRedundantClinitPruner_getCallOrNewNode_3465(node.GetNext())
+	var callOrNewNode pkg_rhino.Node = this_.priv_LookAheadRedundantClinitPruner_getCallOrNewNode_3462(node.GetNext())
 	_ = callOrNewNode
 	if (callOrNewNode == 0) || !(callOrNewNode.GetFirstChild().IsName()) {
 		return
@@ -490,20 +490,20 @@ func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) Visit_3(t *Nod
 	}
 	var staticFnNode pkg_rhino.Node = var_.GetInitialValue()
 	_ = staticFnNode
-	if this_.priv_LookAheadRedundantClinitPruner_callsClinit_3466(staticFnNode, clinitName) && this_.priv_LookAheadRedundantClinitPruner_hasSafeArguments_3463(t, callOrNewNode) {
+	if this_.priv_LookAheadRedundantClinitPruner_callsClinit_3463(staticFnNode, clinitName) && this_.priv_LookAheadRedundantClinitPruner_hasSafeArguments_3460(t, callOrNewNode) {
 		node.Detach()
 		this_.outer_.compiler.ReportChangeToEnclosingScope(parent)
 	}
 }
 
 // Java method: LookAheadRedundantClinitPruner.hasSafeArguments(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node callOrNewNode)
-func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) priv_LookAheadRedundantClinitPruner_hasSafeArguments_3463(t *NodeTraversal, callOrNewNode pkg_rhino.Node) bool {
+func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) priv_LookAheadRedundantClinitPruner_hasSafeArguments_3460(t *NodeTraversal, callOrNewNode pkg_rhino.Node) bool {
 	_ = t
 	_ = callOrNewNode
 	var child pkg_rhino.Node = callOrNewNode.GetSecondChild()
 	_ = child
 	for child != 0 {
-		if !(NodeUtil_IsLiteralValue(child, false)) && !(this_.priv_LookAheadRedundantClinitPruner_isParameter_3464(t, child)) {
+		if !(NodeUtil_IsLiteralValue(child, false)) && !(this_.priv_LookAheadRedundantClinitPruner_isParameter_3461(t, child)) {
 			return false
 		}
 		child = child.GetNext()
@@ -512,7 +512,7 @@ func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) priv_LookAhead
 }
 
 // Java method: LookAheadRedundantClinitPruner.isParameter(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) priv_LookAheadRedundantClinitPruner_isParameter_3464(t *NodeTraversal, n pkg_rhino.Node) bool {
+func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) priv_LookAheadRedundantClinitPruner_isParameter_3461(t *NodeTraversal, n pkg_rhino.Node) bool {
 	_ = t
 	_ = n
 	if !(n.IsName()) {
@@ -524,20 +524,20 @@ func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) priv_LookAhead
 }
 
 // Java method: LookAheadRedundantClinitPruner.getCallOrNewNode(com.google.javascript.rhino.Node n)
-func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) priv_LookAheadRedundantClinitPruner_getCallOrNewNode_3465(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) priv_LookAheadRedundantClinitPruner_getCallOrNewNode_3462(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if n == 0 {
 		return pkg_rhino.Node(0)
 	}
 	switch n.TokenSwitchOrd_() {
 	case int32(93) /* Token.EXPR_RESULT */, int32(0) /* Token.RETURN */ :
-		return this_.priv_LookAheadRedundantClinitPruner_getCallOrNewNode_3465(n.GetFirstChild())
+		return this_.priv_LookAheadRedundantClinitPruner_getCallOrNewNode_3462(n.GetFirstChild())
 	case int32(28) /* Token.CALL */, int32(23) /* Token.NEW */ :
 		return n
 	case int32(97) /* Token.CONST */, int32(111) /* Token.LET */, int32(84) /* Token.VAR */ :
 		return func() pkg_rhino.Node {
 			if n.HasOneChild() {
-				return this_.priv_LookAheadRedundantClinitPruner_getCallOrNewNode_3465(n.GetFirstFirstChild())
+				return this_.priv_LookAheadRedundantClinitPruner_getCallOrNewNode_3462(n.GetFirstFirstChild())
 			}
 			return pkg_rhino.Node(0)
 		}()
@@ -548,7 +548,7 @@ func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) priv_LookAhead
 }
 
 // Java method: LookAheadRedundantClinitPruner.callsClinit(com.google.javascript.rhino.Node fnNode, java.lang.String clinitName)
-func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) priv_LookAheadRedundantClinitPruner_callsClinit_3466(fnNode pkg_rhino.Node, clinitName string) bool {
+func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) priv_LookAheadRedundantClinitPruner_callsClinit_3463(fnNode pkg_rhino.Node, clinitName string) bool {
 	_ = fnNode
 	_ = clinitName
 	j2gort.CheckNotNullString(clinitName)
@@ -621,11 +621,11 @@ func (this_ *J2clClinitPrunerPass_EmptyClinitPruner) Visit_3(t *NodeTraversal, n
 	if !(J2clClinitPrunerPass_IsClinitMethod(node)) {
 		return
 	}
-	this_.priv_EmptyClinitPruner_trySubstituteEmptyFunction_3467(node)
+	this_.priv_EmptyClinitPruner_trySubstituteEmptyFunction_3464(node)
 }
 
 // Java method: EmptyClinitPruner.trySubstituteEmptyFunction(com.google.javascript.rhino.Node fnNode)
-func (this_ *J2clClinitPrunerPass_EmptyClinitPruner) priv_EmptyClinitPruner_trySubstituteEmptyFunction_3467(fnNode pkg_rhino.Node) {
+func (this_ *J2clClinitPrunerPass_EmptyClinitPruner) priv_EmptyClinitPruner_trySubstituteEmptyFunction_3464(fnNode pkg_rhino.Node) {
 	_ = fnNode
 	var fnQualifiedName string = J2clClinitPrunerPass_GetQualifiedNameOfFunction(fnNode)
 	_ = fnQualifiedName
@@ -639,7 +639,7 @@ func (this_ *J2clClinitPrunerPass_EmptyClinitPruner) priv_EmptyClinitPruner_tryS
 	}
 	var firstExpr pkg_rhino.Node = body.GetFirstChild()
 	_ = firstExpr
-	if !(this_.priv_EmptyClinitPruner_isAssignToEmptyFn_3468(firstExpr, fnQualifiedName)) {
+	if !(this_.priv_EmptyClinitPruner_isAssignToEmptyFn_3465(firstExpr, fnQualifiedName)) {
 		return
 	}
 	var secondExpr pkg_rhino.Node = firstExpr.GetNext()
@@ -658,7 +658,7 @@ func (this_ *J2clClinitPrunerPass_EmptyClinitPruner) priv_EmptyClinitPruner_tryS
 }
 
 // Java method: EmptyClinitPruner.isAssignToEmptyFn(com.google.javascript.rhino.Node node, java.lang.String enclosingFnName)
-func (this_ *J2clClinitPrunerPass_EmptyClinitPruner) priv_EmptyClinitPruner_isAssignToEmptyFn_3468(node pkg_rhino.Node, enclosingFnName string) bool {
+func (this_ *J2clClinitPrunerPass_EmptyClinitPruner) priv_EmptyClinitPruner_isAssignToEmptyFn_3465(node pkg_rhino.Node, enclosingFnName string) bool {
 	_ = node
 	_ = enclosingFnName
 	if !(NodeUtil_IsExprAssign(node)) {
@@ -728,7 +728,7 @@ func InitJ2clClinitPrunerPass_HierarchicalSet(this_ *J2clClinitPrunerPass_Hierar
 // Java method: HierarchicalSet.add(java.lang.String o)
 func (this_ *J2clClinitPrunerPass_HierarchicalSet) Add(o string) bool {
 	_ = o
-	if this_.priv_HierarchicalSet_parentsContains_3471(o) {
+	if this_.priv_HierarchicalSet_parentsContains_3468(o) {
 		return false
 	}
 	if this_.currentSet == nil {
@@ -745,7 +745,7 @@ func (this_ *J2clClinitPrunerPass_HierarchicalSet) Clear() {
 }
 
 // Java method: HierarchicalSet.parentsContains(java.lang.String o)
-func (this_ *J2clClinitPrunerPass_HierarchicalSet) priv_HierarchicalSet_parentsContains_3471(o string) bool {
+func (this_ *J2clClinitPrunerPass_HierarchicalSet) priv_HierarchicalSet_parentsContains_3468(o string) bool {
 	_ = o
 	{
 		var p *J2clClinitPrunerPass_HierarchicalSet = this_.parent

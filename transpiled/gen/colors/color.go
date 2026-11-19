@@ -1273,13 +1273,13 @@ func (this_ *Color) SubtractNullOrVoid() *Color {
 	var cached *Color = this_.subtractNullOrVoid
 	_ = cached
 	if cached == nil {
-		return this_.priv_Color_computeSubtractNullOrVoid_5967()
+		return this_.priv_Color_computeSubtractNullOrVoid_5973()
 	}
 	return cached
 }
 
 // Java method: Color.computeSubtractNullOrVoid()
-func (this_ *Color) priv_Color_computeSubtractNullOrVoid_5967() *Color {
+func (this_ *Color) priv_Color_computeSubtractNullOrVoid_5973() *Color {
 	{
 		if this_ == nil {
 			j2gort.ThrowNPE()
@@ -1520,13 +1520,13 @@ func Color_SetEqualsStrings(a []string, b []string) bool {
 		}
 		return true
 	}
-	var bSet j2gort.LocalOrderedSet[string] = j2gort.NewLocalOrderedSetCap[string]((len_ * int32(2)))
+	var bSet j2gort.PlainSet[string] = j2gort.NewPlainSetCap[string]((len_ * int32(2)))
 	_ = bSet
 	{
 		var i_3 int32 = int32(0)
 		_ = i_3
 		for ; i_3 < len_; i_3 = i_3 + 1 {
-			bSet.Add(b[i_3])
+			bSet.AddVoid(b[i_3])
 		}
 	}
 	{
@@ -1576,14 +1576,14 @@ func (this_ *Color) HashCode() int32 {
 	var h int32 = this_.hashCode
 	_ = h
 	if h == int32(0) {
-		h = this_.priv_Color_computeHashCode_5971()
+		h = this_.priv_Color_computeHashCode_5977()
 		this_.hashCode = h
 	}
 	return h
 }
 
 // Java method: Color.computeHashCode()
-func (this_ *Color) priv_Color_computeHashCode_5971() int32 {
+func (this_ *Color) priv_Color_computeHashCode_5977() int32 {
 	var protoHash int32 = int32(0)
 	_ = protoHash
 	{

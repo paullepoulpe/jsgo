@@ -47,6 +47,14 @@ func ToIface_ErrorManager[T interface {
 	return v
 }
 
+func Upcast_ErrorManager[T ErrorManager](v T) ErrorManager {
+	var vi ErrorManager = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.ErrorManager", "com.google.javascript.jscomp.ErrorManager", func(v_ any) bool {
 		return j2gort.InstanceOf[ErrorManager](v_)

@@ -45,6 +45,14 @@ func ToIface_FlowScope[T interface {
 	return v
 }
 
+func Upcast_FlowScope[T FlowScope](v T) FlowScope {
+	var vi FlowScope = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.type.FlowScope", "com.google.javascript.jscomp.type.FlowScope", func(v_ any) bool {
 		return j2gort.InstanceOf[FlowScope](v_)

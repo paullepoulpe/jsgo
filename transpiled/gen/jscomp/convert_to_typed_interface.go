@@ -36,7 +36,7 @@ func init() {
 	lambdaSingleton_convert_to_typed_interface_2 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_3 any) any {
 		decl := j2gort.AsIface[PotentialDeclaration](lp_3)
 		_ = decl
-		var jsdoc *pkg_rhino.JSDocInfo = decl.GetJsDoc()
+		var jsdoc *pkg_rhino.JSDocInfo = decl.GetPotentialDeclarationBase().GetJsDoc()
 		_ = jsdoc
 		if jsdoc == nil {
 			return j2gort.BoxNullableVal(StaticGet_ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_NO_JSDOC())
@@ -181,13 +181,14 @@ func ConvertToTypedInterface_MaybeWarnForConstWithoutExplicitType(compiler Abstr
 	clinit_ConvertToTypedInterface()
 	_ = compiler
 	_ = decl
-	if (decl.IsConstToBeInferred() && !(decl.GetLhs().IsFromExterns())) && !(JsdocUtil_IsPrivate(decl.GetJsDoc())) {
-		var nameNode pkg_rhino.Node = decl.GetLhs()
+	base_decl_ := decl.GetPotentialDeclarationBase()
+	if (base_decl_.IsConstToBeInferred() && !(base_decl_.GetLhs().IsFromExterns())) && !(JsdocUtil_IsPrivate(base_decl_.GetJsDoc())) {
+		var nameNode pkg_rhino.Node = base_decl_.GetLhs()
 		_ = nameNode
 		if j2gort.IfaceEquals[pkg_rhino.JSType](nameNode.GetJSType(), nil) {
 			ConvertToTypedInterface_MaybeReport(compiler, nameNode, StaticGet_ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE(), []string{})
 		} else {
-			ConvertToTypedInterface_MaybeReport(compiler, nameNode, StaticGet_ConvertToTypedInterface_CONSTANT_WITH_SUGGESTED_TYPE(), []string{nameNode.GetJSType().ToAnnotationString(pkg_rhino.StaticGet_JSType_Nullability_EXPLICIT())})
+			ConvertToTypedInterface_MaybeReport(compiler, nameNode, StaticGet_ConvertToTypedInterface_CONSTANT_WITH_SUGGESTED_TYPE(), []string{nameNode.GetJSType().GetJSTypeBase().ToAnnotationString(pkg_rhino.StaticGet_JSType_Nullability_EXPLICIT())})
 		}
 	}
 }
@@ -203,13 +204,13 @@ func (this_ *ConvertToTypedInterface) Process_2(externs pkg_rhino.Node, root pkg
 		_ = next
 		for ; script != 0; script = next {
 			next = script.GetNext()
-			this_.priv_ConvertToTypedInterface_processFile_6380(script)
+			this_.priv_ConvertToTypedInterface_processFile_6386(script)
 		}
 	}
 }
 
 // Java method: ConvertToTypedInterface.processFile(com.google.javascript.rhino.Node scriptNode)
-func (this_ *ConvertToTypedInterface) priv_ConvertToTypedInterface_processFile_6380(scriptNode pkg_rhino.Node) {
+func (this_ *ConvertToTypedInterface) priv_ConvertToTypedInterface_processFile_6386(scriptNode pkg_rhino.Node) {
 	_ = scriptNode
 	if !(scriptNode.IsScript()) {
 		j2gort.CheckArgument(false)
@@ -752,7 +753,7 @@ func ConvertToTypedInterface_SimplifyDeclarations_CountDots(name string) int32 {
 }
 
 // Java method: SimplifyDeclarations.removeDuplicateDeclarations()
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_removeDuplicateDeclarations_6382() {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_removeDuplicateDeclarations_6388() {
 	{
 		cur_4 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Set](this_.currentFile.GetDeclarations().KeySet())))
 		for cur_4.HasNext() {
@@ -767,7 +768,7 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 			for declList.Size() > int32(1) {
 				var decl PotentialDeclaration = j2gort.AsIface[PotentialDeclaration](declList.Remove_1_int32(int32(1)))
 				_ = decl
-				decl.Remove(this_.compiler)
+				decl.GetPotentialDeclarationBase().Remove(this_.compiler)
 			}
 		}
 	}
@@ -775,7 +776,7 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 
 // Java method: SimplifyDeclarations.simplifyAll()
 func (this_ *ConvertToTypedInterface_SimplifyDeclarations) SimplifyAll() {
-	this_.priv_SimplifyDeclarations_removeDuplicateDeclarations_6382()
+	this_.priv_SimplifyDeclarations_removeDuplicateDeclarations_6388()
 	var seenNames []string = j2gort.ImmListToSliceNullable[string](j2gort.Ext_com_google_common_collect_ImmutableList_SortedCopyOf_2(StaticGet_ConvertToTypedInterface_SimplifyDeclarations_SHORT_TO_LONG(), j2gort.AsIface[j2gort.Ext_java_util_Set](this_.currentFile.GetDeclarations().KeySet())))
 	_ = seenNames
 	{
@@ -789,7 +790,7 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) SimplifyAll() {
 					rawElem_7 := cur_6.Next()
 					decl := j2gort.AsIface[PotentialDeclaration](rawElem_7)
 					_ = decl
-					this_.priv_SimplifyDeclarations_processDeclaration_6384(name, decl)
+					this_.priv_SimplifyDeclarations_processDeclaration_6390(name, decl)
 				}
 			}
 		}
@@ -797,28 +798,29 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) SimplifyAll() {
 }
 
 // Java method: SimplifyDeclarations.processDeclaration(java.lang.String name, com.google.javascript.jscomp.ijs.PotentialDeclaration decl)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processDeclaration_6384(name string, decl PotentialDeclaration) {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processDeclaration_6390(name string, decl PotentialDeclaration) {
 	_ = name
 	_ = decl
-	if this_.priv_SimplifyDeclarations_shouldRemove_6388(name, decl) {
-		decl.Remove(this_.compiler)
+	if this_.priv_SimplifyDeclarations_shouldRemove_6394(name, decl) {
+		decl.GetPotentialDeclarationBase().Remove(this_.compiler)
 		return
 	}
 	if decl.BreakDownDestructure(this_.compiler) {
-		ConvertToTypedInterface_MaybeReport(this_.compiler, decl.GetLhs(), StaticGet_ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE(), []string{})
+		ConvertToTypedInterface_MaybeReport(this_.compiler, decl.GetPotentialDeclarationBase().GetLhs(), StaticGet_ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE(), []string{})
 	}
-	if (decl.GetRhs() != 0) && decl.GetRhs().IsFunction() {
-		this_.priv_SimplifyDeclarations_processFunction_6386(decl.GetRhs())
-	} else if (decl.GetRhs() != 0) && ConvertToTypedInterface_SimplifyDeclarations_IsClass(decl.GetRhs()) {
-		this_.priv_SimplifyDeclarations_processClass_6385(decl.GetRhs())
+	base_decl_ := decl.GetPotentialDeclarationBase()
+	if (base_decl_.GetRhs() != 0) && base_decl_.GetRhs().IsFunction() {
+		this_.priv_SimplifyDeclarations_processFunction_6392(base_decl_.GetRhs())
+	} else if (base_decl_.GetRhs() != 0) && ConvertToTypedInterface_SimplifyDeclarations_IsClass(base_decl_.GetRhs()) {
+		this_.priv_SimplifyDeclarations_processClass_6391(base_decl_.GetRhs())
 	}
-	this_.priv_SimplifyDeclarations_setUndeclaredToUnusableType_6389(decl)
-	this_.priv_SimplifyDeclarations_elidePrivateMemberType_6390(decl)
+	this_.priv_SimplifyDeclarations_setUndeclaredToUnusableType_6395(decl)
+	this_.priv_SimplifyDeclarations_elidePrivateMemberType_6396(decl)
 	decl.Simplify(this_.compiler)
 }
 
 // Java method: SimplifyDeclarations.processClass(com.google.javascript.rhino.Node n)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processClass_6385(n pkg_rhino.Node) {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processClass_6391(n pkg_rhino.Node) {
 	_ = n
 	if !(ConvertToTypedInterface_SimplifyDeclarations_IsClass(n)) {
 		j2gort.CheckArgument(false)
@@ -834,12 +836,12 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 			case int32(88) /* Token.EMPTY */ :
 				NodeUtil_DeleteNode(member, this_.compiler)
 			case int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */ :
-				this_.priv_SimplifyDeclarations_processFunction_6386(member.GetLastChild())
+				this_.priv_SimplifyDeclarations_processFunction_6392(member.GetLastChild())
 			case int32(129) /* Token.COMPUTED_PROP */ :
 				if !(member.GetSecondChild().IsFunction()) {
 					j2gort.CheckStateFmt(false, "Non-function computed class member: %s", j2gort.BoxNode(member))
 				}
-				this_.priv_SimplifyDeclarations_processFunction_6386(member.GetSecondChild())
+				this_.priv_SimplifyDeclarations_processFunction_6392(member.GetSecondChild())
 			default:
 				panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", j2gort.StrVal(member.GetToken())+" should not be handled by processClass")))
 			}
@@ -849,16 +851,16 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 }
 
 // Java method: SimplifyDeclarations.processFunction(com.google.javascript.rhino.Node n)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processFunction_6386(n pkg_rhino.Node) {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processFunction_6392(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsFunction()) {
 		j2gort.CheckArgument(false)
 	}
-	this_.priv_SimplifyDeclarations_processFunctionParameters_6387(n.GetSecondChild())
+	this_.priv_SimplifyDeclarations_processFunctionParameters_6393(n.GetSecondChild())
 }
 
 // Java method: SimplifyDeclarations.processFunctionParameters(com.google.javascript.rhino.Node paramList)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processFunctionParameters_6387(paramList pkg_rhino.Node) {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processFunctionParameters_6393(paramList pkg_rhino.Node) {
 	_ = paramList
 	if !(paramList.IsParamList()) {
 		j2gort.CheckArgument(false)
@@ -900,29 +902,31 @@ func ConvertToTypedInterface_SimplifyDeclarations_RootName(qualifiedName string)
 }
 
 // Java method: SimplifyDeclarations.shouldRemove(java.lang.String name, com.google.javascript.jscomp.ijs.PotentialDeclaration decl)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_shouldRemove_6388(name string, decl PotentialDeclaration) bool {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_shouldRemove_6394(name string, decl PotentialDeclaration) bool {
 	_ = name
 	_ = decl
-	if decl.IsDetached() {
+	base_decl_ := decl.GetPotentialDeclarationBase()
+	if base_decl_.IsDetached() {
 		return true
 	}
 	if javalang.StringStartsWith(j2gort.CheckNotNullString(ConvertToTypedInterface_SimplifyDeclarations_RootName(name)), "$jscomp") {
-		if ((decl.GetRhs() != 0) && decl.GetRhs().IsClass()) || ((decl.GetJsDoc() != nil) && decl.GetJsDoc().ContainsTypeDefinition()) {
-			ConvertToTypedInterface_MaybeReport(this_.compiler, decl.GetLhs(), StaticGet_ConvertToTypedInterface_GOOG_SCOPE_HIDDEN_TYPE(), []string{})
+		if ((base_decl_.GetRhs() != 0) && base_decl_.GetRhs().IsClass()) || ((base_decl_.GetJsDoc() != nil) && base_decl_.GetJsDoc().ContainsTypeDefinition()) {
+			ConvertToTypedInterface_MaybeReport(this_.compiler, base_decl_.GetLhs(), StaticGet_ConvertToTypedInterface_GOOG_SCOPE_HIDDEN_TYPE(), []string{})
 		}
 		return true
 	}
-	return ((((!(javalang.StringStartsWith(j2gort.CheckNotNullString(name), "this.")) && !(decl.IsDefiniteDeclaration(this_.compiler))) && !(decl.GetLhs().IsMemberFieldDef())) && !(this_.currentFile.IsPrefixProvided(name))) && !(this_.currentFile.IsStrictPrefixDeclared(name)))
+	return ((((!(javalang.StringStartsWith(j2gort.CheckNotNullString(name), "this.")) && !(decl.IsDefiniteDeclaration(this_.compiler))) && !(base_decl_.GetLhs().IsMemberFieldDef())) && !(this_.currentFile.IsPrefixProvided(name))) && !(this_.currentFile.IsStrictPrefixDeclared(name)))
 }
 
 // Java method: SimplifyDeclarations.setUndeclaredToUnusableType(com.google.javascript.jscomp.ijs.PotentialDeclaration decl)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_setUndeclaredToUnusableType_6389(decl PotentialDeclaration) {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_setUndeclaredToUnusableType_6395(decl PotentialDeclaration) {
 	_ = decl
-	var nameNode pkg_rhino.Node = decl.GetLhs()
+	base_decl_ := decl.GetPotentialDeclarationBase()
+	var nameNode pkg_rhino.Node = base_decl_.GetLhs()
 	_ = nameNode
-	var jsdoc *pkg_rhino.JSDocInfo = decl.GetJsDoc()
+	var jsdoc *pkg_rhino.JSDocInfo = base_decl_.GetJsDoc()
 	_ = jsdoc
-	if ((decl.ShouldPreserve() || NodeUtil_IsNamespaceDecl(nameNode)) || ((decl.GetRhs() != 0) && NodeUtil_IsCallTo_2_Node_string(decl.GetRhs(), "Symbol"))) || (((jsdoc != nil) && jsdoc.ContainsDeclaration()) && !(decl.IsConstToBeInferred())) {
+	if ((decl.ShouldPreserve() || NodeUtil_IsNamespaceDecl(nameNode)) || ((base_decl_.GetRhs() != 0) && NodeUtil_IsCallTo_2_Node_string(base_decl_.GetRhs(), "Symbol"))) || (((jsdoc != nil) && jsdoc.ContainsDeclaration()) && !(base_decl_.IsConstToBeInferred())) {
 		return
 	}
 	ConvertToTypedInterface_MaybeWarnForConstWithoutExplicitType(this_.compiler, decl)
@@ -932,24 +936,25 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 }
 
 // Java method: SimplifyDeclarations.elidePrivateMemberType(com.google.javascript.jscomp.ijs.PotentialDeclaration decl)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_elidePrivateMemberType_6390(decl PotentialDeclaration) {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_elidePrivateMemberType_6396(decl PotentialDeclaration) {
 	_ = decl
-	if this_.priv_SimplifyDeclarations_shouldElidePrivateMemberType_6391(decl) {
-		var jsdoc *pkg_rhino.JSDocInfo = decl.GetJsDoc()
+	if this_.priv_SimplifyDeclarations_shouldElidePrivateMemberType_6397(decl) {
+		var jsdoc *pkg_rhino.JSDocInfo = decl.GetPotentialDeclarationBase().GetJsDoc()
 		_ = jsdoc
-		var jsdocNode pkg_rhino.Node = NodeUtil_GetBestJSDocInfoNode(decl.GetLhs())
+		var jsdocNode pkg_rhino.Node = NodeUtil_GetBestJSDocInfoNode(decl.GetPotentialDeclarationBase().GetLhs())
 		_ = jsdocNode
 		jsdocNode.SetJSDocInfo(JsdocUtil_ReplaceAnnotatedTypesWithUnusableType(jsdoc))
 	}
 }
 
 // Java method: SimplifyDeclarations.shouldElidePrivateMemberType(com.google.javascript.jscomp.ijs.PotentialDeclaration decl)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_shouldElidePrivateMemberType_6391(decl PotentialDeclaration) bool {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_shouldElidePrivateMemberType_6397(decl PotentialDeclaration) bool {
 	_ = decl
 	if !(this_.currentFile.IsFromTypeScript()) {
 		return false
 	}
-	var jsdoc *pkg_rhino.JSDocInfo = decl.GetJsDoc()
+	base_decl_ := decl.GetPotentialDeclarationBase()
+	var jsdoc *pkg_rhino.JSDocInfo = base_decl_.GetJsDoc()
 	_ = jsdoc
 	if (jsdoc == nil) || (jsdoc.GetVisibility() != pkg_rhino.StaticGet_JSDocInfo_Visibility_PRIVATE()) {
 		return false
@@ -957,7 +962,7 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 	if (jsdoc.IsConstructorOrInterface() || jsdoc.HasEnumParameterType()) || jsdoc.HasTypedefType() {
 		return false
 	}
-	if decl.GetLhs().IsName() {
+	if base_decl_.GetLhs().IsName() {
 		return false
 	}
 	return JsdocUtil_HasAnnotatedType(jsdoc)

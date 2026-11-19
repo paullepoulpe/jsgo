@@ -147,9 +147,9 @@ func (this_ *StandardUnionFind[E]) AddAll(es j2gort.Ext_java_lang_Iterable) {
 func (this_ *StandardUnionFind[E]) Union(a E, b E) E {
 	_ = a
 	_ = b
-	var nodeA *StandardUnionFind_Node[E] = this_.priv_StandardUnionFind_findRootOrCreateNode_6375(a)
+	var nodeA *StandardUnionFind_Node[E] = this_.priv_StandardUnionFind_findRootOrCreateNode_6381(a)
 	_ = nodeA
-	var nodeB *StandardUnionFind_Node[E] = this_.priv_StandardUnionFind_findRootOrCreateNode_6375(b)
+	var nodeB *StandardUnionFind_Node[E] = this_.priv_StandardUnionFind_findRootOrCreateNode_6381(b)
 	_ = nodeB
 	if nodeA == nodeB {
 		return nodeA.element
@@ -194,7 +194,7 @@ func (this_ *StandardUnionFind[E]) Find(e E) E {
 	if !(node != nil) {
 		j2gort.CheckArgumentFmt(false, "Element does not exist: %s", j2gort.ToAny(e))
 	}
-	return this_.priv_StandardUnionFind_findRoot_6376(node).element
+	return this_.priv_StandardUnionFind_findRoot_6382(node).element
 }
 
 // Java method: StandardUnionFind.areEquivalent(@org.jspecify.annotations.Nullable E a, @org.jspecify.annotations.Nullable E b)
@@ -224,7 +224,7 @@ func (this_ *StandardUnionFind[E]) AllEquivalenceClasses() j2gort.Ext_com_google
 			elem := cur_14.
 				Next()
 			_ = elem
-			groupsTmp.Put(j2gort.PtrToAny(this_.priv_StandardUnionFind_findRoot_6376(elem)), j2gort.ToAny(elem.element))
+			groupsTmp.Put(j2gort.PtrToAny(this_.priv_StandardUnionFind_findRoot_6382(elem)), j2gort.ToAny(elem.element))
 		}
 	}
 	var result []j2gort.Ext_com_google_common_collect_ImmutableSet = []j2gort.Ext_com_google_common_collect_ImmutableSet{}
@@ -302,12 +302,12 @@ func (this_ *StandardUnionFind[E]) GetRepresentativeList() j2gort.Ext_java_util_
 }
 
 // Java method: StandardUnionFind.findRootOrCreateNode(E e)
-func (this_ *StandardUnionFind[E]) priv_StandardUnionFind_findRootOrCreateNode_6375(e E) *StandardUnionFind_Node[E] {
+func (this_ *StandardUnionFind[E]) priv_StandardUnionFind_findRootOrCreateNode_6381(e E) *StandardUnionFind_Node[E] {
 	_ = e
 	var node *StandardUnionFind_Node[E] = this_.elmap.Get(e)
 	_ = node
 	if node != nil {
-		return this_.priv_StandardUnionFind_findRoot_6376(node)
+		return this_.priv_StandardUnionFind_findRoot_6382(node)
 	}
 	node = alloc_StandardUnionFind_Node[E](&this_.slab_StandardUnionFind_Node, e)
 	this_.elmap.Put(e, node)
@@ -315,12 +315,12 @@ func (this_ *StandardUnionFind[E]) priv_StandardUnionFind_findRootOrCreateNode_6
 }
 
 // Java method: StandardUnionFind.findRoot(com.google.javascript.jscomp.graph.StandardUnionFind.Node<E> node)
-func (this_ *StandardUnionFind[E]) priv_StandardUnionFind_findRoot_6376(node *StandardUnionFind_Node[E]) *StandardUnionFind_Node[E] {
+func (this_ *StandardUnionFind[E]) priv_StandardUnionFind_findRoot_6382(node *StandardUnionFind_Node[E]) *StandardUnionFind_Node[E] {
 	_ = node
 	if node.parent != node {
 		{
 			r_26 := node
-			r_26.parent = this_.priv_StandardUnionFind_findRoot_6376(node.parent)
+			r_26.parent = this_.priv_StandardUnionFind_findRoot_6382(node.parent)
 		}
 	}
 	return node.parent
@@ -455,8 +455,8 @@ func (this_ *StandardUnionFind__Anon_119[E]) Apply(arg_27 any) bool {
 	if nodeForB == nil {
 		return false
 	}
-	this_.nodeForValue = this_.outer_.priv_StandardUnionFind_findRoot_6376(this_.nodeForValue)
-	return (this_.outer_.priv_StandardUnionFind_findRoot_6376(nodeForB) == this_.nodeForValue)
+	this_.nodeForValue = this_.outer_.priv_StandardUnionFind_findRoot_6382(this_.nodeForValue)
+	return (this_.outer_.priv_StandardUnionFind_findRoot_6382(nodeForB) == this_.nodeForValue)
 }
 
 func (this_ *StandardUnionFind__Anon_119[E]) Equals(p0_ any) bool {
@@ -520,5 +520,5 @@ func (this_ *StandardUnionFind__Anon_120[E]) Iterator() any {
 
 // Java method: .size()
 func (this_ *StandardUnionFind__Anon_120[E]) Size() int32 {
-	return this_.outer_.priv_StandardUnionFind_findRoot_6376(this_.outer_.elmap.Get(this_.cap_1_value)).size
+	return this_.outer_.priv_StandardUnionFind_findRoot_6382(this_.outer_.elmap.Get(this_.cap_1_value)).size
 }

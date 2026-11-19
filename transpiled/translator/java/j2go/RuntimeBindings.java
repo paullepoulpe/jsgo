@@ -713,6 +713,7 @@ public final class RuntimeBindings {
 
         import (
         \t"fmt"
+        \t"hash/maphash"
         \t"math"
         \t"math/big"
         \t"math/bits"
@@ -915,6 +916,16 @@ public final class RuntimeBindings {
 
         func IsNullString(s string) bool {
         \treturn s == NullString
+        }
+
+        var fastStrHashSeed = maphash.MakeSeed()
+
+        func FastStrHash32(s string) int32 {
+        \th := uint32(maphash.String(fastStrHashSeed, s))
+        \tif h == 0 {
+        \t\treturn 1
+        \t}
+        \treturn int32(h)
         }
 
         type jJavaNilChecker interface {

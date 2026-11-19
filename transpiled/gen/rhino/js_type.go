@@ -49,6 +49,7 @@ type JSType interface {
 	IsJavaNil_() bool
 	GetJSTypeBase() *JSTypeBase
 	FastTypeClass() JSTypeClass
+	GetKindMask() int32
 	GetWellFormedTemplatizedKind() int32
 	MayHaveNonStringifiableKey() bool
 	HasKindMaskProxy(int32) bool
@@ -94,6 +95,7 @@ type JSType interface {
 	IsVoidType() bool
 	IsAllType() bool
 	IsUnknownType() bool
+	IsUnknownTypeSlow() bool
 	IsSomeUnknownType() bool
 	IsCheckedUnknownType() bool
 	IsUnionType() bool
@@ -142,6 +144,7 @@ type JSType interface {
 	IsInterface() bool
 	IsOrdinaryFunction() bool
 	Equals(any) bool
+	EqualsJSType(JSType) bool
 	DiffersFrom(JSType) bool
 	HashCode() int32
 	RecursionUnsafeHashCode() int32
@@ -214,6 +217,14 @@ func ToIface_JSType[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_JSType[T JSType](v T) JSType {
+	var vi JSType = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.rhino.jstype.JSType
@@ -366,6 +377,11 @@ func InitJSType_3(this_ *JSTypeBase, registry *JSTypeRegistry, templateTypeMap *
 // Java method: JSType.fastTypeClass()
 func (this_ *JSTypeBase) FastTypeClass() JSTypeClass {
 	return StaticGet_JSType_TYPE_CLASSES()[javalang.Shr32(this_.typeKindMask, int(int32(26)))]
+}
+
+// Java method: JSType.getKindMask()
+func (this_ *JSTypeBase) GetKindMask() int32 {
+	return this_.typeKindMask
 }
 
 // Java method: JSType.getWellFormedTemplatizedKind()
@@ -654,12 +670,20 @@ func (this_ *JSTypeBase) IsAllType() bool {
 
 // Java method: JSType.isUnknownType()
 func (this_ *JSTypeBase) IsUnknownType() bool {
+	if (int32(this_.jstypeFlags) & int32(int8(32))) != int32(0) {
+		return false
+	}
+	return this_.self_.IsUnknownTypeSlow()
+}
+
+// Java method: JSType.isUnknownTypeSlow()
+func (this_ *JSTypeBase) IsUnknownTypeSlow() bool {
 	return false
 }
 
 // Java method: JSType.isSomeUnknownType()
 func (this_ *JSTypeBase) IsSomeUnknownType() bool {
-	return this_.self_.IsUnknownType()
+	return this_.IsUnknownType()
 }
 
 // Java method: JSType.isCheckedUnknownType()
@@ -738,7 +762,7 @@ func (this_ *JSTypeBase) IsLiteralObject() bool {
 	var ok_5 bool
 	prototypeObjectType, ok_5 = j2gort.TryCast[PrototypeObjectType](this_.self_)
 	if ok_5 {
-		return prototypeObjectType.IsAnonymous()
+		return prototypeObjectType.GetPrototypeObjectTypeBase().IsAnonymous()
 	}
 	return false
 }
@@ -958,8 +982,8 @@ func (this_ *JSTypeBase) GetTemplateParamCount() int32 {
 // Java method: JSType.mergeSupertypeTemplateTypes(com.google.javascript.rhino.jstype.ObjectType other)
 func (this_ *JSTypeBase) MergeSupertypeTemplateTypes(other ObjectType) {
 	_ = other
-	this_.MaybeLoosenTypecheckingDueToForwardReferencedSupertype(j2gort.AsIface[JSType](other))
-	if other.IsRawTypeOfTemplatizedType() {
+	this_.MaybeLoosenTypecheckingDueToForwardReferencedSupertype(Upcast_JSType(other))
+	if other.GetObjectTypeBase().IsRawTypeOfTemplatizedType() {
 		other = ToIface_ObjectType(this_.registry.CreateTemplatizedType_2_ObjectType_Ext_com_google_common_collect_ImmutableList(other, j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()))
 	}
 	this_.templateTypeMap = other.GetTemplateTypeMap().CopyWithExtension_1(this_.self_.GetTemplateTypeMap())
@@ -1024,7 +1048,8 @@ func (this_ *JSTypeBase) LoosenTypecheckingDueToForwardReferencedSupertype() boo
 // Java method: JSType.maybeLoosenTypecheckingDueToForwardReferencedSupertype(com.google.javascript.rhino.jstype.JSType supertype)
 func (this_ *JSTypeBase) MaybeLoosenTypecheckingDueToForwardReferencedSupertype(supertype JSType) {
 	_ = supertype
-	if (supertype.IsNamedType() && !(supertype.IsResolved())) || supertype.LoosenTypecheckingDueToForwardReferencedSupertype() {
+	base_supertype_ := supertype.GetJSTypeBase()
+	if (base_supertype_.IsNamedType() && !(base_supertype_.IsResolved())) || supertype.LoosenTypecheckingDueToForwardReferencedSupertype() {
 		this_.jstypeFlags = int8((int32(this_.jstypeFlags) | int32(int8(1))))
 	}
 }
@@ -1068,6 +1093,18 @@ func (this_ *JSTypeBase) Equals(arg_6 any) bool {
 	return ok_7 && (EqualityChecker_Check(StaticGet_EqualityChecker_EqMethod_IDENTITY(), this_.self_, jSType))
 }
 
+// Java method: JSType.equalsJSType(com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType that)
+func (this_ *JSTypeBase) EqualsJSType(that JSType) bool {
+	_ = that
+	if this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_())) {
+		return true
+	}
+	if that == nil || that.IsJavaNil_() {
+		return false
+	}
+	return EqualityChecker_Check(StaticGet_EqualityChecker_EqMethod_IDENTITY(), this_.self_, that)
+}
+
 // Java method: JSType.differsFrom(com.google.javascript.rhino.jstype.JSType that)
 func (this_ *JSTypeBase) DiffersFrom(that JSType) bool {
 	_ = that
@@ -1082,7 +1119,7 @@ func JSType_AreSimilar(first JSType, second JSType) bool {
 	if (first == nil || first.IsJavaNil_()) || (second == nil || second.IsJavaNil_()) {
 		return first == second || ((first == nil || first.IsJavaNil_()) && (second == nil || second.IsJavaNil_()))
 	}
-	return !(first.DiffersFrom(second))
+	return !(first.GetJSTypeBase().DiffersFrom(second))
 }
 
 // Java method: JSType.hashCode()
@@ -1132,7 +1169,7 @@ func (this_ *JSTypeBase) FindPropertyType_1_Property_Key(propertyName Property_K
 	}
 	var typeMap *TemplateTypeMap = this_.self_.GetTemplateTypeMap()
 	_ = typeMap
-	if typeMap.IsEmpty() || !(propertyType.HasAnyTemplateTypes()) {
+	if typeMap.IsEmpty() || !(propertyType.GetJSTypeBase().HasAnyTemplateTypes()) {
 		return propertyType
 	}
 	return this_.registry.ReplaceTemplateTypesPartial(propertyType, typeMap)
@@ -1149,7 +1186,7 @@ func (this_ *JSTypeBase) FindPropertyType_1_string(propertyName string) JSType {
 	}
 	var typeMap *TemplateTypeMap = this_.self_.GetTemplateTypeMap()
 	_ = typeMap
-	if typeMap.IsEmpty() || !(propertyType.HasAnyTemplateTypes()) {
+	if typeMap.IsEmpty() || !(propertyType.GetJSTypeBase().HasAnyTemplateTypes()) {
 		return propertyType
 	}
 	return this_.registry.ReplaceTemplateTypesPartial(propertyType, typeMap)
@@ -1161,7 +1198,7 @@ func (this_ *JSTypeBase) FindPropertyTypeWithoutConsideringTemplateTypes_1_strin
 	var autoboxObjType ObjectType = ObjectType_Cast(this_.self_.AutoboxesTo())
 	_ = autoboxObjType
 	if autoboxObjType != nil && !autoboxObjType.IsJavaNil_() {
-		return autoboxObjType.FindPropertyType_1_string(propertyName)
+		return autoboxObjType.GetObjectTypeBase().FindPropertyType_1_string(propertyName)
 	}
 	return nil
 }
@@ -1172,7 +1209,7 @@ func (this_ *JSTypeBase) FindPropertyTypeWithoutConsideringTemplateTypes_1_Prope
 	var autoboxObjType ObjectType = ObjectType_Cast(this_.self_.AutoboxesTo())
 	_ = autoboxObjType
 	if autoboxObjType != nil && !autoboxObjType.IsJavaNil_() {
-		return autoboxObjType.FindPropertyType_1_Property_Key(propertyName)
+		return autoboxObjType.GetObjectTypeBase().FindPropertyType_1_Property_Key(propertyName)
 	}
 	return nil
 }
@@ -1226,7 +1263,7 @@ func (this_ *JSTypeBase) Autobox() JSType {
 
 // Java method: JSType.dereference()
 func (this_ *JSTypeBase) Dereference() ObjectType {
-	return this_.self_.Autobox().ToObjectType()
+	return this_.self_.Autobox().GetJSTypeBase().ToObjectType()
 }
 
 // Java method: JSType.canTestForEqualityWith(com.google.javascript.rhino.jstype.JSType that)
@@ -1252,12 +1289,14 @@ func (this_ *JSTypeBase) TestForEquality(that JSType) pkg_base.Tri {
 func (this_ *JSTypeBase) TestForEqualityHelper(aType JSType, bType JSType) pkg_base.Tri {
 	_ = aType
 	_ = bType
-	if ((((bType.IsAllType() || bType.IsUnknownType()) || bType.IsNoResolvedType()) || aType.IsAllType()) || aType.IsUnknownType()) || aType.IsNoResolvedType() {
+	base_bType_ := bType.GetJSTypeBase()
+	if ((((base_bType_.IsAllType() || base_bType_.IsUnknownType()) || base_bType_.IsNoResolvedType()) || aType.GetJSTypeBase().IsAllType()) || aType.GetJSTypeBase().IsUnknownType()) || aType.GetJSTypeBase().IsNoResolvedType() {
 		return pkg_base.StaticGet_Tri_UNKNOWN()
 	}
-	var aIsEmpty bool = aType.IsEmptyType()
+	base_aType_ := aType.GetJSTypeBase()
+	var aIsEmpty bool = base_aType_.IsEmptyType()
 	_ = aIsEmpty
-	var bIsEmpty bool = bType.IsEmptyType()
+	var bIsEmpty bool = base_bType_.IsEmptyType()
 	_ = bIsEmpty
 	if aIsEmpty || bIsEmpty {
 		if aIsEmpty && bIsEmpty {
@@ -1266,40 +1305,40 @@ func (this_ *JSTypeBase) TestForEqualityHelper(aType JSType, bType JSType) pkg_b
 			return pkg_base.StaticGet_Tri_UNKNOWN()
 		}
 	}
-	if bType.IsUnionType() {
+	if base_bType_.IsUnionType() {
 		return bType.TestForEquality(aType)
 	}
-	if aType.IsFunctionType() || bType.IsFunctionType() {
+	if base_aType_.IsFunctionType() || base_bType_.IsFunctionType() {
 		var otherType JSType
 		_ = otherType
-		if aType.IsFunctionType() {
+		if base_aType_.IsFunctionType() {
 			otherType = bType
 		} else {
 			otherType = aType
 		}
-		if otherType.IsSymbol() {
+		if otherType.GetJSTypeBase().IsSymbol() {
 			return pkg_base.StaticGet_Tri_FALSE()
 		}
-		var greatestSubtype JSType = otherType.GetGreatestSubtype(this_.GetNativeType(StaticGet_JSTypeNative_OBJECT_TYPE()))
+		var greatestSubtype JSType = otherType.GetJSTypeBase().GetGreatestSubtype(this_.GetNativeType(StaticGet_JSTypeNative_OBJECT_TYPE()))
 		_ = greatestSubtype
-		if greatestSubtype.IsNoType() || greatestSubtype.IsNoObjectType() {
+		if greatestSubtype.GetJSTypeBase().IsNoType() || greatestSubtype.GetJSTypeBase().IsNoObjectType() {
 			return pkg_base.StaticGet_Tri_FALSE()
 		} else {
 			return pkg_base.StaticGet_Tri_UNKNOWN()
 		}
 	}
-	if bType.IsEnumElementType() {
+	if base_bType_.IsEnumElementType() {
 		return bType.TestForEquality(aType)
 	}
-	if aType.IsSymbol() {
-		if bType.CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_TYPE())) || bType.CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_OBJECT_TYPE())) {
+	if base_aType_.IsSymbol() {
+		if base_bType_.CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_TYPE())) || base_bType_.CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_OBJECT_TYPE())) {
 			return pkg_base.StaticGet_Tri_UNKNOWN()
 		} else {
 			return pkg_base.StaticGet_Tri_FALSE()
 		}
 	}
-	if bType.IsSymbol() {
-		if aType.CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_TYPE())) || aType.CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_OBJECT_TYPE())) {
+	if base_bType_.IsSymbol() {
+		if base_aType_.CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_TYPE())) || base_aType_.CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_OBJECT_TYPE())) {
 			return pkg_base.StaticGet_Tri_UNKNOWN()
 		} else {
 			return pkg_base.StaticGet_Tri_FALSE()
@@ -1311,15 +1350,16 @@ func (this_ *JSTypeBase) TestForEqualityHelper(aType JSType, bType JSType) pkg_b
 // Java method: JSType.canTestForShallowEqualityWith(com.google.javascript.rhino.jstype.JSType that)
 func (this_ *JSTypeBase) CanTestForShallowEqualityWith(that JSType) bool {
 	_ = that
-	if this_.IsNoResolvedType() || that.IsNoResolvedType() {
+	if this_.IsNoResolvedType() || that.GetJSTypeBase().IsNoResolvedType() {
 		return true
 	}
-	if this_.IsEmptyType() || that.IsEmptyType() {
-		return (this_.IsSubtypeOf_1(that) || that.IsSubtypeOf_1(this_.self_))
+	base_that_ := that.GetJSTypeBase()
+	if this_.IsEmptyType() || base_that_.IsEmptyType() {
+		return (this_.IsSubtypeOf_1(that) || base_that_.IsSubtypeOf_1(this_.self_))
 	}
 	var inf JSType = this_.GetGreatestSubtype(that)
 	_ = inf
-	return (!(inf.IsEmptyType()) || j2gort.IfaceEquals[JSType](inf, this_.registry.GetNativeType(StaticGet_JSTypeNative_LEAST_FUNCTION_TYPE())))
+	return (!(inf.GetJSTypeBase().IsEmptyType()) || j2gort.IfaceEquals[JSType](inf, this_.registry.GetNativeType(StaticGet_JSTypeNative_LEAST_FUNCTION_TYPE())))
 }
 
 // Java method: JSType.isNullable()
@@ -1348,7 +1388,7 @@ func (this_ *JSTypeBase) GetLeastSupertype(that JSType) JSType {
 	if this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_())) {
 		return this_.self_
 	}
-	if that.IsUnionType() {
+	if that.GetJSTypeBase().IsUnionType() {
 		return that.ToMaybeUnionType().GetLeastSupertype(this_.self_)
 	}
 	return JSType_GetLeastSupertype(this_.self_, that)
@@ -1359,7 +1399,7 @@ func JSType_GetLeastSupertype(thisType JSType, thatType JSType) JSType {
 	clinit_JSType()
 	_ = thisType
 	_ = thatType
-	var areEquivalent bool = thisType.Equals(thatType)
+	var areEquivalent bool = thisType.GetJSTypeBase().EqualsJSType(thatType)
 	_ = areEquivalent
 	if areEquivalent {
 		return thisType
@@ -1379,44 +1419,45 @@ func JSType_GetGreatestSubtype(thisType JSType, thatType JSType) JSType {
 	clinit_JSType()
 	_ = thisType
 	_ = thatType
-	if thisType.IsFunctionType() && thatType.IsFunctionType() {
+	base_thisType_ := thisType.GetJSTypeBase()
+	if base_thisType_.IsFunctionType() && thatType.GetJSTypeBase().IsFunctionType() {
 		return ToIface_JSType(thisType.ToMaybeFunctionType().SupAndInfHelper(thatType.ToMaybeFunctionType(), false))
-	} else if thisType.Equals(thatType) {
+	} else if base_thisType_.EqualsJSType(thatType) {
 		return thisType
-	} else if thisType.IsUnknownType() {
-		if !(thatType.IsUnknownType()) {
+	} else if base_thisType_.IsUnknownType() {
+		if !(thatType.GetJSTypeBase().IsUnknownType()) {
 			return thatType
-		} else if thisType.IsCheckedUnknownType() || thatType.IsCheckedUnknownType() {
-			return thisType.GetNativeType(StaticGet_JSTypeNative_CHECKED_UNKNOWN_TYPE())
+		} else if base_thisType_.IsCheckedUnknownType() || thatType.GetJSTypeBase().IsCheckedUnknownType() {
+			return base_thisType_.GetNativeType(StaticGet_JSTypeNative_CHECKED_UNKNOWN_TYPE())
 		} else {
-			return thisType.GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE())
+			return base_thisType_.GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE())
 		}
-	} else if thatType.IsUnknownType() {
+	} else if thatType.GetJSTypeBase().IsUnknownType() {
 		return thisType
-	} else if thisType.IsUnionType() {
+	} else if base_thisType_.IsUnionType() {
 		return UnionType_GetGreatestSubtype(thisType.ToMaybeUnionType(), thatType)
-	} else if thatType.IsUnionType() {
+	} else if thatType.GetJSTypeBase().IsUnionType() {
 		return UnionType_GetGreatestSubtype(thatType.ToMaybeUnionType(), thisType)
-	} else if thisType.IsTemplatizedType() {
+	} else if base_thisType_.IsTemplatizedType() {
 		return thisType.ToMaybeTemplatizedType().GetGreatestSubtypeHelper(thatType)
-	} else if thatType.IsTemplatizedType() {
+	} else if thatType.GetJSTypeBase().IsTemplatizedType() {
 		return thatType.ToMaybeTemplatizedType().GetGreatestSubtypeHelper(thisType)
-	} else if thisType.IsSubtypeOf_1(thatType) {
+	} else if base_thisType_.IsSubtypeOf_1(thatType) {
 		return thisType
-	} else if thatType.IsSubtypeOf_1(thisType) {
+	} else if thatType.GetJSTypeBase().IsSubtypeOf_1(thisType) {
 		return thatType
-	} else if thisType.IsRecordType() {
+	} else if base_thisType_.IsRecordType() {
 		return thisType.ToMaybeRecordType().GetGreatestSubtypeHelper(thatType)
-	} else if thatType.IsRecordType() {
+	} else if thatType.GetJSTypeBase().IsRecordType() {
 		return thatType.ToMaybeRecordType().GetGreatestSubtypeHelper(thisType)
 	}
-	if thisType.IsEnumElementType() {
+	if base_thisType_.IsEnumElementType() {
 		var inf JSType = EnumElementType_GetGreatestSubtype(thisType.ToMaybeEnumElementType(), thatType)
 		_ = inf
 		if inf != nil && !inf.IsJavaNil_() {
 			return inf
 		}
-	} else if thatType.IsEnumElementType() {
+	} else if thatType.GetJSTypeBase().IsEnumElementType() {
 		var inf_2 JSType = EnumElementType_GetGreatestSubtype(thatType.ToMaybeEnumElementType(), thisType)
 		_ = inf_2
 		if inf_2 != nil && !inf_2.IsJavaNil_() {
@@ -1424,9 +1465,9 @@ func JSType_GetGreatestSubtype(thisType JSType, thatType JSType) JSType {
 		}
 	}
 	if thisType.IsObject() && thatType.IsObject() {
-		return thisType.GetNativeType(StaticGet_JSTypeNative_NO_OBJECT_TYPE())
+		return base_thisType_.GetNativeType(StaticGet_JSTypeNative_NO_OBJECT_TYPE())
 	}
-	return thisType.GetNativeType(StaticGet_JSTypeNative_NO_TYPE())
+	return base_thisType_.GetNativeType(StaticGet_JSTypeNative_NO_TYPE())
 }
 
 // Java method: JSType.getRestrictedTypeGivenOutcome(com.google.javascript.rhino.Outcome outcome)
@@ -1459,7 +1500,7 @@ func (this_ *JSTypeBase) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 // Java method: JSType.getTypesUnderEquality(com.google.javascript.rhino.jstype.JSType that)
 func (this_ *JSTypeBase) GetTypesUnderEquality(that JSType) JSType_TypePair {
 	_ = that
-	if that.IsUnionType() {
+	if that.GetJSTypeBase().IsUnionType() {
 		var p JSType_TypePair = that.ToMaybeUnionType().GetTypesUnderEquality(this_.self_)
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
@@ -1476,12 +1517,12 @@ func (this_ *JSTypeBase) GetTypesUnderEquality(that JSType) JSType_TypePair {
 // Java method: JSType.getTypesUnderInequality(com.google.javascript.rhino.jstype.JSType that)
 func (this_ *JSTypeBase) GetTypesUnderInequality(that JSType) JSType_TypePair {
 	_ = that
-	if that.IsUnionType() {
+	if that.GetJSTypeBase().IsUnionType() {
 		var p JSType_TypePair = that.ToMaybeUnionType().GetTypesUnderInequality(this_.self_)
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if this_.priv_JSType_isNullTypeOrVoidType_9102() && that.GetJSTypeBase().priv_JSType_isNullTypeOrVoidType_9102() {
+	if this_.priv_JSType_isNullTypeOrVoidType_9117() && that.GetJSTypeBase().priv_JSType_isNullTypeOrVoidType_9117() {
 		var noType JSType = this_.registry.GetNativeType(StaticGet_JSTypeNative_NO_TYPE())
 		_ = noType
 		return NewJSType_TypePair(noType, noType)
@@ -1500,19 +1541,19 @@ func (this_ *JSTypeBase) GetTypesUnderShallowEquality(that JSType) JSType_TypePa
 // Java method: JSType.getTypesUnderShallowInequality(com.google.javascript.rhino.jstype.JSType that)
 func (this_ *JSTypeBase) GetTypesUnderShallowInequality(that JSType) JSType_TypePair {
 	_ = that
-	if that.IsUnionType() {
+	if that.GetJSTypeBase().IsUnionType() {
 		var p JSType_TypePair = that.ToMaybeUnionType().GetTypesUnderShallowInequality(this_.self_)
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9102() {
+	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9117() {
 		return NewJSType_TypePair(nil, nil)
 	}
 	return NewJSType_TypePair(this_.self_, that)
 }
 
 // Java method: JSType.isNullTypeOrVoidType()
-func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9102() bool {
+func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9117() bool {
 	return ((this_.typeKindMask & (int32(131072) | int32(262144))) != int32(0))
 }
 
@@ -1672,7 +1713,7 @@ func JSType_SafeResolve(type_ JSType, reporter ErrorReporter) JSType {
 	if type_ == nil || type_.IsJavaNil_() {
 		return nil
 	} else {
-		return type_.Resolve(reporter)
+		return type_.GetJSTypeBase().Resolve(reporter)
 	}
 }
 
@@ -1969,14 +2010,14 @@ func (this_ JSType_TypePair) IdentityHash_() int32 {
 		hi_12 := this_.typeA
 		h_ = 31 * h_
 		if hi_12 != nil && !hi_12.IsJavaNil_() {
-			h_ += hi_12.HashCode()
+			h_ += hi_12.GetJSTypeBase().HashCode()
 		}
 	}
 	{
 		hi_13 := this_.typeB
 		h_ = 31 * h_
 		if hi_13 != nil && !hi_13.IsJavaNil_() {
-			h_ += hi_13.HashCode()
+			h_ += hi_13.GetJSTypeBase().HashCode()
 		}
 	}
 	return h_
@@ -2042,6 +2083,14 @@ func ToIface_JSType_WithSourceRef[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_JSType_WithSourceRef[T JSType_WithSourceRef](v T) JSType_WithSourceRef {
+	var vi JSType_WithSourceRef = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

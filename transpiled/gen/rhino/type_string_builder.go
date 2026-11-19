@@ -143,7 +143,7 @@ func (this_ *TypeStringBuilder) AppendAll(elements j2gort.Ext_java_lang_Iterable
 // Java method: TypeStringBuilder.appendNonNull(com.google.javascript.rhino.jstype.JSType type)
 func (this_ *TypeStringBuilder) AppendNonNull(type_ JSType) *TypeStringBuilder {
 	_ = type_
-	if ((((((this_.isForAnnotations && type_.IsObject()) && !(type_.IsUnknownType())) && !(type_.IsTemplateType())) && !(type_.IsRecordType())) && !(type_.IsFunctionType())) && !(type_.IsUnionType())) && !(type_.IsLiteralObject()) {
+	if ((((((this_.isForAnnotations && type_.IsObject()) && !(type_.GetJSTypeBase().IsUnknownType())) && !(type_.GetJSTypeBase().IsTemplateType())) && !(type_.GetJSTypeBase().IsRecordType())) && !(type_.GetJSTypeBase().IsFunctionType())) && !(type_.GetJSTypeBase().IsUnionType())) && !(type_.GetJSTypeBase().IsLiteralObject()) {
 		this_.Append_1_string("!")
 	}
 	return this_.Append_1_JSType(type_)

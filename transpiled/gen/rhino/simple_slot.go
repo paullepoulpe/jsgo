@@ -58,6 +58,14 @@ func ToIface_SimpleSlot[T interface {
 	return v
 }
 
+func Upcast_SimpleSlot[T SimpleSlot](v T) SimpleSlot {
+	var vi SimpleSlot = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.rhino.jstype.SimpleSlot
 type SimpleSlotBase struct {
 	name string `gson:"name"`

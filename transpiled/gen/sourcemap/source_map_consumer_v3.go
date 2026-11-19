@@ -1223,6 +1223,14 @@ func ToIface_SourceMapConsumerV3_EntryVisitor[T interface {
 	return v
 }
 
+func Upcast_SourceMapConsumerV3_EntryVisitor[T SourceMapConsumerV3_EntryVisitor](v T) SourceMapConsumerV3_EntryVisitor {
+	var vi SourceMapConsumerV3_EntryVisitor = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.debugging.sourcemap.SourceMapConsumerV3.EntryVisitor", "com.google.debugging.sourcemap.SourceMapConsumerV3$EntryVisitor", func(v_ any) bool {
 		return j2gort.InstanceOf[SourceMapConsumerV3_EntryVisitor](v_)

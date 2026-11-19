@@ -147,7 +147,7 @@ func (this_ *InstanceObjectType) DefineProperty_4_string_JSType_bool_Node(name s
 	_ = propertyNode
 	var proto ObjectType = this_.GetImplicitPrototype()
 	_ = proto
-	if (proto != nil && !proto.IsJavaNil_()) && proto.HasOwnDeclaredProperty_1_string(name) {
+	if (proto != nil && !proto.IsJavaNil_()) && proto.GetObjectTypeBase().HasOwnDeclaredProperty_1_string(name) {
 		return false
 	}
 	return this_.PrototypeObjectTypeBase.DefineProperty_4_string_JSType_bool_Node(name, type_, inferred, propertyNode)
@@ -161,7 +161,7 @@ func (this_ *InstanceObjectType) DefineProperty_4_Property_Key_JSType_bool_Node(
 	_ = propertyNode
 	var proto ObjectType = this_.GetImplicitPrototype()
 	_ = proto
-	if (proto != nil && !proto.IsJavaNil_()) && proto.HasOwnDeclaredProperty_1_Property_Key(name) {
+	if (proto != nil && !proto.IsJavaNil_()) && proto.GetObjectTypeBase().HasOwnDeclaredProperty_1_Property_Key(name) {
 		return false
 	}
 	return this_.PrototypeObjectTypeBase.DefineProperty_4_Property_Key_JSType_bool_Node(name, type_, inferred, propertyNode)

@@ -450,6 +450,14 @@ func ToIface_SimpleTable_Cell[T interface {
 	return v
 }
 
+func Upcast_SimpleTable_Cell[T SimpleTable_Cell](v T) SimpleTable_Cell {
+	var vi SimpleTable_Cell = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.SimpleTable.Cell", "com.google.javascript.jscomp.SimpleTable$Cell", func(v_ any) bool {
 		return j2gort.InstanceOf[SimpleTable_Cell](v_)

@@ -168,7 +168,7 @@ func (this_ *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 	var test *pkg_graph.CheckPathsBetweenNodes[pkg_rhino.Node, ControlFlowGraph_Branch] = pkg_graph.NewCheckPathsBetweenNodes_5[pkg_rhino.Node, ControlFlowGraph_Branch](j2gort.AsIface[pkg_graph.DiGraph[pkg_rhino.Node, ControlFlowGraph_Branch]](cfg), cfg.GetEntry(), cfg.GetImplicitReturn(), lambdaSingleton_check_missing_return_1, lambdaSingleton_check_missing_return_2)
 	_ = test
 	if !(test.AllPathsSatisfyPredicate()) {
-		this_.compiler.Report_1(JSError_Make_3(t.GetScopeRoot(), StaticGet_CheckMissingReturn_MISSING_RETURN_STATEMENT(), []string{returnType.String()}))
+		this_.compiler.Report_1(JSError_Make_3(t.GetScopeRoot(), StaticGet_CheckMissingReturn_MISSING_RETURN_STATEMENT(), []string{returnType.GetJSTypeBase().String()}))
 	}
 }
 
@@ -251,7 +251,7 @@ func (this_ *CheckMissingReturn) priv_CheckMissingReturn_isVoidOrUnknown_1104(re
 	_ = returnType
 	var voidType pkg_rhino.JSType = this_.compiler.GetTypeRegistry().GetNativeType(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 	_ = voidType
-	return voidType.IsSubtypeOf_1(returnType)
+	return voidType.GetJSTypeBase().IsSubtypeOf_1(returnType)
 }
 func (*CheckMissingReturn) AlwaysShouldTraverse_()      {}
 func (*CheckMissingReturn) NoOpVisit_()                 {}

@@ -93,7 +93,7 @@ func ModuleRenaming_GetGlobalName_2(moduleMetadata ModuleMetadataMap_ModuleMetad
 // Java static method: ModuleRenaming.getGlobalName(com.google.javascript.jscomp.modules.Export export)
 func ModuleRenaming_GetGlobalName_1_Export(export *Export) pkg_rhino.QualifiedName {
 	_ = export
-	if export.ModuleMetadata().IsEs6Module() {
+	if export.ModuleMetadata().GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module() {
 		{
 			var iifeCond_1 bool
 			{
@@ -108,7 +108,7 @@ func ModuleRenaming_GetGlobalName_1_Export(export *Export) pkg_rhino.QualifiedNa
 		}
 		return ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(export.ModuleMetadata(), export.LocalName())
 	}
-	return ModuleRenaming_GetGlobalName_2(export.ModuleMetadata(), export.ClosureNamespace()).Getprop(export.ExportName())
+	return ModuleRenaming_GetGlobalName_2(export.ModuleMetadata(), export.ClosureNamespace()).GetQualifiedNameBase().Getprop(export.ExportName())
 }
 
 // Java static method: ModuleRenaming.getGlobalName(com.google.javascript.jscomp.modules.Binding binding)
@@ -139,7 +139,7 @@ func ModuleRenaming_GetGlobalNameForJsDoc(moduleMap *ModuleMap, binding *Binding
 	_ = propertyChain
 	var prop int32 = int32(0)
 	_ = prop
-	for (binding.IsModuleNamespace() && binding.Metadata().IsEs6Module()) && (prop < propertyChain.Size()) {
+	for (binding.IsModuleNamespace() && binding.Metadata().GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module()) && (prop < propertyChain.Size()) {
 		var propertyName string = j2gort.ListGetStr(propertyChain, prop)
 		_ = propertyName
 		var m *Module = moduleMap.GetModule_1_ModuleLoader_ModulePath(binding.Metadata().Path())
@@ -154,7 +154,7 @@ func ModuleRenaming_GetGlobalNameForJsDoc(moduleMap *ModuleMap, binding *Binding
 	var globalName pkg_rhino.QualifiedName = ModuleRenaming_GetGlobalName_1_Binding(binding)
 	_ = globalName
 	for prop < propertyChain.Size() {
-		globalName = globalName.Getprop(j2gort.ListGetStr(propertyChain, func() int32 { old_3 := prop; nw_4 := old_3 + 1; prop = nw_4; return old_3 }()))
+		globalName = globalName.GetQualifiedNameBase().Getprop(j2gort.ListGetStr(propertyChain, func() int32 { old_3 := prop; nw_4 := old_3 + 1; prop = nw_4; return old_3 }()))
 	}
 	return globalName.Join_0()
 }
@@ -202,7 +202,7 @@ func InitModuleRenaming_GlobalizedModuleName(this_ *ModuleRenaming_GlobalizedMod
 // Java method: GlobalizedModuleName.toQname(com.google.javascript.jscomp.AstFactory astFactory)
 func (this_ *ModuleRenaming_GlobalizedModuleName) ToQname(astFactory *AstFactory) pkg_rhino.Node {
 	_ = astFactory
-	var rootName pkg_rhino.Node = astFactory.CreateName_2_string_AstFactory_Type(this_.AliasName().GetRoot(), AstFactory_S_Type_1_JSType(this_.RootNameType()))
+	var rootName pkg_rhino.Node = astFactory.CreateName_2_string_AstFactory_Type(this_.AliasName().GetQualifiedNameBase().GetRoot(), AstFactory_S_Type_1_JSType(this_.RootNameType()))
 	_ = rootName
 	if this_.AliasName().IsSimple() {
 		return rootName
@@ -216,7 +216,7 @@ func (this_ *ModuleRenaming_GlobalizedModuleName) Getprop(property string) *Modu
 	if !(!(j2gort.CheckNotNullString(property) == "") && !(j2gort.JStrIndexOf(property, ".") >= 0)) {
 		j2gort.CheckArgument(false)
 	}
-	return ModuleRenaming_GlobalizedModuleName_Create_2(this_.AliasName().Getprop(property), this_.RootNameType())
+	return ModuleRenaming_GlobalizedModuleName_Create_2(this_.AliasName().GetQualifiedNameBase().Getprop(property), this_.RootNameType())
 }
 
 // Java static method: GlobalizedModuleName.create(com.google.javascript.rhino.QualifiedName aliasName, com.google.javascript.rhino.jstype.JSType rootNameType)
@@ -277,7 +277,7 @@ func (this_ *ModuleRenaming_GlobalizedModuleName) HashCode() int32 {
 		hi_5 := this_.rootNameType
 		h_ = 31 * h_
 		if hi_5 != nil && !hi_5.IsJavaNil_() {
-			h_ += hi_5.HashCode()
+			h_ += hi_5.GetJSTypeBase().HashCode()
 		}
 	}
 	return h_

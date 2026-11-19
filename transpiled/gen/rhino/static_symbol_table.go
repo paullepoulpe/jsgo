@@ -56,6 +56,14 @@ func ToIface_StaticSymbolTable[T interface {
 	return v
 }
 
+func Upcast_StaticSymbolTable[T StaticSymbolTable](v T) StaticSymbolTable {
+	var vi StaticSymbolTable = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.StaticSymbolTable", "com.google.javascript.rhino.StaticSymbolTable", func(v_ any) bool {
 		return j2gort.InstanceOf[StaticSymbolTable](v_)

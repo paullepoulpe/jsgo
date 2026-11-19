@@ -41,6 +41,14 @@ func ToIface_BasicErrorManager[T interface {
 	return v
 }
 
+func Upcast_BasicErrorManager[T BasicErrorManager](v T) BasicErrorManager {
+	var vi BasicErrorManager = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.BasicErrorManager
 type BasicErrorManagerBase struct {
 	SortingErrorManagerBase

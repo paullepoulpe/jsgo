@@ -235,7 +235,7 @@ func (this_ *DestructuredTarget) InferTypeWithoutUsingDefaultValue() pkg_rhino.J
 func (this_ *DestructuredTarget) InferType() pkg_rhino.JSType {
 	var inferredType pkg_rhino.JSType = this_.InferTypeWithoutUsingDefaultValue()
 	_ = inferredType
-	if !(inferredType.IsUnknownType()) && this_.HasDefaultValue() {
+	if !(inferredType.GetJSTypeBase().IsUnknownType()) && this_.HasDefaultValue() {
 		var defaultValueType pkg_rhino.JSType = this_.GetDefaultValue().GetJSType()
 		_ = defaultValueType
 		if defaultValueType == nil || defaultValueType.IsJavaNil_() {
@@ -254,12 +254,12 @@ func (this_ *DestructuredTarget) priv_DestructuredTarget_inferObjectPatternKeyTy
 	if this_.isRest {
 		return this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE())
 	}
-	if (patternType == nil || patternType.IsJavaNil_()) || patternType.IsUnknownType() {
+	if (patternType == nil || patternType.IsJavaNil_()) || patternType.GetJSTypeBase().IsUnknownType() {
 		return this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	}
 	switch this_.objectPatternKey.TokenSwitchOrd_() {
 	case int32(100) /* Token.STRING_KEY */ :
-		var propertyType pkg_rhino.JSType = patternType.FindPropertyType_1_string(this_.objectPatternKey.GetString())
+		var propertyType pkg_rhino.JSType = patternType.GetJSTypeBase().FindPropertyType_1_string(this_.objectPatternKey.GetString())
 		_ = propertyType
 		return func() pkg_rhino.JSType {
 			if propertyType != nil && !propertyType.IsJavaNil_() {

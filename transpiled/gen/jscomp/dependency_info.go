@@ -63,6 +63,14 @@ func ToIface_DependencyInfo[T interface {
 	return v
 }
 
+func Upcast_DependencyInfo[T DependencyInfo](v T) DependencyInfo {
+	var vi DependencyInfo = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.deps.DependencyInfo", "com.google.javascript.jscomp.deps.DependencyInfo", func(v_ any) bool {
 		return j2gort.InstanceOf[DependencyInfo](v_)

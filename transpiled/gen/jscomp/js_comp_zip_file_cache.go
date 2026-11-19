@@ -45,7 +45,7 @@ func init() {
 					}
 				}
 			}()
-			j2gort.CastPtr[JSCompZipFileCache_CachedZipFile](notification.GetValue()).priv_CachedZipFile_maybeClose_3557()
+			j2gort.CastPtr[JSCompZipFileCache_CachedZipFile](notification.GetValue()).priv_CachedZipFile_maybeClose_3554()
 		}()
 	})
 }
@@ -196,14 +196,14 @@ func InitJSCompZipFileCache_CachedZipFile(this_ *JSCompZipFileCache_CachedZipFil
 // Java method: CachedZipFile.getEntryStream(java.lang.String entryName)
 func (this_ *JSCompZipFileCache_CachedZipFile) GetEntryStream(entryName string) j2gort.Ext_java_io_InputStream {
 	_ = entryName
-	this_.priv_CachedZipFile_refreshIfNeeded_3556()
+	this_.priv_CachedZipFile_refreshIfNeeded_3553()
 	var entry *j2gort.Ext_java_util_zip_ZipEntry = j2gort.CheckNotNullPtr(this_.zipFile.GetEntry(entryName))
 	_ = entry
 	return this_.zipFile.GetInputStream(entry)
 }
 
 // Java method: CachedZipFile.refreshIfNeeded()
-func (this_ *JSCompZipFileCache_CachedZipFile) priv_CachedZipFile_refreshIfNeeded_3556() {
+func (this_ *JSCompZipFileCache_CachedZipFile) priv_CachedZipFile_refreshIfNeeded_3553() {
 	var newLastModified *j2gort.Ext_java_nio_file_attribute_FileTime = j2gort.Ext_java_nio_file_Files_GetLastModifiedTime(this_.path, []*j2gort.Ext_java_nio_file_LinkOption{})
 	_ = newLastModified
 	if newLastModified.Equals(j2gort.PtrToAny(this_.lastModified)) {
@@ -218,14 +218,14 @@ func (this_ *JSCompZipFileCache_CachedZipFile) priv_CachedZipFile_refreshIfNeede
 		if newLastModified.Equals(j2gort.PtrToAny(this_.lastModified)) {
 			return
 		}
-		this_.priv_CachedZipFile_maybeClose_3557()
+		this_.priv_CachedZipFile_maybeClose_3554()
 		this_.zipFile = j2gort.NewExt_java_util_zip_ZipFile_1_Ext_java_io_File(this_.path.ToFile())
 		this_.lastModified = newLastModified
 	}
 }
 
 // Java method: CachedZipFile.maybeClose()
-func (this_ *JSCompZipFileCache_CachedZipFile) priv_CachedZipFile_maybeClose_3557() {
+func (this_ *JSCompZipFileCache_CachedZipFile) priv_CachedZipFile_maybeClose_3554() {
 	if this_.zipFile != nil {
 		this_.zipFile.Close_0()
 	}

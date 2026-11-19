@@ -49,6 +49,14 @@ func ToIface_ModuleResolver[T interface {
 	return v
 }
 
+func Upcast_ModuleResolver[T ModuleResolver](v T) ModuleResolver {
+	var vi ModuleResolver = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.deps.ModuleResolver
 type ModuleResolverBase struct {
 	modulePaths     j2gort.Ext_com_google_common_collect_ImmutableSet `gson:"modulePaths"`

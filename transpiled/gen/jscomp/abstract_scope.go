@@ -93,6 +93,14 @@ func ToIface_AbstractScope[T interface {
 	return v
 }
 
+func Upcast_AbstractScope[T AbstractScope](v T) AbstractScope {
+	var vi AbstractScope = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.AbstractScope
 type AbstractScopeBase struct {
 	self_        AbstractScope
@@ -220,12 +228,12 @@ func (this_ *AbstractScopeBase) PutOwnDeclaredVar(name string, arg_1 any) {
 // Java method: AbstractScope.undeclare(V var)
 func (this_ *AbstractScopeBase) Undeclare(var_ AbstractVar) {
 	_ = var_
-	if !(j2gort.IfaceEquals[AbstractScope](j2gort.AsIface[AbstractScope](var_.GetScope()), this_.self_)) {
+	if !(j2gort.IfaceEquals[AbstractScope](j2gort.AsIface[AbstractScope](var_.GetAbstractVarBase().GetScope()), this_.self_)) {
 		j2gort.CheckState(false)
 	}
-	var existing AbstractVar = j2gort.AsIface[AbstractVar](this_.self_.GetOwnDeclaredVar(var_.GetName()))
+	var existing AbstractVar = j2gort.AsIface[AbstractVar](this_.self_.GetOwnDeclaredVar(var_.GetAbstractVarBase().GetName()))
 	_ = existing
-	if !((existing != nil && !existing.IsJavaNil_()) && existing.Equals(var_)) {
+	if !((existing != nil && !existing.IsJavaNil_()) && existing.GetAbstractVarBase().Equals(var_)) {
 		j2gort.CheckState(false)
 	}
 	this_.self_.UndeclareInteral(var_)
@@ -243,14 +251,14 @@ func (this_ *AbstractScopeBase) DeclareInternal(name string, var_ AbstractVar) {
 	_ = name
 	_ = var_
 	if !(this_.HasOwnSlot(name) || this_.CanDeclare(name)) {
-		j2gort.CheckStateFmt(false, "Illegal shadow: %s", j2gort.BoxNode(var_.GetNode()))
+		j2gort.CheckStateFmt(false, "Illegal shadow: %s", j2gort.BoxNode(var_.GetAbstractVarBase().GetNode()))
 	}
 	{
 		var iifeCond_1 bool
 		{
 
 			sr_3 := name
-			se_4 := var_.GetName()
+			se_4 := var_.GetAbstractVarBase().GetName()
 			iifeCond_1 = j2gort.CheckNotNullString(sr_3) == se_4
 		}
 		if !(iifeCond_1) {
@@ -343,7 +351,7 @@ func (this_ *AbstractScopeBase) GetOwnImplicitSlot(name AbstractScope_ImplicitVa
 		var iifeCond_1 bool
 		{
 
-			sr_6 := singleVar.GetName()
+			sr_6 := singleVar.GetAbstractVarBase().GetName()
 			se_7 := name.FieldGet_name()
 			iifeCond_1 = j2gort.CheckNotNullString(sr_6) == se_7
 		}
@@ -358,7 +366,7 @@ func (this_ *AbstractScopeBase) GetOwnImplicitSlot(name AbstractScope_ImplicitVa
 		InitAbstractScope_ImplicitVars(&val_8)
 		var holder_2 *AbstractScope_ImplicitVars = &val_8
 		_ = holder_2
-		holder_2.Put(j2gort.CheckNotNullEnum(AbstractScope_ImplicitVar_Of(singleVar.GetName())), singleVar)
+		holder_2.Put(j2gort.CheckNotNullEnum(AbstractScope_ImplicitVar_Of(singleVar.GetAbstractVarBase().GetName())), singleVar)
 		holder_2.Put(name, var__3)
 		this_.implicitVars = holder_2
 	}
@@ -397,7 +405,7 @@ func (this_ *AbstractScopeBase) GetVar(name string) any {
 				return var_
 			}
 			if implicit != 0 {
-				var_ = scope.GetOwnImplicitSlot(implicit)
+				var_ = scope.GetAbstractScopeBase().GetOwnImplicitSlot(implicit)
 				if var_ != nil && !var_.IsJavaNil_() {
 					return var_
 				}
@@ -413,7 +421,7 @@ func (this_ *AbstractScopeBase) GetArgumentsVar() AbstractVar {
 		var scope AbstractScope = this_.priv_AbstractScope_thisScope_491()
 		_ = scope
 		for ; scope != nil && !scope.IsJavaNil_(); scope = j2gort.AsIface[AbstractScope](scope.GetParent()) {
-			var arguments AbstractVar = scope.GetOwnImplicitSlot(StaticGet_AbstractScope_ImplicitVar_ARGUMENTS())
+			var arguments AbstractVar = scope.GetAbstractScopeBase().GetOwnImplicitSlot(StaticGet_AbstractScope_ImplicitVar_ARGUMENTS())
 			_ = arguments
 			if arguments != nil && !arguments.IsJavaNil_() {
 				return arguments
@@ -426,7 +434,7 @@ func (this_ *AbstractScopeBase) GetArgumentsVar() AbstractVar {
 // Java method: AbstractScope.canDeclare(java.lang.String name)
 func (this_ *AbstractScopeBase) CanDeclare(name string) bool {
 	_ = name
-	return (!(this_.HasOwnSlot(name)) && ((!(this_.IsFunctionBlockScope()) || !(j2gort.AsIface[AbstractScope](this_.self_.GetParent()).HasOwnSlot(name))) || this_.priv_AbstractScope_isBleedingFunctionName_468(name)))
+	return (!(this_.HasOwnSlot(name)) && ((!(this_.IsFunctionBlockScope()) || !(j2gort.AsIface[AbstractScope](this_.self_.GetParent()).GetAbstractScopeBase().HasOwnSlot(name))) || this_.priv_AbstractScope_isBleedingFunctionName_468(name)))
 }
 
 // Java method: AbstractScope.isBleedingFunctionName(java.lang.String name)
@@ -434,7 +442,7 @@ func (this_ *AbstractScopeBase) priv_AbstractScope_isBleedingFunctionName_468(na
 	_ = name
 	var var_ AbstractVar = j2gort.AsIface[AbstractVar](this_.self_.GetVar(name))
 	_ = var_
-	return (((var_ != nil && !var_.IsJavaNil_()) && (var_.GetNode() != 0)) && var_.GetNode().GetParent().IsFunction())
+	return (((var_ != nil && !var_.IsJavaNil_()) && (var_.GetAbstractVarBase().GetNode() != 0)) && var_.GetAbstractVarBase().GetNode().GetParent().IsFunction())
 }
 
 // Java method: AbstractScope.getVarIterable()
@@ -548,7 +556,7 @@ func (this_ *AbstractScopeBase) GetClosestHoistScope() AbstractScope {
 	var current AbstractScope = this_.priv_AbstractScope_thisScope_491()
 	_ = current
 	for current != nil && !current.IsJavaNil_() {
-		if current.IsHoistScope() {
+		if current.GetAbstractScopeBase().IsHoistScope() {
 			return current
 		}
 		current = j2gort.AsIface[AbstractScope](current.GetParent())
@@ -560,7 +568,7 @@ func (this_ *AbstractScopeBase) GetClosestHoistScope() AbstractScope {
 func (this_ *AbstractScopeBase) GetClosestCfgRootScope() AbstractScope {
 	var current AbstractScope = this_.priv_AbstractScope_thisScope_491()
 	_ = current
-	for !(current.IsCfgRootScope()) {
+	for !(current.GetAbstractScopeBase().IsCfgRootScope()) {
 		current = j2gort.AsIface[AbstractScope](current.GetParent())
 	}
 	return current
@@ -570,9 +578,9 @@ func (this_ *AbstractScopeBase) GetClosestCfgRootScope() AbstractScope {
 func (this_ *AbstractScopeBase) GetClosestContainerScope() AbstractScope {
 	var scope AbstractScope = this_.GetClosestHoistScope()
 	_ = scope
-	if scope.IsFunctionBlockScope() {
+	if scope.GetAbstractScopeBase().IsFunctionBlockScope() {
 		scope = j2gort.AsIface[AbstractScope](scope.GetParent())
-		if !(!(scope.IsBlockScope())) {
+		if !(!(scope.GetAbstractScopeBase().IsBlockScope())) {
 			j2gort.CheckStateMsg(false, scope)
 		}
 	}
@@ -591,7 +599,7 @@ func (this_ *AbstractScopeBase) CheckChildScope(parent AbstractScope) {
 	if !(NodeUtil_CreatesScope(this_.rootNode)) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(this_.rootNode))
 	}
-	if !(this_.rootNode != parent.GetRootNode_0()) {
+	if !(this_.rootNode != parent.GetAbstractScopeBase().GetRootNode_0()) {
 		j2gort.CheckArgumentFmt(false, "rootNode should not be the parent's root node: %s", j2gort.BoxNode(this_.rootNode))
 	}
 }
@@ -631,15 +639,15 @@ func (this_ *AbstractScopeBase) GetCommonParent(other AbstractScope) AbstractSco
 // Java method: AbstractScope.hasSameContainerScope(S other)
 func (this_ *AbstractScopeBase) HasSameContainerScope(other AbstractScope) bool {
 	_ = other
-	return ((this_.self_ == other || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (other == nil || other.IsJavaNil_()))) || j2gort.IfaceEquals[AbstractScope](this_.GetClosestContainerScope(), other.GetClosestContainerScope()))
+	return ((this_.self_ == other || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (other == nil || other.IsJavaNil_()))) || j2gort.IfaceEquals[AbstractScope](this_.GetClosestContainerScope(), other.GetAbstractScopeBase().GetClosestContainerScope()))
 }
 
 // Java method: AbstractScope.getScopeOfThis()
 func (this_ *AbstractScopeBase) GetScopeOfThis() AbstractScope {
 	var scope AbstractScope = this_.GetClosestContainerScope()
 	_ = scope
-	for !(scope.IsGlobal()) && !(NodeUtil_IsNonArrowFunction(scope.GetRootNode_0())) {
-		scope = j2gort.AsIface[AbstractScope](scope.GetParent()).GetClosestContainerScope()
+	for !(scope.GetAbstractScopeBase().IsGlobal()) && !(NodeUtil_IsNonArrowFunction(scope.GetAbstractScopeBase().GetRootNode_0())) {
+		scope = j2gort.AsIface[AbstractScope](scope.GetParent()).GetAbstractScopeBase().GetClosestContainerScope()
 	}
 	return scope
 }
@@ -796,11 +804,11 @@ func (this_ AbstractScope_ImplicitVar) IsMadeByScope(scope AbstractScope) bool {
 	_ = scope
 	switch (this_).Ordinal() {
 	case int32(1) /* ImplicitVar.EXPORTS */ :
-		return (scope.IsModuleScope() && scope.GetRootNode_0().GetParent().GetBooleanProp(pkg_rhino.StaticGet_Node_GOOG_MODULE()))
+		return (scope.GetAbstractScopeBase().IsModuleScope() && scope.GetAbstractScopeBase().GetRootNode_0().GetParent().GetBooleanProp(pkg_rhino.StaticGet_Node_GOOG_MODULE()))
 	case int32(2) /* ImplicitVar.SUPER */, int32(3) /* ImplicitVar.THIS */ :
-		return (((scope.IsStaticBlockScope() || NodeUtil_IsNonArrowFunction(scope.GetRootNode_0())) || scope.IsMemberFieldDefScope()) || scope.IsComputedFieldDefRhsScope())
+		return (((scope.GetAbstractScopeBase().IsStaticBlockScope() || NodeUtil_IsNonArrowFunction(scope.GetAbstractScopeBase().GetRootNode_0())) || scope.GetAbstractScopeBase().IsMemberFieldDefScope()) || scope.GetAbstractScopeBase().IsComputedFieldDefRhsScope())
 	case int32(0) /* ImplicitVar.ARGUMENTS */ :
-		return NodeUtil_IsNonArrowFunction(scope.GetRootNode_0())
+		return NodeUtil_IsNonArrowFunction(scope.GetAbstractScopeBase().GetRootNode_0())
 	}
 	panic("unreachable switch expression")
 }

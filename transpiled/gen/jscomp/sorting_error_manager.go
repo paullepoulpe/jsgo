@@ -44,6 +44,14 @@ func ToIface_SortingErrorManager[T interface {
 	return v
 }
 
+func Upcast_SortingErrorManager[T SortingErrorManager](v T) SortingErrorManager {
+	var vi SortingErrorManager = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.SortingErrorManager
 type SortingErrorManagerBase struct {
 	self_                 SortingErrorManager
@@ -144,12 +152,12 @@ func (this_ *SortingErrorManagerBase) GetWarningCount() int32 {
 
 // Java method: SortingErrorManager.getErrors()
 func (this_ *SortingErrorManagerBase) GetErrors() j2gort.Ext_com_google_common_collect_ImmutableList {
-	return this_.priv_SortingErrorManager_filterToListOf_5094(StaticGet_CheckLevel_ERROR())
+	return this_.priv_SortingErrorManager_filterToListOf_5091(StaticGet_CheckLevel_ERROR())
 }
 
 // Java method: SortingErrorManager.getWarnings()
 func (this_ *SortingErrorManagerBase) GetWarnings() j2gort.Ext_com_google_common_collect_ImmutableList {
-	return this_.priv_SortingErrorManager_filterToListOf_5094(StaticGet_CheckLevel_WARNING())
+	return this_.priv_SortingErrorManager_filterToListOf_5091(StaticGet_CheckLevel_WARNING())
 }
 
 // Java method: SortingErrorManager.getSortedDiagnostics()
@@ -169,7 +177,7 @@ func (this_ *SortingErrorManagerBase) GetTypedPercent() float64 {
 }
 
 // Java method: SortingErrorManager.filterToListOf(com.google.javascript.jscomp.CheckLevel level)
-func (this_ *SortingErrorManagerBase) priv_SortingErrorManager_filterToListOf_5094(level *CheckLevel) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *SortingErrorManagerBase) priv_SortingErrorManager_filterToListOf_5091(level *CheckLevel) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = level
 	var list []*JSError = []*JSError{}
 	_ = list
@@ -220,6 +228,14 @@ func ToIface_SortingErrorManager_ErrorReportGenerator[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_SortingErrorManager_ErrorReportGenerator[T SortingErrorManager_ErrorReportGenerator](v T) SortingErrorManager_ErrorReportGenerator {
+	var vi SortingErrorManager_ErrorReportGenerator = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

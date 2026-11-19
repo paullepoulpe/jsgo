@@ -130,7 +130,7 @@ func InitRewriteDynamicImports(this_ *RewriteDynamicImports, compiler AbstractCo
 }
 
 // Java method: RewriteDynamicImports.aliasIsValid()
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_aliasIsValid_4979() bool {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_aliasIsValid_4976() bool {
 	return ((this_.alias != j2gort.NullString) && ((j2gort.CheckNotNullString(this_.alias) == "import") || NodeUtil_IsValidQualifiedName_2_FeatureSet_string(this_.compiler.GetAllowableFeatures(), this_.alias)))
 }
 
@@ -147,12 +147,12 @@ func (this_ *RewriteDynamicImports) Process_2(externs pkg_rhino.Node, root pkg_r
 	}
 	NodeTraversal_Traverse(this_.compiler, root, this_)
 	if this_.wrappedDynamicImportCallback {
-		this_.priv_RewriteDynamicImports_injectWrappingFunctionExtern_4985()
+		this_.priv_RewriteDynamicImports_injectWrappingFunctionExtern_4982()
 	}
 	if this_.dynamicImportsRemoved {
 		this_.compiler.MarkFeatureNotAllowed(pkg_parser.StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT())
 		NodeUtil_RemoveFeatureFromAllScripts(root, pkg_parser.StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT(), this_.compiler)
-		if this_.requiresAliasing && this_.priv_RewriteDynamicImports_aliasIsValid_4979() {
+		if this_.requiresAliasing && this_.priv_RewriteDynamicImports_aliasIsValid_4976() {
 			NodeTraversal_Traverse(this_.compiler, externs, NewRewriteDynamicImports_AliasInjectingTraversal(this_))
 		}
 	}
@@ -198,18 +198,18 @@ func (this_ *RewriteDynamicImports) Visit_3(t *NodeTraversal, n pkg_rhino.Node, 
 			var targetChunk *JSChunk = targetModuleNS.GetInput().GetChunk()
 			_ = targetChunk
 			if t.GetChunk() == targetChunk {
-				this_.priv_RewriteDynamicImports_replaceDynamicImportWithPromise_4980(t, n, targetModuleNS)
+				this_.priv_RewriteDynamicImports_replaceDynamicImportWithPromise_4977(t, n, targetModuleNS)
 				return
 			} else {
-				this_.priv_RewriteDynamicImports_retargetImportSpecifier_4981(t, n, targetChunk)
+				this_.priv_RewriteDynamicImports_retargetImportSpecifier_4978(t, n, targetChunk)
 				if NodeUtil_IsExpressionResultUsed(n) {
-					this_.priv_RewriteDynamicImports_addChainedThen_4982(t, n, targetModuleNS)
+					this_.priv_RewriteDynamicImports_addChainedThen_4979(t, n, targetModuleNS)
 				}
 			}
 		}
 	}
-	if this_.priv_RewriteDynamicImports_aliasIsValid_4979() {
-		this_.priv_RewriteDynamicImports_aliasDynamicImport_4983(t, n)
+	if this_.priv_RewriteDynamicImports_aliasIsValid_4976() {
+		this_.priv_RewriteDynamicImports_aliasDynamicImport_4980(t, n)
 	} else if this_.alias != j2gort.NullString {
 		t.Report_3(n, StaticGet_RewriteDynamicImports_DYNAMIC_IMPORT_INVALID_ALIAS(), []string{})
 	} else if this_.requiresAliasing {
@@ -218,7 +218,7 @@ func (this_ *RewriteDynamicImports) Visit_3(t *NodeTraversal, n pkg_rhino.Node, 
 }
 
 // Java method: RewriteDynamicImports.replaceDynamicImportWithPromise(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node dynamicImport, com.google.javascript.jscomp.Var targetModuleNS)
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_replaceDynamicImportWithPromise_4980(t *NodeTraversal, dynamicImport pkg_rhino.Node, targetModuleNS *Var) {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_replaceDynamicImportWithPromise_4977(t *NodeTraversal, dynamicImport pkg_rhino.Node, targetModuleNS *Var) {
 	_ = t
 	_ = dynamicImport
 	_ = targetModuleNS
@@ -233,7 +233,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_replaceDynamicImp
 	if isExpressionUsed {
 		var moduleNamespaceType pkg_rhino.JSType = nil
 		_ = moduleNamespaceType
-		if !(j2gort.IfaceEquals[pkg_rhino.JSType](dynamicImport.GetJSType(), nil)) && dynamicImport.GetJSType().IsTemplatizedType() {
+		if !(j2gort.IfaceEquals[pkg_rhino.JSType](dynamicImport.GetJSType(), nil)) && dynamicImport.GetJSType().GetJSTypeBase().IsTemplatizedType() {
 			var templatizedType *pkg_rhino.TemplatizedType = j2gort.CastPtr[pkg_rhino.TemplatizedType](dynamicImport.GetJSType())
 			_ = templatizedType
 			moduleNamespaceType = j2gort.CheckNotNullSlice(j2gort.CheckNotNullPtr(templatizedType).Slice_GetTemplateTypes())[int32(0)]
@@ -241,7 +241,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_replaceDynamicImp
 			moduleNamespaceType = registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 		}
 		promiseDotResolve.SetJSType(pkg_rhino.ToIface_JSType(registry.CreateFunctionType_2_JSType_JSType(pkg_rhino.ToIface_JSType(registry.CreateTemplatizedType_2_ObjectType_JSType(registry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_PROMISE_TYPE()), []pkg_rhino.JSType{moduleNamespaceType})), []pkg_rhino.JSType{registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ALL_TYPE())})))
-		promiseResolveCall.AddChildToBack(this_.priv_RewriteDynamicImports_createModuleNamespaceNode_4984(targetModuleNS))
+		promiseResolveCall.AddChildToBack(this_.priv_RewriteDynamicImports_createModuleNamespaceNode_4981(targetModuleNS))
 		promiseResolveCall.CopyTypeFrom(dynamicImport)
 	} else {
 		promiseDotResolve.SetJSType(pkg_rhino.ToIface_JSType(registry.CreateFunctionType_2_JSType_JSType(pkg_rhino.ToIface_JSType(registry.CreateTemplatizedType_2_ObjectType_JSType(registry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_PROMISE_TYPE()), []pkg_rhino.JSType{registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())})), []pkg_rhino.JSType{registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ALL_TYPE())})))
@@ -263,7 +263,7 @@ func RewriteDynamicImports_GetChunkFileName(chunk *JSChunk) string {
 }
 
 // Java method: RewriteDynamicImports.retargetImportSpecifier(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node dynamicImport, com.google.javascript.jscomp.JSChunk targetChunk)
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_retargetImportSpecifier_4981(t *NodeTraversal, dynamicImport pkg_rhino.Node, targetChunk *JSChunk) {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_retargetImportSpecifier_4978(t *NodeTraversal, dynamicImport pkg_rhino.Node, targetChunk *JSChunk) {
 	_ = t
 	_ = dynamicImport
 	_ = targetChunk
@@ -304,7 +304,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_retargetImportSpe
 }
 
 // Java method: RewriteDynamicImports.addChainedThen(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node dynamicImport, com.google.javascript.jscomp.Var targetModuleNs)
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_addChainedThen_4982(t *NodeTraversal, dynamicImport pkg_rhino.Node, targetModuleNs *Var) {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_addChainedThen_4979(t *NodeTraversal, dynamicImport pkg_rhino.Node, targetModuleNs *Var) {
 	_ = t
 	_ = dynamicImport
 	_ = targetModuleNs
@@ -315,7 +315,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_addChainedThen_49
 	var placeholder pkg_rhino.Node = pkg_rhino.IR_Empty()
 	_ = placeholder
 	dynamicImport.ReplaceWith(placeholder)
-	var moduleNamespaceNode pkg_rhino.Node = this_.priv_RewriteDynamicImports_createModuleNamespaceNode_4984(targetModuleNs)
+	var moduleNamespaceNode pkg_rhino.Node = this_.priv_RewriteDynamicImports_createModuleNamespaceNode_4981(targetModuleNs)
 	_ = moduleNamespaceNode
 	var callbackFn pkg_rhino.Node = this_.astFactory.CreateZeroArgArrowFunctionForExpression(moduleNamespaceNode)
 	_ = callbackFn
@@ -341,7 +341,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_addChainedThen_49
 }
 
 // Java method: RewriteDynamicImports.aliasDynamicImport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node dynamicImport)
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_aliasDynamicImport_4983(t *NodeTraversal, dynamicImport pkg_rhino.Node) {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_aliasDynamicImport_4980(t *NodeTraversal, dynamicImport pkg_rhino.Node) {
 	_ = t
 	_ = dynamicImport
 	j2gort.CheckNotNullString(this_.alias)
@@ -361,7 +361,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_aliasDynamicImpor
 }
 
 // Java method: RewriteDynamicImports.createModuleNamespaceNode(com.google.javascript.jscomp.Var moduleVar)
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_createModuleNamespaceNode_4984(moduleVar *Var) pkg_rhino.Node {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_createModuleNamespaceNode_4981(moduleVar *Var) pkg_rhino.Node {
 	_ = moduleVar
 	var moduleVarNode pkg_rhino.Node = moduleVar.GetNode()
 	_ = moduleVarNode
@@ -372,7 +372,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_createModuleNames
 }
 
 // Java method: RewriteDynamicImports.injectWrappingFunctionExtern()
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_injectWrappingFunctionExtern_4985() {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_injectWrappingFunctionExtern_4982() {
 	var registry *pkg_rhino.JSTypeRegistry = this_.compiler.GetTypeRegistry()
 	_ = registry
 	var templateT *pkg_rhino.TemplateType = registry.CreateTemplateType_1("T")
@@ -443,7 +443,7 @@ func (this_ *RewriteDynamicImports_AliasInjectingTraversal) ShouldTraverse_3(t *
 	_ = t
 	_ = n
 	_ = parent
-	if !(this_.outer_.priv_RewriteDynamicImports_aliasIsValid_4979()) {
+	if !(this_.outer_.priv_RewriteDynamicImports_aliasIsValid_4976()) {
 		j2gort.CheckState(false)
 	}
 	if NodeUtil_IsValidSimpleName(this_.outer_.alias) && (j2gort.CastPtr[Var](t.GetScope().GetVar(this_.outer_.alias)) != nil) {
@@ -455,7 +455,7 @@ func (this_ *RewriteDynamicImports_AliasInjectingTraversal) ShouldTraverse_3(t *
 	_ = unknownType
 	var promiseType pkg_rhino.JSType = registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_PROMISE_TYPE())
 	_ = promiseType
-	var promiseTemplatizedType *pkg_rhino.TemplatizedType = registry.CreateTemplatizedType_2_ObjectType_Ext_com_google_common_collect_ImmutableList(promiseType.ToObjectType(), j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(unknownType))
+	var promiseTemplatizedType *pkg_rhino.TemplatizedType = registry.CreateTemplatizedType_2_ObjectType_Ext_com_google_common_collect_ImmutableList(promiseType.GetJSTypeBase().ToObjectType(), j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(unknownType))
 	_ = promiseTemplatizedType
 	var stringType pkg_rhino.JSType = registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
 	_ = stringType

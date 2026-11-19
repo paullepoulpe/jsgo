@@ -28,10 +28,10 @@ import (
 type TypeMatchingStrategy uint8
 
 const (
-	enum_TypeMatchingStrategy_LOOSE TypeMatchingStrategy = 1
+	enum_TypeMatchingStrategy_LOOSE              TypeMatchingStrategy = 1
 	enum_TypeMatchingStrategy_STRICT_NULLABILITY TypeMatchingStrategy = 2
-	enum_TypeMatchingStrategy_SUBTYPES TypeMatchingStrategy = 3
-	enum_TypeMatchingStrategy_EXACT TypeMatchingStrategy = 4
+	enum_TypeMatchingStrategy_SUBTYPES           TypeMatchingStrategy = 3
+	enum_TypeMatchingStrategy_EXACT              TypeMatchingStrategy = 4
 )
 
 var enumBaseTable_TypeMatchingStrategy = [...]j2gort.EnumBase{
@@ -48,6 +48,7 @@ var enumField_TypeMatchingStrategy_allowSubtypes = [...]bool{
 	true,
 	false,
 }
+
 func (this_ TypeMatchingStrategy) FieldGet_allowSubtypes() bool {
 	if this_ == 0 {
 		j2gort.ThrowNPE()
@@ -61,6 +62,7 @@ var enumField_TypeMatchingStrategy_ignoreNullability = [...]bool{
 	false,
 	false,
 }
+
 func (this_ TypeMatchingStrategy) FieldGet_ignoreNullability() bool {
 	if this_ == 0 {
 		j2gort.ThrowNPE()
@@ -74,6 +76,7 @@ var enumField_TypeMatchingStrategy_allowLooseMatches = [...]bool{
 	false,
 	false,
 }
+
 func (this_ TypeMatchingStrategy) FieldGet_allowLooseMatches() bool {
 	if this_ == 0 {
 		j2gort.ThrowNPE()
@@ -117,21 +120,21 @@ func (this_ TypeMatchingStrategy) Match(templateType pkg_rhino.JSType, type_ pkg
 	}
 	_ = templateType
 	_ = type_
-	if (templateType.IsUnknownType()) {
+	if templateType.GetJSTypeBase().IsUnknownType() {
 		return StaticGet_TypeMatchingStrategy_MatchResult_MATCH()
 	}
-	if ((((type_ == nil || type_.IsJavaNil_()) || type_.IsUnknownType()) || type_.IsAllType())) {
+	if ((type_ == nil || type_.IsJavaNil_()) || type_.GetJSTypeBase().IsUnknownType()) || type_.GetJSTypeBase().IsAllType() {
 		if this_.FieldGet_allowLooseMatches() {
 			return StaticGet_TypeMatchingStrategy_MatchResult_LOOSE_MATCH()
 		} else {
 			return StaticGet_TypeMatchingStrategy_MatchResult_NO_MATCH()
 		}
 	}
-	if (this_.FieldGet_allowSubtypes()) {
-		if (this_.FieldGet_ignoreNullability()) {
+	if this_.FieldGet_allowSubtypes() {
+		if this_.FieldGet_ignoreNullability() {
 			type_ = type_.RestrictByNotNullOrUndefined()
 		}
-		if (type_.IsSubtypeOf_1(templateType)) {
+		if type_.GetJSTypeBase().IsSubtypeOf_1(templateType) {
 			return StaticGet_TypeMatchingStrategy_MatchResult_MATCH()
 		}
 	}
@@ -139,22 +142,26 @@ func (this_ TypeMatchingStrategy) Match(templateType pkg_rhino.JSType, type_ pkg
 	_ = nullableMismatch
 	var voidableMismatch bool = (templateType.IsVoidable() != type_.IsVoidable())
 	_ = voidableMismatch
-	if ((!(this_.FieldGet_ignoreNullability()) && ((nullableMismatch || voidableMismatch)))) {
+	if !(this_.FieldGet_ignoreNullability()) && (nullableMismatch || voidableMismatch) {
 		return StaticGet_TypeMatchingStrategy_MatchResult_NO_MATCH()
 	}
-	if type_.Equals(templateType) {
+	if type_.GetJSTypeBase().EqualsJSType(templateType) {
 		return StaticGet_TypeMatchingStrategy_MatchResult_MATCH()
 	} else {
 		return StaticGet_TypeMatchingStrategy_MatchResult_NO_MATCH()
 	}
 }
 
-func (this_ TypeMatchingStrategy) IsJavaNil_() bool { return this_ == 0 }
-func (TypeMatchingStrategy) HasIdentityEquals_() {}
-func (TypeMatchingStrategy) Implements_j2gort_Ext_java_lang_Enum() {}
+func (this_ TypeMatchingStrategy) IsJavaNil_() bool                              { return this_ == 0 }
+func (TypeMatchingStrategy) HasIdentityEquals_()                                 {}
+func (TypeMatchingStrategy) Implements_j2gort_Ext_java_lang_Enum()               {}
 func (TypeMatchingStrategy) Implements_j2gort_Ext_java_lang_constant_Constable() {}
-func (this_ TypeMatchingStrategy) GetExt_java_lang_EnumBase() *j2gort.Ext_java_lang_EnumBase { return &j2gort.Ext_java_lang_EnumBase{Core_: this_.GetEnumBase()} }
-func (TypeMatchingStrategy) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.TypeMatchingStrategy", "TypeMatchingStrategy" }
+func (this_ TypeMatchingStrategy) GetExt_java_lang_EnumBase() *j2gort.Ext_java_lang_EnumBase {
+	return &j2gort.Ext_java_lang_EnumBase{Core_: this_.GetEnumBase()}
+}
+func (TypeMatchingStrategy) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.TypeMatchingStrategy", "TypeMatchingStrategy"
+}
 func (this_ TypeMatchingStrategy) GetEnumBase() *j2gort.EnumBase {
 	if this_ == 0 {
 		return nil
@@ -217,8 +224,8 @@ func init() {
 type TypeMatchingStrategy_MatchResult uint8
 
 const (
-	enum_TypeMatchingStrategy_MatchResult_MATCH TypeMatchingStrategy_MatchResult = 1
-	enum_TypeMatchingStrategy_MatchResult_NO_MATCH TypeMatchingStrategy_MatchResult = 2
+	enum_TypeMatchingStrategy_MatchResult_MATCH       TypeMatchingStrategy_MatchResult = 1
+	enum_TypeMatchingStrategy_MatchResult_NO_MATCH    TypeMatchingStrategy_MatchResult = 2
 	enum_TypeMatchingStrategy_MatchResult_LOOSE_MATCH TypeMatchingStrategy_MatchResult = 3
 )
 
@@ -271,12 +278,16 @@ func (this_ TypeMatchingStrategy_MatchResult) IsLooseMatch() bool {
 	return (this_ == StaticGet_TypeMatchingStrategy_MatchResult_LOOSE_MATCH())
 }
 
-func (this_ TypeMatchingStrategy_MatchResult) IsJavaNil_() bool { return this_ == 0 }
-func (TypeMatchingStrategy_MatchResult) HasIdentityEquals_() {}
-func (TypeMatchingStrategy_MatchResult) Implements_j2gort_Ext_java_lang_Enum() {}
+func (this_ TypeMatchingStrategy_MatchResult) IsJavaNil_() bool                              { return this_ == 0 }
+func (TypeMatchingStrategy_MatchResult) HasIdentityEquals_()                                 {}
+func (TypeMatchingStrategy_MatchResult) Implements_j2gort_Ext_java_lang_Enum()               {}
 func (TypeMatchingStrategy_MatchResult) Implements_j2gort_Ext_java_lang_constant_Constable() {}
-func (this_ TypeMatchingStrategy_MatchResult) GetExt_java_lang_EnumBase() *j2gort.Ext_java_lang_EnumBase { return &j2gort.Ext_java_lang_EnumBase{Core_: this_.GetEnumBase()} }
-func (TypeMatchingStrategy_MatchResult) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.TypeMatchingStrategy$MatchResult", "MatchResult" }
+func (this_ TypeMatchingStrategy_MatchResult) GetExt_java_lang_EnumBase() *j2gort.Ext_java_lang_EnumBase {
+	return &j2gort.Ext_java_lang_EnumBase{Core_: this_.GetEnumBase()}
+}
+func (TypeMatchingStrategy_MatchResult) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.TypeMatchingStrategy$MatchResult", "MatchResult"
+}
 func (this_ TypeMatchingStrategy_MatchResult) GetEnumBase() *j2gort.EnumBase {
 	if this_ == 0 {
 		return nil
@@ -335,4 +346,3 @@ func init() {
 		return j2gort.InstanceOf[TypeMatchingStrategy_MatchResult](v_)
 	})
 }
-

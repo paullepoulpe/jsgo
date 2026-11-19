@@ -477,7 +477,7 @@ func (this_ *ClosureCheckModule) Process_2(externs pkg_rhino.Node, root pkg_rhin
 func (this_ *ClosureCheckModule) EnterModule(currentModule ModuleMetadataMap_ModuleMetadata, moduleScopeRoot pkg_rhino.Node) {
 	_ = currentModule
 	_ = moduleScopeRoot
-	if !(currentModule.IsGoogModule()) {
+	if !(currentModule.GetModuleMetadataMap_ModuleMetadataBase().IsGoogModule()) {
 		return
 	}
 	if !(this_.currentModuleInfo == nil) {

@@ -52,6 +52,14 @@ func ToIface_ChainableReverseAbstractInterpreter[T interface {
 	return v
 }
 
+func Upcast_ChainableReverseAbstractInterpreter[T ChainableReverseAbstractInterpreter](v T) ChainableReverseAbstractInterpreter {
+	var vi ChainableReverseAbstractInterpreter = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.type.ChainableReverseAbstractInterpreter
 type ChainableReverseAbstractInterpreterBase struct {
 	self_                     ChainableReverseAbstractInterpreter
@@ -222,7 +230,7 @@ func (this_ *ChainableReverseAbstractInterpreterBase) GetRestrictedByTypeOfResul
 	_ = resultEqualsValue
 	if type_ == nil || type_.IsJavaNil_() {
 		if resultEqualsValue {
-			var result pkg_rhino.JSType = this_.priv_ChainableReverseAbstractInterpreter_getNativeTypeForTypeOf_7813(value)
+			var result pkg_rhino.JSType = this_.priv_ChainableReverseAbstractInterpreter_getNativeTypeForTypeOf_7820(value)
 			_ = result
 			if result == nil || result.IsJavaNil_() {
 				return this_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_CHECKED_UNKNOWN_TYPE())
@@ -243,7 +251,7 @@ func (this_ *ChainableReverseAbstractInterpreterBase) GetNativeType(typeId pkg_r
 }
 
 // Java method: ChainableReverseAbstractInterpreter.getNativeTypeForTypeOf(java.lang.String value)
-func (this_ *ChainableReverseAbstractInterpreterBase) priv_ChainableReverseAbstractInterpreter_getNativeTypeForTypeOf_7813(value string) pkg_rhino.JSType {
+func (this_ *ChainableReverseAbstractInterpreterBase) priv_ChainableReverseAbstractInterpreter_getNativeTypeForTypeOf_7820(value string) pkg_rhino.JSType {
 	_ = value
 	switch j2gort.CheckNotNullString(value) {
 	case "number":
@@ -284,6 +292,14 @@ func ToIface_ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor[T
 		return nil
 	}
 	return v
+}
+
+func Upcast_ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor[T ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor](v T) ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor {
+	var vi ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.type.ChainableReverseAbstractInterpreter.RestrictByTypeOfResultVisitor
@@ -366,7 +382,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBa
 		var n int32 = type_.GetAlternatesCount()
 		_ = n
 		for ; i < n; i = i + 1 {
-			var restrictedAlternate pkg_rhino.JSType = j2gort.AsIface[pkg_rhino.JSType](type_.GetAlternateAt(i).Visit_1(j2gort.AsIface[pkg_rhino.Visitor](this_.self_)))
+			var restrictedAlternate pkg_rhino.JSType = j2gort.AsIface[pkg_rhino.JSType](type_.GetAlternateAt(i).Visit_1(pkg_rhino.Upcast_Visitor(this_.self_)))
 			_ = restrictedAlternate
 			if restrictedAlternate != nil && !restrictedAlternate.IsJavaNil_() {
 				if restricted == nil || restricted.IsJavaNil_() {
@@ -389,9 +405,9 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBa
 // Java method: RestrictByTypeOfResultVisitor.caseEnumElementType(com.google.javascript.rhino.jstype.EnumElementType enumElementType)
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase) CaseEnumElementType(enumElementType *pkg_rhino.EnumElementType) any {
 	_ = enumElementType
-	var type_ pkg_rhino.JSType = j2gort.AsIface[pkg_rhino.JSType](enumElementType.GetPrimitiveType().Visit_1(j2gort.AsIface[pkg_rhino.Visitor](this_.self_)))
+	var type_ pkg_rhino.JSType = j2gort.AsIface[pkg_rhino.JSType](enumElementType.GetPrimitiveType().Visit_1(pkg_rhino.Upcast_Visitor(this_.self_)))
 	_ = type_
-	if (type_ != nil && !type_.IsJavaNil_()) && enumElementType.GetPrimitiveType().Equals(type_) {
+	if (type_ != nil && !type_.IsJavaNil_()) && enumElementType.GetPrimitiveType().GetJSTypeBase().EqualsJSType(type_) {
 		return j2gort.PtrToAny(enumElementType)
 	} else {
 		return type_
@@ -419,7 +435,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBa
 // Java method: RestrictByTypeOfResultVisitor.caseProxyObjectType(com.google.javascript.rhino.jstype.ProxyObjectType type)
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitorBase) CaseProxyObjectType(type_ pkg_rhino.ProxyObjectType) any {
 	_ = type_
-	return j2gort.AsIface[pkg_rhino.JSType](type_.VisitReferenceType(j2gort.AsIface[pkg_rhino.Visitor](this_.self_)))
+	return j2gort.AsIface[pkg_rhino.JSType](type_.GetProxyObjectTypeBase().VisitReferenceType(pkg_rhino.Upcast_Visitor(this_.self_)))
 }
 
 // Java polymorphic class interface: com.google.javascript.jscomp.type.ChainableReverseAbstractInterpreter.RestrictByTrueTypeOfResultVisitor
@@ -439,6 +455,14 @@ func ToIface_ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisit
 		return nil
 	}
 	return v
+}
+
+func Upcast_ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitor[T ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitor](v T) ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitor {
+	var vi ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitor = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.type.ChainableReverseAbstractInterpreter.RestrictByTrueTypeOfResultVisitor
@@ -564,6 +588,14 @@ func ToIface_ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisi
 		return nil
 	}
 	return v
+}
+
+func Upcast_ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitor[T ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitor](v T) ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitor {
+	var vi ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitor = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.type.ChainableReverseAbstractInterpreter.RestrictByFalseTypeOfResultVisitor
@@ -744,7 +776,7 @@ func InitChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor(th
 }
 
 // Java method: RestrictByOneTypeOfResultVisitor.matchesExpectation(java.lang.String result)
-func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7834(result string) bool {
+func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7841(result string) bool {
 	_ = result
 	return (func() bool { sr_2 := result; se_3 := this_.value; return j2gort.CheckNotNullString(sr_2) == se_3 }() == this_.resultEqualsValue)
 }
@@ -755,7 +787,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 	var result pkg_rhino.JSType = topType
 	_ = result
 	if this_.resultEqualsValue {
-		var typeByName pkg_rhino.JSType = this_.outer_.GetChainableReverseAbstractInterpreterBase().priv_ChainableReverseAbstractInterpreter_getNativeTypeForTypeOf_7813(this_.value)
+		var typeByName pkg_rhino.JSType = this_.outer_.GetChainableReverseAbstractInterpreterBase().priv_ChainableReverseAbstractInterpreter_getNativeTypeForTypeOf_7820(this_.value)
 		_ = typeByName
 		if typeByName != nil && !typeByName.IsJavaNil_() {
 			result = typeByName
@@ -775,7 +807,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 
 // Java method: RestrictByOneTypeOfResultVisitor.caseBooleanType()
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseBooleanType() any {
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7834("boolean") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7841("boolean") {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
 	} else {
 		return nil
@@ -785,7 +817,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 // Java method: RestrictByOneTypeOfResultVisitor.caseFunctionType(com.google.javascript.rhino.jstype.FunctionType type)
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseFunctionType(type_ *pkg_rhino.FunctionType) any {
 	_ = type_
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7834("function") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7841("function") {
 		return pkg_rhino.ToIface_JSType(type_)
 	} else {
 		return nil
@@ -794,7 +826,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 
 // Java method: RestrictByOneTypeOfResultVisitor.caseNullType()
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseNullType() any {
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7834("object") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7841("object") {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_NULL_TYPE())
 	} else {
 		return nil
@@ -803,7 +835,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 
 // Java method: RestrictByOneTypeOfResultVisitor.caseNumberType()
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseNumberType() any {
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7834("number") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7841("number") {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
 	} else {
 		return nil
@@ -812,7 +844,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 
 // Java method: RestrictByOneTypeOfResultVisitor.caseBigIntType()
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseBigIntType() any {
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7834("bigint") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7841("bigint") {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_BIGINT_TYPE())
 	} else {
 		return nil
@@ -826,17 +858,17 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 		var ctorType pkg_rhino.JSType = this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_FUNCTION_TYPE())
 		_ = ctorType
 		if this_.resultEqualsValue {
-			return ctorType.GetGreatestSubtype(j2gort.AsIface[pkg_rhino.JSType](type_))
+			return ctorType.GetJSTypeBase().GetGreatestSubtype(pkg_rhino.Upcast_JSType(type_))
 		} else {
-			if type_.IsSubtypeOf_1(ctorType) {
+			if type_.GetObjectTypeBase().IsSubtypeOf_1(ctorType) {
 				return nil
 			} else {
-				return j2gort.AsIface[pkg_rhino.JSType](type_)
+				return pkg_rhino.Upcast_JSType(type_)
 			}
 		}
 	}
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7834("object") {
-		return j2gort.AsIface[pkg_rhino.JSType](type_)
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7841("object") {
+		return pkg_rhino.Upcast_JSType(type_)
 	} else {
 		return nil
 	}
@@ -844,7 +876,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 
 // Java method: RestrictByOneTypeOfResultVisitor.caseStringType()
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseStringType() any {
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7834("string") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7841("string") {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
 	} else {
 		return nil
@@ -854,8 +886,8 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 // Java method: RestrictByOneTypeOfResultVisitor.caseSymbolType(com.google.javascript.rhino.jstype.SymbolType type)
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseSymbolType(type_ pkg_rhino.SymbolType) any {
 	_ = type_
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7834("symbol") {
-		return j2gort.AsIface[pkg_rhino.JSType](type_)
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7841("symbol") {
+		return pkg_rhino.Upcast_JSType(type_)
 	} else {
 		return nil
 	}
@@ -863,7 +895,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 
 // Java method: RestrictByOneTypeOfResultVisitor.caseVoidType()
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseVoidType() any {
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7834("undefined") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7841("undefined") {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 	} else {
 		return nil
@@ -920,7 +952,7 @@ func NewChainableReverseAbstractInterpreter__Anon_129(outer_ ChainableReverseAbs
 // Java method: .caseTopType(com.google.javascript.rhino.jstype.JSType topType)
 func (this_ *ChainableReverseAbstractInterpreter__Anon_129) CaseTopType(topType pkg_rhino.JSType) pkg_rhino.JSType {
 	_ = topType
-	if topType.IsAllType() {
+	if topType.GetJSTypeBase().IsAllType() {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE())
 	} else {
 		return topType
@@ -932,7 +964,7 @@ func (this_ *ChainableReverseAbstractInterpreter__Anon_129) CaseObjectType(type_
 	_ = type_
 	var arrayType pkg_rhino.JSType = this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE())
 	_ = arrayType
-	if arrayType.IsSubtypeOf_1(j2gort.AsIface[pkg_rhino.JSType](type_)) {
+	if arrayType.GetJSTypeBase().IsSubtypeOf_1(pkg_rhino.Upcast_JSType(type_)) {
 		return arrayType
 	} else {
 		return nil
@@ -989,9 +1021,9 @@ func NewChainableReverseAbstractInterpreter__Anon_130(outer_ ChainableReverseAbs
 // Java method: .caseObjectType(com.google.javascript.rhino.jstype.ObjectType type)
 func (this_ *ChainableReverseAbstractInterpreter__Anon_130) CaseObjectType(type_ pkg_rhino.ObjectType) any {
 	_ = type_
-	if type_.IsSubtypeOf_1(this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE())) {
+	if type_.GetObjectTypeBase().IsSubtypeOf_1(this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE())) {
 		return nil
 	} else {
-		return j2gort.AsIface[pkg_rhino.JSType](type_)
+		return pkg_rhino.Upcast_JSType(type_)
 	}
 }

@@ -48,6 +48,7 @@ type StaticTypedScope interface {
 	LookupQualifiedName_1_string(string) JSType
 	LookupQualifiedNameNode(Node) JSType
 }
+
 func ToIface_StaticTypedScope[T interface {
 	StaticTypedScope
 	comparable
@@ -59,24 +60,33 @@ func ToIface_StaticTypedScope[T interface {
 	return v
 }
 
+func Upcast_StaticTypedScope[T StaticTypedScope](v T) StaticTypedScope {
+	var vi StaticTypedScope = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.jstype.StaticTypedScope", "com.google.javascript.rhino.jstype.StaticTypedScope", func(v_ any) bool {
 		return j2gort.InstanceOf[StaticTypedScope](v_)
 	})
 }
+
 // Java default interface method: StaticTypedScope.lookupQualifiedName(com.google.javascript.rhino.QualifiedName qname)
 func IfaceDefault_StaticTypedScope_LookupQualifiedName_1_QualifiedName(this_ StaticTypedScope, qname QualifiedName) JSType {
 	_ = this_
 	_ = qname
 	var slot StaticTypedSlot = j2gort.AsIface[StaticTypedSlot](this_.GetSlot(qname.Join_0()))
 	_ = slot
-	if (((slot != nil && !slot.IsJavaNil_()) && !(slot.IsTypeInferred()))) {
+	if (slot != nil && !slot.IsJavaNil_()) && !(slot.IsTypeInferred()) {
 		return slot.GetType()
-	} else if (!(qname.IsSimple())) {
+	} else if !(qname.IsSimple()) {
 		var type_ JSType = this_.LookupQualifiedName_1_QualifiedName(qname.GetOwner())
 		_ = type_
-		if (((type_ != nil && !type_.IsJavaNil_()) && !(type_.IsUnknownType()))) {
-			return type_.FindPropertyType_1_string(qname.GetComponent())
+		if (type_ != nil && !type_.IsJavaNil_()) && !(type_.GetJSTypeBase().IsUnknownType()) {
+			return type_.GetJSTypeBase().FindPropertyType_1_string(qname.GetComponent())
 		}
 	}
 	return nil
@@ -88,16 +98,16 @@ func IfaceDefault_StaticTypedScope_LookupQualifiedName_1_string(this_ StaticType
 	_ = qname
 	var slot StaticTypedSlot = j2gort.AsIface[StaticTypedSlot](this_.GetSlot(qname))
 	_ = slot
-	if (((slot != nil && !slot.IsJavaNil_()) && !(slot.IsTypeInferred()))) {
+	if (slot != nil && !slot.IsJavaNil_()) && !(slot.IsTypeInferred()) {
 		return slot.GetType()
 	}
 	var lastDot int32 = j2gort.JStrLastIndexOfCp(qname, int32(uint16(46)))
 	_ = lastDot
-	if ((lastDot >= int32(0))) {
+	if lastDot >= int32(0) {
 		var type_ JSType = this_.LookupQualifiedName_1_string(j2gort.JStrSub(qname, int32(0), lastDot))
 		_ = type_
-		if (((type_ != nil && !type_.IsJavaNil_()) && !(type_.IsUnknownType()))) {
-			return type_.FindPropertyType_1_string(j2gort.JStrSubFrom(qname, (lastDot + int32(1))))
+		if (type_ != nil && !type_.IsJavaNil_()) && !(type_.GetJSTypeBase().IsUnknownType()) {
+			return type_.GetJSTypeBase().FindPropertyType_1_string(j2gort.JStrSubFrom(qname, (lastDot + int32(1))))
 		}
 	}
 	return nil
@@ -107,15 +117,15 @@ func IfaceDefault_StaticTypedScope_LookupQualifiedName_1_string(this_ StaticType
 func IfaceDefault_StaticTypedScope_LookupQualifiedNameNode(this_ StaticTypedScope, qnameNode Node) JSType {
 	_ = this_
 	_ = qnameNode
-	if (qnameNode.IsName()) {
+	if qnameNode.IsName() {
 		var name string = qnameNode.GetString()
 		_ = name
-		if ((j2gort.CheckNotNullString(name) == "")) {
+		if j2gort.CheckNotNullString(name) == "" {
 			return nil
 		}
 		var slot StaticTypedSlot = j2gort.AsIface[StaticTypedSlot](this_.GetSlot(name))
 		_ = slot
-		if (((slot != nil && !slot.IsJavaNil_()) && !(slot.IsTypeInferred()))) {
+		if (slot != nil && !slot.IsJavaNil_()) && !(slot.IsTypeInferred()) {
 			return slot.GetType()
 		} else {
 			return nil
@@ -123,10 +133,9 @@ func IfaceDefault_StaticTypedScope_LookupQualifiedNameNode(this_ StaticTypedScop
 	}
 	var qname string = qnameNode.GetQualifiedName()
 	_ = qname
-	if (qname != j2gort.NullString) {
+	if qname != j2gort.NullString {
 		return this_.LookupQualifiedName_1_string(qname)
 	} else {
 		return nil
 	}
 }
-

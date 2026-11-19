@@ -39,6 +39,14 @@ func ToIface_Annotatable[T interface {
 	return v
 }
 
+func Upcast_Annotatable[T Annotatable](v T) Annotatable {
+	var vi Annotatable = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.graph.Annotatable", "com.google.javascript.jscomp.graph.Annotatable", func(v_ any) bool {
 		return j2gort.InstanceOf[Annotatable](v_)

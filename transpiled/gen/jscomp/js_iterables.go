@@ -85,13 +85,13 @@ func JsIterables_GetElementType(iterableOrIterator pkg_rhino.JSType, typeRegistr
 	} else if templateTypeMap.HasTemplateKey_1(typeRegistry.GetAsyncIteratorValueTemplate()) {
 		return templateTypeMap.GetResolvedTemplateType(typeRegistry.GetAsyncIteratorValueTemplate())
 	}
-	var nextProperty pkg_rhino.JSType = iterableOrIterator.FindPropertyType_1_string("next")
+	var nextProperty pkg_rhino.JSType = iterableOrIterator.GetJSTypeBase().FindPropertyType_1_string("next")
 	_ = nextProperty
 	if nextProperty != nil && !nextProperty.IsJavaNil_() {
 		var nextFn *pkg_rhino.FunctionType = nextProperty.ToMaybeFunctionType()
 		_ = nextFn
 		if (nextFn != nil) && !(j2gort.IfaceEquals[pkg_rhino.JSType](nextFn.GetReturnType(), nil)) {
-			var valueProperty pkg_rhino.JSType = nextFn.GetReturnType().FindPropertyType_1_string("value")
+			var valueProperty pkg_rhino.JSType = nextFn.GetReturnType().GetJSTypeBase().FindPropertyType_1_string("value")
 			_ = valueProperty
 			if valueProperty != nil && !valueProperty.IsJavaNil_() {
 				return valueProperty
@@ -149,7 +149,8 @@ func JsIterables_MaybeBoxIterableAndPossiblyAsyncIterable(type_ pkg_rhino.JSType
 	_ = includeAsyncIterable
 	var templatedTypes j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList()
 	_ = templatedTypes
-	if type_.IsUnionType() {
+	base_type__ := type_.GetJSTypeBase()
+	if base_type__.IsUnionType() {
 		var union *pkg_rhino.UnionType = type_.ToMaybeUnionType()
 		_ = union
 		{
@@ -160,14 +161,14 @@ func JsIterables_MaybeBoxIterableAndPossiblyAsyncIterable(type_ pkg_rhino.JSType
 			for ; i < n; i = i + 1 {
 				var alt pkg_rhino.JSType = union.GetAlternateAt(i)
 				_ = alt
-				if alt.IsBoxableScalar() {
+				if alt.GetJSTypeBase().IsBoxableScalar() {
 					alt = alt.AutoboxesTo()
 				} else {
 					alt = alt
 				}
-				var isIterable bool = alt.IsSubtypeOf_1(typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ITERABLE_TYPE()))
+				var isIterable bool = alt.GetJSTypeBase().IsSubtypeOf_1(typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ITERABLE_TYPE()))
 				_ = isIterable
-				var isAsyncIterable bool = (includeAsyncIterable && alt.IsSubtypeOf_1(typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ASYNC_ITERABLE_TYPE())))
+				var isAsyncIterable bool = (includeAsyncIterable && alt.GetJSTypeBase().IsSubtypeOf_1(typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ASYNC_ITERABLE_TYPE())))
 				_ = isAsyncIterable
 				if !(isIterable) && !(isAsyncIterable) {
 					return NewJsIterables_MaybeBoxedType(nil, alt)
@@ -185,14 +186,14 @@ func JsIterables_MaybeBoxIterableAndPossiblyAsyncIterable(type_ pkg_rhino.JSType
 	} else {
 		var autoboxedType pkg_rhino.JSType
 		_ = autoboxedType
-		if type_.IsBoxableScalar() {
+		if base_type__.IsBoxableScalar() {
 			autoboxedType = type_.AutoboxesTo()
 		} else {
 			autoboxedType = type_
 		}
-		var isIterable_2 bool = autoboxedType.IsSubtypeOf_1(typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ITERABLE_TYPE()))
+		var isIterable_2 bool = autoboxedType.GetJSTypeBase().IsSubtypeOf_1(typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ITERABLE_TYPE()))
 		_ = isIterable_2
-		var isAsyncIterable_2 bool = (includeAsyncIterable && autoboxedType.IsSubtypeOf_1(typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ASYNC_ITERABLE_TYPE())))
+		var isAsyncIterable_2 bool = (includeAsyncIterable && autoboxedType.GetJSTypeBase().IsSubtypeOf_1(typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ASYNC_ITERABLE_TYPE())))
 		_ = isAsyncIterable_2
 		if !(isIterable_2) && !(isAsyncIterable_2) {
 			return NewJsIterables_MaybeBoxedType(nil, autoboxedType)

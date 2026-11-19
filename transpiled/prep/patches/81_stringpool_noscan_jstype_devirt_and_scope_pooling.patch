@@ -1,0 +1,2627 @@
+diff --git a/com/google/javascript/jscomp/FunctionTypeBuilder.java b/com/google/javascript/jscomp/FunctionTypeBuilder.java
+index 2358057..44ddf80 100644
+--- a/com/google/javascript/jscomp/FunctionTypeBuilder.java
++++ b/com/google/javascript/jscomp/FunctionTypeBuilder.java
+@@ -71,13 +71,18 @@ import org.jspecify.annotations.Nullable;
+  */
+ final class FunctionTypeBuilder {
+ 
+-  private final String fnName;
++  private static final ImmutableList<TemplateType> EMPTY_TEMPLATE_TYPES = ImmutableList.of();
++
++  private String fnName;
+   private final AbstractCompiler compiler;
+   private final CodingConvention codingConvention;
+   private final JSTypeRegistry typeRegistry;
+-  private final Node errorRoot;
++  private Node errorRoot;
++  private final FunctionParamBuilder reusableParamBuilder;
++  private final FunctionType.Builder reusableFnBuilder;
+ 
+-  private FunctionContents contents = UnknownFunctionContents.get();
++  private @Nullable Node contentsSourceNode = null;
++  private boolean contentsHasNonEmptyReturns = false;
+ 
+   private String syntacticFnName;
+   private @Nullable JSType returnType = null;
+@@ -97,8 +102,8 @@ final class FunctionTypeBuilder {
+   private boolean isKnownAmbiguous = false;
+   private Parameter @Nullable [] parameters = null;
+   private @Nullable ClosurePrimitive closurePrimitiveId = null;
+-  private ImmutableList<TemplateType> templateTypeNames = ImmutableList.of();
+-  private ImmutableList<TemplateType> constructorTemplateTypeNames = ImmutableList.of();
++  private ImmutableList<TemplateType> templateTypeNames = EMPTY_TEMPLATE_TYPES;
++  private ImmutableList<TemplateType> constructorTemplateTypeNames = EMPTY_TEMPLATE_TYPES;
+   private @Nullable TypedScope declarationScope = null;
+   private StaticTypedScope templateScope;
+ 
+@@ -260,6 +265,58 @@ final class FunctionTypeBuilder {
+     this.errorRoot = errorRoot;
+     this.compiler = compiler;
+     this.templateScope = scope;
++    this.reusableParamBuilder = new FunctionParamBuilder(this.typeRegistry);
++    this.reusableFnBuilder = FunctionType.builder(this.typeRegistry);
++  }
++
++  void reset(String fnName, Node errorRoot, TypedScope scope) {
++    checkNotNull(errorRoot);
++    this.fnName = nullToEmpty(fnName);
++    this.errorRoot = errorRoot;
++    this.contentsSourceNode = null;
++    this.contentsHasNonEmptyReturns = false;
++    this.syntacticFnName = null;
++    this.returnType = null;
++    this.returnTypeInferred = false;
++    this.implementedInterfaces = null;
++    this.extendedInterfaces = null;
++    this.baseType = null;
++    this.thisType = null;
++    this.isClass = false;
++    this.isConstructor = false;
++    this.makesStructs = false;
++    this.makesUnrestricted = false;
++    this.makesDicts = false;
++    this.isInterface = false;
++    this.isRecord = false;
++    this.isAbstract = false;
++    this.isKnownAmbiguous = false;
++    this.parameters = null;
++    this.closurePrimitiveId = null;
++    this.templateTypeNames = EMPTY_TEMPLATE_TYPES;
++    this.constructorTemplateTypeNames = EMPTY_TEMPLATE_TYPES;
++    this.declarationScope = null;
++    this.templateScope = scope;
++  }
++
++  void clearForPool() {
++    this.fnName = null;
++    this.errorRoot = null;
++    this.contentsSourceNode = null;
++    this.contentsHasNonEmptyReturns = false;
++    this.syntacticFnName = null;
++    this.returnType = null;
++    this.implementedInterfaces = null;
++    this.extendedInterfaces = null;
++    this.baseType = null;
++    this.thisType = null;
++    this.parameters = null;
++    this.closurePrimitiveId = null;
++    this.templateTypeNames = EMPTY_TEMPLATE_TYPES;
++    this.constructorTemplateTypeNames = EMPTY_TEMPLATE_TYPES;
++    this.declarationScope = null;
++    this.templateScope = null;
++    this.reusableParamBuilder.reset();
+   }
+ 
+   /** Format the function name for use in warnings. */
+@@ -274,12 +331,11 @@ final class FunctionTypeBuilder {
+     return this;
+   }
+ 
+-  /** Sets the contents of this function. */
++  /** Sets the AST source node and non-empty return state of this function. */
+   @CanIgnoreReturnValue
+-  FunctionTypeBuilder setContents(@Nullable FunctionContents contents) {
+-    if (contents != null) {
+-      this.contents = contents;
+-    }
++  FunctionTypeBuilder setAstContents(@Nullable Node sourceNode, boolean hasNonEmptyReturns) {
++    this.contentsSourceNode = sourceNode;
++    this.contentsHasNonEmptyReturns = hasNonEmptyReturns;
+     return this;
+   }
+ 
+@@ -318,12 +374,13 @@ final class FunctionTypeBuilder {
+       // Not a function literal.
+       parameters = oldType.getParameterArray();
+       if (parameters == null) {
+-        parameters = new FunctionParamBuilder(typeRegistry).buildArray();
++        parameters = FunctionType.EMPTY_PARAMETERS;
+       }
+     } else {
+       // We're overriding with a function literal. Apply type information
+       // to each parameter of the literal.
+-      FunctionParamBuilder paramBuilder = new FunctionParamBuilder(typeRegistry);
++      FunctionParamBuilder paramBuilder = this.reusableParamBuilder;
++      paramBuilder.reset();
+       Parameter[] oldParams = oldType.getParameterArray();
+       int oldParamsLen = oldParams.length;
+       int oldParamsIdx = 0;
+@@ -641,7 +698,8 @@ final class FunctionTypeBuilder {
+     int oldParamIdx = 0;
+     Parameter oldParameterType = oldParamIdx < oldParamLen ? oldParameters[oldParamIdx++] : null;
+ 
+-    FunctionParamBuilder builder = new FunctionParamBuilder(typeRegistry);
++    FunctionParamBuilder builder = this.reusableParamBuilder;
++    builder.reset();
+     boolean warnedAboutArgList = false;
+     int jsDocParamCount = info == null ? 0 : info.getParameterCount();
+     long matchedJsDocParamsMask = 0L;
+@@ -924,7 +982,7 @@ final class FunctionTypeBuilder {
+       // TODO(sdh): The order of these should be switched to avoid class templates shadowing
+       // method templates, but this currently loosens type checking of arrays more than we'd like.
+       // See http://github.com/google/closure-compiler/issues/2973
+-      registerTemplatesWithOwner(templateTypeNames, ownerTypeMap, contents.getSourceNode());
++      registerTemplatesWithOwner(templateTypeNames, ownerTypeMap, this.contentsSourceNode);
+     }
+ 
+     return this;
+@@ -952,7 +1010,7 @@ final class FunctionTypeBuilder {
+       // Remembering that an optional parameter has been encountered
+       // so that if a non optional param is encountered later, an
+       // error can be reported.
+-      if (!builder.addOptionalParams(paramType) && !warnedAboutArgList) {
++      if (!builder.addOptionalParam(paramType) && !warnedAboutArgList) {
+         reportWarning(VAR_ARGS_MUST_BE_LAST);
+         emittedWarning = true;
+       }
+@@ -962,7 +1020,7 @@ final class FunctionTypeBuilder {
+         emittedWarning = true;
+       }
+     } else {
+-      if (!builder.addRequiredParams(paramType) && !warnedAboutArgList) {
++      if (!builder.addRequiredParam(paramType) && !warnedAboutArgList) {
+         // An optional parameter was seen and this argument is not an optional
+         // or var arg so it is an error.
+         if (builder.hasVarArgs()) {
+@@ -976,9 +1034,15 @@ final class FunctionTypeBuilder {
+     return emittedWarning;
+   }
+ 
++  private static boolean mayHaveSingleThrow(Node n) {
++    Node block = n.getLastChild();
++    return block.hasOneChild() && block.getFirstChild().isThrow();
++  }
++
+   /** Sets the returnType for this function using very basic type inference. */
+   private void provideDefaultReturnType() {
+-    if (contents.getSourceNode() != null && contents.getSourceNode().isAsyncGeneratorFunction()) {
++    Node srcNode = this.contentsSourceNode;
++    if (srcNode != null && srcNode.isAsyncGeneratorFunction()) {
+       // Set the return type of a generator function to:
+       //   @return {!AsyncGenerator<?>}
+       ObjectType generatorType = typeRegistry.getNativeObjectType(ASYNC_GENERATOR_TYPE);
+@@ -986,7 +1050,7 @@ final class FunctionTypeBuilder {
+           typeRegistry.createTemplatizedType(
+               generatorType, typeRegistry.getNativeType(UNKNOWN_TYPE));
+       return;
+-    } else if (contents.getSourceNode() != null && contents.getSourceNode().isGeneratorFunction()) {
++    } else if (srcNode != null && srcNode.isGeneratorFunction()) {
+       // Set the return type of a generator function to:
+       //   @return {!Generator<?>}
+       ObjectType generatorType = typeRegistry.getNativeObjectType(GENERATOR_TYPE);
+@@ -997,9 +1061,10 @@ final class FunctionTypeBuilder {
+     }
+ 
+     JSType inferredReturnType = typeRegistry.getNativeType(UNKNOWN_TYPE);
+-    if (!contents.mayHaveNonEmptyReturns()
+-        && !contents.mayHaveSingleThrow()
+-        && !contents.mayBeFromExterns()) {
++    if (srcNode != null
++        && !this.contentsHasNonEmptyReturns
++        && !mayHaveSingleThrow(srcNode)
++        && !srcNode.isFromExterns()) {
+       // Infer return types for non-generator functions.
+       // We need to be extremely conservative about this, because of two
+       // competing needs.
+@@ -1014,7 +1079,7 @@ final class FunctionTypeBuilder {
+       returnTypeInferred = true;
+     }
+ 
+-    if (contents.getSourceNode() != null && contents.getSourceNode().isAsyncFunction()) {
++    if (srcNode != null && srcNode.isAsyncFunction()) {
+       // Set the return type of an async function:
+       //   @return {!Promise<?>} or @return {!Promise<undefined>}
+       ObjectType promiseType = typeRegistry.getNativeObjectType(PROMISE_TYPE);
+@@ -1077,9 +1142,10 @@ final class FunctionTypeBuilder {
+   }
+ 
+   private FunctionType.Builder createDefaultBuilder() {
+-    return FunctionType.builder(this.typeRegistry)
++    return this.reusableFnBuilder
++        .reset()
+         .withName(this.fnName)
+-        .withSourceNode(this.contents.getSourceNode())
++        .withSourceNode(this.contentsSourceNode)
+         .withTemplateKeys(this.templateTypeNames)
+         .setIsKnownAmbiguous(this.isKnownAmbiguous)
+         .setGoogModuleId(TypedScopeCreator.containingGoogModuleIdOf(this.declarationScope));
+@@ -1128,7 +1194,7 @@ final class FunctionTypeBuilder {
+                 : typeRegistry.getNativeFunctionType(FUNCTION_FUNCTION_TYPE);
+ 
+         if (existingFn.getSource() == null) {
+-          existingFn.setSource(contents.getSourceNode());
++          existingFn.setSource(this.contentsSourceNode);
+         }
+ 
+         if (!existingFn.hasEqualCallType(fnType)) {
+@@ -1165,7 +1231,7 @@ final class FunctionTypeBuilder {
+       FunctionType ctor = type.toMaybeObjectType().getConstructor();
+       if (ctor.isInterface()) {
+         fnType = ctor;
+-        fnType.setSource(contents.getSourceNode());
++        fnType.setSource(this.contentsSourceNode);
+       }
+     }
+ 
+@@ -1224,81 +1290,4 @@ final class FunctionTypeBuilder {
+     }
+     return false;
+   }
+-
+-  /** Holds data dynamically inferred about functions. */
+-  static interface FunctionContents {
+-    /** Returns the source node of this function. May be null. */
+-    Node getSourceNode();
+-
+-    /** Returns if the function may be in externs. */
+-    boolean mayBeFromExterns();
+-
+-    /** Returns if a return of a real value (not undefined) appears. */
+-    boolean mayHaveNonEmptyReturns();
+-
+-    /** Returns if this consists of a single throw. */
+-    boolean mayHaveSingleThrow();
+-  }
+-
+-  static class UnknownFunctionContents implements FunctionContents {
+-    private static final UnknownFunctionContents singleton = new UnknownFunctionContents();
+-
+-    static FunctionContents get() {
+-      return singleton;
+-    }
+-
+-    @Override
+-    public Node getSourceNode() {
+-      return null;
+-    }
+-
+-    @Override
+-    public boolean mayBeFromExterns() {
+-      return true;
+-    }
+-
+-    @Override
+-    public boolean mayHaveNonEmptyReturns() {
+-      return true;
+-    }
+-
+-    @Override
+-    public boolean mayHaveSingleThrow() {
+-      return true;
+-    }
+-  }
+-
+-  static class AstFunctionContents implements FunctionContents {
+-    private final Node n;
+-    private boolean hasNonEmptyReturns = false;
+-
+-    AstFunctionContents(Node n) {
+-      this.n = n;
+-    }
+-
+-    @Override
+-    public Node getSourceNode() {
+-      return n;
+-    }
+-
+-    @Override
+-    public boolean mayBeFromExterns() {
+-      return n.isFromExterns();
+-    }
+-
+-    @Override
+-    public boolean mayHaveNonEmptyReturns() {
+-      return hasNonEmptyReturns;
+-    }
+-
+-    void recordNonEmptyReturn() {
+-      hasNonEmptyReturns = true;
+-    }
+-
+-    @Override
+-    public boolean mayHaveSingleThrow() {
+-      Node block = n.getLastChild();
+-      return block.hasOneChild() && block.getFirstChild().isThrow();
+-    }
+-  }
+ }
+diff --git a/com/google/javascript/jscomp/LinkedFlowScope.java b/com/google/javascript/jscomp/LinkedFlowScope.java
+index fe82f9d..44cd80d 100644
+--- a/com/google/javascript/jscomp/LinkedFlowScope.java
++++ b/com/google/javascript/jscomp/LinkedFlowScope.java
+@@ -458,7 +458,7 @@ final class LinkedFlowScope implements FlowScope {
+         return this;
+       }
+       HamtPMap<TypedScope, OverlayScope> twoScopes =
+-          HamtPMap.singleton(this.singleScopeKey, this.singleScopeVal).plus(targetScope, newScope);
++          HamtPMap.ofTwo(this.singleScopeKey, this.singleScopeVal, targetScope, newScope);
+       return createFlowScope(
+           this.pool,
+           inputProvider,
+@@ -1197,7 +1197,7 @@ final class LinkedFlowScope implements FlowScope {
+       if (s1 == null) {
+         return HamtPMap.singleton(s0.name, s0);
+       }
+-      return HamtPMap.singleton(s0.name, s0).plus(s1.name, s1);
++      return HamtPMap.ofTwo(s0.name, s0, s1.name, s1);
+     }
+ 
+     OverlayScope infer(String name, JSType type, boolean symbolIsQualified) {
+@@ -1232,7 +1232,7 @@ final class LinkedFlowScope implements FlowScope {
+             return createOverlayScope(this.pool, scope, null, nextSlot, s0, nextQual);
+           } else {
+             HamtPMap<String, OverlaySlot> map =
+-                HamtPMap.singleton(s0.name, s0).plus(name, nextSlot);
++                HamtPMap.ofTwo(s0.name, s0, name, nextSlot);
+             return createOverlayScope(this.pool, scope, map, null, null, nextQual);
+           }
+         }
+@@ -1247,7 +1247,7 @@ final class LinkedFlowScope implements FlowScope {
+         OverlaySlot nextSlot = createOverlaySlot(this.pool, name, type);
+         boolean nextQual = this.hasQualifiedSlots || symbolIsQualified;
+         HamtPMap<String, OverlaySlot> map =
+-            HamtPMap.singleton(s0.name, s0).plus(s1.name, s1).plus(name, nextSlot);
++            HamtPMap.ofTwo(s0.name, s0, s1.name, s1).plus(name, nextSlot);
+         return createOverlayScope(this.pool, scope, map, null, null, nextQual);
+       }
+ 
+diff --git a/com/google/javascript/jscomp/Scope.java b/com/google/javascript/jscomp/Scope.java
+index 8bff7b1..23a43e7 100644
+--- a/com/google/javascript/jscomp/Scope.java
++++ b/com/google/javascript/jscomp/Scope.java
+@@ -425,9 +425,143 @@ public final class Scope extends AbstractScope<Scope, Var> {
+     }
+   }
+ 
++  private static final String[] EMPTY_VAR_NAMES = new String[0];
++  private static final String[][] SINGLE_ASCII_VAR_NAMES = new String[128][];
++  private static final String[] SINGLE_EXPORTS = new String[] {"exports"};
++  private static final String[] SINGLE_THIS = new String[] {"this"};
++  private static final String[] SINGLE_ARGUMENTS = new String[] {"arguments"};
++  private static final String[] SINGLE_VALUE = new String[] {"value"};
++  private static final String[] SINGLE_EVENT = new String[] {"event"};
++  private static final String[] SINGLE_ERROR = new String[] {"error"};
++  private static final String[] SINGLE_INDEX = new String[] {"index"};
++  private static final String[] SINGLE_OPTIONS = new String[] {"options"};
++  private static final String[] SINGLE_ELEMENT = new String[] {"element"};
++  private static final String[] SINGLE_RESULT = new String[] {"result"};
++  private static final String[] SINGLE_TARGET = new String[] {"target"};
++  private static final String[] SINGLE_STATE = new String[] {"state"};
++  private static final String[] SINGLE_PROPS = new String[] {"props"};
++  private static final String[] SINGLE_DATA = new String[] {"data"};
++  private static final String[] SINGLE_ITEM = new String[] {"item"};
++  private static final String[] SINGLE_NAME = new String[] {"name"};
++  private static final String[] SINGLE_TYPE = new String[] {"type"};
++  private static final String[] SINGLE_NODE = new String[] {"node"};
++  private static final String[] SINGLE_KEY = new String[] {"key"};
++  private static final String[] SINGLE_VAL = new String[] {"val"};
++  private static final String[] SINGLE_ERR = new String[] {"err"};
++  private static final String[] SINGLE_RES = new String[] {"res"};
++  private static final String[] SINGLE_REQ = new String[] {"req"};
++  private static final String[] SINGLE_CB = new String[] {"cb"};
++  private static final String[] SINGLE_FN = new String[] {"fn"};
++  private static final String[] SINGLE_EL = new String[] {"el"};
++  private static final String[] SINGLE_ID = new String[] {"id"};
++  private static final String[] SINGLE_SELF = new String[] {"self"};
++  private static final String[] SINGLE_THAT = new String[] {"that"};
++  private static final String[] SINGLE_ARGS = new String[] {"args"};
++  private static final String[] PAIR_A_B = new String[] {"a", "b"};
++  private static final String[] PAIR_X_Y = new String[] {"x", "y"};
++  private static final String[] PAIR_I_N = new String[] {"i", "n"};
++  private static final String[] PAIR_K_V = new String[] {"k", "v"};
++  private static final String[] PAIR_E_T = new String[] {"e", "t"};
++  private static final String[] PAIR_T_E = new String[] {"t", "e"};
++  private static final String[] PAIR_KEY_VALUE = new String[] {"key", "value"};
++  private static final String[] PAIR_RESOLVE_REJECT = new String[] {"resolve", "reject"};
++
++  static {
++    for (int c = '0'; c <= '9'; c++) {
++      SINGLE_ASCII_VAR_NAMES[c] = new String[] {String.valueOf((char) c)};
++    }
++    for (int c = 'A'; c <= 'Z'; c++) {
++      SINGLE_ASCII_VAR_NAMES[c] = new String[] {String.valueOf((char) c)};
++    }
++    for (int c = 'a'; c <= 'z'; c++) {
++      SINGLE_ASCII_VAR_NAMES[c] = new String[] {String.valueOf((char) c)};
++    }
++    SINGLE_ASCII_VAR_NAMES['_'] = new String[] {"_"};
++    SINGLE_ASCII_VAR_NAMES['$'] = new String[] {"$"};
++  }
++
++  private static String[] singletonVarNameArray(String name) {
++    int len = name.length();
++    if (len == 1) {
++      char c = name.charAt(0);
++      if (c < 128) {
++        String[] cached = SINGLE_ASCII_VAR_NAMES[c];
++        if (cached != null) {
++          return cached;
++        }
++      }
++      return new String[] {name};
++    }
++    return switch (name) {
++      case "exports" -> SINGLE_EXPORTS;
++      case "this" -> SINGLE_THIS;
++      case "arguments" -> SINGLE_ARGUMENTS;
++      case "value" -> SINGLE_VALUE;
++      case "event" -> SINGLE_EVENT;
++      case "error" -> SINGLE_ERROR;
++      case "index" -> SINGLE_INDEX;
++      case "options" -> SINGLE_OPTIONS;
++      case "element" -> SINGLE_ELEMENT;
++      case "result" -> SINGLE_RESULT;
++      case "target" -> SINGLE_TARGET;
++      case "state" -> SINGLE_STATE;
++      case "props" -> SINGLE_PROPS;
++      case "data" -> SINGLE_DATA;
++      case "item" -> SINGLE_ITEM;
++      case "name" -> SINGLE_NAME;
++      case "type" -> SINGLE_TYPE;
++      case "node" -> SINGLE_NODE;
++      case "key" -> SINGLE_KEY;
++      case "val" -> SINGLE_VAL;
++      case "err" -> SINGLE_ERR;
++      case "res" -> SINGLE_RES;
++      case "req" -> SINGLE_REQ;
++      case "cb" -> SINGLE_CB;
++      case "fn" -> SINGLE_FN;
++      case "el" -> SINGLE_EL;
++      case "id" -> SINGLE_ID;
++      case "self" -> SINGLE_SELF;
++      case "that" -> SINGLE_THAT;
++      case "args" -> SINGLE_ARGS;
++      default -> new String[] {name};
++    };
++  }
++
++  private static String[] pairVarNameArray(String n0, String n1) {
++    if ("a".equals(n0) && "b".equals(n1)) {
++      return PAIR_A_B;
++    }
++    if ("x".equals(n0) && "y".equals(n1)) {
++      return PAIR_X_Y;
++    }
++    if ("i".equals(n0) && "n".equals(n1)) {
++      return PAIR_I_N;
++    }
++    if ("k".equals(n0) && "v".equals(n1)) {
++      return PAIR_K_V;
++    }
++    if ("e".equals(n0) && "t".equals(n1)) {
++      return PAIR_E_T;
++    }
++    if ("t".equals(n0) && "e".equals(n1)) {
++      return PAIR_T_E;
++    }
++    if ("key".equals(n0) && "value".equals(n1)) {
++      return PAIR_KEY_VALUE;
++    }
++    if ("resolve".equals(n0) && "reject".equals(n1)) {
++      return PAIR_RESOLVE_REJECT;
++    }
++    return new String[] {n0, n1};
++  }
++
+   String[] getOwnVarNamesArray() {
+     if (vars != null) {
+-      String[] out = new String[vars.size()];
++      int n = vars.size();
++      if (n == 0) {
++        return EMPTY_VAR_NAMES;
++      }
++      String[] out = new String[n];
+       int i = 0;
+       for (String name : vars.keySet()) {
+         out[i++] = name;
+@@ -435,22 +569,25 @@ public final class Scope extends AbstractScope<Scope, Var> {
+       return out;
+     }
+     int count = getVarCount();
++    if (count == 0) {
++      return EMPTY_VAR_NAMES;
++    }
++    if (count == 1) {
++      return singletonVarNameArray(var0.getName());
++    }
++    if (count == 2) {
++      return pairVarNameArray(var0.getName(), var1.getName());
++    }
+     String[] out = new String[count];
+-    if (count > 0) {
+-      out[0] = var0.getName();
+-      if (count > 1) {
+-        out[1] = var1.getName();
+-        if (count > 2) {
+-          out[2] = var2.getName();
+-          if (count > 3) {
+-            out[3] = var3.getName();
+-            if (count > 4) {
+-              out[4] = var4.getName();
+-              if (count > 5) {
+-                out[5] = var5.getName();
+-              }
+-            }
+-          }
++    out[0] = var0.getName();
++    out[1] = var1.getName();
++    out[2] = var2.getName();
++    if (count > 3) {
++      out[3] = var3.getName();
++      if (count > 4) {
++        out[4] = var4.getName();
++        if (count > 5) {
++          out[5] = var5.getName();
+         }
+       }
+     }
+diff --git a/com/google/javascript/jscomp/TypeCheck.java b/com/google/javascript/jscomp/TypeCheck.java
+index 4f43bd8..3cbb8f1 100644
+--- a/com/google/javascript/jscomp/TypeCheck.java
++++ b/com/google/javascript/jscomp/TypeCheck.java
+@@ -1085,7 +1085,7 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+         child.isStaticMember()
+             ? classType.getPropertyType(propertyName)
+             : classType.getPrototype().getPropertyType(propertyName);
+-    if (!propertyType.equals(officialPropertyType)) {
++    if (!propertyType.equalsJSType(officialPropertyType)) {
+       // TODO(b/116797078): make this not an error - instead, store the getter and setter types
+       // separately
+       report(
+@@ -2250,7 +2250,7 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     final boolean isGetprop = NodeUtil.isNormalOrOptChainGetProp(propNode);
+     final String propName = propNode.getString();
+ 
+-    if (propType.equals(typeRegistry.getNativeType(UNKNOWN_TYPE))) {
++    if (propType.equalsJSType(typeRegistry.getNativeType(UNKNOWN_TYPE))) {
+       childType = childType.autobox();
+       ObjectType objectType = ObjectType.cast(childType);
+       if (objectType != null) {
+@@ -2258,7 +2258,7 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+         // much stricter, and so that we can use hasProperty (which is much
+         // faster in most cases).
+         if (!objectType.hasProperty(propName)
+-            || objectType.equals(typeRegistry.getNativeType(UNKNOWN_TYPE))) {
++            || objectType.equalsJSType(typeRegistry.getNativeType(UNKNOWN_TYPE))) {
+           if (objectType instanceof EnumType) {
+             report(propNode, INEXISTENT_ENUM_ELEMENT, propName);
+           } else {
+@@ -2331,7 +2331,7 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+       boolean strictReport) {
+     final String propName = propNode.getString();
+ 
+-    boolean isObjectType = objectType.equals(getNativeType(OBJECT_TYPE));
++    boolean isObjectType = objectType.equalsJSType(getNativeType(OBJECT_TYPE));
+     boolean lowConfidence = objectType.isUnknownType() || objectType.isAllType() || isObjectType;
+ 
+     boolean isKnownToUnionMember = kind.equals(PropDefinitionKind.LOOSE_UNION);
+@@ -2478,8 +2478,8 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     Node constructor = n.getFirstChild();
+     JSType type = getJSType(constructor).restrictByNotNullOrUndefined();
+     if (!couldBeAConstructor(type)
+-        || type.equals(typeRegistry.getNativeType(SYMBOL_OBJECT_FUNCTION_TYPE))
+-        || type.equals(typeRegistry.getNativeType(BIGINT_OBJECT_FUNCTION_TYPE))) {
++        || type.equalsJSType(typeRegistry.getNativeType(SYMBOL_OBJECT_FUNCTION_TYPE))
++        || type.equalsJSType(typeRegistry.getNativeType(BIGINT_OBJECT_FUNCTION_TYPE))) {
+       report(n, NOT_A_CONSTRUCTOR, type.toString());
+       ensureTyped(n);
+       return;
+@@ -2624,8 +2624,8 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+   /** Checks a constructor, which may be either an ES5-style FUNCTION node, or a CLASS node. */
+   private void checkConstructor(Node n, FunctionType functionType) {
+     FunctionType baseConstructor = functionType.getSuperClassConstructor();
+-    if (!Objects.equals(baseConstructor, getNativeType(OBJECT_FUNCTION_TYPE))
+-        && baseConstructor != null
++    if (baseConstructor != null
++        && !baseConstructor.equalsJSType(getNativeType(OBJECT_FUNCTION_TYPE))
+         && baseConstructor.isInterface()) {
+       // Warn if a class extends an interface.
+       compiler.report(
+@@ -3573,7 +3573,7 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     int altCount = (union != null) ? union.getAlternatesCount() : 1;
+     for (int i = 0; i < altCount; i++) {
+       JSType type = (union != null) ? union.getAlternateAt(i) : lhsType;
+-      if (roArray.equals(type) || roArray.equals(maybeReferencedType(type))) {
++      if (roArray.equalsJSType(type) || roArray.equalsJSType(maybeReferencedType(type))) {
+         compiler.report(JSError.make(lhs, PROPERTY_ASSIGNMENT_TO_READONLY_VALUE, type.toString()));
+         break;
+       }
+diff --git a/com/google/javascript/jscomp/TypeInference.java b/com/google/javascript/jscomp/TypeInference.java
+index c96ba83..0168c44 100644
+--- a/com/google/javascript/jscomp/TypeInference.java
++++ b/com/google/javascript/jscomp/TypeInference.java
+@@ -1895,7 +1895,7 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+       FunctionType fnType = functionType.toMaybeFunctionType();
+       n.setJSType(fnType.getReturnType());
+       backwardsInferenceFromCallSite(n, fnType, scopeAfterChildren);
+-    } else if (functionType.equals(getNativeType(CHECKED_UNKNOWN_TYPE))) {
++    } else if (functionType.equalsJSType(getNativeType(CHECKED_UNKNOWN_TYPE))) {
+       n.setJSType(getNativeType(CHECKED_UNKNOWN_TYPE));
+     } else if (left.getJSType() != null && left.getJSType().isUnknownType()) {
+       // TODO(lharker): do we also want to set this to unknown if the left's type is null? We would
+@@ -2614,7 +2614,7 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+     if (n.isQualifiedName()) {
+       JSType type = getJSType(n);
+       JSType narrowed = type.restrictByNotNullOrUndefined();
+-      if (!type.equals(narrowed)) {
++      if (!type.equalsJSType(narrowed)) {
+         scope = narrowScope(scope, n, narrowed);
+       }
+     }
+@@ -2706,7 +2706,7 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+ 
+     if (propertyType == null) {
+       return unknownType;
+-    } else if (propertyType.equals(unknownType) && isLocallyInferred) {
++    } else if (propertyType.equalsJSType(unknownType) && isLocallyInferred) {
+       // If the type has been checked in this scope,
+       // then use CHECKED_UNKNOWN_TYPE instead to indicate that.
+       return getNativeType(CHECKED_UNKNOWN_TYPE);
+diff --git a/com/google/javascript/jscomp/TypeValidator.java b/com/google/javascript/jscomp/TypeValidator.java
+index 58e34b0..113e15b 100644
+--- a/com/google/javascript/jscomp/TypeValidator.java
++++ b/com/google/javascript/jscomp/TypeValidator.java
+@@ -814,8 +814,8 @@ class TypeValidator implements Serializable {
+     }
+     if (declaredSuper != null
+         && !(superObject instanceof UnknownType)
+-        && !declaredSuper.equals(superObject)) {
+-      if (declaredSuper.equals(getNativeType(OBJECT_TYPE))) {
++        && !declaredSuper.equalsJSType(superObject)) {
++      if (declaredSuper.equalsJSType(getNativeType(OBJECT_TYPE))) {
+         registerMismatchAndReport(
+             superObject,
+             declaredSuper,
+@@ -858,7 +858,7 @@ class TypeValidator implements Serializable {
+       FunctionType registeredSuperCtor = subCtor.getSuperClassConstructor();
+       if (registeredSuperCtor != null) {
+         ObjectType registeredSuperInstance = registeredSuperCtor.getInstanceType();
+-        if (!astSuperInstance.equals(registeredSuperInstance)) {
++        if (!astSuperInstance.equalsJSType(registeredSuperInstance)) {
+           mismatch(
+               n,
+               "mismatch in declaration of superclass type",
+@@ -975,7 +975,7 @@ class TypeValidator implements Serializable {
+         // @suppress tag on this declaration.
+         if (!allowDupe) {
+           // Report specifically if it is not just a duplicate, but types also don't mismatch.
+-          if (!newType.equals(varType)) {
++          if (!newType.equalsJSType(varType)) {
+             this.compiler.report(
+                 JSError.make(
+                     n,
+@@ -1060,7 +1060,7 @@ class TypeValidator implements Serializable {
+               implementedInterface.getReferenceName(),
+               instance.toString()));
+     } else {
+-      boolean local = propSlot.getOwnerInstanceType().equals(instance);
++      boolean local = propSlot.getOwnerInstanceType().equalsJSType(instance);
+       if (!local && instance.getConstructor().isInterface()) {
+         // non-local interface mismatches already handled via interface property conflict checks.
+         return;
+diff --git a/com/google/javascript/jscomp/TypedScope.java b/com/google/javascript/jscomp/TypedScope.java
+index b5f1c7a..c30b36d 100644
+--- a/com/google/javascript/jscomp/TypedScope.java
++++ b/com/google/javascript/jscomp/TypedScope.java
+@@ -67,114 +67,154 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+   /** Whether this is a bottom scope for the purposes of type inference. */
+   private final boolean isBottom;
+ 
+-  private static final class ReservedNames {
+-    private final String @Nullable [] names;
+-    private int remaining;
+-    private @Nullable LinkedHashSet<String> largeSet;
++  static final class Overflow {
++    @Nullable Module module;
++    // Immutable array of reserved names when len <= 32, tracked via active bitmask reservedMask.
++    String @Nullable [] reservedNames;
++    int reservedMask;
++    @Nullable LinkedHashSet<String> reservedLargeSet;
++    @Nullable TypedVar var2;
++    @Nullable TypedVar var3;
++    @Nullable TypedVar var4;
++    @Nullable TypedVar var5;
++    @Nullable LinkedHashMap<String, TypedVar> vars;
++    @Nullable HashSet<String> qualifiedRootNames;
++    int @Nullable [] qualifiedVarHashes;
++    int qualifiedVarHashCount;
+ 
+-    ReservedNames(String[] names) {
++    void initReservedArray(String[] names) {
+       int len = names.length;
+-      if (len <= 8) {
+-        this.names = names;
+-        this.remaining = len;
++      if (len == 0) {
++        return;
++      }
++      if (len <= 32) {
++        this.reservedNames = names;
++        this.reservedMask = len == 32 ? -1 : ((1 << len) - 1);
+       } else {
+-        this.names = null;
+-        this.largeSet = new LinkedHashSet<>(len * 4 / 3 + 1);
++        LinkedHashSet<String> set = new LinkedHashSet<>(len * 4 / 3 + 1);
+         for (int i = 0; i < len; i++) {
+-          this.largeSet.add(names[i]);
++          set.add(names[i]);
+         }
+-        this.remaining = this.largeSet.size();
++        this.reservedLargeSet = set;
++        this.reservedMask = set.size();
+       }
+     }
+ 
+-    ReservedNames(Set<String> set) {
++    void initReservedSet(Set<String> set) {
+       int len = set.size();
+-      if (len <= 8) {
++      if (len == 0) {
++        return;
++      }
++      if (len <= 32) {
+         String[] arr = new String[len];
+         int i = 0;
+         for (String s : set) {
+           arr[i++] = s;
+         }
+-        this.names = arr;
+-        this.remaining = len;
++        this.reservedNames = arr;
++        this.reservedMask = len == 32 ? -1 : ((1 << len) - 1);
+       } else {
+-        this.names = null;
+-        this.largeSet = new LinkedHashSet<>(set);
+-        this.remaining = this.largeSet.size();
++        LinkedHashSet<String> copy = new LinkedHashSet<>(set);
++        this.reservedLargeSet = copy;
++        this.reservedMask = copy.size();
+       }
+     }
+ 
+-    boolean contains(String name) {
+-      if (largeSet != null) {
+-        return largeSet.contains(name);
++    boolean hasReservedNames() {
++      return this.reservedMask != 0;
++    }
++
++    boolean containsReservedName(String name) {
++      if (this.reservedLargeSet != null) {
++        return this.reservedLargeSet.contains(name);
+       }
+-      String[] arr = this.names;
+-      for (int i = 0, len = arr.length; i < len; i++) {
+-        if (name.equals(arr[i])) {
++      int m = this.reservedMask;
++      String[] arr = this.reservedNames;
++      while (m != 0) {
++        int idx = Integer.numberOfTrailingZeros(m);
++        if (name.equals(arr[idx])) {
+           return true;
+         }
++        m &= (m - 1);
+       }
+       return false;
+     }
+ 
+-    boolean removeAndCheckEmpty(String name) {
+-      if (largeSet != null) {
+-        if (largeSet.remove(name)) {
+-          remaining--;
++    boolean removeReservedAndCheckEmpty(String name) {
++      if (this.reservedLargeSet != null) {
++        if (this.reservedLargeSet.remove(name)) {
++          int next = this.reservedMask - 1;
++          this.reservedMask = next;
++          if (next == 0) {
++            this.reservedLargeSet = null;
++            return true;
++          }
+         }
+-        return remaining == 0;
++        return this.reservedMask == 0;
+       }
+-      String[] arr = this.names;
+-      for (int i = 0, len = arr.length; i < len; i++) {
+-        if (name.equals(arr[i])) {
+-          arr[i] = null;
+-          remaining--;
+-          break;
++      int m = this.reservedMask;
++      String[] arr = this.reservedNames;
++      while (m != 0) {
++        int bit = m & -m;
++        int idx = Integer.numberOfTrailingZeros(bit);
++        if (name.equals(arr[idx])) {
++          int next = this.reservedMask & ~bit;
++          this.reservedMask = next;
++          if (next == 0) {
++            this.reservedNames = null;
++            return true;
++          }
++          return false;
+         }
++        m &= ~bit;
+       }
+-      return remaining == 0;
++      return this.reservedMask == 0;
+     }
+ 
+-    boolean isEmpty() {
+-      return remaining == 0;
++    void clearReserved() {
++      this.reservedNames = null;
++      this.reservedMask = 0;
++      this.reservedLargeSet = null;
+     }
+ 
+-    @Override
+-    public String toString() {
+-      if (largeSet != null) {
+-        return largeSet.toString();
++    String reservedToString() {
++      if (this.reservedLargeSet != null) {
++        return this.reservedLargeSet.toString();
+       }
+-      ArrayList<String> left = new ArrayList<>(remaining);
+-      for (String s : names) {
+-        if (s != null) {
+-          left.add(s);
+-        }
++      ArrayList<String> left = new ArrayList<>(Integer.bitCount(this.reservedMask));
++      int m = this.reservedMask;
++      String[] arr = this.reservedNames;
++      while (m != 0) {
++        int idx = Integer.numberOfTrailingZeros(m);
++        left.add(arr[idx]);
++        m &= (m - 1);
+       }
+       return left.toString();
+     }
+-  }
+-
+-  private static final class Overflow {
+-    @Nullable Module module;
+-    // Will shrink over time. Cleared to null once empty.
+-    @Nullable ReservedNames reservedNames;
+-    @Nullable TypedVar var2;
+-    @Nullable TypedVar var3;
+-    @Nullable TypedVar var4;
+-    @Nullable TypedVar var5;
+-    @Nullable LinkedHashMap<String, TypedVar> vars;
+-    @Nullable HashSet<String> qualifiedRootNames;
+-    int @Nullable [] qualifiedVarHashes;
+-    int qualifiedVarHashCount;
+ 
+     boolean isEmpty() {
+       return module == null
+-          && reservedNames == null
++          && reservedMask == 0
+           && var2 == null
+           && vars == null
+           && qualifiedRootNames == null
+           && qualifiedVarHashes == null;
+     }
++
++    void resetForPool() {
++      this.module = null;
++      this.reservedNames = null;
++      this.reservedMask = 0;
++      this.reservedLargeSet = null;
++      this.var2 = null;
++      this.var3 = null;
++      this.var4 = null;
++      this.var5 = null;
++      this.vars = null;
++      this.qualifiedRootNames = null;
++      this.qualifiedVarHashes = null;
++      this.qualifiedVarHashCount = 0;
++    }
+   }
+ 
+   private Overflow ensureOverflow() {
+@@ -186,11 +226,15 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     return o;
+   }
+ 
++  boolean isUsingOverflow(Overflow candidate) {
++    return this.overflow == candidate;
++  }
++
+   // Scope.java contains an arguments field.
+   // We haven't added it here because it's unused by the passes that need typed scopes.
+ 
+   TypedScope(TypedScope parent, Node rootNode) {
+-    this(parent, rootNode, (String[]) null, null);
++    this(parent, rootNode, (String[]) null, null, null);
+   }
+ 
+   /**
+@@ -210,7 +254,7 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     if (hasReserved || module != null) {
+       Overflow o = new Overflow();
+       if (hasReserved) {
+-        o.reservedNames = new ReservedNames(reservedNames);
++        o.initReservedSet(reservedNames);
+       }
+       o.module = module;
+       this.overflow = o;
+@@ -222,6 +266,15 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+       Node rootNode,
+       String @Nullable [] reservedNamesOwned,
+       @Nullable Module module) {
++    this(parent, rootNode, reservedNamesOwned, module, null);
++  }
++
++  TypedScope(
++      TypedScope parent,
++      Node rootNode,
++      String @Nullable [] reservedNamesOwned,
++      @Nullable Module module,
++      @Nullable Overflow reusableOverflow) {
+     super(rootNode);
+     checkChildScope(parent);
+     this.parent = parent;
+@@ -229,9 +282,9 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     this.isBottom = false;
+     boolean hasReserved = reservedNamesOwned != null && reservedNamesOwned.length != 0;
+     if (hasReserved || module != null) {
+-      Overflow o = new Overflow();
++      Overflow o = reusableOverflow != null ? reusableOverflow : new Overflow();
+       if (hasReserved) {
+-        o.reservedNames = new ReservedNames(reservedNamesOwned);
++        o.initReservedArray(reservedNamesOwned);
+       }
+       o.module = module;
+       this.overflow = o;
+@@ -269,13 +322,15 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+   void validateCompletelyBuilt() {
+     Overflow o = this.overflow;
+     if (o != null) {
+-      checkState(
+-          o.reservedNames == null || o.reservedNames.isEmpty(),
+-          "Expected %s to have no reserved names, found: %s. This probably indicates a bug in"
+-              + " TypedScopeCreator where it is failing to declare a variable.",
+-          this,
+-          o.reservedNames);
+-      o.reservedNames = null;
++      if (o.hasReservedNames()) {
++        checkState(
++            false,
++            "Expected %s to have no reserved names, found: %s. This probably indicates a bug in"
++                + " TypedScopeCreator where it is failing to declare a variable.",
++            this,
++            o.reservedToString());
++      }
++      o.clearReserved();
+       if (o.isEmpty()) {
+         this.overflow = null;
+       }
+@@ -334,14 +389,11 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+       JSType type, CompilerInput input, boolean inferred) {
+     checkState(name != null && !name.isEmpty());
+     Overflow o = this.overflow;
+-    if (o != null && o.reservedNames != null) {
++    if (o != null && o.reservedMask != 0) {
+       // (reservedNames only contains simple, non-qualified names; so it's completely normal to
+       // declare qualified names that were not 'reserved')
+-      if (o.reservedNames.removeAndCheckEmpty(name)) {
+-        o.reservedNames = null;
+-        if (o.isEmpty()) {
+-          this.overflow = null;
+-        }
++      if (o.removeReservedAndCheckEmpty(name) && o.isEmpty()) {
++        this.overflow = null;
+       }
+     }
+     TypedVar var = new TypedVar(inferred, name, nameNode, type, this, getVarCount(), input);
+@@ -1044,7 +1096,7 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+   public @Nullable StaticScope getTopmostScopeOfEventualDeclaration(String name) {
+     Overflow o = this.overflow;
+     if (getOwnSlot(name) != null
+-        || (o != null && o.reservedNames != null && o.reservedNames.contains(name))) {
++        || (o != null && o.reservedMask != 0 && o.containsReservedName(name))) {
+       return this;
+     } else if (this.getParent() == null) {
+       return null;
+diff --git a/com/google/javascript/jscomp/TypedScopeCreator.java b/com/google/javascript/jscomp/TypedScopeCreator.java
+index e3ee882..6deeef8 100644
+--- a/com/google/javascript/jscomp/TypedScopeCreator.java
++++ b/com/google/javascript/jscomp/TypedScopeCreator.java
+@@ -62,7 +62,6 @@ import com.google.common.collect.SetMultimap;
+ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+ import com.google.javascript.jscomp.CodingConvention.ObjectLiteralCast;
+ import com.google.javascript.jscomp.CodingConvention.SubclassRelationship;
+-import com.google.javascript.jscomp.FunctionTypeBuilder.AstFunctionContents;
+ import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
+ import com.google.javascript.jscomp.NodeTraversal.AbstractScopedCallback;
+ import com.google.javascript.jscomp.ProcessClosureProvidesAndRequires.ProvidedName;
+@@ -95,6 +94,8 @@ import com.google.javascript.rhino.jstype.TemplateType;
+ import com.google.javascript.rhino.jstype.TemplateTypeMap;
+ import java.util.ArrayList;
+ import java.util.Collection;
++import java.util.HashMap;
++import java.util.HashSet;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+@@ -171,10 +172,59 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+ 
+   // Maps from scope root to declared variable names. Populated by FirstOrderFunctionAnalyzer to
+   // reserve names before the TypedScope is populated.
+-  private LinkedHashMap<Node, String[]> reservedNamesForScope;
++  private HashMap<Node, String[]> reservedNamesForScope;
+ 
+   // Set of functions with non-empty returns, for passing to FunctionTypeBuilder.
+-  private LinkedHashSet<Node> functionsWithNonEmptyReturns = new LinkedHashSet<>();
++  private HashSet<Node> functionsWithNonEmptyReturns = new HashSet<>();
++
++  private final FunctionTypeBuilder[] fnTypeBuilderPool = new FunctionTypeBuilder[8];
++  private int fnTypeBuilderPoolTop = 0;
++  private final TypedScope.Overflow[] overflowPool = new TypedScope.Overflow[16];
++  private int overflowPoolTop = 0;
++
++  private FunctionTypeBuilder acquireFunctionTypeBuilder(
++      String fnName, Node errorRoot, TypedScope scope) {
++    int top = this.fnTypeBuilderPoolTop;
++    if (top > 0) {
++      int nextTop = top - 1;
++      this.fnTypeBuilderPoolTop = nextTop;
++      FunctionTypeBuilder b = this.fnTypeBuilderPool[nextTop];
++      this.fnTypeBuilderPool[nextTop] = null;
++      b.reset(fnName, errorRoot, scope);
++      return b;
++    }
++    return new FunctionTypeBuilder(fnName, this.compiler, errorRoot, scope);
++  }
++
++  private void releaseFunctionTypeBuilder(FunctionTypeBuilder builder) {
++    builder.clearForPool();
++    int top = this.fnTypeBuilderPoolTop;
++    if (top < this.fnTypeBuilderPool.length) {
++      this.fnTypeBuilderPool[top] = builder;
++      this.fnTypeBuilderPoolTop = top + 1;
++    }
++  }
++
++  private TypedScope.Overflow acquireOverflow() {
++    int top = this.overflowPoolTop;
++    if (top > 0) {
++      int nextTop = top - 1;
++      this.overflowPoolTop = nextTop;
++      TypedScope.Overflow o = this.overflowPool[nextTop];
++      this.overflowPool[nextTop] = null;
++      return o;
++    }
++    return new TypedScope.Overflow();
++  }
++
++  private void releaseOverflow(TypedScope.Overflow overflow) {
++    overflow.resetForPool();
++    int top = this.overflowPoolTop;
++    if (top < this.overflowPool.length) {
++      this.overflowPool[top] = overflow;
++      this.overflowPoolTop = top + 1;
++    }
++  }
+   // Unboxed table tracking escaped flag (bit 0) and assignment count (bits 1..31) per (scopeRoot, name).
+   private final ScopedVarStateTable scopedVarStates = new ScopedVarStateTable();
+ 
+@@ -532,6 +582,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     AbstractScopeBuilder scopeBuilder = null;
+ 
+     Module module = ModuleImportResolver.getModuleFromScopeRoot(moduleMap, compiler, root);
++    TypedScope.Overflow pooledOverflow = null;
+     if (typedParent == null) {
+       checkState(root.isRoot(), root);
+       Node externsRoot = root.getFirstChild();
+@@ -565,7 +616,10 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+         reservedNames = withoutReservedExports(reservedNames);
+       }
+ 
+-      newScope = new TypedScope(typedParent, root, reservedNames, module);
++      if ((reservedNames != null && reservedNames.length != 0) || module != null) {
++        pooledOverflow = acquireOverflow();
++      }
++      newScope = new TypedScope(typedParent, root, reservedNames, module, pooledOverflow);
+     }
+ 
+     if (root.isFunction()) {
+@@ -583,7 +637,13 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+         compilerInput.setTypedScope(newScope);
+       }
+     }
+-    scopeBuilder.build();
++    try {
++      scopeBuilder.build();
++    } finally {
++      if (pooledOverflow != null && !newScope.isUsingOverflow(pooledOverflow)) {
++        releaseOverflow(pooledOverflow);
++      }
++    }
+     if (module != null && module.metadata().isEs6Module()) {
+       // Declare an implicit variable representing the namespace of this module, then add a property
+       // for each exported name to that variable's type.
+@@ -605,9 +665,11 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     return newScope;
+   }
+ 
++  private static final String[] EXPORTS_ONLY = new String[] {"exports"};
++
+   private static String[] withReservedExports(String @Nullable [] reservedNames) {
+     if (reservedNames == null || reservedNames.length == 0) {
+-      return new String[] {"exports"};
++      return EXPORTS_ONLY;
+     }
+     for (int i = 0; i < reservedNames.length; i++) {
+       if ("exports".equals(reservedNames[i])) {
+@@ -876,8 +938,16 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+   }
+ 
+   private void clearCommonState() {
+-    this.reservedNamesForScope = new LinkedHashMap<>();
+-    this.functionsWithNonEmptyReturns = new LinkedHashSet<>();
++    this.reservedNamesForScope = new HashMap<>();
++    this.functionsWithNonEmptyReturns = new HashSet<>();
++    for (int i = 0; i < this.fnTypeBuilderPoolTop; i++) {
++      this.fnTypeBuilderPool[i] = null;
++    }
++    this.fnTypeBuilderPoolTop = 0;
++    for (int i = 0; i < this.overflowPoolTop; i++) {
++      this.overflowPool[i] = null;
++    }
++    this.overflowPoolTop = 0;
+     this.scopedVarStates.clear();
+     this.weakImports = new ArrayList<>();
+     this.unresolvedNodes = new ArrayList<>();
+@@ -1767,62 +1837,68 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+         @Nullable Node lvalueNode) {
+       checkArgument(clazz.isClass(), clazz);
+ 
+-      FunctionTypeBuilder builder =
+-          new FunctionTypeBuilder(name, compiler, clazz, currentScope)
+-              .usingClassSyntax()
+-              .setSyntacticFunctionName(syntacticName)
+-              .setContents(new AstFunctionContents(clazz))
+-              .setDeclarationScope(
+-                  lvalueNode != null ? getLValueRootScope(lvalueNode) : currentScope)
+-              .inferKind(info)
+-              .inferTemplateTypeName(info, null);
+-
+-      Node extendsClause = clazz.getSecondChild();
+-
+-      // Look at the extends clause and/or JSDoc info to find a super class.  Use generics from the
+-      // JSDoc to supplement the extends type when available.
+-      ObjectType baseType = findSuperClassFromNodes(extendsClause, info);
+-      builder.inferInheritance(info, baseType);
+-
+-      // Look for an explicit constructor.
+-      Node constructor = NodeUtil.getEs6ClassConstructorMemberFunctionDef(clazz);
+-      if (constructor != null) {
+-        constructor = constructor.getOnlyChild(); // We want the FUNCTION, not the member.
+-      }
+-
+-      if (constructor != null) {
+-        // Note: constructor should have the following structure:
+-        //   MEMBER_FUNCTION_DEF [jsdoc_info]
+-        //     FUNCTION
+-        //       NAME
+-        //       PARAM_LIST ...
+-        //       BLOCK ...
+-        // NodeUtil.getFirstPropMatchingKey returns the FUNCTION node.
+-        JSDocInfo ctorInfo = NodeUtil.getBestJSDocInfo(constructor);
+-        builder.inferConstructorParameters(constructor.getSecondChild(), ctorInfo);
+-      } else if (extendsClause.isEmpty()) {
+-        // No explicit constructor and no superclass: constructor is no-args.
+-        builder.inferImplicitConstructorParameters(FunctionType.EMPTY_PARAMETERS);
+-      } else {
+-        // No explicit constructor, but we have a superclass.  If we know its type, then copy its
+-        // constructor arguments (and templates).  If not, make the constructor arguments unknown.
+-        // TODO(sdh): consider allowing attaching constructor @param annotations somewhere else?
+-        FunctionType extendsCtor = baseType != null ? baseType.getConstructor() : null;
+-        if (extendsCtor != null) {
+-          // Known superclass: copy the parameters node.
+-          builder.inferImplicitConstructorParameters(extendsCtor.getParameterArray());
++      FunctionType classType;
++      Node constructor;
++      FunctionTypeBuilder builder = acquireFunctionTypeBuilder(name, clazz, currentScope);
++      try {
++        builder
++            .usingClassSyntax()
++            .setSyntacticFunctionName(syntacticName)
++            .setAstContents(clazz, false)
++            .setDeclarationScope(
++                lvalueNode != null ? getLValueRootScope(lvalueNode) : currentScope)
++            .inferKind(info)
++            .inferTemplateTypeName(info, null);
++
++        Node extendsClause = clazz.getSecondChild();
++
++        // Look at the extends clause and/or JSDoc info to find a super class.  Use generics from the
++        // JSDoc to supplement the extends type when available.
++        ObjectType baseType = findSuperClassFromNodes(extendsClause, info);
++        builder.inferInheritance(info, baseType);
++
++        // Look for an explicit constructor.
++        constructor = NodeUtil.getEs6ClassConstructorMemberFunctionDef(clazz);
++        if (constructor != null) {
++          constructor = constructor.getOnlyChild(); // We want the FUNCTION, not the member.
++        }
++
++        if (constructor != null) {
++          // Note: constructor should have the following structure:
++          //   MEMBER_FUNCTION_DEF [jsdoc_info]
++          //     FUNCTION
++          //       NAME
++          //       PARAM_LIST ...
++          //       BLOCK ...
++          // NodeUtil.getFirstPropMatchingKey returns the FUNCTION node.
++          JSDocInfo ctorInfo = NodeUtil.getBestJSDocInfo(constructor);
++          builder.inferConstructorParameters(constructor.getSecondChild(), ctorInfo);
++        } else if (extendsClause.isEmpty()) {
++          // No explicit constructor and no superclass: constructor is no-args.
++          builder.inferImplicitConstructorParameters(FunctionType.EMPTY_PARAMETERS);
+         } else {
+-          // Unresolveable extends clause: suppress typechecking.
+-          builder.inferImplicitConstructorParameters(
+-              typeRegistry.getDefaultVarArgsParameterArray());
++          // No explicit constructor, but we have a superclass.  If we know its type, then copy its
++          // constructor arguments (and templates).  If not, make the constructor arguments unknown.
++          // TODO(sdh): consider allowing attaching constructor @param annotations somewhere else?
++          FunctionType extendsCtor = baseType != null ? baseType.getConstructor() : null;
++          if (extendsCtor != null) {
++            // Known superclass: copy the parameters node.
++            builder.inferImplicitConstructorParameters(extendsCtor.getParameterArray());
++          } else {
++            // Unresolveable extends clause: suppress typechecking.
++            builder.inferImplicitConstructorParameters(
++                typeRegistry.getDefaultVarArgsParameterArray());
++          }
+         }
+-      }
+ 
+-      // TODO(sdh): Handle template parameters.  The constructor should store all parameters,
+-      // while the instance type should only have the class-level parameters?
++        // TODO(sdh): Handle template parameters.  The constructor should store all parameters,
++        // while the instance type should only have the class-level parameters?
+ 
+-      // Add the type for the "constructor" property.
+-      FunctionType classType = builder.buildAndRegister();
++        // Add the type for the "constructor" property.
++        classType = builder.buildAndRegister();
++      } finally {
++        releaseFunctionTypeBuilder(builder);
++      }
+       if (classType.isConstructor()) {
+         // NOTE: This logic is similar to the goog.inherits handling in
+         // ClosureCodingConvention#applySubclassRelationship. If this logic is modified
+@@ -2085,59 +2161,63 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+         }
+       }
+ 
+-      AstFunctionContents contents = fnRoot != null ? new AstFunctionContents(fnRoot) : null;
+-      if (functionsWithNonEmptyReturns.contains(fnRoot)) {
+-        contents.recordNonEmptyReturn();
+-      }
++      boolean hasNonEmptyReturns =
++          fnRoot != null && functionsWithNonEmptyReturns.contains(fnRoot);
+ 
+       String bestTypeName = getBestTypeName(lvalueNode, name);
++      FunctionType fnType;
+       FunctionTypeBuilder builder =
+-          new FunctionTypeBuilder(bestTypeName, compiler, errorRoot, currentScope)
+-              .setSyntacticFunctionName(name)
+-              .setContents(contents)
+-              .setDeclarationScope(
+-                  lvalueNode != null ? getLValueRootScope(lvalueNode) : currentScope)
+-              .inferFromOverriddenFunction(overriddenType, parametersNode)
+-              .inferKind(info)
+-              .inferClosurePrimitive(info)
+-              .inferTemplateTypeName(info, prototypeOwner)
+-              .inferInheritance(info, null);
+-
+-      if (info == null || !info.hasReturnType()) {
+-        // when there is no @return annotation, look for inline return type declaration
+-        if (rValue != null && rValue.isFunction() && rValue.hasChildren()) {
+-          JSDocInfo nameDocInfo = rValue.getFirstChild().getJSDocInfo();
+-          builder.inferReturnType(nameDocInfo, true);
++          acquireFunctionTypeBuilder(bestTypeName, errorRoot, currentScope);
++      try {
++        builder
++            .setSyntacticFunctionName(name)
++            .setAstContents(fnRoot, hasNonEmptyReturns)
++            .setDeclarationScope(
++                lvalueNode != null ? getLValueRootScope(lvalueNode) : currentScope)
++            .inferFromOverriddenFunction(overriddenType, parametersNode)
++            .inferKind(info)
++            .inferClosurePrimitive(info)
++            .inferTemplateTypeName(info, prototypeOwner)
++            .inferInheritance(info, null);
++
++        if (info == null || !info.hasReturnType()) {
++          // when there is no @return annotation, look for inline return type declaration
++          if (rValue != null && rValue.isFunction() && rValue.hasChildren()) {
++            JSDocInfo nameDocInfo = rValue.getFirstChild().getJSDocInfo();
++            builder.inferReturnType(nameDocInfo, true);
++          }
++        } else {
++          builder.inferReturnType(info, false);
+         }
+-      } else {
+-        builder.inferReturnType(info, false);
+-      }
+-
+-      // Infer the context type.
+-      JSType fallbackReceiverType = null;
+-      if (ownerType != null
+-          && ownerType.isFunctionPrototypeType()
+-          && ownerType.getOwnerFunction().hasInstanceType()) {
+-        fallbackReceiverType = ownerType.getOwnerFunction().getInstanceType();
+-      } else if (ownerType != null
+-          && ownerType.isFunctionType()
+-          && ownerType.toMaybeFunctionType().hasInstanceType()
+-          && lvalueNode != null
+-          && lvalueNode.isStaticMember()) {
+-        // Limit this case to members of ctors and interfaces decalared using `static`. Most
+-        // namespaces, like object literals, are assumed to declare free functions, so we exclude
+-        // them. Additionally, methods *assigned* to a ctor, especially an ES5 ctor, were never
+-        // designed with static polymorphism in mind, so excluding them preserves their assumptions.
+-        fallbackReceiverType = ownerType;
+-      } else if (ownerNode != null && ownerNode.isThis()) {
+-        fallbackReceiverType = currentScope.getTypeOfThis();
+-      }
+-
+-      FunctionType fnType =
+-          builder
+-              .inferThisType(info, fallbackReceiverType)
+-              .inferParameterTypes(parametersNode, info)
+-              .buildAndRegister();
++
++        // Infer the context type.
++        JSType fallbackReceiverType = null;
++        if (ownerType != null
++            && ownerType.isFunctionPrototypeType()
++            && ownerType.getOwnerFunction().hasInstanceType()) {
++          fallbackReceiverType = ownerType.getOwnerFunction().getInstanceType();
++        } else if (ownerType != null
++            && ownerType.isFunctionType()
++            && ownerType.toMaybeFunctionType().hasInstanceType()
++            && lvalueNode != null
++            && lvalueNode.isStaticMember()) {
++          // Limit this case to members of ctors and interfaces decalared using `static`. Most
++          // namespaces, like object literals, are assumed to declare free functions, so we exclude
++          // them. Additionally, methods *assigned* to a ctor, especially an ES5 ctor, were never
++          // designed with static polymorphism in mind, so excluding them preserves their assumptions.
++          fallbackReceiverType = ownerType;
++        } else if (ownerNode != null && ownerNode.isThis()) {
++          fallbackReceiverType = currentScope.getTypeOfThis();
++        }
++
++        fnType =
++            builder
++                .inferThisType(info, fallbackReceiverType)
++                .inferParameterTypes(parametersNode, info)
++                .buildAndRegister();
++      } finally {
++        releaseFunctionTypeBuilder(builder);
++      }
+ 
+       // Do some additional validation for constructors and interfaces.
+       if (fnType.hasInstanceType() && lvalueNode != null) {
+diff --git a/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java b/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
+index 449271b..74d1573 100644
+--- a/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
++++ b/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
+@@ -195,53 +195,91 @@ final class JSTypeReconserializer {
+     return record.pointer;
+   }
+ 
++  private static final int FORWARD_CANDIDATE_MASK =
++      JSType.KIND_NAMED
++          | JSType.KIND_ENUM_ELEMENT
++          | JSType.KIND_KNOWN_SYMBOL_VALUE
++          | JSType.KIND_TEMPLATIZED
++          | JSType.KIND_FUNCTION
++          | JSType.KIND_PROXY;
++
+   private SeenTypeRecord recordType(JSType type) {
+-    final JSType forwardedType;
+-    if (type.isNamedType()) {
+-      forwardedType = type.toMaybeNamedType().getReferencedType();
+-    } else if (type.isEnumElementType()) {
+-      forwardedType = type.toMaybeEnumElementType().getPrimitiveType();
+-    } else if (type.isKnownSymbolValueType()) {
+-      forwardedType = registry.getNativeType(JSTypeNative.SYMBOL_TYPE);
+-    } else if (type.isTemplatizedType()) {
+-      forwardedType = type.toMaybeTemplatizedType().getReferencedType();
+-    } else if (type.isFunctionType()
+-        && type.toMaybeFunctionType().getCanonicalRepresentation() != null) {
+-      forwardedType = type.toMaybeFunctionType().getCanonicalRepresentation();
+-    } else {
+-      forwardedType = null;
+-    }
+-    if (forwardedType != null) {
+-      return recordType(forwardedType);
+-    }
++    while (true) {
++      int mask = type.getKindMask();
++      if ((mask & FORWARD_CANDIDATE_MASK) != 0) {
++        final JSType forwardedType;
++        if ((mask & JSType.KIND_PROXY) == 0) {
++          if ((mask & JSType.KIND_ENUM_ELEMENT) != 0) {
++            forwardedType = type.toMaybeEnumElementType().getPrimitiveType();
++          } else if ((mask & JSType.KIND_KNOWN_SYMBOL_VALUE) != 0) {
++            forwardedType = registry.getNativeType(JSTypeNative.SYMBOL_TYPE);
++          } else {
++            forwardedType = type.toMaybeFunctionType().getCanonicalRepresentation();
++          }
++        } else if ((mask & JSType.KIND_NAMED) != 0) {
++          forwardedType = type.toMaybeNamedType().getReferencedType();
++        } else if (type.isEnumElementType()) {
++          forwardedType = type.toMaybeEnumElementType().getPrimitiveType();
++        } else if ((mask & JSType.KIND_TEMPLATIZED) != 0 || type.isTemplatizedType()) {
++          forwardedType = type.toMaybeTemplatizedType().getReferencedType();
++        } else if (type.isFunctionType()) {
++          forwardedType = type.toMaybeFunctionType().getCanonicalRepresentation();
++        } else {
++          forwardedType = null;
++        }
++        if (forwardedType != null) {
++          type = forwardedType;
++          continue;
++        }
++      }
+ 
+-    if (type.isUnknownType() || type.isNoResolvedType() || type.isTemplateType()) {
+-      // template types are not serialized because optimizations don't seem to care about them.
+-      // serialize as the UNKNOWN_TYPE because bounded generics are unsupported
+-      return this.unknownRecord;
+-    }
+-    if (type.isFunctionType()
+-        && !type.toMaybeFunctionType().hasInstanceType()
+-        && type.toMaybeFunctionType().getClosurePrimitive() == null) {
+-      // Distinguishing different function types does not matter for optimizations unless they
+-      // are a constructor/interface or have a @closurePrimitive tag associated. Optimization colors
+-      // don't track function parameter/return/template types, and function literals are all
+-      // invalidating types during property disambiguation.
+-      return this.topFunctionRecord;
+-    }
++      if (type.isUnknownType()) {
++        return this.unknownRecord;
++      }
++      if ((mask & JSType.KIND_PROXY) == 0) {
++        if ((mask & JSType.KIND_NO_RESOLVED_TYPE) != 0) {
++          return this.unknownRecord;
++        }
++        if ((mask & JSType.KIND_FUNCTION) != 0) {
++          FunctionType fn = type.toMaybeFunctionType();
++          if (!fn.hasInstanceType() && fn.getClosurePrimitive() == null) {
++            return this.topFunctionRecord;
++          }
++        }
++      } else {
++        if ((mask & JSType.KIND_TEMPLATE) != 0
++            || type.isNoResolvedType()
++            || type.isTemplateType()) {
++          // template types are not serialized because optimizations don't seem to care about them.
++          // serialize as the UNKNOWN_TYPE because bounded generics are unsupported
++          return this.unknownRecord;
++        }
++        if (type.isFunctionType()) {
++          FunctionType fn = type.toMaybeFunctionType();
++          if (!fn.hasInstanceType() && fn.getClosurePrimitive() == null) {
++            return this.topFunctionRecord;
++          }
++        }
++      }
+ 
+-    SeenTypeRecord jstypeRecord = this.typeToRecordCache.get(type);
+-    if (jstypeRecord != null) {
+-      return jstypeRecord;
+-    }
++      SeenTypeRecord jstypeRecord = this.typeToRecordCache.get(type);
++      if (jstypeRecord != null) {
++        return jstypeRecord;
++      }
+ 
+-    if (type.isUnionType()) {
+-      return this.recordUnionType(type.toMaybeUnionType());
+-    } else if (type.isObjectType()) {
+-      return this.recordObjectType(type.toMaybeObjectType());
+-    }
++      if ((mask & JSType.KIND_PROXY) == 0) {
++        if ((mask & JSType.KIND_UNION) != 0) {
++          return this.recordUnionType(type.toMaybeUnionType());
++        }
++      } else if (type.isUnionType()) {
++        return this.recordUnionType(type.toMaybeUnionType());
++      }
++      if (type.isObjectType()) {
++        return this.recordObjectType(type.toMaybeObjectType());
++      }
+ 
+-    throw new AssertionError(type);
++      throw new AssertionError(type);
++    }
+   }
+ 
+   private SeenTypeRecord recordUnionType(UnionType type) {
+diff --git a/com/google/javascript/jscomp/serialization/StringPool.java b/com/google/javascript/jscomp/serialization/StringPool.java
+index 937c56e..7cd11d4 100644
+--- a/com/google/javascript/jscomp/serialization/StringPool.java
++++ b/com/google/javascript/jscomp/serialization/StringPool.java
+@@ -23,7 +23,6 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+ import com.google.javascript.rhino.RhinoStringPool;
+ import com.google.protobuf.ByteString;
+ import java.util.Arrays;
+-import java.util.LinkedHashMap;
+ 
+ /**
+  * Aggregates strings into a {@link StringPool}
+@@ -88,22 +87,38 @@ public final class StringPool {
+   /** Builder */
+   public static final class Builder {
+     private int maxLength = 0;
+-    private String[] pool = new String[32];
+-    private int size = 0;
+-    private final LinkedHashMap<String, Integer> indexByString = new LinkedHashMap<>(1024);
++    private String[] pool;
++    private int size;
++    private long[] table;
+     private boolean built = false;
+ 
+     private Builder() {
+-      this.put("");
++      this.pool = new String[256];
++      this.pool[0] = "";
++      this.size = 1;
++      this.table = new long[2048];
+     }
+ 
+     /** Inserts the given string into the string pool if not present and returns its index */
+     public int put(String string) {
+       checkNotNull(string);
++      if (string.isEmpty()) {
++        return 0;
++      }
+ 
+-      Integer existing = this.indexByString.get(string);
+-      if (existing != null) {
+-        return existing;
++      int hash = RhinoStringPool.fastHash32(string);
++      long[] tbl = this.table;
++      int mask = tbl.length - 1;
++      int slot = hash & mask;
++      long entry;
++      while ((entry = tbl[slot]) != 0L) {
++        if (((int) (entry >>> 32)) == hash) {
++          int idx = ((int) entry) - 1;
++          if (this.pool[idx].equals(string)) {
++            return idx;
++          }
++        }
++        slot = (slot + 1) & mask;
+       }
+ 
+       if (this.built) {
+@@ -112,16 +127,44 @@ public final class StringPool {
+       } else if (this.size == this.pool.length) {
+         this.pool = Arrays.copyOf(this.pool, this.pool.length * 2);
+       }
+-      if (string.length() > this.maxLength) {
+-        this.maxLength = string.length();
++      int len = string.length();
++      if (len > this.maxLength) {
++        this.maxLength = len;
+       }
+       int id = this.size;
+       this.pool[id] = string;
+-      this.size = id + 1;
+-      this.indexByString.put(string, id);
++      int newSize = id + 1;
++      this.size = newSize;
++      if ((newSize << 2) > tbl.length * 3) {
++        tbl = this.rehash(tbl.length << 1);
++        mask = tbl.length - 1;
++        slot = hash & mask;
++        while (tbl[slot] != 0L) {
++          slot = (slot + 1) & mask;
++        }
++      }
++      tbl[slot] = (((long) hash) << 32) | (newSize & 0xFFFFFFFFL);
+       return id;
+     }
+ 
++    private long[] rehash(int newCap) {
++      long[] oldTbl = this.table;
++      long[] newTbl = new long[newCap];
++      int newMask = newCap - 1;
++      for (int i = 0, len = oldTbl.length; i < len; i++) {
++        long entry = oldTbl[i];
++        if (entry != 0L) {
++          int slot = ((int) (entry >>> 32)) & newMask;
++          while (newTbl[slot] != 0L) {
++            slot = (slot + 1) & newMask;
++          }
++          newTbl[slot] = entry;
++        }
++      }
++      this.table = newTbl;
++      return newTbl;
++    }
++
+     @CanIgnoreReturnValue
+     public Builder putAnd(String string) {
+       this.put(string);
+@@ -134,5 +177,5 @@ public final class StringPool {
+     }
+   }
+ 
+-  private static final StringPool EMPTY = builder().build();
++  private static final StringPool EMPTY = new StringPool(0, new String[] {""}, 1);
+ }
+diff --git a/com/google/javascript/rhino/HamtPMap.java b/com/google/javascript/rhino/HamtPMap.java
+index 906affc..95a92bc 100644
+--- a/com/google/javascript/rhino/HamtPMap.java
++++ b/com/google/javascript/rhino/HamtPMap.java
+@@ -222,6 +222,32 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+     return new HamtPMap<>(key, hash(key), value, true, 0, null);
+   }
+ 
++  /**
++   * Returns a map containing {@code (k1, v1)} updated with {@code (k2, v2)}, without allocating an
++   * intermediate singleton map.
++   */
++  @CheckReturnValue
++  public static <K, V> HamtPMap<K, V> ofTwo(K k1, V v1, K k2, V v2) {
++    checkNotNull(v1);
++    checkNotNull(v2);
++    int h1 = hash(k1);
++    int h2 = hash(k2);
++    if (h1 == h2 && k2.equals(k1)) {
++      boolean sameVal = v2.equals(v1);
++      return new HamtPMap<>(sameVal ? k1 : k2, h1, sameVal ? v1 : v2, true, 0, null);
++    }
++    if (compareUnsigned(h2, h1) < 0) {
++      HamtPMap<K, V> child = new HamtPMap<>(k1, shift(h1), v1, true, 0, null);
++      @SuppressWarnings("unchecked")
++      HamtPMap<K, V>[] arr = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[] {child};
++      return new HamtPMap<>(k2, h2, v2, true, 1 << bucket(h1), arr);
++    }
++    HamtPMap<K, V> child = new HamtPMap<>(k2, shift(h2), v2, true, 0, null);
++    @SuppressWarnings("unchecked")
++    HamtPMap<K, V>[] arr = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[] {child};
++    return new HamtPMap<>(k1, h1, v1, true, 1 << bucket(h2), arr);
++  }
++
+   /** Returns whether this map contains exactly one entry. */
+   @CheckReturnValue
+   public boolean isSingleEntry() {
+diff --git a/com/google/javascript/rhino/RhinoStringPool.java b/com/google/javascript/rhino/RhinoStringPool.java
+index 3280432..4a78150 100644
+--- a/com/google/javascript/rhino/RhinoStringPool.java
++++ b/com/google/javascript/rhino/RhinoStringPool.java
+@@ -62,6 +62,11 @@ public final class RhinoStringPool {
+     return checkNotNull(s);
+   }
+ 
++  public static int fastHash32(String s) {
++    int h = s.hashCode();
++    return h == 0 ? 1 : h;
++  }
++
+   private RhinoStringPool() {}
+ 
+   /** Backed by a flat non-null string array for deserialized string pools. */
+diff --git a/com/google/javascript/rhino/jstype/AllType.java b/com/google/javascript/rhino/jstype/AllType.java
+index e0190eb..8ab4a3a 100644
+--- a/com/google/javascript/rhino/jstype/AllType.java
++++ b/com/google/javascript/rhino/jstype/AllType.java
+@@ -48,6 +48,7 @@ import com.google.javascript.rhino.ErrorReporter;
+ public final class AllType extends JSType {
+   AllType(JSTypeRegistry registry) {
+     super(registry, null, KIND_ALL);
++    this.jstypeFlags |= JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
+     this.eagerlyResolveToSelf();
+   }
+ 
+diff --git a/com/google/javascript/rhino/jstype/EnumElementType.java b/com/google/javascript/rhino/jstype/EnumElementType.java
+index 71b1062..31ebc01 100644
+--- a/com/google/javascript/rhino/jstype/EnumElementType.java
++++ b/com/google/javascript/rhino/jstype/EnumElementType.java
+@@ -69,6 +69,7 @@ public final class EnumElementType extends ObjectType {
+   EnumElementType(JSTypeRegistry registry, JSType elementType,
+       String name, EnumType enumType) {
+     super(registry, KIND_ENUM_ELEMENT);
++    this.jstypeFlags |= JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
+     this.primitiveType = elementType;
+     this.primitiveObjectType = elementType.toObjectType();
+     this.name = name;
+diff --git a/com/google/javascript/rhino/jstype/EqualityChecker.java b/com/google/javascript/rhino/jstype/EqualityChecker.java
+index 8a626d5..1ba233d 100644
+--- a/com/google/javascript/rhino/jstype/EqualityChecker.java
++++ b/com/google/javascript/rhino/jstype/EqualityChecker.java
+@@ -131,26 +131,19 @@ final class EqualityChecker {
+     this.hasRun = true;
+   }
+ 
+-  private static boolean isWildcardOrProxyOrUnion(JSTypeClass c) {
+-    return switch (c) {
+-      case PROXY_OBJECT, NAMED, TEMPLATIZED, TEMPLATE, UNION -> true;
+-      default -> false;
+-    };
+-  }
+-
+   private static boolean canNonIdenticalTypesEqual(JSType left, JSType right) {
+-    JSTypeClass lc = left.getTypeClass();
+-    JSTypeClass rc = right.getTypeClass();
+-    if (isWildcardOrProxyOrUnion(lc) || isWildcardOrProxyOrUnion(rc)) {
++    int lm = left.typeKindMask;
++    int rm = right.typeKindMask;
++    if (((lm | rm) & (JSType.KIND_PROXY | JSType.KIND_UNION)) != 0) {
+       return true;
+     }
++    JSTypeClass lc = left.fastTypeClass();
++    JSTypeClass rc = right.fastTypeClass();
+     return switch (lc) {
+       case NO_RESOLVED -> rc == JSTypeClass.NO_RESOLVED;
+       case RECORD -> rc == JSTypeClass.RECORD;
+       case FUNCTION ->
+-          rc == JSTypeClass.FUNCTION
+-              && ((FunctionType) left).getKind() == FunctionType.Kind.ORDINARY
+-              && ((FunctionType) right).getKind() == FunctionType.Kind.ORDINARY;
++          ((lm & rm) & JSType.KIND_ORDINARY_FUNCTION) != 0 && rc == JSTypeClass.FUNCTION;
+       case INSTANCE_OBJECT, ENUM_ELEMENT ->
+           (rc == JSTypeClass.INSTANCE_OBJECT || rc == JSTypeClass.ENUM_ELEMENT)
+               && (!left.isResolved() || !right.isResolved());
+diff --git a/com/google/javascript/rhino/jstype/FunctionParamBuilder.java b/com/google/javascript/rhino/jstype/FunctionParamBuilder.java
+index 64ed265..efd9366 100644
+--- a/com/google/javascript/rhino/jstype/FunctionParamBuilder.java
++++ b/com/google/javascript/rhino/jstype/FunctionParamBuilder.java
+@@ -52,17 +52,39 @@ public final class FunctionParamBuilder {
+   private final JSTypeRegistry registry;
+   private @Nullable ArrayList<Parameter> parameters;
+   private final int initialCapacity;
++  private int pureUnknownRequiredCount;
+ 
+   public FunctionParamBuilder(JSTypeRegistry registry) {
+     this.registry = registry;
+     this.parameters = null;
+     this.initialCapacity = 4;
++    this.pureUnknownRequiredCount = 0;
+   }
+ 
+   public FunctionParamBuilder(JSTypeRegistry registry, int initialParameterCapacity) {
+     this.registry = registry;
+     this.parameters = null;
+     this.initialCapacity = initialParameterCapacity;
++    this.pureUnknownRequiredCount = 0;
++  }
++
++  public void reset() {
++    this.pureUnknownRequiredCount = 0;
++    if (this.parameters != null) {
++      this.parameters.clear();
++    }
++  }
++
++  private void flushPureUnknownRequired() {
++    int count = this.pureUnknownRequiredCount;
++    if (count > 0) {
++      this.pureUnknownRequiredCount = 0;
++      ArrayList<Parameter> list = ensureParameters();
++      Parameter p = this.registry.getUnknownRequiredParameter();
++      for (int i = 0; i < count; i++) {
++        list.add(p);
++      }
++    }
+   }
+ 
+   private ArrayList<Parameter> ensureParameters() {
+@@ -74,6 +96,24 @@ public final class FunctionParamBuilder {
+     return list;
+   }
+ 
++  public boolean addRequiredParam(JSType type) {
++    ArrayList<Parameter> list = this.parameters;
++    if (list == null || list.isEmpty()) {
++      if (type == this.registry.getNativeType(JSTypeNative.UNKNOWN_TYPE)) {
++        this.pureUnknownRequiredCount++;
++        return true;
++      }
++      flushPureUnknownRequired();
++      newParameter(type, /* isOptional= */ false, /* isVariadic= */ false);
++      return true;
++    }
++    if (hasOptionalOrVarArgs()) {
++      return false;
++    }
++    newParameter(type, /* isOptional= */ false, /* isVariadic= */ false);
++    return true;
++  }
++
+   /**
+    * Add parameters of the given type to the end of the param list.
+    * @return False if this is called after optional params are added.
+@@ -84,8 +124,18 @@ public final class FunctionParamBuilder {
+     }
+ 
+     for (JSType type : types) {
+-      newParameter(type, /* isOptional= */ false, /* isVariadic= */ false);
++      addRequiredParam(type);
++    }
++    return true;
++  }
++
++  public boolean addOptionalParam(JSType type) {
++    if (hasVarArgs()) {
++      return false;
+     }
++    flushPureUnknownRequired();
++    newParameter(
++        registry.createOptionalType(type), /* isOptional= */ true, /* isVariadic= */ false);
+     return true;
+   }
+ 
+@@ -99,7 +149,7 @@ public final class FunctionParamBuilder {
+     if (hasVarArgs()) {
+       return false;
+     }
+-
++    flushPureUnknownRequired();
+     for (JSType type : types) {
+       newParameter(
+           registry.createOptionalType(type), /* isOptional= */ true, /* isVariadic= */ false);
+@@ -115,33 +165,41 @@ public final class FunctionParamBuilder {
+     if (hasVarArgs()) {
+       return false;
+     }
+-
++    flushPureUnknownRequired();
+     newParameter(type, /* isOptional= */ false, /* isVariadic= */ true);
+     return true;
+   }
+ 
+   /** Copies the existing parameter into this builder */
+   public void newParameterFrom(Parameter n) {
++    flushPureUnknownRequired();
+     ensureParameters().add(n);
+   }
+ 
+   /** Copies the parameter specification from the given parameter, but makes sure it's optional. */
+   public void newOptionalParameterFrom(Parameter p) {
++    flushPureUnknownRequired();
+     boolean isOptional = p.isOptional() || !p.isVariadic();
+     if (isOptional != p.isOptional()) {
+       newParameter(p.getJSType(), isOptional, p.isVariadic());
+     } else {
+-      newParameterFrom(p);
++      ensureParameters().add(p);
+     }
+   }
+ 
+   /** Adds a parameter with the given type */
+   private void newParameter(JSType type, boolean isOptional, boolean isVariadic) {
+-    Parameter parameter = Parameter.create(type, isOptional, isVariadic);
++    Parameter parameter =
++        (!isOptional && !isVariadic && type == registry.getNativeType(JSTypeNative.UNKNOWN_TYPE))
++            ? registry.getUnknownRequiredParameter()
++            : Parameter.create(type, isOptional, isVariadic);
+     ensureParameters().add(parameter);
+   }
+ 
+   private boolean hasOptionalOrVarArgs() {
++    if (this.pureUnknownRequiredCount > 0) {
++      return false;
++    }
+     ArrayList<Parameter> list = this.parameters;
+     if (list == null || list.isEmpty()) {
+       return false;
+@@ -151,11 +209,17 @@ public final class FunctionParamBuilder {
+   }
+ 
+   public boolean hasVarArgs() {
++    if (this.pureUnknownRequiredCount > 0) {
++      return false;
++    }
+     ArrayList<Parameter> list = this.parameters;
+     return list != null && !list.isEmpty() && list.get(list.size() - 1).isVariadic();
+   }
+ 
+   public Parameter[] buildArray() {
++    if (this.pureUnknownRequiredCount > 0) {
++      return this.registry.getUnknownRequiredParameterArray(this.pureUnknownRequiredCount);
++    }
+     ArrayList<Parameter> list = this.parameters;
+     if (list == null || list.isEmpty()) {
+       return FunctionType.EMPTY_PARAMETERS;
+@@ -169,6 +233,7 @@ public final class FunctionParamBuilder {
+   }
+ 
+   public ImmutableList<Parameter> build() {
++    flushPureUnknownRequired();
+     ArrayList<Parameter> list = this.parameters;
+     return (list == null || list.isEmpty())
+         ? EMPTY_PARAMETER_LIST
+diff --git a/com/google/javascript/rhino/jstype/FunctionType.java b/com/google/javascript/rhino/jstype/FunctionType.java
+index be0d664..a364937 100644
+--- a/com/google/javascript/rhino/jstype/FunctionType.java
++++ b/com/google/javascript/rhino/jstype/FunctionType.java
+@@ -663,7 +663,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     //
+     // In the second case, we just use the anonymous object as the prototype.
+     if (baseType.hasReferenceName() || isNativeObjectType() || baseType.isFunctionPrototypeType()) {
+-      if (getPrototypeSlot() != null && hasInstanceType() && baseType.equals(getInstanceType())) {
++      if (getPrototypeSlot() != null && hasInstanceType() && baseType.equalsJSType(getInstanceType())) {
+         // Bail out for cases like Foo.prototype = new Foo();
+         return;
+       }
+@@ -973,7 +973,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+       ObjectType objType = type.toObjectType();
+       if (objType != null) {
+         Property slot = getPrototypeSlot();
+-        if (slot != null && objType.equals(slot.getType())) {
++        if (slot != null && objType.equalsJSType(slot.getType())) {
+           return true;
+         }
+         setPrototypeBasedOn(objType, propertyNode);
+@@ -994,7 +994,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+       ObjectType objType = type.toObjectType();
+       if (objType != null) {
+         Property slot = getPrototypeSlot();
+-        if (slot != null && objType.equals(slot.getType())) {
++        if (slot != null && objType.equalsJSType(slot.getType())) {
+           return true;
+         }
+         setPrototypeBasedOn(objType, propertyNode);
+@@ -1034,7 +1034,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     // inf(A, B) is always the bottom function type.
+     checkNotNull(that);
+ 
+-    if (equals(that)) {
++    if (equalsJSType(that)) {
+       return this;
+     }
+ 
+@@ -1067,9 +1067,9 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     // The function instance type is a special case
+     // that lives above the rest of the lattice.
+     JSType functionInstance = registry.getNativeType(JSTypeNative.FUNCTION_TYPE);
+-    if (functionInstance.equals(that)) {
++    if (functionInstance.equalsJSType(that)) {
+       return leastSuper ? that : this;
+-    } else if (functionInstance.equals(this)) {
++    } else if (functionInstance.equalsJSType(this)) {
+       return leastSuper ? this : that;
+     }
+ 
+@@ -1111,7 +1111,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+             : returnType.getGreatestSubtype(other.returnType);
+ 
+     JSType newTypeOfThis = null;
+-    if (Objects.equals(typeOfThis, other.typeOfThis)) {
++    if (typeOfThis == null ? other.typeOfThis == null : typeOfThis.equalsJSType(other.typeOfThis)) {
+       newTypeOfThis = typeOfThis;
+     } else {
+       JSType maybeNewTypeOfThis =
+@@ -1752,6 +1752,29 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+           checkNotNull(registry.getNativeObjectType(JSTypeNative.FUNCTION_PROTOTYPE)));
+     }
+ 
++    public Builder reset() {
++      this.resetBase();
++      this.setImplicitPrototype(
++          checkNotNull(this.registry.getNativeObjectType(JSTypeNative.FUNCTION_PROTOTYPE)));
++      this.sourceNode = null;
++      this.googModuleId = null;
++      this.parameters = null;
++      this.parameterArray = null;
++      this.returnType = null;
++      this.typeOfThis = null;
++      this.setPrototypeBasedOn = null;
++      this.constructorOnlyKeys = EMPTY_CTOR_KEYS;
++      this.kind = Kind.ORDINARY;
++      this.isAbstract = false;
++      this.isKnownAmbiguous = false;
++      this.returnTypeIsInferred = false;
++      this.returnsOwnInstanceType = false;
++      this.noTypeKind = NO_KIND_NORMAL;
++      this.primitiveId = null;
++      this.canonicalRepresentation = null;
++      return this;
++    }
++
+     /** Set the name of the function type. */
+     public Builder withName(String name) {
+       return setName(name);
+@@ -2030,7 +2053,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+         return true;
+       }
+       if (o instanceof Parameter that) {
+-        return this.jsType.equals(that.jsType)
++        return this.jsType.equalsJSType(that.jsType)
+             && this.optional == that.optional
+             && this.variadic == that.variadic;
+       }
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index c213553..3fdfcb3 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -91,10 +91,10 @@ public abstract class JSType {
+ 
+   private static final CanCastToVisitor CAN_CAST_TO_VISITOR = new CanCastToVisitor();
+ 
+-  static final int KIND_PROXY = 1 << 0;
++  public static final int KIND_PROXY = 1 << 0;
+   static final int KIND_NO_TYPE = 1 << 1;
+   static final int KIND_NO_OBJECT_TYPE = 1 << 2;
+-  static final int KIND_NO_RESOLVED_TYPE = 1 << 3;
++  public static final int KIND_NO_RESOLVED_TYPE = 1 << 3;
+   static final int KIND_ALL = 1 << 4;
+   static final int KIND_CHECKED_UNKNOWN = 1 << 5;
+   public static final int KIND_UNION = 1 << 6;
+@@ -112,7 +112,7 @@ public abstract class JSType {
+   static final int KIND_VOID = 1 << 18;
+   static final int KIND_BIGINT_VALUE = 1 << 19;
+   static final int KIND_SYMBOL_VALUE = 1 << 20;
+-  static final int KIND_KNOWN_SYMBOL_VALUE = 1 << 21;
++  public static final int KIND_KNOWN_SYMBOL_VALUE = 1 << 21;
+   static final int KIND_CONSTRUCTOR = 1 << 22;
+   static final int KIND_INTERFACE = 1 << 23;
+   static final int KIND_ORDINARY_FUNCTION = 1 << 24;
+@@ -160,6 +160,10 @@ public abstract class JSType {
+     return TYPE_CLASSES[this.typeKindMask >> TYPE_CLASS_SHIFT];
+   }
+ 
++  public final int getKindMask() {
++    return this.typeKindMask;
++  }
++
+   public final int getWellFormedTemplatizedKind() {
+     return this.typeKindMask & WELL_FORMED_TEMPLATIZED_ACTIVE_MASK;
+   }
+@@ -445,7 +449,14 @@ public abstract class JSType {
+     return (m & KIND_ALL) != 0 || hasKindMaskProxy(KIND_ALL);
+   }
+ 
+-  public boolean isUnknownType() {
++  public final boolean isUnknownType() {
++    if ((this.jstypeFlags & JSTYPE_FLAG_OBJ_NOT_UNKNOWN) != 0) {
++      return false;
++    }
++    return this.isUnknownTypeSlow();
++  }
++
++  boolean isUnknownTypeSlow() {
+     return false;
+   }
+ 
+@@ -891,6 +902,16 @@ public abstract class JSType {
+         && EqualityChecker.check(EqMethod.IDENTITY, this, jSType);
+   }
+ 
++  public final boolean equalsJSType(@Nullable JSType that) {
++    if (this == that) {
++      return true;
++    }
++    if (that == null) {
++      return false;
++    }
++    return EqualityChecker.check(EqMethod.IDENTITY, this, that);
++  }
++
+   /**
+    * Whether this type is meaningfully different from {@code that} type for the purposes of data
+    * flow analysis.
+@@ -1305,7 +1326,7 @@ public abstract class JSType {
+    */
+   @SuppressWarnings("AmbiguousMethodReference")
+   static JSType getLeastSupertype(JSType thisType, JSType thatType) {
+-    boolean areEquivalent = thisType.equals(thatType);
++    boolean areEquivalent = thisType.equalsJSType(thatType);
+     return areEquivalent ? thisType : thisType.registry.createUnionType(thisType, thatType);
+   }
+ 
+@@ -1341,7 +1362,7 @@ public abstract class JSType {
+       // does not hold because of unknown parameters and return types.
+       // See the comment in supAndInfHelper for more info on this.
+       return thisType.toMaybeFunctionType().supAndInfHelper(thatType.toMaybeFunctionType(), false);
+-    } else if (thisType.equals(thatType)) {
++    } else if (thisType.equalsJSType(thatType)) {
+       return thisType;
+     } else if (thisType.isUnknownType()) {
+       // Handle unknowns by returning the tightest type possible:
+diff --git a/com/google/javascript/rhino/jstype/JSTypeRegistry.java b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+index 872f3bc..d6f64ff 100644
+--- a/com/google/javascript/rhino/jstype/JSTypeRegistry.java
++++ b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+@@ -213,6 +213,8 @@ public final class JSTypeRegistry {
+   // CPU time on bounds checking inside get().
+   private final JSType[] nativeTypes;
+   private FunctionType.Parameter @Nullable [] defaultVarArgsParameterArray;
++  private FunctionType.@Nullable Parameter unknownRequiredParameter;
++  private FunctionType.Parameter @Nullable [][] unknownRequiredParameterArrays;
+ 
+   private static final class ScopedNameTable {
+     private Node @Nullable [] keyNodes;
+@@ -2424,6 +2426,46 @@ public final class JSTypeRegistry {
+     return cached;
+   }
+ 
++  public FunctionType.Parameter getUnknownRequiredParameter() {
++    FunctionType.Parameter p = this.unknownRequiredParameter;
++    if (p == null) {
++      p =
++          FunctionType.Parameter.create(
++              getNativeType(JSTypeNative.UNKNOWN_TYPE),
++              /* isOptional= */ false,
++              /* isVariadic= */ false);
++      this.unknownRequiredParameter = p;
++    }
++    return p;
++  }
++
++  public FunctionType.Parameter[] getUnknownRequiredParameterArray(int count) {
++    if (count == 0) {
++      return FunctionType.EMPTY_PARAMETERS;
++    }
++    FunctionType.Parameter p = getUnknownRequiredParameter();
++    if (count <= 4) {
++      FunctionType.Parameter[][] table = this.unknownRequiredParameterArrays;
++      if (table == null) {
++        table =
++            new FunctionType.Parameter[][] {
++              FunctionType.EMPTY_PARAMETERS,
++              new FunctionType.Parameter[] {p},
++              new FunctionType.Parameter[] {p, p},
++              new FunctionType.Parameter[] {p, p, p},
++              new FunctionType.Parameter[] {p, p, p, p}
++            };
++        this.unknownRequiredParameterArrays = table;
++      }
++      return table[count];
++    }
++    FunctionType.Parameter[] arr = new FunctionType.Parameter[count];
++    for (int i = 0; i < count; i++) {
++      arr[i] = p;
++    }
++    return arr;
++  }
++
+   public ImmutableList<FunctionType.Parameter> createParametersWithVarArgs(
+       JSType... parameterTypes) {
+     return createParameters(/* lastVarArgs= */ true, parameterTypes);
+diff --git a/com/google/javascript/rhino/jstype/JSTypeResolver.java b/com/google/javascript/rhino/jstype/JSTypeResolver.java
+index 726fd6b..c454b58 100644
+--- a/com/google/javascript/rhino/jstype/JSTypeResolver.java
++++ b/com/google/javascript/rhino/jstype/JSTypeResolver.java
+@@ -180,8 +180,6 @@ public final class JSTypeResolver {
+     // resolutionQueue scales with the size of the application, so it needs to be GC'd.
+     this.resolutionQueue = new ArrayDeque<>();
+ 
+-    this.state = State.CLOSED;
+-
+     // TODO(sdh): Stop doing this here. It's obviously the wrong place.
+     // By default, the global "this" type is just an anonymous object.
+     // If the user has defined a Window type, make the Window the
+@@ -198,6 +196,12 @@ public final class JSTypeResolver {
+             this.registry.getNativeObjectType(JSTypeNative.OBJECT_TYPE));
+       }
+     }
++
++    this.state = State.CLOSED;
++  }
++
++  boolean isClosed() {
++    return this.state == State.CLOSED;
+   }
+ 
+   private void doResolve(JSType type) {
+diff --git a/com/google/javascript/rhino/jstype/NoResolvedType.java b/com/google/javascript/rhino/jstype/NoResolvedType.java
+index 5a85dda..15e344f 100644
+--- a/com/google/javascript/rhino/jstype/NoResolvedType.java
++++ b/com/google/javascript/rhino/jstype/NoResolvedType.java
+@@ -80,6 +80,7 @@ public final class NoResolvedType extends ObjectType {
+   NoResolvedType(
+       JSTypeRegistry registry, String referenceName, ImmutableList<JSType> templateTypes) {
+     super(registry, KIND_NO_RESOLVED_TYPE);
++    this.jstypeFlags |= JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
+     this.referenceName = checkNotNull(referenceName);
+     this.templateTypes = templateTypes;
+     this.eagerlyResolveToSelf();
+diff --git a/com/google/javascript/rhino/jstype/ObjectType.java b/com/google/javascript/rhino/jstype/ObjectType.java
+index 96cff5e..192b98d 100644
+--- a/com/google/javascript/rhino/jstype/ObjectType.java
++++ b/com/google/javascript/rhino/jstype/ObjectType.java
+@@ -924,7 +924,7 @@ public abstract class ObjectType extends JSType {
+    * <p>{@code this} need not be the immediate prototype of {@code other}.
+    */
+   final boolean isImplicitPrototypeOf(ObjectType other) {
+-    ObjectType unwrappedThis = deeplyUnwrap(this);
++    ObjectType unwrappedThis = (this.typeKindMask & KIND_PROXY) == 0 ? this : deeplyUnwrap(this);
+ 
+     for (other = deeplyUnwrap(other);
+         other != null;
+@@ -948,8 +948,11 @@ public abstract class ObjectType extends JSType {
+    * <p>Guaranteed to return a non-proxy type (exception: will return an unresolved NamedType).
+    */
+   static ObjectType deeplyUnwrap(ObjectType original) {
++    if (original == null || (original.typeKindMask & KIND_PROXY) == 0) {
++      return original;
++    }
+     ObjectType current = original;
+-    while (current instanceof ProxyObjectType) {
++    while (current != null && (current.typeKindMask & KIND_PROXY) != 0) {
+       if (current.isTemplatizedType()) {
+         current = current.toMaybeTemplatizedType().getReferencedType();
+       } else if (current.isNamedType()) {
+@@ -976,7 +979,7 @@ public abstract class ObjectType extends JSType {
+    * properties is unknown.
+    */
+   @Override
+-  public boolean isUnknownType() {
++  boolean isUnknownTypeSlow() {
+     // If the object is unknown now, check the supertype again,
+     // because it might have been resolved since the last check.
+     if ((this.jstypeFlags & JSTYPE_FLAG_OBJ_NOT_UNKNOWN) == 0) {
+diff --git a/com/google/javascript/rhino/jstype/PrototypeObjectType.java b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+index ff69aa9..7b28ac9 100644
+--- a/com/google/javascript/rhino/jstype/PrototypeObjectType.java
++++ b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+@@ -231,6 +231,15 @@ public class PrototypeObjectType extends ObjectType {
+     PrototypeObjectType build() {
+       return new PrototypeObjectType(this);
+     }
++
++    final void resetBase() {
++      this.className = null;
++      this.implicitPrototype = null;
++      this.nativeType = false;
++      this.anonymousType = false;
++      this.templateTypeMap = this.registry.getEmptyTemplateTypeMap();
++      this.templateParamCount = 0;
++    }
+   }
+ 
+   static Builder<?> builder(JSTypeRegistry registry) {
+diff --git a/com/google/javascript/rhino/jstype/ProxyObjectType.java b/com/google/javascript/rhino/jstype/ProxyObjectType.java
+index d579b30..7fb422f 100644
+--- a/com/google/javascript/rhino/jstype/ProxyObjectType.java
++++ b/com/google/javascript/rhino/jstype/ProxyObjectType.java
+@@ -119,6 +119,14 @@ public class ProxyObjectType extends ObjectType {
+   final void setReferencedType(JSType referencedType) {
+     checkNotNull(referencedType);
+     this.referencedType = referencedType;
++    JSTypeResolver resolver = this.registry.getResolver();
++    if ((referencedType.jstypeFlags & JSTYPE_FLAG_OBJ_NOT_UNKNOWN) != 0
++        && resolver != null
++        && resolver.isClosed()) {
++      this.jstypeFlags |= JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
++    } else {
++      this.jstypeFlags &= ~JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
++    }
+     if (referencedType instanceof ObjectType objectType) {
+       this.referencedObjType = objectType;
+     } else {
+@@ -174,8 +182,12 @@ public class ProxyObjectType extends ObjectType {
+   }
+ 
+   @Override
+-  public final boolean isUnknownType() {
+-    return referencedType.isUnknownType();
++  final boolean isUnknownTypeSlow() {
++    boolean unknown = referencedType.isUnknownType();
++    if (!unknown && registry.getResolver().isClosed()) {
++      this.jstypeFlags |= JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
++    }
++    return unknown;
+   }
+ 
+   @Override
+diff --git a/com/google/javascript/rhino/jstype/SubtypeChecker.java b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+index 0f54edf..3cf9171 100644
+--- a/com/google/javascript/rhino/jstype/SubtypeChecker.java
++++ b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+@@ -215,7 +215,7 @@ final class SubtypeChecker {
+     JSType left = this.cacheSub[idx];
+     JSType right = this.cacheSup[idx];
+     return (identical(left, subtype) && identical(right, supertype))
+-        || (subtype.equals(left) && supertype.equals(right));
++        || (subtype.equalsJSType(left) && supertype.equalsJSType(right));
+   }
+ 
+   private int findCachedEntry(JSType subtype, JSType supertype, int h) {
+@@ -312,7 +312,7 @@ final class SubtypeChecker {
+ 
+   private boolean isWellKnownSymbolSubtype(KnownSymbolType subtype, JSType supertype) {
+     if (supertype.isKnownSymbolValueType()) {
+-      return subtype.equals(supertype);
++      return subtype.equalsJSType(supertype);
+     }
+     if (supertype.isSymbolValueType()) {
+       return true;
+@@ -321,23 +321,27 @@ final class SubtypeChecker {
+   }
+ 
+   private boolean isSubtypeHelper(JSType subtype, JSType supertype) {
++    if (identical(subtype, supertype)) {
++      return true;
++    }
++    int subMask = subtype.typeKindMask;
++    int supMask = supertype.typeKindMask;
+     // Axiomatic cases.
+-    if (identical(subtype, supertype)
+-        || supertype.isUnknownType()
+-        || supertype.isAllType()
++    if (supertype.isUnknownType()
++        || ((supMask & (JSType.KIND_ALL | JSType.KIND_PROXY)) != 0 && supertype.isAllType())
+         || subtype.isUnknownType()
+-        || subtype.isNoType()) {
++        || ((subMask & (JSType.KIND_NO_TYPE | JSType.KIND_PROXY)) != 0 && subtype.isNoType())) {
+       return true;
+     }
+ 
+     // Special consideration for `null` and `undefined` in J2CL.
+     if (subtypingMode == SubtypingMode.IGNORE_NULL_UNDEFINED
+-        && (subtype.isNullType() || subtype.isVoidType())) {
++        && (subMask & (JSType.KIND_NULL | JSType.KIND_VOID)) != 0) {
+       return true;
+     }
+ 
+     // Reflexive case.
+-    if (subtype.equals(supertype)) {
++    if (subtype.equalsJSType(supertype)) {
+       return true;
+     }
+ 
+@@ -350,14 +354,14 @@ final class SubtypeChecker {
+      * <p>We don't want to check the cache here. Since `NamedType`s are generally equal to their
+      * referenced types, we'd get a false cache hit.
+      */
+-    if (subtype.isNamedType()) {
++    if ((subMask & JSType.KIND_NAMED) != 0) {
+       return this.isSubtypeDispatching(subtype.toMaybeNamedType().getReferencedType(), supertype);
+-    } else if (supertype.isNamedType()) {
++    } else if ((supMask & JSType.KIND_NAMED) != 0) {
+       return this.isSubtypeDispatching(subtype, supertype.toMaybeNamedType().getReferencedType());
+     }
+ 
+     // Union decomposition.
+-    if (subtype.isUnionType()) {
++    if ((subMask & (JSType.KIND_UNION | JSType.KIND_PROXY)) != 0 && subtype.isUnionType()) {
+       // All alternates must be subtypes.
+       UnionType subUnion = subtype.toMaybeUnionType();
+       int n = subUnion.getAlternatesCount();
+@@ -367,7 +371,7 @@ final class SubtypeChecker {
+         }
+       }
+       return true;
+-    } else if (supertype.isUnionType()) {
++    } else if ((supMask & (JSType.KIND_UNION | JSType.KIND_PROXY)) != 0 && supertype.isUnionType()) {
+       // Some alternate must be a supertype.
+       UnionType superUnion = supertype.toMaybeUnionType();
+       int n = superUnion.getAlternatesCount();
+@@ -395,7 +399,7 @@ final class SubtypeChecker {
+       TemplatizedType templatizedSuperType = supertype.toMaybeTemplatizedType();
+       ObjectType superTypeReferencedType = templatizedSuperType.getReferencedType();
+       ObjectType subTypeReferencedType = templatizedSubType.getReferencedType();
+-      if (subTypeReferencedType.equals(superTypeReferencedType)) {
++      if (subTypeReferencedType.equalsJSType(superTypeReferencedType)) {
+         subAndSuperAreSameBaseType = true;
+       }
+     }
+@@ -583,7 +587,7 @@ final class SubtypeChecker {
+ 
+   private boolean isNativeArrayType(ObjectType type) {
+     ObjectType unwrapped = getObjectTypeIfNative(type);
+-    return unwrapped != null && unwrapped.equals(registry.getNativeType(JSTypeNative.ARRAY_TYPE));
++    return unwrapped != null && unwrapped.equalsJSType(registry.getNativeType(JSTypeNative.ARRAY_TYPE));
+   }
+ 
+   private boolean isFunctionSubtype(FunctionType subtype, JSType nonFunctionSupertype) {
+@@ -710,8 +714,8 @@ final class SubtypeChecker {
+   }
+ 
+   private boolean isEnumSubtype(EnumType subtype, JSType supertype) {
+-    return supertype.equals(registry.getNativeType(JSTypeNative.OBJECT_TYPE))
+-        || subtype.equals(registry.getNativeType(JSTypeNative.OBJECT_PROTOTYPE))
++    return supertype.equalsJSType(registry.getNativeType(JSTypeNative.OBJECT_TYPE))
++        || subtype.equalsJSType(registry.getNativeType(JSTypeNative.OBJECT_PROTOTYPE))
+         || this.isSubtypeHelper(subtype, supertype);
+   }
+ 
+@@ -814,7 +818,7 @@ final class SubtypeChecker {
+    * Determines if the supplied type should be checked as a bivariant templatized type rather the
+    * standard invariant templatized type rules.
+    */
+-  private static boolean isBivariantType(JSType type) {
++  private static boolean isBivariantType(ObjectType type) {
+     ObjectType unwrapped = getObjectTypeIfNative(type);
+     return unwrapped != null && BIVARIANT_TYPES.contains(unwrapped.getReferenceName());
+   }
+@@ -823,8 +827,12 @@ final class SubtypeChecker {
+    * Determines if the specified type should be checked as covariant rather than the standard
+    * invariant type. If so, returns the template type to check covariantly.
+    */
+-  static @Nullable TemplateType getTemplateKeyIfCovariantType(JSType type) {
+-    if (type.isTemplatizedType()) {
++  static @Nullable TemplateType getTemplateKeyIfCovariantType(ObjectType type) {
++    int mask = type.typeKindMask;
++    if ((mask & (JSType.KIND_TEMPLATIZED | JSType.KIND_NATIVE_OBJECT | JSType.KIND_PROXY)) == 0) {
++      return null;
++    }
++    if ((mask & (JSType.KIND_TEMPLATIZED | JSType.KIND_PROXY)) != 0 && type.isTemplatizedType()) {
+       // Unlike other covariant/bivariant types, even non-native subtypes of IThenable are
+       // covariant, so IThenable is special-cased here.
+       TemplatizedType ttype = type.toMaybeTemplatizedType();
+@@ -882,9 +890,12 @@ final class SubtypeChecker {
+     return result;
+   }
+ 
+-  private static @Nullable ObjectType getObjectTypeIfNative(JSType type) {
+-    ObjectType objType = type.toObjectType();
+-    ObjectType unwrapped = ObjectType.deeplyUnwrap(objType);
++  private static @Nullable ObjectType getObjectTypeIfNative(ObjectType type) {
++    int mask = type.typeKindMask;
++    if ((mask & (JSType.KIND_NATIVE_OBJECT | JSType.KIND_PROXY)) == 0) {
++      return null;
++    }
++    ObjectType unwrapped = (mask & JSType.KIND_PROXY) == 0 ? type : ObjectType.deeplyUnwrap(type);
+     return unwrapped != null && unwrapped.isNativeObjectType() ? unwrapped : null;
+   }
+ 
+diff --git a/com/google/javascript/rhino/jstype/TemplatizedType.java b/com/google/javascript/rhino/jstype/TemplatizedType.java
+index 5b63eae..15ac235 100644
+--- a/com/google/javascript/rhino/jstype/TemplatizedType.java
++++ b/com/google/javascript/rhino/jstype/TemplatizedType.java
+@@ -84,7 +84,7 @@ public final class TemplatizedType extends ProxyObjectType {
+       TemplateType key0 = objMap.getTemplateKeyAt(objMap.size() - 1);
+       JSType resolved0 = getTemplateTypeMap().getResolvedTemplateType(key0);
+       this.templateTypes = ImmutableList.of(resolved0);
+-      this.isSpecializedOnlyWithUnknown = unknownType.equals(resolved0);
++      this.isSpecializedOnlyWithUnknown = unknownType.equalsJSType(resolved0);
+     } else if (paramCount == 2) {
+       TemplateTypeMap objMap = objectType.getTemplateTypeMap();
+       int start = objMap.size() - 2;
+@@ -93,7 +93,7 @@ public final class TemplatizedType extends ProxyObjectType {
+       JSType resolved1 = ownMap.getResolvedTemplateType(objMap.getTemplateKeyAt(start + 1));
+       this.templateTypes = ImmutableList.of(resolved0, resolved1);
+       this.isSpecializedOnlyWithUnknown =
+-          unknownType.equals(resolved0) && unknownType.equals(resolved1);
++          unknownType.equalsJSType(resolved0) && unknownType.equalsJSType(resolved1);
+     } else {
+       TemplateTypeMap objMap = objectType.getTemplateTypeMap();
+       TemplateTypeMap ownMap = getTemplateTypeMap();
+@@ -105,7 +105,7 @@ public final class TemplatizedType extends ProxyObjectType {
+         JSType resolvedType = ownMap.getResolvedTemplateType(objMap.getTemplateKeyAt(i));
+         builder.add(resolvedType);
+         if (maybeIsSpecializedOnlyWithUnknown) {
+-          maybeIsSpecializedOnlyWithUnknown = unknownType.equals(resolvedType);
++          maybeIsSpecializedOnlyWithUnknown = unknownType.equalsJSType(resolvedType);
+         }
+       }
+       this.templateTypes = builder.build();
+@@ -202,9 +202,9 @@ public final class TemplatizedType extends ProxyObjectType {
+   }
+ 
+   boolean wrapsSameRawType(JSType that) {
+-    return that.isTemplatizedType() && this.getReferencedTypeInternal()
+-        .equals(
+-            that.toMaybeTemplatizedType().getReferencedTypeInternal());
++    return that.isTemplatizedType()
++        && this.getReferencedTypeInternal()
++            .equalsJSType(that.toMaybeTemplatizedType().getReferencedTypeInternal());
+   }
+ 
+   /**
+@@ -229,7 +229,7 @@ public final class TemplatizedType extends ProxyObjectType {
+     TemplatizedType that = rawThat.toMaybeTemplatizedType();
+     checkNotNull(that);
+ 
+-    if (this.equals(that)) {
++    if (this.equalsJSType(that)) {
+       return this;
+     }
+ 
+diff --git a/com/google/javascript/rhino/jstype/UnionType.java b/com/google/javascript/rhino/jstype/UnionType.java
+index 1316663..599d909 100644
+--- a/com/google/javascript/rhino/jstype/UnionType.java
++++ b/com/google/javascript/rhino/jstype/UnionType.java
+@@ -264,6 +264,26 @@ public final class UnionType extends JSType {
+       this.restAlternates = rest;
+     }
+     this.alternatesResolvedBeforeBuild = builder.alternatesResolvedBeforeBuild;
++    JSTypeResolver resolver = this.registry.getResolver();
++    if (resolver != null && resolver.isClosed()) {
++      byte combined = JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
++      combined &= this.alt0.jstypeFlags;
++      if (n >= 2) {
++        combined &= this.alt1.jstypeFlags;
++      }
++      if (n >= 3) {
++        combined &= this.alt2.jstypeFlags;
++      }
++      if (n > 3 && combined != 0) {
++        JSType[] rest = this.restAlternates;
++        for (int i = 0, m = n - 3; i < m; i++) {
++          combined &= rest[i].jstypeFlags;
++        }
++      }
++      this.jstypeFlags = (byte) ((this.jstypeFlags & ~JSTYPE_FLAG_OBJ_NOT_UNKNOWN) | combined);
++    } else {
++      this.jstypeFlags &= ~JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
++    }
+   }
+ 
+   /**
+@@ -524,12 +544,15 @@ public final class UnionType extends JSType {
+   }
+ 
+   @Override
+-  public boolean isUnknownType() {
++  boolean isUnknownTypeSlow() {
+     for (int i = 0, n = getAlternatesCount(); i < n; i++) {
+       if (getAlternateAt(i).isUnknownType()) {
+         return true;
+       }
+     }
++    if (registry.getResolver().isClosed()) {
++      this.jstypeFlags |= JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
++    }
+     return false;
+   }
+ 
+@@ -700,7 +723,7 @@ public final class UnionType extends JSType {
+    */
+   public boolean contains(JSType type) {
+     for (int i = 0, n = getAlternatesCount(); i < n; i++) {
+-      if (type.equals(getAlternateAt(i))) {
++      if (type.equalsJSType(getAlternateAt(i))) {
+         return true;
+       }
+     }
+@@ -1252,7 +1275,7 @@ public final class UnionType extends JSType {
+             || current.isUnknownType()
+             || alternate.hasAnyTemplateTypes()
+             || current.hasAnyTemplateTypes()) {
+-          if (alternate.equals(current)) {
++          if (alternate.equalsJSType(current)) {
+             // Alternate is unnecessary.
+             return this;
+           }
+@@ -1302,7 +1325,7 @@ public final class UnionType extends JSType {
+ 
+             if (templatizedCurrent.wrapsSameRawType(templatizedAlternate)) {
+ 
+-              if (current.equals(alternate)) {
++              if (current.equalsJSType(alternate)) {
+                 // case 8
+                 return this;
+               } else if (!templatizedCurrent.getReferencedType().isReadonlyArrayType()) {
+diff --git a/com/google/javascript/rhino/jstype/UnknownType.java b/com/google/javascript/rhino/jstype/UnknownType.java
+index 356819a..a84c6cc 100644
+--- a/com/google/javascript/rhino/jstype/UnknownType.java
++++ b/com/google/javascript/rhino/jstype/UnknownType.java
+@@ -61,7 +61,7 @@ public final class UnknownType extends ObjectType {
+   }
+ 
+   @Override
+-  public boolean isUnknownType() {
++  boolean isUnknownTypeSlow() {
+     return true;
+   }
+ 
+diff --git a/com/google/javascript/rhino/jstype/ValueType.java b/com/google/javascript/rhino/jstype/ValueType.java
+index eb046a4..1fc0a18 100644
+--- a/com/google/javascript/rhino/jstype/ValueType.java
++++ b/com/google/javascript/rhino/jstype/ValueType.java
+@@ -47,6 +47,7 @@ import com.google.javascript.rhino.ErrorReporter;
+ abstract class ValueType extends JSType {
+   ValueType(JSTypeRegistry registry, int typeKindMask) {
+     super(registry, null, typeKindMask);
++    this.jstypeFlags |= JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
+     this.eagerlyResolveToSelf();
+   }
+ 

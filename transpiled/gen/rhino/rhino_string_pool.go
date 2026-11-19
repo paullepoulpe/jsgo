@@ -96,6 +96,12 @@ func RhinoStringPool_AddOrGet(s string) string {
 	return j2gort.CheckNotNullString(s)
 }
 
+// Java static method: RhinoStringPool.fastHash32(java.lang.String s)
+func RhinoStringPool_FastHash32(s string) int32 {
+	_ = s
+	return j2gort.FastStrHash32(s)
+}
+
 // Java class: com.google.javascript.rhino.RhinoStringPool.LazyInternedStringList
 type RhinoStringPool_LazyInternedStringList struct {
 	pool []string `gson:"pool"`

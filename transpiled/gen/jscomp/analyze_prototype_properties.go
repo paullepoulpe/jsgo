@@ -821,6 +821,14 @@ func ToIface_AnalyzePrototypeProperties_Symbol[T interface {
 	return v
 }
 
+func Upcast_AnalyzePrototypeProperties_Symbol[T AnalyzePrototypeProperties_Symbol](v T) AnalyzePrototypeProperties_Symbol {
+	var vi AnalyzePrototypeProperties_Symbol = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.AnalyzePrototypeProperties.Symbol", "com.google.javascript.jscomp.AnalyzePrototypeProperties$Symbol", func(v_ any) bool {
 		return j2gort.InstanceOf[AnalyzePrototypeProperties_Symbol](v_)
@@ -1018,6 +1026,14 @@ func ToIface_AnalyzePrototypeProperties_Property[T interface {
 	return v
 }
 
+func Upcast_AnalyzePrototypeProperties_Property[T AnalyzePrototypeProperties_Property](v T) AnalyzePrototypeProperties_Property {
+	var vi AnalyzePrototypeProperties_Property = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.AnalyzePrototypeProperties.Property", "com.google.javascript.jscomp.AnalyzePrototypeProperties$Property", func(v_ any) bool {
 		return j2gort.InstanceOf[AnalyzePrototypeProperties_Property](v_)
@@ -1124,6 +1140,14 @@ func ToIface_AnalyzePrototypeProperties_PrototypeProperty[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_AnalyzePrototypeProperties_PrototypeProperty[T AnalyzePrototypeProperties_PrototypeProperty](v T) AnalyzePrototypeProperties_PrototypeProperty {
+	var vi AnalyzePrototypeProperties_PrototypeProperty = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

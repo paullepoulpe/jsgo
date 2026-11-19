@@ -3,6 +3,7 @@ package j2gort
 
 import (
 	"fmt"
+	"hash/maphash"
 	"math"
 	"math/big"
 	"math/bits"
@@ -241,6 +242,16 @@ const NullString = "\xff\x00j2go_null"
 
 func IsNullString(s string) bool {
 	return s == NullString
+}
+
+var fastStrHashSeed = maphash.MakeSeed()
+
+func FastStrHash32(s string) int32 {
+	h := uint32(maphash.String(fastStrHashSeed, s))
+	if h == 0 {
+		return 1
+	}
+	return int32(h)
 }
 
 type jJavaNilChecker interface {

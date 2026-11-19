@@ -40,6 +40,14 @@ func ToIface_Deps_SourceFile[T interface {
 	return v
 }
 
+func Upcast_Deps_SourceFile[T Deps_SourceFile](v T) Deps_SourceFile {
+	var vi Deps_SourceFile = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.deps.SourceFile", "com.google.javascript.jscomp.deps.SourceFile", func(v_ any) bool {
 		return j2gort.InstanceOf[Deps_SourceFile](v_)

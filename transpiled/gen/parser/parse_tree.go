@@ -115,6 +115,7 @@ type ParseTree interface {
 	IsRestParameter() bool
 	String() string
 }
+
 func ToIface_ParseTree[T interface {
 	ParseTree
 	comparable
@@ -126,11 +127,19 @@ func ToIface_ParseTree[T interface {
 	return v
 }
 
+func Upcast_ParseTree[T ParseTree](v T) ParseTree {
+	var vi ParseTree = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.parsing.parser.trees.ParseTree
 type ParseTreeBase struct {
-	self_ ParseTree
-	location SourceRange `gson:"location"`
-	type_ ParseTreeType `gson:"type"`
+	self_    ParseTree
+	location SourceRange   `gson:"location"`
+	type_    ParseTreeType `gson:"type"`
 }
 
 func (this_ *ParseTreeBase) BindSelf_(s any) {
@@ -138,15 +147,17 @@ func (this_ *ParseTreeBase) BindSelf_(s any) {
 	this_.self_ = s.(ParseTree)
 }
 func (this_ *ParseTreeBase) IsJavaNil_() bool { return this_ == nil }
-func (*ParseTreeBase) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.parsing.parser.trees.ParseTree", "ParseTree" }
+func (*ParseTreeBase) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.parsing.parser.trees.ParseTree", "ParseTree"
+}
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.parsing.parser.trees.ParseTree", "com.google.javascript.jscomp.parsing.parser.trees.ParseTree", func(v_ any) bool {
 		return j2gort.InstanceOf[ParseTree](v_)
 	})
 }
-func (b *ParseTreeBase) GetParseTreeBase() *ParseTreeBase { return b }
-func (*ParseTreeBase) Implements_parser_ParseTree() {}
-func (this_ *ParseTreeBase) FieldGet_type_() ParseTreeType { return this_.type_ }
+func (b *ParseTreeBase) GetParseTreeBase() *ParseTreeBase   { return b }
+func (*ParseTreeBase) Implements_parser_ParseTree()         {}
+func (this_ *ParseTreeBase) FieldGet_type_() ParseTreeType  { return this_.type_ }
 func (this_ *ParseTreeBase) FieldGet_location() SourceRange { return this_.location }
 
 func (this_ *ParseTreeBase) initFields_ParseTree() {
@@ -578,11 +589,11 @@ func (this_ *ParseTreeBase) AsFieldDeclaration() *FieldDeclarationTree {
 func (this_ *ParseTreeBase) IsPattern() bool {
 	var parseTree ParseTree = this_.self_
 	_ = parseTree
-	for ((parseTree.GetParseTreeBase().type_ == StaticGet_ParseTreeType_PAREN_EXPRESSION())) {
-		parseTree = parseTree.AsParenExpression().expression
+	for parseTree.GetParseTreeBase().type_ == StaticGet_ParseTreeType_PAREN_EXPRESSION() {
+		parseTree = parseTree.GetParseTreeBase().AsParenExpression().expression
 	}
 	switch (parseTree.GetParseTreeBase().type_).Ordinal() {
-	case int32(55) /* ParseTreeType.ARRAY_PATTERN */, int32(56) /* ParseTreeType.OBJECT_PATTERN */:
+	case int32(55) /* ParseTreeType.ARRAY_PATTERN */, int32(56) /* ParseTreeType.OBJECT_PATTERN */ :
 		return true
 	default:
 		return false
@@ -594,13 +605,13 @@ func (this_ *ParseTreeBase) IsPattern() bool {
 func (this_ *ParseTreeBase) IsValidNonVanillaAssignmentTarget() bool {
 	var parseTree ParseTree = this_.self_
 	_ = parseTree
-	for ((parseTree.GetParseTreeBase().type_ == StaticGet_ParseTreeType_PAREN_EXPRESSION())) {
-		parseTree = parseTree.AsParenExpression().expression
+	for parseTree.GetParseTreeBase().type_ == StaticGet_ParseTreeType_PAREN_EXPRESSION() {
+		parseTree = parseTree.GetParseTreeBase().AsParenExpression().expression
 	}
 	switch (parseTree.GetParseTreeBase().type_).Ordinal() {
-	case int32(26) /* ParseTreeType.IDENTIFIER_EXPRESSION */, int32(43) /* ParseTreeType.MEMBER_EXPRESSION */, int32(50) /* ParseTreeType.MEMBER_LOOKUP_EXPRESSION */, int32(71) /* ParseTreeType.DEFAULT_PARAMETER */:
+	case int32(26) /* ParseTreeType.IDENTIFIER_EXPRESSION */, int32(43) /* ParseTreeType.MEMBER_EXPRESSION */, int32(50) /* ParseTreeType.MEMBER_LOOKUP_EXPRESSION */, int32(71) /* ParseTreeType.DEFAULT_PARAMETER */ :
 		return true
-	case int32(55) /* ParseTreeType.ARRAY_PATTERN */, int32(56) /* ParseTreeType.OBJECT_PATTERN */:
+	case int32(55) /* ParseTreeType.ARRAY_PATTERN */, int32(56) /* ParseTreeType.OBJECT_PATTERN */ :
 		return false
 	default:
 		return false
@@ -612,11 +623,11 @@ func (this_ *ParseTreeBase) IsValidNonVanillaAssignmentTarget() bool {
 func (this_ *ParseTreeBase) IsValidAssignmentTarget() bool {
 	var parseTree ParseTree = this_.self_
 	_ = parseTree
-	for ((parseTree.GetParseTreeBase().type_ == StaticGet_ParseTreeType_PAREN_EXPRESSION())) {
-		parseTree = parseTree.AsParenExpression().expression
+	for parseTree.GetParseTreeBase().type_ == StaticGet_ParseTreeType_PAREN_EXPRESSION() {
+		parseTree = parseTree.GetParseTreeBase().AsParenExpression().expression
 	}
 	switch (parseTree.GetParseTreeBase().type_).Ordinal() {
-	case int32(26) /* ParseTreeType.IDENTIFIER_EXPRESSION */, int32(43) /* ParseTreeType.MEMBER_EXPRESSION */, int32(50) /* ParseTreeType.MEMBER_LOOKUP_EXPRESSION */, int32(55) /* ParseTreeType.ARRAY_PATTERN */, int32(56) /* ParseTreeType.OBJECT_PATTERN */, int32(71) /* ParseTreeType.DEFAULT_PARAMETER */:
+	case int32(26) /* ParseTreeType.IDENTIFIER_EXPRESSION */, int32(43) /* ParseTreeType.MEMBER_EXPRESSION */, int32(50) /* ParseTreeType.MEMBER_LOOKUP_EXPRESSION */, int32(55) /* ParseTreeType.ARRAY_PATTERN */, int32(56) /* ParseTreeType.OBJECT_PATTERN */, int32(71) /* ParseTreeType.DEFAULT_PARAMETER */ :
 		return true
 	default:
 		return false
@@ -633,4 +644,3 @@ func (this_ *ParseTreeBase) IsRestParameter() bool {
 func (this_ *ParseTreeBase) String() string {
 	return (j2gort.StrVal(this_.type_) + "@" + j2gort.StrVal(this_.location))
 }
-

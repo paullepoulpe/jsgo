@@ -244,7 +244,7 @@ func (this_ *ClosureCodingConvention) ApplySubclassRelationship(parent *pkg_rhin
 	if type_ == StaticGet_CodingConvention_SubclassType_INHERITS() {
 		var childCtor *pkg_rhino.FunctionType = child.Constructor()
 		_ = childCtor
-		child.DeclareConstructorProperty("superClass_", j2gort.AsIface[pkg_rhino.JSType](parent.PrototypeOrInstance()), childCtor.GetSource())
+		child.DeclareConstructorProperty("superClass_", pkg_rhino.Upcast_JSType(parent.PrototypeOrInstance()), childCtor.GetSource())
 		var qmarkCtor *pkg_rhino.FunctionType = childCtor.ForgetParameterAndReturnTypes()
 		_ = qmarkCtor
 		child.DeclarePrototypeProperty("constructor", pkg_rhino.ToIface_JSType(qmarkCtor), childCtor.GetSource())
@@ -424,7 +424,7 @@ func (this_ *ClosureCodingConvention) ApplySingletonGetter(classType *pkg_rhino.
 	var defSite pkg_rhino.Node = classType.Constructor().GetSource()
 	_ = defSite
 	classType.DeclareConstructorProperty("getInstance", pkg_rhino.ToIface_JSType(getterType), defSite)
-	classType.DeclareConstructorProperty("instance_", j2gort.AsIface[pkg_rhino.JSType](classType.Instance()), defSite)
+	classType.DeclareConstructorProperty("instance_", pkg_rhino.Upcast_JSType(classType.Instance()), defSite)
 }
 
 // Java method: ClosureCodingConvention.isPropertyTestFunction(com.google.javascript.rhino.Node call)
@@ -493,17 +493,19 @@ func (this_ *ClosureCodingConvention) GetObjectLiteralCast(callNode pkg_rhino.No
 
 // Java method: ClosureCodingConvention.getAssertionFunctions()
 func (this_ *ClosureCodingConvention) GetAssertionFunctions() any {
-	return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet_Builder](j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet_Builder](j2gort.Ext_com_google_common_collect_ImmutableSet_S_Builder().AddAll_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.CodingConventions_ProxyBase.GetAssertionFunctions()))).Add_1_slice_any([]any{CodingConvention_AssertionFunctionSpec_ForTruthy().SetFunctionName("goog.asserts.assert").Build(), ClosureCodingConvention_CreateGoogAssertOnReturn("Array"), ClosureCodingConvention_CreateGoogAssertOnReturn("Boolean"), ClosureCodingConvention_CreateGoogAssertOnReturn("Element"), ClosureCodingConvention_CreateGoogAssertOnReturn("Function"), ClosureCodingConvention_CreateGoogAssertOnReturn("Instanceof"), ClosureCodingConvention_CreateGoogAssertOnReturn("Number"), ClosureCodingConvention_CreateGoogAssertOnReturn("Object"), ClosureCodingConvention_CreateGoogAssertOnReturn("String")})).Build())
+	return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet_Builder](j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet_Builder](j2gort.Ext_com_google_common_collect_ImmutableSet_S_Builder().AddAll_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.CodingConventions_ProxyBase.GetAssertionFunctions()))).Add_1_slice_any([]any{CodingConvention_AssertionFunctionSpec_ForTruthy().SetFunctionName("goog.asserts.assert").GetCodingConvention_AssertionFunctionSpec_BuilderBase().Build(), ClosureCodingConvention_CreateGoogAssertOnReturn("Array"), ClosureCodingConvention_CreateGoogAssertOnReturn("Boolean"), ClosureCodingConvention_CreateGoogAssertOnReturn("Element"), ClosureCodingConvention_CreateGoogAssertOnReturn("Function"), ClosureCodingConvention_CreateGoogAssertOnReturn("Instanceof"), ClosureCodingConvention_CreateGoogAssertOnReturn("Number"), ClosureCodingConvention_CreateGoogAssertOnReturn("Object"), ClosureCodingConvention_CreateGoogAssertOnReturn("String")})).Build())
 }
 
 // Java static method: ClosureCodingConvention.createGoogAssertOnReturn(java.lang.String assertedTypeName)
 func ClosureCodingConvention_CreateGoogAssertOnReturn(assertedTypeName string) CodingConvention_AssertionFunctionSpec {
 	clinit_ClosureCodingConvention()
 	_ = assertedTypeName
-	return CodingConvention_AssertionFunctionSpec_ForMatchesReturn().SetFunctionName(("goog.asserts.assert" + j2gort.StrValString(assertedTypeName))).Build()
+	return CodingConvention_AssertionFunctionSpec_ForMatchesReturn().SetFunctionName(("goog.asserts.assert" + j2gort.StrValString(assertedTypeName))).GetCodingConvention_AssertionFunctionSpec_BuilderBase(
+
+	// Java method: ClosureCodingConvention.describeFunctionBind(com.google.javascript.rhino.Node n, boolean checkTypes)
+	).Build()
 }
 
-// Java method: ClosureCodingConvention.describeFunctionBind(com.google.javascript.rhino.Node n, boolean checkTypes)
 func (this_ *ClosureCodingConvention) DescribeFunctionBind(n pkg_rhino.Node, checkTypes bool) *CodingConvention_Bind {
 	_ = n
 	_ = checkTypes

@@ -37,11 +37,11 @@ type ProcessDefines struct {
 	enableZonesDefineName               string                                            `gson:"enableZonesDefineName"`
 	zoneInputPattern                    *j2gort.Ext_java_util_regex_Pattern               `gson:"zoneInputPattern"`
 	unknownDefinesToIgnore              j2gort.Ext_com_google_common_collect_ImmutableSet `gson:"unknownDefinesToIgnore"`
-	knownDefineJsdocs                   j2gort.OrderedSet[*pkg_rhino.JSDocInfo]           `gson:"knownDefineJsdocs"`
-	knownGoogDefineCalls                j2gort.OrderedSet[pkg_rhino.Node]                 `gson:"knownGoogDefineCalls"`
+	knownDefineJsdocs                   j2gort.PlainSet[*pkg_rhino.JSDocInfo]             `gson:"knownDefineJsdocs"`
+	knownGoogDefineCalls                j2gort.PlainSet[pkg_rhino.Node]                   `gson:"knownGoogDefineCalls"`
 	defineByDefineName                  j2gort.OrderedMap[string, *ProcessDefines_Define] `gson:"defineByDefineName"`
 	replacementValuesFromClosureDefines j2gort.OrderedMap[string, pkg_rhino.Node]         `gson:"replacementValuesFromClosureDefines"`
-	validDefineValueExpressions         j2gort.OrderedSet[pkg_rhino.Node]                 `gson:"validDefineValueExpressions"`
+	validDefineValueExpressions         j2gort.PlainSet[pkg_rhino.Node]                   `gson:"validDefineValueExpressions"`
 	namespace                           *GlobalNamespace                                  `gson:"namespace"`
 	idHash_                             atomic.Int32
 	mode                                ProcessDefines_Mode `gson:"mode"`
@@ -273,11 +273,11 @@ func clinitSlow_ProcessDefines() {
 func (this_ *ProcessDefines) initFields_ProcessDefines() {
 	_ = this_
 	this_.enableZonesDefineName = j2gort.NullString
-	this_.knownDefineJsdocs = j2gort.NewOrderedSet[*pkg_rhino.JSDocInfo]()
-	this_.knownGoogDefineCalls = j2gort.NewOrderedSet[pkg_rhino.Node]()
+	this_.knownDefineJsdocs = j2gort.NewPlainSetVal[*pkg_rhino.JSDocInfo]()
+	this_.knownGoogDefineCalls = j2gort.NewPlainSetVal[pkg_rhino.Node]()
 	this_.defineByDefineName = j2gort.NewOrderedMap[string, *ProcessDefines_Define]()
 	this_.replacementValuesFromClosureDefines = j2gort.NewOrderedMap[string, pkg_rhino.Node]()
-	this_.validDefineValueExpressions = j2gort.NewOrderedSet[pkg_rhino.Node]()
+	this_.validDefineValueExpressions = j2gort.NewPlainSetVal[pkg_rhino.Node]()
 
 }
 
@@ -320,17 +320,17 @@ func (this_ *ProcessDefines) Process_2(externs pkg_rhino.Node, root pkg_rhino.No
 		}
 	}()
 
-	this_.priv_ProcessDefines_initNamespace_4519(externs, root)
-	this_.priv_ProcessDefines_collectDefines_4524(root)
-	this_.priv_ProcessDefines_reportInvalidDefineLocations_4532(root)
-	this_.priv_ProcessDefines_collectValidDefineValueExpressions_4530()
-	this_.priv_ProcessDefines_validateDefineDeclarations_4531()
-	this_.priv_ProcessDefines_overrideDefines_4520()
-	this_.priv_ProcessDefines_validateDefines_4536()
+	this_.priv_ProcessDefines_initNamespace_4516(externs, root)
+	this_.priv_ProcessDefines_collectDefines_4521(root)
+	this_.priv_ProcessDefines_reportInvalidDefineLocations_4529(root)
+	this_.priv_ProcessDefines_collectValidDefineValueExpressions_4527()
+	this_.priv_ProcessDefines_validateDefineDeclarations_4528()
+	this_.priv_ProcessDefines_overrideDefines_4517()
+	this_.priv_ProcessDefines_validateDefines_4533()
 }
 
 // Java method: ProcessDefines.initNamespace(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
-func (this_ *ProcessDefines) priv_ProcessDefines_initNamespace_4519(externs pkg_rhino.Node, root pkg_rhino.Node) {
+func (this_ *ProcessDefines) priv_ProcessDefines_initNamespace_4516(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
 	if this_.namespaceSupplier != nil {
@@ -342,7 +342,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_initNamespace_4519(externs pkg_
 }
 
 // Java method: ProcessDefines.overrideDefines()
-func (this_ *ProcessDefines) priv_ProcessDefines_overrideDefines_4520() {
+func (this_ *ProcessDefines) priv_ProcessDefines_overrideDefines_4517() {
 	if (this_.mode).FieldGet_optimize() {
 		{
 			cur_1 := this_.defineByDefineName.IterValues()
@@ -354,7 +354,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_overrideDefines_4520() {
 				if define.valueParent == 0 {
 					continue
 				}
-				var inputValue pkg_rhino.Node = this_.priv_ProcessDefines_getReplacementForDefine_4521(define)
+				var inputValue pkg_rhino.Node = this_.priv_ProcessDefines_getReplacementForDefine_4518(define)
 				_ = inputValue
 				if (inputValue == 0) || (inputValue == define.value) {
 					continue
@@ -428,21 +428,21 @@ func ProcessDefines_GetGlobalDefineAlias(defineName string) string {
 }
 
 // Java method: ProcessDefines.getReplacementForDefine(com.google.javascript.jscomp.ProcessDefines.Define define)
-func (this_ *ProcessDefines) priv_ProcessDefines_getReplacementForDefine_4521(define *ProcessDefines_Define) pkg_rhino.Node {
+func (this_ *ProcessDefines) priv_ProcessDefines_getReplacementForDefine_4518(define *ProcessDefines_Define) pkg_rhino.Node {
 	_ = define
-	var replacement pkg_rhino.Node = this_.priv_ProcessDefines_getReplacementForDefineName_4522(define.defineName)
+	var replacement pkg_rhino.Node = this_.priv_ProcessDefines_getReplacementForDefineName_4519(define.defineName)
 	_ = replacement
 	if replacement != 0 {
 		return replacement
 	}
-	if this_.priv_ProcessDefines_isGoogDefineCall_4538(define.value) && (define.value.GetChildCount() == int32(3)) {
+	if this_.priv_ProcessDefines_isGoogDefineCall_4535(define.value) && (define.value.GetChildCount() == int32(3)) {
 		return define.value.GetChildAtIndex(int32(2))
 	}
 	return pkg_rhino.Node(0)
 }
 
 // Java method: ProcessDefines.getReplacementForDefineName(java.lang.String defineName)
-func (this_ *ProcessDefines) priv_ProcessDefines_getReplacementForDefineName_4522(defineName string) pkg_rhino.Node {
+func (this_ *ProcessDefines) priv_ProcessDefines_getReplacementForDefineName_4519(defineName string) pkg_rhino.Node {
 	_ = defineName
 	var replacementFromFlags pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](j2gort.MapGetStr(this_.replacementValuesFromFlags, defineName))
 	_ = replacementFromFlags
@@ -458,15 +458,16 @@ func (this_ *ProcessDefines) priv_ProcessDefines_getReplacementForDefineName_452
 }
 
 // Java method: ProcessDefines.isValidDefineType(com.google.javascript.rhino.JSTypeExpression expression)
-func (this_ *ProcessDefines) priv_ProcessDefines_isValidDefineType_4523(expression pkg_rhino.JSTypeExpression) bool {
+func (this_ *ProcessDefines) priv_ProcessDefines_isValidDefineType_4520(expression pkg_rhino.JSTypeExpression) bool {
 	_ = expression
 	var type_ pkg_rhino.JSType = this_.registry.EvaluateTypeExpressionInGlobalScope(expression)
 	_ = type_
-	return (!(type_.IsUnknownType()) && type_.IsSubtypeOf_1(this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_NUMBER_STRING_BOOLEAN())))
+	base_type__ := type_.GetJSTypeBase()
+	return (!(base_type__.IsUnknownType()) && base_type__.IsSubtypeOf_1(this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_NUMBER_STRING_BOOLEAN())))
 }
 
 // Java method: ProcessDefines.collectDefines(com.google.javascript.rhino.Node root)
-func (this_ *ProcessDefines) priv_ProcessDefines_collectDefines_4524(root pkg_rhino.Node) {
+func (this_ *ProcessDefines) priv_ProcessDefines_collectDefines_4521(root pkg_rhino.Node) {
 	_ = root
 	if this_.recognizeClosureDefines {
 		{
@@ -484,7 +485,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_collectDefines_4524(root pkg_rh
 			rawElem_7 := cur_6.Next()
 			name := j2gort.CastPtr[GlobalNamespace_Name](rawElem_7)
 			_ = name
-			var declaration *GlobalNamespace_Ref = this_.priv_ProcessDefines_selectDefineDeclaration_4527(name)
+			var declaration *GlobalNamespace_Ref = this_.priv_ProcessDefines_selectDefineDeclaration_4524(name)
 			_ = declaration
 			if declaration == nil {
 				continue
@@ -502,7 +503,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_collectDefines_4524(root pkg_rh
 			}
 			var defineName string = j2gort.NullString
 			_ = defineName
-			if this_.priv_ProcessDefines_isGoogDefineCall_4538(value) && this_.priv_ProcessDefines_verifyGoogDefine_4539(value) {
+			if this_.priv_ProcessDefines_isGoogDefineCall_4535(value) && this_.priv_ProcessDefines_verifyGoogDefine_4536(value) {
 				var nameNode pkg_rhino.Node = value.GetSecondChild()
 				_ = nameNode
 				defineName = nameNode.GetString()
@@ -517,10 +518,10 @@ func (this_ *ProcessDefines) priv_ProcessDefines_collectDefines_4524(root pkg_rh
 			}
 			if totalSets > int32(1) {
 				if name.HasInlineRefs() {
-					this_.priv_ProcessDefines_reportIfExtraSetRef_4525(name.InlineRef0(), declaration, defineName)
-					this_.priv_ProcessDefines_reportIfExtraSetRef_4525(name.InlineRef1(), declaration, defineName)
-					this_.priv_ProcessDefines_reportIfExtraSetRef_4525(name.InlineRef2(), declaration, defineName)
-					this_.priv_ProcessDefines_reportIfExtraSetRef_4525(name.InlineRef3(), declaration, defineName)
+					this_.priv_ProcessDefines_reportIfExtraSetRef_4522(name.InlineRef0(), declaration, defineName)
+					this_.priv_ProcessDefines_reportIfExtraSetRef_4522(name.InlineRef1(), declaration, defineName)
+					this_.priv_ProcessDefines_reportIfExtraSetRef_4522(name.InlineRef2(), declaration, defineName)
+					this_.priv_ProcessDefines_reportIfExtraSetRef_4522(name.InlineRef3(), declaration, defineName)
 				} else {
 					{
 						cur_8 := j2gort.NewIterCursor(j2gort.CheckNotNull(name.GetRefs()))
@@ -528,7 +529,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_collectDefines_4524(root pkg_rh
 							rawElem_9 := cur_8.Next()
 							ref := j2gort.CastPtr[GlobalNamespace_Ref](rawElem_9)
 							_ = ref
-							this_.priv_ProcessDefines_reportIfExtraSetRef_4525(ref, declaration, defineName)
+							this_.priv_ProcessDefines_reportIfExtraSetRef_4522(ref, declaration, defineName)
 						}
 					}
 				}
@@ -539,7 +540,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_collectDefines_4524(root pkg_rh
 }
 
 // Java method: ProcessDefines.reportIfExtraSetRef(com.google.javascript.jscomp.GlobalNamespace.@org.jspecify.annotations.Nullable Ref ref, com.google.javascript.jscomp.GlobalNamespace.Ref declaration, java.lang.String defineName)
-func (this_ *ProcessDefines) priv_ProcessDefines_reportIfExtraSetRef_4525(ref *GlobalNamespace_Ref, declaration *GlobalNamespace_Ref, defineName string) {
+func (this_ *ProcessDefines) priv_ProcessDefines_reportIfExtraSetRef_4522(ref *GlobalNamespace_Ref, declaration *GlobalNamespace_Ref, defineName string) {
 	_ = ref
 	_ = declaration
 	_ = defineName
@@ -549,7 +550,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_reportIfExtraSetRef_4525(ref *G
 }
 
 // Java method: ProcessDefines.matchDefineDeclarationRef(com.google.javascript.jscomp.GlobalNamespace.@org.jspecify.annotations.Nullable Ref ref)
-func (this_ *ProcessDefines) priv_ProcessDefines_matchDefineDeclarationRef_4526(ref *GlobalNamespace_Ref) *GlobalNamespace_Ref {
+func (this_ *ProcessDefines) priv_ProcessDefines_matchDefineDeclarationRef_4523(ref *GlobalNamespace_Ref) *GlobalNamespace_Ref {
 	_ = ref
 	if (ref == nil) || !(ref.IsSetFromGlobal()) {
 		return nil
@@ -564,31 +565,31 @@ func (this_ *ProcessDefines) priv_ProcessDefines_matchDefineDeclarationRef_4526(
 	if (jsdoc == nil) || !(jsdoc.IsDefine()) {
 		return nil
 	}
-	this_.knownDefineJsdocs.Add(jsdoc)
+	this_.knownDefineJsdocs.AddVoid(jsdoc)
 	return ref
 }
 
 // Java method: ProcessDefines.selectDefineDeclaration(com.google.javascript.jscomp.GlobalNamespace.Name name)
-func (this_ *ProcessDefines) priv_ProcessDefines_selectDefineDeclaration_4527(name *GlobalNamespace_Name) *GlobalNamespace_Ref {
+func (this_ *ProcessDefines) priv_ProcessDefines_selectDefineDeclaration_4524(name *GlobalNamespace_Name) *GlobalNamespace_Ref {
 	_ = name
 	if name.GetGlobalSets() == int32(0) {
 		return nil
 	}
 	if name.HasInlineRefs() {
-		var r *GlobalNamespace_Ref = this_.priv_ProcessDefines_matchDefineDeclarationRef_4526(name.InlineRef0())
+		var r *GlobalNamespace_Ref = this_.priv_ProcessDefines_matchDefineDeclarationRef_4523(name.InlineRef0())
 		_ = r
 		if r != nil {
 			return r
 		}
-		r = this_.priv_ProcessDefines_matchDefineDeclarationRef_4526(name.InlineRef1())
+		r = this_.priv_ProcessDefines_matchDefineDeclarationRef_4523(name.InlineRef1())
 		if r != nil {
 			return r
 		}
-		r = this_.priv_ProcessDefines_matchDefineDeclarationRef_4526(name.InlineRef2())
+		r = this_.priv_ProcessDefines_matchDefineDeclarationRef_4523(name.InlineRef2())
 		if r != nil {
 			return r
 		}
-		return this_.priv_ProcessDefines_matchDefineDeclarationRef_4526(name.InlineRef3())
+		return this_.priv_ProcessDefines_matchDefineDeclarationRef_4523(name.InlineRef3())
 	}
 	{
 		cur_10 := j2gort.NewIterCursor(j2gort.CheckNotNull(name.GetRefs()))
@@ -596,7 +597,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_selectDefineDeclaration_4527(na
 			rawElem_11 := cur_10.Next()
 			ref := j2gort.CastPtr[GlobalNamespace_Ref](rawElem_11)
 			_ = ref
-			var r_2 *GlobalNamespace_Ref = this_.priv_ProcessDefines_matchDefineDeclarationRef_4526(ref)
+			var r_2 *GlobalNamespace_Ref = this_.priv_ProcessDefines_matchDefineDeclarationRef_4523(ref)
 			_ = r_2
 			if r_2 != nil {
 				return r_2
@@ -626,31 +627,31 @@ func ProcessDefines_GetValueParentForDefine(declaration *GlobalNamespace_Ref) pk
 }
 
 // Java method: ProcessDefines.addNonSetRefNodes(com.google.javascript.jscomp.GlobalNamespace.Name name)
-func (this_ *ProcessDefines) priv_ProcessDefines_addNonSetRefNodes_4528(name *GlobalNamespace_Name) {
+func (this_ *ProcessDefines) priv_ProcessDefines_addNonSetRefNodes_4525(name *GlobalNamespace_Name) {
 	_ = name
 	if name.HasInlineRefs() {
 		var r0 *GlobalNamespace_Ref = name.InlineRef0()
 		_ = r0
 		if r0 != nil {
 			if !(r0.IsSet()) {
-				this_.validDefineValueExpressions.Add(r0.GetNode())
+				this_.validDefineValueExpressions.AddVoid(r0.GetNode())
 			}
 			var r1 *GlobalNamespace_Ref = name.InlineRef1()
 			_ = r1
 			if r1 != nil {
 				if !(r1.IsSet()) {
-					this_.validDefineValueExpressions.Add(r1.GetNode())
+					this_.validDefineValueExpressions.AddVoid(r1.GetNode())
 				}
 				var r2 *GlobalNamespace_Ref = name.InlineRef2()
 				_ = r2
 				if r2 != nil {
 					if !(r2.IsSet()) {
-						this_.validDefineValueExpressions.Add(r2.GetNode())
+						this_.validDefineValueExpressions.AddVoid(r2.GetNode())
 					}
 					var r3 *GlobalNamespace_Ref = name.InlineRef3()
 					_ = r3
 					if (r3 != nil) && !(r3.IsSet()) {
-						this_.validDefineValueExpressions.Add(r3.GetNode())
+						this_.validDefineValueExpressions.AddVoid(r3.GetNode())
 					}
 				}
 			}
@@ -664,32 +665,32 @@ func (this_ *ProcessDefines) priv_ProcessDefines_addNonSetRefNodes_4528(name *Gl
 			ref := j2gort.CastPtr[GlobalNamespace_Ref](rawElem_13)
 			_ = ref
 			if !(ref.IsSet()) {
-				this_.validDefineValueExpressions.Add(ref.GetNode())
+				this_.validDefineValueExpressions.AddVoid(ref.GetNode())
 			}
 		}
 	}
 }
 
 // Java method: ProcessDefines.addAllRefNodes(com.google.javascript.jscomp.GlobalNamespace.Name name)
-func (this_ *ProcessDefines) priv_ProcessDefines_addAllRefNodes_4529(name *GlobalNamespace_Name) {
+func (this_ *ProcessDefines) priv_ProcessDefines_addAllRefNodes_4526(name *GlobalNamespace_Name) {
 	_ = name
 	if name.HasInlineRefs() {
 		var r0 *GlobalNamespace_Ref = name.InlineRef0()
 		_ = r0
 		if r0 != nil {
-			this_.validDefineValueExpressions.Add(r0.GetNode())
+			this_.validDefineValueExpressions.AddVoid(r0.GetNode())
 			var r1 *GlobalNamespace_Ref = name.InlineRef1()
 			_ = r1
 			if r1 != nil {
-				this_.validDefineValueExpressions.Add(r1.GetNode())
+				this_.validDefineValueExpressions.AddVoid(r1.GetNode())
 				var r2 *GlobalNamespace_Ref = name.InlineRef2()
 				_ = r2
 				if r2 != nil {
-					this_.validDefineValueExpressions.Add(r2.GetNode())
+					this_.validDefineValueExpressions.AddVoid(r2.GetNode())
 					var r3 *GlobalNamespace_Ref = name.InlineRef3()
 					_ = r3
 					if r3 != nil {
-						this_.validDefineValueExpressions.Add(r3.GetNode())
+						this_.validDefineValueExpressions.AddVoid(r3.GetNode())
 					}
 				}
 			}
@@ -702,17 +703,17 @@ func (this_ *ProcessDefines) priv_ProcessDefines_addAllRefNodes_4529(name *Globa
 			rawElem_15 := cur_14.Next()
 			ref := j2gort.CastPtr[GlobalNamespace_Ref](rawElem_15)
 			_ = ref
-			this_.validDefineValueExpressions.Add(ref.GetNode())
+			this_.validDefineValueExpressions.AddVoid(ref.GetNode())
 		}
 	}
 }
 
 // Java method: ProcessDefines.collectValidDefineValueExpressions()
-func (this_ *ProcessDefines) priv_ProcessDefines_collectValidDefineValueExpressions_4530() {
-	var defineNames *j2gort.OrderedSet[*GlobalNamespace_Name] = nil
+func (this_ *ProcessDefines) priv_ProcessDefines_collectValidDefineValueExpressions_4527() {
+	var defineNames *j2gort.PlainSet[*GlobalNamespace_Name] = nil
 	_ = defineNames
 	if !(this_.defineByDefineName.IsEmpty()) {
-		defineNames = j2gort.NewOrderedSetPtrCap[*GlobalNamespace_Name]((this_.defineByDefineName.Size() * int32(2)))
+		defineNames = j2gort.NewPlainSetPtrCap[*GlobalNamespace_Name]((this_.defineByDefineName.Size() * int32(2)))
 		{
 			cur_16 := this_.defineByDefineName.IterValues()
 			for cur_16.HasNext() {
@@ -720,8 +721,8 @@ func (this_ *ProcessDefines) priv_ProcessDefines_collectValidDefineValueExpressi
 				define := cur_16.
 					Next()
 				_ = define
-				defineNames.Add(define.name)
-				this_.priv_ProcessDefines_addNonSetRefNodes_4528(define.name)
+				defineNames.AddVoid(define.name)
+				this_.priv_ProcessDefines_addNonSetRefNodes_4525(define.name)
 			}
 		}
 	}
@@ -753,9 +754,9 @@ func (this_ *ProcessDefines) priv_ProcessDefines_collectValidDefineValueExpressi
 				_ = name_2
 				var declValue pkg_rhino.Node = ProcessDefines_GetConstantDeclValue(j2gort.CastPtr[GlobalNamespace_Ref](name_2.GetDeclaration()).GetNode())
 				_ = declValue
-				switch (this_.priv_ProcessDefines_isValidDefineValue_4535(declValue)).Ordinal() {
+				switch (this_.priv_ProcessDefines_isValidDefineValue_4532(declValue)).Ordinal() {
 				case int32(2) /* Tri.TRUE */ :
-					this_.priv_ProcessDefines_addAllRefNodes_4529(name_2)
+					this_.priv_ProcessDefines_addAllRefNodes_4526(name_2)
 				case int32(1) /* Tri.UNKNOWN */ :
 					namesToCheck[func() int32 { old_20 := write; nw_21 := old_20 + 1; write = nw_21; return old_20 }()] = name_2
 				default:
@@ -770,7 +771,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_collectValidDefineValueExpressi
 }
 
 // Java method: ProcessDefines.validateDefineDeclarations()
-func (this_ *ProcessDefines) priv_ProcessDefines_validateDefineDeclarations_4531() {
+func (this_ *ProcessDefines) priv_ProcessDefines_validateDefineDeclarations_4528() {
 	if !((this_.mode).FieldGet_check()) {
 		return
 	}
@@ -783,15 +784,15 @@ func (this_ *ProcessDefines) priv_ProcessDefines_validateDefineDeclarations_4531
 			_ = define
 			var declarationNode pkg_rhino.Node = define.declaration.GetNode()
 			_ = declarationNode
-			if (!(this_.priv_ProcessDefines_isGoogDefineCall_4538(define.value)) && !(j2gort.SetContainsStr(StaticGet_ProcessDefines_KNOWN_DEFINES(), define.defineName))) && !(javalang.StringStartsWith(j2gort.CheckNotNullString(define.defineName), "$jscomp.")) {
+			if (!(this_.priv_ProcessDefines_isGoogDefineCall_4535(define.value)) && !(j2gort.SetContainsStr(StaticGet_ProcessDefines_KNOWN_DEFINES(), define.defineName))) && !(javalang.StringStartsWith(j2gort.CheckNotNullString(define.defineName), "$jscomp.")) {
 				this_.compiler.Report_1(JSError_Make_3(j2gort.CastNode[pkg_rhino.Node](j2gort.Ext_com_google_common_base_MoreObjects_FirstNonNull(j2gort.BoxNode(define.value), j2gort.BoxNode(j2gort.CastNode[pkg_rhino.Node](j2gort.Ext_com_google_common_base_MoreObjects_FirstNonNull(j2gort.BoxNode(define.valueParent), j2gort.BoxNode(declarationNode)))))), StaticGet_ProcessDefines_DEFINE_WITHOUT_GOOG_DEFINE(), []string{define.defineName, "go/js-practices/locals#defines"}))
 			}
-			if !(this_.priv_ProcessDefines_hasValidValue_4534(define)) {
+			if !(this_.priv_ProcessDefines_hasValidValue_4531(define)) {
 				this_.compiler.Report_1(JSError_Make_3(j2gort.CastNode[pkg_rhino.Node](j2gort.Ext_com_google_common_base_MoreObjects_FirstNonNull(j2gort.BoxNode(define.value), j2gort.BoxNode(j2gort.CastNode[pkg_rhino.Node](j2gort.Ext_com_google_common_base_MoreObjects_FirstNonNull(j2gort.BoxNode(define.valueParent), j2gort.BoxNode(declarationNode)))))), StaticGet_ProcessDefines_INVALID_DEFINE_VALUE(), []string{define.defineName}))
 			}
 			var jsdoc *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(declarationNode)
 			_ = jsdoc
-			if (jsdoc == nil) || !(this_.priv_ProcessDefines_isValidDefineType_4523(jsdoc.GetType())) {
+			if (jsdoc == nil) || !(this_.priv_ProcessDefines_isValidDefineType_4520(jsdoc.GetType())) {
 				this_.compiler.Report_1(JSError_Make_3(declarationNode, StaticGet_ProcessDefines_INVALID_DEFINE_TYPE(), []string{}))
 			}
 		}
@@ -799,7 +800,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_validateDefineDeclarations_4531
 }
 
 // Java method: ProcessDefines.reportInvalidDefineLocations(com.google.javascript.rhino.Node root)
-func (this_ *ProcessDefines) priv_ProcessDefines_reportInvalidDefineLocations_4532(root pkg_rhino.Node) {
+func (this_ *ProcessDefines) priv_ProcessDefines_reportInvalidDefineLocations_4529(root pkg_rhino.Node) {
 	_ = root
 	if !((this_.mode).FieldGet_check()) {
 		return
@@ -813,8 +814,8 @@ func (this_ *ProcessDefines) priv_ProcessDefines_reportInvalidDefineLocations_45
 		if ((jsdoc != nil) && jsdoc.IsDefine()) && this_.knownDefineJsdocs.Add(jsdoc) {
 			this_.compiler.Report_1(JSError_Make_3(n, StaticGet_ProcessDefines_INVALID_DEFINE_LOCATION(), []string{}))
 		}
-		if this_.priv_ProcessDefines_isGoogDefineCall_4538(n) && this_.knownGoogDefineCalls.Add(n) {
-			this_.priv_ProcessDefines_verifyGoogDefine_4539(n)
+		if this_.priv_ProcessDefines_isGoogDefineCall_4535(n) && this_.knownGoogDefineCalls.Add(n) {
+			this_.priv_ProcessDefines_verifyGoogDefine_4536(n)
 		}
 		if (n.MatchesName_1_string("CLOSURE_DEFINES") && (NodeUtil_IsNameDeclaration(parent) || (parent.IsGetElem() && parent.GetParent().IsAssign()))) && !(NodeUtil_GetEnclosingScopeRoot(n).IsRoot()) {
 			this_.compiler.Report_1(JSError_Make_3(n, StaticGet_ProcessDefines_NON_GLOBAL_CLOSURE_DEFINES_ERROR(), []string{}))
@@ -823,7 +824,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_reportInvalidDefineLocations_45
 }
 
 // Java method: ProcessDefines.handleClosureDefinesValue(com.google.javascript.rhino.Node stringNode, com.google.javascript.rhino.Node valueNode, com.google.javascript.rhino.Node errorNode)
-func (this_ *ProcessDefines) priv_ProcessDefines_handleClosureDefinesValue_4533(stringNode pkg_rhino.Node, valueNode pkg_rhino.Node, errorNode pkg_rhino.Node) {
+func (this_ *ProcessDefines) priv_ProcessDefines_handleClosureDefinesValue_4530(stringNode pkg_rhino.Node, valueNode pkg_rhino.Node, errorNode pkg_rhino.Node) {
 	_ = stringNode
 	_ = valueNode
 	_ = errorNode
@@ -855,14 +856,14 @@ func ProcessDefines_IsValidClosureDefinesValue(val pkg_rhino.Node) bool {
 }
 
 // Java method: ProcessDefines.hasValidValue(com.google.javascript.jscomp.ProcessDefines.Define define)
-func (this_ *ProcessDefines) priv_ProcessDefines_hasValidValue_4534(define *ProcessDefines_Define) bool {
+func (this_ *ProcessDefines) priv_ProcessDefines_hasValidValue_4531(define *ProcessDefines_Define) bool {
 	_ = define
 	if define.valueParent == 0 {
 		return false
 	} else if define.valueParent.IsFromExterns() {
 		return true
 	} else {
-		return this_.priv_ProcessDefines_isValidDefineValue_4535(define.value).ToBoolean(false)
+		return this_.priv_ProcessDefines_isValidDefineValue_4532(define.value).ToBoolean(false)
 	}
 }
 
@@ -874,7 +875,7 @@ func ProcessDefines_IsGlobalConst(name *GlobalNamespace_Name) bool {
 }
 
 // Java method: ProcessDefines.isValidDefineValue(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node val)
-func (this_ *ProcessDefines) priv_ProcessDefines_isValidDefineValue_4535(val pkg_rhino.Node) pkg_base.Tri {
+func (this_ *ProcessDefines) priv_ProcessDefines_isValidDefineValue_4532(val pkg_rhino.Node) pkg_base.Tri {
 	_ = val
 	if val == 0 {
 		return pkg_base.StaticGet_Tri_FALSE()
@@ -883,11 +884,11 @@ func (this_ *ProcessDefines) priv_ProcessDefines_isValidDefineValue_4535(val pkg
 	case int32(35) /* Token.STRINGLIT */, int32(33) /* Token.NUMBER */, int32(39) /* Token.TRUE */, int32(38) /* Token.FALSE */ :
 		return pkg_base.StaticGet_Tri_TRUE()
 	case int32(69) /* Token.AND */, int32(68) /* Token.OR */, int32(70) /* Token.COALESCE */, int32(13) /* Token.ADD */, int32(3) /* Token.BITAND */, int32(20) /* Token.BITNOT */, int32(1) /* Token.BITOR */, int32(2) /* Token.BITXOR */, int32(16) /* Token.DIV */, int32(4) /* Token.EQ */, int32(18) /* Token.EXPONENT */, int32(9) /* Token.GE */, int32(8) /* Token.GT */, int32(7) /* Token.LE */, int32(10) /* Token.LSH */, int32(6) /* Token.LT */, int32(17) /* Token.MOD */, int32(15) /* Token.MUL */, int32(5) /* Token.NE */, int32(11) /* Token.RSH */, int32(40) /* Token.SHEQ */, int32(41) /* Token.SHNE */, int32(14) /* Token.SUB */, int32(12) /* Token.URSH */ :
-		return this_.priv_ProcessDefines_isValidDefineValue_4535(val.GetFirstChild()).And(this_.priv_ProcessDefines_isValidDefineValue_4535(val.GetLastChild()))
+		return this_.priv_ProcessDefines_isValidDefineValue_4532(val.GetFirstChild()).And(this_.priv_ProcessDefines_isValidDefineValue_4532(val.GetLastChild()))
 	case int32(67) /* Token.HOOK */ :
-		return this_.priv_ProcessDefines_isValidDefineValue_4535(val.GetFirstChild()).And(this_.priv_ProcessDefines_isValidDefineValue_4535(val.GetSecondChild())).And(this_.priv_ProcessDefines_isValidDefineValue_4535(val.GetLastChild()))
+		return this_.priv_ProcessDefines_isValidDefineValue_4532(val.GetFirstChild()).And(this_.priv_ProcessDefines_isValidDefineValue_4532(val.GetSecondChild())).And(this_.priv_ProcessDefines_isValidDefineValue_4532(val.GetLastChild()))
 	case int32(19) /* Token.NOT */, int32(22) /* Token.NEG */, int32(21) /* Token.POS */ :
-		return this_.priv_ProcessDefines_isValidDefineValue_4535(val.GetFirstChild())
+		return this_.priv_ProcessDefines_isValidDefineValue_4532(val.GetFirstChild())
 	case int32(32) /* Token.NAME */, int32(26) /* Token.GETPROP */ :
 		if val.IsQualifiedName() {
 			if this_.validDefineValueExpressions.Contains(val) {
@@ -897,13 +898,13 @@ func (this_ *ProcessDefines) priv_ProcessDefines_isValidDefineValue_4535(val pkg
 			}
 		}
 	case int32(28) /* Token.CALL */ :
-		if !(this_.priv_ProcessDefines_isGoogDefineCall_4538(val)) {
+		if !(this_.priv_ProcessDefines_isGoogDefineCall_4535(val)) {
 			return pkg_base.StaticGet_Tri_FALSE()
 		}
 		if !(val.HasXChildren(int32(3))) {
 			return pkg_base.StaticGet_Tri_TRUE()
 		}
-		return this_.priv_ProcessDefines_isValidDefineValue_4535(val.GetChildAtIndex(int32(2)))
+		return this_.priv_ProcessDefines_isValidDefineValue_4532(val.GetChildAtIndex(int32(2)))
 	default:
 	}
 	return pkg_base.StaticGet_Tri_FALSE()
@@ -944,19 +945,19 @@ func ProcessDefines_GetConstantDeclValue(name pkg_rhino.Node) pkg_rhino.Node {
 }
 
 // Java method: ProcessDefines.validateDefines()
-func (this_ *ProcessDefines) priv_ProcessDefines_validateDefines_4536() {
+func (this_ *ProcessDefines) priv_ProcessDefines_validateDefines_4533() {
 	var willOutputAsyncFunctions bool = this_.compiler.GetOptions().GetOutputFeatureSet().Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS())
 	_ = willOutputAsyncFunctions
-	if (this_.priv_ProcessDefines_isZoneEnabled_4537() && this_.hasZoneInput) && willOutputAsyncFunctions {
+	if (this_.priv_ProcessDefines_isZoneEnabled_4534() && this_.hasZoneInput) && willOutputAsyncFunctions {
 		this_.compiler.Report_1(JSError_Make_2(StaticGet_ProcessDefines_ZONE_NOT_SUPPORTED_WITH_NATIVE_ASYNC_AWAIT(), []string{}))
 	}
 }
 
 // Java method: ProcessDefines.isZoneEnabled()
-func (this_ *ProcessDefines) priv_ProcessDefines_isZoneEnabled_4537() bool {
+func (this_ *ProcessDefines) priv_ProcessDefines_isZoneEnabled_4534() bool {
 	var enableZonesDefault bool = true
 	_ = enableZonesDefault
-	var zoneEnabled pkg_rhino.Node = this_.priv_ProcessDefines_getReplacementForDefineName_4522(this_.enableZonesDefineName)
+	var zoneEnabled pkg_rhino.Node = this_.priv_ProcessDefines_getReplacementForDefineName_4519(this_.enableZonesDefineName)
 	_ = zoneEnabled
 	if zoneEnabled == 0 {
 		return enableZonesDefault
@@ -965,7 +966,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_isZoneEnabled_4537() bool {
 }
 
 // Java method: ProcessDefines.isGoogDefineCall(com.google.javascript.rhino.Node node)
-func (this_ *ProcessDefines) priv_ProcessDefines_isGoogDefineCall_4538(node pkg_rhino.Node) bool {
+func (this_ *ProcessDefines) priv_ProcessDefines_isGoogDefineCall_4535(node pkg_rhino.Node) bool {
 	_ = node
 	if !(this_.recognizeClosureDefines) {
 		return false
@@ -977,9 +978,9 @@ func (this_ *ProcessDefines) priv_ProcessDefines_isGoogDefineCall_4538(node pkg_
 }
 
 // Java method: ProcessDefines.verifyGoogDefine(com.google.javascript.rhino.Node callNode)
-func (this_ *ProcessDefines) priv_ProcessDefines_verifyGoogDefine_4539(callNode pkg_rhino.Node) bool {
+func (this_ *ProcessDefines) priv_ProcessDefines_verifyGoogDefine_4536(callNode pkg_rhino.Node) bool {
 	_ = callNode
-	this_.knownGoogDefineCalls.Add(callNode)
+	this_.knownGoogDefineCalls.AddVoid(callNode)
 	var parent pkg_rhino.Node = callNode.GetParent()
 	_ = parent
 	var methodName pkg_rhino.Node = callNode.GetFirstChild()
@@ -1000,11 +1001,11 @@ func (this_ *ProcessDefines) priv_ProcessDefines_verifyGoogDefine_4539(callNode 
 	}
 	var arg pkg_rhino.Node = args
 	_ = arg
-	if !(this_.priv_ProcessDefines_verifyNotNull_4540(methodName, arg)) || !(this_.priv_ProcessDefines_verifyOfType_4542(methodName, arg, pkg_rhino.StaticGet_Token_STRINGLIT())) {
+	if !(this_.priv_ProcessDefines_verifyNotNull_4537(methodName, arg)) || !(this_.priv_ProcessDefines_verifyOfType_4539(methodName, arg, pkg_rhino.StaticGet_Token_STRINGLIT())) {
 		return false
 	}
 	arg = arg.GetNext()
-	if !(args.IsFromExterns()) && (!(this_.priv_ProcessDefines_verifyNotNull_4540(methodName, arg)) || !(this_.priv_ProcessDefines_verifyIsLast_4541(methodName, arg))) {
+	if !(args.IsFromExterns()) && (!(this_.priv_ProcessDefines_verifyNotNull_4537(methodName, arg)) || !(this_.priv_ProcessDefines_verifyIsLast_4538(methodName, arg))) {
 		return false
 	}
 	var name string = args.GetString()
@@ -1028,7 +1029,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_verifyGoogDefine_4539(callNode 
 }
 
 // Java method: ProcessDefines.verifyNotNull(com.google.javascript.rhino.Node methodName, com.google.javascript.rhino.Node arg)
-func (this_ *ProcessDefines) priv_ProcessDefines_verifyNotNull_4540(methodName pkg_rhino.Node, arg pkg_rhino.Node) bool {
+func (this_ *ProcessDefines) priv_ProcessDefines_verifyNotNull_4537(methodName pkg_rhino.Node, arg pkg_rhino.Node) bool {
 	_ = methodName
 	_ = arg
 	if arg == 0 {
@@ -1039,7 +1040,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_verifyNotNull_4540(methodName p
 }
 
 // Java method: ProcessDefines.verifyIsLast(com.google.javascript.rhino.Node methodName, com.google.javascript.rhino.Node arg)
-func (this_ *ProcessDefines) priv_ProcessDefines_verifyIsLast_4541(methodName pkg_rhino.Node, arg pkg_rhino.Node) bool {
+func (this_ *ProcessDefines) priv_ProcessDefines_verifyIsLast_4538(methodName pkg_rhino.Node, arg pkg_rhino.Node) bool {
 	_ = methodName
 	_ = arg
 	if arg.GetNext() != 0 {
@@ -1050,7 +1051,7 @@ func (this_ *ProcessDefines) priv_ProcessDefines_verifyIsLast_4541(methodName pk
 }
 
 // Java method: ProcessDefines.verifyOfType(com.google.javascript.rhino.Node methodName, com.google.javascript.rhino.Node arg, com.google.javascript.rhino.Token desiredType)
-func (this_ *ProcessDefines) priv_ProcessDefines_verifyOfType_4542(methodName pkg_rhino.Node, arg pkg_rhino.Node, desiredType pkg_rhino.Token) bool {
+func (this_ *ProcessDefines) priv_ProcessDefines_verifyOfType_4539(methodName pkg_rhino.Node, arg pkg_rhino.Node, desiredType pkg_rhino.Token) bool {
 	_ = methodName
 	_ = arg
 	_ = desiredType
@@ -1386,7 +1387,7 @@ func (this_ *ProcessDefines_ClosureDefinesCollector) Visit_3(t *NodeTraversal, n
 				var c pkg_rhino.Node = valueNode.GetFirstChild()
 				_ = c
 				for ; c != 0; c = c.GetNext() {
-					this_.outer_.priv_ProcessDefines_handleClosureDefinesValue_4533(c, c.GetFirstChild(), n)
+					this_.outer_.priv_ProcessDefines_handleClosureDefinesValue_4530(c, c.GetFirstChild(), n)
 				}
 			}
 		}
@@ -1394,7 +1395,7 @@ func (this_ *ProcessDefines_ClosureDefinesCollector) Visit_3(t *NodeTraversal, n
 		var lhs pkg_rhino.Node = n.GetFirstChild()
 		_ = lhs
 		if lhs.IsGetElem() && lhs.GetFirstChild().MatchesName_1_string("CLOSURE_DEFINES") {
-			this_.outer_.priv_ProcessDefines_handleClosureDefinesValue_4533(lhs.GetSecondChild(), n.GetSecondChild(), n)
+			this_.outer_.priv_ProcessDefines_handleClosureDefinesValue_4530(lhs.GetSecondChild(), n.GetSecondChild(), n)
 		}
 	}
 }

@@ -132,6 +132,14 @@ func ToIface_ObjectType[T interface {
 	return v
 }
 
+func Upcast_ObjectType[T ObjectType](v T) ObjectType {
+	var vi ObjectType = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.rhino.jstype.ObjectType
 type ObjectTypeBase struct {
 	JSTypeBase
@@ -297,12 +305,12 @@ func ObjectType_UnwrapToPrototypeObjectType(type_ ObjectType) PrototypeObjectTyp
 		var ok_2 bool
 		proxy, ok_2 = j2gort.TryCast[ProxyObjectType](curr)
 		if ok_2 {
-			curr = proxy.GetReferencedObjTypeInternal()
+			curr = proxy.GetProxyObjectTypeBase().GetReferencedObjTypeInternal()
 		} else {
 			var ok_3 bool
 			enumElem, ok_3 = j2gort.TryCast[*EnumElementType](curr)
 			if ok_3 {
-				curr = enumElem.GetPrimitiveType().ToObjectType()
+				curr = enumElem.GetPrimitiveType().GetJSTypeBase().ToObjectType()
 			} else {
 				return nil
 			}
@@ -334,7 +342,7 @@ func (this_ *ObjectTypeBase) GetOwnSlot_1_string(name string) *Property {
 	if src == nil || src.IsJavaNil_() {
 		return nil
 	}
-	var map_ *PropertyMap = src.GetOwnPropertyMapOrNull()
+	var map_ *PropertyMap = src.GetPrototypeObjectTypeBase().GetOwnPropertyMapOrNull()
 	_ = map_
 	if map_ != nil {
 		return map_.GetOwnProperty_1_string(name)
@@ -351,7 +359,7 @@ func (this_ *ObjectTypeBase) GetOwnSlot_1_Property_Key(name Property_Key) *Prope
 	if src == nil || src.IsJavaNil_() {
 		return nil
 	}
-	var map_ *PropertyMap = src.GetOwnPropertyMapOrNull()
+	var map_ *PropertyMap = src.GetPrototypeObjectTypeBase().GetOwnPropertyMapOrNull()
 	_ = map_
 	if map_ != nil {
 		return map_.GetOwnProperty_1_Property_Key(name)
@@ -477,7 +485,8 @@ func (this_ *ObjectTypeBase) TestForEquality(that JSType) pkg_base.Tri {
 	if result != 0 {
 		return result
 	}
-	if (((((that.IsUnknownType() || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_OBJECT_TYPE()))) || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_NUMBER_TYPE()))) || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_STRING_TYPE()))) || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_BOOLEAN_TYPE()))) || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_TYPE()))) || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_BIGINT_TYPE())) {
+	base_that_ := that.GetJSTypeBase()
+	if (((((base_that_.IsUnknownType() || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_OBJECT_TYPE()))) || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_NUMBER_TYPE()))) || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_STRING_TYPE()))) || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_BOOLEAN_TYPE()))) || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_TYPE()))) || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_BIGINT_TYPE())) {
 		return pkg_base.StaticGet_Tri_UNKNOWN()
 	}
 	return pkg_base.StaticGet_Tri_FALSE()
@@ -614,7 +623,7 @@ func (this_ *ObjectTypeBase) DefineInferredProperty_3_string_JSType_Node(propert
 	} else {
 		var slot *Property = this_.GetSlot_1_string(propertyName)
 		_ = slot
-		if ((slot != nil) || this_.IsEmptyType()) || this_.self_ObjectType_().IsUnknownType() {
+		if ((slot != nil) || this_.IsEmptyType()) || this_.IsUnknownType() {
 			if (slot != nil) && !(slot.IsTypeInferred()) {
 				return true
 			}
@@ -809,7 +818,7 @@ func (this_ *ObjectTypeBase) GetPropertyType_1_string(propertyName string) JSTyp
 	var ok_9 bool
 	templatized, ok_9 = j2gort.TryCast[*TemplatizedType](this_.self_ObjectType_())
 	if ok_9 {
-		var result JSType = this_.priv_ObjectType_getPropertyTypeFromSlot_9318(this_.GetSlot_1_string(propertyName))
+		var result JSType = this_.priv_ObjectType_getPropertyTypeFromSlot_9336(this_.GetSlot_1_string(propertyName))
 		_ = result
 		if result == nil || result.IsJavaNil_() {
 			return nil
@@ -828,7 +837,7 @@ func (this_ *ObjectTypeBase) GetPropertyType_1_string(propertyName string) JSTyp
 			return this_.self_ObjectType_().GetPropertyType_1_Property_Key(ToIface_Property_Key(StaticGet_ObjectType_APPLY_KEY()))
 		}
 	}
-	return this_.priv_ObjectType_getPropertyTypeFromSlot_9318(this_.GetSlot_1_string(propertyName))
+	return this_.priv_ObjectType_getPropertyTypeFromSlot_9336(this_.GetSlot_1_string(propertyName))
 }
 
 // Java method: ObjectType.getPropertyType(com.google.javascript.rhino.jstype.Property.Key propertyName)
@@ -836,11 +845,11 @@ func (this_ *ObjectTypeBase) GetPropertyType_1_Property_Key(propertyName Propert
 	_ = propertyName
 	var slot *Property = this_.self_ObjectType_().GetSlot_1_Property_Key(propertyName)
 	_ = slot
-	return this_.priv_ObjectType_getPropertyTypeFromSlot_9318(slot)
+	return this_.priv_ObjectType_getPropertyTypeFromSlot_9336(slot)
 }
 
 // Java method: ObjectType.getPropertyTypeFromSlot(com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable Property slot)
-func (this_ *ObjectTypeBase) priv_ObjectType_getPropertyTypeFromSlot_9318(slot *Property) JSType {
+func (this_ *ObjectTypeBase) priv_ObjectType_getPropertyTypeFromSlot_9336(slot *Property) JSType {
 	_ = slot
 	if slot == nil {
 		if this_.IsNoResolvedType() || this_.IsCheckedUnknownType() {
@@ -857,7 +866,7 @@ func (this_ *ObjectTypeBase) priv_ObjectType_getPropertyTypeFromSlot_9318(slot *
 func (this_ *ObjectTypeBase) GetPropertyKind_2_Property_Key_bool(propertyName Property_Key, autobox bool) JSType_HasPropertyKind {
 	_ = propertyName
 	_ = autobox
-	return JSType_HasPropertyKind_Of(((this_.IsEmptyType() || this_.self_ObjectType_().IsUnknownType()) || (this_.self_ObjectType_().GetSlot_1_Property_Key(propertyName) != nil)))
+	return JSType_HasPropertyKind_Of(((this_.IsEmptyType() || this_.IsUnknownType()) || (this_.self_ObjectType_().GetSlot_1_Property_Key(propertyName) != nil)))
 }
 
 // Java method: ObjectType.getPropertyKind(java.lang.String propertyName, boolean autobox)
@@ -865,7 +874,7 @@ func (this_ *ObjectTypeBase) GetPropertyKind_2_string_bool(propertyName string, 
 	_ = propertyName
 	_ = autobox
 	j2gort.CheckNotNullString(propertyName)
-	return JSType_HasPropertyKind_Of(((this_.IsEmptyType() || this_.self_ObjectType_().IsUnknownType()) || (this_.GetSlot_1_string(propertyName) != nil)))
+	return JSType_HasPropertyKind_Of(((this_.IsEmptyType() || this_.IsUnknownType()) || (this_.GetSlot_1_string(propertyName) != nil)))
 }
 
 // Java method: ObjectType.getOwnPropertyKind(java.lang.String propertyName)
@@ -914,7 +923,7 @@ func (this_ *ObjectTypeBase) GetOwnPropertyKnownSymbols() j2gort.Ext_java_util_S
 	if src == nil || src.IsJavaNil_() {
 		return j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.Ext_com_google_common_collect_ImmutableSet_Of_0())
 	}
-	var map_ *PropertyMap = src.GetOwnPropertyMapOrNull()
+	var map_ *PropertyMap = src.GetPrototypeObjectTypeBase().GetOwnPropertyMapOrNull()
 	_ = map_
 	if map_ != nil {
 		return map_.GetOwnKnownSymbols()
@@ -930,7 +939,7 @@ func (this_ *ObjectTypeBase) GetOwnPropertyNames() j2gort.Ext_java_util_Set {
 	if src == nil || src.IsJavaNil_() {
 		return j2gort.AsIface[j2gort.Ext_java_util_Set](StaticGet_ObjectType_EMPTY_STRING_SET())
 	}
-	var map_ *PropertyMap = src.GetOwnPropertyMapOrNull()
+	var map_ *PropertyMap = src.GetPrototypeObjectTypeBase().GetOwnPropertyMapOrNull()
 	_ = map_
 	if map_ != nil {
 		return map_.GetOwnPropertyNames()
@@ -953,7 +962,7 @@ func (this_ *ObjectTypeBase) GetOwnPropertyNamesUpperBound() int32 {
 	var src PrototypeObjectType = ObjectType_UnwrapToPrototypeObjectType(this_.self_ObjectType_())
 	_ = src
 	if src != nil && !src.IsJavaNil_() {
-		var map_ *PropertyMap = src.GetOwnPropertyMapOrNull()
+		var map_ *PropertyMap = src.GetPrototypeObjectTypeBase().GetOwnPropertyMapOrNull()
 		_ = map_
 		if map_ != nil {
 			count = (count + map_.GetOwnPropertiesCount())
@@ -981,7 +990,7 @@ func (this_ *ObjectTypeBase) CollectOwnPropertyNames(out []string) int32 {
 	var src PrototypeObjectType = ObjectType_UnwrapToPrototypeObjectType(this_.self_ObjectType_())
 	_ = src
 	if src != nil && !src.IsJavaNil_() {
-		var map_ *PropertyMap = src.GetOwnPropertyMapOrNull()
+		var map_ *PropertyMap = src.GetPrototypeObjectTypeBase().GetOwnPropertyMapOrNull()
 		_ = map_
 		if map_ != nil {
 			idx = map_.CollectOwnPropertyNames(out, idx, hasProto)
@@ -1088,8 +1097,9 @@ func (this_ *ObjectTypeBase) GetPropertiesCount() int32 {
 	if src == nil || src.IsJavaNil_() {
 		return int32(0)
 	}
+	base_src_ := src.GetPrototypeObjectTypeBase()
 	if j2gort.IfaceEquals[PrototypeObjectType](ObjectType_UnwrapToPrototypeObjectType(src.GetImplicitPrototype()), nil) {
-		var map_ *PropertyMap = src.GetOwnPropertyMapOrNull()
+		var map_ *PropertyMap = base_src_.GetOwnPropertyMapOrNull()
 		_ = map_
 		if map_ != nil {
 			return map_.GetOwnPropertiesCount()
@@ -1097,7 +1107,7 @@ func (this_ *ObjectTypeBase) GetPropertiesCount() int32 {
 			return int32(0)
 		}
 	}
-	return src.GetPropertyMap().GetPropertiesCount()
+	return base_src_.GetPropertyMap().GetPropertiesCount()
 }
 
 // Java method: ObjectType.getPropertyNames()
@@ -1126,12 +1136,20 @@ func (this_ *ObjectTypeBase) Visit_2(visitor RelationshipVisitor, that JSType) a
 // Java method: ObjectType.isImplicitPrototypeOf(com.google.javascript.rhino.jstype.ObjectType other)
 func (this_ *ObjectTypeBase) IsImplicitPrototypeOf(other ObjectType) bool {
 	_ = other
-	var unwrappedThis ObjectType = ObjectType_DeeplyUnwrap(this_.self_ObjectType_())
+	var unwrappedThis ObjectType
 	_ = unwrappedThis
+	if (this_.GetJSTypeBase().typeKindMask & int32(1)) == int32(0) {
+		unwrappedThis = this_.self_ObjectType_()
+	} else {
+		unwrappedThis = ObjectType_DeeplyUnwrap(this_.self_ObjectType_())
+	}
 	{
 		other = ObjectType_DeeplyUnwrap(other)
 		for ; other != nil && !other.IsJavaNil_(); other = ObjectType_DeeplyUnwrap(other.GetImplicitPrototype()) {
-			if unwrappedThis == other || ((unwrappedThis == nil || unwrappedThis.IsJavaNil_()) && (other == nil || other.IsJavaNil_())) {
+			if unwrappedThis == other || ((unwrappedThis == nil || unwrappedThis.IsJavaNil_()) && (other == nil || other.IsJavaNil_(
+
+			// Java static method: ObjectType.deeplyUnwrap(com.google.javascript.rhino.jstype.ObjectType original)
+			))) {
 				return true
 			}
 		}
@@ -1139,22 +1157,24 @@ func (this_ *ObjectTypeBase) IsImplicitPrototypeOf(other ObjectType) bool {
 	return false
 }
 
-// Java static method: ObjectType.deeplyUnwrap(com.google.javascript.rhino.jstype.ObjectType original)
 func ObjectType_DeeplyUnwrap(original ObjectType) ObjectType {
 	clinit_ObjectType()
 	_ = original
+	if (original == nil || original.IsJavaNil_()) || ((original.GetJSTypeBase().typeKindMask & int32(1)) == int32(0)) {
+		return original
+	}
 	var current ObjectType = original
 	_ = current
-	for j2gort.InstanceOf[ProxyObjectType](current) {
-		if current.IsTemplatizedType() {
+	for (current != nil && !current.IsJavaNil_()) && ((current.GetJSTypeBase().typeKindMask & int32(1)) != int32(0)) {
+		if current.GetObjectTypeBase().IsTemplatizedType() {
 			current = current.ToMaybeTemplatizedType().GetReferencedType()
-		} else if current.IsNamedType() {
-			if !(current.IsSuccessfullyResolved()) {
+		} else if current.GetObjectTypeBase().IsNamedType() {
+			if !(current.GetObjectTypeBase().IsSuccessfullyResolved()) {
 				break
 			}
 			current = current.ToMaybeNamedType().GetReferencedObjTypeInternal()
 		} else {
-			current = (j2gort.AsIface[ProxyObjectType](current)).GetReferencedObjTypeInternal()
+			current = (j2gort.AsIface[ProxyObjectType](current)).GetProxyObjectTypeBase().GetReferencedObjTypeInternal()
 		}
 	}
 	return current
@@ -1165,12 +1185,12 @@ func (this_ *ObjectTypeBase) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return StaticGet_BooleanLiteralSet_TRUE()
 }
 
-// Java method: ObjectType.isUnknownType()
-func (this_ *ObjectTypeBase) IsUnknownType() bool {
+// Java method: ObjectType.isUnknownTypeSlow()
+func (this_ *ObjectTypeBase) IsUnknownTypeSlow() bool {
 	if (int32(this_.GetJSTypeBase().jstypeFlags) & int32(int8(32))) == int32(0) {
 		var implicitProto ObjectType = this_.self_ObjectType_().GetImplicitPrototype()
 		_ = implicitProto
-		if (implicitProto == nil || implicitProto.IsJavaNil_()) || implicitProto.IsNativeObjectType() {
+		if (implicitProto == nil || implicitProto.IsJavaNil_()) || implicitProto.GetObjectTypeBase().IsNativeObjectType() {
 			this_.GetJSTypeBase().jstypeFlags = int8((int32(this_.GetJSTypeBase().jstypeFlags) | int32(int8(32))))
 			{
 				cur_20 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.self_ObjectType_().GetCtorExtendedInterfaces())))
@@ -1178,13 +1198,13 @@ func (this_ *ObjectTypeBase) IsUnknownType() bool {
 					rawElem_21 := cur_20.Next()
 					interfaceType := j2gort.AsIface[ObjectType](rawElem_21)
 					_ = interfaceType
-					if interfaceType.IsUnknownType() {
+					if interfaceType.GetObjectTypeBase().IsUnknownType() {
 						this_.GetJSTypeBase().jstypeFlags = int8((int32(this_.GetJSTypeBase().jstypeFlags) & ^(int32(int8(32)))))
 						break
 					}
 				}
 			}
-		} else if !(implicitProto.IsUnknownType()) {
+		} else if !(implicitProto.GetObjectTypeBase().IsUnknownType()) {
 			this_.GetJSTypeBase().jstypeFlags = int8((int32(this_.GetJSTypeBase().jstypeFlags) | int32(int8(32))))
 		}
 	}
@@ -1213,7 +1233,7 @@ func ObjectType_Cast(type_ JSType) ObjectType {
 	if type_ == nil || type_.IsJavaNil_() {
 		return nil
 	} else {
-		return type_.ToObjectType()
+		return type_.GetJSTypeBase().ToObjectType()
 	}
 }
 

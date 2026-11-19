@@ -58,6 +58,7 @@ const (
 	mapFlavorOrdered mapFlavor = iota
 	mapFlavorCustom
 	mapFlavorIdentity
+	mapFlavorPlain
 )
 
 type mapInitKind uint8
@@ -84,30 +85,30 @@ const (
 	mapOpDeclVarSpec
 	mapOpDeclShortVar
 	mapOpAssignInit
-	mapOpAssignUnionField   // s.unionAnyField = localMapCand -> s.unionAnyField = j2gort.PtrToAny(localMapCand)
-	mapOpPassParamArg       // fn(..., m, ...) -> fn(..., &m, ...) / fn(..., m, ...)
-	mapOpNilCheck           // m == nil / m != nil (preserved natively on *OrderedMap / *CustomOrderedMap, or .IsEmpty() on lazy value OrderedMap)
-	mapOpFormatSink         // StrVal(m), StrConcat(..., m), ToStringHelper.Add(..., m), CheckStateFmt(..., PtrToAny(m))
-	mapOpMethodDirect       // .Size(), .IsEmpty(), .Clear(), .String()
-	mapOpMethodRefGet       // bound := m; return NewLambda_Function(func(k any) any { return bound.Get(k) })
-	mapOpFirstValue         // m.Values().Iterator().Next() -> m.FirstValue()
-	mapOpGet                // m.Get(k), MapGetStr(m, k), MapGetNode(m, k)
-	mapOpGetAny             // m.Get(rawAny) -> j2gort.*OrderedMapGetAny(&m, rawAny)
-	mapOpGetOrDefault       // m.GetOrDefault(k, def), MapGetOrDefaultStr/Node(m, k, def)
-	mapOpContainsKey        // m.ContainsKey(k), MapContainsKeyStr/Node(m, k)
-	mapOpPut                // m.Put_2(k, v), MapPutStr/Node(m, k, v), m.PutIfAbsent(k, v)
-	mapOpRemove             // m.Remove_1(k), MapRemoveStr/Node(m, k)
-	mapOpPutAllMap          // m.PutAll(otherCand) -> m.PutAllMap(otherCand)
-	mapOpPutAllJavaMap      // m.PutAll(extMap) -> m.PutAllJavaMap(extMap)
-	mapOpComputeIfAbsent    // ComputeIfAbsent / MapComputeIfAbsent* / MapTryGetCompute* IIFE
-	mapOpForEach            // m.ForEach_1(biConsumer) -> m.ForEach(func(k K, v V) { ... }) or m.ForEachBiConsumer(...)
-	mapOpEqualsMap          // m.Equals(otherCand) -> OrderedMapEquals / CustomOrderedMapEquals / EqualsMap
-	mapOpHashCode           // m.HashCode() -> m.HashCodeMap(isIdent) / m.HashCode()
-	mapOpImmMapCopy         // ImmutableMap_CopyOf(m) -> m.ToImmutableMap()
-	mapOpKeysToImmSet       // ImmutableSet_CopyOf(m.KeySet_0()) -> m.KeysToImmutableSet()
-	mapOpValsToImmList      // ImmutableList_CopyOf(m.Values()) -> m.ValuesToImmutableList()
-	mapOpLiveView           // this_.f.Values() -> this_.f.LiveValues(), this_.f.KeySet_0() -> this_.f.LiveKeySet()
-	mapOpEntrySetReadOnly   // m.EntrySet().Stream() -> m.ToJavaLinkedHashMap().EntrySet().Stream()
+	mapOpAssignUnionField // s.unionAnyField = localMapCand -> s.unionAnyField = j2gort.PtrToAny(localMapCand)
+	mapOpPassParamArg     // fn(..., m, ...) -> fn(..., &m, ...) / fn(..., m, ...)
+	mapOpNilCheck         // m == nil / m != nil (preserved natively on *OrderedMap / *CustomOrderedMap, or .IsEmpty() on lazy value OrderedMap)
+	mapOpFormatSink       // StrVal(m), StrConcat(..., m), ToStringHelper.Add(..., m), CheckStateFmt(..., PtrToAny(m))
+	mapOpMethodDirect     // .Size(), .IsEmpty(), .Clear(), .String()
+	mapOpMethodRefGet     // bound := m; return NewLambda_Function(func(k any) any { return bound.Get(k) })
+	mapOpFirstValue       // m.Values().Iterator().Next() -> m.FirstValue()
+	mapOpGet              // m.Get(k), MapGetStr(m, k), MapGetNode(m, k)
+	mapOpGetAny           // m.Get(rawAny) -> j2gort.*OrderedMapGetAny(&m, rawAny)
+	mapOpGetOrDefault     // m.GetOrDefault(k, def), MapGetOrDefaultStr/Node(m, k, def)
+	mapOpContainsKey      // m.ContainsKey(k), MapContainsKeyStr/Node(m, k)
+	mapOpPut              // m.Put_2(k, v), MapPutStr/Node(m, k, v), m.PutIfAbsent(k, v)
+	mapOpRemove           // m.Remove_1(k), MapRemoveStr/Node(m, k)
+	mapOpPutAllMap        // m.PutAll(otherCand) -> m.PutAllMap(otherCand)
+	mapOpPutAllJavaMap    // m.PutAll(extMap) -> m.PutAllJavaMap(extMap)
+	mapOpComputeIfAbsent  // ComputeIfAbsent / MapComputeIfAbsent* / MapTryGetCompute* IIFE
+	mapOpForEach          // m.ForEach_1(biConsumer) -> m.ForEach(func(k K, v V) { ... }) or m.ForEachBiConsumer(...)
+	mapOpEqualsMap        // m.Equals(otherCand) -> OrderedMapEquals / CustomOrderedMapEquals / EqualsMap
+	mapOpHashCode         // m.HashCode() -> m.HashCodeMap(isIdent) / m.HashCode()
+	mapOpImmMapCopy       // ImmutableMap_CopyOf(m) -> m.ToImmutableMap()
+	mapOpKeysToImmSet     // ImmutableSet_CopyOf(m.KeySet_0()) -> m.KeysToImmutableSet()
+	mapOpValsToImmList    // ImmutableList_CopyOf(m.Values()) -> m.ValuesToImmutableList()
+	mapOpLiveView         // this_.f.Values() -> this_.f.LiveValues(), this_.f.KeySet_0() -> this_.f.LiveKeySet()
+	mapOpEntrySetReadOnly // m.EntrySet().Stream() -> m.ToJavaLinkedHashMap().EntrySet().Stream()
 	mapOpIterCursor       // NewMapKeyCursor / NewMapKeyStrCursor / NewMapValCursor / NewIterCursor(KeySet/Values)
 	mapOpEntryCursor      // NewMapEntryCursor(m) -> m.IterEntries()
 	mapOpEntryGetKey      // cur.GetKey() / cur.KeyStr() / Node(cur.KeyNode()) -> cur.Key()
@@ -951,6 +952,9 @@ func resolveAndValidateMapGroup(members []*mapCandidate, parentsByFile map[*ast.
 			canPromoteLazyFieldToValueOrderedMap(m, parentsByFile, ctx.Info) {
 			m.isNullable = false
 			m.isLazyValueMap = true
+		}
+		if canPromoteToPlainMap(m, parentsByFile, ctx) {
+			m.flavor = mapFlavorPlain
 		}
 	}
 	return true
@@ -3419,6 +3423,8 @@ func applySingleMapRewrite(ctx *PassContext, op mapRewriteOp, parents map[ast.No
 			return "CustomOrderedMap"
 		case mapFlavorIdentity:
 			return "IdentityOrderedMap"
+		case mapFlavorPlain:
+			return "PlainMap"
 		default:
 			return "OrderedMap"
 		}
@@ -3465,6 +3471,9 @@ func applySingleMapRewrite(ctx *PassContext, op mapRewriteOp, parents map[ast.No
 			}
 			return lit
 		case mapInitEmpty:
+			if op.cand.flavor == mapFlavorPlain {
+				return makePlainMapInitExpr(ctx, j2Sel, makeValueMapType, makeKeyType, makeValType, op.cand.isPtr(), false, nil, pos, inHeader)
+			}
 			if op.cand.isPtr() {
 				lit := ast.Expr(&ast.UnaryExpr{
 					OpPos: pos,
@@ -3478,6 +3487,9 @@ func applySingleMapRewrite(ctx *PassContext, op mapRewriteOp, parents map[ast.No
 			}
 			return &ast.CallExpr{Fun: &ast.IndexListExpr{X: j2Sel("New"+base, pos), Indices: []ast.Expr{makeKeyType(), makeValType()}}}
 		case mapInitCap:
+			if op.cand.flavor == mapFlavorPlain {
+				return makePlainMapInitExpr(ctx, j2Sel, makeValueMapType, makeKeyType, makeValType, op.cand.isPtr(), true, argExpr, pos, inHeader)
+			}
 			fnName := "New" + base + "Cap"
 			if op.cand.isPtr() {
 				fnName = "New" + base + "PtrCap"
@@ -3787,6 +3799,10 @@ func applySingleMapRewrite(ctx *PassContext, op mapRewriteOp, parents map[ast.No
 			sel := "Put"
 			if op.isPutIfAbsent {
 				sel = "PutIfAbsent"
+			} else if op.cand.flavor == mapFlavorPlain && op.discardRet {
+				if _, isES := parent.(*ast.ExprStmt); isES && j2gortTypeHasMethod(ctx, "PlainMap", "PutVoid") {
+					sel = "PutVoid"
+				}
 			}
 			repl = &ast.CallExpr{
 				Fun:  &ast.SelectorExpr{X: wrapPrimaryTarget(op.accessExpr), Sel: &ast.Ident{NamePos: pos, Name: sel}},
@@ -3862,9 +3878,19 @@ func applySingleMapRewrite(ctx *PassContext, op mapRewriteOp, parents map[ast.No
 				},
 				Body: fl.Body,
 			}
+			computeFnName := typeBaseName() + "ComputeIfAbsent"
+			computeArgs := []ast.Expr{addr, keyArg, nullV, typedLit}
+			if op.cand.flavor == mapFlavorPlain {
+				if helperName, takesNull, okH := resolvePlainMapComputeHelper(findJ2gortTypesPkg(ctx), true, isStrVal); okH {
+					computeFnName = helperName
+					if !takesNull {
+						computeArgs = []ast.Expr{addr, keyArg, typedLit}
+					}
+				}
+			}
 			computeCall := &ast.CallExpr{
-				Fun:  j2Sel(typeBaseName()+"ComputeIfAbsent", token.NoPos),
-				Args: []ast.Expr{addr, keyArg, nullV, typedLit},
+				Fun:  j2Sel(computeFnName, token.NoPos),
+				Args: computeArgs,
 			}
 			if op.computeSpec.boundInit != nil {
 				clearNodePositions(op.computeSpec.boundInit)
@@ -3891,9 +3917,19 @@ func applySingleMapRewrite(ctx *PassContext, op mapRewriteOp, parents map[ast.No
 			}
 		} else {
 			clearNodePositions(op.computeSpec.fnExpr)
+			computeFnName := typeBaseName() + "ComputeIfAbsentFn"
+			computeArgs := []ast.Expr{addr, keyArg, nullV, op.computeSpec.fnExpr}
+			if op.cand.flavor == mapFlavorPlain {
+				if helperName, takesNull, okH := resolvePlainMapComputeHelper(findJ2gortTypesPkg(ctx), false, isStrVal); okH {
+					computeFnName = helperName
+					if !takesNull {
+						computeArgs = []ast.Expr{addr, keyArg, op.computeSpec.fnExpr}
+					}
+				}
+			}
 			repl = &ast.CallExpr{
-				Fun:  j2Sel(typeBaseName()+"ComputeIfAbsentFn", token.NoPos),
-				Args: []ast.Expr{addr, keyArg, nullV, op.computeSpec.fnExpr},
+				Fun:  j2Sel(computeFnName, token.NoPos),
+				Args: computeArgs,
 			}
 		}
 		return parent != nil && replaceExprInParent(parent, op.outerExpr, repl, parents)
@@ -6100,7 +6136,7 @@ func isJ2gortOrderedMapBoxIntType(t types.Type) (isPtr bool, ok bool) {
 		return false, false
 	}
 	switch nm.Obj().Name() {
-	case "OrderedMap", "CustomOrderedMap", "IdentityOrderedMap":
+	case "OrderedMap", "CustomOrderedMap", "IdentityOrderedMap", "PlainMap":
 	default:
 		return false, false
 	}
@@ -6217,7 +6253,8 @@ func applyOrderedMapUnboxedIntLowering(ctx *PassContext, parentsByFile map[*ast.
 					switch fnName {
 					case "NewOrderedMap", "NewOrderedMapCap", "NewOrderedMapPtrCap", "AcquireOrderedMap", "AcquireOrderedMapCap",
 						"NewCustomOrderedMap", "NewCustomOrderedMapCap", "NewCustomOrderedMapPtrCap", "AcquireCustomOrderedMap", "AcquireCustomOrderedMapCap",
-						"NewIdentityOrderedMap", "NewIdentityOrderedMapCap", "NewIdentityOrderedMapPtrCap", "AcquireIdentityOrderedMap", "AcquireIdentityOrderedMapCap":
+						"NewIdentityOrderedMap", "NewIdentityOrderedMapCap", "NewIdentityOrderedMapPtrCap", "AcquireIdentityOrderedMap", "AcquireIdentityOrderedMapCap",
+						"NewPlainMap", "NewPlainMapVal", "NewPlainMapCap", "NewPlainMapPtr", "NewPlainMapPtrCap":
 						return ile, true
 					}
 				}
@@ -6529,7 +6566,7 @@ func applyOrderedMapUnboxedIntLowering(ctx *PassContext, parentsByFile map[*ast.
 				if !inExprStmt || len(mCall.Args) != 1 {
 					c.disqualified = true
 				}
-			case "Put", "PutIfAbsent":
+			case "Put", "PutVoid", "PutIfAbsent":
 				if !inExprStmt || len(mCall.Args) != 2 {
 					c.disqualified = true
 					return true
@@ -6896,4 +6933,424 @@ func applyOrderedMapUnboxedIntLowering(ctx *PassContext, parentsByFile map[*ast.
 	}
 
 	return count
+}
+
+func isSlabPooledOrderedMapField(owner *types.Named, fieldName string) bool {
+	if owner == nil || owner.Obj() == nil {
+		return false
+	}
+	switch owner.Obj().Name() {
+	case "LinkedDirectedGraphBase":
+		return fieldName == "nodes"
+	case "Scope":
+		return fieldName == "vars"
+	case "MemoizedScopeCreator":
+		return fieldName == "scopesByScopeRoot" || fieldName == "scopes"
+	case "GlobalNamespace":
+		return fieldName == "nameMap" || fieldName == "nameMapByModule"
+	case "GlobalNamespace_ModuleNameMap":
+		return fieldName == "names"
+	case "GlobalNamespace_Name":
+		return fieldName == "refsForNodeMap"
+	case "InlineFunctions":
+		return fieldName == "fns" || fieldName == "anonFns"
+	case "InlineFunctions_FunctionState":
+		return fieldName == "references"
+	}
+	return false
+}
+
+func isLinkedDeclaredCollectionType(t types.Type) bool {
+	if t == nil {
+		return false
+	}
+	ut := types.Unalias(t)
+	if ptr, ok := ut.(*types.Pointer); ok {
+		ut = types.Unalias(ptr.Elem())
+	}
+	named, ok := ut.(*types.Named)
+	if !ok || named.Obj() == nil || !isJ2gortPkg(named.Obj().Pkg()) {
+		return false
+	}
+	switch named.Obj().Name() {
+	case "Ext_java_util_LinkedHashMap", "Ext_java_util_SequencedMap",
+		"Ext_java_util_LinkedHashSet", "Ext_java_util_SequencedSet":
+		return true
+	}
+	return false
+}
+
+func isJ2gortArrayListOrListValType(t types.Type) bool {
+	if t == nil {
+		return false
+	}
+	named, ok := types.Unalias(t).(*types.Named)
+	if !ok || named.Obj() == nil || !isJ2gortPkg(named.Obj().Pkg()) {
+		return false
+	}
+	switch named.Obj().Name() {
+	case "Ext_java_util_ArrayList", "Ext_java_util_List":
+		return true
+	}
+	return false
+}
+
+func isUnorderedHashMapCtorCall(expr ast.Expr, info *types.Info) bool {
+	call, ok := stripParens(expr).(*ast.CallExpr)
+	if !ok || call.Ellipsis.IsValid() {
+		return false
+	}
+	fnName, _, _, isJ2 := isJ2gortCall(call, info)
+	if !isJ2 {
+		return false
+	}
+	switch fnName {
+	case "NewExt_java_util_HashMap", "Ext_com_google_common_collect_Maps_NewHashMap_0":
+		return len(call.Args) == 0
+	case "NewExt_java_util_HashMap_1_int32", "Ext_com_google_common_collect_Maps_NewHashMapWithExpectedSize":
+		return len(call.Args) == 1 && isIntegerExpr(call.Args[0], info)
+	}
+	return false
+}
+
+func resolvePlainCtorSig(j2Pkg *types.Package, fnName string) (sig *types.Signature, returnsPtr bool, ok bool) {
+	if j2Pkg == nil || j2Pkg.Scope() == nil {
+		return nil, false, false
+	}
+	fn, okFn := j2Pkg.Scope().Lookup(fnName).(*types.Func)
+	if !okFn || fn == nil || !fn.Exported() {
+		return nil, false, false
+	}
+	s, okS := fn.Type().(*types.Signature)
+	if !okS || s.Results() == nil || s.Results().Len() != 1 {
+		return nil, false, false
+	}
+	_, isPtr := types.Unalias(s.Results().At(0).Type()).(*types.Pointer)
+	return s, isPtr, true
+}
+
+func canMakePlainCtor(j2Pkg *types.Package, baseName string, wantPtr bool, hasCap bool, capExpr ast.Expr, ctx *PassContext) bool {
+	if j2Pkg == nil {
+		return false
+	}
+	checkCapConv := func(sig *types.Signature) bool {
+		if sig.Params().Len() != 1 {
+			return false
+		}
+		if capExpr == nil {
+			return true
+		}
+		paramT := types.Unalias(sig.Params().At(0).Type())
+		if types.Identical(paramT, types.Typ[types.Int]) {
+			if _, okLit := unwrapInt32BasicLit(capExpr, ctx.Info); okLit {
+				return true
+			}
+			if tv, okT := ctx.Info.Types[capExpr]; okT && tv.Type != nil && types.AssignableTo(tv.Type, paramT) {
+				return true
+			}
+			return isUnshadowedUniverseType("int", capExpr.Pos(), ctx.Pkg)
+		}
+		return true
+	}
+
+	if wantPtr {
+		if !hasCap {
+			return true
+		}
+		if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "New"+baseName+"PtrCap"); ok && isPtr && checkCapConv(sig) {
+			return true
+		}
+		if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "New"+baseName); ok && isPtr && checkCapConv(sig) {
+			return true
+		}
+		return false
+	}
+
+	if !hasCap {
+		if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "New"+baseName); ok && !isPtr && (sig.Params().Len() == 0 || sig.Params().Len() == 1) {
+			return true
+		}
+		if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "New"+baseName+"Val"); ok && !isPtr && sig.Params().Len() == 0 {
+			return true
+		}
+		return false
+	}
+	if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "New"+baseName); ok && !isPtr && checkCapConv(sig) {
+		return true
+	}
+	if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "New"+baseName+"Cap"); ok && !isPtr && checkCapConv(sig) {
+		return true
+	}
+	return false
+}
+
+func unwrapInt32BasicLit(expr ast.Expr, info *types.Info) (*ast.BasicLit, bool) {
+	e := stripParens(expr)
+	if lit, ok := e.(*ast.BasicLit); ok && lit.Kind == token.INT {
+		return lit, true
+	}
+	call, ok := e.(*ast.CallExpr)
+	if !ok || len(call.Args) != 1 || call.Ellipsis.IsValid() {
+		return nil, false
+	}
+	if tv, okT := info.Types[call.Fun]; okT && tv.IsType() && types.Identical(types.Unalias(tv.Type), types.Typ[types.Int32]) {
+		if lit, okL := stripParens(call.Args[0]).(*ast.BasicLit); okL && lit.Kind == token.INT {
+			return lit, true
+		}
+	}
+	return nil, false
+}
+
+func convertPlainCapArg(capExpr ast.Expr, sig *types.Signature, info *types.Info, pos token.Pos) ast.Expr {
+	if capExpr == nil {
+		return &ast.BasicLit{ValuePos: pos, Kind: token.INT, Value: "0"}
+	}
+	if sig != nil && sig.Params().Len() == 1 && types.Identical(types.Unalias(sig.Params().At(0).Type()), types.Typ[types.Int]) {
+		if lit, okLit := unwrapInt32BasicLit(capExpr, info); okLit {
+			return &ast.BasicLit{ValuePos: lit.ValuePos, Kind: token.INT, Value: lit.Value}
+		}
+		if info != nil {
+			if tv, okT := info.Types[capExpr]; okT && tv.Type != nil && types.AssignableTo(tv.Type, types.Typ[types.Int]) {
+				return capExpr
+			}
+		}
+		return &ast.CallExpr{
+			Fun:  &ast.Ident{NamePos: pos, Name: "int"},
+			Args: []ast.Expr{capExpr},
+		}
+	}
+	return capExpr
+}
+
+func makePlainMapInitExpr(
+	ctx *PassContext,
+	j2Sel func(string, token.Pos) *ast.SelectorExpr,
+	makeValueMapType func(token.Pos) ast.Expr,
+	makeKeyType func() ast.Expr,
+	makeValType func() ast.Expr,
+	wantPtr bool,
+	hasCap bool,
+	capExpr ast.Expr,
+	pos token.Pos,
+	inHeader bool,
+) ast.Expr {
+	j2Pkg := findJ2gortTypesPkg(ctx)
+	indices := []ast.Expr{makeKeyType(), makeValType()}
+	if wantPtr {
+		if !hasCap {
+			if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "NewPlainMapPtr"); ok && isPtr && sig.Params().Len() == 0 {
+				return &ast.CallExpr{Fun: &ast.IndexListExpr{X: j2Sel("NewPlainMapPtr", pos), Indices: indices}}
+			}
+			lit := ast.Expr(&ast.UnaryExpr{
+				OpPos: pos,
+				Op:    token.AND,
+				X:     &ast.CompositeLit{Type: makeValueMapType(pos)},
+			})
+			if inHeader {
+				lit = &ast.ParenExpr{X: lit}
+			}
+			return lit
+		}
+		if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "NewPlainMapPtrCap"); ok && isPtr && sig.Params().Len() == 1 {
+			return &ast.CallExpr{
+				Fun:  &ast.IndexListExpr{X: j2Sel("NewPlainMapPtrCap", pos), Indices: indices},
+				Args: []ast.Expr{convertPlainCapArg(capExpr, sig, ctx.Info, pos)},
+			}
+		}
+		sig, _, _ := resolvePlainCtorSig(j2Pkg, "NewPlainMap")
+		return &ast.CallExpr{
+			Fun:  &ast.IndexListExpr{X: j2Sel("NewPlainMap", pos), Indices: indices},
+			Args: []ast.Expr{convertPlainCapArg(capExpr, sig, ctx.Info, pos)},
+		}
+	}
+
+	if !hasCap {
+		if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "NewPlainMap"); ok && !isPtr {
+			var args []ast.Expr
+			if sig.Params().Len() == 1 {
+				args = []ast.Expr{&ast.BasicLit{ValuePos: pos, Kind: token.INT, Value: "0"}}
+			}
+			return &ast.CallExpr{Fun: &ast.IndexListExpr{X: j2Sel("NewPlainMap", pos), Indices: indices}, Args: args}
+		}
+		return &ast.CallExpr{Fun: &ast.IndexListExpr{X: j2Sel("NewPlainMapVal", pos), Indices: indices}}
+	}
+
+	if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "NewPlainMap"); ok && !isPtr && sig.Params().Len() == 1 {
+		return &ast.CallExpr{
+			Fun:  &ast.IndexListExpr{X: j2Sel("NewPlainMap", pos), Indices: indices},
+			Args: []ast.Expr{convertPlainCapArg(capExpr, sig, ctx.Info, pos)},
+		}
+	}
+	sig, _, _ := resolvePlainCtorSig(j2Pkg, "NewPlainMapCap")
+	return &ast.CallExpr{
+		Fun:  &ast.IndexListExpr{X: j2Sel("NewPlainMapCap", pos), Indices: indices},
+		Args: []ast.Expr{convertPlainCapArg(capExpr, sig, ctx.Info, pos)},
+	}
+}
+
+func resolvePlainMapComputeHelper(j2Pkg *types.Package, wantGoFunc bool, isStrVal bool) (helperName string, takesNullVal bool, ok bool) {
+	if j2Pkg == nil || j2Pkg.Scope() == nil {
+		return "", false, false
+	}
+	var candidates []string
+	if wantGoFunc {
+		candidates = []string{"PlainMapComputeIfAbsent", "PlainMapComputeIfAbsentFn"}
+	} else {
+		candidates = []string{"PlainMapComputeIfAbsentExtFn", "PlainMapComputeIfAbsentFn"}
+	}
+	for _, name := range candidates {
+		fn, okFn := j2Pkg.Scope().Lookup(name).(*types.Func)
+		if !okFn || fn == nil || !fn.Exported() {
+			continue
+		}
+		sig, okS := fn.Type().(*types.Signature)
+		if !okS || (sig.Params().Len() != 3 && sig.Params().Len() != 4) {
+			continue
+		}
+		lastT := types.Unalias(sig.Params().At(sig.Params().Len() - 1).Type())
+		_, lastIsGoFunc := lastT.(*types.Signature)
+		if lastIsGoFunc != wantGoFunc {
+			continue
+		}
+		takesNull := sig.Params().Len() == 4
+		if isStrVal && !takesNull {
+			// Without an explicit NullString sentinel parameter, Go's zero string "" would be
+			// conflated with Java null.
+			continue
+		}
+		return name, takesNull, true
+	}
+	return "", false, false
+}
+
+func canPromoteToPlainMap(m *mapCandidate, parentsByFile map[*ast.File]map[ast.Node]ast.Node, ctx *PassContext) bool {
+	_ = parentsByFile
+	if m == nil || ctx == nil || m.v == nil || m.isParam || m.isCastAccessor || m.isPtrAlias || m.isSharedPtrLocal || m.isIdentityMap {
+		return false
+	}
+	j2Pkg := findJ2gortTypesPkg(ctx)
+	if j2Pkg == nil || j2Pkg.Scope() == nil || j2Pkg.Scope().Lookup("PlainMap") == nil || j2Pkg.Scope().Lookup("NewPlainMap") == nil {
+		return false
+	}
+	if m.isField && isSlabPooledOrderedMapField(m.ownerStruct, m.v.Name()) {
+		return false
+	}
+	if isLinkedDeclaredCollectionType(m.v.Type()) || isJ2gortArrayListOrListValType(m.valType) {
+		return false
+	}
+	if m.hasNilCheck && !m.isPtr() && !m.isLazyValueMap && !j2gortTypeHasMethod(ctx, "PlainMap", "IsNil") {
+		return false
+	}
+
+	isStrVal := types.Identical(m.valType, types.Typ[types.String])
+	sawUnorderedAlloc := false
+
+	checkInitBranch := func(initK mapInitKind, initExpr ast.Expr, capArg ast.Expr) bool {
+		switch initK {
+		case mapInitNil:
+			return true
+		case mapInitEmpty:
+			if !isUnorderedHashMapCtorCall(initExpr, ctx.Info) || !canMakePlainCtor(j2Pkg, "PlainMap", m.isPtr(), false, nil, ctx) {
+				return false
+			}
+			sawUnorderedAlloc = true
+			return true
+		case mapInitCap:
+			if !isUnorderedHashMapCtorCall(initExpr, ctx.Info) || !canMakePlainCtor(j2Pkg, "PlainMap", m.isPtr(), true, capArg, ctx) {
+				return false
+			}
+			sawUnorderedAlloc = true
+			return true
+		default:
+			return false
+		}
+	}
+
+	for i := range m.ops {
+		op := &m.ops[i]
+		switch op.kind {
+		case mapOpDeclField:
+			continue
+		case mapOpDeclVarSpec:
+			spec, ok := op.spanNode.(*ast.ValueSpec)
+			if !ok {
+				return false
+			}
+			if len(spec.Values) == 0 {
+				continue
+			}
+			rhs := spec.Values[0]
+			if op.initKind == mapInitIIFE && op.iifeSpec != nil {
+				for _, br := range op.iifeSpec.branches {
+					if !checkInitBranch(br.initKind, br.ret.Results[0], br.otherExpr) {
+						return false
+					}
+				}
+			} else if !checkInitBranch(op.initKind, rhs, op.otherExpr) {
+				return false
+			}
+		case mapOpDeclShortVar, mapOpAssignInit:
+			as, ok := op.spanNode.(*ast.AssignStmt)
+			if !ok || len(as.Rhs) != 1 {
+				return false
+			}
+			rhs := as.Rhs[0]
+			if op.initKind == mapInitIIFE && op.iifeSpec != nil {
+				for _, br := range op.iifeSpec.branches {
+					if !checkInitBranch(br.initKind, br.ret.Results[0], br.otherExpr) {
+						return false
+					}
+				}
+			} else if !checkInitBranch(op.initKind, rhs, op.otherExpr) {
+				return false
+			}
+		case mapOpNilCheck:
+			if !m.isPtr() && !m.isLazyValueMap && !j2gortTypeHasMethod(ctx, "PlainMap", "IsNil") {
+				return false
+			}
+		case mapOpMethodDirect:
+			switch op.methodsSel {
+			case "Size", "IsEmpty", "Clear":
+			default:
+				return false
+			}
+		case mapOpContainsKey, mapOpGetOrDefault, mapOpRawUnbox:
+			continue
+		case mapOpGet:
+			if isStrVal {
+				wantHelper := "PlainMapGetStr"
+				if m.isPtr() {
+					wantHelper = "PlainMapPtrGetStr"
+				}
+				if j2Pkg.Scope().Lookup(wantHelper) == nil {
+					return false
+				}
+			}
+		case mapOpPut:
+			if isStrVal && (!op.discardRet || op.isPutIfAbsent) {
+				wantHelper := "PlainMapPutStr"
+				if op.isPutIfAbsent {
+					wantHelper = "PlainMapPutIfAbsentStr"
+				}
+				if j2Pkg.Scope().Lookup(wantHelper) == nil {
+					return false
+				}
+			}
+		case mapOpRemove:
+			if isStrVal && !op.discardRet {
+				if j2Pkg.Scope().Lookup("PlainMapRemoveStr") == nil {
+					return false
+				}
+			}
+		case mapOpComputeIfAbsent:
+			wantGoFunc := op.computeSpec != nil && op.computeSpec.fnLit != nil
+			if _, _, okH := resolvePlainMapComputeHelper(j2Pkg, wantGoFunc, isStrVal); !okH {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+
+	return sawUnorderedAlloc
 }

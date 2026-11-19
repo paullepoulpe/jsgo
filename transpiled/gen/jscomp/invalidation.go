@@ -43,6 +43,14 @@ func ToIface_Invalidation[T interface {
 	return v
 }
 
+func Upcast_Invalidation[T Invalidation](v T) Invalidation {
+	var vi Invalidation = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.disambiguate.Invalidation
 type InvalidationBase struct {
 	idHash_ atomic.Int32

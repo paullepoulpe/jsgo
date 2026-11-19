@@ -163,6 +163,14 @@ func ToIface_AbstractCompiler[T interface {
 	return v
 }
 
+func Upcast_AbstractCompiler[T AbstractCompiler](v T) AbstractCompiler {
+	var vi AbstractCompiler = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.AbstractCompiler
 type AbstractCompilerBase struct {
 	idHash_ atomic.Int32

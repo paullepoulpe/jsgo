@@ -115,8 +115,9 @@ func InitEnumElementType(this_ *EnumElementType, registry *JSTypeRegistry, eleme
 	_ = enumType
 	InitObjectType_2_JSTypeRegistry_int32(&this_.ObjectTypeBase, registry, int32(256))
 	this_.initFields_EnumElementType()
+	this_.GetJSTypeBase().jstypeFlags = int8((int32(this_.GetJSTypeBase().jstypeFlags) | int32(int8(32))))
 	this_.primitiveType = elementType
-	this_.primitiveObjectType = elementType.ToObjectType()
+	this_.primitiveObjectType = elementType.GetJSTypeBase().ToObjectType()
 	this_.name = name
 	this_.enumType = enumType
 	registry.GetResolver().ResolveIfClosed(ToIface_JSType(this_), StaticGet_EnumElementType_TYPE_CLASS())
@@ -273,13 +274,13 @@ func (this_ *EnumElementType) GetImplicitPrototype() ObjectType {
 // Java method: EnumElementType.findPropertyTypeWithoutConsideringTemplateTypes(com.google.javascript.rhino.jstype.Property.Key propertyName)
 func (this_ *EnumElementType) FindPropertyTypeWithoutConsideringTemplateTypes_1_Property_Key(propertyName Property_Key) JSType {
 	_ = propertyName
-	return this_.primitiveType.FindPropertyType_1_Property_Key(propertyName)
+	return this_.primitiveType.GetJSTypeBase().FindPropertyType_1_Property_Key(propertyName)
 }
 
 // Java method: EnumElementType.findPropertyTypeWithoutConsideringTemplateTypes(java.lang.String propertyName)
 func (this_ *EnumElementType) FindPropertyTypeWithoutConsideringTemplateTypes_1_string(propertyName string) JSType {
 	_ = propertyName
-	return this_.primitiveType.FindPropertyType_1_string(propertyName)
+	return this_.primitiveType.GetJSTypeBase().FindPropertyType_1_string(propertyName)
 }
 
 // Java method: EnumElementType.getConstructor()
@@ -305,9 +306,9 @@ func (this_ *EnumElementType) GetPrimitiveType() JSType {
 func EnumElementType_GetGreatestSubtype(element *EnumElementType, that JSType) JSType {
 	_ = element
 	_ = that
-	var meetPrimitive JSType = element.primitiveType.GetGreatestSubtype(that)
+	var meetPrimitive JSType = element.primitiveType.GetJSTypeBase().GetGreatestSubtype(that)
 	_ = meetPrimitive
-	if meetPrimitive.IsEmptyType() {
+	if meetPrimitive.GetJSTypeBase().IsEmptyType() {
 		return nil
 	} else {
 		return NewEnumElementType(element.GetJSTypeBase().registry, meetPrimitive, element.name, element.GetEnumType())
@@ -317,7 +318,7 @@ func EnumElementType_GetGreatestSubtype(element *EnumElementType, that JSType) J
 // Java method: EnumElementType.resolveInternal(com.google.javascript.rhino.ErrorReporter reporter)
 func (this_ *EnumElementType) ResolveInternal(reporter ErrorReporter) JSType {
 	_ = reporter
-	this_.primitiveType = this_.primitiveType.Resolve(reporter)
+	this_.primitiveType = this_.primitiveType.GetJSTypeBase().Resolve(reporter)
 	this_.primitiveObjectType = ObjectType_Cast(this_.primitiveType)
 	return this_
 }

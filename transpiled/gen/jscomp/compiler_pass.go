@@ -39,6 +39,14 @@ func ToIface_CompilerPass[T interface {
 	return v
 }
 
+func Upcast_CompilerPass[T CompilerPass](v T) CompilerPass {
+	var vi CompilerPass = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.CompilerPass", "com.google.javascript.jscomp.CompilerPass", func(v_ any) bool {
 		return j2gort.InstanceOf[CompilerPass](v_)

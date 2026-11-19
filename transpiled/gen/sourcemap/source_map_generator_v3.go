@@ -658,6 +658,14 @@ func ToIface_SourceMapGeneratorV3_ExtensionMergeAction[T interface {
 	return v
 }
 
+func Upcast_SourceMapGeneratorV3_ExtensionMergeAction[T SourceMapGeneratorV3_ExtensionMergeAction](v T) SourceMapGeneratorV3_ExtensionMergeAction {
+	var vi SourceMapGeneratorV3_ExtensionMergeAction = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.debugging.sourcemap.SourceMapGeneratorV3.ExtensionMergeAction", "com.google.debugging.sourcemap.SourceMapGeneratorV3$ExtensionMergeAction", func(v_ any) bool {
 		return j2gort.InstanceOf[SourceMapGeneratorV3_ExtensionMergeAction](v_)
@@ -860,6 +868,14 @@ func ToIface_SourceMapGeneratorV3_MappingVisitor[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_SourceMapGeneratorV3_MappingVisitor[T SourceMapGeneratorV3_MappingVisitor](v T) SourceMapGeneratorV3_MappingVisitor {
+	var vi SourceMapGeneratorV3_MappingVisitor = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

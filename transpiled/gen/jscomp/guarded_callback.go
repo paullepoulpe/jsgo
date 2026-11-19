@@ -45,6 +45,14 @@ func ToIface_GuardedCallback[T interface {
 	return v
 }
 
+func Upcast_GuardedCallback[T GuardedCallback](v T) GuardedCallback {
+	var vi GuardedCallback = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.GuardedCallback
 type GuardedCallbackBase struct {
 	self_                        GuardedCallback
@@ -170,7 +178,7 @@ func (this_ *GuardedCallbackBase) Visit_3(traversal *NodeTraversal, n pkg_rhino.
 		this_.guarded.RemoveAll(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.MultimapRemoveAllNode(this_.installedGuards, n)))
 	}
 	if GuardedCallback_IsAbrupt(n) {
-		this_.priv_GuardedCallback_promoteAbruptReturns_3176(parent)
+		this_.priv_GuardedCallback_promoteAbruptReturns_3173(parent)
 	}
 	this_.self_.VisitGuarded(traversal, n, parent)
 	poppedCtx_ := this_.contextStack.Pop()
@@ -187,7 +195,7 @@ func (this_ *GuardedCallbackBase) Visit_3(traversal *NodeTraversal, n pkg_rhino.
 }
 
 // Java method: GuardedCallback.promoteAbruptReturns(com.google.javascript.rhino.Node parent)
-func (this_ *GuardedCallbackBase) priv_GuardedCallback_promoteAbruptReturns_3176(parent pkg_rhino.Node) {
+func (this_ *GuardedCallbackBase) priv_GuardedCallback_promoteAbruptReturns_3173(parent pkg_rhino.Node) {
 	_ = parent
 	if parent.IsBlock() {
 		parent = parent.GetParent()

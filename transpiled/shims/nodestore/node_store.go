@@ -46,7 +46,7 @@ import (
 const (
 	staticBit = 1 << 31 // IDs of the static store
 
-	blockShift = 14 // 16,384 records (576 KiB) per block
+	blockShift = 14 // 16,384 records (512 KiB) per block
 	blockLen   = 1 << blockShift
 	blockMask  = blockLen - 1
 	numBlocks  = 1 << (32 - blockShift)
@@ -58,7 +58,7 @@ const (
 // BlockShift is the log2 number of NodeData records per NodeBlock (14 -> 16,384).
 const BlockShift = blockShift
 
-// NodeBlock is a 16,384-record (576 KiB) noscan block of NodeData records.
+// NodeBlock is a 16,384-record (512 KiB) noscan block of NodeData records.
 type NodeBlock [blockLen]NodeData
 
 type nodeBlock = NodeBlock
@@ -79,7 +79,9 @@ type NodeStore struct {
 
 	tcs              []*NodeColumn
 	origNames        []*PagedColumn
+	len16Pages       []len16Record
 	lengthOverflows  []lenOverflowRecord
+	sfOverflows      []sfOverflowRecord
 	castBits         []*castBitBlock
 	nums             numTable
 	numMu            sync.Mutex
@@ -127,6 +129,7 @@ var (
 )
 
 func init() {
+	initLen16Top()
 	nextBlock.Store(1) // block 0 is never used: ID 0 is NilNode
 	current.Store(staticStore)
 }
@@ -162,8 +165,14 @@ func (s *NodeStore) setBase(base uint32) {
 func (s *NodeStore) register() {
 	first := s.base >> blockShift
 	tcField.register(first, s.tcs)
+	for _, r := range s.len16Pages {
+		storeLen16Page(r.idx, r.page)
+	}
 	for _, r := range s.lengthOverflows {
 		storeLenOverflowPage(r.idx, r.page)
+	}
+	for _, r := range s.sfOverflows {
+		storeSFOverflowPage(r.idx, r.page)
 	}
 	origNameField.register(first, s.origNames)
 	castBitField.register(first, s.castBits)
@@ -179,8 +188,14 @@ func (s *NodeStore) unregister() {
 	}
 	tcField.unregister(first, s.tcs)
 	origNameField.unregister(first, s.origNames)
+	for _, r := range s.len16Pages {
+		casLen16Page(r.idx, r.page)
+	}
 	for _, r := range s.lengthOverflows {
 		casLenOverflowPage(r.idx, r.page)
+	}
+	for _, r := range s.sfOverflows {
+		casSFOverflowPage(r.idx, r.page)
 	}
 	castBitField.unregister(first, s.castBits)
 }
@@ -604,18 +619,18 @@ var internCachePool = sync.Pool{
 // NodeAllocator reserves contiguous single-block batches of node handles (256 or 1024)
 // to eliminate atomic contention and L1/L2 cache-line false sharing across parse workers.
 type NodeAllocator struct {
-	store          *NodeStore
-	blk            *nodeBlock
-	internCache    *internCacheTable
-	next, end      Node
-	batchEnd       Node
-	restEnd        uint32
-	rangeSize      uint32
-	tmplNode       Node
-	tmplSourceFile uint32
-	tmplPropFlags  uint32
-	tmplCold       bool
-	internDirty    bool
+	store         *NodeStore
+	blk           *nodeBlock
+	internCache   *internCacheTable
+	next, end     Node
+	batchEnd      Node
+	restEnd       uint32
+	rangeSize     uint32
+	tmplNode      Node
+	tmplPropFlags uint32
+	tmplSF16      uint16
+	tmplCold      bool
+	internDirty   bool
 }
 
 const (
@@ -642,8 +657,8 @@ func (a *NodeAllocator) InitLocal() {
 	a.restEnd = 0
 	a.rangeSize = allocatorLocalRange
 	a.tmplNode = 0
-	a.tmplSourceFile = 0
 	a.tmplPropFlags = 0
+	a.tmplSF16 = 0
 	a.tmplCold = false
 	if a.internDirty {
 		if a.internCache != nil {
@@ -696,22 +711,23 @@ func (a *NodeAllocator) Intern(s string) StringID {
 	return id
 }
 
-// SetTemplate caches tmpl's SourceFile and PropFlags so AllocNode1..4, AllocStringNode,
+// SetTemplate caches tmpl's SourceFile16 and PropFlags so AllocNode1..4, AllocStringNode,
 // and AllocNumberNode stamp template properties inline without calling ClonePropsFrom.
 func (a *NodeAllocator) SetTemplate(tmpl Node) {
 	if tmpl == 0 {
 		a.tmplNode = 0
-		a.tmplSourceFile = 0
 		a.tmplPropFlags = 0
+		a.tmplSF16 = 0
 		a.tmplCold = false
 		a.end = a.batchEnd
 		return
 	}
 	rec := tmpl.Rec()
-	cold := rec.KindFlags&kindFlagClonedMask != 0
+	sf16 := rec.SourceFile16
+	cold := rec.KindFlags&kindFlagClonedMask != 0 || sf16 == 0xFFFF
 	a.tmplNode = tmpl
-	a.tmplSourceFile = rec.SourceFile
 	a.tmplPropFlags = rec.PropFlags
+	a.tmplSF16 = sf16
 	a.tmplCold = cold
 	if cold {
 		a.end = 0
@@ -791,7 +807,7 @@ func (a *NodeAllocator) allocRecSlow() (Node, *NodeData) {
 
 func (a *NodeAllocator) applyTemplateSlow(id Node, rec *NodeData, tmpl Node) {
 	if a.tmplNode == tmpl && !a.tmplCold {
-		rec.SourceFile = a.tmplSourceFile
+		rec.SourceFile16 = a.tmplSF16
 		rec.PropFlags = a.tmplPropFlags
 		return
 	}
@@ -833,7 +849,7 @@ func allocNode1Cached(a *NodeAllocator, tok uint8, slow func(*NodeAllocator, uin
 	if id := a.next; id < a.end {
 		a.next++
 		r := &a.blk[id&blockMask]
-		r.Token, r.SourceFile, r.PropFlags, r.LinenoCharno = tok, a.tmplSourceFile, a.tmplPropFlags, -1
+		r.Token, r.SourceFile16, r.PropFlags, r.LinenoCharno = tok, a.tmplSF16, a.tmplPropFlags, -1
 		return id
 	}
 	return slow(a, tok)
@@ -853,7 +869,7 @@ func allocNode1(a *NodeAllocator, tok uint8, tmpl Node, slow func(*NodeAllocator
 	if id := a.next; id < a.end && a.tmplNode == tmpl {
 		a.next++
 		r := &a.blk[id&blockMask]
-		r.Token, r.SourceFile, r.PropFlags, r.LinenoCharno = tok, a.tmplSourceFile, a.tmplPropFlags, -1
+		r.Token, r.SourceFile16, r.PropFlags, r.LinenoCharno = tok, a.tmplSF16, a.tmplPropFlags, -1
 		return id
 	}
 	return slow(a, tok, tmpl)
@@ -876,7 +892,7 @@ func (a *NodeAllocator) AllocNode2(tok uint8, c1, tmpl Node) Node {
 			r := &a.blk[id&blockMask]
 			r.First = c1
 			r.Token = tok
-			r.SourceFile = a.tmplSourceFile
+			r.SourceFile16 = a.tmplSF16
 			r.PropFlags = a.tmplPropFlags
 			r.LinenoCharno = -1
 			c.Parent = id
@@ -910,7 +926,7 @@ func (a *NodeAllocator) AllocNode3(tok uint8, c1, c2, tmpl Node) Node {
 			rec := &a.blk[id&blockMask]
 			rec.First = c1
 			rec.Token = tok
-			rec.SourceFile = a.tmplSourceFile
+			rec.SourceFile16 = a.tmplSF16
 			rec.PropFlags = a.tmplPropFlags
 			rec.LinenoCharno = -1
 			c1Rec.Next = c2
@@ -956,7 +972,7 @@ func (a *NodeAllocator) AllocNode4(tok uint8, c1, c2, c3, tmpl Node) Node {
 			rec := &a.blk[id&blockMask]
 			rec.First = c1
 			rec.Token = tok
-			rec.SourceFile = a.tmplSourceFile
+			rec.SourceFile16 = a.tmplSF16
 			rec.PropFlags = a.tmplPropFlags
 			rec.LinenoCharno = -1
 			c1Rec.Next = c2
@@ -1004,7 +1020,7 @@ func allocStringNodeCached(a *NodeAllocator, tok uint8, strID StringID, slow fun
 	if id := a.next; id < a.end {
 		a.next++
 		r := &a.blk[id&blockMask]
-		r.Token, r.KindFlags, r.Payload, r.SourceFile, r.PropFlags, r.LinenoCharno = tok, 3, uint32(strID), a.tmplSourceFile, a.tmplPropFlags, -1
+		r.Token, r.KindFlags, r.SourceFile16, r.Payload, r.PropFlags, r.LinenoCharno = tok, 3, a.tmplSF16, uint32(strID), a.tmplPropFlags, -1
 		return id
 	}
 	return slow(a, tok, strID)
@@ -1026,8 +1042,8 @@ func allocStringNode(a *NodeAllocator, tok uint8, strID StringID, tmpl Node, slo
 		a.blk[id&blockMask] = NodeData{
 			Token:        tok,
 			KindFlags:    3,
+			SourceFile16: a.tmplSF16,
 			Payload:      uint32(strID),
-			SourceFile:   a.tmplSourceFile,
 			PropFlags:    a.tmplPropFlags,
 			LinenoCharno: -1,
 		}
@@ -1058,7 +1074,7 @@ func (a *NodeAllocator) AllocNumberNode(tok uint8, val float64, tmpl Node) Node 
 		if bits := math.Float64bits(val); bits != 0 {
 			rec.Payload = a.allocNumBits(bits)
 		}
-		rec.SourceFile = a.tmplSourceFile
+		rec.SourceFile16 = a.tmplSF16
 		rec.PropFlags = a.tmplPropFlags
 		rec.LinenoCharno = -1
 		return id

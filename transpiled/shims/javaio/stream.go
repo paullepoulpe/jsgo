@@ -383,7 +383,8 @@ func NewFileOutputStreamFromOSFile(f *os.File) *FileOutputStream {
 	return &FileOutputStream{f: f}
 }
 
-func (s *FileOutputStream) Write(p []byte) (int, error) { return s.f.Write(p) }
+func (s *FileOutputStream) Write(p []byte) (int, error)          { return s.f.Write(p) }
+func (s *FileOutputStream) WriteString(str string) (int, error) { return s.f.WriteString(str) }
 func (s *FileOutputStream) WriteByte(c byte) error {
 	_, err := s.f.Write([]byte{c})
 	return err

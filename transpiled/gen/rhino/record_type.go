@@ -177,7 +177,7 @@ func (this_ *RecordType) DefineProperty_4_Property_Key_JSType_bool_Node(property
 // Java method: RecordType.getGreatestSubtypeHelper(com.google.javascript.rhino.jstype.JSType that)
 func (this_ *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 	_ = that
-	if that.IsRecordType() {
+	if that.GetJSTypeBase().IsRecordType() {
 		var thatRecord *RecordType = that.ToMaybeRecordType()
 		_ = thatRecord
 		var val_2 RecordTypeBuilder
@@ -185,7 +185,7 @@ func (this_ *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 		var builder *RecordTypeBuilder = &val_2
 		_ = builder
 		builder.SetSynthesized(true)
-		var noType JSType = j2gort.AsIface[JSType](this_.GetJSTypeBase().registry.GetNativeObjectType(StaticGet_JSTypeNative_NO_TYPE()))
+		var noType JSType = Upcast_JSType(this_.GetJSTypeBase().registry.GetNativeObjectType(StaticGet_JSTypeNative_NO_TYPE()))
 		_ = noType
 		var thisMap *PropertyMap = this_.GetOwnPropertyMapOrNull()
 		_ = thisMap
@@ -208,8 +208,8 @@ func (this_ *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 						if thatRecord.HasProperty_1_string(property) {
 							var thatPropertyType JSType = thatRecord.GetPropertyType_1_string(property)
 							_ = thatPropertyType
-							propType = thisPropertyType.GetGreatestSubtype(thatPropertyType)
-							if propType.Equals(noType) {
+							propType = thisPropertyType.GetJSTypeBase().GetGreatestSubtype(thatPropertyType)
+							if propType.GetJSTypeBase().EqualsJSType(noType) {
 								return noType
 							}
 						} else {
@@ -231,8 +231,8 @@ func (this_ *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 						if thatRecord.HasProperty_1_string(property_2) {
 							var thatPropertyType_2 JSType = thatRecord.GetPropertyType_1_string(property_2)
 							_ = thatPropertyType_2
-							propType_2 = thisPropertyType_2.GetGreatestSubtype(thatPropertyType_2)
-							if propType_2.Equals(noType) {
+							propType_2 = thisPropertyType_2.GetJSTypeBase().GetGreatestSubtype(thatPropertyType_2)
+							if propType_2.GetJSTypeBase().EqualsJSType(noType) {
 								return noType
 							}
 						} else {
@@ -279,9 +279,9 @@ func (this_ *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 	}
 	var greatestSubtype JSType = this_.GetJSTypeBase().registry.GetNativeType(StaticGet_JSTypeNative_NO_OBJECT_TYPE())
 	_ = greatestSubtype
-	var thatRestrictedToObj JSType = this_.GetJSTypeBase().registry.GetNativeType(StaticGet_JSTypeNative_OBJECT_TYPE()).GetGreatestSubtype(that)
+	var thatRestrictedToObj JSType = this_.GetJSTypeBase().registry.GetNativeType(StaticGet_JSTypeNative_OBJECT_TYPE()).GetJSTypeBase().GetGreatestSubtype(that)
 	_ = thatRestrictedToObj
-	if !(thatRestrictedToObj.IsEmptyType()) {
+	if !(thatRestrictedToObj.GetJSTypeBase().IsEmptyType()) {
 		var thisMap_2 *PropertyMap = this_.GetOwnPropertyMapOrNull()
 		_ = thisMap_2
 		if thisMap_2 != nil {
@@ -310,10 +310,10 @@ func (this_ *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 									rawElem_6 := cur_5.Next()
 									alt := j2gort.AsIface[ObjectType](rawElem_6)
 									_ = alt
-									var altPropType JSType = alt.GetPropertyType_1_string(propName)
+									var altPropType JSType = alt.GetObjectTypeBase().GetPropertyType_1_string(propName)
 									_ = altPropType
-									if (((altPropType != nil && !altPropType.IsJavaNil_()) && !(alt.Equals(this_))) && alt.IsSubtypeOf_1(that)) && altPropType.IsSubtypeOf_1(propType_3) {
-										builder_2.AddAlternate(j2gort.AsIface[JSType](alt))
+									if (((altPropType != nil && !altPropType.IsJavaNil_()) && !(alt.GetObjectTypeBase().GetJSTypeBase().EqualsJSType(this_))) && alt.GetObjectTypeBase().IsSubtypeOf_1(that)) && altPropType.GetJSTypeBase().IsSubtypeOf_1(propType_3) {
+										builder_2.AddAlternate(Upcast_JSType(alt))
 									}
 								}
 							}
@@ -344,10 +344,10 @@ func (this_ *RecordType) GetGreatestSubtypeHelper(that JSType) JSType {
 									rawElem_9 := cur_8.Next()
 									alt_2 := j2gort.AsIface[ObjectType](rawElem_9)
 									_ = alt_2
-									var altPropType_2 JSType = alt_2.GetPropertyType_1_string(propName_2)
+									var altPropType_2 JSType = alt_2.GetObjectTypeBase().GetPropertyType_1_string(propName_2)
 									_ = altPropType_2
-									if (((altPropType_2 != nil && !altPropType_2.IsJavaNil_()) && !(alt_2.Equals(this_))) && alt_2.IsSubtypeOf_1(that)) && altPropType_2.IsSubtypeOf_1(propType_4) {
-										builder_3.AddAlternate(j2gort.AsIface[JSType](alt_2))
+									if (((altPropType_2 != nil && !altPropType_2.IsJavaNil_()) && !(alt_2.GetObjectTypeBase().GetJSTypeBase().EqualsJSType(this_))) && alt_2.GetObjectTypeBase().IsSubtypeOf_1(that)) && altPropType_2.GetJSTypeBase().IsSubtypeOf_1(propType_4) {
+										builder_3.AddAlternate(Upcast_JSType(alt_2))
 									}
 								}
 							}

@@ -384,7 +384,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_bestInstanceTypeForMe
 		if NodeUtil_IsNormalGet(lValue) {
 			var lValueType pkg_rhino.JSType = lValue.GetJSType()
 			_ = lValueType
-			if (lValueType != nil && !lValueType.IsJavaNil_()) && (lValueType.IsConstructor() || lValueType.IsInterface()) {
+			if (lValueType != nil && !lValueType.IsJavaNil_()) && (lValueType.GetJSTypeBase().IsConstructor() || lValueType.GetJSTypeBase().IsInterface()) {
 				return CheckAccessControls_InstanceTypeFor(lValueType)
 			} else if NodeUtil_IsPrototypeProperty(lValue) {
 				return CheckAccessControls_InstanceTypeFor(NodeUtil_GetPrototypeClassName(lValue).GetJSType())
@@ -422,18 +422,18 @@ func CheckAccessControls_InstanceTypeFor(type_ pkg_rhino.JSType) pkg_rhino.Objec
 	_ = type_
 	if type_ == nil || type_.IsJavaNil_() {
 		return nil
-	} else if type_.IsUnionType() {
+	} else if type_.GetJSTypeBase().IsUnionType() {
 		return nil
-	} else if type_.IsInstanceType() || type_.IsUnknownType() {
-		return type_.ToMaybeObjectType()
-	} else if type_.IsConstructor() || type_.IsInterface() {
+	} else if type_.IsInstanceType() || type_.GetJSTypeBase().IsUnknownType() {
+		return type_.GetJSTypeBase().ToMaybeObjectType()
+	} else if type_.GetJSTypeBase().IsConstructor() || type_.GetJSTypeBase().IsInterface() {
 		return type_.ToMaybeFunctionType().GetInstanceType()
-	} else if type_.IsFunctionType() {
+	} else if type_.GetJSTypeBase().IsFunctionType() {
 		return nil
 	} else if type_.IsFunctionPrototypeType() {
-		return CheckAccessControls_InstanceTypeFor(pkg_rhino.ToIface_JSType(type_.ToMaybeObjectType().GetOwnerFunction()))
+		return CheckAccessControls_InstanceTypeFor(pkg_rhino.ToIface_JSType(type_.GetJSTypeBase().ToMaybeObjectType().GetOwnerFunction()))
 	}
-	return type_.ToMaybeObjectType()
+	return type_.GetJSTypeBase().ToMaybeObjectType()
 }
 
 // Java method: CheckAccessControls.shouldTraverse(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node node, com.google.javascript.rhino.Node parent)
@@ -551,7 +551,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_checkTypeDeprecation_
 	}
 	var instanceType pkg_rhino.ObjectType = n.GetJSType().ToMaybeFunctionType().GetInstanceType()
 	_ = instanceType
-	var deprecationInfo string = CheckAccessControls_GetTypeDeprecationInfo(j2gort.AsIface[pkg_rhino.JSType](instanceType))
+	var deprecationInfo string = CheckAccessControls_GetTypeDeprecationInfo(pkg_rhino.Upcast_JSType(instanceType))
 	_ = deprecationInfo
 	if deprecationInfo == j2gort.NullString {
 		return
@@ -563,7 +563,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_checkTypeDeprecation_
 	} else {
 		message = StaticGet_CheckAccessControls_DEPRECATED_CLASS_REASON()
 	}
-	this_.compiler.Report_1(JSError_Make_3(n, message, []string{instanceType.String(), deprecationInfo}))
+	this_.compiler.Report_1(JSError_Make_3(n, message, []string{instanceType.GetObjectTypeBase().String(), deprecationInfo}))
 }
 
 // Java method: CheckAccessControls.checkNameDeprecation(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
@@ -604,7 +604,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_checkPropertyDeprecat
 	if propRef.SourceNode().GetParent().IsNew() {
 		return
 	}
-	var objectType pkg_rhino.ObjectType = CheckAccessControls_CastToObject(j2gort.AsIface[pkg_rhino.JSType](CheckAccessControls_Dereference(j2gort.AsIface[pkg_rhino.JSType](propRef.ReceiverType()))))
+	var objectType pkg_rhino.ObjectType = CheckAccessControls_CastToObject(pkg_rhino.Upcast_JSType(CheckAccessControls_Dereference(pkg_rhino.Upcast_JSType(propRef.ReceiverType()))))
 	_ = objectType
 	var propertyName string = propRef.Name()
 	_ = propertyName
@@ -736,7 +736,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_checkConstantProperty
 	}() {
 		return
 	}
-	var objectType pkg_rhino.ObjectType = CheckAccessControls_Dereference(j2gort.AsIface[pkg_rhino.JSType](propRef.ReceiverType()))
+	var objectType pkg_rhino.ObjectType = CheckAccessControls_Dereference(pkg_rhino.Upcast_JSType(propRef.ReceiverType()))
 	_ = objectType
 	var propertyName string = propRef.Name()
 	_ = propertyName
@@ -770,7 +770,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_checkConstantProperty
 		this_.compiler.Report_1(JSError_Make_3(sourceNode, StaticGet_CheckAccessControls_CONST_PROPERTY_DELETED(), []string{propertyName}))
 		return
 	}
-	if objectType.IsFunctionType() && !(objectType.ToMaybeFunctionType().IsConstructor()) {
+	if objectType.GetObjectTypeBase().IsFunctionType() && !(objectType.ToMaybeFunctionType().IsConstructor()) {
 		return
 	}
 	if objectType.IsStructuralType() && !(propRef.Declaration()) {
@@ -835,7 +835,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_recordConstPropertyIn
 	if type_.IsInstanceType() {
 		var prototype pkg_rhino.ObjectType = type_.GetImplicitPrototype()
 		_ = prototype
-		if (prototype != nil && !prototype.IsJavaNil_()) && prototype.HasProperty_1_string(ref.Name()) {
+		if (prototype != nil && !prototype.IsJavaNil_()) && prototype.GetObjectTypeBase().HasProperty_1_string(ref.Name()) {
 			this_.constPropertyInits.Row(prototype).PutIfAbsent(j2gort.BoxString(ref.Name()), NewCheckAccessControls_ConstantDeclaration(ref.SourceNode(), annotation))
 		}
 	}
@@ -861,7 +861,7 @@ func CheckAccessControls_Dereference(type_ pkg_rhino.JSType) pkg_rhino.ObjectTyp
 	if type_ == nil || type_.IsJavaNil_() {
 		return nil
 	} else {
-		return type_.Dereference()
+		return type_.GetJSTypeBase().Dereference()
 	}
 }
 
@@ -878,7 +878,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_typeOrUnknown_1005(ty
 // Java method: CheckAccessControls.typeOrUnknown(com.google.javascript.rhino.jstype.ObjectType type)
 func (this_ *CheckAccessControls) priv_CheckAccessControls_typeOrUnknown_1006(type_ pkg_rhino.ObjectType) pkg_rhino.ObjectType {
 	_ = type_
-	return j2gort.AsIface[pkg_rhino.ObjectType](this_.priv_CheckAccessControls_typeOrUnknown_1005(j2gort.AsIface[pkg_rhino.JSType](type_)))
+	return j2gort.AsIface[pkg_rhino.ObjectType](this_.priv_CheckAccessControls_typeOrUnknown_1005(pkg_rhino.Upcast_JSType(type_)))
 }
 
 // Java method: CheckAccessControls.boxedOrUnknown(com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType type)
@@ -893,7 +893,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_checkPropertyVisibili
 	if NodeUtil_IsEs6ConstructorMemberFunctionDef(propRef.SourceNode()) {
 		return
 	}
-	var rawReferenceType pkg_rhino.JSType = this_.priv_CheckAccessControls_typeOrUnknown_1006(propRef.ReceiverType()).Autobox()
+	var rawReferenceType pkg_rhino.JSType = this_.priv_CheckAccessControls_typeOrUnknown_1006(propRef.ReceiverType()).GetObjectTypeBase().Autobox()
 	_ = rawReferenceType
 	var referenceType pkg_rhino.ObjectType = CheckAccessControls_CastToObject(rawReferenceType)
 	_ = referenceType
@@ -919,12 +919,12 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_checkPropertyVisibili
 	var reportType pkg_rhino.JSType = rawReferenceType
 	_ = reportType
 	if objectType != nil && !objectType.IsJavaNil_() {
-		var node pkg_rhino.Node = objectType.GetOwnPropertyDefSite_1_string(propertyName)
+		var node pkg_rhino.Node = objectType.GetObjectTypeBase().GetOwnPropertyDefSite_1_string(propertyName)
 		_ = node
 		if node == 0 {
 			return
 		}
-		reportType = j2gort.AsIface[pkg_rhino.JSType](objectType)
+		reportType = pkg_rhino.Upcast_JSType(objectType)
 		definingSource = node.GetStaticSourceFile()
 	} else if fileOverviewVisibility == 0 {
 		return
@@ -961,7 +961,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_checkEs6ConstructorIn
 		definingSource = AccessControlUtils_GetDefiningSource(classDefinition, prototypeType, "constructor")
 	}
 	var fauxCtorRef *CheckAccessControls_PropertyReference = CheckAccessControls_PropertyReference_S_Builder().SetSourceNode(target).SetName("constructor").SetReceiverType(prototypeType).SetMutation(false).SetDeclaration(false).SetOverride(false).SetReadableTypeName(j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
-		return j2gort.BoxString(ctorType.GetInstanceType().String())
+		return j2gort.BoxString(ctorType.GetInstanceType().GetObjectTypeBase().String())
 	})).Build()
 	_ = fauxCtorRef
 	var annotatedCtorVisibility pkg_rhino.JSDocInfo_Visibility = CheckAccessControls_GetEffectiveVisibilityForNonOverriddenProperty(fauxCtorRef, prototypeType, j2gort.Cast[pkg_rhino.JSDocInfo_Visibility](this_.defaultVisibilityForFiles.Get(definingSource)))
@@ -1003,9 +1003,9 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_checkPropertyOverride
 		overridingVisibility = pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED()
 	}
 	if (visibility == pkg_rhino.StaticGet_JSDocInfo_Visibility_PRIVATE()) && !(sameInput) {
-		this_.compiler.Report_1(JSError_Make_3(propRef.SourceNode(), StaticGet_CheckAccessControls_PRIVATE_OVERRIDE(), []string{objectType.String()}))
+		this_.compiler.Report_1(JSError_Make_3(propRef.SourceNode(), StaticGet_CheckAccessControls_PRIVATE_OVERRIDE(), []string{objectType.GetJSTypeBase().String()}))
 	} else if !(CheckAccessControls_CanOverrideVisibility(visibility, overridingVisibility)) && (fileOverviewVisibility == 0) {
-		this_.compiler.Report_1(JSError_Make_3(propRef.SourceNode(), StaticGet_CheckAccessControls_VISIBILITY_MISMATCH(), []string{(visibility).Name(), objectType.String(), (overridingVisibility).Name()}))
+		this_.compiler.Report_1(JSError_Make_3(propRef.SourceNode(), StaticGet_CheckAccessControls_VISIBILITY_MISMATCH(), []string{(visibility).Name(), objectType.GetJSTypeBase().String(), (overridingVisibility).Name()}))
 	}
 }
 
@@ -1066,10 +1066,10 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_checkPrivatePropertyV
 	_ = ownerType
 	var readableTypeName string
 	_ = readableTypeName
-	if (ownerType == nil || ownerType.IsJavaNil_()) || ownerType.Equals(propRef.ReceiverType()) {
+	if (ownerType == nil || ownerType.IsJavaNil_()) || ownerType.GetObjectTypeBase().GetJSTypeBase().EqualsJSType(propRef.ReceiverType()) {
 		readableTypeName = propRef.GetReadableTypeNameOrDefault()
 	} else {
-		readableTypeName = ownerType.String()
+		readableTypeName = ownerType.GetObjectTypeBase().String()
 	}
 	this_.compiler.Report_1(JSError_Make_3(propRef.SourceNode(), StaticGet_CheckAccessControls_BAD_PRIVATE_PROPERTY_ACCESS(), []string{propRef.Name(), readableTypeName}))
 }
@@ -1087,7 +1087,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_checkProtectedPropert
 				_ = scopeType
 				if scopeType == nil || scopeType.IsJavaNil_() {
 					continue
-				} else if scopeType.IsSubtypeOf_1(j2gort.AsIface[pkg_rhino.JSType](ownerType)) {
+				} else if scopeType.GetJSTypeBase().IsSubtypeOf_1(pkg_rhino.Upcast_JSType(ownerType)) {
 					return
 				}
 			}
@@ -1138,7 +1138,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_canAccessDeprecatedTy
 	}
 	var scopeRootParent pkg_rhino.Node = scopeRoot.GetParent()
 	_ = scopeRootParent
-	return (((this_.deprecationDepth > int32(0)) || (CheckAccessControls_GetTypeDeprecationInfo(this_.priv_CheckAccessControls_getTypeOfThis_1019(scopeRoot)) != j2gort.NullString)) || (((scopeRootParent != 0) && scopeRootParent.IsAssign()) && (CheckAccessControls_GetTypeDeprecationInfo(j2gort.AsIface[pkg_rhino.JSType](this_.priv_CheckAccessControls_bestInstanceTypeForMethodOrCtor_992(scopeRoot))) != j2gort.NullString)))
+	return (((this_.deprecationDepth > int32(0)) || (CheckAccessControls_GetTypeDeprecationInfo(this_.priv_CheckAccessControls_getTypeOfThis_1019(scopeRoot)) != j2gort.NullString)) || (((scopeRootParent != 0) && scopeRootParent.IsAssign()) && (CheckAccessControls_GetTypeDeprecationInfo(pkg_rhino.Upcast_JSType(this_.priv_CheckAccessControls_bestInstanceTypeForMethodOrCtor_992(scopeRoot))) != j2gort.NullString)))
 }
 
 // Java static method: CheckAccessControls.isMarkedDeprecated(com.google.javascript.rhino.Node n)
@@ -1176,7 +1176,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_isPropertyDeclaredCon
 	_ = objectType
 	_ = prop
 	for ; objectType != nil && !objectType.IsJavaNil_(); objectType = objectType.GetImplicitPrototype() {
-		var docInfo *pkg_rhino.JSDocInfo = objectType.GetOwnPropertyJSDocInfo_1_string(prop)
+		var docInfo *pkg_rhino.JSDocInfo = objectType.GetObjectTypeBase().GetOwnPropertyJSDocInfo_1_string(prop)
 		_ = docInfo
 		if docInfo == nil {
 			continue
@@ -1194,7 +1194,7 @@ func CheckAccessControls_GetPropertyDeprecationInfo(type_ pkg_rhino.ObjectType, 
 	clinit_CheckAccessControls()
 	_ = type_
 	_ = prop
-	var depReason string = CheckAccessControls_GetDeprecationReason(type_.GetOwnPropertyJSDocInfo_1_string(prop))
+	var depReason string = CheckAccessControls_GetDeprecationReason(type_.GetObjectTypeBase().GetOwnPropertyJSDocInfo_1_string(prop))
 	_ = depReason
 	if depReason != j2gort.NullString {
 		return depReason
@@ -1233,7 +1233,7 @@ func CheckAccessControls_CastToObject(type_ pkg_rhino.JSType) pkg_rhino.ObjectTy
 	if type_ == nil || type_.IsJavaNil_() {
 		return nil
 	} else {
-		return type_.ToMaybeObjectType()
+		return type_.GetJSTypeBase().ToMaybeObjectType()
 	}
 }
 
@@ -1257,7 +1257,7 @@ func CheckAccessControls_IsExtendsTarget(node pkg_rhino.Node) bool {
 func (this_ *CheckAccessControls) priv_CheckAccessControls_getTypeOfThis_1019(scopeRoot pkg_rhino.Node) pkg_rhino.JSType {
 	_ = scopeRoot
 	if scopeRoot.IsRoot() || scopeRoot.IsScript() {
-		return j2gort.AsIface[pkg_rhino.JSType](CheckAccessControls_CastToObject(scopeRoot.GetJSType()))
+		return pkg_rhino.Upcast_JSType(CheckAccessControls_CastToObject(scopeRoot.GetJSType()))
 	} else if scopeRoot.IsModuleBody() {
 		return nil
 	} else if NodeUtil_IsClassStaticBlock(scopeRoot) {
@@ -1270,7 +1270,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_getTypeOfThis_1019(sc
 	}
 	var nodeType pkg_rhino.JSType = scopeRoot.GetJSType()
 	_ = nodeType
-	if (nodeType != nil && !nodeType.IsJavaNil_()) && nodeType.IsFunctionType() {
+	if (nodeType != nil && !nodeType.IsJavaNil_()) && nodeType.GetJSTypeBase().IsFunctionType() {
 		return nodeType.ToMaybeFunctionType().GetTypeOfThis()
 	} else {
 		return nil
@@ -1302,7 +1302,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_createPropertyReferen
 				_ = ctorType
 				switch parent.TokenSwitchOrd_() {
 				case int32(47) /* Token.OBJECTLIT */ :
-					if !(parent.GetJSType().IsLiteralObject()) {
+					if !(parent.GetJSType().GetJSTypeBase().IsLiteralObject()) {
 						return nil
 					}
 					builder.SetName(sourceNode.GetString()).SetReceiverType(this_.priv_CheckAccessControls_typeOrUnknown_1006(pkg_rhino.ObjectType_Cast(parent.GetJSType()))).SetMutation(true).SetDeclaration(true).SetOverride(false).SetReadableTypeName(j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
@@ -1315,7 +1315,7 @@ func (this_ *CheckAccessControls) priv_CheckAccessControls_createPropertyReferen
 				case int32(106) /* Token.CLASS_MEMBERS */ :
 					builder.SetName(sourceNode.GetString()).SetReceiverType(this_.typeRegistry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())).SetMutation(!(sourceNode.IsMemberFieldDef() && !(sourceNode.HasChildren()))).SetDeclaration(true).SetOverride((jsdoc != nil)).SetReadableTypeName(lambdaSingleton_check_access_controls_2)
 					ctorType = parent.GetParent().GetJSType()
-					if (ctorType != nil && !ctorType.IsJavaNil_()) && ctorType.IsFunctionType() {
+					if (ctorType != nil && !ctorType.IsJavaNil_()) && ctorType.GetJSTypeBase().IsFunctionType() {
 						var ctorFunctionType *pkg_rhino.FunctionType = ctorType.ToMaybeFunctionType()
 						_ = ctorFunctionType
 						var owningType pkg_rhino.ObjectType = nil
@@ -1376,7 +1376,7 @@ func CheckAccessControls_GetEffectiveVisibilityForNonOverriddenProperty(propRef 
 	var raw pkg_rhino.JSDocInfo_Visibility = pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED()
 	_ = raw
 	if objectType != nil && !objectType.IsJavaNil_() {
-		var jsdoc *pkg_rhino.JSDocInfo = objectType.GetOwnPropertyJSDocInfo_1_string(propertyName)
+		var jsdoc *pkg_rhino.JSDocInfo = objectType.GetObjectTypeBase().GetOwnPropertyJSDocInfo_1_string(propertyName)
 		_ = jsdoc
 		if jsdoc != nil {
 			raw = jsdoc.GetVisibility()
@@ -1384,7 +1384,7 @@ func CheckAccessControls_GetEffectiveVisibilityForNonOverriddenProperty(propRef 
 	}
 	var type_ pkg_rhino.JSType = propRef.GetJSType()
 	_ = type_
-	var createdFromGoogProvide bool = ((type_ != nil && !type_.IsJavaNil_()) && type_.IsLiteralObject())
+	var createdFromGoogProvide bool = ((type_ != nil && !type_.IsJavaNil_()) && type_.GetJSTypeBase().IsLiteralObject())
 	_ = createdFromGoogProvide
 	if ((raw != pkg_rhino.StaticGet_JSDocInfo_Visibility_INHERITED()) || (fileOverviewVisibility == 0)) || createdFromGoogProvide {
 		return raw
@@ -1610,7 +1610,7 @@ func CheckAccessControls_IdentifierBehaviour_Select(target pkg_rhino.Node) Check
 	_ = target
 	var type_ pkg_rhino.JSType = target.GetJSType()
 	_ = type_
-	if (type_ == nil || type_.IsJavaNil_()) || !(type_.IsFunctionType()) {
+	if (type_ == nil || type_.IsJavaNil_()) || !(type_.GetJSTypeBase().IsFunctionType()) {
 		return StaticGet_CheckAccessControls_IdentifierBehaviour_NON_CONSTRUCTOR()
 	}
 	var ctorType *pkg_rhino.FunctionType = type_.ToMaybeFunctionType()
@@ -1799,7 +1799,7 @@ func (this_ *CheckAccessControls_PropertyReference) GetReadableTypeNameOrDefault
 	var preferred string = j2gort.CastString(this_.ReadableTypeName().Get())
 	_ = preferred
 	if j2gort.CheckNotNullString(preferred) == "" {
-		return this_.ReceiverType().String()
+		return this_.ReceiverType().GetObjectTypeBase().String()
 	} else {
 		return preferred
 	}
@@ -1863,7 +1863,7 @@ func (this_ *CheckAccessControls_PropertyReference) HashCode() int32 {
 		hi_25 := this_.receiverType
 		h_ = 31 * h_
 		if hi_25 != nil && !hi_25.IsJavaNil_() {
-			h_ += hi_25.HashCode()
+			h_ += hi_25.GetObjectTypeBase().HashCode()
 		}
 	}
 	if this_.mutation {
@@ -1912,6 +1912,14 @@ func ToIface_CheckAccessControls_PropertyReference_Builder[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_CheckAccessControls_PropertyReference_Builder[T CheckAccessControls_PropertyReference_Builder](v T) CheckAccessControls_PropertyReference_Builder {
+	var vi CheckAccessControls_PropertyReference_Builder = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

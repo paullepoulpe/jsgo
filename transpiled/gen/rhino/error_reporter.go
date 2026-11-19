@@ -61,6 +61,14 @@ func ToIface_ErrorReporter[T interface {
 	return v
 }
 
+func Upcast_ErrorReporter[T ErrorReporter](v T) ErrorReporter {
+	var vi ErrorReporter = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.ErrorReporter", "com.google.javascript.rhino.ErrorReporter", func(v_ any) bool {
 		return j2gort.InstanceOf[ErrorReporter](v_)

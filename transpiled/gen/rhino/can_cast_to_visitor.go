@@ -131,22 +131,23 @@ func (this_ *CanCastToVisitor) CanCastToUnion(thisType JSType, unionType *UnionT
 func (this_ *CanCastToVisitor) CanCastToFunction(thisType JSType, functionType *FunctionType) bool {
 	_ = thisType
 	_ = functionType
-	if thisType.IsFunctionType() {
+	base_thisType_ := thisType.GetJSTypeBase()
+	if base_thisType_.IsFunctionType() {
 		return true
 	} else {
-		return (thisType.IsSubtypeOf_1(ToIface_JSType(functionType)) || functionType.IsSubtype_1(thisType))
+		return (base_thisType_.IsSubtypeOf_1(ToIface_JSType(functionType)) || functionType.IsSubtype_1(thisType))
 	}
 }
 
 // Java method: CanCastToVisitor.isInterface(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *CanCastToVisitor) priv_CanCastToVisitor_isInterface_8822(type_ JSType) bool {
+func (this_ *CanCastToVisitor) priv_CanCastToVisitor_isInterface_8829(type_ JSType) bool {
 	_ = type_
-	var objType ObjectType = type_.ToObjectType()
+	var objType ObjectType = type_.GetJSTypeBase().ToObjectType()
 	_ = objType
 	if objType != nil && !objType.IsJavaNil_() {
 		var constructor JSType = ToIface_JSType(objType.GetConstructor())
 		_ = constructor
-		return ((constructor != nil && !constructor.IsJavaNil_()) && constructor.IsInterface())
+		return ((constructor != nil && !constructor.IsJavaNil_()) && constructor.GetJSTypeBase().IsInterface())
 	}
 	return false
 }
@@ -155,38 +156,39 @@ func (this_ *CanCastToVisitor) priv_CanCastToVisitor_isInterface_8822(type_ JSTy
 func (this_ *CanCastToVisitor) CastCastToHelper(thisType JSType, thatType JSType) *j2gort.BoxBoolean {
 	_ = thisType
 	_ = thatType
-	if thisType.IsNoResolvedType() {
+	base_thisType_ := thisType.GetJSTypeBase()
+	if base_thisType_.IsNoResolvedType() {
 		return j2gort.ValueOfBoolean(true)
-	} else if (((thatType.IsUnknownType() || thatType.IsAllType()) || thatType.IsNoObjectType()) || thatType.IsNoResolvedType()) || thatType.IsNoType() {
+	} else if (((thatType.GetJSTypeBase().IsUnknownType() || thatType.GetJSTypeBase().IsAllType()) || thatType.GetJSTypeBase().IsNoObjectType()) || thatType.GetJSTypeBase().IsNoResolvedType()) || thatType.GetJSTypeBase().IsNoType() {
 		return j2gort.ValueOfBoolean(true)
-	} else if thisType.IsRecordType() || thatType.IsRecordType() {
+	} else if base_thisType_.IsRecordType() || thatType.GetJSTypeBase().IsRecordType() {
 		return j2gort.ValueOfBoolean(true)
-	} else if this_.priv_CanCastToVisitor_isInterface_8822(thisType) || this_.priv_CanCastToVisitor_isInterface_8822(thatType) {
+	} else if this_.priv_CanCastToVisitor_isInterface_8829(thisType) || this_.priv_CanCastToVisitor_isInterface_8829(thatType) {
 		return j2gort.ValueOfBoolean(true)
-	} else if thatType.IsEnumElementType() {
+	} else if thatType.GetJSTypeBase().IsEnumElementType() {
 		return j2gort.CastPtr[j2gort.BoxBoolean](thisType.Visit_2(this_, thatType.ToMaybeEnumElementType().GetPrimitiveType()))
-	} else if thatType.IsUnionType() {
+	} else if thatType.GetJSTypeBase().IsUnionType() {
 		return j2gort.ValueOfBoolean(this_.CanCastToUnion(thisType, thatType.ToMaybeUnionType()))
-	} else if thatType.IsFunctionType() {
+	} else if thatType.GetJSTypeBase().IsFunctionType() {
 		return j2gort.ValueOfBoolean(this_.CanCastToFunction(thisType, thatType.ToMaybeFunctionType()))
-	} else if thatType.IsTemplatizedType() {
+	} else if thatType.GetJSTypeBase().IsTemplatizedType() {
 		return j2gort.CastPtr[j2gort.BoxBoolean](thisType.Visit_2(this_, thatType.ToMaybeTemplatizedType().GetReferencedTypeInternal()))
 	}
-	return j2gort.ValueOfBoolean((thisType.IsSubtypeOf_1(thatType) || thatType.IsSubtypeOf_1(thisType)))
+	return j2gort.ValueOfBoolean((base_thisType_.IsSubtypeOf_1(thatType) || thatType.GetJSTypeBase().IsSubtypeOf_1(thisType)))
 }
 
 // Java method: CanCastToVisitor.caseValueType(com.google.javascript.rhino.jstype.ValueType thisType, com.google.javascript.rhino.jstype.JSType thatType)
 func (this_ *CanCastToVisitor) CaseValueType(thisType ValueType, thatType JSType) any {
 	_ = thisType
 	_ = thatType
-	return j2gort.PtrToAny(this_.CastCastToHelper(j2gort.AsIface[JSType](thisType), thatType))
+	return j2gort.PtrToAny(this_.CastCastToHelper(Upcast_JSType(thisType), thatType))
 }
 
 // Java method: CanCastToVisitor.caseObjectType(com.google.javascript.rhino.jstype.ObjectType thisType, com.google.javascript.rhino.jstype.JSType thatType)
 func (this_ *CanCastToVisitor) CaseObjectType(thisType ObjectType, thatType JSType) any {
 	_ = thisType
 	_ = thatType
-	return j2gort.PtrToAny(this_.CastCastToHelper(j2gort.AsIface[JSType](thisType), thatType))
+	return j2gort.PtrToAny(this_.CastCastToHelper(Upcast_JSType(thisType), thatType))
 }
 
 // Java method: CanCastToVisitor.caseFunctionType(com.google.javascript.rhino.jstype.FunctionType thisType, com.google.javascript.rhino.jstype.JSType thatType)
@@ -210,7 +212,7 @@ func (this_ *CanCastToVisitor) CaseUnionType(thisType *UnionType, thatType JSTyp
 		for ; i < n; i = i + 1 {
 			var type_ JSType = thisType.GetAlternateAt(i)
 			_ = type_
-			if type_.IsVoidType() || type_.IsNullType() {
+			if type_.GetJSTypeBase().IsVoidType() || type_.GetJSTypeBase().IsNullType() {
 			} else {
 				visited = true
 				if j2gort.UnboxBoolean((j2gort.CastPtr[j2gort.BoxBoolean](type_.Visit_2(this_, thatType)))) {

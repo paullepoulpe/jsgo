@@ -4063,6 +4063,7 @@ public final class RuntimeCollectionsBindings {
         + buildColRtPart3()
         + buildColRtLoweringHelpers()
         + buildColRtOrderedMapHelpers()
+        + buildColRtPlainMapSetHelpers()
         + buildColRtCustomOrderedMapHelpers()
         + buildColRtIdentityAndCustomSetHelpers()
         + buildColRtDequeHelpers()
@@ -27855,6 +27856,568 @@ public final class RuntimeCollectionsBindings {
 
         func allocSlabChunk[T any]() *slabChunk[T] {
         \treturn getSlabChunkPool[T]().alloc()
+        }
+        """;
+  }
+
+  private static String buildColRtPlainMapSetHelpers() {
+    return """
+
+        // PlainMap is an un-ordered value struct backed solely by a native Go map[K]V (zero entries slice)
+        // for non-iterated HashMap lowering.
+        type PlainMap[K comparable, V any] struct {
+        \tm map[K]V
+        }
+
+        func NewPlainMap[K comparable, V any](capHint int) *PlainMap[K, V] {
+        \tif capHint < 0 {
+        \t\tpanic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
+        \t}
+        \tif capHint > 0 {
+        \t\treturn &PlainMap[K, V]{m: make(map[K]V, capHint)}
+        \t}
+        \treturn &PlainMap[K, V]{}
+        }
+
+        func NewPlainMapVal[K comparable, V any]() PlainMap[K, V] {
+        \treturn PlainMap[K, V]{}
+        }
+
+        func NewPlainMapCap[K comparable, V any](capHint int32) PlainMap[K, V] {
+        \tif capHint < 0 {
+        \t\tpanic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
+        \t}
+        \tif capHint > 0 {
+        \t\treturn PlainMap[K, V]{m: make(map[K]V, capHint)}
+        \t}
+        \treturn PlainMap[K, V]{}
+        }
+
+        func NewPlainMapPtr[K comparable, V any]() *PlainMap[K, V] {
+        \treturn &PlainMap[K, V]{}
+        }
+
+        func NewPlainMapPtrCap[K comparable, V any](capHint int32) *PlainMap[K, V] {
+        \treturn NewPlainMap[K, V](int(capHint))
+        }
+
+        func (m *PlainMap[K, V]) Init() {}
+
+        func (m *PlainMap[K, V]) InitCap(capHint int) {
+        \tif m == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif capHint < 0 {
+        \t\tpanic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
+        \t}
+        \tif capHint > 0 && m.m == nil {
+        \t\tm.m = make(map[K]V, capHint)
+        \t}
+        }
+
+        func (m *PlainMap[K, V]) IsNil() bool     { return m == nil }
+        func (m *PlainMap[K, V]) IsJavaNil_() bool { return m == nil }
+
+        func (m *PlainMap[K, V]) Size() int32 {
+        \tif m == nil {
+        \t\treturn 0
+        \t}
+        \treturn int32(len(m.m))
+        }
+
+        func (m *PlainMap[K, V]) IsEmpty() bool {
+        \treturn m == nil || len(m.m) == 0
+        }
+
+        func (m *PlainMap[K, V]) ContainsKey(k K) bool {
+        \tif m == nil || len(m.m) == 0 {
+        \t\treturn false
+        \t}
+        \t_, ok := m.m[k]
+        \treturn ok
+        }
+
+        func (m *PlainMap[K, V]) Get(k K) V {
+        \tif m == nil || len(m.m) == 0 {
+        \t\tvar zero V
+        \t\treturn zero
+        \t}
+        \treturn m.m[k]
+        }
+
+        func (m *PlainMap[K, V]) GetOk(k K) (V, bool) {
+        \tif m == nil || len(m.m) == 0 {
+        \t\tvar zero V
+        \t\treturn zero, false
+        \t}
+        \tv, ok := m.m[k]
+        \treturn v, ok
+        }
+
+        func (m *PlainMap[K, V]) GetOrDefault(k K, def V) V {
+        \tif m == nil || len(m.m) == 0 {
+        \t\treturn def
+        \t}
+        \tif v, ok := m.m[k]; ok {
+        \t\treturn v
+        \t}
+        \treturn def
+        }
+
+        func (m *PlainMap[K, V]) Put(k K, v V) V {
+        \tif m == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif m.m == nil {
+        \t\tm.m = make(map[K]V)
+        \t\tm.m[k] = v
+        \t\tvar zero V
+        \t\treturn zero
+        \t}
+        \told := m.m[k]
+        \tm.m[k] = v
+        \treturn old
+        }
+
+        func (m *PlainMap[K, V]) PutOk(k K, v V) (V, bool) {
+        \tif m == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif m.m == nil {
+        \t\tm.m = make(map[K]V)
+        \t\tm.m[k] = v
+        \t\tvar zero V
+        \t\treturn zero, false
+        \t}
+        \told, existed := m.m[k]
+        \tm.m[k] = v
+        \treturn old, existed
+        }
+
+        func (m *PlainMap[K, V]) PutVoid(k K, v V) {
+        \tif m == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif m.m == nil {
+        \t\tm.m = make(map[K]V)
+        \t}
+        \tm.m[k] = v
+        }
+
+        func (m *PlainMap[K, V]) PutIfAbsentOk(k K, v V) (V, bool) {
+        \tif m == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif m.m == nil {
+        \t\tm.m = make(map[K]V)
+        \t\tm.m[k] = v
+        \t\tvar zero V
+        \t\treturn zero, false
+        \t}
+        \tcur, ok := m.m[k]
+        \tif !ok || isJavaNullMapVal(cur) {
+        \t\tm.m[k] = v
+        \t\treturn cur, false
+        \t}
+        \treturn cur, true
+        }
+
+        func (m *PlainMap[K, V]) PutIfAbsent(k K, v V) V {
+        \tcur, _ := m.PutIfAbsentOk(k, v)
+        \treturn cur
+        }
+
+        func (m *PlainMap[K, V]) RemoveOk(k K) (V, bool) {
+        \tif m == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif len(m.m) == 0 {
+        \t\tvar zero V
+        \t\treturn zero, false
+        \t}
+        \told, existed := m.m[k]
+        \tif existed {
+        \t\tdelete(m.m, k)
+        \t}
+        \treturn old, existed
+        }
+
+        func (m *PlainMap[K, V]) Remove(k K) V {
+        \told, _ := m.RemoveOk(k)
+        \treturn old
+        }
+
+        func (m *PlainMap[K, V]) Clear() {
+        \tif m != nil && len(m.m) > 0 {
+        \t\tclear(m.m)
+        \t}
+        }
+
+        func PlainMapComputeIfAbsentFn[K comparable, V any](m *PlainMap[K, V], k K, fn func(K) V) V {
+        \tif m == nil || fn == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif cur, ok := m.GetOk(k); ok && !isJavaNullMapVal(cur) {
+        \t\treturn cur
+        \t}
+        \tnv := fn(k)
+        \tif !isJavaNullMapVal(nv) {
+        \t\tm.PutVoid(k, nv)
+        \t}
+        \treturn nv
+        }
+
+        func PlainMapComputeIfAbsent[K comparable, V comparable](m *PlainMap[K, V], k K, nullV V, fn func(K) V) V {
+        \tif m == nil || fn == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif cur, ok := m.GetOk(k); ok && cur != nullV {
+        \t\treturn cur
+        \t}
+        \tnv := fn(k)
+        \tif nv != nullV {
+        \t\tm.PutVoid(k, nv)
+        \t}
+        \treturn nv
+        }
+
+        func PlainMapComputeIfAbsentExtFn[K comparable, V comparable](m *PlainMap[K, V], k K, nullV V, fn Ext_java_util_function_Function) V {
+        \tif m == nil {
+        \t\tThrowNPE()
+        \t}
+        \tCheckNotNull(fn)
+        \tif cur, ok := m.GetOk(k); ok && cur != nullV {
+        \t\treturn cur
+        \t}
+        \traw := fn.Apply(boxJavaElem(k))
+        \tif raw == nil || isJavaNilAny(raw) {
+        \t\treturn nullV
+        \t}
+        \tnv := unboxJavaElem[V](raw)
+        \tif nv != nullV {
+        \t\tm.PutVoid(k, nv)
+        \t}
+        \treturn nv
+        }
+
+        func PlainMapPtrGetStr[K comparable](m *PlainMap[K, string], k K) string {
+        \tif v, ok := m.GetOk(k); ok {
+        \t\treturn v
+        \t}
+        \treturn NullString
+        }
+
+        func PlainMapGetStr[K comparable](m PlainMap[K, string], k K) string {
+        \treturn PlainMapPtrGetStr(&m, k)
+        }
+
+        func PlainMapPutStr[K comparable](m *PlainMap[K, string], k K, v string) string {
+        \tif old, ok := m.PutOk(k, v); ok {
+        \t\treturn old
+        \t}
+        \treturn NullString
+        }
+
+        func PlainMapRemoveStr[K comparable](m *PlainMap[K, string], k K) string {
+        \tif old, ok := m.RemoveOk(k); ok {
+        \t\treturn old
+        \t}
+        \treturn NullString
+        }
+
+        func PlainMapPutIfAbsentStr[K comparable](m *PlainMap[K, string], k K, v string) string {
+        \tcur, ok := m.GetOk(k)
+        \tif !ok || cur == NullString {
+        \t\tm.PutVoid(k, v)
+        \t\treturn NullString
+        \t}
+        \treturn cur
+        }
+
+        func PlainMapFromJavaMap[K comparable, V any](src any) PlainMap[K, V] {
+        \tCheckNotNull(src)
+        \tmp := src.(Ext_java_util_Map)
+        \tm := NewPlainMapCap[K, V](mp.Size())
+        \tfor cur := NewMapEntryCursor(mp); cur.NextEntry(); {
+        \t\tm.PutVoid(unboxJavaElem[K](cur.GetKey()), unboxJavaElem[V](cur.GetValue()))
+        \t}
+        \treturn m
+        }
+
+        func PlainMapPtrFromJavaMap[K comparable, V any](src any) *PlainMap[K, V] {
+        \tm := PlainMapFromJavaMap[K, V](src)
+        \treturn &m
+        }
+
+        func PlainMapFromNodeKeyJavaMap[K ~uint32, V any](src any) PlainMap[K, V] {
+        \tCheckNotNull(src)
+        \tmp := src.(Ext_java_util_Map)
+        \tm := NewPlainMapCap[K, V](mp.Size())
+        \tfor cur := NewMapEntryCursor(mp); cur.NextEntry(); {
+        \t\tm.PutVoid(K(cur.KeyNode()), unboxJavaElem[V](cur.GetValue()))
+        \t}
+        \treturn m
+        }
+
+        func PlainMapPtrFromNodeKeyJavaMap[K ~uint32, V any](src any) *PlainMap[K, V] {
+        \tm := PlainMapFromNodeKeyJavaMap[K, V](src)
+        \treturn &m
+        }
+
+        func (m *PlainMap[K, V]) PutAllJavaMap(src any) {
+        \tif m == nil {
+        \t\tThrowNPE()
+        \t}
+        \tCheckNotNull(src)
+        \tmp := src.(Ext_java_util_Map)
+        \tfor cur := NewMapEntryCursor(mp); cur.NextEntry(); {
+        \t\tm.PutVoid(unboxJavaElem[K](cur.GetKey()), unboxJavaElem[V](cur.GetValue()))
+        \t}
+        }
+
+        func PlainMapGetNodeAny[K ~uint32, V any](m *PlainMap[K, V], rawKey any) any {
+        \tif m == nil {
+        \t\tThrowNPE()
+        \t}
+        \tvar k K
+        \tif rawKey != nil && !isJavaNilAny(rawKey) {
+        \t\tif nk, ok := rawKey.(K); ok {
+        \t\t\tk = nk
+        \t\t} else if rn, ok := rawKey.(jRawNodeProvider); ok {
+        \t\t\tk = K(rn.RawNodeId_())
+        \t\t} else if nd, ok := rawKey.(nodestore.Node); ok {
+        \t\t\tk = K(nd)
+        \t\t} else if u, ok := rawKey.(uint32); ok {
+        \t\t\tk = K(u)
+        \t\t} else {
+        \t\t\treturn nil
+        \t\t}
+        \t}
+        \tv, found := m.GetOk(k)
+        \tif !found {
+        \t\treturn nil
+        \t}
+        \treturn boxJavaElem(v)
+        }
+
+        func PlainMapGetAny[K comparable, V any](m *PlainMap[K, V], rawKey any) any {
+        \tif m == nil {
+        \t\tThrowNPE()
+        \t}
+        \tk, ok := tryUnboxOrderedMapKey[K](rawKey)
+        \tif !ok {
+        \t\treturn nil
+        \t}
+        \tv, found := m.GetOk(k)
+        \tif !found {
+        \t\treturn nil
+        \t}
+        \treturn boxJavaElem(v)
+        }
+
+        // PlainSet is an un-ordered value struct backed solely by a native Go map[T]struct{}
+        // for non-iterated HashSet lowering.
+        type PlainSet[T comparable] struct {
+        \tm map[T]struct{}
+        }
+
+        func NewPlainSet[T comparable](capHint int) *PlainSet[T] {
+        \tif capHint < 0 {
+        \t\tpanic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
+        \t}
+        \tif capHint > 0 {
+        \t\treturn &PlainSet[T]{m: make(map[T]struct{}, capHint)}
+        \t}
+        \treturn &PlainSet[T]{}
+        }
+
+        func NewPlainSetVal[T comparable]() PlainSet[T] {
+        \treturn PlainSet[T]{}
+        }
+
+        func NewPlainSetCap[T comparable](capHint int32) PlainSet[T] {
+        \tif capHint < 0 {
+        \t\tpanic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
+        \t}
+        \tif capHint > 0 {
+        \t\treturn PlainSet[T]{m: make(map[T]struct{}, capHint)}
+        \t}
+        \treturn PlainSet[T]{}
+        }
+
+        func NewPlainSetPtr[T comparable]() *PlainSet[T] {
+        \treturn &PlainSet[T]{}
+        }
+
+        func NewPlainSetPtrCap[T comparable](capHint int32) *PlainSet[T] {
+        \treturn NewPlainSet[T](int(capHint))
+        }
+
+        func (s *PlainSet[T]) Init() {}
+
+        func (s *PlainSet[T]) InitCap(capHint int) {
+        \tif s == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif capHint < 0 {
+        \t\tpanic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
+        \t}
+        \tif capHint > 0 && s.m == nil {
+        \t\ts.m = make(map[T]struct{}, capHint)
+        \t}
+        }
+
+        func (s *PlainSet[T]) IsNil() bool     { return s == nil }
+        func (s *PlainSet[T]) IsJavaNil_() bool { return s == nil }
+
+        func (s *PlainSet[T]) Size() int32 {
+        \tif s == nil {
+        \t\treturn 0
+        \t}
+        \treturn int32(len(s.m))
+        }
+
+        func (s *PlainSet[T]) IsEmpty() bool {
+        \treturn s == nil || len(s.m) == 0
+        }
+
+        func (s *PlainSet[T]) Contains(v T) bool {
+        \tif s == nil || len(s.m) == 0 {
+        \t\treturn false
+        \t}
+        \t_, ok := s.m[v]
+        \treturn ok
+        }
+
+        func (s *PlainSet[T]) Add(v T) bool {
+        \tif s == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif s.m == nil {
+        \t\ts.m = make(map[T]struct{})
+        \t\ts.m[v] = struct{}{}
+        \t\treturn true
+        \t}
+        \tif _, ok := s.m[v]; ok {
+        \t\treturn false
+        \t}
+        \ts.m[v] = struct{}{}
+        \treturn true
+        }
+
+        func (s *PlainSet[T]) AddVoid(v T) {
+        \tif s == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif s.m == nil {
+        \t\ts.m = make(map[T]struct{})
+        \t}
+        \ts.m[v] = struct{}{}
+        }
+
+        func (s *PlainSet[T]) Remove(v T) bool {
+        \tif s == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif len(s.m) == 0 {
+        \t\treturn false
+        \t}
+        \tif _, ok := s.m[v]; ok {
+        \t\tdelete(s.m, v)
+        \t\treturn true
+        \t}
+        \treturn false
+        }
+
+        func (s *PlainSet[T]) Clear() {
+        \tif s != nil && len(s.m) > 0 {
+        \t\tclear(s.m)
+        \t}
+        }
+
+        func PlainSetFromStrCol(col any) PlainSet[string] {
+        \tvar s PlainSet[string]
+        \tPlainSetAddAllStr(&s, col)
+        \treturn s
+        }
+
+        func PlainSetPtrFromStrCol(col any) *PlainSet[string] {
+        \ts := PlainSetFromStrCol(col)
+        \treturn &s
+        }
+
+        func PlainSetFromNodeCol[N ~uint32](col any) PlainSet[N] {
+        \tvar s PlainSet[N]
+        \tPlainSetAddAllNode(&s, col)
+        \treturn s
+        }
+
+        func PlainSetPtrFromNodeCol[N ~uint32](col any) *PlainSet[N] {
+        \ts := PlainSetFromNodeCol[N](col)
+        \treturn &s
+        }
+
+        func PlainSetFromCol[T comparable](col any) PlainSet[T] {
+        \tvar s PlainSet[T]
+        \tPlainSetAddAllCol(&s, col)
+        \treturn s
+        }
+
+        func PlainSetPtrFromCol[T comparable](col any) *PlainSet[T] {
+        \ts := PlainSetFromCol[T](col)
+        \treturn &s
+        }
+
+        func PlainSetAddAllStr(s *PlainSet[string], col any) bool {
+        \tif s == nil {
+        \t\tThrowNPE()
+        \t}
+        \tCheckNotNull(col)
+        \tchanged := false
+        \tif ssi, ok := col.(StrSliceIterable); ok {
+        \t\tif ss, ok2 := ssi.IterStrSlice_(); ok2 {
+        \t\t\tfor i := 0; i < len(ss); i++ {
+        \t\t\t\tif s.Add(ss[i]) {
+        \t\t\t\t\tchanged = true
+        \t\t\t\t}
+        \t\t\t}
+        \t\t\treturn changed
+        \t\t}
+        \t}
+        \tfor cur := NewIterCursor(col); cur.HasNext(); {
+        \t\tif s.Add(cur.NextStr()) {
+        \t\t\tchanged = true
+        \t\t}
+        \t}
+        \treturn changed
+        }
+
+        func PlainSetAddAllNode[N ~uint32](s *PlainSet[N], col any) bool {
+        \tif s == nil {
+        \t\tThrowNPE()
+        \t}
+        \tCheckNotNull(col)
+        \tchanged := false
+        \tfor cur := NewIterCursor(col); cur.HasNext(); {
+        \t\tif s.Add(N(cur.NextNode())) {
+        \t\t\tchanged = true
+        \t\t}
+        \t}
+        \treturn changed
+        }
+
+        func PlainSetAddAllCol[T comparable](s *PlainSet[T], col any) bool {
+        \tif s == nil {
+        \t\tThrowNPE()
+        \t}
+        \tCheckNotNull(col)
+        \tchanged := false
+        \tfor cur := NewIterCursor(col); cur.HasNext(); {
+        \t\tif s.Add(unboxJavaElem[T](cur.Next())) {
+        \t\t\tchanged = true
+        \t\t}
+        \t}
+        \treturn changed
         }
         """;
   }

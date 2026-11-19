@@ -263,10 +263,10 @@ func InitIRFactory(this_ *IRFactory, sourceFile pkg_rhino.StaticSourceFile, conf
 	this_.nonJsdocTracker = NewIRFactory_CommentTracker(comments, false)
 	this_.sourceFile = sourceFile
 	this_.fileWithContent = fileWithContent
-	this_.defaultTemplateNode = this_.priv_IRFactory_createTemplateNode_6797()
+	this_.defaultTemplateNode = this_.priv_IRFactory_createTemplateNode_6803()
 	this_.templateNode = this_.defaultTemplateNode
 	this_.nodeAlloc_.SetTemplate(nodestore.Node(this_.templateNode))
-	this_.closureUnawareTemplateNode = this_.priv_IRFactory_createClosureUnawareTemplateNode_6798()
+	this_.closureUnawareTemplateNode = this_.priv_IRFactory_createClosureUnawareTemplateNode_6804()
 	if sourceFile == nil || sourceFile.IsJavaNil_() {
 		this_.sourceName = j2gort.NullString
 	} else {
@@ -286,7 +286,7 @@ func InitIRFactory(this_ *IRFactory, sourceFile pkg_rhino.StaticSourceFile, conf
 }
 
 // Java method: IRFactory.createTemplateNode()
-func (this_ *IRFactory) priv_IRFactory_createTemplateNode_6797() pkg_rhino.Node {
+func (this_ *IRFactory) priv_IRFactory_createTemplateNode_6803() pkg_rhino.Node {
 	var templateNode pkg_rhino.Node = pkg_rhino.NewNode_1(pkg_rhino.StaticGet_Token_SCRIPT())
 	_ = templateNode
 	templateNode.SetStaticSourceFile(this_.sourceFile)
@@ -294,7 +294,7 @@ func (this_ *IRFactory) priv_IRFactory_createTemplateNode_6797() pkg_rhino.Node 
 }
 
 // Java method: IRFactory.createClosureUnawareTemplateNode()
-func (this_ *IRFactory) priv_IRFactory_createClosureUnawareTemplateNode_6798() pkg_rhino.Node {
+func (this_ *IRFactory) priv_IRFactory_createClosureUnawareTemplateNode_6804() pkg_rhino.Node {
 	var closureUnawareTemplateNode pkg_rhino.Node = this_.defaultTemplateNode.CloneNode_0()
 	_ = closureUnawareTemplateNode
 	closureUnawareTemplateNode.SetIsInClosureUnawareSubtree(true)
@@ -335,24 +335,24 @@ func IRFactory_TransformTree(tree *pkg_parser.ProgramTree, sourceFile pkg_rhino.
 				var comment *pkg_parser.Comment = j2gort.CastPtr[pkg_parser.Comment](tree.FieldGet_sourceComments().Get(i))
 				_ = comment
 				if ((comment.FieldGet_type_() == pkg_parser.StaticGet_Comment_Type_JSDOC()) || (comment.FieldGet_type_() == pkg_parser.StaticGet_Comment_Type_IMPORTANT())) && !(comment.FieldGet_parsed()) {
-					var useLicensesOnlyConfig bool = irFactory.priv_IRFactory_withinClosureUnawareCodeRange_6830(comment.FieldGet_location().FieldGet_start().FieldGet_line(), comment.FieldGet_location().FieldGet_start().FieldGet_column())
+					var useLicensesOnlyConfig bool = irFactory.priv_IRFactory_withinClosureUnawareCodeRange_6836(comment.FieldGet_location().FieldGet_start().FieldGet_line(), comment.FieldGet_location().FieldGet_start().FieldGet_column())
 					_ = useLicensesOnlyConfig
-					irFactory.priv_IRFactory_handlePossibleFileOverviewJsDoc_6819(comment, useLicensesOnlyConfig)
+					irFactory.priv_IRFactory_handlePossibleFileOverviewJsDoc_6825(comment, useLicensesOnlyConfig)
 				}
 			}
 		}
 		if n.IsScript() {
 			var endOfFilePos pkg_parser.SourcePosition = tree.FieldGet_location().FieldGet_end()
 			_ = endOfFilePos
-			var nonJSDocComment *pkg_rhino.NonJSDocComment = irFactory.priv_IRFactory_parseNonJSDocCommentAt_6826(endOfFilePos, false)
+			var nonJSDocComment *pkg_rhino.NonJSDocComment = irFactory.priv_IRFactory_parseNonJSDocCommentAt_6832(endOfFilePos, false)
 			_ = nonJSDocComment
 			if nonJSDocComment != nil {
 				n.SetTrailingNonJSDocComment(nonJSDocComment)
 			}
 		}
 	}
-	irFactory.priv_IRFactory_setFileOverviewJsDoc_6816(n)
-	irFactory.priv_IRFactory_validateAll_6801(n)
+	irFactory.priv_IRFactory_setFileOverviewJsDoc_6822(n)
+	irFactory.priv_IRFactory_validateAll_6807(n)
 	{
 		r_5 := irFactory
 		r_5.resultNode = n
@@ -371,12 +371,12 @@ func (this_ *IRFactory) GetFeatures() *pkg_parser.FeatureSet {
 }
 
 // Java method: IRFactory.validateAll(com.google.javascript.rhino.Node n)
-func (this_ *IRFactory) priv_IRFactory_validateAll_6801(n pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_validateAll_6807(n pkg_rhino.Node) {
 	_ = n
 	var work j2gort.Deque[pkg_rhino.Node]
 	_ = work
 	for n != 0 {
-		this_.priv_IRFactory_validate_6802(n)
+		this_.priv_IRFactory_validate_6808(n)
 		var nextSibling pkg_rhino.Node = n.GetNext()
 		_ = nextSibling
 		var firstChild pkg_rhino.Node = n.GetFirstChild()
@@ -398,27 +398,27 @@ func (this_ *IRFactory) priv_IRFactory_validateAll_6801(n pkg_rhino.Node) {
 }
 
 // Java method: IRFactory.validate(com.google.javascript.rhino.Node n)
-func (this_ *IRFactory) priv_IRFactory_validate_6802(n pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_validate_6808(n pkg_rhino.Node) {
 	_ = n
-	this_.priv_IRFactory_validateParameters_6814(n)
-	this_.priv_IRFactory_validateBreakContinue_6808(n)
-	this_.priv_IRFactory_validateReturn_6806(n)
-	this_.priv_IRFactory_validateYield_6805(n)
-	this_.priv_IRFactory_validateAwait_6804(n)
-	this_.priv_IRFactory_validateNewDotTarget_6807(n)
-	this_.priv_IRFactory_validateLabel_6809(n)
-	this_.priv_IRFactory_validateBlockScopedFunctions_6815(n)
-	this_.priv_IRFactory_validateShadowHost_6803(n)
+	this_.priv_IRFactory_validateParameters_6820(n)
+	this_.priv_IRFactory_validateBreakContinue_6814(n)
+	this_.priv_IRFactory_validateReturn_6812(n)
+	this_.priv_IRFactory_validateYield_6811(n)
+	this_.priv_IRFactory_validateAwait_6810(n)
+	this_.priv_IRFactory_validateNewDotTarget_6813(n)
+	this_.priv_IRFactory_validateLabel_6815(n)
+	this_.priv_IRFactory_validateBlockScopedFunctions_6821(n)
+	this_.priv_IRFactory_validateShadowHost_6809(n)
 }
 
 // Java method: IRFactory.validateShadowHost(com.google.javascript.rhino.Node n)
-func (this_ *IRFactory) priv_IRFactory_validateShadowHost_6803(n pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_validateShadowHost_6809(n pkg_rhino.Node) {
 	_ = n
 	if n.GetClosureUnawareShadow() == 0 {
 		return
 	}
 	if (this_.firstFileoverview == nil) || !(this_.firstFileoverview.IsClosureUnawareCode()) {
-		this_.priv_IRFactory_error_6864(n, "invalid @closureUnaware node: must be in a file annotated with @closureUnaware")
+		this_.priv_IRFactory_error_6870(n, "invalid @closureUnaware node: must be in a file annotated with @closureUnaware")
 		return
 	}
 	var parent pkg_rhino.Node = n.GetParent()
@@ -435,11 +435,11 @@ func (this_ *IRFactory) priv_IRFactory_validateShadowHost_6803(n pkg_rhino.Node)
 			return
 		}
 	}
-	this_.priv_IRFactory_error_6864(n, "invalid @closureUnaware node: must be directly called")
+	this_.priv_IRFactory_error_6870(n, "invalid @closureUnaware node: must be directly called")
 }
 
 // Java method: IRFactory.validateAwait(com.google.javascript.rhino.Node n)
-func (this_ *IRFactory) priv_IRFactory_validateAwait_6804(n pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_validateAwait_6810(n pkg_rhino.Node) {
 	_ = n
 	var errorMsg string = j2gort.NullString
 	_ = errorMsg
@@ -473,7 +473,7 @@ func (this_ *IRFactory) priv_IRFactory_validateAwait_6804(n pkg_rhino.Node) {
 }
 
 // Java method: IRFactory.validateYield(com.google.javascript.rhino.Node n)
-func (this_ *IRFactory) priv_IRFactory_validateYield_6805(n pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_validateYield_6811(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsYield()) {
 		return
@@ -492,7 +492,7 @@ func (this_ *IRFactory) priv_IRFactory_validateYield_6805(n pkg_rhino.Node) {
 }
 
 // Java method: IRFactory.validateReturn(com.google.javascript.rhino.Node n)
-func (this_ *IRFactory) priv_IRFactory_validateReturn_6806(n pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_validateReturn_6812(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsReturn()) {
 		return
@@ -512,7 +512,7 @@ func (this_ *IRFactory) priv_IRFactory_validateReturn_6806(n pkg_rhino.Node) {
 }
 
 // Java method: IRFactory.validateNewDotTarget(com.google.javascript.rhino.Node n)
-func (this_ *IRFactory) priv_IRFactory_validateNewDotTarget_6807(n pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_validateNewDotTarget_6813(n pkg_rhino.Node) {
 	_ = n
 	if n.RawToken_() != uint8(135) {
 		return
@@ -536,7 +536,7 @@ func (this_ *IRFactory) priv_IRFactory_validateNewDotTarget_6807(n pkg_rhino.Nod
 }
 
 // Java method: IRFactory.validateBreakContinue(com.google.javascript.rhino.Node n)
-func (this_ *IRFactory) priv_IRFactory_validateBreakContinue_6808(n pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_validateBreakContinue_6814(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsBreak()) && !(n.IsContinue()) {
 		return
@@ -620,7 +620,7 @@ func IRFactory_LabelsMatch(label pkg_rhino.Node, labelName pkg_rhino.Node) bool 
 }
 
 // Java method: IRFactory.validateLabel(com.google.javascript.rhino.Node n)
-func (this_ *IRFactory) priv_IRFactory_validateLabel_6809(n pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_validateLabel_6815(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsLabel()) {
 		return
@@ -657,14 +657,14 @@ func IRFactory_UnwrapSimpleParamNameNode(c pkg_rhino.Node) pkg_rhino.Node {
 }
 
 // Java method: IRFactory.reportDuplicateParameter(com.google.javascript.rhino.Node param, java.lang.String paramName)
-func (this_ *IRFactory) priv_IRFactory_reportDuplicateParameter_6810(param pkg_rhino.Node, paramName string) {
+func (this_ *IRFactory) priv_IRFactory_reportDuplicateParameter_6816(param pkg_rhino.Node, paramName string) {
 	_ = param
 	_ = paramName
 	this_.errorReporter.Warning(("Duplicate parameter name \"" + j2gort.StrValString(paramName) + "\""), this_.sourceName, param.GetLineno(), param.GetCharno())
 }
 
 // Java method: IRFactory.addScratchParamName(java.lang.String name)
-func (this_ *IRFactory) priv_IRFactory_addScratchParamName_6811(name string) bool {
+func (this_ *IRFactory) priv_IRFactory_addScratchParamName_6817(name string) bool {
 	_ = name
 	var table []int32 = this_.scratchParamTable
 	_ = table
@@ -771,7 +771,7 @@ func (this_ *IRFactory) priv_IRFactory_addScratchParamName_6811(name string) boo
 }
 
 // Java method: IRFactory.clearScratchParamNames()
-func (this_ *IRFactory) priv_IRFactory_clearScratchParamNames_6812() {
+func (this_ *IRFactory) priv_IRFactory_clearScratchParamNames_6818() {
 	var count int32 = this_.scratchParamCount
 	_ = count
 	if count > int32(0) {
@@ -802,17 +802,17 @@ func (this_ *IRFactory) priv_IRFactory_clearScratchParamNames_6812() {
 }
 
 // Java method: IRFactory.validateParamNodeCallback(com.google.javascript.rhino.Node param)
-func (this_ *IRFactory) priv_IRFactory_validateParamNodeCallback_6813(param pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_validateParamNodeCallback_6819(param pkg_rhino.Node) {
 	_ = param
 	var paramName string = param.GetString()
 	_ = paramName
-	if !(this_.priv_IRFactory_addScratchParamName_6811(paramName)) {
-		this_.priv_IRFactory_reportDuplicateParameter_6810(param, paramName)
+	if !(this_.priv_IRFactory_addScratchParamName_6817(paramName)) {
+		this_.priv_IRFactory_reportDuplicateParameter_6816(param, paramName)
 	}
 }
 
 // Java method: IRFactory.validateParameters(com.google.javascript.rhino.Node n)
-func (this_ *IRFactory) priv_IRFactory_validateParameters_6814(n pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_validateParameters_6820(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsParamList()) {
 		return
@@ -840,7 +840,7 @@ func (this_ *IRFactory) priv_IRFactory_validateParameters_6814(n pkg_rhino.Node)
 			var s1 string = p1.GetString()
 			_ = s1
 			if j2gort.CheckNotNullString(s0) == s1 {
-				this_.priv_IRFactory_reportDuplicateParameter_6810(p1, s1)
+				this_.priv_IRFactory_reportDuplicateParameter_6816(p1, s1)
 			}
 			return
 		}
@@ -866,13 +866,13 @@ func (this_ *IRFactory) priv_IRFactory_validateParameters_6814(n pkg_rhino.Node)
 		validator = func() j2gort.Ext_java_util_function_Consumer {
 			bound_31 := this_
 			return j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) {
-				bound_31.priv_IRFactory_validateParamNodeCallback_6813(j2gort.CastNode[pkg_rhino.Node](mrp0_))
+				bound_31.priv_IRFactory_validateParamNodeCallback_6819(j2gort.CastNode[pkg_rhino.Node](mrp0_))
 			})
 		}()
 		this_.cachedParamValidator = validator
 	}
 	defer func() {
-		this_.priv_IRFactory_clearScratchParamNames_6812()
+		this_.priv_IRFactory_clearScratchParamNames_6818()
 	}()
 	{
 		{
@@ -886,7 +886,7 @@ func (this_ *IRFactory) priv_IRFactory_validateParameters_6814(n pkg_rhino.Node)
 }
 
 // Java method: IRFactory.validateBlockScopedFunctions(com.google.javascript.rhino.Node n)
-func (this_ *IRFactory) priv_IRFactory_validateBlockScopedFunctions_6815(n pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_validateBlockScopedFunctions_6821(n pkg_rhino.Node) {
 	_ = n
 	if (n.IsFunction() && n.GetParent().IsBlock()) && !(n.GetGrandparent().IsFunction()) {
 		this_.MaybeWarnForFeature_2_Node_FeatureSet_Feature(n, pkg_parser.StaticGet_FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION())
@@ -894,7 +894,7 @@ func (this_ *IRFactory) priv_IRFactory_validateBlockScopedFunctions_6815(n pkg_r
 }
 
 // Java method: IRFactory.setFileOverviewJsDoc(com.google.javascript.rhino.Node irNode)
-func (this_ *IRFactory) priv_IRFactory_setFileOverviewJsDoc_6816(irNode pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_setFileOverviewJsDoc_6822(irNode pkg_rhino.Node) {
 	_ = irNode
 	var fileoverview *pkg_rhino.JSDocInfo_Builder
 	_ = fileoverview
@@ -930,7 +930,7 @@ func (this_ *IRFactory) TransformBlock(node pkg_parser.ParseTree) pkg_rhino.Node
 }
 
 // Java method: IRFactory.handlePossibleFileOverviewJsDoc(com.google.javascript.jscomp.parsing.JsDocInfoParser jsDocParser)
-func (this_ *IRFactory) priv_IRFactory_handlePossibleFileOverviewJsDoc_6818(jsDocParser *JsDocInfoParser) bool {
+func (this_ *IRFactory) priv_IRFactory_handlePossibleFileOverviewJsDoc_6824(jsDocParser *JsDocInfoParser) bool {
 	_ = jsDocParser
 	if jsDocParser.GetLicenseText() != j2gort.NullString {
 		if this_.licenseBuilder == nil {
@@ -968,25 +968,25 @@ func (this_ *IRFactory) priv_IRFactory_handlePossibleFileOverviewJsDoc_6818(jsDo
 }
 
 // Java method: IRFactory.handlePossibleFileOverviewJsDoc(com.google.javascript.jscomp.parsing.parser.trees.Comment comment, boolean useLicensesOnlyConfig)
-func (this_ *IRFactory) priv_IRFactory_handlePossibleFileOverviewJsDoc_6819(comment *pkg_parser.Comment, useLicensesOnlyConfig bool) {
+func (this_ *IRFactory) priv_IRFactory_handlePossibleFileOverviewJsDoc_6825(comment *pkg_parser.Comment, useLicensesOnlyConfig bool) {
 	_ = comment
 	_ = useLicensesOnlyConfig
-	var jsDocParser *JsDocInfoParser = this_.priv_IRFactory_createJsDocInfoParser_6841(comment, useLicensesOnlyConfig)
+	var jsDocParser *JsDocInfoParser = this_.priv_IRFactory_createJsDocInfoParser_6847(comment, useLicensesOnlyConfig)
 	_ = jsDocParser
 	defer func() {
-		this_.priv_IRFactory_releaseJsDocInfoParser_6842(jsDocParser)
+		this_.priv_IRFactory_releaseJsDocInfoParser_6848(jsDocParser)
 	}()
 	{
 		{
 			r_32 := comment
 			r_32.FieldSet_parsed(true)
 		}
-		this_.priv_IRFactory_handlePossibleFileOverviewJsDoc_6818(jsDocParser)
+		this_.priv_IRFactory_handlePossibleFileOverviewJsDoc_6824(jsDocParser)
 	}
 }
 
 // Java method: IRFactory.getJSDocCommentAt(com.google.javascript.jscomp.parsing.parser.util.SourcePosition pos)
-func (this_ *IRFactory) priv_IRFactory_getJSDocCommentAt_6820(pos pkg_parser.SourcePosition) *pkg_parser.Comment {
+func (this_ *IRFactory) priv_IRFactory_getJSDocCommentAt_6826(pos pkg_parser.SourcePosition) *pkg_parser.Comment {
 	_ = pos
 	var closestPreviousComment *pkg_parser.Comment = nil
 	_ = closestPreviousComment
@@ -998,26 +998,26 @@ func (this_ *IRFactory) priv_IRFactory_getJSDocCommentAt_6820(pos pkg_parser.Sou
 }
 
 // Java method: IRFactory.parseJSDocInfoFrom(com.google.javascript.jscomp.parsing.parser.trees.Comment comment)
-func (this_ *IRFactory) priv_IRFactory_parseJSDocInfoFrom_6821(comment *pkg_parser.Comment) *pkg_rhino.JSDocInfo {
+func (this_ *IRFactory) priv_IRFactory_parseJSDocInfoFrom_6827(comment *pkg_parser.Comment) *pkg_rhino.JSDocInfo {
 	_ = comment
 	if comment == nil {
 		return nil
 	}
-	if this_.priv_IRFactory_withinClosureUnawareCodeRange_6830(comment.FieldGet_location().FieldGet_start().FieldGet_line(), comment.FieldGet_location().FieldGet_start().FieldGet_column()) {
+	if this_.priv_IRFactory_withinClosureUnawareCodeRange_6836(comment.FieldGet_location().FieldGet_start().FieldGet_line(), comment.FieldGet_location().FieldGet_start().FieldGet_column()) {
 		this_.jsdocTracker.Backtrack()
 		return nil
 	}
-	var jsDocParser *JsDocInfoParser = this_.priv_IRFactory_createJsDocInfoParser_6840(comment)
+	var jsDocParser *JsDocInfoParser = this_.priv_IRFactory_createJsDocInfoParser_6846(comment)
 	_ = jsDocParser
 	defer func() {
-		this_.priv_IRFactory_releaseJsDocInfoParser_6842(jsDocParser)
+		this_.priv_IRFactory_releaseJsDocInfoParser_6848(jsDocParser)
 	}()
 	{
 		{
 			r_33 := comment
 			r_33.FieldSet_parsed(true)
 		}
-		if this_.priv_IRFactory_handlePossibleFileOverviewJsDoc_6818(jsDocParser) {
+		if this_.priv_IRFactory_handlePossibleFileOverviewJsDoc_6824(jsDocParser) {
 			return nil
 		}
 		return jsDocParser.RetrieveAndResetParsedJSDocInfo()
@@ -1026,59 +1026,60 @@ func (this_ *IRFactory) priv_IRFactory_parseJSDocInfoFrom_6821(comment *pkg_pars
 }
 
 // Java method: IRFactory.parseJSDocInfoOnTree(com.google.javascript.jscomp.parsing.parser.trees.ParseTree tree)
-func (this_ *IRFactory) priv_IRFactory_parseJSDocInfoOnTree_6822(tree pkg_parser.ParseTree) *pkg_rhino.JSDocInfo {
+func (this_ *IRFactory) priv_IRFactory_parseJSDocInfoOnTree_6828(tree pkg_parser.ParseTree) *pkg_rhino.JSDocInfo {
 	_ = tree
-	switch (tree.FieldGet_type_()).Ordinal() {
+	base_tree_ := tree.GetParseTreeBase()
+	switch (base_tree_.FieldGet_type_()).Ordinal() {
 	case int32(6) /* ParseTreeType.EXPRESSION_STATEMENT */, int32(20) /* ParseTreeType.LABELLED_STATEMENT */, int32(64) /* ParseTreeType.EXPORT_DECLARATION */, int32(74) /* ParseTreeType.TEMPLATE_SUBSTITUTION */ :
 		return nil
 	case int32(47) /* ParseTreeType.CALL_EXPRESSION */, int32(40) /* ParseTreeType.CONDITIONAL_EXPRESSION */, int32(38) /* ParseTreeType.COMMA_EXPRESSION */, int32(39) /* ParseTreeType.BINARY_OPERATOR */, int32(43) /* ParseTreeType.MEMBER_EXPRESSION */, int32(50) /* ParseTreeType.MEMBER_LOOKUP_EXPRESSION */, int32(42) /* ParseTreeType.UPDATE_EXPRESSION */ :
 		{
 			var nearest pkg_parser.ParseTree = IRFactory_FindNearestNode(tree)
 			_ = nearest
-			if nearest.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_PAREN_EXPRESSION() {
+			if nearest.GetParseTreeBase().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_PAREN_EXPRESSION() {
 				return nil
 			}
 		}
 	default:
 	}
-	return this_.priv_IRFactory_parseJSDocInfoFrom_6821(this_.priv_IRFactory_getJSDocCommentAt_6820(tree.GetStart()))
+	return this_.priv_IRFactory_parseJSDocInfoFrom_6827(this_.priv_IRFactory_getJSDocCommentAt_6826(base_tree_.GetStart()))
 }
 
 // Java method: IRFactory.parseJSDocInfoOnToken(com.google.javascript.jscomp.parsing.parser.Token token)
 func (this_ *IRFactory) ParseJSDocInfoOnToken(token pkg_parser.Token) *pkg_rhino.JSDocInfo {
 	_ = token
-	return this_.priv_IRFactory_parseJSDocInfoFrom_6821(this_.priv_IRFactory_getJSDocCommentAt_6820(token.GetStart()))
+	return this_.priv_IRFactory_parseJSDocInfoFrom_6827(this_.priv_IRFactory_getJSDocCommentAt_6826(token.GetStart()))
 }
 
 // Java method: IRFactory.parseInlineJSDocAt(com.google.javascript.jscomp.parsing.parser.util.SourcePosition pos)
 func (this_ *IRFactory) ParseInlineJSDocAt(pos pkg_parser.SourcePosition) *pkg_rhino.JSDocInfo {
 	_ = pos
-	if this_.priv_IRFactory_withinClosureUnawareCodeRange_6830(pos.FieldGet_line(), pos.FieldGet_column()) {
+	if this_.priv_IRFactory_withinClosureUnawareCodeRange_6836(pos.FieldGet_line(), pos.FieldGet_column()) {
 		return nil
 	}
-	var comment *pkg_parser.Comment = this_.priv_IRFactory_getJSDocCommentAt_6820(pos)
+	var comment *pkg_parser.Comment = this_.priv_IRFactory_getJSDocCommentAt_6826(pos)
 	_ = comment
 	if (comment != nil) && !(j2gort.JStrIndexOf(comment.FieldGet_value(), "@") >= 0) {
-		return this_.priv_IRFactory_parseInlineTypeDoc_6843(comment)
+		return this_.priv_IRFactory_parseInlineTypeDoc_6849(comment)
 	} else {
-		return this_.priv_IRFactory_parseJSDocInfoFrom_6821(comment)
+		return this_.priv_IRFactory_parseJSDocInfoFrom_6827(comment)
 	}
 }
 
 // Java method: IRFactory.hasAnyPendingCommentBefore(com.google.javascript.jscomp.parsing.parser.util.SourcePosition pos, boolean withinClosureUnawareCodeRange)
-func (this_ *IRFactory) priv_IRFactory_hasAnyPendingCommentBefore_6825(pos pkg_parser.SourcePosition, withinClosureUnawareCodeRange bool) bool {
+func (this_ *IRFactory) priv_IRFactory_hasAnyPendingCommentBefore_6831(pos pkg_parser.SourcePosition, withinClosureUnawareCodeRange bool) bool {
 	_ = pos
 	_ = withinClosureUnawareCodeRange
 	return (this_.nonJsdocTracker.HasPendingCommentBefore(pos) || (withinClosureUnawareCodeRange && this_.jsdocTracker.HasPendingCommentBefore(pos)))
 }
 
 // Java method: IRFactory.parseNonJSDocCommentAt(com.google.javascript.jscomp.parsing.parser.util.SourcePosition pos, boolean isInline)
-func (this_ *IRFactory) priv_IRFactory_parseNonJSDocCommentAt_6826(pos pkg_parser.SourcePosition, isInline bool) *pkg_rhino.NonJSDocComment {
+func (this_ *IRFactory) priv_IRFactory_parseNonJSDocCommentAt_6832(pos pkg_parser.SourcePosition, isInline bool) *pkg_rhino.NonJSDocComment {
 	_ = pos
 	_ = isInline
-	var withinClosureUnawareCodeRange bool = this_.priv_IRFactory_withinClosureUnawareCodeRange_6830(pos.FieldGet_line(), pos.FieldGet_column())
+	var withinClosureUnawareCodeRange bool = this_.priv_IRFactory_withinClosureUnawareCodeRange_6836(pos.FieldGet_line(), pos.FieldGet_column())
 	_ = withinClosureUnawareCodeRange
-	if !(this_.priv_IRFactory_hasAnyPendingCommentBefore_6825(pos, withinClosureUnawareCodeRange)) {
+	if !(this_.priv_IRFactory_hasAnyPendingCommentBefore_6831(pos, withinClosureUnawareCodeRange)) {
 		return nil
 	}
 	var includeAllComments bool = (this_.config.JsDocParsingMode() == StaticGet_Config_JsDocParsing_INCLUDE_ALL_COMMENTS())
@@ -1089,7 +1090,7 @@ func (this_ *IRFactory) priv_IRFactory_parseNonJSDocCommentAt_6826(pos pkg_parse
 	_ = firstComment
 	var lastComment *pkg_parser.Comment = nil
 	_ = lastComment
-	for this_.priv_IRFactory_hasAnyPendingCommentBefore_6825(pos, withinClosureUnawareCodeRange) {
+	for this_.priv_IRFactory_hasAnyPendingCommentBefore_6831(pos, withinClosureUnawareCodeRange) {
 		var currentComment *pkg_parser.Comment = this_.nonJsdocTracker.Current()
 		_ = currentComment
 		var commentFromJsdocTracker bool = false
@@ -1146,7 +1147,7 @@ func (this_ *IRFactory) priv_IRFactory_parseNonJSDocCommentAt_6826(pos pkg_parse
 }
 
 // Java method: IRFactory.parseTrailingNonJSDocCommentAt(com.google.javascript.jscomp.parsing.parser.util.SourcePosition tokenEnd, com.google.javascript.jscomp.parsing.parser.util.SourcePosition possibleNextTokenStart)
-func (this_ *IRFactory) priv_IRFactory_parseTrailingNonJSDocCommentAt_6827(tokenEnd pkg_parser.SourcePosition, possibleNextTokenStart pkg_parser.SourcePosition) *pkg_rhino.NonJSDocComment {
+func (this_ *IRFactory) priv_IRFactory_parseTrailingNonJSDocCommentAt_6833(tokenEnd pkg_parser.SourcePosition, possibleNextTokenStart pkg_parser.SourcePosition) *pkg_rhino.NonJSDocComment {
 	_ = tokenEnd
 	_ = possibleNextTokenStart
 	if this_.config.JsDocParsingMode() != StaticGet_Config_JsDocParsing_INCLUDE_ALL_COMMENTS() {
@@ -1180,30 +1181,30 @@ func IRFactory_FindNearestNode(tree pkg_parser.ParseTree) pkg_parser.ParseTree {
 	clinit_IRFactory()
 	_ = tree
 	for {
-		switch (tree.FieldGet_type_()).Ordinal() {
+		switch (tree.GetParseTreeBase().FieldGet_type_()).Ordinal() {
 		case int32(6) /* ParseTreeType.EXPRESSION_STATEMENT */ :
-			tree = tree.AsExpressionStatement().FieldGet_expression()
+			tree = tree.GetParseTreeBase().AsExpressionStatement().FieldGet_expression()
 			continue
 		case int32(47) /* ParseTreeType.CALL_EXPRESSION */ :
-			tree = tree.AsCallExpression().FieldGet_operand()
+			tree = tree.GetParseTreeBase().AsCallExpression().FieldGet_operand()
 			continue
 		case int32(39) /* ParseTreeType.BINARY_OPERATOR */ :
-			tree = tree.AsBinaryOperator().FieldGet_left()
+			tree = tree.GetParseTreeBase().AsBinaryOperator().FieldGet_left()
 			continue
 		case int32(40) /* ParseTreeType.CONDITIONAL_EXPRESSION */ :
-			tree = tree.AsConditionalExpression().FieldGet_condition()
+			tree = tree.GetParseTreeBase().AsConditionalExpression().FieldGet_condition()
 			continue
 		case int32(43) /* ParseTreeType.MEMBER_EXPRESSION */ :
-			tree = tree.AsMemberExpression().FieldGet_operand()
+			tree = tree.GetParseTreeBase().AsMemberExpression().FieldGet_operand()
 			continue
 		case int32(50) /* ParseTreeType.MEMBER_LOOKUP_EXPRESSION */ :
-			tree = tree.AsMemberLookupExpression().FieldGet_operand()
+			tree = tree.GetParseTreeBase().AsMemberLookupExpression().FieldGet_operand()
 			continue
 		case int32(42) /* ParseTreeType.UPDATE_EXPRESSION */ :
-			tree = tree.AsUpdateExpression().FieldGet_operand()
+			tree = tree.GetParseTreeBase().AsUpdateExpression().FieldGet_operand()
 			continue
 		case int32(38) /* ParseTreeType.COMMA_EXPRESSION */ :
-			tree = j2gort.AsIface[pkg_parser.ParseTree](tree.AsCommaExpression().FieldGet_expressions().Get(int32(0)))
+			tree = j2gort.AsIface[pkg_parser.ParseTree](tree.GetParseTreeBase().AsCommaExpression().FieldGet_expressions().Get(int32(0)))
 			continue
 		default:
 			return tree
@@ -1215,16 +1216,16 @@ func IRFactory_FindNearestNode(tree pkg_parser.ParseTree) pkg_parser.ParseTree {
 // Java method: IRFactory.transform(com.google.javascript.jscomp.parsing.parser.trees.ParseTree tree)
 func (this_ *IRFactory) Transform(tree pkg_parser.ParseTree) pkg_rhino.Node {
 	_ = tree
-	var info *pkg_rhino.JSDocInfo = this_.priv_IRFactory_parseJSDocInfoOnTree_6822(tree)
+	var info *pkg_rhino.JSDocInfo = this_.priv_IRFactory_parseJSDocInfoOnTree_6828(tree)
 	_ = info
-	var comment *pkg_rhino.NonJSDocComment = this_.priv_IRFactory_parseNonJSDocCommentAt_6826(tree.GetStart(), false)
+	var comment *pkg_rhino.NonJSDocComment = this_.priv_IRFactory_parseNonJSDocCommentAt_6832(tree.GetParseTreeBase().GetStart(), false)
 	_ = comment
 	var isRootOfClosureUnawareSubTree bool = ((info != nil) && info.IsClosureUnawareCode())
 	_ = isRootOfClosureUnawareSubTree
 	if isRootOfClosureUnawareSubTree {
 		this_.templateNode = this_.closureUnawareTemplateNode
 		this_.nodeAlloc_.SetTemplate(nodestore.Node(this_.templateNode))
-		var nextClosureUnawareRange pkg_parser.SourceRange = tree.FieldGet_location()
+		var nextClosureUnawareRange pkg_parser.SourceRange = tree.GetParseTreeBase().FieldGet_location()
 		_ = nextClosureUnawareRange
 		var nextClosureUnawareRangeStart *IRFactory_LineAndColumn = IRFactory_LineAndColumn_FromSourcePosition(nextClosureUnawareRange.FieldGet_start())
 		_ = nextClosureUnawareRangeStart
@@ -1238,7 +1239,7 @@ func (this_ *IRFactory) Transform(tree pkg_parser.ParseTree) pkg_rhino.Node {
 	var node pkg_rhino.Node = this_.transformDispatcher.Process(tree)
 	_ = node
 	if info != nil {
-		node = this_.priv_IRFactory_maybeInjectCastNode_6831(tree, info, node)
+		node = this_.priv_IRFactory_maybeInjectCastNode_6837(tree, info, node)
 		node.SetJSDocInfo(info)
 	}
 	if comment != nil {
@@ -1248,23 +1249,23 @@ func (this_ *IRFactory) Transform(tree pkg_parser.ParseTree) pkg_rhino.Node {
 		this_.SetSourceInfo_2_Node_ParseTree(node, tree)
 		this_.templateNode = this_.defaultTemplateNode
 		this_.nodeAlloc_.SetTemplate(nodestore.Node(this_.templateNode))
-		node = this_.priv_IRFactory_hideClosureUnawareCodeRoot_6829(node)
+		node = this_.priv_IRFactory_hideClosureUnawareCodeRoot_6835(node)
 	}
 	this_.SetSourceInfo_2_Node_ParseTree(node, tree)
 	return node
 }
 
 // Java method: IRFactory.hideClosureUnawareCodeRoot(com.google.javascript.rhino.Node fn)
-func (this_ *IRFactory) priv_IRFactory_hideClosureUnawareCodeRoot_6829(fn pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *IRFactory) priv_IRFactory_hideClosureUnawareCodeRoot_6835(fn pkg_rhino.Node) pkg_rhino.Node {
 	_ = fn
 	if !(fn.IsFunction()) {
-		this_.priv_IRFactory_error_6864(fn, "@closureUnaware root must be function")
+		this_.priv_IRFactory_error_6870(fn, "@closureUnaware root must be function")
 		return fn
 	}
 	var info *pkg_rhino.JSDocInfo = fn.GetJSDocInfo()
 	_ = info
 	if info.GetPerFileClosureUnawareMode() != pkg_rhino.StaticGet_JSDocInfo_PerFileClosureUnawareMode_UNSPECIFIED() {
-		this_.priv_IRFactory_error_6864(fn, "@closureUnaware mode can only be specified at the fileoverview level")
+		this_.priv_IRFactory_error_6870(fn, "@closureUnaware mode can only be specified at the fileoverview level")
 	}
 	fn.SetJSDocInfo(nil)
 	var shadowNameNode pkg_rhino.Node = pkg_rhino.IR_Name("$jscomp_wrap_closure_unaware_code")
@@ -1284,7 +1285,7 @@ func (this_ *IRFactory) priv_IRFactory_hideClosureUnawareCodeRoot_6829(fn pkg_rh
 }
 
 // Java method: IRFactory.withinClosureUnawareCodeRange(int line, int lineColumnNo)
-func (this_ *IRFactory) priv_IRFactory_withinClosureUnawareCodeRange_6830(line int32, lineColumnNo int32) bool {
+func (this_ *IRFactory) priv_IRFactory_withinClosureUnawareCodeRange_6836(line int32, lineColumnNo int32) bool {
 	_ = line
 	_ = lineColumnNo
 	if (this_.closureUnawareCodeRanges == nil) || this_.closureUnawareCodeRanges.IsEmpty() {
@@ -1294,11 +1295,11 @@ func (this_ *IRFactory) priv_IRFactory_withinClosureUnawareCodeRange_6830(line i
 }
 
 // Java method: IRFactory.maybeInjectCastNode(com.google.javascript.jscomp.parsing.parser.trees.ParseTree node, com.google.javascript.rhino.JSDocInfo info, com.google.javascript.rhino.Node irNode)
-func (this_ *IRFactory) priv_IRFactory_maybeInjectCastNode_6831(node pkg_parser.ParseTree, info *pkg_rhino.JSDocInfo, irNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *IRFactory) priv_IRFactory_maybeInjectCastNode_6837(node pkg_parser.ParseTree, info *pkg_rhino.JSDocInfo, irNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = node
 	_ = info
 	_ = irNode
-	if (node.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_PAREN_EXPRESSION()) && info.HasType() {
+	if (node.GetParseTreeBase().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_PAREN_EXPRESSION()) && info.HasType() {
 		irNode = this_.NewNode_2(pkg_rhino.StaticGet_Token_CAST(), irNode)
 	}
 	return irNode
@@ -1307,9 +1308,9 @@ func (this_ *IRFactory) priv_IRFactory_maybeInjectCastNode_6831(node pkg_parser.
 // Java method: IRFactory.transformNodeWithInlineComments(com.google.javascript.jscomp.parsing.parser.trees.ParseTree tree)
 func (this_ *IRFactory) TransformNodeWithInlineComments(tree pkg_parser.ParseTree) pkg_rhino.Node {
 	_ = tree
-	var info *pkg_rhino.JSDocInfo = this_.ParseInlineJSDocAt(tree.GetStart())
+	var info *pkg_rhino.JSDocInfo = this_.ParseInlineJSDocAt(tree.GetParseTreeBase().GetStart())
 	_ = info
-	var comment *pkg_rhino.NonJSDocComment = this_.priv_IRFactory_parseNonJSDocCommentAt_6826(tree.GetStart(), true)
+	var comment *pkg_rhino.NonJSDocComment = this_.priv_IRFactory_parseNonJSDocCommentAt_6832(tree.GetParseTreeBase().GetStart(), true)
 	_ = comment
 	var node pkg_rhino.Node = this_.transformDispatcher.Process(tree)
 	_ = node
@@ -1327,7 +1328,7 @@ func (this_ *IRFactory) TransformNodeWithInlineComments(tree pkg_parser.ParseTre
 func IRFactory_Lineno_1_ParseTree(node pkg_parser.ParseTree) int32 {
 	clinit_IRFactory()
 	_ = node
-	return IRFactory_Lineno_1_SourcePosition(node.FieldGet_location().FieldGet_start())
+	return IRFactory_Lineno_1_SourcePosition(node.GetParseTreeBase().FieldGet_location().FieldGet_start())
 }
 
 // Java static method: IRFactory.lineno(com.google.javascript.jscomp.parsing.parser.Token token)
@@ -1348,7 +1349,7 @@ func IRFactory_Lineno_1_SourcePosition(location pkg_parser.SourcePosition) int32
 func IRFactory_Charno_1_ParseTree(node pkg_parser.ParseTree) int32 {
 	clinit_IRFactory()
 	_ = node
-	return IRFactory_Charno_1_SourcePosition(node.FieldGet_location().FieldGet_start())
+	return IRFactory_Charno_1_SourcePosition(node.GetParseTreeBase().FieldGet_location().FieldGet_start())
 }
 
 // Java static method: IRFactory.charno(com.google.javascript.jscomp.parsing.parser.Token token)
@@ -1383,7 +1384,7 @@ func (this_ *IRFactory) MaybeWarnForFeature_2_ParseTree_FeatureSet_Feature(node 
 	_ = node
 	_ = feature
 	this_.features = this_.features.With_1_FeatureSet_Feature(feature)
-	if this_.priv_IRFactory_withinClosureUnawareCodeRange_6830(node.FieldGet_location().FieldGet_start().FieldGet_line(), node.FieldGet_location().FieldGet_start().FieldGet_column()) {
+	if this_.priv_IRFactory_withinClosureUnawareCodeRange_6836(node.GetParseTreeBase().FieldGet_location().FieldGet_start().FieldGet_line(), node.GetParseTreeBase().FieldGet_location().FieldGet_start().FieldGet_column()) {
 		return
 	}
 	if this_.currentFileIsExterns {
@@ -1399,7 +1400,7 @@ func (this_ *IRFactory) MaybeWarnForFeature_2_Token_FeatureSet_Feature(token pkg
 	_ = token
 	_ = feature
 	this_.features = this_.features.With_1_FeatureSet_Feature(feature)
-	if this_.priv_IRFactory_withinClosureUnawareCodeRange_6830(token.FieldGet_location().FieldGet_start().FieldGet_line(), token.FieldGet_location().FieldGet_start().FieldGet_column()) {
+	if this_.priv_IRFactory_withinClosureUnawareCodeRange_6836(token.FieldGet_location().FieldGet_start().FieldGet_line(), token.FieldGet_location().FieldGet_start().FieldGet_column()) {
 		return
 	}
 	if this_.currentFileIsExterns {
@@ -1415,7 +1416,7 @@ func (this_ *IRFactory) MaybeWarnForFeature_2_Node_FeatureSet_Feature(node pkg_r
 	_ = node
 	_ = feature
 	this_.features = this_.features.With_1_FeatureSet_Feature(feature)
-	if this_.priv_IRFactory_withinClosureUnawareCodeRange_6830(node.GetLineno(), node.GetCharno()) {
+	if this_.priv_IRFactory_withinClosureUnawareCodeRange_6836(node.GetLineno(), node.GetCharno()) {
 		return
 	}
 	if this_.currentFileIsExterns {
@@ -1439,7 +1440,7 @@ func (this_ *IRFactory) SetSourceInfo_2_Node_ParseTree(irNode pkg_rhino.Node, no
 	_ = irNode
 	_ = node
 	if irNode.GetLineno() == int32(-1) {
-		this_.SetSourceInfo_3(irNode, node.FieldGet_location().FieldGet_start(), node.FieldGet_location().FieldGet_end())
+		this_.SetSourceInfo_3(irNode, node.GetParseTreeBase().FieldGet_location().FieldGet_start(), node.GetParseTreeBase().FieldGet_location().FieldGet_end())
 	}
 }
 
@@ -1462,13 +1463,13 @@ func (this_ *IRFactory) SetSourceInfo_3(node pkg_rhino.Node, start pkg_parser.So
 }
 
 // Java method: IRFactory.createJsDocInfoParser(com.google.javascript.jscomp.parsing.parser.trees.Comment node)
-func (this_ *IRFactory) priv_IRFactory_createJsDocInfoParser_6840(node *pkg_parser.Comment) *JsDocInfoParser {
+func (this_ *IRFactory) priv_IRFactory_createJsDocInfoParser_6846(node *pkg_parser.Comment) *JsDocInfoParser {
 	_ = node
-	return this_.priv_IRFactory_createJsDocInfoParser_6841(node, false)
+	return this_.priv_IRFactory_createJsDocInfoParser_6847(node, false)
 }
 
 // Java method: IRFactory.createJsDocInfoParser(com.google.javascript.jscomp.parsing.parser.trees.Comment node, boolean useLicensesOnlyConfig)
-func (this_ *IRFactory) priv_IRFactory_createJsDocInfoParser_6841(node *pkg_parser.Comment, useLicensesOnlyConfig bool) *JsDocInfoParser {
+func (this_ *IRFactory) priv_IRFactory_createJsDocInfoParser_6847(node *pkg_parser.Comment, useLicensesOnlyConfig bool) *JsDocInfoParser {
 	_ = node
 	_ = useLicensesOnlyConfig
 	var comment string = node.FieldGet_value()
@@ -1512,7 +1513,7 @@ func (this_ *IRFactory) priv_IRFactory_createJsDocInfoParser_6841(node *pkg_pars
 			stream.ClearSource()
 			this_.reusableJsDocStream = stream
 			if !(completed) {
-				this_.priv_IRFactory_releaseJsDocInfoParser_6842(jsdocParser)
+				this_.priv_IRFactory_releaseJsDocInfoParser_6848(jsdocParser)
 			}
 		}()
 		if (node.FieldGet_type_() == pkg_parser.StaticGet_Comment_Type_IMPORTANT()) && (j2gort.JStrLen(node.FieldGet_value()) > int32(0)) {
@@ -1526,14 +1527,14 @@ func (this_ *IRFactory) priv_IRFactory_createJsDocInfoParser_6841(node *pkg_pars
 }
 
 // Java method: IRFactory.releaseJsDocInfoParser(com.google.javascript.jscomp.parsing.JsDocInfoParser parser)
-func (this_ *IRFactory) priv_IRFactory_releaseJsDocInfoParser_6842(parser *JsDocInfoParser) {
+func (this_ *IRFactory) priv_IRFactory_releaseJsDocInfoParser_6848(parser *JsDocInfoParser) {
 	_ = parser
 	parser.ClearForReuse()
 	this_.reusableJsDocParser = parser
 }
 
 // Java method: IRFactory.parseInlineTypeDoc(com.google.javascript.jscomp.parsing.parser.trees.Comment node)
-func (this_ *IRFactory) priv_IRFactory_parseInlineTypeDoc_6843(node *pkg_parser.Comment) *pkg_rhino.JSDocInfo {
+func (this_ *IRFactory) priv_IRFactory_parseInlineTypeDoc_6849(node *pkg_parser.Comment) *pkg_rhino.JSDocInfo {
 	_ = node
 	var comment string = node.FieldGet_value()
 	_ = comment
@@ -1564,7 +1565,7 @@ func (this_ *IRFactory) priv_IRFactory_parseInlineTypeDoc_6843(node *pkg_parser.
 	defer func() {
 		stream.ClearSource()
 		this_.reusableJsDocStream = stream
-		this_.priv_IRFactory_releaseJsDocInfoParser_6842(parser)
+		this_.priv_IRFactory_releaseJsDocInfoParser_6848(parser)
 	}()
 	{
 		return parser.ParseInlineTypeDoc()
@@ -1588,7 +1589,7 @@ func (this_ *IRFactory) SetLengthFrom(node pkg_rhino.Node, ref pkg_rhino.Node) {
 }
 
 // Java method: IRFactory.reportErrorIfYieldOrAwaitInDefaultValue(com.google.javascript.rhino.Node defaultValueNode)
-func (this_ *IRFactory) priv_IRFactory_reportErrorIfYieldOrAwaitInDefaultValue_6846(defaultValueNode pkg_rhino.Node) {
+func (this_ *IRFactory) priv_IRFactory_reportErrorIfYieldOrAwaitInDefaultValue_6852(defaultValueNode pkg_rhino.Node) {
 	_ = defaultValueNode
 	var yieldNode pkg_rhino.Node = IRFactory_FindNodeTypeInExpression(defaultValueNode, pkg_rhino.StaticGet_Token_YIELD())
 	_ = yieldNode
@@ -1730,7 +1731,7 @@ func (this_ *IRFactory) NormalizeString(token pkg_parser.Token, templateLiteral 
 				} else {
 					numDigits = int32(1)
 				}
-				if this_.priv_IRFactory_inStrictContext_6850() || templateLiteral {
+				if this_.priv_IRFactory_inStrictContext_6856() || templateLiteral {
 					if (int32(c) == int32(uint16(48))) && (numDigits == int32(1)) {
 					} else {
 						this_.errorReporter.Warning("Octal literals in strings are not supported in this language mode.", this_.sourceName, IRFactory_Lineno_1_SourcePosition(token.FieldGet_location().FieldGet_start()), IRFactory_Charno_1_SourcePosition(token.FieldGet_location().FieldGet_start()))
@@ -1788,7 +1789,7 @@ func (this_ *IRFactory) IsSupportedForInputLanguageMode(feature *pkg_parser.Feat
 }
 
 // Java method: IRFactory.inStrictContext()
-func (this_ *IRFactory) priv_IRFactory_inStrictContext_6850() bool {
+func (this_ *IRFactory) priv_IRFactory_inStrictContext_6856() bool {
 	return this_.config.StrictMode().IsStrict()
 }
 
@@ -1798,7 +1799,7 @@ func (this_ *IRFactory) NormalizeNumber(token pkg_parser.Token) float64 {
 	var value string = token.FieldGet_value()
 	_ = value
 	if j2gort.JStrIndexOf(value, "_") >= 0 {
-		value = this_.priv_IRFactory_removeNumericSeparators_6853(value, token)
+		value = this_.priv_IRFactory_removeNumericSeparators_6859(value, token)
 	}
 	var location pkg_parser.SourceRange = token.FieldGet_location()
 	_ = location
@@ -1860,7 +1861,7 @@ func (this_ *IRFactory) NormalizeNumber(token pkg_parser.Token) float64 {
 					return float64(int32(0))
 				}
 			}
-			if this_.priv_IRFactory_inStrictContext_6850() {
+			if this_.priv_IRFactory_inStrictContext_6856() {
 				this_.errorReporter.M_Error("Octal integer literals are not supported in strict mode.", this_.sourceName, IRFactory_Lineno_1_SourcePosition(location.FieldGet_start()), IRFactory_Charno_1_SourcePosition(location.FieldGet_start()))
 			} else {
 				this_.errorReporter.Warning("Octal integer literals are not supported in strict mode.", this_.sourceName, IRFactory_Lineno_1_SourcePosition(location.FieldGet_start()), IRFactory_Charno_1_SourcePosition(location.FieldGet_start()))
@@ -1885,7 +1886,7 @@ func (this_ *IRFactory) NormalizeBigInt(token pkg_parser.Token) *j2gort.Ext_java
 	_ = value
 	value = j2gort.JStrSub(value, int32(0), j2gort.JStrIndexOfCp(value, int32(uint16(110))))
 	if j2gort.JStrIndexOf(value, "_") >= 0 {
-		value = this_.priv_IRFactory_removeNumericSeparators_6853(value, token)
+		value = this_.priv_IRFactory_removeNumericSeparators_6859(value, token)
 	}
 	var length int32 = j2gort.JStrLen(value)
 	_ = length
@@ -1917,7 +1918,7 @@ func (this_ *IRFactory) NormalizeBigInt(token pkg_parser.Token) *j2gort.Ext_java
 }
 
 // Java method: IRFactory.removeNumericSeparators(java.lang.String value, com.google.javascript.jscomp.parsing.parser.Token token)
-func (this_ *IRFactory) priv_IRFactory_removeNumericSeparators_6853(value string, token pkg_parser.Token) string {
+func (this_ *IRFactory) priv_IRFactory_removeNumericSeparators_6859(value string, token pkg_parser.Token) string {
 	_ = value
 	_ = token
 	this_.MaybeWarnForFeature_2_Token_FeatureSet_Feature(token, pkg_parser.StaticGet_FeatureSet_Feature_NUMERIC_SEPARATOR())
@@ -2203,7 +2204,7 @@ func (this_ *IRFactory) NewStringNode_2(type_ pkg_rhino.Token, value string) pkg
 func (this_ *IRFactory) MaybeAddNonJsDocComment(node pkg_rhino.Node, start pkg_parser.SourcePosition) pkg_rhino.Node {
 	_ = node
 	_ = start
-	var comment *pkg_rhino.NonJSDocComment = this_.priv_IRFactory_parseNonJSDocCommentAt_6826(start, false)
+	var comment *pkg_rhino.NonJSDocComment = this_.priv_IRFactory_parseNonJSDocCommentAt_6832(start, false)
 	_ = comment
 	if comment != nil {
 		node.SetNonJSDocComment(comment)
@@ -2235,7 +2236,7 @@ func (this_ *IRFactory) NewBigIntNode(value *j2gort.Ext_java_math_BigInteger) pk
 }
 
 // Java method: IRFactory.error(com.google.javascript.rhino.Node rhinoNode, java.lang.String message)
-func (this_ *IRFactory) priv_IRFactory_error_6864(rhinoNode pkg_rhino.Node, message string) {
+func (this_ *IRFactory) priv_IRFactory_error_6870(rhinoNode pkg_rhino.Node, message string) {
 	_ = rhinoNode
 	_ = message
 	this_.errorReporter.M_Error(message, rhinoNode.GetSourceFileName(), rhinoNode.GetLineno(), rhinoNode.GetCharno())
@@ -2491,12 +2492,12 @@ func (this_ *IRFactory_TransformDispatcher) NewStringNodeFromIdentifier(type_ pk
 }
 
 // Java method: TransformDispatcher.processObjectLitKey(com.google.javascript.jscomp.parsing.parser.Token input, com.google.javascript.rhino.Token output, com.google.javascript.jscomp.parsing.IRFactory.TransformDispatcher.IdentifierType identifierType)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObjectLitKey_6872(input pkg_parser.Token, output pkg_rhino.Token, identifierType IRFactory_TransformDispatcher_IdentifierType) pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObjectLitKey_6878(input pkg_parser.Token, output pkg_rhino.Token, identifierType IRFactory_TransformDispatcher_IdentifierType) pkg_rhino.Node {
 	_ = input
 	_ = output
 	_ = identifierType
 	if input == (pkg_parser.Token{}) {
-		return this_.priv_TransformDispatcher_createMissingExpressionNode_6972()
+		return this_.priv_TransformDispatcher_createMissingExpressionNode_6978()
 	}
 	if input.FieldGet_type_() == pkg_parser.StaticGet_TokenType_IDENTIFIER() {
 		return this_.ProcessName_3(input, output, identifierType)
@@ -2505,7 +2506,7 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObje
 	_ = literal
 	var jsDocInfo *pkg_rhino.JSDocInfo = this_.outer_.ParseJSDocInfoOnToken(literal)
 	_ = jsDocInfo
-	var comment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseNonJSDocCommentAt_6826(literal.GetStart(), true)
+	var comment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseNonJSDocCommentAt_6832(literal.GetStart(), true)
 	_ = comment
 	var node pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = node
@@ -2562,9 +2563,9 @@ func (this_ *IRFactory_TransformDispatcher) ProcessArrayPattern(tree *pkg_parser
 			_ = child
 			var elementNode pkg_rhino.Node = pkg_rhino.Node(0)
 			_ = elementNode
-			switch (child.FieldGet_type_()).Ordinal() {
+			switch (child.GetParseTreeBase().FieldGet_type_()).Ordinal() {
 			case int32(71) /* ParseTreeType.DEFAULT_PARAMETER */ :
-				elementNode = this_.ProcessDefaultParameter(child.AsDefaultParameter())
+				elementNode = this_.ProcessDefaultParameter(child.GetParseTreeBase().AsDefaultParameter())
 			case int32(61) /* ParseTreeType.ITER_REST */ :
 				this_.outer_.MaybeWarnForFeature_2_ParseTree_FeatureSet_Feature(child, pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_PATTERN_REST())
 				elementNode = this_.outer_.TransformNodeWithInlineComments(child)
@@ -2589,7 +2590,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessObjectPattern(tree *pkg_parse
 			rawElem_49 := cur_48.Next()
 			child := j2gort.AsIface[pkg_parser.ParseTree](rawElem_49)
 			_ = child
-			var childNode pkg_rhino.Node = this_.priv_TransformDispatcher_processObjectPatternElement_6876(child)
+			var childNode pkg_rhino.Node = this_.priv_TransformDispatcher_processObjectPatternElement_6882(child)
 			_ = childNode
 			node.AddChildToBack(childNode)
 		}
@@ -2598,20 +2599,21 @@ func (this_ *IRFactory_TransformDispatcher) ProcessObjectPattern(tree *pkg_parse
 }
 
 // Java method: TransformDispatcher.processObjectPatternElement(com.google.javascript.jscomp.parsing.parser.trees.ParseTree child)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObjectPatternElement_6876(child pkg_parser.ParseTree) pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObjectPatternElement_6882(child pkg_parser.ParseTree) pkg_rhino.Node {
 	_ = child
-	switch (child.FieldGet_type_()).Ordinal() {
+	base_child_ := child.GetParseTreeBase()
+	switch (base_child_.FieldGet_type_()).Ordinal() {
 	case int32(71) /* ParseTreeType.DEFAULT_PARAMETER */ :
-		return this_.priv_TransformDispatcher_processObjectPatternShorthandWithDefault_6877(child.AsDefaultParameter())
+		return this_.priv_TransformDispatcher_processObjectPatternShorthandWithDefault_6883(base_child_.AsDefaultParameter())
 	case int32(32) /* ParseTreeType.PROPERTY_NAME_ASSIGNMENT */ :
-		return this_.priv_TransformDispatcher_processObjectPatternPropertyNameAssignment_6878(child.AsPropertyNameAssignment())
+		return this_.priv_TransformDispatcher_processObjectPatternPropertyNameAssignment_6884(base_child_.AsPropertyNameAssignment())
 	case int32(33) /* ParseTreeType.COMPUTED_PROPERTY_DEFINITION */ :
-		var computedPropertyDefinition *pkg_parser.ComputedPropertyDefinitionTree = child.AsComputedPropertyDefinition()
+		var computedPropertyDefinition *pkg_parser.ComputedPropertyDefinitionTree = base_child_.AsComputedPropertyDefinition()
 		_ = computedPropertyDefinition
-		return this_.priv_TransformDispatcher_processObjectPatternComputedPropertyDefinition_6880(computedPropertyDefinition)
+		return this_.priv_TransformDispatcher_processObjectPatternComputedPropertyDefinition_6886(computedPropertyDefinition)
 	case int32(62) /* ParseTreeType.OBJECT_REST */ :
 		this_.outer_.MaybeWarnForFeature_2_ParseTree_FeatureSet_Feature(child, pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_PATTERN_REST())
-		var target pkg_rhino.Node = this_.outer_.TransformNodeWithInlineComments(child.AsObjectRest().FieldGet_assignmentTarget())
+		var target pkg_rhino.Node = this_.outer_.TransformNodeWithInlineComments(base_child_.AsObjectRest().FieldGet_assignmentTarget())
 		_ = target
 		var rest pkg_rhino.Node = this_.outer_.NewNode_2(pkg_rhino.StaticGet_Token_OBJECT_REST(), target)
 		_ = rest
@@ -2624,7 +2626,7 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObje
 }
 
 // Java method: TransformDispatcher.processObjectPatternShorthandWithDefault(com.google.javascript.jscomp.parsing.parser.trees.DefaultParameterTree defaultParameter)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObjectPatternShorthandWithDefault_6877(defaultParameter *pkg_parser.DefaultParameterTree) pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObjectPatternShorthandWithDefault_6883(defaultParameter *pkg_parser.DefaultParameterTree) pkg_rhino.Node {
 	_ = defaultParameter
 	var defaultValueNode pkg_rhino.Node = this_.ProcessDefaultParameter(defaultParameter)
 	_ = defaultValueNode
@@ -2639,9 +2641,9 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObje
 }
 
 // Java method: TransformDispatcher.processObjectPatternPropertyNameAssignment(com.google.javascript.jscomp.parsing.parser.trees.PropertyNameAssignmentTree propertyNameAssignment)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObjectPatternPropertyNameAssignment_6878(propertyNameAssignment *pkg_parser.PropertyNameAssignmentTree) pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObjectPatternPropertyNameAssignment_6884(propertyNameAssignment *pkg_parser.PropertyNameAssignmentTree) pkg_rhino.Node {
 	_ = propertyNameAssignment
-	var key pkg_rhino.Node = this_.priv_TransformDispatcher_processObjectLitKey_6872(propertyNameAssignment.FieldGet_name(), pkg_rhino.StaticGet_Token_STRING_KEY(), StaticGet_IRFactory_TransformDispatcher_IdentifierType_STANDARD())
+	var key pkg_rhino.Node = this_.priv_TransformDispatcher_processObjectLitKey_6878(propertyNameAssignment.FieldGet_name(), pkg_rhino.StaticGet_Token_STRING_KEY(), StaticGet_IRFactory_TransformDispatcher_IdentifierType_STANDARD())
 	_ = key
 	var targetTree pkg_parser.ParseTree = propertyNameAssignment.FieldGet_value()
 	_ = targetTree
@@ -2651,21 +2653,22 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObje
 		valueNode = this_.ProcessNameWithInlineComments_2_Token_IRFactory_TransformDispatcher_IdentifierType(propertyNameAssignment.FieldGet_name(), StaticGet_IRFactory_TransformDispatcher_IdentifierType_STANDARD())
 		key.SetShorthandProperty(true)
 	} else {
-		valueNode = this_.priv_TransformDispatcher_processDestructuringElementTarget_6879(targetTree)
+		valueNode = this_.priv_TransformDispatcher_processDestructuringElementTarget_6885(targetTree)
 	}
 	key.AddChildToFront(valueNode)
 	return key
 }
 
 // Java method: TransformDispatcher.processDestructuringElementTarget(com.google.javascript.jscomp.parsing.parser.trees.ParseTree targetTree)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processDestructuringElementTarget_6879(targetTree pkg_parser.ParseTree) pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processDestructuringElementTarget_6885(targetTree pkg_parser.ParseTree) pkg_rhino.Node {
 	_ = targetTree
 	var valueNode pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = valueNode
-	if targetTree.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_DEFAULT_PARAMETER() {
-		valueNode = this_.ProcessDefaultParameter(targetTree.AsDefaultParameter())
-	} else if targetTree.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_IDENTIFIER_EXPRESSION() {
-		valueNode = this_.priv_TransformDispatcher_processNameWithInlineComments_6929(targetTree.AsIdentifierExpression(), StaticGet_IRFactory_TransformDispatcher_IdentifierType_STANDARD())
+	base_targetTree_ := targetTree.GetParseTreeBase()
+	if base_targetTree_.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_DEFAULT_PARAMETER() {
+		valueNode = this_.ProcessDefaultParameter(base_targetTree_.AsDefaultParameter())
+	} else if base_targetTree_.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_IDENTIFIER_EXPRESSION() {
+		valueNode = this_.priv_TransformDispatcher_processNameWithInlineComments_6935(base_targetTree_.AsIdentifierExpression(), StaticGet_IRFactory_TransformDispatcher_IdentifierType_STANDARD())
 	} else {
 		valueNode = this_.outer_.TransformNodeWithInlineComments(targetTree)
 	}
@@ -2673,14 +2676,14 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processDest
 }
 
 // Java method: TransformDispatcher.processObjectPatternComputedPropertyDefinition(com.google.javascript.jscomp.parsing.parser.trees.ComputedPropertyDefinitionTree computedPropertyDefinition)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObjectPatternComputedPropertyDefinition_6880(computedPropertyDefinition *pkg_parser.ComputedPropertyDefinitionTree) pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObjectPatternComputedPropertyDefinition_6886(computedPropertyDefinition *pkg_parser.ComputedPropertyDefinitionTree) pkg_rhino.Node {
 	_ = computedPropertyDefinition
 	this_.outer_.MaybeWarnForFeature_2_ParseTree_FeatureSet_Feature(pkg_parser.ToIface_ParseTree(computedPropertyDefinition), pkg_parser.StaticGet_FeatureSet_Feature_COMPUTED_PROPERTIES())
 	var expressionNode pkg_rhino.Node = this_.outer_.Transform(computedPropertyDefinition.FieldGet_property())
 	_ = expressionNode
 	var valueTree pkg_parser.ParseTree = computedPropertyDefinition.FieldGet_value()
 	_ = valueTree
-	var valueNode pkg_rhino.Node = this_.priv_TransformDispatcher_processDestructuringElementTarget_6879(valueTree)
+	var valueNode pkg_rhino.Node = this_.priv_TransformDispatcher_processDestructuringElementTarget_6885(valueTree)
 	_ = valueNode
 	var computedPropertyNode pkg_rhino.Node = this_.outer_.NewNode_3(pkg_rhino.StaticGet_Token_COMPUTED_PROP(), expressionNode, valueNode)
 	_ = computedPropertyNode
@@ -2702,8 +2705,8 @@ func (this_ *IRFactory_TransformDispatcher) ProcessAstRoot(rootNode *pkg_parser.
 			scriptNode.AddChildToBack(this_.outer_.Transform(child))
 		}
 	}
-	this_.priv_TransformDispatcher_parseDirectives_6883(scriptNode)
-	var isGoogModule bool = this_.priv_TransformDispatcher_isGoogModuleFile_6882(scriptNode)
+	this_.priv_TransformDispatcher_parseDirectives_6889(scriptNode)
+	var isGoogModule bool = this_.priv_TransformDispatcher_isGoogModuleFile_6888(scriptNode)
 	_ = isGoogModule
 	if isGoogModule || this_.outer_.features.Has(pkg_parser.StaticGet_FeatureSet_Feature_MODULES()) {
 		var moduleNode pkg_rhino.Node = this_.outer_.NewNode_1(pkg_rhino.StaticGet_Token_MODULE_BODY())
@@ -2721,7 +2724,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessAstRoot(rootNode *pkg_parser.
 }
 
 // Java method: TransformDispatcher.isGoogModuleFile(com.google.javascript.rhino.Node scriptNode)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_isGoogModuleFile_6882(scriptNode pkg_rhino.Node) bool {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_isGoogModuleFile_6888(scriptNode pkg_rhino.Node) bool {
 	_ = scriptNode
 	if !(scriptNode.IsScript()) {
 		j2gort.CheckArgument(false)
@@ -2743,7 +2746,7 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_isGoogModul
 }
 
 // Java method: TransformDispatcher.parseDirectives(com.google.javascript.rhino.Node node)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_parseDirectives_6883(node pkg_rhino.Node) {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_parseDirectives_6889(node pkg_rhino.Node) {
 	_ = node
 	var useStrict bool = false
 	_ = useStrict
@@ -2780,10 +2783,10 @@ func (this_ *IRFactory_TransformDispatcher) ProcessBlock(blockNode *pkg_parser.B
 			var childNode pkg_rhino.Node = this_.outer_.Transform(child)
 			_ = childNode
 			node.AddChildToBack(childNode)
-			this_.AttachPossibleTrailingComment(childNode, child.GetEnd())
+			this_.AttachPossibleTrailingComment(childNode, child.GetParseTreeBase().GetEnd())
 		}
 	}
-	var lastComment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseNonJSDocCommentAt_6826(blockNode.GetEnd(), false)
+	var lastComment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseNonJSDocCommentAt_6832(blockNode.GetEnd(), false)
 	_ = lastComment
 	this_.AddExtraTrailingComment(node, lastComment)
 	return node
@@ -2952,12 +2955,12 @@ func (this_ *IRFactory_TransformDispatcher) ProcessFunctionCall(callNode *pkg_pa
 			}
 		}
 	}
-	this_.priv_TransformDispatcher_annotateCalls_6901(node)
+	this_.priv_TransformDispatcher_annotateCalls_6907(node)
 	return node
 }
 
 // Java method: TransformDispatcher.annotateCalls(com.google.javascript.rhino.Node n)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_annotateCalls_6901(n pkg_rhino.Node) {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_annotateCalls_6907(n pkg_rhino.Node) {
 	_ = n
 	if !((n.IsCall() || n.IsOptChainCall()) || n.IsTaggedTemplateLit()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
@@ -2993,8 +2996,8 @@ func (this_ *IRFactory_TransformDispatcher) GetEndOfFirstArgCommentZone(argsTree
 		_ = arg
 		var nextParam pkg_parser.ParseTree = argsTree.FieldGet_arg1()
 		_ = nextParam
-		if nextParam.FieldGet_location().FieldGet_start().FieldGet_line() > arg.FieldGet_location().FieldGet_end().FieldGet_line() {
-			return pkg_parser.NewSourcePosition(nil, int32(2147483647), arg.FieldGet_location().FieldGet_end().FieldGet_line(), int32(2147483647))
+		if nextParam.GetParseTreeBase().FieldGet_location().FieldGet_start().FieldGet_line() > arg.GetParseTreeBase().FieldGet_location().FieldGet_end().FieldGet_line() {
+			return pkg_parser.NewSourcePosition(nil, int32(2147483647), arg.GetParseTreeBase().FieldGet_location().FieldGet_end().FieldGet_line(), int32(2147483647))
 		}
 		return argsTree.GetCommaPosition(int32(0))
 	}
@@ -3010,8 +3013,8 @@ func (this_ *IRFactory_TransformDispatcher) GetEndOfParamCommentZone(tree *pkg_p
 		_ = arg
 		var nextParam pkg_parser.ParseTree = tree.GetParameter((index + int32(1)))
 		_ = nextParam
-		if nextParam.FieldGet_location().FieldGet_start().FieldGet_line() > arg.FieldGet_location().FieldGet_end().FieldGet_line() {
-			return pkg_parser.NewSourcePosition(nil, int32(2147483647), arg.FieldGet_location().FieldGet_end().FieldGet_line(), int32(2147483647))
+		if nextParam.GetParseTreeBase().FieldGet_location().FieldGet_start().FieldGet_line() > arg.GetParseTreeBase().FieldGet_location().FieldGet_end().FieldGet_line() {
+			return pkg_parser.NewSourcePosition(nil, int32(2147483647), arg.GetParseTreeBase().FieldGet_location().FieldGet_end().FieldGet_line(), int32(2147483647))
 		}
 		return tree.GetCommaPosition(index)
 	}
@@ -3022,7 +3025,7 @@ func (this_ *IRFactory_TransformDispatcher) GetEndOfParamCommentZone(tree *pkg_p
 func (this_ *IRFactory_TransformDispatcher) AttachPossibleTrailingCommentsForArg(paramNode pkg_rhino.Node, endZone pkg_parser.SourcePosition) {
 	_ = paramNode
 	_ = endZone
-	var trailingComment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseNonJSDocCommentAt_6826(endZone, true)
+	var trailingComment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseNonJSDocCommentAt_6832(endZone, true)
 	_ = trailingComment
 	if trailingComment == nil {
 		return
@@ -3036,7 +3039,7 @@ func (this_ *IRFactory_TransformDispatcher) AttachPossibleTrailingComment(node p
 	_ = tokenEnd
 	var nextLine pkg_parser.SourcePosition = pkg_parser.NewSourcePosition(nil, int32(2147483647), (tokenEnd.FieldGet_line() + int32(1)), int32(0))
 	_ = nextLine
-	var trailingComment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseTrailingNonJSDocCommentAt_6827(tokenEnd, nextLine)
+	var trailingComment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseTrailingNonJSDocCommentAt_6833(tokenEnd, nextLine)
 	_ = trailingComment
 	if trailingComment == nil {
 		return
@@ -3118,7 +3121,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessOptChainFunctionCall(callNode
 		}
 	}
 	node.SetIsOptionalChainStart(callNode.FieldGet_isStartOfOptionalChain())
-	this_.priv_TransformDispatcher_annotateCalls_6901(node)
+	this_.priv_TransformDispatcher_annotateCalls_6907(node)
 	return node
 }
 
@@ -3135,7 +3138,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessFunction(functionTree *pkg_pa
 	_ = isAsync
 	var isGenerator bool = functionTree.FieldGet_isGenerator()
 	_ = isGenerator
-	var isSignature bool = (functionTree.FieldGet_functionBody().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_EMPTY_STATEMENT())
+	var isSignature bool = (functionTree.FieldGet_functionBody().GetParseTreeBase().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_EMPTY_STATEMENT())
 	_ = isSignature
 	var identifierType IRFactory_TransformDispatcher_IdentifierType
 	_ = identifierType
@@ -3168,7 +3171,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessFunction(functionTree *pkg_pa
 	} else {
 		if isDeclaration || isMember {
 			this_.outer_.errorReporter.M_Error("unnamed function statement", this_.outer_.sourceName, IRFactory_Lineno_1_ParseTree(pkg_parser.ToIface_ParseTree(functionTree)), IRFactory_Charno_1_ParseTree(pkg_parser.ToIface_ParseTree(functionTree)))
-			newName = this_.priv_TransformDispatcher_createMissingNameNode_6971()
+			newName = this_.priv_TransformDispatcher_createMissingNameNode_6977()
 		} else {
 			newName = this_.outer_.NewStringNode_2(pkg_rhino.StaticGet_Token_NAME(), "")
 		}
@@ -3189,7 +3192,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessFunction(functionTree *pkg_pa
 		}
 		bodyNode = pkg_rhino.IR_Block_0()
 	}
-	this_.priv_TransformDispatcher_parseDirectives_6883(bodyNode)
+	this_.priv_TransformDispatcher_parseDirectives_6889(bodyNode)
 	node.AddChildToBack(bodyNode)
 	node.SetIsGeneratorFunction(isGenerator)
 	node.SetIsArrowFunction(isArrow)
@@ -3255,7 +3258,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessFormalParameterList(tree *pkg
 	var params pkg_rhino.Node = this_.outer_.NewNode_1(pkg_rhino.StaticGet_Token_PARAM_LIST())
 	_ = params
 	params.SetTrailingComma(tree.FieldGet_hasTrailingComma())
-	if !(this_.priv_TransformDispatcher_checkParameters_6994(tree)) {
+	if !(this_.priv_TransformDispatcher_checkParameters_7000(tree)) {
 		return params
 	}
 	var size int32 = tree.FieldGet_parameterCount()
@@ -3268,9 +3271,9 @@ func (this_ *IRFactory_TransformDispatcher) ProcessFormalParameterList(tree *pkg
 			_ = param
 			var paramNode pkg_rhino.Node = pkg_rhino.Node(0)
 			_ = paramNode
-			switch (param.FieldGet_type_()).Ordinal() {
+			switch (param.GetParseTreeBase().FieldGet_type_()).Ordinal() {
 			case int32(71) /* ParseTreeType.DEFAULT_PARAMETER */ :
-				paramNode = this_.ProcessDefaultParameter(param.AsDefaultParameter())
+				paramNode = this_.ProcessDefaultParameter(param.GetParseTreeBase().AsDefaultParameter())
 			case int32(61) /* ParseTreeType.ITER_REST */ :
 				this_.outer_.MaybeWarnForFeature_2_ParseTree_FeatureSet_Feature(param, pkg_parser.StaticGet_FeatureSet_Feature_REST_PARAMETERS())
 				paramNode = this_.outer_.TransformNodeWithInlineComments(param)
@@ -3295,8 +3298,9 @@ func (this_ *IRFactory_TransformDispatcher) ProcessDefaultParameter(tree *pkg_pa
 	_ = targetTree
 	var targetNode pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = targetNode
-	if targetTree.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_IDENTIFIER_EXPRESSION() {
-		targetNode = this_.priv_TransformDispatcher_processNameWithInlineComments_6929(targetTree.AsIdentifierExpression(), StaticGet_IRFactory_TransformDispatcher_IdentifierType_STANDARD())
+	base_targetTree_ := targetTree.GetParseTreeBase()
+	if base_targetTree_.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_IDENTIFIER_EXPRESSION() {
+		targetNode = this_.priv_TransformDispatcher_processNameWithInlineComments_6935(base_targetTree_.AsIdentifierExpression(), StaticGet_IRFactory_TransformDispatcher_IdentifierType_STANDARD())
 	} else {
 		targetNode = this_.outer_.TransformNodeWithInlineComments(targetTree)
 	}
@@ -3304,7 +3308,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessDefaultParameter(tree *pkg_pa
 	_ = defaultValueExpression
 	var defaultValueNode pkg_rhino.Node = this_.outer_.NewNode_3(pkg_rhino.StaticGet_Token_DEFAULT_VALUE(), targetNode, defaultValueExpression)
 	_ = defaultValueNode
-	this_.outer_.priv_IRFactory_reportErrorIfYieldOrAwaitInDefaultValue_6846(defaultValueNode)
+	this_.outer_.priv_IRFactory_reportErrorIfYieldOrAwaitInDefaultValue_6852(defaultValueNode)
 	this_.outer_.SetSourceInfo_2_Node_ParseTree(defaultValueNode, pkg_parser.ToIface_ParseTree(tree))
 	return defaultValueNode
 }
@@ -3345,7 +3349,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessIfStatement(statementNode *pk
 }
 
 // Java method: TransformDispatcher.markBinaryExpressionFeatures(com.google.javascript.jscomp.parsing.parser.trees.BinaryOperatorTree exprNode)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_markBinaryExpressionFeatures_6918(exprNode *pkg_parser.BinaryOperatorTree) {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_markBinaryExpressionFeatures_6924(exprNode *pkg_parser.BinaryOperatorTree) {
 	_ = exprNode
 	switch (exprNode.FieldGet_operator().FieldGet_type_()).Ordinal() {
 	case int32(66) /* TokenType.STAR_STAR */, int32(88) /* TokenType.STAR_STAR_EQUAL */ :
@@ -3364,16 +3368,16 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_markBinaryE
 // Java method: TransformDispatcher.processBinaryExpression(com.google.javascript.jscomp.parsing.parser.trees.BinaryOperatorTree exprNode)
 func (this_ *IRFactory_TransformDispatcher) ProcessBinaryExpression(exprNode *pkg_parser.BinaryOperatorTree) pkg_rhino.Node {
 	_ = exprNode
-	if this_.outer_.jsdocTracker.HasPendingCommentBefore(exprNode.FieldGet_right().FieldGet_location().FieldGet_start()) || this_.outer_.nonJsdocTracker.HasPendingCommentBefore(exprNode.FieldGet_right().FieldGet_location().FieldGet_start()) {
-		this_.priv_TransformDispatcher_markBinaryExpressionFeatures_6918(exprNode)
-		return this_.outer_.NewNode_3(IRFactory_TransformBinaryTokenType(exprNode.FieldGet_operator().FieldGet_type_()), this_.priv_TransformDispatcher_transformLhsOfBinaryTree_6921(exprNode), this_.outer_.Transform(exprNode.FieldGet_right()))
+	if this_.outer_.jsdocTracker.HasPendingCommentBefore(exprNode.FieldGet_right().GetParseTreeBase().FieldGet_location().FieldGet_start()) || this_.outer_.nonJsdocTracker.HasPendingCommentBefore(exprNode.FieldGet_right().GetParseTreeBase().FieldGet_location().FieldGet_start()) {
+		this_.priv_TransformDispatcher_markBinaryExpressionFeatures_6924(exprNode)
+		return this_.outer_.NewNode_3(IRFactory_TransformBinaryTokenType(exprNode.FieldGet_operator().FieldGet_type_()), this_.priv_TransformDispatcher_transformLhsOfBinaryTree_6927(exprNode), this_.outer_.Transform(exprNode.FieldGet_right()))
 	} else {
-		return this_.priv_TransformDispatcher_processBinaryExpressionHelper_6920(exprNode)
+		return this_.priv_TransformDispatcher_processBinaryExpressionHelper_6926(exprNode)
 	}
 }
 
 // Java method: TransformDispatcher.processBinaryExpressionHelper(com.google.javascript.jscomp.parsing.parser.trees.BinaryOperatorTree exprTree)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processBinaryExpressionHelper_6920(exprTree *pkg_parser.BinaryOperatorTree) pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processBinaryExpressionHelper_6926(exprTree *pkg_parser.BinaryOperatorTree) pkg_rhino.Node {
 	_ = exprTree
 	var root pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = root
@@ -3382,7 +3386,7 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processBina
 	var previous pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = previous
 	for exprTree != nil {
-		this_.priv_TransformDispatcher_markBinaryExpressionFeatures_6918(exprTree)
+		this_.priv_TransformDispatcher_markBinaryExpressionFeatures_6924(exprTree)
 		previous = current
 		current = this_.outer_.NewNode_2(IRFactory_TransformBinaryTokenType(exprTree.FieldGet_operator().FieldGet_type_()), this_.outer_.Transform(exprTree.FieldGet_right()))
 		this_.outer_.SetSourceInfo_2_Node_ParseTree(current, pkg_parser.ToIface_ParseTree(exprTree))
@@ -3396,7 +3400,7 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processBina
 		if ok_54 {
 			exprTree = binaryOperatorTree
 		} else {
-			var leftNode pkg_rhino.Node = this_.priv_TransformDispatcher_transformLhsOfBinaryTree_6921(exprTree)
+			var leftNode pkg_rhino.Node = this_.priv_TransformDispatcher_transformLhsOfBinaryTree_6927(exprTree)
 			_ = leftNode
 			current.AddChildToFront(leftNode)
 			exprTree = nil
@@ -3409,9 +3413,9 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processBina
 }
 
 // Java method: TransformDispatcher.transformLhsOfBinaryTree(com.google.javascript.jscomp.parsing.parser.trees.BinaryOperatorTree exprTree)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_transformLhsOfBinaryTree_6921(exprTree *pkg_parser.BinaryOperatorTree) pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_transformLhsOfBinaryTree_6927(exprTree *pkg_parser.BinaryOperatorTree) pkg_rhino.Node {
 	_ = exprTree
-	var lhsOfInIsPrivateId bool = (((exprTree.FieldGet_operator().FieldGet_type_() == pkg_parser.StaticGet_TokenType_IN()) && j2gort.InstanceOf[*pkg_parser.IdentifierExpressionTree](exprTree.FieldGet_left())) && exprTree.FieldGet_left().AsIdentifierExpression().FieldGet_identifierToken().IsPrivateIdentifier())
+	var lhsOfInIsPrivateId bool = (((exprTree.FieldGet_operator().FieldGet_type_() == pkg_parser.StaticGet_TokenType_IN()) && j2gort.InstanceOf[*pkg_parser.IdentifierExpressionTree](exprTree.FieldGet_left())) && exprTree.FieldGet_left().GetParseTreeBase().AsIdentifierExpression().FieldGet_identifierToken().IsPrivateIdentifier())
 	_ = lhsOfInIsPrivateId
 	if !(lhsOfInIsPrivateId) {
 		return this_.outer_.Transform(exprTree.FieldGet_left())
@@ -3462,12 +3466,12 @@ func (this_ *IRFactory_TransformDispatcher) ProcessName_3(identifierToken pkg_pa
 	_ = identifierToken
 	_ = output
 	_ = identifierType
-	var comment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseNonJSDocCommentAt_6826(identifierToken.GetStart(), true)
+	var comment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseNonJSDocCommentAt_6832(identifierToken.GetStart(), true)
 	_ = comment
 	var node pkg_rhino.Node = this_.NewStringNodeFromIdentifier(output, identifierType, identifierToken)
 	_ = node
 	if output == pkg_rhino.StaticGet_Token_NAME() {
-		this_.priv_TransformDispatcher_maybeWarnReservedKeyword_6932(identifierToken)
+		this_.priv_TransformDispatcher_maybeWarnReservedKeyword_6938(identifierToken)
 		var info *pkg_rhino.JSDocInfo = this_.outer_.ParseJSDocInfoOnToken(identifierToken)
 		_ = info
 		if info != nil {
@@ -3487,7 +3491,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessString(token pkg_parser.Token
 	if !(token.FieldGet_type_() == pkg_parser.StaticGet_TokenType_STRING()) {
 		j2gort.CheckArgument(false)
 	}
-	var comment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseNonJSDocCommentAt_6826(token.GetStart(), true)
+	var comment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseNonJSDocCommentAt_6832(token.GetStart(), true)
 	_ = comment
 	var node pkg_rhino.Node = this_.outer_.NewStringNode_2(pkg_rhino.StaticGet_Token_STRINGLIT(), this_.outer_.NormalizeString(token, false))
 	_ = node
@@ -3516,7 +3520,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessTemplateLiteralToken(token pk
 }
 
 // Java method: TransformDispatcher.processNameWithInlineComments(com.google.javascript.jscomp.parsing.parser.trees.IdentifierExpressionTree identifierExpression, com.google.javascript.jscomp.parsing.IRFactory.TransformDispatcher.IdentifierType identifierType)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processNameWithInlineComments_6929(identifierExpression *pkg_parser.IdentifierExpressionTree, identifierType IRFactory_TransformDispatcher_IdentifierType) pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processNameWithInlineComments_6935(identifierExpression *pkg_parser.IdentifierExpressionTree, identifierType IRFactory_TransformDispatcher_IdentifierType) pkg_rhino.Node {
 	_ = identifierExpression
 	_ = identifierType
 	return this_.ProcessNameWithInlineComments_2_Token_IRFactory_TransformDispatcher_IdentifierType(identifierExpression.FieldGet_identifierToken(), identifierType)
@@ -3528,9 +3532,9 @@ func (this_ *IRFactory_TransformDispatcher) ProcessNameWithInlineComments_2_Toke
 	_ = identifierType
 	var info *pkg_rhino.JSDocInfo = this_.outer_.ParseInlineJSDocAt(identifierToken.GetStart())
 	_ = info
-	var comment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseNonJSDocCommentAt_6826(identifierToken.GetStart(), false)
+	var comment *pkg_rhino.NonJSDocComment = this_.outer_.priv_IRFactory_parseNonJSDocCommentAt_6832(identifierToken.GetStart(), false)
 	_ = comment
-	this_.priv_TransformDispatcher_maybeWarnReservedKeyword_6932(identifierToken)
+	this_.priv_TransformDispatcher_maybeWarnReservedKeyword_6938(identifierToken)
 	var node pkg_rhino.Node = this_.NewStringNodeFromIdentifier(pkg_rhino.StaticGet_Token_NAME(), identifierType, identifierToken)
 	_ = node
 	if info != nil {
@@ -3544,7 +3548,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessNameWithInlineComments_2_Toke
 }
 
 // Java method: TransformDispatcher.maybeWarnKeywordProperty(com.google.javascript.rhino.Node node)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_maybeWarnKeywordProperty_6931(node pkg_rhino.Node) {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_maybeWarnKeywordProperty_6937(node pkg_rhino.Node) {
 	_ = node
 	if this_.outer_.currentFileIsExterns {
 		return
@@ -3559,7 +3563,7 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_maybeWarnKe
 }
 
 // Java method: TransformDispatcher.maybeWarnReservedKeyword(com.google.javascript.jscomp.parsing.parser.Token token)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_maybeWarnReservedKeyword_6932(token pkg_parser.Token) {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_maybeWarnReservedKeyword_6938(token pkg_parser.Token) {
 	_ = token
 	var identifier string = token.GetMaybePrivateValue()
 	_ = identifier
@@ -3637,18 +3641,18 @@ func (this_ *IRFactory_TransformDispatcher) ProcessObjectLiteral(objTree *pkg_pa
 			rawElem_56 := cur_55.Next()
 			el := j2gort.AsIface[pkg_parser.ParseTree](rawElem_56)
 			_ = el
-			if el.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_DEFAULT_PARAMETER() {
+			if el.GetParseTreeBase().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_DEFAULT_PARAMETER() {
 				this_.outer_.errorReporter.M_Error("Default value cannot appear at top level of an object literal.", this_.outer_.sourceName, IRFactory_Lineno_1_ParseTree(el), int32(0))
 				continue
-			} else if (el.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_GET_ACCESSOR()) && this_.MaybeReportGetter(el) {
+			} else if (el.GetParseTreeBase().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_GET_ACCESSOR()) && this_.MaybeReportGetter(el) {
 				continue
-			} else if (el.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_SET_ACCESSOR()) && this_.MaybeReportSetter(el) {
+			} else if (el.GetParseTreeBase().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_SET_ACCESSOR()) && this_.MaybeReportSetter(el) {
 				continue
 			}
 			var key pkg_rhino.Node = this_.outer_.Transform(el)
 			_ = key
 			if ((!(key.IsComputedProp()) && !(key.IsQuotedStringKey())) && !(key.IsSpread())) && !(this_.outer_.currentFileIsExterns) {
-				this_.priv_TransformDispatcher_maybeWarnKeywordProperty_6931(key)
+				this_.priv_TransformDispatcher_maybeWarnKeywordProperty_6937(key)
 			}
 			if key.IsShorthandProperty() {
 				maybeWarn = true
@@ -3676,7 +3680,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessComputedPropertyMethod(tree *
 	var n pkg_rhino.Node = this_.outer_.NewNode_3(pkg_rhino.StaticGet_Token_COMPUTED_PROP(), this_.outer_.Transform(tree.FieldGet_property()), this_.outer_.Transform(tree.FieldGet_method()))
 	_ = n
 	n.PutBooleanProp(pkg_rhino.StaticGet_Node_COMPUTED_PROP_METHOD(), true)
-	if tree.FieldGet_method().AsFunctionDeclaration().FieldGet_isStatic() {
+	if tree.FieldGet_method().GetParseTreeBase().AsFunctionDeclaration().FieldGet_isStatic() {
 		n.SetStaticMember(true)
 	}
 	return n
@@ -3724,7 +3728,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessComputedPropertySetter(tree *
 // Java method: TransformDispatcher.processGetAccessor(com.google.javascript.jscomp.parsing.parser.trees.GetAccessorTree tree)
 func (this_ *IRFactory_TransformDispatcher) ProcessGetAccessor(tree *pkg_parser.GetAccessorTree) pkg_rhino.Node {
 	_ = tree
-	var key pkg_rhino.Node = this_.priv_TransformDispatcher_processObjectLitKey_6872(tree.FieldGet_propertyName(), pkg_rhino.StaticGet_Token_GETTER_DEF(), func() IRFactory_TransformDispatcher_IdentifierType {
+	var key pkg_rhino.Node = this_.priv_TransformDispatcher_processObjectLitKey_6878(tree.FieldGet_propertyName(), pkg_rhino.StaticGet_Token_GETTER_DEF(), func() IRFactory_TransformDispatcher_IdentifierType {
 		if tree.FieldGet_isClassMember() {
 			return StaticGet_IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE()
 		}
@@ -3750,7 +3754,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessGetAccessor(tree *pkg_parser.
 // Java method: TransformDispatcher.processSetAccessor(com.google.javascript.jscomp.parsing.parser.trees.SetAccessorTree tree)
 func (this_ *IRFactory_TransformDispatcher) ProcessSetAccessor(tree *pkg_parser.SetAccessorTree) pkg_rhino.Node {
 	_ = tree
-	var key pkg_rhino.Node = this_.priv_TransformDispatcher_processObjectLitKey_6872(tree.FieldGet_propertyName(), pkg_rhino.StaticGet_Token_SETTER_DEF(), func() IRFactory_TransformDispatcher_IdentifierType {
+	var key pkg_rhino.Node = this_.priv_TransformDispatcher_processObjectLitKey_6878(tree.FieldGet_propertyName(), pkg_rhino.StaticGet_Token_SETTER_DEF(), func() IRFactory_TransformDispatcher_IdentifierType {
 		if tree.FieldGet_isClassMember() {
 			return StaticGet_IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE()
 		}
@@ -3776,7 +3780,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessSetAccessor(tree *pkg_parser.
 // Java method: TransformDispatcher.processPropertyNameAssignment(com.google.javascript.jscomp.parsing.parser.trees.PropertyNameAssignmentTree tree)
 func (this_ *IRFactory_TransformDispatcher) ProcessPropertyNameAssignment(tree *pkg_parser.PropertyNameAssignmentTree) pkg_rhino.Node {
 	_ = tree
-	var key pkg_rhino.Node = this_.priv_TransformDispatcher_processObjectLitKey_6872(tree.FieldGet_name(), pkg_rhino.StaticGet_Token_STRING_KEY(), StaticGet_IRFactory_TransformDispatcher_IdentifierType_STANDARD())
+	var key pkg_rhino.Node = this_.priv_TransformDispatcher_processObjectLitKey_6878(tree.FieldGet_name(), pkg_rhino.StaticGet_Token_STRING_KEY(), StaticGet_IRFactory_TransformDispatcher_IdentifierType_STANDARD())
 	_ = key
 	if !(j2gort.IfaceEquals[pkg_parser.ParseTree](tree.FieldGet_value(), nil)) {
 		key.AddChildToFront(this_.outer_.Transform(tree.FieldGet_value()))
@@ -3790,14 +3794,14 @@ func (this_ *IRFactory_TransformDispatcher) ProcessPropertyNameAssignment(tree *
 }
 
 // Java method: TransformDispatcher.checkParenthesizedExpression(com.google.javascript.jscomp.parsing.parser.trees.ParenExpressionTree exprNode)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_checkParenthesizedExpression_6944(exprNode *pkg_parser.ParenExpressionTree) {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_checkParenthesizedExpression_6950(exprNode *pkg_parser.ParenExpressionTree) {
 	_ = exprNode
-	if exprNode.FieldGet_expression().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_COMMA_EXPRESSION() {
-		var commaNodes []pkg_parser.ParseTree = j2gort.ImmListToSliceNullable[pkg_parser.ParseTree](exprNode.FieldGet_expression().AsCommaExpression().FieldGet_expressions())
+	if exprNode.FieldGet_expression().GetParseTreeBase().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_COMMA_EXPRESSION() {
+		var commaNodes []pkg_parser.ParseTree = j2gort.ImmListToSliceNullable[pkg_parser.ParseTree](exprNode.FieldGet_expression().GetParseTreeBase().AsCommaExpression().FieldGet_expressions())
 		_ = commaNodes
 		var lastChild pkg_parser.ParseTree = j2gort.SliceGetLast(commaNodes)
 		_ = lastChild
-		if lastChild.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_ITER_REST() {
+		if lastChild.GetParseTreeBase().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_ITER_REST() {
 			this_.outer_.errorReporter.M_Error("A rest parameter must be in a parameter list.", this_.outer_.sourceName, IRFactory_Lineno_1_ParseTree(lastChild), IRFactory_Charno_1_ParseTree(lastChild))
 		}
 	}
@@ -3806,7 +3810,7 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_checkParent
 // Java method: TransformDispatcher.processParenthesizedExpression(com.google.javascript.jscomp.parsing.parser.trees.ParenExpressionTree exprNode)
 func (this_ *IRFactory_TransformDispatcher) ProcessParenthesizedExpression(exprNode *pkg_parser.ParenExpressionTree) pkg_rhino.Node {
 	_ = exprNode
-	this_.priv_TransformDispatcher_checkParenthesizedExpression_6944(exprNode)
+	this_.priv_TransformDispatcher_checkParenthesizedExpression_6950(exprNode)
 	var expr pkg_rhino.Node = this_.outer_.Transform(exprNode.FieldGet_expression())
 	_ = expr
 	expr.SetIsParenthesized(true)
@@ -3834,7 +3838,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessPropertyGet(getNode *pkg_pars
 	_ = getProp
 	getProp.AddChildToBack(leftChild)
 	this_.outer_.SetSourceInfo_2_Node_Token(getProp, propName)
-	this_.priv_TransformDispatcher_maybeWarnKeywordProperty_6931(getProp)
+	this_.priv_TransformDispatcher_maybeWarnKeywordProperty_6937(getProp)
 	return getProp
 }
 
@@ -3861,7 +3865,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessOptChainPropertyGet(getNode *
 	getProp.AddChildToBack(leftChild)
 	getProp.SetIsOptionalChainStart(getNode.FieldGet_isStartOfOptionalChain())
 	this_.outer_.SetSourceInfo_2_Node_Token(getProp, propName)
-	this_.priv_TransformDispatcher_maybeWarnKeywordProperty_6931(getProp)
+	this_.priv_TransformDispatcher_maybeWarnKeywordProperty_6937(getProp)
 	return getProp
 }
 
@@ -3884,7 +3888,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessRegExpLiteral(literalTree *pk
 	if lastSlash < j2gort.JStrLen(rawRegex) {
 		flags = j2gort.JStrSubFrom(rawRegex, (lastSlash + int32(1)))
 	}
-	this_.priv_TransformDispatcher_validateRegExpFlags_6949(literalTree, flags)
+	this_.priv_TransformDispatcher_validateRegExpFlags_6955(literalTree, flags)
 	if !(j2gort.CheckNotNullString(flags) == "") {
 		var flagsNode pkg_rhino.Node = this_.outer_.NewStringNode_1(flags)
 		_ = flagsNode
@@ -3895,7 +3899,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessRegExpLiteral(literalTree *pk
 }
 
 // Java method: TransformDispatcher.validateRegExpFlags(com.google.javascript.jscomp.parsing.parser.trees.LiteralExpressionTree tree, java.lang.String flags)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validateRegExpFlags_6949(tree *pkg_parser.LiteralExpressionTree, flags string) {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validateRegExpFlags_6955(tree *pkg_parser.LiteralExpressionTree, flags string) {
 	_ = tree
 	_ = flags
 	{
@@ -3967,7 +3971,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessTemplateLiteral(tree *pkg_par
 		}
 	}
 	if node.IsTaggedTemplateLit() {
-		this_.priv_TransformDispatcher_annotateCalls_6901(node)
+		this_.priv_TransformDispatcher_annotateCalls_6907(node)
 	}
 	return node
 }
@@ -4092,7 +4096,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessTryStatement(statementNode *p
 // Java method: TransformDispatcher.processCatchClause(com.google.javascript.jscomp.parsing.parser.trees.CatchTree clauseNode)
 func (this_ *IRFactory_TransformDispatcher) ProcessCatchClause(clauseNode *pkg_parser.CatchTree) pkg_rhino.Node {
 	_ = clauseNode
-	if clauseNode.FieldGet_exception().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_EMPTY_STATEMENT() {
+	if clauseNode.FieldGet_exception().GetParseTreeBase().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_EMPTY_STATEMENT() {
 		this_.outer_.MaybeWarnForFeature_2_ParseTree_FeatureSet_Feature(pkg_parser.ToIface_ParseTree(clauseNode), pkg_parser.StaticGet_FeatureSet_Feature_OPTIONAL_CATCH_BINDING())
 	}
 	return this_.outer_.NewNode_3(pkg_rhino.StaticGet_Token_CATCH(), this_.outer_.Transform(clauseNode.FieldGet_exception()), this_.outer_.TransformBlock(clauseNode.FieldGet_catchBody()))
@@ -4134,11 +4138,11 @@ func (this_ *IRFactory_TransformDispatcher) ProcessUpdateExpression(updateExpr *
 	_ = type_
 	var operand pkg_rhino.Node = this_.outer_.Transform(updateExpr.FieldGet_operand())
 	_ = operand
-	return this_.priv_TransformDispatcher_createUpdateNode_6964(type_, (updateExpr.FieldGet_operatorPosition() == pkg_parser.StaticGet_UpdateExpressionTree_OperatorPosition_POSTFIX()), operand)
+	return this_.priv_TransformDispatcher_createUpdateNode_6970(type_, (updateExpr.FieldGet_operatorPosition() == pkg_parser.StaticGet_UpdateExpressionTree_OperatorPosition_POSTFIX()), operand)
 }
 
 // Java method: TransformDispatcher.createUpdateNode(com.google.javascript.rhino.Token type, boolean postfix, com.google.javascript.rhino.Node operand)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_createUpdateNode_6964(type_ pkg_rhino.Token, postfix bool, operand pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_createUpdateNode_6970(type_ pkg_rhino.Token, postfix bool, operand pkg_rhino.Node) pkg_rhino.Node {
 	_ = type_
 	_ = postfix
 	_ = operand
@@ -4242,23 +4246,23 @@ func (this_ *IRFactory_TransformDispatcher) ProcessWithStatement(stmt *pkg_parse
 // Java method: TransformDispatcher.processMissingExpression(com.google.javascript.jscomp.parsing.parser.trees.MissingPrimaryExpressionTree unused)
 func (this_ *IRFactory_TransformDispatcher) ProcessMissingExpression(unused *pkg_parser.MissingPrimaryExpressionTree) pkg_rhino.Node {
 	_ = unused
-	return this_.priv_TransformDispatcher_createMissingExpressionNode_6972()
+	return this_.priv_TransformDispatcher_createMissingExpressionNode_6978()
 }
 
 // Java method: TransformDispatcher.createMissingNameNode()
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_createMissingNameNode_6971() pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_createMissingNameNode_6977() pkg_rhino.Node {
 	return this_.outer_.NewStringNode_2(pkg_rhino.StaticGet_Token_NAME(), "__missing_name__")
 }
 
 // Java method: TransformDispatcher.createMissingExpressionNode()
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_createMissingExpressionNode_6972() pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_createMissingExpressionNode_6978() pkg_rhino.Node {
 	return this_.outer_.NewStringNode_2(pkg_rhino.StaticGet_Token_NAME(), "__missing_expression__")
 }
 
 // Java method: TransformDispatcher.processIllegalToken(com.google.javascript.jscomp.parsing.parser.trees.ParseTree node)
 func (this_ *IRFactory_TransformDispatcher) ProcessIllegalToken(node pkg_parser.ParseTree) pkg_rhino.Node {
 	_ = node
-	this_.outer_.errorReporter.M_Error(("Unsupported syntax: " + j2gort.StrVal(node.FieldGet_type_())), this_.outer_.sourceName, IRFactory_Lineno_1_ParseTree(node), int32(0))
+	this_.outer_.errorReporter.M_Error(("Unsupported syntax: " + j2gort.StrVal(node.GetParseTreeBase().FieldGet_type_())), this_.outer_.sourceName, IRFactory_Lineno_1_ParseTree(node), int32(0))
 	return this_.outer_.NewNode_1(pkg_rhino.StaticGet_Token_EMPTY())
 }
 
@@ -4307,9 +4311,9 @@ func (this_ *IRFactory_TransformDispatcher) ProcessCommaExpression(tree *pkg_par
 	_ = tree
 	var root pkg_rhino.Node = this_.outer_.NewNode_1(pkg_rhino.StaticGet_Token_COMMA())
 	_ = root
-	var start pkg_parser.SourcePosition = j2gort.AsIface[pkg_parser.ParseTree](tree.FieldGet_expressions().Get(int32(0))).FieldGet_location().FieldGet_start()
+	var start pkg_parser.SourcePosition = j2gort.AsIface[pkg_parser.ParseTree](tree.FieldGet_expressions().Get(int32(0))).GetParseTreeBase().FieldGet_location().FieldGet_start()
 	_ = start
-	var end pkg_parser.SourcePosition = j2gort.AsIface[pkg_parser.ParseTree](tree.FieldGet_expressions().Get(int32(1))).FieldGet_location().FieldGet_end()
+	var end pkg_parser.SourcePosition = j2gort.AsIface[pkg_parser.ParseTree](tree.FieldGet_expressions().Get(int32(1))).GetParseTreeBase().FieldGet_location().FieldGet_end()
 	_ = end
 	this_.outer_.SetSourceInfo_3(root, start, end)
 	{
@@ -4323,7 +4327,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessCommaExpression(tree *pkg_par
 			if count < int32(2) {
 				root.AddChildToBack(this_.outer_.Transform(expr))
 			} else {
-				end = expr.FieldGet_location().FieldGet_end()
+				end = expr.GetParseTreeBase().FieldGet_location().FieldGet_end()
 				root = this_.outer_.NewNode_3(pkg_rhino.StaticGet_Token_COMMA(), root, this_.outer_.Transform(expr))
 				this_.outer_.SetSourceInfo_3(root, start, end)
 			}
@@ -4356,14 +4360,14 @@ func (this_ *IRFactory_TransformDispatcher) ProcessClassDeclaration(tree *pkg_pa
 				rawElem_72 := cur_71.Next()
 				child := j2gort.AsIface[pkg_parser.ParseTree](rawElem_72)
 				_ = child
-				switch (child.FieldGet_type_()).Ordinal() {
+				switch (child.GetParseTreeBase().FieldGet_type_()).Ordinal() {
 				case int32(34) /* ParseTreeType.COMPUTED_PROPERTY_GETTER */, int32(36) /* ParseTreeType.COMPUTED_PROPERTY_SETTER */, int32(30) /* ParseTreeType.GET_ACCESSOR */, int32(31) /* ParseTreeType.SET_ACCESSOR */ :
 					this_.outer_.features = this_.outer_.features.With_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER())
 				case int32(2) /* ParseTreeType.BLOCK */ :
 					this_.outer_.features = this_.outer_.features.With_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_CLASS_STATIC_BLOCK())
 				default:
 				}
-				var childIsCtor bool = this_.priv_TransformDispatcher_validateClassConstructorMember_6983(child)
+				var childIsCtor bool = this_.priv_TransformDispatcher_validateClassConstructorMember_6989(child)
 				_ = childIsCtor
 				if childIsCtor {
 					if hasConstructor {
@@ -4376,7 +4380,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessClassDeclaration(tree *pkg_pa
 		}
 	}()
 	if !(this_.classScope.InScope()) {
-		this_.priv_TransformDispatcher_validatePrivatePropertyUsage_6981(j2gort.Ext_java_util_Collections_UnmodifiableSet(this_.priv_TransformDispatcher_getPrivatePropsAndValidateUniqueness_6982(classMembers)), classMembers)
+		this_.priv_TransformDispatcher_validatePrivatePropertyUsage_6987(j2gort.Ext_java_util_Collections_UnmodifiableSet(this_.priv_TransformDispatcher_getPrivatePropsAndValidateUniqueness_6988(classMembers)), classMembers)
 	}
 	var classNode pkg_rhino.Node = this_.outer_.NewNode_4(pkg_rhino.StaticGet_Token_CLASS(), name, superClass, classMembers)
 	_ = classNode
@@ -4385,7 +4389,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessClassDeclaration(tree *pkg_pa
 }
 
 // Java method: TransformDispatcher.validatePrivatePropertyUsage(java.util.Set<java.lang.String> privatePropNames, com.google.javascript.rhino.Node classMembers)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validatePrivatePropertyUsage_6981(privatePropNames j2gort.Ext_java_util_Set, classMembers pkg_rhino.Node) {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validatePrivatePropertyUsage_6987(privatePropNames j2gort.Ext_java_util_Set, classMembers pkg_rhino.Node) {
 	_ = privatePropNames
 	_ = classMembers
 	if !(classMembers.IsClassMembers()) {
@@ -4429,10 +4433,10 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validatePri
 			}
 		}
 		if node.IsClassMembers() {
-			var innerClassPrivatePropNames j2gort.Ext_java_util_Set = this_.priv_TransformDispatcher_getPrivatePropsAndValidateUniqueness_6982(node)
+			var innerClassPrivatePropNames j2gort.Ext_java_util_Set = this_.priv_TransformDispatcher_getPrivatePropsAndValidateUniqueness_6988(node)
 			_ = innerClassPrivatePropNames
 			innerClassPrivatePropNames.AddAll_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](privatePropNames))
-			this_.priv_TransformDispatcher_validatePrivatePropertyUsage_6981(j2gort.Ext_java_util_Collections_UnmodifiableSet(innerClassPrivatePropNames), node)
+			this_.priv_TransformDispatcher_validatePrivatePropertyUsage_6987(j2gort.Ext_java_util_Collections_UnmodifiableSet(innerClassPrivatePropNames), node)
 		} else {
 			var next pkg_rhino.Node = node.GetNext()
 			_ = next
@@ -4481,7 +4485,7 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validatePri
 }
 
 // Java method: TransformDispatcher.getPrivatePropsAndValidateUniqueness(com.google.javascript.rhino.Node classMembers)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_getPrivatePropsAndValidateUniqueness_6982(classMembers pkg_rhino.Node) j2gort.Ext_java_util_Set {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_getPrivatePropsAndValidateUniqueness_6988(classMembers pkg_rhino.Node) j2gort.Ext_java_util_Set {
 	_ = classMembers
 	var privateGetterNames j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_TreeSet()
 	_ = privateGetterNames
@@ -4574,7 +4578,7 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_getPrivateP
 }
 
 // Java method: TransformDispatcher.validateClassConstructorMember(com.google.javascript.jscomp.parsing.parser.trees.ParseTree member)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validateClassConstructorMember_6983(member pkg_parser.ParseTree) bool {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validateClassConstructorMember_6989(member pkg_parser.ParseTree) bool {
 	_ = member
 	var memberName pkg_parser.Token = (pkg_parser.Token{})
 	_ = memberName
@@ -4582,21 +4586,22 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validateCla
 	_ = isStatic
 	var hasIllegalModifier bool = false
 	_ = hasIllegalModifier
-	switch (member.FieldGet_type_()).Ordinal() {
+	base_member_ := member.GetParseTreeBase()
+	switch (base_member_.FieldGet_type_()).Ordinal() {
 	case int32(30) /* ParseTreeType.GET_ACCESSOR */ :
-		var getter *pkg_parser.GetAccessorTree = member.AsGetAccessor()
+		var getter *pkg_parser.GetAccessorTree = base_member_.AsGetAccessor()
 		_ = getter
 		memberName = getter.FieldGet_propertyName()
 		isStatic = getter.FieldGet_isStatic()
 		hasIllegalModifier = true
 	case int32(31) /* ParseTreeType.SET_ACCESSOR */ :
-		var setter *pkg_parser.SetAccessorTree = member.AsSetAccessor()
+		var setter *pkg_parser.SetAccessorTree = base_member_.AsSetAccessor()
 		_ = setter
 		memberName = setter.FieldGet_propertyName()
 		isStatic = setter.FieldGet_isStatic()
 		hasIllegalModifier = true
 	case int32(1) /* ParseTreeType.FUNCTION_DECLARATION */ :
-		var method *pkg_parser.FunctionDeclarationTree = member.AsFunctionDeclaration()
+		var method *pkg_parser.FunctionDeclarationTree = base_member_.AsFunctionDeclaration()
 		_ = method
 		memberName = method.FieldGet_name()
 		isStatic = method.FieldGet_isStatic()
@@ -4681,7 +4686,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessExportDecl(tree *pkg_parser.E
 		}
 		decls = this_.outer_.Transform(tree.FieldGet_declaration())
 	} else {
-		decls = this_.priv_TransformDispatcher_transformList_6995(pkg_rhino.StaticGet_Token_EXPORT_SPECS(), tree.FieldGet_exportSpecifierList())
+		decls = this_.priv_TransformDispatcher_transformList_7001(pkg_rhino.StaticGet_Token_EXPORT_SPECS(), tree.FieldGet_exportSpecifierList())
 	}
 	if decls == 0 {
 		decls = this_.outer_.NewNode_1(pkg_rhino.StaticGet_Token_EMPTY())
@@ -4726,7 +4731,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessImportDecl(tree *pkg_parser.I
 	var secondChild pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = secondChild
 	if tree.FieldGet_nameSpaceImportIdentifier() == (pkg_parser.Token{}) {
-		secondChild = this_.priv_TransformDispatcher_transformListOrEmpty_6996(pkg_rhino.StaticGet_Token_IMPORT_SPECS(), tree.FieldGet_importSpecifierList())
+		secondChild = this_.priv_TransformDispatcher_transformListOrEmpty_7002(pkg_rhino.StaticGet_Token_IMPORT_SPECS(), tree.FieldGet_importSpecifierList())
 		this_.outer_.SetSourceInfo_2_Node_ParseTree(secondChild, pkg_parser.ToIface_ParseTree(tree))
 	} else {
 		secondChild = this_.NewStringNodeFromIdentifier(pkg_rhino.StaticGet_Token_IMPORT_STAR(), StaticGet_IRFactory_TransformDispatcher_IdentifierType_STANDARD(), tree.FieldGet_nameSpaceImportIdentifier())
@@ -4771,7 +4776,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessImportMeta(tree *pkg_parser.I
 }
 
 // Java method: TransformDispatcher.checkParameters(com.google.javascript.jscomp.parsing.parser.trees.FormalParameterListTree tree)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_checkParameters_6994(tree *pkg_parser.FormalParameterListTree) bool {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_checkParameters_7000(tree *pkg_parser.FormalParameterListTree) bool {
 	_ = tree
 	var len_ int32 = tree.FieldGet_parameterCount()
 	_ = len_
@@ -4783,7 +4788,7 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_checkParame
 		for ; i < len_; i = i + 1 {
 			var param pkg_parser.ParseTree = tree.GetParameter(i)
 			_ = param
-			if param.FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_ITER_REST() {
+			if param.GetParseTreeBase().FieldGet_type_() == pkg_parser.StaticGet_ParseTreeType_ITER_REST() {
 				if i != (len_ - int32(1)) {
 					this_.outer_.errorReporter.M_Error("A rest parameter must be last in a parameter list.", this_.outer_.sourceName, IRFactory_Lineno_1_ParseTree(param), IRFactory_Charno_1_ParseTree(param))
 					good = false
@@ -4798,7 +4803,7 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_checkParame
 }
 
 // Java method: TransformDispatcher.transformList(com.google.javascript.rhino.Token type, com.google.common.collect.ImmutableList<com.google.javascript.jscomp.parsing.parser.trees.ParseTree> list)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_transformList_6995(type_ pkg_rhino.Token, list j2gort.Ext_com_google_common_collect_ImmutableList) pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_transformList_7001(type_ pkg_rhino.Token, list j2gort.Ext_com_google_common_collect_ImmutableList) pkg_rhino.Node {
 	_ = type_
 	_ = list
 	var n pkg_rhino.Node = this_.outer_.NewNode_1(type_)
@@ -4816,13 +4821,13 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_transformLi
 }
 
 // Java method: TransformDispatcher.transformListOrEmpty(com.google.javascript.rhino.Token type, com.google.common.collect.ImmutableList<com.google.javascript.jscomp.parsing.parser.trees.ParseTree> list)
-func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_transformListOrEmpty_6996(type_ pkg_rhino.Token, list j2gort.Ext_com_google_common_collect_ImmutableList) pkg_rhino.Node {
+func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_transformListOrEmpty_7002(type_ pkg_rhino.Token, list j2gort.Ext_com_google_common_collect_ImmutableList) pkg_rhino.Node {
 	_ = type_
 	_ = list
 	if (list == nil) || list.IsEmpty() {
 		return this_.outer_.NewNode_1(pkg_rhino.StaticGet_Token_EMPTY())
 	} else {
-		return this_.priv_TransformDispatcher_transformList_6995(type_, list)
+		return this_.priv_TransformDispatcher_transformList_7001(type_, list)
 	}
 }
 
@@ -4851,170 +4856,171 @@ func (this_ *IRFactory_TransformDispatcher) ProcessLiteralExpression(expr *pkg_p
 // Java method: TransformDispatcher.process(com.google.javascript.jscomp.parsing.parser.trees.ParseTree node)
 func (this_ *IRFactory_TransformDispatcher) Process(node pkg_parser.ParseTree) pkg_rhino.Node {
 	_ = node
-	switch (node.FieldGet_type_()).Ordinal() {
+	base_node_ := node.GetParseTreeBase()
+	switch (base_node_.FieldGet_type_()).Ordinal() {
 	case int32(39) /* ParseTreeType.BINARY_OPERATOR */ :
-		return this_.ProcessBinaryExpression(node.AsBinaryOperator())
+		return this_.ProcessBinaryExpression(base_node_.AsBinaryOperator())
 	case int32(28) /* ParseTreeType.ARRAY_LITERAL_EXPRESSION */ :
-		return this_.ProcessArrayLiteral(node.AsArrayLiteralExpression())
+		return this_.ProcessArrayLiteral(base_node_.AsArrayLiteralExpression())
 	case int32(72) /* ParseTreeType.TEMPLATE_LITERAL_EXPRESSION */ :
-		return this_.ProcessTemplateLiteral(node.AsTemplateLiteralExpression())
+		return this_.ProcessTemplateLiteral(base_node_.AsTemplateLiteralExpression())
 	case int32(73) /* ParseTreeType.TEMPLATE_LITERAL_PORTION */ :
-		return this_.ProcessTemplateLiteralPortion(node.AsTemplateLiteralPortion())
+		return this_.ProcessTemplateLiteralPortion(base_node_.AsTemplateLiteralPortion())
 	case int32(74) /* ParseTreeType.TEMPLATE_SUBSTITUTION */ :
-		return this_.ProcessTemplateSubstitution(node.AsTemplateSubstitution())
+		return this_.ProcessTemplateSubstitution(base_node_.AsTemplateSubstitution())
 	case int32(41) /* ParseTreeType.UNARY_EXPRESSION */ :
-		return this_.ProcessUnaryExpression(node.AsUnaryExpression())
+		return this_.ProcessUnaryExpression(base_node_.AsUnaryExpression())
 	case int32(2) /* ParseTreeType.BLOCK */ :
-		return this_.ProcessBlock(node.AsBlock())
+		return this_.ProcessBlock(base_node_.AsBlock())
 	case int32(14) /* ParseTreeType.BREAK_STATEMENT */ :
-		return this_.ProcessBreakStatement(node.AsBreakStatement())
+		return this_.ProcessBreakStatement(base_node_.AsBreakStatement())
 	case int32(47) /* ParseTreeType.CALL_EXPRESSION */ :
-		return this_.ProcessFunctionCall(node.AsCallExpression())
+		return this_.ProcessFunctionCall(base_node_.AsCallExpression())
 	case int32(48) /* ParseTreeType.OPT_CHAIN_CALL_EXPRESSION */ :
-		return this_.ProcessOptChainFunctionCall(node.AsOptChainCallExpression())
+		return this_.ProcessOptChainFunctionCall(base_node_.AsOptChainCallExpression())
 	case int32(17) /* ParseTreeType.CASE_CLAUSE */ :
-		return this_.ProcessSwitchCase(node.AsCaseClause())
+		return this_.ProcessSwitchCase(base_node_.AsCaseClause())
 	case int32(18) /* ParseTreeType.DEFAULT_CLAUSE */ :
-		return this_.ProcessSwitchDefault(node.AsDefaultClause())
+		return this_.ProcessSwitchDefault(base_node_.AsDefaultClause())
 	case int32(22) /* ParseTreeType.CATCH */ :
-		return this_.ProcessCatchClause(node.AsCatch())
+		return this_.ProcessCatchClause(base_node_.AsCatch())
 	case int32(13) /* ParseTreeType.CONTINUE_STATEMENT */ :
-		return this_.ProcessContinueStatement(node.AsContinueStatement())
+		return this_.ProcessContinueStatement(base_node_.AsContinueStatement())
 	case int32(8) /* ParseTreeType.DO_WHILE_STATEMENT */ :
-		return this_.ProcessDoLoop(node.AsDoWhileStatement())
+		return this_.ProcessDoLoop(base_node_.AsDoWhileStatement())
 	case int32(5) /* ParseTreeType.EMPTY_STATEMENT */ :
-		return this_.ProcessEmptyStatement(node.AsEmptyStatement())
+		return this_.ProcessEmptyStatement(base_node_.AsEmptyStatement())
 	case int32(6) /* ParseTreeType.EXPRESSION_STATEMENT */ :
-		return this_.ProcessExpressionStatement(node.AsExpressionStatement())
+		return this_.ProcessExpressionStatement(base_node_.AsExpressionStatement())
 	case int32(24) /* ParseTreeType.DEBUGGER_STATEMENT */ :
-		return this_.ProcessDebuggerStatement(node.AsDebuggerStatement())
+		return this_.ProcessDebuggerStatement(base_node_.AsDebuggerStatement())
 	case int32(25) /* ParseTreeType.THIS_EXPRESSION */ :
-		return this_.ProcessThisExpression(node.AsThisExpression())
+		return this_.ProcessThisExpression(base_node_.AsThisExpression())
 	case int32(11) /* ParseTreeType.FOR_STATEMENT */ :
-		return this_.ProcessForLoop(node.AsForStatement())
+		return this_.ProcessForLoop(base_node_.AsForStatement())
 	case int32(10) /* ParseTreeType.FOR_IN_STATEMENT */ :
-		return this_.ProcessForInLoop(node.AsForInStatement())
+		return this_.ProcessForInLoop(base_node_.AsForInStatement())
 	case int32(1) /* ParseTreeType.FUNCTION_DECLARATION */ :
-		return this_.ProcessFunction(node.AsFunctionDeclaration())
+		return this_.ProcessFunction(base_node_.AsFunctionDeclaration())
 	case int32(50) /* ParseTreeType.MEMBER_LOOKUP_EXPRESSION */ :
-		return this_.ProcessElementGet(node.AsMemberLookupExpression())
+		return this_.ProcessElementGet(base_node_.AsMemberLookupExpression())
 	case int32(51) /* ParseTreeType.OPT_CHAIN_MEMBER_LOOKUP_EXPRESSION */ :
-		return this_.ProcessOptChainElementGet(node.AsOptionalMemberLookupExpression())
+		return this_.ProcessOptChainElementGet(base_node_.AsOptionalMemberLookupExpression())
 	case int32(43) /* ParseTreeType.MEMBER_EXPRESSION */ :
-		return this_.ProcessPropertyGet(node.AsMemberExpression())
+		return this_.ProcessPropertyGet(base_node_.AsMemberExpression())
 	case int32(44) /* ParseTreeType.OPT_CHAIN_MEMBER_EXPRESSION */ :
-		return this_.ProcessOptChainPropertyGet(node.AsOptionalMemberExpression())
+		return this_.ProcessOptChainPropertyGet(base_node_.AsOptionalMemberExpression())
 	case int32(40) /* ParseTreeType.CONDITIONAL_EXPRESSION */ :
-		return this_.ProcessConditionalExpression(node.AsConditionalExpression())
+		return this_.ProcessConditionalExpression(base_node_.AsConditionalExpression())
 	case int32(7) /* ParseTreeType.IF_STATEMENT */ :
-		return this_.ProcessIfStatement(node.AsIfStatement())
+		return this_.ProcessIfStatement(base_node_.AsIfStatement())
 	case int32(20) /* ParseTreeType.LABELLED_STATEMENT */ :
-		return this_.ProcessLabeledStatement(node.AsLabelledStatement())
+		return this_.ProcessLabeledStatement(base_node_.AsLabelledStatement())
 	case int32(52) /* ParseTreeType.PAREN_EXPRESSION */ :
-		return this_.ProcessParenthesizedExpression(node.AsParenExpression())
+		return this_.ProcessParenthesizedExpression(base_node_.AsParenExpression())
 	case int32(26) /* ParseTreeType.IDENTIFIER_EXPRESSION */ :
-		return this_.ProcessName_2(node.AsIdentifierExpression(), func() IRFactory_TransformDispatcher_IdentifierType {
+		return this_.ProcessName_2(base_node_.AsIdentifierExpression(), func() IRFactory_TransformDispatcher_IdentifierType {
 			if this_.privateIdLhsOfInScope.InScope() {
 				return StaticGet_IRFactory_TransformDispatcher_IdentifierType_CAN_BE_PRIVATE()
 			}
 			return StaticGet_IRFactory_TransformDispatcher_IdentifierType_STANDARD()
 		}())
 	case int32(45) /* ParseTreeType.NEW_EXPRESSION */ :
-		return this_.ProcessNewExpression(node.AsNewExpression())
+		return this_.ProcessNewExpression(base_node_.AsNewExpression())
 	case int32(29) /* ParseTreeType.OBJECT_LITERAL_EXPRESSION */ :
-		return this_.ProcessObjectLiteral(node.AsObjectLiteralExpression())
+		return this_.ProcessObjectLiteral(base_node_.AsObjectLiteralExpression())
 	case int32(33) /* ParseTreeType.COMPUTED_PROPERTY_DEFINITION */ :
-		return this_.ProcessComputedPropertyDefinition(node.AsComputedPropertyDefinition())
+		return this_.ProcessComputedPropertyDefinition(base_node_.AsComputedPropertyDefinition())
 	case int32(34) /* ParseTreeType.COMPUTED_PROPERTY_GETTER */ :
-		return this_.ProcessComputedPropertyGetter(node.AsComputedPropertyGetter())
+		return this_.ProcessComputedPropertyGetter(base_node_.AsComputedPropertyGetter())
 	case int32(35) /* ParseTreeType.COMPUTED_PROPERTY_METHOD */ :
-		return this_.ProcessComputedPropertyMethod(node.AsComputedPropertyMethod())
+		return this_.ProcessComputedPropertyMethod(base_node_.AsComputedPropertyMethod())
 	case int32(36) /* ParseTreeType.COMPUTED_PROPERTY_SETTER */ :
-		return this_.ProcessComputedPropertySetter(node.AsComputedPropertySetter())
+		return this_.ProcessComputedPropertySetter(base_node_.AsComputedPropertySetter())
 	case int32(15) /* ParseTreeType.RETURN_STATEMENT */ :
-		return this_.ProcessReturnStatement(node.AsReturnStatement())
+		return this_.ProcessReturnStatement(base_node_.AsReturnStatement())
 	case int32(42) /* ParseTreeType.UPDATE_EXPRESSION */ :
-		return this_.ProcessUpdateExpression(node.AsUpdateExpression())
+		return this_.ProcessUpdateExpression(base_node_.AsUpdateExpression())
 	case int32(0) /* ParseTreeType.PROGRAM */ :
-		return this_.ProcessAstRoot(node.AsProgram())
+		return this_.ProcessAstRoot(base_node_.AsProgram())
 	case int32(27) /* ParseTreeType.LITERAL_EXPRESSION */ :
-		return this_.ProcessLiteralExpression(node.AsLiteralExpression())
+		return this_.ProcessLiteralExpression(base_node_.AsLiteralExpression())
 	case int32(19) /* ParseTreeType.SWITCH_STATEMENT */ :
-		return this_.ProcessSwitchStatement(node.AsSwitchStatement())
+		return this_.ProcessSwitchStatement(base_node_.AsSwitchStatement())
 	case int32(21) /* ParseTreeType.THROW_STATEMENT */ :
-		return this_.ProcessThrowStatement(node.AsThrowStatement())
+		return this_.ProcessThrowStatement(base_node_.AsThrowStatement())
 	case int32(23) /* ParseTreeType.TRY_STATEMENT */ :
-		return this_.ProcessTryStatement(node.AsTryStatement())
+		return this_.ProcessTryStatement(base_node_.AsTryStatement())
 	case int32(3) /* ParseTreeType.VARIABLE_STATEMENT */ :
-		return this_.ProcessVariableStatement(node.AsVariableStatement())
+		return this_.ProcessVariableStatement(base_node_.AsVariableStatement())
 	case int32(12) /* ParseTreeType.VARIABLE_DECLARATION_LIST */ :
-		return this_.ProcessVariableDeclarationList(node.AsVariableDeclarationList())
+		return this_.ProcessVariableDeclarationList(base_node_.AsVariableDeclarationList())
 	case int32(4) /* ParseTreeType.VARIABLE_DECLARATION */ :
-		return this_.ProcessVariableDeclaration(node.AsVariableDeclaration())
+		return this_.ProcessVariableDeclaration(base_node_.AsVariableDeclaration())
 	case int32(9) /* ParseTreeType.WHILE_STATEMENT */ :
-		return this_.ProcessWhileLoop(node.AsWhileStatement())
+		return this_.ProcessWhileLoop(base_node_.AsWhileStatement())
 	case int32(16) /* ParseTreeType.WITH_STATEMENT */ :
-		return this_.ProcessWithStatement(node.AsWithStatement())
+		return this_.ProcessWithStatement(base_node_.AsWithStatement())
 	case int32(38) /* ParseTreeType.COMMA_EXPRESSION */ :
-		return this_.ProcessCommaExpression(node.AsCommaExpression())
+		return this_.ProcessCommaExpression(base_node_.AsCommaExpression())
 	case int32(60) /* ParseTreeType.NULL */ :
-		return this_.ProcessNull(node.AsNull())
+		return this_.ProcessNull(base_node_.AsNull())
 	case int32(53) /* ParseTreeType.FINALLY */ :
-		return this_.ProcessFinally(node.AsFinally())
+		return this_.ProcessFinally(base_node_.AsFinally())
 	case int32(37) /* ParseTreeType.MISSING_PRIMARY_EXPRESSION */ :
-		return this_.ProcessMissingExpression(node.AsMissingPrimaryExpression())
+		return this_.ProcessMissingExpression(base_node_.AsMissingPrimaryExpression())
 	case int32(32) /* ParseTreeType.PROPERTY_NAME_ASSIGNMENT */ :
-		return this_.ProcessPropertyNameAssignment(node.AsPropertyNameAssignment())
+		return this_.ProcessPropertyNameAssignment(base_node_.AsPropertyNameAssignment())
 	case int32(30) /* ParseTreeType.GET_ACCESSOR */ :
-		return this_.ProcessGetAccessor(node.AsGetAccessor())
+		return this_.ProcessGetAccessor(base_node_.AsGetAccessor())
 	case int32(31) /* ParseTreeType.SET_ACCESSOR */ :
-		return this_.ProcessSetAccessor(node.AsSetAccessor())
+		return this_.ProcessSetAccessor(base_node_.AsSetAccessor())
 	case int32(57) /* ParseTreeType.FORMAL_PARAMETER_LIST */ :
-		return this_.ProcessFormalParameterList(node.AsFormalParameterList())
+		return this_.ProcessFormalParameterList(base_node_.AsFormalParameterList())
 	case int32(49) /* ParseTreeType.CLASS_DECLARATION */ :
-		return this_.ProcessClassDeclaration(node.AsClassDeclaration())
+		return this_.ProcessClassDeclaration(base_node_.AsClassDeclaration())
 	case int32(54) /* ParseTreeType.SUPER_EXPRESSION */ :
-		return this_.ProcessSuper(node.AsSuperExpression())
+		return this_.ProcessSuper(base_node_.AsSuperExpression())
 	case int32(76) /* ParseTreeType.NEW_TARGET_EXPRESSION */ :
-		return this_.ProcessNewTarget(node.AsNewTargetExpression())
+		return this_.ProcessNewTarget(base_node_.AsNewTargetExpression())
 	case int32(70) /* ParseTreeType.YIELD_EXPRESSION */ :
-		return this_.ProcessYield(node.AsYieldStatement())
+		return this_.ProcessYield(base_node_.AsYieldStatement())
 	case int32(77) /* ParseTreeType.AWAIT_EXPRESSION */ :
-		return this_.ProcessAwait(node.AsAwaitExpression())
+		return this_.ProcessAwait(base_node_.AsAwaitExpression())
 	case int32(68) /* ParseTreeType.FOR_OF_STATEMENT */ :
-		return this_.ProcessForOf(node.AsForOfStatement())
+		return this_.ProcessForOf(base_node_.AsForOfStatement())
 	case int32(69) /* ParseTreeType.FOR_AWAIT_OF_STATEMENT */ :
-		return this_.ProcessForAwaitOf(node.AsForAwaitOfStatement())
+		return this_.ProcessForAwaitOf(base_node_.AsForAwaitOfStatement())
 	case int32(64) /* ParseTreeType.EXPORT_DECLARATION */ :
-		return this_.ProcessExportDecl(node.AsExportDeclaration())
+		return this_.ProcessExportDecl(base_node_.AsExportDeclaration())
 	case int32(65) /* ParseTreeType.EXPORT_SPECIFIER */ :
-		return this_.ProcessExportSpec(node.AsExportSpecifier())
+		return this_.ProcessExportSpec(base_node_.AsExportSpecifier())
 	case int32(66) /* ParseTreeType.IMPORT_DECLARATION */ :
-		return this_.ProcessImportDecl(node.AsImportDeclaration())
+		return this_.ProcessImportDecl(base_node_.AsImportDeclaration())
 	case int32(67) /* ParseTreeType.IMPORT_SPECIFIER */ :
-		return this_.ProcessImportSpec(node.AsImportSpecifier())
+		return this_.ProcessImportSpec(base_node_.AsImportSpecifier())
 	case int32(78) /* ParseTreeType.DYNAMIC_IMPORT_EXPRESSION */ :
-		return this_.ProcessDynamicImport(node.AsDynamicImportExpression())
+		return this_.ProcessDynamicImport(base_node_.AsDynamicImportExpression())
 	case int32(79) /* ParseTreeType.IMPORT_META_EXPRESSION */ :
-		return this_.ProcessImportMeta(node.AsImportMetaExpression())
+		return this_.ProcessImportMeta(base_node_.AsImportMetaExpression())
 	case int32(55) /* ParseTreeType.ARRAY_PATTERN */ :
-		return this_.ProcessArrayPattern(node.AsArrayPattern())
+		return this_.ProcessArrayPattern(base_node_.AsArrayPattern())
 	case int32(56) /* ParseTreeType.OBJECT_PATTERN */ :
-		return this_.ProcessObjectPattern(node.AsObjectPattern())
+		return this_.ProcessObjectPattern(base_node_.AsObjectPattern())
 	case int32(71) /* ParseTreeType.DEFAULT_PARAMETER */ :
-		return this_.ProcessDefaultParameter(node.AsDefaultParameter())
+		return this_.ProcessDefaultParameter(base_node_.AsDefaultParameter())
 	case int32(61) /* ParseTreeType.ITER_REST */ :
-		return this_.ProcessIterRest(node.AsIterRest())
+		return this_.ProcessIterRest(base_node_.AsIterRest())
 	case int32(58) /* ParseTreeType.ITER_SPREAD */ :
-		return this_.ProcessIterSpread(node.AsIterSpread())
+		return this_.ProcessIterSpread(base_node_.AsIterSpread())
 	case int32(62) /* ParseTreeType.OBJECT_REST */ :
-		return this_.priv_TransformDispatcher_processObjectPatternElement_6876(pkg_parser.ToIface_ParseTree(node.AsObjectRest()))
+		return this_.priv_TransformDispatcher_processObjectPatternElement_6882(pkg_parser.ToIface_ParseTree(base_node_.AsObjectRest()))
 	case int32(59) /* ParseTreeType.OBJECT_SPREAD */ :
-		return this_.ProcessObjectSpread(node.AsObjectSpread())
+		return this_.ProcessObjectSpread(base_node_.AsObjectSpread())
 	case int32(81) /* ParseTreeType.FIELD_DECLARATION */ :
-		return this_.ProcessField(node.AsFieldDeclaration())
+		return this_.ProcessField(base_node_.AsFieldDeclaration())
 	case int32(80) /* ParseTreeType.COMPUTED_PROPERTY_FIELD */ :
-		return this_.ProcessComputedPropertyField(node.AsComputedPropertyField())
+		return this_.ProcessComputedPropertyField(base_node_.AsComputedPropertyField())
 	case int32(46) /* ParseTreeType.ARGUMENT_LIST */ :
 	default:
 	}

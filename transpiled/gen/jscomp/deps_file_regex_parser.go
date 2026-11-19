@@ -174,7 +174,7 @@ func (this_ *DepsFileRegexParser) ParseLine(line string) bool {
 			_ = path
 			var provides j2gort.Ext_java_util_List = this_.ParseJsStringArray(this_.depArgsMatch.Group_1_int32(int32(2)))
 			_ = provides
-			var loadFlags j2gort.Ext_java_util_Map = this_.priv_DepsFileRegexParser_parseLoadFlags_6069(this_.depArgsMatch.Group_1_int32(int32(4)))
+			var loadFlags j2gort.Ext_java_util_Map = this_.priv_DepsFileRegexParser_parseLoadFlags_6075(this_.depArgsMatch.Group_1_int32(int32(4)))
 			_ = loadFlags
 			{
 				var iifeCond_1 bool
@@ -188,7 +188,7 @@ func (this_ *DepsFileRegexParser) ParseLine(line string) bool {
 					provides.Add_1(j2gort.BoxString(relativePath))
 				}
 			}
-			var depInfo DependencyInfo = j2gort.AsIface[DependencyInfo](SimpleDependencyInfo_S_Builder(path, this_.GetJsFileLineParserBase().filePath).SetProvides_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](provides)).SetRequires_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableList](this_.ParseJsStringArray(this_.depArgsMatch.Group_1_int32(int32(3))).Stream().Map(lambdaSingleton_deps_file_regex_parser_1).Collect_1(j2gort.Ext_com_google_common_collect_ImmutableList_ToImmutableList()))).SetLoadFlags(loadFlags).Build())
+			var depInfo DependencyInfo = Upcast_DependencyInfo(SimpleDependencyInfo_S_Builder(path, this_.GetJsFileLineParserBase().filePath).SetProvides_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](provides)).SetRequires_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableList](this_.ParseJsStringArray(this_.depArgsMatch.Group_1_int32(int32(3))).Stream().Map(lambdaSingleton_deps_file_regex_parser_1).Collect_1(j2gort.Ext_com_google_common_collect_ImmutableList_ToImmutableList()))).SetLoadFlags(loadFlags).Build())
 			_ = depInfo
 			if StaticGet_DepsFileRegexParser_Logger().IsLoggable(j2gort.Ext_java_util_logging_Level_F_FINE) {
 				StaticGet_DepsFileRegexParser_Logger().Fine_1_string(("Found dep: " + j2gort.StrVal(depInfo)))
@@ -200,7 +200,7 @@ func (this_ *DepsFileRegexParser) ParseLine(line string) bool {
 }
 
 // Java method: DepsFileRegexParser.parseLoadFlags(java.lang.String loadFlags)
-func (this_ *DepsFileRegexParser) priv_DepsFileRegexParser_parseLoadFlags_6069(loadFlags string) j2gort.Ext_java_util_Map {
+func (this_ *DepsFileRegexParser) priv_DepsFileRegexParser_parseLoadFlags_6075(loadFlags string) j2gort.Ext_java_util_Map {
 	_ = loadFlags
 	if (loadFlags == j2gort.NullString) || (j2gort.CheckNotNullString(loadFlags) == "false") {
 		return j2gort.AsIface[j2gort.Ext_java_util_Map](j2gort.Ext_com_google_common_collect_ImmutableMap_Of_0())

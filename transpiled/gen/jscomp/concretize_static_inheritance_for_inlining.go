@@ -30,7 +30,7 @@ type ConcretizeStaticInheritanceForInlining struct {
 	inherits            RuntimeJsLibManager_JsLibField                                                     `gson:"inherits"`
 	compiler            AbstractCompiler                                                                   `gson:"compiler"`
 	classByAlias        j2gort.OrderedMap[string, *ConcretizeStaticInheritanceForInlining_JavascriptClass] `gson:"classByAlias"`
-	classLeafNames      j2gort.OrderedSet[string]                                                          `gson:"classLeafNames"`
+	classLeafNames      j2gort.PlainSet[string]                                                            `gson:"classLeafNames"`
 	idHash_             atomic.Int32
 }
 
@@ -103,7 +103,7 @@ func (this_ *ConcretizeStaticInheritanceForInlining) initFields_ConcretizeStatic
 	_ = this_
 	this_.duplicateClassNames = j2gort.NewOrderedSet[string]()
 	this_.classByAlias = j2gort.NewOrderedMap[string, *ConcretizeStaticInheritanceForInlining_JavascriptClass]()
-	this_.classLeafNames = j2gort.NewOrderedSet[string]()
+	this_.classLeafNames = j2gort.NewPlainSetVal[string]()
 }
 
 // Java constructor: ConcretizeStaticInheritanceForInlining(com.google.javascript.jscomp.AbstractCompiler compiler)
@@ -128,7 +128,7 @@ func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheri
 	this_.classByAlias.Put(name, cls)
 	var lastDot int32 = j2gort.JStrLastIndexOfCp(name, int32(uint16(46)))
 	_ = lastDot
-	this_.classLeafNames.Add(func() string {
+	this_.classLeafNames.AddVoid(func() string {
 		if lastDot < int32(0) {
 			return name
 		}

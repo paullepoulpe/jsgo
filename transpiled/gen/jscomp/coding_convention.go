@@ -81,6 +81,14 @@ func ToIface_CodingConvention[T interface {
 	return v
 }
 
+func Upcast_CodingConvention[T CodingConvention](v T) CodingConvention {
+	var vi CodingConvention = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.CodingConvention", "com.google.javascript.jscomp.CodingConvention", func(v_ any) bool {
 		return j2gort.InstanceOf[CodingConvention](v_)
@@ -460,6 +468,14 @@ func ToIface_CodingConvention_AssertionFunctionSpec[T interface {
 	return v
 }
 
+func Upcast_CodingConvention_AssertionFunctionSpec[T CodingConvention_AssertionFunctionSpec](v T) CodingConvention_AssertionFunctionSpec {
+	var vi CodingConvention_AssertionFunctionSpec = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.CodingConvention.AssertionFunctionSpec
 type CodingConvention_AssertionFunctionSpecBase struct {
 	self_   CodingConvention_AssertionFunctionSpec
@@ -695,6 +711,14 @@ func ToIface_CodingConvention_AssertionFunctionSpec_Builder[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_CodingConvention_AssertionFunctionSpec_Builder[T CodingConvention_AssertionFunctionSpec_Builder](v T) CodingConvention_AssertionFunctionSpec_Builder {
+	var vi CodingConvention_AssertionFunctionSpec_Builder = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.CodingConvention.AssertionFunctionSpec.Builder

@@ -66,6 +66,14 @@ func ToIface_SourcePosition[T interface {
 	return v
 }
 
+func Upcast_SourcePosition[T SourcePosition](v T) SourcePosition {
+	var vi SourcePosition = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.rhino.SourcePosition
 type SourcePositionBase struct {
 	item any `gson:"item"`

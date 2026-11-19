@@ -150,6 +150,14 @@ func ToIface_Base64VLQ_CharIterator[T interface {
 	return v
 }
 
+func Upcast_Base64VLQ_CharIterator[T Base64VLQ_CharIterator](v T) Base64VLQ_CharIterator {
+	var vi Base64VLQ_CharIterator = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.debugging.sourcemap.Base64VLQ.CharIterator", "com.google.debugging.sourcemap.Base64VLQ$CharIterator", func(v_ any) bool {
 		return j2gort.InstanceOf[Base64VLQ_CharIterator](v_)

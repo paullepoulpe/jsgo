@@ -124,7 +124,7 @@ func ClosureRequireProcessor_GetAllRequires(nameDeclaration pkg_rhino.Node) j2go
 	if requireKind == 0 {
 		return j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()
 	}
-	return NewClosureRequireProcessor(nameDeclaration, requireKind).priv_ClosureRequireProcessor_getAllRequiresInDeclaration_6671()
+	return NewClosureRequireProcessor(nameDeclaration, requireKind).priv_ClosureRequireProcessor_getAllRequiresInDeclaration_6677()
 }
 
 // Java static method: ClosureRequireProcessor.getModuleDependencyTypeFromRhs(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node value)
@@ -148,7 +148,7 @@ func ClosureRequireProcessor_GetModuleDependencyTypeFromRhs(value pkg_rhino.Node
 }
 
 // Java method: ClosureRequireProcessor.getAllRequiresInDeclaration()
-func (this_ *ClosureRequireProcessor) priv_ClosureRequireProcessor_getAllRequiresInDeclaration_6671() j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *ClosureRequireProcessor) priv_ClosureRequireProcessor_getAllRequiresInDeclaration_6677() j2gort.Ext_com_google_common_collect_ImmutableList {
 	var rhs pkg_rhino.Node
 	_ = rhs
 	if this_.nameDeclaration.GetFirstChild().IsDestructuringLhs() {
@@ -168,12 +168,12 @@ func (this_ *ClosureRequireProcessor) priv_ClosureRequireProcessor_getAllRequire
 		if !(objectPattern.IsObjectPattern()) {
 			return j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()
 		}
-		return this_.priv_ClosureRequireProcessor_getAllRequiresFromDestructuring_6672(objectPattern, namespace)
+		return this_.priv_ClosureRequireProcessor_getAllRequiresFromDestructuring_6678(objectPattern, namespace)
 	}
 }
 
 // Java method: ClosureRequireProcessor.getAllRequiresFromDestructuring(com.google.javascript.rhino.Node objectPattern, java.lang.String namespace)
-func (this_ *ClosureRequireProcessor) priv_ClosureRequireProcessor_getAllRequiresFromDestructuring_6672(objectPattern pkg_rhino.Node, namespace string) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *ClosureRequireProcessor) priv_ClosureRequireProcessor_getAllRequiresFromDestructuring_6678(objectPattern pkg_rhino.Node, namespace string) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = objectPattern
 	_ = namespace
 	var requireBuilder []*ClosureRequireProcessor_Require = []*ClosureRequireProcessor_Require{}

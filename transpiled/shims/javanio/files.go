@@ -138,16 +138,187 @@ func Files_ReadAllBytes(p *Path) ([]byte, error) {
 	return b, nil
 }
 
-const readStringScratchSize = 32768
+const readStringScratchSize = 256 * 1024
 
-var readStringScratchPool = sync.Pool{
-	New: func() any {
-		return new([readStringScratchSize]byte)
-	},
+var (
+	readStringScratchChan = make(chan *[readStringScratchSize]byte, 16)
+	readStringScratchPool = sync.Pool{
+		New: func() any {
+			return new([readStringScratchSize]byte)
+		},
+	}
+)
+
+func getReadStringScratch() *[readStringScratchSize]byte {
+	select {
+	case b := <-readStringScratchChan:
+		return b
+	default:
+		return readStringScratchPool.Get().(*[readStringScratchSize]byte)
+	}
+}
+
+func putReadStringScratch(b *[readStringScratchSize]byte) {
+	select {
+	case readStringScratchChan <- b:
+	default:
+		readStringScratchPool.Put(b)
+	}
+}
+
+func writeISO88591Chunk(sb *strings.Builder, chunk []byte) {
+	if isBytesASCII(chunk) {
+		sb.Write(chunk)
+		return
+	}
+	start := 0
+	for i, x := range chunk {
+		if x >= 0x80 {
+			if i > start {
+				sb.Write(chunk[start:i])
+			}
+			sb.WriteByte(0xC0 | (x >> 6))
+			sb.WriteByte(0x80 | (x & 0x3F))
+			start = i + 1
+		}
+	}
+	if start < len(chunk) {
+		sb.Write(chunk[start:])
+	}
+}
+
+func readLargeFDStringStrict(fd int, bufp *[readStringScratchSize]byte, total int, cs *Charset) (string, error) {
+	initGrow := 0
+	if sz, ok := fstatRegularSize(fd); ok && sz >= int64(total) && sz <= 1<<30 {
+		initGrow = int(sz)
+	}
+	switch cs {
+	case StandardCharsets_UTF_8:
+		var sb strings.Builder
+		if initGrow > 0 {
+			sb.Grow(initGrow)
+		}
+		validLen, decErr := validateUTF8Chunk(bufp[:total], false)
+		if decErr != nil {
+			closeFD(fd)
+			putReadStringScratch(bufp)
+			return "", decErr
+		}
+		if validLen > 0 {
+			sb.Write(bufp[:validLen])
+		}
+		carry := total - validLen
+		if carry > 0 {
+			copy(bufp[:carry], bufp[validLen:total])
+		}
+		for {
+			m, rerr := readFD(fd, bufp[carry:])
+			if rerr != nil {
+				closeFD(fd)
+				putReadStringScratch(bufp)
+				return "", javaio.NewIOException(rerr.Error())
+			}
+			atEOF := m == 0
+			chunkTotal := carry + m
+			if chunkTotal > 0 {
+				vLen, err := validateUTF8Chunk(bufp[:chunkTotal], atEOF)
+				if err != nil {
+					closeFD(fd)
+					putReadStringScratch(bufp)
+					return "", err
+				}
+				if vLen > 0 {
+					sb.Write(bufp[:vLen])
+				}
+				carry = chunkTotal - vLen
+				if carry > 0 {
+					copy(bufp[:carry], bufp[vLen:chunkTotal])
+				}
+			}
+			if atEOF {
+				closeFD(fd)
+				putReadStringScratch(bufp)
+				return sb.String(), nil
+			}
+		}
+
+	case StandardCharsets_US_ASCII:
+		if !isBytesASCII(bufp[:total]) {
+			closeFD(fd)
+			putReadStringScratch(bufp)
+			return "", &MalformedInputException{InputLength: 1}
+		}
+		var sb strings.Builder
+		if initGrow > 0 {
+			sb.Grow(initGrow)
+		}
+		sb.Write(bufp[:total])
+		for {
+			m, rerr := readFD(fd, bufp[:])
+			if rerr != nil {
+				closeFD(fd)
+				putReadStringScratch(bufp)
+				return "", javaio.NewIOException(rerr.Error())
+			}
+			if m == 0 {
+				closeFD(fd)
+				putReadStringScratch(bufp)
+				return sb.String(), nil
+			}
+			if !isBytesASCII(bufp[:m]) {
+				closeFD(fd)
+				putReadStringScratch(bufp)
+				return "", &MalformedInputException{InputLength: 1}
+			}
+			sb.Write(bufp[:m])
+		}
+
+	case StandardCharsets_ISO_8859_1:
+		var sb strings.Builder
+		if initGrow > 0 {
+			sb.Grow(initGrow)
+		}
+		writeISO88591Chunk(&sb, bufp[:total])
+		for {
+			m, rerr := readFD(fd, bufp[:])
+			if rerr != nil {
+				closeFD(fd)
+				putReadStringScratch(bufp)
+				return "", javaio.NewIOException(rerr.Error())
+			}
+			if m == 0 {
+				closeFD(fd)
+				putReadStringScratch(bufp)
+				return sb.String(), nil
+			}
+			writeISO88591Chunk(&sb, bufp[:m])
+		}
+	}
+
+	capHint := total * 2
+	if initGrow > capHint {
+		capHint = initGrow
+	}
+	full := make([]byte, total, capHint)
+	copy(full, bufp[:total])
+	for {
+		m, rerr := readFD(fd, bufp[:])
+		if rerr != nil {
+			closeFD(fd)
+			putReadStringScratch(bufp)
+			return "", javaio.NewIOException(rerr.Error())
+		}
+		if m == 0 {
+			closeFD(fd)
+			putReadStringScratch(bufp)
+			return cs.DecodeStrict(full)
+		}
+		full = append(full, bufp[:m]...)
+	}
 }
 
 func readStringUTF8Streaming(f *os.File, initGrow int) (string, error) {
-	bufp := readStringScratchPool.Get().(*[readStringScratchSize]byte)
+	bufp := getReadStringScratch()
 	var sb strings.Builder
 	if initGrow > 0 {
 		sb.Grow(initGrow)
@@ -159,14 +330,14 @@ func readStringUTF8Streaming(f *os.File, initGrow int) (string, error) {
 		atEOF := rerr == io.EOF
 		if rerr != nil && !atEOF {
 			_ = f.Close()
-			readStringScratchPool.Put(bufp)
+			putReadStringScratch(bufp)
 			return "", javaio.NewIOException(rerr.Error())
 		}
 		if total > 0 {
 			validLen, decErr := validateUTF8Chunk(bufp[:total], atEOF)
 			if decErr != nil {
 				_ = f.Close()
-				readStringScratchPool.Put(bufp)
+				putReadStringScratch(bufp)
 				return "", decErr
 			}
 			if validLen > 0 {
@@ -179,14 +350,14 @@ func readStringUTF8Streaming(f *os.File, initGrow int) (string, error) {
 		}
 		if atEOF {
 			_ = f.Close()
-			readStringScratchPool.Put(bufp)
+			putReadStringScratch(bufp)
 			return sb.String(), nil
 		}
 	}
 }
 
 func readStringASCIIStrictStreaming(f *os.File, initGrow int) (string, error) {
-	bufp := readStringScratchPool.Get().(*[readStringScratchSize]byte)
+	bufp := getReadStringScratch()
 	var sb strings.Builder
 	if initGrow > 0 {
 		sb.Grow(initGrow)
@@ -196,27 +367,27 @@ func readStringASCIIStrictStreaming(f *os.File, initGrow int) (string, error) {
 		atEOF := rerr == io.EOF
 		if rerr != nil && !atEOF {
 			_ = f.Close()
-			readStringScratchPool.Put(bufp)
+			putReadStringScratch(bufp)
 			return "", javaio.NewIOException(rerr.Error())
 		}
 		if m > 0 {
 			if !isBytesASCII(bufp[:m]) {
 				_ = f.Close()
-				readStringScratchPool.Put(bufp)
+				putReadStringScratch(bufp)
 				return "", &MalformedInputException{InputLength: 1}
 			}
 			sb.Write(bufp[:m])
 		}
 		if atEOF {
 			_ = f.Close()
-			readStringScratchPool.Put(bufp)
+			putReadStringScratch(bufp)
 			return sb.String(), nil
 		}
 	}
 }
 
 func readStringISO88591Streaming(f *os.File, initGrow int) (string, error) {
-	bufp := readStringScratchPool.Get().(*[readStringScratchSize]byte)
+	bufp := getReadStringScratch()
 	var sb strings.Builder
 	if initGrow > 0 {
 		sb.Grow(initGrow)
@@ -226,33 +397,15 @@ func readStringISO88591Streaming(f *os.File, initGrow int) (string, error) {
 		atEOF := rerr == io.EOF
 		if rerr != nil && !atEOF {
 			_ = f.Close()
-			readStringScratchPool.Put(bufp)
+			putReadStringScratch(bufp)
 			return "", javaio.NewIOException(rerr.Error())
 		}
 		if m > 0 {
-			chunk := bufp[:m]
-			if isBytesASCII(chunk) {
-				sb.Write(chunk)
-			} else {
-				start := 0
-				for i, x := range chunk {
-					if x >= 0x80 {
-						if i > start {
-							sb.Write(chunk[start:i])
-						}
-						sb.WriteByte(0xC0 | (x >> 6))
-						sb.WriteByte(0x80 | (x & 0x3F))
-						start = i + 1
-					}
-				}
-				if start < len(chunk) {
-					sb.Write(chunk[start:])
-				}
-			}
+			writeISO88591Chunk(&sb, bufp[:m])
 		}
 		if atEOF {
 			_ = f.Close()
-			readStringScratchPool.Put(bufp)
+			putReadStringScratch(bufp)
 			return sb.String(), nil
 		}
 	}
@@ -263,6 +416,70 @@ func readStringISO88591Streaming(f *os.File, initGrow int) (string, error) {
 func ReadFileDecodedReplace(path string, cs *Charset) (string, error) {
 	if cs == nil {
 		cs = StandardCharsets_UTF_8
+	}
+	if hasFastFDRead {
+		fd, err := openReadOnlyFD(path)
+		if err != nil {
+			return "", javaio.NewIOException(err.Error())
+		}
+		bufp := getReadStringScratch()
+		total := 0
+		for total < readStringScratchSize {
+			n, rerr := readFD(fd, bufp[total:])
+			if n > 0 {
+				total += n
+			}
+			if rerr != nil {
+				closeFD(fd)
+				putReadStringScratch(bufp)
+				return "", javaio.NewIOException(rerr.Error())
+			}
+			if n == 0 {
+				closeFD(fd)
+				s := cs.Decode(bufp[:total])
+				putReadStringScratch(bufp)
+				return s, nil
+			}
+		}
+		initGrow := total * 2
+		if sz, ok := fstatRegularSize(fd); ok && sz > int64(total) && sz <= 1<<30 {
+			initGrow = int(sz)
+		}
+		if cs == StandardCharsets_ISO_8859_1 {
+			var sb strings.Builder
+			sb.Grow(initGrow)
+			writeISO88591Chunk(&sb, bufp[:total])
+			for {
+				m, rerr := readFD(fd, bufp[:])
+				if rerr != nil {
+					closeFD(fd)
+					putReadStringScratch(bufp)
+					return "", javaio.NewIOException(rerr.Error())
+				}
+				if m == 0 {
+					closeFD(fd)
+					putReadStringScratch(bufp)
+					return sb.String(), nil
+				}
+				writeISO88591Chunk(&sb, bufp[:m])
+			}
+		}
+		full := make([]byte, total, initGrow)
+		copy(full, bufp[:total])
+		for {
+			m, rerr := readFD(fd, bufp[:])
+			if rerr != nil {
+				closeFD(fd)
+				putReadStringScratch(bufp)
+				return "", javaio.NewIOException(rerr.Error())
+			}
+			if m == 0 {
+				closeFD(fd)
+				putReadStringScratch(bufp)
+				return cs.Decode(full), nil
+			}
+			full = append(full, bufp[:m]...)
+		}
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -280,15 +497,15 @@ func ReadFileDecodedReplace(path string, cs *Charset) (string, error) {
 			return "", nil
 		}
 		if sz > 0 && sz <= readStringScratchSize {
-			bufp := readStringScratchPool.Get().(*[readStringScratchSize]byte)
+			bufp := getReadStringScratch()
 			n, rerr := io.ReadFull(f, bufp[:sz])
 			_ = f.Close()
 			if rerr != nil && rerr != io.EOF && rerr != io.ErrUnexpectedEOF {
-				readStringScratchPool.Put(bufp)
+				putReadStringScratch(bufp)
 				return "", javaio.NewIOException(rerr.Error())
 			}
 			s := cs.Decode(bufp[:n])
-			readStringScratchPool.Put(bufp)
+			putReadStringScratch(bufp)
 			return s, nil
 		}
 		if sz > readStringScratchSize && sz <= 1<<30 && cs == StandardCharsets_ISO_8859_1 {
@@ -312,6 +529,32 @@ func Files_ReadStringCharset(p *Path, cs *Charset) (string, error) {
 		panic(javalang.NewNullPointerExceptionMsg("charset is null"))
 	}
 	target := osPath(p)
+	if hasFastFDRead {
+		fd, err := openReadOnlyFD(target)
+		if err != nil {
+			return "", javaio.NewIOException(err.Error())
+		}
+		bufp := getReadStringScratch()
+		total := 0
+		for total < readStringScratchSize {
+			n, rerr := readFD(fd, bufp[total:])
+			if n > 0 {
+				total += n
+			}
+			if rerr != nil {
+				closeFD(fd)
+				putReadStringScratch(bufp)
+				return "", javaio.NewIOException(rerr.Error())
+			}
+			if n == 0 {
+				closeFD(fd)
+				s, decErr := cs.DecodeStrict(bufp[:total])
+				putReadStringScratch(bufp)
+				return s, decErr
+			}
+		}
+		return readLargeFDStringStrict(fd, bufp, total, cs)
+	}
 	f, err := os.Open(target)
 	if err != nil {
 		return "", javaio.NewIOException(err.Error())
@@ -328,15 +571,15 @@ func Files_ReadStringCharset(p *Path, cs *Charset) (string, error) {
 			return "", nil
 		}
 		if sz > 0 && sz <= readStringScratchSize {
-			bufp := readStringScratchPool.Get().(*[readStringScratchSize]byte)
+			bufp := getReadStringScratch()
 			n, rerr := io.ReadFull(f, bufp[:sz])
 			_ = f.Close()
 			if rerr != nil && rerr != io.EOF && rerr != io.ErrUnexpectedEOF {
-				readStringScratchPool.Put(bufp)
+				putReadStringScratch(bufp)
 				return "", javaio.NewIOException(rerr.Error())
 			}
 			s, decErr := cs.DecodeStrict(bufp[:n])
-			readStringScratchPool.Put(bufp)
+			putReadStringScratch(bufp)
 			return s, decErr
 		}
 		if sz > readStringScratchSize && sz <= 1<<30 {

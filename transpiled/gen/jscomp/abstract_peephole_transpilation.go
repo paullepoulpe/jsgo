@@ -45,6 +45,14 @@ func ToIface_AbstractPeepholeTranspilation[T interface {
 	return v
 }
 
+func Upcast_AbstractPeepholeTranspilation[T AbstractPeepholeTranspilation](v T) AbstractPeepholeTranspilation {
+	var vi AbstractPeepholeTranspilation = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.AbstractPeepholeTranspilation
 type AbstractPeepholeTranspilationBase struct {
 	idHash_ atomic.Int32

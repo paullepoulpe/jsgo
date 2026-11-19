@@ -263,6 +263,15 @@ public final class ClassEmitter {
           .append("\n\tcomparable\n}](v T) ")
           .append(ifaceWithParams)
           .append(" {\n\tvar z T\n\tif v == z {\n\t\treturn nil\n\t}\n\treturn v\n}\n\n");
+      out.append("func Upcast_")
+          .append(goName)
+          .append("[T ")
+          .append(goName)
+          .append("](v T) ")
+          .append(goName)
+          .append(" {\n\tvar vi ")
+          .append(goName)
+          .append(" = v\n\tif vi == nil || vi.IsJavaNil_() {\n\t\treturn nil\n\t}\n\treturn vi\n}\n\n");
     } else {
       String declInner = declParams.substring(1, declParams.length() - 1);
       out.append("func ToIface_")

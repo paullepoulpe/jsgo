@@ -57,6 +57,14 @@ func ToIface_StaticTypedSlot[T interface {
 	return v
 }
 
+func Upcast_StaticTypedSlot[T StaticTypedSlot](v T) StaticTypedSlot {
+	var vi StaticTypedSlot = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.jstype.StaticTypedSlot", "com.google.javascript.rhino.jstype.StaticTypedSlot", func(v_ any) bool {
 		return j2gort.InstanceOf[StaticTypedSlot](v_)

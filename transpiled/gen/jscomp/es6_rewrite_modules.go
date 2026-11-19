@@ -361,7 +361,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitImport_2726(t *NodeT
 		if m == nil || m.IsJavaNil_() {
 			t.Report_3(importDecl, StaticGet_ClosurePrimitiveErrors_MISSING_MODULE_OR_PROVIDE(), []string{namespace})
 		} else {
-			if !((m.IsEs6Module() || m.IsGoogModule()) || m.IsGoogProvide()) {
+			if !((m.GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module() || m.GetModuleMetadataMap_ModuleMetadataBase().IsGoogModule()) || m.GetModuleMetadataMap_ModuleMetadataBase().IsGoogProvide()) {
 				j2gort.CheckState(false)
 			}
 		}
@@ -488,7 +488,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitScript_2731(t *NodeT
 	if !(qualifiedName.IsSimple()) {
 		j2gort.CheckStateFmt(false, "Unexpected qualified name %s", qualifiedName)
 	}
-	var moduleName string = qualifiedName.GetRoot()
+	var moduleName string = qualifiedName.GetQualifiedNameBase().GetRoot()
 	_ = moduleName
 	var moduleVar pkg_rhino.Node = this_.priv_Es6RewriteModules_createExportsObject_2732(moduleName, t, script, moduleObjectType)
 	_ = moduleVar
@@ -535,7 +535,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_createExportsObject_2732(
 			if !(boundVariableQualifiedName.IsSimple()) {
 				j2gort.CheckStateFmt(false, "unexpected qualified name: %s", boundVariableQualifiedName)
 			}
-			var boundVariableName string = boundVariableQualifiedName.GetRoot()
+			var boundVariableName string = boundVariableQualifiedName.GetQualifiedNameBase().GetRoot()
 			_ = boundVariableName
 			var getProp pkg_rhino.Node = this_.astFactory.CreateGetPropWithoutColor(this_.astFactory.CreateName_2_string_AstFactory_Type(moduleName, moduleObjectType), exportedName)
 			_ = getProp
@@ -955,13 +955,13 @@ func (this_ *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit_3(t *NodeTrav
 	_ = name
 	var moduleMetadata ModuleMetadataMap_ModuleMetadata = j2gort.AsIface[ModuleMetadataMap_ModuleMetadata](j2gort.MapGetStr(this_.outer_.moduleMetadataMap.GetModulesByGoogNamespace(), name))
 	_ = moduleMetadata
-	if (moduleMetadata == nil || moduleMetadata.IsJavaNil_()) || !(moduleMetadata.IsEs6Module()) {
+	if (moduleMetadata == nil || moduleMetadata.IsJavaNil_()) || !(moduleMetadata.GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module()) {
 		return
 	}
 	if isRequire {
 		var currentModuleMetadata ModuleMetadataMap_ModuleMetadata = j2gort.AsIface[ModuleMetadataMap_ModuleMetadata](j2gort.MapGetStr(this_.outer_.moduleMetadataMap.GetModulesByPath(), t.GetInput().GetPath().String()))
 		_ = currentModuleMetadata
-		if (currentModuleMetadata != nil && !currentModuleMetadata.IsJavaNil_()) && currentModuleMetadata.IsEs6Module() {
+		if (currentModuleMetadata != nil && !currentModuleMetadata.IsJavaNil_()) && currentModuleMetadata.GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module() {
 			t.Report_3(n, StaticGet_Es6RewriteModules_SHOULD_IMPORT_ES6_MODULE(), []string{})
 		}
 	}
@@ -993,7 +993,7 @@ func (this_ *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit_3(t *NodeTrav
 						if !(child.GetFirstChild().IsName()) {
 							j2gort.CheckState(false)
 						}
-						this_.renameTable.Put(j2gort.BoxNode(t.GetScopeRoot()), j2gort.BoxString(child.GetFirstChild().GetString()), j2gort.BoxString(ModuleRenaming_GetGlobalName_2(moduleMetadata, name).Getprop(child.GetString()).Join_0()))
+						this_.renameTable.Put(j2gort.BoxNode(t.GetScopeRoot()), j2gort.BoxString(child.GetFirstChild().GetString()), j2gort.BoxString(ModuleRenaming_GetGlobalName_2(moduleMetadata, name).GetQualifiedNameBase().Getprop(child.GetString()).Join_0()))
 					}
 				}
 			} else {
@@ -1035,7 +1035,7 @@ func (this_ *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit_3(t *NodeTrav
 				statementNode.Detach()
 				t.ReportCodeChange_0()
 			} else {
-				n.ReplaceWith(this_.outer_.astFactory.CreateName_2_string_AstFactory_Type(ModuleRenaming_GetGlobalName_2(moduleMetadata, name).GetRoot(), AstFactory_S_Type_1_Node(n)).SrcrefTree(n))
+				n.ReplaceWith(this_.outer_.astFactory.CreateName_2_string_AstFactory_Type(ModuleRenaming_GetGlobalName_2(moduleMetadata, name).GetQualifiedNameBase().GetRoot(), AstFactory_S_Type_1_Node(n)).SrcrefTree(n))
 				t.ReportCodeChange_0()
 			}
 		}
@@ -1047,7 +1047,7 @@ func (this_ *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit_3(t *NodeTrav
 			if statementNode.IsExprResult() && (statementNode.GetFirstChild() == n) {
 				statementNode.Detach()
 			} else {
-				n.ReplaceWith(this_.outer_.astFactory.CreateName_2_string_AstFactory_Type(ModuleRenaming_GetGlobalName_2(moduleMetadata, name).GetRoot(), AstFactory_S_Type_1_Node(n)).SrcrefTree(n))
+				n.ReplaceWith(this_.outer_.astFactory.CreateName_2_string_AstFactory_Type(ModuleRenaming_GetGlobalName_2(moduleMetadata, name).GetQualifiedNameBase().GetRoot(), AstFactory_S_Type_1_Node(n)).SrcrefTree(n))
 			}
 		}
 		t.ReportCodeChange_0()
@@ -1161,7 +1161,7 @@ func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_replace_2
 	if !(n.IsName()) {
 		j2gort.CheckState(false)
 	}
-	for (binding.IsModuleNamespace() && binding.Metadata().IsEs6Module()) && n.GetParent().IsGetProp() {
+	for (binding.IsModuleNamespace() && binding.Metadata().GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module()) && n.GetParent().IsGetProp() {
 		var propertyName string = n.GetParent().GetString()
 		_ = propertyName
 		var m *Module = this_.outer_.moduleMap.GetModule_1_ModuleLoader_ModulePath(binding.Metadata().Path())
@@ -1177,8 +1177,9 @@ func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_replace_2
 	_ = globalName
 	var newNode pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = newNode
+	base_globalName_ := globalName.GetQualifiedNameBase()
 	if !(globalName.IsSimple()) {
-		var root string = globalName.GetRoot()
+		var root string = base_globalName_.GetRoot()
 		_ = root
 		if (this_.outer_.globalTypedScope != nil) && this_.outer_.globalTypedScope.HasSlot(root) {
 			newNode = this_.outer_.astFactory.CreateQNameUsingJSTypeInfo(this_.outer_.globalTypedScope, globalName.Join_0())
@@ -1186,7 +1187,7 @@ func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_replace_2
 			newNode = this_.outer_.astFactory.CreateQNameWithUnknownType_1_string(globalName.Join_0())
 		}
 	} else {
-		newNode = this_.outer_.astFactory.CreateName_2_string_AstFactory_Type(globalName.GetRoot(), AstFactory_S_Type_1_Node(n))
+		newNode = this_.outer_.astFactory.CreateName_2_string_AstFactory_Type(base_globalName_.GetRoot(), AstFactory_S_Type_1_Node(n))
 	}
 	n.ReplaceWith(newNode)
 	newNode.SrcrefTree(n)

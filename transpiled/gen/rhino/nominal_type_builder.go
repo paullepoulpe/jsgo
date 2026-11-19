@@ -43,16 +43,18 @@ import (
 // Java class: com.google.javascript.rhino.NominalTypeBuilder
 type NominalTypeBuilder struct {
 	constructor *FunctionType `gson:"constructor"`
-	instance ObjectType `gson:"instance"`
-	prototype ObjectType `gson:"prototype"`
-	idHash_ atomic.Int32
+	instance    ObjectType    `gson:"instance"`
+	prototype   ObjectType    `gson:"prototype"`
+	idHash_     atomic.Int32
 }
 
 func (this_ *NominalTypeBuilder) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *NominalTypeBuilder) IsJavaNil_() bool { return this_ == nil }
-func (*NominalTypeBuilder) JavaClassInfo_() (string, string) { return "com.google.javascript.rhino.NominalTypeBuilder", "NominalTypeBuilder" }
+func (*NominalTypeBuilder) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.rhino.NominalTypeBuilder", "NominalTypeBuilder"
+}
 func (this_ *NominalTypeBuilder) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -94,7 +96,7 @@ func (this_ *NominalTypeBuilder) DeclarePrototypeProperty(name string, type_ JST
 	_ = name
 	_ = type_
 	_ = defSite
-	this_.prototype.DefineDeclaredProperty_3_string_JSType_Node(name, type_, defSite)
+	this_.prototype.GetObjectTypeBase().DefineDeclaredProperty_3_string_JSType_Node(name, type_, defSite)
 }
 
 // Java method: NominalTypeBuilder.declareInstanceProperty(java.lang.String name, com.google.javascript.rhino.jstype.JSType type, com.google.javascript.rhino.Node defSite)
@@ -102,7 +104,7 @@ func (this_ *NominalTypeBuilder) DeclareInstanceProperty(name string, type_ JSTy
 	_ = name
 	_ = type_
 	_ = defSite
-	this_.instance.DefineDeclaredProperty_3_string_JSType_Node(name, type_, defSite)
+	this_.instance.GetObjectTypeBase().DefineDeclaredProperty_3_string_JSType_Node(name, type_, defSite)
 }
 
 // Java method: NominalTypeBuilder.declareConstructorProperty(java.lang.String name, com.google.javascript.rhino.jstype.JSType type, com.google.javascript.rhino.Node defSite)
@@ -117,7 +119,7 @@ func (this_ *NominalTypeBuilder) DeclareConstructorProperty(name string, type_ J
 func (this_ *NominalTypeBuilder) SuperClass() *NominalTypeBuilder {
 	var ctor *FunctionType = this_.instance.GetSuperClassConstructor()
 	_ = ctor
-	if ((ctor == nil)) {
+	if ctor == nil {
 		return nil
 	}
 	return NewNominalTypeBuilder(ctor, ctor.GetInstanceType())
@@ -137,4 +139,3 @@ func (this_ *NominalTypeBuilder) Instance() ObjectType {
 func (this_ *NominalTypeBuilder) PrototypeOrInstance() ObjectType {
 	return this_.prototype
 }
-

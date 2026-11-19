@@ -47,6 +47,7 @@ const (
 	setFlavorOrdered setFlavor = iota
 	setFlavorCustom
 	setFlavorIdentity
+	setFlavorPlain
 )
 
 type setInitKind uint8
@@ -73,16 +74,16 @@ const (
 	setOpFuncDecl
 	setOpFuncCallRename
 	setOpReturnUnwrap
-	setOpParamArg       // f(..., s, ...) -> f(..., &s, ...) / f(..., s, ...)
-	setOpFormatSink     // StrVal(s), StrConcat(..., s), ToStringHelper.Add(..., s)
-	setOpToJavaStr      // javalang.ToJavaString(s) -> (&s).String() / s.String()
-	setOpMethodDirect   // .Size(), .IsEmpty(), .Clear(), .HashCode()
-	setOpMethodUnbox1   // .Add_1(x)->.Add(u), .Contains(x)->.Contains(u), .Remove_1_any(x)->.Remove(u)
-	setOpStaticHelper   // j2gort.SetAddStr(s, k) -> s.Add(k), SetContainsNode -> s.Contains(n), etc.
-	setOpGetFirst       // enclosingUnbox(s.GetFirst()) / s.Iterator().Next() -> s.GetFirst()
-	setOpAddAllSet      // s.AddAll_1(otherSet) -> s.AddAllSet(otherSet) / s.AddAllSetPtr(otherSet)
-	setOpAddAllCol      // s.AddAll_1(col) -> j2gort.OrderedSetAddAll*(&s, col)
-	setOpEqualsSet      // s.Equals(otherSet) -> s.EqualsSet(otherSet) / s.EqualsSetPtr(otherSet)
+	setOpParamArg        // f(..., s, ...) -> f(..., &s, ...) / f(..., s, ...)
+	setOpFormatSink      // StrVal(s), StrConcat(..., s), ToStringHelper.Add(..., s)
+	setOpToJavaStr       // javalang.ToJavaString(s) -> (&s).String() / s.String()
+	setOpMethodDirect    // .Size(), .IsEmpty(), .Clear(), .HashCode()
+	setOpMethodUnbox1    // .Add_1(x)->.Add(u), .Contains(x)->.Contains(u), .Remove_1_any(x)->.Remove(u)
+	setOpStaticHelper    // j2gort.SetAddStr(s, k) -> s.Add(k), SetContainsNode -> s.Contains(n), etc.
+	setOpGetFirst        // enclosingUnbox(s.GetFirst()) / s.Iterator().Next() -> s.GetFirst()
+	setOpAddAllSet       // s.AddAll_1(otherSet) -> s.AddAllSet(otherSet) / s.AddAllSetPtr(otherSet)
+	setOpAddAllCol       // s.AddAll_1(col) -> j2gort.OrderedSetAddAll*(&s, col)
+	setOpEqualsSet       // s.Equals(otherSet) -> s.EqualsSet(otherSet) / s.EqualsSetPtr(otherSet)
 	setOpImmSetCopy      // ImmutableSet_CopyOf_1_*(s) -> s.ToImmutableSet()
 	setOpArrayDequeCopy  // NewExt_java_util_ArrayDeque_1_Ext_java_util_Collection(s) -> j2gort.ArrayDequeFromOrderedSet*(s)
 	setOpNativeDequeCopy // DequeFromCol[T](s) / NodeDequeFromCol[N](s) -> j2gort.DequeFromOrderedSet*(s) / NodeDequeFromOrderedSet*(s)
@@ -165,33 +166,33 @@ type setCandidate struct {
 	hasPtrParamAssign  bool
 	hasExpParamTwin    bool
 	isExportedFn       bool
-	isPtr            bool // lowered to *j2gort.*OrderedSet[T] (nullable/lazy field, nullable local, or param)
-	useLocalSet      bool // lowered to j2gort.LocalOrderedSet[T] (standalone non-nullable stack local)
-	usesOrdSetOnly   bool // uses *OrderedSetFromSet / AddAllSet / ArrayDequeFrom*OrderedSet / EqualsSet / param
-	needsPtrRtHelper bool // uses New*OrderedSetPtrCap / *OrderedSetPtrFrom* / AddAllSetPtr / ArrayDequeFrom*OrderedSetPtr
-	hasHashKind      bool
-	hasIdentityKind  bool
-	flavor           setFlavor
-	ownerStruct      *types.Named
-	recvTArgs        *types.TypeList
-	declFile         *ast.File
-	defCount         int
-	inPkgCalls       int
-	nonSelfCalls     int
-	paramCallIdents  []*ast.Ident
-	hasInit          bool
-	hasNilAssign     bool
-	hasNilCheck      bool
-	hasElemOp        bool
-	disqualified     bool
-	elemType         types.Type
-	elemTypes        []types.Type
-	siteConstraints  []siteTypeConstraint
-	spellSites       []typeSpellSite
-	j2gortSites      []typeSpellSite
-	loopBodies       []*ast.BlockStmt
-	ops              []setRewriteOp
-	parent           *setCandidate
+	isPtr              bool // lowered to *j2gort.*OrderedSet[T] (nullable/lazy field, nullable local, or param)
+	useLocalSet        bool // lowered to j2gort.LocalOrderedSet[T] (standalone non-nullable stack local)
+	usesOrdSetOnly     bool // uses *OrderedSetFromSet / AddAllSet / ArrayDequeFrom*OrderedSet / EqualsSet / param
+	needsPtrRtHelper   bool // uses New*OrderedSetPtrCap / *OrderedSetPtrFrom* / AddAllSetPtr / ArrayDequeFrom*OrderedSetPtr
+	hasHashKind        bool
+	hasIdentityKind    bool
+	flavor             setFlavor
+	ownerStruct        *types.Named
+	recvTArgs          *types.TypeList
+	declFile           *ast.File
+	defCount           int
+	inPkgCalls         int
+	nonSelfCalls       int
+	paramCallIdents    []*ast.Ident
+	hasInit            bool
+	hasNilAssign       bool
+	hasNilCheck        bool
+	hasElemOp          bool
+	disqualified       bool
+	elemType           types.Type
+	elemTypes          []types.Type
+	siteConstraints    []siteTypeConstraint
+	spellSites         []typeSpellSite
+	j2gortSites        []typeSpellSite
+	loopBodies         []*ast.BlockStmt
+	ops                []setRewriteOp
+	parent             *setCandidate
 }
 
 func (c *setCandidate) root() *setCandidate {
@@ -896,7 +897,9 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 		for _, m := range members {
 			m.elemType = elemT
 			m.flavor = flavor
-			if flavor == setFlavorOrdered && hasLocalOrderedSet && len(members) == 1 && m.v != nil && !m.isField && !m.isParam && !m.isPtr && !m.usesOrdSetOnly {
+			if flavor == setFlavorOrdered && len(members) == 1 && canPromoteToPlainSet(m, ctx) {
+				m.flavor = setFlavorPlain
+			} else if flavor == setFlavorOrdered && hasLocalOrderedSet && len(members) == 1 && m.v != nil && !m.isField && !m.isParam && !m.isPtr && !m.usesOrdSetOnly {
 				m.useLocalSet = true
 			}
 			out = append(out, m)
@@ -2191,6 +2194,9 @@ func applySingleSetRewrite(ctx *PassContext, op setRewriteOp, parents map[ast.No
 	case setFlavorIdentity:
 		setBaseName = "IdentityOrderedSet"
 		nonLocalBaseName = "IdentityOrderedSet"
+	case setFlavorPlain:
+		setBaseName = "PlainSet"
+		nonLocalBaseName = "PlainSet"
 	default:
 		if op.cand.useLocalSet {
 			setBaseName = "LocalOrderedSet"
@@ -2215,6 +2221,9 @@ func applySingleSetRewrite(ctx *PassContext, op setRewriteOp, parents map[ast.No
 		case setInitNil:
 			return &ast.Ident{NamePos: pos, Name: "nil"}
 		case setInitEmpty:
+			if op.cand.flavor == setFlavorPlain {
+				return makePlainSetInitExpr(ctx, j2Sel, makeElemType, op.cand.isPtr, false, nil, pos, inHeader)
+			}
 			if op.cand.isPtr {
 				var addr ast.Expr = &ast.UnaryExpr{
 					OpPos: pos, Op: token.AND,
@@ -2227,6 +2236,9 @@ func applySingleSetRewrite(ctx *PassContext, op setRewriteOp, parents map[ast.No
 			}
 			return &ast.CallExpr{Fun: &ast.IndexExpr{X: j2Sel("New"+setBaseName, pos), Index: makeElemType()}}
 		case setInitCap:
+			if op.cand.flavor == setFlavorPlain {
+				return makePlainSetInitExpr(ctx, j2Sel, makeElemType, op.cand.isPtr, true, argExpr, pos, inHeader)
+			}
 			if op.cand.isPtr {
 				return &ast.CallExpr{Fun: &ast.IndexExpr{X: j2Sel("New"+nonLocalBaseName+"PtrCap", pos), Index: makeElemType()}, Args: []ast.Expr{argExpr}}
 			}
@@ -2374,16 +2386,28 @@ func applySingleSetRewrite(ctx *PassContext, op setRewriteOp, parents map[ast.No
 	case setOpMethodUnbox1:
 		parent := parents[op.outerExpr]
 		unboxed := unwrapBoxArgExpr(op.call.Args[0], op.unwrapsBox)
+		selName := op.methodsSel
+		if op.cand.flavor == setFlavorPlain && selName == "Add" {
+			if _, isES := parent.(*ast.ExprStmt); isES && j2gortTypeHasMethod(ctx, "PlainSet", "AddVoid") {
+				selName = "AddVoid"
+			}
+		}
 		repl := &ast.CallExpr{
-			Fun:  &ast.SelectorExpr{X: methodTarget(op.outerExpr.Pos()), Sel: &ast.Ident{NamePos: op.outerExpr.Pos(), Name: op.methodsSel}},
+			Fun:  &ast.SelectorExpr{X: methodTarget(op.outerExpr.Pos()), Sel: &ast.Ident{NamePos: op.outerExpr.Pos(), Name: selName}},
 			Args: []ast.Expr{unboxed},
 		}
 		return parent != nil && replaceExprInParent(parent, op.outerExpr, repl, parents)
 
 	case setOpStaticHelper:
 		parent := parents[op.outerExpr]
+		selName := op.methodsSel
+		if op.cand.flavor == setFlavorPlain && selName == "Add" {
+			if _, isES := parent.(*ast.ExprStmt); isES && j2gortTypeHasMethod(ctx, "PlainSet", "AddVoid") {
+				selName = "AddVoid"
+			}
+		}
 		repl := &ast.CallExpr{
-			Fun:  &ast.SelectorExpr{X: methodTarget(op.outerExpr.Pos()), Sel: &ast.Ident{NamePos: op.outerExpr.Pos(), Name: op.methodsSel}},
+			Fun:  &ast.SelectorExpr{X: methodTarget(op.outerExpr.Pos()), Sel: &ast.Ident{NamePos: op.outerExpr.Pos(), Name: selName}},
 			Args: []ast.Expr{op.argExpr},
 		}
 		return parent != nil && replaceExprInParent(parent, op.outerExpr, repl, parents)
@@ -3633,4 +3657,181 @@ func pickFreshIdent(scopeNode ast.Node, base string) string {
 		}
 		base += "_"
 	}
+}
+
+func isUnorderedHashSetCtorCall(expr ast.Expr, info *types.Info) bool {
+	call, ok := stripParens(expr).(*ast.CallExpr)
+	if !ok || call.Ellipsis.IsValid() {
+		return false
+	}
+	fnName, _, _, isJ2 := isJ2gortCall(call, info)
+	if !isJ2 {
+		return false
+	}
+	switch fnName {
+	case "NewExt_java_util_HashSet", "Ext_com_google_common_collect_Sets_NewHashSet_0":
+		return len(call.Args) == 0
+	case "NewExt_java_util_HashSet_1_int32", "Ext_com_google_common_collect_Sets_NewHashSetWithExpectedSize":
+		return len(call.Args) == 1 && isIntegerExpr(call.Args[0], info)
+	}
+	return false
+}
+
+func makePlainSetInitExpr(
+	ctx *PassContext,
+	j2Sel func(string, token.Pos) *ast.SelectorExpr,
+	makeElemType func() ast.Expr,
+	wantPtr bool,
+	hasCap bool,
+	capExpr ast.Expr,
+	pos token.Pos,
+	inHeader bool,
+) ast.Expr {
+	j2Pkg := findJ2gortTypesPkg(ctx)
+	elemType := makeElemType()
+	if wantPtr {
+		if !hasCap {
+			if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "NewPlainSetPtr"); ok && isPtr && sig.Params().Len() == 0 {
+				return &ast.CallExpr{Fun: &ast.IndexExpr{X: j2Sel("NewPlainSetPtr", pos), Index: elemType}}
+			}
+			var addr ast.Expr = &ast.UnaryExpr{
+				OpPos: pos,
+				Op:    token.AND,
+				X:     &ast.CompositeLit{Type: &ast.IndexExpr{X: j2Sel("PlainSet", pos), Index: elemType}},
+			}
+			if inHeader {
+				addr = &ast.ParenExpr{X: addr}
+			}
+			return addr
+		}
+		if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "NewPlainSetPtrCap"); ok && isPtr && sig.Params().Len() == 1 {
+			return &ast.CallExpr{
+				Fun:  &ast.IndexExpr{X: j2Sel("NewPlainSetPtrCap", pos), Index: elemType},
+				Args: []ast.Expr{convertPlainCapArg(capExpr, sig, ctx.Info, pos)},
+			}
+		}
+		sig, _, _ := resolvePlainCtorSig(j2Pkg, "NewPlainSet")
+		return &ast.CallExpr{
+			Fun:  &ast.IndexExpr{X: j2Sel("NewPlainSet", pos), Index: elemType},
+			Args: []ast.Expr{convertPlainCapArg(capExpr, sig, ctx.Info, pos)},
+		}
+	}
+
+	if !hasCap {
+		if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "NewPlainSet"); ok && !isPtr {
+			var args []ast.Expr
+			if sig.Params().Len() == 1 {
+				args = []ast.Expr{&ast.BasicLit{ValuePos: pos, Kind: token.INT, Value: "0"}}
+			}
+			return &ast.CallExpr{Fun: &ast.IndexExpr{X: j2Sel("NewPlainSet", pos), Index: elemType}, Args: args}
+		}
+		return &ast.CallExpr{Fun: &ast.IndexExpr{X: j2Sel("NewPlainSetVal", pos), Index: elemType}}
+	}
+
+	if sig, isPtr, ok := resolvePlainCtorSig(j2Pkg, "NewPlainSet"); ok && !isPtr && sig.Params().Len() == 1 {
+		return &ast.CallExpr{
+			Fun:  &ast.IndexExpr{X: j2Sel("NewPlainSet", pos), Index: elemType},
+			Args: []ast.Expr{convertPlainCapArg(capExpr, sig, ctx.Info, pos)},
+		}
+	}
+	sig, _, _ := resolvePlainCtorSig(j2Pkg, "NewPlainSetCap")
+	return &ast.CallExpr{
+		Fun:  &ast.IndexExpr{X: j2Sel("NewPlainSetCap", pos), Index: elemType},
+		Args: []ast.Expr{convertPlainCapArg(capExpr, sig, ctx.Info, pos)},
+	}
+}
+
+func canPromoteToPlainSet(m *setCandidate, ctx *PassContext) bool {
+	if m == nil || ctx == nil || m.v == nil || m.isFunc || m.isParam || m.isPtrAlias || m.usesOrdSetOnly || m.hasIdentityKind {
+		return false
+	}
+	j2Pkg := findJ2gortTypesPkg(ctx)
+	if j2Pkg == nil || j2Pkg.Scope() == nil || j2Pkg.Scope().Lookup("PlainSet") == nil || j2Pkg.Scope().Lookup("NewPlainSet") == nil {
+		return false
+	}
+	if isLinkedDeclaredCollectionType(m.v.Type()) {
+		return false
+	}
+	if m.hasNilCheck && !m.isPtr && !j2gortTypeHasMethod(ctx, "PlainSet", "IsNil") {
+		return false
+	}
+
+	sawUnorderedAlloc := false
+	checkInitBranch := func(initK setInitKind, initExpr ast.Expr, capArg ast.Expr) bool {
+		switch initK {
+		case setInitNil:
+			return true
+		case setInitEmpty:
+			if !isUnorderedHashSetCtorCall(initExpr, ctx.Info) || !canMakePlainCtor(j2Pkg, "PlainSet", m.isPtr, false, nil, ctx) {
+				return false
+			}
+			sawUnorderedAlloc = true
+			return true
+		case setInitCap:
+			if !isUnorderedHashSetCtorCall(initExpr, ctx.Info) || !canMakePlainCtor(j2Pkg, "PlainSet", m.isPtr, true, capArg, ctx) {
+				return false
+			}
+			sawUnorderedAlloc = true
+			return true
+		default:
+			return false
+		}
+	}
+
+	for i := range m.ops {
+		op := &m.ops[i]
+		switch op.kind {
+		case setOpDeclField:
+			continue
+		case setOpDeclVarSpec:
+			spec, ok := op.spanNode.(*ast.ValueSpec)
+			if !ok {
+				return false
+			}
+			if len(spec.Values) == 0 {
+				continue
+			}
+			rhs := spec.Values[0]
+			if op.initKind == setInitIIFE && op.iifeSpec != nil {
+				for _, br := range op.iifeSpec.branches {
+					if !checkInitBranch(br.initKind, br.ret.Results[0], br.argExpr) {
+						return false
+					}
+				}
+			} else if !checkInitBranch(op.initKind, rhs, op.argExpr) {
+				return false
+			}
+		case setOpDeclShortVar, setOpAssignInit:
+			as, ok := op.spanNode.(*ast.AssignStmt)
+			if !ok || len(as.Rhs) != 1 {
+				return false
+			}
+			rhs := as.Rhs[0]
+			if op.initKind == setInitIIFE && op.iifeSpec != nil {
+				for _, br := range op.iifeSpec.branches {
+					if !checkInitBranch(br.initKind, br.ret.Results[0], br.argExpr) {
+						return false
+					}
+				}
+			} else if !checkInitBranch(op.initKind, rhs, op.argExpr) {
+				return false
+			}
+		case setOpMethodDirect:
+			switch op.methodsSel {
+			case "Size", "IsEmpty", "Clear":
+			default:
+				return false
+			}
+		case setOpMethodUnbox1, setOpStaticHelper:
+			switch op.methodsSel {
+			case "Add", "Contains", "Remove":
+			default:
+				return false
+			}
+		default:
+			return false
+		}
+	}
+
+	return sawUnorderedAlloc
 }

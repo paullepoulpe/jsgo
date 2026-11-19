@@ -63,6 +63,14 @@ func ToIface_Source[T interface {
 	return v
 }
 
+func Upcast_Source[T Source](v T) Source {
+	var vi Source = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.bundle.Source
 type SourceBase struct {
 	self_   Source
@@ -184,7 +192,7 @@ func (this_ *SourceBase) ToBuilder() Source_Builder {
 // Java static method: Source.builder()
 func Source_S_Builder() Source_Builder {
 	clinit_Source()
-	return NewAutoValue_Source_Builder().SetPath(StaticGet_Source_DEV_NULL()).SetCode_1_string("").SetOriginalCodeSupplier(nil).SetSourceMap("").SetSourceUrl("").SetSourceMappingUrl("").SetRuntimes(j2gort.Ext_com_google_common_collect_ImmutableSet_Of_0()).SetLoadFlags(j2gort.Ext_com_google_common_collect_ImmutableMap_Of_0()).SetEstimatedSize(int32(0))
+	return NewAutoValue_Source_Builder().SetPath(StaticGet_Source_DEV_NULL()).GetSource_BuilderBase().SetCode_1_string("").SetOriginalCodeSupplier(nil).SetSourceMap("").SetSourceUrl("").SetSourceMappingUrl("").SetRuntimes(j2gort.Ext_com_google_common_collect_ImmutableSet_Of_0()).SetLoadFlags(j2gort.Ext_com_google_common_collect_ImmutableMap_Of_0()).SetEstimatedSize(int32(0))
 }
 
 // Java method: Source.codeSupplier()
@@ -232,6 +240,14 @@ func ToIface_Source_Builder[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_Source_Builder[T Source_Builder](v T) Source_Builder {
+	var vi Source_Builder = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.bundle.Source.Builder
@@ -416,6 +432,14 @@ func ToIface_Source_Transformer[T interface {
 	return v
 }
 
+func Upcast_Source_Transformer[T Source_Transformer](v T) Source_Transformer {
+	var vi Source_Transformer = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.bundle.Source.Transformer", "com.google.javascript.jscomp.bundle.Source$Transformer", func(v_ any) bool {
 		return j2gort.InstanceOf[Source_Transformer](v_)
@@ -517,6 +541,14 @@ func ToIface_Source_Lazy[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_Source_Lazy[T Source_Lazy](v T) Source_Lazy {
+	var vi Source_Lazy = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.bundle.Source.Lazy

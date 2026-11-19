@@ -46,6 +46,14 @@ func ToIface_WarningsGuard[T interface {
 	return v
 }
 
+func Upcast_WarningsGuard[T WarningsGuard](v T) WarningsGuard {
+	var vi WarningsGuard = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.WarningsGuard
 type WarningsGuardBase struct {
 	idHash_ atomic.Int32

@@ -113,7 +113,7 @@ func (this_ *OptimizeCalls) Process_2(externs pkg_rhino.Node, root pkg_rhino.Nod
 		(&ntb_).TraverseRoots(externs, root)
 	}
 
-	this_.priv_OptimizeCalls_eliminateAccessorsFrom_4044(references)
+	this_.priv_OptimizeCalls_eliminateAccessorsFrom_4041(references)
 	{
 
 		for _, pass := range this_.passes {
@@ -125,7 +125,7 @@ func (this_ *OptimizeCalls) Process_2(externs pkg_rhino.Node, root pkg_rhino.Nod
 }
 
 // Java method: OptimizeCalls.eliminateAccessorsFrom(com.google.javascript.jscomp.OptimizeCalls.ReferenceMap references)
-func (this_ *OptimizeCalls) priv_OptimizeCalls_eliminateAccessorsFrom_4044(references *OptimizeCalls_ReferenceMap) {
+func (this_ *OptimizeCalls) priv_OptimizeCalls_eliminateAccessorsFrom_4041(references *OptimizeCalls_ReferenceMap) {
 	_ = references
 	{
 		cur_4 := j2gort.NewMapKeyStrCursor(this_.compiler.GetAccessorSummary().GetAccessors())
@@ -223,6 +223,14 @@ func ToIface_OptimizeCalls_CallGraphCompilerPass[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_OptimizeCalls_CallGraphCompilerPass[T OptimizeCalls_CallGraphCompilerPass](v T) OptimizeCalls_CallGraphCompilerPass {
+	var vi OptimizeCalls_CallGraphCompilerPass = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {
@@ -1196,9 +1204,9 @@ func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) Visit_3(t *NodeTraversa
 	_ = unused
 	switch n.TokenSwitchOrd_() {
 	case int32(32) /* Token.NAME */ :
-		this_.priv_ReferenceMapBuildingCallback_maybeAddNameReference_4061(n.GetString(), n)
+		this_.priv_ReferenceMapBuildingCallback_maybeAddNameReference_4058(n.GetString(), n)
 	case int32(29) /* Token.OPTCHAIN_GETPROP */, int32(26) /* Token.GETPROP */ :
-		this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4062(n.GetString(), n)
+		this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4059(n.GetString(), n)
 	case int32(28) /* Token.CALL */ :
 		var fnName pkg_rhino.Node = n.GetFirstChild()
 		_ = fnName
@@ -1206,22 +1214,22 @@ func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) Visit_3(t *NodeTraversa
 			var propName pkg_rhino.Node = NodeUtil_GetArgumentForCallOrNew(n, int32(0))
 			_ = propName
 			if propName != 0 {
-				this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4062(propName.GetString(), n)
+				this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4059(propName.GetString(), n)
 			}
 		}
 	case int32(100) /* Token.STRING_KEY */, int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */, int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(108) /* Token.MEMBER_FIELD_DEF */ :
 		if !(n.IsQuotedStringKey()) {
-			this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4062(n.GetString(), n)
+			this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4059(n.GetString(), n)
 		}
 	case int32(110) /* Token.SUPER */ :
-		this_.priv_ReferenceMapBuildingCallback_visitSuper_4060(n)
+		this_.priv_ReferenceMapBuildingCallback_visitSuper_4057(n)
 	case int32(129) /* Token.COMPUTED_PROP */, int32(109) /* Token.COMPUTED_FIELD_DEF */, int32(30) /* Token.OPTCHAIN_GETELEM */, int32(27) /* Token.GETELEM */, int32(126) /* Token.OBJECT_REST */, int32(128) /* Token.OBJECT_SPREAD */ :
 	default:
 	}
 }
 
 // Java method: ReferenceMapBuildingCallback.visitSuper(com.google.javascript.rhino.Node superNode)
-func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildingCallback_visitSuper_4060(superNode pkg_rhino.Node) {
+func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildingCallback_visitSuper_4057(superNode pkg_rhino.Node) {
 	_ = superNode
 	var parent pkg_rhino.Node = superNode.GetParent()
 	_ = parent
@@ -1234,15 +1242,15 @@ func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildi
 			j2gort.CheckStateStr(false, "super call appears in class without extends clause")
 		}
 		if extendsNode.IsName() {
-			this_.priv_ReferenceMapBuildingCallback_maybeAddNameReference_4061(extendsNode.GetString(), superNode)
+			this_.priv_ReferenceMapBuildingCallback_maybeAddNameReference_4058(extendsNode.GetString(), superNode)
 		} else if extendsNode.IsGetProp() {
-			this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4062(extendsNode.GetString(), superNode)
+			this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4059(extendsNode.GetString(), superNode)
 		}
 	}
 }
 
 // Java method: ReferenceMapBuildingCallback.maybeAddNameReference(java.lang.String name, com.google.javascript.rhino.Node n)
-func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildingCallback_maybeAddNameReference_4061(name string, n pkg_rhino.Node) {
+func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildingCallback_maybeAddNameReference_4058(name string, n pkg_rhino.Node) {
 	_ = name
 	_ = n
 	var var_ *Var = j2gort.CastPtr[Var](this_.globalScope.GetSlot(name))
@@ -1253,7 +1261,7 @@ func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildi
 }
 
 // Java method: ReferenceMapBuildingCallback.maybeAddPropReference(java.lang.String name, com.google.javascript.rhino.Node n)
-func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildingCallback_maybeAddPropReference_4062(name string, n pkg_rhino.Node) {
+func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildingCallback_maybeAddPropReference_4059(name string, n pkg_rhino.Node) {
 	_ = name
 	_ = n
 	if this_.outer_.considerExterns || !(j2gort.SetContainsStr(this_.externProps, name)) {

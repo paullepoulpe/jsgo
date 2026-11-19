@@ -509,3 +509,141 @@ func TestWave36CPureASCIIAppendEncodeAndDecodeDedup(t *testing.T) {
 		}
 	}
 }
+
+
+type countingWriteCloser struct {
+	buf    []byte
+	writes int
+	closes int
+	flushes int
+}
+
+func (c *countingWriteCloser) Write(p []byte) (int, error) {
+	c.writes++
+	c.buf = append(c.buf, p...)
+	return len(p), nil
+}
+
+func (c *countingWriteCloser) Flush() error {
+	c.flushes++
+	return nil
+}
+
+func (c *countingWriteCloser) Close() error {
+	c.closes++
+	return nil
+}
+
+func TestWave38CSyscallReadStringAndBufferedCharsetWriter(t *testing.T) {
+	tmp := t.TempDir()
+
+	// 1. Directory error parity (EISDIR -> IOException).
+	if _, err := javanio.Files_ReadString(javanio.Path_Of(tmp)); err == nil {
+		t.Fatal("expected IOException reading directory via Files_ReadString")
+	}
+	if _, err := javanio.Files_ReadString(javanio.Path_Of(tmp, "missing_file.js")); err == nil {
+		t.Fatal("expected IOException reading nonexistent file")
+	}
+
+	// 2. Small file (< 256 KiB): <= 2 allocs on warm pool (C-string path + output string, zero *os.File / fstat allocs!).
+	smallSrc := strings.Repeat("export const v = 42;\n", 200) // 4,200 B
+	smallPath := javanio.Path_Of(tmp, "small_w38c.js")
+	if err := os.WriteFile(smallPath.String(), []byte(smallSrc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := javanio.Files_ReadString(smallPath); err != nil || got != smallSrc {
+		t.Fatalf("small read mismatch: err=%v len=%d", err, len(got))
+	}
+	if allocs := testing.AllocsPerRun(50, func() {
+		s, err := javanio.Files_ReadString(smallPath)
+		if err != nil || len(s) != len(smallSrc) {
+			t.Fatal(err)
+		}
+	}); allocs > 2 {
+		t.Fatalf("expected <= 2 allocations per Files_ReadString (path + string), got %.1f", allocs)
+	}
+
+	// 3. Exact 256 KiB boundary (262,144 B) + > 256 KiB multi-chunk UTF-8 with 4-byte rune straddling 262,144!
+	exact256k := strings.Repeat("abcdefgh", 32768) // 262,144 B
+	exactPath := javanio.Path_Of(tmp, "exact256k.js")
+	if err := os.WriteFile(exactPath.String(), []byte(exact256k), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := javanio.Files_ReadString(exactPath); err != nil || got != exact256k {
+		t.Fatalf("exact 256 KiB read mismatch: err=%v len=%d", err, len(got))
+	}
+
+	straddle256k := strings.Repeat("x", 262142) + "🚀" + strings.Repeat("y", 300000) + "λ€\n"
+	straddlePath := javanio.Path_Of(tmp, "straddle256k.js")
+	if err := os.WriteFile(straddlePath.String(), []byte(straddle256k), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := javanio.Files_ReadString(straddlePath); err != nil || got != straddle256k {
+		t.Fatalf(">256 KiB straddle UTF-8 mismatch: err=%v len(got)=%d len(want)=%d", err, len(got), len(straddle256k))
+	}
+
+	// Malformed 3-byte UTF-8 straddling 262,144 boundary.
+	badLarge := make([]byte, 300000)
+	for i := range badLarge {
+		badLarge[i] = 'a'
+	}
+	badLarge[262143] = 0xE2
+	badLarge[262144] = 0x82
+	badLarge[262145] = 'x'
+	badLargePath := javanio.Path_Of(tmp, "bad_large.js")
+	if err := os.WriteFile(badLargePath.String(), badLarge, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := javanio.Files_ReadString(badLargePath); err == nil {
+		t.Fatal("expected MalformedInputException on >256 KiB straddling malformed UTF-8")
+	}
+
+	// >256 KiB UTF-16 round-trip via exotic fallback.
+	bigUTF16Text := strings.Repeat("HelloUTF16😀\n", 20000)
+	bigUTF16Path := javanio.Path_Of(tmp, "big_utf16.txt")
+	if err := os.WriteFile(bigUTF16Path.String(), javanio.StandardCharsets_UTF_16.Encode(bigUTF16Text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := javanio.Files_ReadStringCharset(bigUTF16Path, javanio.StandardCharsets_UTF_16); err != nil || got != bigUTF16Text {
+		t.Fatalf(">256 KiB UTF-16 read mismatch: err=%v len=%d", err, len(got))
+	}
+
+	// 4. 8 KiB buffered charsetWriter: 1,000 tiny 10-byte writes coalesce into 2 underlying Write calls!
+	cw := &countingWriteCloser{}
+	w := javanio.NewOutputStreamWriterWithCharset(cw, javanio.StandardCharsets_UTF_8)
+	for i := 0; i < 1000; i++ {
+		w.Write("0123456789")
+	}
+	if cw.writes != 1 {
+		t.Fatalf("expected 1 underlying 8 KiB flush during 10,000B of 10B writes, got %d", cw.writes)
+	}
+	w.AppendCharacter('!')
+	w.Flush()
+	if cw.writes != 2 || cw.flushes != 1 || len(cw.buf) != 10001 {
+		t.Fatalf("after Flush: writes=%d flushes=%d len=%d", cw.writes, cw.flushes, len(cw.buf))
+	}
+	// Large >= 8 KiB write flushes pending bytes and bypasses intermediate buffering cleanly.
+	w.Write("hdr:")
+	bigChunk := strings.Repeat("Z", 10000)
+	w.Write(bigChunk)
+	// Idempotent Close()
+	w.Close()
+	w.Close()
+	if cw.closes != 1 {
+		t.Fatalf("expected Close() to close underlying stream once, got %d", cw.closes)
+	}
+	wantWritten := strings.Repeat("0123456789", 1000) + "!hdr:" + bigChunk
+	if string(cw.buf) != wantWritten {
+		t.Fatalf("buffered charsetWriter content mismatch: len=%d want=%d", len(cw.buf), len(wantWritten))
+	}
+
+	// Write after Close panics.
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("expected panic writing to closed charsetWriter")
+			}
+		}()
+		w.Write("after-close")
+	}()
+}

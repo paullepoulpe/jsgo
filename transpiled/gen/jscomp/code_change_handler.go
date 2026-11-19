@@ -38,6 +38,14 @@ func ToIface_CodeChangeHandler[T interface {
 	return v
 }
 
+func Upcast_CodeChangeHandler[T CodeChangeHandler](v T) CodeChangeHandler {
+	var vi CodeChangeHandler = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.CodeChangeHandler", "com.google.javascript.jscomp.CodeChangeHandler", func(v_ any) bool {
 		return j2gort.InstanceOf[CodeChangeHandler](v_)

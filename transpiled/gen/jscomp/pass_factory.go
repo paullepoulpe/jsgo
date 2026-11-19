@@ -26,32 +26,33 @@ import (
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
 )
 
-
 var lambdaSingleton_pass_factory_1 j2gort.Ext_java_util_function_Function
 var lambdaSingleton_pass_factory_2 j2gort.Ext_java_util_function_Function
 var lambdaSingleton_pass_factory_3 CompilerPass
 var lambdaSingleton_pass_factory_4 j2gort.Ext_java_util_function_Function
+
 func init() {
 	lambdaSingleton_pass_factory_1 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_1 any) any {
-	o := j2gort.CastPtr[CompilerOptions](lp_1)
-	_ = o
-	return j2gort.PtrToAny(StaticGet_PassFactory_PreconditionResult_SUCCESS())
-})
+		o := j2gort.CastPtr[CompilerOptions](lp_1)
+		_ = o
+		return j2gort.PtrToAny(StaticGet_PassFactory_PreconditionResult_SUCCESS())
+	})
 	lambdaSingleton_pass_factory_2 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_2 any) any {
-	o := j2gort.CastPtr[CompilerOptions](lp_2)
-	_ = o
-	return j2gort.ValueOfBoolean(true)
-})
+		o := j2gort.CastPtr[CompilerOptions](lp_2)
+		_ = o
+		return j2gort.ValueOfBoolean(true)
+	})
 	lambdaSingleton_pass_factory_3 = NewLambda_CompilerPass(func(externs pkg_rhino.Node, root pkg_rhino.Node) {
-	_ = externs
-	_ = root
-})
+		_ = externs
+		_ = root
+	})
 	lambdaSingleton_pass_factory_4 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_3 any) any {
-	c := j2gort.AsIface[AbstractCompiler](lp_3)
-	_ = c
-	return lambdaSingleton_pass_factory_3
-})
+		c := j2gort.AsIface[AbstractCompiler](lp_3)
+		_ = c
+		return lambdaSingleton_pass_factory_3
+	})
 }
+
 // Java polymorphic class interface: com.google.javascript.jscomp.PassFactory
 type PassFactory interface {
 	Implements_jscomp_PassFactory()
@@ -66,6 +67,7 @@ type PassFactory interface {
 	ValidatePreconditions(*CompilerOptions)
 	Create(AbstractCompiler) CompilerPass
 }
+
 func ToIface_PassFactory[T interface {
 	PassFactory
 	comparable
@@ -77,9 +79,17 @@ func ToIface_PassFactory[T interface {
 	return v
 }
 
+func Upcast_PassFactory[T PassFactory](v T) PassFactory {
+	var vi PassFactory = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.PassFactory
 type PassFactoryBase struct {
-	self_ PassFactory
+	self_   PassFactory
 	idHash_ atomic.Int32
 }
 
@@ -88,7 +98,9 @@ func (this_ *PassFactoryBase) BindSelf_(s any) {
 	this_.self_ = s.(PassFactory)
 }
 func (this_ *PassFactoryBase) IsJavaNil_() bool { return this_ == nil }
-func (*PassFactoryBase) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.PassFactory", "PassFactory" }
+func (*PassFactoryBase) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.PassFactory", "PassFactory"
+}
 func (this_ *PassFactoryBase) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -104,7 +116,7 @@ func init() {
 	})
 }
 func (b *PassFactoryBase) GetPassFactoryBase() *PassFactoryBase { return b }
-func (*PassFactoryBase) Implements_jscomp_PassFactory() {}
+func (*PassFactoryBase) Implements_jscomp_PassFactory()         {}
 
 func (this_ *PassFactoryBase) initFields_PassFactory() {
 	_ = this_
@@ -154,7 +166,7 @@ func (this_ *PassFactoryBase) ValidatePreconditions(options *CompilerOptions) {
 	_ = options
 	var canRun *PassFactory_PreconditionResult = j2gort.CastPtr[PassFactory_PreconditionResult](this_.self_.GetPreconditionCheck().Apply(j2gort.PtrToAny(options)))
 	_ = canRun
-	if (!(canRun.success)) {
+	if !(canRun.success) {
 		panic(j2gort.AsIface[javalang.IIllegalArgumentException](j2gort.ConstructShimThrowable("java.lang.IllegalArgumentException", j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("Precondition for pass %s failed: %s", []any{j2gort.BoxString(this_.self_.GetName()), j2gort.BoxString(canRun.Message())})))))
 	}
 }
@@ -162,10 +174,12 @@ func (this_ *PassFactoryBase) ValidatePreconditions(options *CompilerOptions) {
 // Java static method: PassFactory.createEmptyPass(java.lang.String name)
 func PassFactory_CreateEmptyPass(name string) PassFactory {
 	_ = name
-	return PassFactory_S_Builder().SetName(name).SetInternalFactory(lambdaSingleton_pass_factory_4).Build()
+	return PassFactory_S_Builder().SetName(name).SetInternalFactory(lambdaSingleton_pass_factory_4).GetPassFactory_BuilderBase(
+
+	// Java method: PassFactory.create(com.google.javascript.jscomp.AbstractCompiler compiler)
+	).Build()
 }
 
-// Java method: PassFactory.create(com.google.javascript.jscomp.AbstractCompiler compiler)
 func (this_ *PassFactoryBase) Create(compiler AbstractCompiler) CompilerPass {
 	_ = compiler
 	return j2gort.AsIface[CompilerPass](this_.self_.GetInternalFactory().Apply(compiler))
@@ -174,14 +188,16 @@ func (this_ *PassFactoryBase) Create(compiler AbstractCompiler) CompilerPass {
 // Java record: com.google.javascript.jscomp.PassFactory.PreconditionResult
 type PassFactory_PreconditionResult struct {
 	message string `gson:"message"`
-	success bool `gson:"success"`
+	success bool   `gson:"success"`
 }
 
 func (this_ *PassFactory_PreconditionResult) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *PassFactory_PreconditionResult) IsJavaNil_() bool { return this_ == nil }
-func (*PassFactory_PreconditionResult) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.PassFactory$PreconditionResult", "PreconditionResult" }
+func (*PassFactory_PreconditionResult) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.PassFactory$PreconditionResult", "PreconditionResult"
+}
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.PassFactory.PreconditionResult", "com.google.javascript.jscomp.PassFactory$PreconditionResult", func(v_ any) bool {
 		return j2gort.InstanceOf[*PassFactory_PreconditionResult](v_)
@@ -190,6 +206,7 @@ func init() {
 func (*PassFactory_PreconditionResult) Implements_j2gort_Ext_java_lang_Record() {}
 
 var static_PassFactory_PreconditionResult_SUCCESS *PassFactory_PreconditionResult
+
 func StaticGet_PassFactory_PreconditionResult_SUCCESS() *PassFactory_PreconditionResult {
 	clinit_PassFactory_PreconditionResult()
 	return static_PassFactory_PreconditionResult_SUCCESS
@@ -198,8 +215,10 @@ func StaticSet_PassFactory_PreconditionResult_SUCCESS(v *PassFactory_Preconditio
 	clinit_PassFactory_PreconditionResult()
 	static_PassFactory_PreconditionResult_SUCCESS = v
 }
+
 var clinitDone_PassFactory_PreconditionResult uint32
 var clinitState_PassFactory_PreconditionResult j2gort.ClinitState
+
 func clinit_PassFactory_PreconditionResult() {
 	if atomic.LoadUint32(&clinitDone_PassFactory_PreconditionResult) != 0 {
 		return
@@ -235,7 +254,7 @@ func InitPassFactory_PreconditionResult(this_ *PassFactory_PreconditionResult, s
 	this_.message = message
 }
 
-func (this_ *PassFactory_PreconditionResult) Success() bool { return this_.success }
+func (this_ *PassFactory_PreconditionResult) Success() bool   { return this_.success }
 func (this_ *PassFactory_PreconditionResult) Message() string { return this_.message }
 func (this_ *PassFactory_PreconditionResult) Equals(other_ any) bool {
 	o_, ok_ := other_.(*PassFactory_PreconditionResult)
@@ -245,14 +264,28 @@ func (this_ *PassFactory_PreconditionResult) Equals(other_ any) bool {
 	if this_ == o_ {
 		return true
 	}
-	if this_.success != o_.success { return false }
-	if this_.message != o_.message { return false }
+	if this_.success != o_.success {
+		return false
+	}
+	if this_.message != o_.message {
+		return false
+	}
 	return true
 }
 func (this_ *PassFactory_PreconditionResult) HashCode() int32 {
 	var h_ int32 = 0
-	if this_.success { h_ = 31*h_ + 1231 } else { h_ = 31*h_ + 1237 }
-	{ hs_4 := this_.message; h_ = 31 * h_; if hs_4 != j2gort.NullString { h_ += javalang.StringHashCode(hs_4) } }
+	if this_.success {
+		h_ = 31*h_ + 1231
+	} else {
+		h_ = 31*h_ + 1237
+	}
+	{
+		hs_4 := this_.message
+		h_ = 31 * h_
+		if hs_4 != j2gort.NullString {
+			h_ += javalang.StringHashCode(hs_4)
+		}
+	}
 	return h_
 }
 func (this_ *PassFactory_PreconditionResult) String() string {
@@ -273,6 +306,7 @@ type PassFactory_Builder interface {
 	AutoBuild() PassFactory
 	Build() PassFactory
 }
+
 func ToIface_PassFactory_Builder[T interface {
 	PassFactory_Builder
 	comparable
@@ -284,9 +318,17 @@ func ToIface_PassFactory_Builder[T interface {
 	return v
 }
 
+func Upcast_PassFactory_Builder[T PassFactory_Builder](v T) PassFactory_Builder {
+	var vi PassFactory_Builder = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.PassFactory.Builder
 type PassFactory_BuilderBase struct {
-	self_ PassFactory_Builder
+	self_   PassFactory_Builder
 	idHash_ atomic.Int32
 }
 
@@ -295,7 +337,9 @@ func (this_ *PassFactory_BuilderBase) BindSelf_(s any) {
 	this_.self_ = s.(PassFactory_Builder)
 }
 func (this_ *PassFactory_BuilderBase) IsJavaNil_() bool { return this_ == nil }
-func (*PassFactory_BuilderBase) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.PassFactory$Builder", "Builder" }
+func (*PassFactory_BuilderBase) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.PassFactory$Builder", "Builder"
+}
 func (this_ *PassFactory_BuilderBase) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -311,7 +355,7 @@ func init() {
 	})
 }
 func (b *PassFactory_BuilderBase) GetPassFactory_BuilderBase() *PassFactory_BuilderBase { return b }
-func (*PassFactory_BuilderBase) Implements_jscomp_PassFactory_Builder() {}
+func (*PassFactory_BuilderBase) Implements_jscomp_PassFactory_Builder()                 {}
 
 func (this_ *PassFactory_BuilderBase) initFields_PassFactory_Builder() {
 	_ = this_
@@ -360,7 +404,8 @@ func (this_ *PassFactory_BuilderBase) AutoBuild() PassFactory {
 func (this_ *PassFactory_BuilderBase) Build() PassFactory {
 	var result PassFactory = this_.self_.AutoBuild()
 	_ = result
-	if !(!((j2gort.CheckNotNullString(result.GetName()) == ""))) { j2gort.CheckState(false) }
+	if !(!(j2gort.CheckNotNullString(result.GetName()) == "")) {
+		j2gort.CheckState(false)
+	}
 	return result
 }
-

@@ -38,6 +38,14 @@ func ToIface_LatticeElement[T interface {
 	return v
 }
 
+func Upcast_LatticeElement[T LatticeElement](v T) LatticeElement {
+	var vi LatticeElement = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.graph.LatticeElement", "com.google.javascript.jscomp.graph.LatticeElement", func(v_ any) bool {
 		return j2gort.InstanceOf[LatticeElement](v_)

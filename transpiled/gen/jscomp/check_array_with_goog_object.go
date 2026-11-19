@@ -134,11 +134,11 @@ func (this_ *CheckArrayWithGoogObject) IsGoogObjectIterationOverArray(n pkg_rhin
 	}
 	var type_ pkg_rhino.JSType = firstArg.GetJSType()
 	_ = type_
-	return ((type_ != nil && !type_.IsJavaNil_()) && this_.priv_CheckArrayWithGoogObject_containsArray_6494(type_))
+	return ((type_ != nil && !type_.IsJavaNil_()) && this_.priv_CheckArrayWithGoogObject_containsArray_6500(type_))
 }
 
 // Java method: CheckArrayWithGoogObject.containsArray(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *CheckArrayWithGoogObject) priv_CheckArrayWithGoogObject_containsArray_6494(type_ pkg_rhino.JSType) bool {
+func (this_ *CheckArrayWithGoogObject) priv_CheckArrayWithGoogObject_containsArray_6500(type_ pkg_rhino.JSType) bool {
 	_ = type_
 	if type_.IsArrayType() {
 		return true
@@ -148,7 +148,7 @@ func (this_ *CheckArrayWithGoogObject) priv_CheckArrayWithGoogObject_containsArr
 	if (templatizedType != nil) && templatizedType.GetReferencedType().IsArrayType() {
 		return true
 	}
-	if type_.IsUnionType() {
+	if type_.GetJSTypeBase().IsUnionType() {
 		var arrayType pkg_rhino.JSType = this_.compiler.GetTypeRegistry().GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE())
 		_ = arrayType
 		var union *pkg_rhino.UnionType = type_.ToMaybeUnionType()
@@ -159,7 +159,7 @@ func (this_ *CheckArrayWithGoogObject) priv_CheckArrayWithGoogObject_containsArr
 			var n int32 = union.GetAlternatesCount()
 			_ = n
 			for ; i < n; i = i + 1 {
-				if union.GetAlternateAt(i).IsSubtypeOf_1(arrayType) {
+				if union.GetAlternateAt(i).GetJSTypeBase().IsSubtypeOf_1(arrayType) {
 					return true
 				}
 			}

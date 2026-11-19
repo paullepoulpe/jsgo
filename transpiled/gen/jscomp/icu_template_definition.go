@@ -41,6 +41,14 @@ func ToIface_IcuTemplateDefinition[T interface {
 	return v
 }
 
+func Upcast_IcuTemplateDefinition[T IcuTemplateDefinition](v T) IcuTemplateDefinition {
+	var vi IcuTemplateDefinition = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.IcuTemplateDefinition", "com.google.javascript.jscomp.IcuTemplateDefinition", func(v_ any) bool {
 		return j2gort.InstanceOf[IcuTemplateDefinition](v_)

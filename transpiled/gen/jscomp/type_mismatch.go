@@ -161,14 +161,14 @@ func (this_ *TypeMismatch) HashCode() int32 {
 		hi_1 := this_.found
 		h_ = 31 * h_
 		if hi_1 != nil && !hi_1.IsJavaNil_() {
-			h_ += hi_1.HashCode()
+			h_ += hi_1.GetJSTypeBase().HashCode()
 		}
 	}
 	{
 		hi_2 := this_.required
 		h_ = 31 * h_
 		if hi_2 != nil && !hi_2.IsJavaNil_() {
-			h_ += hi_2.HashCode()
+			h_ += hi_2.GetJSTypeBase().HashCode()
 		}
 	}
 	h_ = 31*h_ + int32(this_.location)
@@ -231,10 +231,10 @@ func (this_ *TypeMismatch_Accumulator) RegisterMismatch(location pkg_rhino.Node,
 	_ = required
 	found = TypeMismatch_Accumulator_RemoveNullUndefinedAndTemplates(found)
 	required = TypeMismatch_Accumulator_RemoveNullUndefinedAndTemplates(required)
-	if found.IsSubtypeOf_1(required) || required.IsSubtypeOf_1(found) {
+	if found.GetJSTypeBase().IsSubtypeOf_1(required) || required.GetJSTypeBase().IsSubtypeOf_1(found) {
 		return
 	}
-	if required.IsUnionType() {
+	if required.GetJSTypeBase().IsUnionType() {
 		var union *pkg_rhino.UnionType = required.ToMaybeUnionType()
 		_ = union
 		{
@@ -243,7 +243,7 @@ func (this_ *TypeMismatch_Accumulator) RegisterMismatch(location pkg_rhino.Node,
 			var n int32 = union.GetAlternatesCount()
 			_ = n
 			for ; i < n; i = i + 1 {
-				if union.GetAlternateAt(i).IsSubtypeOf_1(found) {
+				if union.GetAlternateAt(i).GetJSTypeBase().IsSubtypeOf_1(found) {
 					return
 				}
 			}
@@ -252,7 +252,7 @@ func (this_ *TypeMismatch_Accumulator) RegisterMismatch(location pkg_rhino.Node,
 	if TypeMismatch_Accumulator_BothAreNotTemplateTypes(found, required) {
 		this_.mismatches = append(this_.mismatches, TypeMismatch_Create(found, required, location))
 	}
-	if found.IsFunctionType() && required.IsFunctionType() {
+	if found.GetJSTypeBase().IsFunctionType() && required.GetJSTypeBase().IsFunctionType() {
 		var fnTypeA *pkg_rhino.FunctionType = found.ToMaybeFunctionType()
 		_ = fnTypeA
 		var fnTypeB *pkg_rhino.FunctionType = required.ToMaybeFunctionType()
@@ -267,10 +267,10 @@ func (this_ *TypeMismatch_Accumulator) RegisterMismatch(location pkg_rhino.Node,
 			var len_ int32 = min(int32(len(paramsA)), int32(len(paramsB)))
 			_ = len_
 			for ; i_2 < len_; i_2 = i_2 + 1 {
-				this_.priv_Accumulator_registerIfMismatch_5573(location, paramsA[i_2].GetJSType(), paramsB[i_2].GetJSType())
+				this_.priv_Accumulator_registerIfMismatch_5570(location, paramsA[i_2].GetJSType(), paramsB[i_2].GetJSType())
 			}
 		}
-		this_.priv_Accumulator_registerIfMismatch_5573(location, fnTypeA.GetReturnType(), fnTypeB.GetReturnType())
+		this_.priv_Accumulator_registerIfMismatch_5570(location, fnTypeA.GetReturnType(), fnTypeB.GetReturnType())
 	}
 }
 
@@ -280,11 +280,11 @@ func (this_ *TypeMismatch_Accumulator) GetMismatches() j2gort.Ext_com_google_com
 }
 
 // Java method: Accumulator.registerIfMismatch(com.google.javascript.rhino.Node location, com.google.javascript.rhino.jstype.JSType found, com.google.javascript.rhino.jstype.JSType required)
-func (this_ *TypeMismatch_Accumulator) priv_Accumulator_registerIfMismatch_5573(location pkg_rhino.Node, found pkg_rhino.JSType, required pkg_rhino.JSType) {
+func (this_ *TypeMismatch_Accumulator) priv_Accumulator_registerIfMismatch_5570(location pkg_rhino.Node, found pkg_rhino.JSType, required pkg_rhino.JSType) {
 	_ = location
 	_ = found
 	_ = required
-	if ((found != nil && !found.IsJavaNil_()) && (required != nil && !required.IsJavaNil_())) && !(found.IsSubtypeOf_1(required)) {
+	if ((found != nil && !found.IsJavaNil_()) && (required != nil && !required.IsJavaNil_())) && !(found.GetJSTypeBase().IsSubtypeOf_1(required)) {
 		this_.RegisterMismatch(location, found, required)
 	}
 }
@@ -293,7 +293,7 @@ func (this_ *TypeMismatch_Accumulator) priv_Accumulator_registerIfMismatch_5573(
 func TypeMismatch_Accumulator_BothAreNotTemplateTypes(found pkg_rhino.JSType, required pkg_rhino.JSType) bool {
 	_ = found
 	_ = required
-	return (!(found.IsTemplateType()) && !(required.IsTemplateType()))
+	return (!(found.GetJSTypeBase().IsTemplateType()) && !(required.GetJSTypeBase().IsTemplateType()))
 }
 
 // Java static method: Accumulator.removeNullUndefinedAndTemplates(com.google.javascript.rhino.jstype.JSType t)
@@ -301,10 +301,10 @@ func TypeMismatch_Accumulator_RemoveNullUndefinedAndTemplates(t pkg_rhino.JSType
 	_ = t
 	var result pkg_rhino.JSType = t.RestrictByNotNullOrUndefined()
 	_ = result
-	var obj pkg_rhino.ObjectType = result.ToMaybeObjectType()
+	var obj pkg_rhino.ObjectType = result.GetJSTypeBase().ToMaybeObjectType()
 	_ = obj
-	if (obj != nil && !obj.IsJavaNil_()) && obj.IsTemplatizedType() {
-		return j2gort.AsIface[pkg_rhino.JSType](obj.ToMaybeTemplatizedType().GetRawType())
+	if (obj != nil && !obj.IsJavaNil_()) && obj.GetObjectTypeBase().IsTemplatizedType() {
+		return pkg_rhino.Upcast_JSType(obj.ToMaybeTemplatizedType().GetRawType())
 	}
 	return result
 }

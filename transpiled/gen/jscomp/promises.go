@@ -33,7 +33,9 @@ func (this_ *Promises) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *Promises) IsJavaNil_() bool { return this_ == nil }
-func (*Promises) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.Promises", "Promises" }
+func (*Promises) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.Promises", "Promises"
+}
 func (this_ *Promises) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -78,10 +80,11 @@ func Promises_GetTemplateTypeOfThenable(registry *pkg_rhino.JSTypeRegistry, mayb
 func Promises_GetResolvedType(registry *pkg_rhino.JSTypeRegistry, type_ pkg_rhino.JSType) pkg_rhino.JSType {
 	_ = registry
 	_ = type_
-	if (type_.IsUnknownType()) {
+	base_type__ := type_.GetJSTypeBase()
+	if base_type__.IsUnknownType() {
 		return type_
 	}
-	if (type_.IsUnionType()) {
+	if base_type__.IsUnionType() {
 		var union *pkg_rhino.UnionType = type_.ToMaybeUnionType()
 		_ = union
 		var n int32 = union.GetAlternatesCount()
@@ -95,7 +98,7 @@ func Promises_GetResolvedType(registry *pkg_rhino.JSTypeRegistry, type_ pkg_rhin
 			{
 				var i int32 = int32(0)
 				_ = i
-				for ; (i < n); i = i + 1 {
+				for ; i < n; i = i + 1 {
 					unionTypeBuilder.AddAlternate(Promises_GetResolvedType(registry, union.GetAlternateAt(i)))
 				}
 			}
@@ -104,10 +107,10 @@ func Promises_GetResolvedType(registry *pkg_rhino.JSTypeRegistry, type_ pkg_rhin
 	}
 	var templates *pkg_rhino.TemplateTypeMap = type_.GetTemplateTypeMap()
 	_ = templates
-	if (templates.HasTemplateKey_1(registry.GetIThenableTemplate())) {
+	if templates.HasTemplateKey_1(registry.GetIThenableTemplate()) {
 		return Promises_GetResolvedType(registry, templates.GetResolvedTemplateType(registry.GetIThenableTemplate()))
 	}
-	if (type_.IsSubtypeOf_1(registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_THENABLE_TYPE()))) {
+	if base_type__.IsSubtypeOf_1(registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_THENABLE_TYPE())) {
 		return registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	}
 	return type_
@@ -140,11 +143,11 @@ func Promises_CreateAsyncReturnableType(registry *pkg_rhino.JSTypeRegistry, mayb
 	var retVal_2 pkg_rhino.JSType
 	func() {
 		defer func() {
-			if ((asyncTemplateBuilder != nil)) {
+			if asyncTemplateBuilder != nil {
 				registry.ReleaseUnionTypeBuilder(asyncTemplateBuilder)
 			}
 		}()
-		if (maybeThenable.IsUnionType()) {
+		if maybeThenable.GetJSTypeBase().IsUnionType() {
 			var union *pkg_rhino.UnionType = maybeThenable.ToMaybeUnionType()
 			_ = union
 			{
@@ -152,29 +155,30 @@ func Promises_CreateAsyncReturnableType(registry *pkg_rhino.JSTypeRegistry, mayb
 				_ = i
 				var n int32 = union.GetAlternatesCount()
 				_ = n
-				for ; (i < n); i = i + 1 {
+				for ; i < n; i = i + 1 {
 					var t pkg_rhino.JSType = union.GetAlternateAt(i)
 					_ = t
-					if (t.IsSubtypeOf_1(iThenableOfUnknownType)) {
-						if ((asyncTemplateBuilder == nil)) {
+					if t.GetJSTypeBase().IsSubtypeOf_1(iThenableOfUnknownType) {
+						if asyncTemplateBuilder == nil {
 							asyncTemplateBuilder = registry.AcquireUnionTypeBuilder()
 						}
 						asyncTemplateBuilder.AddAlternate(Promises_GetTemplateTypeOfThenable(registry, t))
 					}
 				}
 			}
-		} else if (maybeThenable.IsSubtypeOf_1(iThenableOfUnknownType)) {
+		} else if maybeThenable.GetJSTypeBase().IsSubtypeOf_1(iThenableOfUnknownType) {
 			asyncTemplateBuilder = registry.AcquireUnionTypeBuilder()
 			asyncTemplateBuilder.AddAlternate(Promises_GetTemplateTypeOfThenable(registry, maybeThenable))
 		}
-		if ((asyncTemplateBuilder == nil)) {
+		if asyncTemplateBuilder == nil {
 			retVal_2 = unknownType
 			didRet_1 = true
 			return
 		}
 		asyncTemplateUnion = asyncTemplateBuilder.Build()
 	}()
-	if didRet_1 { return retVal_2 }
+	if didRet_1 {
+		return retVal_2
+	}
 	return registry.CreateUnionType_2(asyncTemplateUnion, pkg_rhino.ToIface_JSType(registry.CreateTemplatizedType_2_ObjectType_JSType(iThenableType, []pkg_rhino.JSType{asyncTemplateUnion})))
 }
-

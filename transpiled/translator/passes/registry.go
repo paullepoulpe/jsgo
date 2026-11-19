@@ -18,7 +18,8 @@ import (
 //  8. node_traversal_lowering (pools jscomp.NodeTraversal and embeds [12]-deep scope buffers and reusable SyntacticScopeCreator)
 //  9. dead_cast_cleanup       (strips redundant T(x) and AsIface[T](x) self-conversions)
 //
-// 10. j2gort_peephole         (eliminates mechanical j2gort Cast/AsIface/Box/StrVal/CheckNotNull*/StringEquals/IfaceEquals wrappers and SliceIterator loops)
+// 10. abstract_base_devirt    (devirtualizes non-overridden abstract-class interface calls through *<I>Base)
+// 11. j2gort_peephole         (eliminates mechanical j2gort Cast/AsIface/Box/StrVal/CheckNotNull*/StringEquals/IfaceEquals wrappers and SliceIterator loops)
 func AllPasses() []Pass {
 	return []Pass{
 		NewNativeSliceLoweringPass(),
@@ -30,6 +31,7 @@ func AllPasses() []Pass {
 		NewSlabAllocLoweringPass(),
 		NewNodeTraversalLoweringPass(),
 		NewDeadCastCleanupPass(),
+		NewAbstractBaseDevirtPass(),
 		NewJ2gortPeepholePass(),
 	}
 }

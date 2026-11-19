@@ -104,7 +104,7 @@ func PerformanceTrackerCodeSizeEstimator_Estimate(jsRoot pkg_rhino.Node, trackGz
 	_ = trackGzSize
 	var estimator *PerformanceTrackerCodeSizeEstimator = NewPerformanceTrackerCodeSizeEstimator(trackGzSize)
 	_ = estimator
-	CodeGenerator_ForCostEstimation(estimator).Add_1_Node(jsRoot)
+	CodeGenerator_ForCostEstimation(estimator).GetCodeGeneratorBase().Add_1_Node(jsRoot)
 	return estimator
 }
 

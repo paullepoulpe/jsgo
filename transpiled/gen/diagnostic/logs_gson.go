@@ -123,6 +123,14 @@ func ToIface_LogsGson_Able[T interface {
 	return v
 }
 
+func Upcast_LogsGson_Able[T LogsGson_Able](v T) LogsGson_Able {
+	var vi LogsGson_Able = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.diagnostic.LogsGson.Able", "com.google.javascript.jscomp.diagnostic.LogsGson$Able", func(v_ any) bool {
 		return j2gort.InstanceOf[LogsGson_Able](v_)

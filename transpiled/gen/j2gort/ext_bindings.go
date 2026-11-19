@@ -22948,7 +22948,7 @@ type Ext_java_lang_AbstractStringBuilder interface {
 	SetLength(int32)
 	CharAt(int32) uint16
 	SetCharAt(int32, uint16)
-	Append_1_any_9831(any) any
+	Append_1_any_9850(any) any
 	Append_1_string(string) any
 	Append_1_slice_uint16([]uint16) any
 	Append_1_int32(int32) any
@@ -23031,7 +23031,7 @@ func (this_ *Ext_java_lang_AbstractStringBuilderBase) CharAt(arg0 int32) uint16 
 func (this_ *Ext_java_lang_AbstractStringBuilderBase) SetCharAt(arg0 int32, arg1 uint16) {
 	this_.sbCore().setCharAt(arg0, arg1)
 }
-func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9831(arg0 any) any {
+func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9850(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	if this_.Self_ != nil {
 		return this_.Self_
@@ -23769,7 +23769,7 @@ func init() {
 }
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_AbstractStringBuilder() {}
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_Appendable()            {}
-func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9831(arg0 any) any {
+func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9850(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	return this_
 }

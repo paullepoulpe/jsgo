@@ -39,6 +39,14 @@ func ToIface_ModuleRequestResolver[T interface {
 	return v
 }
 
+func Upcast_ModuleRequestResolver[T ModuleRequestResolver](v T) ModuleRequestResolver {
+	var vi ModuleRequestResolver = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.modules.ModuleRequestResolver", "com.google.javascript.jscomp.modules.ModuleRequestResolver", func(v_ any) bool {
 		return j2gort.InstanceOf[ModuleRequestResolver](v_)

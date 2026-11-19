@@ -120,6 +120,14 @@ func ToIface_SerializationOptions_Builder[T interface {
 	return v
 }
 
+func Upcast_SerializationOptions_Builder[T SerializationOptions_Builder](v T) SerializationOptions_Builder {
+	var vi SerializationOptions_Builder = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.serialization.SerializationOptions.Builder
 type SerializationOptions_BuilderBase struct {
 	idHash_ atomic.Int32

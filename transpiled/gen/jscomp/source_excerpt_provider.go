@@ -44,6 +44,14 @@ func ToIface_SourceExcerptProvider[T interface {
 	return v
 }
 
+func Upcast_SourceExcerptProvider[T SourceExcerptProvider](v T) SourceExcerptProvider {
+	var vi SourceExcerptProvider = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.SourceExcerptProvider", "com.google.javascript.jscomp.SourceExcerptProvider", func(v_ any) bool {
 		return j2gort.InstanceOf[SourceExcerptProvider](v_)
@@ -215,6 +223,14 @@ func ToIface_SourceExcerptProvider_ExcerptFormatter[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_SourceExcerptProvider_ExcerptFormatter[T SourceExcerptProvider_ExcerptFormatter](v T) SourceExcerptProvider_ExcerptFormatter {
+	var vi SourceExcerptProvider_ExcerptFormatter = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

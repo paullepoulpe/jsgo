@@ -96,7 +96,7 @@ func (this_ *RefactoringDriver) Drive_2(scanner Scanner, includeFilePattern *j2g
 	NodeTraversal_Traverse(ToIface_AbstractCompiler(this_.compiler), this_.rootNode, callback)
 	var fixes j2gort.Ext_java_util_List = callback.GetFixes()
 	_ = fixes
-	fixes.AddAll_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](scanner.ProcessAllMatches(j2gort.AsIface[j2gort.Ext_java_util_Collection](callback.GetMatches()))))
+	fixes.AddAll_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](scanner.GetScannerBase().ProcessAllMatches(j2gort.AsIface[j2gort.Ext_java_util_Collection](callback.GetMatches()))))
 	return fixes
 }
 

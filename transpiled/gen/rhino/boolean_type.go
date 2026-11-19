@@ -49,14 +49,16 @@ func (this_ *BooleanType) BindSelf_(s any) {
 	this_.ValueTypeBase.BindSelf_(s)
 }
 func (this_ *BooleanType) IsJavaNil_() bool { return this_ == nil }
-func (*BooleanType) JavaClassInfo_() (string, string) { return "com.google.javascript.rhino.jstype.BooleanType", "BooleanType" }
+func (*BooleanType) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.rhino.jstype.BooleanType", "BooleanType"
+}
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.jstype.BooleanType", "com.google.javascript.rhino.jstype.BooleanType", func(v_ any) bool {
 		return j2gort.InstanceOf[*BooleanType](v_)
 	})
 }
 func (*BooleanType) Implements_rhino_ValueType() {}
-func (*BooleanType) Implements_rhino_JSType() {}
+func (*BooleanType) Implements_rhino_JSType()    {}
 
 func (this_ *BooleanType) initFields_BooleanType() {
 	_ = this_
@@ -86,10 +88,11 @@ func (this_ *BooleanType) TestForEquality(that JSType) pkg_base.Tri {
 	_ = that
 	var result pkg_base.Tri = this_.ValueTypeBase.TestForEquality(that)
 	_ = result
-	if ((result != 0)) {
+	if result != 0 {
 		return result
 	}
-	if ((((that.IsUnknownType() || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_NUMBER_STRING_BOOLEAN()))) || that.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_BIGINT_TYPE()))) || that.IsObject())) {
+	base_that_ := that.GetJSTypeBase()
+	if ((base_that_.IsUnknownType() || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_NUMBER_STRING_BOOLEAN()))) || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_BIGINT_TYPE()))) || that.IsObject() {
 		return pkg_base.StaticGet_Tri_UNKNOWN()
 	}
 	return pkg_base.StaticGet_Tri_FALSE()
@@ -130,4 +133,3 @@ func (this_ *BooleanType) Visit_1(visitor Visitor) any {
 	_ = visitor
 	return visitor.CaseBooleanType()
 }
-

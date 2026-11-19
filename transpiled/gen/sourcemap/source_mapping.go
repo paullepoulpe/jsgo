@@ -38,6 +38,14 @@ func ToIface_SourceMapping[T interface {
 	return v
 }
 
+func Upcast_SourceMapping[T SourceMapping](v T) SourceMapping {
+	var vi SourceMapping = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.debugging.sourcemap.SourceMapping", "com.google.debugging.sourcemap.SourceMapping", func(v_ any) bool {
 		return j2gort.InstanceOf[SourceMapping](v_)

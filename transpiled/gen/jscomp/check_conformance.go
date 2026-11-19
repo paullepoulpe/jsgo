@@ -683,6 +683,14 @@ func ToIface_CheckConformance_Rule[T interface {
 	return v
 }
 
+func Upcast_CheckConformance_Rule[T CheckConformance_Rule](v T) CheckConformance_Rule {
+	var vi CheckConformance_Rule = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.CheckConformance.Rule", "com.google.javascript.jscomp.CheckConformance$Rule", func(v_ any) bool {
 		return j2gort.InstanceOf[CheckConformance_Rule](v_)
@@ -711,6 +719,14 @@ func ToIface_CheckConformance_Precondition[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_CheckConformance_Precondition[T CheckConformance_Precondition](v T) CheckConformance_Precondition {
+	var vi CheckConformance_Precondition = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

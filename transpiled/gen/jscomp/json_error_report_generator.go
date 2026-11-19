@@ -130,7 +130,7 @@ func (this_ *JsonErrorReportGenerator) GenerateReport(manager SortingErrorManage
 		defer j2gort.CloseResource(jsonWriter)
 		jsonWriter.BeginArray()
 		{
-			cur_3 := j2gort.NewIterCursor(j2gort.CheckNotNull(manager.GetSortedDiagnostics()))
+			cur_3 := j2gort.NewIterCursor(j2gort.CheckNotNull(manager.GetSortingErrorManagerBase().GetSortedDiagnostics()))
 			for cur_3.HasNext() {
 				rawElem_4 := cur_3.Next()
 				message := j2gort.CastPtr[SortingErrorManager_ErrorWithLevel](rawElem_4)
@@ -226,10 +226,10 @@ func (this_ *JsonErrorReportGenerator) GenerateReport(manager SortingErrorManage
 		}
 		var summaryBuilder j2gort.LocalStringBuilder
 
-		if manager.GetTypedPercent() > float64(0.0) {
-			summaryBuilder.AppendStr(j2gort.Ext_java_lang_String_Format_2("%d error(s), %d warning(s), %.1f%% typed", []any{j2gort.ValueOfInt(manager.GetErrorCount()), j2gort.ValueOfInt(manager.GetWarningCount()), j2gort.ValueOfDouble(manager.GetTypedPercent())}))
+		if manager.GetSortingErrorManagerBase().GetTypedPercent() > float64(0.0) {
+			summaryBuilder.AppendStr(j2gort.Ext_java_lang_String_Format_2("%d error(s), %d warning(s), %.1f%% typed", []any{j2gort.ValueOfInt(manager.GetSortingErrorManagerBase().GetErrorCount()), j2gort.ValueOfInt(manager.GetSortingErrorManagerBase().GetWarningCount()), j2gort.ValueOfDouble(manager.GetSortingErrorManagerBase().GetTypedPercent())}))
 		} else {
-			summaryBuilder.AppendStr(j2gort.Ext_java_lang_String_Format_2("%d error(s), %d warning(s)", []any{j2gort.ValueOfInt(manager.GetErrorCount()), j2gort.ValueOfInt(manager.GetWarningCount())}))
+			summaryBuilder.AppendStr(j2gort.Ext_java_lang_String_Format_2("%d error(s), %d warning(s)", []any{j2gort.ValueOfInt(manager.GetSortingErrorManagerBase().GetErrorCount()), j2gort.ValueOfInt(manager.GetSortingErrorManagerBase().GetWarningCount())}))
 		}
 		jsonWriter.BeginObject()
 		jsonWriter.Name("level").Value_1_string("info")

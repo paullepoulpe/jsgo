@@ -42,6 +42,14 @@ func ToIface_SimpleDependencyInfo[T interface {
 	return v
 }
 
+func Upcast_SimpleDependencyInfo[T SimpleDependencyInfo](v T) SimpleDependencyInfo {
+	var vi SimpleDependencyInfo = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.deps.SimpleDependencyInfo
 type SimpleDependencyInfoBase struct {
 	self_                 SimpleDependencyInfo
@@ -168,6 +176,14 @@ func ToIface_SimpleDependencyInfo_Builder[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_SimpleDependencyInfo_Builder[T SimpleDependencyInfo_Builder](v T) SimpleDependencyInfo_Builder {
+	var vi SimpleDependencyInfo_Builder = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.deps.SimpleDependencyInfo.Builder

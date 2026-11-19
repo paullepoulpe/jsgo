@@ -66,6 +66,14 @@ func ToIface_StaticSourceFile[T interface {
 	return v
 }
 
+func Upcast_StaticSourceFile[T StaticSourceFile](v T) StaticSourceFile {
+	var vi StaticSourceFile = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.StaticSourceFile", "com.google.javascript.rhino.StaticSourceFile", func(v_ any) bool {
 		return j2gort.InstanceOf[StaticSourceFile](v_)

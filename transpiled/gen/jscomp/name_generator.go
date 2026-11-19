@@ -41,6 +41,14 @@ func ToIface_NameGenerator[T interface {
 	return v
 }
 
+func Upcast_NameGenerator[T NameGenerator](v T) NameGenerator {
+	var vi NameGenerator = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.NameGenerator", "com.google.javascript.jscomp.NameGenerator", func(v_ any) bool {
 		return j2gort.InstanceOf[NameGenerator](v_)

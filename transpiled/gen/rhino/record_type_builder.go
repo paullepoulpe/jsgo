@@ -111,7 +111,7 @@ func (this_ *RecordTypeBuilder) AddProperty(name string, type_ JSType, propertyN
 // Java method: RecordTypeBuilder.build()
 func (this_ *RecordTypeBuilder) Build() JSType {
 	if this_.isEmpty {
-		return j2gort.AsIface[JSType](this_.registry.GetNativeObjectType(StaticGet_JSTypeNative_OBJECT_TYPE()))
+		return Upcast_JSType(this_.registry.GetNativeObjectType(StaticGet_JSTypeNative_OBJECT_TYPE()))
 	}
 	var m *j2gort.Ext_com_google_common_collect_ImmutableSortedMap_Builder = j2gort.Ext_com_google_common_collect_ImmutableSortedMap_NaturalOrder()
 	_ = m

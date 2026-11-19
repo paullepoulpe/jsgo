@@ -230,6 +230,14 @@ func ToIface_UseSiteRenamer_MutationCallback[T interface {
 	return v
 }
 
+func Upcast_UseSiteRenamer_MutationCallback[T UseSiteRenamer_MutationCallback](v T) UseSiteRenamer_MutationCallback {
+	var vi UseSiteRenamer_MutationCallback = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.disambiguate.UseSiteRenamer.MutationCallback", "com.google.javascript.jscomp.disambiguate.UseSiteRenamer$MutationCallback", func(v_ any) bool {
 		return j2gort.InstanceOf[UseSiteRenamer_MutationCallback](v_)

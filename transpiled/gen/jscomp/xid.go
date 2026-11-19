@@ -173,6 +173,14 @@ func ToIface_Xid_HashFunction[T interface {
 	return v
 }
 
+func Upcast_Xid_HashFunction[T Xid_HashFunction](v T) Xid_HashFunction {
+	var vi Xid_HashFunction = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.Xid.HashFunction", "com.google.javascript.jscomp.Xid$HashFunction", func(v_ any) bool {
 		return j2gort.InstanceOf[Xid_HashFunction](v_)

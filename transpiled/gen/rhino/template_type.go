@@ -165,14 +165,14 @@ func InitTemplateType_4(this_ *TemplateType, registry *JSTypeRegistry, name stri
 	_ = typeTransformation
 	InitProxyObjectType_4(&this_.ProxyObjectTypeBase, registry, func() JSType {
 		if bound == nil || bound.IsJavaNil_() {
-			return j2gort.AsIface[JSType](registry.GetNativeObjectType(StaticGet_JSTypeNative_UNKNOWN_TYPE()))
+			return Upcast_JSType(registry.GetNativeObjectType(StaticGet_JSTypeNative_UNKNOWN_TYPE()))
 		}
 		return bound
 	}(), nil, int32(8192))
 	this_.initFields_TemplateType()
 	this_.name = name
 	if bound == nil || bound.IsJavaNil_() {
-		this_.bound = j2gort.AsIface[JSType](registry.GetNativeObjectType(StaticGet_JSTypeNative_UNKNOWN_TYPE()))
+		this_.bound = Upcast_JSType(registry.GetNativeObjectType(StaticGet_JSTypeNative_UNKNOWN_TYPE()))
 	} else {
 		this_.bound = bound
 	}

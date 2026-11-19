@@ -100,7 +100,7 @@ func (this_ *AutoValue_JSTypeRegistry_ClosureNamespace) Equals(arg_1 any) bool {
 			if this_.type_ == nil || this_.type_.IsJavaNil_() {
 				return j2gort.IfaceEquals[JSType](that.Type(), nil)
 			}
-			return this_.type_.Equals(that.Type())
+			return this_.type_.GetJSTypeBase().EqualsJSType(that.Type())
 		}()))
 	}
 	return false
@@ -129,7 +129,7 @@ func (this_ *AutoValue_JSTypeRegistry_ClosureNamespace) HashCode() int32 {
 		if this_.type_ == nil || this_.type_.IsJavaNil_() {
 			return int32(0)
 		}
-		return this_.type_.HashCode()
+		return this_.type_.GetJSTypeBase().HashCode()
 	}())
 	return h_d
 }

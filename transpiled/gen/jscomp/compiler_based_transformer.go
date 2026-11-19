@@ -46,6 +46,14 @@ func ToIface_CompilerBasedTransformer[T interface {
 	return v
 }
 
+func Upcast_CompilerBasedTransformer[T CompilerBasedTransformer](v T) CompilerBasedTransformer {
+	var vi CompilerBasedTransformer = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.bundle.CompilerBasedTransformer
 type CompilerBasedTransformerBase struct {
 	self_            CompilerBasedTransformer
@@ -104,7 +112,7 @@ func (this_ *CompilerBasedTransformerBase) GetTranformationName() string {
 // Java method: CompilerBasedTransformer.transform(com.google.javascript.jscomp.bundle.Source input)
 func (this_ *CompilerBasedTransformerBase) Transform(input Source) Source {
 	_ = input
-	var result *CompilerBasedTransformer_CompileResult = this_.compilerSupplier.Compile(input.Path(), input.Code())
+	var result *CompilerBasedTransformer_CompileResult = this_.compilerSupplier.GetCompilerBasedTransformer_CompilerSupplierBase().Compile(input.Path(), input.GetSourceBase().Code())
 	_ = result
 	if len(result.errors) != 0 {
 		var formatter MessageFormatter = StaticGet_ErrorFormat_SOURCELESS().ToFormatter(nil, false)
@@ -125,12 +133,12 @@ func (this_ *CompilerBasedTransformerBase) Transform(input Source) Source {
 	if !(result.transformed) {
 		return input
 	}
-	var builder Source_Builder = input.ToBuilder().SetCode_1_string(result.source).SetSourceMap(result.sourceMap)
+	var builder Source_Builder = input.ToBuilder().GetSource_BuilderBase().SetCode_1_string(result.source).SetSourceMap(result.sourceMap)
 	_ = builder
 	if this_.self_.GetRuntime().IsPresent() {
-		builder.AddRuntime([]string{this_.compilerSupplier.Runtime(j2gort.CastString(this_.self_.GetRuntime().Get()))})
+		builder.GetSource_BuilderBase().AddRuntime([]string{this_.compilerSupplier.GetCompilerBasedTransformer_CompilerSupplierBase().Runtime(j2gort.CastString(this_.self_.GetRuntime().Get()))})
 	}
-	return builder.Build()
+	return builder.GetSource_BuilderBase().Build()
 }
 
 func (this_ *CompilerBasedTransformerBase) AsFunction() j2gort.Ext_java_util_function_Function {
@@ -167,6 +175,14 @@ func ToIface_CompilerBasedTransformer_CompilerSupplier[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_CompilerBasedTransformer_CompilerSupplier[T CompilerBasedTransformer_CompilerSupplier](v T) CompilerBasedTransformer_CompilerSupplier {
+	var vi CompilerBasedTransformer_CompilerSupplier = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.bundle.CompilerBasedTransformer.CompilerSupplier

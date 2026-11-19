@@ -41,6 +41,14 @@ func ToIface_ThreadSafeDelegatingErrorManager[T interface {
 	return v
 }
 
+func Upcast_ThreadSafeDelegatingErrorManager[T ThreadSafeDelegatingErrorManager](v T) ThreadSafeDelegatingErrorManager {
+	var vi ThreadSafeDelegatingErrorManager = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.ThreadSafeDelegatingErrorManager
 type ThreadSafeDelegatingErrorManagerBase struct {
 	delegated ErrorManager `gson:"delegated"`

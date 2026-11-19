@@ -44,6 +44,14 @@ func ToIface_RhinoErrorReporter[T interface {
 	return v
 }
 
+func Upcast_RhinoErrorReporter[T RhinoErrorReporter](v T) RhinoErrorReporter {
+	var vi RhinoErrorReporter = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.RhinoErrorReporter
 type RhinoErrorReporterBase struct {
 	internalReporter ErrorHandler `gson:"internalReporter"`

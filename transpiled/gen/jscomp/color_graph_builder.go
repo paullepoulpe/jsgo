@@ -96,7 +96,7 @@ func InitColorGraphBuilder(this_ *ColorGraphBuilder, nodeFactory *ColorGraphNode
 // Java method: ColorGraphBuilder.add(com.google.javascript.jscomp.disambiguate.ColorGraphNode flat)
 func (this_ *ColorGraphBuilder) Add(flat *ColorGraphNode) {
 	_ = flat
-	this_.priv_ColorGraphBuilder_addInternal_6207(flat)
+	this_.priv_ColorGraphBuilder_addInternal_6213(flat)
 }
 
 // Java method: ColorGraphBuilder.addAll(java.util.Collection<com.google.javascript.jscomp.disambiguate.ColorGraphNode> flats)
@@ -113,7 +113,7 @@ func (this_ *ColorGraphBuilder) Build() pkg_graph.LinkedDirectedGraph[*ColorGrap
 	this_.colorHoldsInstanceGraph.GetNodes().ForEach(func() j2gort.Ext_java_util_function_Consumer {
 		bound_2 := this_
 		return j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) {
-			bound_2.priv_ColorGraphBuilder_connectUnionWithAncestors_6205(j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any]](mrp0_))
+			bound_2.priv_ColorGraphBuilder_connectUnionWithAncestors_6211(j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any]](mrp0_))
 		})
 	}())
 	var temp pkg_graph.LinkedDirectedGraph[*ColorGraphNode, any] = this_.colorHoldsInstanceGraph
@@ -123,7 +123,7 @@ func (this_ *ColorGraphBuilder) Build() pkg_graph.LinkedDirectedGraph[*ColorGrap
 }
 
 // Java method: ColorGraphBuilder.connectUnionWithAncestors(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<com.google.javascript.jscomp.disambiguate.ColorGraphNode,java.lang.Object> unionNode)
-func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_connectUnionWithAncestors_6205(unionNode *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any]) {
+func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_connectUnionWithAncestors_6211(unionNode *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any]) {
 	_ = unionNode
 	var flatUnion *ColorGraphNode = unionNode.GetValue()
 	_ = flatUnion
@@ -154,19 +154,19 @@ func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_connectUnionWithAncestors
 			rawElem_4 := cur_3.Next()
 			lca := j2gort.CastPtr[ColorGraphNode](rawElem_4)
 			_ = lca
-			this_.priv_ColorGraphBuilder_connectSourceToDest_6208(j2gort.CheckNotNullPtr(j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any]](this_.colorHoldsInstanceGraph.GetNode(lca))), StaticGet_ColorGraphBuilder_EdgeReason_ALGEBRAIC(), unionNode)
+			this_.priv_ColorGraphBuilder_connectSourceToDest_6214(j2gort.CheckNotNullPtr(j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any]](this_.colorHoldsInstanceGraph.GetNode(lca))), StaticGet_ColorGraphBuilder_EdgeReason_ALGEBRAIC(), unionNode)
 		}
 	}
 }
 
 // Java method: ColorGraphBuilder.addInternal(com.google.javascript.jscomp.colors.Color color)
-func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_addInternal_6206(color *pkg_colors.Color) *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any] {
+func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_addInternal_6212(color *pkg_colors.Color) *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any] {
 	_ = color
-	return this_.priv_ColorGraphBuilder_addInternal_6207(this_.nodeFactory.CreateNode(color))
+	return this_.priv_ColorGraphBuilder_addInternal_6213(this_.nodeFactory.CreateNode(color))
 }
 
 // Java method: ColorGraphBuilder.addInternal(com.google.javascript.jscomp.disambiguate.ColorGraphNode node)
-func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_addInternal_6207(node *ColorGraphNode) *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any] {
+func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_addInternal_6213(node *ColorGraphNode) *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any] {
 	_ = node
 	var flatNode *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any] = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any]](this_.colorHoldsInstanceGraph.GetNode(node))
 	_ = flatNode
@@ -183,7 +183,7 @@ func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_addInternal_6207(node *Co
 			var n int32 = int32(len(alts))
 			_ = n
 			for ; i < n; i = i + 1 {
-				this_.priv_ColorGraphBuilder_connectSourceToDest_6208(flatNode, StaticGet_ColorGraphBuilder_EdgeReason_ALGEBRAIC(), this_.priv_ColorGraphBuilder_addInternal_6206(alts[i]))
+				this_.priv_ColorGraphBuilder_connectSourceToDest_6214(flatNode, StaticGet_ColorGraphBuilder_EdgeReason_ALGEBRAIC(), this_.priv_ColorGraphBuilder_addInternal_6212(alts[i]))
 			}
 		}
 		return flatNode
@@ -193,7 +193,7 @@ func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_addInternal_6207(node *Co
 	var supertypes []*pkg_colors.Color = this_.registry.GetDisambiguationSupertypesArray(color)
 	_ = supertypes
 	if int32(len(supertypes)) == int32(0) {
-		this_.priv_ColorGraphBuilder_connectSourceToDest_6208(this_.topNode, StaticGet_ColorGraphBuilder_EdgeReason_ALGEBRAIC(), flatNode)
+		this_.priv_ColorGraphBuilder_connectSourceToDest_6214(this_.topNode, StaticGet_ColorGraphBuilder_EdgeReason_ALGEBRAIC(), flatNode)
 	} else {
 		{
 			var i_2 int32 = int32(0)
@@ -201,7 +201,7 @@ func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_addInternal_6207(node *Co
 			var n_2 int32 = int32(len(supertypes))
 			_ = n_2
 			for ; i_2 < n_2; i_2 = i_2 + 1 {
-				this_.priv_ColorGraphBuilder_connectSourceToDest_6208(this_.priv_ColorGraphBuilder_addInternal_6206(supertypes[i_2]), StaticGet_ColorGraphBuilder_EdgeReason_CAN_HOLD(), flatNode)
+				this_.priv_ColorGraphBuilder_connectSourceToDest_6214(this_.priv_ColorGraphBuilder_addInternal_6212(supertypes[i_2]), StaticGet_ColorGraphBuilder_EdgeReason_CAN_HOLD(), flatNode)
 			}
 		}
 	}
@@ -213,7 +213,7 @@ func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_addInternal_6207(node *Co
 		var n_3 int32 = int32(len(prototypes))
 		_ = n_3
 		for ; i_3 < n_3; i_3 = i_3 + 1 {
-			this_.priv_ColorGraphBuilder_addInternal_6206(prototypes[i_3])
+			this_.priv_ColorGraphBuilder_addInternal_6212(prototypes[i_3])
 		}
 	}
 	var instanceColors []*pkg_colors.Color = color.GetInstanceColorsArray()
@@ -224,14 +224,14 @@ func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_addInternal_6207(node *Co
 		var n_4 int32 = int32(len(instanceColors))
 		_ = n_4
 		for ; i_4 < n_4; i_4 = i_4 + 1 {
-			this_.priv_ColorGraphBuilder_addInternal_6206(instanceColors[i_4])
+			this_.priv_ColorGraphBuilder_addInternal_6212(instanceColors[i_4])
 		}
 	}
 	return flatNode
 }
 
 // Java method: ColorGraphBuilder.connectSourceToDest(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<com.google.javascript.jscomp.disambiguate.ColorGraphNode,java.lang.Object> source, com.google.javascript.jscomp.disambiguate.ColorGraphBuilder.EdgeReason reason, com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<com.google.javascript.jscomp.disambiguate.ColorGraphNode,java.lang.Object> dest)
-func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_connectSourceToDest_6208(source *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any], reason ColorGraphBuilder_EdgeReason, dest *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any]) {
+func (this_ *ColorGraphBuilder) priv_ColorGraphBuilder_connectSourceToDest_6214(source *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any], reason ColorGraphBuilder_EdgeReason, dest *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[*ColorGraphNode, any]) {
 	_ = source
 	_ = reason
 	_ = dest

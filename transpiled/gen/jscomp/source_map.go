@@ -128,7 +128,7 @@ func (this_ *SourceMap) AddMapping_5(node pkg_rhino.Node, outputStartLine int32,
 			}
 		}
 	}
-	sourceFileName = this_.priv_SourceMap_fixupSourceLocation_5148(sourceFileName)
+	sourceFileName = this_.priv_SourceMap_fixupSourceLocation_5145(sourceFileName)
 	var lineBaseOffset int32 = int32(1)
 	_ = lineBaseOffset
 	this_.generator.AddMapping_8(sourceFileName, originalName, (lineNo - lineBaseOffset), charNo, outputStartLine, outputStartColumn, outputEndLine, outputEndColumn)
@@ -138,7 +138,7 @@ func (this_ *SourceMap) AddMapping_5(node pkg_rhino.Node, outputStartLine int32,
 func (this_ *SourceMap) AddSourceFile(name string, code string) {
 	_ = name
 	_ = code
-	this_.generator.AddSourcesContent(this_.priv_SourceMap_fixupSourceLocation_5148(name), code)
+	this_.generator.AddSourcesContent(this_.priv_SourceMap_fixupSourceLocation_5145(name), code)
 }
 
 // Java static method: SourceMap.getOriginalName(com.google.javascript.rhino.Node node)
@@ -161,7 +161,7 @@ func SourceMap_GetOriginalName(node pkg_rhino.Node) string {
 }
 
 // Java method: SourceMap.fixupSourceLocation(java.lang.String sourceFile)
-func (this_ *SourceMap) priv_SourceMap_fixupSourceLocation_5148(sourceFile string) string {
+func (this_ *SourceMap) priv_SourceMap_fixupSourceLocation_5145(sourceFile string) string {
 	_ = sourceFile
 	if this_.prefixMappings.IsEmpty() {
 		return sourceFile
@@ -194,7 +194,7 @@ func (this_ *SourceMap) priv_SourceMap_fixupSourceLocation_5148(sourceFile strin
 func (this_ *SourceMap) AppendTo(out j2gort.Ext_java_lang_Appendable, name string) {
 	_ = out
 	_ = name
-	this_.generator.AppendTo(out, this_.priv_SourceMap_fixupSourceLocation_5148(name))
+	this_.generator.AppendTo(out, this_.priv_SourceMap_fixupSourceLocation_5145(name))
 }
 
 // Java method: SourceMap.reset()
@@ -517,6 +517,14 @@ func ToIface_SourceMap_LocationMapping[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_SourceMap_LocationMapping[T SourceMap_LocationMapping](v T) SourceMap_LocationMapping {
+	var vi SourceMap_LocationMapping = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

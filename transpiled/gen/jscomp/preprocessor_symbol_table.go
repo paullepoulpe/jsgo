@@ -118,10 +118,12 @@ func (this_ *PreprocessorSymbolTable) GetOwnSlot(name string) any {
 func (this_ *PreprocessorSymbolTable) GetReferences(arg_1 any) any {
 	symbol := j2gort.AsIface[pkg_rhino.SimpleSlot](arg_1)
 	_ = symbol
-	return j2gort.Ext_java_util_Collections_UnmodifiableCollection(j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.MultimapGetStr(this_.refs, symbol.GetName())))
+	return j2gort.Ext_java_util_Collections_UnmodifiableCollection(j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.MultimapGetStr(this_.refs, symbol.GetSimpleSlotBase(
+
+	// Java method: PreprocessorSymbolTable.getAllSymbols()
+	).GetName())))
 }
 
-// Java method: PreprocessorSymbolTable.getAllSymbols()
 func (this_ *PreprocessorSymbolTable) GetAllSymbols() any {
 	return j2gort.Ext_java_util_Collections_UnmodifiableCollection(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.symbols.LiveValues()))
 }
@@ -217,7 +219,7 @@ func NewPreprocessorSymbolTable_Reference(symbol pkg_rhino.SimpleSlot, node pkg_
 func InitPreprocessorSymbolTable_Reference(this_ *PreprocessorSymbolTable_Reference, symbol pkg_rhino.SimpleSlot, node pkg_rhino.Node) {
 	_ = symbol
 	_ = node
-	pkg_rhino.InitSimpleReference(&this_.SimpleReferenceBase, j2gort.AsIface[pkg_rhino.StaticTypedSlot](symbol), node)
+	pkg_rhino.InitSimpleReference(&this_.SimpleReferenceBase, pkg_rhino.Upcast_StaticTypedSlot(symbol), node)
 	this_.initFields_PreprocessorSymbolTable_Reference()
 }
 

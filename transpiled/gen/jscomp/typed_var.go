@@ -127,7 +127,7 @@ func (this_ *TypedVar) SetType(type_ pkg_rhino.JSType) {
 func (this_ *TypedVar) ResolveType(errorReporter pkg_rhino.ErrorReporter) {
 	_ = errorReporter
 	if this_.type_ != nil && !this_.type_.IsJavaNil_() {
-		this_.type_ = this_.type_.Resolve(errorReporter)
+		this_.type_ = this_.type_.GetJSTypeBase().Resolve(errorReporter)
 	}
 }
 

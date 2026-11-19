@@ -40,6 +40,14 @@ func ToIface_Region[T interface {
 	return v
 }
 
+func Upcast_Region[T Region](v T) Region {
+	var vi Region = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.Region", "com.google.javascript.jscomp.Region", func(v_ any) bool {
 		return j2gort.InstanceOf[Region](v_)

@@ -347,7 +347,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitNode_1087(t *N
 	if !(n.GetParent().IsGetProp()) && n.IsQualifiedName() {
 		var qualifiedName pkg_rhino.QualifiedName = n.GetQualifiedNameObject()
 		_ = qualifiedName
-		var root string = qualifiedName.GetRoot()
+		var root string = qualifiedName.GetQualifiedNameBase().GetRoot()
 		_ = root
 		if (j2gort.CheckNotNullString(root) == "this") || (j2gort.CheckNotNullString(root) == "super") {
 			return
@@ -471,7 +471,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitMaybeDeclarati
 	_ = t
 	_ = n
 	_ = currentFile
-	if !(currentFile.IsModule()) {
+	if !(currentFile.GetModuleMetadataMap_ModuleMetadataBase().IsModule()) {
 		return
 	}
 	if this_.priv_CheckMissingRequires_isTypeScriptSource_1092(n) {
@@ -503,7 +503,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitMaybeDeclarati
 		}
 		var requiredFile ModuleMetadataMap_ModuleMetadata = j2gort.AsIface[ModuleMetadataMap_ModuleMetadata](j2gort.MapGetStr(this_.moduleByNamespace, require.Namespace()))
 		_ = requiredFile
-		if (requiredFile == nil || requiredFile.IsJavaNil_()) || !(requiredFile.HasLegacyGoogNamespaces()) {
+		if (requiredFile == nil || requiredFile.IsJavaNil_()) || !(requiredFile.GetModuleMetadataMap_ModuleMetadataBase().HasLegacyGoogNamespaces()) {
 			return
 		}
 		var reference string = (j2gort.StrValString(require.Namespace()) + "." + j2gort.StrValString(require.Property()))
@@ -538,7 +538,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitQualifiedName_
 	_ = currentFile
 	_ = qualifiedName
 	_ = referenceStrength
-	var rootName string = qualifiedName.GetRoot()
+	var rootName string = qualifiedName.GetQualifiedNameBase().GetRoot()
 	_ = rootName
 	if qualifiedName.IsSimple() {
 		if this_.templateParamNames.Contains(rootName) {
@@ -568,7 +568,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequire
 	if this_.priv_CheckMissingRequires_isTypeScriptSource_1092(n) {
 		return
 	}
-	var inModule bool = currentFile.IsModule()
+	var inModule bool = currentFile.GetModuleMetadataMap_ModuleMetadataBase().IsModule()
 	_ = inModule
 	var inGoogScope bool = (!(inModule) && CheckMissingRequires_IsGoogScopeBody(localVar.GetScopeRoot()))
 	_ = inGoogScope
@@ -630,7 +630,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequire
 	_ = importedNamespace
 	var originalImport_2 ModuleMetadataMap_ModuleMetadata = j2gort.AsIface[ModuleMetadataMap_ModuleMetadata](j2gort.MapGetStr(this_.moduleByNamespace, importedNamespace))
 	_ = originalImport_2
-	if (originalImport_2 != nil && !originalImport_2.IsJavaNil_()) && !(originalImport_2.HasLegacyGoogNamespaces()) {
+	if (originalImport_2 != nil && !originalImport_2.IsJavaNil_()) && !(originalImport_2.GetModuleMetadataMap_ModuleMetadataBase().HasLegacyGoogNamespaces()) {
 		return
 	}
 	var aliasedName_2 pkg_rhino.QualifiedName = pkg_rhino.QualifiedName_Of(importedNamespace)
@@ -639,7 +639,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequire
 		var prop pkg_rhino.Node = initialValue.GetParent()
 		_ = prop
 		for ; prop.IsGetProp(); prop = prop.GetParent() {
-			aliasedName_2 = aliasedName_2.Getprop(prop.GetString())
+			aliasedName_2 = aliasedName_2.GetQualifiedNameBase().Getprop(prop.GetString())
 		}
 	}
 	var normalizedQualifiedName_2 pkg_rhino.QualifiedName = CheckMissingRequires_SwapRootOfQualifiedName(qualifiedName, aliasedName_2)
@@ -660,7 +660,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequire
 	}
 	var originalRequiredFile ModuleMetadataMap_ModuleMetadata = j2gort.AsIface[ModuleMetadataMap_ModuleMetadata](j2gort.MapGetStr(this_.moduleByNamespace, require.Namespace()))
 	_ = originalRequiredFile
-	if (originalRequiredFile == nil || originalRequiredFile.IsJavaNil_()) || !(originalRequiredFile.HasLegacyGoogNamespaces()) {
+	if (originalRequiredFile == nil || originalRequiredFile.IsJavaNil_()) || !(originalRequiredFile.GetModuleMetadataMap_ModuleMetadataBase().HasLegacyGoogNamespaces()) {
 		return
 	}
 	var normalizeQualifiedName pkg_rhino.QualifiedName = this_.priv_CheckMissingRequires_normalizeQualifiedNamePlusImport_1099(qualifiedName, require)
@@ -694,7 +694,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkNormalizedShor
 			if (!(CheckMissingRequires_HasAcceptableRequire(currentFile, subName, requiredFile, referenceStrength)) || (originalImport == nil || originalImport.IsJavaNil_())) || !(originalImport == requiredFile || ((originalImport == nil || originalImport.IsJavaNil_()) && (requiredFile == nil || requiredFile.IsJavaNil_()))) {
 				var toReport *DiagnosticType = nil
 				_ = toReport
-				if currentFile.IsModule() {
+				if currentFile.GetModuleMetadataMap_ModuleMetadataBase().IsModule() {
 					if referenceStrength.FieldGet_isStrong() {
 						toReport = StaticGet_CheckMissingRequires_INDIRECT_NAMESPACE_REF_REQUIRE()
 					} else {
@@ -769,7 +769,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequire
 			_ = fileName
 			var toReport *DiagnosticType = nil
 			_ = toReport
-			if currentFile.IsModule() {
+			if currentFile.GetModuleMetadataMap_ModuleMetadataBase().IsModule() {
 				if referenceStrength.FieldGet_isStrong() {
 					toReport = StaticGet_CheckMissingRequires_MISSING_REQUIRE()
 				} else {
@@ -781,7 +781,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequire
 				} else {
 					toReport = StaticGet_CheckMissingRequires_MISSING_REQUIRE_TYPE_IN_PROVIDES_FILE()
 				}
-			} else if !(referenceStrength.FieldGet_isTypeOnly()) && requiredFile.IsNonLegacyGoogModule() {
+			} else if !(referenceStrength.FieldGet_isTypeOnly()) && requiredFile.GetModuleMetadataMap_ModuleMetadataBase().IsNonLegacyGoogModule() {
 				toReport = StaticGet_CheckMissingRequires_NON_LEGACY_GOOG_MODULE_REFERENCE()
 			} else {
 				return
@@ -799,7 +799,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_normalizeQualifiedN
 	var newQName pkg_rhino.QualifiedName = pkg_rhino.QualifiedName_Of(imported.Namespace())
 	_ = newQName
 	if imported.Property() != j2gort.NullString {
-		newQName = newQName.Getprop(imported.Property())
+		newQName = newQName.GetQualifiedNameBase().Getprop(imported.Property())
 	}
 	return CheckMissingRequires_SwapRootOfQualifiedName(qualifiedName, newQName)
 }
@@ -817,7 +817,7 @@ func CheckMissingRequires_SwapRootOfQualifiedName(original pkg_rhino.QualifiedNa
 	for components.HasNext() {
 		var component string = j2gort.CastString(components.Next())
 		_ = component
-		newQName = newQName.Getprop(component)
+		newQName = newQName.GetQualifiedNameBase().Getprop(component)
 	}
 	return newQName
 }

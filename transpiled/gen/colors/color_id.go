@@ -503,6 +503,14 @@ func ToIface_ColorId_ByteAt[T interface {
 	return v
 }
 
+func Upcast_ColorId_ByteAt[T ColorId_ByteAt](v T) ColorId_ByteAt {
+	var vi ColorId_ByteAt = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.colors.ColorId.ByteAt", "com.google.javascript.jscomp.colors.ColorId$ByteAt", func(v_ any) bool {
 		return j2gort.InstanceOf[ColorId_ByteAt](v_)

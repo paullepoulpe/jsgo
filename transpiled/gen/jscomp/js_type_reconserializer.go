@@ -58,7 +58,7 @@ func init() {
 	lambdaSingleton_js_type_reconserializer_5 = j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_48 any) {
 		t := j2gort.AsIface[pkg_rhino.JSType](lp_48)
 		_ = t
-		if !(!(t.IsUnionType())) {
+		if !(!(t.GetJSTypeBase().IsUnionType())) {
 			j2gort.CheckStateMsg(false, t)
 		}
 	})
@@ -119,6 +119,7 @@ func StaticSet_JSTypeReconserializer_JSTYPE_NATIVE_TO_AXIOMATIC_COLOR_MAP(v j2go
 	clinit_JSTypeReconserializer()
 	static_JSTypeReconserializer_JSTYPE_NATIVE_TO_AXIOMATIC_COLOR_MAP = v
 }
+func StaticGet_JSTypeReconserializer_FORWARD_CANDIDATE_MASK() int32 { return int32(2102657) }
 
 var clinitDone_JSTypeReconserializer uint32
 var clinitState_JSTypeReconserializer j2gort.ClinitState
@@ -173,13 +174,13 @@ func InitJSTypeReconserializer(this_ *JSTypeReconserializer, registry *pkg_rhino
 	this_.shouldPropagatePropertyName = shouldPropagatePropertyName
 	this_.astPropertySet = astPropertySet
 	this_.serializationMode = serializationMode
-	this_.priv_JSTypeReconserializer_seedCachesWithAxiomaticTypes_7726()
+	this_.priv_JSTypeReconserializer_seedCachesWithAxiomaticTypes_7732()
 	this_.unknownRecord = this_.seenTypeRecords.Get(pkg_colors.StaticGet_StandardColors_UNKNOWN().GetId())
 	this_.topFunctionRecord = this_.seenTypeRecords.Get(pkg_colors.StaticGet_StandardColors_TOP_FUNCTION().GetId())
 }
 
 // Java method: JSTypeReconserializer.shouldPropagateProperty(java.lang.String ownProperty)
-func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_shouldPropagateProperty_7716(ownProperty string) bool {
+func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_shouldPropagateProperty_7722(ownProperty string) bool {
 	_ = ownProperty
 	if this_.astPropertySet != nil {
 		return this_.astPropertySet.Contains(ownProperty)
@@ -200,7 +201,7 @@ func JSTypeReconserializer_Create(registry *pkg_rhino.JSTypeRegistry, invalidati
 	InitJSTypeReconserializer(&val_1, registry, invalidatingTypes, stringPoolBuilder, shouldPropagatePropertyName, nil, serializationMode)
 	var serializer *JSTypeReconserializer = &val_1
 	_ = serializer
-	serializer.priv_JSTypeReconserializer_checkValidLinearTime_7727()
+	serializer.priv_JSTypeReconserializer_checkValidLinearTime_7733()
 	return serializer
 }
 
@@ -217,60 +218,99 @@ func JSTypeReconserializer_CreateWithPropertySet(registry *pkg_rhino.JSTypeRegis
 	InitJSTypeReconserializer(&val_2, registry, invalidatingTypes, stringPoolBuilder, nil, astPropertySet, serializationMode)
 	var serializer *JSTypeReconserializer = &val_2
 	_ = serializer
-	serializer.priv_JSTypeReconserializer_checkValidLinearTime_7727()
+	serializer.priv_JSTypeReconserializer_checkValidLinearTime_7733()
 	return serializer
 }
 
 // Java method: JSTypeReconserializer.serializeType(com.google.javascript.rhino.jstype.JSType type)
 func (this_ *JSTypeReconserializer) SerializeType(type_ pkg_rhino.JSType) int32 {
 	_ = type_
-	var record *JSTypeReconserializer_SeenTypeRecord = this_.priv_JSTypeReconserializer_recordType_7718(type_)
+	var record *JSTypeReconserializer_SeenTypeRecord = this_.priv_JSTypeReconserializer_recordType_7724(type_)
 	_ = record
 	return record.pointer
 }
 
 // Java method: JSTypeReconserializer.recordType(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_recordType_7718(type_ pkg_rhino.JSType) *JSTypeReconserializer_SeenTypeRecord {
+func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_recordType_7724(type_ pkg_rhino.JSType) *JSTypeReconserializer_SeenTypeRecord {
 	_ = type_
-	var forwardedType pkg_rhino.JSType = nil
-	_ = forwardedType
-	if type_.IsNamedType() {
-		forwardedType = type_.ToMaybeNamedType().GetReferencedType()
-	} else if type_.IsEnumElementType() {
-		forwardedType = type_.ToMaybeEnumElementType().GetPrimitiveType()
-	} else if type_.IsKnownSymbolValueType() {
-		forwardedType = this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_SYMBOL_TYPE())
-	} else if type_.IsTemplatizedType() {
-		forwardedType = j2gort.AsIface[pkg_rhino.JSType](type_.ToMaybeTemplatizedType().GetReferencedType())
-	} else if type_.IsFunctionType() && (type_.ToMaybeFunctionType().GetCanonicalRepresentation() != nil) {
-		forwardedType = pkg_rhino.ToIface_JSType(type_.ToMaybeFunctionType().GetCanonicalRepresentation())
-	} else {
-		forwardedType = nil
+	for {
+		var mask int32 = type_.GetJSTypeBase().GetKindMask()
+		_ = mask
+		if (mask & int32(2102657)) != int32(0) {
+			var forwardedType pkg_rhino.JSType = nil
+			_ = forwardedType
+			if (mask & int32(1)) == int32(0) {
+				if (mask & int32(256)) != int32(0) {
+					forwardedType = type_.ToMaybeEnumElementType().GetPrimitiveType()
+				} else if (mask & int32(2097152)) != int32(0) {
+					forwardedType = this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_SYMBOL_TYPE())
+				} else {
+					forwardedType = pkg_rhino.ToIface_JSType(type_.ToMaybeFunctionType().GetCanonicalRepresentation())
+				}
+			} else if (mask & int32(1024)) != int32(0) {
+				forwardedType = type_.ToMaybeNamedType().GetReferencedType()
+			} else if type_.GetJSTypeBase().IsEnumElementType() {
+				forwardedType = type_.ToMaybeEnumElementType().GetPrimitiveType()
+			} else if ((mask & int32(4096)) != int32(0)) || type_.GetJSTypeBase().IsTemplatizedType() {
+				forwardedType = pkg_rhino.Upcast_JSType(type_.ToMaybeTemplatizedType().GetReferencedType())
+			} else if type_.GetJSTypeBase().IsFunctionType() {
+				forwardedType = pkg_rhino.ToIface_JSType(type_.ToMaybeFunctionType().GetCanonicalRepresentation())
+			} else {
+				forwardedType = nil
+			}
+			if forwardedType != nil && !forwardedType.IsJavaNil_() {
+				type_ = forwardedType
+				continue
+			}
+		}
+		if type_.GetJSTypeBase().IsUnknownType() {
+			return this_.unknownRecord
+		}
+		if (mask & int32(1)) == int32(0) {
+			if (mask & int32(8)) != int32(0) {
+				return this_.unknownRecord
+			}
+			if (mask & int32(128)) != int32(0) {
+				var fn *pkg_rhino.FunctionType = type_.ToMaybeFunctionType()
+				_ = fn
+				if !(fn.HasInstanceType()) && (fn.GetClosurePrimitive() == 0) {
+					return this_.topFunctionRecord
+				}
+			}
+		} else {
+			if (((mask & int32(8192)) != int32(0)) || type_.GetJSTypeBase().IsNoResolvedType()) || type_.GetJSTypeBase().IsTemplateType() {
+				return this_.unknownRecord
+			}
+			if type_.GetJSTypeBase().IsFunctionType() {
+				var fn_2 *pkg_rhino.FunctionType = type_.ToMaybeFunctionType()
+				_ = fn_2
+				if !(fn_2.HasInstanceType()) && (fn_2.GetClosurePrimitive() == 0) {
+					return this_.topFunctionRecord
+				}
+			}
+		}
+		var jstypeRecord *JSTypeReconserializer_SeenTypeRecord = this_.typeToRecordCache.Get(type_)
+		_ = jstypeRecord
+		if jstypeRecord != nil {
+			return jstypeRecord
+		}
+		if (mask & int32(1)) == int32(0) {
+			if (mask & int32(64)) != int32(0) {
+				return this_.priv_JSTypeReconserializer_recordUnionType_7725(type_.ToMaybeUnionType())
+			}
+		} else if type_.GetJSTypeBase().IsUnionType() {
+			return this_.priv_JSTypeReconserializer_recordUnionType_7725(type_.ToMaybeUnionType())
+		}
+		if type_.GetJSTypeBase().IsObjectType() {
+			return this_.priv_JSTypeReconserializer_recordObjectType_7726(type_.GetJSTypeBase().ToMaybeObjectType())
+		}
+		panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", type_)))
 	}
-	if forwardedType != nil && !forwardedType.IsJavaNil_() {
-		return this_.priv_JSTypeReconserializer_recordType_7718(forwardedType)
-	}
-	if (type_.IsUnknownType() || type_.IsNoResolvedType()) || type_.IsTemplateType() {
-		return this_.unknownRecord
-	}
-	if (type_.IsFunctionType() && !(type_.ToMaybeFunctionType().HasInstanceType())) && (type_.ToMaybeFunctionType().GetClosurePrimitive() == 0) {
-		return this_.topFunctionRecord
-	}
-	var jstypeRecord *JSTypeReconserializer_SeenTypeRecord = this_.typeToRecordCache.Get(type_)
-	_ = jstypeRecord
-	if jstypeRecord != nil {
-		return jstypeRecord
-	}
-	if type_.IsUnionType() {
-		return this_.priv_JSTypeReconserializer_recordUnionType_7719(type_.ToMaybeUnionType())
-	} else if type_.IsObjectType() {
-		return this_.priv_JSTypeReconserializer_recordObjectType_7720(type_.ToMaybeObjectType())
-	}
-	panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", type_)))
+	panic("unreachable")
 }
 
 // Java method: JSTypeReconserializer.recordUnionType(com.google.javascript.rhino.jstype.UnionType type)
-func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_recordUnionType_7719(type_ *pkg_rhino.UnionType) *JSTypeReconserializer_SeenTypeRecord {
+func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_recordUnionType_7725(type_ *pkg_rhino.UnionType) *JSTypeReconserializer_SeenTypeRecord {
 	_ = type_
 	j2gort.CheckNotNullPtr(type_)
 	var r0 *JSTypeReconserializer_SeenTypeRecord = nil
@@ -291,7 +331,7 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_recordUnionType_7
 		var n int32 = type_.GetAlternatesCount()
 		_ = n
 		for ; i < n; i = i + 1 {
-			var alt *JSTypeReconserializer_SeenTypeRecord = this_.priv_JSTypeReconserializer_recordType_7718(type_.GetAlternateAt(i))
+			var alt *JSTypeReconserializer_SeenTypeRecord = this_.priv_JSTypeReconserializer_recordType_7724(type_.GetAlternateAt(i))
 			_ = alt
 			if alt.unionMembers == nil {
 				if altRecords != nil {
@@ -372,7 +412,7 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_recordUnionType_7
 		default:
 			panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", j2gort.ValueOfInt(count))))
 		}
-		var record *JSTypeReconserializer_SeenTypeRecord = this_.priv_JSTypeReconserializer_getOrCreateRecord_7722(unionId, pkg_rhino.ToIface_JSType(type_))
+		var record *JSTypeReconserializer_SeenTypeRecord = this_.priv_JSTypeReconserializer_getOrCreateRecord_7728(unionId, pkg_rhino.ToIface_JSType(type_))
 		_ = record
 		if record.unionMembers == nil {
 			{
@@ -421,7 +461,7 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_recordUnionType_7
 	}
 	var unionId_2 pkg_colors.ColorId = pkg_colors.ColorId_Union(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](alternateIds.Build()))
 	_ = unionId_2
-	var record_2 *JSTypeReconserializer_SeenTypeRecord = this_.priv_JSTypeReconserializer_getOrCreateRecord_7722(unionId_2, pkg_rhino.ToIface_JSType(type_))
+	var record_2 *JSTypeReconserializer_SeenTypeRecord = this_.priv_JSTypeReconserializer_getOrCreateRecord_7728(unionId_2, pkg_rhino.ToIface_JSType(type_))
 	_ = record_2
 	if record_2.unionMembers == nil {
 		{
@@ -435,39 +475,39 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_recordUnionType_7
 }
 
 // Java method: JSTypeReconserializer.recordObjectType(com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_recordObjectType_7720(type_ pkg_rhino.ObjectType) *JSTypeReconserializer_SeenTypeRecord {
+func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_recordObjectType_7726(type_ pkg_rhino.ObjectType) *JSTypeReconserializer_SeenTypeRecord {
 	_ = type_
 	j2gort.CheckNotNullIface(type_)
 	var id pkg_colors.ColorId = this_.hasher.HashObjectType(type_)
 	_ = id
-	var record *JSTypeReconserializer_SeenTypeRecord = this_.priv_JSTypeReconserializer_getOrCreateRecord_7722(id, j2gort.AsIface[pkg_rhino.JSType](type_))
+	var record *JSTypeReconserializer_SeenTypeRecord = this_.priv_JSTypeReconserializer_getOrCreateRecord_7728(id, pkg_rhino.Upcast_JSType(type_))
 	_ = record
-	this_.priv_JSTypeReconserializer_addSupertypeEdges_7721(type_, j2gort.ValueOfInt(record.pointer))
-	if type_.IsFunctionType() {
+	this_.priv_JSTypeReconserializer_addSupertypeEdges_7727(type_, j2gort.ValueOfInt(record.pointer))
+	if type_.GetObjectTypeBase().IsFunctionType() {
 		var fnType *pkg_rhino.FunctionType = type_.ToMaybeFunctionType()
 		_ = fnType
 		if fnType.HasInstanceType() && !(j2gort.IfaceEquals[pkg_rhino.ObjectType](fnType.GetInstanceType(), nil)) {
-			this_.SerializeType(j2gort.AsIface[pkg_rhino.JSType](fnType.GetInstanceType()))
-			this_.SerializeType(j2gort.AsIface[pkg_rhino.JSType](fnType.GetPrototype()))
+			this_.SerializeType(pkg_rhino.Upcast_JSType(fnType.GetInstanceType()))
+			this_.SerializeType(pkg_rhino.Upcast_JSType(fnType.GetPrototype()))
 		}
 	}
 	return record
 }
 
 // Java method: JSTypeReconserializer.addSupertypeEdges(com.google.javascript.rhino.jstype.ObjectType subtype, java.lang.Integer serializedSubtype)
-func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_addSupertypeEdges_7721(subtype pkg_rhino.ObjectType, serializedSubtype *j2gort.BoxInt) {
+func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_addSupertypeEdges_7727(subtype pkg_rhino.ObjectType, serializedSubtype *j2gort.BoxInt) {
 	_ = subtype
 	_ = serializedSubtype
-	this_.disambiguateEdges.PutAll_2(j2gort.PtrToAny(serializedSubtype), j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.priv_JSTypeReconserializer_ownAncestorInterfacesOf_7725(subtype)))
+	this_.disambiguateEdges.PutAll_2(j2gort.PtrToAny(serializedSubtype), j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.priv_JSTypeReconserializer_ownAncestorInterfacesOf_7731(subtype)))
 	if !(j2gort.IfaceEquals[pkg_rhino.ObjectType](subtype.GetImplicitPrototype(), nil)) {
-		var supertype *j2gort.BoxInt = j2gort.ValueOfInt(this_.SerializeType(j2gort.AsIface[pkg_rhino.JSType](subtype.GetImplicitPrototype())))
+		var supertype *j2gort.BoxInt = j2gort.ValueOfInt(this_.SerializeType(pkg_rhino.Upcast_JSType(subtype.GetImplicitPrototype())))
 		_ = supertype
 		this_.disambiguateEdges.Put(j2gort.PtrToAny(serializedSubtype), supertype)
 	}
 }
 
 // Java method: JSTypeReconserializer.getOrCreateRecord(com.google.javascript.jscomp.colors.ColorId id, com.google.javascript.rhino.jstype.JSType jstype)
-func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_getOrCreateRecord_7722(id pkg_colors.ColorId, jstype pkg_rhino.JSType) *JSTypeReconserializer_SeenTypeRecord {
+func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_getOrCreateRecord_7728(id pkg_colors.ColorId, jstype pkg_rhino.JSType) *JSTypeReconserializer_SeenTypeRecord {
 	_ = id
 	_ = jstype
 	j2gort.CheckNotNullIface(jstype)
@@ -488,7 +528,7 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_getOrCreateRecord
 }
 
 // Java method: JSTypeReconserializer.reconcileUnionTypes(com.google.javascript.jscomp.serialization.JSTypeReconserializer.SeenTypeRecord seen)
-func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_reconcileUnionTypes_7723(seen *JSTypeReconserializer_SeenTypeRecord) *j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto {
+func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_reconcileUnionTypes_7729(seen *JSTypeReconserializer_SeenTypeRecord) *j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto {
 	_ = seen
 	var sortedMembers j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList_1_int32(seen.unionMembers.Size())
 	_ = sortedMembers
@@ -506,7 +546,7 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_reconcileUnionTyp
 }
 
 // Java method: JSTypeReconserializer.reconcileObjectTypes(com.google.javascript.jscomp.serialization.JSTypeReconserializer.SeenTypeRecord seen)
-func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_reconcileObjectTypes_7724(seen *JSTypeReconserializer_SeenTypeRecord) *j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto {
+func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_reconcileObjectTypes_7730(seen *JSTypeReconserializer_SeenTypeRecord) *j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto {
 	_ = seen
 	var instancePointers *j2gort.Ext_java_util_LinkedHashSet = this_.scratchInstancePointers
 	_ = instancePointers
@@ -527,14 +567,14 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_reconcileObjectTy
 	_ = propertiesKeepOriginalName
 	for _, type_ := range seen.jstypes {
 		_ = type_
-		var objType pkg_rhino.ObjectType = j2gort.CheckNotNullIface(type_.ToMaybeObjectType())
+		var objType pkg_rhino.ObjectType = j2gort.CheckNotNullIface(type_.GetJSTypeBase().ToMaybeObjectType())
 		_ = objType
-		if objType.IsFunctionType() {
+		if objType.GetObjectTypeBase().IsFunctionType() {
 			var fnType *pkg_rhino.FunctionType = objType.ToMaybeFunctionType()
 			_ = fnType
 			if fnType.HasInstanceType() && !(j2gort.IfaceEquals[pkg_rhino.ObjectType](fnType.GetInstanceType(), nil)) {
-				instancePointers.Add_1(j2gort.ValueOfInt(this_.SerializeType(j2gort.AsIface[pkg_rhino.JSType](fnType.GetInstanceType()))))
-				prototypePointers.Add_1(j2gort.ValueOfInt(this_.SerializeType(j2gort.AsIface[pkg_rhino.JSType](fnType.GetPrototype()))))
+				instancePointers.Add_1(j2gort.ValueOfInt(this_.SerializeType(pkg_rhino.Upcast_JSType(fnType.GetInstanceType()))))
+				prototypePointers.Add_1(j2gort.ValueOfInt(this_.SerializeType(pkg_rhino.Upcast_JSType(fnType.GetPrototype()))))
 				isConstructor = func() bool { ba_17 := isConstructor; bb_18 := fnType.IsConstructor(); return ba_17 || bb_18 }()
 			}
 			isClosureAssert = func() bool {
@@ -543,7 +583,7 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_reconcileObjectTy
 				return ba_19 || bb_20
 			}()
 		}
-		var propBound int32 = objType.GetOwnPropertyNamesUpperBound()
+		var propBound int32 = objType.GetObjectTypeBase().GetOwnPropertyNamesUpperBound()
 		_ = propBound
 		if propBound > int32(0) {
 			var propBuf []string = this_.scratchOwnPropNames
@@ -557,9 +597,9 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_reconcileObjectTy
 				propBuf = j2gort.NewStringArray(nextCap)
 				this_.scratchOwnPropNames = propBuf
 			}
-			var propCount int32 = objType.CollectOwnPropertyNames(propBuf)
+			var propCount int32 = objType.GetObjectTypeBase().CollectOwnPropertyNames(propBuf)
 			_ = propCount
-			if (propCount > int32(1)) && !(objType.IsRecordType()) {
+			if (propCount > int32(1)) && !(objType.GetObjectTypeBase().IsRecordType()) {
 				JSTypeReconserializer_SortStrings(propBuf, propCount)
 			}
 			{
@@ -573,7 +613,7 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_reconcileObjectTy
 						i_22 := i
 						a_21[i_22] = j2gort.NullString
 					}
-					if this_.priv_JSTypeReconserializer_shouldPropagateProperty_7716(ownProperty) {
+					if this_.priv_JSTypeReconserializer_shouldPropagateProperty_7722(ownProperty) {
 						ownProperties.Add_1(j2gort.ValueOfInt(this_.stringPoolBuilder.Put(ownProperty)))
 					}
 				}
@@ -581,10 +621,14 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_reconcileObjectTy
 		}
 		isInvalidating = func() bool {
 			ba_23 := isInvalidating
-			bb_24 := this_.invalidatingTypes.IsInvalidating(objType)
+			bb_24 := this_.invalidatingTypes.IsInvalidating(pkg_rhino.Upcast_JSType(objType))
 			return ba_23 || bb_24
 		}()
-		propertiesKeepOriginalName = func() bool { ba_25 := propertiesKeepOriginalName; bb_26 := objType.IsEnumType(); return ba_25 || bb_26 }()
+		propertiesKeepOriginalName = func() bool {
+			ba_25 := propertiesKeepOriginalName
+			bb_26 := objType.GetObjectTypeBase().IsEnumType()
+			return ba_25 || bb_26
+		}()
 	}
 
 	var protoBuilder *j2gort.Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto_Builder = j2gort.Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto_NewBuilder_0()
@@ -669,7 +713,7 @@ func JSTypeReconserializer_SortStrings(a []string, n int32) {
 }
 
 // Java method: JSTypeReconserializer.ownAncestorInterfacesOf(com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_ownAncestorInterfacesOf_7725(type_ pkg_rhino.ObjectType) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_ownAncestorInterfacesOf_7731(type_ pkg_rhino.ObjectType) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = type_
 	var ctorType *pkg_rhino.FunctionType = type_.GetConstructor()
 	_ = ctorType
@@ -691,7 +735,7 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_ownAncestorInterf
 			rawElem_36 := cur_35.Next()
 			ancestor := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_36)
 			_ = ancestor
-			ancestors = append(ancestors, this_.SerializeType(j2gort.AsIface[pkg_rhino.JSType](ancestor)))
+			ancestors = append(ancestors, this_.SerializeType(pkg_rhino.Upcast_JSType(ancestor)))
 		}
 	}
 	{
@@ -700,14 +744,14 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_ownAncestorInterf
 			rawElem_38 := cur_37.Next()
 			ancestor_2 := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_38)
 			_ = ancestor_2
-			ancestors = append(ancestors, this_.SerializeType(j2gort.AsIface[pkg_rhino.JSType](ancestor_2)))
+			ancestors = append(ancestors, this_.SerializeType(pkg_rhino.Upcast_JSType(ancestor_2)))
 		}
 	}
 	return j2gort.ImmListFromTypedSlice(ancestors)
 }
 
 // Java method: JSTypeReconserializer.seedCachesWithAxiomaticTypes()
-func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_seedCachesWithAxiomaticTypes_7726() {
+func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_seedCachesWithAxiomaticTypes_7732() {
 	if !(this_.seenTypeRecords.IsEmpty()) {
 		j2gort.CheckState(false)
 	}
@@ -729,7 +773,7 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_seedCachesWithAxi
 		_ = jstypeNative
 		axiomatic_2 := j2gort.CastPtr[pkg_colors.Color](lp_42)
 		_ = axiomatic_2
-		this_.priv_JSTypeReconserializer_getOrCreateRecord_7722(axiomatic_2.GetId(), this_.registry.GetNativeType(jstypeNative))
+		this_.priv_JSTypeReconserializer_getOrCreateRecord_7728(axiomatic_2.GetId(), this_.registry.GetNativeType(jstypeNative))
 	}))
 	if !(this_.seenTypeRecords.Size() == StaticGet_TypePointers_OFFSET_TO_AXIOMATIC_COLOR().Size()) {
 		j2gort.CheckState(false)
@@ -737,7 +781,7 @@ func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_seedCachesWithAxi
 }
 
 // Java method: JSTypeReconserializer.checkValidLinearTime()
-func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_checkValidLinearTime_7727() {
+func (this_ *JSTypeReconserializer) priv_JSTypeReconserializer_checkValidLinearTime_7733() {
 	if !(this_.serializationMode.RunValidation()) {
 		return
 	}
@@ -767,7 +811,7 @@ func (this_ *JSTypeReconserializer) GenerateTypePool() *j2gort.Ext_com_google_ja
 	if !(this_.state == StaticGet_JSTypeReconserializer_State_COLLECTING_TYPES()) {
 		j2gort.CheckState(false)
 	}
-	this_.priv_JSTypeReconserializer_checkValidLinearTime_7727()
+	this_.priv_JSTypeReconserializer_checkValidLinearTime_7733()
 	var builder *j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool_Builder = j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool_NewBuilder_0()
 	_ = builder
 	if this_.serializationMode.IncludeDebugInfo() {
@@ -802,9 +846,9 @@ func (this_ *JSTypeReconserializer) GenerateTypePool() *j2gort.Ext_com_google_ja
 			}
 			builder.AddType_1_Ext_com_google_javascript_jscomp_serialization_TypeProto(func() *j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto {
 				if seen.unionMembers != nil {
-					return this_.priv_JSTypeReconserializer_reconcileUnionTypes_7723(seen)
+					return this_.priv_JSTypeReconserializer_reconcileUnionTypes_7729(seen)
 				}
-				return this_.priv_JSTypeReconserializer_reconcileObjectTypes_7724(seen)
+				return this_.priv_JSTypeReconserializer_reconcileObjectTypes_7730(seen)
 			}())
 		}
 	}
@@ -826,7 +870,7 @@ func (this_ *JSTypeReconserializer) GenerateTypePool() *j2gort.Ext_com_google_ja
 		}
 	}
 	this_.state = StaticGet_JSTypeReconserializer_State_FINISHED()
-	this_.priv_JSTypeReconserializer_checkValidLinearTime_7727()
+	this_.priv_JSTypeReconserializer_checkValidLinearTime_7733()
 	return j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool](builder.Build())
 }
 

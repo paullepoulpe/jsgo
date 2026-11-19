@@ -38,6 +38,14 @@ func ToIface_RenamingMap[T interface {
 	return v
 }
 
+func Upcast_RenamingMap[T RenamingMap](v T) RenamingMap {
+	var vi RenamingMap = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.RenamingMap", "com.google.javascript.jscomp.RenamingMap", func(v_ any) bool {
 		return j2gort.InstanceOf[RenamingMap](v_)

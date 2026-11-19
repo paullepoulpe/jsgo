@@ -179,7 +179,7 @@ func (this_ *ExternExportsPass) Process_2(externs pkg_rhino.Node, root pkg_rhino
 			rawElem_2 := cur_1.Next()
 			export := j2gort.AsIface[ExternExportsPass_Export](rawElem_2)
 			_ = export
-			export.GenerateExterns()
+			export.GetExternExportsPass_ExportBase().GenerateExterns()
 		}
 	}
 	this_.priv_ExternExportsPass_setGeneratedExternsOnCompiler_2822()
@@ -354,6 +354,14 @@ func ToIface_ExternExportsPass_Export[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_ExternExportsPass_Export[T ExternExportsPass_Export](v T) ExternExportsPass_Export {
+	var vi ExternExportsPass_Export = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.ExternExportsPass.Export
@@ -539,7 +547,7 @@ func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternsParamListFro
 // Java method: Export.createExternsParamListFromFunctionType(com.google.javascript.rhino.jstype.JSType functionType)
 func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternsParamListFromFunctionType_2834(functionType pkg_rhino.JSType) pkg_rhino.Node {
 	_ = functionType
-	var emptyParamNames j2gort.Ext_java_util_List = j2gort.Ext_java_util_Collections_NCopies(functionType.AssertFunctionType().GetParameterCount(), "")
+	var emptyParamNames j2gort.Ext_java_util_List = j2gort.Ext_java_util_Collections_NCopies(functionType.GetJSTypeBase().AssertFunctionType().GetParameterCount(), "")
 	_ = emptyParamNames
 	return this_.priv_Export_createExternsParamListFromOriginalParamList_2835(emptyParamNames)
 }

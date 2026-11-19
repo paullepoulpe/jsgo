@@ -144,11 +144,11 @@ func (this_ *ModuleImportResolver) GetClosureNamespaceTypeFromCall(googRequire p
 	}
 	var moduleId string = googRequire.GetSecondChild().GetString()
 	_ = moduleId
-	return this_.priv_ModuleImportResolver_getScopedNameForClosureNamespace_3895(moduleId)
+	return this_.priv_ModuleImportResolver_getScopedNameForClosureNamespace_3892(moduleId)
 }
 
 // Java method: ModuleImportResolver.getScopedNameForClosureNamespace(java.lang.String moduleId)
-func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameForClosureNamespace_3895(moduleId string) ScopedName {
+func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameForClosureNamespace_3892(moduleId string) ScopedName {
 	_ = moduleId
 	var module *Module = this_.moduleMap.GetClosureModule(moduleId)
 	_ = module
@@ -165,7 +165,7 @@ func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameForClo
 			return nil
 		}
 	case int32(1) /* ModuleType.GOOG_MODULE */, int32(2) /* ModuleType.LEGACY_GOOG_MODULE */ :
-		var scopeRoot pkg_rhino.Node = this_.priv_ModuleImportResolver_getGoogModuleScopeRoot_3896(module)
+		var scopeRoot pkg_rhino.Node = this_.priv_ModuleImportResolver_getGoogModuleScopeRoot_3893(module)
 		_ = scopeRoot
 		if scopeRoot != 0 {
 			return ScopedName_Of("exports", scopeRoot)
@@ -185,9 +185,9 @@ func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameForClo
 }
 
 // Java method: ModuleImportResolver.getGoogModuleScopeRoot(com.google.javascript.jscomp.modules.@org.jspecify.annotations.Nullable Module module)
-func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getGoogModuleScopeRoot_3896(module *Module) pkg_rhino.Node {
+func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getGoogModuleScopeRoot_3893(module *Module) pkg_rhino.Node {
 	_ = module
-	j2gort.CheckArgumentMsg(module.Metadata().IsGoogModule(), module.Metadata())
+	j2gort.CheckArgumentMsg(module.Metadata().GetModuleMetadataMap_ModuleMetadataBase().IsGoogModule(), module.Metadata())
 	var scriptNode pkg_rhino.Node = module.Metadata().RootNode()
 	_ = scriptNode
 	if (scriptNode.IsScript() && scriptNode.HasOneChild()) && scriptNode.GetOnlyChild().IsModuleBody() {
@@ -205,7 +205,7 @@ func (this_ *ModuleImportResolver) DeclareEsModuleImports(module *Module, scope 
 	_ = module
 	_ = scope
 	_ = moduleInput
-	if !(module.Metadata().IsEs6Module()) {
+	if !(module.Metadata().GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module()) {
 		j2gort.CheckArgumentMsg(false, j2gort.PtrToAny(module))
 	}
 	if !(scope.IsModuleScope()) {
@@ -223,16 +223,16 @@ func (this_ *ModuleImportResolver) DeclareEsModuleImports(module *Module, scope 
 			if !(binding.IsCreatedByEsImport()) {
 				continue
 			}
-			var export ScopedName = this_.priv_ModuleImportResolver_getScopedNameFromEsBinding_3900(binding)
+			var export ScopedName = this_.priv_ModuleImportResolver_getScopedNameFromEsBinding_3897(binding)
 			_ = export
-			var modScope *TypedScope = j2gort.CastPtr[TypedScope](this_.nodeToScopeMapper.Apply(j2gort.BoxNode(export.GetScopeRoot())))
+			var modScope *TypedScope = j2gort.CastPtr[TypedScope](this_.nodeToScopeMapper.Apply(j2gort.BoxNode(export.GetScopedNameBase().GetScopeRoot())))
 			_ = modScope
 			if modScope == nil {
 				j2gort.CheckStateMsg((j2gort.CheckNotNullString(binding.SourceNode().GetString()) == localName), j2gort.BoxNode(binding.SourceNode()))
 				missingNames.Put_2(j2gort.BoxNode(binding.SourceNode()), export)
 				continue
 			}
-			var originalVar *TypedVar = j2gort.CastPtr[TypedVar](modScope.GetVar(export.GetName()))
+			var originalVar *TypedVar = j2gort.CastPtr[TypedVar](modScope.GetVar(export.GetScopedNameBase().GetName()))
 			_ = originalVar
 			var importType pkg_rhino.JSType = originalVar.GetType()
 			_ = importType
@@ -255,7 +255,7 @@ func (this_ *ModuleImportResolver) UpdateEsModuleNamespaceType(namespace pkg_rhi
 	_ = namespace
 	_ = module
 	_ = scope
-	if !(module.Metadata().IsEs6Module()) {
+	if !(module.Metadata().GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module()) {
 		j2gort.CheckArgumentMsg(false, j2gort.PtrToAny(module))
 	}
 	if !(scope.IsModuleScope()) {
@@ -266,28 +266,28 @@ func (this_ *ModuleImportResolver) UpdateEsModuleNamespaceType(namespace pkg_rhi
 		for cur_4.NextEntry() {
 			var exportKey string = cur_4.KeyStr()
 			_ = exportKey
-			if namespace.IsPropertyTypeDeclared_1_string(exportKey) {
+			if namespace.GetObjectTypeBase().IsPropertyTypeDeclared_1_string(exportKey) {
 				continue
 			}
 			var binding *Binding = j2gort.CastPtr[Binding](cur_4.GetValue())
 			_ = binding
 			var bindingSourceNode pkg_rhino.Node = binding.SourceNode()
 			_ = bindingSourceNode
-			var export ScopedName = this_.priv_ModuleImportResolver_getScopedNameFromEsBinding_3900(binding)
+			var export ScopedName = this_.priv_ModuleImportResolver_getScopedNameFromEsBinding_3897(binding)
 			_ = export
 			var originalScope *TypedScope
 			_ = originalScope
-			if export.GetScopeRoot() == scope.GetRootNode_0() {
+			if export.GetScopedNameBase().GetScopeRoot() == scope.GetRootNode_0() {
 				originalScope = scope
 			} else {
-				originalScope = j2gort.CastPtr[TypedScope](this_.nodeToScopeMapper.Apply(j2gort.BoxNode(export.GetScopeRoot())))
+				originalScope = j2gort.CastPtr[TypedScope](this_.nodeToScopeMapper.Apply(j2gort.BoxNode(export.GetScopedNameBase().GetScopeRoot())))
 			}
 			if originalScope == nil {
-				namespace.DefineInferredProperty_3_string_JSType_Node(exportKey, this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()), bindingSourceNode)
-				this_.priv_ModuleImportResolver_updateAstForExport_3899(bindingSourceNode, this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()), nil)
+				namespace.GetObjectTypeBase().DefineInferredProperty_3_string_JSType_Node(exportKey, this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()), bindingSourceNode)
+				this_.priv_ModuleImportResolver_updateAstForExport_3896(bindingSourceNode, this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()), nil)
 				continue
 			}
-			var originalName *TypedVar = j2gort.CastPtr[TypedVar](originalScope.GetSlot(export.GetName()))
+			var originalName *TypedVar = j2gort.CastPtr[TypedVar](originalScope.GetSlot(export.GetScopedNameBase().GetName()))
 			_ = originalName
 			var exportType pkg_rhino.JSType = originalName.GetType()
 			_ = exportType
@@ -295,17 +295,17 @@ func (this_ *ModuleImportResolver) UpdateEsModuleNamespaceType(namespace pkg_rhi
 				exportType = this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE())
 			}
 			if originalName.IsTypeInferred() {
-				namespace.DefineInferredProperty_3_string_JSType_Node(exportKey, exportType, bindingSourceNode)
+				namespace.GetObjectTypeBase().DefineInferredProperty_3_string_JSType_Node(exportKey, exportType, bindingSourceNode)
 			} else {
-				namespace.DefineDeclaredProperty_3_string_JSType_Node(exportKey, exportType, bindingSourceNode)
+				namespace.GetObjectTypeBase().DefineDeclaredProperty_3_string_JSType_Node(exportKey, exportType, bindingSourceNode)
 			}
-			this_.priv_ModuleImportResolver_updateAstForExport_3899(bindingSourceNode, exportType, originalName.GetNameNode().GetTypedefTypeProp())
+			this_.priv_ModuleImportResolver_updateAstForExport_3896(bindingSourceNode, exportType, originalName.GetNameNode().GetTypedefTypeProp())
 		}
 	}
 }
 
 // Java method: ModuleImportResolver.updateAstForExport(com.google.javascript.rhino.Node bindingSourceNode, com.google.javascript.rhino.jstype.JSType exportType, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType typedefType)
-func (this_ *ModuleImportResolver) priv_ModuleImportResolver_updateAstForExport_3899(bindingSourceNode pkg_rhino.Node, exportType pkg_rhino.JSType, typedefType pkg_rhino.JSType) {
+func (this_ *ModuleImportResolver) priv_ModuleImportResolver_updateAstForExport_3896(bindingSourceNode pkg_rhino.Node, exportType pkg_rhino.JSType, typedefType pkg_rhino.JSType) {
 	_ = bindingSourceNode
 	_ = exportType
 	_ = typedefType
@@ -317,7 +317,7 @@ func (this_ *ModuleImportResolver) priv_ModuleImportResolver_updateAstForExport_
 }
 
 // Java method: ModuleImportResolver.getScopedNameFromEsBinding(com.google.javascript.jscomp.modules.Binding binding)
-func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameFromEsBinding_3900(binding *Binding) ScopedName {
+func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameFromEsBinding_3897(binding *Binding) ScopedName {
 	_ = binding
 	var name string
 	_ = name
@@ -347,7 +347,7 @@ func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameFromEs
 			return pkg_rhino.Node(0)
 		}())
 	case int32(1) /* ModuleType.GOOG_MODULE */, int32(4) /* ModuleType.GOOG_PROVIDE */, int32(2) /* ModuleType.LEGACY_GOOG_MODULE */ :
-		var closureModuleObject ScopedName = this_.priv_ModuleImportResolver_getScopedNameForClosureNamespace_3895(binding.ClosureNamespace())
+		var closureModuleObject ScopedName = this_.priv_ModuleImportResolver_getScopedNameForClosureNamespace_3892(binding.ClosureNamespace())
 		_ = closureModuleObject
 		if closureModuleObject == nil || closureModuleObject.IsJavaNil_() {
 			return ScopedName_Of(binding.ClosureNamespace(), pkg_rhino.Node(0))
@@ -355,7 +355,7 @@ func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameFromEs
 		if binding.IsModuleNamespace() {
 			return closureModuleObject
 		}
-		return ScopedName_Of((j2gort.StrValString(closureModuleObject.GetName()) + "." + j2gort.StrValString(binding.OriginatingExport().ExportName())), closureModuleObject.GetScopeRoot())
+		return ScopedName_Of((j2gort.StrValString(closureModuleObject.GetScopedNameBase().GetName()) + "." + j2gort.StrValString(binding.OriginatingExport().ExportName())), closureModuleObject.GetScopedNameBase().GetScopeRoot())
 	case int32(5) /* ModuleType.SCRIPT */ :
 		return ScopedName_Of(name, pkg_rhino.Node(0))
 	case int32(3) /* ModuleType.COMMON_JS */ :
@@ -382,7 +382,7 @@ func ModuleImportResolver_GetModuleFromScopeRoot(moduleMap *ModuleMap, inputProv
 		_ = input
 		var module *Module = moduleMap.GetModule_1_ModuleLoader_ModulePath(input.GetPath())
 		_ = module
-		if !(module.Metadata().IsEs6Module()) {
+		if !(module.Metadata().GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module()) {
 			j2gort.CheckStateStr(false, "Typechecking of non-goog- and non-es-modules not supported")
 		}
 		return module

@@ -18615,6 +18615,563 @@ func OrderedMapGetAny[K comparable, V any](m *OrderedMap[K, V], rawKey any) any 
 	return boxJavaElem(v)
 }
 
+// PlainMap is an un-ordered value struct backed solely by a native Go map[K]V (zero entries slice)
+// for non-iterated HashMap lowering.
+type PlainMap[K comparable, V any] struct {
+	m map[K]V
+}
+
+func NewPlainMap[K comparable, V any](capHint int) *PlainMap[K, V] {
+	if capHint < 0 {
+		panic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
+	}
+	if capHint > 0 {
+		return &PlainMap[K, V]{m: make(map[K]V, capHint)}
+	}
+	return &PlainMap[K, V]{}
+}
+
+func NewPlainMapVal[K comparable, V any]() PlainMap[K, V] {
+	return PlainMap[K, V]{}
+}
+
+func NewPlainMapCap[K comparable, V any](capHint int32) PlainMap[K, V] {
+	if capHint < 0 {
+		panic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
+	}
+	if capHint > 0 {
+		return PlainMap[K, V]{m: make(map[K]V, capHint)}
+	}
+	return PlainMap[K, V]{}
+}
+
+func NewPlainMapPtr[K comparable, V any]() *PlainMap[K, V] {
+	return &PlainMap[K, V]{}
+}
+
+func NewPlainMapPtrCap[K comparable, V any](capHint int32) *PlainMap[K, V] {
+	return NewPlainMap[K, V](int(capHint))
+}
+
+func (m *PlainMap[K, V]) Init() {}
+
+func (m *PlainMap[K, V]) InitCap(capHint int) {
+	if m == nil {
+		ThrowNPE()
+	}
+	if capHint < 0 {
+		panic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
+	}
+	if capHint > 0 && m.m == nil {
+		m.m = make(map[K]V, capHint)
+	}
+}
+
+func (m *PlainMap[K, V]) IsNil() bool      { return m == nil }
+func (m *PlainMap[K, V]) IsJavaNil_() bool { return m == nil }
+
+func (m *PlainMap[K, V]) Size() int32 {
+	if m == nil {
+		return 0
+	}
+	return int32(len(m.m))
+}
+
+func (m *PlainMap[K, V]) IsEmpty() bool {
+	return m == nil || len(m.m) == 0
+}
+
+func (m *PlainMap[K, V]) ContainsKey(k K) bool {
+	if m == nil || len(m.m) == 0 {
+		return false
+	}
+	_, ok := m.m[k]
+	return ok
+}
+
+func (m *PlainMap[K, V]) Get(k K) V {
+	if m == nil || len(m.m) == 0 {
+		var zero V
+		return zero
+	}
+	return m.m[k]
+}
+
+func (m *PlainMap[K, V]) GetOk(k K) (V, bool) {
+	if m == nil || len(m.m) == 0 {
+		var zero V
+		return zero, false
+	}
+	v, ok := m.m[k]
+	return v, ok
+}
+
+func (m *PlainMap[K, V]) GetOrDefault(k K, def V) V {
+	if m == nil || len(m.m) == 0 {
+		return def
+	}
+	if v, ok := m.m[k]; ok {
+		return v
+	}
+	return def
+}
+
+func (m *PlainMap[K, V]) Put(k K, v V) V {
+	if m == nil {
+		ThrowNPE()
+	}
+	if m.m == nil {
+		m.m = make(map[K]V)
+		m.m[k] = v
+		var zero V
+		return zero
+	}
+	old := m.m[k]
+	m.m[k] = v
+	return old
+}
+
+func (m *PlainMap[K, V]) PutOk(k K, v V) (V, bool) {
+	if m == nil {
+		ThrowNPE()
+	}
+	if m.m == nil {
+		m.m = make(map[K]V)
+		m.m[k] = v
+		var zero V
+		return zero, false
+	}
+	old, existed := m.m[k]
+	m.m[k] = v
+	return old, existed
+}
+
+func (m *PlainMap[K, V]) PutVoid(k K, v V) {
+	if m == nil {
+		ThrowNPE()
+	}
+	if m.m == nil {
+		m.m = make(map[K]V)
+	}
+	m.m[k] = v
+}
+
+func (m *PlainMap[K, V]) PutIfAbsentOk(k K, v V) (V, bool) {
+	if m == nil {
+		ThrowNPE()
+	}
+	if m.m == nil {
+		m.m = make(map[K]V)
+		m.m[k] = v
+		var zero V
+		return zero, false
+	}
+	cur, ok := m.m[k]
+	if !ok || isJavaNullMapVal(cur) {
+		m.m[k] = v
+		return cur, false
+	}
+	return cur, true
+}
+
+func (m *PlainMap[K, V]) PutIfAbsent(k K, v V) V {
+	cur, _ := m.PutIfAbsentOk(k, v)
+	return cur
+}
+
+func (m *PlainMap[K, V]) RemoveOk(k K) (V, bool) {
+	if m == nil {
+		ThrowNPE()
+	}
+	if len(m.m) == 0 {
+		var zero V
+		return zero, false
+	}
+	old, existed := m.m[k]
+	if existed {
+		delete(m.m, k)
+	}
+	return old, existed
+}
+
+func (m *PlainMap[K, V]) Remove(k K) V {
+	old, _ := m.RemoveOk(k)
+	return old
+}
+
+func (m *PlainMap[K, V]) Clear() {
+	if m != nil && len(m.m) > 0 {
+		clear(m.m)
+	}
+}
+
+func PlainMapComputeIfAbsentFn[K comparable, V any](m *PlainMap[K, V], k K, fn func(K) V) V {
+	if m == nil || fn == nil {
+		ThrowNPE()
+	}
+	if cur, ok := m.GetOk(k); ok && !isJavaNullMapVal(cur) {
+		return cur
+	}
+	nv := fn(k)
+	if !isJavaNullMapVal(nv) {
+		m.PutVoid(k, nv)
+	}
+	return nv
+}
+
+func PlainMapComputeIfAbsent[K comparable, V comparable](m *PlainMap[K, V], k K, nullV V, fn func(K) V) V {
+	if m == nil || fn == nil {
+		ThrowNPE()
+	}
+	if cur, ok := m.GetOk(k); ok && cur != nullV {
+		return cur
+	}
+	nv := fn(k)
+	if nv != nullV {
+		m.PutVoid(k, nv)
+	}
+	return nv
+}
+
+func PlainMapComputeIfAbsentExtFn[K comparable, V comparable](m *PlainMap[K, V], k K, nullV V, fn Ext_java_util_function_Function) V {
+	if m == nil {
+		ThrowNPE()
+	}
+	CheckNotNull(fn)
+	if cur, ok := m.GetOk(k); ok && cur != nullV {
+		return cur
+	}
+	raw := fn.Apply(boxJavaElem(k))
+	if raw == nil || isJavaNilAny(raw) {
+		return nullV
+	}
+	nv := unboxJavaElem[V](raw)
+	if nv != nullV {
+		m.PutVoid(k, nv)
+	}
+	return nv
+}
+
+func PlainMapPtrGetStr[K comparable](m *PlainMap[K, string], k K) string {
+	if v, ok := m.GetOk(k); ok {
+		return v
+	}
+	return NullString
+}
+
+func PlainMapGetStr[K comparable](m PlainMap[K, string], k K) string {
+	return PlainMapPtrGetStr(&m, k)
+}
+
+func PlainMapPutStr[K comparable](m *PlainMap[K, string], k K, v string) string {
+	if old, ok := m.PutOk(k, v); ok {
+		return old
+	}
+	return NullString
+}
+
+func PlainMapRemoveStr[K comparable](m *PlainMap[K, string], k K) string {
+	if old, ok := m.RemoveOk(k); ok {
+		return old
+	}
+	return NullString
+}
+
+func PlainMapPutIfAbsentStr[K comparable](m *PlainMap[K, string], k K, v string) string {
+	cur, ok := m.GetOk(k)
+	if !ok || cur == NullString {
+		m.PutVoid(k, v)
+		return NullString
+	}
+	return cur
+}
+
+func PlainMapFromJavaMap[K comparable, V any](src any) PlainMap[K, V] {
+	CheckNotNull(src)
+	mp := src.(Ext_java_util_Map)
+	m := NewPlainMapCap[K, V](mp.Size())
+	for cur := NewMapEntryCursor(mp); cur.NextEntry(); {
+		m.PutVoid(unboxJavaElem[K](cur.GetKey()), unboxJavaElem[V](cur.GetValue()))
+	}
+	return m
+}
+
+func PlainMapPtrFromJavaMap[K comparable, V any](src any) *PlainMap[K, V] {
+	m := PlainMapFromJavaMap[K, V](src)
+	return &m
+}
+
+func PlainMapFromNodeKeyJavaMap[K ~uint32, V any](src any) PlainMap[K, V] {
+	CheckNotNull(src)
+	mp := src.(Ext_java_util_Map)
+	m := NewPlainMapCap[K, V](mp.Size())
+	for cur := NewMapEntryCursor(mp); cur.NextEntry(); {
+		m.PutVoid(K(cur.KeyNode()), unboxJavaElem[V](cur.GetValue()))
+	}
+	return m
+}
+
+func PlainMapPtrFromNodeKeyJavaMap[K ~uint32, V any](src any) *PlainMap[K, V] {
+	m := PlainMapFromNodeKeyJavaMap[K, V](src)
+	return &m
+}
+
+func (m *PlainMap[K, V]) PutAllJavaMap(src any) {
+	if m == nil {
+		ThrowNPE()
+	}
+	CheckNotNull(src)
+	mp := src.(Ext_java_util_Map)
+	for cur := NewMapEntryCursor(mp); cur.NextEntry(); {
+		m.PutVoid(unboxJavaElem[K](cur.GetKey()), unboxJavaElem[V](cur.GetValue()))
+	}
+}
+
+func PlainMapGetNodeAny[K ~uint32, V any](m *PlainMap[K, V], rawKey any) any {
+	if m == nil {
+		ThrowNPE()
+	}
+	var k K
+	if rawKey != nil && !isJavaNilAny(rawKey) {
+		if nk, ok := rawKey.(K); ok {
+			k = nk
+		} else if rn, ok := rawKey.(jRawNodeProvider); ok {
+			k = K(rn.RawNodeId_())
+		} else if nd, ok := rawKey.(nodestore.Node); ok {
+			k = K(nd)
+		} else if u, ok := rawKey.(uint32); ok {
+			k = K(u)
+		} else {
+			return nil
+		}
+	}
+	v, found := m.GetOk(k)
+	if !found {
+		return nil
+	}
+	return boxJavaElem(v)
+}
+
+func PlainMapGetAny[K comparable, V any](m *PlainMap[K, V], rawKey any) any {
+	if m == nil {
+		ThrowNPE()
+	}
+	k, ok := tryUnboxOrderedMapKey[K](rawKey)
+	if !ok {
+		return nil
+	}
+	v, found := m.GetOk(k)
+	if !found {
+		return nil
+	}
+	return boxJavaElem(v)
+}
+
+// PlainSet is an un-ordered value struct backed solely by a native Go map[T]struct{}
+// for non-iterated HashSet lowering.
+type PlainSet[T comparable] struct {
+	m map[T]struct{}
+}
+
+func NewPlainSet[T comparable](capHint int) *PlainSet[T] {
+	if capHint < 0 {
+		panic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
+	}
+	if capHint > 0 {
+		return &PlainSet[T]{m: make(map[T]struct{}, capHint)}
+	}
+	return &PlainSet[T]{}
+}
+
+func NewPlainSetVal[T comparable]() PlainSet[T] {
+	return PlainSet[T]{}
+}
+
+func NewPlainSetCap[T comparable](capHint int32) PlainSet[T] {
+	if capHint < 0 {
+		panic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
+	}
+	if capHint > 0 {
+		return PlainSet[T]{m: make(map[T]struct{}, capHint)}
+	}
+	return PlainSet[T]{}
+}
+
+func NewPlainSetPtr[T comparable]() *PlainSet[T] {
+	return &PlainSet[T]{}
+}
+
+func NewPlainSetPtrCap[T comparable](capHint int32) *PlainSet[T] {
+	return NewPlainSet[T](int(capHint))
+}
+
+func (s *PlainSet[T]) Init() {}
+
+func (s *PlainSet[T]) InitCap(capHint int) {
+	if s == nil {
+		ThrowNPE()
+	}
+	if capHint < 0 {
+		panic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
+	}
+	if capHint > 0 && s.m == nil {
+		s.m = make(map[T]struct{}, capHint)
+	}
+}
+
+func (s *PlainSet[T]) IsNil() bool      { return s == nil }
+func (s *PlainSet[T]) IsJavaNil_() bool { return s == nil }
+
+func (s *PlainSet[T]) Size() int32 {
+	if s == nil {
+		return 0
+	}
+	return int32(len(s.m))
+}
+
+func (s *PlainSet[T]) IsEmpty() bool {
+	return s == nil || len(s.m) == 0
+}
+
+func (s *PlainSet[T]) Contains(v T) bool {
+	if s == nil || len(s.m) == 0 {
+		return false
+	}
+	_, ok := s.m[v]
+	return ok
+}
+
+func (s *PlainSet[T]) Add(v T) bool {
+	if s == nil {
+		ThrowNPE()
+	}
+	if s.m == nil {
+		s.m = make(map[T]struct{})
+		s.m[v] = struct{}{}
+		return true
+	}
+	if _, ok := s.m[v]; ok {
+		return false
+	}
+	s.m[v] = struct{}{}
+	return true
+}
+
+func (s *PlainSet[T]) AddVoid(v T) {
+	if s == nil {
+		ThrowNPE()
+	}
+	if s.m == nil {
+		s.m = make(map[T]struct{})
+	}
+	s.m[v] = struct{}{}
+}
+
+func (s *PlainSet[T]) Remove(v T) bool {
+	if s == nil {
+		ThrowNPE()
+	}
+	if len(s.m) == 0 {
+		return false
+	}
+	if _, ok := s.m[v]; ok {
+		delete(s.m, v)
+		return true
+	}
+	return false
+}
+
+func (s *PlainSet[T]) Clear() {
+	if s != nil && len(s.m) > 0 {
+		clear(s.m)
+	}
+}
+
+func PlainSetFromStrCol(col any) PlainSet[string] {
+	var s PlainSet[string]
+	PlainSetAddAllStr(&s, col)
+	return s
+}
+
+func PlainSetPtrFromStrCol(col any) *PlainSet[string] {
+	s := PlainSetFromStrCol(col)
+	return &s
+}
+
+func PlainSetFromNodeCol[N ~uint32](col any) PlainSet[N] {
+	var s PlainSet[N]
+	PlainSetAddAllNode(&s, col)
+	return s
+}
+
+func PlainSetPtrFromNodeCol[N ~uint32](col any) *PlainSet[N] {
+	s := PlainSetFromNodeCol[N](col)
+	return &s
+}
+
+func PlainSetFromCol[T comparable](col any) PlainSet[T] {
+	var s PlainSet[T]
+	PlainSetAddAllCol(&s, col)
+	return s
+}
+
+func PlainSetPtrFromCol[T comparable](col any) *PlainSet[T] {
+	s := PlainSetFromCol[T](col)
+	return &s
+}
+
+func PlainSetAddAllStr(s *PlainSet[string], col any) bool {
+	if s == nil {
+		ThrowNPE()
+	}
+	CheckNotNull(col)
+	changed := false
+	if ssi, ok := col.(StrSliceIterable); ok {
+		if ss, ok2 := ssi.IterStrSlice_(); ok2 {
+			for i := 0; i < len(ss); i++ {
+				if s.Add(ss[i]) {
+					changed = true
+				}
+			}
+			return changed
+		}
+	}
+	for cur := NewIterCursor(col); cur.HasNext(); {
+		if s.Add(cur.NextStr()) {
+			changed = true
+		}
+	}
+	return changed
+}
+
+func PlainSetAddAllNode[N ~uint32](s *PlainSet[N], col any) bool {
+	if s == nil {
+		ThrowNPE()
+	}
+	CheckNotNull(col)
+	changed := false
+	for cur := NewIterCursor(col); cur.HasNext(); {
+		if s.Add(N(cur.NextNode())) {
+			changed = true
+		}
+	}
+	return changed
+}
+
+func PlainSetAddAllCol[T comparable](s *PlainSet[T], col any) bool {
+	if s == nil {
+		ThrowNPE()
+	}
+	CheckNotNull(col)
+	changed := false
+	for cur := NewIterCursor(col); cur.HasNext(); {
+		if s.Add(unboxJavaElem[T](cur.Next())) {
+			changed = true
+		}
+	}
+	return changed
+}
+
 // CustomOrderedMap is a slim 64-byte struct preserving Java LinkedHashMap/HashMap order
 // for FastCustomKey types (such as *Var, AbstractVar, ScopedName) with lazy slice and bucket allocation.
 type FastCustomKeyComparable interface {

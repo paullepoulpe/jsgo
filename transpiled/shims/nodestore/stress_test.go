@@ -12,13 +12,13 @@ import (
 	"time"
 )
 
-// TestNodeDataStrictLayoutAndSize validates that NodeData is strictly 36 bytes,
+// TestNodeDataStrictLayoutAndSize validates that NodeData is strictly 32 bytes,
 // contains zero Go pointers/references, has zero padding bytes, and matches the
 // required field offset layout.
 func TestNodeDataStrictLayoutAndSize(t *testing.T) {
 	sz := reflect.TypeFor[NodeData]().Size()
-	if sz != 36 {
-		t.Fatalf("NodeData size violation: expected exactly 36 bytes, got %d", sz)
+	if sz != 32 {
+		t.Fatalf("NodeData size violation: expected exactly 32 bytes, got %d", sz)
 	}
 
 	typ := reflect.TypeFor[NodeData]()
@@ -31,13 +31,12 @@ func TestNodeDataStrictLayoutAndSize(t *testing.T) {
 		{"First", 4, 4},
 		{"Token", 8, 1},
 		{"KindFlags", 9, 1},
-		{"Length16", 10, 2},
+		{"SourceFile16", 10, 2},
 		{"Parent", 12, 4},
 		{"Previous", 16, 4},
 		{"Payload", 20, 4},
-		{"SourceFile", 24, 4},
-		{"PropFlags", 28, 4},
-		{"LinenoCharno", 32, 4},
+		{"PropFlags", 24, 4},
+		{"LinenoCharno", 28, 4},
 	}
 
 	if typ.NumField() != len(expectedFields) {
@@ -65,8 +64,8 @@ func TestNodeDataStrictLayoutAndSize(t *testing.T) {
 		}
 	}
 
-	if totalFieldBytes != 36 {
-		t.Fatalf("sum of field sizes (%d) != 36; unexpected padding", totalFieldBytes)
+	if totalFieldBytes != 32 {
+		t.Fatalf("sum of field sizes (%d) != 32; unexpected padding", totalFieldBytes)
 	}
 }
 
@@ -88,10 +87,9 @@ func TestNodeStoreGCDoesNotScanBlocks(t *testing.T) {
 		rec := n.Rec()
 		// Populate adjacent 32-bit fields with bogus 64-bit addresses
 		rec.Payload = 0xDEADBEEF
-		rec.SourceFile = 0xDEADC0DE
+		rec.SourceFile16 = 0xCAFE
 		rec.PropFlags = 0xCAFEBABE
 		rec.LinenoCharno = int32(0x1337BEEF)
-		rec.Length16 = 0xCAFE
 		rec.Next = Node(0xBADF00D)
 		rec.First = Node(0x7FFFFFFF)
 		rec.Parent = Node(0x80000000)
@@ -108,9 +106,9 @@ func TestNodeStoreGCDoesNotScanBlocks(t *testing.T) {
 	for i := 1; i <= 1000; i++ {
 		n := Node(s.base + uint32(i))
 		rec := n.Rec()
-		if rec.Payload != 0xDEADBEEF || rec.SourceFile != 0xDEADC0DE || rec.Length16 != 0xCAFE {
-			t.Fatalf("node %d corrupted after GC: payload=0x%X, sourceFile=0x%X, length16=0x%X",
-				n, rec.Payload, rec.SourceFile, rec.Length16)
+		if rec.Payload != 0xDEADBEEF || rec.SourceFile16 != 0xCAFE || rec.PropFlags != 0xCAFEBABE {
+			t.Fatalf("node %d corrupted after GC: payload=0x%X, sourceFile16=0x%X, propFlags=0x%X",
+				n, rec.Payload, rec.SourceFile16, rec.PropFlags)
 		}
 	}
 }

@@ -88,13 +88,13 @@ func (this_ *InferJSDocInfo) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent 
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(32) /* Token.NAME */ :
-		this_.priv_InferJSDocInfo_inferJSDocForName_3201(n, parent)
+		this_.priv_InferJSDocInfo_inferJSDocForName_3198(n, parent)
 		return
 	case int32(100) /* Token.STRING_KEY */, int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */, int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(108) /* Token.MEMBER_FIELD_DEF */, int32(129) /* Token.COMPUTED_PROP */, int32(109) /* Token.COMPUTED_FIELD_DEF */ :
-		this_.priv_InferJSDocInfo_inferJSDocForObjectKeyOrClassField_3202(n, parent)
+		this_.priv_InferJSDocInfo_inferJSDocForObjectKeyOrClassField_3199(n, parent)
 		return
 	case int32(26) /* Token.GETPROP */ :
-		this_.priv_InferJSDocInfo_inferJSDocForProperty_3203(n, parent)
+		this_.priv_InferJSDocInfo_inferJSDocForProperty_3200(n, parent)
 		return
 	default:
 		return
@@ -102,7 +102,7 @@ func (this_ *InferJSDocInfo) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent 
 }
 
 // Java method: InferJSDocInfo.inferJSDocForName(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForName_3201(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForName_3198(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	if parent == 0 {
@@ -158,7 +158,7 @@ func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForName_3201(n pkg_rh
 }
 
 // Java method: InferJSDocInfo.inferJSDocForObjectKeyOrClassField(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForObjectKeyOrClassField_3202(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForObjectKeyOrClassField_3199(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	var typeDoc *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
@@ -190,25 +190,25 @@ func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForObjectKeyOrClassFi
 	if n.IsComputedFieldDef() || n.IsComputedProp() {
 		var keyType pkg_rhino.JSType = n.GetFirstChild().GetJSType()
 		_ = keyType
-		if (keyType == nil || keyType.IsJavaNil_()) || !(keyType.IsKnownSymbolValueType()) {
+		if (keyType == nil || keyType.IsJavaNil_()) || !(keyType.GetJSTypeBase().IsKnownSymbolValueType()) {
 			return
 		}
 		var propName pkg_rhino.Property_Key = pkg_rhino.NewProperty_SymbolKey(keyType.ToMaybeKnownSymbolType())
 		_ = propName
-		if owningType.HasOwnProperty_1_Property_Key(propName) && (owningType.GetPropertyJSDocInfo_1_Property_Key(propName) == nil) {
+		if owningType.GetObjectTypeBase().HasOwnProperty_1_Property_Key(propName) && (owningType.GetObjectTypeBase().GetPropertyJSDocInfo_1_Property_Key(propName) == nil) {
 			owningType.SetPropertyJSDocInfo_2_Property_Key_JSDocInfo(propName, typeDoc)
 		}
 	} else {
 		var propName_2 string = n.GetString()
 		_ = propName_2
-		if owningType.HasOwnProperty_1_string(propName_2) && (owningType.GetPropertyJSDocInfo_1_string(propName_2) == nil) {
+		if owningType.GetObjectTypeBase().HasOwnProperty_1_string(propName_2) && (owningType.GetObjectTypeBase().GetPropertyJSDocInfo_1_string(propName_2) == nil) {
 			owningType.SetPropertyJSDocInfo_2_string_JSDocInfo(propName_2, typeDoc)
 		}
 	}
 }
 
 // Java method: InferJSDocInfo.inferJSDocForProperty(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForProperty_3203(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForProperty_3200(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	var typeDoc *pkg_rhino.JSDocInfo = nil
@@ -238,12 +238,13 @@ func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForProperty_3203(n pk
 	if lhsType == nil || lhsType.IsJavaNil_() {
 		return
 	}
+	base_lhsType_ := lhsType.GetObjectTypeBase()
 	var propName string = n.GetString()
 	_ = propName
-	if lhsType.HasOwnProperty_1_string(propName) && (lhsType.GetPropertyJSDocInfo_1_string(propName) == nil) {
+	if base_lhsType_.HasOwnProperty_1_string(propName) && (base_lhsType_.GetPropertyJSDocInfo_1_string(propName) == nil) {
 		lhsType.SetPropertyJSDocInfo_2_string_JSDocInfo(propName, typeDoc)
 	}
-	var propType pkg_rhino.ObjectType = InferJSDocInfo_Dereferenced(lhsType.GetPropertyType_1_string(propName))
+	var propType pkg_rhino.ObjectType = InferJSDocInfo_Dereferenced(base_lhsType_.GetPropertyType_1_string(propName))
 	_ = propType
 	if InferJSDocInfo_ShouldAttachJSDocToNominalTypeOrShape(propType, aliasedType) {
 		InferJSDocInfo_AttachJSDocInfoToNominalTypeOrShape(propType, typeDoc, n)
@@ -256,7 +257,7 @@ func InferJSDocInfo_Dereferenced(type_ pkg_rhino.JSType) pkg_rhino.ObjectType {
 	if type_ == nil || type_.IsJavaNil_() {
 		return nil
 	} else {
-		return type_.Dereference()
+		return type_.GetJSTypeBase().Dereference()
 	}
 }
 
@@ -264,7 +265,7 @@ func InferJSDocInfo_Dereferenced(type_ pkg_rhino.JSType) pkg_rhino.ObjectType {
 func InferJSDocInfo_ShouldAttachJSDocToNominalTypeOrShape(type_ pkg_rhino.ObjectType, aliasedType pkg_rhino.JSType) bool {
 	_ = type_
 	_ = aliasedType
-	return (((type_ != nil && !type_.IsJavaNil_()) && (type_.GetJSDocInfo() == nil)) && !(type_.Equals(aliasedType)))
+	return (((type_ != nil && !type_.IsJavaNil_()) && (type_.GetJSDocInfo() == nil)) && !(type_.GetObjectTypeBase().GetJSTypeBase().EqualsJSType(aliasedType)))
 }
 
 // Java static method: InferJSDocInfo.attachJSDocInfoToNominalTypeOrShape(com.google.javascript.rhino.jstype.ObjectType objType, com.google.javascript.rhino.JSDocInfo docInfo, com.google.javascript.rhino.Node nameNode)
@@ -272,13 +273,14 @@ func InferJSDocInfo_AttachJSDocInfoToNominalTypeOrShape(objType pkg_rhino.Object
 	_ = objType
 	_ = docInfo
 	_ = nameNode
-	if objType.IsConstructor() || objType.IsInterface() {
+	base_objType_ := objType.GetObjectTypeBase()
+	if base_objType_.IsConstructor() || base_objType_.IsInterface() {
 		if !(InferJSDocInfo_IsReferenceNameOf(objType, nameNode)) {
 			return
 		}
 		objType.SetJSDocInfo(docInfo)
-		pkg_rhino.JSType_ToMaybeFunctionType(j2gort.AsIface[pkg_rhino.JSType](objType)).GetInstanceType().SetJSDocInfo(docInfo)
-	} else if objType.IsEnumType() {
+		pkg_rhino.JSType_ToMaybeFunctionType(pkg_rhino.Upcast_JSType(objType)).GetInstanceType().SetJSDocInfo(docInfo)
+	} else if base_objType_.IsEnumType() {
 		var elementType pkg_rhino.ObjectType = pkg_rhino.ToIface_ObjectType(objType.ToMaybeEnumType().GetElementsType())
 		_ = elementType
 		if !(InferJSDocInfo_IsReferenceNameOf(elementType, nameNode)) {
@@ -286,7 +288,7 @@ func InferJSDocInfo_AttachJSDocInfoToNominalTypeOrShape(objType pkg_rhino.Object
 		}
 		objType.SetJSDocInfo(docInfo)
 		elementType.SetJSDocInfo(docInfo)
-	} else if !(objType.IsNativeObjectType()) && objType.IsFunctionType() {
+	} else if !(base_objType_.IsNativeObjectType()) && base_objType_.IsFunctionType() {
 		objType.SetJSDocInfo(docInfo)
 	}
 }
@@ -295,7 +297,7 @@ func InferJSDocInfo_AttachJSDocInfoToNominalTypeOrShape(objType pkg_rhino.Object
 func InferJSDocInfo_IsReferenceNameOf(type_ pkg_rhino.ObjectType, nameNode pkg_rhino.Node) bool {
 	_ = type_
 	_ = nameNode
-	if !(type_.HasReferenceName()) {
+	if !(type_.GetObjectTypeBase().HasReferenceName()) {
 		return false
 	}
 	var refName string = type_.GetReferenceName()

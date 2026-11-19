@@ -107,7 +107,7 @@ func InitCheckNoMutatedEs6Exports(this_ *CheckNoMutatedEs6Exports, compiler Abst
 }
 
 // Java method: CheckNoMutatedEs6Exports.checkNoMutations()
-func (this_ *CheckNoMutatedEs6Exports) priv_CheckNoMutatedEs6Exports_checkNoMutations_6542() {
+func (this_ *CheckNoMutatedEs6Exports) priv_CheckNoMutatedEs6Exports_checkNoMutations_6548() {
 	var mutatedExports j2gort.Ext_java_util_Set = j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.Ext_com_google_common_collect_Sets_Intersection(j2gort.AsIface[j2gort.Ext_java_util_Set](this_.mutatedNames.KeySet()), this_.exportedLocalNames))
 	_ = mutatedExports
 	{
@@ -135,7 +135,7 @@ func (this_ *CheckNoMutatedEs6Exports) Visit_3(t *NodeTraversal, n pkg_rhino.Nod
 	_ = n
 	_ = parent
 	if n.IsModuleBody() {
-		this_.priv_CheckNoMutatedEs6Exports_checkNoMutations_6542()
+		this_.priv_CheckNoMutatedEs6Exports_checkNoMutations_6548()
 	}
 }
 
@@ -148,10 +148,10 @@ func (this_ *CheckNoMutatedEs6Exports) ShouldTraverse_3(t *NodeTraversal, n pkg_
 	case int32(94) /* Token.SCRIPT */ :
 		return n.GetBooleanProp(pkg_rhino.StaticGet_Node_ES6_MODULE())
 	case int32(120) /* Token.EXPORT */ :
-		this_.priv_CheckNoMutatedEs6Exports_visitExport_6543(n)
+		this_.priv_CheckNoMutatedEs6Exports_visitExport_6549(n)
 		return true
 	case int32(32) /* Token.NAME */ :
-		this_.priv_CheckNoMutatedEs6Exports_visitName_6544(t, n)
+		this_.priv_CheckNoMutatedEs6Exports_visitName_6550(t, n)
 		return true
 	default:
 		return true
@@ -160,7 +160,7 @@ func (this_ *CheckNoMutatedEs6Exports) ShouldTraverse_3(t *NodeTraversal, n pkg_
 }
 
 // Java method: CheckNoMutatedEs6Exports.visitExport(com.google.javascript.rhino.Node export)
-func (this_ *CheckNoMutatedEs6Exports) priv_CheckNoMutatedEs6Exports_visitExport_6543(export pkg_rhino.Node) {
+func (this_ *CheckNoMutatedEs6Exports) priv_CheckNoMutatedEs6Exports_visitExport_6549(export pkg_rhino.Node) {
 	_ = export
 	if export.HasOneChild() && export.GetFirstChild().IsExportSpecs() {
 		{
@@ -206,7 +206,7 @@ func (this_ *CheckNoMutatedEs6Exports) priv_CheckNoMutatedEs6Exports_visitExport
 }
 
 // Java method: CheckNoMutatedEs6Exports.visitName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node name)
-func (this_ *CheckNoMutatedEs6Exports) priv_CheckNoMutatedEs6Exports_visitName_6544(t *NodeTraversal, name pkg_rhino.Node) {
+func (this_ *CheckNoMutatedEs6Exports) priv_CheckNoMutatedEs6Exports_visitName_6550(t *NodeTraversal, name pkg_rhino.Node) {
 	_ = t
 	_ = name
 	var scope *Scope = t.GetScope()

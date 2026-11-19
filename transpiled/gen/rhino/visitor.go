@@ -75,6 +75,14 @@ func ToIface_Visitor[T interface {
 	return v
 }
 
+func Upcast_Visitor[T Visitor](v T) Visitor {
+	var vi Visitor = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.jstype.Visitor", "com.google.javascript.rhino.jstype.Visitor", func(v_ any) bool {
 		return j2gort.InstanceOf[Visitor](v_)
@@ -97,6 +105,14 @@ func ToIface_Visitor_WithDefaultCase[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_Visitor_WithDefaultCase[T Visitor_WithDefaultCase](v T) Visitor_WithDefaultCase {
+	var vi Visitor_WithDefaultCase = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.rhino.jstype.Visitor.WithDefaultCase
@@ -179,7 +195,7 @@ func (this_ *Visitor_WithDefaultCaseBase) CaseFunctionType(type_ *FunctionType) 
 // Java method: WithDefaultCase.caseObjectType(com.google.javascript.rhino.jstype.ObjectType type)
 func (this_ *Visitor_WithDefaultCaseBase) CaseObjectType(type_ ObjectType) any {
 	_ = type_
-	return this_.self_.CaseDefault(j2gort.AsIface[JSType](type_))
+	return this_.self_.CaseDefault(Upcast_JSType(type_))
 }
 
 // Java method: WithDefaultCase.caseUnknownType()
@@ -201,7 +217,7 @@ func (this_ *Visitor_WithDefaultCaseBase) CaseNamedType(type_ *NamedType) any {
 // Java method: WithDefaultCase.caseProxyObjectType(com.google.javascript.rhino.jstype.ProxyObjectType type)
 func (this_ *Visitor_WithDefaultCaseBase) CaseProxyObjectType(type_ ProxyObjectType) any {
 	_ = type_
-	return this_.self_.CaseDefault(j2gort.AsIface[JSType](type_))
+	return this_.self_.CaseDefault(Upcast_JSType(type_))
 }
 
 // Java method: WithDefaultCase.caseNumberType()
@@ -222,7 +238,7 @@ func (this_ *Visitor_WithDefaultCaseBase) CaseStringType() any {
 // Java method: WithDefaultCase.caseSymbolType(com.google.javascript.rhino.jstype.SymbolType type)
 func (this_ *Visitor_WithDefaultCaseBase) CaseSymbolType(type_ SymbolType) any {
 	_ = type_
-	return this_.self_.CaseDefault(j2gort.AsIface[JSType](type_))
+	return this_.self_.CaseDefault(Upcast_JSType(type_))
 }
 
 // Java method: WithDefaultCase.caseVoidType()

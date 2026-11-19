@@ -38,6 +38,14 @@ func ToIface_SourceFileMapping[T interface {
 	return v
 }
 
+func Upcast_SourceFileMapping[T SourceFileMapping](v T) SourceFileMapping {
+	var vi SourceFileMapping = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.SourceFileMapping", "com.google.javascript.jscomp.SourceFileMapping", func(v_ any) bool {
 		return j2gort.InstanceOf[SourceFileMapping](v_)

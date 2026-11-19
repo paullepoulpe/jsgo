@@ -45,6 +45,14 @@ func ToIface_ErrorReporter[T interface {
 	return v
 }
 
+func Upcast_ErrorReporter[T ErrorReporter](v T) ErrorReporter {
+	var vi ErrorReporter = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.parsing.parser.util.ErrorReporter
 type ErrorReporterBase struct {
 	self_ ErrorReporter

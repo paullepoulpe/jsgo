@@ -405,7 +405,7 @@ func (this_ *CompilerInput) GetDependencyInfo() DependencyInfo {
 		this_.dependencyInfo = this_.priv_CompilerInput_generateDependencyInfo_1625()
 	}
 	if !(this_.extraRequires.IsEmpty()) || !(this_.extraProvides.IsEmpty()) {
-		this_.dependencyInfo = j2gort.AsIface[DependencyInfo](SimpleDependencyInfo_S_Builder(this_.GetName(), this_.GetName()).SetProvides_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](CompilerInput_Concat(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.dependencyInfo.GetProvides()), j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.extraProvides)))).SetRequires_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](CompilerInput_Concat(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.dependencyInfo.GetRequires()), j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.extraRequires)))).SetTypeRequires_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.dependencyInfo.GetTypeRequires())).SetLoadFlags(j2gort.AsIface[j2gort.Ext_java_util_Map](this_.dependencyInfo.GetLoadFlags())).SetHasExternsAnnotation(this_.dependencyInfo.GetHasExternsAnnotation()).SetHasNoCompileAnnotation(this_.dependencyInfo.GetHasNoCompileAnnotation()).Build())
+		this_.dependencyInfo = Upcast_DependencyInfo(SimpleDependencyInfo_S_Builder(this_.GetName(), this_.GetName()).SetProvides_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](CompilerInput_Concat(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.dependencyInfo.GetProvides()), j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.extraProvides)))).SetRequires_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](CompilerInput_Concat(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.dependencyInfo.GetRequires()), j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.extraRequires)))).SetTypeRequires_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.dependencyInfo.GetTypeRequires())).SetLoadFlags(j2gort.AsIface[j2gort.Ext_java_util_Map](this_.dependencyInfo.GetLoadFlags())).SetHasExternsAnnotation(this_.dependencyInfo.GetHasExternsAnnotation()).SetHasNoCompileAnnotation(this_.dependencyInfo.GetHasNoCompileAnnotation()).Build())
 		this_.extraRequires.Clear()
 		this_.extraProvides.Clear()
 	}
@@ -428,7 +428,7 @@ func (this_ *CompilerInput) priv_CompilerInput_generateDependencyInfo_1625() Dep
 						e := j2gort.AsIface[javaio.IIOException](jex_5)
 						_ = e
 						this_.compiler.GetErrorManager().Report_2(StaticGet_CheckLevel_ERROR(), JSError_Make_2(StaticGet_AbstractCompiler_READ_ERROR(), []string{this_.GetName(), j2gort.ThrowableGetMessage(e)}))
-						retVal_3 = j2gort.AsIface[DependencyInfo](StaticGet_SimpleDependencyInfo_EMPTY())
+						retVal_3 = Upcast_DependencyInfo(StaticGet_SimpleDependencyInfo_EMPTY())
 						didRet_2 = true
 						return
 					} else {
@@ -453,12 +453,12 @@ func (this_ *CompilerInput) priv_CompilerInput_generateDependencyInfo_1625() Dep
 		var root pkg_rhino.Node = this_.GetAstRoot(this_.compiler)
 		_ = root
 		if root == 0 {
-			return j2gort.AsIface[DependencyInfo](StaticGet_SimpleDependencyInfo_EMPTY())
+			return Upcast_DependencyInfo(StaticGet_SimpleDependencyInfo_EMPTY())
 		}
 		finder.VisitTree(root)
 		var info_2 *pkg_rhino.JSDocInfo = root.GetJSDocInfo()
 		_ = info_2
-		return j2gort.AsIface[DependencyInfo](SimpleDependencyInfo_S_Builder("", "").SetProvides_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](finder.provides)).SetRequires_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](finder.requires)).SetTypeRequires_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](finder.typeRequires)).SetLoadFlags(finder.loadFlags).SetHasExternsAnnotation(((info_2 != nil) && info_2.IsExterns())).SetHasNoCompileAnnotation(((info_2 != nil) && info_2.IsNoCompile())).Build())
+		return Upcast_DependencyInfo(SimpleDependencyInfo_S_Builder("", "").SetProvides_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](finder.provides)).SetRequires_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](finder.requires)).SetTypeRequires_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](finder.typeRequires)).SetLoadFlags(finder.loadFlags).SetHasExternsAnnotation(((info_2 != nil) && info_2.IsExterns())).SetHasNoCompileAnnotation(((info_2 != nil) && info_2.IsNoCompile())).Build())
 	}
 	panic("unreachable")
 }

@@ -43,6 +43,14 @@ func ToIface_ScopeCreator[T interface {
 	return v
 }
 
+func Upcast_ScopeCreator[T ScopeCreator](v T) ScopeCreator {
+	var vi ScopeCreator = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.ScopeCreator", "com.google.javascript.jscomp.ScopeCreator", func(v_ any) bool {
 		return j2gort.InstanceOf[ScopeCreator](v_)

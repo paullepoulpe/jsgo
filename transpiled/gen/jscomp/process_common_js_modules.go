@@ -247,7 +247,7 @@ func (this_ *ProcessCommonJSModules) ShouldTraverse_3(t *NodeTraversal, n pkg_rh
 		return true
 	} else if n.IsScript() {
 		if this_.compiler.GetOptions().GetModuleResolutionMode() == StaticGet_ModuleLoader_ResolutionMode_WEBPACK() {
-			this_.priv_ProcessCommonJSModules_removeWebpackModuleShim_4495(n)
+			this_.priv_ProcessCommonJSModules_removeWebpackModuleShim_4492(n)
 		}
 		var val_1 ProcessCommonJSModules_FindImportsAndExports
 		val_1.outer_ = this_
@@ -275,7 +275,7 @@ func (this_ *ProcessCommonJSModules) ShouldTraverse_3(t *NodeTraversal, n pkg_rh
 				if finder.ReplaceUmdPatterns() {
 					needsRetraverse = true
 				}
-				if this_.priv_ProcessCommonJSModules_removeIIFEWrapper_4494(n) {
+				if this_.priv_ProcessCommonJSModules_removeIIFEWrapper_4491(n) {
 					needsRetraverse = true
 				}
 				if needsRetraverse {
@@ -390,14 +390,14 @@ func ProcessCommonJSModules_GetCommonJsImportPath(requireCall pkg_rhino.Node, re
 }
 
 // Java method: ProcessCommonJSModules.getImportedModuleName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node requireCall)
-func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_getImportedModuleName_4490(t *NodeTraversal, requireCall pkg_rhino.Node) string {
+func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_getImportedModuleName_4487(t *NodeTraversal, requireCall pkg_rhino.Node) string {
 	_ = t
 	_ = requireCall
-	return this_.priv_ProcessCommonJSModules_getImportedModuleName_4491(t, requireCall, this_.GetCommonJsImportPath(requireCall))
+	return this_.priv_ProcessCommonJSModules_getImportedModuleName_4488(t, requireCall, this_.GetCommonJsImportPath(requireCall))
 }
 
 // Java method: ProcessCommonJSModules.getImportedModuleName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, java.lang.String importPath)
-func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_getImportedModuleName_4491(t *NodeTraversal, n pkg_rhino.Node, importPath string) string {
+func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_getImportedModuleName_4488(t *NodeTraversal, n pkg_rhino.Node, importPath string) string {
 	_ = t
 	_ = n
 	_ = importPath
@@ -440,7 +440,7 @@ func ProcessCommonJSModules_IsCommonJsExport(t *NodeTraversal, export pkg_rhino.
 }
 
 // Java method: ProcessCommonJSModules.isCommonJsExport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_isCommonJsExport_4492(t *NodeTraversal, export pkg_rhino.Node) bool {
+func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_isCommonJsExport_4489(t *NodeTraversal, export pkg_rhino.Node) bool {
 	_ = t
 	_ = export
 	return ProcessCommonJSModules_IsCommonJsExport(t, export, this_.compiler.GetOptions().GetModuleResolutionMode())
@@ -501,7 +501,7 @@ func ProcessCommonJSModules_IsWebpackRequireEnsureCallback(fnc pkg_rhino.Node) b
 }
 
 // Java method: ProcessCommonJSModules.getBaseQualifiedNameNode(com.google.javascript.rhino.Node n)
-func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4493(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4490(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var refParent pkg_rhino.Node = n
 	_ = refParent
@@ -512,7 +512,7 @@ func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_getBaseQualifie
 }
 
 // Java method: ProcessCommonJSModules.removeIIFEWrapper(com.google.javascript.rhino.Node root)
-func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_removeIIFEWrapper_4494(root pkg_rhino.Node) bool {
+func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_removeIIFEWrapper_4491(root pkg_rhino.Node) bool {
 	_ = root
 	if !(root.IsScript()) {
 		j2gort.CheckState(false)
@@ -565,13 +565,13 @@ func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_removeIIFEWrapp
 	_ = block
 	root.RemoveChildren()
 	root.AddChildrenToFront(block.RemoveChildren())
-	this_.priv_ProcessCommonJSModules_reportNestedScopesDeleted_4496(fnc)
+	this_.priv_ProcessCommonJSModules_reportNestedScopesDeleted_4493(fnc)
 	this_.compiler.ReportChangeToEnclosingScope(root)
 	return true
 }
 
 // Java method: ProcessCommonJSModules.removeWebpackModuleShim(com.google.javascript.rhino.Node root)
-func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_removeWebpackModuleShim_4495(root pkg_rhino.Node) {
+func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_removeWebpackModuleShim_4492(root pkg_rhino.Node) {
 	_ = root
 	if !(root.IsScript()) {
 		j2gort.CheckState(false)
@@ -651,13 +651,13 @@ func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_removeWebpackMo
 }
 
 // Java method: ProcessCommonJSModules.reportNestedScopesDeleted(com.google.javascript.rhino.Node n)
-func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_reportNestedScopesDeleted_4496(n pkg_rhino.Node) {
+func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_reportNestedScopesDeleted_4493(n pkg_rhino.Node) {
 	_ = n
 	NodeUtil_VisitPreOrder_2(n, NewProcessCommonJSModules__Anon_74(this_))
 }
 
 // Java method: ProcessCommonJSModules.reportNestedScopesChanged(com.google.javascript.rhino.Node n)
-func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_reportNestedScopesChanged_4497(n pkg_rhino.Node) {
+func (this_ *ProcessCommonJSModules) priv_ProcessCommonJSModules_reportNestedScopesChanged_4494(n pkg_rhino.Node) {
 	_ = n
 	NodeUtil_VisitPreOrder_2(n, NewProcessCommonJSModules__Anon_75(this_))
 }
@@ -898,18 +898,18 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) Visit_3(t *NodeTraver
 		}
 	}
 	if n.IsCall() && StaticGet_ProcessCommonJSModules_REQUIRE_ENSURE().Matches(n.GetFirstChild()) {
-		this_.priv_FindImportsAndExports_visitRequireEnsureCall_4502(t, n)
+		this_.priv_FindImportsAndExports_visitRequireEnsureCall_4499(t, n)
 	}
 	if n.MatchesQualifiedName_1_string(("module" + "." + "exports")) || (((n.IsGetElem() && n.GetFirstChild().MatchesQualifiedName_1_string("module")) && n.GetSecondChild().IsStringLit()) && func() bool {
 		sr_12 := n.GetSecondChild().GetString()
 		se_13 := "exports"
 		return j2gort.CheckNotNullString(sr_12) == se_13
 	}()) {
-		if this_.outer_.priv_ProcessCommonJSModules_isCommonJsExport_4492(t, n) {
+		if this_.outer_.priv_ProcessCommonJSModules_isCommonJsExport_4489(t, n) {
 			this_.moduleExports.Add_1(NewProcessCommonJSModules_ExportInfo(n, t.GetScope()))
-			var umdTestAncestor *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo = this_.priv_FindImportsAndExports_getOutermostUmdTest_4505(parent)
+			var umdTestAncestor *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo = this_.priv_FindImportsAndExports_getOutermostUmdTest_4502(parent)
 			_ = umdTestAncestor
-			if (umdTestAncestor != nil) && !(this_.priv_FindImportsAndExports_isInIfTest_4506(n)) {
+			if (umdTestAncestor != nil) && !(this_.priv_FindImportsAndExports_isInIfTest_4503(n)) {
 				var existingPattern *ProcessCommonJSModules_UmdPattern = ProcessCommonJSModules_FindUmdPattern(this_.umdPatterns, umdTestAncestor.enclosingIf)
 				_ = existingPattern
 				if existingPattern == nil {
@@ -918,9 +918,9 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) Visit_3(t *NodeTraver
 			}
 		}
 	} else if StaticGet_ProcessCommonJSModules_DEFINE_AMD().Matches(n) || StaticGet_ProcessCommonJSModules_WINDOW_DEFINE_AMD().Matches(n) {
-		var umdTestAncestor_2 *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo = this_.priv_FindImportsAndExports_getOutermostUmdTest_4505(parent)
+		var umdTestAncestor_2 *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo = this_.priv_FindImportsAndExports_getOutermostUmdTest_4502(parent)
 		_ = umdTestAncestor_2
-		if (umdTestAncestor_2 != nil) && this_.priv_FindImportsAndExports_isInIfTest_4506(n) {
+		if (umdTestAncestor_2 != nil) && this_.priv_FindImportsAndExports_isInIfTest_4503(n) {
 			var existingPattern_2 *ProcessCommonJSModules_UmdPattern = ProcessCommonJSModules_FindUmdPattern(this_.umdPatterns, umdTestAncestor_2.enclosingIf)
 			_ = existingPattern_2
 			if (existingPattern_2 == nil) && (umdTestAncestor_2.enclosingIf.GetChildAtIndex(int32(2)) == 0) {
@@ -936,7 +936,7 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) Visit_3(t *NodeTraver
 		var v *Var = j2gort.CastPtr[Var](t.GetScope().GetVar("exports"))
 		_ = v
 		if (v == nil) || v.IsGlobal() {
-			var qNameRoot pkg_rhino.Node = this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4493(n)
+			var qNameRoot pkg_rhino.Node = this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4490(n)
 			_ = qNameRoot
 			if ((qNameRoot != 0) && qNameRoot.MatchesQualifiedName_1_string("exports")) && NodeUtil_IsLValue(qNameRoot) {
 				if (n.GetGrandparent().IsExprResult() && (n.GetNext() != 0)) && ((n.GetNext().IsGetProp() && n.GetNext().MatchesQualifiedName_1_string(("module" + "." + "exports"))) || (n.GetNext().IsAssign() && n.GetNext().GetFirstChild().MatchesQualifiedName_1_string(("module" + "." + "exports")))) {
@@ -946,9 +946,9 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) Visit_3(t *NodeTraver
 				}
 			} else {
 				this_.exports.Add_1(NewProcessCommonJSModules_ExportInfo(n, t.GetScope()))
-				var umdTestAncestor_3 *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo = this_.priv_FindImportsAndExports_getOutermostUmdTest_4505(parent)
+				var umdTestAncestor_3 *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo = this_.priv_FindImportsAndExports_getOutermostUmdTest_4502(parent)
 				_ = umdTestAncestor_3
-				if (umdTestAncestor_3 != nil) && !(this_.priv_FindImportsAndExports_isInIfTest_4506(n)) {
+				if (umdTestAncestor_3 != nil) && !(this_.priv_FindImportsAndExports_isInIfTest_4503(n)) {
 					var existingPattern_3 *ProcessCommonJSModules_UmdPattern = ProcessCommonJSModules_FindUmdPattern(this_.umdPatterns, umdTestAncestor_3.enclosingIf)
 					_ = existingPattern_3
 					if existingPattern_3 == nil {
@@ -961,12 +961,12 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) Visit_3(t *NodeTraver
 		this_.exports.Add_1(NewProcessCommonJSModules_ExportInfo(n, t.GetScope()))
 	}
 	if this_.outer_.IsCommonJsImport(n) {
-		this_.priv_FindImportsAndExports_visitRequireCall_4501(t, n, parent)
+		this_.priv_FindImportsAndExports_visitRequireCall_4498(t, n, parent)
 	}
 }
 
 // Java method: FindImportsAndExports.visitRequireCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node require, com.google.javascript.rhino.Node parent)
-func (this_ *ProcessCommonJSModules_FindImportsAndExports) priv_FindImportsAndExports_visitRequireCall_4501(t *NodeTraversal, require pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *ProcessCommonJSModules_FindImportsAndExports) priv_FindImportsAndExports_visitRequireCall_4498(t *NodeTraversal, require pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = require
 	_ = parent
@@ -980,7 +980,7 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) priv_FindImportsAndEx
 }
 
 // Java method: FindImportsAndExports.visitRequireEnsureCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ProcessCommonJSModules_FindImportsAndExports) priv_FindImportsAndExports_visitRequireEnsureCall_4502(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ProcessCommonJSModules_FindImportsAndExports) priv_FindImportsAndExports_visitRequireEnsureCall_4499(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	if !(call.HasXChildren(int32(3))) {
@@ -1053,7 +1053,7 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) InitializeModule() bo
 				exportsToRemove.Add_1(j2gort.PtrToAny(export))
 				continue
 			}
-			var qNameBase pkg_rhino.Node = this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4493(export.node)
+			var qNameBase pkg_rhino.Node = this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4490(export.node)
 			_ = qNameBase
 			if ((((export.node == qNameBase) && export.node.GetParent().IsAssign()) && export.node.GetGrandparent().IsExprResult()) && (export.node.GetPrevious() == 0)) && (export.node.GetNext() != 0) {
 				if export.node.GetNext().IsGetProp() && export.node.GetNext().MatchesQualifiedName_1_string(("module" + "." + "exports")) {
@@ -1145,7 +1145,7 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) InitializeModule() bo
 			if NodeUtil_GetEnclosingScript(export_3.node) == 0 {
 				continue
 			}
-			var base pkg_rhino.Node = this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4493(export_3.node)
+			var base pkg_rhino.Node = this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4490(export_3.node)
 			_ = base
 			if (base == export_3.node) && export_3.node.GetParent().IsAssign() {
 				var rValue pkg_rhino.Node = NodeUtil_GetRValueOfLValue(export_3.node)
@@ -1193,7 +1193,7 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) InitializeModule() bo
 }
 
 // Java method: FindImportsAndExports.getOutermostUmdTest(com.google.javascript.rhino.Node n)
-func (this_ *ProcessCommonJSModules_FindImportsAndExports) priv_FindImportsAndExports_getOutermostUmdTest_4505(n pkg_rhino.Node) *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo {
+func (this_ *ProcessCommonJSModules_FindImportsAndExports) priv_FindImportsAndExports_getOutermostUmdTest_4502(n pkg_rhino.Node) *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo {
 	_ = n
 	if ((n == 0) || NodeUtil_IsTopLevel(n)) || n.IsFunction() {
 		return nil
@@ -1204,7 +1204,7 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) priv_FindImportsAndEx
 		return nil
 	}
 	if parent.IsIf() || parent.IsHook() {
-		var umdTestInfo *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo = this_.priv_FindImportsAndExports_getOutermostUmdTest_4505(parent)
+		var umdTestInfo *ProcessCommonJSModules_FindImportsAndExports_UmdTestInfo = this_.priv_FindImportsAndExports_getOutermostUmdTest_4502(parent)
 		_ = umdTestInfo
 		if umdTestInfo != nil {
 			if ((((parent.IsIf() && (parent.GetSecondChild() == n)) && parent.HasParent()) && parent.GetParent().IsBlock()) && (parent.GetNext() == 0)) && (umdTestInfo.activeBranch == parent.GetParent()) {
@@ -1223,11 +1223,11 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) priv_FindImportsAndEx
 		}
 		return nil
 	}
-	return this_.priv_FindImportsAndExports_getOutermostUmdTest_4505(parent)
+	return this_.priv_FindImportsAndExports_getOutermostUmdTest_4502(parent)
 }
 
 // Java method: FindImportsAndExports.isInIfTest(com.google.javascript.rhino.Node n)
-func (this_ *ProcessCommonJSModules_FindImportsAndExports) priv_FindImportsAndExports_isInIfTest_4506(n pkg_rhino.Node) bool {
+func (this_ *ProcessCommonJSModules_FindImportsAndExports) priv_FindImportsAndExports_isInIfTest_4503(n pkg_rhino.Node) bool {
 	_ = n
 	if ((n == 0) || NodeUtil_IsTopLevel(n)) || n.IsFunction() {
 		return false
@@ -1240,7 +1240,7 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) priv_FindImportsAndEx
 	if (parent.IsIf() || parent.IsHook()) && (parent.GetFirstChild() == n) {
 		return true
 	}
-	return this_.priv_FindImportsAndExports_isInIfTest_4506(parent)
+	return this_.priv_FindImportsAndExports_isInIfTest_4503(parent)
 }
 
 // Java method: FindImportsAndExports.replaceUmdPatterns()
@@ -1256,7 +1256,7 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() 
 			umdPattern := j2gort.CastPtr[ProcessCommonJSModules_UmdPattern](rawElem_33)
 			_ = umdPattern
 			if NodeUtil_GetEnclosingScript(umdPattern.ifRoot) == 0 {
-				this_.outer_.priv_ProcessCommonJSModules_reportNestedScopesDeleted_4496(umdPattern.ifRoot)
+				this_.outer_.priv_ProcessCommonJSModules_reportNestedScopesDeleted_4493(umdPattern.ifRoot)
 				continue
 			}
 			var parent pkg_rhino.Node = umdPattern.ifRoot.GetParent()
@@ -1265,7 +1265,7 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() 
 			_ = newNode
 			if newNode == 0 {
 				umdPattern.ifRoot.Detach()
-				this_.outer_.priv_ProcessCommonJSModules_reportNestedScopesDeleted_4496(umdPattern.ifRoot)
+				this_.outer_.priv_ProcessCommonJSModules_reportNestedScopesDeleted_4493(umdPattern.ifRoot)
 				this_.outer_.compiler.ReportChangeToEnclosingScope(parent)
 				needsRetraverse = true
 				continue
@@ -1277,7 +1277,7 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() 
 			}
 			needsRetraverse = true
 			umdPattern.ifRoot.ReplaceWith(newNode)
-			this_.outer_.priv_ProcessCommonJSModules_reportNestedScopesDeleted_4496(umdPattern.ifRoot)
+			this_.outer_.priv_ProcessCommonJSModules_reportNestedScopesDeleted_4493(umdPattern.ifRoot)
 			changeScope = ChangeTracker_GetEnclosingChangeScopeRoot(newNode)
 			if changeScope != 0 {
 				this_.outer_.compiler.ReportChangeToEnclosingScope(newNode)
@@ -1352,13 +1352,13 @@ func (this_ *ProcessCommonJSModules_FindImportsAndExports) ReplaceUmdPatterns() 
 					_ = callRootParent
 					callRootParent.AddChildrenAfter(newStatements.RemoveChildren(), callRoot)
 					callRoot.Detach()
-					this_.outer_.priv_ProcessCommonJSModules_reportNestedScopesChanged_4497(callRootParent)
+					this_.outer_.priv_ProcessCommonJSModules_reportNestedScopesChanged_4494(callRootParent)
 					this_.outer_.compiler.ReportChangeToEnclosingScope(callRootParent)
-					this_.outer_.priv_ProcessCommonJSModules_reportNestedScopesDeleted_4496(enclosingFnCall)
+					this_.outer_.priv_ProcessCommonJSModules_reportNestedScopesDeleted_4493(enclosingFnCall)
 				} else {
 					umdPattern.ifRoot.ReplaceWith(newNode)
 					this_.outer_.compiler.ReportChangeToEnclosingScope(newNode)
-					this_.outer_.priv_ProcessCommonJSModules_reportNestedScopesDeleted_4496(umdPattern.ifRoot)
+					this_.outer_.priv_ProcessCommonJSModules_reportNestedScopesDeleted_4493(umdPattern.ifRoot)
 				}
 			}
 		}
@@ -1543,13 +1543,13 @@ func (this_ *ProcessCommonJSModules_RewriteModule) Visit_3(t *NodeTraversal, n p
 				rawElem_36 := cur_35.Next()
 				export := j2gort.CastPtr[ProcessCommonJSModules_ExportInfo](rawElem_36)
 				_ = export
-				this_.priv_RewriteModule_visitExport_4510(t, export)
+				this_.priv_RewriteModule_visitExport_4507(t, export)
 			}
 		}
 		{
 			for _, require := range this_.imports {
 				_ = require
-				this_.priv_RewriteModule_visitRequireCall_4509(t, require)
+				this_.priv_RewriteModule_visitRequireCall_4506(t, require)
 			}
 		}
 	case int32(28) /* Token.CALL */ :
@@ -1558,7 +1558,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) Visit_3(t *NodeTraversal, n p
 		}
 	case int32(84) /* Token.VAR */, int32(111) /* Token.LET */, int32(97) /* Token.CONST */ :
 		if (n.HasMoreThanOneChild() && !(NodeUtil_IsAnyFor(parent))) && !(parent.IsExport()) {
-			var vars j2gort.Ext_java_util_List = this_.priv_RewriteModule_splitMultipleDeclarations_4518(n)
+			var vars j2gort.Ext_java_util_List = this_.priv_RewriteModule_splitMultipleDeclarations_4515(n)
 			_ = vars
 			t.ReportCodeChange_0()
 			{
@@ -1592,7 +1592,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) Visit_3(t *NodeTraversal, n p
 		_ = nameDeclaration
 		if nameDeclaration != nil {
 			if NodeUtil_IsLhsByDestructuring(n) {
-				this_.priv_RewriteModule_maybeUpdateName_4512(t, n, nameDeclaration)
+				this_.priv_RewriteModule_maybeUpdateName_4509(t, n, nameDeclaration)
 			} else if (nameDeclaration.GetNode() != 0) && j2gort.ObjEqCustomPtr(nameDeclaration.GetNode().GetInputId(), n.GetInputId()) {
 				var enclosingDeclaration pkg_rhino.Node = NodeUtil_GetEnclosingNode(n, j2gort.NewNodeLambda_Ext_com_google_common_base_Predicate(func(rawNode_41 uint32) bool {
 					node := pkg_rhino.Node(rawNode_41)
@@ -1601,7 +1601,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) Visit_3(t *NodeTraversal, n p
 				}))
 				_ = enclosingDeclaration
 				if ((enclosingDeclaration == 0) || (enclosingDeclaration == n)) || (j2gort.CastPtr[Scope](nameDeclaration.GetScope()) != t.GetScope()) {
-					this_.priv_RewriteModule_maybeUpdateName_4512(t, n, nameDeclaration)
+					this_.priv_RewriteModule_maybeUpdateName_4509(t, n, nameDeclaration)
 				}
 			}
 		} else if (this_.allowFullRewrite && func() bool {
@@ -1650,11 +1650,11 @@ func (this_ *ProcessCommonJSModules_RewriteModule) Visit_3(t *NodeTraversal, n p
 		}
 	default:
 	}
-	this_.priv_RewriteModule_fixTypeAnnotationsForNode_4508(t, n)
+	this_.priv_RewriteModule_fixTypeAnnotationsForNode_4505(t, n)
 }
 
 // Java method: RewriteModule.fixTypeAnnotationsForNode(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_fixTypeAnnotationsForNode_4508(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_fixTypeAnnotationsForNode_4505(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	var info *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
@@ -1666,17 +1666,17 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_fixTypeAnn
 			var count int32 = info.GetTypeNodeCount()
 			_ = count
 			for ; i < count; i = i + 1 {
-				this_.priv_RewriteModule_fixTypeNode_4517(t, info.GetTypeNodeAt(i))
+				this_.priv_RewriteModule_fixTypeNode_4514(t, info.GetTypeNodeAt(i))
 			}
 		}
 	}
 }
 
 // Java method: RewriteModule.visitRequireCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node require)
-func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_visitRequireCall_4509(t *NodeTraversal, require pkg_rhino.Node) {
+func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_visitRequireCall_4506(t *NodeTraversal, require pkg_rhino.Node) {
 	_ = t
 	_ = require
-	var moduleName string = this_.outer_.priv_ProcessCommonJSModules_getImportedModuleName_4490(t, require)
+	var moduleName string = this_.outer_.priv_ProcessCommonJSModules_getImportedModuleName_4487(t, require)
 	_ = moduleName
 	var moduleRef pkg_rhino.Node = NodeUtil_NewQName_2_AbstractCompiler_string(this_.outer_.compiler, this_.outer_.GetBasePropertyImport_2(moduleName, require)).SrcrefTree(require.GetSecondChild())
 	_ = moduleRef
@@ -1685,16 +1685,16 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_visitRequi
 }
 
 // Java method: RewriteModule.visitExport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.ProcessCommonJSModules.ExportInfo export)
-func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_visitExport_4510(t *NodeTraversal, export *ProcessCommonJSModules_ExportInfo) {
+func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_visitExport_4507(t *NodeTraversal, export *ProcessCommonJSModules_ExportInfo) {
 	_ = t
 	_ = export
-	var root pkg_rhino.Node = this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4493(export.node)
+	var root pkg_rhino.Node = this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4490(export.node)
 	_ = root
 	var rValue pkg_rhino.Node = NodeUtil_GetRValueOfLValue(root)
 	_ = rValue
 	if StaticGet_ProcessCommonJSModules_MODULE_EXPORTS().Matches(root) {
 		if (((rValue != 0) && rValue.IsObjectLit()) && root.GetParent().IsAssign()) && root.GetGrandparent().IsExprResult() {
-			if this_.priv_RewriteModule_expandObjectLitAssignment_4511(t, root, export.scope) {
+			if this_.priv_RewriteModule_expandObjectLitAssignment_4508(t, root, export.scope) {
 				return
 			}
 		}
@@ -1760,7 +1760,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_visitExpor
 }
 
 // Java method: RewriteModule.expandObjectLitAssignment(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export, com.google.javascript.jscomp.Scope scope)
-func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_expandObjectLitAssignment_4511(t *NodeTraversal, export pkg_rhino.Node, scope *Scope) bool {
+func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_expandObjectLitAssignment_4508(t *NodeTraversal, export pkg_rhino.Node, scope *Scope) bool {
 	_ = t
 	_ = export
 	_ = scope
@@ -1800,7 +1800,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_expandObje
 		expr.InsertAfter(insertionRef)
 		var newExport *ProcessCommonJSModules_ExportInfo = NewProcessCommonJSModules_ExportInfo(lhs.GetFirstChild(), scope)
 		_ = newExport
-		this_.priv_RewriteModule_visitExport_4510(t, newExport)
+		this_.priv_RewriteModule_visitExport_4507(t, newExport)
 		if (expr != 0) && expr.HasParent() {
 			insertionRef = expr
 		}
@@ -1821,7 +1821,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_expandObje
 }
 
 // Java method: RewriteModule.maybeUpdateName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.Var var)
-func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_maybeUpdateName_4512(t *NodeTraversal, n pkg_rhino.Node, var_ *Var) {
+func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_maybeUpdateName_4509(t *NodeTraversal, n pkg_rhino.Node, var_ *Var) {
 	_ = t
 	_ = n
 	_ = var_
@@ -1832,14 +1832,14 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_maybeUpdat
 	if !(n.HasParent()) {
 		j2gort.CheckState(false)
 	}
-	var importedModuleName string = this_.priv_RewriteModule_getModuleImportName_4516(t, var_.GetNode())
+	var importedModuleName string = this_.priv_RewriteModule_getModuleImportName_4513(t, var_.GetNode())
 	_ = importedModuleName
 	var name string = n.GetQualifiedName()
 	_ = name
 	if (importedModuleName != j2gort.NullString) && (n != var_.GetNode()) {
-		this_.priv_RewriteModule_updateNameReference_4513(t, n, name, importedModuleName, false, false)
+		this_.priv_RewriteModule_updateNameReference_4510(t, n, name, importedModuleName, false, false)
 	} else if this_.allowFullRewrite {
-		var exportedName string = this_.priv_RewriteModule_getExportedName_4514(t, n, var_)
+		var exportedName string = this_.priv_RewriteModule_getExportedName_4511(t, n, var_)
 		_ = exportedName
 		if (((n != var_.GetNode()) || n.GetParent().IsClass()) && (exportedName == j2gort.NullString)) && (((var_ == nil) || (var_.GetNameNode().GetParent() == 0)) || !(NodeUtil_IsLhsByDestructuring(var_.GetNameNode()))) {
 			if n.GetParent().IsClass() && (n.GetParent().GetFirstChild() == n) {
@@ -1848,9 +1848,9 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_maybeUpdat
 			return
 		}
 		if ((((importedModuleName == j2gort.NullString) && (exportedName != j2gort.NullString)) && !(j2gort.CheckNotNullString(exportedName) == name)) && !(var_.IsParam())) && ((var_.GetNameNode().GetParent() == 0) || !(NodeUtil_IsLhsByDestructuring(var_.GetNameNode()))) {
-			var exportPropIsConst bool = (((this_.defaultExportIsConst && (j2gort.CheckNotNullString(this_.outer_.GetBasePropertyImport_1(ProcessCommonJSModules_GetModuleName_1_CompilerInput(t.GetInput()))) == exportedName)) && (this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4493(n) == n)) && NodeUtil_IsLValue(n))
+			var exportPropIsConst bool = (((this_.defaultExportIsConst && (j2gort.CheckNotNullString(this_.outer_.GetBasePropertyImport_1(ProcessCommonJSModules_GetModuleName_1_CompilerInput(t.GetInput()))) == exportedName)) && (this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4490(n) == n)) && NodeUtil_IsLValue(n))
 			_ = exportPropIsConst
-			this_.priv_RewriteModule_updateNameReference_4513(t, n, name, exportedName, true, exportPropIsConst)
+			this_.priv_RewriteModule_updateNameReference_4510(t, n, name, exportedName, true, exportPropIsConst)
 		} else if var_.IsGlobal() {
 			var currentModuleName string = ProcessCommonJSModules_GetModuleName_1_CompilerInput(t.GetInput())
 			_ = currentModuleName
@@ -1865,13 +1865,13 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_maybeUpdat
 			}
 			var newName string = (j2gort.StrValString(name) + "$$" + j2gort.StrValString(currentModuleName))
 			_ = newName
-			this_.priv_RewriteModule_updateNameReference_4513(t, n, name, newName, false, false)
+			this_.priv_RewriteModule_updateNameReference_4510(t, n, name, newName, false, false)
 		}
 	}
 }
 
 // Java method: RewriteModule.updateNameReference(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node nameRef, java.lang.String originalName, java.lang.String newName, boolean requireFunctionExpressions, boolean qualifiedNameIsConst)
-func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_updateNameReference_4513(t *NodeTraversal, nameRef pkg_rhino.Node, originalName string, newName string, requireFunctionExpressions bool, qualifiedNameIsConst bool) {
+func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_updateNameReference_4510(t *NodeTraversal, nameRef pkg_rhino.Node, originalName string, newName string, requireFunctionExpressions bool, qualifiedNameIsConst bool) {
 	_ = t
 	_ = nameRef
 	_ = originalName
@@ -1914,7 +1914,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_updateName
 					info.RecordConstancy()
 				}
 				expr.GetFirstChild().SetJSDocInfo(info.Build_0())
-				this_.priv_RewriteModule_fixTypeAnnotationsForNode_4508(t, expr.GetFirstChild())
+				this_.priv_RewriteModule_fixTypeAnnotationsForNode_4505(t, expr.GetFirstChild())
 			}
 			parent.ReplaceWith(expr)
 			if expr.IsLet() {
@@ -1963,7 +1963,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_updateName
 					info_2.RecordConstancy()
 				}
 				expr_2.GetFirstChild().SetJSDocInfo(info_2.Build_0())
-				this_.priv_RewriteModule_fixTypeAnnotationsForNode_4508(t, expr_2.GetFirstChild())
+				this_.priv_RewriteModule_fixTypeAnnotationsForNode_4505(t, expr_2.GetFirstChild())
 			}
 			this_.functionsToHoist = append(this_.functionsToHoist, expr_2)
 		} else {
@@ -1972,7 +1972,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_updateName
 		}
 	case int32(84) /* Token.VAR */, int32(111) /* Token.LET */, int32(97) /* Token.CONST */ :
 		if parent.HasMoreThanOneChild() && !(NodeUtil_IsAnyFor(parent.GetParent())) {
-			this_.priv_RewriteModule_splitMultipleDeclarations_4518(parent)
+			this_.priv_RewriteModule_splitMultipleDeclarations_4515(parent)
 			parent = nameRef.GetParent()
 			newNameDeclaration = j2gort.CastPtr[Var](t.GetScope().GetVar(newName))
 		}
@@ -2003,7 +2003,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_updateName
 					infoBuilder.RecordConstancy()
 				}
 				assign.SetJSDocInfo(infoBuilder.Build_0())
-				this_.priv_RewriteModule_fixTypeAnnotationsForNode_4508(t, assign)
+				this_.priv_RewriteModule_fixTypeAnnotationsForNode_4505(t, assign)
 			} else {
 				getProp.SetJSDocInfo(info_3)
 				parent.ReplaceWith(pkg_rhino.IR_ExprResult(getProp).Srcref(getProp))
@@ -2060,7 +2060,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_updateName
 }
 
 // Java method: RewriteModule.getExportedName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.Var var)
-func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_getExportedName_4514(t *NodeTraversal, n pkg_rhino.Node, var_ *Var) string {
+func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_getExportedName_4511(t *NodeTraversal, n pkg_rhino.Node, var_ *Var) string {
 	_ = t
 	_ = n
 	_ = var_
@@ -2075,14 +2075,14 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_getExporte
 			rawElem_53 := cur_52.Next()
 			export := j2gort.CastPtr[ProcessCommonJSModules_ExportInfo](rawElem_53)
 			_ = export
-			var exportBase pkg_rhino.Node = this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4493(export.node)
+			var exportBase pkg_rhino.Node = this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4490(export.node)
 			_ = exportBase
 			var exportRValue pkg_rhino.Node = NodeUtil_GetRValueOfLValue(exportBase)
 			_ = exportRValue
 			if exportRValue == 0 {
 				continue
 			}
-			var exportedName pkg_rhino.Node = this_.priv_RewriteModule_getExportedNameNode_4515(export)
+			var exportedName pkg_rhino.Node = this_.priv_RewriteModule_getExportedNameNode_4512(export)
 			_ = exportedName
 			if export.isInSupportedScope && ((exportRValue == n) || ((NodeUtil_IsClassExpression(exportRValue) || NodeUtil_IsFunctionExpression(exportRValue)) && (exportedName == n))) {
 				return j2gort.NullString
@@ -2144,9 +2144,9 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_getExporte
 }
 
 // Java method: RewriteModule.getExportedNameNode(com.google.javascript.jscomp.ProcessCommonJSModules.ExportInfo info)
-func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_getExportedNameNode_4515(info *ProcessCommonJSModules_ExportInfo) pkg_rhino.Node {
+func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_getExportedNameNode_4512(info *ProcessCommonJSModules_ExportInfo) pkg_rhino.Node {
 	_ = info
-	var qNameBase pkg_rhino.Node = this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4493(info.node)
+	var qNameBase pkg_rhino.Node = this_.outer_.priv_ProcessCommonJSModules_getBaseQualifiedNameNode_4490(info.node)
 	_ = qNameBase
 	var rValue pkg_rhino.Node = NodeUtil_GetRValueOfLValue(qNameBase)
 	_ = rValue
@@ -2171,7 +2171,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_getExporte
 }
 
 // Java method: RewriteModule.getModuleImportName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_getModuleImportName_4516(t *NodeTraversal, n pkg_rhino.Node) string {
+func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_getModuleImportName_4513(t *NodeTraversal, n pkg_rhino.Node) string {
 	_ = t
 	_ = n
 	var rValue pkg_rhino.Node = pkg_rhino.Node(0)
@@ -2195,9 +2195,9 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_getModuleI
 		return j2gort.NullString
 	}
 	if rValue.IsCall() && this_.outer_.IsCommonJsImport(rValue) {
-		return (j2gort.StrValString(this_.outer_.GetBasePropertyImport_2(this_.outer_.priv_ProcessCommonJSModules_getImportedModuleName_4490(t, rValue), rValue)) + j2gort.StrValString(propSuffix))
+		return (j2gort.StrValString(this_.outer_.GetBasePropertyImport_2(this_.outer_.priv_ProcessCommonJSModules_getImportedModuleName_4487(t, rValue), rValue)) + j2gort.StrValString(propSuffix))
 	} else if rValue.IsGetProp() && this_.outer_.IsCommonJsImport(rValue.GetFirstChild()) {
-		var importName string = this_.outer_.GetBasePropertyImport_2(this_.outer_.priv_ProcessCommonJSModules_getImportedModuleName_4490(t, rValue.GetFirstChild()), rValue.GetFirstChild())
+		var importName string = this_.outer_.GetBasePropertyImport_2(this_.outer_.priv_ProcessCommonJSModules_getImportedModuleName_4487(t, rValue.GetFirstChild()), rValue.GetFirstChild())
 		_ = importName
 		var suffix string = rValue.GetString()
 		_ = suffix
@@ -2207,7 +2207,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_getModuleI
 }
 
 // Java method: RewriteModule.fixTypeNode(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node typeNode)
-func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_fixTypeNode_4517(t *NodeTraversal, typeNode pkg_rhino.Node) {
+func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_fixTypeNode_4514(t *NodeTraversal, typeNode pkg_rhino.Node) {
 	_ = t
 	_ = typeNode
 	if typeNode.IsStringLit() {
@@ -2227,7 +2227,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_fixTypeNod
 			}
 			var moduleName string = j2gort.JStrSub(name, int32(0), endIndex)
 			_ = moduleName
-			var globalModuleName string = this_.outer_.priv_ProcessCommonJSModules_getImportedModuleName_4491(t, typeNode, moduleName)
+			var globalModuleName string = this_.outer_.priv_ProcessCommonJSModules_getImportedModuleName_4488(t, typeNode, moduleName)
 			_ = globalModuleName
 			var baseImportProperty string = this_.outer_.GetBasePropertyImport_1(globalModuleName)
 			_ = baseImportProperty
@@ -2259,7 +2259,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_fixTypeNod
 				var typeDeclaration *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(baseName))
 				_ = typeDeclaration
 				if ((typeDeclaration != nil) && (typeDeclaration.GetNode() != 0)) && j2gort.ObjEqCustomPtr(typeDeclaration.GetNode().GetInputId(), typeNode.GetInputId()) {
-					var importedModuleName string = this_.priv_RewriteModule_getModuleImportName_4516(t, typeDeclaration.GetNode())
+					var importedModuleName string = this_.priv_RewriteModule_getModuleImportName_4513(t, typeDeclaration.GetNode())
 					_ = importedModuleName
 					if importedModuleName != j2gort.NullString {
 						typeNode.SetString((j2gort.StrValString(importedModuleName) + j2gort.StrValString(suffix)))
@@ -2267,7 +2267,7 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_fixTypeNod
 						wasRewritten = true
 						break
 					} else if this_.allowFullRewrite {
-						var exportedName string = this_.priv_RewriteModule_getExportedName_4514(t, typeNode, typeDeclaration)
+						var exportedName string = this_.priv_RewriteModule_getExportedName_4511(t, typeNode, typeDeclaration)
 						_ = exportedName
 						if (exportedName != j2gort.NullString) && !(j2gort.CheckNotNullString(exportedName) == name) {
 							typeNode.SetString((j2gort.StrValString(exportedName) + j2gort.StrValString(suffix)))
@@ -2305,13 +2305,13 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_fixTypeNod
 		var child pkg_rhino.Node = typeNode.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			this_.priv_RewriteModule_fixTypeNode_4517(t, child)
+			this_.priv_RewriteModule_fixTypeNode_4514(t, child)
 		}
 	}
 }
 
 // Java method: RewriteModule.splitMultipleDeclarations(com.google.javascript.rhino.Node var)
-func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_splitMultipleDeclarations_4518(var_ pkg_rhino.Node) j2gort.Ext_java_util_List {
+func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_splitMultipleDeclarations_4515(var_ pkg_rhino.Node) j2gort.Ext_java_util_List {
 	_ = var_
 	if !(NodeUtil_IsNameDeclaration(var_)) {
 		j2gort.CheckState(false)

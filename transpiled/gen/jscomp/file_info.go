@@ -126,7 +126,7 @@ func (this_ *FileInfo) GetDeclarations() j2gort.Ext_com_google_common_collect_Li
 // Java method: FileInfo.recordDeclaration(com.google.javascript.jscomp.ijs.PotentialDeclaration decl)
 func (this_ *FileInfo) RecordDeclaration(decl PotentialDeclaration) {
 	_ = decl
-	j2gort.MultimapPutStr(this_.declarations, decl.GetFullyQualifiedName(), decl)
+	j2gort.MultimapPutStr(this_.declarations, decl.GetPotentialDeclarationBase().GetFullyQualifiedName(), decl)
 }
 
 // Java method: FileInfo.recordImport(java.lang.String localName)

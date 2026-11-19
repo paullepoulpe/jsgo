@@ -336,7 +336,7 @@ func (this_ *Compiler) initFields_Compiler() {
 	this_.cachedAstAnalyzerMask = int32(-1)
 	this_.changeTracker = NewChangeTracker()
 	this_.resolvedSourceMap = NewCompiler_ResolvedSourceMap()
-	this_.validityCheck = PassFactory_S_Builder().SetName("validityCheck").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_compiler_2).SetCondition((lambdaSingleton_compiler_1)).Build()
+	this_.validityCheck = PassFactory_S_Builder().SetName("validityCheck").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_compiler_2).SetCondition((lambdaSingleton_compiler_1)).GetPassFactory_BuilderBase().Build()
 	this_.currentPassIndex = int32(-1)
 	this_.stage = StaticGet_AbstractCompiler_LifeCycleStage_RAW()
 
@@ -400,7 +400,7 @@ func InitCompiler_1_ErrorManager(this_ *Compiler, errorManager ErrorManager) {
 func (this_ *Compiler) SetErrorManager(errorManager ErrorManager) {
 	_ = errorManager
 	j2gort.CheckNotNullIface(errorManager)
-	this_.errorManager = j2gort.AsIface[ErrorManager](NewThreadSafeDelegatingErrorManager(errorManager))
+	this_.errorManager = Upcast_ErrorManager(NewThreadSafeDelegatingErrorManager(errorManager))
 }
 
 // Java method: Compiler.createMessageFormatter()
@@ -421,7 +421,7 @@ func (this_ *Compiler) priv_Compiler_initExperimentalOutputFeatureSetOptions_144
 	if options.GetExperimentalOutputFeatureSet().IsPresent() {
 		switch (j2gort.Cast[CompilerOptions_ExperimentalOutputFeatureSet](options.GetExperimentalOutputFeatureSet().Get())).Ordinal() {
 		case int32(0) /* ExperimentalOutputFeatureSet.ES5_WITH_SOME_PERFORMANT_ES2015_AND_ASYNC_FUNCTIONS */ :
-			options.SetOutputFeatureSet(pkg_parser.StaticGet_FeatureSet_ES5().With_1_FeatureSet_Feature_7186([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS(), pkg_parser.StaticGet_FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_GENERATORS(), pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS()}))
+			options.SetOutputFeatureSet(pkg_parser.StaticGet_FeatureSet_ES5().With_1_FeatureSet_Feature_7192([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS(), pkg_parser.StaticGet_FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_GENERATORS(), pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS()}))
 		case int32(1) /* ExperimentalOutputFeatureSet.BROWSER_2019_WITHOUT_CLASSES_AND_SPREAD */ :
 			options.SetOutputFeatureSet(pkg_parser.StaticGet_FeatureSet_BROWSER_2019().Without_2(pkg_parser.StaticGet_FeatureSet_Feature_CLASSES(), []*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER(), pkg_parser.StaticGet_FeatureSet_Feature_NEW_TARGET(), pkg_parser.StaticGet_FeatureSet_Feature_SUPER(), pkg_parser.StaticGet_FeatureSet_Feature_SPREAD_EXPRESSIONS()}))
 		}
@@ -441,7 +441,7 @@ func (this_ *Compiler) InitOptions(options *CompilerOptions) {
 			var builder j2gort.Ext_com_google_common_collect_ImmutableSet_Builder = j2gort.Ext_com_google_common_collect_ImmutableSet_S_Builder()
 			_ = builder
 			j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet_Builder](builder.Add_1_any(NewPrintStreamErrorReportGenerator(this_.priv_Compiler_createMessageFormatter_1439(), this_.outStream, options.GetSummaryDetailLevel()))).AddAll_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](options.GetExtraReportGenerators()))
-			this_.SetErrorManager(j2gort.AsIface[ErrorManager](NewSortingErrorManager(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](builder.Build()))))
+			this_.SetErrorManager(Upcast_ErrorManager(NewSortingErrorManager(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](builder.Build()))))
 		}
 	}
 	if options.GetSkipNonTranspilationPasses() {
@@ -823,9 +823,7 @@ func (this_ *Compiler) InitChunks(externs j2gort.Ext_java_util_List, chunks j2go
 		var chunkGraphLog pkg_diagnostic.LogFile = this_.CreateOrReopenLog(j2gort.GetObjectClass(this_), "chunk_graph.dot", []string{})
 		_ = chunkGraphLog
 		defer j2gort.CloseResource(chunkGraphLog)
-		if chunkGraphLog.IsLogging() {
-			chunkGraphLog.Log_1_string(DotFormatter_ToDot_1_GraphvizGraph(j2gort.AsIface[pkg_graph.GraphvizGraph](this_.chunkGraph.ToGraphvizGraph())))
-		}
+		chunkGraphLog.Log_1_string(DotFormatter_ToDot_1_GraphvizGraph(pkg_graph.Upcast_GraphvizGraph(this_.chunkGraph.ToGraphvizGraph())))
 	}()
 	this_.runtimeJsLibManager = RuntimeJsLibManager_Create(options.GetRuntimeLibraryMode(), func() RuntimeJsLibManager_ResourceProvider {
 		bound_31 := this_
@@ -1302,7 +1300,7 @@ func (this_ *Compiler) WhitespaceOnlyPasses() {
 				rawElem_52 := cur_51.Next()
 				pf := j2gort.AsIface[PassFactory](rawElem_52)
 				_ = pf
-				pf.Create(this_).Process_2(this_.externsRoot, this_.jsRoot)
+				pf.GetPassFactoryBase().Create(this_).Process_2(this_.externsRoot, this_.jsRoot)
 			}
 		}
 	}
@@ -1346,7 +1344,7 @@ func (this_ *Compiler) TranspileAndDontCheck() {
 					return
 				}
 				this_.BeforePass(pf.GetName())
-				pf.Create(this_).Process_2(this_.externsRoot, this_.jsRoot)
+				pf.GetPassFactoryBase().Create(this_).Process_2(this_.externsRoot, this_.jsRoot)
 				this_.AfterPass(pf.GetName())
 			}
 		}
@@ -1396,7 +1394,7 @@ func (this_ *Compiler) Process(p CompilerPass) {
 
 // Java method: Compiler.runValidityCheck()
 func (this_ *Compiler) priv_Compiler_runValidityCheck_1485() {
-	this_.validityCheck.Create(this_).Process_2(this_.externsRoot, this_.jsRoot)
+	this_.validityCheck.GetPassFactoryBase().Create(this_).Process_2(this_.externsRoot, this_.jsRoot)
 }
 
 // Java method: Compiler.runCustomPasses(com.google.javascript.jscomp.CustomPassExecutionTime executionTime)
@@ -1690,7 +1688,7 @@ func (this_ *Compiler) GetCurrentJsSource() string {
 			}
 		}
 		if builder.Length() == int32(0) {
-			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string("// No files matched any of: ")).Append_1_any_9831(fileNameRegexList)
+			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string("// No files matched any of: ")).Append_1_any_9850(fileNameRegexList)
 		}
 	}
 	if !(chunkNameRegexList.IsEmpty()) {
@@ -2029,7 +2027,7 @@ func (this_ *Compiler) ClearTypedScopeCreator() {
 
 // Java method: Compiler.ensureDefaultPassConfig()
 func (this_ *Compiler) EnsureDefaultPassConfig() *DefaultPassConfig {
-	var passes PassConfig = this_.GetPassConfig().GetBasePassConfig()
+	var passes PassConfig = this_.GetPassConfig().GetPassConfigBase().GetBasePassConfig()
 	_ = passes
 	if !(j2gort.InstanceOf[*DefaultPassConfig](passes)) {
 		j2gort.CheckStateStr(false, "PassConfigs must eventually delegate to the DefaultPassConfig")
@@ -2102,7 +2100,7 @@ func (this_ *Compiler) GetReverseAbstractInterpreter() pkg_jscomptype.ReverseAbs
 		if this_.options.GetClosurePass() {
 			interpreter = pkg_jscomptype.NewClosureReverseAbstractInterpreter(this_.GetTypeRegistry()).Append(interpreter).GetFirst()
 		}
-		this_.abstractInterpreter = j2gort.AsIface[pkg_jscomptype.ReverseAbstractInterpreter](interpreter)
+		this_.abstractInterpreter = pkg_jscomptype.Upcast_ReverseAbstractInterpreter(interpreter)
 	}
 	return this_.abstractInterpreter
 }
@@ -4974,6 +4972,14 @@ func ToIface_Compiler_SeenSetLicenseTracker[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_Compiler_SeenSetLicenseTracker[T Compiler_SeenSetLicenseTracker](v T) Compiler_SeenSetLicenseTracker {
+	var vi Compiler_SeenSetLicenseTracker = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.Compiler.SeenSetLicenseTracker

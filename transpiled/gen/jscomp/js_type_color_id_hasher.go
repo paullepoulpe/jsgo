@@ -120,7 +120,7 @@ func InitJSTypeColorIdHasher(this_ *JSTypeColorIdHasher, registry *pkg_rhino.JST
 }
 
 // Java method: JSTypeColorIdHasher.ensureCapacity(int additional)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_ensureCapacity_7711(additional int32) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_ensureCapacity_7717(additional int32) {
 	_ = additional
 	var needed int32 = (this_.scratchLen + additional)
 	_ = needed
@@ -147,9 +147,9 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_ensureCapacity_7711(a
 }
 
 // Java method: JSTypeColorIdHasher.putInt(int v)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putInt_7712(v int32) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putInt_7718(v int32) {
 	_ = v
-	this_.priv_JSTypeColorIdHasher_ensureCapacity_7711(int32(4))
+	this_.priv_JSTypeColorIdHasher_ensureCapacity_7717(int32(4))
 	var buf []int8 = this_.scratchBytes
 	_ = buf
 	var pos int32 = this_.scratchLen
@@ -178,14 +178,14 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putInt_7712(v int32) 
 }
 
 // Java method: JSTypeColorIdHasher.putUtf8(java.lang.String s)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putUtf8_7713(s string) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putUtf8_7719(s string) {
 	_ = s
 	var sLen int32 = j2gort.JStrLen(s)
 	_ = sLen
 	if sLen == int32(0) {
 		return
 	}
-	this_.priv_JSTypeColorIdHasher_ensureCapacity_7711((sLen * int32(3)))
+	this_.priv_JSTypeColorIdHasher_ensureCapacity_7717((sLen * int32(3)))
 	var buf []int8 = this_.scratchBytes
 	_ = buf
 	var pos int32 = this_.scratchLen
@@ -274,7 +274,7 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putUtf8_7713(s string
 // Java method: JSTypeColorIdHasher.hashObjectType(com.google.javascript.rhino.jstype.ObjectType type)
 func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg_colors.ColorId {
 	_ = type_
-	if !((((((type_ != nil && !type_.IsJavaNil_()) && !(type_.IsEnumElementType())) && !(type_.IsNoResolvedType())) && !(type_.IsTemplatizedType())) && !(type_.IsUnknownType())) && !(type_.IsTemplateType())) {
+	if !((((((type_ != nil && !type_.IsJavaNil_()) && !(type_.GetObjectTypeBase().IsEnumElementType())) && !(type_.GetObjectTypeBase().IsNoResolvedType())) && !(type_.GetObjectTypeBase().IsTemplatizedType())) && !(type_.GetObjectTypeBase().IsUnknownType())) && !(type_.GetObjectTypeBase().IsTemplateType())) {
 		j2gort.CheckStateMsg(false, type_)
 	}
 	var boxId pkg_colors.ColorId = this_.standardColorObjectIds.Get(type_)
@@ -283,27 +283,28 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 		return boxId
 	}
 	this_.scratchLen = int32(0)
-	if type_.IsFunctionType() {
+	base_type__ := type_.GetObjectTypeBase()
+	if base_type__.IsFunctionType() {
 		var fnType *pkg_rhino.FunctionType = type_.ToMaybeFunctionType()
 		_ = fnType
 		if fnType.HasInstanceType() {
-			this_.priv_JSTypeColorIdHasher_putInt_7712(int32(-1937018661))
+			this_.priv_JSTypeColorIdHasher_putInt_7718(int32(-1937018661))
 		}
 	}
-	if type_.HasReferenceName() {
-		this_.priv_JSTypeColorIdHasher_putReferenceNameType_7715(type_)
+	if base_type__.HasReferenceName() {
+		this_.priv_JSTypeColorIdHasher_putReferenceNameType_7721(type_)
 	} else {
 		var ownProps j2gort.Ext_java_util_Set = type_.GetOwnPropertyNames()
 		_ = ownProps
 		var propCount int32 = ownProps.Size()
 		_ = propCount
-		if (propCount <= int32(1)) || type_.IsRecordType() {
+		if (propCount <= int32(1)) || base_type__.IsRecordType() {
 			{
 				cur_57 := j2gort.NewIterCursor(j2gort.CheckNotNull(ownProps))
 				for cur_57.HasNext() {
 					prop := cur_57.NextStr()
 					_ = prop
-					this_.priv_JSTypeColorIdHasher_putUtf8_7713(prop)
+					this_.priv_JSTypeColorIdHasher_putUtf8_7719(prop)
 				}
 			}
 		} else {
@@ -347,7 +348,7 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 				var i int32 = int32(0)
 				_ = i
 				for ; i < int32(len(sortedProps)); i = i + 1 {
-					this_.priv_JSTypeColorIdHasher_putUtf8_7713(sortedProps[i])
+					this_.priv_JSTypeColorIdHasher_putUtf8_7719(sortedProps[i])
 				}
 			}
 		}
@@ -356,21 +357,21 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 }
 
 // Java method: JSTypeColorIdHasher.putReferenceNameType(com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putReferenceNameType_7715(type_ pkg_rhino.ObjectType) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putReferenceNameType_7721(type_ pkg_rhino.ObjectType) {
 	_ = type_
-	this_.priv_JSTypeColorIdHasher_putUtf8_7713(type_.GetReferenceName())
+	this_.priv_JSTypeColorIdHasher_putUtf8_7719(type_.GetReferenceName())
 	var sourceRef pkg_rhino.JSType_WithSourceRef = JSTypeColorIdHasher_SourceRefFor(type_)
 	_ = sourceRef
 	if sourceRef == nil || sourceRef.IsJavaNil_() {
-		this_.priv_JSTypeColorIdHasher_putInt_7712(int32(1712056194))
+		this_.priv_JSTypeColorIdHasher_putInt_7718(int32(1712056194))
 		return
 	}
 	var moduleId string = sourceRef.GetGoogModuleId()
 	_ = moduleId
 	if moduleId == j2gort.NullString {
-		this_.priv_JSTypeColorIdHasher_putInt_7712(int32(630441471))
+		this_.priv_JSTypeColorIdHasher_putInt_7718(int32(630441471))
 	} else {
-		this_.priv_JSTypeColorIdHasher_putUtf8_7713(moduleId)
+		this_.priv_JSTypeColorIdHasher_putUtf8_7719(moduleId)
 	}
 }
 
@@ -378,14 +379,15 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putReferenceNameType_
 func JSTypeColorIdHasher_SourceRefFor(type_ pkg_rhino.ObjectType) pkg_rhino.JSType_WithSourceRef {
 	clinit_JSTypeColorIdHasher()
 	_ = type_
-	if type_.IsEnumType() {
+	base_type__ := type_.GetObjectTypeBase()
+	if base_type__.IsEnumType() {
 		return pkg_rhino.ToIface_JSType_WithSourceRef(type_.ToMaybeEnumType())
-	} else if type_.IsEnumElementType() {
+	} else if base_type__.IsEnumElementType() {
 		panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", type_)))
 	}
-	if type_.IsFunctionType() {
+	if base_type__.IsFunctionType() {
 		return pkg_rhino.ToIface_JSType_WithSourceRef(type_.ToMaybeFunctionType())
-	} else if type_.IsFunctionPrototypeType() {
+	} else if base_type__.IsFunctionPrototypeType() {
 		return pkg_rhino.ToIface_JSType_WithSourceRef(type_.GetOwnerFunction())
 	} else if type_.GetConstructor() != nil {
 		return pkg_rhino.ToIface_JSType_WithSourceRef(type_.GetConstructor())

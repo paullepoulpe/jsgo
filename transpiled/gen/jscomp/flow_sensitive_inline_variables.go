@@ -813,7 +813,7 @@ func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_getDefinitio
 	_ = n
 	var gatherCb ControlFlowGraph_AbstractCfgNodeTraversalCallback = NewFlowSensitiveInlineVariables__Anon_43(this_)
 	_ = gatherCb
-	NodeTraversal_Traverse(this_.outer_.compiler, n, gatherCb)
+	NodeTraversal_Traverse(this_.outer_.compiler, n, Upcast_NodeTraversal_Callback(gatherCb))
 }
 
 // Java method: Candidate.getNumUseInUseCfgNode(com.google.javascript.rhino.Node cfgNode)
@@ -822,7 +822,7 @@ func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_getNumUseInU
 	this_.numUsesWithinCfgNode = int32(0)
 	var gatherCb ControlFlowGraph_AbstractCfgNodeTraversalCallback = NewFlowSensitiveInlineVariables__Anon_44(this_, cfgNode)
 	_ = gatherCb
-	NodeTraversal_Traverse(this_.outer_.compiler, cfgNode, gatherCb)
+	NodeTraversal_Traverse(this_.outer_.compiler, cfgNode, Upcast_NodeTraversal_Callback(gatherCb))
 }
 
 // Java method: Candidate.isRhsSafeToInline(com.google.javascript.jscomp.Scope usageScope)

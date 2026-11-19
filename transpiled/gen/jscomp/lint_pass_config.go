@@ -31,7 +31,9 @@ func init() {
 		_ = compiler
 		return NewGatherModuleMetadata(compiler, compiler.GetOptions().GetProcessCommonJSModules(), compiler.GetOptions().GetModuleResolutionMode())
 	})
-	lambdaSingleton_lint_pass_config_2 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewVariableReferenceCheck(j2gort.AsIface[AbstractCompiler](mrp0_)) })
+	lambdaSingleton_lint_pass_config_2 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewVariableReferenceCheck(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
 	lambdaSingleton_lint_pass_config_3 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_3 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_3)
 		_ = compiler
@@ -73,17 +75,19 @@ func (*LintPassConfig) Implements_jscomp_PassConfig()                    {}
 
 func (this_ *LintPassConfig) initFields_LintPassConfig() {
 	_ = this_
-	this_.gatherModuleMetadataPass = PassFactory_S_Builder().SetName("gatherModuleMetadata").SetInternalFactory(lambdaSingleton_lint_pass_config_1).Build()
+	this_.gatherModuleMetadataPass = PassFactory_S_Builder().SetName("gatherModuleMetadata").SetInternalFactory(lambdaSingleton_lint_pass_config_1).GetPassFactory_BuilderBase().Build()
 	this_.earlyLintChecks = PassFactory_S_Builder().SetName("earlyLintChecks").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_2 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_2)
 		_ = compiler
 		return NewCombinedCompilerPass_2_AbstractCompiler_Ext_java_util_List(compiler, j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_Of_13(NewCheckConstPrivateProperties(compiler), NewCheckConstantCaseNames(compiler), NewCheckDuplicateCase(compiler), NewCheckEmptyStatements(compiler), NewCheckEnums(compiler), NewCheckExtraRequires(compiler, this_.GetPassConfigBase().options.GetUnusedImportsToRemove()), NewCheckGoogModuleTypeScriptName(compiler), NewCheckJSDocStyle(compiler), NewCheckJSDoc(compiler), NewCheckMissingSemicolon(compiler), NewCheckSuper(compiler), NewCheckPrimitiveAsObject(compiler), []any{NewClosureCheckModule(compiler, compiler.GetModuleMetadataMap()), NewCheckNullabilityModifiers(compiler), NewCheckProvidesSorted(StaticGet_CheckProvidesSorted_Mode_COLLECT_AND_REPORT()), NewCheckRequiresSorted(StaticGet_CheckRequiresSorted_Mode_COLLECT_AND_REPORT()), NewCheckSideEffects(compiler, true, false), NewCheckTypeImportCodeReferences(compiler), NewCheckUnusedLabels(compiler), NewCheckUnusedPrivateProperties(compiler), NewCheckUselessBlocks(compiler), NewCheckVar(compiler)})))
-	})).Build()
-	this_.variableReferenceCheck = PassFactory_S_Builder().SetName("variableReferenceCheck").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_lint_pass_config_2).Build()
-	this_.lateLintChecks = PassFactory_S_Builder().SetName("lateLintChecks").SetInternalFactory(lambdaSingleton_lint_pass_config_3).Build()
+	})).GetPassFactory_BuilderBase().Build()
+	this_.variableReferenceCheck = PassFactory_S_Builder().SetName("variableReferenceCheck").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_lint_pass_config_2).GetPassFactory_BuilderBase().Build()
+	this_.lateLintChecks = PassFactory_S_Builder().SetName("lateLintChecks").SetInternalFactory(lambdaSingleton_lint_pass_config_3).GetPassFactory_BuilderBase(
+
+	// Java constructor: LintPassConfig(com.google.javascript.jscomp.CompilerOptions options)
+	).Build()
 }
 
-// Java constructor: LintPassConfig(com.google.javascript.jscomp.CompilerOptions options)
 func NewLintPassConfig(options *CompilerOptions) *LintPassConfig {
 	this_ := &LintPassConfig{}
 	this_.BindSelf_(this_)

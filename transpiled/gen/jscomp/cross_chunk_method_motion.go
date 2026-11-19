@@ -205,7 +205,7 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_tryToMoveProtot
 		return
 	}
 	if this_.chunkGraph.DependsOn(deepestCommonChunkRef, prop.GetChunk()) {
-		if CrossChunkMethodMotion_HasUnmovableRedeclaration(nameInfo, j2gort.AsIface[AnalyzePrototypeProperties_Property](prop)) {
+		if CrossChunkMethodMotion_HasUnmovableRedeclaration(nameInfo, Upcast_AnalyzePrototypeProperties_Property(prop)) {
 			return
 		}
 		var destParent pkg_rhino.Node = this_.compiler.GetNodeForCodeInsertion(deepestCommonChunkRef)

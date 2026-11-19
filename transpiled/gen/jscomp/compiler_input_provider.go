@@ -39,6 +39,14 @@ func ToIface_CompilerInputProvider[T interface {
 	return v
 }
 
+func Upcast_CompilerInputProvider[T CompilerInputProvider](v T) CompilerInputProvider {
+	var vi CompilerInputProvider = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.CompilerInputProvider", "com.google.javascript.jscomp.CompilerInputProvider", func(v_ any) bool {
 		return j2gort.InstanceOf[CompilerInputProvider](v_)

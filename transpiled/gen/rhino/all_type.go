@@ -76,6 +76,7 @@ func InitAllType(this_ *AllType, registry *JSTypeRegistry) {
 	_ = registry
 	InitJSType_3(&this_.JSTypeBase, registry, nil, int32(16))
 	this_.initFields_AllType()
+	this_.GetJSTypeBase().jstypeFlags = int8((int32(this_.GetJSTypeBase().jstypeFlags) | int32(int8(32))))
 	this_.EagerlyResolveToSelf()
 }
 

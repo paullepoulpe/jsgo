@@ -123,9 +123,10 @@ func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullPar
 	}
 	var module ModuleMetadataMap_ModuleMetadata = j2gort.AsIface[ModuleMetadataMap_ModuleMetadata](j2gort.Ext_com_google_common_collect_Iterables_GetOnlyElement_1(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](compiler.GetModuleMetadataMap().GetModulesByPath().Values())))
 	_ = module
-	if module.IsEs6Module() {
+	base_module_ := module.GetModuleMetadataMap_ModuleMetadataBase()
+	if base_module_.IsEs6Module() {
 		j2gort.MultimapPutStr(info.loadFlags, "module", "es6")
-	} else if module.IsGoogModule() {
+	} else if base_module_.IsGoogModule() {
 		j2gort.MultimapPutStr(info.loadFlags, "module", "goog")
 	}
 	switch (module.ModuleType()).Ordinal() {
@@ -395,6 +396,14 @@ func ToIface_JsFileFullParser_Reporter[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_JsFileFullParser_Reporter[T JsFileFullParser_Reporter](v T) JsFileFullParser_Reporter {
+	var vi JsFileFullParser_Reporter = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

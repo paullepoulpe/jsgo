@@ -45,6 +45,14 @@ func ToIface_JsMessageDefinition[T interface {
 	return v
 }
 
+func Upcast_JsMessageDefinition[T JsMessageDefinition](v T) JsMessageDefinition {
+	var vi JsMessageDefinition = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.JsMessageDefinition", "com.google.javascript.jscomp.JsMessageDefinition", func(v_ any) bool {
 		return j2gort.InstanceOf[JsMessageDefinition](v_)

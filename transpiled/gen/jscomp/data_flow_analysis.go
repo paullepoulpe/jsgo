@@ -705,7 +705,7 @@ func DataFlowAnalysis_ComputeEscaped(jsScope *Scope, escaped j2gort.Ext_java_uti
 		var ntb_ NodeTraversal_Builder
 		InitNodeTraversal_Builder(&ntb_)
 		(&ntb_).SetCompiler(compiler)
-		(&ntb_).SetCallback_1_NodeTraversal_Callback(finder)
+		(&ntb_).SetCallback_1_NodeTraversal_Callback(Upcast_NodeTraversal_Callback(finder))
 		(&ntb_).SetScopeCreator(scopeCreator)
 		(&ntb_).TraverseAtScope(ToIface_AbstractScope(jsScope))
 	}

@@ -39,6 +39,14 @@ func ToIface_ReverseAbstractInterpreter[T interface {
 	return v
 }
 
+func Upcast_ReverseAbstractInterpreter[T ReverseAbstractInterpreter](v T) ReverseAbstractInterpreter {
+	var vi ReverseAbstractInterpreter = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.type.ReverseAbstractInterpreter", "com.google.javascript.jscomp.type.ReverseAbstractInterpreter", func(v_ any) bool {
 		return j2gort.InstanceOf[ReverseAbstractInterpreter](v_)

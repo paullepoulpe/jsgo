@@ -648,7 +648,8 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_checkGoogModuleGet_1043(t
 		t.Report_3(call, StaticGet_ClosurePrimitiveErrors_MODULE_USES_GOOG_MODULE_GET(), []string{})
 		return
 	}
-	if (!(currentModule.IsEs6Module()) && !(currentModule.IsGoogModule())) && (this_.GetNodeTraversal_AbstractModuleCallbackBase().compiler.GetOptions().GetModuleResolutionMode() != StaticGet_ModuleLoader_ResolutionMode_WEBPACK()) {
+	base_currentModule_ := currentModule.GetModuleMetadataMap_ModuleMetadataBase()
+	if (!(base_currentModule_.IsEs6Module()) && !(base_currentModule_.IsGoogModule())) && (this_.GetNodeTraversal_AbstractModuleCallbackBase().compiler.GetOptions().GetModuleResolutionMode() != StaticGet_ModuleLoader_ResolutionMode_WEBPACK()) {
 		if t.InGlobalScope() {
 			var getSubExprRoot pkg_rhino.Node = call
 			_ = getSubExprRoot
@@ -689,7 +690,7 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_checkGoogModuleGet_1043(t
 	_ = maybeAssign
 	var isFillingAnAlias bool = (maybeAssign.IsAssign() && maybeAssign.GetFirstChild().IsName())
 	_ = isFillingAnAlias
-	var isModule bool = (currentModule.IsGoogModule() || currentModule.IsEs6Module())
+	var isModule bool = (base_currentModule_.IsGoogModule() || base_currentModule_.IsEs6Module())
 	_ = isModule
 	if isFillingAnAlias && isModule {
 		var aliasName string = call.GetParent().GetFirstChild().GetString()
@@ -783,7 +784,8 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_checkImport_1046(t *NodeT
 	_ = importType
 	var atTopLevelScope bool = (t.InGlobalHoistScope() || t.InModuleScope())
 	_ = atTopLevelScope
-	var isModule bool = currentModule.IsModule()
+	base_currentModule_ := currentModule.GetModuleMetadataMap_ModuleMetadataBase()
+	var isModule bool = base_currentModule_.IsModule()
 	_ = isModule
 	var validAssignment bool = (isModule || parent.IsExprResult())
 	_ = validAssignment
@@ -807,7 +809,7 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_checkImport_1046(t *NodeT
 		if importType.AliasMustBeConstant() {
 			if declaration.IsLet() {
 				t.Report_3(call, StaticGet_CheckClosureImports_LET_CLOSURE_IMPORT(), []string{importType.CallName()})
-			} else if !(declaration.IsConst()) && currentModule.IsEs6Module() {
+			} else if !(declaration.IsConst()) && base_currentModule_.IsEs6Module() {
 				t.Report_3(call, StaticGet_CheckClosureImports_LHS_OF_CLOSURE_IMPORT_MUST_BE_CONST_IN_ES_MODULE(), []string{importType.CallName()})
 			}
 		}
@@ -842,7 +844,7 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_checkImport_1046(t *NodeT
 	if importType.MustBeOrdered() {
 		this_.outer_.priv_CheckClosureImports_verifyRequireOrder_1034(namespace, call, t, requiredModule)
 	}
-	if ((importType == StaticGet_CheckClosureImports_ClosureImport_REQUIRE()) && currentModule.IsEs6Module()) && requiredModule.IsEs6Module() {
+	if ((importType == StaticGet_CheckClosureImports_ClosureImport_REQUIRE()) && base_currentModule_.IsEs6Module()) && requiredModule.GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module() {
 		t.Report_3(call, StaticGet_Es6RewriteModules_SHOULD_IMPORT_ES6_MODULE(), []string{})
 	}
 }

@@ -57,6 +57,14 @@ func ToIface_ValueType[T interface {
 	return v
 }
 
+func Upcast_ValueType[T ValueType](v T) ValueType {
+	var vi ValueType = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.rhino.jstype.ValueType
 type ValueTypeBase struct {
 	JSTypeBase
@@ -92,6 +100,7 @@ func InitValueType(this_ *ValueTypeBase, registry *JSTypeRegistry, typeKindMask 
 	_ = typeKindMask
 	InitJSType_3(&this_.JSTypeBase, registry, nil, typeKindMask)
 	this_.initFields_ValueType()
+	this_.GetJSTypeBase().jstypeFlags = int8((int32(this_.GetJSTypeBase().jstypeFlags) | int32(int8(32))))
 	this_.EagerlyResolveToSelf()
 }
 

@@ -73,22 +73,32 @@ func init() {
 	lambdaSingleton_transpilation_passes_2 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
 		return NewEs6RewriteModulesToCommonJsModules(j2gort.AsIface[AbstractCompiler](mrp0_))
 	})
-	lambdaSingleton_transpilation_passes_3 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewEs6RelativizeImportPaths(j2gort.AsIface[AbstractCompiler](mrp0_)) })
+	lambdaSingleton_transpilation_passes_3 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewEs6RelativizeImportPaths(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
 	lambdaSingleton_transpilation_passes_4 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
 		return j2gort.PtrToAny(RewriteAsyncFunctions_Create(j2gort.AsIface[AbstractCompiler](mrp0_)))
 	})
 	lambdaSingleton_transpilation_passes_5 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
 		return j2gort.PtrToAny(RewriteAsyncIteration_Create(j2gort.AsIface[AbstractCompiler](mrp0_)))
 	})
-	lambdaSingleton_transpilation_passes_6 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewRewriteObjectSpread(j2gort.AsIface[AbstractCompiler](mrp0_)) })
-	lambdaSingleton_transpilation_passes_7 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewEs7RewriteExponentialOperator(j2gort.AsIface[AbstractCompiler](mrp0_)) })
-	lambdaSingleton_transpilation_passes_8 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewEs6NormalizeClasses(j2gort.AsIface[AbstractCompiler](mrp0_)) })
+	lambdaSingleton_transpilation_passes_6 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewRewriteObjectSpread(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
+	lambdaSingleton_transpilation_passes_7 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewEs7RewriteExponentialOperator(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
+	lambdaSingleton_transpilation_passes_8 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewEs6NormalizeClasses(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
 	lambdaSingleton_transpilation_passes_9 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_2 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_2)
 		_ = compiler
 		return NewEs6RewriteClass(compiler, compiler.GetOptions().GetEs6SubclassTranspilation())
 	})
-	lambdaSingleton_transpilation_passes_10 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewEs6RewriteArrowFunction(j2gort.AsIface[AbstractCompiler](mrp0_)) })
+	lambdaSingleton_transpilation_passes_10 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewEs6RewriteArrowFunction(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
 	lambdaSingleton_transpilation_passes_11 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_3 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_3)
 		_ = compiler
@@ -99,28 +109,42 @@ func init() {
 		_ = compiler
 		return NewInstrumentAsyncContext(compiler, compiler.GetOptions().GetOutputFeatureSet().Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS()))
 	})
-	lambdaSingleton_transpilation_passes_13 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewEs6ConvertSuper(j2gort.AsIface[AbstractCompiler](mrp0_)) })
+	lambdaSingleton_transpilation_passes_13 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewEs6ConvertSuper(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
 	lambdaSingleton_transpilation_passes_14 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
 		return NewInjectTranspilationRuntimeLibraries_1(j2gort.AsIface[AbstractCompiler](mrp0_))
 	})
-	lambdaSingleton_transpilation_passes_15 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewEs6RewriteRestParameters(j2gort.AsIface[AbstractCompiler](mrp0_)) })
-	lambdaSingleton_transpilation_passes_16 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewEs6RewriteSpreadExpressions(j2gort.AsIface[AbstractCompiler](mrp0_)) })
-	lambdaSingleton_transpilation_passes_17 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewLateEs6ToEs3Converter(j2gort.AsIface[AbstractCompiler](mrp0_)) })
-	lambdaSingleton_transpilation_passes_18 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewEs6ForOfConverter(j2gort.AsIface[AbstractCompiler](mrp0_)) })
+	lambdaSingleton_transpilation_passes_15 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewEs6RewriteRestParameters(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
+	lambdaSingleton_transpilation_passes_16 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewEs6RewriteSpreadExpressions(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
+	lambdaSingleton_transpilation_passes_17 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewLateEs6ToEs3Converter(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
+	lambdaSingleton_transpilation_passes_18 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewEs6ForOfConverter(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
 	lambdaSingleton_transpilation_passes_19 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
 		return NewEs6RewriteBlockScopedFunctionDeclaration(j2gort.AsIface[AbstractCompiler](mrp0_))
 	})
 	lambdaSingleton_transpilation_passes_20 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
 		return NewEs6RewriteBlockScopedDeclaration(j2gort.AsIface[AbstractCompiler](mrp0_))
 	})
-	lambdaSingleton_transpilation_passes_21 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewEs6RewriteGenerators(j2gort.AsIface[AbstractCompiler](mrp0_)) })
+	lambdaSingleton_transpilation_passes_21 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewEs6RewriteGenerators(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
 	lambdaSingleton_transpilation_passes_22 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
 		return NewRewriteLogicalAssignmentOperatorsPass(j2gort.AsIface[AbstractCompiler](mrp0_))
 	})
 	lambdaSingleton_transpilation_passes_23 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
 		return NewRewriteOptionalChainingOperator_1(j2gort.AsIface[AbstractCompiler](mrp0_))
 	})
-	lambdaSingleton_transpilation_passes_24 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewRewriteNullishCoalesceOperator(j2gort.AsIface[AbstractCompiler](mrp0_)) })
+	lambdaSingleton_transpilation_passes_24 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+		return NewRewriteNullishCoalesceOperator(j2gort.AsIface[AbstractCompiler](mrp0_))
+	})
 	lambdaSingleton_transpilation_passes_25 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_9 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_9)
 		_ = compiler
@@ -439,30 +463,30 @@ func clinitSlow_TranspilationPasses() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_TranspilationPasses, &clinitDone_TranspilationPasses)
-	static_TranspilationPasses_peepholeTranspilationsPasses = PassFactory_S_Builder().SetName("peepholeTranspilationsPasses").SetInternalFactory(lambdaSingleton_transpilation_passes_1).Build()
-	static_TranspilationPasses_es6RewriteModuleToCjs = PassFactory_S_Builder().SetName("es6RewriteModuleToCjs").SetInternalFactory(lambdaSingleton_transpilation_passes_2).Build()
-	static_TranspilationPasses_es6RelativizeImportPaths = PassFactory_S_Builder().SetName("es6RelativizeImportPaths").SetInternalFactory(lambdaSingleton_transpilation_passes_3).Build()
-	static_TranspilationPasses_rewriteAsyncFunctions = PassFactory_S_Builder().SetName("rewriteAsyncFunctions").SetInternalFactory(lambdaSingleton_transpilation_passes_4).Build()
-	static_TranspilationPasses_rewriteAsyncIteration = PassFactory_S_Builder().SetName("rewriteAsyncIteration").SetInternalFactory(lambdaSingleton_transpilation_passes_5).Build()
-	static_TranspilationPasses_rewriteObjectSpread = PassFactory_S_Builder().SetName("rewriteObjectSpread").SetInternalFactory(lambdaSingleton_transpilation_passes_6).Build()
-	static_TranspilationPasses_rewriteExponentialOperator = PassFactory_S_Builder().SetName("rewriteExponentialOperator").SetInternalFactory(lambdaSingleton_transpilation_passes_7).Build()
-	static_TranspilationPasses_es6NormalizeClasses = PassFactory_S_Builder().SetName("es6NormalizeClasses").SetInternalFactory(lambdaSingleton_transpilation_passes_8).Build()
-	static_TranspilationPasses_es6RewriteClass = PassFactory_S_Builder().SetName("Es6RewriteClass").SetInternalFactory(lambdaSingleton_transpilation_passes_9).Build()
-	static_TranspilationPasses_es6RewriteArrowFunction = PassFactory_S_Builder().SetName("Es6RewriteArrowFunction").SetInternalFactory(lambdaSingleton_transpilation_passes_10).Build()
-	static_TranspilationPasses_rewritePolyfills = PassFactory_S_Builder().SetName("RewritePolyfills").SetInternalFactory(lambdaSingleton_transpilation_passes_11).Build()
-	static_TranspilationPasses_instrumentAsyncContext = PassFactory_S_Builder().SetName("instrumentAsyncContext").SetInternalFactory(lambdaSingleton_transpilation_passes_12).Build()
-	static_TranspilationPasses_es6ConvertSuper = PassFactory_S_Builder().SetName("es6ConvertSuper").SetInternalFactory(lambdaSingleton_transpilation_passes_13).Build()
-	static_TranspilationPasses_injectTranspilationRuntimeLibraries = PassFactory_S_Builder().SetName("es6InjectRuntimeLibraries").SetInternalFactory(lambdaSingleton_transpilation_passes_14).Build()
-	static_TranspilationPasses_es6RewriteRestParameters = PassFactory_S_Builder().SetName("es6RewriteRestParameters").SetInternalFactory(lambdaSingleton_transpilation_passes_15).Build()
-	static_TranspilationPasses_es6RewriteSpreadExpressions = PassFactory_S_Builder().SetName("es6RewriteSpreadExpressions").SetInternalFactory(lambdaSingleton_transpilation_passes_16).Build()
-	static_TranspilationPasses_lateConvertEs6ToEs3 = PassFactory_S_Builder().SetName("lateConvertEs6").SetInternalFactory(lambdaSingleton_transpilation_passes_17).Build()
-	static_TranspilationPasses_es6ForOf = PassFactory_S_Builder().SetName("es6ForOf").SetInternalFactory(lambdaSingleton_transpilation_passes_18).Build()
-	static_TranspilationPasses_rewriteBlockScopedFunctionDeclaration = PassFactory_S_Builder().SetName("Es6RewriteBlockScopedFunctionDeclaration").SetInternalFactory(lambdaSingleton_transpilation_passes_19).Build()
-	static_TranspilationPasses_rewriteBlockScopedDeclaration = PassFactory_S_Builder().SetName("Es6RewriteBlockScopedDeclaration").SetInternalFactory(lambdaSingleton_transpilation_passes_20).Build()
-	static_TranspilationPasses_rewriteGenerators = PassFactory_S_Builder().SetName("rewriteGenerators").SetInternalFactory(lambdaSingleton_transpilation_passes_21).Build()
-	static_TranspilationPasses_rewriteLogicalAssignmentOperatorsPass = PassFactory_S_Builder().SetName("rewriteLogicalAssignmentOperatorsPass").SetInternalFactory(lambdaSingleton_transpilation_passes_22).Build()
-	static_TranspilationPasses_rewriteOptionalChainingOperator = PassFactory_S_Builder().SetName("rewriteOptionalChainingOperator").SetInternalFactory(lambdaSingleton_transpilation_passes_23).Build()
-	static_TranspilationPasses_rewriteNullishCoalesceOperator = PassFactory_S_Builder().SetName("rewriteNullishCoalesceOperator").SetInternalFactory(lambdaSingleton_transpilation_passes_24).Build()
+	static_TranspilationPasses_peepholeTranspilationsPasses = PassFactory_S_Builder().SetName("peepholeTranspilationsPasses").SetInternalFactory(lambdaSingleton_transpilation_passes_1).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_es6RewriteModuleToCjs = PassFactory_S_Builder().SetName("es6RewriteModuleToCjs").SetInternalFactory(lambdaSingleton_transpilation_passes_2).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_es6RelativizeImportPaths = PassFactory_S_Builder().SetName("es6RelativizeImportPaths").SetInternalFactory(lambdaSingleton_transpilation_passes_3).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_rewriteAsyncFunctions = PassFactory_S_Builder().SetName("rewriteAsyncFunctions").SetInternalFactory(lambdaSingleton_transpilation_passes_4).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_rewriteAsyncIteration = PassFactory_S_Builder().SetName("rewriteAsyncIteration").SetInternalFactory(lambdaSingleton_transpilation_passes_5).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_rewriteObjectSpread = PassFactory_S_Builder().SetName("rewriteObjectSpread").SetInternalFactory(lambdaSingleton_transpilation_passes_6).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_rewriteExponentialOperator = PassFactory_S_Builder().SetName("rewriteExponentialOperator").SetInternalFactory(lambdaSingleton_transpilation_passes_7).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_es6NormalizeClasses = PassFactory_S_Builder().SetName("es6NormalizeClasses").SetInternalFactory(lambdaSingleton_transpilation_passes_8).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_es6RewriteClass = PassFactory_S_Builder().SetName("Es6RewriteClass").SetInternalFactory(lambdaSingleton_transpilation_passes_9).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_es6RewriteArrowFunction = PassFactory_S_Builder().SetName("Es6RewriteArrowFunction").SetInternalFactory(lambdaSingleton_transpilation_passes_10).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_rewritePolyfills = PassFactory_S_Builder().SetName("RewritePolyfills").SetInternalFactory(lambdaSingleton_transpilation_passes_11).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_instrumentAsyncContext = PassFactory_S_Builder().SetName("instrumentAsyncContext").SetInternalFactory(lambdaSingleton_transpilation_passes_12).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_es6ConvertSuper = PassFactory_S_Builder().SetName("es6ConvertSuper").SetInternalFactory(lambdaSingleton_transpilation_passes_13).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_injectTranspilationRuntimeLibraries = PassFactory_S_Builder().SetName("es6InjectRuntimeLibraries").SetInternalFactory(lambdaSingleton_transpilation_passes_14).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_es6RewriteRestParameters = PassFactory_S_Builder().SetName("es6RewriteRestParameters").SetInternalFactory(lambdaSingleton_transpilation_passes_15).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_es6RewriteSpreadExpressions = PassFactory_S_Builder().SetName("es6RewriteSpreadExpressions").SetInternalFactory(lambdaSingleton_transpilation_passes_16).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_lateConvertEs6ToEs3 = PassFactory_S_Builder().SetName("lateConvertEs6").SetInternalFactory(lambdaSingleton_transpilation_passes_17).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_es6ForOf = PassFactory_S_Builder().SetName("es6ForOf").SetInternalFactory(lambdaSingleton_transpilation_passes_18).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_rewriteBlockScopedFunctionDeclaration = PassFactory_S_Builder().SetName("Es6RewriteBlockScopedFunctionDeclaration").SetInternalFactory(lambdaSingleton_transpilation_passes_19).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_rewriteBlockScopedDeclaration = PassFactory_S_Builder().SetName("Es6RewriteBlockScopedDeclaration").SetInternalFactory(lambdaSingleton_transpilation_passes_20).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_rewriteGenerators = PassFactory_S_Builder().SetName("rewriteGenerators").SetInternalFactory(lambdaSingleton_transpilation_passes_21).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_rewriteLogicalAssignmentOperatorsPass = PassFactory_S_Builder().SetName("rewriteLogicalAssignmentOperatorsPass").SetInternalFactory(lambdaSingleton_transpilation_passes_22).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_rewriteOptionalChainingOperator = PassFactory_S_Builder().SetName("rewriteOptionalChainingOperator").SetInternalFactory(lambdaSingleton_transpilation_passes_23).GetPassFactory_BuilderBase().Build()
+	static_TranspilationPasses_rewriteNullishCoalesceOperator = PassFactory_S_Builder().SetName("rewriteNullishCoalesceOperator").SetInternalFactory(lambdaSingleton_transpilation_passes_24).GetPassFactory_BuilderBase().Build()
 }
 
 func (this_ *TranspilationPasses) initFields_TranspilationPasses() {
@@ -491,10 +515,12 @@ func TranspilationPasses_AddEs6ModulePass(passes *PassListBuilder, preprocessorT
 		_ = compiler
 		preprocessorTableFactory.MaybeInitialize(compiler)
 		return NewEs6RewriteModules_6(compiler, compiler.GetModuleMetadataMap(), compiler.GetModuleMap(), preprocessorTableFactory.GetInstanceOrNull(), compiler.GetTopScope(), compiler.GetOptions().GetChunkOutputType())
-	})).Build())
+	})).GetPassFactory_BuilderBase(
+
+	// Java static method: TranspilationPasses.addTranspilationRuntimeLibraries(com.google.javascript.jscomp.PassListBuilder passes)
+	).Build())
 }
 
-// Java static method: TranspilationPasses.addTranspilationRuntimeLibraries(com.google.javascript.jscomp.PassListBuilder passes)
 func TranspilationPasses_AddTranspilationRuntimeLibraries(passes *PassListBuilder) {
 	clinit_TranspilationPasses()
 	_ = passes
@@ -553,7 +579,7 @@ func TranspilationPasses_AddTranspilationPasses(passes *PassListBuilder, options
 	if options.NeedsTranspilationOf(pkg_parser.StaticGet_FeatureSet_Feature_CLASSES()) {
 		passes.MaybeAdd(StaticGet_TranspilationPasses_Es6ConvertSuper())
 	}
-	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7186([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_DESTRUCTURING(), pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_DESTRUCTURING()})) {
+	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7192([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_DESTRUCTURING(), pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_DESTRUCTURING()})) {
 		passes.MaybeAdd(TranspilationPasses_GetEs6RewriteDestructuring(StaticGet_Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_ALL_OBJECT_PATTERNS()))
 	}
 	if options.NeedsTranspilationOf(pkg_parser.StaticGet_FeatureSet_Feature_ARROW_FUNCTIONS()) {
@@ -568,7 +594,7 @@ func TranspilationPasses_AddTranspilationPasses(passes *PassListBuilder, options
 	if options.NeedsTranspilationOf(pkg_parser.StaticGet_FeatureSet_Feature_SPREAD_EXPRESSIONS()) {
 		passes.MaybeAdd(StaticGet_TranspilationPasses_Es6RewriteSpreadExpressions())
 	}
-	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7186([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_COMPUTED_PROPERTIES(), pkg_parser.StaticGet_FeatureSet_Feature_MEMBER_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_TEMPLATE_LITERALS()})) {
+	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7192([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_COMPUTED_PROPERTIES(), pkg_parser.StaticGet_FeatureSet_Feature_MEMBER_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_TEMPLATE_LITERALS()})) {
 		passes.MaybeAdd(StaticGet_TranspilationPasses_LateConvertEs6ToEs3())
 	}
 	if options.NeedsTranspilationOf(pkg_parser.StaticGet_FeatureSet_Feature_FOR_OF()) {
@@ -577,7 +603,7 @@ func TranspilationPasses_AddTranspilationPasses(passes *PassListBuilder, options
 	if options.NeedsTranspilationOf(pkg_parser.StaticGet_FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION()) {
 		passes.MaybeAdd(StaticGet_TranspilationPasses_RewriteBlockScopedFunctionDeclaration())
 	}
-	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7186([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS()})) {
+	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7192([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS()})) {
 		passes.MaybeAdd(StaticGet_TranspilationPasses_RewriteBlockScopedDeclaration())
 	}
 	if options.NeedsTranspilationOf(pkg_parser.StaticGet_FeatureSet_Feature_GENERATORS()) {
@@ -601,10 +627,12 @@ func TranspilationPasses_GetEs6RewriteDestructuring(rewriteMode Es6RewriteDestru
 		compiler := j2gort.AsIface[AbstractCompiler](lp_6)
 		_ = compiler
 		return j2gort.PtrToAny(NewEs6RewriteDestructuring_Builder(compiler).SetDestructuringRewriteMode(rewriteMode).Build())
-	})).Build()
+	})).GetPassFactory_BuilderBase(
+
+	// Java static method: TranspilationPasses.doesScriptHaveAnyOfTheseFeatures(com.google.javascript.rhino.Node script, com.google.javascript.jscomp.parsing.parser.FeatureSet featureSet)
+	).Build()
 }
 
-// Java static method: TranspilationPasses.doesScriptHaveAnyOfTheseFeatures(com.google.javascript.rhino.Node script, com.google.javascript.jscomp.parsing.parser.FeatureSet featureSet)
 func TranspilationPasses_DoesScriptHaveAnyOfTheseFeatures(script pkg_rhino.Node, featureSet *pkg_parser.FeatureSet) bool {
 	clinit_TranspilationPasses()
 	_ = script
@@ -701,17 +729,21 @@ func TranspilationPasses_CreateFeatureRemovalPass(passName string, featuresToRem
 			_ = root
 			TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(compiler, root, featuresToRemove)
 		}))
-	})).Build()
+	})).GetPassFactory_BuilderBase(
+
+	// Java static method: TranspilationPasses.createPostTranspileUnsupportedFeaturesRemovedCheck(java.lang.String passName)
+	).Build()
 }
 
-// Java static method: TranspilationPasses.createPostTranspileUnsupportedFeaturesRemovedCheck(java.lang.String passName)
 func TranspilationPasses_CreatePostTranspileUnsupportedFeaturesRemovedCheck(passName string) PassFactory {
 	clinit_TranspilationPasses()
 	_ = passName
-	return PassFactory_S_Builder().SetName(passName).SetInternalFactory(lambdaSingleton_transpilation_passes_25).Build()
+	return PassFactory_S_Builder().SetName(passName).SetInternalFactory(lambdaSingleton_transpilation_passes_25).GetPassFactory_BuilderBase(
+
+	// Java static method: TranspilationPasses.createUnifiedFeatureRemovalPass(java.lang.String passName, com.google.javascript.jscomp.CompilerOptions options)
+	).Build()
 }
 
-// Java static method: TranspilationPasses.createUnifiedFeatureRemovalPass(java.lang.String passName, com.google.javascript.jscomp.CompilerOptions options)
 func TranspilationPasses_CreateUnifiedFeatureRemovalPass(passName string, options *CompilerOptions) PassFactory {
 	clinit_TranspilationPasses()
 	_ = passName
@@ -732,13 +764,13 @@ func TranspilationPasses_CreateUnifiedFeatureRemovalPass(passName string, option
 		featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_IMPORT_META())
 		featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT())
 	}
-	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7186([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_BINARY_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_OCTAL_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_U(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_Y()})) {
-		featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7186([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_BINARY_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_OCTAL_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_U(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_Y()})
+	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7192([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_BINARY_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_OCTAL_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_U(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_Y()})) {
+		featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7192([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_BINARY_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_OCTAL_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_U(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_Y()})
 	}
 	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_ES5()) {
-		featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7186([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ES3_KEYWORDS_AS_IDENTIFIERS(), pkg_parser.StaticGet_FeatureSet_Feature_KEYWORDS_AS_PROPERTIES(), pkg_parser.StaticGet_FeatureSet_Feature_GETTER(), pkg_parser.StaticGet_FeatureSet_Feature_SETTER()})
+		featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7192([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ES3_KEYWORDS_AS_IDENTIFIERS(), pkg_parser.StaticGet_FeatureSet_Feature_KEYWORDS_AS_PROPERTIES(), pkg_parser.StaticGet_FeatureSet_Feature_GETTER(), pkg_parser.StaticGet_FeatureSet_Feature_SETTER()})
 	}
-	featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7186([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_STRING_CONTINUATION(), pkg_parser.StaticGet_FeatureSet_Feature_TRAILING_COMMA()})
-	featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7186([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ES_NEXT_RUNTIME(), pkg_parser.StaticGet_FeatureSet_Feature_ES_UNSTABLE_RUNTIME()})
+	featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7192([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_STRING_CONTINUATION(), pkg_parser.StaticGet_FeatureSet_Feature_TRAILING_COMMA()})
+	featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7192([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ES_NEXT_RUNTIME(), pkg_parser.StaticGet_FeatureSet_Feature_ES_UNSTABLE_RUNTIME()})
 	return TranspilationPasses_CreateFeatureRemovalPass(passName, featuresToMarkRemoved)
 }

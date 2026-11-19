@@ -1897,9 +1897,9 @@ func NodeUtil_MayBeString_2(n pkg_rhino.Node, useType bool) bool {
 		var type_ pkg_rhino.JSType = n.GetJSType()
 		_ = type_
 		if type_ != nil && !type_.IsJavaNil_() {
-			if type_.IsStringValueType() {
+			if type_.GetJSTypeBase().IsStringValueType() {
 				return true
-			} else if (((type_.IsNumberValueType() || type_.IsBigIntValueType()) || type_.IsBooleanValueType()) || type_.IsNullType()) || type_.IsVoidType() {
+			} else if (((type_.GetJSTypeBase().IsNumberValueType() || type_.GetJSTypeBase().IsBigIntValueType()) || type_.GetJSTypeBase().IsBooleanValueType()) || type_.GetJSTypeBase().IsNullType()) || type_.GetJSTypeBase().IsVoidType() {
 				return false
 			}
 		}
@@ -5692,7 +5692,7 @@ func NodeUtil_IsConstructor(fnNode pkg_rhino.Node) bool {
 	_ = jsDocInfo
 	var color *pkg_colors.Color = fnNode.GetColor()
 	_ = color
-	return (((((type_ != nil && !type_.IsJavaNil_()) && type_.IsConstructor()) || ((jsDocInfo != nil) && jsDocInfo.IsConstructor())) || ((color != nil) && color.IsConstructor())) || NodeUtil_IsEs6Constructor(fnNode))
+	return (((((type_ != nil && !type_.IsJavaNil_()) && type_.GetJSTypeBase().IsConstructor()) || ((jsDocInfo != nil) && jsDocInfo.IsConstructor())) || ((color != nil) && color.IsConstructor())) || NodeUtil_IsEs6Constructor(fnNode))
 }
 
 // Java static method: NodeUtil.isEs6ConstructorMemberFunctionDef(com.google.javascript.rhino.Node memberFunctionDef)
@@ -5979,7 +5979,7 @@ func NodeUtil_GetAllVarNamesDeclaredInModule(moduleNode pkg_rhino.Node, compiler
 		var ntb_ NodeTraversal_Builder
 		InitNodeTraversal_Builder(&ntb_)
 		(&ntb_).SetCompiler(compiler)
-		(&ntb_).SetCallback_1_NodeTraversal_Callback(finder)
+		(&ntb_).SetCallback_1_NodeTraversal_Callback(Upcast_NodeTraversal_Callback(finder))
 		(&ntb_).SetScopeCreator(scopeCreator)
 		(&ntb_).TraverseWithScope(moduleNode, ToIface_AbstractScope(globalScope))
 	}
@@ -6005,7 +6005,7 @@ func NodeUtil_GetAllVarsDeclaredInFunction(compiler AbstractCompiler, scopeCreat
 		var ntb_ NodeTraversal_Builder
 		InitNodeTraversal_Builder(&ntb_)
 		(&ntb_).SetCompiler(compiler)
-		(&ntb_).SetCallback_1_NodeTraversal_Callback(finder)
+		(&ntb_).SetCallback_1_NodeTraversal_Callback(Upcast_NodeTraversal_Callback(finder))
 		(&ntb_).SetScopeCreator(scopeCreator)
 		(&ntb_).TraverseAtScope(ToIface_AbstractScope(scope))
 	}
@@ -6787,6 +6787,14 @@ func ToIface_NodeUtil_Visitor[T interface {
 	return v
 }
 
+func Upcast_NodeUtil_Visitor[T NodeUtil_Visitor](v T) NodeUtil_Visitor {
+	var vi NodeUtil_Visitor = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.NodeUtil.Visitor", "com.google.javascript.jscomp.NodeUtil$Visitor", func(v_ any) bool {
 		return j2gort.InstanceOf[NodeUtil_Visitor](v_)
@@ -6875,12 +6883,12 @@ func (this_ *NodeUtil_PreOrderIterator) ComputeNext() any {
 	}
 	var returnValue pkg_rhino.Node = this_.current
 	_ = returnValue
-	this_.current = this_.priv_PreOrderIterator_calculateNextNode_4018(returnValue)
+	this_.current = this_.priv_PreOrderIterator_calculateNextNode_4015(returnValue)
 	return j2gort.BoxNode(returnValue)
 }
 
 // Java method: PreOrderIterator.calculateNextNode(com.google.javascript.rhino.Node currentNode)
-func (this_ *NodeUtil_PreOrderIterator) priv_PreOrderIterator_calculateNextNode_4018(currentNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *NodeUtil_PreOrderIterator) priv_PreOrderIterator_calculateNextNode_4015(currentNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = currentNode
 	j2gort.CheckNotNullNode(currentNode)
 	if j2gort.PredTestNode(this_.traverseNodePredicate, uint32(currentNode)) {

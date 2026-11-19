@@ -172,7 +172,7 @@ func (this_ *EnumType) TestForEquality(that JSType) pkg_base.Tri {
 	if result != 0 {
 		return result
 	}
-	if this_.Equals(that) {
+	if this_.GetJSTypeBase().EqualsJSType(that) {
 		return pkg_base.StaticGet_Tri_TRUE()
 	} else {
 		return pkg_base.StaticGet_Tri_FALSE()

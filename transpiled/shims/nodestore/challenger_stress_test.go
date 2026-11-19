@@ -13,7 +13,7 @@ import (
 )
 
 // TestChallengerNodeDataNoscanAndPtrdata empirically validates that NodeData and
-// nodeBlock are 36-byte pointer-free structs, confirming true noscan GC semantics.
+// nodeBlock are 32-byte pointer-free structs, confirming true noscan GC semantics.
 func TestChallengerNodeDataNoscanAndPtrdata(t *testing.T) {
 	if hasGoPointers(reflect.TypeFor[NodeData]()) {
 		t.Fatalf("noscan violation: NodeData contains Go pointers")
@@ -23,12 +23,12 @@ func TestChallengerNodeDataNoscanAndPtrdata(t *testing.T) {
 		t.Fatalf("noscan violation: nodeBlock contains Go pointers")
 	}
 
-	if sz := reflect.TypeFor[NodeData]().Size(); sz != 36 {
-		t.Fatalf("NodeData size violation: expected 36, got %d", sz)
+	if sz := reflect.TypeFor[NodeData]().Size(); sz != 32 {
+		t.Fatalf("NodeData size violation: expected 32, got %d", sz)
 	}
 
-	if sz := reflect.TypeFor[nodeBlock]().Size(); sz != 16384*36 {
-		t.Fatalf("nodeBlock size violation: expected %d, got %d", 16384*36, sz)
+	if sz := reflect.TypeFor[nodeBlock]().Size(); sz != 16384*32 {
+		t.Fatalf("nodeBlock size violation: expected %d, got %d", 16384*32, sz)
 	}
 
 	// Verify that filling NodeData with invalid addresses and forcing GC does not crash
@@ -42,10 +42,9 @@ func TestChallengerNodeDataNoscanAndPtrdata(t *testing.T) {
 		n := alloc.Alloc()
 		rec := n.Rec()
 		rec.Payload = 0xDEADBEEF
-		rec.SourceFile = 0xBADC0FFE
+		rec.SourceFile16 = 0xCAFE
 		rec.PropFlags = 0xCAFEBABE
 		rec.LinenoCharno = int32(0x1337BEEF)
-		rec.Length16 = 0xCAFE
 		rec.Next = Node(0xBADF00D)
 		rec.First = Node(0x7FFFFFFF)
 		rec.Parent = Node(0x80000000)

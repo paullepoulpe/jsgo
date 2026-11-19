@@ -1072,7 +1072,20 @@ public final class MethodEmitter {
       ctx.expectedReturnType = retTm;
       ctx.returnWidenedToAny = false;
 
-      if (mt.getBody() != null) {
+      if (typeEl.getQualifiedName().contentEquals("com.google.javascript.rhino.RhinoStringPool")
+          && ee.getSimpleName().contentEquals("fastHash32")
+          && mt.getParameters().size() == 1
+          && resolver.isStringType(ee.getParameters().get(0).asType())) {
+        VariableElement pve =
+            (VariableElement)
+                resolver.trees.getElement(new TreePath(mtPath, mt.getParameters().get(0)));
+        String pName = ctx.lookupLocalVar(pve);
+        out.append("\treturn ")
+            .append(rtPrefix(ctx))
+            .append("FastStrHash32(")
+            .append(pName)
+            .append(")\n");
+      } else if (mt.getBody() != null) {
         out.append(
             stmtEmitter.emitBlockStatements(
                 mt.getBody(), new TreePath(mtPath, mt.getBody()), 1, ctx));

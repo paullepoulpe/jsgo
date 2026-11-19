@@ -83,44 +83,8 @@ func HashBytes(b []byte) uint64 {
 	return h
 }
 
-const (
-	strpoolStageSize      = 32
-	strpoolStageMaxStrLen = 1536
-)
-
-type stagingState struct {
-	slab string
-	raw  *[strpoolStageSize]string
-}
-
-type stagingInit struct {
-	state stagingState
-	raw   [strpoolStageSize]string
-}
-
-type stagingBatch struct {
-	state  atomic.Pointer[stagingState]
-	sealed stagingState
-	offs   [strpoolStageSize + 1]uint16
-}
-
 type unsealedPoolData struct {
-	batches  [strpoolChunkSize]*stagingBatch
-	raw      [strpoolChunkSize]string
-	batchIdx [strpoolChunkSize]uint8
-}
-
-//go:noinline
-func (u *unsealedPoolData) at(slot uint32) string {
-	if b := u.batches[slot]; b != nil {
-		k := u.batchIdx[slot]
-		st := b.state.Load()
-		if st.raw == nil {
-			return st.slab[b.offs[k]:b.offs[k+1]]
-		}
-		return st.raw[k]
-	}
-	return u.raw[slot]
+	raw [strpoolChunkSize]string
 }
 
 // poolChunk packs 512 interned strings into a single noscan backing string
@@ -149,7 +113,7 @@ func (c *poolChunk) at(slot uint32) string {
 	if c.unsealed == nil {
 		return c.slab[c.offs16[slot]:c.offs16[slot+1]]
 	}
-	return c.unsealed.at(slot)
+	return c.unsealed.raw[slot]
 }
 
 type strpoolShard struct {
@@ -165,57 +129,7 @@ var (
 	emptyPoolChunk = &poolChunk{}
 	poolSeed       = maphash.MakeSeed()
 	rewindEpoch    atomic.Uint64
-
-	stageDirty      atomic.Bool
-	stageMu         sync.Mutex
-	stageBatch      *stagingBatch
-	stageBatchChunk []stagingBatch
-	stageRaw        *[strpoolStageSize]string
-	stageCount      uint8
 )
-
-func stageAllocString(str string) (*stagingBatch, uint8) {
-	stageMu.Lock()
-	b := stageBatch
-	if b == nil {
-		if len(stageBatchChunk) == 0 {
-			stageBatchChunk = make([]stagingBatch, 64)
-		}
-		b = &stageBatchChunk[0]
-		stageBatchChunk = stageBatchChunk[1:]
-		init := new(stagingInit)
-		init.state.raw = &init.raw
-		b.state.Store(&init.state)
-		stageBatch = b
-		stageRaw = &init.raw
-		stageCount = 0
-		stageDirty.Store(true)
-	}
-	k := stageCount
-	stageRaw[k] = str
-	endOff := b.offs[k] + uint16(len(str))
-	b.offs[k+1] = endOff
-	if int(k)+1 < strpoolStageSize {
-		stageCount = k + 1
-		stageMu.Unlock()
-		return b, k
-	}
-	rawCopy := *stageRaw
-	stageBatch = nil
-	stageRaw = nil
-	stageCount = 0
-	stageDirty.Store(false)
-	stageMu.Unlock()
-
-	var sb strings.Builder
-	sb.Grow(int(endOff))
-	for i := 0; i < strpoolStageSize; i++ {
-		sb.WriteString(rawCopy[i])
-	}
-	b.sealed.slab = sb.String()
-	b.state.Store(&b.sealed)
-	return b, k
-}
 
 func init() {
 	for i := range poolChunks {
@@ -350,22 +264,7 @@ func (s *strpoolShard) rewind(shardIdx, baseIdx uint32) bool {
 		if chunk := poolChunks[flatIdx].Load(); chunk != emptyPoolChunk {
 			u := newUnsealedPoolChunk()
 			if chunk.unsealed != nil {
-				var b strings.Builder
-				total := 0
-				for i := uint32(0); i < keep; i++ {
-					total += len(chunk.unsealed.at(i))
-				}
-				b.Grow(total)
-				for i := uint32(0); i < keep; i++ {
-					b.WriteString(chunk.unsealed.at(i))
-				}
-				slab := b.String()
-				pos := 0
-				for i := uint32(0); i < keep; i++ {
-					n := len(chunk.unsealed.at(i))
-					u.data.raw[i] = slab[pos : pos+n]
-					pos += n
-				}
+				copy(u.data.raw[:keep], chunk.unsealed.raw[:keep])
 			} else {
 				sub := chunk.slab[:chunk.offs16[keep]]
 				if keep < strpoolChunkSize/2 {
@@ -384,38 +283,8 @@ func (s *strpoolShard) rewind(shardIdx, baseIdx uint32) bool {
 	return true
 }
 
-// SealActivePoolChunks compacts any uncloned string slices sitting in the
-// active staging batch into an owned slab string so caller source buffers
-// never remain pinned across compilation stages.
-func SealActivePoolChunks() {
-	if !stageDirty.Load() {
-		return
-	}
-	stageMu.Lock()
-	b := stageBatch
-	n := int(stageCount)
-	if b == nil || n == 0 {
-		stageDirty.Store(false)
-		stageMu.Unlock()
-		return
-	}
-	var rawCopy [strpoolStageSize]string
-	copy(rawCopy[:n], stageRaw[:n])
-	endOff := int(b.offs[n])
-	stageBatch = nil
-	stageRaw = nil
-	stageCount = 0
-	stageDirty.Store(false)
-	stageMu.Unlock()
-
-	var sb strings.Builder
-	sb.Grow(endOff)
-	for i := 0; i < n; i++ {
-		sb.WriteString(rawCopy[i])
-	}
-	b.sealed.slab = sb.String()
-	b.state.Store(&b.sealed)
-}
+// SealActivePoolChunks is retained as a no-op compatibility hook.
+func SealActivePoolChunks() {}
 
 func poolHash(s string) uint64 {
 	return maphash.String(poolSeed, s)
@@ -429,20 +298,20 @@ func sealPoolChunk(chunk *poolChunk, lastStr string) *poolChunk {
 	ud := chunk.unsealed
 	total := len(lastStr)
 	for i := uint32(0); i < strpoolChunkSize-1; i++ {
-		total += len(ud.at(i))
+		total += len(ud.raw[i])
 	}
 	if total > 0xFFFF {
 		var b strings.Builder
 		b.Grow(total)
 		for i := uint32(0); i < strpoolChunkSize-1; i++ {
-			b.WriteString(ud.at(i))
+			b.WriteString(ud.raw[i])
 		}
 		b.WriteString(lastStr)
 		slab := b.String()
 		u := newUnsealedPoolChunk()
 		pos := 0
 		for i := uint32(0); i < strpoolChunkSize-1; i++ {
-			n := len(ud.at(i))
+			n := len(ud.raw[i])
 			u.data.raw[i] = slab[pos : pos+n]
 			pos += n
 		}
@@ -454,7 +323,7 @@ func sealPoolChunk(chunk *poolChunk, lastStr string) *poolChunk {
 	sealed := new(poolChunk)
 	pos := uint16(0)
 	for i := uint32(0); i < strpoolChunkSize-1; i++ {
-		si := ud.at(i)
+		si := ud.raw[i]
 		b.WriteString(si)
 		pos += uint16(len(si))
 		sealed.offs16[i+1] = pos
@@ -490,12 +359,8 @@ func (s *strpoolShard) allocString(shardIdx uint32, str string, owned bool) uint
 	}
 	if owned {
 		u.raw[slot] = str
-	} else if len(str) > strpoolStageMaxStrLen {
-		u.raw[slot] = strings.Clone(str)
 	} else {
-		b, k := stageAllocString(str)
-		u.batches[slot] = b
-		u.batchIdx[slot] = k
+		u.raw[slot] = strings.Clone(str)
 	}
 	if fresh != nil {
 		poolChunks[flatIdx].Store(&fresh.chunk)
@@ -592,16 +457,12 @@ func Intern(str string) StringID {
 
 // String returns the string value for id, or "" if id is 0 or 1.
 func String(id StringID) string {
-	return stringFast(id, (*unsealedPoolData).at)
-}
-
-func stringFast(id StringID, slow func(*unsealedPoolData, uint32) string) string {
 	c := poolChunks[uint16(id>>strpoolChunkShift)].Load()
 	s := uint32(id & strpoolChunkMask)
 	if c.unsealed == nil {
 		return c.slab[c.offs16[s]:c.offs16[s+1]]
 	}
-	return slow(c.unsealed, s)
+	return c.unsealed.raw[s]
 }
 
 // Lookup returns the ID of str if already interned, or 0 if not present.

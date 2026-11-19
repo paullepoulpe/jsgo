@@ -1189,6 +1189,14 @@ func ToIface_FunctionInjector_Reference[T interface {
 	return v
 }
 
+func Upcast_FunctionInjector_Reference[T FunctionInjector_Reference](v T) FunctionInjector_Reference {
+	var vi FunctionInjector_Reference = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.FunctionInjector.Reference
 type FunctionInjector_ReferenceBase struct {
 	scope    *Scope         `gson:"scope"`

@@ -71,6 +71,14 @@ func ToIface_QualifiedName[T interface {
 	return v
 }
 
+func Upcast_QualifiedName[T QualifiedName](v T) QualifiedName {
+	var vi QualifiedName = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.rhino.QualifiedName
 type QualifiedNameBase struct {
 	self_   QualifiedName
@@ -220,17 +228,17 @@ func (this_ *QualifiedNameBase) GetRoot() string {
 func (this_ *QualifiedNameBase) Components() j2gort.Ext_java_lang_Iterable {
 	var components *j2gort.Ext_com_google_common_collect_ImmutableList_Builder = (&j2gort.Ext_com_google_common_collect_ImmutableList_Builder{})
 	_ = components
-	this_.priv_QualifiedName_buildComponents_8770(components)
+	this_.priv_QualifiedName_buildComponents_8777(components)
 	return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](components.BuildImmList_())
 }
 
 // Java method: QualifiedName.buildComponents(com.google.common.collect.ImmutableList.Builder<java.lang.String> builder)
-func (this_ *QualifiedNameBase) priv_QualifiedName_buildComponents_8770(builder *j2gort.Ext_com_google_common_collect_ImmutableList_Builder) {
+func (this_ *QualifiedNameBase) priv_QualifiedName_buildComponents_8777(builder *j2gort.Ext_com_google_common_collect_ImmutableList_Builder) {
 	_ = builder
 	var owner QualifiedName = this_.self_.GetOwner()
 	_ = owner
 	if owner != nil && !owner.IsJavaNil_() {
-		owner.GetQualifiedNameBase().priv_QualifiedName_buildComponents_8770(builder)
+		owner.GetQualifiedNameBase().priv_QualifiedName_buildComponents_8777(builder)
 	}
 	builder.AddStrVoid_(this_.self_.GetComponent())
 }
@@ -338,7 +346,7 @@ func (this_ *QualifiedName_StringListQname) AppendTo(sb *j2gort.Ext_java_lang_St
 		_ = i
 		for ; i < this_.size; i = i + 1 {
 			if i > int32(0) {
-				sb.Append_1_any_9831(j2gort.PtrToAny(separator))
+				sb.Append_1_any_9850(j2gort.PtrToAny(separator))
 			}
 			sb.Append_1_string(this_.terms[i])
 		}
@@ -456,7 +464,7 @@ func (this_ *QualifiedName_GetpropQname) AppendTo(sb *j2gort.Ext_java_lang_Strin
 	_ = sb
 	_ = separator
 	this_.owner.AppendTo(sb, separator)
-	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_any_9831(j2gort.PtrToAny(separator))).Append_1_string(this_.prop)
+	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_any_9850(j2gort.PtrToAny(separator))).Append_1_string(this_.prop)
 }
 
 // Java method: GetpropQname.matches(com.google.javascript.rhino.Node n)
@@ -554,7 +562,7 @@ func (this_ *QualifiedName_NodeQname) AppendTo(sb *j2gort.Ext_java_lang_StringBu
 	_ = components
 	sb.Append_1_string(j2gort.CastString(components.Next()))
 	for components.HasNext() {
-		j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_any_9831(j2gort.PtrToAny(separator))).Append_1_string(j2gort.CastString(components.Next()))
+		j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_any_9850(j2gort.PtrToAny(separator))).Append_1_string(j2gort.CastString(components.Next()))
 	}
 }
 

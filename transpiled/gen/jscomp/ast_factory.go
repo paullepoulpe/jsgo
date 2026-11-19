@@ -514,9 +514,9 @@ func (this_ *AstFactory) priv_AstFactory_getFunctionType_651(functionNode pkg_rh
 	var functionType *pkg_rhino.FunctionType = nil
 	_ = functionType
 	if typeBeforeCast != nil && !typeBeforeCast.IsJavaNil_() {
-		functionType = typeBeforeCast.AssertFunctionType()
+		functionType = typeBeforeCast.GetJSTypeBase().AssertFunctionType()
 	} else {
-		functionType = functionNode.GetJSTypeRequired().AssertFunctionType()
+		functionType = functionNode.GetJSTypeRequired().GetJSTypeBase().AssertFunctionType()
 	}
 	return functionType
 }
@@ -1349,8 +1349,8 @@ func (this_ *AstFactory) CreateNewNode(target pkg_rhino.Node, args []pkg_rhino.N
 	case int32(0) /* TypeMode.JSTYPE */ :
 		var instanceType pkg_rhino.JSType = target.GetJSType()
 		_ = instanceType
-		if instanceType.IsFunctionType() {
-			instanceType = j2gort.AsIface[pkg_rhino.JSType](instanceType.ToMaybeFunctionType().GetInstanceType())
+		if instanceType.GetJSTypeBase().IsFunctionType() {
+			instanceType = pkg_rhino.Upcast_JSType(instanceType.ToMaybeFunctionType().GetInstanceType())
 		} else {
 			instanceType = this_.priv_AstFactory_getNativeType_743(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 		}
@@ -1389,7 +1389,7 @@ func (this_ *AstFactory) CreateConstructorCall(classType AstFactory_Type, callee
 		_ = constructorType
 		var instanceType pkg_rhino.ObjectType = j2gort.CheckNotNullIface(constructorType.GetInstanceType())
 		_ = instanceType
-		result.SetJSType(instanceType)
+		result.SetJSType(pkg_rhino.Upcast_JSType(instanceType))
 	case int32(1) /* TypeMode.COLOR */ :
 		result.SetColor(this_.priv_AstFactory_getInstanceOfColor_712(classType.GetColor(this_.colorRegistry)))
 	case int32(2) /* TypeMode.NONE */ :
@@ -1430,7 +1430,7 @@ func (this_ *AstFactory) CreateObjectLit_1(elements []pkg_rhino.Node) pkg_rhino.
 	_ = result
 	switch (this_.typeMode).Ordinal() {
 	case int32(0) /* TypeMode.JSTYPE */ :
-		result.SetJSType(j2gort.AsIface[pkg_rhino.JSType](this_.registry.CreateAnonymousObjectType(nil)))
+		result.SetJSType(pkg_rhino.Upcast_JSType(this_.registry.CreateAnonymousObjectType(nil)))
 	case int32(1) /* TypeMode.COLOR */ :
 		result.SetColor(pkg_colors.StaticGet_StandardColors_TOP_OBJECT())
 	case int32(2) /* TypeMode.NONE */ :
@@ -1464,7 +1464,7 @@ func (this_ *AstFactory) CreateEmptyFunction(type_ AstFactory_Type) pkg_rhino.No
 	var result pkg_rhino.Node = NodeUtil_EmptyFunction()
 	_ = result
 	if this_.IsAddingTypes() {
-		if !(type_.GetJSType(this_.registry).IsFunctionType()) {
+		if !(type_.GetJSType(this_.registry).GetJSTypeBase().IsFunctionType()) {
 			j2gort.CheckArgumentMsg(false, type_)
 		}
 	}
@@ -1492,7 +1492,7 @@ func (this_ *AstFactory) CreateFunction(name string, paramList pkg_rhino.Node, b
 	var result pkg_rhino.Node = pkg_rhino.IR_Function(nameNode, paramList, body)
 	_ = result
 	if this_.IsAddingTypes() {
-		if !(type_.GetJSType(this_.registry).IsFunctionType()) {
+		if !(type_.GetJSType(this_.registry).GetJSTypeBase().IsFunctionType()) {
 			j2gort.CheckArgumentMsg(false, type_)
 		}
 	}
@@ -1677,7 +1677,7 @@ func (this_ *AstFactory) CreateJSCompMakeIteratorCall(iterable pkg_rhino.Node, s
 		var makeIteratorType pkg_rhino.JSType = makeIteratorName.GetJSType()
 		_ = makeIteratorType
 		makeIteratorName.SetJSType(this_.priv_AstFactory_replaceTemplate_740(makeIteratorType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
-		type_ = AstFactory_S_Type_1_JSType(makeIteratorName.GetJSType().AssertFunctionType().GetReturnType())
+		type_ = AstFactory_S_Type_1_JSType(makeIteratorName.GetJSType().GetJSTypeBase().AssertFunctionType().GetReturnType())
 	case int32(1) /* TypeMode.COLOR */ :
 		type_ = AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ITERATOR_ID()))
 	case int32(2) /* TypeMode.NONE */ :
@@ -1719,7 +1719,7 @@ func (this_ *AstFactory) CreateJscompArrayFromIteratorCall(iterator pkg_rhino.No
 			var makeIteratorType pkg_rhino.JSType = makeIteratorName.GetJSType()
 			_ = makeIteratorType
 			makeIteratorName.SetJSType(this_.priv_AstFactory_replaceTemplate_740(makeIteratorType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
-			return AstFactory_S_Type_1_JSType(makeIteratorName.GetJSType().AssertFunctionType().GetReturnType())
+			return AstFactory_S_Type_1_JSType(makeIteratorName.GetJSType().GetJSTypeBase().AssertFunctionType().GetReturnType())
 		case int32(1) /* TypeMode.COLOR */ :
 			return AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ARRAY_ID()))
 		case int32(2) /* TypeMode.NONE */ :
@@ -1752,7 +1752,7 @@ func (this_ *AstFactory) CreateJscompArrayFromIterableCall(iterable pkg_rhino.No
 			var makeIterableType pkg_rhino.JSType = makeIterableName.GetJSType()
 			_ = makeIterableType
 			makeIterableName.SetJSType(this_.priv_AstFactory_replaceTemplate_740(makeIterableType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
-			return AstFactory_S_Type_1_JSType(makeIterableName.GetJSType().AssertFunctionType().GetReturnType())
+			return AstFactory_S_Type_1_JSType(makeIterableName.GetJSType().GetJSTypeBase().AssertFunctionType().GetReturnType())
 		case int32(1) /* TypeMode.COLOR */ :
 			return func() AstFactory_Type {
 				var asgn_20 AstFactory_Type = AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ARRAY_ID()))
@@ -1787,7 +1787,7 @@ func (this_ *AstFactory) CreateJSCompMakeAsyncIteratorCall(iterable pkg_rhino.No
 		var makeAsyncIteratorType pkg_rhino.JSType = makeIteratorAsyncName.GetJSType()
 		_ = makeAsyncIteratorType
 		makeIteratorAsyncName.SetJSType(this_.priv_AstFactory_replaceTemplate_740(makeAsyncIteratorType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(asyncIterableType)))
-		resultType = AstFactory_S_Type_1_JSType(makeIteratorAsyncName.GetJSType().AssertFunctionType().GetReturnType())
+		resultType = AstFactory_S_Type_1_JSType(makeIteratorAsyncName.GetJSType().GetJSTypeBase().AssertFunctionType().GetReturnType())
 	case int32(1) /* TypeMode.COLOR */ :
 		resultType = AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ASYNC_ITERATOR_ITERABLE_ID()))
 	case int32(2) /* TypeMode.NONE */ :
@@ -1816,7 +1816,7 @@ func (this_ *AstFactory) CreateEmptyAsyncGeneratorWrapperArgument(asyncGenerator
 	var generatorType AstFactory_Type = AstFactory_NoTypeInformation()
 	_ = generatorType
 	if this_.IsAddingTypes() {
-		if asyncGeneratorWrapperType.IsUnknownType() {
+		if asyncGeneratorWrapperType.GetJSTypeBase().IsUnknownType() {
 			generatorType = AstFactory_S_Type_1_JSType(pkg_rhino.ToIface_JSType(this_.registry.CreateFunctionType_2_JSType_JSType(this_.priv_AstFactory_replaceTemplate_740(this_.priv_AstFactory_getNativeType_743(pkg_rhino.StaticGet_JSTypeNative_GENERATOR_TYPE()), j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(this_.unknownType)), []pkg_rhino.JSType{})))
 		} else {
 			var wrapperFnType *pkg_rhino.FunctionType = asyncGeneratorWrapperType.ToMaybeFunctionType()
@@ -1848,7 +1848,7 @@ func (this_ *AstFactory) CreateJscompAsyncExecutePromiseGeneratorFunctionCall(sc
 	_ = resultType
 	switch (this_.typeMode).Ordinal() {
 	case int32(0) /* TypeMode.JSTYPE */ :
-		resultType = AstFactory_S_Type_1_JSType(jscompDotAsyncExecutePromiseGeneratorFunction.GetJSType().AssertFunctionType().GetReturnType())
+		resultType = AstFactory_S_Type_1_JSType(jscompDotAsyncExecutePromiseGeneratorFunction.GetJSType().GetJSTypeBase().AssertFunctionType().GetReturnType())
 	case int32(1) /* TypeMode.COLOR */ :
 		resultType = AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_PROMISE_ID()))
 	case int32(2) /* TypeMode.NONE */ :
@@ -1876,21 +1876,21 @@ func (this_ *AstFactory) priv_AstFactory_getJsTypeForProperty_744(receiver pkg_r
 	var receiverJSType pkg_rhino.JSType = receiver.GetJSType()
 	_ = receiverJSType
 	if receiverJSType != nil && !receiverJSType.IsJavaNil_() {
-		getpropType = receiverJSType.FindPropertyType_1_string(propertyName)
+		getpropType = receiverJSType.GetJSTypeBase().FindPropertyType_1_string(propertyName)
 		if getpropType == nil || getpropType.IsJavaNil_() {
 			var receiverObjectType pkg_rhino.ObjectType = pkg_rhino.ObjectType_Cast(receiverJSType.Autobox())
 			_ = receiverObjectType
 			if receiverObjectType == nil || receiverObjectType.IsJavaNil_() {
 				getpropType = this_.unknownType
 			} else {
-				getpropType = receiverObjectType.GetPropertyType_1_string(propertyName)
+				getpropType = receiverObjectType.GetObjectTypeBase().GetPropertyType_1_string(propertyName)
 			}
 		}
 	}
 	if getpropType == nil || getpropType.IsJavaNil_() {
 		getpropType = this_.unknownType
 	}
-	if (getpropType.IsUnknownType() && (j2gort.CheckNotNullString(propertyName) == "global")) && receiver.MatchesName_1_string("$jscomp") {
+	if (getpropType.GetJSTypeBase().IsUnknownType() && (j2gort.CheckNotNullString(propertyName) == "global")) && receiver.MatchesName_1_string("$jscomp") {
 		getpropType = this_.priv_AstFactory_getNativeType_743(pkg_rhino.StaticGet_JSTypeNative_GLOBAL_THIS())
 	}
 	return getpropType
@@ -2094,6 +2094,14 @@ func ToIface_AstFactory_Type[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_AstFactory_Type[T AstFactory_Type](v T) AstFactory_Type {
+	var vi AstFactory_Type = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 func init() {

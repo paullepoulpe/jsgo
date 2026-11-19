@@ -49,6 +49,14 @@ func ToIface_PassConfig[T interface {
 	return v
 }
 
+func Upcast_PassConfig[T PassConfig](v T) PassConfig {
+	var vi PassConfig = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
+}
+
 // Java class: com.google.javascript.jscomp.PassConfig
 type PassConfigBase struct {
 	self_   PassConfig
@@ -152,7 +160,7 @@ func (this_ *PassConfigBase) GetPassGraph() pkg_graph.GraphvizGraph {
 			lastPass = passName
 		}
 	}
-	return j2gort.AsIface[pkg_graph.GraphvizGraph](graph)
+	return pkg_graph.Upcast_GraphvizGraph(graph)
 }
 
 // Java method: PassConfig.getBasePassConfig()
@@ -182,6 +190,14 @@ func ToIface_PassConfig_PassConfigDelegate[T interface {
 		return nil
 	}
 	return v
+}
+
+func Upcast_PassConfig_PassConfigDelegate[T PassConfig_PassConfigDelegate](v T) PassConfig_PassConfigDelegate {
+	var vi PassConfig_PassConfigDelegate = v
+	if vi == nil || vi.IsJavaNil_() {
+		return nil
+	}
+	return vi
 }
 
 // Java class: com.google.javascript.jscomp.PassConfig.PassConfigDelegate
