@@ -5970,13 +5970,8 @@ func (p *J2gortPeepholePass) rewriteLazyPreconditions(
 // --- Wave 29C Task 3: Lazy IsLogging() Guard on diagnostic.LogFile Statements ---
 
 func isLogFileLogMethodName(name string) bool {
-	switch name {
-	case "Log", "Log_1_string", "Log_1_any", "Log_1_Ext_java_util_function_Supplier",
-		"Log_2",
-		"LogJson", "LogJson_1_any", "LogJson_1_Ext_java_util_function_Supplier", "LogJson_1_LogFile_StreamedJsonProducer":
-		return true
-	}
-	return false
+	return name == "Log" || name == "LogJson" ||
+		strings.HasPrefix(name, "Log_") || strings.HasPrefix(name, "LogJson_")
 }
 
 func fileHasLogFileMethodCall(file *ast.File) bool {
@@ -5997,8 +5992,28 @@ func fileHasLogFileMethodCall(file *ast.File) bool {
 	return found
 }
 
+func hasZeroArgBoolMethodOrAddr(t types.Type, pkg *types.Package, name string) bool {
+	if t == nil {
+		return false
+	}
+	if hasZeroArgBoolMethod(t, pkg, name) {
+		return true
+	}
+	obj, _, _ := types.LookupFieldOrMethod(t, true, pkg, name)
+	fn, ok := obj.(*types.Func)
+	if !ok {
+		return false
+	}
+	sig, ok := fn.Type().(*types.Signature)
+	if !ok || sig.Params().Len() != 0 || sig.Results().Len() != 1 {
+		return false
+	}
+	b, ok := types.Unalias(sig.Results().At(0).Type()).(*types.Basic)
+	return ok && b.Kind() == types.Bool
+}
+
 func isDiagnosticLogFileType(t types.Type, pkg *types.Package) bool {
-	if t == nil || !hasZeroArgBoolMethod(t, pkg, "IsLogging") {
+	if t == nil || !hasZeroArgBoolMethodOrAddr(t, pkg, "IsLogging") {
 		return false
 	}
 	named := derefNamedOrigin(t)
@@ -6016,6 +6031,59 @@ func isDiagnosticLogFileType(t types.Type, pkg *types.Package) bool {
 	}
 	return hasZeroArgVoidMethod(t, pkg, "Implements_diagnostic_LogFile") ||
 		hasZeroArgVoidMethod(t, pkg, "Implements_jscomp_CompilerDecisionsLog")
+}
+
+func isBaseGetterMethodName(name string) bool {
+	return len(name) > len("GetBase") && strings.HasPrefix(name, "Get") && strings.HasSuffix(name, "Base")
+}
+
+func isPureLogFileRecvExpr(expr ast.Expr, info *types.Info) bool {
+	if expr == nil || info == nil {
+		return false
+	}
+	switch e := stripParens(expr).(type) {
+	case *ast.Ident:
+		v, ok := info.Uses[e].(*types.Var)
+		return ok && v != nil
+	case *ast.SelectorExpr:
+		if pkgId, ok := stripParens(e.X).(*ast.Ident); ok {
+			if _, isPkg := info.Uses[pkgId].(*types.PkgName); isPkg {
+				v, okV := info.Uses[e.Sel].(*types.Var)
+				return okV && v != nil
+			}
+		}
+		seln, ok := info.Selections[e]
+		return ok && seln.Kind() == types.FieldVal && isPureLogFileRecvExpr(e.X, info)
+	case *ast.CallExpr:
+		if len(e.Args) != 0 || e.Ellipsis.IsValid() {
+			return false
+		}
+		sel, ok := stripParens(e.Fun).(*ast.SelectorExpr)
+		return ok && sel.Sel != nil && isBaseGetterMethodName(sel.Sel.Name) && isPureLogFileRecvExpr(sel.X, info)
+	}
+	return false
+}
+
+func clonePureLogFileRecvExpr(expr ast.Expr) ast.Expr {
+	switch e := stripParens(expr).(type) {
+	case *ast.Ident:
+		return &ast.Ident{Name: e.Name}
+	case *ast.SelectorExpr:
+		return &ast.SelectorExpr{
+			X:   clonePureLogFileRecvExpr(e.X),
+			Sel: &ast.Ident{Name: e.Sel.Name},
+		}
+	case *ast.CallExpr:
+		if sel, ok := stripParens(e.Fun).(*ast.SelectorExpr); ok && sel.Sel != nil {
+			return &ast.CallExpr{
+				Fun: &ast.SelectorExpr{
+					X:   clonePureLogFileRecvExpr(sel.X),
+					Sel: &ast.Ident{Name: sel.Sel.Name},
+				},
+			}
+		}
+	}
+	return cloneSimplePureExpr(expr)
 }
 
 func sameSimplePureExpr(a, b ast.Expr, info *types.Info) bool {
@@ -6041,6 +6109,17 @@ func sameSimplePureExpr(a, b ast.Expr, info *types.Info) bool {
 			return false
 		}
 		return sameSimplePureExpr(xa.X, xb.X, info)
+	case *ast.CallExpr:
+		xb, ok := eb.(*ast.CallExpr)
+		if !ok || len(xa.Args) != 0 || len(xb.Args) != 0 || xa.Ellipsis.IsValid() || xb.Ellipsis.IsValid() {
+			return false
+		}
+		sa, okA := stripParens(xa.Fun).(*ast.SelectorExpr)
+		sb, okB := stripParens(xb.Fun).(*ast.SelectorExpr)
+		if !okA || !okB || sa.Sel == nil || sb.Sel == nil || !isBaseGetterMethodName(sa.Sel.Name) || sa.Sel.Name != sb.Sel.Name {
+			return false
+		}
+		return sameSimplePureExpr(sa.X, sb.X, info)
 	}
 	return false
 }
@@ -6095,7 +6174,7 @@ func isSafeBoundLambdaIIFE(call *ast.CallExpr, info *types.Info) bool {
 	}
 	for i := 0; i < len(fl.Body.List)-1; i++ {
 		_, rhs, okD := matchLocalSingleInitStmt(fl.Body.List[i])
-		if !okD || !isSimplePureExpr(rhs, info) {
+		if !okD || !isPureLogFileRecvExpr(rhs, info) {
 			return false
 		}
 	}
@@ -6116,7 +6195,7 @@ func isSafeBoundLambdaIIFE(call *ast.CallExpr, info *types.Info) bool {
 	return false
 }
 
-func isSafeLazyLogFileArg(expr ast.Expr, info *types.Info) bool {
+func isPureLogArgExpr(expr ast.Expr, info *types.Info) bool {
 	if expr == nil || info == nil {
 		return false
 	}
@@ -6132,7 +6211,20 @@ func isSafeLazyLogFileArg(expr ast.Expr, info *types.Info) bool {
 		return false
 
 	case *ast.SelectorExpr:
-		return isSimplePureExpr(e, info)
+		if pkgId, ok := stripParens(e.X).(*ast.Ident); ok {
+			if _, isPkg := info.Uses[pkgId].(*types.PkgName); isPkg {
+				switch info.Uses[e.Sel].(type) {
+				case *types.Var, *types.Const:
+					return true
+				}
+				return false
+			}
+		}
+		seln, ok := info.Selections[e]
+		return ok && seln.Kind() == types.FieldVal && isPureLogArgExpr(e.X, info)
+
+	case *ast.IndexExpr:
+		return isPureLogArgExpr(e.X, info) && isPureLogArgExpr(e.Index, info)
 
 	case *ast.CompositeLit:
 		compT := info.Types[e].Type
@@ -6149,7 +6241,7 @@ func isSafeLazyLogFileArg(expr ast.Expr, info *types.Info) bool {
 			if kv, ok := elt.(*ast.KeyValueExpr); ok {
 				val = kv.Value
 			}
-			if !isSafeLazyLogFileArg(val, info) {
+			if !isPureLogArgExpr(val, info) {
 				return false
 			}
 		}
@@ -6157,17 +6249,18 @@ func isSafeLazyLogFileArg(expr ast.Expr, info *types.Info) bool {
 
 	case *ast.UnaryExpr:
 		switch e.Op {
-		case token.ADD, token.SUB, token.NOT, token.XOR:
-			return isSafeLazyLogFileArg(e.X, info)
+		case token.ADD, token.SUB, token.NOT, token.XOR, token.AND:
+			return isPureLogArgExpr(e.X, info)
 		}
 		return false
 
 	case *ast.BinaryExpr:
 		switch e.Op {
 		case token.ADD, token.SUB, token.MUL,
+			token.AND, token.OR, token.XOR, token.SHL, token.SHR, token.AND_NOT,
 			token.EQL, token.NEQ, token.LSS, token.LEQ, token.GTR, token.GEQ,
 			token.LAND, token.LOR:
-			return isSafeLazyLogFileArg(e.X, info) && isSafeLazyLogFileArg(e.Y, info)
+			return isPureLogArgExpr(e.X, info) && isPureLogArgExpr(e.Y, info)
 		}
 		return false
 
@@ -6180,42 +6273,67 @@ func isSafeLazyLogFileArg(expr ast.Expr, info *types.Info) bool {
 		}
 		if tv, okT := info.Types[e.Fun]; okT && tv.IsType() && len(e.Args) == 1 {
 			switch types.Unalias(tv.Type).Underlying().(type) {
-			case *types.Basic, *types.Interface:
-				return isSafeLazyLogFileArg(e.Args[0], info)
+			case *types.Basic, *types.Interface, *types.Pointer, *types.Slice:
+				return isPureLogArgExpr(e.Args[0], info)
 			}
 			return false
 		}
 		if _, isTI := isToIfaceCall(e, info); isTI {
-			return isSafeLazyLogFileArg(e.Args[0], info)
+			return isPureLogArgExpr(e.Args[0], info)
+		}
+		if _, isUp := isUpcastCall(e, info); isUp {
+			return isPureLogArgExpr(e.Args[0], info)
+		}
+		allArgsPure := func() bool {
+			for _, a := range e.Args {
+				if !isPureLogArgExpr(a, info) {
+					return false
+				}
+			}
+			return true
+		}
+		lambdaArgsPure := func() bool {
+			for _, a := range e.Args {
+				if _, isFL := stripParens(a).(*ast.FuncLit); isFL {
+					continue
+				}
+				if !isPureLogArgExpr(a, info) {
+					return false
+				}
+			}
+			return true
 		}
 		if fnName, _, _, isJ2 := isJ2gortCall(e, info); isJ2 {
 			if isLambdaFactoryFuncName(fnName) {
-				return true
+				return lambdaArgsPure()
 			}
-			if strings.HasPrefix(fnName, "Ext_java_lang_String_Format") || fnName == "StringFormat" || fnName == "LenientFormat" || fnName == "StrConcat" {
-				for _, a := range e.Args {
-					if !isSafeLazyLogFileArg(a, info) {
-						return false
-					}
-				}
-				return true
-			}
-			switch fnName {
-			case "BoxString", "BoxNode", "PtrToAny", "SliceToAny", "ToAny", "AsIface",
-				"ValueOfInt", "ValueOfLong", "ValueOfBoolean", "ValueOfDouble", "ValueOfFloat",
-				"ValueOfByte", "ValueOfShort", "ValueOfChar",
-				"BoxNullableVal", "StrVal", "StrValString", "StrValInt32", "StrValInt64", "StrValBool", "StrValChar":
-				return len(e.Args) == 1 && isSafeLazyLogFileArg(e.Args[0], info)
+			if strings.HasPrefix(fnName, "Box") ||
+				strings.HasPrefix(fnName, "ValueOf") ||
+				fnName == "PtrToAny" || fnName == "SliceToAny" || fnName == "ToAny" ||
+				strings.HasPrefix(fnName, "AsIface") ||
+				strings.HasPrefix(fnName, "Cast") || fnName == "UncheckedCast" ||
+				strings.HasPrefix(fnName, "CheckNotNull") ||
+				strings.HasPrefix(fnName, "StrVal") ||
+				strings.HasPrefix(fnName, "ToIface_") ||
+				strings.HasPrefix(fnName, "Upcast_") ||
+				strings.HasPrefix(fnName, "Ext_java_lang_String_Format") ||
+				strings.HasPrefix(fnName, "Ext_java_lang_String_S_Format") ||
+				strings.HasPrefix(fnName, "StringFormat") ||
+				fnName == "LenientFormat" || fnName == "StrConcat" {
+				return allArgsPure()
 			}
 			return false
 		}
 
-		// Package-level formatting / record / lambda constructors.
+		// Package-level formatting / adapter / record / lambda constructors.
 		if callee, _ := calleeFunc(e, info); callee != nil {
 			if sig, okS := callee.Type().(*types.Signature); okS && sig.Recv() == nil {
 				cName := callee.Name()
 				if isLambdaFactoryFuncName(cName) {
-					return true
+					return lambdaArgsPure()
+				}
+				if (strings.HasPrefix(cName, "ToIface_") || strings.HasPrefix(cName, "Upcast_")) && len(e.Args) == 1 {
+					return isPureLogArgExpr(e.Args[0], info)
 				}
 				if strings.HasPrefix(cName, "StaticGet_") && len(e.Args) == 0 && sig.Results() != nil && sig.Results().Len() == 1 {
 					return true
@@ -6223,36 +6341,33 @@ func isSafeLazyLogFileArg(expr ast.Expr, info *types.Info) bool {
 				if strings.HasPrefix(cName, "DotFormatter_ToDot") ||
 					strings.Contains(cName, "RemovalLogRecord_For") ||
 					cName == "NewStripCode_StripCodeConfigRecord" ||
-					strings.HasPrefix(cName, "NewSerializeTypesToPointers_Stream") {
-					for _, a := range e.Args {
-						if !isSafeLazyLogFileArg(a, info) {
-							return false
-						}
-					}
-					return true
+					strings.HasPrefix(cName, "NewSerializeTypesToPointers_Stream") ||
+					(callee.Pkg() != nil && callee.Pkg().Name() == "javalang" && strings.HasPrefix(cName, "StringFormat")) {
+					return allArgsPure()
 				}
 			}
 		}
 
-		// Pure formatting / graphviz view methods on pure receivers.
+		// Pure formatting / graphviz / string / base-getter methods on pure receivers.
 		if sel, okSel := stripParens(e.Fun).(*ast.SelectorExpr); okSel && sel.Sel != nil {
 			mName := sel.Sel.Name
-			if (mName == "ToGraphvizGraph" && len(e.Args) == 0) ||
-				mName == "ToString" || strings.HasPrefix(mName, "ToString_") ||
-				mName == "ToStringTree" || (mName == "GetLocation" && len(e.Args) == 0) {
-				if !isSafeLazyLogFileArg(sel.X, info) {
-					return false
-				}
-				for _, a := range e.Args {
-					if !isSafeLazyLogFileArg(a, info) {
-						return false
-					}
-				}
-				return true
+			zeroArgPure := mName == "ToGraphvizGraph" ||
+				mName == "GetLocation" ||
+				mName == "GetFullName" ||
+				mName == "GetString" ||
+				mName == "GetQualifiedName" ||
+				mName == "String" ||
+				isBaseGetterMethodName(mName)
+			if (zeroArgPure && len(e.Args) == 0) || strings.HasPrefix(mName, "ToString") {
+				return isPureLogArgExpr(sel.X, info) && allArgsPure()
 			}
 		}
 	}
 	return false
+}
+
+func isSafeLazyLogFileArg(expr ast.Expr, info *types.Info) bool {
+	return isPureLogArgExpr(expr, info)
 }
 
 func extractPureRecvSelectorChain(expr ast.Expr, recvVar *types.Var, info *types.Info) ([]string, bool) {
@@ -6432,7 +6547,7 @@ func argsContainSupplierLambda(args []ast.Expr, info *types.Info) bool {
 }
 
 func buildLogFieldExprFromRecv(baseRecv ast.Expr, fieldChain []string, pos token.Pos) ast.Expr {
-	cur := cloneSimplePureExpr(baseRecv)
+	cur := clonePureLogFileRecvExpr(baseRecv)
 	for _, f := range fieldChain {
 		cur = &ast.SelectorExpr{
 			X:   cur,
@@ -6472,14 +6587,20 @@ func (p *J2gortPeepholePass) rewriteLazyLogFileStmts(
 		pos := es.Pos()
 		if isLogFileLogMethodName(sel.Sel.Name) {
 			recv := stripParens(sel.X)
-			if !isSimplePureExpr(recv, info) || !isDiagnosticLogFileType(info.Types[recv].Type, pkg) {
+			if !isPureLogFileRecvExpr(recv, info) || !isDiagnosticLogFileType(info.Types[recv].Type, pkg) {
 				return nil, false
 			}
 			if isAlreadyGuardedByIsLogging(es, recv, parents, info) {
 				return nil, false
 			}
+			if len(call.Args) == 1 {
+				switch stripParens(call.Args[0]).(type) {
+				case *ast.BasicLit, *ast.Ident:
+					return nil, false
+				}
+			}
 			for _, arg := range call.Args {
-				if !isSafeLazyLogFileArg(arg, info) {
+				if !isPureLogArgExpr(arg, info) {
 					return nil, false
 				}
 			}
@@ -6488,7 +6609,7 @@ func (p *J2gortPeepholePass) rewriteLazyLogFileStmts(
 				If: pos,
 				Cond: &ast.CallExpr{
 					Fun: &ast.SelectorExpr{
-						X:   cloneSimplePureExpr(recv),
+						X:   clonePureLogFileRecvExpr(recv),
 						Sel: &ast.Ident{NamePos: pos, Name: "IsLogging"},
 					},
 				},
@@ -6513,7 +6634,7 @@ func (p *J2gortPeepholePass) rewriteLazyLogFileStmts(
 				return nil, false
 			}
 			callerRecv := stripParens(sel.X)
-			if !isSimplePureExpr(callerRecv, info) || !argsContainSupplierLambda(call.Args, info) {
+			if !isPureLogFileRecvExpr(callerRecv, info) || !argsContainSupplierLambda(call.Args, info) {
 				return nil, false
 			}
 			logRecvExpr := buildLogFieldExprFromRecv(callerRecv, spec.fieldChain, pos)

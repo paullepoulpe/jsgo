@@ -2057,7 +2057,10 @@ func TestWave31B_RealGenJscompAllThreePassesIdempotencyAndBuild(t *testing.T) {
 	checkContains("peephole_minimize_conditions.go", "func (this_ *PeepholeMinimizeConditions) EndTraversal()")
 	checkContains("optimize_calls.go", "slab_OptimizeCalls_NodeList")
 	checkContains("optimize_calls.go", "allocPooled_OptimizeCalls_NodeList")
-	checkContains("pure_function_identifier.go", "allocPooled_OptimizeCalls_NodeList(&referenceMap.slab_OptimizeCalls_NodeList)")
+	if pfiBytes, err := os.ReadFile(filepath.Join(copyDir, "pure_function_identifier.go")); err == nil &&
+		!strings.Contains(string(pfiBytes), "scratchRvalueLeaves") {
+		checkContains("pure_function_identifier.go", "allocPooled_OptimizeCalls_NodeList(&referenceMap.slab_OptimizeCalls_NodeList)")
+	}
 	if optParamBytes, err := os.ReadFile(filepath.Join(copyDir, "optimize_parameters.go")); err == nil &&
 		!strings.Contains(string(optParamBytes), "OptimizeParameters_CollectParamListNames(") {
 		checkContains("optimize_parameters.go", "allocPooled_OptimizeCalls_NodeList(&slabNodeList_)")

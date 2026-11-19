@@ -141,13 +141,13 @@ func (this_ *CheckGoogModuleTypeScriptName) Visit_3(t *NodeTraversal, n pkg_rhin
 	_ = n
 	_ = parent
 	if NodeUtil_IsGoogModuleCall(n) {
-		this_.priv_CheckGoogModuleTypeScriptName_checkGoogModuleNamespace_6537(t, n)
+		this_.priv_CheckGoogModuleTypeScriptName_checkGoogModuleNamespace_6535(t, n)
 		this_.finished = true
 	}
 }
 
 // Java method: CheckGoogModuleTypeScriptName.checkGoogModuleNamespace(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckGoogModuleTypeScriptName) priv_CheckGoogModuleTypeScriptName_checkGoogModuleNamespace_6537(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckGoogModuleTypeScriptName) priv_CheckGoogModuleTypeScriptName_checkGoogModuleNamespace_6535(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	var originalNamespace string = n.GetFirstChild().GetSecondChild().GetString()

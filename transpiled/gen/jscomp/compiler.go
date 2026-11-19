@@ -143,6 +143,7 @@ type Compiler struct {
 	typeCheckingHasRun        bool                                                `gson:"typeCheckingHasRun"`
 	preferRegexParser         bool                                                `gson:"preferRegexParser"`
 	transpiledFiles           bool                                                `gson:"transpiledFiles"`
+	tsArena_                  *typedScopeArena_
 }
 
 func (this_ *Compiler) BindSelf_(s any) {
@@ -421,7 +422,7 @@ func (this_ *Compiler) priv_Compiler_initExperimentalOutputFeatureSetOptions_144
 	if options.GetExperimentalOutputFeatureSet().IsPresent() {
 		switch (j2gort.Cast[CompilerOptions_ExperimentalOutputFeatureSet](options.GetExperimentalOutputFeatureSet().Get())).Ordinal() {
 		case int32(0) /* ExperimentalOutputFeatureSet.ES5_WITH_SOME_PERFORMANT_ES2015_AND_ASYNC_FUNCTIONS */ :
-			options.SetOutputFeatureSet(pkg_parser.StaticGet_FeatureSet_ES5().With_1_FeatureSet_Feature_7200([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS(), pkg_parser.StaticGet_FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_GENERATORS(), pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS()}))
+			options.SetOutputFeatureSet(pkg_parser.StaticGet_FeatureSet_ES5().With_1_FeatureSet_Feature_7198([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS(), pkg_parser.StaticGet_FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_GENERATORS(), pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS()}))
 		case int32(1) /* ExperimentalOutputFeatureSet.BROWSER_2019_WITHOUT_CLASSES_AND_SPREAD */ :
 			options.SetOutputFeatureSet(pkg_parser.StaticGet_FeatureSet_BROWSER_2019().Without_2(pkg_parser.StaticGet_FeatureSet_Feature_CLASSES(), []*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER(), pkg_parser.StaticGet_FeatureSet_Feature_NEW_TARGET(), pkg_parser.StaticGet_FeatureSet_Feature_SUPER(), pkg_parser.StaticGet_FeatureSet_Feature_SPREAD_EXPRESSIONS()}))
 		}
@@ -554,9 +555,7 @@ func (this_ *Compiler) priv_Compiler_logToFile_1444(logFileName string, logStrin
 		var log pkg_diagnostic.LogFile = this_.CreateOrReopenLog(j2gort.GetObjectClass(this_), logFileName, []string{})
 		_ = log
 		defer j2gort.CloseResource(log)
-		if log.IsLogging() {
-			log.Log_1_Ext_java_util_function_Supplier(logStringSupplier)
-		}
+		log.Log_1_Ext_java_util_function_Supplier(logStringSupplier)
 	}()
 }
 
@@ -823,7 +822,9 @@ func (this_ *Compiler) InitChunks(externs j2gort.Ext_java_util_List, chunks j2go
 		var chunkGraphLog pkg_diagnostic.LogFile = this_.CreateOrReopenLog(j2gort.GetObjectClass(this_), "chunk_graph.dot", []string{})
 		_ = chunkGraphLog
 		defer j2gort.CloseResource(chunkGraphLog)
-		chunkGraphLog.Log_1_string(DotFormatter_ToDot_1_GraphvizGraph(pkg_graph.Upcast_GraphvizGraph(this_.chunkGraph.ToGraphvizGraph())))
+		if chunkGraphLog.IsLogging() {
+			chunkGraphLog.Log_1_string(DotFormatter_ToDot_1_GraphvizGraph(pkg_graph.Upcast_GraphvizGraph(this_.chunkGraph.ToGraphvizGraph())))
+		}
 	}()
 	this_.runtimeJsLibManager = RuntimeJsLibManager_Create(options.GetRuntimeLibraryMode(), func() RuntimeJsLibManager_ResourceProvider {
 		bound_31 := this_
@@ -1625,9 +1626,7 @@ func (this_ *Compiler) priv_Compiler_maybePrintSourceAfterEachPass_1487(passName
 			var log pkg_diagnostic.LogFile = this_.CreateOrReopenIndexedLog(j2gort.GetObjectClass(this_), "source_after_pass", []string{passName})
 			_ = log
 			defer j2gort.CloseResource(log)
-			if log.IsLogging() {
-				log.Log_1_string(currentJsSource)
-			}
+			log.Log_1_string(currentJsSource)
 		}()
 	} else {
 		j2gort.Ext_java_lang_System_F_Err.Println_0()
@@ -1952,6 +1951,10 @@ func (this_ *Compiler) GetChunks() j2gort.Ext_java_lang_Iterable {
 
 // Java method: Compiler.clearJSTypeRegistry()
 func (this_ *Compiler) ClearJSTypeRegistry() {
+	if this_.typeRegistry != nil {
+		this_.typeRegistry.ReleaseSlabs_()
+	}
+
 	this_.typeRegistry = nil
 	this_.typeValidator = nil
 	this_.abstractInterpreter = nil
@@ -2016,6 +2019,7 @@ func (this_ *Compiler) GetTypedScopeCreator() ScopeCreator {
 			j2gort.CheckStateStr(false, "Attempted to re-initialize TypedScopeCreator after it had been cleared")
 		}
 		this_.typedScopeCreator = NewTypedScopeCreator_1(this_)
+		this_.tsArena_ = this_.typedScopeCreator.tsArena_
 	}
 	return ToIface_ScopeCreator(this_.typedScopeCreator)
 }
@@ -2023,9 +2027,12 @@ func (this_ *Compiler) GetTypedScopeCreator() ScopeCreator {
 // Java method: Compiler.clearTypedScopeCreator()
 func (this_ *Compiler) ClearTypedScopeCreator() {
 	this_.typedScopeCreator = nil
+	this_.
+
+		// Java method: Compiler.ensureDefaultPassConfig()
+		maybeReleaseTypedScopeArena_()
 }
 
-// Java method: Compiler.ensureDefaultPassConfig()
 func (this_ *Compiler) EnsureDefaultPassConfig() *DefaultPassConfig {
 	var passes PassConfig = this_.GetPassConfig().GetPassConfigBase().GetBasePassConfig()
 	_ = passes
@@ -2090,9 +2097,12 @@ func (this_ *Compiler) SetTopScope(x *TypedScope) {
 		j2gort.CheckStateMsg(false, j2gort.PtrToAny(x))
 	}
 	this_.topScope = x
+	this_.
+
+		// Java method: Compiler.getReverseAbstractInterpreter()
+		maybeReleaseTypedScopeArena_()
 }
 
-// Java method: Compiler.getReverseAbstractInterpreter()
 func (this_ *Compiler) GetReverseAbstractInterpreter() pkg_jscomptype.ReverseAbstractInterpreter {
 	if this_.abstractInterpreter == nil || this_.abstractInterpreter.IsJavaNil_() {
 		var interpreter pkg_jscomptype.ChainableReverseAbstractInterpreter = pkg_jscomptype.NewSemanticReverseAbstractInterpreter(this_.GetTypeRegistry())
@@ -5666,6 +5676,13 @@ func (this_ *Compiler__Anon_13) ShouldTraverse_3(t *NodeTraversal, n pkg_rhino.N
 		return false
 	} else {
 		return true
+	}
+}
+func (this_ *Compiler) maybeReleaseTypedScopeArena_() {
+	if this_ != nil && this_.tsArena_ != nil && this_.typedScopeCreator == nil && this_.topScope == nil {
+		a_ := this_.tsArena_
+		this_.tsArena_ = nil
+		a_.release_()
 	}
 }
 func (*Compiler__Anon_13) NoOpVisit_()                 {}

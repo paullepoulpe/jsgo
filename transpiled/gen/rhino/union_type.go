@@ -112,12 +112,19 @@ func NewUnionType(builder *UnionType_Builder) *UnionType {
 	InitUnionType(this_, builder)
 	return this_
 }
+func allocPooled_UnionType(slab_ *j2gort.PooledSlab[UnionType], builder *UnionType_Builder) *UnionType {
+	clinit_UnionType()
+	this_ := slab_.Alloc()
+	this_.BindSelf_(this_)
+	InitUnionType(this_, builder)
+	return this_
+}
 
 func InitUnionType(this_ *UnionType, builder *UnionType_Builder) {
 	_ = builder
 	InitJSType_3(&this_.JSTypeBase, builder.registry, nil, int32(64))
 	this_.initFields_UnionType()
-	this_.priv_UnionType_fillFromBuilder_9565(builder)
+	this_.priv_UnionType_fillFromBuilder_9563(builder)
 	this_.GetJSTypeBase().registry.GetResolver().ResolveIfClosed(ToIface_JSType(this_), StaticGet_UnionType_TYPE_CLASS())
 }
 
@@ -140,7 +147,7 @@ func UnionType_CreatePooledBuilder(registry *JSTypeRegistry) *UnionType_Builder 
 
 // Java method: UnionType.getAlternates()
 func (this_ *UnionType) GetAlternates() j2gort.Ext_com_google_common_collect_ImmutableList {
-	this_.priv_UnionType_ensureAlternatesUpToDate_9563()
+	this_.priv_UnionType_ensureAlternatesUpToDate_9561()
 	switch this_.alternateCount {
 	case int32(0):
 		return j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()
@@ -174,7 +181,7 @@ func (this_ *UnionType) GetAlternates() j2gort.Ext_com_google_common_collect_Imm
 
 // Java method: UnionType.getAlternatesCount()
 func (this_ *UnionType) GetAlternatesCount() int32 {
-	this_.priv_UnionType_ensureAlternatesUpToDate_9563()
+	this_.priv_UnionType_ensureAlternatesUpToDate_9561()
 	return this_.alternateCount
 }
 
@@ -195,9 +202,9 @@ func (this_ *UnionType) GetAlternateAt(index int32) JSType {
 }
 
 // Java method: UnionType.ensureAlternatesUpToDate()
-func (this_ *UnionType) priv_UnionType_ensureAlternatesUpToDate_9563() {
+func (this_ *UnionType) priv_UnionType_ensureAlternatesUpToDate_9561() {
 	if !(this_.IsResolved()) && !(this_.alternatesResolvedBeforeBuild) {
-		var resolvedAlternates int32 = this_.priv_UnionType_countResolvedAlternates_9564()
+		var resolvedAlternates int32 = this_.priv_UnionType_countResolvedAlternates_9562()
 		_ = resolvedAlternates
 		if resolvedAlternates != this_.resolvedAlternatesAtLastBuild {
 			this_.resolvedAlternatesAtLastBuild = resolvedAlternates
@@ -235,7 +242,7 @@ func (this_ *UnionType) priv_UnionType_ensureAlternatesUpToDate_9563() {
 				}
 				if !(this_.IsResolved()) && !(this_.alternatesResolvedBeforeBuild) {
 					b.Build()
-					this_.resolvedAlternatesAtLastBuild = this_.priv_UnionType_countResolvedAlternates_9564()
+					this_.resolvedAlternatesAtLastBuild = this_.priv_UnionType_countResolvedAlternates_9562()
 				}
 			}
 		}
@@ -243,7 +250,7 @@ func (this_ *UnionType) priv_UnionType_ensureAlternatesUpToDate_9563() {
 }
 
 // Java method: UnionType.countResolvedAlternates()
-func (this_ *UnionType) priv_UnionType_countResolvedAlternates_9564() int32 {
+func (this_ *UnionType) priv_UnionType_countResolvedAlternates_9562() int32 {
 	var count int32 = int32(0)
 	_ = count
 	{
@@ -261,7 +268,7 @@ func (this_ *UnionType) priv_UnionType_countResolvedAlternates_9564() int32 {
 }
 
 // Java method: UnionType.fillFromBuilder(com.google.javascript.rhino.jstype.UnionType.Builder builder)
-func (this_ *UnionType) priv_UnionType_fillFromBuilder_9565(builder *UnionType_Builder) {
+func (this_ *UnionType) priv_UnionType_fillFromBuilder_9563(builder *UnionType_Builder) {
 	_ = builder
 	if !(!(this_.alternatesResolvedBeforeBuild)) {
 		j2gort.CheckState(false)
@@ -497,10 +504,103 @@ func (this_ *UnionType) Autobox() JSType {
 	panic("unreachable")
 }
 
+// Java method: UnionType.tryFastRestrict2(com.google.javascript.rhino.jstype.JSType a0, com.google.javascript.rhino.jstype.JSType a1, com.google.javascript.rhino.jstype.JSType r0, com.google.javascript.rhino.jstype.JSType r1)
+func (this_ *UnionType) priv_UnionType_tryFastRestrict2_9564(a0 JSType, a1 JSType, r0 JSType, r1 JSType) JSType {
+	_ = a0
+	_ = a1
+	_ = r0
+	_ = r1
+	if (r0 == a0 || ((r0 == nil || r0.IsJavaNil_()) && (a0 == nil || a0.IsJavaNil_()))) && (r1 == a1 || ((r1 == nil || r1.IsJavaNil_()) && (a1 == nil || a1.IsJavaNil_()))) {
+		return this_
+	}
+	var noType JSType = this_.GetJSTypeBase().registry.GetNativeType(StaticGet_JSTypeNative_NO_TYPE())
+	_ = noType
+	if r0 == noType || ((r0 == nil || r0.IsJavaNil_()) && (noType == nil || noType.IsJavaNil_())) {
+		if r1 == noType || ((r1 == nil || r1.IsJavaNil_()) && (noType == nil || noType.IsJavaNil_())) {
+			return noType
+		}
+		if r1 == a1 || ((r1 == nil || r1.IsJavaNil_()) && (a1 == nil || a1.IsJavaNil_())) {
+			return r1
+		}
+	} else if (r1 == noType || ((r1 == nil || r1.IsJavaNil_()) && (noType == nil || noType.IsJavaNil_()))) && (r0 == a0 || ((r0 == nil || r0.IsJavaNil_()) && (a0 == nil || a0.IsJavaNil_()))) {
+		return r0
+	}
+	return nil
+}
+
+// Java method: UnionType.tryFastRestrict3(com.google.javascript.rhino.jstype.JSType a0, com.google.javascript.rhino.jstype.JSType a1, com.google.javascript.rhino.jstype.JSType a2, com.google.javascript.rhino.jstype.JSType r0, com.google.javascript.rhino.jstype.JSType r1, com.google.javascript.rhino.jstype.JSType r2)
+func (this_ *UnionType) priv_UnionType_tryFastRestrict3_9565(a0 JSType, a1 JSType, a2 JSType, r0 JSType, r1 JSType, r2 JSType) JSType {
+	_ = a0
+	_ = a1
+	_ = a2
+	_ = r0
+	_ = r1
+	_ = r2
+	if ((r0 == a0 || ((r0 == nil || r0.IsJavaNil_()) && (a0 == nil || a0.IsJavaNil_()))) && (r1 == a1 || ((r1 == nil || r1.IsJavaNil_()) && (a1 == nil || a1.IsJavaNil_())))) && (r2 == a2 || ((r2 == nil || r2.IsJavaNil_()) && (a2 == nil || a2.IsJavaNil_()))) {
+		return this_
+	}
+	var noType JSType = this_.GetJSTypeBase().registry.GetNativeType(StaticGet_JSTypeNative_NO_TYPE())
+	_ = noType
+	if r0 == noType || ((r0 == nil || r0.IsJavaNil_()) && (noType == nil || noType.IsJavaNil_())) {
+		if r1 == noType || ((r1 == nil || r1.IsJavaNil_()) && (noType == nil || noType.IsJavaNil_())) {
+			if r2 == noType || ((r2 == nil || r2.IsJavaNil_()) && (noType == nil || noType.IsJavaNil_())) {
+				return noType
+			}
+			if r2 == a2 || ((r2 == nil || r2.IsJavaNil_()) && (a2 == nil || a2.IsJavaNil_())) {
+				return r2
+			}
+		} else if r1 == a1 || ((r1 == nil || r1.IsJavaNil_()) && (a1 == nil || a1.IsJavaNil_())) {
+			if r2 == noType || ((r2 == nil || r2.IsJavaNil_()) && (noType == nil || noType.IsJavaNil_())) {
+				return r1
+			}
+			if r2 == a2 || ((r2 == nil || r2.IsJavaNil_()) && (a2 == nil || a2.IsJavaNil_())) {
+				return this_.GetJSTypeBase().registry.CreateUnionType_2(r1, r2)
+			}
+		}
+	} else if r0 == a0 || ((r0 == nil || r0.IsJavaNil_()) && (a0 == nil || a0.IsJavaNil_())) {
+		if r1 == noType || ((r1 == nil || r1.IsJavaNil_()) && (noType == nil || noType.IsJavaNil_())) {
+			if r2 == noType || ((r2 == nil || r2.IsJavaNil_()) && (noType == nil || noType.IsJavaNil_())) {
+				return r0
+			}
+			if r2 == a2 || ((r2 == nil || r2.IsJavaNil_()) && (a2 == nil || a2.IsJavaNil_())) {
+				return this_.GetJSTypeBase().registry.CreateUnionType_2(r0, r2)
+			}
+		} else if (r1 == a1 || ((r1 == nil || r1.IsJavaNil_()) && (a1 == nil || a1.IsJavaNil_()))) && (r2 == noType || ((r2 == nil || r2.IsJavaNil_()) && (noType == nil || noType.IsJavaNil_()))) {
+			return this_.GetJSTypeBase().registry.CreateUnionType_2(r0, r1)
+		}
+	}
+	return nil
+}
+
 // Java method: UnionType.restrictByNotNullOrUndefined()
 func (this_ *UnionType) RestrictByNotNullOrUndefined() JSType {
 	var n int32 = this_.GetAlternatesCount()
 	_ = n
+	if (int32(this_.GetJSTypeBase().jstypeFlags) & int32(int8(8))) != int32(0) {
+		if n == int32(2) {
+			var a0 JSType = this_.alt0
+			_ = a0
+			var a1 JSType = this_.alt1
+			_ = a1
+			var fast JSType = this_.priv_UnionType_tryFastRestrict2_9564(a0, a1, a0.RestrictByNotNullOrUndefined(), a1.RestrictByNotNullOrUndefined())
+			_ = fast
+			if fast != nil && !fast.IsJavaNil_() {
+				return fast
+			}
+		} else if n == int32(3) {
+			var a0_2 JSType = this_.alt0
+			_ = a0_2
+			var a1_2 JSType = this_.alt1
+			_ = a1_2
+			var a2 JSType = this_.alt2
+			_ = a2
+			var fast_2 JSType = this_.priv_UnionType_tryFastRestrict3_9565(a0_2, a1_2, a2, a0_2.RestrictByNotNullOrUndefined(), a1_2.RestrictByNotNullOrUndefined(), a2.RestrictByNotNullOrUndefined())
+			_ = fast_2
+			if fast_2 != nil && !fast_2.IsJavaNil_() {
+				return fast_2
+			}
+		}
+	}
 	var builder *UnionType_Builder = this_.GetJSTypeBase().registry.AcquireUnionTypeBuilder()
 	_ = builder
 	defer func() {
@@ -523,6 +623,31 @@ func (this_ *UnionType) RestrictByNotNullOrUndefined() JSType {
 func (this_ *UnionType) RestrictByNotUndefined() JSType {
 	var n int32 = this_.GetAlternatesCount()
 	_ = n
+	if (int32(this_.GetJSTypeBase().jstypeFlags) & int32(int8(8))) != int32(0) {
+		if n == int32(2) {
+			var a0 JSType = this_.alt0
+			_ = a0
+			var a1 JSType = this_.alt1
+			_ = a1
+			var fast JSType = this_.priv_UnionType_tryFastRestrict2_9564(a0, a1, a0.RestrictByNotUndefined(), a1.RestrictByNotUndefined())
+			_ = fast
+			if fast != nil && !fast.IsJavaNil_() {
+				return fast
+			}
+		} else if n == int32(3) {
+			var a0_2 JSType = this_.alt0
+			_ = a0_2
+			var a1_2 JSType = this_.alt1
+			_ = a1_2
+			var a2 JSType = this_.alt2
+			_ = a2
+			var fast_2 JSType = this_.priv_UnionType_tryFastRestrict3_9565(a0_2, a1_2, a2, a0_2.RestrictByNotUndefined(), a1_2.RestrictByNotUndefined(), a2.RestrictByNotUndefined())
+			_ = fast_2
+			if fast_2 != nil && !fast_2.IsJavaNil_() {
+				return fast_2
+			}
+		}
+	}
 	var builder *UnionType_Builder = this_.GetJSTypeBase().registry.AcquireUnionTypeBuilder()
 	_ = builder
 	defer func() {
@@ -545,6 +670,31 @@ func (this_ *UnionType) RestrictByNotUndefined() JSType {
 func (this_ *UnionType) RestrictByNotNull() JSType {
 	var n int32 = this_.GetAlternatesCount()
 	_ = n
+	if (int32(this_.GetJSTypeBase().jstypeFlags) & int32(int8(8))) != int32(0) {
+		if n == int32(2) {
+			var a0 JSType = this_.alt0
+			_ = a0
+			var a1 JSType = this_.alt1
+			_ = a1
+			var fast JSType = this_.priv_UnionType_tryFastRestrict2_9564(a0, a1, a0.RestrictByNotNull(), a1.RestrictByNotNull())
+			_ = fast
+			if fast != nil && !fast.IsJavaNil_() {
+				return fast
+			}
+		} else if n == int32(3) {
+			var a0_2 JSType = this_.alt0
+			_ = a0_2
+			var a1_2 JSType = this_.alt1
+			_ = a1_2
+			var a2 JSType = this_.alt2
+			_ = a2
+			var fast_2 JSType = this_.priv_UnionType_tryFastRestrict3_9565(a0_2, a1_2, a2, a0_2.RestrictByNotNull(), a1_2.RestrictByNotNull(), a2.RestrictByNotNull())
+			_ = fast_2
+			if fast_2 != nil && !fast_2.IsJavaNil_() {
+				return fast_2
+			}
+		}
+	}
 	var builder *UnionType_Builder = this_.GetJSTypeBase().registry.AcquireUnionTypeBuilder()
 	_ = builder
 	defer func() {
@@ -1673,7 +1823,7 @@ func (this_ *UnionType_Builder) Build() JSType {
 			this_.altCount = int32(2)
 			this_.alt0 = wildcard
 			this_.alt1 = this_.registry.GetNativeType(StaticGet_JSTypeNative_VOID_TYPE())
-			return NewUnionType(this_)
+			return ToIface_JSType(allocPooled_UnionType(&this_.registry.slab_UnionType, this_))
 		}
 		return wildcard
 	}
@@ -1686,10 +1836,12 @@ func (this_ *UnionType_Builder) Build() JSType {
 	if this_.altCount > int32(30) {
 		return this_.registry.GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	}
-	return NewUnionType(this_)
+	return ToIface_JSType(allocPooled_UnionType(&this_.registry.
+
+		// Java method: Builder.buildForRebuildTarget()
+		slab_UnionType, this_))
 }
 
-// Java method: Builder.buildForRebuildTarget()
 func (this_ *UnionType_Builder) priv_Builder_buildForRebuildTarget_9579() JSType {
 	var wildcard JSType = this_.priv_Builder_getNativeWildcardType_9580()
 	_ = wildcard
@@ -1709,7 +1861,7 @@ func (this_ *UnionType_Builder) priv_Builder_buildForRebuildTarget_9579() JSType
 		this_.altCount = int32(1)
 		this_.alt0 = this_.registry.GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	}
-	this_.rebuildTarget.priv_UnionType_fillFromBuilder_9565(this_)
+	this_.rebuildTarget.priv_UnionType_fillFromBuilder_9563(this_)
 	if this_.altCount == int32(1) {
 		return this_.alt0
 	}

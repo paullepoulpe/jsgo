@@ -244,25 +244,26 @@ func TestLargeCopyrightJSFileZeroUTF16SliceAndNoASCIIEviction(t *testing.T) {
 		t.Fatalf("expected 0 allocs/op on cached 200 KB non-ASCII JS file after 5,000 ASCII type lookups, got %v", postAllocs)
 	}
 
-	// Small token substring (<= 96 bytes) from 200 KB JS file must allocate 0 objects on
-	// warm deduplicated hits, while > 96-byte small slices allocate 1 clone (no 200 KB []uint16 slice).
+	// Token substrings (<= 256 bytes) from 200 KB JS file must allocate 0 objects on
+	// warm deduplicated hits, while > 256-byte small slices allocate 1 clone (no 200 KB []uint16 slice).
 	subAllocs := testing.AllocsPerRun(20, func() {
-		tok := StringSubstring(jsFile, 1000, 1045)
-		if len(tok) != 45 {
-			t.Fatalf("unexpected token length %d", len(tok))
+		tok45 := StringSubstring(jsFile, 1000, 1045)
+		tok120 := StringSubstring(jsFile, 1000, 1120)
+		if len(tok45) != 45 || len(tok120) != 120 {
+			t.Fatalf("unexpected token lengths %d, %d", len(tok45), len(tok120))
 		}
 	})
 	if subAllocs != 0 {
-		t.Fatalf("expected 0 allocs/op on deduplicated <=96B token slice from 200 KB file, got %v", subAllocs)
+		t.Fatalf("expected 0 allocs/op on deduplicated <=256B token slices from 200 KB file, got %v", subAllocs)
 	}
 	longSubAllocs := testing.AllocsPerRun(20, func() {
-		tok := StringSubstring(jsFile, 1000, 1120)
-		if len(tok) != 120 {
+		tok := StringSubstring(jsFile, 1000, 1300)
+		if len(tok) != 300 {
 			t.Fatalf("unexpected token length %d", len(tok))
 		}
 	})
 	if longSubAllocs != 1 {
-		t.Fatalf("expected 1 small clone alloc/op on 120B token slice from 200 KB file, got %v", longSubAllocs)
+		t.Fatalf("expected 1 small clone alloc/op on 300B (>256B) token slice from 200 KB file, got %v", longSubAllocs)
 	}
 }
 
@@ -812,4 +813,88 @@ func TestWave36CZeroAllocColdShortASCIIScan(t *testing.T) {
 	if allocs != 0 {
 		t.Fatalf("expected 0 heap allocations on cold/evicting >64B ASCII misses, got %v", allocs)
 	}
+}
+
+func TestWave40CShardedZeroBucketAllocUnpinDedup256(t *testing.T) {
+	// 1. Verify long Google Cloud protobuf qualified names (97..256 bytes, previously > old 96B cap!)
+	// deduplicate with 0 allocations on warm hits, while >256B still clones cleanly.
+	alphabet := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.$"
+	var pb strings.Builder
+	for i := 0; i < 320; i++ {
+		pb.WriteByte(alphabet[(i*17+11)%len(alphabet)])
+	}
+	longPattern := pb.String()
+	srcA := strings.Repeat("/*", 900) + longPattern + strings.Repeat("*/", 900)
+	srcB := strings.Repeat("//", 1000) + longPattern + strings.Repeat("\n ", 1000)
+	offA, offB := 1800, 2000
+
+	for _, length := range []int{97, 128, 180, 224, 255, 256, 257, 300} {
+		want := longPattern[:length]
+		gA := StringSubstring(srcA, offA, offA+length)
+		gB := StringSubstring(srcB, offB, offB+length)
+		if gA != want || gB != want {
+			t.Fatalf("len=%d mismatch", length)
+		}
+		if length <= unpinDedupMaxLen {
+			allocs := testing.AllocsPerRun(50, func() {
+				if got := StringSubstring(srcB, offB, offB+length); got != want {
+					t.Fatal("dedup hit mismatch")
+				}
+			})
+			if allocs != 0 {
+				t.Fatalf("len=%d (<= %d): expected 0 allocs on warm dedup hit, got %v", length, unpinDedupMaxLen, allocs)
+			}
+		}
+	}
+
+	// 2. Verify cold misses into unpinShards do ONLY 1 heap alloc (strings.Clone) and ZERO unpinBucket struct allocs!
+	prefix := strings.Repeat("P", 1500)
+	coldBufs := make([]string, 32)
+	for i := range coldBufs {
+		coldBufs[i] = prefix + fmt.Sprintf("proto.google.cloud.dialogflow.cx.v3beta1.UniqueColdSymbolW40C_%06d_ServiceClientImpl", i)
+	}
+	missIdx := 0
+	missAllocs := testing.AllocsPerRun(25, func() {
+		buf := coldBufs[missIdx]
+		missIdx++
+		sub := buf[len(prefix):]
+		if got := unpinSubstring(len(buf), sub); got != sub {
+			t.Fatalf("cold miss mismatch: got %q, want %q", got, sub)
+		}
+	})
+	// Exactly 1 strings.Clone per unique miss (previously 2.0 allocs/miss due to &unpinBucket{}!).
+	if missAllocs > 1 {
+		t.Fatalf("expected <= 1 alloc per cold unpinDedup miss (no bucket struct), got %v", missAllocs)
+	}
+
+	// 3. Concurrent -race stress across 24 workers on 100..256B substrings (hits + misses).
+	var wg sync.WaitGroup
+	const workers = 24
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		w := w
+		go func() {
+			defer wg.Done()
+			pad := strings.Repeat("z", 1300)
+			for i := 0; i < 400; i++ {
+				var tok string
+				if i&1 == 0 {
+					tok = longPattern[:120+(i%137)] // 120..256B hot shared slice
+					got := StringSubstring(srcA, offA, offA+len(tok))
+					if got != tok {
+						t.Errorf("worker %d hot >96B mismatch", w)
+						return
+					}
+				} else {
+					tok = fmt.Sprintf("proto.google.cloud.compute.v1.Worker%02d_Iter%04d_RegionalInstanceGroupManager", w%6, i)
+					buf := pad + tok
+					if got := unpinSubstring(len(buf), buf[len(pad):]); got != tok {
+						t.Errorf("worker %d miss >96B mismatch", w)
+						return
+					}
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }

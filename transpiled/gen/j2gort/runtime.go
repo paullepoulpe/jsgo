@@ -7606,6 +7606,80 @@ func (s *jSortedMapState) avlForEach(cur int32, fn func(k, v any) bool) bool {
 	return true
 }
 
+func (s *jSortedMapState) avlForEachValue(cur int32, fn func(v any) bool) bool {
+	if cur == 0 {
+		return true
+	}
+	l := s.tree[cur-1].left
+	if l != 0 && !s.avlForEachValue(l, fn) {
+		return false
+	}
+	v := s.tree[cur-1].val
+	r := s.tree[cur-1].right
+	if !fn(v) {
+		return false
+	}
+	if r != 0 && !s.avlForEachValue(r, fn) {
+		return false
+	}
+	return true
+}
+
+func (s *jSortedMapState) avlAllStr(cur int32) bool {
+	if cur == 0 {
+		return true
+	}
+	n := &s.tree[cur-1]
+	return n.isStr && s.avlAllStr(n.left) && s.avlAllStr(n.right)
+}
+
+func (s *jSortedMapState) avlAppendStrEntries(cur int32, keys []string, vals []any, needVals bool) ([]string, []any) {
+	if cur == 0 {
+		return keys, vals
+	}
+	n := &s.tree[cur-1]
+	if n.left != 0 {
+		keys, vals = s.avlAppendStrEntries(n.left, keys, vals, needVals)
+	}
+	keys = append(keys, n.strKey)
+	if needVals {
+		vals = append(vals, n.val)
+	}
+	if n.right != 0 {
+		keys, vals = s.avlAppendStrEntries(n.right, keys, vals, needVals)
+	}
+	return keys, vals
+}
+
+func (s *jSortedMapState) avlCopyInto(cur int32, dst *JMapCore, checkNonNull bool) {
+	if cur == 0 {
+		return
+	}
+	n := &s.tree[cur-1]
+	if n.left != 0 {
+		s.avlCopyInto(n.left, dst, checkNonNull)
+	}
+	v := n.val
+	if checkNonNull {
+		v = CheckNotNull(v)
+	}
+	if n.isStr {
+		if checkNonNull && n.strKey == NullString {
+			ThrowNPE()
+		}
+		dst.PutStr(n.strKey, v)
+	} else {
+		k := n.key
+		if checkNonNull {
+			k = CheckNotNull(k)
+		}
+		dst.Put(k, v)
+	}
+	if n.right != 0 {
+		s.avlCopyInto(n.right, dst, checkNonNull)
+	}
+}
+
 func (s *jSortedMapState) avlTransformValues(cur int32, fn func(k, v any) any) {
 	if cur == 0 {
 		return
@@ -10145,6 +10219,116 @@ func (m *JMapCore) CopyFromSameMode(src *JMapCore) bool {
 	return false
 }
 
+func (m *JMapCore) CopyFromSameModeNonNull(src *JMapCore) bool {
+	if m == nil || src == nil || m == src || m.immutable || m.mode != jMapModeEmpty || m.Live != 0 {
+		return false
+	}
+	if m.IsSorted() || src.IsSorted() || m.Identity != src.Identity || (src.accessOrd && !m.accessOrd) {
+		return false
+	}
+	if src.Live == 0 {
+		return true
+	}
+	switch src.mode {
+	case jMapModeNullOnly:
+		ThrowNPE()
+	case jMapModeNode1:
+		if m.accessOrd {
+			return false
+		}
+		if src.firstIdx == 0 {
+			ThrowNPE()
+		}
+		CheckNotNull(src.ext)
+	case jMapModeStr:
+		if m.accessOrd {
+			return false
+		}
+		for i := int(src.firstIdx); i < len(src.strEntries); i++ {
+			e := src.strEntries[i]
+			if e.key == jTombstoneStr {
+				continue
+			}
+			if e.key == NullString {
+				ThrowNPE()
+			}
+			CheckNotNull(e.val)
+		}
+	case jMapModeNode:
+		if m.accessOrd {
+			return false
+		}
+		sns := src.ext.(*jNodeMapState)
+		for i := int(src.firstIdx); i < len(sns.entries); i++ {
+			e := sns.entries[i]
+			if !e.active {
+				continue
+			}
+			if e.key == 0 {
+				ThrowNPE()
+			}
+			CheckNotNull(e.val)
+		}
+	case jMapModePtr:
+		if m.accessOrd {
+			return false
+		}
+		sps := src.ext.(*jPtrMapState)
+		for i := int(src.firstIdx); i < len(sps.entries); i++ {
+			e := sps.entries[i]
+			if e.key == jTombstoneObj {
+				continue
+			}
+			CheckNotNull(e.key)
+			CheckNotNull(e.val)
+		}
+	case jMapModeGeneral:
+		sg := src.ext.(*jGenMapState)
+		if sg.nullPos != 0 {
+			ThrowNPE()
+		}
+		for pos := sg.head; pos != 0; pos = sg.entries[pos-1].next() {
+			e := &sg.entries[pos-1]
+			if e.kind() == jKeyNull {
+				ThrowNPE()
+			}
+			CheckNotNull(e.Val)
+		}
+	default:
+		return false
+	}
+	return m.CopyFromSameMode(src)
+}
+
+func (m *JMapCore) CopySortedFrom(src *JMapCore) {
+	if src == nil {
+		return
+	}
+	m.mode = src.mode
+	m.Live = src.Live
+	m.holes = 0
+	m.firstIdx = 0
+	if src.Live == 0 || src.ext == nil {
+		if src.mode == jMapModeSortedCmp && src.ext != nil {
+			sst := src.ext.(*jSortedMapState)
+			m.ext = &jSortedMapState{cmp: sst.cmp, natOrder: sst.natOrder}
+		} else {
+			m.ext = nil
+		}
+		return
+	}
+	sst := src.ext.(*jSortedMapState)
+	dstTree := make([]jTreeNode, len(sst.tree))
+	copy(dstTree, sst.tree)
+	m.ext = &jSortedMapState{
+		tree:     dstTree,
+		root:     sst.root,
+		freeTree: sst.freeTree,
+		cmp:      sst.cmp,
+		natOrder: sst.natOrder,
+	}
+}
+
 func (m *JMapCore) ContainsKey(k any) bool {
 	_, ok := m.getAny(k, false)
 	return ok
@@ -10153,7 +10337,7 @@ func (m *JMapCore) ContainsKey(k any) bool {
 func (m *JMapCore) ContainsValue(v any) bool {
 	v = ToAny(v)
 	found := false
-	m.ForEachEntry(func(_, ev any) bool {
+	m.ForEachValue(func(ev any) bool {
 		if javalang.ObjectsEquals(ev, v) {
 			found = true
 			return false
@@ -10580,6 +10764,17 @@ func (m *JMapCore) SetHash() int32 {
 	if m.IsSorted() {
 		return m.ext.(*jSortedMapState).avlSetHash(m.ext.(*jSortedMapState).root)
 	}
+	if m.mode == jMapModeStr && !m.Identity {
+		var h int32
+		for i := int(m.firstIdx); i < len(m.strEntries); i++ {
+			k := m.strEntries[i].key
+			if k == jTombstoneStr || k == NullString {
+				continue
+			}
+			h += javalang.StringHashCode(k)
+		}
+		return h
+	}
 	var h int32
 	m.ForEachEntry(func(k, _ any) bool {
 		h += elemJavaHashCode(k, m.Identity)
@@ -10590,6 +10785,61 @@ func (m *JMapCore) SetHash() int32 {
 
 func (m *JMapCore) ImmutableSetHash() int32 {
 	return m.SetHash()
+}
+
+func (m *JMapCore) ForEachValue(fn func(v any) bool) {
+	if m == nil || m.Live == 0 {
+		return
+	}
+	start := int(m.firstIdx)
+	switch m.mode {
+	case jMapModeNullOnly, jMapModeNode1:
+		fn(m.ext)
+	case jMapModeStr:
+		for i := start; i < len(m.strEntries); i++ {
+			e := m.strEntries[i]
+			if e.key == jTombstoneStr {
+				continue
+			}
+			if !fn(e.val) {
+				return
+			}
+		}
+	case jMapModeNode:
+		ns := m.ext.(*jNodeMapState)
+		for i := start; i < len(ns.entries); i++ {
+			e := ns.entries[i]
+			if !e.active {
+				continue
+			}
+			if !fn(e.val) {
+				return
+			}
+		}
+	case jMapModePtr:
+		ps := m.ext.(*jPtrMapState)
+		for i := start; i < len(ps.entries); i++ {
+			e := ps.entries[i]
+			if e.key == jTombstoneObj {
+				continue
+			}
+			if !fn(e.val) {
+				return
+			}
+		}
+	case jMapModeGeneral:
+		g := m.ext.(*jGenMapState)
+		for pos := g.head; pos != 0; {
+			nextPos := g.entries[pos-1].next()
+			if !fn(g.entries[pos-1].Val) {
+				return
+			}
+			pos = nextPos
+		}
+	case jMapModeSortedNat, jMapModeSortedCmp:
+		st := m.ext.(*jSortedMapState)
+		st.avlForEachValue(st.root, fn)
+	}
 }
 
 func (m *JMapCore) ForEachEntry(fn func(k, v any) bool) {
@@ -10736,8 +10986,15 @@ func (m *JMapCore) LiveValues() []any {
 	if m == nil || m.Live == 0 {
 		return []any{}
 	}
+	if m.mode == jMapModeStr && m.holes == 0 && m.firstIdx == 0 {
+		out := make([]any, len(m.strEntries))
+		for i := range m.strEntries {
+			out[i] = m.strEntries[i].val
+		}
+		return out
+	}
 	out := make([]any, 0, m.Live)
-	m.ForEachEntry(func(_, v any) bool {
+	m.ForEachValue(func(v any) bool {
 		out = append(out, v)
 		return true
 	})

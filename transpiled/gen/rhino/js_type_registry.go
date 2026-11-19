@@ -79,6 +79,9 @@ type JSTypeRegistry struct {
 	closureNamespaces               j2gort.OrderedMap[string, JSTypeRegistry_ClosureNamespace]     `gson:"-"`
 	nonLegacyClosureNamespaceRoots  j2gort.OrderedSet[string]                                      `gson:"-"`
 	nonNullableTypeNames            *JSTypeRegistry_ScopedNameSet                                  `gson:"nonNullableTypeNames"`
+	union2A                         []JSType                                                       `gson:"union2A"`
+	union2B                         []JSType                                                       `gson:"union2B"`
+	union2Res                       []JSType                                                       `gson:"union2Res"`
 	unionBuilderPool                []*UnionType_Builder                                           `gson:"unionBuilderPool"`
 	replacerPool                    []*TemplateTypeReplacer                                        `gson:"replacerPool"`
 	forwardDeclaredTypes            j2gort.Ext_java_util_Set                                       `gson:"-"`
@@ -91,9 +94,14 @@ type JSTypeRegistry struct {
 	resolver                        *JSTypeResolver                                                `gson:"resolver"`
 	qualifiedScopedNameHashCount    int32                                                          `gson:"qualifiedScopedNameHashCount"`
 	nameTableGlobalRoot             Node                                                           `gson:"nameTableGlobalRoot"`
+	nextTypeId                      int32                                                          `gson:"nextTypeId"`
+	hashDepth                       int32                                                          `gson:"hashDepth"`
 	unionBuilderPoolSize            int32                                                          `gson:"unionBuilderPoolSize"`
 	replacerPoolSize                int32                                                          `gson:"replacerPoolSize"`
 	idHash_                         atomic.Int32
+	slab_UnionType                  j2gort.PooledSlab[UnionType]
+	slab_FunctionType               j2gort.PooledSlab[FunctionType]
+	slab_TemplatizedType            j2gort.PooledSlab[TemplatizedType]
 }
 
 func (this_ *JSTypeRegistry) BindSelf_(s any) {
@@ -131,6 +139,7 @@ func StaticSet_JSTypeRegistry_DOT_SPLITTER(v *j2gort.Ext_com_google_common_base_
 }
 func StaticGet_JSTypeRegistry_I_OBJECT_ELEMENT_TEMPLATE() string { return "IOBJECT_VALUE" }
 func StaticGet_JSTypeRegistry_OBJECT_ELEMENT_TEMPLATE() string   { return "IOBJECT_VALUE" }
+func StaticGet_JSTypeRegistry_UNION2_CACHE_MASK() int32          { return int32(16383) }
 
 var clinitDone_JSTypeRegistry uint32
 var clinitState_JSTypeRegistry j2gort.ClinitState
@@ -157,6 +166,7 @@ func (this_ *JSTypeRegistry) initFields_JSTypeRegistry() {
 	this_.nonLegacyClosureNamespaceRoots = j2gort.NewOrderedSet[string]()
 	this_.nameTableGlobalRoot = NewNode_1(StaticGet_Token_ROOT())
 	this_.nonNullableTypeNames = NewJSTypeRegistry_ScopedNameSet()
+
 	this_.unionBuilderPool = make([]*UnionType_Builder, int32(16))
 
 	this_.replacerPool = make([]*TemplateTypeReplacer, int32(8))
@@ -203,8 +213,8 @@ func InitJSTypeRegistry_2(this_ *JSTypeRegistry, reporter ErrorReporter, forward
 		var closer *JSTypeResolver_Closer = this_.resolver.OpenForDefinition()
 		_ = closer
 		defer j2gort.CloseResource(closer)
-		this_.priv_JSTypeRegistry_initializeBuiltInTypes_9183()
-		this_.priv_JSTypeRegistry_initializeRegistry_9184()
+		this_.priv_JSTypeRegistry_initializeBuiltInTypes_9181()
+		this_.priv_JSTypeRegistry_initializeRegistry_9182()
 	}()
 }
 
@@ -315,7 +325,7 @@ func (this_ *JSTypeRegistry) ReleaseUnionTypeBuilder(b *UnionType_Builder) {
 }
 
 // Java method: JSTypeRegistry.getSentinelObjectLiteral()
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getSentinelObjectLiteral_9158() JSType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getSentinelObjectLiteral_9156() JSType {
 	if this_.sentinelObjectLiteral == nil || this_.sentinelObjectLiteral.IsJavaNil_() {
 		this_.sentinelObjectLiteral = Upcast_JSType(this_.CreateAnonymousObjectType(nil))
 	}
@@ -458,37 +468,37 @@ func (this_ *JSTypeRegistry) GetErrorReporter() ErrorReporter {
 }
 
 // Java method: JSTypeRegistry.initializeBuiltInTypes()
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_initializeBuiltInTypes_9183() {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_initializeBuiltInTypes_9181() {
 	var booleanType *BooleanType = NewBooleanType(this_)
 	_ = booleanType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_BOOLEAN_TYPE(), booleanType)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_BOOLEAN_TYPE(), booleanType)
 	var nullType *NullType = NewNullType(this_)
 	_ = nullType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_NULL_TYPE(), nullType)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_NULL_TYPE(), nullType)
 	var bigIntType *BigIntType = NewBigIntType(this_)
 	_ = bigIntType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_BIGINT_TYPE(), bigIntType)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_BIGINT_TYPE(), bigIntType)
 	var numberType *NumberType = NewNumberType(this_)
 	_ = numberType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_NUMBER_TYPE(), numberType)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_NUMBER_TYPE(), numberType)
 	var stringType *StringType = NewStringType(this_)
 	_ = stringType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_STRING_TYPE(), stringType)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_STRING_TYPE(), stringType)
 	var symbolType SymbolType = NewSymbolType_1(this_)
 	_ = symbolType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_SYMBOL_TYPE(), Upcast_JSType(symbolType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_SYMBOL_TYPE(), Upcast_JSType(symbolType))
 	var unknownType *UnknownType = NewUnknownType(this_, false)
 	_ = unknownType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_UNKNOWN_TYPE(), unknownType)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_UNKNOWN_TYPE(), unknownType)
 	var checkedUnknownType *UnknownType = NewUnknownType(this_, true)
 	_ = checkedUnknownType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_CHECKED_UNKNOWN_TYPE(), checkedUnknownType)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_CHECKED_UNKNOWN_TYPE(), checkedUnknownType)
 	var voidType *VoidType = NewVoidType(this_)
 	_ = voidType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_VOID_TYPE(), voidType)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_VOID_TYPE(), voidType)
 	var allType *AllType = NewAllType(this_)
 	_ = allType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ALL_TYPE(), allType)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ALL_TYPE(), allType)
 	this_.iObjectIndexTemplateKey = NewTemplateType_2(this_, "IOBJECT_KEY")
 	this_.iObjectElementTemplateKey = NewTemplateType_2(this_, "IOBJECT_VALUE")
 	var iArrayLikeTemplate *TemplateType = NewTemplateType_2(this_, "VALUE2")
@@ -503,10 +513,10 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_initializeBuiltInTypes_9183() {
 	this_.promiseTemplateKey = NewTemplateType_2(this_, "TYPE")
 	var functionPrototype PrototypeObjectType = j2gort.AsIface[PrototypeObjectType](j2gort.AsIface[PrototypeObjectType_Builder](PrototypeObjectType_S_Builder(this_).SetName("Function.prototype")).GetPrototypeObjectType_BuilderBase().SetNative(true).Build())
 	_ = functionPrototype
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_FUNCTION_PROTOTYPE(), Upcast_JSType(functionPrototype))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_FUNCTION_PROTOTYPE(), Upcast_JSType(functionPrototype))
 	var functionInstancePrototype PrototypeObjectType = j2gort.AsIface[PrototypeObjectType](j2gort.AsIface[PrototypeObjectType_Builder](PrototypeObjectType_S_Builder(this_).SetName("?.prototype")).GetPrototypeObjectType_BuilderBase().SetNative(true).Build())
 	_ = functionInstancePrototype
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_FUNCTION_INSTANCE_PROTOTYPE(), Upcast_JSType(functionInstancePrototype))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_FUNCTION_INSTANCE_PROTOTYPE(), Upcast_JSType(functionInstancePrototype))
 	var fb_ FunctionType_Builder
 	InitFunctionType_Builder(&fb_, this_)
 	(&fb_).WithName("Function")
@@ -518,7 +528,7 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_initializeBuiltInTypes_9183() {
 	var functionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_).Build())
 	_ = functionType
 	functionType.SetPrototype(Upcast_ObjectType(functionInstancePrototype), Node(0))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_FUNCTION_TYPE(), ToIface_JSType(functionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_FUNCTION_TYPE(), ToIface_JSType(functionType))
 	var fb_1_ FunctionType_Builder
 	InitFunctionType_Builder(&fb_1_, this_)
 	(&fb_1_).WithName("Function")
@@ -529,58 +539,58 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_initializeBuiltInTypes_9183() {
 	var functionFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_1_).Build())
 	_ = functionFunctionType
 	functionFunctionType.SetPrototype(Upcast_ObjectType(functionPrototype), Node(0))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_FUNCTION_FUNCTION_TYPE(), ToIface_JSType(functionFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_FUNCTION_FUNCTION_TYPE(), ToIface_JSType(functionFunctionType))
 	var objectPrototype ObjectType = Upcast_ObjectType(j2gort.AsIface[PrototypeObjectType](j2gort.AsIface[PrototypeObjectType_Builder](PrototypeObjectType_S_Builder(this_).SetName("Object.prototype")).GetPrototypeObjectType_BuilderBase().SetNative(true).GetPrototypeObjectType_BuilderBase().SetImplicitPrototype(nil).Build()))
 	_ = objectPrototype
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_OBJECT_PROTOTYPE(), Upcast_JSType(objectPrototype))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_OBJECT_PROTOTYPE(), Upcast_JSType(objectPrototype))
 	var fb_2_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_2_, "Object")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_2_, "Object")
 	(&fb_2_).WithParameters_1(j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateOptionalParameters([]JSType{allType})))
 	(&fb_2_).WithReturnsOwnInstanceType()
 	(&fb_2_).WithTemplateKeys_1_TemplateType([]*TemplateType{this_.iObjectIndexTemplateKey, this_.iObjectElementTemplateKey})
 	var objectFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_2_).Build())
 	_ = objectFunctionType
 	objectFunctionType.SetPrototype(objectPrototype, Node(0))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_OBJECT_FUNCTION_TYPE(), ToIface_JSType(objectFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_OBJECT_FUNCTION_TYPE(), ToIface_JSType(objectFunctionType))
 	var objectType ObjectType = objectFunctionType.GetInstanceType()
 	_ = objectType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_OBJECT_TYPE(), Upcast_JSType(objectType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_OBJECT_TYPE(), Upcast_JSType(objectType))
 	functionPrototype.ClearCachedValues()
 	functionPrototype.GetPrototypeObjectTypeBase().SetImplicitPrototype(objectType)
 	functionInstancePrototype.ClearCachedValues()
 	functionInstancePrototype.GetPrototypeObjectTypeBase().SetImplicitPrototype(objectType)
-	var iObjectFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272("IObject", []*TemplateType{this_.iObjectIndexTemplateKey, this_.iObjectElementTemplateKey})
+	var iObjectFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270("IObject", []*TemplateType{this_.iObjectIndexTemplateKey, this_.iObjectElementTemplateKey})
 	_ = iObjectFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_I_OBJECT_FUNCTION_TYPE(), ToIface_JSType(iObjectFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_I_OBJECT_FUNCTION_TYPE(), ToIface_JSType(iObjectFunctionType))
 	var iObjectType ObjectType = iObjectFunctionType.GetInstanceType()
 	_ = iObjectType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_I_OBJECT_TYPE(), Upcast_JSType(iObjectType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_I_OBJECT_TYPE(), Upcast_JSType(iObjectType))
 	var noType *FunctionType = FunctionType_CreateNoType(this_)
 	_ = noType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_NO_TYPE(), ToIface_JSType(noType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_NO_TYPE(), ToIface_JSType(noType))
 	var noObjectType *FunctionType = FunctionType_CreateNoObjectType(this_)
 	_ = noObjectType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_NO_OBJECT_TYPE(), ToIface_JSType(noObjectType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_NO_OBJECT_TYPE(), ToIface_JSType(noObjectType))
 	this_.iterableValueTemplate = NewTemplateType_2(this_, "T")
 	this_.iterableReturnTemplate = NewTemplateType_2(this_, "TReturn")
 	var iterableNextTemplate *TemplateType = NewTemplateType_2(this_, "TNext")
 	_ = iterableNextTemplate
-	var iterableFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272("Iterable", []*TemplateType{this_.iterableValueTemplate, this_.iterableReturnTemplate, iterableNextTemplate})
+	var iterableFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270("Iterable", []*TemplateType{this_.iterableValueTemplate, this_.iterableReturnTemplate, iterableNextTemplate})
 	_ = iterableFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ITERABLE_FUNCTION_TYPE(), ToIface_JSType(iterableFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ITERABLE_FUNCTION_TYPE(), ToIface_JSType(iterableFunctionType))
 	var iterableType ObjectType = iterableFunctionType.GetInstanceType()
 	_ = iterableType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ITERABLE_TYPE(), Upcast_JSType(iterableType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ITERABLE_TYPE(), Upcast_JSType(iterableType))
 	this_.iteratorLikeValueTemplate = NewTemplateType_2(this_, "T")
 	this_.iteratorLikeReturnTemplate = NewTemplateType_2(this_, "TReturn")
 	var iteratorLikeNextTemplate *TemplateType = NewTemplateType_2(this_, "TNext")
 	_ = iteratorLikeNextTemplate
-	var iteratorLikeFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272("IteratorLike", []*TemplateType{this_.iteratorLikeValueTemplate, this_.iteratorLikeReturnTemplate, iteratorLikeNextTemplate})
+	var iteratorLikeFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270("IteratorLike", []*TemplateType{this_.iteratorLikeValueTemplate, this_.iteratorLikeReturnTemplate, iteratorLikeNextTemplate})
 	_ = iteratorLikeFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ITERATOR_LIKE_FUNCTION_TYPE(), ToIface_JSType(iteratorLikeFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ITERATOR_LIKE_FUNCTION_TYPE(), ToIface_JSType(iteratorLikeFunctionType))
 	var iteratorLikeType ObjectType = iteratorLikeFunctionType.GetInstanceType()
 	_ = iteratorLikeType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ITERATOR_LIKE_TYPE(), Upcast_JSType(iteratorLikeType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ITERATOR_LIKE_TYPE(), Upcast_JSType(iteratorLikeType))
 	this_.iteratorValueTemplate = NewTemplateType_2(this_, "T")
 	this_.iteratorReturnTemplate = NewTemplateType_2(this_, "TReturn")
 	var iteratorNextTemplate *TemplateType = NewTemplateType_2(this_, "TNext")
@@ -589,48 +599,48 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_initializeBuiltInTypes_9183() {
 	this_.iteratorIterableReturnTemplate = NewTemplateType_2(this_, "TReturn")
 	var iteratorIterableNextTemplate *TemplateType = NewTemplateType_2(this_, "TNext")
 	_ = iteratorIterableNextTemplate
-	var iteratorIterableFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272("IteratorIterable", []*TemplateType{this_.iteratorIterableValueTemplate, this_.iteratorIterableReturnTemplate, iteratorIterableNextTemplate})
+	var iteratorIterableFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270("IteratorIterable", []*TemplateType{this_.iteratorIterableValueTemplate, this_.iteratorIterableReturnTemplate, iteratorIterableNextTemplate})
 	_ = iteratorIterableFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ITERATOR_ITERABLE_FUNCTION_TYPE(), ToIface_JSType(iteratorIterableFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ITERATOR_ITERABLE_FUNCTION_TYPE(), ToIface_JSType(iteratorIterableFunctionType))
 	iteratorIterableFunctionType.SetExtendedInterfaces(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_Of_2(j2gort.PtrToAny(this_.CreateTemplatizedType_2_ObjectType_JSType(iterableType, []JSType{ToIface_JSType(this_.iteratorIterableValueTemplate), ToIface_JSType(this_.iteratorIterableReturnTemplate), iteratorIterableNextTemplate})), j2gort.PtrToAny(this_.CreateTemplatizedType_2_ObjectType_JSType(iteratorLikeType, []JSType{ToIface_JSType(this_.iteratorIterableValueTemplate), ToIface_JSType(this_.iteratorIterableReturnTemplate), iteratorIterableNextTemplate})))))
 	var iteratorIterableType ObjectType = iteratorIterableFunctionType.GetInstanceType()
 	_ = iteratorIterableType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ITERATOR_ITERABLE_TYPE(), Upcast_JSType(iteratorIterableType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ITERATOR_ITERABLE_TYPE(), Upcast_JSType(iteratorIterableType))
 	var fb_3_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_3_, "Iterator")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_3_, "Iterator")
 	(&fb_3_).WithParameters_0()
 	(&fb_3_).WithTemplateKeys_1_TemplateType([]*TemplateType{this_.iteratorValueTemplate, this_.iteratorReturnTemplate, iteratorNextTemplate})
 	var iteratorFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_3_).Build())
 	_ = iteratorFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ITERATOR_FUNCTION_TYPE(), ToIface_JSType(iteratorFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ITERATOR_FUNCTION_TYPE(), ToIface_JSType(iteratorFunctionType))
 	iteratorFunctionType.GetPrototype()
 	iteratorFunctionType.SetImplementedInterfaces(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.ImmListOfPtr(this_.CreateTemplatizedType_2_ObjectType_JSType(iteratorIterableType, []JSType{ToIface_JSType(this_.iteratorValueTemplate), ToIface_JSType(this_.iteratorReturnTemplate), iteratorNextTemplate}))))
 	var iteratorType ObjectType = iteratorFunctionType.GetInstanceType()
 	_ = iteratorType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ITERATOR_TYPE(), Upcast_JSType(iteratorType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ITERATOR_TYPE(), Upcast_JSType(iteratorType))
 	this_.iiterableResultValueTemplate = NewTemplateType_2(this_, "TYield")
-	var iiterableResultFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeRecord_9273("IIterableResult", []*TemplateType{this_.iiterableResultValueTemplate})
+	var iiterableResultFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeRecord_9271("IIterableResult", []*TemplateType{this_.iiterableResultValueTemplate})
 	_ = iiterableResultFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_I_ITERABLE_RESULT_FUNCTION_TYPE(), ToIface_JSType(iiterableResultFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_I_ITERABLE_RESULT_FUNCTION_TYPE(), ToIface_JSType(iiterableResultFunctionType))
 	var iiterableResultType ObjectType = iiterableResultFunctionType.GetInstanceType()
 	_ = iiterableResultType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_I_ITERABLE_RESULT_TYPE(), Upcast_JSType(iiterableResultType))
-	var iArrayLikeFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeRecord_9273("IArrayLike", []*TemplateType{iArrayLikeTemplate})
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_I_ITERABLE_RESULT_TYPE(), Upcast_JSType(iiterableResultType))
+	var iArrayLikeFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeRecord_9271("IArrayLike", []*TemplateType{iArrayLikeTemplate})
 	_ = iArrayLikeFunctionType
 	iArrayLikeFunctionType.SetExtendedInterfaces(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.ImmListOfPtr(this_.CreateTemplatizedType_2_ObjectType_JSType(iObjectType, []JSType{numberType, iArrayLikeTemplate}))))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_I_ARRAY_LIKE_FUNCTION_TYPE(), ToIface_JSType(iArrayLikeFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_I_ARRAY_LIKE_FUNCTION_TYPE(), ToIface_JSType(iArrayLikeFunctionType))
 	var iArrayLikeType ObjectType = iArrayLikeFunctionType.GetInstanceType()
 	_ = iArrayLikeType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_I_ARRAY_LIKE_TYPE(), Upcast_JSType(iArrayLikeType))
-	var readonlyArrayFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeRecord_9273("ReadonlyArray", []*TemplateType{this_.readonlyArrayElementTemplateKey})
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_I_ARRAY_LIKE_TYPE(), Upcast_JSType(iArrayLikeType))
+	var readonlyArrayFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeRecord_9271("ReadonlyArray", []*TemplateType{this_.readonlyArrayElementTemplateKey})
 	_ = readonlyArrayFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_READONLY_ARRAY_FUNCTION_TYPE(), ToIface_JSType(readonlyArrayFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_READONLY_ARRAY_FUNCTION_TYPE(), ToIface_JSType(readonlyArrayFunctionType))
 	readonlyArrayFunctionType.SetExtendedInterfaces(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_Of_2(j2gort.PtrToAny(this_.CreateTemplatizedType_2_ObjectType_JSType(iArrayLikeType, []JSType{ToIface_JSType(this_.readonlyArrayElementTemplateKey)})), j2gort.PtrToAny(this_.CreateTemplatizedType_2_ObjectType_JSType(iterableType, []JSType{ToIface_JSType(this_.readonlyArrayElementTemplateKey)})))))
 	var readonlyArrayType ObjectType = readonlyArrayFunctionType.GetInstanceType()
 	_ = readonlyArrayType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_READONLY_ARRAY_TYPE(), Upcast_JSType(readonlyArrayType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_READONLY_ARRAY_TYPE(), Upcast_JSType(readonlyArrayType))
 	var fb_4_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_4_, "Array")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_4_, "Array")
 	(&fb_4_).WithParameters_1(j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateParametersWithVarArgs([]JSType{allType})))
 	(&fb_4_).WithReturnsOwnInstanceType()
 	(&fb_4_).WithTemplateKeys_1_TemplateType([]*TemplateType{this_.arrayElementTemplateKey})
@@ -638,14 +648,14 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_initializeBuiltInTypes_9183() {
 	_ = arrayFunctionType
 	arrayFunctionType.GetPrototype()
 	arrayFunctionType.SetImplementedInterfaces(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.ImmListOfPtr(this_.CreateTemplatizedType_2_ObjectType_JSType(readonlyArrayType, []JSType{ToIface_JSType(this_.arrayElementTemplateKey)}))))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ARRAY_FUNCTION_TYPE(), ToIface_JSType(arrayFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ARRAY_FUNCTION_TYPE(), ToIface_JSType(arrayFunctionType))
 	var arrayType ObjectType = arrayFunctionType.GetInstanceType()
 	_ = arrayType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ARRAY_TYPE(), Upcast_JSType(arrayType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ARRAY_TYPE(), Upcast_JSType(arrayType))
 	var arrayOfString ObjectType = ToIface_ObjectType(this_.CreateTemplatizedType_2_ObjectType_JSType(arrayType, []JSType{stringType}))
 	_ = arrayOfString
 	var fb_5_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_5_, "ITemplateArray")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_5_, "ITemplateArray")
 	(&fb_5_).WithParameters_0()
 	var iTemplateArrayFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_5_).Build())
 	_ = iTemplateArrayFunctionType
@@ -653,282 +663,282 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_initializeBuiltInTypes_9183() {
 	_ = iTemplateArrayPrototype
 	iTemplateArrayFunctionType.SetPrototype(iTemplateArrayPrototype, Node(0))
 	iTemplateArrayFunctionType.GetInstanceType().GetObjectTypeBase().MergeSupertypeTemplateTypes(arrayOfString)
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_I_TEMPLATE_ARRAY_TYPE(), Upcast_JSType(iTemplateArrayFunctionType.GetInstanceType()))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_I_TEMPLATE_ARRAY_TYPE(), Upcast_JSType(iTemplateArrayFunctionType.GetInstanceType()))
 	this_.generatorValueTemplate = NewTemplateType_2(this_, "T")
 	this_.generatorReturnTemplate = NewTemplateType_2(this_, "TReturn")
 	var generatorNextTemplate *TemplateType = NewTemplateType_2(this_, "TNext")
 	_ = generatorNextTemplate
-	var generatorFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272("Generator", []*TemplateType{this_.generatorValueTemplate, this_.generatorReturnTemplate, generatorNextTemplate})
+	var generatorFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270("Generator", []*TemplateType{this_.generatorValueTemplate, this_.generatorReturnTemplate, generatorNextTemplate})
 	_ = generatorFunctionType
 	generatorFunctionType.SetExtendedInterfaces(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.ImmListOfPtr(this_.CreateTemplatizedType_2_ObjectType_JSType(iteratorIterableType, []JSType{ToIface_JSType(this_.generatorValueTemplate), ToIface_JSType(this_.generatorReturnTemplate), generatorNextTemplate}))))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_GENERATOR_FUNCTION_TYPE(), ToIface_JSType(generatorFunctionType))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_GENERATOR_TYPE(), Upcast_JSType(generatorFunctionType.GetInstanceType()))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_GENERATOR_FUNCTION_TYPE(), ToIface_JSType(generatorFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_GENERATOR_TYPE(), Upcast_JSType(generatorFunctionType.GetInstanceType()))
 	this_.asyncIteratorValueTemplate = NewTemplateType_2(this_, "T")
 	this_.asyncIteratorReturnTemplate = NewTemplateType_2(this_, "TReturn")
 	var asyncIteratorNextTemplate *TemplateType = NewTemplateType_2(this_, "TNext")
 	_ = asyncIteratorNextTemplate
-	var asyncIteratorFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272("AsyncIterator", []*TemplateType{this_.asyncIteratorValueTemplate, this_.asyncIteratorReturnTemplate, asyncIteratorNextTemplate})
+	var asyncIteratorFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270("AsyncIterator", []*TemplateType{this_.asyncIteratorValueTemplate, this_.asyncIteratorReturnTemplate, asyncIteratorNextTemplate})
 	_ = asyncIteratorFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ASYNC_ITERATOR_FUNCTION_TYPE(), ToIface_JSType(asyncIteratorFunctionType))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ASYNC_ITERATOR_TYPE(), Upcast_JSType(asyncIteratorFunctionType.GetInstanceType()))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ASYNC_ITERATOR_FUNCTION_TYPE(), ToIface_JSType(asyncIteratorFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ASYNC_ITERATOR_TYPE(), Upcast_JSType(asyncIteratorFunctionType.GetInstanceType()))
 	this_.asyncIterableValueTemplate = NewTemplateType_2(this_, "T")
 	this_.asyncIterableReturnTemplate = NewTemplateType_2(this_, "TReturn")
 	var asyncIterableNextTemplate *TemplateType = NewTemplateType_2(this_, "TNext")
 	_ = asyncIterableNextTemplate
-	var asyncIterableFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272("AsyncIterable", []*TemplateType{this_.asyncIterableValueTemplate, this_.asyncIterableReturnTemplate, asyncIterableNextTemplate})
+	var asyncIterableFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270("AsyncIterable", []*TemplateType{this_.asyncIterableValueTemplate, this_.asyncIterableReturnTemplate, asyncIterableNextTemplate})
 	_ = asyncIterableFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ASYNC_ITERABLE_FUNCTION_TYPE(), ToIface_JSType(asyncIterableFunctionType))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ASYNC_ITERABLE_TYPE(), Upcast_JSType(asyncIterableFunctionType.GetInstanceType()))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ASYNC_ITERABLE_FUNCTION_TYPE(), ToIface_JSType(asyncIterableFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ASYNC_ITERABLE_TYPE(), Upcast_JSType(asyncIterableFunctionType.GetInstanceType()))
 	var asyncIteratorIterableTemplate *TemplateType = NewTemplateType_2(this_, "T")
 	_ = asyncIteratorIterableTemplate
 	var asyncIteratorIterableReturnTemplate *TemplateType = NewTemplateType_2(this_, "TReturn")
 	_ = asyncIteratorIterableReturnTemplate
 	var asyncIteratorIterableNextTemplate *TemplateType = NewTemplateType_2(this_, "TNext")
 	_ = asyncIteratorIterableNextTemplate
-	var asyncIteratorIterableFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272("AsyncIteratorIterable", []*TemplateType{asyncIteratorIterableTemplate, asyncIteratorIterableReturnTemplate, asyncIteratorIterableNextTemplate})
+	var asyncIteratorIterableFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270("AsyncIteratorIterable", []*TemplateType{asyncIteratorIterableTemplate, asyncIteratorIterableReturnTemplate, asyncIteratorIterableNextTemplate})
 	_ = asyncIteratorIterableFunctionType
 	asyncIteratorIterableFunctionType.SetExtendedInterfaces(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_Of_2(j2gort.PtrToAny(this_.CreateTemplatizedType_2_ObjectType_JSType(asyncIteratorFunctionType.GetInstanceType(), []JSType{asyncIteratorIterableTemplate, asyncIteratorIterableReturnTemplate, asyncIteratorIterableNextTemplate})), j2gort.PtrToAny(this_.CreateTemplatizedType_2_ObjectType_JSType(asyncIterableFunctionType.GetInstanceType(), []JSType{asyncIteratorIterableTemplate, asyncIteratorIterableReturnTemplate, asyncIteratorIterableNextTemplate})))))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ASYNC_ITERATOR_ITERABLE_FUNCTION_TYPE(), ToIface_JSType(asyncIteratorIterableFunctionType))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ASYNC_ITERATOR_ITERABLE_TYPE(), Upcast_JSType(asyncIteratorIterableFunctionType.GetInstanceType()))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ASYNC_ITERATOR_ITERABLE_FUNCTION_TYPE(), ToIface_JSType(asyncIteratorIterableFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ASYNC_ITERATOR_ITERABLE_TYPE(), Upcast_JSType(asyncIteratorIterableFunctionType.GetInstanceType()))
 	var asyncGeneratorValueTemplate *TemplateType = NewTemplateType_2(this_, "T")
 	_ = asyncGeneratorValueTemplate
 	var asyncGeneratorReturnTemplate *TemplateType = NewTemplateType_2(this_, "TReturn")
 	_ = asyncGeneratorReturnTemplate
 	var asyncGeneratorNextTemplate *TemplateType = NewTemplateType_2(this_, "TNext")
 	_ = asyncGeneratorNextTemplate
-	var asyncGeneratorFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272("AsyncGenerator", []*TemplateType{asyncGeneratorValueTemplate, asyncGeneratorReturnTemplate, asyncGeneratorNextTemplate})
+	var asyncGeneratorFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270("AsyncGenerator", []*TemplateType{asyncGeneratorValueTemplate, asyncGeneratorReturnTemplate, asyncGeneratorNextTemplate})
 	_ = asyncGeneratorFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ASYNC_GENERATOR_FUNCTION_TYPE(), ToIface_JSType(asyncGeneratorFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ASYNC_GENERATOR_FUNCTION_TYPE(), ToIface_JSType(asyncGeneratorFunctionType))
 	asyncGeneratorFunctionType.SetExtendedInterfaces(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.ImmListOfPtr(this_.CreateTemplatizedType_2_ObjectType_JSType(asyncIteratorIterableFunctionType.GetInstanceType(), []JSType{asyncGeneratorValueTemplate, asyncGeneratorReturnTemplate, asyncGeneratorNextTemplate}))))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ASYNC_GENERATOR_TYPE(), Upcast_JSType(asyncGeneratorFunctionType.GetInstanceType()))
-	var ithenableFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272("IThenable", []*TemplateType{this_.iThenableTemplateKey})
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ASYNC_GENERATOR_TYPE(), Upcast_JSType(asyncGeneratorFunctionType.GetInstanceType()))
+	var ithenableFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270("IThenable", []*TemplateType{this_.iThenableTemplateKey})
 	_ = ithenableFunctionType
 	ithenableFunctionType.SetStruct()
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_I_THENABLE_FUNCTION_TYPE(), ToIface_JSType(ithenableFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_I_THENABLE_FUNCTION_TYPE(), ToIface_JSType(ithenableFunctionType))
 	var ithenableType ObjectType = ithenableFunctionType.GetInstanceType()
 	_ = ithenableType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_I_THENABLE_TYPE(), Upcast_JSType(ithenableType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_I_THENABLE_TYPE(), Upcast_JSType(ithenableType))
 	var thenableType JSType = this_.CreateRecordType(j2gort.AsIface[j2gort.Ext_java_util_Map](j2gort.Ext_com_google_common_collect_ImmutableMap_Of_2("then", unknownType)))
 	_ = thenableType
 	this_.IdentifyNonNullableName(nil, "Thenable")
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_THENABLE_TYPE(), thenableType)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_THENABLE_TYPE(), thenableType)
 	var promiseParameterType JSType = ToIface_JSType(this_.CreateFunctionType_2_JSType_JSType(unknownType, []JSType{ToIface_JSType(this_.CreateFunctionType_2_JSType_Ext_java_util_List(unknownType, j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateOptionalParameters([]JSType{this_.CreateUnionType_1_JSType([]JSType{ToIface_JSType(this_.promiseTemplateKey), ToIface_JSType(this_.CreateTemplatizedType_2_ObjectType_JSType(ithenableType, []JSType{ToIface_JSType(this_.promiseTemplateKey)})), thenableType, nullType})})))), ToIface_JSType(this_.CreateFunctionType_2_JSType_Ext_java_util_List(unknownType, j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateOptionalParameters([]JSType{allType}))))}))
 	_ = promiseParameterType
 	var fb_6_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_6_, "Promise")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_6_, "Promise")
 	(&fb_6_).WithParameters_1(j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateParameters_1([]JSType{promiseParameterType})))
 	(&fb_6_).WithTemplateKeys_1_TemplateType([]*TemplateType{this_.promiseTemplateKey})
 	var promiseFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_6_).Build())
 	_ = promiseFunctionType
 	promiseFunctionType.SetImplementedInterfaces(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.ImmListOfPtr(this_.CreateTemplatizedType_2_ObjectType_JSType(ithenableType, []JSType{ToIface_JSType(this_.promiseTemplateKey)}))))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_PROMISE_FUNCTION_TYPE(), ToIface_JSType(promiseFunctionType))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_PROMISE_TYPE(), Upcast_JSType(promiseFunctionType.GetInstanceType()))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_PROMISE_FUNCTION_TYPE(), ToIface_JSType(promiseFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_PROMISE_TYPE(), Upcast_JSType(promiseFunctionType.GetInstanceType()))
 	var fb_7_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_7_, "Arguments")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_7_, "Arguments")
 	(&fb_7_).WithParameters_0()
 	var argumentsFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_7_).Build())
 	_ = argumentsFunctionType
 	argumentsFunctionType.SetImplementedInterfaces(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_Of_2(j2gort.PtrToAny(this_.CreateTemplatizedType_2_ObjectType_JSType(iArrayLikeType, []JSType{unknownType})), j2gort.PtrToAny(this_.CreateTemplatizedType_2_ObjectType_JSType(iterableType, []JSType{unknownType})))))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ARGUMENTS_FUNCTION_TYPE(), ToIface_JSType(argumentsFunctionType))
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_ARGUMENTS_TYPE(), Upcast_JSType(argumentsFunctionType.GetInstanceType()))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ARGUMENTS_FUNCTION_TYPE(), ToIface_JSType(argumentsFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_ARGUMENTS_TYPE(), Upcast_JSType(argumentsFunctionType.GetInstanceType()))
 	var bigintNumberString JSType = this_.CreateUnionType_1_JSType([]JSType{bigIntType, numberType, stringType})
 	_ = bigintNumberString
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_BIGINT_NUMBER_STRING(), bigintNumberString)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_BIGINT_NUMBER_STRING(), bigintNumberString)
 	var fb_8_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_8_, "BigInt")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_8_, "BigInt")
 	(&fb_8_).WithParameters_1(j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateParameters_1([]JSType{bigintNumberString})))
 	(&fb_8_).WithReturnType_1(bigIntType)
 	var bigIntObjectFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_8_).Build())
 	_ = bigIntObjectFunctionType
 	bigIntObjectFunctionType.GetPrototype()
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_BIGINT_OBJECT_FUNCTION_TYPE(), ToIface_JSType(bigIntObjectFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_BIGINT_OBJECT_FUNCTION_TYPE(), ToIface_JSType(bigIntObjectFunctionType))
 	var bigIntObjectType ObjectType = bigIntObjectFunctionType.GetInstanceType()
 	_ = bigIntObjectType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_BIGINT_OBJECT_TYPE(), Upcast_JSType(bigIntObjectType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_BIGINT_OBJECT_TYPE(), Upcast_JSType(bigIntObjectType))
 	var fb_9_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_9_, "Boolean")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_9_, "Boolean")
 	(&fb_9_).WithParameters_1(j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateOptionalParameters([]JSType{allType})))
 	(&fb_9_).WithReturnType_1(booleanType)
 	var booleanObjectFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_9_).Build())
 	_ = booleanObjectFunctionType
 	booleanObjectFunctionType.GetPrototype()
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_BOOLEAN_OBJECT_FUNCTION_TYPE(), ToIface_JSType(booleanObjectFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_BOOLEAN_OBJECT_FUNCTION_TYPE(), ToIface_JSType(booleanObjectFunctionType))
 	var booleanObjectType ObjectType = booleanObjectFunctionType.GetInstanceType()
 	_ = booleanObjectType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_BOOLEAN_OBJECT_TYPE(), Upcast_JSType(booleanObjectType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_BOOLEAN_OBJECT_TYPE(), Upcast_JSType(booleanObjectType))
 	var fb_10_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_10_, "Date")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_10_, "Date")
 	(&fb_10_).WithParameters_1(j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateOptionalParameters([]JSType{unknownType, unknownType, unknownType, unknownType, unknownType, unknownType, unknownType})))
 	(&fb_10_).WithReturnType_1(stringType)
 	var dateFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_10_).Build())
 	_ = dateFunctionType
 	dateFunctionType.GetPrototype()
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_DATE_FUNCTION_TYPE(), ToIface_JSType(dateFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_DATE_FUNCTION_TYPE(), ToIface_JSType(dateFunctionType))
 	var dateType ObjectType = dateFunctionType.GetInstanceType()
 	_ = dateType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_DATE_TYPE(), Upcast_JSType(dateType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_DATE_TYPE(), Upcast_JSType(dateType))
 	var fb_11_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_11_, "Number")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_11_, "Number")
 	(&fb_11_).WithParameters_1(j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateOptionalParameters([]JSType{allType})))
 	(&fb_11_).WithReturnType_1(numberType)
 	var numberObjectFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_11_).Build())
 	_ = numberObjectFunctionType
 	numberObjectFunctionType.GetPrototype()
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_NUMBER_OBJECT_FUNCTION_TYPE(), ToIface_JSType(numberObjectFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_NUMBER_OBJECT_FUNCTION_TYPE(), ToIface_JSType(numberObjectFunctionType))
 	var numberObjectType ObjectType = numberObjectFunctionType.GetInstanceType()
 	_ = numberObjectType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_NUMBER_OBJECT_TYPE(), Upcast_JSType(numberObjectType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_NUMBER_OBJECT_TYPE(), Upcast_JSType(numberObjectType))
 	var fb_12_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_12_, "RegExp")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_12_, "RegExp")
 	(&fb_12_).WithParameters_1(j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateOptionalParameters([]JSType{allType, allType})))
 	(&fb_12_).WithReturnsOwnInstanceType()
 	var regexpFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_12_).Build())
 	_ = regexpFunctionType
 	regexpFunctionType.GetPrototype()
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_REGEXP_FUNCTION_TYPE(), ToIface_JSType(regexpFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_REGEXP_FUNCTION_TYPE(), ToIface_JSType(regexpFunctionType))
 	var regexpType ObjectType = regexpFunctionType.GetInstanceType()
 	_ = regexpType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_REGEXP_TYPE(), Upcast_JSType(regexpType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_REGEXP_TYPE(), Upcast_JSType(regexpType))
 	var fb_13_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_13_, "String")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_13_, "String")
 	(&fb_13_).WithParameters_1(j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateOptionalParameters([]JSType{allType})))
 	(&fb_13_).WithReturnType_1(stringType)
 	var stringObjectFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_13_).Build())
 	_ = stringObjectFunctionType
 	stringObjectFunctionType.GetPrototype()
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_STRING_OBJECT_FUNCTION_TYPE(), ToIface_JSType(stringObjectFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_STRING_OBJECT_FUNCTION_TYPE(), ToIface_JSType(stringObjectFunctionType))
 	var stringObjectType ObjectType = stringObjectFunctionType.GetInstanceType()
 	_ = stringObjectType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_STRING_OBJECT_TYPE(), Upcast_JSType(stringObjectType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_STRING_OBJECT_TYPE(), Upcast_JSType(stringObjectType))
 	var fb_14_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_14_, "Symbol")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_14_, "Symbol")
 	(&fb_14_).WithParameters_1(j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateOptionalParameters([]JSType{allType})))
 	(&fb_14_).WithReturnType_1(Upcast_JSType(symbolType))
 	var symbolObjectFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_14_).Build())
 	_ = symbolObjectFunctionType
 	symbolObjectFunctionType.GetPrototype()
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_SYMBOL_OBJECT_FUNCTION_TYPE(), ToIface_JSType(symbolObjectFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_SYMBOL_OBJECT_FUNCTION_TYPE(), ToIface_JSType(symbolObjectFunctionType))
 	var symbolObjectType ObjectType = symbolObjectFunctionType.GetInstanceType()
 	_ = symbolObjectType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_SYMBOL_OBJECT_TYPE(), Upcast_JSType(symbolObjectType))
-	var gbigintFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272("gbigint", []*TemplateType{})
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_SYMBOL_OBJECT_TYPE(), Upcast_JSType(symbolObjectType))
+	var gbigintFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270("gbigint", []*TemplateType{})
 	_ = gbigintFunctionType
 	gbigintFunctionType.GetPrototype()
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_GBIGINT_TYPE(), Upcast_JSType(gbigintFunctionType.GetInstanceType()))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_GBIGINT_TYPE(), Upcast_JSType(gbigintFunctionType.GetInstanceType()))
 	var nullVoid JSType = this_.CreateUnionType_2(nullType, voidType)
 	_ = nullVoid
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_NULL_VOID(), nullVoid)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_NULL_VOID(), nullVoid)
 	var numberStringBoolean JSType = this_.CreateUnionType_1_JSType([]JSType{numberType, stringType, booleanType})
 	_ = numberStringBoolean
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_NUMBER_STRING_BOOLEAN(), numberStringBoolean)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_NUMBER_STRING_BOOLEAN(), numberStringBoolean)
 	var valueTypes JSType = this_.CreateUnionType_1_JSType([]JSType{numberType, stringType, booleanType, Upcast_JSType(symbolType)})
 	_ = valueTypes
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_VALUE_TYPES(), valueTypes)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_VALUE_TYPES(), valueTypes)
 	var numberSymbol JSType = this_.CreateUnionType_2(numberType, Upcast_JSType(symbolType))
 	_ = numberSymbol
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_NUMBER_SYMBOL(), numberSymbol)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_NUMBER_SYMBOL(), numberSymbol)
 	var stringSymbol JSType = this_.CreateUnionType_2(stringType, Upcast_JSType(symbolType))
 	_ = stringSymbol
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_STRING_SYMBOL(), stringSymbol)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_STRING_SYMBOL(), stringSymbol)
 	var numberString JSType = this_.CreateUnionType_2(numberType, stringType)
 	_ = numberString
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_NUMBER_STRING(), numberString)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_NUMBER_STRING(), numberString)
 	var bigintNumber JSType = this_.CreateUnionType_2(bigIntType, numberType)
 	_ = bigintNumber
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_BIGINT_NUMBER(), bigintNumber)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_BIGINT_NUMBER(), bigintNumber)
 	var bigintNumberObject JSType = this_.CreateUnionType_2(Upcast_JSType(bigIntObjectType), Upcast_JSType(numberObjectType))
 	_ = bigintNumberObject
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_BIGINT_NUMBER_OBJECT(), bigintNumberObject)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_BIGINT_NUMBER_OBJECT(), bigintNumberObject)
 	var bigintNumberStringObject JSType = this_.CreateUnionType_1_JSType([]JSType{Upcast_JSType(bigIntObjectType), Upcast_JSType(numberObjectType), Upcast_JSType(stringObjectType)})
 	_ = bigintNumberStringObject
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_BIGINT_NUMBER_STRING_OBJECT(), bigintNumberStringObject)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_BIGINT_NUMBER_STRING_OBJECT(), bigintNumberStringObject)
 	var numberStringSymbol JSType = this_.CreateUnionType_1_JSType([]JSType{numberType, stringType, Upcast_JSType(symbolType)})
 	_ = numberStringSymbol
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_NUMBER_STRING_SYMBOL(), numberStringSymbol)
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_NUMBER_STRING_SYMBOL(), numberStringSymbol)
 	var numberAdditionSupertype JSType = this_.CreateUnionType_1_JSTypeNative([]JSTypeNative{StaticGet_JSTypeNative_VOID_TYPE(), StaticGet_JSTypeNative_NULL_TYPE(), StaticGet_JSTypeNative_NUMBER_TYPE(), StaticGet_JSTypeNative_NUMBER_OBJECT_TYPE(), StaticGet_JSTypeNative_BOOLEAN_TYPE(), StaticGet_JSTypeNative_BOOLEAN_OBJECT_TYPE()})
 	_ = numberAdditionSupertype
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_NUMBER_ADDITION_SUPERTYPE(), numberAdditionSupertype)
-	var leastFunctionType *FunctionType = this_.priv_JSTypeRegistry_createNativeFunctionTypeWithVarArgs_9232(ToIface_JSType(noType), []JSType{allType})
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_NUMBER_ADDITION_SUPERTYPE(), numberAdditionSupertype)
+	var leastFunctionType *FunctionType = this_.priv_JSTypeRegistry_createNativeFunctionTypeWithVarArgs_9230(ToIface_JSType(noType), []JSType{allType})
 	_ = leastFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_LEAST_FUNCTION_TYPE(), ToIface_JSType(leastFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_LEAST_FUNCTION_TYPE(), ToIface_JSType(leastFunctionType))
 	var fb_15_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_15_, "global this")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_15_, "global this")
 	(&fb_15_).WithParameters_1(j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateParameters_1([]JSType{allType})))
 	(&fb_15_).WithReturnType_1(numberType)
 	var globalThisCtor *FunctionType = j2gort.CastPtr[FunctionType]((&fb_15_).Build())
 	_ = globalThisCtor
 	var globalThis ObjectType = globalThisCtor.GetInstanceType()
 	_ = globalThis
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_GLOBAL_THIS(), Upcast_JSType(globalThis))
-	var greatestFunctionType *FunctionType = this_.priv_JSTypeRegistry_createNativeFunctionTypeWithVarArgs_9232(allType, []JSType{ToIface_JSType(noType)})
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_GLOBAL_THIS(), Upcast_JSType(globalThis))
+	var greatestFunctionType *FunctionType = this_.priv_JSTypeRegistry_createNativeFunctionTypeWithVarArgs_9230(allType, []JSType{ToIface_JSType(noType)})
 	_ = greatestFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_GREATEST_FUNCTION_TYPE(), ToIface_JSType(greatestFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_GREATEST_FUNCTION_TYPE(), ToIface_JSType(greatestFunctionType))
 	this_.RegisterPropertyOnType("prototype", ToIface_JSType(objectFunctionType))
-	var readonlyMapFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272("ReadonlyMap", []*TemplateType{this_.readonlyMapKeyTemplateKey, this_.readonlyMapValueTemplateKey})
+	var readonlyMapFunctionType *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270("ReadonlyMap", []*TemplateType{this_.readonlyMapKeyTemplateKey, this_.readonlyMapValueTemplateKey})
 	_ = readonlyMapFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_READONLY_MAP_FUNCTION_TYPE(), ToIface_JSType(readonlyMapFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_READONLY_MAP_FUNCTION_TYPE(), ToIface_JSType(readonlyMapFunctionType))
 	readonlyMapFunctionType.SetExtendedInterfaces(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.ImmListOfPtr(this_.CreateTemplatizedType_2_ObjectType_JSType(iterableType, []JSType{ToIface_JSType(this_.CreateTemplatizedType_2_ObjectType_JSType(arrayType, []JSType{this_.CreateUnionType_2(ToIface_JSType(this_.readonlyMapKeyTemplateKey), ToIface_JSType(this_.readonlyMapValueTemplateKey))}))}))))
 	var readonlyMapType ObjectType = readonlyMapFunctionType.GetInstanceType()
 	_ = readonlyMapType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_READONLY_MAP_TYPE(), Upcast_JSType(readonlyMapType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_READONLY_MAP_TYPE(), Upcast_JSType(readonlyMapType))
 	var fb_16_ FunctionType_Builder
-	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9271(&fb_16_, "Map")
+	this_.priv_JSTypeRegistry_nativeConstructorBuilder_9269(&fb_16_, "Map")
 	(&fb_16_).WithParameters_1(j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateOptionalParameters([]JSType{this_.CreateUnionType_1_JSType([]JSType{nullType, ToIface_JSType(this_.CreateTemplatizedType_2_ObjectType_JSType(iterableType, []JSType{ToIface_JSType(this_.CreateTemplatizedType_2_ObjectType_JSType(arrayType, []JSType{this_.CreateUnionType_2(ToIface_JSType(this_.mapKeyTemplateKey), ToIface_JSType(this_.mapValueTemplateKey))}))})), ToIface_JSType(this_.CreateTemplatizedType_2_ObjectType_JSType(arrayType, []JSType{ToIface_JSType(this_.CreateTemplatizedType_2_ObjectType_JSType(arrayType, []JSType{this_.CreateUnionType_2(ToIface_JSType(this_.mapKeyTemplateKey), ToIface_JSType(this_.mapValueTemplateKey))}))}))})})))
 	(&fb_16_).WithTemplateKeys_1_TemplateType([]*TemplateType{this_.mapKeyTemplateKey, this_.mapValueTemplateKey})
 	var mapFunctionType *FunctionType = j2gort.CastPtr[FunctionType]((&fb_16_).Build())
 	_ = mapFunctionType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_MAP_FUNCTION_TYPE(), ToIface_JSType(mapFunctionType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_MAP_FUNCTION_TYPE(), ToIface_JSType(mapFunctionType))
 	mapFunctionType.GetPrototype()
 	mapFunctionType.SetImplementedInterfaces(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.ImmListOfPtr(this_.CreateTemplatizedType_2_ObjectType_JSType(readonlyMapType, []JSType{ToIface_JSType(this_.mapKeyTemplateKey), ToIface_JSType(this_.mapValueTemplateKey)}))))
 	var mapType ObjectType = mapFunctionType.GetInstanceType()
 	_ = mapType
-	this_.priv_JSTypeRegistry_registerNativeType_9200(StaticGet_JSTypeNative_MAP_TYPE(), Upcast_JSType(mapType))
+	this_.priv_JSTypeRegistry_registerNativeType_9198(StaticGet_JSTypeNative_MAP_TYPE(), Upcast_JSType(mapType))
 }
 
 // Java method: JSTypeRegistry.initializeRegistry()
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_initializeRegistry_9184() {
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_ARGUMENTS_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_ARRAY_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_READONLY_ARRAY_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_MAP_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_READONLY_MAP_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_ASYNC_ITERABLE_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_ASYNC_ITERATOR_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_ASYNC_ITERATOR_ITERABLE_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_ASYNC_GENERATOR_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_BIGINT_OBJECT_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_BIGINT_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_GBIGINT_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_BOOLEAN_OBJECT_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_BOOLEAN_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_I_ARRAY_LIKE_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_ITERABLE_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_ITERATOR_LIKE_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_ITERATOR_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_ITERATOR_ITERABLE_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_GENERATOR_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_DATE_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_I_OBJECT_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_I_ITERABLE_RESULT_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_I_TEMPLATE_ARRAY_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_I_THENABLE_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_NULL_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9194(this_.GetNativeType(StaticGet_JSTypeNative_NULL_TYPE()), "Null")
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_NUMBER_OBJECT_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_NUMBER_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_OBJECT_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_PROMISE_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_REGEXP_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_STRING_OBJECT_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_STRING_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_OBJECT_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9194(this_.GetNativeType(StaticGet_JSTypeNative_THENABLE_TYPE()), "Thenable")
-	this_.priv_JSTypeRegistry_registerGlobalType_9193(this_.GetNativeType(StaticGet_JSTypeNative_VOID_TYPE()))
-	this_.priv_JSTypeRegistry_registerGlobalType_9194(this_.GetNativeType(StaticGet_JSTypeNative_VOID_TYPE()), "Undefined")
-	this_.priv_JSTypeRegistry_registerGlobalType_9194(this_.GetNativeType(StaticGet_JSTypeNative_VOID_TYPE()), "void")
-	this_.priv_JSTypeRegistry_registerGlobalType_9194(this_.GetNativeType(StaticGet_JSTypeNative_FUNCTION_TYPE()), "Function")
-	this_.priv_JSTypeRegistry_registerGlobalType_9194(this_.GetNativeType(StaticGet_JSTypeNative_GLOBAL_THIS()), "Global")
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_initializeRegistry_9182() {
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_ARGUMENTS_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_ARRAY_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_READONLY_ARRAY_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_MAP_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_READONLY_MAP_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_ASYNC_ITERABLE_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_ASYNC_ITERATOR_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_ASYNC_ITERATOR_ITERABLE_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_ASYNC_GENERATOR_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_BIGINT_OBJECT_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_BIGINT_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_GBIGINT_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_BOOLEAN_OBJECT_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_BOOLEAN_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_I_ARRAY_LIKE_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_ITERABLE_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_ITERATOR_LIKE_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_ITERATOR_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_ITERATOR_ITERABLE_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_GENERATOR_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_DATE_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_I_OBJECT_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_I_ITERABLE_RESULT_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_I_TEMPLATE_ARRAY_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_I_THENABLE_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_NULL_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9192(this_.GetNativeType(StaticGet_JSTypeNative_NULL_TYPE()), "Null")
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_NUMBER_OBJECT_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_NUMBER_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_OBJECT_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_PROMISE_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_REGEXP_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_STRING_OBJECT_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_STRING_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_OBJECT_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9192(this_.GetNativeType(StaticGet_JSTypeNative_THENABLE_TYPE()), "Thenable")
+	this_.priv_JSTypeRegistry_registerGlobalType_9191(this_.GetNativeType(StaticGet_JSTypeNative_VOID_TYPE()))
+	this_.priv_JSTypeRegistry_registerGlobalType_9192(this_.GetNativeType(StaticGet_JSTypeNative_VOID_TYPE()), "Undefined")
+	this_.priv_JSTypeRegistry_registerGlobalType_9192(this_.GetNativeType(StaticGet_JSTypeNative_VOID_TYPE()), "void")
+	this_.priv_JSTypeRegistry_registerGlobalType_9192(this_.GetNativeType(StaticGet_JSTypeNative_FUNCTION_TYPE()), "Function")
+	this_.priv_JSTypeRegistry_registerGlobalType_9192(this_.GetNativeType(StaticGet_JSTypeNative_GLOBAL_THIS()), "Global")
 }
 
 // Java static method: JSTypeRegistry.getRootElementOfName(java.lang.String name)
@@ -955,7 +965,7 @@ func JSTypeRegistry_GetLookupScope(scope StaticScope, name string) StaticScope {
 }
 
 // Java method: JSTypeRegistry.getRootNodeForScope(com.google.javascript.rhino.StaticScope scope)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getRootNodeForScope_9185(scope StaticScope) Node {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getRootNodeForScope_9183(scope StaticScope) Node {
 	_ = scope
 	var root Node
 	_ = root
@@ -972,10 +982,10 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getRootNodeForScope_9185(scope 
 }
 
 // Java method: JSTypeRegistry.isDeclaredForScope(com.google.javascript.rhino.StaticScope scope, java.lang.String name)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_isDeclaredForScope_9186(scope StaticScope, name string) bool {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_isDeclaredForScope_9184(scope StaticScope, name string) bool {
 	_ = scope
 	_ = name
-	return !(j2gort.IfaceEquals[JSType](this_.priv_JSTypeRegistry_getTypeInternal_9187(scope, name), nil))
+	return !(j2gort.IfaceEquals[JSType](this_.priv_JSTypeRegistry_getTypeInternal_9185(scope, name), nil))
 }
 
 // Java static method: JSTypeRegistry.checkTypeName(java.lang.String typeName)
@@ -988,7 +998,7 @@ func JSTypeRegistry_CheckTypeName(typeName string) {
 }
 
 // Java method: JSTypeRegistry.getTypeInternal(com.google.javascript.rhino.StaticScope scope, java.lang.String name)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getTypeInternal_9187(scope StaticScope, name string) JSType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getTypeInternal_9185(scope StaticScope, name string) JSType {
 	_ = scope
 	_ = name
 	JSTypeRegistry_CheckTypeName(name)
@@ -1005,7 +1015,7 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getTypeInternal_9187(scope Stat
 	}
 	var declarationScope StaticScope = JSTypeRegistry_GetLookupScope(scope, name)
 	_ = declarationScope
-	var resolvedViaTable JSType = this_.priv_JSTypeRegistry_getTypeForScopeInternal_9192(declarationScope, name)
+	var resolvedViaTable JSType = this_.priv_JSTypeRegistry_getTypeForScopeInternal_9190(declarationScope, name)
 	_ = resolvedViaTable
 	if resolvedViaTable != nil && !resolvedViaTable.IsJavaNil_() {
 		return resolvedViaTable
@@ -1017,11 +1027,11 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getTypeInternal_9187(scope Stat
 	} else {
 		bestScope = scope
 	}
-	return this_.priv_JSTypeRegistry_resolveViaComponents_9188(bestScope, name)
+	return this_.priv_JSTypeRegistry_resolveViaComponents_9186(bestScope, name)
 }
 
 // Java method: JSTypeRegistry.resolveViaComponents(com.google.javascript.rhino.StaticScope scope, java.lang.String qualifiedName)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_resolveViaComponents_9188(scope StaticScope, qualifiedName string) JSType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_resolveViaComponents_9186(scope StaticScope, qualifiedName string) JSType {
 	_ = scope
 	_ = qualifiedName
 	var resolutionScope StaticTypedScope
@@ -1042,7 +1052,7 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_resolveViaComponents_9188(scope
 			return resolvedViaClosureNamespace
 		}
 	}
-	return this_.priv_JSTypeRegistry_resolveViaProperties_9190(resolutionScope, qualifiedName)
+	return this_.priv_JSTypeRegistry_resolveViaProperties_9188(resolutionScope, qualifiedName)
 }
 
 // Java static method: JSTypeRegistry.isNameDefinedLocally(com.google.javascript.rhino.jstype.StaticTypedScope resolutionScope, java.lang.String reference)
@@ -1072,7 +1082,7 @@ func (this_ *JSTypeRegistry) ResolveViaClosureNamespace(reference string) JSType
 			if namespace.IsLegacy() {
 				return nil
 			} else {
-				return this_.priv_JSTypeRegistry_resolveViaPropertyGivenSlot_9191(namespace.Type(), namespace.DefinitionNode(), reference, firstComponentStart)
+				return this_.priv_JSTypeRegistry_resolveViaPropertyGivenSlot_9189(namespace.Type(), namespace.DefinitionNode(), reference, firstComponentStart)
 			}
 		}
 		var lastDot int32 = j2gort.JStrLastIndexOfCp(prefix, int32(uint16(46)))
@@ -1087,7 +1097,7 @@ func (this_ *JSTypeRegistry) ResolveViaClosureNamespace(reference string) JSType
 }
 
 // Java method: JSTypeRegistry.resolveViaProperties(com.google.javascript.rhino.jstype.StaticTypedScope declarationScope, java.lang.String qualifiedName)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_resolveViaProperties_9190(declarationScope StaticTypedScope, qualifiedName string) JSType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_resolveViaProperties_9188(declarationScope StaticTypedScope, qualifiedName string) JSType {
 	_ = declarationScope
 	_ = qualifiedName
 	j2gort.CheckNotNullString(qualifiedName)
@@ -1110,7 +1120,7 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_resolveViaProperties_9190(decla
 	}
 	var slotType JSType = slot.GetType()
 	_ = slotType
-	return this_.priv_JSTypeRegistry_resolveViaPropertyGivenSlot_9191(slotType, Node(0), qualifiedName, func() int32 {
+	return this_.priv_JSTypeRegistry_resolveViaPropertyGivenSlot_9189(slotType, Node(0), qualifiedName, func() int32 {
 		if firstDot == int32(-1) {
 			return int32(-1)
 		}
@@ -1119,7 +1129,7 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_resolveViaProperties_9190(decla
 }
 
 // Java method: JSTypeRegistry.resolveViaPropertyGivenSlot(com.google.javascript.rhino.jstype.JSType slotType, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node definitionNode, java.lang.String qualifiedName, int firstComponentStart)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_resolveViaPropertyGivenSlot_9191(slotType JSType, definitionNode Node, qualifiedName string, firstComponentStart int32) JSType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_resolveViaPropertyGivenSlot_9189(slotType JSType, definitionNode Node, qualifiedName string, firstComponentStart int32) JSType {
 	_ = slotType
 	_ = definitionNode
 	_ = qualifiedName
@@ -1203,10 +1213,10 @@ func JSTypeRegistry_ResolveTypeFromNodeIfTypedef(node Node) JSType {
 }
 
 // Java method: JSTypeRegistry.getTypeForScopeInternal(com.google.javascript.rhino.StaticScope scope, java.lang.String name)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getTypeForScopeInternal_9192(scope StaticScope, name string) JSType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getTypeForScopeInternal_9190(scope StaticScope, name string) JSType {
 	_ = scope
 	_ = name
-	var rootNode Node = this_.priv_JSTypeRegistry_getRootNodeForScope_9185(scope)
+	var rootNode Node = this_.priv_JSTypeRegistry_getRootNodeForScope_9183(scope)
 	_ = rootNode
 	var type_ JSType = this_.scopedNameTable.Get(rootNode, name)
 	_ = type_
@@ -1214,42 +1224,42 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getTypeForScopeInternal_9192(sc
 }
 
 // Java method: JSTypeRegistry.registerGlobalType(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_registerGlobalType_9193(type_ JSType) {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_registerGlobalType_9191(type_ JSType) {
 	_ = type_
-	this_.priv_JSTypeRegistry_register_9195(nil, type_, type_.GetJSTypeBase(
+	this_.priv_JSTypeRegistry_register_9193(nil, type_, type_.GetJSTypeBase(
 
 	// Java method: JSTypeRegistry.registerGlobalType(com.google.javascript.rhino.jstype.JSType type, java.lang.String name)
 	).String())
 }
 
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_registerGlobalType_9194(type_ JSType, name string) {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_registerGlobalType_9192(type_ JSType, name string) {
 	_ = type_
 	_ = name
-	this_.priv_JSTypeRegistry_register_9195(nil, type_, name)
+	this_.priv_JSTypeRegistry_register_9193(nil, type_, name)
 }
 
 // Java method: JSTypeRegistry.register(com.google.javascript.rhino.@org.jspecify.annotations.Nullable StaticScope scope, com.google.javascript.rhino.jstype.JSType type, java.lang.String name)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_register_9195(scope StaticScope, type_ JSType, name string) {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_register_9193(scope StaticScope, type_ JSType, name string) {
 	_ = scope
 	_ = type_
 	_ = name
 	JSTypeRegistry_CheckTypeName(name)
-	this_.priv_JSTypeRegistry_registerForScope_9196(JSTypeRegistry_GetLookupScope(scope, name), type_, name)
+	this_.priv_JSTypeRegistry_registerForScope_9194(JSTypeRegistry_GetLookupScope(scope, name), type_, name)
 }
 
 // Java method: JSTypeRegistry.registerForScope(com.google.javascript.rhino.StaticScope scope, com.google.javascript.rhino.jstype.JSType type, java.lang.String name)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_registerForScope_9196(scope StaticScope, type_ JSType, name string) {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_registerForScope_9194(scope StaticScope, type_ JSType, name string) {
 	_ = scope
 	_ = type_
 	_ = name
-	this_.scopedNameTable.Put(this_.priv_JSTypeRegistry_getRootNodeForScope_9185(scope), name, type_)
+	this_.scopedNameTable.Put(this_.priv_JSTypeRegistry_getRootNodeForScope_9183(scope), name, type_)
 	if j2gort.JStrIndexOfCp(name, int32(uint16(46))) >= int32(0) {
-		this_.priv_JSTypeRegistry_addQualifiedScopedNameHash_9197(Node_HashQualifiedNameString(name))
+		this_.priv_JSTypeRegistry_addQualifiedScopedNameHash_9195(Node_HashQualifiedNameString(name))
 	}
 }
 
 // Java method: JSTypeRegistry.addQualifiedScopedNameHash(int h)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_addQualifiedScopedNameHash_9197(h int32) {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_addQualifiedScopedNameHash_9195(h int32) {
 	_ = h
 	if h == int32(0) {
 		return
@@ -1313,7 +1323,7 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_addQualifiedScopedNameHash_9197
 }
 
 // Java method: JSTypeRegistry.containsQualifiedScopedNameHash(int h)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_containsQualifiedScopedNameHash_9198(h int32) bool {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_containsQualifiedScopedNameHash_9196(h int32) bool {
 	_ = h
 	var table []int32 = this_.qualifiedScopedNameHashes
 	_ = table
@@ -1354,7 +1364,7 @@ func (this_ *JSTypeRegistry) MayHaveQualifiedTypeForGetProp(scope StaticScope, r
 	if h == int32(0) {
 		return false
 	}
-	if this_.priv_JSTypeRegistry_containsQualifiedScopedNameHash_9198(h) {
+	if this_.priv_JSTypeRegistry_containsQualifiedScopedNameHash_9196(h) {
 		return true
 	}
 	var declarationScope StaticScope
@@ -1440,7 +1450,7 @@ func JSTypeRegistry_StepGetPropOwnerType(rootSlotType JSType, node Node) JSType 
 }
 
 // Java method: JSTypeRegistry.registerNativeType(com.google.javascript.rhino.jstype.JSTypeNative typeId, com.google.javascript.rhino.jstype.JSType type)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_registerNativeType_9200(typeId JSTypeNative, type_ JSType) {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_registerNativeType_9198(typeId JSTypeNative, type_ JSType) {
 	_ = typeId
 	_ = type_
 	{
@@ -1525,7 +1535,7 @@ func (this_ *JSTypeRegistry) RegisterPropertyOnType(propertyName string, type_ J
 		return
 	}
 	if JSTypeRegistry_IsObjectLiteralThatCanBeSkipped(type_) {
-		type_ = this_.priv_JSTypeRegistry_getSentinelObjectLiteral_9158()
+		type_ = this_.priv_JSTypeRegistry_getSentinelObjectLiteral_9156()
 	}
 	var objType ObjectType
 	_ = objType
@@ -1722,10 +1732,10 @@ func (this_ *JSTypeRegistry) DeclareType(scope StaticScope, name string, type_ J
 	if !(!(j2gort.CheckNotNullString(name) == "")) {
 		j2gort.CheckState(false)
 	}
-	if !(j2gort.IfaceEquals[JSType](this_.priv_JSTypeRegistry_getTypeForScopeInternal_9192(JSTypeRegistry_GetLookupScope(scope, name), name), nil)) {
+	if !(j2gort.IfaceEquals[JSType](this_.priv_JSTypeRegistry_getTypeForScopeInternal_9190(JSTypeRegistry_GetLookupScope(scope, name), name), nil)) {
 		return false
 	}
-	this_.priv_JSTypeRegistry_register_9195(scope, type_, name)
+	this_.priv_JSTypeRegistry_register_9193(scope, type_, name)
 	return true
 }
 
@@ -1737,10 +1747,10 @@ func (this_ *JSTypeRegistry) DeclareTypeForExactScope(scope StaticScope, name st
 	if !(!(j2gort.CheckNotNullString(name) == "")) {
 		j2gort.CheckState(false)
 	}
-	if !(j2gort.IfaceEquals[JSType](this_.priv_JSTypeRegistry_getTypeForScopeInternal_9192(scope, name), nil)) {
+	if !(j2gort.IfaceEquals[JSType](this_.priv_JSTypeRegistry_getTypeForScopeInternal_9190(scope, name), nil)) {
 		return false
 	}
-	this_.priv_JSTypeRegistry_registerForScope_9196(scope, type_, name)
+	this_.priv_JSTypeRegistry_registerForScope_9194(scope, type_, name)
 	return true
 }
 
@@ -1749,10 +1759,10 @@ func (this_ *JSTypeRegistry) OverwriteDeclaredType(scope StaticScope, name strin
 	_ = scope
 	_ = name
 	_ = type_
-	if !(this_.priv_JSTypeRegistry_isDeclaredForScope_9186(scope, name)) {
+	if !(this_.priv_JSTypeRegistry_isDeclaredForScope_9184(scope, name)) {
 		j2gort.CheckStateFmt(false, "missing name %s", j2gort.BoxString(name))
 	}
-	this_.priv_JSTypeRegistry_register_9195(scope, type_, name)
+	this_.priv_JSTypeRegistry_register_9193(scope, type_, name)
 }
 
 // Java method: JSTypeRegistry.isForwardDeclaredType(java.lang.String name)
@@ -1833,7 +1843,7 @@ func JSTypeRegistry_GetSimpleReadableJSTypeName(type_ JSType) string {
 func (this_ *JSTypeRegistry) GetReadableJSTypeName(n Node, dereference bool) string {
 	_ = n
 	_ = dereference
-	var type_ JSType = this_.priv_JSTypeRegistry_getJSTypeOrUnknown_9213(n)
+	var type_ JSType = this_.priv_JSTypeRegistry_getJSTypeOrUnknown_9211(n)
 	_ = type_
 	if dereference {
 		var autoboxed JSType = type_.Autobox()
@@ -1848,7 +1858,7 @@ func (this_ *JSTypeRegistry) GetReadableJSTypeName(n Node, dereference bool) str
 		return name
 	}
 	if n.IsGetProp() {
-		var objectType ObjectType = this_.priv_JSTypeRegistry_getJSTypeOrUnknown_9213(n.GetFirstChild()).GetJSTypeBase().Dereference()
+		var objectType ObjectType = this_.priv_JSTypeRegistry_getJSTypeOrUnknown_9211(n.GetFirstChild()).GetJSTypeBase().Dereference()
 		_ = objectType
 		if objectType != nil && !objectType.IsJavaNil_() {
 			var propName string = n.GetString()
@@ -1885,7 +1895,7 @@ func JSTypeRegistry_IsReadableObjectType(type_ ObjectType) bool {
 }
 
 // Java method: JSTypeRegistry.getJSTypeOrUnknown(com.google.javascript.rhino.Node n)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getJSTypeOrUnknown_9213(n Node) JSType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_getJSTypeOrUnknown_9211(n Node) JSType {
 	_ = n
 	var jsType JSType = n.GetJSType()
 	_ = jsType
@@ -1906,7 +1916,7 @@ func (this_ *JSTypeRegistry) GetGlobalType(jsTypeName string) JSType {
 func (this_ *JSTypeRegistry) GetType_2(scope StaticScope, jsTypeName string) JSType {
 	_ = scope
 	_ = jsTypeName
-	return this_.priv_JSTypeRegistry_getTypeInternal_9187(scope, jsTypeName)
+	return this_.priv_JSTypeRegistry_getTypeInternal_9185(scope, jsTypeName)
 }
 
 // Java method: JSTypeRegistry.getType(com.google.javascript.rhino.jstype.StaticTypedScope scope, java.lang.String jsTypeName, java.lang.String sourceName, int lineno, int charno)
@@ -2017,15 +2027,65 @@ func (this_ *JSTypeRegistry) CreateOptionalNullableType(type_ JSType) JSType {
 func (this_ *JSTypeRegistry) CreateUnionType_2(a JSType, b JSType) JSType {
 	_ = a
 	_ = b
-	var builder *UnionType_Builder = this_.AcquireUnionTypeBuilder()
-	_ = builder
+	j2gort.CheckNotNullIface(a)
+	j2gort.CheckNotNullIface(b)
+	if (a == b || ((a == nil || a.IsJavaNil_()) && (b == nil || b.IsJavaNil_()))) && ((a.GetJSTypeBase().typeKindMask & (int32(1) | int32(64))) == int32(0)) {
+		return a
+	}
+	if this_.resolver.IsClosed() && (((int32(a.GetJSTypeBase().jstypeFlags) & int32(b.GetJSTypeBase().jstypeFlags)) & int32(int8(8))) != int32(0)) {
+		var h int32 = ((a.GetJSTypeBase().typeId * int32(-1640531527)) ^ (b.GetJSTypeBase().typeId * int32(-2048144789)))
+		_ = h
+		var slot int32 = ((h ^ (javalang.Ushr32(h, int(int32(16))))) & int32(16383))
+		_ = slot
+		var cacheA []JSType = this_.union2A
+		_ = cacheA
+		if ((cacheA != nil) && j2gort.IfaceEquals[JSType](cacheA[slot], a)) && j2gort.IfaceEquals[JSType](this_.union2B[slot], b) {
+			return this_.union2Res[slot]
+		}
+		var builder *UnionType_Builder = this_.AcquireUnionTypeBuilder()
+		_ = builder
+		var res JSType = nil
+		_ = res
+		func() {
+			defer func() {
+				this_.ReleaseUnionTypeBuilder(builder)
+			}()
+			builder.AddAlternate(a)
+			builder.AddAlternate(b)
+			res = builder.Build()
+		}()
+		if cacheA == nil {
+			cacheA = make([]JSType, (int32(16383) + int32(1)))
+			this_.union2A = cacheA
+			this_.union2B = make([]JSType, (int32(16383) + int32(1)))
+			this_.union2Res = make([]JSType, (int32(16383) + int32(1)))
+		}
+		{
+			a_27 := cacheA
+			i_28 := slot
+			a_27[i_28] = a
+		}
+		{
+			a_29 := this_.union2B
+			i_30 := slot
+			a_29[i_30] = b
+		}
+		{
+			a_31 := this_.union2Res
+			i_32 := slot
+			a_31[i_32] = res
+		}
+		return res
+	}
+	var builder_2 *UnionType_Builder = this_.AcquireUnionTypeBuilder()
+	_ = builder_2
 	defer func() {
-		this_.ReleaseUnionTypeBuilder(builder)
+		this_.ReleaseUnionTypeBuilder(builder_2)
 	}()
 	{
-		builder.AddAlternate(j2gort.CheckNotNullIface(a))
-		builder.AddAlternate(j2gort.CheckNotNullIface(b))
-		return builder.Build()
+		builder_2.AddAlternate(a)
+		builder_2.AddAlternate(b)
+		return builder_2.Build()
 	}
 	panic("unreachable")
 }
@@ -2075,8 +2135,8 @@ func (this_ *JSTypeRegistry) CreateUnionType_1_JSTypeNative(variants []JSTypeNat
 		this_.ReleaseUnionTypeBuilder(builder)
 	}()
 	{
-		for _, el_27 := range j2gort.CheckNotNullSlice(variants) {
-			type_ := el_27
+		for _, el_33 := range j2gort.CheckNotNullSlice(variants) {
+			type_ := el_33
 			_ = type_
 			builder.AddAlternate(this_.GetNativeType(type_))
 		}
@@ -2111,10 +2171,10 @@ func (this_ *JSTypeRegistry) CreateFunctionTypeWithVarArgs(returnType JSType, pa
 }
 
 // Java method: JSTypeRegistry.createNativeFunctionTypeWithVarArgs(com.google.javascript.rhino.jstype.JSType returnType, com.google.javascript.rhino.jstype.JSType[] parameterTypes)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_createNativeFunctionTypeWithVarArgs_9232(returnType JSType, parameterTypes []JSType) *FunctionType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_createNativeFunctionTypeWithVarArgs_9230(returnType JSType, parameterTypes []JSType) *FunctionType {
 	_ = returnType
 	_ = parameterTypes
-	return this_.priv_JSTypeRegistry_createNativeFunctionType_9242(returnType, j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateParametersWithVarArgs(parameterTypes)))
+	return this_.priv_JSTypeRegistry_createNativeFunctionType_9240(returnType, j2gort.AsIface[j2gort.Ext_java_util_List](this_.CreateParametersWithVarArgs(parameterTypes)))
 }
 
 // Java method: JSTypeRegistry.createFunctionTypeWithInstanceType(com.google.javascript.rhino.jstype.ObjectType instanceType, com.google.javascript.rhino.jstype.JSType returnType, java.util.List<com.google.javascript.rhino.jstype.JSType> parameterTypes)
@@ -2123,25 +2183,25 @@ func (this_ *JSTypeRegistry) CreateFunctionTypeWithInstanceType(instanceType Obj
 	_ = returnType
 	_ = parameterTypes
 	var paramsNode j2gort.Ext_com_google_common_collect_ImmutableList = this_.CreateParameters_1(func() []JSType {
-		arr_31 := parameterTypes.ToArray_1_slice_any(func() []any {
-			arr_28 := make([]JSType, int32(0))
-			if arr_28 == nil {
+		arr_37 := parameterTypes.ToArray_1_slice_any(func() []any {
+			arr_34 := make([]JSType, int32(0))
+			if arr_34 == nil {
 				return nil
 			}
-			out_29 := make([]any, len(arr_28))
-			for i_, el_30 := range arr_28 {
-				out_29[i_] = el_30
+			out_35 := make([]any, len(arr_34))
+			for i_, el_36 := range arr_34 {
+				out_35[i_] = el_36
 			}
-			return out_29
+			return out_35
 		}())
-		if arr_31 == nil {
+		if arr_37 == nil {
 			return nil
 		}
-		out_32 := make([]JSType, len(arr_31))
-		for i_, el_33 := range arr_31 {
-			out_32[i_] = j2gort.AsIface[JSType](el_33)
+		out_38 := make([]JSType, len(arr_37))
+		for i_, el_39 := range arr_37 {
+			out_38[i_] = j2gort.AsIface[JSType](el_39)
 		}
-		return out_32
+		return out_38
 	}())
 	_ = paramsNode
 	var fb_ FunctionType_Builder
@@ -2155,16 +2215,16 @@ func (this_ *JSTypeRegistry) CreateFunctionTypeWithInstanceType(instanceType Obj
 // Java method: JSTypeRegistry.createParameters(com.google.javascript.rhino.jstype.JSType[] parameterTypes)
 func (this_ *JSTypeRegistry) CreateParameters_1(parameterTypes []JSType) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = parameterTypes
-	return this_.priv_JSTypeRegistry_createParameters_9235(false, parameterTypes)
+	return this_.priv_JSTypeRegistry_createParameters_9233(false, parameterTypes)
 }
 
 // Java method: JSTypeRegistry.createParameters(boolean lastVarArgs, com.google.javascript.rhino.jstype.JSType[] parameterTypes)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_createParameters_9235(lastVarArgs bool, parameterTypes []JSType) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_createParameters_9233(lastVarArgs bool, parameterTypes []JSType) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = lastVarArgs
 	_ = parameterTypes
-	var val_34 FunctionParamBuilder
-	InitFunctionParamBuilder_1(&val_34, this_)
-	var builder *FunctionParamBuilder = &val_34
+	var val_40 FunctionParamBuilder
+	InitFunctionParamBuilder_1(&val_40, this_)
+	var builder *FunctionParamBuilder = &val_40
 	_ = builder
 	var max_ int32 = (int32(len(parameterTypes)) - int32(1))
 	_ = max_
@@ -2228,9 +2288,9 @@ func (this_ *JSTypeRegistry) GetUnknownRequiredParameterArray(count int32) []Fun
 		_ = i
 		for ; i < count; i = i + 1 {
 			{
-				a_35 := arr
-				i_36 := i
-				a_35[i_36] = p
+				a_41 := arr
+				i_42 := i
+				a_41[i_42] = p
 			}
 		}
 	}
@@ -2240,15 +2300,15 @@ func (this_ *JSTypeRegistry) GetUnknownRequiredParameterArray(count int32) []Fun
 // Java method: JSTypeRegistry.createParametersWithVarArgs(com.google.javascript.rhino.jstype.JSType[] parameterTypes)
 func (this_ *JSTypeRegistry) CreateParametersWithVarArgs(parameterTypes []JSType) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = parameterTypes
-	return this_.priv_JSTypeRegistry_createParameters_9235(true, parameterTypes)
+	return this_.priv_JSTypeRegistry_createParameters_9233(true, parameterTypes)
 }
 
 // Java method: JSTypeRegistry.createOptionalParameters(com.google.javascript.rhino.jstype.JSType[] parameterTypes)
 func (this_ *JSTypeRegistry) CreateOptionalParameters(parameterTypes []JSType) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = parameterTypes
-	var val_37 FunctionParamBuilder
-	InitFunctionParamBuilder_1(&val_37, this_)
-	var builder *FunctionParamBuilder = &val_37
+	var val_43 FunctionParamBuilder
+	InitFunctionParamBuilder_1(&val_43, this_)
+	var builder *FunctionParamBuilder = &val_43
 	_ = builder
 	builder.AddOptionalParams(parameterTypes)
 	return builder.Build()
@@ -2265,7 +2325,7 @@ func (this_ *JSTypeRegistry) CreateFunctionTypeWithNewReturnType(existingFunctio
 }
 
 // Java method: JSTypeRegistry.createNativeFunctionType(com.google.javascript.rhino.jstype.JSType returnType, java.util.List<com.google.javascript.rhino.jstype.FunctionType.Parameter> parameters)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_createNativeFunctionType_9242(returnType JSType, parameters j2gort.Ext_java_util_List) *FunctionType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_createNativeFunctionType_9240(returnType JSType, parameters j2gort.Ext_java_util_List) *FunctionType {
 	_ = returnType
 	_ = parameters
 	var fb_ FunctionType_Builder
@@ -2292,9 +2352,9 @@ func (this_ *JSTypeRegistry) BuildRecordTypeFromObject(objType ObjectType) JSTyp
 	var props j2gort.Ext_com_google_common_collect_ImmutableMap_Builder = j2gort.NewExt_com_google_common_collect_ImmutableMap_Builder()
 	_ = props
 	{
-		cur_38 := j2gort.NewIterCursor(j2gort.CheckNotNull(propNames))
-		for cur_38.HasNext() {
-			propName := cur_38.NextStr()
+		cur_44 := j2gort.NewIterCursor(j2gort.CheckNotNull(propNames))
+		for cur_44.HasNext() {
+			propName := cur_44.NextStr()
 			_ = propName
 			props.Put_2(j2gort.BoxString(propName), objType.GetObjectTypeBase().GetPropertyType_1_string(propName))
 		}
@@ -2307,14 +2367,14 @@ func (this_ *JSTypeRegistry) CreateRecordType(props j2gort.Ext_java_util_Map) JS
 	_ = props
 	var propMap j2gort.Ext_java_util_Map = props
 	_ = propMap
-	var val_39 RecordTypeBuilder
-	InitRecordTypeBuilder(&val_39, this_)
-	var builder *RecordTypeBuilder = &val_39
+	var val_45 RecordTypeBuilder
+	InitRecordTypeBuilder(&val_45, this_)
+	var builder *RecordTypeBuilder = &val_45
 	_ = builder
 	{
-		cur_40 := j2gort.NewMapEntryCursor(propMap)
-		for cur_40.NextEntry() {
-			builder.AddProperty(cur_40.KeyStr(), j2gort.AsIface[JSType](cur_40.GetValue()), Node(0))
+		cur_46 := j2gort.NewMapEntryCursor(propMap)
+		for cur_46.NextEntry() {
+			builder.AddProperty(cur_46.KeyStr(), j2gort.AsIface[JSType](cur_46.GetValue()), Node(0))
 		}
 	}
 	return builder.Build()
@@ -2344,11 +2404,14 @@ func (this_ *JSTypeRegistry) ResetImplicitPrototype(type_ JSType, newImplicitPro
 	_ = newImplicitProto
 	var poType PrototypeObjectType
 	_ = poType
-	var ok_41 bool
-	poType, ok_41 = j2gort.TryCast[PrototypeObjectType](type_)
-	if ok_41 {
+	var ok_47 bool
+	poType, ok_47 = j2gort.TryCast[PrototypeObjectType](type_)
+	if ok_47 {
 		poType.ClearCachedValues()
 		poType.GetPrototypeObjectTypeBase().SetImplicitPrototype(newImplicitProto)
+		this_.union2A = nil
+		this_.union2B = nil
+		this_.union2Res = nil
 	}
 }
 
@@ -2405,7 +2468,7 @@ func (this_ *JSTypeRegistry) CreateTemplatizedType_2_ObjectType_Ext_com_google_c
 	_ = baseType
 	_ = templatizedTypes
 	j2gort.CheckNotNullIface(baseType)
-	return NewTemplatizedType(this_, baseType, templatizedTypes)
+	return allocPooled_TemplatizedType(&this_.slab_TemplatizedType, this_, baseType, templatizedTypes)
 }
 
 // Java method: JSTypeRegistry.createTemplatizedType(com.google.javascript.rhino.jstype.ObjectType baseType, java.util.Map<com.google.javascript.rhino.jstype.TemplateType,com.google.javascript.rhino.jstype.JSType> templatizedTypes)
@@ -2438,15 +2501,15 @@ func (this_ *JSTypeRegistry) CreateTemplatizedType_2_ObjectType_JSType(baseType 
 	_ = baseType
 	_ = templatizedTypes
 	return this_.CreateTemplatizedType_2_ObjectType_Ext_com_google_common_collect_ImmutableList(baseType, j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(func() []any {
-		arr_42 := templatizedTypes
-		if arr_42 == nil {
+		arr_48 := templatizedTypes
+		if arr_48 == nil {
 			return nil
 		}
-		out_43 := make([]any, len(arr_42))
-		for i_, el_44 := range arr_42 {
-			out_43[i_] = el_44
+		out_49 := make([]any, len(arr_48))
+		for i_, el_50 := range arr_48 {
+			out_49[i_] = el_50
 		}
-		return out_43
+		return out_49
 	}()))
 }
 
@@ -2467,7 +2530,7 @@ func (this_ *JSTypeRegistry) IdentifyNonNullableName(scope StaticScope, name str
 	j2gort.CheckNotNullString(name)
 	var lookupScope StaticScope = JSTypeRegistry_GetLookupScope(scope, name)
 	_ = lookupScope
-	this_.nonNullableTypeNames.Put(this_.priv_JSTypeRegistry_getRootNodeForScope_9185(lookupScope), name)
+	this_.nonNullableTypeNames.Put(this_.priv_JSTypeRegistry_getRootNodeForScope_9183(lookupScope), name)
 }
 
 // Java method: JSTypeRegistry.isNonNullableName(com.google.javascript.rhino.StaticScope scope, java.lang.String name)
@@ -2476,7 +2539,7 @@ func (this_ *JSTypeRegistry) IsNonNullableName(scope StaticScope, name string) b
 	_ = name
 	j2gort.CheckNotNullString(name)
 	scope = JSTypeRegistry_GetLookupScope(scope, name)
-	return this_.nonNullableTypeNames.ContainsEntry(this_.priv_JSTypeRegistry_getRootNodeForScope_9185(scope), name)
+	return this_.nonNullableTypeNames.ContainsEntry(this_.priv_JSTypeRegistry_getRootNodeForScope_9183(scope), name)
 }
 
 // Java method: JSTypeRegistry.evaluateTypeExpression(com.google.javascript.rhino.JSTypeExpression expr, com.google.javascript.rhino.jstype.StaticTypedScope scope)
@@ -2500,15 +2563,15 @@ func (this_ *JSTypeRegistry) CreateTypeFromCommentNode_3(n Node, sourceName stri
 	return func() JSType {
 		switch n.TokenSwitchOrd_() {
 		case int32(162) /* Token.LC */ :
-			return this_.priv_JSTypeRegistry_createRecordTypeFromNodes_9264(n.GetFirstChild(), sourceName, scope)
+			return this_.priv_JSTypeRegistry_createRecordTypeFromNodes_9262(n.GetFirstChild(), sourceName, scope)
 		case int32(159) /* Token.BANG */ :
 			var child JSType = this_.CreateTypeFromCommentNode_3(n.GetFirstChild(), sourceName, scope)
 			_ = child
 			var namedType *NamedType
 			_ = namedType
-			var ok_45 bool
-			namedType, ok_45 = j2gort.TryCast[*NamedType](child)
-			if ok_45 {
+			var ok_51 bool
+			namedType, ok_51 = j2gort.TryCast[*NamedType](child)
+			if ok_51 {
 				return namedType.GetBangType()
 			}
 			return child.RestrictByNotNullOrUndefined()
@@ -2528,8 +2591,8 @@ func (this_ *JSTypeRegistry) CreateTypeFromCommentNode_3(n Node, sourceName stri
 		case int32(155) /* Token.PIPE */ :
 			var builder *UnionType_Builder = this_.AcquireUnionTypeBuilder()
 			_ = builder
-			var didRet_46 bool
-			var retVal_47 JSType
+			var didRet_52 bool
+			var retVal_53 JSType
 			func() {
 				defer func() {
 					this_.ReleaseUnionTypeBuilder(builder)
@@ -2541,12 +2604,12 @@ func (this_ *JSTypeRegistry) CreateTypeFromCommentNode_3(n Node, sourceName stri
 						builder.AddAlternate(j2gort.CheckNotNullIface(this_.CreateTypeFromCommentNode_3(child_2, sourceName, scope)))
 					}
 				}
-				retVal_47 = builder.Build()
-				didRet_46 = true
+				retVal_53 = builder.Build()
+				didRet_52 = true
 				return
 			}()
-			if didRet_46 {
-				return retVal_47
+			if didRet_52 {
+				return retVal_53
 			}
 		case int32(88) /* Token.EMPTY */ :
 			return this_.GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE())
@@ -2582,25 +2645,25 @@ func (this_ *JSTypeRegistry) CreateTypeFromCommentNode_3(n Node, sourceName stri
 		case int32(35) /* Token.STRINGLIT */ :
 			var nominalType JSType = this_.GetType_5(scope, n.GetString(), sourceName, n.GetLineno(), n.GetCharno())
 			_ = nominalType
-			var templateArgs j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_JSTypeRegistry_parseTemplateArgs_9263(nominalType, n, sourceName, scope)
+			var templateArgs j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_JSTypeRegistry_parseTemplateArgs_9261(nominalType, n, sourceName, scope)
 			_ = templateArgs
 			if nominalType.GetJSTypeBase().IsNamedType() && !(nominalType.GetJSTypeBase().IsResolved()) {
 				if templateArgs != nil {
 					nominalType = ToIface_JSType(nominalType.ToMaybeNamedType().ToBuilder().SetTemplateTypes(templateArgs).Build())
 				}
-				return this_.priv_JSTypeRegistry_addNullabilityBasedOnParseContext_9262(n, nominalType, Upcast_StaticScope(scope))
+				return this_.priv_JSTypeRegistry_addNullabilityBasedOnParseContext_9260(n, nominalType, Upcast_StaticScope(scope))
 			}
 			var objectType ObjectType
 			_ = objectType
-			var ok_48 bool
-			objectType, ok_48 = j2gort.TryCast[ObjectType](nominalType)
-			if !ok_48 {
+			var ok_54 bool
+			objectType, ok_54 = j2gort.TryCast[ObjectType](nominalType)
+			if !ok_54 {
 				return nominalType
 			}
 			if (templateArgs == nil) || !(nominalType.GetJSTypeBase().IsRawTypeOfTemplatizedType()) {
-				return this_.priv_JSTypeRegistry_addNullabilityBasedOnParseContext_9262(n, nominalType, Upcast_StaticScope(scope))
+				return this_.priv_JSTypeRegistry_addNullabilityBasedOnParseContext_9260(n, nominalType, Upcast_StaticScope(scope))
 			}
-			return this_.priv_JSTypeRegistry_addNullabilityBasedOnParseContext_9262(n, ToIface_JSType(this_.CreateTemplatizedType_2_ObjectType_Ext_com_google_common_collect_ImmutableList(objectType, templateArgs)), Upcast_StaticScope(scope))
+			return this_.priv_JSTypeRegistry_addNullabilityBasedOnParseContext_9260(n, ToIface_JSType(this_.CreateTemplatizedType_2_ObjectType_Ext_com_google_common_collect_ImmutableList(objectType, templateArgs)), Upcast_StaticScope(scope))
 		case int32(73) /* Token.FUNCTION */ :
 			var thisType JSType = nil
 			_ = thisType
@@ -2626,9 +2689,9 @@ func (this_ *JSTypeRegistry) CreateTypeFromCommentNode_3(n Node, sourceName stri
 				isConstructor = (current.RawToken_() == uint8(23))
 				current = current.GetNext()
 			}
-			var val_49 FunctionParamBuilder
-			InitFunctionParamBuilder_1(&val_49, this_)
-			var paramBuilder *FunctionParamBuilder = &val_49
+			var val_55 FunctionParamBuilder
+			InitFunctionParamBuilder_1(&val_55, this_)
+			var paramBuilder *FunctionParamBuilder = &val_55
 			_ = paramBuilder
 			if current.RawToken_() == uint8(49) {
 				{
@@ -2680,7 +2743,7 @@ func (this_ *JSTypeRegistry) CreateTypeFromCommentNode_3(n Node, sourceName stri
 }
 
 // Java method: JSTypeRegistry.addNullabilityBasedOnParseContext(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.JSType type, com.google.javascript.rhino.StaticScope scope)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_addNullabilityBasedOnParseContext_9262(n Node, type_ JSType, scope StaticScope) JSType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_addNullabilityBasedOnParseContext_9260(n Node, type_ JSType, scope StaticScope) JSType {
 	_ = n
 	_ = type_
 	_ = scope
@@ -2700,7 +2763,7 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_addNullabilityBasedOnParseConte
 }
 
 // Java method: JSTypeRegistry.parseTemplateArgs(com.google.javascript.rhino.jstype.JSType nominalType, com.google.javascript.rhino.Node typeNode, java.lang.String sourceName, com.google.javascript.rhino.jstype.StaticTypedScope scope)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_parseTemplateArgs_9263(nominalType JSType, typeNode Node, sourceName string, scope StaticTypedScope) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_parseTemplateArgs_9261(nominalType JSType, typeNode Node, sourceName string, scope StaticTypedScope) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = nominalType
 	_ = typeNode
 	_ = sourceName
@@ -2744,13 +2807,13 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_parseTemplateArgs_9263(nominalT
 }
 
 // Java method: JSTypeRegistry.createRecordTypeFromNodes(com.google.javascript.rhino.Node n, java.lang.String sourceName, com.google.javascript.rhino.jstype.StaticTypedScope scope)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_createRecordTypeFromNodes_9264(n Node, sourceName string, scope StaticTypedScope) JSType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_createRecordTypeFromNodes_9262(n Node, sourceName string, scope StaticTypedScope) JSType {
 	_ = n
 	_ = sourceName
 	_ = scope
-	var val_50 RecordTypeBuilder
-	InitRecordTypeBuilder(&val_50, this_)
-	var builder *RecordTypeBuilder = &val_50
+	var val_56 RecordTypeBuilder
+	InitRecordTypeBuilder(&val_56, this_)
+	var builder *RecordTypeBuilder = &val_56
 	_ = builder
 	{
 		var fieldTypeNode Node = n.GetFirstChild()
@@ -2787,10 +2850,10 @@ func (this_ *JSTypeRegistry) RegisterTemplateTypeNamesInScope_2_Ext_java_lang_It
 	_ = keys
 	_ = scopeRoot
 	{
-		cur_51 := j2gort.NewIterCursor(j2gort.CheckNotNull(keys))
-		for cur_51.HasNext() {
-			rawElem_52 := cur_51.Next()
-			key := j2gort.CastPtr[TemplateType](rawElem_52)
+		cur_57 := j2gort.NewIterCursor(j2gort.CheckNotNull(keys))
+		for cur_57.HasNext() {
+			rawElem_58 := cur_57.Next()
+			key := j2gort.CastPtr[TemplateType](rawElem_58)
 			_ = key
 			this_.RegisterSingleTemplateTypeNameInScope(key, scopeRoot)
 		}
@@ -2820,7 +2883,7 @@ func (this_ *JSTypeRegistry) RegisterSingleTemplateTypeNameInScope(key *Template
 	_ = refName
 	this_.scopedNameTable.Put(scopeRoot, refName, ToIface_JSType(key))
 	if j2gort.JStrIndexOfCp(refName, int32(uint16(46))) >= int32(0) {
-		this_.priv_JSTypeRegistry_addQualifiedScopedNameHash_9197(Node_HashQualifiedNameString(refName))
+		this_.priv_JSTypeRegistry_addQualifiedScopedNameHash_9195(Node_HashQualifiedNameString(refName))
 	}
 }
 
@@ -2857,7 +2920,7 @@ func (this_ *JSTypeRegistry) CreateScopeWithTemplates_3(scope StaticTypedScope, 
 }
 
 // Java method: JSTypeRegistry.nativeConstructorBuilder(java.lang.String name)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_nativeConstructorBuilder_9271(fb_ *FunctionType_Builder, name string) {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_nativeConstructorBuilder_9269(fb_ *FunctionType_Builder, name string) {
 	_ = name
 	InitFunctionType_Builder(fb_, this_)
 	fb_.ForNativeType()
@@ -2866,7 +2929,7 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_nativeConstructorBuilder_9271(f
 }
 
 // Java method: JSTypeRegistry.nativeInterface(java.lang.String name, com.google.javascript.rhino.jstype.TemplateType[] templateKeys)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_nativeInterface_9272(name string, templateKeys []*TemplateType) *FunctionType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_nativeInterface_9270(name string, templateKeys []*TemplateType) *FunctionType {
 	_ = name
 	_ = templateKeys
 	var fb_ FunctionType_Builder
@@ -2883,10 +2946,10 @@ func (this_ *JSTypeRegistry) priv_JSTypeRegistry_nativeInterface_9272(name strin
 }
 
 // Java method: JSTypeRegistry.nativeRecord(java.lang.String name, com.google.javascript.rhino.jstype.TemplateType[] templateKeys)
-func (this_ *JSTypeRegistry) priv_JSTypeRegistry_nativeRecord_9273(name string, templateKeys []*TemplateType) *FunctionType {
+func (this_ *JSTypeRegistry) priv_JSTypeRegistry_nativeRecord_9271(name string, templateKeys []*TemplateType) *FunctionType {
 	_ = name
 	_ = templateKeys
-	var type_ *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9272(name, templateKeys)
+	var type_ *FunctionType = this_.priv_JSTypeRegistry_nativeInterface_9270(name, templateKeys)
 	_ = type_
 	type_.SetImplicitMatch(true)
 	return type_
@@ -3012,31 +3075,31 @@ func (this_ *JSTypeRegistry_ScopedNameTable) Put(rootNode Node, name string, val
 		_ = existingName
 		if existingName == j2gort.NullString {
 			{
-				a_53 := this_.keyNodes
-				i_54 := slot
-				a_53[i_54] = rootNode
+				a_59 := this_.keyNodes
+				i_60 := slot
+				a_59[i_60] = rootNode
 			}
 			{
-				a_55 := names
-				i_56 := slot
-				a_55[i_56] = name
+				a_61 := names
+				i_62 := slot
+				a_61[i_62] = name
 			}
 			{
-				a_57 := this_.values
-				i_58 := slot
-				a_57[i_58] = value
+				a_63 := this_.values
+				i_64 := slot
+				a_63[i_64] = value
 			}
 			this_.size = this_.size + 1
 			if (this_.size * int32(4)) >= (int32(len(names)) * int32(3)) {
-				this_.priv_ScopedNameTable_rehash_9278((int32(len(names)) * int32(2)))
+				this_.priv_ScopedNameTable_rehash_9276((int32(len(names)) * int32(2)))
 			}
 			return
 		}
 		if (this_.keyNodes[slot] == rootNode) && (j2gort.CheckNotNullString(existingName) == name) {
 			{
-				a_59 := this_.values
-				i_60 := slot
-				a_59[i_60] = value
+				a_65 := this_.values
+				i_66 := slot
+				a_65[i_66] = value
 			}
 			return
 		}
@@ -3045,7 +3108,7 @@ func (this_ *JSTypeRegistry_ScopedNameTable) Put(rootNode Node, name string, val
 }
 
 // Java method: ScopedNameTable.rehash(int newCap)
-func (this_ *JSTypeRegistry_ScopedNameTable) priv_ScopedNameTable_rehash_9278(newCap int32) {
+func (this_ *JSTypeRegistry_ScopedNameTable) priv_ScopedNameTable_rehash_9276(newCap int32) {
 	_ = newCap
 	var oldNodes []Node = this_.keyNodes
 	_ = oldNodes
@@ -3078,19 +3141,19 @@ func (this_ *JSTypeRegistry_ScopedNameTable) priv_ScopedNameTable_rehash_9278(ne
 					slot = ((slot + int32(1)) & mask)
 				}
 				{
-					a_61 := newNodes
-					i_62 := slot
-					a_61[i_62] = node
+					a_67 := newNodes
+					i_68 := slot
+					a_67[i_68] = node
 				}
 				{
-					a_63 := newNames
-					i_64 := slot
-					a_63[i_64] = name
+					a_69 := newNames
+					i_70 := slot
+					a_69[i_70] = name
 				}
 				{
-					a_65 := newValues
-					i_66 := slot
-					a_65[i_66] = oldValues[i]
+					a_71 := newValues
+					i_72 := slot
+					a_71[i_72] = oldValues[i]
 				}
 			}
 		}
@@ -3201,18 +3264,18 @@ func (this_ *JSTypeRegistry_ScopedNameSet) Put(rootNode Node, name string) {
 		_ = existingName
 		if existingName == j2gort.NullString {
 			{
-				a_67 := this_.keyNodes
-				i_68 := slot
-				a_67[i_68] = rootNode
+				a_73 := this_.keyNodes
+				i_74 := slot
+				a_73[i_74] = rootNode
 			}
 			{
-				a_69 := names
-				i_70 := slot
-				a_69[i_70] = name
+				a_75 := names
+				i_76 := slot
+				a_75[i_76] = name
 			}
 			this_.size = this_.size + 1
 			if (this_.size * int32(4)) >= (int32(len(names)) * int32(3)) {
-				this_.priv_ScopedNameSet_rehash_9281((int32(len(names)) * int32(2)))
+				this_.priv_ScopedNameSet_rehash_9279((int32(len(names)) * int32(2)))
 			}
 			return
 		}
@@ -3224,7 +3287,7 @@ func (this_ *JSTypeRegistry_ScopedNameSet) Put(rootNode Node, name string) {
 }
 
 // Java method: ScopedNameSet.rehash(int newCap)
-func (this_ *JSTypeRegistry_ScopedNameSet) priv_ScopedNameSet_rehash_9281(newCap int32) {
+func (this_ *JSTypeRegistry_ScopedNameSet) priv_ScopedNameSet_rehash_9279(newCap int32) {
 	_ = newCap
 	var oldNodes []Node = this_.keyNodes
 	_ = oldNodes
@@ -3253,14 +3316,14 @@ func (this_ *JSTypeRegistry_ScopedNameSet) priv_ScopedNameSet_rehash_9281(newCap
 					slot = ((slot + int32(1)) & mask)
 				}
 				{
-					a_71 := newNodes
-					i_72 := slot
-					a_71[i_72] = node
+					a_77 := newNodes
+					i_78 := slot
+					a_77[i_78] = node
 				}
 				{
-					a_73 := newNames
-					i_74 := slot
-					a_73[i_74] = name
+					a_79 := newNames
+					i_80 := slot
+					a_79[i_80] = name
 				}
 			}
 		}
@@ -3470,16 +3533,16 @@ func InitJSTypeRegistry_SyntheticTemplateScope_2_StaticTypedScope_Ext_java_lang_
 	_ = syntheticTemplateScope
 	var list j2gort.Ext_com_google_common_collect_ImmutableList
 	_ = list
-	var ok_75 bool
-	syntheticTemplateScope, ok_75 = j2gort.TryCast[*JSTypeRegistry_SyntheticTemplateScope](delegate)
-	if ok_75 {
-		var map_ *HamtPMap[string, *TemplateType] = syntheticTemplateScope.priv_SyntheticTemplateScope_asMap_9282()
+	var ok_81 bool
+	syntheticTemplateScope, ok_81 = j2gort.TryCast[*JSTypeRegistry_SyntheticTemplateScope](delegate)
+	if ok_81 {
+		var map_ *HamtPMap[string, *TemplateType] = syntheticTemplateScope.priv_SyntheticTemplateScope_asMap_9280()
 		_ = map_
 		{
-			cur_76 := j2gort.NewIterCursor(j2gort.CheckNotNull(templates))
-			for cur_76.HasNext() {
-				rawElem_77 := cur_76.Next()
-				key := j2gort.CastPtr[TemplateType](rawElem_77)
+			cur_82 := j2gort.NewIterCursor(j2gort.CheckNotNull(templates))
+			for cur_82.HasNext() {
+				rawElem_83 := cur_82.Next()
+				key := j2gort.CastPtr[TemplateType](rawElem_83)
 				_ = key
 				map_ = j2gort.CastPtr[HamtPMap[string, *TemplateType]](map_.Plus_2(key.GetReferenceName(), key))
 			}
@@ -3488,9 +3551,9 @@ func InitJSTypeRegistry_SyntheticTemplateScope_2_StaticTypedScope_Ext_java_lang_
 		this_.singleType = nil
 		this_.types = map_
 	} else {
-		var ok_78 bool
-		list, ok_78 = j2gort.TryCast[j2gort.Ext_com_google_common_collect_ImmutableList](templates)
-		if ok_78 && (list.Size() == int32(1)) {
+		var ok_84 bool
+		list, ok_84 = j2gort.TryCast[j2gort.Ext_com_google_common_collect_ImmutableList](templates)
+		if ok_84 && (list.Size() == int32(1)) {
 			var t0 *TemplateType = j2gort.CastPtr[TemplateType](list.Get(int32(0)))
 			_ = t0
 			this_.singleKey = t0.GetReferenceName()
@@ -3500,10 +3563,10 @@ func InitJSTypeRegistry_SyntheticTemplateScope_2_StaticTypedScope_Ext_java_lang_
 			var map__2 *HamtPMap[string, *TemplateType] = StaticGet_JSTypeRegistry_SyntheticTemplateScope_EMPTY_TEMPLATE_TYPES()
 			_ = map__2
 			{
-				cur_79 := j2gort.NewIterCursor(j2gort.CheckNotNull(templates))
-				for cur_79.HasNext() {
-					rawElem_80 := cur_79.Next()
-					key_2 := j2gort.CastPtr[TemplateType](rawElem_80)
+				cur_85 := j2gort.NewIterCursor(j2gort.CheckNotNull(templates))
+				for cur_85.HasNext() {
+					rawElem_86 := cur_85.Next()
+					key_2 := j2gort.CastPtr[TemplateType](rawElem_86)
 					_ = key_2
 					map__2 = j2gort.CastPtr[HamtPMap[string, *TemplateType]](map__2.Plus_2(key_2.GetReferenceName(), key_2))
 				}
@@ -3541,10 +3604,10 @@ func InitJSTypeRegistry_SyntheticTemplateScope_2_StaticTypedScope_TemplateTypeMa
 		_ = syntheticTemplateScope
 		var map_ *HamtPMap[string, *TemplateType]
 		_ = map_
-		var ok_81 bool
-		syntheticTemplateScope, ok_81 = j2gort.TryCast[*JSTypeRegistry_SyntheticTemplateScope](delegate)
-		if ok_81 {
-			map_ = syntheticTemplateScope.priv_SyntheticTemplateScope_asMap_9282()
+		var ok_87 bool
+		syntheticTemplateScope, ok_87 = j2gort.TryCast[*JSTypeRegistry_SyntheticTemplateScope](delegate)
+		if ok_87 {
+			map_ = syntheticTemplateScope.priv_SyntheticTemplateScope_asMap_9280()
 		} else {
 			map_ = StaticGet_JSTypeRegistry_SyntheticTemplateScope_EMPTY_TEMPLATE_TYPES()
 		}
@@ -3597,10 +3660,10 @@ func InitJSTypeRegistry_SyntheticTemplateScope_3(this_ *JSTypeRegistry_Synthetic
 		_ = syntheticTemplateScope
 		var map_ *HamtPMap[string, *TemplateType]
 		_ = map_
-		var ok_82 bool
-		syntheticTemplateScope, ok_82 = j2gort.TryCast[*JSTypeRegistry_SyntheticTemplateScope](delegate)
-		if ok_82 {
-			map_ = syntheticTemplateScope.priv_SyntheticTemplateScope_asMap_9282()
+		var ok_88 bool
+		syntheticTemplateScope, ok_88 = j2gort.TryCast[*JSTypeRegistry_SyntheticTemplateScope](delegate)
+		if ok_88 {
+			map_ = syntheticTemplateScope.priv_SyntheticTemplateScope_asMap_9280()
 		} else {
 			map_ = StaticGet_JSTypeRegistry_SyntheticTemplateScope_EMPTY_TEMPLATE_TYPES()
 		}
@@ -3629,7 +3692,7 @@ func InitJSTypeRegistry_SyntheticTemplateScope_3(this_ *JSTypeRegistry_Synthetic
 }
 
 // Java method: SyntheticTemplateScope.asMap()
-func (this_ *JSTypeRegistry_SyntheticTemplateScope) priv_SyntheticTemplateScope_asMap_9282() *HamtPMap[string, *TemplateType] {
+func (this_ *JSTypeRegistry_SyntheticTemplateScope) priv_SyntheticTemplateScope_asMap_9280() *HamtPMap[string, *TemplateType] {
 	if this_.types != nil {
 		return this_.types
 	}
@@ -3790,4 +3853,12 @@ func JSTypeRegistry_ClosureNamespace_Create(isLegacy bool, definitionNode Node, 
 	_ = definitionNode
 	_ = type_
 	return NewAutoValue_JSTypeRegistry_ClosureNamespace(isLegacy, definitionNode, type_)
+}
+func (this_ *JSTypeRegistry) ReleaseSlabs_() {
+	if this_ == nil {
+		return
+	}
+	this_.slab_UnionType.ReleaseWith(func(v_ *UnionType) { *v_ = UnionType{} })
+	this_.slab_FunctionType.ReleaseWith(func(v_ *FunctionType) { *v_ = FunctionType{} })
+	this_.slab_TemplatizedType.ReleaseWith(func(v_ *TemplatizedType) { *v_ = TemplatizedType{} })
 }

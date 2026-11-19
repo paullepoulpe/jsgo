@@ -1029,7 +1029,8 @@ func checkStructValueCopies(
 				if named == nil || !watched[named] {
 					return true
 				}
-				if fn := enclosingFuncObj(x, parents, info); fn != nil && fn.Name() == "releaseNodeTraversal_" {
+				if fn := enclosingFuncObj(x, parents, info); fn != nil &&
+					(fn.Name() == "releaseNodeTraversal_" || fn.Name() == "ReleaseSlabs_" || fn.Name() == "release_" || strings.HasPrefix(fn.Name(), "allocScratch_")) {
 					return true
 				}
 				cur := ast.Node(x)

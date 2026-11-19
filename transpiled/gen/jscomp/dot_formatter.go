@@ -26,16 +26,16 @@ import (
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
 )
 
-var lambdaSingleton_dot_formatter_1 j2gort.Ext_java_util_function_Function
-var lambdaSingleton_dot_formatter_2 j2gort.Ext_java_util_function_Function
+var lambdaSingleton_dot_formatter_1 func(any) string
+var lambdaSingleton_dot_formatter_2 func(any) string
 
 func init() {
-	lambdaSingleton_dot_formatter_1 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
-		return j2gort.BoxString(j2gort.AsIface[pkg_graph.GraphvizGraph_GraphvizEdge](mrp0_).GetNode2Id())
-	})
-	lambdaSingleton_dot_formatter_2 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
-		return j2gort.BoxString(j2gort.AsIface[pkg_graph.GraphvizGraph_GraphvizEdge](mrp0_).GetNode1Id())
-	})
+	lambdaSingleton_dot_formatter_1 = func(mrp0_ any) string {
+		return j2gort.AsIface[pkg_graph.GraphvizGraph_GraphvizEdge](mrp0_).GetNode1Id()
+	}
+	lambdaSingleton_dot_formatter_2 = func(mrp0_ any) string {
+		return j2gort.AsIface[pkg_graph.GraphvizGraph_GraphvizEdge](mrp0_).GetNode2Id()
+	}
 }
 
 // Java class: com.google.javascript.jscomp.DotFormatter
@@ -175,22 +175,9 @@ func DotFormatter_ToDot_1_GraphvizGraph(graph pkg_graph.GraphvizGraph) string {
 			}
 		}
 	}
-	func() {
-		arrMut_4 := nodeNames
-		var arrBox_5 []any
-		if arrMut_4 != nil {
-			arrBox_5 = make([]any, len(arrMut_4))
-			for i_, el_6 := range arrMut_4 {
-				arrBox_5[i_] = j2gort.BoxString(el_6)
-			}
-		}
-		j2gort.Ext_java_util_Arrays_Sort_1_slice_any(arrBox_5)
-		for i_, el_6 := range arrBox_5 {
-			arrMut_4[i_] = j2gort.CastString(el_6)
-		}
-	}()
-	for _, el_7 := range j2gort.CheckNotNullSlice(nodeNames) {
-		nodeName := el_7
+	j2gort.ArraysSortStrings(nodeNames)
+	for _, el_4 := range j2gort.CheckNotNullSlice(nodeNames) {
+		nodeName := el_4
 		_ = nodeName
 		builder.AppendStr("  ")
 		builder.AppendStr(nodeName)
@@ -198,12 +185,12 @@ func DotFormatter_ToDot_1_GraphvizGraph(graph pkg_graph.GraphvizGraph) string {
 	}
 	var edges j2gort.Ext_java_util_List = graph.GetGraphvizEdges()
 	_ = edges
-	edges.Sort(j2gort.Ext_java_util_Comparator_Comparing_1(lambdaSingleton_dot_formatter_2).ThenComparing_1_Ext_java_util_function_Function(lambdaSingleton_dot_formatter_1))
+	edges.Sort(j2gort.ComparatorThenComparingStr(j2gort.ComparatorComparingStr(lambdaSingleton_dot_formatter_1), lambdaSingleton_dot_formatter_2))
 	{
-		cur_8 := j2gort.NewIterCursor(j2gort.CheckNotNull(edges))
-		for cur_8.HasNext() {
-			rawElem_9 := cur_8.Next()
-			edge := j2gort.AsIface[pkg_graph.GraphvizGraph_GraphvizEdge](rawElem_9)
+		cur_5 := j2gort.NewIterCursor(j2gort.CheckNotNull(edges))
+		for cur_5.HasNext() {
+			rawElem_6 := cur_5.Next()
+			edge := j2gort.AsIface[pkg_graph.GraphvizGraph_GraphvizEdge](rawElem_6)
 			_ = edge
 			builder.AppendStr("  ")
 			builder.AppendStr(edge.GetNode1Id())
@@ -222,9 +209,9 @@ func DotFormatter_AppendDot(n pkg_rhino.Node, inCFG ControlFlowGraph[pkg_rhino.N
 	_ = n
 	_ = inCFG
 	_ = builder
-	var val_10 DotFormatter
-	InitDotFormatter_4(&val_10, n, inCFG, builder, false)
-	var unused *DotFormatter = &val_10
+	var val_7 DotFormatter
+	InitDotFormatter_4(&val_7, n, inCFG, builder, false)
+	var unused *DotFormatter = &val_7
 	_ = unused
 }
 
@@ -275,28 +262,15 @@ func (this_ *DotFormatter) priv_DotFormatter_traverseNodes_2444(parent pkg_rhino
 					toNode = DotFormatter_FormatNodeName(j2gort.ValueOfInt(keySucc))
 				}
 				{
-					a_11 := edgeList
-					i_12 := i
-					a_11[i_12] = (j2gort.StrValString(DotFormatter_FormatNodeName(j2gort.ValueOfInt(keyParent))) + " -> " + j2gort.StrValString(toNode) + " [label=\"" + j2gort.StrVal(edge.GetValue()) + "\", fontcolor=\"red\", weight=0.01, color=\"red\"];\n")
+					a_8 := edgeList
+					i_9 := i
+					a_8[i_9] = (j2gort.StrValString(DotFormatter_FormatNodeName(j2gort.ValueOfInt(keyParent))) + " -> " + j2gort.StrValString(toNode) + " [label=\"" + j2gort.StrVal(edge.GetValue()) + "\", fontcolor=\"red\", weight=0.01, color=\"red\"];\n")
 				}
 			}
 		}
-		func() {
-			arrMut_13 := edgeList
-			var arrBox_14 []any
-			if arrMut_13 != nil {
-				arrBox_14 = make([]any, len(arrMut_13))
-				for i_, el_15 := range arrMut_13 {
-					arrBox_14[i_] = j2gort.BoxString(el_15)
-				}
-			}
-			j2gort.Ext_java_util_Arrays_Sort_1_slice_any(arrBox_14)
-			for i_, el_15 := range arrBox_14 {
-				arrMut_13[i_] = j2gort.CastString(el_15)
-			}
-		}()
-		for _, el_16 := range j2gort.CheckNotNullSlice(edgeList) {
-			element := el_16
+		j2gort.ArraysSortStrings(edgeList)
+		for _, el_10 := range j2gort.CheckNotNullSlice(edgeList) {
+			element := el_10
 			_ = element
 			this_.builder.Append_1_any("  ")
 			this_.builder.Append_1_any(j2gort.BoxString(element))
@@ -310,7 +284,7 @@ func (this_ *DotFormatter) Key(n pkg_rhino.Node) int32 {
 	var key *j2gort.BoxInt = this_.assignments.Get(n)
 	_ = key
 	if key == nil {
-		key = j2gort.ValueOfInt(func() int32 { old_17 := this_.keyCount; nw_18 := old_17 + 1; this_.keyCount = nw_18; return old_17 }())
+		key = j2gort.ValueOfInt(func() int32 { old_11 := this_.keyCount; nw_12 := old_11 + 1; this_.keyCount = nw_12; return old_11 }())
 		this_.assignments.Put(n, key)
 		this_.builder.Append_1_any("  ")
 		this_.builder.Append_1_any(j2gort.BoxString(DotFormatter_FormatNodeName(key)))

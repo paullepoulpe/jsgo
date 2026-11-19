@@ -5101,8 +5101,8 @@ func TestWave39CHasNonNegativeLengthAnd16BlockSlab(t *testing.T) {
 		t.Fatalf("clearing static template negative length failed: count=%d", negLenCount.Load())
 	}
 
-	// 4. Verify [16]nodeBlock (8 MiB) slab batching progression on a fresh store:
-	// blkIdx < 2 -> 1 block (512 KiB), 2 <= blkIdx < 8 -> 4 blocks (2 MiB), blkIdx >= 8 -> 16 blocks (8 MiB).
+	// 4. Verify [4]nodeBlock (2 MiB) slab batching progression on a fresh store:
+	// blkIdx < 2 -> 1 block (512 KiB), blkIdx >= 2 -> 4 blocks (2 MiB).
 	sSlab := NewNodeStore()
 	SetCurrentNodeStore(sSlab)
 	_ = sSlab.Alloc()
@@ -5133,12 +5133,12 @@ func TestWave39CHasNonNegativeLengthAnd16BlockSlab(t *testing.T) {
 		_ = aSlab.AllocNode1Cached(40)
 	}
 	aSlab.Flush()
-	if len(sSlab.blocks) != 26 {
-		t.Fatalf("blkIdx=10: len(blocks) = %d, want 26 (16-block 8 MiB slab)", len(sSlab.blocks))
+	if len(sSlab.blocks) != 14 {
+		t.Fatalf("blkIdx=10: len(blocks) = %d, want 14 (4-block 2 MiB slab)", len(sSlab.blocks))
 	}
-	for i := 10; i < 26; i++ {
+	for i := 10; i < 14; i++ {
 		if sSlab.blocks[i] == nil {
-			t.Fatalf("sSlab.blocks[%d] == nil inside 16-block slab", i)
+			t.Fatalf("sSlab.blocks[%d] == nil inside 4-block slab", i)
 		}
 	}
 

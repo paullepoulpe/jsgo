@@ -4090,6 +4090,7 @@ public final class RuntimeCollectionsBindings {
         \t"fmt"
         \t"math/bits"
         \t"reflect"
+        \t"slices"
         \t"sort"
         \t"strconv"
         \t"strings"
@@ -4109,6 +4110,7 @@ public final class RuntimeCollectionsBindings {
         var _ = (*atomic.Bool)(nil)
         var _ = strconv.AppendInt
         var _ = utf16.DecodeRune
+        var _ = slices.Sort[[]string]
 
         var (
         \tcompPoolResetMu    sync.Mutex
@@ -4223,6 +4225,116 @@ public final class RuntimeCollectionsBindings {
         }
         func (c *jComparatorFunc) ThenComparingLong(ke Ext_java_util_function_ToLongFunction) Ext_java_util_Comparator {
         \treturn ExtDefault_Comparator_ThenComparingLong(c, ke)
+        }
+
+        func arraysSortStrSlice(sub []string) {
+        \tascii := true
+        \tfor _, s := range sub {
+        \t\tif !ascii {
+        \t\t\tif s == NullString {
+        \t\t\t\tThrowNPE()
+        \t\t\t}
+        \t\t\tcontinue
+        \t\t}
+        \t\tfor i := 0; i < len(s); i++ {
+        \t\t\tif s[i] >= 0x80 {
+        \t\t\t\tif s == NullString {
+        \t\t\t\t\tThrowNPE()
+        \t\t\t\t}
+        \t\t\t\tascii = false
+        \t\t\t\tbreak
+        \t\t\t}
+        \t\t}
+        \t}
+        \tn := len(sub)
+        \tif n < 2 {
+        \t\treturn
+        \t}
+        \tif ascii {
+        \t\tif n <= 16 {
+        \t\t\tfor i := 1; i < n; i++ {
+        \t\t\t\tv := sub[i]
+        \t\t\t\tj := i - 1
+        \t\t\t\tfor j >= 0 && sub[j] > v {
+        \t\t\t\t\tsub[j+1] = sub[j]
+        \t\t\t\t\tj--
+        \t\t\t\t}
+        \t\t\t\tsub[j+1] = v
+        \t\t\t}
+        \t\t\treturn
+        \t\t}
+        \t\tslices.Sort(sub)
+        \t\treturn
+        \t}
+        \tslices.SortFunc(sub, javalang.StringCompareTo)
+        }
+
+        func ArraysSortStrings(a []string) {
+        \tif a == nil {
+        \t\tThrowNPE()
+        \t}
+        \tarraysSortStrSlice(a)
+        }
+
+        func ArraysSortStringsRange(a []string, fromIndex, toIndex int32) {
+        \tif a == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif fromIndex > toIndex {
+        \t\tpanic(javalang.NewIllegalArgumentException("fromIndex > toIndex"))
+        \t}
+        \tif fromIndex < 0 || int(toIndex) > len(a) {
+        \t\tpanic(javalang.NewArrayIndexOutOfBoundsException(""))
+        \t}
+        \tarraysSortStrSlice(a[fromIndex:toIndex])
+        }
+
+        func ComparatorComparingStr(keyFn func(any) string) Ext_java_util_Comparator {
+        \tif keyFn == nil {
+        \t\tThrowNPE()
+        \t}
+        \treturn newComparatorFromFunc(func(a, b any) int32 {
+        \t\tka := keyFn(a)
+        \t\tkb := keyFn(b)
+        \t\tif ka == NullString || kb == NullString {
+        \t\t\tThrowNPE()
+        \t\t}
+        \t\treturn int32(javalang.StringCompareTo(ka, kb))
+        \t})
+        }
+
+        func ComparatorThenComparingStr(base Ext_java_util_Comparator, keyFn func(any) string) Ext_java_util_Comparator {
+        \tCheckNotNull(base)
+        \tif keyFn == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif cf, ok := base.(*jComparatorFunc); ok {
+        \t\tbaseFn := cf.fn
+        \t\treturn newComparatorFromFunc(func(a, b any) int32 {
+        \t\t\tc := baseFn(a, b)
+        \t\t\tif c != 0 {
+        \t\t\t\treturn c
+        \t\t\t}
+        \t\t\tka := keyFn(a)
+        \t\t\tkb := keyFn(b)
+        \t\t\tif ka == NullString || kb == NullString {
+        \t\t\t\tThrowNPE()
+        \t\t\t}
+        \t\t\treturn int32(javalang.StringCompareTo(ka, kb))
+        \t\t})
+        \t}
+        \treturn newComparatorFromFunc(func(a, b any) int32 {
+        \t\tc := base.Compare(a, b)
+        \t\tif c != 0 {
+        \t\t\treturn c
+        \t\t}
+        \t\tka := keyFn(a)
+        \t\tkb := keyFn(b)
+        \t\tif ka == NullString || kb == NullString {
+        \t\t\tThrowNPE()
+        \t\t}
+        \t\treturn int32(javalang.StringCompareTo(ka, kb))
+        \t})
         }
 
         func isNaturalOrderComparator(cmp Ext_java_util_Comparator) bool {
@@ -4936,7 +5048,7 @@ public final class RuntimeCollectionsBindings {
         \t\t\treturn false
         \t\t}
         \t\tlc.InitCap(lc.Size() + mv.mc.Size())
-        \t\tmv.mc.ForEachEntry(func(_, v any) bool {
+        \t\tmv.mc.ForEachValue(func(v any) bool {
         \t\t\tlc.Add(v)
         \t\t\treturn true
         \t\t})
@@ -5058,7 +5170,7 @@ public final class RuntimeCollectionsBindings {
         \t\t\treturn
         \t\t}
         \t\tlc.InitCap(lc.Size() + mv.mc.Size())
-        \t\tmv.mc.ForEachEntry(func(_, v any) bool {
+        \t\tmv.mc.ForEachValue(func(v any) bool {
         \t\t\tlc.Add(CheckNotNull(v))
         \t\t\treturn true
         \t\t})
@@ -5318,6 +5430,16 @@ public final class RuntimeCollectionsBindings {
         \t\t\t}
         \t\t\tsc.InitExpectedSize(sc.Size() + smc.Size())
         \t\t\tchanged := false
+        \t\t\tif smc.mode == jMapModeStr && !smc.Identity {
+        \t\t\t\tfor i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+        \t\t\t\t\tif k := smc.strEntries[i].key; k != jTombstoneStr {
+        \t\t\t\t\t\tif sc.AddStr(k) {
+        \t\t\t\t\t\t\tchanged = true
+        \t\t\t\t\t\t}
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t\treturn changed
+        \t\t\t}
         \t\t\tsmc.ForEachEntry(func(k, _ any) bool {
         \t\t\t\tif sc.Add(k) {
         \t\t\t\t\tchanged = true
@@ -5418,6 +5540,19 @@ public final class RuntimeCollectionsBindings {
         \t\t\t\treturn
         \t\t\t}
         \t\t\tsc.InitExpectedSize(sc.Size() + smc.Size())
+        \t\t\tif smc.mode == jMapModeStr && !smc.Identity {
+        \t\t\t\tfor i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+        \t\t\t\t\tk := smc.strEntries[i].key
+        \t\t\t\t\tif k == jTombstoneStr {
+        \t\t\t\t\t\tcontinue
+        \t\t\t\t\t}
+        \t\t\t\t\tif k == NullString {
+        \t\t\t\t\t\tThrowNPE()
+        \t\t\t\t\t}
+        \t\t\t\t\tsc.AddStr(k)
+        \t\t\t\t}
+        \t\t\t\treturn
+        \t\t\t}
         \t\t\tsmc.ForEachEntry(func(k, _ any) bool {
         \t\t\t\tsc.Add(CheckNotNull(k))
         \t\t\t\treturn true
@@ -6778,6 +6913,16 @@ public final class RuntimeCollectionsBindings {
         \t\t\t}
         \t\t\tmc.InitExpectedSize(mc.Size() + smc.Size())
         \t\t\tchanged := false
+        \t\t\tif smc.mode == jMapModeStr && !smc.Identity {
+        \t\t\t\tfor i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+        \t\t\t\t\tif k := smc.strEntries[i].key; k != jTombstoneStr {
+        \t\t\t\t\t\tif mc.AddKeyStr(k) {
+        \t\t\t\t\t\t\tchanged = true
+        \t\t\t\t\t\t}
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t\treturn changed
+        \t\t\t}
         \t\t\tsmc.ForEachEntry(func(k, _ any) bool {
         \t\t\t\tif mc.AddKey(k) {
         \t\t\t\t\tchanged = true
@@ -6863,6 +7008,19 @@ public final class RuntimeCollectionsBindings {
         \t\t\t\treturn
         \t\t\t}
         \t\t\tmc.InitExpectedSize(mc.Size() + smc.Size())
+        \t\t\tif smc.mode == jMapModeStr && !smc.Identity {
+        \t\t\t\tfor i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+        \t\t\t\t\tk := smc.strEntries[i].key
+        \t\t\t\t\tif k == jTombstoneStr {
+        \t\t\t\t\t\tcontinue
+        \t\t\t\t\t}
+        \t\t\t\t\tif k == NullString {
+        \t\t\t\t\t\tThrowNPE()
+        \t\t\t\t\t}
+        \t\t\t\t\tmc.PutStr(k, true)
+        \t\t\t\t}
+        \t\t\t\treturn
+        \t\t\t}
         \t\t\tsmc.ForEachEntry(func(k, _ any) bool {
         \t\t\t\tmc.Put(CheckNotNull(k), true)
         \t\t\t\treturn true
@@ -6934,6 +7092,16 @@ public final class RuntimeCollectionsBindings {
         \tif sp, ok := any(other).(jFastSetCoreProvider); ok {
         \t\tif omc := sp.fastSetCore_(); omc != nil && omc != mc {
         \t\t\tchanged := false
+        \t\t\tif omc.mode == jMapModeStr && !omc.Identity && !mc.Identity {
+        \t\t\t\tfor i := int(omc.firstIdx); i < len(omc.strEntries); i++ {
+        \t\t\t\t\tif k := omc.strEntries[i].key; k != jTombstoneStr {
+        \t\t\t\t\t\tif mc.RemoveKeyStr(k) {
+        \t\t\t\t\t\t\tchanged = true
+        \t\t\t\t\t\t}
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t\treturn changed
+        \t\t\t}
         \t\t\tomc.ForEachEntry(func(k, _ any) bool {
         \t\t\t\tif mc.RemoveKey(k) {
         \t\t\t\t\tchanged = true
@@ -6999,6 +7167,20 @@ public final class RuntimeCollectionsBindings {
         \t\treturn dst
         \t}
         \tdst.InitExpectedSize(src.Size())
+        \tif src.mode == jMapModeStr && !src.Identity && !dst.Identity {
+        \t\tfor i := int(src.firstIdx); i < len(src.strEntries); i++ {
+        \t\t\te := src.strEntries[i]
+        \t\t\tif e.key != jTombstoneStr {
+        \t\t\t\tdst.PutStr(e.key, e.val)
+        \t\t\t}
+        \t\t}
+        \t\treturn dst
+        \t}
+        \tif src.IsSorted() && src.ext != nil {
+        \t\tst := src.ext.(*jSortedMapState)
+        \t\tst.avlCopyInto(st.root, dst, false)
+        \t\treturn dst
+        \t}
         \tsrc.ForEachEntry(func(k, v any) bool {
         \t\tdst.Put(k, v)
         \t\treturn true
@@ -7007,10 +7189,19 @@ public final class RuntimeCollectionsBindings {
         }
 
         func copySortedCoreInto(dst *JMapCore, src *JMapCore) *JMapCore {
-        \tif src.IsNaturalOrder() {
-        \t\tinitSortedCore(dst, nil)
-        \t} else {
-        \t\tinitSortedCore(dst, src.SortedCmp())
+        \tif src.IsSorted() {
+        \t\tdst.CopySortedFrom(src)
+        \t\treturn dst
+        \t}
+        \tinitSortedCore(dst, nil)
+        \tif src.mode == jMapModeStr && !src.Identity {
+        \t\tfor i := int(src.firstIdx); i < len(src.strEntries); i++ {
+        \t\t\te := src.strEntries[i]
+        \t\t\tif e.key != jTombstoneStr {
+        \t\t\t\tdst.PutStr(e.key, e.val)
+        \t\t\t}
+        \t\t}
+        \t\treturn dst
         \t}
         \tsrc.ForEachEntry(func(k, v any) bool {
         \t\tdst.Put(k, v)
@@ -7020,18 +7211,25 @@ public final class RuntimeCollectionsBindings {
         }
 
         func cloneJMapCore(src *JMapCore) *JMapCore {
-        \tvar dst *JMapCore
-        \tif src.IsNaturalOrder() {
-        \t\tdst = NewSortedJMapCore(nil)
-        \t} else if src.IsSorted() {
-        \t\tdst = NewSortedJMapCore(src.SortedCmp())
-        \t} else {
-        \t\tdst = NewJMapCore(src.Identity)
-        \t\tdst.accessOrd = src.accessOrd
-        \t\tif dst.CopyFromSameMode(src) {
-        \t\t\treturn dst
+        \tif src.IsSorted() {
+        \t\tdst := &JMapCore{}
+        \t\tdst.CopySortedFrom(src)
+        \t\treturn dst
+        \t}
+        \tdst := NewJMapCore(src.Identity)
+        \tdst.accessOrd = src.accessOrd
+        \tif dst.CopyFromSameMode(src) {
+        \t\treturn dst
+        \t}
+        \tdst.InitExpectedSize(src.Size())
+        \tif src.mode == jMapModeStr && !src.Identity {
+        \t\tfor i := int(src.firstIdx); i < len(src.strEntries); i++ {
+        \t\t\te := src.strEntries[i]
+        \t\t\tif e.key != jTombstoneStr {
+        \t\t\t\tdst.PutStr(e.key, e.val)
+        \t\t\t}
         \t\t}
-        \t\tdst.InitExpectedSize(src.Size())
+        \t\treturn dst
         \t}
         \tsrc.ForEachEntry(func(k, v any) bool {
         \t\tdst.Put(k, v)
@@ -7051,6 +7249,20 @@ public final class RuntimeCollectionsBindings {
         \t\t\t\treturn
         \t\t\t}
         \t\t\tdst.InitExpectedSize(dst.Size() + smc.Size())
+        \t\t\tif smc.mode == jMapModeStr && !smc.Identity && !dst.Identity {
+        \t\t\t\tfor i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+        \t\t\t\t\te := smc.strEntries[i]
+        \t\t\t\t\tif e.key != jTombstoneStr {
+        \t\t\t\t\t\tdst.PutStr(e.key, e.val)
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t\treturn
+        \t\t\t}
+        \t\t\tif smc.IsSorted() && smc.ext != nil && !dst.Identity {
+        \t\t\t\tst := smc.ext.(*jSortedMapState)
+        \t\t\t\tst.avlCopyInto(st.root, dst, false)
+        \t\t\t\treturn
+        \t\t\t}
         \t\t\tsmc.ForEachEntry(func(k, v any) bool {
         \t\t\t\tdst.Put(k, v)
         \t\t\t\treturn true
@@ -7086,7 +7298,28 @@ public final class RuntimeCollectionsBindings {
         \t\t\tif smc.Size() == 0 {
         \t\t\t\treturn
         \t\t\t}
+        \t\t\tif smc != dst && dst.Size() == 0 && dst.CopyFromSameModeNonNull(smc) {
+        \t\t\t\treturn
+        \t\t\t}
         \t\t\tdst.InitExpectedSize(dst.Size() + smc.Size())
+        \t\t\tif smc != dst && smc.mode == jMapModeStr && !smc.Identity && !dst.Identity {
+        \t\t\t\tfor i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+        \t\t\t\t\te := smc.strEntries[i]
+        \t\t\t\t\tif e.key == jTombstoneStr {
+        \t\t\t\t\t\tcontinue
+        \t\t\t\t\t}
+        \t\t\t\t\tif e.key == NullString {
+        \t\t\t\t\t\tThrowNPE()
+        \t\t\t\t\t}
+        \t\t\t\t\tdst.PutStr(e.key, CheckNotNull(e.val))
+        \t\t\t\t}
+        \t\t\t\treturn
+        \t\t\t}
+        \t\t\tif smc != dst && smc.IsSorted() && smc.ext != nil && !dst.Identity {
+        \t\t\t\tst := smc.ext.(*jSortedMapState)
+        \t\t\t\tst.avlCopyInto(st.root, dst, true)
+        \t\t\t\treturn
+        \t\t\t}
         \t\t\tsmc.ForEachEntry(func(k, v any) bool {
         \t\t\t\tdst.Put(CheckNotNull(ToAny(k)), CheckNotNull(ToAny(v)))
         \t\t\t\treturn true
@@ -7107,6 +7340,7 @@ public final class RuntimeCollectionsBindings {
         \t\t\treturn
         \t\t}
         \t}
+        \tdst.InitExpectedSize(dst.Size() + src.Size())
         \tif es := src.EntrySet(); es != nil && !javalang.IsNil(es) {
         \t\tfor it := Iterate(es); it.HasNext(); {
         \t\t\te := Cast[Ext_java_util_Map_Entry](it.Next())
@@ -7434,11 +7668,19 @@ public final class RuntimeCollectionsBindings {
         \t\tg := mc.ext.(*jGenMapState)
         \t\treturn jMapCursor{mc: mc, mode: jMapModeGeneral, curPos: g.head, lastSlot: -1}, g.head != 0
         \tcase jMapModeSortedNat, jMapModeSortedCmp:
-        \t\tkeys := make([]any, 0, mc.Live)
         \t\tvar vals []any
         \t\tif needVals {
         \t\t\tvals = make([]any, 0, mc.Live)
         \t\t}
+        \t\tif mc.ext != nil {
+        \t\t\tst := mc.ext.(*jSortedMapState)
+        \t\t\tif st.avlAllStr(st.root) {
+        \t\t\t\tstrKeys := make([]string, 0, mc.Live)
+        \t\t\t\tstrKeys, vals = st.avlAppendStrEntries(st.root, strKeys, vals, needVals)
+        \t\t\t\treturn jMapCursor{mc: mc, mode: mc.mode, lastSlot: -1, strKeys: strKeys, vals: vals}, len(strKeys) > 0
+        \t\t\t}
+        \t\t}
+        \t\tkeys := make([]any, 0, mc.Live)
         \t\tmc.ForEachEntry(func(k, v any) bool {
         \t\t\tkeys = append(keys, k)
         \t\t\tif needVals {
@@ -7458,7 +7700,7 @@ public final class RuntimeCollectionsBindings {
         \t}
         \tif mc.mode == jMapModeSortedNat || mc.mode == jMapModeSortedCmp {
         \t\tvals := make([]any, 0, mc.Live)
-        \t\tmc.ForEachEntry(func(_, v any) bool {
+        \t\tmc.ForEachValue(func(v any) bool {
         \t\t\tvals = append(vals, v)
         \t\t\treturn true
         \t\t})
@@ -7646,6 +7888,14 @@ public final class RuntimeCollectionsBindings {
         \t\tc.curPos = g.entries[pos-1].next()
         \t\treturn k
         \tdefault:
+        \t\tif c.strKeys != nil {
+        \t\t\tif c.idx >= len(c.strKeys) {
+        \t\t\t\tpanic(javalang.NewNoSuchElementException("iterator exhausted"))
+        \t\t\t}
+        \t\t\ts := c.strKeys[c.idx]
+        \t\t\tc.idx++
+        \t\t\treturn BoxString(s)
+        \t\t}
         \t\tif c.idx >= len(c.keys) {
         \t\t\tpanic(javalang.NewNoSuchElementException("iterator exhausted"))
         \t\t}
@@ -7864,6 +8114,21 @@ public final class RuntimeCollectionsBindings {
         \t\tc.curPos = g.entries[pos-1].next()
         \t\treturn
         \tdefault:
+        \t\tif c.strKeys != nil {
+        \t\t\tif c.idx >= len(c.strKeys) {
+        \t\t\t\tpanic(javalang.NewNoSuchElementException("iterator exhausted"))
+        \t\t\t}
+        \t\t\tk = BoxString(c.strKeys[c.idx])
+        \t\t\tif c.vals != nil {
+        \t\t\t\tv = c.vals[c.idx]
+        \t\t\t}
+        \t\t\tslot = -1
+        \t\t\tc.idx++
+        \t\t\tc.lastSlot = -1
+        \t\t\tc.lastKey = k
+        \t\t\tc.hasLast = true
+        \t\t\treturn
+        \t\t}
         \t\tif c.idx >= len(c.keys) {
         \t\t\tpanic(javalang.NewNoSuchElementException("iterator exhausted"))
         \t\t}
@@ -8288,6 +8553,20 @@ public final class RuntimeCollectionsBindings {
 
         func mapCoreHash(mc *JMapCore) int32 {
         \th := int32(0)
+        \tif mc != nil && mc.mode == jMapModeStr && !mc.Identity {
+        \t\tfor i := int(mc.firstIdx); i < len(mc.strEntries); i++ {
+        \t\t\te := mc.strEntries[i]
+        \t\t\tif e.key == jTombstoneStr {
+        \t\t\t\tcontinue
+        \t\t\t}
+        \t\t\tvar kh int32
+        \t\t\tif e.key != NullString {
+        \t\t\t\tkh = javalang.StringHashCode(e.key)
+        \t\t\t}
+        \t\t\th += kh ^ javalang.ObjectHashCode(e.val)
+        \t\t}
+        \t\treturn h
+        \t}
         \tmc.ForEachEntry(func(k, v any) bool {
         \t\tif mc.Identity {
         \t\t\th += javalang.IdentityHashCode(k) ^ javalang.IdentityHashCode(v)
@@ -8303,6 +8582,27 @@ public final class RuntimeCollectionsBindings {
         \tvar sb strings.Builder
         \tsb.WriteByte('{')
         \tfirst := true
+        \tif mc != nil && mc.mode == jMapModeStr {
+        \t\tfor i := int(mc.firstIdx); i < len(mc.strEntries); i++ {
+        \t\t\te := mc.strEntries[i]
+        \t\t\tif e.key == jTombstoneStr {
+        \t\t\t\tcontinue
+        \t\t\t}
+        \t\t\tif !first {
+        \t\t\t\tsb.WriteString(", ")
+        \t\t\t}
+        \t\t\tfirst = false
+        \t\t\tif e.key == NullString {
+        \t\t\t\tsb.WriteString("null")
+        \t\t\t} else {
+        \t\t\t\tsb.WriteString(e.key)
+        \t\t\t}
+        \t\t\tsb.WriteByte('=')
+        \t\t\tsb.WriteString(StrVal(e.val))
+        \t\t}
+        \t\tsb.WriteByte('}')
+        \t\treturn sb.String()
+        \t}
         \tmc.ForEachEntry(func(k, v any) bool {
         \t\tif !first {
         \t\t\tsb.WriteString(", ")
@@ -8885,6 +9185,18 @@ public final class RuntimeCollectionsBindings {
         \t\t\t}
         \t\t\treturn true
         \t\tdefault:
+        \t\t\tif c.cur.strKeys != nil {
+        \t\t\t\tif c.cur.idx >= len(c.cur.strKeys) {
+        \t\t\t\t\treturn false
+        \t\t\t\t}
+        \t\t\t\ti := c.cur.idx
+        \t\t\t\tc.cur.idx = i + 1
+        \t\t\t\tc.curSlot = -1
+        \t\t\t\tc.curKind = 1
+        \t\t\t\tc.curKeyStr = c.cur.strKeys[i]
+        \t\t\t\tc.curVal = c.cur.vals[i]
+        \t\t\t\treturn true
+        \t\t\t}
         \t\t\tif c.cur.idx >= len(c.cur.keys) {
         \t\t\t\treturn false
         \t\t\t}
@@ -9035,6 +9347,10 @@ public final class RuntimeCollectionsBindings {
         \t\t\t\treturn old
         \t\t\t}
         \t\t}
+        \t}
+        \tif c.curKind == 1 && !c.cur.mc.Identity {
+        \t\tc.cur.mc.PutStr(c.curKeyStr, nv)
+        \t\treturn old
         \t}
         \tc.cur.mc.Put(c.GetKey(), nv)
         \treturn old
@@ -10100,7 +10416,6 @@ public final class RuntimeCollectionsBindings {
         \t}
         \tobj := newImmutableMapShell()
         \tmc := &obj.inlineCore
-        \tmc.InitExpectedSize(src.Size())
         \tcopyExtMapIntoNonNull(mc, src)
         \tmc.sealImmutable()
         \treturn obj
@@ -10159,11 +10474,58 @@ public final class RuntimeCollectionsBindings {
         \tb.mc.Put(k, v)
         }
 
+        func immMapBuilderPutStr(b *jImmMapBuilderCore, k string, v any) {
+        \tif k == NullString {
+        \t\tThrowNPE()
+        \t}
+        \tv = CheckNotNull(ToAny(v))
+        \tif b.mc.ContainsStr(k) {
+        \t\tb.hasDup = true
+        \t\tb.dupKey = k
+        \t}
+        \tb.mc.PutStr(k, v)
+        }
+
+        func avlImmBuilderPutAll(s *jSortedMapState, cur int32, b *jImmMapBuilderCore) {
+        \tif cur == 0 {
+        \t\treturn
+        \t}
+        \tn := &s.tree[cur-1]
+        \tif n.left != 0 {
+        \t\tavlImmBuilderPutAll(s, n.left, b)
+        \t}
+        \tif n.isStr {
+        \t\timmMapBuilderPutStr(b, n.strKey, n.val)
+        \t} else {
+        \t\timmMapBuilderPut(b, n.key, n.val)
+        \t}
+        \tif n.right != 0 {
+        \t\tavlImmBuilderPutAll(s, n.right, b)
+        \t}
+        }
+
         func immMapBuilderPutAll(b *jImmMapBuilderCore, m Ext_java_util_Map) {
         \tCheckNotNull(m)
         \tif mp, ok := any(m).(jFastMapCoreProvider); ok {
         \t\tif smc := mp.fastMapCore_(); smc != nil {
+        \t\t\tif smc.Size() == 0 {
+        \t\t\t\treturn
+        \t\t\t}
         \t\t\tb.mc.InitExpectedSize(b.mc.Size() + smc.Size())
+        \t\t\tif smc.mode == jMapModeStr && !smc.Identity && !b.mc.Identity {
+        \t\t\t\tfor i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+        \t\t\t\t\te := smc.strEntries[i]
+        \t\t\t\t\tif e.key != jTombstoneStr {
+        \t\t\t\t\t\timmMapBuilderPutStr(b, e.key, e.val)
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t\treturn
+        \t\t\t}
+        \t\t\tif smc.IsSorted() && smc.ext != nil && !b.mc.Identity {
+        \t\t\t\tst := smc.ext.(*jSortedMapState)
+        \t\t\t\tavlImmBuilderPutAll(st, st.root, b)
+        \t\t\t\treturn
+        \t\t\t}
         \t\t\tsmc.ForEachEntry(func(k, v any) bool {
         \t\t\t\timmMapBuilderPut(b, k, v)
         \t\t\t\treturn true
@@ -13127,7 +13489,7 @@ public final class RuntimeCollectionsBindings {
         func multimapOp_values_0(mm *jMultimapCore) any {
         \tout := make([]any, 0, mm.total)
         \tif mm.immutable {
-        \t\tmm.keys.ForEachEntry(func(_, b any) bool {
+        \t\tmm.keys.ForEachValue(func(b any) bool {
         \t\t\tfor it := NewIterCursor(b); it.HasNext(); {
         \t\t\t\tout = append(out, it.Next())
         \t\t\t}
@@ -13135,7 +13497,7 @@ public final class RuntimeCollectionsBindings {
         \t\t})
         \t\treturn wrapImmutableListOwn(out)
         \t}
-        \tmm.keys.ForEachEntry(func(_, b any) bool {
+        \tmm.keys.ForEachValue(func(b any) bool {
         \t\tif mm.isSet {
         \t\t\tb.(*JMapCore).ForEachEntry(func(v, _ any) bool {
         \t\t\t\tout = append(out, v)
@@ -13152,12 +13514,7 @@ public final class RuntimeCollectionsBindings {
         }
         func multimapOp_asMap_0(mm *jMultimapCore) any {
         \tif mm.immutable {
-        \t\tout := NewJMapCore(false)
-        \t\tmm.keys.ForEachEntry(func(k, b any) bool {
-        \t\t\tout.Put(k, b)
-        \t\t\treturn true
-        \t\t})
-        \t\treturn wrapImmutableMap(out)
+        \t\treturn wrapImmutableMap(mm.keys)
         \t}
         \tv := &jMultimapAsMap{mm: mm}
         \tv.BindExtSelf_(v)
@@ -14735,10 +15092,18 @@ public final class RuntimeCollectionsBindings {
         \t\tif e.hasSingle {
         \t\t\tsc.Add(e.col0)
         \t\t} else if e.multi != nil {
-        \t\t\te.multi.ForEachEntry(func(ck, _ any) bool {
-        \t\t\t\tsc.Add(ck)
-        \t\t\t\treturn true
-        \t\t\t})
+        \t\t\tif e.multi.mode == jMapModeStr && !e.multi.Identity {
+        \t\t\t\tfor j := int(e.multi.firstIdx); j < len(e.multi.strEntries); j++ {
+        \t\t\t\t\tif ck := e.multi.strEntries[j].key; ck != jTombstoneStr {
+        \t\t\t\t\t\tsc.AddStr(ck)
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t} else {
+        \t\t\t\te.multi.ForEachEntry(func(ck, _ any) bool {
+        \t\t\t\t\tsc.Add(ck)
+        \t\t\t\t\treturn true
+        \t\t\t\t})
+        \t\t\t}
         \t\t}
         \t}
         \tobj := &Ext_java_util_LinkedHashSet{Ext_java_util_HashSetBase: Ext_java_util_HashSetBase{inlineSet: sc}}
@@ -14756,7 +15121,7 @@ public final class RuntimeCollectionsBindings {
         \t\tif e.hasSingle {
         \t\t\tvals = append(vals, e.val0)
         \t\t} else if e.multi != nil {
-        \t\t\te.multi.ForEachEntry(func(_, cv any) bool {
+        \t\t\te.multi.ForEachValue(func(cv any) bool {
         \t\t\t\tvals = append(vals, cv)
         \t\t\t\treturn true
         \t\t\t})
@@ -15015,10 +15380,9 @@ public final class RuntimeCollectionsBindings {
         \tif e.hasSingle {
         \t\tcopyCore.Put(e.col0, e.val0)
         \t} else if e.multi != nil {
-        \t\te.multi.ForEachEntry(func(ck, cv any) bool {
-        \t\t\tcopyCore.Put(ck, cv)
-        \t\t\treturn true
-        \t\t})
+        \t\tif !copyCore.CopyFromSameMode(e.multi) {
+        \t\t\tcopyHashCoreInto(copyCore, e.multi)
+        \t\t}
         \t}
         \tm.t.deleteRowAt(idx)
         \tlhm := &Ext_java_util_LinkedHashMap{Ext_java_util_HashMapBase: Ext_java_util_HashMapBase{inlineCore: *copyCore}}
@@ -15435,11 +15799,7 @@ public final class RuntimeCollectionsBindings {
         \t}
         \tvar out []any
         \tif e.multi != nil {
-        \t\tout = make([]any, 0, e.multi.Size())
-        \t\te.multi.ForEachEntry(func(_, cv any) bool {
-        \t\t\tout = append(out, cv)
-        \t\t\treturn true
-        \t\t})
+        \t\tout = e.multi.LiveValues()
         \t}
         \treturn out
         }
@@ -15454,7 +15814,7 @@ public final class RuntimeCollectionsBindings {
         \t\treturn
         \t}
         \tif e.multi != nil {
-        \t\te.multi.ForEachEntry(func(_, cv any) bool {
+        \t\te.multi.ForEachValue(func(cv any) bool {
         \t\t\taction.Accept(cv)
         \t\t\treturn true
         \t\t})

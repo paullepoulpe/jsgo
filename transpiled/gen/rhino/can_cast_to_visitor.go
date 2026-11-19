@@ -140,7 +140,7 @@ func (this_ *CanCastToVisitor) CanCastToFunction(thisType JSType, functionType *
 }
 
 // Java method: CanCastToVisitor.isInterface(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *CanCastToVisitor) priv_CanCastToVisitor_isInterface_8837(type_ JSType) bool {
+func (this_ *CanCastToVisitor) priv_CanCastToVisitor_isInterface_8835(type_ JSType) bool {
 	_ = type_
 	var objType ObjectType = type_.GetJSTypeBase().ToObjectType()
 	_ = objType
@@ -163,7 +163,7 @@ func (this_ *CanCastToVisitor) CastCastToHelper(thisType JSType, thatType JSType
 		return j2gort.ValueOfBoolean(true)
 	} else if base_thisType_.IsRecordType() || thatType.GetJSTypeBase().IsRecordType() {
 		return j2gort.ValueOfBoolean(true)
-	} else if this_.priv_CanCastToVisitor_isInterface_8837(thisType) || this_.priv_CanCastToVisitor_isInterface_8837(thatType) {
+	} else if this_.priv_CanCastToVisitor_isInterface_8835(thisType) || this_.priv_CanCastToVisitor_isInterface_8835(thatType) {
 		return j2gort.ValueOfBoolean(true)
 	} else if thatType.GetJSTypeBase().IsEnumElementType() {
 		return j2gort.CastPtr[j2gort.BoxBoolean](thisType.Visit_2(this_, thatType.ToMaybeEnumElementType().GetPrimitiveType()))

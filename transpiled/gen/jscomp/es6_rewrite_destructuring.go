@@ -104,7 +104,7 @@ func InitEs6RewriteDestructuring(this_ *Es6RewriteDestructuring, builder *Es6Rew
 	this_.useJscompAssign = !(this_.compiler.GetOptions().GetOutputFeatureSet().Contains_1_FeatureSet(pkg_parser.StaticGet_FeatureSet_ES2015()))
 	switch (this_.rewriteMode).Ordinal() {
 	case int32(0) /* ObjectDestructuringRewriteMode.REWRITE_ALL_OBJECT_PATTERNS */ :
-		this_.featuresToTriggerRunningPass = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7200([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_DEFAULT_PARAMETERS(), pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_DESTRUCTURING(), pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_PATTERN_REST(), pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_DESTRUCTURING()})
+		this_.featuresToTriggerRunningPass = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7198([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_DEFAULT_PARAMETERS(), pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_DESTRUCTURING(), pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_PATTERN_REST(), pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_DESTRUCTURING()})
 		this_.featuresToMarkAsRemoved = this_.featuresToTriggerRunningPass.With_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_PATTERN_REST())
 	case int32(1) /* ObjectDestructuringRewriteMode.REWRITE_OBJECT_REST */ :
 		this_.featuresToTriggerRunningPass = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_PATTERN_REST())

@@ -3122,5 +3122,6 @@ func (this_ *ClosureRewriteModule_UnwrapGoogLoadModule) ShouldTraverse_3(t *Node
 	panic("unreachable switch expression")
 }
 func (*ClosureRewriteModule_ScriptPreprocessor) NoOpVisit_()                   {}
+func (*ClosureRewriteModule_ScriptPreprocessor) CanReleaseSyntacticScopes_()   {}
 func (*ClosureRewriteModule_UnwrapGoogLoadModule) NoOpVisit_()                 {}
 func (*ClosureRewriteModule_UnwrapGoogLoadModule) CanReleaseSyntacticScopes_() {}

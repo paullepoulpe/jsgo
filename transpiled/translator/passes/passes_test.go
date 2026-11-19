@@ -791,9 +791,10 @@ func (this_ *GuardHolder) initFields_GuardHolder() {
 	this_.crossPkgField = j2gort.NewExt_java_util_ArrayList()
 }
 
-func (this_ *GuardHolder) NilOutField() {
+func (this_ *GuardHolder) NilOutField() j2gort.Ext_java_util_ArrayList {
 	this_.nullableField.Add_1(j2gort.BoxString("x"))
 	this_.nullableField = nil
+	return this_.nullableField
 }
 
 func (this_ *GuardHolder) mutateHelper() {
@@ -811,19 +812,20 @@ func (this_ *GuardHolder) IterateMutatingField() string {
 	return out
 }
 
-func acceptList(l j2gort.Ext_java_util_List) int32 { return l.Size() }
+func AcceptList(l j2gort.Ext_java_util_List) int32 { return l.Size() }
 
 func NegativeLocals() int32 {
-	// 1. Aliased local variable: y = x
+	// 1. Aliased local variable mutated after aliasing: y = x
 	var aliased j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList()
 	aliased.Add_1(j2gort.BoxString("a"))
 	other := aliased
-	_ = other
+	aliased.Add_1(j2gort.BoxString("a2"))
+	_ = other.Size()
 
-	// 2. Passed to function expecting Ext_java_util_List
+	// 2. Passed to exported function expecting Ext_java_util_List
 	var escaped j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList()
 	escaped.Add_1(j2gort.BoxString("b"))
-	n := acceptList(escaped)
+	n := AcceptList(escaped)
 
 	// 3. List mutated inside its own enhanced-for loop
 	var selfMut j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList()
@@ -834,7 +836,6 @@ func NegativeLocals() int32 {
 			s := cur.NextStr()
 			if s == "c" {
 				selfMut.Add_1(j2gort.BoxString("d"))
-				break
 			}
 		}
 	}

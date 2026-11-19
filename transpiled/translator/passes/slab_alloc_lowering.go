@@ -810,6 +810,11 @@ func (p *SlabAllocLoweringPass) Apply(ctx *PassContext) (int, error) {
 		return count, err
 	}
 	count += w39Count
+	w40Count, err := applyWave40SlabLowerings(ctx, structByNamed, parentsByFile, valueCopied, singletonStructs, ctorByFunc, delByFunc, existingPkgFuncs, existingMethods)
+	if err != nil {
+		return count, err
+	}
+	count += w40Count
 
 	return count, nil
 }
@@ -12548,8 +12553,15 @@ func applyGlobalNamespaceSlabReleaseLowering(
 	count := 0
 
 	// 1. Embed `scopeCreator_ SyntacticScopeCreator` on GlobalNamespace, wire `.SetScopeCreator(&this_.scopeCreator_)`
-	// in `priv_GlobalNamespace_process_*`, and emit `(*GlobalNamespace).ReleaseSlabs_()`.
-	if ctx.ShouldTransform(gnMeta.file) && !hasASTFieldNamed(gnMeta.structAST, "scopeCreator_") {
+	// in `priv_GlobalNamespace_process_*`, lazy-init `if this_.scopeCreator_.reusableScanner == nil { InitSyntacticScopeCreator_1(...) }`,
+	// and emit `(*GlobalNamespace).ReleaseSlabs_()`.
+	if ctx.ShouldTransform(gnMeta.file) {
+		var sscNamed *types.Named
+		if tn, okTN := ctx.Pkg.Scope().Lookup("SyntacticScopeCreator").(*types.TypeName); okTN && tn != nil {
+			sscNamed = namedOrigin(tn.Type())
+		}
+		sscHasReusableScanner := sscNamed != nil && structHasFieldNamed(sscNamed, "reusableScanner")
+
 		var procFn *ast.FuncDecl
 		var procRecv string
 		for _, decl := range gnMeta.file.Decls {
@@ -12568,67 +12580,89 @@ func applyGlobalNamespaceSlabReleaseLowering(
 				}
 			}
 		}
-		if procFn != nil && procRecv != "" && !slabASTContainsIdent(procFn.Body, "SetScopeCreator") {
-			wiredBuilder := false
-			for _, st := range procFn.Body.List {
-				ds, isDS := st.(*ast.DeclStmt)
-				if !isDS {
-					continue
+
+		if !hasASTFieldNamed(gnMeta.structAST, "scopeCreator_") {
+			if procFn != nil && procRecv != "" && !slabASTContainsIdent(procFn.Body, "SetScopeCreator") {
+				wiredBuilder, wErr := wireGlobalNamespaceProcessScopeCreator(ctx, procFn.Body, procRecv, ntbPtr)
+				if wErr != nil {
+					return count, wErr
 				}
-				gd, isGD := ds.Decl.(*ast.GenDecl)
-				if !isGD || gd.Tok != token.VAR || len(gd.Specs) != 1 {
-					continue
+				if wiredBuilder {
+					gnMeta.structAST.Fields.List = append(gnMeta.structAST.Fields.List, &ast.Field{
+						Names: []*ast.Ident{{Name: "scopeCreator_"}},
+						Type:  &ast.Ident{Name: "SyntacticScopeCreator"},
+					})
+					var initSnippet string
+					if sscHasReusableScanner {
+						initSnippet = fmt.Sprintf(
+							"package p\nfunc f() {\nif %[1]s.scopeCreator_.reusableScanner == nil {\n\tInitSyntacticScopeCreator_1(&%[1]s.scopeCreator_, %[1]s.compiler)\n}\n}\n",
+							procRecv,
+						)
+					} else {
+						initSnippet = fmt.Sprintf(
+							"package p\nfunc f() {\nInitSyntacticScopeCreator_1(&%[1]s.scopeCreator_, %[1]s.compiler)\n}\n",
+							procRecv,
+						)
+					}
+					initPF, err := parser.ParseFile(ctx.Fset, "", initSnippet, 0)
+					if err != nil {
+						return count, err
+					}
+					insIdx := 0
+					for insIdx < len(procFn.Body.List) && isBlankDiscardStmt(procFn.Body.List[insIdx]) {
+						insIdx++
+					}
+					procFn.Body.List = slices.Insert(procFn.Body.List, insIdx, initPF.Decls[0].(*ast.FuncDecl).Body.List...)
+
+					if !slabFileHasPtrMethod(gnMeta.file, "GlobalNamespace", "ReleaseSlabs_") {
+						relLines := buildGlobalNamespaceReleaseSlabsLines(ctx, gnMeta.file, gnNamed, "this_", true)
+						relPF, err := parser.ParseFile(ctx.Fset, "", "package p\nfunc (this_ *GlobalNamespace) ReleaseSlabs_() {\n"+strings.Join(relLines, "\n")+"\n}\n", 0)
+						if err != nil {
+							return count, err
+						}
+						gnMeta.file.Decls = append(gnMeta.file.Decls, relPF.Decls[0])
+					} else if relFn, relRecv := findPtrMethodDeclBySyntax(gnMeta.file, "GlobalNamespace", "ReleaseSlabs_"); relFn != nil && relRecv != "" && !slabASTContainsIdent(relFn.Body, "scopeCreator_") {
+						relLines := buildGlobalNamespaceReleaseSlabsLines(ctx, gnMeta.file, gnNamed, relRecv, true)
+						relPF, err := parser.ParseFile(ctx.Fset, "", "package p\nfunc f() {\n"+strings.Join(relLines, "\n")+"\n}\n", 0)
+						if err != nil {
+							return count, err
+						}
+						relFn.Body.List = relPF.Decls[0].(*ast.FuncDecl).Body.List
+					}
+					ctx.MarkFileModified(gnMeta.file)
+					count++
 				}
-				vs, isVS := gd.Specs[0].(*ast.ValueSpec)
-				if !isVS || len(vs.Names) != 1 || len(vs.Values) != 1 || ptrNamedOrigin(ctx.Info.TypeOf(vs.Values[0])) != ntbPtr.Elem() {
-					continue
-				}
-				vs.Values[0] = &ast.CallExpr{
-					Fun: &ast.SelectorExpr{
-						X:   vs.Values[0],
-						Sel: &ast.Ident{Name: "SetScopeCreator"},
-					},
-					Args: []ast.Expr{
-						&ast.UnaryExpr{
-							Op: token.AND,
-							X: &ast.SelectorExpr{
-								X:   &ast.Ident{Name: procRecv},
-								Sel: &ast.Ident{Name: "scopeCreator_"},
-							},
-						},
-					},
-				}
-				wiredBuilder = true
-				break
 			}
-			if wiredBuilder {
-				gnMeta.structAST.Fields.List = append(gnMeta.structAST.Fields.List, &ast.Field{
-					Names: []*ast.Ident{{Name: "scopeCreator_"}},
-					Type:  &ast.Ident{Name: "SyntacticScopeCreator"},
-				})
-				initPF, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
-					"package p\nfunc f() {\nInitSyntacticScopeCreator_1(&%[1]s.scopeCreator_, %[1]s.compiler)\n}\n",
+		} else if procFn != nil && procRecv != "" && sscHasReusableScanner && !slabASTContainsIdent(procFn.Body, "reusableScanner") {
+			// Upgrade pre-existing unconditional `InitSyntacticScopeCreator_1(&this_.scopeCreator_, this_.compiler)` to lazy-init.
+			for i, st := range procFn.Body.List {
+				es, isES := st.(*ast.ExprStmt)
+				if !isES {
+					continue
+				}
+				call, isC := stripParens(es.X).(*ast.CallExpr)
+				if !isC || len(call.Args) != 2 || !isIdentNamed(call.Fun, "InitSyntacticScopeCreator_1") {
+					continue
+				}
+				u, isU := stripParens(call.Args[0]).(*ast.UnaryExpr)
+				if !isU || u.Op != token.AND {
+					continue
+				}
+				sel, isS := stripParens(u.X).(*ast.SelectorExpr)
+				if !isS || sel.Sel == nil || sel.Sel.Name != "scopeCreator_" || !isIdentNamed(sel.X, procRecv) {
+					continue
+				}
+				lazyPF, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+					"package p\nfunc f() {\nif %[1]s.scopeCreator_.reusableScanner == nil {\n\tInitSyntacticScopeCreator_1(&%[1]s.scopeCreator_, %[1]s.compiler)\n}\n}\n",
 					procRecv,
 				), 0)
 				if err != nil {
 					return count, err
 				}
-				insIdx := 0
-				for insIdx < len(procFn.Body.List) && isBlankDiscardStmt(procFn.Body.List[insIdx]) {
-					insIdx++
-				}
-				procFn.Body.List = slices.Insert(procFn.Body.List, insIdx, initPF.Decls[0].(*ast.FuncDecl).Body.List...)
-
-				if !slabFileHasPtrMethod(gnMeta.file, "GlobalNamespace", "ReleaseSlabs_") {
-					relLines := buildGlobalNamespaceReleaseSlabsLines(ctx, gnMeta.file, gnNamed, "this_", true)
-					relPF, err := parser.ParseFile(ctx.Fset, "", "package p\nfunc (this_ *GlobalNamespace) ReleaseSlabs_() {\n"+strings.Join(relLines, "\n")+"\n}\n", 0)
-					if err != nil {
-						return count, err
-					}
-					gnMeta.file.Decls = append(gnMeta.file.Decls, relPF.Decls[0])
-				}
+				procFn.Body.List[i] = lazyPF.Decls[0].(*ast.FuncDecl).Body.List[0]
 				ctx.MarkFileModified(gnMeta.file)
 				count++
+				break
 			}
 		}
 	}
@@ -13960,12 +13994,13 @@ func applyWave28MapAndSlicePoolReleases(
 					canRelNameMap = true
 				}
 				hasRefSlab := globalNamespaceHasRefSlab(gnMeta.file, gnNamed)
+				hasSC := hasASTFieldNamed(gnMeta.structAST, "scopeCreator_") || structHasFieldNamed(gnNamed, "scopeCreator_") ||
+					slabASTContainsIdent(relFn.Body, "scopeCreator_")
 				needUpgrade := (canRelNameMap && slabASTContainsSelectorName(relFn.Body, "Clear")) ||
 					(canRelRefs && !slabASTContainsIdent(relFn.Body, "ReleaseOrderedMap")) ||
-					(hasRefSlab && !slabASTContainsIdent(relFn.Body, "slab_GlobalNamespace_Ref"))
+					(hasRefSlab && !slabASTContainsIdent(relFn.Body, "slab_GlobalNamespace_Ref")) ||
+					(hasSC && !slabASTContainsIdent(relFn.Body, "scopeCreator_"))
 				if needUpgrade {
-					hasSC := hasASTFieldNamed(gnMeta.structAST, "scopeCreator_") || structHasFieldNamed(gnNamed, "scopeCreator_") ||
-						slabASTContainsIdent(relFn.Body, "scopeCreator_")
 					relLines := buildGlobalNamespaceReleaseSlabsLines(ctx, gnMeta.file, gnNamed, relRecv, hasSC)
 					relPF, err := parser.ParseFile(ctx.Fset, "", "package p\nfunc f() {\n"+strings.Join(relLines, "\n")+"\n}\n", 0)
 					if err != nil {
@@ -27306,4 +27341,1367 @@ func w39EnsureCccmReleaseSlabsMethod(
 	existingMethods[ownerNamed]["ReleaseSlabs_"] = true
 	ctx.MarkFileModified(ownerMeta.file)
 	return 1, nil
+}
+
+// ---------------------------------------------------------------------------
+// Wave 40B: JSTypeRegistry Slabs, TypedScope/TypedVar Arena Slabs, and
+// GlobalNamespace SyntacticScopeCreator Lazy-Init & Wiring
+// ---------------------------------------------------------------------------
+
+func wireGlobalNamespaceProcessScopeCreator(
+	ctx *PassContext,
+	procBody *ast.BlockStmt,
+	procRecv string,
+	ntbPtr *types.Pointer,
+) (bool, error) {
+	if procBody == nil || procRecv == "" || ntbPtr == nil {
+		return false, nil
+	}
+	mkScAddr := func() ast.Expr {
+		return &ast.UnaryExpr{
+			Op: token.AND,
+			X: &ast.SelectorExpr{
+				X:   &ast.Ident{Name: procRecv},
+				Sel: &ast.Ident{Name: "scopeCreator_"},
+			},
+		}
+	}
+
+	// Case A: `var traversal *NodeTraversal_Builder = NodeTraversal_S_Builder()...`
+	for _, st := range procBody.List {
+		ds, isDS := st.(*ast.DeclStmt)
+		if !isDS {
+			continue
+		}
+		gd, isGD := ds.Decl.(*ast.GenDecl)
+		if !isGD || gd.Tok != token.VAR || len(gd.Specs) != 1 {
+			continue
+		}
+		vs, isVS := gd.Specs[0].(*ast.ValueSpec)
+		if !isVS || len(vs.Names) != 1 || len(vs.Values) != 1 || ptrNamedOrigin(ctx.Info.TypeOf(vs.Values[0])) != ntbPtr.Elem() {
+			continue
+		}
+		vs.Values[0] = &ast.CallExpr{
+			Fun: &ast.SelectorExpr{
+				X:   vs.Values[0],
+				Sel: &ast.Ident{Name: "SetScopeCreator"},
+			},
+			Args: []ast.Expr{mkScAddr()},
+		}
+		return true, nil
+	}
+
+	// Case B: Stack-lowered `var ntb_ NodeTraversal_Builder; InitNodeTraversal_Builder(&ntb_); ...`
+	wiredStack := false
+	ast.Inspect(procBody, func(n ast.Node) bool {
+		if _, isFL := n.(*ast.FuncLit); isFL {
+			return false
+		}
+		blk, isB := n.(*ast.BlockStmt)
+		if !isB {
+			return true
+		}
+		for i := 0; i < len(blk.List); i++ {
+			es, isE := blk.List[i].(*ast.ExprStmt)
+			if !isE {
+				continue
+			}
+			call, isC := stripParens(es.X).(*ast.CallExpr)
+			if !isC || len(call.Args) != 1 || !isIdentNamed(call.Fun, "InitNodeTraversal_Builder") {
+				continue
+			}
+			u, isU := stripParens(call.Args[0]).(*ast.UnaryExpr)
+			if !isU || u.Op != token.AND {
+				continue
+			}
+			ntbId, isId := stripParens(u.X).(*ast.Ident)
+			if !isId || ntbId.Name == "" || ntbId.Name == "_" {
+				continue
+			}
+			setScStmt := &ast.ExprStmt{
+				X: &ast.CallExpr{
+					Fun: &ast.SelectorExpr{
+						X:   &ast.ParenExpr{X: &ast.UnaryExpr{Op: token.AND, X: &ast.Ident{Name: ntbId.Name}}},
+						Sel: &ast.Ident{Name: "SetScopeCreator"},
+					},
+					Args: []ast.Expr{mkScAddr()},
+				},
+			}
+			blk.List = slices.Insert(blk.List, i+1, ast.Stmt(setScStmt))
+			i++
+			wiredStack = true
+		}
+		return true
+	})
+	if wiredStack {
+		return true, nil
+	}
+
+	// Case C: Inline `NodeTraversal_S_Builder()...Traverse*(...)` or `NodeTraversal_Traverse*(...)`
+	var wireErr error
+	wiredTrav := false
+	ast.Inspect(procBody, func(n ast.Node) bool {
+		if wireErr != nil || n == nil {
+			return false
+		}
+		if _, isFL := n.(*ast.FuncLit); isFL {
+			return false
+		}
+		blk, isB := n.(*ast.BlockStmt)
+		if !isB {
+			return true
+		}
+		for i, st := range blk.List {
+			es, isE := st.(*ast.ExprStmt)
+			if !isE {
+				continue
+			}
+			call, isC := stripParens(es.X).(*ast.CallExpr)
+			if !isC || call.Ellipsis.IsValid() {
+				continue
+			}
+			if sel, isS := stripParens(call.Fun).(*ast.SelectorExpr); isS && sel.Sel != nil &&
+				(sel.Sel.Name == "Traverse" || sel.Sel.Name == "TraverseRoots") &&
+				ptrNamedOrigin(ctx.Info.TypeOf(sel.X)) == ntbPtr.Elem() {
+				sel.X = &ast.CallExpr{
+					Fun: &ast.SelectorExpr{
+						X:   sel.X,
+						Sel: &ast.Ident{Name: "SetScopeCreator"},
+					},
+					Args: []ast.Expr{mkScAddr()},
+				}
+				wiredTrav = true
+				continue
+			}
+			callee, _ := calleeFunc(call, ctx.Info)
+			if callee == nil || callee.Pkg() != ctx.Pkg {
+				continue
+			}
+			switch callee.Name() {
+			case "NodeTraversal_Traverse":
+				if len(call.Args) != 3 {
+					continue
+				}
+				var compBuf, rootBuf, cbBuf bytes.Buffer
+				if err := printer.Fprint(&compBuf, ctx.Fset, call.Args[0]); err != nil {
+					wireErr = err
+					return false
+				}
+				if err := printer.Fprint(&rootBuf, ctx.Fset, call.Args[1]); err != nil {
+					wireErr = err
+					return false
+				}
+				if err := printer.Fprint(&cbBuf, ctx.Fset, call.Args[2]); err != nil {
+					wireErr = err
+					return false
+				}
+				pf, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+					"package p\nfunc f() {\nNodeTraversal_S_Builder().SetCompiler(%s).SetCallback_1_NodeTraversal_Callback(%s).SetScopeCreator(&%s.scopeCreator_).Traverse(%s)\n}\n",
+					compBuf.String(), cbBuf.String(), procRecv, rootBuf.String(),
+				), 0)
+				if err != nil {
+					wireErr = err
+					return false
+				}
+				blk.List[i] = pf.Decls[0].(*ast.FuncDecl).Body.List[0]
+				wiredTrav = true
+
+			case "NodeTraversal_TraverseRoots":
+				if len(call.Args) != 4 {
+					continue
+				}
+				var compBuf, cbBuf, extBuf, rootBuf bytes.Buffer
+				if err := printer.Fprint(&compBuf, ctx.Fset, call.Args[0]); err != nil {
+					wireErr = err
+					return false
+				}
+				if err := printer.Fprint(&cbBuf, ctx.Fset, call.Args[1]); err != nil {
+					wireErr = err
+					return false
+				}
+				if err := printer.Fprint(&extBuf, ctx.Fset, call.Args[2]); err != nil {
+					wireErr = err
+					return false
+				}
+				if err := printer.Fprint(&rootBuf, ctx.Fset, call.Args[3]); err != nil {
+					wireErr = err
+					return false
+				}
+				pf, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+					"package p\nfunc f() {\nNodeTraversal_S_Builder().SetCompiler(%s).SetCallback_1_NodeTraversal_Callback(%s).SetScopeCreator(&%s.scopeCreator_).TraverseRoots(%s, %s)\n}\n",
+					compBuf.String(), cbBuf.String(), procRecv, extBuf.String(), rootBuf.String(),
+				), 0)
+				if err != nil {
+					wireErr = err
+					return false
+				}
+				blk.List[i] = pf.Decls[0].(*ast.FuncDecl).Body.List[0]
+				wiredTrav = true
+			}
+		}
+		return true
+	})
+	return wiredTrav, wireErr
+}
+
+func applyWave40SlabLowerings(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	parentsByFile map[*ast.File]map[ast.Node]ast.Node,
+	valueCopied, singletonStructs map[*types.Named]bool,
+	ctorByFunc map[*types.Func]*slabCtorMeta,
+	delByFunc map[*types.Func]*slabDelegateMeta,
+	existingPkgFuncs map[string]bool,
+	existingMethods map[*types.Named]map[string]bool,
+) (int, error) {
+	if ctx == nil || ctx.Pkg == nil || ctx.Info == nil {
+		return 0, nil
+	}
+	count := 0
+	if ctx.Pkg.Name() == "rhino" {
+		c, err := applyWave40RhinoJSTypeRegistrySlabLowering(ctx, structByNamed, valueCopied, singletonStructs, ctorByFunc, existingPkgFuncs, existingMethods)
+		if err != nil {
+			return count, err
+		}
+		count += c
+	}
+	if ctx.Pkg.Name() == "jscomp" {
+		c1, err := applyWave40JscompClearJSTypeRegistryLowering(ctx, structByNamed)
+		if err != nil {
+			return count, err
+		}
+		count += c1
+
+		c2, err := applyWave40TypedScopeArenaSlabLowering(ctx, structByNamed, parentsByFile, valueCopied, singletonStructs, ctorByFunc, delByFunc, existingPkgFuncs, existingMethods)
+		if err != nil {
+			return count, err
+		}
+		count += c2
+	}
+	return count, nil
+}
+
+func structLookupFieldType(named *types.Named, pkg *types.Package, fieldName string) types.Type {
+	if named == nil || pkg == nil {
+		return nil
+	}
+	obj, _, _ := types.LookupFieldOrMethod(named, true, pkg, fieldName)
+	v, ok := obj.(*types.Var)
+	if !ok || v == nil || !v.IsField() {
+		return nil
+	}
+	return v.Type()
+}
+
+func exprAccessesRecvRegistry(expr ast.Expr, recvVar *types.Var, info *types.Info) bool {
+	sel, ok := stripParens(expr).(*ast.SelectorExpr)
+	if !ok || sel.Sel == nil || sel.Sel.Name != "registry" {
+		return false
+	}
+	base := stripParens(sel.X)
+	if id, isId := base.(*ast.Ident); isId {
+		return varFromObj(info.Uses[id]) == recvVar
+	}
+	if call, isC := base.(*ast.CallExpr); isC && len(call.Args) == 0 && !call.Ellipsis.IsValid() {
+		if bSel, isBS := stripParens(call.Fun).(*ast.SelectorExpr); isBS && bSel.Sel != nil &&
+			strings.HasPrefix(bSel.Sel.Name, "Get") && strings.HasSuffix(bSel.Sel.Name, "Base") {
+			if id, isId := stripParens(bSel.X).(*ast.Ident); isId {
+				return varFromObj(info.Uses[id]) == recvVar
+			}
+		}
+	}
+	return false
+}
+
+func applyWave40RhinoJSTypeRegistrySlabLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied, singletonStructs map[*types.Named]bool,
+	ctorByFunc map[*types.Func]*slabCtorMeta,
+	existingPkgFuncs map[string]bool,
+	existingMethods map[*types.Named]map[string]bool,
+) (int, error) {
+	if !j2gortHasExport(ctx, "PooledSlab") || !j2gortPooledSlabHasRelease(ctx) {
+		return 0, nil
+	}
+	info := ctx.Info
+
+	var regNamed, unionNamed, funcNamed, tempNamed *types.Named
+	var unionBldrNamed, funcBldrNamed *types.Named
+	for n := range structByNamed {
+		if n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "JSTypeRegistry":
+			regNamed = n
+		case "UnionType":
+			unionNamed = n
+		case "FunctionType":
+			funcNamed = n
+		case "TemplatizedType":
+			tempNamed = n
+		case "UnionType_Builder":
+			unionBldrNamed = n
+		case "FunctionType_Builder":
+			funcBldrNamed = n
+		}
+	}
+	if regNamed == nil || unionNamed == nil || funcNamed == nil || tempNamed == nil {
+		return 0, nil
+	}
+	regMeta := structByNamed[regNamed]
+	if regMeta == nil || !ctx.ShouldTransform(regMeta.file) || !canEnsureJ2gortInFile(regMeta.file, ctx) {
+		return 0, nil
+	}
+	if valueCopied[regNamed] || singletonStructs[regNamed] ||
+		valueCopied[unionNamed] || valueCopied[funcNamed] || valueCopied[tempNamed] ||
+		singletonStructs[unionNamed] || singletonStructs[funcNamed] || singletonStructs[tempNamed] {
+		return 0, nil
+	}
+
+	targetChildren := map[*types.Named]string{
+		unionNamed: "slab_UnionType",
+		funcNamed:  "slab_FunctionType",
+		tempNamed:  "slab_TemplatizedType",
+	}
+	w36DiscoverInnerChildCtors(ctx, targetChildren, ctorByFunc)
+
+	unionBldrHasReg := unionBldrNamed != nil && ptrNamedOrigin(structLookupFieldType(unionBldrNamed, ctx.Pkg, "registry")) == regNamed
+	funcBldrHasReg := funcBldrNamed != nil && ptrNamedOrigin(structLookupFieldType(funcBldrNamed, ctx.Pkg, "registry")) == regNamed
+	tempHasReg := ptrNamedOrigin(structLookupFieldType(tempNamed, ctx.Pkg, "registry")) == regNamed
+
+	count := 0
+	newDeclsByFile := make(map[*ast.File][]funcInsertSpec)
+
+	for _, sp := range []struct {
+		child *types.Named
+		field string
+	}{
+		{unionNamed, "slab_UnionType"},
+		{funcNamed, "slab_FunctionType"},
+		{tempNamed, "slab_TemplatizedType"},
+	} {
+		already := regMeta.slabFields[sp.field] || hasASTFieldNamed(regMeta.structAST, sp.field)
+		if !ensurePooledSlabFieldOnMeta(ctx, regMeta, sp.field, sp.child) {
+			return count, nil
+		}
+		if !already {
+			count++
+		}
+	}
+
+	for _, file := range ctx.Files {
+		if !ctx.ShouldTransform(file) {
+			continue
+		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv == nil || fn.Name == nil || fn.Body == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+				continue
+			}
+			if isSynthesizedSlabBuildMethodName(fn.Name.Name) || isSynthesizedSlabHelperFuncName(fn.Name.Name) {
+				continue
+			}
+			rId := fn.Recv.List[0].Names[0]
+			rv := varFromObj(info.Defs[rId])
+			if rv == nil || rId.Name == "_" || isVarReassignedInBody(fn.Body, rv, info) {
+				continue
+			}
+			recvNamed := ptrNamedOrigin(rv.Type())
+			recvName := rId.Name
+
+			var callErr error
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				if callErr != nil || n == nil {
+					return false
+				}
+				call, isC := n.(*ast.CallExpr)
+				if !isC || call.Ellipsis.IsValid() || !isDirectIdentOrIndexedCall(call) {
+					return true
+				}
+				if !isRecvUnshadowedAt(rv, recvName, call.Pos(), ctx.Pkg) {
+					return true
+				}
+				callee, _ := calleeFunc(call, info)
+				if callee == nil {
+					return true
+				}
+				cm := ctorByFunc[funcOrigin(callee)]
+				if cm == nil || targetChildren[cm.child] == "" {
+					return true
+				}
+				slabField := targetChildren[cm.child]
+
+				var slabOwnerExpr ast.Expr
+				switch {
+				case recvNamed == regNamed:
+					slabOwnerExpr = &ast.Ident{Name: recvName}
+				case cm.child == unionNamed && unionBldrHasReg && recvNamed == unionBldrNamed && fn.Name.Name == "Build":
+					if len(call.Args) == 1 {
+						if aId, isI := stripParens(call.Args[0]).(*ast.Ident); isI && varFromObj(info.Uses[aId]) == rv {
+							slabOwnerExpr = &ast.SelectorExpr{X: &ast.Ident{Name: recvName}, Sel: &ast.Ident{Name: "registry"}}
+						}
+					}
+				case cm.child == funcNamed && funcBldrHasReg && recvNamed == funcBldrNamed && fn.Name.Name == "Build":
+					if len(call.Args) == 1 {
+						if aId, isI := stripParens(call.Args[0]).(*ast.Ident); isI && varFromObj(info.Uses[aId]) == rv {
+							slabOwnerExpr = &ast.SelectorExpr{X: &ast.Ident{Name: recvName}, Sel: &ast.Ident{Name: "registry"}}
+						}
+					}
+				case cm.child == tempNamed && tempHasReg && recvNamed == tempNamed:
+					if len(call.Args) >= 1 && exprAccessesRecvRegistry(call.Args[0], rv, info) {
+						slabOwnerExpr = &ast.SelectorExpr{X: &ast.Ident{Name: recvName}, Sel: &ast.Ident{Name: "registry"}}
+					}
+				}
+				if slabOwnerExpr == nil {
+					return true
+				}
+
+				hName, okH, err := ensurePooledCtorHelperFunc(ctx, cm, existingPkgFuncs, newDeclsByFile)
+				if err != nil || !okH {
+					callErr = err
+					return false
+				}
+				slabAddr := &ast.UnaryExpr{
+					Op: token.AND,
+					X:  &ast.SelectorExpr{X: slabOwnerExpr, Sel: &ast.Ident{Name: slabField}},
+				}
+				rewriteDirectCalleeIdent(call, hName)
+				call.Args = append([]ast.Expr{slabAddr}, call.Args...)
+				ctx.MarkFileModified(file)
+				count++
+				return true
+			})
+			if callErr != nil {
+				return count, callErr
+			}
+		}
+	}
+
+	for _, f := range ctx.Files {
+		if sp := newDeclsByFile[f]; len(sp) > 0 {
+			spliceSynthesizedDecls(f, sp)
+		}
+	}
+
+	hasRelWith := j2gortTypeHasMethod(ctx, "PooledSlab", "ReleaseWith")
+	mkRelStmt := func(recvName, slabField, childType string) string {
+		if hasRelWith {
+			return fmt.Sprintf("%s.%s.ReleaseWith(func(v_ *%s) { *v_ = %s{} })", recvName, slabField, childType, childType)
+		}
+		return fmt.Sprintf("%s.%s.Release()", recvName, slabField)
+	}
+
+	relSpecs := []struct {
+		slabField string
+		typeName  string
+	}{
+		{"slab_UnionType", "UnionType"},
+		{"slab_FunctionType", "FunctionType"},
+		{"slab_TemplatizedType", "TemplatizedType"},
+	}
+
+	if relFn, relRecv := findPtrMethodDeclBySyntax(regMeta.file, "JSTypeRegistry", "ReleaseSlabs_"); relFn != nil && relRecv != "" {
+		for _, sp := range relSpecs {
+			if slabASTContainsIdent(relFn.Body, sp.slabField) {
+				continue
+			}
+			pf, err := parser.ParseFile(ctx.Fset, "", "package p\nfunc f() {\n"+mkRelStmt(relRecv, sp.slabField, sp.typeName)+"\n}\n", 0)
+			if err != nil {
+				return count, err
+			}
+			relFn.Body.List = append(relFn.Body.List, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+			ctx.MarkFileModified(regMeta.file)
+			count++
+		}
+	} else {
+		var lines []string
+		lines = append(lines, "if this_ == nil {\n\treturn\n}")
+		for _, sp := range relSpecs {
+			lines = append(lines, mkRelStmt("this_", sp.slabField, sp.typeName))
+		}
+		src := "package p\nfunc (this_ *JSTypeRegistry) ReleaseSlabs_() {\n" + strings.Join(lines, "\n") + "\n}\n"
+		pf, err := parser.ParseFile(ctx.Fset, "", src, 0)
+		if err != nil {
+			return count, err
+		}
+		regMeta.file.Decls = append(regMeta.file.Decls, pf.Decls[0])
+		if existingMethods[regNamed] == nil {
+			existingMethods[regNamed] = make(map[string]bool)
+		}
+		existingMethods[regNamed]["ReleaseSlabs_"] = true
+		ctx.MarkFileModified(regMeta.file)
+		count++
+	}
+
+	return count, nil
+}
+
+func applyWave40JscompClearJSTypeRegistryLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+) (int, error) {
+	var compNamed *types.Named
+	for n := range structByNamed {
+		if n.Obj() != nil && n.Obj().Name() == "Compiler" {
+			compNamed = n
+			break
+		}
+	}
+	if compNamed == nil {
+		return 0, nil
+	}
+	compMeta := structByNamed[compNamed]
+	if compMeta == nil || !ctx.ShouldTransform(compMeta.file) {
+		return 0, nil
+	}
+	trType := structLookupFieldType(compNamed, ctx.Pkg, "typeRegistry")
+	if trType == nil || !hasZeroArgVoidMethod(trType, ctx.Pkg, "ReleaseSlabs_") {
+		return 0, nil
+	}
+	fn, recvName := findPtrMethodDeclOnNamed(compMeta.file, compNamed, "ClearJSTypeRegistry", ctx.Info)
+	if fn == nil || fn.Body == nil || recvName == "" || slabASTContainsIdent(fn.Body, "ReleaseSlabs_") {
+		return 0, nil
+	}
+	snippet := fmt.Sprintf("package p\nfunc f() {\nif %[1]s.typeRegistry != nil {\n\t%[1]s.typeRegistry.ReleaseSlabs_()\n}\n}\n", recvName)
+	pf, err := parser.ParseFile(ctx.Fset, "", snippet, 0)
+	if err != nil {
+		return 0, err
+	}
+	insIdx := 0
+	for insIdx < len(fn.Body.List) && isBlankDiscardStmt(fn.Body.List[insIdx]) {
+		insIdx++
+	}
+	fn.Body.List = slices.Insert(fn.Body.List, insIdx, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+	ctx.MarkFileModified(compMeta.file)
+	return 1, nil
+}
+
+func fileDeclaresTypeName(file *ast.File, typeName string) bool {
+	if file == nil {
+		return false
+	}
+	for _, decl := range file.Decls {
+		gd, ok := decl.(*ast.GenDecl)
+		if !ok || gd.Tok != token.TYPE {
+			continue
+		}
+		for _, sp := range gd.Specs {
+			if ts, okT := sp.(*ast.TypeSpec); okT && ts.Name != nil && ts.Name.Name == typeName {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func applyWave40TypedScopeArenaSlabLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	parentsByFile map[*ast.File]map[ast.Node]ast.Node,
+	valueCopied, singletonStructs map[*types.Named]bool,
+	ctorByFunc map[*types.Func]*slabCtorMeta,
+	delByFunc map[*types.Func]*slabDelegateMeta,
+	existingPkgFuncs map[string]bool,
+	existingMethods map[*types.Named]map[string]bool,
+) (int, error) {
+	if !j2gortHasExport(ctx, "PooledSlab") || !j2gortPooledSlabHasRelease(ctx) {
+		return 0, nil
+	}
+	info := ctx.Info
+
+	var tscNamed, tsNamed, tvNamed, compNamed, tiNamed, tsOvNamed *types.Named
+	for n := range structByNamed {
+		if n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "TypedScopeCreator":
+			tscNamed = n
+		case "TypedScope":
+			tsNamed = n
+		case "TypedVar":
+			tvNamed = n
+		case "Compiler":
+			compNamed = n
+		case "TypeInference":
+			tiNamed = n
+		case "TypedScope_Overflow":
+			tsOvNamed = n
+		}
+	}
+	if tscNamed == nil || tsNamed == nil || tvNamed == nil || compNamed == nil {
+		return 0, nil
+	}
+	tscMeta := structByNamed[tscNamed]
+	tsMeta := structByNamed[tsNamed]
+	tvMeta := structByNamed[tvNamed]
+	compMeta := structByNamed[compNamed]
+	if tscMeta == nil || tsMeta == nil || tvMeta == nil || compMeta == nil {
+		return 0, nil
+	}
+	if !ctx.ShouldTransform(tscMeta.file) || !ctx.ShouldTransform(tsMeta.file) ||
+		!ctx.ShouldTransform(tvMeta.file) || !ctx.ShouldTransform(compMeta.file) {
+		return 0, nil
+	}
+	if valueCopied[tscNamed] || valueCopied[tsNamed] || valueCopied[tvNamed] || valueCopied[compNamed] ||
+		singletonStructs[tscNamed] || singletonStructs[tsNamed] || singletonStructs[tvNamed] || singletonStructs[compNamed] {
+		return 0, nil
+	}
+	if ptrNamedOrigin(structLookupFieldType(compNamed, ctx.Pkg, "typedScopeCreator")) != tscNamed ||
+		ptrNamedOrigin(structLookupFieldType(compNamed, ctx.Pkg, "topScope")) != tsNamed {
+		return 0, nil
+	}
+	if !canEnsureJ2gortInFile(tsMeta.file, ctx) || !canEnsureJ2gortInFile(tvMeta.file, ctx) {
+		return 0, nil
+	}
+
+	targetChildren := map[*types.Named]string{
+		tsNamed: "slab_TypedScope",
+		tvNamed: "slab_TypedVar",
+	}
+	w36DiscoverInnerChildCtors(ctx, targetChildren, ctorByFunc)
+
+	count := 0
+	newDeclsByFile := make(map[*ast.File][]funcInsertSpec)
+
+	// 1. Emit `typedScopeArena_` and `func (a_ *typedScopeArena_) release_()` in `tsMeta.file`.
+	if ctx.Pkg.Scope().Lookup("typedScopeArena_") == nil && !fileDeclaresTypeName(tsMeta.file, "typedScopeArena_") {
+		j2Qual, okJ2 := ensureJ2gortImportInFile(tsMeta.file, ctx)
+		if !okJ2 {
+			return 0, nil
+		}
+		hasRelWith := j2gortTypeHasMethod(ctx, "PooledSlab", "ReleaseWith")
+		hasRelOrdMap := j2gortHasExport(ctx, "ReleaseOrderedMap")
+
+		var scopeCleanupLines []string
+		if tsOvNamed != nil && ptrNamedOrigin(structLookupFieldType(tsNamed, ctx.Pkg, "overflow")) == tsOvNamed {
+			var ovInner []string
+			if hasRelOrdMap {
+				if varsField, varsIsPtr, hasVars := findOrderedMapFieldMeta(tsOvNamed, "vars"); hasVars && varsIsPtr {
+					ovInner = append(ovInner, fmt.Sprintf("if s_.overflow.%[1]s != nil {\n\t\t\t%[2]s.ReleaseOrderedMap(s_.overflow.%[1]s)\n\t\t\ts_.overflow.%[1]s = nil\n\t\t}", varsField, j2Qual))
+				}
+			}
+			if hasZeroArgVoidMethod(types.NewPointer(tsOvNamed), ctx.Pkg, "ResetForPool") {
+				ovInner = append(ovInner, "s_.overflow.ResetForPool()")
+			}
+			ovInner = append(ovInner, "s_.overflow = nil")
+			scopeCleanupLines = append(scopeCleanupLines, "if s_.overflow != nil {\n\t\t"+strings.Join(ovInner, "\n\t\t")+"\n\t}")
+		}
+		scopeCleanupLines = append(scopeCleanupLines, "*s_ = TypedScope{}")
+
+		var scopeRelStmt, varRelStmt string
+		if hasRelWith {
+			scopeRelStmt = "a_.slab_TypedScope.ReleaseWith(func(s_ *TypedScope) {\n\t" + strings.Join(scopeCleanupLines, "\n\t") + "\n})"
+			varRelStmt = "a_.slab_TypedVar.ReleaseWith(func(v_ *TypedVar) { *v_ = TypedVar{} })"
+		} else {
+			scopeRelStmt = "a_.slab_TypedScope.Release()"
+			varRelStmt = "a_.slab_TypedVar.Release()"
+		}
+
+		arenaSrc := fmt.Sprintf(`package p
+
+type typedScopeArena_ struct {
+	slab_TypedScope %[1]s.PooledSlab[TypedScope]
+	slab_TypedVar   %[1]s.PooledSlab[TypedVar]
+}
+
+func (a_ *typedScopeArena_) release_() {
+	if a_ == nil {
+		return
+	}
+	%[2]s
+	%[3]s
+}
+`, j2Qual, scopeRelStmt, varRelStmt)
+		pfArena, err := parser.ParseFile(ctx.Fset, "", arenaSrc, 0)
+		if err != nil {
+			return count, err
+		}
+		tsMeta.file.Decls = append(tsMeta.file.Decls, pfArena.Decls...)
+		ctx.MarkFileModified(tsMeta.file)
+		count++
+	}
+
+	// 2. Add `tsArena_ *typedScopeArena_` field to TypedScopeCreator, TypedScope, and Compiler.
+	for _, meta := range []*slabStructMeta{tscMeta, tsMeta, compMeta} {
+		if !hasASTFieldNamed(meta.structAST, "tsArena_") {
+			meta.structAST.Fields.List = append(meta.structAST.Fields.List, &ast.Field{
+				Names: []*ast.Ident{{Name: "tsArena_"}},
+				Type:  &ast.StarExpr{X: &ast.Ident{Name: "typedScopeArena_"}},
+			})
+			ctx.MarkFileModified(meta.file)
+			count++
+		}
+	}
+
+	// 3. Initialize `this_.tsArena_ = &typedScopeArena_{}` in `InitTypedScopeCreator*`.
+	for _, decl := range tscMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Name == nil || fn.Body == nil || !strings.HasPrefix(fn.Name.Name, "InitTypedScopeCreator") {
+			continue
+		}
+		if fn.Type.Params == nil || len(fn.Type.Params.List) == 0 || len(fn.Type.Params.List[0].Names) == 0 {
+			continue
+		}
+		p0Id := fn.Type.Params.List[0].Names[0]
+		p0Var := varFromObj(info.Defs[p0Id])
+		if p0Var == nil || ptrNamedOrigin(p0Var.Type()) != tscNamed || p0Id.Name == "_" || slabASTContainsIdent(fn.Body, "tsArena_") {
+			continue
+		}
+		pf, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+			"package p\nfunc f() {\nif %[1]s.tsArena_ == nil {\n\t%[1]s.tsArena_ = &typedScopeArena_{}\n}\n}\n",
+			p0Id.Name,
+		), 0)
+		if err != nil {
+			return count, err
+		}
+		insIdx := 0
+		for insIdx < len(fn.Body.List) && isBlankDiscardStmt(fn.Body.List[insIdx]) {
+			insIdx++
+		}
+		fn.Body.List = slices.Insert(fn.Body.List, insIdx, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+		ctx.MarkFileModified(tscMeta.file)
+		count++
+	}
+
+	// 4. Propagate `parent.tsArena_` into `this_.tsArena_` inside `InitTypedScope*` when `parent != nil`.
+	for _, decl := range tsMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Name == nil || fn.Body == nil || !strings.HasPrefix(fn.Name.Name, "InitTypedScope") {
+			continue
+		}
+		fnObj, _ := info.Defs[fn.Name].(*types.Func)
+		if fnObj == nil {
+			continue
+		}
+		sig, okS := fnObj.Type().(*types.Signature)
+		if !okS || sig.Params() == nil || sig.Params().Len() < 2 {
+			continue
+		}
+		if ptrNamedOrigin(sig.Params().At(0).Type()) != tsNamed || ptrNamedOrigin(sig.Params().At(1).Type()) != tsNamed {
+			continue
+		}
+		thisName := sig.Params().At(0).Name()
+		parentName := sig.Params().At(1).Name()
+		if thisName == "" || thisName == "_" || parentName == "" || parentName == "_" || slabASTContainsIdent(fn.Body, "tsArena_") {
+			continue
+		}
+		pf, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+			"package p\nfunc f() {\nif %[1]s.tsArena_ == nil && %[2]s != nil {\n\t%[1]s.tsArena_ = %[2]s.tsArena_\n}\n}\n",
+			thisName, parentName,
+		), 0)
+		if err != nil {
+			return count, err
+		}
+		insIdx := 0
+		for insIdx < len(fn.Body.List) && isBlankDiscardStmt(fn.Body.List[insIdx]) {
+			insIdx++
+		}
+		fn.Body.List = slices.Insert(fn.Body.List, insIdx, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+		ctx.MarkFileModified(tsMeta.file)
+		count++
+	}
+
+	// 5. Rewrite `NewTypedScope*` and `TypedScope_Create*` calls inside `(*TypedScopeCreator)` methods
+	// and `InitTypeInference*` / `(*TypeInference)` methods.
+	rewriteTypedScopeCall := func(call *ast.CallExpr, arenaExpr func() ast.Expr) (bool, error) {
+		if call == nil || call.Ellipsis.IsValid() || !isDirectIdentOrIndexedCall(call) {
+			return false, nil
+		}
+		callee, _ := calleeFunc(call, info)
+		if callee == nil {
+			return false, nil
+		}
+		uOrig := funcOrigin(callee)
+		if cm := ctorByFunc[uOrig]; cm != nil && cm.child == tsNamed {
+			hName, okH, err := ensurePooledCtorHelperFunc(ctx, cm, existingPkgFuncs, newDeclsByFile)
+			if err != nil || !okH {
+				return false, err
+			}
+			slabAddr := &ast.UnaryExpr{
+				Op: token.AND,
+				X:  &ast.SelectorExpr{X: arenaExpr(), Sel: &ast.Ident{Name: "slab_TypedScope"}},
+			}
+			rewriteDirectCalleeIdent(call, hName)
+			call.Args = append([]ast.Expr{slabAddr}, call.Args...)
+			return true, nil
+		}
+		if dm := delByFunc[uOrig]; dm != nil && dm.ctor.child == tsNamed {
+			hName, okH, err := ensurePooledDelegateHelperFunc(ctx, dm, existingPkgFuncs, newDeclsByFile)
+			if err != nil || !okH {
+				return false, err
+			}
+			slabAddr := &ast.UnaryExpr{
+				Op: token.AND,
+				X:  &ast.SelectorExpr{X: arenaExpr(), Sel: &ast.Ident{Name: "slab_TypedScope"}},
+			}
+			rewriteDirectCalleeIdent(call, hName)
+			call.Args = append([]ast.Expr{slabAddr}, call.Args...)
+			return true, nil
+		}
+		return false, nil
+	}
+
+	for _, decl := range tscMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Name == nil || fn.Body == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		rId := fn.Recv.List[0].Names[0]
+		rv := varFromObj(info.Defs[rId])
+		if rv == nil || ptrNamedOrigin(rv.Type()) != tscNamed || rId.Name == "_" || isVarReassignedInBody(fn.Body, rv, info) {
+			continue
+		}
+		recvName := rId.Name
+		mkArena := func() ast.Expr {
+			return &ast.SelectorExpr{X: &ast.Ident{Name: recvName}, Sel: &ast.Ident{Name: "tsArena_"}}
+		}
+
+		var rwErr error
+		var walkTscBlk func(blk *ast.BlockStmt)
+		walkTscBlk = func(blk *ast.BlockStmt) {
+			if blk == nil || rwErr != nil {
+				return
+			}
+			for i := 0; i < len(blk.List); i++ {
+				st := blk.List[i]
+				// Recurse into nested blocks first.
+				ast.Inspect(st, func(n ast.Node) bool {
+					if n == nil || n == st {
+						return true
+					}
+					if _, isFL := n.(*ast.FuncLit); isFL {
+						return false
+					}
+					if sub, isB := n.(*ast.BlockStmt); isB {
+						walkTscBlk(sub)
+						return false
+					}
+					return true
+				})
+				if rwErr != nil {
+					return
+				}
+
+				if !isRecvUnshadowedAt(rv, recvName, st.Pos(), ctx.Pkg) {
+					continue
+				}
+
+				// Match `var s *TypedScope = <call>`, `s := <call>`, `s = <call>`, or `return <call>`.
+				switch x := st.(type) {
+				case *ast.DeclStmt:
+					gd, okG := x.Decl.(*ast.GenDecl)
+					if !okG || gd.Tok != token.VAR || len(gd.Specs) != 1 {
+						continue
+					}
+					vs, okV := gd.Specs[0].(*ast.ValueSpec)
+					if !okV || len(vs.Names) != 1 || len(vs.Values) != 1 || vs.Names[0].Name == "_" {
+						continue
+					}
+					c, isC := stripParens(vs.Values[0]).(*ast.CallExpr)
+					if !isC {
+						continue
+					}
+					rewrote, err := rewriteTypedScopeCall(c, mkArena)
+					if err != nil {
+						rwErr = err
+						return
+					}
+					if rewrote {
+						insPos := i + 1
+						if insPos < len(blk.List) && isBlankDiscardOfName(blk.List[insPos], vs.Names[0].Name) {
+							insPos++
+						}
+						assignArena := &ast.AssignStmt{
+							Lhs: []ast.Expr{&ast.SelectorExpr{X: &ast.Ident{Name: vs.Names[0].Name}, Sel: &ast.Ident{Name: "tsArena_"}}},
+							Tok: token.ASSIGN,
+							Rhs: []ast.Expr{mkArena()},
+						}
+						blk.List = slices.Insert(blk.List, insPos, ast.Stmt(assignArena))
+						i = insPos
+						ctx.MarkFileModified(tscMeta.file)
+						count++
+					}
+
+				case *ast.AssignStmt:
+					if len(x.Lhs) != 1 || len(x.Rhs) != 1 {
+						continue
+					}
+					lhsId, okL := stripParens(x.Lhs[0]).(*ast.Ident)
+					c, isC := stripParens(x.Rhs[0]).(*ast.CallExpr)
+					if !okL || lhsId.Name == "_" || !isC {
+						continue
+					}
+					rewrote, err := rewriteTypedScopeCall(c, mkArena)
+					if err != nil {
+						rwErr = err
+						return
+					}
+					if rewrote {
+						insPos := i + 1
+						if insPos < len(blk.List) && isBlankDiscardOfName(blk.List[insPos], lhsId.Name) {
+							insPos++
+						}
+						assignArena := &ast.AssignStmt{
+							Lhs: []ast.Expr{&ast.SelectorExpr{X: &ast.Ident{Name: lhsId.Name}, Sel: &ast.Ident{Name: "tsArena_"}}},
+							Tok: token.ASSIGN,
+							Rhs: []ast.Expr{mkArena()},
+						}
+						blk.List = slices.Insert(blk.List, insPos, ast.Stmt(assignArena))
+						i = insPos
+						ctx.MarkFileModified(tscMeta.file)
+						count++
+					}
+
+				case *ast.ReturnStmt:
+					if len(x.Results) != 1 {
+						continue
+					}
+					c, isC := stripParens(x.Results[0]).(*ast.CallExpr)
+					if !isC {
+						continue
+					}
+					rewrote, err := rewriteTypedScopeCall(c, mkArena)
+					if err != nil {
+						rwErr = err
+						return
+					}
+					if rewrote {
+						replBlk := &ast.BlockStmt{
+							List: []ast.Stmt{
+								&ast.AssignStmt{
+									Lhs: []ast.Expr{&ast.Ident{Name: "ts_"}},
+									Tok: token.DEFINE,
+									Rhs: []ast.Expr{c},
+								},
+								&ast.AssignStmt{
+									Lhs: []ast.Expr{&ast.SelectorExpr{X: &ast.Ident{Name: "ts_"}, Sel: &ast.Ident{Name: "tsArena_"}}},
+									Tok: token.ASSIGN,
+									Rhs: []ast.Expr{mkArena()},
+								},
+								&ast.ReturnStmt{Results: []ast.Expr{&ast.Ident{Name: "ts_"}}},
+							},
+						}
+						blk.List[i] = replBlk
+						ctx.MarkFileModified(tscMeta.file)
+						count++
+					}
+				}
+			}
+		}
+		walkTscBlk(fn.Body)
+		if rwErr != nil {
+			return count, rwErr
+		}
+	}
+
+	// Also pool `TypedScope_CreateLatticeBottom` / `NewTypedScope_2_Node_bool` inside `TypeInference` (`InitTypeInference*` & `ResetForScope`).
+	if tiNamed != nil && ptrNamedOrigin(structLookupFieldType(tiNamed, ctx.Pkg, "scopeCreator")) == tscNamed {
+		tiMeta := structByNamed[tiNamed]
+		if tiMeta != nil && ctx.ShouldTransform(tiMeta.file) {
+			for _, decl := range tiMeta.file.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if !ok || fn.Name == nil || fn.Body == nil {
+					continue
+				}
+				var tiVar *types.Var
+				var tiName string
+				var minSafePos token.Pos
+				if fn.Recv != nil && len(fn.Recv.List) == 1 && len(fn.Recv.List[0].Names) == 1 {
+					rId := fn.Recv.List[0].Names[0]
+					if rv := varFromObj(info.Defs[rId]); rv != nil && ptrNamedOrigin(rv.Type()) == tiNamed && rId.Name != "_" && !isVarReassignedInBody(fn.Body, rv, info) {
+						tiVar = rv
+						tiName = rId.Name
+					}
+				} else if fn.Recv == nil && strings.HasPrefix(fn.Name.Name, "InitTypeInference") && fn.Type.Params != nil && len(fn.Type.Params.List) >= 1 && len(fn.Type.Params.List[0].Names) == 1 {
+					pId := fn.Type.Params.List[0].Names[0]
+					if pv := varFromObj(info.Defs[pId]); pv != nil && ptrNamedOrigin(pv.Type()) == tiNamed && pId.Name != "_" && !isVarReassignedInBody(fn.Body, pv, info) {
+						for _, st := range fn.Body.List {
+							if as, okA := st.(*ast.AssignStmt); okA && len(as.Lhs) == 1 {
+								if sel, okS := stripParens(as.Lhs[0]).(*ast.SelectorExpr); okS && sel.Sel != nil && sel.Sel.Name == "scopeCreator" && isIdentNamed(sel.X, pId.Name) {
+									tiVar = pv
+									tiName = pId.Name
+									minSafePos = st.End()
+									break
+								}
+							}
+						}
+					}
+				}
+				if tiVar == nil {
+					continue
+				}
+				var tiErr error
+				ast.Inspect(fn.Body, func(n ast.Node) bool {
+					if tiErr != nil || n == nil {
+						return false
+					}
+					if _, isFL := n.(*ast.FuncLit); isFL {
+						return false
+					}
+					call, isC := n.(*ast.CallExpr)
+					if !isC || call.Pos() <= minSafePos || !isRecvUnshadowedAt(tiVar, tiName, call.Pos(), ctx.Pkg) {
+						return true
+					}
+					rewrote, err := rewriteTypedScopeCall(call, func() ast.Expr {
+						return &ast.SelectorExpr{
+							X:   &ast.SelectorExpr{X: &ast.Ident{Name: tiName}, Sel: &ast.Ident{Name: "scopeCreator"}},
+							Sel: &ast.Ident{Name: "tsArena_"},
+						}
+					})
+					if err != nil {
+						tiErr = err
+						return false
+					}
+					if rewrote {
+						ctx.MarkFileModified(tiMeta.file)
+						count++
+					}
+					return true
+				})
+				if tiErr != nil {
+					return count, tiErr
+				}
+			}
+		}
+	}
+
+	// 6. Rewrite `NewTypedVar(...)` inside `(*TypedScope)` methods (`Declare*`, `MakeImplicitVar`, etc.)
+	// to allocate from `&this_.tsArena_.slab_TypedVar` when `this_.tsArena_ != nil`.
+	for _, decl := range tsMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Name == nil || fn.Body == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		rId := fn.Recv.List[0].Names[0]
+		rv := varFromObj(info.Defs[rId])
+		if rv == nil || ptrNamedOrigin(rv.Type()) != tsNamed || rId.Name == "_" || isVarReassignedInBody(fn.Body, rv, info) {
+			continue
+		}
+		if slabASTContainsIdent(fn.Body, "slab_TypedVar") {
+			continue
+		}
+		recvName := rId.Name
+		var tvErr error
+
+		var walkTsBlk func(blk *ast.BlockStmt)
+		walkTsBlk = func(blk *ast.BlockStmt) {
+			if blk == nil || tvErr != nil {
+				return
+			}
+			for i := 0; i < len(blk.List); i++ {
+				st := blk.List[i]
+				ast.Inspect(st, func(n ast.Node) bool {
+					if n == nil || n == st {
+						return true
+					}
+					if _, isFL := n.(*ast.FuncLit); isFL {
+						return false
+					}
+					if sub, isB := n.(*ast.BlockStmt); isB {
+						walkTsBlk(sub)
+						return false
+					}
+					return true
+				})
+				if tvErr != nil {
+					return
+				}
+				if !isRecvUnshadowedAt(rv, recvName, st.Pos(), ctx.Pkg) {
+					continue
+				}
+
+				matchVarCtor := func(e ast.Expr) (*ast.CallExpr, string, error) {
+					c, isC := stripParens(e).(*ast.CallExpr)
+					if !isC || c.Ellipsis.IsValid() || !isDirectIdentOrIndexedCall(c) {
+						return nil, "", nil
+					}
+					callee, _ := calleeFunc(c, info)
+					if callee == nil {
+						return nil, "", nil
+					}
+					cm := ctorByFunc[funcOrigin(callee)]
+					if cm == nil || cm.child != tvNamed {
+						return nil, "", nil
+					}
+					hName, okH, err := ensurePooledCtorHelperFunc(ctx, cm, existingPkgFuncs, newDeclsByFile)
+					if err != nil || !okH {
+						return nil, "", err
+					}
+					return c, hName, nil
+				}
+
+				switch x := st.(type) {
+				case *ast.DeclStmt:
+					gd, okG := x.Decl.(*ast.GenDecl)
+					if !okG || gd.Tok != token.VAR || len(gd.Specs) != 1 {
+						continue
+					}
+					vs, okV := gd.Specs[0].(*ast.ValueSpec)
+					if !okV || len(vs.Names) != 1 || len(vs.Values) != 1 || vs.Names[0].Name == "_" {
+						continue
+					}
+					c, hName, err := matchVarCtor(vs.Values[0])
+					if err != nil {
+						tvErr = err
+						return
+					}
+					if c == nil {
+						continue
+					}
+					var callBuf bytes.Buffer
+					if pErr := printer.Fprint(&callBuf, ctx.Fset, c); pErr != nil {
+						tvErr = pErr
+						return
+					}
+					pooledCall, okCl := cloneExprViaParse(ctx.Fset, c)
+					if !okCl {
+						continue
+					}
+					pc := pooledCall.(*ast.CallExpr)
+					rewriteDirectCalleeIdent(pc, hName)
+					slabAddr := &ast.UnaryExpr{
+						Op: token.AND,
+						X: &ast.SelectorExpr{
+							X:   &ast.SelectorExpr{X: &ast.Ident{Name: recvName}, Sel: &ast.Ident{Name: "tsArena_"}},
+							Sel: &ast.Ident{Name: "slab_TypedVar"},
+						},
+					}
+					pc.Args = append([]ast.Expr{slabAddr}, pc.Args...)
+					var pooledBuf bytes.Buffer
+					if pErr := printer.Fprint(&pooledBuf, ctx.Fset, pc); pErr != nil {
+						tvErr = pErr
+						return
+					}
+					vName := vs.Names[0].Name
+					pf, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+						"package p\nfunc f() {\nvar %[1]s *TypedVar\nif %[2]s.tsArena_ != nil {\n\t%[1]s = %[3]s\n} else {\n\t%[1]s = %[4]s\n}\n}\n",
+						vName, recvName, pooledBuf.String(), callBuf.String(),
+					), 0)
+					if pErr != nil {
+						tvErr = pErr
+						return
+					}
+					ins := pf.Decls[0].(*ast.FuncDecl).Body.List
+					blk.List = slices.Replace(blk.List, i, i+1, ins...)
+					i += len(ins) - 1
+					ctx.MarkFileModified(tsMeta.file)
+					count++
+
+				case *ast.AssignStmt:
+					if len(x.Lhs) != 1 || len(x.Rhs) != 1 {
+						continue
+					}
+					lhsId, okL := stripParens(x.Lhs[0]).(*ast.Ident)
+					if !okL || lhsId.Name == "_" {
+						continue
+					}
+					c, hName, err := matchVarCtor(x.Rhs[0])
+					if err != nil {
+						tvErr = err
+						return
+					}
+					if c == nil {
+						continue
+					}
+					var callBuf bytes.Buffer
+					if pErr := printer.Fprint(&callBuf, ctx.Fset, c); pErr != nil {
+						tvErr = pErr
+						return
+					}
+					pooledCall, okCl := cloneExprViaParse(ctx.Fset, c)
+					if !okCl {
+						continue
+					}
+					pc := pooledCall.(*ast.CallExpr)
+					rewriteDirectCalleeIdent(pc, hName)
+					slabAddr := &ast.UnaryExpr{
+						Op: token.AND,
+						X: &ast.SelectorExpr{
+							X:   &ast.SelectorExpr{X: &ast.Ident{Name: recvName}, Sel: &ast.Ident{Name: "tsArena_"}},
+							Sel: &ast.Ident{Name: "slab_TypedVar"},
+						},
+					}
+					pc.Args = append([]ast.Expr{slabAddr}, pc.Args...)
+					var pooledBuf bytes.Buffer
+					if pErr := printer.Fprint(&pooledBuf, ctx.Fset, pc); pErr != nil {
+						tvErr = pErr
+						return
+					}
+					var declPrefix string
+					if x.Tok == token.DEFINE {
+						declPrefix = fmt.Sprintf("var %s *TypedVar\n", lhsId.Name)
+					}
+					pf, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+						"package p\nfunc f() {\n%[5]sif %[2]s.tsArena_ != nil {\n\t%[1]s = %[3]s\n} else {\n\t%[1]s = %[4]s\n}\n}\n",
+						lhsId.Name, recvName, pooledBuf.String(), callBuf.String(), declPrefix,
+					), 0)
+					if pErr != nil {
+						tvErr = pErr
+						return
+					}
+					ins := pf.Decls[0].(*ast.FuncDecl).Body.List
+					blk.List = slices.Replace(blk.List, i, i+1, ins...)
+					i += len(ins) - 1
+					ctx.MarkFileModified(tsMeta.file)
+					count++
+
+				case *ast.ReturnStmt:
+					if len(x.Results) != 1 {
+						continue
+					}
+					c, hName, err := matchVarCtor(x.Results[0])
+					if err != nil {
+						tvErr = err
+						return
+					}
+					if c == nil {
+						continue
+					}
+					var callBuf bytes.Buffer
+					if pErr := printer.Fprint(&callBuf, ctx.Fset, c); pErr != nil {
+						tvErr = pErr
+						return
+					}
+					pooledCall, okCl := cloneExprViaParse(ctx.Fset, c)
+					if !okCl {
+						continue
+					}
+					pc := pooledCall.(*ast.CallExpr)
+					rewriteDirectCalleeIdent(pc, hName)
+					slabAddr := &ast.UnaryExpr{
+						Op: token.AND,
+						X: &ast.SelectorExpr{
+							X:   &ast.SelectorExpr{X: &ast.Ident{Name: recvName}, Sel: &ast.Ident{Name: "tsArena_"}},
+							Sel: &ast.Ident{Name: "slab_TypedVar"},
+						},
+					}
+					pc.Args = append([]ast.Expr{slabAddr}, pc.Args...)
+					var pooledBuf bytes.Buffer
+					if pErr := printer.Fprint(&pooledBuf, ctx.Fset, pc); pErr != nil {
+						tvErr = pErr
+						return
+					}
+					pf, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+						"package p\nfunc f() *TypedVar {\nif %[1]s.tsArena_ != nil {\n\treturn %[2]s\n}\nreturn %[3]s\n}\n",
+						recvName, pooledBuf.String(), callBuf.String(),
+					), 0)
+					if pErr != nil {
+						tvErr = pErr
+						return
+					}
+					ins := pf.Decls[0].(*ast.FuncDecl).Body.List
+					blk.List = slices.Replace(blk.List, i, i+1, ins...)
+					i += len(ins) - 1
+					ctx.MarkFileModified(tsMeta.file)
+					count++
+				}
+			}
+		}
+		walkTsBlk(fn.Body)
+		if tvErr != nil {
+			return count, tvErr
+		}
+	}
+
+	for _, f := range ctx.Files {
+		if sp := newDeclsByFile[f]; len(sp) > 0 {
+			spliceSynthesizedDecls(f, sp)
+		}
+	}
+
+	// 7. Wire `(*Compiler).GetTypedScopeCreator()`, `(*Compiler).maybeReleaseTypedScopeArena_()`,
+	// `(*Compiler).ClearTypedScopeCreator()`, and `(*Compiler).SetTopScope(...)`.
+	if !slabFileHasPtrMethod(compMeta.file, "Compiler", "maybeReleaseTypedScopeArena_") {
+		helperSrc := `package p
+
+func (this_ *Compiler) maybeReleaseTypedScopeArena_() {
+	if this_ != nil && this_.tsArena_ != nil && this_.typedScopeCreator == nil && this_.topScope == nil {
+		a_ := this_.tsArena_
+		this_.tsArena_ = nil
+		a_.release_()
+	}
+}
+`
+		pfH, err := parser.ParseFile(ctx.Fset, "", helperSrc, 0)
+		if err != nil {
+			return count, err
+		}
+		compMeta.file.Decls = append(compMeta.file.Decls, pfH.Decls[0])
+		if existingMethods[compNamed] == nil {
+			existingMethods[compNamed] = make(map[string]bool)
+		}
+		existingMethods[compNamed]["maybeReleaseTypedScopeArena_"] = true
+		ctx.MarkFileModified(compMeta.file)
+		count++
+	}
+
+	if getTscFn, getRecv := findPtrMethodDeclOnNamed(compMeta.file, compNamed, "GetTypedScopeCreator", info); getTscFn != nil && getRecv != "" && !slabASTContainsIdent(getTscFn.Body, "tsArena_") {
+		wiredGet := false
+		ast.Inspect(getTscFn.Body, func(n ast.Node) bool {
+			if wiredGet || n == nil {
+				return false
+			}
+			if _, isFL := n.(*ast.FuncLit); isFL {
+				return false
+			}
+			blk, isB := n.(*ast.BlockStmt)
+			if !isB {
+				return true
+			}
+			for i, st := range blk.List {
+				as, isA := st.(*ast.AssignStmt)
+				if !isA || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+					continue
+				}
+				sel, isS := stripParens(as.Lhs[0]).(*ast.SelectorExpr)
+				if !isS || sel.Sel == nil || sel.Sel.Name != "typedScopeCreator" || !isIdentNamed(sel.X, getRecv) {
+					continue
+				}
+				rhsCall, isC := stripParens(as.Rhs[0]).(*ast.CallExpr)
+				if !isC {
+					continue
+				}
+				if callee, _ := calleeFunc(rhsCall, info); callee == nil || !strings.HasPrefix(callee.Name(), "NewTypedScopeCreator") {
+					continue
+				}
+				assignArena := &ast.AssignStmt{
+					Lhs: []ast.Expr{&ast.SelectorExpr{X: &ast.Ident{Name: getRecv}, Sel: &ast.Ident{Name: "tsArena_"}}},
+					Tok: token.ASSIGN,
+					Rhs: []ast.Expr{&ast.SelectorExpr{
+						X:   &ast.SelectorExpr{X: &ast.Ident{Name: getRecv}, Sel: &ast.Ident{Name: "typedScopeCreator"}},
+						Sel: &ast.Ident{Name: "tsArena_"},
+					}},
+				}
+				blk.List = slices.Insert(blk.List, i+1, ast.Stmt(assignArena))
+				wiredGet = true
+				ctx.MarkFileModified(compMeta.file)
+				count++
+				return false
+			}
+			return true
+		})
+	}
+
+	for _, mName := range []string{"ClearTypedScopeCreator", "SetTopScope"} {
+		fn, recvName := findPtrMethodDeclOnNamed(compMeta.file, compNamed, mName, info)
+		if fn == nil || fn.Body == nil || recvName == "" || slabASTContainsIdent(fn.Body, "maybeReleaseTypedScopeArena_") {
+			continue
+		}
+		callStmt := &ast.ExprStmt{
+			X: &ast.CallExpr{
+				Fun: &ast.SelectorExpr{
+					X:   &ast.Ident{Name: recvName},
+					Sel: &ast.Ident{Name: "maybeReleaseTypedScopeArena_"},
+				},
+			},
+		}
+		fn.Body.List = append(fn.Body.List, callStmt)
+		ctx.MarkFileModified(compMeta.file)
+		count++
+	}
+
+	return count, nil
 }

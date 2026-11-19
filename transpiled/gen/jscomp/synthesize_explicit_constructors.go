@@ -81,12 +81,12 @@ func (this_ *SynthesizeExplicitConstructors) SynthesizeClassConstructorIfMissing
 		j2gort.CheckArgument(false)
 	}
 	if NodeUtil_GetEs6ClassConstructorMemberFunctionDef(classNode) == 0 {
-		this_.priv_SynthesizeExplicitConstructors_addSyntheticConstructor_5314(t, classNode)
+		this_.priv_SynthesizeExplicitConstructors_addSyntheticConstructor_5312(t, classNode)
 	}
 }
 
 // Java method: SynthesizeExplicitConstructors.addSyntheticConstructor(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node classNode)
-func (this_ *SynthesizeExplicitConstructors) priv_SynthesizeExplicitConstructors_addSyntheticConstructor_5314(t *NodeTraversal, classNode pkg_rhino.Node) {
+func (this_ *SynthesizeExplicitConstructors) priv_SynthesizeExplicitConstructors_addSyntheticConstructor_5312(t *NodeTraversal, classNode pkg_rhino.Node) {
 	_ = t
 	_ = classNode
 	var superClass pkg_rhino.Node = classNode.GetSecondChild()
@@ -106,7 +106,7 @@ func (this_ *SynthesizeExplicitConstructors) priv_SynthesizeExplicitConstructors
 		}
 		var body pkg_rhino.Node = pkg_rhino.IR_Block_0()
 		_ = body
-		if !(classNode.IsFromExterns()) && !(this_.priv_SynthesizeExplicitConstructors_isInterface_5315(classNode)) {
+		if !(classNode.IsFromExterns()) && !(this_.priv_SynthesizeExplicitConstructors_isInterface_5313(classNode)) {
 			var exprResult pkg_rhino.Node = pkg_rhino.IR_ExprResult(this_.astFactory.CreateConstructorCall(AstFactory_S_Type_1_Node(classNode), this_.astFactory.CreateSuper(AstFactory_S_Type_1_Node(superClass)), []pkg_rhino.Node{pkg_rhino.IR_IterSpread(this_.astFactory.CreateArgumentsReference())}))
 			_ = exprResult
 			body.AddChildToFront(exprResult)
@@ -126,7 +126,7 @@ func (this_ *SynthesizeExplicitConstructors) priv_SynthesizeExplicitConstructors
 }
 
 // Java method: SynthesizeExplicitConstructors.isInterface(com.google.javascript.rhino.Node classNode)
-func (this_ *SynthesizeExplicitConstructors) priv_SynthesizeExplicitConstructors_isInterface_5315(classNode pkg_rhino.Node) bool {
+func (this_ *SynthesizeExplicitConstructors) priv_SynthesizeExplicitConstructors_isInterface_5313(classNode pkg_rhino.Node) bool {
 	_ = classNode
 	var classJsDocInfo *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(classNode)
 	_ = classJsDocInfo

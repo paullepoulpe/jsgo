@@ -2209,7 +2209,7 @@ func (this_ *ColorPool_Builder) Build(extraIds []*pkg_colors.ColorId) *ColorPool
 		"this_.localBleedingFunctionsPerScope.Clear()",
 		"this_.scopeContextStack.Clear()",
 		"this_.variablesStackedByName.Clear()",
-		"counts j2gort.OrderedMap[string, *j2gort.BoxInt]",
+		"counts j2gort.OrderedMap[string, int32]",
 		"this_.counts.String()",
 		"associatedProps j2gort.OrderedMap[*PropertyClustering, ColorGraphNode_PropAssociation]",
 		"GetAssociatedProps() *j2gort.OrderedMap[*PropertyClustering, ColorGraphNode_PropAssociation]",

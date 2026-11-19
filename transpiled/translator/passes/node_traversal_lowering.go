@@ -1495,7 +1495,7 @@ func isScopeToScopeMethod(name string) bool {
 
 func isScopeToVarMethod(name string) bool {
 	switch name {
-	case "GetVar", "GetSlot", "GetOwnSlot", "GetOwnDeclaredVar", "GetArgumentsVar":
+	case "GetVar", "LookupVar", "GetSlot", "GetOwnSlot", "GetOwnImplicitSlot", "GetOwnDeclaredVar", "GetArgumentsVar":
 		return true
 	}
 	return false
@@ -2419,10 +2419,11 @@ func callbackClearsTransientScopeFieldsOnExit(
 	switch name {
 	case "FlowSensitiveInlineVariables":
 		transientFields = map[string]bool{
-			"cfg":          true,
-			"candidates":   true,
-			"reachingDef":  true,
-			"reachingUses": true,
+			"cfg":            true,
+			"candidates":     true,
+			"reachingDef":    true,
+			"reachingUses":   true,
+			"slab_Candidate": true,
 		}
 		cleanerMethodPrefix = "EnterScope"
 	case "DeadAssignmentsElimination":
@@ -2590,6 +2591,18 @@ func methodDeferClearsTransientFieldsBeforeWrite(
 					if ifSt, isIf := dst.(*ast.IfStmt); isIf {
 						if fName := deferIfStmtClearsRecvField(ifSt, recvName, fields, info); fName != "" {
 							clearedInDefer[fName] = true
+						}
+						continue
+					}
+					if es, isEs := dst.(*ast.ExprStmt); isEs {
+						if call, isC := stripParens(es.X).(*ast.CallExpr); isC && len(call.Args) == 0 {
+							if mSel, isMS := stripParens(call.Fun).(*ast.SelectorExpr); isMS && mSel.Sel != nil &&
+								(mSel.Sel.Name == "Reset" || mSel.Sel.Name == "Release") {
+								if fSel, isFS := stripParens(mSel.X).(*ast.SelectorExpr); isFS && fSel.Sel != nil &&
+									isIdentNamed(fSel.X, recvName) && strings.HasPrefix(fSel.Sel.Name, "slab_") && fields[fSel.Sel.Name] {
+									clearedInDefer[fSel.Sel.Name] = true
+								}
+							}
 						}
 						continue
 					}

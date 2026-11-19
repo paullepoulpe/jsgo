@@ -99,9 +99,7 @@ func (this_ *CrossChunkCodeMotion) Process_2(externs pkg_rhino.Node, root pkg_rh
 		_ = logFile
 		defer j2gort.CloseResource(logFile)
 		this_.cccmLog = logFile
-		if this_.cccmLog.IsLogging() {
-			this_.cccmLog.Log_1_string("doing cccm")
-		}
+		this_.cccmLog.Log_1_string("doing cccm")
 		if this_.graph.GetChunkCount() > int32(1) {
 			var val_1 CrossChunkReferenceCollector
 			InitCrossChunkReferenceCollector(&val_1, this_.compiler, NewSyntacticScopeCreator_1(this_.compiler))
@@ -120,9 +118,7 @@ func (this_ *CrossChunkCodeMotion) Process_2(externs pkg_rhino.Node, root pkg_rh
 			this_.priv_CrossChunkCodeMotion_moveGlobalSymbols_2237(collector)
 			this_.priv_CrossChunkCodeMotion_addInstanceofGuards_2236(collector)
 		} else {
-			if this_.cccmLog.IsLogging() {
-				this_.cccmLog.Log_1_string("only one chunk exists")
-			}
+			this_.cccmLog.Log_1_string("only one chunk exists")
 		}
 	}()
 }

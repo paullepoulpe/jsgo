@@ -8222,6 +8222,80 @@ public final class RuntimeBindings {
         \treturn true
         }
 
+        func (s *jSortedMapState) avlForEachValue(cur int32, fn func(v any) bool) bool {
+        \tif cur == 0 {
+        \t\treturn true
+        \t}
+        \tl := s.tree[cur-1].left
+        \tif l != 0 && !s.avlForEachValue(l, fn) {
+        \t\treturn false
+        \t}
+        \tv := s.tree[cur-1].val
+        \tr := s.tree[cur-1].right
+        \tif !fn(v) {
+        \t\treturn false
+        \t}
+        \tif r != 0 && !s.avlForEachValue(r, fn) {
+        \t\treturn false
+        \t}
+        \treturn true
+        }
+
+        func (s *jSortedMapState) avlAllStr(cur int32) bool {
+        \tif cur == 0 {
+        \t\treturn true
+        \t}
+        \tn := &s.tree[cur-1]
+        \treturn n.isStr && s.avlAllStr(n.left) && s.avlAllStr(n.right)
+        }
+
+        func (s *jSortedMapState) avlAppendStrEntries(cur int32, keys []string, vals []any, needVals bool) ([]string, []any) {
+        \tif cur == 0 {
+        \t\treturn keys, vals
+        \t}
+        \tn := &s.tree[cur-1]
+        \tif n.left != 0 {
+        \t\tkeys, vals = s.avlAppendStrEntries(n.left, keys, vals, needVals)
+        \t}
+        \tkeys = append(keys, n.strKey)
+        \tif needVals {
+        \t\tvals = append(vals, n.val)
+        \t}
+        \tif n.right != 0 {
+        \t\tkeys, vals = s.avlAppendStrEntries(n.right, keys, vals, needVals)
+        \t}
+        \treturn keys, vals
+        }
+
+        func (s *jSortedMapState) avlCopyInto(cur int32, dst *JMapCore, checkNonNull bool) {
+        \tif cur == 0 {
+        \t\treturn
+        \t}
+        \tn := &s.tree[cur-1]
+        \tif n.left != 0 {
+        \t\ts.avlCopyInto(n.left, dst, checkNonNull)
+        \t}
+        \tv := n.val
+        \tif checkNonNull {
+        \t\tv = CheckNotNull(v)
+        \t}
+        \tif n.isStr {
+        \t\tif checkNonNull && n.strKey == NullString {
+        \t\t\tThrowNPE()
+        \t\t}
+        \t\tdst.PutStr(n.strKey, v)
+        \t} else {
+        \t\tk := n.key
+        \t\tif checkNonNull {
+        \t\t\tk = CheckNotNull(k)
+        \t\t}
+        \t\tdst.Put(k, v)
+        \t}
+        \tif n.right != 0 {
+        \t\ts.avlCopyInto(n.right, dst, checkNonNull)
+        \t}
+        }
+
         func (s *jSortedMapState) avlTransformValues(cur int32, fn func(k, v any) any) {
         \tif cur == 0 {
         \t\treturn
@@ -10771,6 +10845,116 @@ public final class RuntimeBindings {
         \treturn false
         }
 
+        func (m *JMapCore) CopyFromSameModeNonNull(src *JMapCore) bool {
+        \tif m == nil || src == nil || m == src || m.immutable || m.mode != jMapModeEmpty || m.Live != 0 {
+        \t\treturn false
+        \t}
+        \tif m.IsSorted() || src.IsSorted() || m.Identity != src.Identity || (src.accessOrd && !m.accessOrd) {
+        \t\treturn false
+        \t}
+        \tif src.Live == 0 {
+        \t\treturn true
+        \t}
+        \tswitch src.mode {
+        \tcase jMapModeNullOnly:
+        \t\tThrowNPE()
+        \tcase jMapModeNode1:
+        \t\tif m.accessOrd {
+        \t\t\treturn false
+        \t\t}
+        \t\tif src.firstIdx == 0 {
+        \t\t\tThrowNPE()
+        \t\t}
+        \t\tCheckNotNull(src.ext)
+        \tcase jMapModeStr:
+        \t\tif m.accessOrd {
+        \t\t\treturn false
+        \t\t}
+        \t\tfor i := int(src.firstIdx); i < len(src.strEntries); i++ {
+        \t\t\te := src.strEntries[i]
+        \t\t\tif e.key == jTombstoneStr {
+        \t\t\t\tcontinue
+        \t\t\t}
+        \t\t\tif e.key == NullString {
+        \t\t\t\tThrowNPE()
+        \t\t\t}
+        \t\t\tCheckNotNull(e.val)
+        \t\t}
+        \tcase jMapModeNode:
+        \t\tif m.accessOrd {
+        \t\t\treturn false
+        \t\t}
+        \t\tsns := src.ext.(*jNodeMapState)
+        \t\tfor i := int(src.firstIdx); i < len(sns.entries); i++ {
+        \t\t\te := sns.entries[i]
+        \t\t\tif !e.active {
+        \t\t\t\tcontinue
+        \t\t\t}
+        \t\t\tif e.key == 0 {
+        \t\t\t\tThrowNPE()
+        \t\t\t}
+        \t\t\tCheckNotNull(e.val)
+        \t\t}
+        \tcase jMapModePtr:
+        \t\tif m.accessOrd {
+        \t\t\treturn false
+        \t\t}
+        \t\tsps := src.ext.(*jPtrMapState)
+        \t\tfor i := int(src.firstIdx); i < len(sps.entries); i++ {
+        \t\t\te := sps.entries[i]
+        \t\t\tif e.key == jTombstoneObj {
+        \t\t\t\tcontinue
+        \t\t\t}
+        \t\t\tCheckNotNull(e.key)
+        \t\t\tCheckNotNull(e.val)
+        \t\t}
+        \tcase jMapModeGeneral:
+        \t\tsg := src.ext.(*jGenMapState)
+        \t\tif sg.nullPos != 0 {
+        \t\t\tThrowNPE()
+        \t\t}
+        \t\tfor pos := sg.head; pos != 0; pos = sg.entries[pos-1].next() {
+        \t\t\te := &sg.entries[pos-1]
+        \t\t\tif e.kind() == jKeyNull {
+        \t\t\t\tThrowNPE()
+        \t\t\t}
+        \t\t\tCheckNotNull(e.Val)
+        \t\t}
+        \tdefault:
+        \t\treturn false
+        \t}
+        \treturn m.CopyFromSameMode(src)
+        }
+
+        func (m *JMapCore) CopySortedFrom(src *JMapCore) {
+        \tif src == nil {
+        \t\treturn
+        \t}
+        \tm.mode = src.mode
+        \tm.Live = src.Live
+        \tm.holes = 0
+        \tm.firstIdx = 0
+        \tif src.Live == 0 || src.ext == nil {
+        \t\tif src.mode == jMapModeSortedCmp && src.ext != nil {
+        \t\t\tsst := src.ext.(*jSortedMapState)
+        \t\t\tm.ext = &jSortedMapState{cmp: sst.cmp, natOrder: sst.natOrder}
+        \t\t} else {
+        \t\t\tm.ext = nil
+        \t\t}
+        \t\treturn
+        \t}
+        \tsst := src.ext.(*jSortedMapState)
+        \tdstTree := make([]jTreeNode, len(sst.tree))
+        \tcopy(dstTree, sst.tree)
+        \tm.ext = &jSortedMapState{
+        \t\ttree:     dstTree,
+        \t\troot:     sst.root,
+        \t\tfreeTree: sst.freeTree,
+        \t\tcmp:      sst.cmp,
+        \t\tnatOrder: sst.natOrder,
+        \t}
+        }
+
         func (m *JMapCore) ContainsKey(k any) bool {
         \t_, ok := m.getAny(k, false)
         \treturn ok
@@ -10779,7 +10963,7 @@ public final class RuntimeBindings {
         func (m *JMapCore) ContainsValue(v any) bool {
         \tv = ToAny(v)
         \tfound := false
-        \tm.ForEachEntry(func(_, ev any) bool {
+        \tm.ForEachValue(func(ev any) bool {
         \t\tif javalang.ObjectsEquals(ev, v) {
         \t\t\tfound = true
         \t\t\treturn false
@@ -11206,6 +11390,17 @@ public final class RuntimeBindings {
         \tif m.IsSorted() {
         \t\treturn m.ext.(*jSortedMapState).avlSetHash(m.ext.(*jSortedMapState).root)
         \t}
+        \tif m.mode == jMapModeStr && !m.Identity {
+        \t\tvar h int32
+        \t\tfor i := int(m.firstIdx); i < len(m.strEntries); i++ {
+        \t\t\tk := m.strEntries[i].key
+        \t\t\tif k == jTombstoneStr || k == NullString {
+        \t\t\t\tcontinue
+        \t\t\t}
+        \t\t\th += javalang.StringHashCode(k)
+        \t\t}
+        \t\treturn h
+        \t}
         \tvar h int32
         \tm.ForEachEntry(func(k, _ any) bool {
         \t\th += elemJavaHashCode(k, m.Identity)
@@ -11216,6 +11411,61 @@ public final class RuntimeBindings {
 
         func (m *JMapCore) ImmutableSetHash() int32 {
         \treturn m.SetHash()
+        }
+
+        func (m *JMapCore) ForEachValue(fn func(v any) bool) {
+        \tif m == nil || m.Live == 0 {
+        \t\treturn
+        \t}
+        \tstart := int(m.firstIdx)
+        \tswitch m.mode {
+        \tcase jMapModeNullOnly, jMapModeNode1:
+        \t\tfn(m.ext)
+        \tcase jMapModeStr:
+        \t\tfor i := start; i < len(m.strEntries); i++ {
+        \t\t\te := m.strEntries[i]
+        \t\t\tif e.key == jTombstoneStr {
+        \t\t\t\tcontinue
+        \t\t\t}
+        \t\t\tif !fn(e.val) {
+        \t\t\t\treturn
+        \t\t\t}
+        \t\t}
+        \tcase jMapModeNode:
+        \t\tns := m.ext.(*jNodeMapState)
+        \t\tfor i := start; i < len(ns.entries); i++ {
+        \t\t\te := ns.entries[i]
+        \t\t\tif !e.active {
+        \t\t\t\tcontinue
+        \t\t\t}
+        \t\t\tif !fn(e.val) {
+        \t\t\t\treturn
+        \t\t\t}
+        \t\t}
+        \tcase jMapModePtr:
+        \t\tps := m.ext.(*jPtrMapState)
+        \t\tfor i := start; i < len(ps.entries); i++ {
+        \t\t\te := ps.entries[i]
+        \t\t\tif e.key == jTombstoneObj {
+        \t\t\t\tcontinue
+        \t\t\t}
+        \t\t\tif !fn(e.val) {
+        \t\t\t\treturn
+        \t\t\t}
+        \t\t}
+        \tcase jMapModeGeneral:
+        \t\tg := m.ext.(*jGenMapState)
+        \t\tfor pos := g.head; pos != 0; {
+        \t\t\tnextPos := g.entries[pos-1].next()
+        \t\t\tif !fn(g.entries[pos-1].Val) {
+        \t\t\t\treturn
+        \t\t\t}
+        \t\t\tpos = nextPos
+        \t\t}
+        \tcase jMapModeSortedNat, jMapModeSortedCmp:
+        \t\tst := m.ext.(*jSortedMapState)
+        \t\tst.avlForEachValue(st.root, fn)
+        \t}
         }
 
         func (m *JMapCore) ForEachEntry(fn func(k, v any) bool) {
@@ -11362,8 +11612,15 @@ public final class RuntimeBindings {
         \tif m == nil || m.Live == 0 {
         \t\treturn []any{}
         \t}
+        \tif m.mode == jMapModeStr && m.holes == 0 && m.firstIdx == 0 {
+        \t\tout := make([]any, len(m.strEntries))
+        \t\tfor i := range m.strEntries {
+        \t\t\tout[i] = m.strEntries[i].val
+        \t\t}
+        \t\treturn out
+        \t}
         \tout := make([]any, 0, m.Live)
-        \tm.ForEachEntry(func(_, v any) bool {
+        \tm.ForEachValue(func(v any) bool {
         \t\tout = append(out, v)
         \t\treturn true
         \t})

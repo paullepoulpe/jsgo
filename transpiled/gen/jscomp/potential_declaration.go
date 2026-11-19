@@ -346,7 +346,7 @@ func (this_ *PotentialDeclarationBase) BreakDownDestructure(compiler AbstractCom
 }
 
 // Java method: PotentialDeclaration.simplifyEnumValues(com.google.javascript.jscomp.AbstractCompiler compiler)
-func (this_ *PotentialDeclarationBase) priv_PotentialDeclaration_simplifyEnumValues_6430(compiler AbstractCompiler) {
+func (this_ *PotentialDeclarationBase) priv_PotentialDeclaration_simplifyEnumValues_6428(compiler AbstractCompiler) {
 	_ = compiler
 	if this_.GetRhs().IsObjectLit() && this_.GetRhs().HasChildren() {
 		var changed bool = false
@@ -548,7 +548,7 @@ func InitPotentialDeclaration_NameDeclaration(this_ *PotentialDeclaration_NameDe
 }
 
 // Java method: NameDeclaration.simplifyNamespace(com.google.javascript.jscomp.AbstractCompiler compiler)
-func (this_ *PotentialDeclaration_NameDeclaration) priv_NameDeclaration_simplifyNamespace_6434(compiler AbstractCompiler) {
+func (this_ *PotentialDeclaration_NameDeclaration) priv_NameDeclaration_simplifyNamespace_6432(compiler AbstractCompiler) {
 	_ = compiler
 	if this_.GetRhs().IsOr() {
 		var objLit pkg_rhino.Node = this_.GetRhs().GetLastChild().Detach()
@@ -559,7 +559,7 @@ func (this_ *PotentialDeclaration_NameDeclaration) priv_NameDeclaration_simplify
 }
 
 // Java method: NameDeclaration.simplifySymbol(com.google.javascript.jscomp.AbstractCompiler compiler)
-func (this_ *PotentialDeclaration_NameDeclaration) priv_NameDeclaration_simplifySymbol_6435(compiler AbstractCompiler) {
+func (this_ *PotentialDeclaration_NameDeclaration) priv_NameDeclaration_simplifySymbol_6433(compiler AbstractCompiler) {
 	_ = compiler
 	if !(NodeUtil_IsCallTo_2_Node_string(this_.GetRhs(), "Symbol")) {
 		j2gort.CheckArgument(false)
@@ -582,11 +582,11 @@ func (this_ *PotentialDeclaration_NameDeclaration) Simplify(compiler AbstractCom
 	var jsdoc *pkg_rhino.JSDocInfo = this_.GetJsDoc()
 	_ = jsdoc
 	if (jsdoc != nil) && jsdoc.HasEnumParameterType() {
-		this_.PotentialDeclarationBase.GetPotentialDeclarationBase().priv_PotentialDeclaration_simplifyEnumValues_6430(compiler)
+		this_.PotentialDeclarationBase.GetPotentialDeclarationBase().priv_PotentialDeclaration_simplifyEnumValues_6428(compiler)
 		return
 	}
 	if NodeUtil_IsNamespaceDecl(nameNode) {
-		this_.priv_NameDeclaration_simplifyNamespace_6434(compiler)
+		this_.priv_NameDeclaration_simplifyNamespace_6432(compiler)
 		return
 	}
 	if nameNode.MatchesName_1_string("exports") {
@@ -595,7 +595,7 @@ func (this_ *PotentialDeclaration_NameDeclaration) Simplify(compiler AbstractCom
 		return
 	}
 	if NodeUtil_IsCallTo_2_Node_string(this_.GetRhs(), "Symbol") {
-		this_.priv_NameDeclaration_simplifySymbol_6435(compiler)
+		this_.priv_NameDeclaration_simplifySymbol_6433(compiler)
 		return
 	}
 	if this_.GetLhs().GetParent().IsConst() {
@@ -1039,7 +1039,7 @@ func (this_ *PotentialDeclaration_StringKeyDeclaration) Simplify(compiler Abstra
 	var jsdoc *pkg_rhino.JSDocInfo = this_.GetJsDoc()
 	_ = jsdoc
 	if (jsdoc != nil) && jsdoc.HasEnumParameterType() {
-		this_.PotentialDeclarationBase.GetPotentialDeclarationBase().priv_PotentialDeclaration_simplifyEnumValues_6430(compiler)
+		this_.PotentialDeclarationBase.GetPotentialDeclarationBase().priv_PotentialDeclaration_simplifyEnumValues_6428(compiler)
 		return
 	}
 	var key pkg_rhino.Node = this_.GetLhs()
@@ -1053,11 +1053,11 @@ func (this_ *PotentialDeclaration_StringKeyDeclaration) Simplify(compiler Abstra
 
 // Java method: StringKeyDeclaration.shouldPreserve()
 func (this_ *PotentialDeclaration_StringKeyDeclaration) ShouldPreserve() bool {
-	return ((this_.PotentialDeclarationBase.IsDetached() || this_.PotentialDeclarationBase.ShouldPreserve()) || !(this_.priv_StringKeyDeclaration_isInNamespace_6437()))
+	return ((this_.PotentialDeclarationBase.IsDetached() || this_.PotentialDeclarationBase.ShouldPreserve()) || !(this_.priv_StringKeyDeclaration_isInNamespace_6435()))
 }
 
 // Java method: StringKeyDeclaration.isInNamespace()
-func (this_ *PotentialDeclaration_StringKeyDeclaration) priv_StringKeyDeclaration_isInNamespace_6437() bool {
+func (this_ *PotentialDeclaration_StringKeyDeclaration) priv_StringKeyDeclaration_isInNamespace_6435() bool {
 	var stringKey pkg_rhino.Node = this_.GetLhs()
 	_ = stringKey
 	var objLit pkg_rhino.Node = stringKey.GetParent()

@@ -3338,6 +3338,52 @@ public final class ExprEmitter {
         }
       }
       if (owner.getQualifiedName().contentEquals("java.util.Arrays")
+          && (mName.equals("sort") || mName.equals("parallelSort"))
+          && (mi.getArguments().size() == 1 || mi.getArguments().size() == 3)
+          && !ee.getParameters().isEmpty()) {
+        TreePath arg0Path = new TreePath(path, mi.getArguments().get(0));
+        TypeMirror arg0Eff = resolver.goEffectiveType(typeOf(arg0Path));
+        if (arg0Eff instanceof ArrayType sat
+            && resolver.isStringType(sat.getComponentType())
+            && resolver.goType(sat, ctx.imports).equals("[]string")) {
+          if (mi.getArguments().size() == 1 && ee.getParameters().size() == 1) {
+            String arg0Go = emitAs(mi.getArguments().get(0), path, sat, false, ctx);
+            return rtPrefix(ctx) + "ArraysSortStrings(" + arg0Go + ")";
+          }
+          if (mi.getArguments().size() == 3
+              && ee.getParameters().size() == 3
+              && ee.getParameters().get(1).asType().getKind() == TypeKind.INT
+              && ee.getParameters().get(2).asType().getKind() == TypeKind.INT) {
+            String arg0Go = emitAs(mi.getArguments().get(0), path, sat, false, ctx);
+            TypeMirror intTm = resolver.types.getPrimitiveType(TypeKind.INT);
+            String fromGo = emitAs(mi.getArguments().get(1), path, intTm, false, ctx);
+            String toGo = emitAs(mi.getArguments().get(2), path, intTm, false, ctx);
+            return rtPrefix(ctx)
+                + "ArraysSortStringsRange("
+                + arg0Go
+                + ", "
+                + fromGo
+                + ", "
+                + toGo
+                + ")";
+          }
+        }
+      }
+      if (owner.getQualifiedName().contentEquals("java.util.Comparator")
+          && mName.equals("comparing")
+          && mi.getArguments().size() == 1
+          && ee.getParameters().size() == 1
+          && isFunctionParameter(ee.getParameters().get(0))) {
+        TreePath fnArgPath = unwrapParens(new TreePath(path, mi.getArguments().get(0)));
+        if (canEmitUnboxedStringKeyFunction(fnArgPath, ctx)) {
+          String keyFnGo = emitUnboxedStringKeyFunction(fnArgPath, ctx);
+          String rawCall = rtPrefix(ctx) + "ComparatorComparingStr(" + keyFnGo + ")";
+          return callSiteRet.getKind() != TypeKind.VOID
+              ? convert(rawCall, owner.asType(), callSiteRet, false, ctx)
+              : rawCall;
+        }
+      }
+      if (owner.getQualifiedName().contentEquals("java.util.Arrays")
           && (mName.equals("setAll")
               || mName.equals("parallelSetAll")
               || mName.equals("fill")
@@ -3473,6 +3519,36 @@ public final class ExprEmitter {
     }
 
     // Instance / interface method call
+    if (!isSuperCall
+        && owner.getQualifiedName().contentEquals("java.util.Comparator")
+        && ee.getSimpleName().contentEquals("thenComparing")
+        && mi.getArguments().size() == 1
+        && ee.getParameters().size() == 1
+        && isFunctionParameter(ee.getParameters().get(0))) {
+      TreePath fnArgPath = unwrapParens(new TreePath(path, mi.getArguments().get(0)));
+      if (canEmitUnboxedStringKeyFunction(fnArgPath, ctx)) {
+        String recvCmpGo;
+        if (recvPath != null) {
+          recvCmpGo =
+              emitAs(
+                  (ExpressionTree) recvPath.getLeaf(),
+                  recvPath.getParentPath(),
+                  owner.asType(),
+                  false,
+                  ctx);
+        } else {
+          TypeMirror selfSiteTm = resolveImplicitOwnerSiteType(owner, ctx);
+          recvCmpGo =
+              convert(resolveImplicitThisValue(owner, ctx), selfSiteTm, owner.asType(), false, ctx);
+        }
+        String keyFnGo = emitUnboxedStringKeyFunction(fnArgPath, ctx);
+        String rawCall =
+            rtPrefix(ctx) + "ComparatorThenComparingStr(" + recvCmpGo + ", " + keyFnGo + ")";
+        return callSiteRet.getKind() != TypeKind.VOID
+            ? convert(rawCall, owner.asType(), callSiteRet, false, ctx)
+            : rawCall;
+      }
+    }
     TypeResolver.MethodSig sig = resolver.getInstanceMethodSig(ee);
     ExecutableType execType = resolver.resolveExecutableType(recvType, ee);
     TypeMirror effectiveRecvTm = recvType != null ? recvType : resolveImplicitOwnerSiteType(owner, ctx);
@@ -7944,7 +8020,55 @@ public final class ExprEmitter {
 
   // --- Lambdas & Method References ---
 
+  private boolean isFunctionParameter(VariableElement param) {
+    TypeMirror er = resolver.safeErasure(param.asType());
+    return er instanceof DeclaredType dt
+        && dt.asElement() instanceof TypeElement te
+        && te.getQualifiedName().contentEquals("java.util.function.Function");
+  }
+
+  private boolean canEmitUnboxedStringKeyFunction(TreePath argPath, EmitContext ctx) {
+    if (argPath == null) {
+      return false;
+    }
+    Tree leaf = argPath.getLeaf();
+    if (leaf instanceof LambdaExpressionTree lam) {
+      if (lam.getParameters().size() != 1) {
+        return false;
+      }
+    } else if (!(leaf instanceof MemberReferenceTree)) {
+      return false;
+    }
+    TypeMirror fiTm = typeOf(argPath);
+    TypeMirror erFi = resolver.safeErasure(fiTm);
+    if (!(erFi instanceof DeclaredType fiDt)
+        || !(fiDt.asElement() instanceof TypeElement fiTe)
+        || !fiTe.getQualifiedName().contentEquals("java.util.function.Function")) {
+      return false;
+    }
+    ExecutableElement sam = resolver.findSamMethod(fiTe);
+    if (sam == null || sam.getParameters().size() != 1) {
+      return false;
+    }
+    ExecutableType instSam = resolver.resolveExecutableType(fiTm, sam);
+    TypeMirror samRetTm = instSam.getReturnType();
+    return samRetTm != null && resolver.goType(samRetTm, ctx.imports).equals("string");
+  }
+
+  private String emitUnboxedStringKeyFunction(TreePath argPath, EmitContext ctx) {
+    Tree leaf = argPath.getLeaf();
+    if (leaf instanceof LambdaExpressionTree lam) {
+      return emitLambdaImpl(lam, argPath, true, ctx);
+    }
+    return emitMemberReferenceImpl((MemberReferenceTree) leaf, argPath, true, ctx);
+  }
+
   private String emitLambda(LambdaExpressionTree lam, TreePath path, EmitContext ctx) {
+    return emitLambdaImpl(lam, path, false, ctx);
+  }
+
+  private String emitLambdaImpl(
+      LambdaExpressionTree lam, TreePath path, boolean unboxedStrReturn, EmitContext ctx) {
     TypeMirror fiTm = typeOf(path);
     TypeMirror erFi = resolver.safeErasure(fiTm);
     if (!(erFi instanceof DeclaredType fiDt) || !(fiDt.asElement() instanceof TypeElement fiTe)) {
@@ -7955,9 +8079,8 @@ public final class ExprEmitter {
       return "nil";
     }
     TypeResolver.MethodSig samSig = resolver.getInstanceMethodSig(sam);
-    ExecutableType instSam = resolver.resolveExecutableType(fiTm, sam);
 
-    // Build lambda function signature matching `NewLambda_<FI>`
+    // Build lambda function signature matching `NewLambda_<FI>` (or `func(any) string` when unboxed)
     boolean stateless = isStatelessLambda(lam, path);
     EmitContext lamCtx = ctx.copyForLambda();
     if (!stateless) {
@@ -7967,7 +8090,14 @@ public final class ExprEmitter {
     }
 
     TypeMirror nodePredArgTm =
-        lam.getParameters().size() == 1 ? extractNodePredicateTypeArg(fiTm, fiTe, samSig) : null;
+        (!unboxedStrReturn && lam.getParameters().size() == 1)
+            ? extractNodePredicateTypeArg(fiTm, fiTe, samSig)
+            : null;
+    TypeMirror resolvedSamRet =
+        unboxedStrReturn
+            ? resolver.elements.getTypeElement("java.lang.String").asType()
+            : resolver.resolveSigReturnType(samSig, fiTm);
+    boolean retWidened = !unboxedStrReturn && samSig.returnWidenedToAny;
 
     StringBuilder fnHeader = new StringBuilder("func(");
     StringBuilder unboxPreamble = new StringBuilder();
@@ -8010,16 +8140,17 @@ public final class ExprEmitter {
         }
       }
       fnHeader.append(')');
-      TypeMirror samRetTm = resolver.resolveSigReturnType(samSig, fiTm);
-      String retGo = samRetTm != null ? resolver.goType(samRetTm, ctx.imports) : "";
+      String retGo =
+          unboxedStrReturn
+              ? "string"
+              : (resolvedSamRet != null ? resolver.goType(resolvedSamRet, ctx.imports) : "");
       if (!retGo.isEmpty()) {
         fnHeader.append(' ').append(retGo);
       }
     }
 
-    TypeMirror resolvedSamRet = resolver.resolveSigReturnType(samSig, fiTm);
     lamCtx.expectedReturnType = resolvedSamRet;
-    lamCtx.returnWidenedToAny = samSig.returnWidenedToAny;
+    lamCtx.returnWidenedToAny = retWidened;
 
     StringBuilder body = new StringBuilder();
     body.append(unboxPreamble);
@@ -8030,7 +8161,7 @@ public final class ExprEmitter {
             .append(stmtEmitter.emitExprAsStmt(exprBody, path, lamCtx))
             .append('\n');
       } else {
-        String val = emitAs(exprBody, path, resolvedSamRet, samSig.returnWidenedToAny, lamCtx);
+        String val = emitAs(exprBody, path, resolvedSamRet, retWidened, lamCtx);
         body.append("\treturn ").append(val).append('\n');
       }
     } else {
@@ -8044,13 +8175,21 @@ public final class ExprEmitter {
     ctx.syncTempSeqFrom(lamCtx);
     ctx.deferredLocalTypes.addAll(lamCtx.deferredLocalTypes);
 
-    String ctorPrefix =
-        nodePredArgTm != null ? nodeLambdaCtorPrefix(fiTe, ctx) : lambdaCtorPrefix(fiTe, fiTm, ctx);
-    String lamExpr = ctorPrefix + "(" + fnHeader + " {\n" + body + "})";
+    String rawFnLit = fnHeader + " {\n" + body + "}";
+    String lamExpr;
+    if (unboxedStrReturn) {
+      lamExpr = rawFnLit;
+    } else {
+      String ctorPrefix =
+          nodePredArgTm != null
+              ? nodeLambdaCtorPrefix(fiTe, ctx)
+              : lambdaCtorPrefix(fiTe, fiTm, ctx);
+      lamExpr = ctorPrefix + "(" + rawFnLit + ")";
+    }
     if (stateless
         && !resolver.hasActiveTypeParameters()
         && !containsGoIdent(lamExpr, ctx.receiverName)) {
-      String fiGo = resolver.goType(fiTm, ctx.imports);
+      String fiGo = unboxedStrReturn ? "func(any) string" : resolver.goType(fiTm, ctx.imports);
       return ctx.hoistLambdaSingleton(fiGo, lamExpr);
     }
     return lamExpr;
@@ -8216,6 +8355,16 @@ public final class ExprEmitter {
   }
 
   private String emitMemberReference(MemberReferenceTree mr, TreePath path, EmitContext ctx) {
+    return emitMemberReferenceImpl(mr, path, false, ctx);
+  }
+
+  private static String wrapMemberRefClosure(
+      boolean unboxedStrReturn, String ctorPrefix, String fnLit) {
+    return unboxedStrReturn ? fnLit : (ctorPrefix + "(" + fnLit + ")");
+  }
+
+  private String emitMemberReferenceImpl(
+      MemberReferenceTree mr, TreePath path, boolean unboxedStrReturn, EmitContext ctx) {
     TypeMirror fiTm = typeOf(path);
     TypeMirror erFi = resolver.safeErasure(fiTm);
     if (!(erFi instanceof DeclaredType fiDt) || !(fiDt.asElement() instanceof TypeElement fiTe)) {
@@ -8234,7 +8383,15 @@ public final class ExprEmitter {
 
     int samArity = samSig.canonParamTypes.size();
     TypeMirror nodePredArgTm =
-        samArity == 1 ? extractNodePredicateTypeArg(fiTm, fiTe, samSig) : null;
+        (!unboxedStrReturn && samArity == 1)
+            ? extractNodePredicateTypeArg(fiTm, fiTe, samSig)
+            : null;
+    TypeMirror resolvedMrSamRet =
+        unboxedStrReturn
+            ? resolver.elements.getTypeElement("java.lang.String").asType()
+            : resolver.resolveSigReturnType(samSig, fiTm);
+    boolean retWidened = !unboxedStrReturn && samSig.returnWidenedToAny;
+
     StringBuilder fnSig = new StringBuilder("func(");
     List<String> rawParamNames = new ArrayList<>(samArity);
     List<TypeMirror> rawParamTypes = new ArrayList<>(samArity);
@@ -8253,17 +8410,22 @@ public final class ExprEmitter {
         fnSig.append(pn).append(' ').append(resolver.goType(pTm, ctx.imports));
       }
       fnSig.append(')');
-      TypeMirror mrSamRetTm = resolver.resolveSigReturnType(samSig, fiTm);
-      String retGo = mrSamRetTm != null ? resolver.goType(mrSamRetTm, ctx.imports) : "";
+      String retGo =
+          unboxedStrReturn
+              ? "string"
+              : (resolvedMrSamRet != null ? resolver.goType(resolvedMrSamRet, ctx.imports) : "");
       if (!retGo.isEmpty()) {
         fnSig.append(' ').append(retGo);
       }
     }
 
-    TypeMirror resolvedMrSamRet = resolver.resolveSigReturnType(samSig, fiTm);
     String ctorPrefix =
-        nodePredArgTm != null ? nodeLambdaCtorPrefix(fiTe, ctx) : lambdaCtorPrefix(fiTe, fiTm, ctx);
-    String fiGo = resolver.goType(fiTm, ctx.imports);
+        unboxedStrReturn
+            ? ""
+            : (nodePredArgTm != null
+                ? nodeLambdaCtorPrefix(fiTe, ctx)
+                : lambdaCtorPrefix(fiTe, fiTm, ctx));
+    String fiGo = unboxedStrReturn ? "func(any) string" : resolver.goType(fiTm, ctx.imports);
 
     // Case 1: Array constructor ref `T[]::new`
     if (mr.getMode() == MemberReferenceTree.ReferenceMode.NEW
@@ -8282,9 +8444,9 @@ public final class ExprEmitter {
           resolver.isStringType(at.getComponentType())
               ? (rtPrefix(ctx) + "NewStringArray(" + sz + ")")
               : ("make(" + sliceGo + ", " + sz + ")");
-      String convRet =
-          convert(alloc, at, resolvedMrSamRet, samSig.returnWidenedToAny, ctx);
-      String mrArrExpr = ctorPrefix + "(" + fnSig + " { return " + convRet + " })";
+      String convRet = convert(alloc, at, resolvedMrSamRet, retWidened, ctx);
+      String mrArrExpr =
+          wrapMemberRefClosure(unboxedStrReturn, ctorPrefix, fnSig + " { return " + convRet + " }");
       return !resolver.hasActiveTypeParameters()
           ? ctx.hoistLambdaSingleton(fiGo, mrArrExpr)
           : mrArrExpr;
@@ -8293,7 +8455,8 @@ public final class ExprEmitter {
     if (!(refEl instanceof ExecutableElement targetEe)) {
       String z =
           resolvedMrSamRet != null ? resolver.zeroValue(resolvedMrSamRet, ctx.imports) : "";
-      return ctorPrefix + "(" + fnSig + " { " + (z.isEmpty() ? "" : ("return " + z)) + " })";
+      return wrapMemberRefClosure(
+          unboxedStrReturn, ctorPrefix, fnSig + " { " + (z.isEmpty() ? "" : ("return " + z)) + " }");
     }
 
     TypeElement targetOwner = (TypeElement) targetEe.getEnclosingElement();
@@ -8360,10 +8523,11 @@ public final class ExprEmitter {
                       call,
                       mrConstructedTm,
                       resolvedMrSamRet,
-                      samSig.returnWidenedToAny,
+                      retWidened,
                       ctx))
               : ("_ = " + call);
-      String mrExpr = ctorPrefix + "(" + fnSig + " { " + retStmt + " })";
+      String mrExpr =
+          wrapMemberRefClosure(unboxedStrReturn, ctorPrefix, fnSig + " { " + retStmt + " }");
       if (!hasOuter && !hasCaptured && !resolver.hasActiveTypeParameters()) {
         return ctx.hoistLambdaSingleton(fiGo, mrExpr);
       }
@@ -8399,10 +8563,11 @@ public final class ExprEmitter {
                       call,
                       resolver.goEffectiveType(staticRetTm),
                       resolvedMrSamRet,
-                      samSig.returnWidenedToAny,
+                      retWidened,
                       ctx))
               : call;
-      String mrExpr = ctorPrefix + "(" + fnSig + " { " + retStmt + " })";
+      String mrExpr =
+          wrapMemberRefClosure(unboxedStrReturn, ctorPrefix, fnSig + " { " + retStmt + " }");
       if (qualEl instanceof TypeElement && !resolver.hasActiveTypeParameters()) {
         return ctx.hoistLambdaSingleton(fiGo, mrExpr);
       }
@@ -8433,9 +8598,10 @@ public final class ExprEmitter {
       String retStmt =
           resolvedMrSamRet != null
               ? ("return "
-                  + convert(call, callRetTm, resolvedMrSamRet, samSig.returnWidenedToAny, ctx))
+                  + convert(call, callRetTm, resolvedMrSamRet, retWidened, ctx))
               : call;
-      String mrExpr = ctorPrefix + "(" + fnSig + " { " + retStmt + " })";
+      String mrExpr =
+          wrapMemberRefClosure(unboxedStrReturn, ctorPrefix, fnSig + " { " + retStmt + " }");
       return !resolver.hasActiveTypeParameters()
           ? ctx.hoistLambdaSingleton(fiGo, mrExpr)
           : mrExpr;
@@ -8455,7 +8621,7 @@ public final class ExprEmitter {
     String retStmt =
         resolvedMrSamRet != null
             ? ("return "
-                + convert(call, callRetTm, resolvedMrSamRet, samSig.returnWidenedToAny, ctx))
+                + convert(call, callRetTm, resolvedMrSamRet, retWidened, ctx))
             : call;
     return "func() "
         + fiGo
@@ -8464,12 +8630,8 @@ public final class ExprEmitter {
         + " := "
         + qualGo
         + "; return "
-        + ctorPrefix
-        + "("
-        + fnSig
-        + " { "
-        + retStmt
-        + " }) }()";
+        + wrapMemberRefClosure(unboxedStrReturn, ctorPrefix, fnSig + " { " + retStmt + " }")
+        + " }()";
   }
 
   private String emitMrObjectsEquals(

@@ -1931,3 +1931,133 @@ func TestWave37COptimizationJsdocPoolingPinningAndDirectWirePutTo(t *testing.T) 
 	}
 	wg.Wait()
 }
+
+func TestWave40CEagerBottomUpAstSizeAndBatchedRecycle(t *testing.T) {
+	// 1. Build a >1,200-node SOURCE_FILE tree (multiple 256-bundle batches) setting fields
+	// both before AND after AddChild (matching TypedAstSerializer's setOriginalName order),
+	// and verify exact wire-byte identity + steady-state zero-bundle-alloc reuse via astBuilderReadyBatches.
+	buildLargeTree := func(seed int32) protobuf.ByteString {
+		root := protobuf.AstNode_NewBuilder().
+			SetKind(protobuf.NodeKind_SOURCE_FILE).
+			SetSourceFile(1).
+			SetBooleanProperties(0x55AA)
+		for fn := int32(0); fn < 30; fn++ {
+			jBuilt := protobuf.OptimizationJsdoc_NewBuilder().
+				AddKind(protobuf.JsdocTag_JSDOC_NO_INLINE).
+				SetDescriptionPointer(seed + fn).
+				Build()
+			blk := protobuf.AstNode_NewBuilder().
+				SetKind(protobuf.NodeKind_BLOCK).
+				SetRelativeLine(fn + 1).
+				SetRelativeColumn(-fn).
+				SetJsdoc(jBuilt)
+			for i := int32(0); i < 10; i++ {
+				call := protobuf.AstNode_NewBuilder().
+					SetKind(protobuf.NodeKind_CALL).
+					SetType(seed + i)
+				for a := int32(0); a < 3; a++ {
+					var leaf *protobuf.AstNode
+					switch (i + a) % 4 {
+					case 0:
+						leaf = protobuf.AstNode_NewBuilder().
+							SetKind(protobuf.NodeKind_IDENTIFIER).
+							SetStringValuePointer(0). // explicit 0 oneof value
+							Build()
+					case 1:
+						leaf = protobuf.AstNode_NewBuilder().
+							SetKind(protobuf.NodeKind_NUMBER_LITERAL).
+							SetDoubleValue(float64(seed+fn+a) * 0.5).
+							Build()
+					case 2:
+						tv := protobuf.TemplateStringValue_NewBuilder().
+							SetRawStringPointer(seed + a + 1).
+							SetCookedStringPointer(-1).
+							Build()
+						leaf = protobuf.AstNode_NewBuilder().
+							SetKind(protobuf.NodeKind_TEMPLATELIT_STRING).
+							SetTemplateStringValue(tv).
+							Build()
+					default:
+						leaf = protobuf.AstNode_NewBuilder().
+							SetKind(protobuf.NodeKind_UNRECOGNIZED).
+							Build()
+					}
+					call.AddChild(leaf)
+				}
+				// Set OriginalNamePointer AFTER AddChild and BEFORE Build(), matching TypedAstSerializer!
+				call.SetOriginalNamePointer(seed + fn*10 + i + 1)
+				blk.AddChild(call.Build())
+			}
+			root.AddChild(blk.Build())
+		}
+		return root.Build().ToByteString()
+	}
+
+	ref := buildLargeTree(10)
+	parsed, err := protobuf.AstNode_ParseFrom(ref.BytesView())
+	if err != nil {
+		t.Fatalf("AstNode_ParseFrom failed: %v", err)
+	}
+	if !bytes.Equal(parsed.ToByteArray(), ref.BytesView()) {
+		t.Fatal("eager bottom-up AstNode wire bytes differed from slab putRecTo")
+	}
+	parsed.ReleaseSlab()
+
+	// Warm up ready batches and verify <= 1 alloc/op across >1,200 nodes!
+	for i := 0; i < 8; i++ {
+		_ = buildLargeTree(int32(20 + i))
+	}
+	if allocs := testing.AllocsPerRun(30, func() {
+		got := buildLargeTree(10)
+		if !bytes.Equal(got.BytesView(), ref.BytesView()) {
+			t.Fatal("recycled large tree wire mismatch")
+		}
+	}); allocs > 1 {
+		t.Fatalf("expected <= 1 allocs/op for >1,200-node recycled AST, got %.2f", allocs)
+	}
+
+	// 2. Fallback parity: unbuilt child & unbuilt OptimizationJsdoc mutated AFTER AddChild / Build()
+	// must NOT use stale eager cachedSize!
+	unbuiltChild := protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_IDENTIFIER)
+	unbuiltJsdoc := protobuf.OptimizationJsdoc_NewBuilder().AddKind(protobuf.JsdocTag_JSDOC_CONST)
+	parentFallback := protobuf.AstNode_NewBuilder().
+		SetKind(protobuf.NodeKind_BLOCK).
+		SetJsdoc(unbuiltJsdoc).
+		AddChild(unbuiltChild).
+		Build()
+	// Mutate both unbuiltChild and unbuiltJsdoc AFTER parentFallback.Build()!
+	unbuiltChild.SetStringValuePointer(123456).Build()
+	unbuiltJsdoc.SetMeaningPointer(654321).Build()
+
+	fbWire := parentFallback.ToByteArray()
+	fbParsed, err := protobuf.AstNode_ParseFrom(fbWire)
+	if err != nil {
+		t.Fatalf("fallback AstNode_ParseFrom failed: %v", err)
+	}
+	if fbParsed.GetChildCount() != 1 || fbParsed.GetChild(0).GetStringValuePointer() != 123456 {
+		t.Fatalf("unbuilt child post-AddChild mutation lost: got %d", fbParsed.GetChild(0).GetStringValuePointer())
+	}
+	if fbParsed.GetJsdoc().GetMeaningPointer() != 654321 {
+		t.Fatalf("unbuilt jsdoc post-Build mutation lost: got %d", fbParsed.GetJsdoc().GetMeaningPointer())
+	}
+	fbParsed.ReleaseSlab()
+
+	// 3. Multi-goroutine -race stress across >1,200-node trees exercising astBuilderReadyBatches handoff.
+	var wg sync.WaitGroup
+	for g := 0; g < 8; g++ {
+		g := int32(g)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			want := buildLargeTree(500 + g)
+			for iter := 0; iter < 15; iter++ {
+				got := buildLargeTree(500 + g)
+				if !bytes.Equal(got.BytesView(), want.BytesView()) {
+					t.Errorf("goroutine %d iter %d wire mismatch", g, iter)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}

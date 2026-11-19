@@ -178,7 +178,7 @@ func (this_ *RhinoStringPool_LazyInternedStringList) internIDSlow_(offset int32)
 	if s == j2gort.NullString {
 		return 0
 	}
-	id := nodestore.Intern(s)
+	id := nodestore.InternOwned(s)
 	if int(offset) < len(this_.ids_) {
 		atomic.StoreUint32(&this_.ids_[offset], uint32(id))
 	}

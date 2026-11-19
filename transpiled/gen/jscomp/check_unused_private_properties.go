@@ -117,11 +117,11 @@ func (this_ *CheckUnusedPrivateProperties) Process_2(externs pkg_rhino.Node, roo
 }
 
 // Java method: CheckUnusedPrivateProperties.reportUnused(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_reportUnused_6593(t *NodeTraversal) {
+func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_reportUnused_6591(t *NodeTraversal) {
 	_ = t
 	for _, n := range this_.candidates {
 		_ = n
-		var propName string = this_.priv_CheckUnusedPrivateProperties_getPropName_6594(n)
+		var propName string = this_.priv_CheckUnusedPrivateProperties_getPropName_6592(n)
 		_ = propName
 		if !(this_.used.Contains(propName)) {
 			t.Report_3(n, StaticGet_CheckUnusedPrivateProperties_UNUSED_PRIVATE_PROPERTY(), []string{propName})
@@ -131,7 +131,7 @@ func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_rep
 }
 
 // Java method: CheckUnusedPrivateProperties.getPropName(com.google.javascript.rhino.Node n)
-func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_getPropName_6594(n pkg_rhino.Node) string {
+func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_getPropName_6592(n pkg_rhino.Node) string {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(26) /* Token.GETPROP */, int32(107) /* Token.MEMBER_FUNCTION_DEF */ :
@@ -161,19 +161,19 @@ func (this_ *CheckUnusedPrivateProperties) Visit_3(t *NodeTraversal, n pkg_rhino
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(94) /* Token.SCRIPT */ :
-		this_.priv_CheckUnusedPrivateProperties_reportUnused_6593(t)
+		this_.priv_CheckUnusedPrivateProperties_reportUnused_6591(t)
 	case int32(26) /* Token.GETPROP */ :
 		var propName string = n.GetString()
 		_ = propName
-		if CheckUnusedPrivateProperties_IsPinningPropertyUse(n) || !(this_.priv_CheckUnusedPrivateProperties_isCandidatePropertyDefinition_6598(n)) {
+		if CheckUnusedPrivateProperties_IsPinningPropertyUse(n) || !(this_.priv_CheckUnusedPrivateProperties_isCandidatePropertyDefinition_6596(n)) {
 			this_.used.Add(propName)
 		} else {
-			if this_.priv_CheckUnusedPrivateProperties_isCheckablePrivatePropDecl_6597(n) {
+			if this_.priv_CheckUnusedPrivateProperties_isCheckablePrivatePropDecl_6595(n) {
 				this_.candidates = append(this_.candidates, n)
 			}
 		}
 	case int32(107) /* Token.MEMBER_FUNCTION_DEF */ :
-		if this_.priv_CheckUnusedPrivateProperties_isCheckablePrivatePropDecl_6597(n) {
+		if this_.priv_CheckUnusedPrivateProperties_isCheckablePrivatePropDecl_6595(n) {
 			this_.candidates = append(this_.candidates, n)
 		}
 	case int32(47) /* Token.OBJECTLIT */ :
@@ -200,16 +200,16 @@ func (this_ *CheckUnusedPrivateProperties) Visit_3(t *NodeTraversal, n pkg_rhino
 		var info *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(n)
 		_ = info
 		if (info != nil) && (info.IsConstructor() || info.IsInterface()) {
-			this_.priv_CheckUnusedPrivateProperties_recordConstructorOrInterface_6595(n)
+			this_.priv_CheckUnusedPrivateProperties_recordConstructorOrInterface_6593(n)
 		}
 	case int32(105) /* Token.CLASS */ :
-		this_.priv_CheckUnusedPrivateProperties_recordConstructorOrInterface_6595(n)
+		this_.priv_CheckUnusedPrivateProperties_recordConstructorOrInterface_6593(n)
 	default:
 	}
 }
 
 // Java method: CheckUnusedPrivateProperties.recordConstructorOrInterface(com.google.javascript.rhino.Node n)
-func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_recordConstructorOrInterface_6595(n pkg_rhino.Node) {
+func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_recordConstructorOrInterface_6593(n pkg_rhino.Node) {
 	_ = n
 	var className string = NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n))
 	_ = className
@@ -219,7 +219,7 @@ func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_rec
 }
 
 // Java method: CheckUnusedPrivateProperties.isPrivatePropDecl(com.google.javascript.rhino.Node n)
-func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_isPrivatePropDecl_6596(n pkg_rhino.Node) bool {
+func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_isPrivatePropDecl_6594(n pkg_rhino.Node) bool {
 	_ = n
 	var info *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(n)
 	_ = info
@@ -227,15 +227,15 @@ func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_isP
 }
 
 // Java method: CheckUnusedPrivateProperties.isCheckablePrivatePropDecl(com.google.javascript.rhino.Node n)
-func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_isCheckablePrivatePropDecl_6597(n pkg_rhino.Node) bool {
+func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_isCheckablePrivatePropDecl_6595(n pkg_rhino.Node) bool {
 	_ = n
 	var info *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(n)
 	_ = info
-	return ((this_.priv_CheckUnusedPrivateProperties_isPrivatePropDecl_6596(n) && !(info.HasTypedefType())) && !(info.IsInterface()))
+	return ((this_.priv_CheckUnusedPrivateProperties_isPrivatePropDecl_6594(n) && !(info.HasTypedefType())) && !(info.IsInterface()))
 }
 
 // Java method: CheckUnusedPrivateProperties.isCandidatePropertyDefinition(com.google.javascript.rhino.Node n)
-func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_isCandidatePropertyDefinition_6598(n pkg_rhino.Node) bool {
+func (this_ *CheckUnusedPrivateProperties) priv_CheckUnusedPrivateProperties_isCandidatePropertyDefinition_6596(n pkg_rhino.Node) bool {
 	_ = n
 	if !(n.IsGetProp()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))

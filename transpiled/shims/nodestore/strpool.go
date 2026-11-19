@@ -455,6 +455,27 @@ func Intern(str string) StringID {
 	return s.internSlow(shardIdx, hash32, str, false)
 }
 
+// InternOwned interns an already-owned heap string str in the process-wide pool
+// without calling strings.Clone on unsealed chunk misses, returning its 32-bit handle.
+// Callers must ensure str does not slice into a larger backing buffer.
+func InternOwned(str string) StringID {
+	if len(str) == 0 {
+		return EmptyStringID
+	}
+	h := poolHash(str)
+	shardIdx := uint32(h) & (strpoolNumShards - 1)
+	hash32 := uint32(h >> 32)
+	s := &poolShards[shardIdx]
+
+	s.mu.RLock()
+	if localIdx, ok := poolProbeLocked(s, shardIdx, hash32, str); ok {
+		s.mu.RUnlock()
+		return makeStringID(localIdx, shardIdx)
+	}
+	s.mu.RUnlock()
+	return s.internSlow(shardIdx, hash32, str, true)
+}
+
 // String returns the string value for id, or "" if id is 0 or 1.
 func String(id StringID) string {
 	c := poolChunks[uint16(id>>strpoolChunkShift)].Load()

@@ -228,17 +228,17 @@ func (this_ *QualifiedNameBase) GetRoot() string {
 func (this_ *QualifiedNameBase) Components() j2gort.Ext_java_lang_Iterable {
 	var components *j2gort.Ext_com_google_common_collect_ImmutableList_Builder = (&j2gort.Ext_com_google_common_collect_ImmutableList_Builder{})
 	_ = components
-	this_.priv_QualifiedName_buildComponents_8785(components)
+	this_.priv_QualifiedName_buildComponents_8783(components)
 	return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](components.BuildImmList_())
 }
 
 // Java method: QualifiedName.buildComponents(com.google.common.collect.ImmutableList.Builder<java.lang.String> builder)
-func (this_ *QualifiedNameBase) priv_QualifiedName_buildComponents_8785(builder *j2gort.Ext_com_google_common_collect_ImmutableList_Builder) {
+func (this_ *QualifiedNameBase) priv_QualifiedName_buildComponents_8783(builder *j2gort.Ext_com_google_common_collect_ImmutableList_Builder) {
 	_ = builder
 	var owner QualifiedName = this_.self_.GetOwner()
 	_ = owner
 	if owner != nil && !owner.IsJavaNil_() {
-		owner.GetQualifiedNameBase().priv_QualifiedName_buildComponents_8785(builder)
+		owner.GetQualifiedNameBase().priv_QualifiedName_buildComponents_8783(builder)
 	}
 	builder.AddStrVoid_(this_.self_.GetComponent())
 }

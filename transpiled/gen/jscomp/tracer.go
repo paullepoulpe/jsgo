@@ -925,7 +925,7 @@ func (this_ *Tracer_ThreadTrace) TruncateEvents() {
 
 // Java method: ThreadTrace.toString()
 func (this_ *Tracer_ThreadTrace) String() string {
-	var numDigits int32 = this_.priv_ThreadTrace_getMaxDigits_5364()
+	var numDigits int32 = this_.priv_ThreadTrace_getMaxDigits_5362()
 	_ = numDigits
 	var sb *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 	_ = sb
@@ -996,7 +996,7 @@ func (this_ *Tracer_ThreadTrace) String() string {
 }
 
 // Java method: ThreadTrace.getMaxDigits()
-func (this_ *Tracer_ThreadTrace) priv_ThreadTrace_getMaxDigits_5364() int32 {
+func (this_ *Tracer_ThreadTrace) priv_ThreadTrace_getMaxDigits_5362() int32 {
 	var etime int64 = int64(int32(-1))
 	_ = etime
 	var maxTime int64 = int64(int32(0))

@@ -70,7 +70,7 @@ func InitStatementFusion(this_ *StatementFusion) {
 // Java method: StatementFusion.optimizeSubtree(com.google.javascript.rhino.Node n)
 func (this_ *StatementFusion) OptimizeSubtree(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
-	if n.GetParent().IsFunction() || !(this_.priv_StatementFusion_canFuseIntoOneStatement_5162(n)) {
+	if n.GetParent().IsFunction() || !(this_.priv_StatementFusion_canFuseIntoOneStatement_5160(n)) {
 		return n
 	}
 	var start pkg_rhino.Node = n.GetFirstChild()
@@ -85,7 +85,7 @@ func (this_ *StatementFusion) OptimizeSubtree(n pkg_rhino.Node) pkg_rhino.Node {
 }
 
 // Java method: StatementFusion.canFuseIntoOneStatement(com.google.javascript.rhino.Node block)
-func (this_ *StatementFusion) priv_StatementFusion_canFuseIntoOneStatement_5162(block pkg_rhino.Node) bool {
+func (this_ *StatementFusion) priv_StatementFusion_canFuseIntoOneStatement_5160(block pkg_rhino.Node) bool {
 	_ = block
 	if !(block.IsBlock()) {
 		return false
@@ -104,11 +104,11 @@ func (this_ *StatementFusion) priv_StatementFusion_canFuseIntoOneStatement_5162(
 			}
 		}
 	}
-	return this_.priv_StatementFusion_isFusableControlStatement_5163(last)
+	return this_.priv_StatementFusion_isFusableControlStatement_5161(last)
 }
 
 // Java method: StatementFusion.isFusableControlStatement(com.google.javascript.rhino.Node n)
-func (this_ *StatementFusion) priv_StatementFusion_isFusableControlStatement_5163(n pkg_rhino.Node) bool {
+func (this_ *StatementFusion) priv_StatementFusion_isFusableControlStatement_5161(n pkg_rhino.Node) bool {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(74) /* Token.IF */, int32(43) /* Token.THROW */, int32(75) /* Token.SWITCH */, int32(93) /* Token.EXPR_RESULT */ :
@@ -120,9 +120,9 @@ func (this_ *StatementFusion) priv_StatementFusion_isFusableControlStatement_516
 	case int32(81) /* Token.FOR_IN */ :
 		return !(this_.MayHaveSideEffects(n.GetFirstChild()))
 	case int32(92) /* Token.LABEL */ :
-		return this_.priv_StatementFusion_isFusableControlStatement_5163(n.GetLastChild())
+		return this_.priv_StatementFusion_isFusableControlStatement_5161(n.GetLastChild())
 	case int32(90) /* Token.BLOCK */ :
-		return (((this_.IsASTNormalized() || NodeUtil_CanMergeBlock(n)) && !(n.IsSyntheticBlock())) && this_.priv_StatementFusion_isFusableControlStatement_5163(n.GetFirstChild()))
+		return (((this_.IsASTNormalized() || NodeUtil_CanMergeBlock(n)) && !(n.IsSyntheticBlock())) && this_.priv_StatementFusion_isFusableControlStatement_5161(n.GetFirstChild()))
 	default:
 	}
 	return false

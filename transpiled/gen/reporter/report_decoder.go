@@ -26,19 +26,19 @@ import (
 )
 
 var lambdaSingleton_report_decoder_1 j2gort.Ext_java_util_function_Function
-var lambdaSingleton_report_decoder_2 j2gort.Ext_java_util_function_Function
+var lambdaSingleton_report_decoder_2 func(any) string
 var lambdaSingleton_report_decoder_3 j2gort.Ext_java_util_function_Function
 var lambdaSingleton_report_decoder_4 j2gort.Ext_java_util_function_Function
 var lambdaSingleton_report_decoder_5 j2gort.Ext_java_util_function_ToIntFunction
-var lambdaSingleton_report_decoder_6 j2gort.Ext_java_util_function_Function
+var lambdaSingleton_report_decoder_6 func(any) string
 
 func init() {
 	lambdaSingleton_report_decoder_1 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
 		return j2gort.PtrToAny(j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPoint_Type_ValueOf_1_string(j2gort.CastString(mrp0_)))
 	})
-	lambdaSingleton_report_decoder_2 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
-		return j2gort.BoxString(j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_FileProfile](mrp0_).GetFileName())
-	})
+	lambdaSingleton_report_decoder_2 = func(mrp0_ any) string {
+		return j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_FileProfile](mrp0_).GetFileName()
+	}
 	lambdaSingleton_report_decoder_3 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_14 any) any {
 		entry := j2gort.AsIface[j2gort.Ext_java_util_Map_Entry](lp_14)
 		_ = entry
@@ -54,11 +54,11 @@ func init() {
 		_ = pointStats
 		return pointStats.GetPoint().GetLineNumber()
 	})
-	lambdaSingleton_report_decoder_6 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_17 any) any {
+	lambdaSingleton_report_decoder_6 = func(lp_17 any) string {
 		pointStats := j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPointStats](lp_17)
 		_ = pointStats
-		return j2gort.BoxString(pointStats.GetPoint().GetFileName())
-	})
+		return pointStats.GetPoint().GetFileName()
+	}
 }
 
 // Java class: com.google.javascript.jscomp.instrumentation.reporter.ReportDecoder
@@ -281,7 +281,7 @@ func ReportDecoder_MergeProfiles(profiles j2gort.Ext_java_util_List) *j2gort.Ext
 // Java static method: ReportDecoder.createReportProfile(java.util.stream.Stream<com.google.javascript.jscomp.instrumentation.reporter.proto.InstrumentationPointStats> instrumentationPoints)
 func ReportDecoder_CreateReportProfile(instrumentationPoints j2gort.Ext_java_util_stream_Stream) *j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_ReportProfile {
 	_ = instrumentationPoints
-	var fileProfiles j2gort.Ext_java_util_List = j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.AsIface[j2gort.Ext_java_util_Map](instrumentationPoints.Sorted_1(j2gort.Ext_java_util_Comparator_Comparing_1(lambdaSingleton_report_decoder_6).ThenComparingInt(lambdaSingleton_report_decoder_5)).Collect_1(j2gort.Ext_java_util_stream_Collectors_GroupingBy_1(lambdaSingleton_report_decoder_4))).EntrySet()).Stream().Map(lambdaSingleton_report_decoder_3).Sorted_1(j2gort.Ext_java_util_Comparator_Comparing_1(lambdaSingleton_report_decoder_2)).Collect_1(j2gort.Ext_java_util_stream_Collectors_ToList()))
+	var fileProfiles j2gort.Ext_java_util_List = j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.AsIface[j2gort.Ext_java_util_Map](instrumentationPoints.Sorted_1(j2gort.ComparatorComparingStr(lambdaSingleton_report_decoder_6).ThenComparingInt(lambdaSingleton_report_decoder_5)).Collect_1(j2gort.Ext_java_util_stream_Collectors_GroupingBy_1(lambdaSingleton_report_decoder_4))).EntrySet()).Stream().Map(lambdaSingleton_report_decoder_3).Sorted_1(j2gort.ComparatorComparingStr(lambdaSingleton_report_decoder_2)).Collect_1(j2gort.Ext_java_util_stream_Collectors_ToList()))
 	_ = fileProfiles
 	return j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_ReportProfile](j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_ReportProfile_NewBuilder_0().AddAllFileProfile(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](fileProfiles)).Build())
 }

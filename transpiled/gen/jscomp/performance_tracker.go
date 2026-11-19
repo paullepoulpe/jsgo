@@ -228,7 +228,7 @@ func (this_ *PerformanceTracker) UpdateAfterDeserialize(jsRoot pkg_rhino.Node) {
 func (this_ *PerformanceTracker) RecordPassStop(passName string, runtime int64) {
 	_ = passName
 	_ = runtime
-	var allocMem int32 = this_.priv_PerformanceTracker_getAllocatedMegabytes_4310()
+	var allocMem int32 = this_.priv_PerformanceTracker_getAllocatedMegabytes_4308()
 	_ = allocMem
 	var logStats *PerformanceTracker_Stats = this_.currentPass.Pop()
 	_ = logStats
@@ -272,20 +272,20 @@ func (this_ *PerformanceTracker) RecordPassStop(passName string, runtime int64) 
 			iifeCond_1 = j2gort.CheckNotNullString(sr_10) == se_11
 		}
 		if iifeCond_1 {
-			this_.priv_PerformanceTracker_recordParsingStop_4306(logStats)
+			this_.priv_PerformanceTracker_recordParsingStop_4304(logStats)
 		} else if this_.codeChange.HasCodeChanged() && this_.TracksAstSize() {
-			this_.priv_PerformanceTracker_recordOtherPassStop_4307(logStats)
+			this_.priv_PerformanceTracker_recordOtherPassStop_4305(logStats)
 		}
 	}
 }
 
 // Java method: PerformanceTracker.recordParsingStop(com.google.javascript.jscomp.PerformanceTracker.Stats logStats)
-func (this_ *PerformanceTracker) priv_PerformanceTracker_recordParsingStop_4306(logStats *PerformanceTracker_Stats) {
+func (this_ *PerformanceTracker) priv_PerformanceTracker_recordParsingStop_4304(logStats *PerformanceTracker_Stats) {
 	_ = logStats
 	if this_.TracksAstManifest() {
-		this_.priv_PerformanceTracker_populateAstManifest_4326()
+		this_.priv_PerformanceTracker_populateAstManifest_4324()
 	}
-	this_.priv_PerformanceTracker_recordInputCount_4308()
+	this_.priv_PerformanceTracker_recordInputCount_4306()
 	if !(this_.TracksAstSize()) {
 		return
 	}
@@ -331,7 +331,7 @@ func (this_ *PerformanceTracker) priv_PerformanceTracker_recordParsingStop_4306(
 }
 
 // Java method: PerformanceTracker.recordOtherPassStop(com.google.javascript.jscomp.PerformanceTracker.Stats logStats)
-func (this_ *PerformanceTracker) priv_PerformanceTracker_recordOtherPassStop_4307(logStats *PerformanceTracker_Stats) {
+func (this_ *PerformanceTracker) priv_PerformanceTracker_recordOtherPassStop_4305(logStats *PerformanceTracker_Stats) {
 	_ = logStats
 	var newSize int32 = NodeUtil_CountAstSize(this_.jsRoot)
 	_ = newSize
@@ -383,7 +383,7 @@ func (this_ *PerformanceTracker) priv_PerformanceTracker_recordOtherPassStop_430
 }
 
 // Java method: PerformanceTracker.recordInputCount()
-func (this_ *PerformanceTracker) priv_PerformanceTracker_recordInputCount_4308() {
+func (this_ *PerformanceTracker) priv_PerformanceTracker_recordInputCount_4306() {
 	{
 		var n pkg_rhino.Node = this_.externsRoot.GetFirstChild()
 		_ = n
@@ -408,14 +408,14 @@ func (this_ *PerformanceTracker) priv_PerformanceTracker_recordInputCount_4308()
 }
 
 // Java method: PerformanceTracker.bytesToMB(long bytes)
-func (this_ *PerformanceTracker) priv_PerformanceTracker_bytesToMB_4309(bytes int64) int32 {
+func (this_ *PerformanceTracker) priv_PerformanceTracker_bytesToMB_4307(bytes int64) int32 {
 	_ = bytes
 	return int32((bytes / int64((int32(1024) * int32(1024)))))
 }
 
 // Java method: PerformanceTracker.getAllocatedMegabytes()
-func (this_ *PerformanceTracker) priv_PerformanceTracker_getAllocatedMegabytes_4310() int32 {
-	return this_.priv_PerformanceTracker_bytesToMB_4309((Platform_TotalMemory() - Platform_FreeMemory()))
+func (this_ *PerformanceTracker) priv_PerformanceTracker_getAllocatedMegabytes_4308() int32 {
+	return this_.priv_PerformanceTracker_bytesToMB_4307((Platform_TotalMemory() - Platform_FreeMemory()))
 }
 
 // Java method: PerformanceTracker.tracksSize()
@@ -440,65 +440,65 @@ func (this_ *PerformanceTracker) TracksAstManifest() bool {
 
 // Java method: PerformanceTracker.getRuntime()
 func (this_ *PerformanceTracker) GetRuntime() int32 {
-	this_.priv_PerformanceTracker_calcTotalStats_4324()
+	this_.priv_PerformanceTracker_calcTotalStats_4322()
 	return this_.passesRuntime
 }
 
 // Java method: PerformanceTracker.getSize()
 func (this_ *PerformanceTracker) GetSize() int32 {
-	this_.priv_PerformanceTracker_calcTotalStats_4324()
+	this_.priv_PerformanceTracker_calcTotalStats_4322()
 	return this_.codeSize
 }
 
 // Java method: PerformanceTracker.getGzSize()
 func (this_ *PerformanceTracker) GetGzSize() int32 {
-	this_.priv_PerformanceTracker_calcTotalStats_4324()
+	this_.priv_PerformanceTracker_calcTotalStats_4322()
 	return this_.gzCodeSize
 }
 
 // Java method: PerformanceTracker.getAstSize()
 func (this_ *PerformanceTracker) GetAstSize() int32 {
-	this_.priv_PerformanceTracker_calcTotalStats_4324()
+	this_.priv_PerformanceTracker_calcTotalStats_4322()
 	return this_.astSize
 }
 
 // Java method: PerformanceTracker.getChanges()
 func (this_ *PerformanceTracker) GetChanges() int32 {
-	this_.priv_PerformanceTracker_calcTotalStats_4324()
+	this_.priv_PerformanceTracker_calcTotalStats_4322()
 	return this_.changes
 }
 
 // Java method: PerformanceTracker.getLoopChanges()
 func (this_ *PerformanceTracker) GetLoopChanges() int32 {
-	this_.priv_PerformanceTracker_calcTotalStats_4324()
+	this_.priv_PerformanceTracker_calcTotalStats_4322()
 	return this_.loopChanges
 }
 
 // Java method: PerformanceTracker.getRuns()
 func (this_ *PerformanceTracker) GetRuns() int32 {
-	this_.priv_PerformanceTracker_calcTotalStats_4324()
+	this_.priv_PerformanceTracker_calcTotalStats_4322()
 	return this_.runs
 }
 
 // Java method: PerformanceTracker.getLoopRuns()
 func (this_ *PerformanceTracker) GetLoopRuns() int32 {
-	this_.priv_PerformanceTracker_calcTotalStats_4324()
+	this_.priv_PerformanceTracker_calcTotalStats_4322()
 	return this_.loopRuns
 }
 
 // Java method: PerformanceTracker.getStats()
 func (this_ *PerformanceTracker) GetStats() j2gort.Ext_com_google_common_collect_ImmutableMap {
-	this_.priv_PerformanceTracker_calcTotalStats_4324()
+	this_.priv_PerformanceTracker_calcTotalStats_4322()
 	return this_.passSummary
 }
 
 // Java method: PerformanceTracker.calcTotalStats()
-func (this_ *PerformanceTracker) priv_PerformanceTracker_calcTotalStats_4324() {
+func (this_ *PerformanceTracker) priv_PerformanceTracker_calcTotalStats_4322() {
 	if this_.passSummary != nil {
 		return
 	}
 	this_.endTime = javalang.System_CurrentTimeMillis()
-	this_.priv_PerformanceTracker_populatePassSummary_4325()
+	this_.priv_PerformanceTracker_populatePassSummary_4323()
 	{
 		cur_30 := j2gort.NewMapValCursor(this_.passSummary)
 		for cur_30.HasNext() {
@@ -530,7 +530,7 @@ func (this_ *PerformanceTracker) priv_PerformanceTracker_calcTotalStats_4324() {
 }
 
 // Java method: PerformanceTracker.populatePassSummary()
-func (this_ *PerformanceTracker) priv_PerformanceTracker_populatePassSummary_4325() {
+func (this_ *PerformanceTracker) priv_PerformanceTracker_populatePassSummary_4323() {
 	var tmpPassSummary j2gort.OrderedMap[string, *PerformanceTracker_Stats] = j2gort.NewOrderedMap[string, *PerformanceTracker_Stats]()
 	_ = tmpPassSummary
 	for _, logStat := range this_.log {
@@ -565,7 +565,7 @@ func (this_ *PerformanceTracker) priv_PerformanceTracker_populatePassSummary_432
 }
 
 // Java method: PerformanceTracker.populateAstManifest()
-func (this_ *PerformanceTracker) priv_PerformanceTracker_populateAstManifest_4326() {
+func (this_ *PerformanceTracker) priv_PerformanceTracker_populateAstManifest_4324() {
 	if this_.astManifest != nil {
 		return
 	}
@@ -649,7 +649,7 @@ func (this_ *PerformanceTracker) SetAmbiguatePropertiesSummary(summary string) {
 func (this_ *PerformanceTracker) OutputTracerReport(output *j2gort.Ext_java_io_PrintStream) {
 	_ = output
 	JvmMetrics_MaybeWriteJvmMetrics(output, "verbose:pretty:all")
-	this_.priv_PerformanceTracker_calcTotalStats_4324()
+	this_.priv_PerformanceTracker_calcTotalStats_4322()
 	output.Println_1_string(pkg_base.JSCompStrings_Lines_1_slice_string([]string{"", "TOTAL:", ("Start time(ms): " + j2gort.StrValInt64(this_.startTime)), ("End time(ms): " + j2gort.StrValInt64(this_.endTime)), ("Wall time(ms): " + j2gort.StrValInt64((this_.endTime - this_.startTime))), ("Passes runtime(ms): " + j2gort.StrValInt32(this_.passesRuntime)), ("Max mem usage (measured after each pass)(MB): " + j2gort.StrValInt32(this_.maxMem)), ("#Runs: " + j2gort.StrValInt32(this_.runs)), ("#Changing runs: " + j2gort.StrValInt32(this_.changes)), ("#Loopable runs: " + j2gort.StrValInt32(this_.loopRuns)), ("#Changing loopable runs: " + j2gort.StrValInt32(this_.loopChanges)), ("Estimated AST reduction(#nodes): " + j2gort.StrValInt32(this_.astDiff)), ("Estimated Reduction(bytes): " + j2gort.StrValInt32(this_.diff)), ("Estimated GzReduction(bytes): " + j2gort.StrValInt32(this_.gzDiff)), ("Estimated AST size(#nodes): " + j2gort.StrValInt32(this_.astSize)), ("Estimated Size(bytes): " + j2gort.StrValInt32(this_.codeSize)), ("Estimated GzSize(bytes): " + j2gort.StrValInt32(this_.gzCodeSize)), "", ("DisambiguateProperties: " + j2gort.StrValString(this_.disambiguatePropertiesSummary)), ("AmbiguateProperties: " + j2gort.StrValString(this_.ambiguatePropertiesSummary))}))
 	output.Println_1_string(pkg_base.JSCompStrings_Lines_1_slice_string([]string{"", "Inputs:", ("JS lines:   " + j2gort.StrValInt32(this_.jsLines)), ("JS sources: " + j2gort.StrValInt32(this_.jsSources)), ("Extern lines:   " + j2gort.StrValInt32(this_.externLines)), ("Extern sources: " + j2gort.StrValInt32(this_.externSources)), ("Type summary lines (raw input):   " + j2gort.StrValInt32(func() int32 {
 		if this_.prePruningRecorded {

@@ -1423,7 +1423,8 @@ func TestWave34B_RealGenRhinoParsingJscompCopyIdempotencyAndBuild(t *testing.T) 
 	if strings.Contains(tscCode, "NewTypedScopeCreator_NormalScopeBuilder(this_, newScope)") {
 		t.Fatalf("expected NewTypedScopeCreator_NormalScopeBuilder in createScopeInternal to be lowered to acquireNormalScopeBuilder_")
 	}
-	if !strings.Contains(tscCode, "acquireNormalScopeBuilder_") || !strings.Contains(tscCode, "releaseScopeBuilder_") || !strings.Contains(tscCode, "releaseFreeScopeBuilders_") {
+	if (!strings.Contains(tscCode, "acquireNormalScopeBuilder_") || !strings.Contains(tscCode, "releaseScopeBuilder_") || !strings.Contains(tscCode, "releaseFreeScopeBuilders_")) &&
+		!strings.Contains(tscCode, "normalScopeBuilderPool") {
 		t.Fatalf("expected ScopeBuilder free-list reuse helpers in typed_scope_creator.go")
 	}
 
@@ -1436,9 +1437,10 @@ func TestWave34B_RealGenRhinoParsingJscompCopyIdempotencyAndBuild(t *testing.T) 
 		t.Fatalf("expected contextStack lowered to []pkg_parsing.FeatureCollector_FeatureContext with SliceUnmodifiableListLive in script_node_deserializer.go")
 	}
 
-	// Part 4 check: FunctionType_Builder stack allocation in rhino + jscomp
+	// Part 4 check: FunctionType_Builder stack allocation / reuse in rhino + jscomp
 	ftbCode := readCopy("jscomp/function_type_builder.go")
-	if !strings.Contains(ftbCode, "var fb_ pkg_rhino.FunctionType_Builder") {
+	if !strings.Contains(ftbCode, "var fb_ pkg_rhino.FunctionType_Builder") &&
+		!strings.Contains(ftbCode, "reusableFnBuilder") {
 		t.Fatalf("expected stack var fb_ pkg_rhino.FunctionType_Builder in jscomp/function_type_builder.go")
 	}
 	tiCode := readCopy("jscomp/type_inference.go")

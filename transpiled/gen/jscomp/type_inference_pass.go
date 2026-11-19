@@ -164,9 +164,7 @@ func (this_ *TypeInferencePass) InferAllScopes(inferenceRoot pkg_rhino.Node) *Ty
 			var histogram pkg_diagnostic.LogFile = this_.compiler.CreateOrReopenLog(j2gort.GetObjectClass(this_), "step_histogram.log", []string{})
 			_ = histogram
 			defer j2gort.CloseResource(histogram)
-			if histogram.IsLogging() {
-				histogram.Log_1_string("step_count token population")
-			}
+			histogram.Log_1_string("step_count token population")
 			var totals []int32 = []int32{int32(0), int32(0)}
 			_ = totals
 			j2gort.AsIface[j2gort.Ext_java_util_Set](this_.stepCountHistogram.KeySet_0()).Stream().Sorted_1(j2gort.Ext_java_util_Comparator_NaturalOrder().Reversed()).ForEach(j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_3 any) {
@@ -184,7 +182,9 @@ func (this_ *TypeInferencePass) InferAllScopes(inferenceRoot pkg_rhino.Node) *Ty
 					histogram.Log_2("%s %s %s", []any{j2gort.PtrToAny(stepCount), j2gort.BoxNullableVal(j2gort.Cast[pkg_rhino.Token](e.GetElement())), j2gort.ValueOfInt(e.GetCount())})
 				}))
 			}))
-			histogram.Log_2("%s TOTAL %s", []any{j2gort.ValueOfInt(totals[int32(0)]), j2gort.ValueOfInt(totals[int32(1)])})
+			if histogram.IsLogging() {
+				histogram.Log_2("%s TOTAL %s", []any{j2gort.ValueOfInt(totals[int32(0)]), j2gort.ValueOfInt(totals[int32(1)])})
+			}
 		}()
 	}
 	this_.reusableTypeInference = nil
@@ -192,10 +192,10 @@ func (this_ *TypeInferencePass) InferAllScopes(inferenceRoot pkg_rhino.Node) *Ty
 }
 
 // Java method: TypeInferencePass.inferScope(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.TypedScope scope)
-func (this_ *TypeInferencePass) priv_TypeInferencePass_inferScope_5557(n pkg_rhino.Node, scope *TypedScope) {
+func (this_ *TypeInferencePass) priv_TypeInferencePass_inferScope_5555(n pkg_rhino.Node, scope *TypedScope) {
 	_ = n
 	_ = scope
-	var cfg ControlFlowGraph[pkg_rhino.Node] = this_.priv_TypeInferencePass_computeCfg_5558(n)
+	var cfg ControlFlowGraph[pkg_rhino.Node] = this_.priv_TypeInferencePass_computeCfg_5556(n)
 	_ = cfg
 	var usedReusable bool = false
 	_ = usedReusable
@@ -250,7 +250,7 @@ func (this_ *TypeInferencePass) priv_TypeInferencePass_inferScope_5557(n pkg_rhi
 }
 
 // Java method: TypeInferencePass.computeCfg(com.google.javascript.rhino.Node n)
-func (this_ *TypeInferencePass) priv_TypeInferencePass_computeCfg_5558(n pkg_rhino.Node) ControlFlowGraph[pkg_rhino.Node] {
+func (this_ *TypeInferencePass) priv_TypeInferencePass_computeCfg_5556(n pkg_rhino.Node) ControlFlowGraph[pkg_rhino.Node] {
 	_ = n
 	return ControlFlowAnalysis_ComputeCfgDirect(this_.compiler, n, false, true)
 }
@@ -374,7 +374,7 @@ func (this_ *TypeInferencePass_SecondScopeBuildingCallback) EnterScope(t *NodeTr
 	var scope *TypedScope = t.GetTypedScope()
 	_ = scope
 	if scope.IsCfgRootScope() && !(scope.IsModuleScope()) {
-		this_.outer_.priv_TypeInferencePass_inferScope_5557(t.GetCurrentNode(), scope)
+		this_.outer_.priv_TypeInferencePass_inferScope_5555(t.GetCurrentNode(), scope)
 	}
 }
 

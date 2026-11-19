@@ -86,21 +86,21 @@ func (this_ *PrintStreamErrorReportGenerator) GenerateReport(manager SortingErro
 			rawElem_2 := cur_1.Next()
 			e := j2gort.CastPtr[SortingErrorManager_ErrorWithLevel](rawElem_2)
 			_ = e
-			this_.priv_PrintStreamErrorReportGenerator_println_4424(e.level, e.error_)
+			this_.priv_PrintStreamErrorReportGenerator_println_4422(e.level, e.error_)
 		}
 	}
-	this_.priv_PrintStreamErrorReportGenerator_printSummary_4425(Upcast_ErrorManager(manager))
+	this_.priv_PrintStreamErrorReportGenerator_printSummary_4423(Upcast_ErrorManager(manager))
 }
 
 // Java method: PrintStreamErrorReportGenerator.println(com.google.javascript.jscomp.CheckLevel level, com.google.javascript.jscomp.JSError error)
-func (this_ *PrintStreamErrorReportGenerator) priv_PrintStreamErrorReportGenerator_println_4424(level *CheckLevel, error_ *JSError) {
+func (this_ *PrintStreamErrorReportGenerator) priv_PrintStreamErrorReportGenerator_println_4422(level *CheckLevel, error_ *JSError) {
 	_ = level
 	_ = error_
 	this_.stream.Println_1_string(error_.Format(level, this_.formatter))
 }
 
 // Java method: PrintStreamErrorReportGenerator.printSummary(com.google.javascript.jscomp.ErrorManager manager)
-func (this_ *PrintStreamErrorReportGenerator) priv_PrintStreamErrorReportGenerator_printSummary_4425(manager ErrorManager) {
+func (this_ *PrintStreamErrorReportGenerator) priv_PrintStreamErrorReportGenerator_printSummary_4423(manager ErrorManager) {
 	_ = manager
 	if ((this_.summaryDetailLevel >= int32(3)) || ((this_.summaryDetailLevel >= int32(1)) && ((manager.GetErrorCount() + manager.GetWarningCount()) > int32(0)))) || ((this_.summaryDetailLevel >= int32(2)) && (manager.GetTypedPercent() > float64(0.0))) {
 		if manager.GetTypedPercent() > float64(0.0) {

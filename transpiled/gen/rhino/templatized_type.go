@@ -130,6 +130,13 @@ func NewTemplatizedType(registry *JSTypeRegistry, objectType ObjectType, templat
 	InitTemplatizedType(this_, registry, objectType, templateTypes)
 	return this_
 }
+func allocPooled_TemplatizedType(slab_ *j2gort.PooledSlab[TemplatizedType], registry *JSTypeRegistry, objectType ObjectType, templateTypes j2gort.Ext_com_google_common_collect_ImmutableList) *TemplatizedType {
+	clinit_TemplatizedType()
+	this_ := slab_.Alloc()
+	this_.BindSelf_(this_)
+	InitTemplatizedType(this_, registry, objectType, templateTypes)
+	return this_
+}
 
 func InitTemplatizedType(this_ *TemplatizedType, registry *JSTypeRegistry, objectType ObjectType, templateTypes j2gort.Ext_com_google_common_collect_ImmutableList) {
 	_ = registry
@@ -426,12 +433,12 @@ func (this_ *TemplatizedType) ResolveInternal(reporter ErrorReporter) JSType {
 		}
 	}
 	if rebuild {
-		return NewTemplatizedType(this_.GetJSTypeBase().registry, this_.GetReferencedType(), func() j2gort.Ext_com_google_common_collect_ImmutableList {
+		return ToIface_JSType(allocPooled_TemplatizedType(&this_.registry.slab_TemplatizedType, this_.GetJSTypeBase().registry, this_.GetReferencedType(), func() j2gort.Ext_com_google_common_collect_ImmutableList {
 			if builder != nil {
 				return builder.BuildImmList_()
 			}
 			return StaticGet_TemplatizedType_EMPTY_JSTYPE_LIST()
-		}())
+		}()))
 	} else {
 		return this_
 	}

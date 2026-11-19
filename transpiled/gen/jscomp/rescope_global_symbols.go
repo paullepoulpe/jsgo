@@ -100,7 +100,7 @@ func InitRescopeGlobalSymbols_5(this_ *RescopeGlobalSymbols, compiler AbstractCo
 }
 
 // Java method: RescopeGlobalSymbols.addExternForGlobalSymbolNamespace()
-func (this_ *RescopeGlobalSymbols) priv_RescopeGlobalSymbols_addExternForGlobalSymbolNamespace_4900() {
+func (this_ *RescopeGlobalSymbols) priv_RescopeGlobalSymbols_addExternForGlobalSymbolNamespace_4898() {
 	var varNode pkg_rhino.Node = pkg_rhino.IR_Var_1(pkg_rhino.IR_Name(this_.globalSymbolNamespace))
 	_ = varNode
 	var input *CompilerInput = this_.compiler.GetSynthesizedExternsInput()
@@ -114,7 +114,7 @@ func (this_ *RescopeGlobalSymbols) Process_2(externs pkg_rhino.Node, root pkg_rh
 	_ = externs
 	_ = root
 	if this_.addExtern {
-		this_.priv_RescopeGlobalSymbols_addExternForGlobalSymbolNamespace_4900()
+		this_.priv_RescopeGlobalSymbols_addExternForGlobalSymbolNamespace_4898()
 	}
 	NodeTraversal_Traverse(this_.compiler, root, NewRescopeGlobalSymbols_RewriteGlobalClassFunctionDeclarationsToVarAssignmentsCallback(this_.compiler))
 	var val_1 RescopeGlobalSymbolsRenameHelper_HelperBuilder
@@ -545,7 +545,7 @@ func (this_ *RescopeGlobalSymbols_RemoveGlobalVarCallback) Visit_3(t *NodeTraver
 			}
 		}
 		if len(commas) != 0 {
-			var comma pkg_rhino.Node = this_.priv_RemoveGlobalVarCallback_joinOnComma_4901(&commas, n)
+			var comma pkg_rhino.Node = this_.priv_RemoveGlobalVarCallback_joinOnComma_4899(&commas, n)
 			_ = comma
 			comma.InsertBefore(n)
 		}
@@ -604,7 +604,7 @@ func RescopeGlobalSymbols_RemoveGlobalVarCallback_HasOnlyNameOrDestructuringChil
 }
 
 // Java method: RemoveGlobalVarCallback.joinOnComma(java.util.List<com.google.javascript.rhino.Node> commas, com.google.javascript.rhino.Node source)
-func (this_ *RescopeGlobalSymbols_RemoveGlobalVarCallback) priv_RemoveGlobalVarCallback_joinOnComma_4901(commas *[]pkg_rhino.Node, source pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *RescopeGlobalSymbols_RemoveGlobalVarCallback) priv_RemoveGlobalVarCallback_joinOnComma_4899(commas *[]pkg_rhino.Node, source pkg_rhino.Node) pkg_rhino.Node {
 	_ = commas
 	_ = source
 	var comma pkg_rhino.Node = (*commas)[int32(0)]

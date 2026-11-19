@@ -18,7 +18,6 @@
 package jscomp
 
 import (
-	"strconv"
 	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
@@ -1179,16 +1178,6 @@ func (*MakeDeclaredNamesUnique_ContextualRenamerBase) Implements_jscomp_MakeDecl
 func (*MakeDeclaredNamesUnique_ContextualRenamerBase) Implements_jscomp_MakeDeclaredNamesUnique_Renamer() {
 }
 
-var static_MakeDeclaredNamesUnique_ContextualRenamer_RESERVED_ONE *MakeDeclaredNamesUnique_ContextualRenamer_Counter
-
-func StaticGet_MakeDeclaredNamesUnique_ContextualRenamer_RESERVED_ONE() *MakeDeclaredNamesUnique_ContextualRenamer_Counter {
-	clinit_MakeDeclaredNamesUnique_ContextualRenamer()
-	return static_MakeDeclaredNamesUnique_ContextualRenamer_RESERVED_ONE
-}
-func StaticSet_MakeDeclaredNamesUnique_ContextualRenamer_RESERVED_ONE(v *MakeDeclaredNamesUnique_ContextualRenamer_Counter) {
-	clinit_MakeDeclaredNamesUnique_ContextualRenamer()
-	static_MakeDeclaredNamesUnique_ContextualRenamer_RESERVED_ONE = v
-}
 func StaticGet_MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR() string {
 	return "$jscomp$"
 }
@@ -1222,7 +1211,6 @@ func clinitSlow_MakeDeclaredNamesUnique_ContextualRenamer() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_MakeDeclaredNamesUnique_ContextualRenamer, &clinitDone_MakeDeclaredNamesUnique_ContextualRenamer)
-	static_MakeDeclaredNamesUnique_ContextualRenamer_RESERVED_ONE = NewMakeDeclaredNamesUnique_ContextualRenamer_Counter(int32(1))
 	static_MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SUFFIXES = j2gort.NewStringArray(int32(16384))
 	{
 		var i int32 = int32(0)
@@ -1587,66 +1575,13 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) GetHoistRenamer() Ma
 	return this_.hoistRenamer
 }
 
-// Java class: com.google.javascript.jscomp.MakeDeclaredNamesUnique.ContextualRenamer.Counter
-type MakeDeclaredNamesUnique_ContextualRenamer_Counter struct {
-	value   int32 `gson:"value"`
-	idHash_ atomic.Int32
-}
-
-func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_Counter) BindSelf_(s any) {
-	_ = s
-}
-func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_Counter) IsJavaNil_() bool {
-	return this_ == nil
-}
-func (*MakeDeclaredNamesUnique_ContextualRenamer_Counter) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.jscomp.MakeDeclaredNamesUnique$ContextualRenamer$Counter", "Counter"
-}
-func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_Counter) IdentityHash_() int32 {
-	if this_ == nil {
-		return 0
-	}
-	if h := this_.idHash_.Load(); h != 0 {
-		return h
-	}
-	return j2gort.AssignIdentHash(&this_.idHash_)
-}
-func (*MakeDeclaredNamesUnique_ContextualRenamer_Counter) HasIdentityEquals_() {}
-func init() {
-	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.MakeDeclaredNamesUnique.ContextualRenamer.Counter", "com.google.javascript.jscomp.MakeDeclaredNamesUnique$ContextualRenamer$Counter", func(v_ any) bool {
-		return j2gort.InstanceOf[*MakeDeclaredNamesUnique_ContextualRenamer_Counter](v_)
-	})
-}
-
-func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_Counter) initFields_MakeDeclaredNamesUnique_ContextualRenamer_Counter() {
-	_ = this_
-}
-
-// Java constructor: Counter(int value)
-func NewMakeDeclaredNamesUnique_ContextualRenamer_Counter(value int32) *MakeDeclaredNamesUnique_ContextualRenamer_Counter {
-	this_ := &MakeDeclaredNamesUnique_ContextualRenamer_Counter{}
-	InitMakeDeclaredNamesUnique_ContextualRenamer_Counter(this_, value)
-	return this_
-}
-
-func InitMakeDeclaredNamesUnique_ContextualRenamer_Counter(this_ *MakeDeclaredNamesUnique_ContextualRenamer_Counter, value int32) {
-	_ = value
-	this_.initFields_MakeDeclaredNamesUnique_ContextualRenamer_Counter()
-	this_.value = value
-}
-
-// Java method: Counter.toString()
-func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_Counter) String() string {
-	return strconv.FormatInt(int64(this_.value), 10)
-}
-
 // Java class: com.google.javascript.jscomp.MakeDeclaredNamesUnique.ContextualRenamer.NameUsage
 type MakeDeclaredNamesUnique_ContextualRenamer_NameUsage struct {
-	counts        j2gort.OrderedMap[string, *MakeDeclaredNamesUnique_ContextualRenamer_Counter] `gson:"counts"`
-	lcUniqueCache [][]string                                                                    `gson:"lcUniqueCache"`
-	memoNames     []string                                                                      `gson:"memoNames"`
-	memoIds       []int32                                                                       `gson:"memoIds"`
-	memoResults   []string                                                                      `gson:"memoResults"`
+	counts        j2gort.PlainMap[string, int32] `gson:"counts"`
+	lcUniqueCache [][]string                     `gson:"lcUniqueCache"`
+	memoNames     []string                       `gson:"memoNames"`
+	memoIds       []int32                        `gson:"memoIds"`
+	memoResults   []string                       `gson:"memoResults"`
 	idHash_       atomic.Int32
 }
 
@@ -1683,7 +1618,7 @@ func StaticGet_MakeDeclaredNamesUnique_ContextualRenamer_NameUsage_MEMO_MASK() i
 }
 func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_NameUsage) initFields_MakeDeclaredNamesUnique_ContextualRenamer_NameUsage() {
 	_ = this_
-	this_.counts = j2gort.NewOrderedMap[string, *MakeDeclaredNamesUnique_ContextualRenamer_Counter](
+	this_.counts = j2gort.NewPlainMapVal[string, int32](
 
 	// Java constructor: NameUsage()
 	)
@@ -1708,49 +1643,47 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_NameUsage) Contains(name 
 // Java method: NameUsage.reserve(java.lang.String name)
 func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_NameUsage) Reserve(name string) {
 	_ = name
-	this_.counts.PutIfAbsent(name, StaticGet_MakeDeclaredNamesUnique_ContextualRenamer_RESERVED_ONE())
+	this_.counts.PutIfAbsent(name, int32(1))
 }
 
 // Java method: NameUsage.addOne(java.lang.String name)
 func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_NameUsage) AddOne(name string) int32 {
 	_ = name
-	var prev *MakeDeclaredNamesUnique_ContextualRenamer_Counter = this_.counts.Get(name)
+	prev, prevOk_ := this_.counts.GetOk(name)
+	_ = prevOk_
 	_ = prev
-	if prev == nil {
-		this_.counts.Put(name, StaticGet_MakeDeclaredNamesUnique_ContextualRenamer_RESERVED_ONE())
+	if !prevOk_ {
+		this_.counts.PutVoid(name, int32(1))
 		return int32(0)
 	}
-	if prev == StaticGet_MakeDeclaredNamesUnique_ContextualRenamer_RESERVED_ONE() {
-		this_.counts.Put(name, NewMakeDeclaredNamesUnique_ContextualRenamer_Counter(int32(2)))
-		return int32(1)
-	}
-	var old int32 = prev.value
+	var old int32 = func() int32 {
+		if !prevOk_ {
+			j2gort.ThrowNPE()
+		}
+		return prev
+	}()
 	_ = old
-	{
-		r_42 := prev
-		r_42.value = (old + int32(1))
-	}
+	this_.counts.PutVoid(name, (old + int32(1)))
 	return old
 }
 
 // Java method: NameUsage.addOneIfPresent(java.lang.String name)
 func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_NameUsage) AddOneIfPresent(name string) int32 {
 	_ = name
-	var prev *MakeDeclaredNamesUnique_ContextualRenamer_Counter = this_.counts.Get(name)
+	prev, prevOk_ := this_.counts.GetOk(name)
+	_ = prevOk_
 	_ = prev
-	if prev == nil {
+	if !prevOk_ {
 		return int32(-1)
 	}
-	if prev == StaticGet_MakeDeclaredNamesUnique_ContextualRenamer_RESERVED_ONE() {
-		this_.counts.Put(name, NewMakeDeclaredNamesUnique_ContextualRenamer_Counter(int32(2)))
-		return int32(1)
-	}
-	var old int32 = prev.value
+	var old int32 = func() int32 {
+		if !prevOk_ {
+			j2gort.ThrowNPE()
+		}
+		return prev
+	}()
 	_ = old
-	{
-		r_43 := prev
-		r_43.value = (old + int32(1))
-	}
+	this_.counts.PutVoid(name, (old + int32(1)))
 	return old
 }
 
@@ -1775,9 +1708,9 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_NameUsage) GetUniqueName(
 			if row == nil {
 				row = j2gort.NewStringArray(int32(1024))
 				{
-					a_44 := table
-					i_45 := idx
-					a_44[i_45] = row
+					a_42 := table
+					i_43 := idx
+					a_42[i_43] = row
 				}
 			}
 			var cached string = row[id]
@@ -1785,9 +1718,9 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_NameUsage) GetUniqueName(
 			if cached == j2gort.NullString {
 				cached = MakeDeclaredNamesUnique_ContextualRenamer_FormatUniqueName(name, id)
 				{
-					a_46 := row
-					i_47 := id
-					a_46[i_47] = cached
+					a_44 := row
+					i_45 := id
+					a_44[i_45] = cached
 				}
 			}
 			return cached
@@ -1804,34 +1737,29 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_NameUsage) GetUniqueName(
 		}
 		var slot int32 = (((javalang.StringHashCode(j2gort.CheckNotNullString(name)) * int32(31)) + id) & int32(2047))
 		_ = slot
-		if (this_.memoIds[slot] == id) && func() bool { sr_48 := name; se_49 := mNames[slot]; return j2gort.CheckNotNullString(sr_48) == se_49 }() {
+		if (this_.memoIds[slot] == id) && func() bool { sr_46 := name; se_47 := mNames[slot]; return j2gort.CheckNotNullString(sr_46) == se_47 }() {
 			return this_.memoResults[slot]
 		}
 		var res string = MakeDeclaredNamesUnique_ContextualRenamer_FormatUniqueName(name, id)
 		_ = res
 		{
-			a_50 := mNames
+			a_48 := mNames
+			i_49 := slot
+			a_48[i_49] = name
+		}
+		{
+			a_50 := this_.memoIds
 			i_51 := slot
-			a_50[i_51] = name
+			a_50[i_51] = id
 		}
 		{
-			a_52 := this_.memoIds
+			a_52 := this_.memoResults
 			i_53 := slot
-			a_52[i_53] = id
-		}
-		{
-			a_54 := this_.memoResults
-			i_55 := slot
-			a_54[i_55] = res
+			a_52[i_53] = res
 		}
 		return res
 	}
 	return MakeDeclaredNamesUnique_ContextualRenamer_FormatUniqueName(name, id)
-}
-
-// Java method: NameUsage.toString()
-func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_NameUsage) String() string {
-	return this_.counts.String()
 }
 
 // Java class: com.google.javascript.jscomp.MakeDeclaredNamesUnique.InlineRenamer
@@ -1924,9 +1852,9 @@ func (this_ *MakeDeclaredNamesUnique_InlineRenamer) AddDeclaredName(name string,
 		var iifeCond_1 bool
 		{
 
-			sr_56 := name
-			se_57 := "arguments"
-			iifeCond_1 = j2gort.CheckNotNullString(sr_56) == se_57
+			sr_54 := name
+			se_55 := "arguments"
+			iifeCond_1 = j2gort.CheckNotNullString(sr_54) == se_55
 		}
 		if !(!(iifeCond_1)) {
 			j2gort.CheckState(false)
@@ -1940,20 +1868,20 @@ func (this_ *MakeDeclaredNamesUnique_InlineRenamer) AddDeclaredName(name string,
 	_ = c
 	if c == int32(0) {
 		this_.declName0 = name
-		this_.declRep0 = this_.priv_InlineRenamer_getUniqueName_3845(name)
+		this_.declRep0 = this_.priv_InlineRenamer_getUniqueName_3843(name)
 		this_.declCount = int32(1)
 	} else if c == int32(1) {
 		{
 			var iifeCond_1 bool
 			{
 
-				sr_58 := name
-				se_59 := this_.declName0
-				iifeCond_1 = j2gort.CheckNotNullString(sr_58) == se_59
+				sr_56 := name
+				se_57 := this_.declName0
+				iifeCond_1 = j2gort.CheckNotNullString(sr_56) == se_57
 			}
 			if !(iifeCond_1) {
 				this_.declName1 = name
-				this_.declRep1 = this_.priv_InlineRenamer_getUniqueName_3845(name)
+				this_.declRep1 = this_.priv_InlineRenamer_getUniqueName_3843(name)
 				this_.declCount = int32(2)
 			}
 		}
@@ -1962,11 +1890,11 @@ func (this_ *MakeDeclaredNamesUnique_InlineRenamer) AddDeclaredName(name string,
 			var iifeCond_1 bool
 			{
 
-				sr_60 := name
-				se_61 := this_.declName0
-				iifeCond_1 = j2gort.CheckNotNullString(sr_60) == se_61
+				sr_58 := name
+				se_59 := this_.declName0
+				iifeCond_1 = j2gort.CheckNotNullString(sr_58) == se_59
 			}
-			if !(iifeCond_1) && !(func() bool { sr_62 := name; se_63 := this_.declName1; return j2gort.CheckNotNullString(sr_62) == se_63 }()) {
+			if !(iifeCond_1) && !(func() bool { sr_60 := name; se_61 := this_.declName1; return j2gort.CheckNotNullString(sr_60) == se_61 }()) {
 				var n0 string = this_.declName0
 				_ = n0
 				var r0 string = this_.declRep0
@@ -1975,7 +1903,7 @@ func (this_ *MakeDeclaredNamesUnique_InlineRenamer) AddDeclaredName(name string,
 				_ = n1
 				var r1 string = this_.declRep1
 				_ = r1
-				var newName string = this_.priv_InlineRenamer_getUniqueName_3845(name)
+				var newName string = this_.priv_InlineRenamer_getUniqueName_3843(name)
 				_ = newName
 				this_.declName0 = j2gort.NullString
 				this_.declRep0 = j2gort.NullString
@@ -1989,12 +1917,12 @@ func (this_ *MakeDeclaredNamesUnique_InlineRenamer) AddDeclaredName(name string,
 			}
 		}
 	} else if !(this_.declarations.ContainsKey(name)) {
-		this_.declarations.Put(name, this_.priv_InlineRenamer_getUniqueName_3845(name))
+		this_.declarations.Put(name, this_.priv_InlineRenamer_getUniqueName_3843(name))
 	}
 }
 
 // Java method: InlineRenamer.getUniqueName(java.lang.String name)
-func (this_ *MakeDeclaredNamesUnique_InlineRenamer) priv_InlineRenamer_getUniqueName_3845(name string) string {
+func (this_ *MakeDeclaredNamesUnique_InlineRenamer) priv_InlineRenamer_getUniqueName_3843(name string) string {
 	_ = name
 	if j2gort.CheckNotNullString(name) == "" {
 		return name
@@ -2023,18 +1951,18 @@ func (this_ *MakeDeclaredNamesUnique_InlineRenamer) GetReplacementName(oldName s
 			var iifeCond_1 bool
 			{
 
-				sr_64 := oldName
-				se_65 := this_.declName0
-				iifeCond_1 = j2gort.CheckNotNullString(sr_64) == se_65
+				sr_62 := oldName
+				se_63 := this_.declName0
+				iifeCond_1 = j2gort.CheckNotNullString(sr_62) == se_63
 			}
 			if iifeCond_1 {
 				return this_.declRep0
 			}
 		}
 		if (c > int32(1)) && func() bool {
-			sr_66 := oldName
-			se_67 := this_.declName1
-			return j2gort.CheckNotNullString(sr_66) == se_67
+			sr_64 := oldName
+			se_65 := this_.declName1
+			return j2gort.CheckNotNullString(sr_64) == se_65
 		}() {
 			return this_.declRep1
 		} else {

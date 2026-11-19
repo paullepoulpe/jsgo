@@ -25,20 +25,20 @@ import (
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
 )
 
-var lambdaSingleton_browser_with_transformed_prefixes_module_resolver_1 j2gort.Ext_java_util_function_Function
-var lambdaSingleton_browser_with_transformed_prefixes_module_resolver_2 j2gort.Ext_java_util_function_ToIntFunction
+var lambdaSingleton_browser_with_transformed_prefixes_module_resolver_1 j2gort.Ext_java_util_function_ToIntFunction
+var lambdaSingleton_browser_with_transformed_prefixes_module_resolver_2 func(any) string
 var lambdaSingleton_browser_with_transformed_prefixes_module_resolver_3 j2gort.Ext_java_util_function_Function
 var lambdaSingleton_browser_with_transformed_prefixes_module_resolver_4 j2gort.Ext_java_util_function_Function
 
 func init() {
-	lambdaSingleton_browser_with_transformed_prefixes_module_resolver_1 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
-		return j2gort.BoxString(j2gort.CastPtr[BrowserWithTransformedPrefixesModuleResolver_PrefixReplacement](mrp0_).Prefix())
-	})
-	lambdaSingleton_browser_with_transformed_prefixes_module_resolver_2 = j2gort.NewLambda_Ext_java_util_function_ToIntFunction(func(lp_1 any) int32 {
+	lambdaSingleton_browser_with_transformed_prefixes_module_resolver_1 = j2gort.NewLambda_Ext_java_util_function_ToIntFunction(func(lp_1 any) int32 {
 		r := j2gort.CastPtr[BrowserWithTransformedPrefixesModuleResolver_PrefixReplacement](lp_1)
 		_ = r
 		return j2gort.JStrLen(r.Prefix())
 	})
+	lambdaSingleton_browser_with_transformed_prefixes_module_resolver_2 = func(mrp0_ any) string {
+		return j2gort.CastPtr[BrowserWithTransformedPrefixesModuleResolver_PrefixReplacement](mrp0_).Prefix()
+	}
 	lambdaSingleton_browser_with_transformed_prefixes_module_resolver_3 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_2 any) any {
 		entry := j2gort.AsIface[j2gort.Ext_java_util_Map_Entry](lp_2)
 		_ = entry
@@ -127,12 +127,12 @@ func InitBrowserWithTransformedPrefixesModuleResolver(this_ *BrowserWithTransfor
 	_ = prefixReplacements
 	InitModuleResolver(&this_.ModuleResolverBase, modulePaths, moduleRootPaths, errorHandler, pathEscaper)
 	this_.initFields_BrowserWithTransformedPrefixesModuleResolver()
-	this_.prefixReplacements = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](prefixReplacements.EntrySet()).Stream().Map(lambdaSingleton_browser_with_transformed_prefixes_module_resolver_3).Sorted_1(j2gort.Ext_java_util_Comparator_ComparingInt(lambdaSingleton_browser_with_transformed_prefixes_module_resolver_2).Reversed().ThenComparing_1_Ext_java_util_function_Function(lambdaSingleton_browser_with_transformed_prefixes_module_resolver_1)).Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSet_ToImmutableSet()))
+	this_.prefixReplacements = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](prefixReplacements.EntrySet()).Stream().Map(lambdaSingleton_browser_with_transformed_prefixes_module_resolver_3).Sorted_1(j2gort.ComparatorThenComparingStr(j2gort.Ext_java_util_Comparator_ComparingInt(lambdaSingleton_browser_with_transformed_prefixes_module_resolver_1).Reversed(), lambdaSingleton_browser_with_transformed_prefixes_module_resolver_2)).Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSet_ToImmutableSet()))
 	this_.expectedPrefixes = j2gort.CastString(this_.prefixReplacements.Stream().Map(lambdaSingleton_browser_with_transformed_prefixes_module_resolver_4).Sorted_0().Collect_1(j2gort.Ext_java_util_stream_Collectors_Joining_1(", ")))
 }
 
 // Java method: BrowserWithTransformedPrefixesModuleResolver.replacePathPrefixes(java.lang.String moduleAddress)
-func (this_ *BrowserWithTransformedPrefixesModuleResolver) priv_BrowserWithTransformedPrefixesModuleResolver_replacePathPrefixes_6036(moduleAddress string) string {
+func (this_ *BrowserWithTransformedPrefixesModuleResolver) priv_BrowserWithTransformedPrefixesModuleResolver_replacePathPrefixes_6034(moduleAddress string) string {
 	_ = moduleAddress
 	if moduleAddress == j2gort.NullString {
 		return j2gort.NullString
@@ -161,7 +161,7 @@ func (this_ *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModule(scrip
 	_ = sourcename
 	_ = lineno
 	_ = colno
-	var transformedAddress string = this_.priv_BrowserWithTransformedPrefixesModuleResolver_replacePathPrefixes_6036(moduleAddress)
+	var transformedAddress string = this_.priv_BrowserWithTransformedPrefixesModuleResolver_replacePathPrefixes_6034(moduleAddress)
 	_ = transformedAddress
 	var replaced bool = ((transformedAddress != j2gort.NullString) && !(j2gort.CheckNotNullString(transformedAddress) == moduleAddress))
 	_ = replaced
@@ -176,7 +176,7 @@ func (this_ *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModule(scrip
 func (this_ *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) string {
 	_ = scriptAddress
 	_ = moduleAddress
-	var transformedAddress string = this_.priv_BrowserWithTransformedPrefixesModuleResolver_replacePathPrefixes_6036(moduleAddress)
+	var transformedAddress string = this_.priv_BrowserWithTransformedPrefixesModuleResolver_replacePathPrefixes_6034(moduleAddress)
 	_ = transformedAddress
 	var replaced bool = ((transformedAddress != j2gort.NullString) && !(j2gort.CheckNotNullString(transformedAddress) == moduleAddress))
 	_ = replaced

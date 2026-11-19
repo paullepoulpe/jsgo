@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/bits"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ var _ = reflect.TypeFor[int]
 var _ = (*atomic.Bool)(nil)
 var _ = strconv.AppendInt
 var _ = utf16.DecodeRune
+var _ = slices.Sort[[]string]
 
 var (
 	compPoolResetMu    sync.Mutex
@@ -138,6 +140,116 @@ func (c *jComparatorFunc) ThenComparingInt(ke Ext_java_util_function_ToIntFuncti
 }
 func (c *jComparatorFunc) ThenComparingLong(ke Ext_java_util_function_ToLongFunction) Ext_java_util_Comparator {
 	return ExtDefault_Comparator_ThenComparingLong(c, ke)
+}
+
+func arraysSortStrSlice(sub []string) {
+	ascii := true
+	for _, s := range sub {
+		if !ascii {
+			if s == NullString {
+				ThrowNPE()
+			}
+			continue
+		}
+		for i := 0; i < len(s); i++ {
+			if s[i] >= 0x80 {
+				if s == NullString {
+					ThrowNPE()
+				}
+				ascii = false
+				break
+			}
+		}
+	}
+	n := len(sub)
+	if n < 2 {
+		return
+	}
+	if ascii {
+		if n <= 16 {
+			for i := 1; i < n; i++ {
+				v := sub[i]
+				j := i - 1
+				for j >= 0 && sub[j] > v {
+					sub[j+1] = sub[j]
+					j--
+				}
+				sub[j+1] = v
+			}
+			return
+		}
+		slices.Sort(sub)
+		return
+	}
+	slices.SortFunc(sub, javalang.StringCompareTo)
+}
+
+func ArraysSortStrings(a []string) {
+	if a == nil {
+		ThrowNPE()
+	}
+	arraysSortStrSlice(a)
+}
+
+func ArraysSortStringsRange(a []string, fromIndex, toIndex int32) {
+	if a == nil {
+		ThrowNPE()
+	}
+	if fromIndex > toIndex {
+		panic(javalang.NewIllegalArgumentException("fromIndex > toIndex"))
+	}
+	if fromIndex < 0 || int(toIndex) > len(a) {
+		panic(javalang.NewArrayIndexOutOfBoundsException(""))
+	}
+	arraysSortStrSlice(a[fromIndex:toIndex])
+}
+
+func ComparatorComparingStr(keyFn func(any) string) Ext_java_util_Comparator {
+	if keyFn == nil {
+		ThrowNPE()
+	}
+	return newComparatorFromFunc(func(a, b any) int32 {
+		ka := keyFn(a)
+		kb := keyFn(b)
+		if ka == NullString || kb == NullString {
+			ThrowNPE()
+		}
+		return int32(javalang.StringCompareTo(ka, kb))
+	})
+}
+
+func ComparatorThenComparingStr(base Ext_java_util_Comparator, keyFn func(any) string) Ext_java_util_Comparator {
+	CheckNotNull(base)
+	if keyFn == nil {
+		ThrowNPE()
+	}
+	if cf, ok := base.(*jComparatorFunc); ok {
+		baseFn := cf.fn
+		return newComparatorFromFunc(func(a, b any) int32 {
+			c := baseFn(a, b)
+			if c != 0 {
+				return c
+			}
+			ka := keyFn(a)
+			kb := keyFn(b)
+			if ka == NullString || kb == NullString {
+				ThrowNPE()
+			}
+			return int32(javalang.StringCompareTo(ka, kb))
+		})
+	}
+	return newComparatorFromFunc(func(a, b any) int32 {
+		c := base.Compare(a, b)
+		if c != 0 {
+			return c
+		}
+		ka := keyFn(a)
+		kb := keyFn(b)
+		if ka == NullString || kb == NullString {
+			ThrowNPE()
+		}
+		return int32(javalang.StringCompareTo(ka, kb))
+	})
 }
 
 func isNaturalOrderComparator(cmp Ext_java_util_Comparator) bool {
@@ -859,7 +971,7 @@ func listCoreAddAllIterable(lc *JListCore, src any) bool {
 			return false
 		}
 		lc.InitCap(lc.Size() + mv.mc.Size())
-		mv.mc.ForEachEntry(func(_, v any) bool {
+		mv.mc.ForEachValue(func(v any) bool {
 			lc.Add(v)
 			return true
 		})
@@ -981,7 +1093,7 @@ func listCoreAddAllNonNull(lc *JListCore, src any) {
 			return
 		}
 		lc.InitCap(lc.Size() + mv.mc.Size())
-		mv.mc.ForEachEntry(func(_, v any) bool {
+		mv.mc.ForEachValue(func(v any) bool {
 			lc.Add(CheckNotNull(v))
 			return true
 		})
@@ -1241,6 +1353,16 @@ func setCoreAddAllIterable(sc *JSetCore, src any) bool {
 			}
 			sc.InitExpectedSize(sc.Size() + smc.Size())
 			changed := false
+			if smc.mode == jMapModeStr && !smc.Identity {
+				for i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+					if k := smc.strEntries[i].key; k != jTombstoneStr {
+						if sc.AddStr(k) {
+							changed = true
+						}
+					}
+				}
+				return changed
+			}
 			smc.ForEachEntry(func(k, _ any) bool {
 				if sc.Add(k) {
 					changed = true
@@ -1341,6 +1463,19 @@ func setCoreAddAllNonNull(sc *JSetCore, src any) {
 				return
 			}
 			sc.InitExpectedSize(sc.Size() + smc.Size())
+			if smc.mode == jMapModeStr && !smc.Identity {
+				for i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+					k := smc.strEntries[i].key
+					if k == jTombstoneStr {
+						continue
+					}
+					if k == NullString {
+						ThrowNPE()
+					}
+					sc.AddStr(k)
+				}
+				return
+			}
 			smc.ForEachEntry(func(k, _ any) bool {
 				sc.Add(CheckNotNull(k))
 				return true
@@ -2696,6 +2831,16 @@ func mapCoreAddAllIterable(mc *JMapCore, src any) bool {
 			}
 			mc.InitExpectedSize(mc.Size() + smc.Size())
 			changed := false
+			if smc.mode == jMapModeStr && !smc.Identity {
+				for i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+					if k := smc.strEntries[i].key; k != jTombstoneStr {
+						if mc.AddKeyStr(k) {
+							changed = true
+						}
+					}
+				}
+				return changed
+			}
 			smc.ForEachEntry(func(k, _ any) bool {
 				if mc.AddKey(k) {
 					changed = true
@@ -2781,6 +2926,19 @@ func mapCoreAddAllNonNull(mc *JMapCore, src any) {
 				return
 			}
 			mc.InitExpectedSize(mc.Size() + smc.Size())
+			if smc.mode == jMapModeStr && !smc.Identity {
+				for i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+					k := smc.strEntries[i].key
+					if k == jTombstoneStr {
+						continue
+					}
+					if k == NullString {
+						ThrowNPE()
+					}
+					mc.PutStr(k, true)
+				}
+				return
+			}
 			smc.ForEachEntry(func(k, _ any) bool {
 				mc.Put(CheckNotNull(k), true)
 				return true
@@ -2852,6 +3010,16 @@ func mapCoreRemoveAllKeys(mc *JMapCore, other Ext_java_util_Collection) bool {
 	if sp, ok := any(other).(jFastSetCoreProvider); ok {
 		if omc := sp.fastSetCore_(); omc != nil && omc != mc {
 			changed := false
+			if omc.mode == jMapModeStr && !omc.Identity && !mc.Identity {
+				for i := int(omc.firstIdx); i < len(omc.strEntries); i++ {
+					if k := omc.strEntries[i].key; k != jTombstoneStr {
+						if mc.RemoveKeyStr(k) {
+							changed = true
+						}
+					}
+				}
+				return changed
+			}
 			omc.ForEachEntry(func(k, _ any) bool {
 				if mc.RemoveKey(k) {
 					changed = true
@@ -2917,6 +3085,20 @@ func copyHashCoreInto(dst *JMapCore, src *JMapCore) *JMapCore {
 		return dst
 	}
 	dst.InitExpectedSize(src.Size())
+	if src.mode == jMapModeStr && !src.Identity && !dst.Identity {
+		for i := int(src.firstIdx); i < len(src.strEntries); i++ {
+			e := src.strEntries[i]
+			if e.key != jTombstoneStr {
+				dst.PutStr(e.key, e.val)
+			}
+		}
+		return dst
+	}
+	if src.IsSorted() && src.ext != nil {
+		st := src.ext.(*jSortedMapState)
+		st.avlCopyInto(st.root, dst, false)
+		return dst
+	}
 	src.ForEachEntry(func(k, v any) bool {
 		dst.Put(k, v)
 		return true
@@ -2925,10 +3107,19 @@ func copyHashCoreInto(dst *JMapCore, src *JMapCore) *JMapCore {
 }
 
 func copySortedCoreInto(dst *JMapCore, src *JMapCore) *JMapCore {
-	if src.IsNaturalOrder() {
-		initSortedCore(dst, nil)
-	} else {
-		initSortedCore(dst, src.SortedCmp())
+	if src.IsSorted() {
+		dst.CopySortedFrom(src)
+		return dst
+	}
+	initSortedCore(dst, nil)
+	if src.mode == jMapModeStr && !src.Identity {
+		for i := int(src.firstIdx); i < len(src.strEntries); i++ {
+			e := src.strEntries[i]
+			if e.key != jTombstoneStr {
+				dst.PutStr(e.key, e.val)
+			}
+		}
+		return dst
 	}
 	src.ForEachEntry(func(k, v any) bool {
 		dst.Put(k, v)
@@ -2938,18 +3129,25 @@ func copySortedCoreInto(dst *JMapCore, src *JMapCore) *JMapCore {
 }
 
 func cloneJMapCore(src *JMapCore) *JMapCore {
-	var dst *JMapCore
-	if src.IsNaturalOrder() {
-		dst = NewSortedJMapCore(nil)
-	} else if src.IsSorted() {
-		dst = NewSortedJMapCore(src.SortedCmp())
-	} else {
-		dst = NewJMapCore(src.Identity)
-		dst.accessOrd = src.accessOrd
-		if dst.CopyFromSameMode(src) {
-			return dst
+	if src.IsSorted() {
+		dst := &JMapCore{}
+		dst.CopySortedFrom(src)
+		return dst
+	}
+	dst := NewJMapCore(src.Identity)
+	dst.accessOrd = src.accessOrd
+	if dst.CopyFromSameMode(src) {
+		return dst
+	}
+	dst.InitExpectedSize(src.Size())
+	if src.mode == jMapModeStr && !src.Identity {
+		for i := int(src.firstIdx); i < len(src.strEntries); i++ {
+			e := src.strEntries[i]
+			if e.key != jTombstoneStr {
+				dst.PutStr(e.key, e.val)
+			}
 		}
-		dst.InitExpectedSize(src.Size())
+		return dst
 	}
 	src.ForEachEntry(func(k, v any) bool {
 		dst.Put(k, v)
@@ -2969,6 +3167,20 @@ func copyExtMapInto(dst *JMapCore, src Ext_java_util_Map) {
 				return
 			}
 			dst.InitExpectedSize(dst.Size() + smc.Size())
+			if smc.mode == jMapModeStr && !smc.Identity && !dst.Identity {
+				for i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+					e := smc.strEntries[i]
+					if e.key != jTombstoneStr {
+						dst.PutStr(e.key, e.val)
+					}
+				}
+				return
+			}
+			if smc.IsSorted() && smc.ext != nil && !dst.Identity {
+				st := smc.ext.(*jSortedMapState)
+				st.avlCopyInto(st.root, dst, false)
+				return
+			}
 			smc.ForEachEntry(func(k, v any) bool {
 				dst.Put(k, v)
 				return true
@@ -3004,7 +3216,28 @@ func copyExtMapIntoNonNull(dst *JMapCore, src Ext_java_util_Map) {
 			if smc.Size() == 0 {
 				return
 			}
+			if smc != dst && dst.Size() == 0 && dst.CopyFromSameModeNonNull(smc) {
+				return
+			}
 			dst.InitExpectedSize(dst.Size() + smc.Size())
+			if smc != dst && smc.mode == jMapModeStr && !smc.Identity && !dst.Identity {
+				for i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+					e := smc.strEntries[i]
+					if e.key == jTombstoneStr {
+						continue
+					}
+					if e.key == NullString {
+						ThrowNPE()
+					}
+					dst.PutStr(e.key, CheckNotNull(e.val))
+				}
+				return
+			}
+			if smc != dst && smc.IsSorted() && smc.ext != nil && !dst.Identity {
+				st := smc.ext.(*jSortedMapState)
+				st.avlCopyInto(st.root, dst, true)
+				return
+			}
 			smc.ForEachEntry(func(k, v any) bool {
 				dst.Put(CheckNotNull(ToAny(k)), CheckNotNull(ToAny(v)))
 				return true
@@ -3025,6 +3258,7 @@ func copyExtMapIntoNonNull(dst *JMapCore, src Ext_java_util_Map) {
 			return
 		}
 	}
+	dst.InitExpectedSize(dst.Size() + src.Size())
 	if es := src.EntrySet(); es != nil && !javalang.IsNil(es) {
 		for it := Iterate(es); it.HasNext(); {
 			e := Cast[Ext_java_util_Map_Entry](it.Next())
@@ -3352,11 +3586,19 @@ func initMapCursor(mc *JMapCore, needVals bool) (jMapCursor, bool) {
 		g := mc.ext.(*jGenMapState)
 		return jMapCursor{mc: mc, mode: jMapModeGeneral, curPos: g.head, lastSlot: -1}, g.head != 0
 	case jMapModeSortedNat, jMapModeSortedCmp:
-		keys := make([]any, 0, mc.Live)
 		var vals []any
 		if needVals {
 			vals = make([]any, 0, mc.Live)
 		}
+		if mc.ext != nil {
+			st := mc.ext.(*jSortedMapState)
+			if st.avlAllStr(st.root) {
+				strKeys := make([]string, 0, mc.Live)
+				strKeys, vals = st.avlAppendStrEntries(st.root, strKeys, vals, needVals)
+				return jMapCursor{mc: mc, mode: mc.mode, lastSlot: -1, strKeys: strKeys, vals: vals}, len(strKeys) > 0
+			}
+		}
+		keys := make([]any, 0, mc.Live)
 		mc.ForEachEntry(func(k, v any) bool {
 			keys = append(keys, k)
 			if needVals {
@@ -3376,7 +3618,7 @@ func initMapValCursor(mc *JMapCore) (jMapCursor, bool) {
 	}
 	if mc.mode == jMapModeSortedNat || mc.mode == jMapModeSortedCmp {
 		vals := make([]any, 0, mc.Live)
-		mc.ForEachEntry(func(_, v any) bool {
+		mc.ForEachValue(func(v any) bool {
 			vals = append(vals, v)
 			return true
 		})
@@ -3564,6 +3806,14 @@ func (c *jMapCursor) nextKey() any {
 		c.curPos = g.entries[pos-1].next()
 		return k
 	default:
+		if c.strKeys != nil {
+			if c.idx >= len(c.strKeys) {
+				panic(javalang.NewNoSuchElementException("iterator exhausted"))
+			}
+			s := c.strKeys[c.idx]
+			c.idx++
+			return BoxString(s)
+		}
 		if c.idx >= len(c.keys) {
 			panic(javalang.NewNoSuchElementException("iterator exhausted"))
 		}
@@ -3782,6 +4032,21 @@ func (c *jMapCursor) nextKV() (k any, v any, slot int32) {
 		c.curPos = g.entries[pos-1].next()
 		return
 	default:
+		if c.strKeys != nil {
+			if c.idx >= len(c.strKeys) {
+				panic(javalang.NewNoSuchElementException("iterator exhausted"))
+			}
+			k = BoxString(c.strKeys[c.idx])
+			if c.vals != nil {
+				v = c.vals[c.idx]
+			}
+			slot = -1
+			c.idx++
+			c.lastSlot = -1
+			c.lastKey = k
+			c.hasLast = true
+			return
+		}
 		if c.idx >= len(c.keys) {
 			panic(javalang.NewNoSuchElementException("iterator exhausted"))
 		}
@@ -4206,6 +4471,20 @@ func mapCoreEquals(mc *JMapCore, other any) bool {
 
 func mapCoreHash(mc *JMapCore) int32 {
 	h := int32(0)
+	if mc != nil && mc.mode == jMapModeStr && !mc.Identity {
+		for i := int(mc.firstIdx); i < len(mc.strEntries); i++ {
+			e := mc.strEntries[i]
+			if e.key == jTombstoneStr {
+				continue
+			}
+			var kh int32
+			if e.key != NullString {
+				kh = javalang.StringHashCode(e.key)
+			}
+			h += kh ^ javalang.ObjectHashCode(e.val)
+		}
+		return h
+	}
 	mc.ForEachEntry(func(k, v any) bool {
 		if mc.Identity {
 			h += javalang.IdentityHashCode(k) ^ javalang.IdentityHashCode(v)
@@ -4221,6 +4500,27 @@ func mapCoreString(mc *JMapCore) string {
 	var sb strings.Builder
 	sb.WriteByte('{')
 	first := true
+	if mc != nil && mc.mode == jMapModeStr {
+		for i := int(mc.firstIdx); i < len(mc.strEntries); i++ {
+			e := mc.strEntries[i]
+			if e.key == jTombstoneStr {
+				continue
+			}
+			if !first {
+				sb.WriteString(", ")
+			}
+			first = false
+			if e.key == NullString {
+				sb.WriteString("null")
+			} else {
+				sb.WriteString(e.key)
+			}
+			sb.WriteByte('=')
+			sb.WriteString(StrVal(e.val))
+		}
+		sb.WriteByte('}')
+		return sb.String()
+	}
 	mc.ForEachEntry(func(k, v any) bool {
 		if !first {
 			sb.WriteString(", ")
@@ -4804,6 +5104,18 @@ func (c *JMapEntryCursor) NextEntry() bool {
 			}
 			return true
 		default:
+			if c.cur.strKeys != nil {
+				if c.cur.idx >= len(c.cur.strKeys) {
+					return false
+				}
+				i := c.cur.idx
+				c.cur.idx = i + 1
+				c.curSlot = -1
+				c.curKind = 1
+				c.curKeyStr = c.cur.strKeys[i]
+				c.curVal = c.cur.vals[i]
+				return true
+			}
 			if c.cur.idx >= len(c.cur.keys) {
 				return false
 			}
@@ -4954,6 +5266,10 @@ func (c *JMapEntryCursor) SetValue(nv any) any {
 				return old
 			}
 		}
+	}
+	if c.curKind == 1 && !c.cur.mc.Identity {
+		c.cur.mc.PutStr(c.curKeyStr, nv)
+		return old
 	}
 	c.cur.mc.Put(c.GetKey(), nv)
 	return old
@@ -6015,7 +6331,6 @@ func immMapCopyOf(src Ext_java_util_Map) Ext_com_google_common_collect_Immutable
 	}
 	obj := newImmutableMapShell()
 	mc := &obj.inlineCore
-	mc.InitExpectedSize(src.Size())
 	copyExtMapIntoNonNull(mc, src)
 	mc.sealImmutable()
 	return obj
@@ -6074,11 +6389,58 @@ func immMapBuilderPut(b *jImmMapBuilderCore, k, v any) {
 	b.mc.Put(k, v)
 }
 
+func immMapBuilderPutStr(b *jImmMapBuilderCore, k string, v any) {
+	if k == NullString {
+		ThrowNPE()
+	}
+	v = CheckNotNull(ToAny(v))
+	if b.mc.ContainsStr(k) {
+		b.hasDup = true
+		b.dupKey = k
+	}
+	b.mc.PutStr(k, v)
+}
+
+func avlImmBuilderPutAll(s *jSortedMapState, cur int32, b *jImmMapBuilderCore) {
+	if cur == 0 {
+		return
+	}
+	n := &s.tree[cur-1]
+	if n.left != 0 {
+		avlImmBuilderPutAll(s, n.left, b)
+	}
+	if n.isStr {
+		immMapBuilderPutStr(b, n.strKey, n.val)
+	} else {
+		immMapBuilderPut(b, n.key, n.val)
+	}
+	if n.right != 0 {
+		avlImmBuilderPutAll(s, n.right, b)
+	}
+}
+
 func immMapBuilderPutAll(b *jImmMapBuilderCore, m Ext_java_util_Map) {
 	CheckNotNull(m)
 	if mp, ok := any(m).(jFastMapCoreProvider); ok {
 		if smc := mp.fastMapCore_(); smc != nil {
+			if smc.Size() == 0 {
+				return
+			}
 			b.mc.InitExpectedSize(b.mc.Size() + smc.Size())
+			if smc.mode == jMapModeStr && !smc.Identity && !b.mc.Identity {
+				for i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+					e := smc.strEntries[i]
+					if e.key != jTombstoneStr {
+						immMapBuilderPutStr(b, e.key, e.val)
+					}
+				}
+				return
+			}
+			if smc.IsSorted() && smc.ext != nil && !b.mc.Identity {
+				st := smc.ext.(*jSortedMapState)
+				avlImmBuilderPutAll(st, st.root, b)
+				return
+			}
 			smc.ForEachEntry(func(k, v any) bool {
 				immMapBuilderPut(b, k, v)
 				return true
@@ -9446,7 +9808,7 @@ func multimapOp_keySet_0(mm *jMultimapCore) any {
 func multimapOp_values_0(mm *jMultimapCore) any {
 	out := make([]any, 0, mm.total)
 	if mm.immutable {
-		mm.keys.ForEachEntry(func(_, b any) bool {
+		mm.keys.ForEachValue(func(b any) bool {
 			for it := NewIterCursor(b); it.HasNext(); {
 				out = append(out, it.Next())
 			}
@@ -9454,7 +9816,7 @@ func multimapOp_values_0(mm *jMultimapCore) any {
 		})
 		return wrapImmutableListOwn(out)
 	}
-	mm.keys.ForEachEntry(func(_, b any) bool {
+	mm.keys.ForEachValue(func(b any) bool {
 		if mm.isSet {
 			b.(*JMapCore).ForEachEntry(func(v, _ any) bool {
 				out = append(out, v)
@@ -9471,12 +9833,7 @@ func multimapOp_values_0(mm *jMultimapCore) any {
 }
 func multimapOp_asMap_0(mm *jMultimapCore) any {
 	if mm.immutable {
-		out := NewJMapCore(false)
-		mm.keys.ForEachEntry(func(k, b any) bool {
-			out.Put(k, b)
-			return true
-		})
-		return wrapImmutableMap(out)
+		return wrapImmutableMap(mm.keys)
 	}
 	v := &jMultimapAsMap{mm: mm}
 	v.BindExtSelf_(v)
@@ -11208,10 +11565,18 @@ func tableOp_columnKeySet_0(t *jTableCore) Ext_java_util_Set {
 		if e.hasSingle {
 			sc.Add(e.col0)
 		} else if e.multi != nil {
-			e.multi.ForEachEntry(func(ck, _ any) bool {
-				sc.Add(ck)
-				return true
-			})
+			if e.multi.mode == jMapModeStr && !e.multi.Identity {
+				for j := int(e.multi.firstIdx); j < len(e.multi.strEntries); j++ {
+					if ck := e.multi.strEntries[j].key; ck != jTombstoneStr {
+						sc.AddStr(ck)
+					}
+				}
+			} else {
+				e.multi.ForEachEntry(func(ck, _ any) bool {
+					sc.Add(ck)
+					return true
+				})
+			}
 		}
 	}
 	obj := &Ext_java_util_LinkedHashSet{Ext_java_util_HashSetBase: Ext_java_util_HashSetBase{inlineSet: sc}}
@@ -11229,7 +11594,7 @@ func tableOp_values_0(t *jTableCore) Ext_java_util_Collection {
 		if e.hasSingle {
 			vals = append(vals, e.val0)
 		} else if e.multi != nil {
-			e.multi.ForEachEntry(func(_, cv any) bool {
+			e.multi.ForEachValue(func(cv any) bool {
 				vals = append(vals, cv)
 				return true
 			})
@@ -11488,10 +11853,9 @@ func (m *jTableRowMapOuter) Remove_1(r any) any {
 	if e.hasSingle {
 		copyCore.Put(e.col0, e.val0)
 	} else if e.multi != nil {
-		e.multi.ForEachEntry(func(ck, cv any) bool {
-			copyCore.Put(ck, cv)
-			return true
-		})
+		if !copyCore.CopyFromSameMode(e.multi) {
+			copyHashCoreInto(copyCore, e.multi)
+		}
 	}
 	m.t.deleteRowAt(idx)
 	lhm := &Ext_java_util_LinkedHashMap{Ext_java_util_HashMapBase: Ext_java_util_HashMapBase{inlineCore: *copyCore}}
@@ -11934,11 +12298,7 @@ func (v jTableRowValues) toArrayImpl() []any {
 	}
 	var out []any
 	if e.multi != nil {
-		out = make([]any, 0, e.multi.Size())
-		e.multi.ForEachEntry(func(_, cv any) bool {
-			out = append(out, cv)
-			return true
-		})
+		out = e.multi.LiveValues()
 	}
 	return out
 }
@@ -11953,7 +12313,7 @@ func (v jTableRowValues) forEachImpl(action Ext_java_util_function_Consumer) {
 		return
 	}
 	if e.multi != nil {
-		e.multi.ForEachEntry(func(_, cv any) bool {
+		e.multi.ForEachValue(func(cv any) bool {
 			action.Accept(cv)
 			return true
 		})

@@ -129,13 +129,13 @@ func InitRescopeGlobalSymbolsRewriteCallback(this_ *RescopeGlobalSymbolsRewriteC
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.isCrossChunkName(java.lang.String name)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_isCrossChunkName_4918(name string) bool {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_isCrossChunkName_4916(name string) bool {
 	_ = name
 	return j2gort.SetContainsStr(this_.symbolInfo.CrossChunkNames(), name)
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.isExternVar(java.lang.String varname, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_isExternVar_4919(varname string, t *NodeTraversal) bool {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_isExternVar_4917(varname string, t *NodeTraversal) bool {
 	_ = varname
 	_ = t
 	if j2gort.CheckNotNullString(varname) == "" {
@@ -152,7 +152,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) ShouldTraverse_3(t *NodeTraver
 	_ = n
 	_ = parent
 	if NodeUtil_IsNameDeclaration(n) {
-		this_.priv_RescopeGlobalSymbolsRewriteCallback_visitNameDeclaration_4920(t, n)
+		this_.priv_RescopeGlobalSymbolsRewriteCallback_visitNameDeclaration_4918(t, n)
 	}
 	return true
 }
@@ -163,12 +163,12 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) Visit_3(t *NodeTraversal, n pk
 	_ = n
 	_ = parent
 	if n.IsName() {
-		this_.priv_RescopeGlobalSymbolsRewriteCallback_visitName_4925(t, n, parent)
+		this_.priv_RescopeGlobalSymbolsRewriteCallback_visitName_4923(t, n, parent)
 	}
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.visitNameDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node declaration)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_visitNameDeclaration_4920(t *NodeTraversal, declaration pkg_rhino.Node) {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_visitNameDeclaration_4918(t *NodeTraversal, declaration pkg_rhino.Node) {
 	_ = t
 	_ = declaration
 	var allLhsNodes j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList()
@@ -192,28 +192,28 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 			if !(lhs.IsName()) {
 				j2gort.CheckStateFmt(false, "Unexpected lhs node %s, expected NAME", j2gort.BoxNode(lhs))
 			}
-			if (isGlobalDeclaration && this_.priv_RescopeGlobalSymbolsRewriteCallback_isCrossChunkName_4918(lhs.GetString())) || this_.priv_RescopeGlobalSymbolsRewriteCallback_isExternVar_4919(lhs.GetString(), t) {
+			if (isGlobalDeclaration && this_.priv_RescopeGlobalSymbolsRewriteCallback_isCrossChunkName_4916(lhs.GetString())) || this_.priv_RescopeGlobalSymbolsRewriteCallback_isExternVar_4917(lhs.GetString(), t) {
 				hasImportantName = true
 				break
 			}
 		}
 	}
 	if hasImportantName {
-		this_.priv_RescopeGlobalSymbolsRewriteCallback_rewriteNameDeclaration_4922(t, declaration, allLhsNodes, isGlobalDeclaration)
+		this_.priv_RescopeGlobalSymbolsRewriteCallback_rewriteNameDeclaration_4920(t, declaration, allLhsNodes, isGlobalDeclaration)
 	}
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.globalVarStaysLocalInDefiningChunk(java.lang.String name, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_globalVarStaysLocalInDefiningChunk_4921(name string, t *NodeTraversal) bool {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_globalVarStaysLocalInDefiningChunk_4919(name string, t *NodeTraversal) bool {
 	_ = name
 	_ = t
 	if !(j2gort.CastPtr[Var](t.GetScope().GetVar(name)).IsGlobal()) {
 		j2gort.CheckStateFmt(false, "Expected global variable: %s", j2gort.BoxString(name))
 	}
-	if this_.priv_RescopeGlobalSymbolsRewriteCallback_isExternVar_4919(name, t) {
+	if this_.priv_RescopeGlobalSymbolsRewriteCallback_isExternVar_4917(name, t) {
 		return false
 	}
-	if !(this_.priv_RescopeGlobalSymbolsRewriteCallback_isCrossChunkName_4918(name)) {
+	if !(this_.priv_RescopeGlobalSymbolsRewriteCallback_isCrossChunkName_4916(name)) {
 		return true
 	}
 	if !(this_.optimizeLocalAccess.ShouldOptimize()) {
@@ -226,7 +226,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.rewriteNameDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node declaration, java.util.List<com.google.javascript.rhino.Node> allLhsNodes, boolean isGlobalDeclaration)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_rewriteNameDeclaration_4922(t *NodeTraversal, declaration pkg_rhino.Node, allLhsNodes j2gort.Ext_java_util_List, isGlobalDeclaration bool) {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_rewriteNameDeclaration_4920(t *NodeTraversal, declaration pkg_rhino.Node, allLhsNodes j2gort.Ext_java_util_List, isGlobalDeclaration bool) {
 	_ = t
 	_ = declaration
 	_ = allLhsNodes
@@ -234,7 +234,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 	if this_.optimizeLocalAccess.ShouldPreserveLocalVarDeclarations() && !(NodeUtil_IsAnyFor(declaration.GetParent())) {
 		var changed bool = false
 		_ = changed
-		if (isGlobalDeclaration && !(declaration.IsVar())) && this_.priv_RescopeGlobalSymbolsRewriteCallback_containsNonLocalOrInitializedVars_4924(t, declaration, isGlobalDeclaration) {
+		if (isGlobalDeclaration && !(declaration.IsVar())) && this_.priv_RescopeGlobalSymbolsRewriteCallback_containsNonLocalOrInitializedVars_4922(t, declaration, isGlobalDeclaration) {
 			declaration.SetToken(pkg_rhino.StaticGet_Token_VAR())
 			changed = true
 		}
@@ -247,14 +247,14 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 				if child.IsName() {
 					var name string = child.GetString()
 					_ = name
-					if !(this_.priv_RescopeGlobalSymbolsRewriteCallback_globalVarStaysLocalInDefiningChunk_4921(name, t)) {
+					if !(this_.priv_RescopeGlobalSymbolsRewriteCallback_globalVarStaysLocalInDefiningChunk_4919(name, t)) {
 						if child.HasChildren() {
 							var assign pkg_rhino.Node = pkg_rhino.IR_Assign(child.CloneNode_0(), child.RemoveFirstChild())
 							_ = assign
 							child.ReplaceWith(assign)
 							assign.SetJSDocInfo(declaration.GetJSDocInfo())
 							changed = true
-						} else if this_.priv_RescopeGlobalSymbolsRewriteCallback_isExternVar_4919(name, t) {
+						} else if this_.priv_RescopeGlobalSymbolsRewriteCallback_isExternVar_4917(name, t) {
 							child.Detach()
 							changed = true
 						}
@@ -263,7 +263,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 					NodeUtil_VisitLhsNodesInNode(child, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_3 any) {
 						lhs := j2gort.CastNode[pkg_rhino.Node](lp_3)
 						_ = lhs
-						this_.priv_RescopeGlobalSymbolsRewriteCallback_maybeAddPreDeclaration_4923(t, lhs, isGlobalDeclaration)
+						this_.priv_RescopeGlobalSymbolsRewriteCallback_maybeAddPreDeclaration_4921(t, lhs, isGlobalDeclaration)
 					}))
 					var assign_2 pkg_rhino.Node = pkg_rhino.IR_Assign(child.RemoveFirstChild(), child.RemoveFirstChild())
 					_ = assign_2
@@ -279,13 +279,13 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 		}
 		return
 	}
-	if !(this_.optimizeLocalAccess.ShouldOptimize()) || this_.priv_RescopeGlobalSymbolsRewriteCallback_containsNonLocalOrInitializedVars_4924(t, declaration, isGlobalDeclaration) {
+	if !(this_.optimizeLocalAccess.ShouldOptimize()) || this_.priv_RescopeGlobalSymbolsRewriteCallback_containsNonLocalOrInitializedVars_4922(t, declaration, isGlobalDeclaration) {
 		{
 			cur_4 := j2gort.NewIterCursor(j2gort.CheckNotNull(allLhsNodes))
 			for cur_4.HasNext() {
 				lhs := pkg_rhino.Node(cur_4.NextNode())
 				_ = lhs
-				this_.priv_RescopeGlobalSymbolsRewriteCallback_maybeAddPreDeclaration_4923(t, lhs, isGlobalDeclaration)
+				this_.priv_RescopeGlobalSymbolsRewriteCallback_maybeAddPreDeclaration_4921(t, lhs, isGlobalDeclaration)
 			}
 		}
 	}
@@ -320,13 +320,13 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.maybeAddPreDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node lhs, boolean isGlobalDeclaration)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_maybeAddPreDeclaration_4923(t *NodeTraversal, lhs pkg_rhino.Node, isGlobalDeclaration bool) {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_maybeAddPreDeclaration_4921(t *NodeTraversal, lhs pkg_rhino.Node, isGlobalDeclaration bool) {
 	_ = t
 	_ = lhs
 	_ = isGlobalDeclaration
 	var name string = lhs.GetString()
 	_ = name
-	if this_.priv_RescopeGlobalSymbolsRewriteCallback_globalVarStaysLocalInDefiningChunk_4921(name, t) {
+	if this_.priv_RescopeGlobalSymbolsRewriteCallback_globalVarStaysLocalInDefiningChunk_4919(name, t) {
 		var localName string = this_.renameHelper.GetLocalNameInDefiningChunk(name, isGlobalDeclaration)
 		_ = localName
 		this_.preDeclarations = append(this_.preDeclarations, NewRescopeGlobalSymbolsRewriteCallback_ChunkGlobal(t.GetInput().GetAstRoot(this_.compiler), pkg_rhino.IR_Name(localName).Srcref(lhs)))
@@ -334,7 +334,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.containsNonLocalOrInitializedVars(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node declaration, boolean isGlobalDeclaration)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_containsNonLocalOrInitializedVars_4924(t *NodeTraversal, declaration pkg_rhino.Node, isGlobalDeclaration bool) bool {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_containsNonLocalOrInitializedVars_4922(t *NodeTraversal, declaration pkg_rhino.Node, isGlobalDeclaration bool) bool {
 	_ = t
 	_ = declaration
 	_ = isGlobalDeclaration
@@ -342,7 +342,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 		var child pkg_rhino.Node = declaration.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			if (isGlobalDeclaration && child.IsName()) && !(this_.priv_RescopeGlobalSymbolsRewriteCallback_globalVarStaysLocalInDefiningChunk_4921(child.GetString(), t)) {
+			if (isGlobalDeclaration && child.IsName()) && !(this_.priv_RescopeGlobalSymbolsRewriteCallback_globalVarStaysLocalInDefiningChunk_4919(child.GetString(), t)) {
 				return true
 			}
 			if child.HasChildren() || child.IsDestructuringLhs() {
@@ -354,7 +354,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.visitName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_visitName_4925(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_visitName_4923(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = n
 	_ = parent
@@ -363,13 +363,13 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 	if parent.IsFunction() && (j2gort.CheckNotNullString(name) == "") {
 		return
 	}
-	if this_.priv_RescopeGlobalSymbolsRewriteCallback_isExternVar_4919(name, t) {
+	if this_.priv_RescopeGlobalSymbolsRewriteCallback_isExternVar_4917(name, t) {
 		return
 	}
 	var var_ *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(name))
 	_ = var_
 	this_.renameHelper.MaybeDisambiguateLocalVar(n, var_)
-	if !(var_.IsGlobal() && this_.priv_RescopeGlobalSymbolsRewriteCallback_isCrossChunkName_4918(name)) {
+	if !(var_.IsGlobal() && this_.priv_RescopeGlobalSymbolsRewriteCallback_isCrossChunkName_4916(name)) {
 		return
 	}
 	var currentChunk *JSChunk = t.GetChunk()
@@ -382,18 +382,18 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 		var definingChunk *JSChunk = var_.GetInput().GetChunk()
 		_ = definingChunk
 		if currentChunk == definingChunk {
-			if this_.priv_RescopeGlobalSymbolsRewriteCallback_globalVarStaysLocalInDefiningChunk_4921(name, t) {
+			if this_.priv_RescopeGlobalSymbolsRewriteCallback_globalVarStaysLocalInDefiningChunk_4919(name, t) {
 				var localName string = this_.renameHelper.MaybeRenameGlobalInDefiningChunk(n)
 				_ = localName
 				if NodeUtil_IsLValueWrite(n) {
-					this_.priv_RescopeGlobalSymbolsRewriteCallback_addGlobalNamespaceAlias_4927(n, name, localName, currentChunk)
+					this_.priv_RescopeGlobalSymbolsRewriteCallback_addGlobalNamespaceAlias_4925(n, name, localName, currentChunk)
 				}
 				return
 			}
 			if !(this_.optimizeLocalAccess.ShouldWrapReassignableSymbols()) || !(j2gort.SetContainsStr(this_.symbolInfo.WrappedCrossChunkNames(), name)) {
 				var replacement pkg_rhino.Node = pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Name(this_.symbolInfo.GlobalSymbolNamespace()), name)
 				_ = replacement
-				this_.priv_RescopeGlobalSymbolsRewriteCallback_replaceSymbol_4926(n, name, replacement)
+				this_.priv_RescopeGlobalSymbolsRewriteCallback_replaceSymbol_4924(n, name, replacement)
 				return
 			}
 		} else if this_.optimizeLocalAccess.ShouldOptimizeAllChunks() && (!(this_.optimizeLocalAccess.ShouldWrapReassignableSymbols()) || !(j2gort.SetContainsStr(this_.symbolInfo.WrappedCrossChunkNames(), name))) {
@@ -406,7 +406,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 	if !(this_.optimizeLocalAccess.ShouldWrapReassignableSymbols()) {
 		var replacement_2 pkg_rhino.Node = pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Name(this_.symbolInfo.GlobalSymbolNamespace()), name)
 		_ = replacement_2
-		this_.priv_RescopeGlobalSymbolsRewriteCallback_replaceSymbol_4926(n, name, replacement_2)
+		this_.priv_RescopeGlobalSymbolsRewriteCallback_replaceSymbol_4924(n, name, replacement_2)
 		return
 	}
 	if !(j2gort.SetContainsStr(this_.symbolInfo.WrappedCrossChunkNames(), name)) {
@@ -418,11 +418,11 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 		Add_1(j2gort.PtrToAny(currentChunk))
 	var replacement_3 pkg_rhino.Node = pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Name(name), "_")
 	_ = replacement_3
-	this_.priv_RescopeGlobalSymbolsRewriteCallback_replaceSymbol_4926(n, name, replacement_3)
+	this_.priv_RescopeGlobalSymbolsRewriteCallback_replaceSymbol_4924(n, name, replacement_3)
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.replaceSymbol(com.google.javascript.rhino.Node node, java.lang.String name, com.google.javascript.rhino.Node replacement)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_replaceSymbol_4926(node pkg_rhino.Node, name string, replacement pkg_rhino.Node) {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_replaceSymbol_4924(node pkg_rhino.Node, name string, replacement pkg_rhino.Node) {
 	_ = node
 	_ = name
 	_ = replacement
@@ -438,7 +438,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.addGlobalNamespaceAlias(com.google.javascript.rhino.Node n, java.lang.String name, java.lang.String localName, com.google.javascript.jscomp.JSChunk currentChunk)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_addGlobalNamespaceAlias_4927(n pkg_rhino.Node, name string, localName string, currentChunk *JSChunk) {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_addGlobalNamespaceAlias_4925(n pkg_rhino.Node, name string, localName string, currentChunk *JSChunk) {
 	_ = n
 	_ = name
 	_ = localName
@@ -541,14 +541,14 @@ func RescopeGlobalSymbolsRewriteCallback_IsSafeDestructuringWrite(n pkg_rhino.No
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.addDeclarations()
 func (this_ *RescopeGlobalSymbolsRewriteCallback) AddDeclarations() {
-	this_.priv_RescopeGlobalSymbolsRewriteCallback_declareChunkGlobals_4929()
+	this_.priv_RescopeGlobalSymbolsRewriteCallback_declareChunkGlobals_4927()
 	if this_.optimizeLocalAccess.ShouldOptimizeAllChunks() {
-		this_.priv_RescopeGlobalSymbolsRewriteCallback_declareLocalAliasesAndWrappers_4930()
+		this_.priv_RescopeGlobalSymbolsRewriteCallback_declareLocalAliasesAndWrappers_4928()
 	}
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.declareChunkGlobals()
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_declareChunkGlobals_4929() {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_declareChunkGlobals_4927() {
 	for _, global := range this_.preDeclarations {
 		_ = global
 		if global.root.HasChildren() && global.root.GetFirstChild().IsVar() {
@@ -562,7 +562,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.declareLocalAliasesAndWrappers()
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_declareLocalAliasesAndWrappers_4930() {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_declareLocalAliasesAndWrappers_4928() {
 	var chunkGraph *JSChunkGraph = this_.compiler.GetChunkGraph()
 	_ = chunkGraph
 	var chunks j2gort.Ext_java_lang_Iterable = chunkGraph.GetAllChunks()
@@ -590,7 +590,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 			}
 		}
 	}
-	var cleanupHelperName string = this_.priv_RescopeGlobalSymbolsRewriteCallback_getCleanupHelperPropertyName_4931()
+	var cleanupHelperName string = this_.priv_RescopeGlobalSymbolsRewriteCallback_getCleanupHelperPropertyName_4929()
 	_ = cleanupHelperName
 	var needsCleanupHelper bool = false
 	_ = needsCleanupHelper
@@ -600,18 +600,18 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 			rawElem_34 := cur_33.Next()
 			chunk := j2gort.CastPtr[JSChunk](rawElem_34)
 			_ = chunk
-			if this_.priv_RescopeGlobalSymbolsRewriteCallback_declareLocalAliasesAndWrappersForChunk_4933(chunk, &wrapperAssignmentChunks, cleanupHelperName) {
+			if this_.priv_RescopeGlobalSymbolsRewriteCallback_declareLocalAliasesAndWrappersForChunk_4931(chunk, &wrapperAssignmentChunks, cleanupHelperName) {
 				needsCleanupHelper = true
 			}
 		}
 	}
 	if needsCleanupHelper {
-		this_.priv_RescopeGlobalSymbolsRewriteCallback_declareCleanupHelper_4932(cleanupHelperName)
+		this_.priv_RescopeGlobalSymbolsRewriteCallback_declareCleanupHelper_4930(cleanupHelperName)
 	}
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.getCleanupHelperPropertyName()
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_getCleanupHelperPropertyName_4931() string {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_getCleanupHelperPropertyName_4929() string {
 	var name string = "_"
 	_ = name
 	for this_.chunksUsingCrossChunkSymbols.ContainsKey(name) {
@@ -621,7 +621,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.declareCleanupHelper(java.lang.String cleanupHelperName)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_declareCleanupHelper_4932(cleanupHelperName string) {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_declareCleanupHelper_4930(cleanupHelperName string) {
 	_ = cleanupHelperName
 	var script pkg_rhino.Node = this_.compiler.GetNodeForCodeInsertion(nil)
 	_ = script
@@ -659,7 +659,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.declareLocalAliasesAndWrappersForChunk(com.google.javascript.jscomp.JSChunk chunk, java.util.Map<java.lang.String,com.google.javascript.jscomp.JSChunk> wrapperAssignmentChunks, java.lang.String cleanupHelperName)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_declareLocalAliasesAndWrappersForChunk_4933(chunk *JSChunk, wrapperAssignmentChunks *j2gort.OrderedMap[string, *JSChunk], cleanupHelperName string) bool {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_declareLocalAliasesAndWrappersForChunk_4931(chunk *JSChunk, wrapperAssignmentChunks *j2gort.OrderedMap[string, *JSChunk], cleanupHelperName string) bool {
 	_ = chunk
 	_ = wrapperAssignmentChunks
 	_ = cleanupHelperName
@@ -714,7 +714,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 			for cur_36.HasNext() {
 				name_2 := cur_36.NextStr()
 				_ = name_2
-				if this_.optimizeLocalAccess.ShouldDeleteGlobalsOnLastAccess() && this_.priv_RescopeGlobalSymbolsRewriteCallback_canDeleteFromGlobalNamespace_4934(chunk, name_2) {
+				if this_.optimizeLocalAccess.ShouldDeleteGlobalsOnLastAccess() && this_.priv_RescopeGlobalSymbolsRewriteCallback_canDeleteFromGlobalNamespace_4932(chunk, name_2) {
 					aliasesToDelete.Add_1(j2gort.BoxString(name_2))
 				} else {
 					aliasesToKeep.Add_1(j2gort.BoxString(name_2))
@@ -775,7 +775,7 @@ func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewri
 }
 
 // Java method: RescopeGlobalSymbolsRewriteCallback.canDeleteFromGlobalNamespace(com.google.javascript.jscomp.JSChunk currentChunk, java.lang.String name)
-func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_canDeleteFromGlobalNamespace_4934(currentChunk *JSChunk, name string) bool {
+func (this_ *RescopeGlobalSymbolsRewriteCallback) priv_RescopeGlobalSymbolsRewriteCallback_canDeleteFromGlobalNamespace_4932(currentChunk *JSChunk, name string) bool {
 	_ = currentChunk
 	_ = name
 	if this_.compiler.GetCodingConvention().IsExported_2(name, false) {

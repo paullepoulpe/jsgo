@@ -103,9 +103,9 @@ func (this_ *BranchCoverageInstrumentationCallback) Visit_3(traversal *NodeTrave
 			} else {
 				toAddTo = node
 			}
-			toAddTo.AddChildrenToFront(this_.priv_BranchCoverageInstrumentationCallback_newHeaderNode_6446(traversal, toAddTo).RemoveChildren())
+			toAddTo.AddChildrenToFront(this_.priv_BranchCoverageInstrumentationCallback_newHeaderNode_6444(traversal, toAddTo).RemoveChildren())
 			this_.compiler.ReportChangeToEnclosingScope(node)
-			this_.priv_BranchCoverageInstrumentationCallback_instrumentBranchCoverage_6442(traversal, this_.instrumentationData.Get(fileName))
+			this_.priv_BranchCoverageInstrumentationCallback_instrumentBranchCoverage_6440(traversal, this_.instrumentationData.Get(fileName))
 		}
 	}
 	if node.IsIf() {
@@ -130,7 +130,7 @@ func (this_ *BranchCoverageInstrumentationCallback) Visit_3(traversal *NodeTrave
 			}
 		}
 		if !(hasDefaultBlock) {
-			this_.priv_BranchCoverageInstrumentationCallback_addDefaultBlock_6445(node)
+			this_.priv_BranchCoverageInstrumentationCallback_addDefaultBlock_6443(node)
 		}
 		j2gort.OrderedMapComputeIfAbsent(this_.instrumentationData, fileName, nil, func(lp_7 string) *FileInstrumentationData {
 			k := lp_7
@@ -138,9 +138,9 @@ func (this_ *BranchCoverageInstrumentationCallback) Visit_3(traversal *NodeTrave
 			return NewFileInstrumentationData(k, BranchCoverageInstrumentationCallback_CreateArrayName(traversal))
 		})
 
-		this_.priv_BranchCoverageInstrumentationCallback_processBranchInfo_6444(node, this_.instrumentationData.Get(fileName), this_.priv_BranchCoverageInstrumentationCallback_getChildrenBlocks_6441(node))
+		this_.priv_BranchCoverageInstrumentationCallback_processBranchInfo_6442(node, this_.instrumentationData.Get(fileName), this_.priv_BranchCoverageInstrumentationCallback_getChildrenBlocks_6439(node))
 	} else if NodeUtil_IsLoopStructure(node) {
-		var blocks j2gort.Ext_java_util_List = this_.priv_BranchCoverageInstrumentationCallback_getChildrenBlocks_6441(node)
+		var blocks j2gort.Ext_java_util_List = this_.priv_BranchCoverageInstrumentationCallback_getChildrenBlocks_6439(node)
 		_ = blocks
 		var cfg_2 ControlFlowGraph[pkg_rhino.Node] = this_.GetControlFlowGraph(this_.compiler)
 		_ = cfg_2
@@ -174,12 +174,12 @@ func (this_ *BranchCoverageInstrumentationCallback) Visit_3(traversal *NodeTrave
 			return NewFileInstrumentationData(k, BranchCoverageInstrumentationCallback_CreateArrayName(traversal))
 		})
 
-		this_.priv_BranchCoverageInstrumentationCallback_processBranchInfo_6444(node, this_.instrumentationData.Get(fileName), blocks)
+		this_.priv_BranchCoverageInstrumentationCallback_processBranchInfo_6442(node, this_.instrumentationData.Get(fileName), blocks)
 	}
 }
 
 // Java method: BranchCoverageInstrumentationCallback.getChildrenBlocks(com.google.javascript.rhino.Node node)
-func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_getChildrenBlocks_6441(node pkg_rhino.Node) j2gort.Ext_java_util_List {
+func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_getChildrenBlocks_6439(node pkg_rhino.Node) j2gort.Ext_java_util_List {
 	_ = node
 	var blocks []pkg_rhino.Node = []pkg_rhino.Node{}
 	_ = blocks
@@ -196,7 +196,7 @@ func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumen
 }
 
 // Java method: BranchCoverageInstrumentationCallback.instrumentBranchCoverage(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.jscomp.instrumentation.FileInstrumentationData data)
-func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_instrumentBranchCoverage_6442(traversal *NodeTraversal, data *FileInstrumentationData) {
+func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_instrumentBranchCoverage_6440(traversal *NodeTraversal, data *FileInstrumentationData) {
 	_ = traversal
 	_ = data
 	var maxLine int32 = data.MaxBranchPresentLine()
@@ -216,7 +216,7 @@ func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumen
 					for ; branchIdx <= j2gort.UnboxInt(numBranches); branchIdx = branchIdx + 1 {
 						var block pkg_rhino.Node = data.GetBranchNode(lineIdx, branchIdx)
 						_ = block
-						block.AddChildToFront(this_.priv_BranchCoverageInstrumentationCallback_newBranchInstrumentationNode_6443(traversal, block, ((branchCoverageOffset + branchIdx) - int32(1))))
+						block.AddChildToFront(this_.priv_BranchCoverageInstrumentationCallback_newBranchInstrumentationNode_6441(traversal, block, ((branchCoverageOffset + branchIdx) - int32(1))))
 						this_.compiler.ReportChangeToEnclosingScope(block)
 					}
 				}
@@ -227,7 +227,7 @@ func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumen
 }
 
 // Java method: BranchCoverageInstrumentationCallback.newBranchInstrumentationNode(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node node, int idx)
-func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_newBranchInstrumentationNode_6443(traversal *NodeTraversal, node pkg_rhino.Node, idx int32) pkg_rhino.Node {
+func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_newBranchInstrumentationNode_6441(traversal *NodeTraversal, node pkg_rhino.Node, idx int32) pkg_rhino.Node {
 	_ = traversal
 	_ = node
 	_ = idx
@@ -249,7 +249,7 @@ func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumen
 }
 
 // Java method: BranchCoverageInstrumentationCallback.processBranchInfo(com.google.javascript.rhino.Node branchNode, com.google.javascript.jscomp.instrumentation.FileInstrumentationData data, java.util.List<com.google.javascript.rhino.Node> blocks)
-func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_processBranchInfo_6444(branchNode pkg_rhino.Node, data *FileInstrumentationData, blocks j2gort.Ext_java_util_List) {
+func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_processBranchInfo_6442(branchNode pkg_rhino.Node, data *FileInstrumentationData, blocks j2gort.Ext_java_util_List) {
 	_ = branchNode
 	_ = data
 	_ = blocks
@@ -271,7 +271,7 @@ func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumen
 }
 
 // Java method: BranchCoverageInstrumentationCallback.addDefaultBlock(com.google.javascript.rhino.Node node)
-func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_addDefaultBlock_6445(node pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_addDefaultBlock_6443(node pkg_rhino.Node) pkg_rhino.Node {
 	_ = node
 	var defaultBlock pkg_rhino.Node = pkg_rhino.IR_Block_0()
 	_ = defaultBlock
@@ -280,7 +280,7 @@ func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumen
 }
 
 // Java method: BranchCoverageInstrumentationCallback.newHeaderNode(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node srcref)
-func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_newHeaderNode_6446(traversal *NodeTraversal, srcref pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_newHeaderNode_6444(traversal *NodeTraversal, srcref pkg_rhino.Node) pkg_rhino.Node {
 	_ = traversal
 	_ = srcref
 	var fileName string = traversal.GetSourceName()
@@ -292,23 +292,23 @@ func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumen
 	_ = objName
 	var nodes j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList()
 	_ = nodes
-	nodes.Add_1(j2gort.BoxNode(this_.priv_BranchCoverageInstrumentationCallback_newArrayDeclarationNode_6447(traversal)))
+	nodes.Add_1(j2gort.BoxNode(this_.priv_BranchCoverageInstrumentationCallback_newArrayDeclarationNode_6445(traversal)))
 	nodes.Add_1(j2gort.BoxNode(pkg_rhino.IR_ExprResult(pkg_rhino.IR_Call(pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Getelem(pkg_rhino.IR_Name(objName), pkg_rhino.IR_String("branchesTaken")), "push"), []pkg_rhino.Node{pkg_rhino.IR_Name(BranchCoverageInstrumentationCallback_CreateArrayName(traversal))}))))
 	nodes.Add_1(j2gort.BoxNode(pkg_rhino.IR_ExprResult(pkg_rhino.IR_Call(pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Getelem(pkg_rhino.IR_Name(objName), pkg_rhino.IR_String("branchPresent")), "push"), []pkg_rhino.Node{pkg_rhino.IR_String(data.GetBranchPresentAsHexString())}))))
-	nodes.Add_1(j2gort.BoxNode(this_.priv_BranchCoverageInstrumentationCallback_newBranchesInLineNode_6448("JSCompiler_lcov_branchesInLine", data)))
+	nodes.Add_1(j2gort.BoxNode(this_.priv_BranchCoverageInstrumentationCallback_newBranchesInLineNode_6446("JSCompiler_lcov_branchesInLine", data)))
 	nodes.Add_1(j2gort.BoxNode(pkg_rhino.IR_ExprResult(pkg_rhino.IR_Call(pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Getelem(pkg_rhino.IR_Name(objName), pkg_rhino.IR_String("branchesInLine")), "push"), []pkg_rhino.Node{pkg_rhino.IR_Name("JSCompiler_lcov_branchesInLine")}))))
 	nodes.Add_1(j2gort.BoxNode(pkg_rhino.IR_ExprResult(pkg_rhino.IR_Call(pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Getelem(pkg_rhino.IR_Name(objName), pkg_rhino.IR_String("fileNames")), "push"), []pkg_rhino.Node{pkg_rhino.IR_String(fileName)}))))
 	return pkg_rhino.IR_Block_1_Ext_java_util_List(nodes).SrcrefTreeIfMissing(srcref)
 }
 
 // Java method: BranchCoverageInstrumentationCallback.newArrayDeclarationNode(com.google.javascript.jscomp.NodeTraversal traversal)
-func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_newArrayDeclarationNode_6447(traversal *NodeTraversal) pkg_rhino.Node {
+func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_newArrayDeclarationNode_6445(traversal *NodeTraversal) pkg_rhino.Node {
 	_ = traversal
 	return pkg_rhino.IR_Var_2(pkg_rhino.IR_Name(BranchCoverageInstrumentationCallback_CreateArrayName(traversal)), pkg_rhino.IR_Arraylit_1_Node([]pkg_rhino.Node{}))
 }
 
 // Java method: BranchCoverageInstrumentationCallback.newBranchesInLineNode(java.lang.String name, com.google.javascript.jscomp.instrumentation.FileInstrumentationData data)
-func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_newBranchesInLineNode_6448(name string, data *FileInstrumentationData) pkg_rhino.Node {
+func (this_ *BranchCoverageInstrumentationCallback) priv_BranchCoverageInstrumentationCallback_newBranchesInLineNode_6446(name string, data *FileInstrumentationData) pkg_rhino.Node {
 	_ = name
 	_ = data
 	var assignments j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList()

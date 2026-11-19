@@ -1009,6 +1009,7 @@ func (this_ *FlowSensitiveInlineVariables) ReleaseSlabs_() {
 	this_.slab_Candidate.Release()
 }
 func (*FlowSensitiveInlineVariables) NoOpVisit_()                                                 {}
+func (*FlowSensitiveInlineVariables) CanReleaseSyntacticScopes_()                                 {}
 func (*FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) CanReleaseSyntacticScopes_() {}
 func (*FlowSensitiveInlineVariables_GatherCandidates) CanReleaseSyntacticScopes_()                {}
 func (*FlowSensitiveInlineVariables__Anon_43) CanReleaseSyntacticScopes_()                        {}

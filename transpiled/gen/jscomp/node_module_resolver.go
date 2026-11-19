@@ -163,7 +163,7 @@ func InitNodeModuleResolver(this_ *NodeModuleResolverBase, modulePaths j2gort.Ex
 	if packageJsonMainEntries == nil {
 		this_.packageJsonMainEntries = j2gort.Ext_com_google_common_collect_ImmutableMap_Of_0()
 	} else {
-		this_.packageJsonMainEntries = this_.priv_NodeModuleResolver_buildPackageJsonMainEntries_6143(packageJsonMainEntries)
+		this_.packageJsonMainEntries = this_.priv_NodeModuleResolver_buildPackageJsonMainEntries_6141(packageJsonMainEntries)
 	}
 }
 
@@ -211,7 +211,7 @@ func NodeModuleResolver_BuildNodeModulesFoldersRegistry(modulePaths j2gort.Ext_j
 }
 
 // Java method: NodeModuleResolver.buildPackageJsonMainEntries(java.util.Map<java.lang.String,java.lang.String> packageJsonMainEntries)
-func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_buildPackageJsonMainEntries_6143(packageJsonMainEntries j2gort.Ext_java_util_Map) j2gort.Ext_com_google_common_collect_ImmutableMap {
+func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_buildPackageJsonMainEntries_6141(packageJsonMainEntries j2gort.Ext_java_util_Map) j2gort.Ext_com_google_common_collect_ImmutableMap {
 	_ = packageJsonMainEntries
 	var builder j2gort.Ext_com_google_common_collect_ImmutableMap_Builder = j2gort.Ext_com_google_common_collect_ImmutableMap_S_Builder()
 	_ = builder
@@ -241,7 +241,7 @@ func (this_ *NodeModuleResolverBase) ResolveJsModule(scriptAddress string, modul
 	_ = sourcename
 	_ = lineno
 	_ = colno
-	var loadAddress string = this_.priv_NodeModuleResolver_internalResolveJsModule_6144(scriptAddress, moduleAddress)
+	var loadAddress string = this_.priv_NodeModuleResolver_internalResolveJsModule_6142(scriptAddress, moduleAddress)
 	_ = loadAddress
 	if loadAddress == j2gort.NullString {
 		this_.GetModuleResolverBase().errorHandler.Report_2(StaticGet_CheckLevel_WARNING(), JSError_Make_5(sourcename, lineno, colno, StaticGet_ModuleLoader_LOAD_WARNING(), []string{moduleAddress}))
@@ -250,15 +250,15 @@ func (this_ *NodeModuleResolverBase) ResolveJsModule(scriptAddress string, modul
 }
 
 // Java method: NodeModuleResolver.internalResolveJsModule(java.lang.String scriptAddress, java.lang.String moduleAddress)
-func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_internalResolveJsModule_6144(scriptAddress string, moduleAddress string) string {
+func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_internalResolveJsModule_6142(scriptAddress string, moduleAddress string) string {
 	_ = scriptAddress
 	_ = moduleAddress
 	var loadAddress string = j2gort.NullString
 	_ = loadAddress
 	if ModuleLoader_IsAbsoluteIdentifier(moduleAddress) || ModuleLoader_IsRelativeIdentifier(moduleAddress) {
-		loadAddress = this_.priv_NodeModuleResolver_resolveJsModuleNodeFileOrDirectory_6146(scriptAddress, moduleAddress)
+		loadAddress = this_.priv_NodeModuleResolver_resolveJsModuleNodeFileOrDirectory_6144(scriptAddress, moduleAddress)
 	} else {
-		loadAddress = this_.priv_NodeModuleResolver_resolveJsModuleFromRegistry_6148(scriptAddress, moduleAddress)
+		loadAddress = this_.priv_NodeModuleResolver_resolveJsModuleFromRegistry_6146(scriptAddress, moduleAddress)
 	}
 	return loadAddress
 }
@@ -267,7 +267,7 @@ func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_internalResolveJsMo
 func (this_ *NodeModuleResolverBase) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) string {
 	_ = scriptAddress
 	_ = moduleAddress
-	return this_.priv_NodeModuleResolver_internalResolveJsModule_6144(scriptAddress, moduleAddress)
+	return this_.priv_NodeModuleResolver_internalResolveJsModule_6142(scriptAddress, moduleAddress)
 }
 
 // Java method: NodeModuleResolver.resolveJsModuleFile(java.lang.String scriptAddress, java.lang.String moduleAddress)
@@ -297,20 +297,20 @@ func (this_ *NodeModuleResolverBase) ResolveJsModuleFile(scriptAddress string, m
 }
 
 // Java method: NodeModuleResolver.resolveJsModuleNodeFileOrDirectory(java.lang.String scriptAddress, java.lang.String moduleAddress)
-func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_resolveJsModuleNodeFileOrDirectory_6146(scriptAddress string, moduleAddress string) string {
+func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_resolveJsModuleNodeFileOrDirectory_6144(scriptAddress string, moduleAddress string) string {
 	_ = scriptAddress
 	_ = moduleAddress
 	var loadAddress string = j2gort.NullString
 	_ = loadAddress
 	loadAddress = this_.ResolveJsModuleFile(scriptAddress, moduleAddress)
 	if loadAddress == j2gort.NullString {
-		loadAddress = this_.priv_NodeModuleResolver_resolveJsModuleNodeDirectory_6147(scriptAddress, moduleAddress)
+		loadAddress = this_.priv_NodeModuleResolver_resolveJsModuleNodeDirectory_6145(scriptAddress, moduleAddress)
 	}
 	return loadAddress
 }
 
 // Java method: NodeModuleResolver.resolveJsModuleNodeDirectory(java.lang.String scriptAddress, java.lang.String moduleAddress)
-func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_resolveJsModuleNodeDirectory_6147(scriptAddress string, moduleAddress string) string {
+func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_resolveJsModuleNodeDirectory_6145(scriptAddress string, moduleAddress string) string {
 	_ = scriptAddress
 	_ = moduleAddress
 	if javalang.StringEndsWith(j2gort.CheckNotNullString(moduleAddress), "/") {
@@ -346,7 +346,7 @@ func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_resolveJsModuleNode
 }
 
 // Java method: NodeModuleResolver.resolveJsModuleFromRegistry(java.lang.String scriptAddress, java.lang.String moduleAddress)
-func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_resolveJsModuleFromRegistry_6148(scriptAddress string, moduleAddress string) string {
+func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_resolveJsModuleFromRegistry_6146(scriptAddress string, moduleAddress string) string {
 	_ = scriptAddress
 	_ = moduleAddress
 	var normalizedScriptAddress string = (j2gort.StrValString(func() string {
@@ -369,7 +369,7 @@ func (this_ *NodeModuleResolverBase) priv_NodeModuleResolver_resolveJsModuleFrom
 			var loadAddress string = this_.ResolveJsModuleFile(scriptAddress, fullModulePath)
 			_ = loadAddress
 			if loadAddress == j2gort.NullString {
-				loadAddress = this_.priv_NodeModuleResolver_resolveJsModuleNodeDirectory_6147(scriptAddress, fullModulePath)
+				loadAddress = this_.priv_NodeModuleResolver_resolveJsModuleNodeDirectory_6145(scriptAddress, fullModulePath)
 			}
 			if loadAddress != j2gort.NullString {
 				return loadAddress

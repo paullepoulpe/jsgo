@@ -1,0 +1,468 @@
+diff --git a/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java b/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
+index 5d28fa1..ca6a610 100644
+--- a/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
++++ b/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
+@@ -30,6 +30,7 @@ import com.google.javascript.rhino.Node;
+ import java.util.ArrayDeque;
+ import java.util.ArrayList;
+ import java.util.Deque;
++import java.util.HashMap;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+@@ -686,26 +687,11 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+    * @see Normalize
+    */
+   static class ContextualRenamer implements Renamer {
+-    private static final class Counter {
+-      int value;
+-
+-      Counter(int value) {
+-        this.value = value;
+-      }
+-
+-      @Override
+-      public String toString() {
+-        return Integer.toString(value);
+-      }
+-    }
+-
+-    private static final Counter RESERVED_ONE = new Counter(1);
+-
+     private static final class NameUsage {
+       private static final int LC_CACHE_IDS = 1024;
+       private static final int MEMO_MASK = 2047;
+ 
+-      private final LinkedHashMap<String, Counter> counts = new LinkedHashMap<>();
++      private final HashMap<String, Integer> counts = new HashMap<>();
+       private String @Nullable [][] lcUniqueCache;
+       private String @Nullable [] memoNames;
+       private int @Nullable [] memoIds;
+@@ -716,35 +702,27 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+       }
+ 
+       void reserve(String name) {
+-        counts.putIfAbsent(name, RESERVED_ONE);
++        counts.putIfAbsent(name, 1);
+       }
+ 
+       int addOne(String name) {
+-        Counter prev = counts.get(name);
++        Integer prev = counts.get(name);
+         if (prev == null) {
+-          counts.put(name, RESERVED_ONE);
++          counts.put(name, 1);
+           return 0;
+         }
+-        if (prev == RESERVED_ONE) {
+-          counts.put(name, new Counter(2));
+-          return 1;
+-        }
+-        int old = prev.value;
+-        prev.value = old + 1;
++        int old = prev;
++        counts.put(name, old + 1);
+         return old;
+       }
+ 
+       int addOneIfPresent(String name) {
+-        Counter prev = counts.get(name);
++        Integer prev = counts.get(name);
+         if (prev == null) {
+           return -1;
+         }
+-        if (prev == RESERVED_ONE) {
+-          counts.put(name, new Counter(2));
+-          return 1;
+-        }
+-        int old = prev.value;
+-        prev.value = old + 1;
++        int old = prev;
++        counts.put(name, old + 1);
+         return old;
+       }
+ 
+@@ -791,11 +769,6 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+         }
+         return formatUniqueName(name, id);
+       }
+-
+-      @Override
+-      public String toString() {
+-        return counts.toString();
+-      }
+     }
+ 
+     private final @Nullable Node scopeRoot;
+diff --git a/com/google/javascript/jscomp/RemoveUnusedCode.java b/com/google/javascript/jscomp/RemoveUnusedCode.java
+index 178e7ea..90a50f7 100644
+--- a/com/google/javascript/jscomp/RemoveUnusedCode.java
++++ b/com/google/javascript/jscomp/RemoveUnusedCode.java
+@@ -38,6 +38,7 @@ import java.util.ArrayDeque;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.Deque;
++import java.util.HashSet;
+ import java.util.Iterator;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+@@ -114,8 +115,7 @@ class RemoveUnusedCode implements CompilerPass {
+   private int[] varInfoTable = new int[512];
+   private int varInfoSize = 0;
+ 
+-  private final LinkedHashSet<String> pinnedPropertyNames =
+-      new LinkedHashSet<>(IMPLICITLY_USED_PROPERTIES);
++  private final HashSet<String> pinnedPropertyNames = new HashSet<>(16);
+ 
+   /** Stores Removable objects for each property name that is currently considered removable. */
+   private final LinkedHashMap<String, ArrayList<Removable>> removablesForPropertyNames =
+@@ -179,6 +179,9 @@ class RemoveUnusedCode implements CompilerPass {
+ 
+     // All Vars that are completely unremovable will share this VarInfo instance.
+     canonicalUnremovableVarInfo = new VarInfo();
++    for (String prop : IMPLICITLY_USED_PROPERTIES) {
++      this.pinnedPropertyNames.add(prop);
++    }
+   }
+ 
+   private RemovableBuilder acquireBuilder() {
+@@ -370,7 +373,9 @@ class RemoveUnusedCode implements CompilerPass {
+   @Override
+   public void process(Node externs, Node root) {
+     checkState(compiler.getLifeCycleStage().isNormalized());
+-    pinnedPropertyNames.addAll(compiler.getExternProperties());
++    for (String prop : compiler.getExternProperties()) {
++      pinnedPropertyNames.add(prop);
++    }
+ 
+     try (LogFile removalLogFile =
+             compiler.createOrReopenIndexedLog(this.getClass(), "removals.log");
+diff --git a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+index ddecf9b..df1c56c 100644
+--- a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+@@ -516,6 +516,8 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+ 
+     private @Nullable List<LinkedDiGraphNode<N, E>> singletonSelfList;
+ 
++    private @Nullable String cachedId;
++
+     protected @Nullable N value;
+ 
+     private @Nullable Annotation annotation;
+@@ -701,7 +703,12 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+ 
+     @Override
+     public String getId() {
+-      return "LDN" + hashCode();
++      String id = this.cachedId;
++      if (id == null) {
++        id = "LDN" + hashCode();
++        this.cachedId = id;
++      }
++      return id;
+     }
+ 
+     @Override
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index 0874719..f089448 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -136,7 +136,9 @@ public abstract class JSType {
+       KIND_UNION | KIND_TEMPLATIZED | KIND_ORDINARY_FUNCTION | KIND_PROXY;
+ 
+   final JSTypeRegistry registry;
++  final int typeId;
+   int typeKindMask;
++  private int cachedHashCode = 0;
+ 
+   JSType(JSTypeRegistry registry) {
+     this(registry, null, 0);
+@@ -148,6 +150,7 @@ public abstract class JSType {
+ 
+   JSType(JSTypeRegistry registry, @Nullable TemplateTypeMap templateTypeMap, int typeKindMask) {
+     this.registry = registry;
++    this.typeId = (registry != null) ? ++registry.nextTypeId : 0;
+     this.typeKindMask = typeKindMask;
+     this.typeKindMask = typeKindMask | (getTypeClass().ordinal() << TYPE_CLASS_SHIFT);
+ 
+@@ -955,10 +958,35 @@ public abstract class JSType {
+     if ((this.jstypeFlags & JSTYPE_FLAG_HASH_IN_PROGRESS) != 0) {
+       return -1; // Recursive base-case.
+     }
++    JSTypeRegistry reg = this.registry;
++    boolean canCache =
++        reg != null
++            && reg.hashDepth == 0
++            && (this.jstypeFlags & JSTYPE_FLAG_RESOLVED) != 0
++            && reg.getResolver().isClosed();
++    if (canCache) {
++      int cached = this.cachedHashCode;
++      if (cached != 0) {
++        return cached;
++      }
++    }
+ 
+     this.jstypeFlags |= JSTYPE_FLAG_HASH_IN_PROGRESS;
+-    int hashCode = recursionUnsafeHashCode();
+-    this.jstypeFlags &= ~JSTYPE_FLAG_HASH_IN_PROGRESS;
++    if (reg != null) {
++      reg.hashDepth++;
++    }
++    int hashCode;
++    try {
++      hashCode = recursionUnsafeHashCode();
++    } finally {
++      if (reg != null) {
++        reg.hashDepth--;
++      }
++      this.jstypeFlags &= ~JSTYPE_FLAG_HASH_IN_PROGRESS;
++    }
++    if (canCache && hashCode != 0) {
++      this.cachedHashCode = hashCode;
++    }
+     return hashCode;
+   }
+ 
+@@ -1739,6 +1767,7 @@ public abstract class JSType {
+ 
+   protected void clearCachedResolveResult() {
+     this.jstypeFlags &= ~JSTYPE_FLAG_RESOLVED;
++    this.cachedHashCode = 0;
+   }
+ 
+   protected final void markResolved() {
+diff --git a/com/google/javascript/rhino/jstype/JSTypeRegistry.java b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+index d6f64ff..35ab753 100644
+--- a/com/google/javascript/rhino/jstype/JSTypeRegistry.java
++++ b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+@@ -413,6 +413,12 @@ public final class JSTypeRegistry {
+   // wrong in some cases. See b/116853368. Probably NamedType should be responsible for
+   // applying nullability to forward references instead of the type expression evaluation.
+   private final ScopedNameSet nonNullableTypeNames = new ScopedNameSet();
++  int nextTypeId = 0;
++  int hashDepth = 0;
++  private static final int UNION2_CACHE_MASK = 16383;
++  private JSType @Nullable [] union2A;
++  private JSType @Nullable [] union2B;
++  private JSType @Nullable [] union2Res;
+   private final UnionType.Builder[] unionBuilderPool = new UnionType.Builder[16];
+   private int unionBuilderPoolSize = 0;
+   private final TemplateTypeReplacer[] replacerPool = new TemplateTypeReplacer[8];
+@@ -2263,10 +2269,43 @@ public final class JSTypeRegistry {
+ 
+   /** Creates a union type of two variants without varargs or list allocations. */
+   public JSType createUnionType(JSType a, JSType b) {
++    checkNotNull(a);
++    checkNotNull(b);
++    if (a == b && (a.typeKindMask & (JSType.KIND_PROXY | JSType.KIND_UNION)) == 0) {
++      return a;
++    }
++    if (this.resolver.isClosed()
++        && ((a.jstypeFlags & b.jstypeFlags) & JSType.JSTYPE_FLAG_RESOLVED) != 0) {
++      int h = a.typeId * 0x9E3779B9 ^ b.typeId * 0x85EBCA6B;
++      int slot = (h ^ (h >>> 16)) & UNION2_CACHE_MASK;
++      JSType[] cacheA = this.union2A;
++      if (cacheA != null && cacheA[slot] == a && this.union2B[slot] == b) {
++        return this.union2Res[slot];
++      }
++      UnionType.Builder builder = acquireUnionTypeBuilder();
++      final JSType res;
++      try {
++        builder.addAlternate(a);
++        builder.addAlternate(b);
++        res = builder.build();
++      } finally {
++        releaseUnionTypeBuilder(builder);
++      }
++      if (cacheA == null) {
++        cacheA = new JSType[UNION2_CACHE_MASK + 1];
++        this.union2A = cacheA;
++        this.union2B = new JSType[UNION2_CACHE_MASK + 1];
++        this.union2Res = new JSType[UNION2_CACHE_MASK + 1];
++      }
++      cacheA[slot] = a;
++      this.union2B[slot] = b;
++      this.union2Res[slot] = res;
++      return res;
++    }
+     UnionType.Builder builder = acquireUnionTypeBuilder();
+     try {
+-      builder.addAlternate(checkNotNull(a));
+-      builder.addAlternate(checkNotNull(b));
++      builder.addAlternate(a);
++      builder.addAlternate(b);
+       return builder.build();
+     } finally {
+       releaseUnionTypeBuilder(builder);
+@@ -2560,6 +2599,9 @@ public final class JSTypeRegistry {
+     if (type instanceof PrototypeObjectType poType) {
+       poType.clearCachedValues();
+       poType.setImplicitPrototype(newImplicitProto);
++      this.union2A = null;
++      this.union2B = null;
++      this.union2Res = null;
+     }
+   }
+ 
+diff --git a/com/google/javascript/rhino/jstype/UnionType.java b/com/google/javascript/rhino/jstype/UnionType.java
+index b8e58db..7492686 100644
+--- a/com/google/javascript/rhino/jstype/UnionType.java
++++ b/com/google/javascript/rhino/jstype/UnionType.java
+@@ -444,9 +444,91 @@ public final class UnionType extends JSType {
+     }
+   }
+ 
++  private @Nullable JSType tryFastRestrict2(JSType a0, JSType a1, JSType r0, JSType r1) {
++    if (r0 == a0 && r1 == a1) {
++      return this;
++    }
++    JSType noType = registry.getNativeType(NO_TYPE);
++    if (r0 == noType) {
++      if (r1 == noType) {
++        return noType;
++      }
++      if (r1 == a1) {
++        return r1;
++      }
++    } else if (r1 == noType && r0 == a0) {
++      return r0;
++    }
++    return null;
++  }
++
++  private @Nullable JSType tryFastRestrict3(
++      JSType a0, JSType a1, JSType a2, JSType r0, JSType r1, JSType r2) {
++    if (r0 == a0 && r1 == a1 && r2 == a2) {
++      return this;
++    }
++    JSType noType = registry.getNativeType(NO_TYPE);
++    if (r0 == noType) {
++      if (r1 == noType) {
++        if (r2 == noType) {
++          return noType;
++        }
++        if (r2 == a2) {
++          return r2;
++        }
++      } else if (r1 == a1) {
++        if (r2 == noType) {
++          return r1;
++        }
++        if (r2 == a2) {
++          return registry.createUnionType(r1, r2);
++        }
++      }
++    } else if (r0 == a0) {
++      if (r1 == noType) {
++        if (r2 == noType) {
++          return r0;
++        }
++        if (r2 == a2) {
++          return registry.createUnionType(r0, r2);
++        }
++      } else if (r1 == a1 && r2 == noType) {
++        return registry.createUnionType(r0, r1);
++      }
++    }
++    return null;
++  }
++
+   @Override
+   public JSType restrictByNotNullOrUndefined() {
+     int n = getAlternatesCount();
++    if ((this.jstypeFlags & JSTYPE_FLAG_RESOLVED) != 0) {
++      if (n == 2) {
++        JSType a0 = this.alt0;
++        JSType a1 = this.alt1;
++        JSType fast =
++            tryFastRestrict2(
++                a0, a1, a0.restrictByNotNullOrUndefined(), a1.restrictByNotNullOrUndefined());
++        if (fast != null) {
++          return fast;
++        }
++      } else if (n == 3) {
++        JSType a0 = this.alt0;
++        JSType a1 = this.alt1;
++        JSType a2 = this.alt2;
++        JSType fast =
++            tryFastRestrict3(
++                a0,
++                a1,
++                a2,
++                a0.restrictByNotNullOrUndefined(),
++                a1.restrictByNotNullOrUndefined(),
++                a2.restrictByNotNullOrUndefined());
++        if (fast != null) {
++          return fast;
++        }
++      }
++    }
+     Builder builder = registry.acquireUnionTypeBuilder();
+     try {
+       for (int i = 0; i < n; i++) {
+@@ -461,6 +543,32 @@ public final class UnionType extends JSType {
+   @Override
+   public JSType restrictByNotUndefined() {
+     int n = getAlternatesCount();
++    if ((this.jstypeFlags & JSTYPE_FLAG_RESOLVED) != 0) {
++      if (n == 2) {
++        JSType a0 = this.alt0;
++        JSType a1 = this.alt1;
++        JSType fast =
++            tryFastRestrict2(a0, a1, a0.restrictByNotUndefined(), a1.restrictByNotUndefined());
++        if (fast != null) {
++          return fast;
++        }
++      } else if (n == 3) {
++        JSType a0 = this.alt0;
++        JSType a1 = this.alt1;
++        JSType a2 = this.alt2;
++        JSType fast =
++            tryFastRestrict3(
++                a0,
++                a1,
++                a2,
++                a0.restrictByNotUndefined(),
++                a1.restrictByNotUndefined(),
++                a2.restrictByNotUndefined());
++        if (fast != null) {
++          return fast;
++        }
++      }
++    }
+     Builder builder = registry.acquireUnionTypeBuilder();
+     try {
+       for (int i = 0; i < n; i++) {
+@@ -475,6 +583,31 @@ public final class UnionType extends JSType {
+   @Override
+   public JSType restrictByNotNull() {
+     int n = getAlternatesCount();
++    if ((this.jstypeFlags & JSTYPE_FLAG_RESOLVED) != 0) {
++      if (n == 2) {
++        JSType a0 = this.alt0;
++        JSType a1 = this.alt1;
++        JSType fast = tryFastRestrict2(a0, a1, a0.restrictByNotNull(), a1.restrictByNotNull());
++        if (fast != null) {
++          return fast;
++        }
++      } else if (n == 3) {
++        JSType a0 = this.alt0;
++        JSType a1 = this.alt1;
++        JSType a2 = this.alt2;
++        JSType fast =
++            tryFastRestrict3(
++                a0,
++                a1,
++                a2,
++                a0.restrictByNotNull(),
++                a1.restrictByNotNull(),
++                a2.restrictByNotNull());
++        if (fast != null) {
++          return fast;
++        }
++      }
++    }
+     Builder builder = registry.acquireUnionTypeBuilder();
+     try {
+       for (int i = 0; i < n; i++) {

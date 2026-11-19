@@ -614,7 +614,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_rewriteRequires_2734(scri
 			}
 		}
 	})).Traverse(script)
-	NodeTraversal_S_Builder().SetCompiler(this_.compiler).SetCallback_1_NodeTraversal_AbstractPostOrderCallbackInterface(NewLambda_NodeTraversal_AbstractPostOrderCallbackInterface(func(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
+	NodeTraversal_S_Builder().SetCompiler(this_.compiler).SetCallback_1_NodeTraversal_AbstractPostOrderCallbackInterface(newReleasableLambda_NodeTraversal_AbstractPostOrderCallbackInterface(func(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
 		_ = t
 		_ = n
 		_ = parent
@@ -1267,6 +1267,8 @@ func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_maybeSetN
 		t.ReportCodeChange_0()
 	}
 }
+func (*Es6RewriteModules) CanReleaseSyntacticScopes_()                              {}
 func (*Es6RewriteModules_RewriteRequiresForEs6Modules) AlwaysShouldTraverse_()      {}
 func (*Es6RewriteModules_RewriteRequiresForEs6Modules) CanReleaseSyntacticScopes_() {}
 func (*Es6RewriteModules_RenameGlobalVars) AlwaysShouldTraverse_()                  {}
+func (*Es6RewriteModules_RenameGlobalVars) CanReleaseSyntacticScopes_()             {}

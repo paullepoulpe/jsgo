@@ -356,7 +356,9 @@ func (this_ *GlobalNamespace) priv_GlobalNamespace_scanFromNode_3052(builder *Gl
 
 // Java method: GlobalNamespace.process()
 func (this_ *GlobalNamespace) priv_GlobalNamespace_process_3053() {
-	InitSyntacticScopeCreator_1(&this_.scopeCreator_, this_.compiler)
+	if this_.scopeCreator_.reusableScanner == nil {
+		InitSyntacticScopeCreator_1(&this_.scopeCreator_, this_.compiler)
+	}
 
 	var traversal *NodeTraversal_Builder = NodeTraversal_S_Builder().SetCompiler(this_.compiler).SetCallback_1_NodeTraversal_Callback(NewGlobalNamespace_BuildGlobalNamespace(this_)).SetScopeCreator(&this_.scopeCreator_)
 	_ = traversal

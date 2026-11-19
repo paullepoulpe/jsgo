@@ -132,20 +132,20 @@ func (this_ *RewriteObjectSpread) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(47) /* Token.OBJECTLIT */ :
-		this_.priv_RewriteObjectSpread_visitObject_4997(n)
+		this_.priv_RewriteObjectSpread_visitObject_4995(n)
 	default:
 	}
 }
 
 // Java method: RewriteObjectSpread.visitObject(com.google.javascript.rhino.Node obj)
-func (this_ *RewriteObjectSpread) priv_RewriteObjectSpread_visitObject_4997(obj pkg_rhino.Node) {
+func (this_ *RewriteObjectSpread) priv_RewriteObjectSpread_visitObject_4995(obj pkg_rhino.Node) {
 	_ = obj
 	{
 		var child pkg_rhino.Node = obj.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
 			if child.IsSpread() {
-				this_.priv_RewriteObjectSpread_visitObjectWithSpread_4998(obj)
+				this_.priv_RewriteObjectSpread_visitObjectWithSpread_4996(obj)
 				return
 			}
 		}
@@ -153,7 +153,7 @@ func (this_ *RewriteObjectSpread) priv_RewriteObjectSpread_visitObject_4997(obj 
 }
 
 // Java method: RewriteObjectSpread.visitObjectWithSpread(com.google.javascript.rhino.Node obj)
-func (this_ *RewriteObjectSpread) priv_RewriteObjectSpread_visitObjectWithSpread_4998(obj pkg_rhino.Node) {
+func (this_ *RewriteObjectSpread) priv_RewriteObjectSpread_visitObjectWithSpread_4996(obj pkg_rhino.Node) {
 	_ = obj
 	if !(obj.IsObjectLit()) {
 		j2gort.CheckArgument(false)

@@ -126,7 +126,7 @@ func (this_ *JSTypeResolver) ResolveIfClosed(captured JSType, caller JSTypeClass
 	}
 	switch (this_.state).Ordinal() {
 	case int32(0) /* State.CLOSED */, int32(2) /* State.CLOSING */ :
-		this_.priv_JSTypeResolver_doResolve_9289(captured)
+		this_.priv_JSTypeResolver_doResolve_9287(captured)
 	case int32(1) /* State.OPEN */ :
 		this_.resolutionQueue.AddLast(captured)
 	}
@@ -157,7 +157,7 @@ func (this_ *JSTypeResolver) OpenForDefinition() *JSTypeResolver_Closer {
 }
 
 // Java method: JSTypeResolver.resolveAll()
-func (this_ *JSTypeResolver) priv_JSTypeResolver_resolveAll_9287() {
+func (this_ *JSTypeResolver) priv_JSTypeResolver_resolveAll_9285() {
 	{
 		var iifeCond_1 bool
 		{
@@ -178,7 +178,7 @@ func (this_ *JSTypeResolver) priv_JSTypeResolver_resolveAll_9287() {
 	}
 	this_.state = StaticGet_JSTypeResolver_State_CLOSING()
 	for !(this_.resolutionQueue.IsEmpty()) {
-		this_.priv_JSTypeResolver_doResolve_9289(this_.resolutionQueue.RemoveFirst())
+		this_.priv_JSTypeResolver_doResolve_9287(this_.resolutionQueue.RemoveFirst())
 	}
 	this_.resolutionQueue = j2gort.Deque[JSType]{}
 	var globalThis PrototypeObjectType = j2gort.AsIface[PrototypeObjectType](this_.registry.GetNativeType(StaticGet_JSTypeNative_GLOBAL_THIS()))
@@ -204,7 +204,7 @@ func (this_ *JSTypeResolver) IsClosed() bool {
 }
 
 // Java method: JSTypeResolver.doResolve(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *JSTypeResolver) priv_JSTypeResolver_doResolve_9289(type_ JSType) {
+func (this_ *JSTypeResolver) priv_JSTypeResolver_doResolve_9287(type_ JSType) {
 	_ = type_
 	type_.GetJSTypeBase().Resolve(this_.registry.GetErrorReporter())
 }
@@ -284,7 +284,7 @@ func (this_ *JSTypeResolver_Closer) Close_0() {
 		j2gort.CheckState(false)
 	}
 	this_.hasRun = true
-	this_.outer_.priv_JSTypeResolver_resolveAll_9287()
+	this_.outer_.priv_JSTypeResolver_resolveAll_9285()
 }
 
 // Java enum: com.google.javascript.rhino.jstype.JSTypeResolver.State

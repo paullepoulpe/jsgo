@@ -160,34 +160,37 @@ const (
 	strCacheWays            = 4
 	strMetaBlockUnits       = 64
 
-	unpinDedupMaxLen     = 96
-	unpinDedupBuckets    = 16384
-	unpinDedupBucketMask = unpinDedupBuckets - 1
-	shortASCIIShards     = 64
-	shortASCIIShardMask  = shortASCIIShards - 1
-	shortASCIISets       = 16 // 64 * 16 * 4 = 4,096 in-place entries (0 heap allocs)
-	shortASCIISetMask    = shortASCIISets - 1
+	unpinDedupMaxLen    = 256
+	unpinDedupShards    = 256
+	unpinDedupShardMask = unpinDedupShards - 1
+	unpinDedupSlots     = 64 // 256 * 64 * 2 = 32,768 in-place BSS entries (0 bucket allocs)
+	unpinDedupSlotMask  = unpinDedupSlots - 1
+	shortASCIIShards    = 64
+	shortASCIIShardMask = shortASCIIShards - 1
+	shortASCIISets      = 16 // 64 * 16 * 4 = 4,096 in-place entries (0 heap allocs)
+	shortASCIISetMask   = shortASCIISets - 1
 
 	cpASCIIRunFlag uint32 = 1 << 31
 	cpOffsetMask   uint32 = (1 << 31) - 1
 )
 
-type unpinBucket struct {
-	s0, s1 string
+type unpinShard struct {
+	mu    sync.RWMutex
+	slots [unpinDedupSlots][2]string
 }
 
-// unpinDedup is a bounded 16,384-bucket lock-free 2-way set-associative deduplication
-// table (32,768 cached substrings = 128 KiB BSS) for short substrings (<= 96 bytes)
-// sliced out of >= 1 KB source buffers, hashed with hardware maphash.String.
+// unpinShards is a bounded 256-shard × 64-slot 2-way set-associative deduplication
+// table (32,768 cached substrings in BSS, zero heap bucket allocations) for substrings
+// (<= 256 bytes) sliced out of >= 1 KB source buffers, hashed with maphash.String.
 var (
-	unpinSeed  = maphash.MakeSeed()
-	unpinDedup [unpinDedupBuckets]atomic.Pointer[unpinBucket]
+	unpinSeed   = maphash.MakeSeed()
+	unpinShards [unpinDedupShards]unpinShard
 )
 
 // unpinSubstring clones small substrings sliced out of >= 1 KB source buffers
 // (< 1 KB or < 1/4 of parentLen), preventing identifiers, JSDoc tags/comments,
 // or module paths from pinning entire JS SourceFile backing byte arrays in live heap,
-// while deduplicating repeated short tokens (<= 96 bytes) lock-free.
+// while deduplicating repeated tokens (<= 256 bytes) in-place without bucket allocs.
 func unpinSubstring(parentLen int, sub string) string {
 	if len(sub) == 0 {
 		return ""
@@ -207,29 +210,41 @@ func unpinSubstringFromParent(parentLen int, sub string) string {
 		if len(sub) > unpinDedupMaxLen {
 			return strings.Clone(sub)
 		}
-		idx := maphash.String(unpinSeed, sub) & unpinDedupBucketMask
-		b := unpinDedup[idx].Load()
-		if b != nil {
-			if b.s0 == sub {
-				return b.s0
-			}
-			if b.s1 == sub {
-				return b.s1
-			}
+		h := maphash.String(unpinSeed, sub)
+		sh := &unpinShards[h&unpinDedupShardMask]
+		slotIdx := (h >> 8) & unpinDedupSlotMask
+		sh.mu.RLock()
+		slot := sh.slots[slotIdx]
+		sh.mu.RUnlock()
+		if slot[0] == sub {
+			return slot[0]
 		}
-		return unpinDedupMiss(idx, b, sub)
+		if slot[1] == sub {
+			return slot[1]
+		}
+		return unpinDedupMiss(sh, slotIdx, sub)
 	}
 	return sub
 }
 
 //go:noinline
-func unpinDedupMiss(idx uint64, prev *unpinBucket, sub string) string {
+func unpinDedupMiss(sh *unpinShard, slotIdx uint64, sub string) string {
 	cloned := strings.Clone(sub)
-	var prevS0 string
-	if prev != nil {
-		prevS0 = prev.s0
+	sh.mu.Lock()
+	s0 := sh.slots[slotIdx][0]
+	if s0 == sub {
+		sh.mu.Unlock()
+		return s0
 	}
-	unpinDedup[idx].Store(&unpinBucket{s0: cloned, s1: prevS0})
+	if s1 := sh.slots[slotIdx][1]; s1 == sub {
+		sh.slots[slotIdx][1] = s0
+		sh.slots[slotIdx][0] = s1
+		sh.mu.Unlock()
+		return s1
+	}
+	sh.slots[slotIdx][1] = s0
+	sh.slots[slotIdx][0] = cloned
+	sh.mu.Unlock()
 	return cloned
 }
 

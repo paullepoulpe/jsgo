@@ -110,6 +110,7 @@ const (
 	astNodeFlagHasType     uint8 = 1 << 4
 	astNodeFlagHasTemplate uint8 = 1 << 5
 	astNodeFlagBuilt       uint8 = 1 << 6
+	astNodeFlagEagerSize   uint8 = 1 << 7
 )
 
 const astAuxOverflowSentinel uint16 = math.MaxUint16
@@ -197,6 +198,7 @@ type astNodeData struct {
 	type_                int32
 	sourceFile_          int32
 	cachedSize           int32
+	childrenWireBytes_   int32
 	childCount_          uint32
 	linkState_           uint32
 	kind_                uint8
@@ -233,6 +235,7 @@ func pinAstData(d *astNodeData) {
 }
 
 func (d *astNodeData) ensureChildSlice() {
+	d.childrenWireBytes_ = -1
 	if d.child_ != nil {
 		return
 	}
@@ -266,6 +269,7 @@ const (
 
 	astBuilderChunkSize         = 256
 	astBuilderMaxFreeBundles    = 262144
+	astBuilderMaxBatchPool      = 256
 	astBuilderMaxPooledChildren = 4096
 )
 
@@ -290,12 +294,13 @@ type astDataChunk struct {
 }
 
 var (
-	astBuilderBatchPtr   atomic.Pointer[astBuilderAllocBatch]
-	astBuilderPoolMu     sync.Mutex
-	astBuilderCurBatch   *astBuilderAllocBatch
-	astBuilderBatchFree  []*astBuilderAllocBatch
-	astBuilderRetired    []*astBuilderAllocBatch
-	astBuilderFree       []*astBuilderBundle
+	astBuilderBatchPtr     atomic.Pointer[astBuilderAllocBatch]
+	astBuilderPoolMu       sync.Mutex
+	astBuilderCurBatch     *astBuilderAllocBatch
+	astBuilderBatchFree    []*astBuilderAllocBatch
+	astBuilderReadyBatches []*astBuilderAllocBatch
+	astBuilderRetired      []*astBuilderAllocBatch
+	astBuilderFree         []*astBuilderBundle
 
 	astDataChunkMu  sync.Mutex
 	astDataChunkCur *astDataChunk
@@ -331,7 +336,7 @@ func newAstNodeBuilderSlow() *AstNode {
 		astBuilderBatchPtr.Store(nil)
 		if atomic.LoadUint32(&old.done) == astBuilderChunkSize {
 			clear(old.ptrs[:])
-			if len(astBuilderBatchFree) < 16 {
+			if len(astBuilderBatchFree) < astBuilderMaxBatchPool {
 				astBuilderBatchFree = append(astBuilderBatchFree, old)
 			}
 		} else {
@@ -343,7 +348,7 @@ func newAstNodeBuilderSlow() *AstNode {
 		for _, rb := range astBuilderRetired {
 			if atomic.LoadUint32(&rb.done) == astBuilderChunkSize {
 				clear(rb.ptrs[:])
-				if len(astBuilderBatchFree) < 16 {
+				if len(astBuilderBatchFree) < astBuilderMaxBatchPool {
 					astBuilderBatchFree = append(astBuilderBatchFree, rb)
 				}
 			} else {
@@ -355,41 +360,47 @@ func newAstNodeBuilderSlow() *AstNode {
 		astBuilderRetired = astBuilderRetired[:w]
 	}
 	var nb *astBuilderAllocBatch
-	if nbf := len(astBuilderBatchFree); nbf > 0 {
-		nb = astBuilderBatchFree[nbf-1]
-		astBuilderBatchFree[nbf-1] = nil
-		astBuilderBatchFree = astBuilderBatchFree[:nbf-1]
+	if nr := len(astBuilderReadyBatches); nr > 0 {
+		nb = astBuilderReadyBatches[nr-1]
+		astBuilderReadyBatches[nr-1] = nil
+		astBuilderReadyBatches = astBuilderReadyBatches[:nr-1]
 	} else {
-		nb = &astBuilderAllocBatch{idx: astBuilderChunkSize}
-	}
-	nFree := len(astBuilderFree)
-	if nFree >= astBuilderChunkSize {
-		start := nFree - astBuilderChunkSize
-		copy(nb.ptrs[:], astBuilderFree[start:])
-		clear(astBuilderFree[start:])
-		astBuilderFree = astBuilderFree[:start]
-	} else {
-		copied := 0
-		if nFree > 0 {
-			copied = copy(nb.ptrs[:], astBuilderFree)
-			clear(astBuilderFree)
-			astBuilderFree = astBuilderFree[:0]
+		if nbf := len(astBuilderBatchFree); nbf > 0 {
+			nb = astBuilderBatchFree[nbf-1]
+			astBuilderBatchFree[nbf-1] = nil
+			astBuilderBatchFree = astBuilderBatchFree[:nbf-1]
+		} else {
+			nb = &astBuilderAllocBatch{idx: astBuilderChunkSize}
 		}
-		nc := &astBuilderChunk{}
-		need := astBuilderChunkSize - copied
-		for i := 0; i < need; i++ {
-			b := &nc.items[i]
-			b.node.d = &b.data
-			b.data.bundle = b
-			b.data.selfNode = &b.node
-			nb.ptrs[copied+i] = b
-		}
-		for i := need; i < astBuilderChunkSize; i++ {
-			b := &nc.items[i]
-			b.node.d = &b.data
-			b.data.bundle = b
-			b.data.selfNode = &b.node
-			astBuilderFree = append(astBuilderFree, b)
+		nFree := len(astBuilderFree)
+		if nFree >= astBuilderChunkSize {
+			start := nFree - astBuilderChunkSize
+			copy(nb.ptrs[:], astBuilderFree[start:])
+			clear(astBuilderFree[start:])
+			astBuilderFree = astBuilderFree[:start]
+		} else {
+			copied := 0
+			if nFree > 0 {
+				copied = copy(nb.ptrs[:], astBuilderFree)
+				clear(astBuilderFree)
+				astBuilderFree = astBuilderFree[:0]
+			}
+			nc := &astBuilderChunk{}
+			need := astBuilderChunkSize - copied
+			for i := 0; i < need; i++ {
+				b := &nc.items[i]
+				b.node.d = &b.data
+				b.data.bundle = b
+				b.data.selfNode = &b.node
+				nb.ptrs[copied+i] = b
+			}
+			for i := need; i < astBuilderChunkSize; i++ {
+				b := &nc.items[i]
+				b.node.d = &b.data
+				b.data.bundle = b
+				b.data.selfNode = &b.node
+				astBuilderFree = append(astBuilderFree, b)
+			}
 		}
 	}
 	ret := nb.ptrs[0]
@@ -435,10 +446,35 @@ func (d *astNodeData) resetBuilderFields() {
 	d.type_ = 0
 	d.sourceFile_ = 0
 	d.cachedSize = 0
+	d.childrenWireBytes_ = 0
 	d.childCount_ = 0
 	d.kind_ = 0
 	d.flags_ = 0
 	atomic.StoreUint32(&d.linkState_, 0)
+}
+
+func flushAstBuilderRecycleBatch(batchBuf *[astBuilderChunkSize]*astBuilderBundle) {
+	astBuilderPoolMu.Lock()
+	if len(astBuilderReadyBatches) < astBuilderMaxBatchPool {
+		var nb *astBuilderAllocBatch
+		if nbf := len(astBuilderBatchFree); nbf > 0 {
+			nb = astBuilderBatchFree[nbf-1]
+			astBuilderBatchFree[nbf-1] = nil
+			astBuilderBatchFree = astBuilderBatchFree[:nbf-1]
+		} else {
+			nb = &astBuilderAllocBatch{idx: astBuilderChunkSize}
+		}
+		nb.ptrs = *batchBuf
+		astBuilderReadyBatches = append(astBuilderReadyBatches, nb)
+		astBuilderPoolMu.Unlock()
+		return
+	}
+	pooled := len(astBuilderReadyBatches)*astBuilderChunkSize + len(astBuilderFree)
+	if rem := astBuilderMaxFreeBundles - pooled; rem > 0 {
+		take := min(astBuilderChunkSize, rem)
+		astBuilderFree = append(astBuilderFree, batchBuf[:take]...)
+	}
+	astBuilderPoolMu.Unlock()
 }
 
 func recycleAstBuilderTree(root *astBuilderBundle) {
@@ -447,24 +483,30 @@ func recycleAstBuilderTree(root *astBuilderBundle) {
 	}
 	root.poolNext = nil
 	workHead := root
-	var freeHead *astBuilderBundle
+	var batchBuf [astBuilderChunkSize]*astBuilderBundle
+	nBuf := 0
 	var jsdocFreeHead *jsdocBuilderBundle
 	for workHead != nil {
 		b := workHead
 		workHead = b.poolNext
 		b.poolNext = nil
 		d := &b.data
-		for c := d.firstChild; c != nil; {
-			next := c.nextSibling
-			if cb := c.bundle; cb != nil && c == &cb.data && atomic.LoadUint32(&c.linkState_) == astLinkFlagLinked {
-				cb.poolNext = workHead
-				workHead = cb
+		if d.firstChild != nil {
+			for c := d.firstChild; c != nil; {
+				next := c.nextSibling
+				c.nextSibling = nil
+				if cb := c.bundle; cb != nil && c == &cb.data && atomic.LoadUint32(&c.linkState_) == astLinkFlagLinked {
+					cb.poolNext = workHead
+					workHead = cb
+				}
+				c = next
 			}
-			c = next
+			d.firstChild = nil
+			d.lastChild = nil
 		}
-		d.firstChild = nil
-		d.lastChild = nil
-		d.nextSibling = nil
+		if d.nextSibling != nil {
+			d.nextSibling = nil
+		}
 		if children := d.child_; children != nil {
 			for i, ch := range children {
 				children[i] = nil
@@ -475,11 +517,7 @@ func recycleAstBuilderTree(root *astBuilderBundle) {
 					}
 				}
 			}
-			if cap(children) > 0 && cap(children) <= astBuilderMaxPooledChildren {
-				d.child_ = children[:0]
-			} else {
-				d.child_ = nil
-			}
+			d.child_ = nil
 		}
 		if j := d.jsdoc_; j != nil {
 			d.jsdoc_ = nil
@@ -496,6 +534,7 @@ func recycleAstBuilderTree(root *astBuilderBundle) {
 		d.type_ = 0
 		d.sourceFile_ = 0
 		d.cachedSize = 0
+		d.childrenWireBytes_ = 0
 		d.childCount_ = 0
 		d.kind_ = 0
 		d.flags_ = 0
@@ -507,25 +546,25 @@ func recycleAstBuilderTree(root *astBuilderBundle) {
 			d.selfNode = &b.node
 		}
 		b.node.idx = 0
-		b.poolNext = freeHead
-		freeHead = b
+		batchBuf[nBuf] = b
+		nBuf++
+		if nBuf == astBuilderChunkSize {
+			flushAstBuilderRecycleBatch(&batchBuf)
+			nBuf = 0
+		}
 	}
 	if jsdocFreeHead != nil {
 		pushJsdocFreeList(jsdocFreeHead)
 	}
-	if freeHead == nil {
-		return
-	}
-	astBuilderPoolMu.Lock()
-	for freeHead != nil {
-		b := freeHead
-		freeHead = b.poolNext
-		b.poolNext = nil
-		if len(astBuilderFree) < astBuilderMaxFreeBundles {
-			astBuilderFree = append(astBuilderFree, b)
+	if nBuf > 0 {
+		astBuilderPoolMu.Lock()
+		pooled := len(astBuilderReadyBatches)*astBuilderChunkSize + len(astBuilderFree)
+		if rem := astBuilderMaxFreeBundles - pooled; rem > 0 {
+			take := min(nBuf, rem)
+			astBuilderFree = append(astBuilderFree, batchBuf[:take]...)
 		}
+		astBuilderPoolMu.Unlock()
 	}
-	astBuilderPoolMu.Unlock()
 }
 
 const (
@@ -955,7 +994,7 @@ func (s *astNodeSlab) materializeData(idx uint32) *astNodeData {
 		relativeColumn_:    rec.relativeColumn,
 		type_:              rec.type_,
 		kind_:              rec.kind,
-		flags_:             rec.flags &^ astNodeFlagBuilt,
+		flags_:             rec.flags &^ (astNodeFlagBuilt | astNodeFlagEagerSize),
 	}
 	switch rec.valueCase() {
 	case AstNode_ValueCase_STRING_VALUE_POINTER:
@@ -983,6 +1022,7 @@ func (s *astNodeSlab) materializeData(idx uint32) *astNodeData {
 			children[i] = s.getHandle(cIdx)
 		}
 		nd.child_ = children
+		nd.childrenWireBytes_ = -1
 	}
 	s.mutated = true
 	return nd
@@ -1069,7 +1109,7 @@ func (m *AstNode) mutDataSlow() *astNodeData {
 	cp.type_ = d.type_
 	cp.sourceFile_ = d.sourceFile_
 	cp.kind_ = d.kind_
-	cp.flags_ = d.flags_ &^ astNodeFlagBuilt
+	cp.flags_ = d.flags_ &^ (astNodeFlagBuilt | astNodeFlagEagerSize)
 	if d.child_ != nil {
 		if len(d.child_) > 0 {
 			ch := make([]*AstNode, len(d.child_))
@@ -1080,6 +1120,7 @@ func (m *AstNode) mutDataSlow() *astNodeData {
 				}
 			}
 			cp.child_ = ch
+			cp.childrenWireBytes_ = -1
 		}
 	} else if d.childCount_ > 0 {
 		ch := make([]*AstNode, d.childCount_)
@@ -1090,6 +1131,7 @@ func (m *AstNode) mutDataSlow() *astNodeData {
 			i++
 		}
 		cp.child_ = ch
+		cp.childrenWireBytes_ = -1
 	}
 	m.d = cp
 	m.idx = 0
@@ -1147,6 +1189,7 @@ func (m *AstNode) GetChildList() []*AstNode {
 		d.child_ = out
 		d.firstChild = nil
 		d.lastChild = nil
+		d.childrenWireBytes_ = -1
 	}
 	return out
 }
@@ -1416,7 +1459,7 @@ func (m *AstNode) SetKind(v NodeKind) *AstNode {
 
 func (m *AstNode) AddChild(v *AstNode) *AstNode {
 	if d := m.d; d != nil && d.flags_&astNodeFlagBuilt == 0 && d.child_ == nil && v != nil {
-		if vd := v.d; vd != nil && vd.slab == nil && vd != d && vd.selfNode == v && atomic.CompareAndSwapUint32(&vd.linkState_, 0, astLinkFlagLinked) {
+		if vd := v.d; vd != nil && vd.slab == nil && vd != d && vd.selfNode == v && vd.flags_&astNodeFlagEagerSize != 0 && atomic.CompareAndSwapUint32(&vd.linkState_, 0, astLinkFlagLinked) {
 			vd.nextSibling = nil
 			if d.lastChild == nil {
 				d.firstChild = vd
@@ -1425,6 +1468,15 @@ func (m *AstNode) AddChild(v *AstNode) *AstNode {
 			}
 			d.lastChild = vd
 			d.childCount_++
+			if cw := d.childrenWireBytes_; cw >= 0 {
+				s := int(vd.cachedSize - 1)
+				w := int64(cw) + int64(1+protoVarintLen(uint64(s))+s)
+				if w <= math.MaxInt32 {
+					d.childrenWireBytes_ = int32(w)
+				} else {
+					d.childrenWireBytes_ = -1
+				}
+			}
 			d.cachedSize = 0
 			return m
 		}
@@ -1445,6 +1497,25 @@ func (m *AstNode) addChildSlow(v *AstNode) *AstNode {
 			}
 			d.lastChild = vd
 			d.childCount_++
+			if cw := d.childrenWireBytes_; cw >= 0 {
+				var cs int32
+				if vd.flags_&astNodeFlagEagerSize != 0 {
+					cs = vd.cachedSize
+				} else if vd.flags_&astNodeFlagBuilt != 0 {
+					cs = atomic.LoadInt32(&vd.cachedSize)
+				}
+				if cs > 0 {
+					s := int(cs - 1)
+					w := int64(cw) + int64(1+protoVarintLen(uint64(s))+s)
+					if w <= math.MaxInt32 {
+						d.childrenWireBytes_ = int32(w)
+					} else {
+						d.childrenWireBytes_ = -1
+					}
+				} else {
+					d.childrenWireBytes_ = -1
+				}
+			}
 			d.cachedSize = 0
 			return m
 		}
@@ -1464,7 +1535,7 @@ func (m *AstNode) addChildSlow(v *AstNode) *AstNode {
 
 func (m *AstNode) ResetForPool() {
 	d := m.d
-	if d != nil && d.slab == nil {
+	if d != nil && d.slab == nil && atomic.LoadUint32(&d.linkState_)&astLinkFlagPinned == 0 {
 		d.resetBuilderFields()
 		if d.selfNode != m && (d.bundle == nil || m == &d.bundle.node) {
 			d.selfNode = m
@@ -1572,10 +1643,70 @@ func (m *AstNode) SetSourceFile(v int32) *AstNode {
 	return m
 }
 
+func (d *astNodeData) buildData() {
+	if (d.child_ == nil || len(d.child_) == 0) && d.childrenWireBytes_ >= 0 {
+		size := int(d.childrenWireBytes_)
+		if k := d.kind_; k != 0 {
+			if k < uint8(NodeKind_UNRECOGNIZED) {
+				size += 3
+			} else {
+				size += 11
+			}
+		}
+		vc := d.valueCase()
+		switch vc {
+		case AstNode_ValueCase_STRING_VALUE_POINTER:
+			size += 1 + protoVarintLen(uint64(uint32(d.valueBits_)))
+		case AstNode_ValueCase_DOUBLE_VALUE:
+			size += 9
+		case AstNode_ValueCase_TEMPLATE_STRING_VALUE:
+			if d.flags_&astNodeFlagHasTemplate != 0 {
+				raw, cooked := unpackTemplateStringBits(d.valueBits_)
+				s := templateStringSerializedSize(raw, cooked)
+				size += 1 + protoVarintLen(uint64(s)) + s
+			}
+		}
+		if d.relativeLine_ != 0 {
+			size += 1 + protoVarintLen(uint64(uint32((d.relativeLine_<<1)^(d.relativeLine_>>31))))
+		}
+		if d.relativeColumn_ != 0 {
+			size += 1 + protoVarintLen(uint64(uint32((d.relativeColumn_<<1)^(d.relativeColumn_>>31))))
+		}
+		if j := d.jsdoc_; j != nil {
+			js := atomic.LoadInt32(&j.cachedSize)
+			if js <= 0 {
+				d.cachedSize = 0
+				d.flags_ |= astNodeFlagBuilt
+				return
+			}
+			s := int(js - 1)
+			size += 1 + protoVarintLen(uint64(s)) + s
+		}
+		if d.originalNamePointer_ != 0 {
+			size += 1 + protoVarintLen(uint64(uint32(d.originalNamePointer_)))
+		}
+		if d.booleanProperties_ != 0 {
+			size += 1 + protoVarintLen(uint64(d.booleanProperties_))
+		}
+		if d.flags_&astNodeFlagHasType != 0 {
+			size += 1 + protoVarintLen(uint64(uint32(d.type_)))
+		}
+		if d.sourceFile_ != 0 {
+			size += 2 + protoVarintLen(uint64(uint32(d.sourceFile_)))
+		}
+		if size < math.MaxInt32 {
+			d.cachedSize = int32(size + 1)
+			d.flags_ |= astNodeFlagBuilt | astNodeFlagEagerSize
+			return
+		}
+	}
+	d.cachedSize = 0
+	d.flags_ |= astNodeFlagBuilt
+}
+
 func (m *AstNode) Build() *AstNode {
-	if d := m.d; d != nil && d.slab == nil {
-		d.cachedSize = 0
-		d.flags_ |= astNodeFlagBuilt
+	if d := m.d; d != nil && d.slab == nil && d.flags_&astNodeFlagBuilt == 0 {
+		d.buildData()
 	}
 	return m
 }
@@ -1679,6 +1810,9 @@ func (s *astNodeSlab) recSerializedSize(idx uint32) int {
 }
 
 func (d *astNodeData) dataSerializedSize() int {
+	if d.flags_&astNodeFlagEagerSize != 0 {
+		return int(d.cachedSize - 1)
+	}
 	if cs := atomic.LoadInt32(&d.cachedSize); cs > 0 {
 		return int(cs - 1)
 	}
@@ -1692,7 +1826,12 @@ func (d *astNodeData) dataSerializedSize() int {
 	}
 	if d.child_ == nil {
 		for c := d.firstChild; c != nil; c = c.nextSibling {
-			s := c.dataSerializedSize()
+			var s int
+			if c.flags_&astNodeFlagEagerSize != 0 {
+				s = int(c.cachedSize - 1)
+			} else {
+				s = c.dataSerializedSize()
+			}
 			size += 1 + protoVarintLen(uint64(s)) + s
 		}
 	} else {
@@ -1879,9 +2018,14 @@ func (d *astNodeData) putDataTo(dst []byte, pos int) int {
 	}
 	if d.child_ == nil {
 		for c := d.firstChild; c != nil; c = c.nextSibling {
-			cs := int(atomic.LoadInt32(&c.cachedSize)) - 1
-			if cs < 0 {
-				cs = c.dataSerializedSize()
+			var cs int
+			if c.flags_&astNodeFlagEagerSize != 0 {
+				cs = int(c.cachedSize) - 1
+			} else {
+				cs = int(atomic.LoadInt32(&c.cachedSize)) - 1
+				if cs < 0 {
+					cs = c.dataSerializedSize()
+				}
 			}
 			pos = putTag1Varint(dst, pos, 0x12, uint64(cs))
 			pos = c.putDataTo(dst, pos)

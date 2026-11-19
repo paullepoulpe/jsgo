@@ -3719,9 +3719,6 @@ func (this_ *Ext_com_google_common_collect_HashBiMap) Equals(arg0 any) bool {
 func (this_ *Ext_com_google_common_collect_HashBiMap) HashCode() int32 {
 	return biMapOp_hashCode_0(this_.Core_.(*jBiMapCore))
 }
-func (this_ *Ext_com_google_common_collect_HashBiMap) String() string {
-	return biMapOp_toString_0(this_.Core_.(*jBiMapCore))
-}
 func (this_ *Ext_com_google_common_collect_HashBiMap) GetOrDefault(arg0 any, arg1 any) any {
 	return biMapOp_getOrDefault_2(this_.Core_.(*jBiMapCore), arg0, arg1)
 }
@@ -8383,9 +8380,6 @@ func (this_ *Ext_com_google_common_collect_Maps_IteratorBasedAbstractMapBase) Eq
 }
 func (this_ *Ext_com_google_common_collect_Maps_IteratorBasedAbstractMapBase) HashCode() int32 {
 	return abstractMapOp_hashCode_0(this_.Self_)
-}
-func (this_ *Ext_com_google_common_collect_Maps_IteratorBasedAbstractMapBase) String() string {
-	return abstractMapOp_toString_0(this_.Self_)
 }
 func (this_ *Ext_com_google_common_collect_Maps_IteratorBasedAbstractMapBase) GetOrDefault(arg0 any, arg1 any) any {
 	return abstractMapOp_getOrDefault_2(this_.Self_, arg0, arg1)
@@ -25981,7 +25975,6 @@ type Ext_java_util_AbstractMap interface {
 	Implements_j2gort_Ext_java_util_AbstractMap()
 	GetExt_java_util_AbstractMapBase() *Ext_java_util_AbstractMapBase
 	Ext_java_util_Map
-	String() string
 }
 
 func ToIface_Ext_java_util_AbstractMap[T interface {
@@ -26076,9 +26069,6 @@ func (this_ *Ext_java_util_AbstractMapBase) Equals(arg0 any) bool {
 }
 func (this_ *Ext_java_util_AbstractMapBase) HashCode() int32 {
 	return abstractMapOp_hashCode_0(this_.Self_)
-}
-func (this_ *Ext_java_util_AbstractMapBase) String() string {
-	return abstractMapOp_toString_0(this_.Self_)
 }
 func (this_ *Ext_java_util_AbstractMapBase) GetOrDefault(arg0 any, arg1 any) any {
 	return abstractMapOp_getOrDefault_2(this_.Self_, arg0, arg1)
@@ -27128,9 +27118,6 @@ func (this_ *Ext_java_util_EnumMap) HashCode() int32 {
 func (this_ *Ext_java_util_EnumMap) IsEmpty() bool {
 	return this_.emCore().Size() == 0
 }
-func (this_ *Ext_java_util_EnumMap) String() string {
-	return this_.emCore().String()
-}
 func (this_ *Ext_java_util_EnumMap) GetOrDefault(arg0 any, arg1 any) any {
 	return this_.emCore().GetOrDefault(arg0, arg1)
 }
@@ -27567,9 +27554,6 @@ func (this_ *Ext_java_util_HashMapBase) Equals(arg0 any) bool {
 func (this_ *Ext_java_util_HashMapBase) HashCode() int32 {
 	return mapCoreHash(this_.mc())
 }
-func (this_ *Ext_java_util_HashMapBase) String() string {
-	return mapCoreString(this_.mc())
-}
 
 func (this_ *Ext_java_util_HashMapBase) fastMapCore_() *JMapCore {
 	if this_ == nil {
@@ -28003,9 +27987,6 @@ func (this_ *Ext_java_util_IdentityHashMap) ForEach_1(arg0 Ext_java_util_functio
 func (this_ *Ext_java_util_IdentityHashMap) Replace_3(arg0 any, arg1 any, arg2 any) bool {
 	return mapCoreReplace3(this_.mc(), arg0, arg1, arg2)
 }
-func (this_ *Ext_java_util_IdentityHashMap) String() string {
-	return mapCoreString(this_.mc())
-}
 func (this_ *Ext_java_util_IdentityHashMap) GetOrDefault(arg0 any, arg1 any) any {
 	return this_.mc().GetOrDefault(arg0, arg1)
 }
@@ -28222,9 +28203,6 @@ func (this_ *Ext_java_util_LinkedHashMap) Equals(arg0 any) bool {
 }
 func (this_ *Ext_java_util_LinkedHashMap) HashCode() int32 {
 	return mapCoreHash(this_.mc())
-}
-func (this_ *Ext_java_util_LinkedHashMap) String() string {
-	return mapCoreString(this_.mc())
 }
 
 func (this_ *Ext_java_util_LinkedHashMap) fastMapCore_() *JMapCore {
@@ -29471,9 +29449,6 @@ func (this_ *Ext_java_util_TreeMap) Equals(arg0 any) bool {
 func (this_ *Ext_java_util_TreeMap) HashCode() int32 {
 	return mapCoreHash(this_.mc())
 }
-func (this_ *Ext_java_util_TreeMap) String() string {
-	return mapCoreString(this_.mc())
-}
 func (this_ *Ext_java_util_TreeMap) GetOrDefault(arg0 any, arg1 any) any {
 	return this_.mc().GetOrDefault(arg0, arg1)
 }
@@ -29906,9 +29881,6 @@ func (this_ *Ext_java_util_concurrent_ConcurrentHashMap) EntrySet() any {
 }
 func (this_ *Ext_java_util_concurrent_ConcurrentHashMap) HashCode() int32 {
 	return syncMapOp_hashCode_0(this_)
-}
-func (this_ *Ext_java_util_concurrent_ConcurrentHashMap) String() string {
-	return syncMapOp_toString_0(this_)
 }
 func (this_ *Ext_java_util_concurrent_ConcurrentHashMap) Equals(arg0 any) bool {
 	return syncMapOp_equals_1(this_, arg0)

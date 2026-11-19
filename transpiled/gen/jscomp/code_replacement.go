@@ -23,16 +23,16 @@ import (
 	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
 )
 
-var lambdaSingleton_code_replacement_1 j2gort.Ext_java_util_function_Function
-var lambdaSingleton_code_replacement_2 j2gort.Ext_java_util_function_Function
-var lambdaSingleton_code_replacement_3 j2gort.Ext_java_util_function_ToIntFunction
-var lambdaSingleton_code_replacement_4 j2gort.Ext_java_util_function_ToIntFunction
+var lambdaSingleton_code_replacement_1 j2gort.Ext_java_util_function_ToIntFunction
+var lambdaSingleton_code_replacement_2 j2gort.Ext_java_util_function_ToIntFunction
+var lambdaSingleton_code_replacement_3 func(any) string
+var lambdaSingleton_code_replacement_4 func(any) string
 
 func init() {
-	lambdaSingleton_code_replacement_1 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return j2gort.BoxString(j2gort.AsIface[CodeReplacement](mrp0_).GetNewContent()) })
-	lambdaSingleton_code_replacement_2 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return j2gort.BoxString(j2gort.AsIface[CodeReplacement](mrp0_).GetSortKey()) })
-	lambdaSingleton_code_replacement_3 = j2gort.NewLambda_Ext_java_util_function_ToIntFunction(func(mrp0_ any) int32 { return j2gort.AsIface[CodeReplacement](mrp0_).GetLength() })
-	lambdaSingleton_code_replacement_4 = j2gort.NewLambda_Ext_java_util_function_ToIntFunction(func(mrp0_ any) int32 { return j2gort.AsIface[CodeReplacement](mrp0_).GetStartPosition() })
+	lambdaSingleton_code_replacement_1 = j2gort.NewLambda_Ext_java_util_function_ToIntFunction(func(mrp0_ any) int32 { return j2gort.AsIface[CodeReplacement](mrp0_).GetLength() })
+	lambdaSingleton_code_replacement_2 = j2gort.NewLambda_Ext_java_util_function_ToIntFunction(func(mrp0_ any) int32 { return j2gort.AsIface[CodeReplacement](mrp0_).GetStartPosition() })
+	lambdaSingleton_code_replacement_3 = func(mrp0_ any) string { return j2gort.AsIface[CodeReplacement](mrp0_).GetSortKey() }
+	lambdaSingleton_code_replacement_4 = func(mrp0_ any) string { return j2gort.AsIface[CodeReplacement](mrp0_).GetNewContent() }
 }
 
 // Java polymorphic class interface: com.google.javascript.refactoring.CodeReplacement
@@ -124,7 +124,7 @@ func clinitSlow_CodeReplacement() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_CodeReplacement, &clinitDone_CodeReplacement)
-	static_CodeReplacement_APPLICATION_ORDER = j2gort.Ext_java_util_Comparator_ComparingInt(lambdaSingleton_code_replacement_4).ThenComparingInt(lambdaSingleton_code_replacement_3).ThenComparing_1_Ext_java_util_function_Function(lambdaSingleton_code_replacement_2).ThenComparing_1_Ext_java_util_function_Function(lambdaSingleton_code_replacement_1)
+	static_CodeReplacement_APPLICATION_ORDER = j2gort.ComparatorThenComparingStr(j2gort.ComparatorThenComparingStr(j2gort.Ext_java_util_Comparator_ComparingInt(lambdaSingleton_code_replacement_2).ThenComparingInt(lambdaSingleton_code_replacement_1), lambdaSingleton_code_replacement_3), lambdaSingleton_code_replacement_4)
 }
 
 func (this_ *CodeReplacementBase) initFields_CodeReplacement() {

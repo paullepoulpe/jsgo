@@ -70,7 +70,9 @@ func setupWave16J2gortOverlayWorkspace(t *testing.T) (tmpDir, repoRoot string) {
 	}
 	extContent := string(extBytes)
 	wantStructFields := "words []uint64 `gson:\"-\"`\n\tbuf   [4]uint64 `gson:\"-\"`"
-	if strings.Contains(inlineBitSetGo, "bsSparseCap") {
+	if strings.Contains(inlineBitSetGo, "bsInlineWords = 16") {
+		wantStructFields = "words []uint64   `gson:\"-\"`\n\tbuf   [16]uint64 `gson:\"-\"`\n\thi    [8]int32   `gson:\"-\"`\n\tinitW int32      `gson:\"-\"`\n\thiLen int32      `gson:\"-\"`"
+	} else if strings.Contains(inlineBitSetGo, "bsSparseCap") {
 		wantStructFields = "words []uint64  `gson:\"-\"`\n\tbuf   [8]uint64 `gson:\"-\"`\n\thi    [8]int32  `gson:\"-\"`\n\tinitW int32     `gson:\"-\"`\n\thiLen int32     `gson:\"-\"`"
 	} else if strings.Contains(inlineBitSetGo, "hiBit") {
 		wantStructFields = "words []uint64  `gson:\"-\"`\n\tbuf   [4]uint64 `gson:\"-\"`\n\tinitW int32     `gson:\"-\"`\n\thiBit int32     `gson:\"-\"`"

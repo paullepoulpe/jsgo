@@ -138,33 +138,33 @@ func (this_ *PeepholeFoldConstants) OptimizeSubtree(subtree pkg_rhino.Node) pkg_
 	_ = subtree
 	switch subtree.TokenSwitchOrd_() {
 	case int32(31) /* Token.OPTCHAIN_CALL */, int32(28) /* Token.CALL */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldUselessObjectDotDefinePropertiesCall_4191(subtree)
+		return this_.priv_PeepholeFoldConstants_tryFoldUselessObjectDotDefinePropertiesCall_4189(subtree)
 	case int32(23) /* Token.NEW */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldCtorCall_4190(subtree)
+		return this_.priv_PeepholeFoldConstants_tryFoldCtorCall_4188(subtree)
 	case int32(25) /* Token.TYPEOF */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldTypeof_4160(subtree)
+		return this_.priv_PeepholeFoldConstants_tryFoldTypeof_4158(subtree)
 	case int32(127) /* Token.ITER_SPREAD */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldSpread_4196(subtree)
+		return this_.priv_PeepholeFoldConstants_tryFoldSpread_4194(subtree)
 	case int32(46) /* Token.ARRAYLIT */, int32(47) /* Token.OBJECTLIT */ :
-		return this_.priv_PeepholeFoldConstants_tryFlattenArrayOrObjectLit_4197(subtree)
+		return this_.priv_PeepholeFoldConstants_tryFlattenArrayOrObjectLit_4195(subtree)
 	case int32(19) /* Token.NOT */, int32(21) /* Token.POS */, int32(22) /* Token.NEG */, int32(20) /* Token.BITNOT */ :
-		this_.priv_PeepholeFoldConstants_tryReduceOperandsForOp_4157(subtree)
-		return this_.priv_PeepholeFoldConstants_tryFoldUnaryOperator_4161(subtree)
+		this_.priv_PeepholeFoldConstants_tryReduceOperandsForOp_4155(subtree)
+		return this_.priv_PeepholeFoldConstants_tryFoldUnaryOperator_4159(subtree)
 	case int32(87) /* Token.VOID */ :
-		return this_.priv_PeepholeFoldConstants_tryReduceVoid_4156(subtree)
+		return this_.priv_PeepholeFoldConstants_tryReduceVoid_4154(subtree)
 	case int32(29) /* Token.OPTCHAIN_GETPROP */, int32(26) /* Token.GETPROP */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldGetProp_4194(subtree)
+		return this_.priv_PeepholeFoldConstants_tryFoldGetProp_4192(subtree)
 	case int32(131) /* Token.TEMPLATELIT */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldTemplateLiteralSubstitutions_4181(subtree)
+		return this_.priv_PeepholeFoldConstants_tryFoldTemplateLiteralSubstitutions_4179(subtree)
 	default:
-		this_.priv_PeepholeFoldConstants_tryReduceOperandsForOp_4157(subtree)
-		return this_.priv_PeepholeFoldConstants_tryFoldBinaryOperator_4155(subtree)
+		this_.priv_PeepholeFoldConstants_tryReduceOperandsForOp_4155(subtree)
+		return this_.priv_PeepholeFoldConstants_tryFoldBinaryOperator_4153(subtree)
 	}
 	panic("unreachable switch expression")
 }
 
 // Java method: PeepholeFoldConstants.tryFoldBinaryOperator(com.google.javascript.rhino.Node subtree)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldBinaryOperator_4155(subtree pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldBinaryOperator_4153(subtree pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
 	var left pkg_rhino.Node = subtree.GetFirstChild()
 	_ = left
@@ -178,32 +178,32 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldBinaryOper
 	}
 	switch subtree.TokenSwitchOrd_() {
 	case int32(27) /* Token.GETELEM */, int32(30) /* Token.OPTCHAIN_GETELEM */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldGetElem_4193(subtree, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldGetElem_4191(subtree, left, right)
 	case int32(45) /* Token.INSTANCEOF */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldInstanceof_4163(subtree, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldInstanceof_4161(subtree, left, right)
 	case int32(69) /* Token.AND */, int32(68) /* Token.OR */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldAndOr_4166(subtree, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldAndOr_4164(subtree, left, right)
 	case int32(70) /* Token.COALESCE */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldCoalesce_4167(subtree, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldCoalesce_4165(subtree, left, right)
 	case int32(10) /* Token.LSH */, int32(11) /* Token.RSH */, int32(12) /* Token.URSH */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldShift_4188(subtree, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldShift_4186(subtree, left, right)
 	case int32(51) /* Token.ASSIGN */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldAssign_4164(subtree, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldAssign_4162(subtree, left, right)
 	case int32(52) /* Token.ASSIGN_BITOR */, int32(53) /* Token.ASSIGN_BITXOR */, int32(54) /* Token.ASSIGN_BITAND */, int32(55) /* Token.ASSIGN_LSH */, int32(56) /* Token.ASSIGN_RSH */, int32(57) /* Token.ASSIGN_URSH */, int32(58) /* Token.ASSIGN_ADD */, int32(59) /* Token.ASSIGN_SUB */, int32(60) /* Token.ASSIGN_MUL */, int32(61) /* Token.ASSIGN_DIV */, int32(62) /* Token.ASSIGN_MOD */, int32(63) /* Token.ASSIGN_EXPONENT */ :
-		return this_.priv_PeepholeFoldConstants_tryUnfoldAssignOp_4165(subtree, left, right)
+		return this_.priv_PeepholeFoldConstants_tryUnfoldAssignOp_4163(subtree, left, right)
 	case int32(13) /* Token.ADD */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldAdd_4183(subtree, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldAdd_4181(subtree, left, right)
 	case int32(14) /* Token.SUB */, int32(16) /* Token.DIV */, int32(17) /* Token.MOD */, int32(15) /* Token.MUL */, int32(18) /* Token.EXPONENT */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldArithmeticOp_4170(subtree, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldArithmeticOp_4168(subtree, left, right)
 	case int32(3) /* Token.BITAND */, int32(1) /* Token.BITOR */, int32(2) /* Token.BITXOR */ :
-		var result pkg_rhino.Node = this_.priv_PeepholeFoldConstants_tryFoldArithmeticOp_4170(subtree, left, right)
+		var result pkg_rhino.Node = this_.priv_PeepholeFoldConstants_tryFoldArithmeticOp_4168(subtree, left, right)
 		_ = result
 		if result != subtree {
 			return result
 		}
-		return this_.priv_PeepholeFoldConstants_tryFoldLeftChildOp_4176(subtree, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldLeftChildOp_4174(subtree, left, right)
 	case int32(6) /* Token.LT */, int32(8) /* Token.GT */, int32(7) /* Token.LE */, int32(9) /* Token.GE */, int32(4) /* Token.EQ */, int32(5) /* Token.NE */, int32(40) /* Token.SHEQ */, int32(41) /* Token.SHNE */ :
-		return this_.priv_PeepholeFoldConstants_tryFoldComparison_4189(subtree, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldComparison_4187(subtree, left, right)
 	default:
 		return subtree
 	}
@@ -211,7 +211,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldBinaryOper
 }
 
 // Java method: PeepholeFoldConstants.tryReduceVoid(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryReduceVoid_4156(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryReduceVoid_4154(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var child pkg_rhino.Node = n.GetFirstChild()
 	_ = child
@@ -223,7 +223,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryReduceVoid_415
 }
 
 // Java method: PeepholeFoldConstants.tryReduceOperandsForOp(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryReduceOperandsForOp_4157(n pkg_rhino.Node) {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryReduceOperandsForOp_4155(n pkg_rhino.Node) {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(13) /* Token.ADD */ :
@@ -232,18 +232,18 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryReduceOperands
 		var right pkg_rhino.Node = n.GetLastChild()
 		_ = right
 		if !(NodeUtil_MayBeString_2(left, this_.shouldUseTypes)) && !(NodeUtil_MayBeString_2(right, this_.shouldUseTypes)) {
-			this_.priv_PeepholeFoldConstants_tryConvertOperandsToNumber_4158(n)
+			this_.priv_PeepholeFoldConstants_tryConvertOperandsToNumber_4156(n)
 		}
 	case int32(52) /* Token.ASSIGN_BITOR */, int32(53) /* Token.ASSIGN_BITXOR */, int32(54) /* Token.ASSIGN_BITAND */, int32(55) /* Token.ASSIGN_LSH */, int32(56) /* Token.ASSIGN_RSH */, int32(57) /* Token.ASSIGN_URSH */, int32(59) /* Token.ASSIGN_SUB */, int32(60) /* Token.ASSIGN_MUL */, int32(62) /* Token.ASSIGN_MOD */, int32(61) /* Token.ASSIGN_DIV */ :
-		this_.priv_PeepholeFoldConstants_tryConvertToNumber_4159(n.GetLastChild())
+		this_.priv_PeepholeFoldConstants_tryConvertToNumber_4157(n.GetLastChild())
 	case int32(20) /* Token.BITNOT */, int32(1) /* Token.BITOR */, int32(2) /* Token.BITXOR */, int32(3) /* Token.BITAND */, int32(10) /* Token.LSH */, int32(11) /* Token.RSH */, int32(12) /* Token.URSH */, int32(14) /* Token.SUB */, int32(15) /* Token.MUL */, int32(17) /* Token.MOD */, int32(16) /* Token.DIV */, int32(21) /* Token.POS */, int32(22) /* Token.NEG */, int32(18) /* Token.EXPONENT */ :
-		this_.priv_PeepholeFoldConstants_tryConvertOperandsToNumber_4158(n)
+		this_.priv_PeepholeFoldConstants_tryConvertOperandsToNumber_4156(n)
 	default:
 	}
 }
 
 // Java method: PeepholeFoldConstants.tryConvertOperandsToNumber(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryConvertOperandsToNumber_4158(n pkg_rhino.Node) {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryConvertOperandsToNumber_4156(n pkg_rhino.Node) {
 	_ = n
 	var next pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = next
@@ -252,23 +252,23 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryConvertOperand
 		_ = c
 		for ; c != 0; c = next {
 			next = c.GetNext()
-			this_.priv_PeepholeFoldConstants_tryConvertToNumber_4159(c)
+			this_.priv_PeepholeFoldConstants_tryConvertToNumber_4157(c)
 		}
 	}
 }
 
 // Java method: PeepholeFoldConstants.tryConvertToNumber(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryConvertToNumber_4159(n pkg_rhino.Node) {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryConvertToNumber_4157(n pkg_rhino.Node) {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(33) /* Token.NUMBER */ :
 		return
 	case int32(69) /* Token.AND */, int32(68) /* Token.OR */, int32(50) /* Token.COMMA */, int32(70) /* Token.COALESCE */ :
-		this_.priv_PeepholeFoldConstants_tryConvertToNumber_4159(n.GetLastChild())
+		this_.priv_PeepholeFoldConstants_tryConvertToNumber_4157(n.GetLastChild())
 		return
 	case int32(67) /* Token.HOOK */ :
-		this_.priv_PeepholeFoldConstants_tryConvertToNumber_4159(n.GetSecondChild())
-		this_.priv_PeepholeFoldConstants_tryConvertToNumber_4159(n.GetLastChild())
+		this_.priv_PeepholeFoldConstants_tryConvertToNumber_4157(n.GetSecondChild())
+		this_.priv_PeepholeFoldConstants_tryConvertToNumber_4157(n.GetLastChild())
 		return
 	case int32(32) /* Token.NAME */ :
 		if !(NodeUtil_IsUndefined(n)) {
@@ -293,7 +293,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryConvertToNumbe
 }
 
 // Java method: PeepholeFoldConstants.tryFoldTypeof(com.google.javascript.rhino.Node originalTypeofNode)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldTypeof_4160(originalTypeofNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldTypeof_4158(originalTypeofNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = originalTypeofNode
 	if !(originalTypeofNode.IsTypeOf()) {
 		j2gort.CheckArgument(false)
@@ -336,7 +336,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldTypeof_416
 }
 
 // Java method: PeepholeFoldConstants.tryFoldUnaryOperator(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldUnaryOperator_4161(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldUnaryOperator_4159(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.HasOneChild()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
@@ -426,13 +426,13 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldUnaryOpera
 }
 
 // Java method: PeepholeFoldConstants.isReasonableDoubleValue(java.lang.@org.jspecify.annotations.Nullable Double x)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isReasonableDoubleValue_4162(x *j2gort.BoxDouble) bool {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isReasonableDoubleValue_4160(x *j2gort.BoxDouble) bool {
 	_ = x
 	return (((x != nil) && !(x.IsInfinite())) && !(x.IsNaN()))
 }
 
 // Java method: PeepholeFoldConstants.tryFoldInstanceof(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldInstanceof_4163(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldInstanceof_4161(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -462,7 +462,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldInstanceof
 }
 
 // Java method: PeepholeFoldConstants.tryFoldAssign(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAssign_4164(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAssign_4162(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -536,7 +536,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAssign_416
 }
 
 // Java method: PeepholeFoldConstants.tryUnfoldAssignOp(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryUnfoldAssignOp_4165(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryUnfoldAssignOp_4163(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -559,7 +559,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryUnfoldAssignOp
 }
 
 // Java method: PeepholeFoldConstants.tryFoldAndOr(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAndOr_4166(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAndOr_4164(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -616,7 +616,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAndOr_4166
 }
 
 // Java method: PeepholeFoldConstants.tryFoldCoalesce(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldCoalesce_4167(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldCoalesce_4165(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -649,7 +649,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldCoalesce_4
 }
 
 // Java method: PeepholeFoldConstants.tryFoldAdjacentLiteralLeaves(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAdjacentLiteralLeaves_4168(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAdjacentLiteralLeaves_4166(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -677,10 +677,10 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAdjacentLi
 			_ = result
 			if j2gort.CheckNotNullNode(rightParent.GetSecondChild()) == right {
 				left.ReplaceWith(pkg_rhino.IR_String(result))
-				this_.priv_PeepholeFoldConstants_replace_4186(rightParent, rightParent.GetFirstChild().CloneTree_1(true))
+				this_.priv_PeepholeFoldConstants_replace_4184(rightParent, rightParent.GetFirstChild().CloneTree_1(true))
 			} else {
 				left.ReplaceWith(pkg_rhino.IR_String(result))
-				this_.priv_PeepholeFoldConstants_replace_4186(rightParent, rightParent.GetSecondChild().CloneTree_1(true))
+				this_.priv_PeepholeFoldConstants_replace_4184(rightParent, rightParent.GetSecondChild().CloneTree_1(true))
 			}
 		}
 	}
@@ -688,7 +688,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAdjacentLi
 }
 
 // Java method: PeepholeFoldConstants.tryFoldAddConstantString(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAddConstantString_4169(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAddConstantString_4167(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -709,11 +709,11 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAddConstan
 }
 
 // Java method: PeepholeFoldConstants.tryFoldArithmeticOp(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldArithmeticOp_4170(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldArithmeticOp_4168(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
-	var result pkg_rhino.Node = this_.priv_PeepholeFoldConstants_performArithmeticOp_4171(n, left, right)
+	var result pkg_rhino.Node = this_.priv_PeepholeFoldConstants_performArithmeticOp_4169(n, left, right)
 	_ = result
 	if result != 0 {
 		result.SrcrefTreeIfMissing(n)
@@ -725,15 +725,15 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldArithmetic
 }
 
 // Java method: PeepholeFoldConstants.performArithmeticOp(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_performArithmeticOp_4171(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_performArithmeticOp_4169(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
 	if n.IsAdd() && (NodeUtil_MayBeString_2(left, this_.shouldUseTypes) || NodeUtil_MayBeString_2(right, this_.shouldUseTypes)) {
 		return pkg_rhino.Node(0)
 	}
-	if this_.priv_PeepholeFoldConstants_isBigInt_4174(left) && this_.priv_PeepholeFoldConstants_isBigInt_4174(right) {
-		return this_.priv_PeepholeFoldConstants_performBigIntArithmeticOp_4172(n, left, right)
+	if this_.priv_PeepholeFoldConstants_isBigInt_4172(left) && this_.priv_PeepholeFoldConstants_isBigInt_4172(right) {
+		return this_.priv_PeepholeFoldConstants_performBigIntArithmeticOp_4170(n, left, right)
 	}
 	var result float64 = float64(0)
 	_ = result
@@ -741,13 +741,13 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_performArithmetic
 	_ = lValObj
 	var rValObj *j2gort.BoxDouble = this_.GetSideEffectFreeNumberValue(right)
 	_ = rValObj
-	if (((lValObj == nil) && (rValObj == nil)) || !(this_.priv_PeepholeFoldConstants_isNumeric_4173(left))) || !(this_.priv_PeepholeFoldConstants_isNumeric_4173(right)) {
+	if (((lValObj == nil) && (rValObj == nil)) || !(this_.priv_PeepholeFoldConstants_isNumeric_4171(left))) || !(this_.priv_PeepholeFoldConstants_isNumeric_4171(right)) {
 		return pkg_rhino.Node(0)
 	}
 	switch n.TokenSwitchOrd_() {
 	case int32(13) /* Token.ADD */ :
 		if (lValObj != nil) && (rValObj != nil) {
-			return this_.priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4175((j2gort.UnboxDouble(lValObj) + j2gort.UnboxDouble(rValObj)), j2gort.UnboxDouble(lValObj), j2gort.UnboxDouble(rValObj))
+			return this_.priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4173((j2gort.UnboxDouble(lValObj) + j2gort.UnboxDouble(rValObj)), j2gort.UnboxDouble(lValObj), j2gort.UnboxDouble(rValObj))
 		}
 		if (lValObj != nil) && (j2gort.UnboxDouble(lValObj) == float64(int32(0))) {
 			return right.CloneTree_1(true)
@@ -757,7 +757,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_performArithmetic
 		return pkg_rhino.Node(0)
 	case int32(14) /* Token.SUB */ :
 		if (lValObj != nil) && (rValObj != nil) {
-			return this_.priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4175((j2gort.UnboxDouble(lValObj) - j2gort.UnboxDouble(rValObj)), j2gort.UnboxDouble(lValObj), j2gort.UnboxDouble(rValObj))
+			return this_.priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4173((j2gort.UnboxDouble(lValObj) - j2gort.UnboxDouble(rValObj)), j2gort.UnboxDouble(lValObj), j2gort.UnboxDouble(rValObj))
 		}
 		if (lValObj != nil) && (j2gort.UnboxDouble(lValObj) == float64(int32(0))) {
 			return pkg_rhino.IR_Neg(right.CloneTree_1(true))
@@ -767,7 +767,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_performArithmetic
 		return pkg_rhino.Node(0)
 	case int32(15) /* Token.MUL */ :
 		if (lValObj != nil) && (rValObj != nil) {
-			return this_.priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4175((j2gort.UnboxDouble(lValObj) * j2gort.UnboxDouble(rValObj)), j2gort.UnboxDouble(lValObj), j2gort.UnboxDouble(rValObj))
+			return this_.priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4173((j2gort.UnboxDouble(lValObj) * j2gort.UnboxDouble(rValObj)), j2gort.UnboxDouble(lValObj), j2gort.UnboxDouble(rValObj))
 		}
 		if lValObj != nil {
 			if j2gort.UnboxDouble(lValObj) == float64(int32(1)) {
@@ -784,7 +784,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_performArithmetic
 			if j2gort.UnboxDouble(rValObj) == float64(int32(0)) {
 				return pkg_rhino.Node(0)
 			}
-			return this_.priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4175((j2gort.UnboxDouble(lValObj) / j2gort.UnboxDouble(rValObj)), j2gort.UnboxDouble(lValObj), j2gort.UnboxDouble(rValObj))
+			return this_.priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4173((j2gort.UnboxDouble(lValObj) / j2gort.UnboxDouble(rValObj)), j2gort.UnboxDouble(lValObj), j2gort.UnboxDouble(rValObj))
 		}
 		if rValObj != nil {
 			if j2gort.UnboxDouble(rValObj) == float64(int32(1)) {
@@ -794,7 +794,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_performArithmetic
 		return pkg_rhino.Node(0)
 	case int32(18) /* Token.EXPONENT */ :
 		if (lValObj != nil) && (rValObj != nil) {
-			return this_.priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4175(math.Pow(j2gort.UnboxDouble(lValObj), j2gort.UnboxDouble(rValObj)), j2gort.UnboxDouble(lValObj), j2gort.UnboxDouble(rValObj))
+			return this_.priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4173(math.Pow(j2gort.UnboxDouble(lValObj), j2gort.UnboxDouble(rValObj)), j2gort.UnboxDouble(lValObj), j2gort.UnboxDouble(rValObj))
 		}
 		return pkg_rhino.Node(0)
 	default:
@@ -821,11 +821,11 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_performArithmetic
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Unexpected arithmetic operator: "+j2gort.StrVal(n.GetToken()))))
 	}
-	return this_.priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4175(result, lval, rval)
+	return this_.priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4173(result, lval, rval)
 }
 
 // Java method: PeepholeFoldConstants.performBigIntArithmeticOp(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_performBigIntArithmeticOp_4172(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_performBigIntArithmeticOp_4170(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -923,7 +923,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_performBigIntArit
 }
 
 // Java method: PeepholeFoldConstants.isNumeric(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isNumeric_4173(n pkg_rhino.Node) bool {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isNumeric_4171(n pkg_rhino.Node) bool {
 	_ = n
 	if NodeUtil_IsNumericResult(n) {
 		return true
@@ -935,7 +935,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isNumeric_4173(n 
 }
 
 // Java method: PeepholeFoldConstants.isBigInt(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isBigInt_4174(n pkg_rhino.Node) bool {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isBigInt_4172(n pkg_rhino.Node) bool {
 	_ = n
 	if NodeUtil_IsBigIntResult(n) {
 		return true
@@ -947,7 +947,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isBigInt_4174(n p
 }
 
 // Java method: PeepholeFoldConstants.maybeReplaceBinaryOpWithNumericResult(double result, double lval, double rval)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4175(result float64, lval float64, rval float64) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_maybeReplaceBinaryOpWithNumericResult_4173(result float64, lval float64, rval float64) pkg_rhino.Node {
 	_ = result
 	_ = lval
 	_ = rval
@@ -958,7 +958,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_maybeReplaceBinar
 }
 
 // Java method: PeepholeFoldConstants.tryFoldLeftChildOp(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldLeftChildOp_4176(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldLeftChildOp_4174(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -981,11 +981,11 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldLeftChildO
 		_ = lr
 		var valueToCombine pkg_rhino.Node = ll
 		_ = valueToCombine
-		var replacement pkg_rhino.Node = this_.priv_PeepholeFoldConstants_performArithmeticOp_4171(n, valueToCombine, right)
+		var replacement pkg_rhino.Node = this_.priv_PeepholeFoldConstants_performArithmeticOp_4169(n, valueToCombine, right)
 		_ = replacement
 		if replacement == 0 {
 			valueToCombine = lr
-			replacement = this_.priv_PeepholeFoldConstants_performArithmeticOp_4171(n, valueToCombine, right)
+			replacement = this_.priv_PeepholeFoldConstants_performArithmeticOp_4169(n, valueToCombine, right)
 		}
 		if replacement != 0 {
 			valueToCombine.Detach()
@@ -999,7 +999,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldLeftChildO
 }
 
 // Java method: PeepholeFoldConstants.foldAddTemplateLiterals(com.google.javascript.rhino.Node oldNode, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_foldAddTemplateLiterals_4177(oldNode pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_foldAddTemplateLiterals_4175(oldNode pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = oldNode
 	_ = left
 	_ = right
@@ -1007,7 +1007,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_foldAddTemplateLi
 	_ = lastLeft
 	var firstRight pkg_rhino.Node = right.GetFirstChild()
 	_ = firstRight
-	if this_.priv_PeepholeFoldConstants_endsWithUnescapedDollar_4180(lastLeft.GetRawString()) && javalang.StringStartsWith(j2gort.CheckNotNullString(firstRight.GetRawString()), "{") {
+	if this_.priv_PeepholeFoldConstants_endsWithUnescapedDollar_4178(lastLeft.GetRawString()) && javalang.StringStartsWith(j2gort.CheckNotNullString(firstRight.GetRawString()), "{") {
 		return oldNode
 	}
 	var mergeNode pkg_rhino.Node = pkg_rhino.IR_TemplateLiteralString((j2gort.StrValString(lastLeft.GetCookedString()) + j2gort.StrValString(firstRight.GetCookedString())), (j2gort.StrValString(lastLeft.GetRawString()) + j2gort.StrValString(firstRight.GetRawString())))
@@ -1018,11 +1018,11 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_foldAddTemplateLi
 	left.AddChildToBack(mergeNode)
 	left.AddChildrenToBack(right.RemoveChildren())
 	left.Detach()
-	return this_.priv_PeepholeFoldConstants_replace_4186(oldNode, left)
+	return this_.priv_PeepholeFoldConstants_replace_4184(oldNode, left)
 }
 
 // Java method: PeepholeFoldConstants.isSimpleTemplateStringValue(java.lang.String s)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isSimpleTemplateStringValue_4178(s string) bool {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isSimpleTemplateStringValue_4176(s string) bool {
 	_ = s
 	{
 		var i int32 = int32(0)
@@ -1039,7 +1039,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isSimpleTemplateS
 }
 
 // Java method: PeepholeFoldConstants.endsWithUnescapedBackslash(java.lang.String raw)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_endsWithUnescapedBackslash_4179(raw string) bool {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_endsWithUnescapedBackslash_4177(raw string) bool {
 	_ = raw
 	var backslashCount int32 = int32(0)
 	_ = backslashCount
@@ -1058,7 +1058,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_endsWithUnescaped
 }
 
 // Java method: PeepholeFoldConstants.endsWithUnescapedDollar(java.lang.String raw)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_endsWithUnescapedDollar_4180(raw string) bool {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_endsWithUnescapedDollar_4178(raw string) bool {
 	_ = raw
 	if !(javalang.StringEndsWith(j2gort.CheckNotNullString(raw), "$")) {
 		return false
@@ -1080,7 +1080,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_endsWithUnescaped
 }
 
 // Java method: PeepholeFoldConstants.tryFoldTemplateLiteralSubstitutions(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldTemplateLiteralSubstitutions_4181(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldTemplateLiteralSubstitutions_4179(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if (n.GetParent() != 0) && n.GetParent().IsTaggedTemplateLit() {
 		return n
@@ -1104,7 +1104,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldTemplateLi
 			if (expr != 0) && (((expr.IsStringLit() || expr.IsNumber()) || expr.IsTrue()) || expr.IsFalse()) {
 				var strValue string = this_.GetSideEffectFreeStringValue(expr)
 				_ = strValue
-				if (strValue != j2gort.NullString) && this_.priv_PeepholeFoldConstants_isSimpleTemplateStringValue_4178(strValue) {
+				if (strValue != j2gort.NullString) && this_.priv_PeepholeFoldConstants_isSimpleTemplateStringValue_4176(strValue) {
 					var nextNext pkg_rhino.Node = next.GetNext()
 					_ = nextNext
 					if (nextNext != 0) && nextNext.IsTemplateLitString() {
@@ -1112,7 +1112,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldTemplateLi
 						_ = curCooked
 						var nextNextCooked string = nextNext.GetCookedString()
 						_ = nextNextCooked
-						if ((j2gort.CheckNotNullString(strValue) == "") && this_.priv_PeepholeFoldConstants_endsWithUnescapedDollar_4180(cur.GetRawString())) && javalang.StringStartsWith(j2gort.CheckNotNullString(nextNext.GetRawString()), "{") {
+						if ((j2gort.CheckNotNullString(strValue) == "") && this_.priv_PeepholeFoldConstants_endsWithUnescapedDollar_4178(cur.GetRawString())) && javalang.StringStartsWith(j2gort.CheckNotNullString(nextNext.GetRawString()), "{") {
 							cur = next
 							continue
 						}
@@ -1120,7 +1120,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldTemplateLi
 						_ = combinedCooked
 						var combinedRaw string = (j2gort.StrValString(cur.GetRawString()) + j2gort.StrValString(strValue) + j2gort.StrValString(nextNext.GetRawString()))
 						_ = combinedRaw
-						if this_.priv_PeepholeFoldConstants_isRestrictedOctalEscape_4182(cur.GetRawString(), strValue) || this_.priv_PeepholeFoldConstants_isRestrictedOctalEscape_4182((j2gort.StrValString(cur.GetRawString())+j2gort.StrValString(strValue)), nextNext.GetRawString()) {
+						if this_.priv_PeepholeFoldConstants_isRestrictedOctalEscape_4180(cur.GetRawString(), strValue) || this_.priv_PeepholeFoldConstants_isRestrictedOctalEscape_4180((j2gort.StrValString(cur.GetRawString())+j2gort.StrValString(strValue)), nextNext.GetRawString()) {
 							cur = next
 							continue
 						}
@@ -1146,7 +1146,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldTemplateLi
 }
 
 // Java method: PeepholeFoldConstants.isRestrictedOctalEscape(java.lang.String prefixRaw, java.lang.String suffixRaw)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isRestrictedOctalEscape_4182(prefixRaw string, suffixRaw string) bool {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isRestrictedOctalEscape_4180(prefixRaw string, suffixRaw string) bool {
 	_ = prefixRaw
 	_ = suffixRaw
 	if j2gort.CheckNotNullString(suffixRaw) == "" {
@@ -1160,13 +1160,13 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isRestrictedOctal
 	if javalang.StringEndsWith(j2gort.CheckNotNullString(prefixRaw), "0") {
 		var beforeZero string = j2gort.JStrSub(prefixRaw, int32(0), (j2gort.JStrLen(prefixRaw) - int32(1)))
 		_ = beforeZero
-		return this_.priv_PeepholeFoldConstants_endsWithUnescapedBackslash_4179(beforeZero)
+		return this_.priv_PeepholeFoldConstants_endsWithUnescapedBackslash_4177(beforeZero)
 	}
 	return false
 }
 
 // Java method: PeepholeFoldConstants.tryFoldAdd(com.google.javascript.rhino.Node node, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAdd_4183(node pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAdd_4181(node pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = node
 	_ = left
 	_ = right
@@ -1175,36 +1175,36 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldAdd_4183(n
 	}
 	if NodeUtil_MayBeString_2(node, this_.shouldUseTypes) {
 		if left.IsTemplateLit() && right.IsTemplateLit() {
-			return this_.priv_PeepholeFoldConstants_foldAddTemplateLiterals_4177(node, left, right)
+			return this_.priv_PeepholeFoldConstants_foldAddTemplateLiterals_4175(node, left, right)
 		} else if left.IsTemplateLit() {
 			var rightStr string = this_.GetSideEffectFreeStringValue(right)
 			_ = rightStr
-			if (rightStr != j2gort.NullString) && this_.priv_PeepholeFoldConstants_isSimpleTemplateStringValue_4178(rightStr) {
-				return this_.priv_PeepholeFoldConstants_foldTemplateLiteralAndConstant_4184(node, left, rightStr)
+			if (rightStr != j2gort.NullString) && this_.priv_PeepholeFoldConstants_isSimpleTemplateStringValue_4176(rightStr) {
+				return this_.priv_PeepholeFoldConstants_foldTemplateLiteralAndConstant_4182(node, left, rightStr)
 			}
 		} else if right.IsTemplateLit() {
 			var leftStr string = this_.GetSideEffectFreeStringValue(left)
 			_ = leftStr
-			if (leftStr != j2gort.NullString) && this_.priv_PeepholeFoldConstants_isSimpleTemplateStringValue_4178(leftStr) {
-				return this_.priv_PeepholeFoldConstants_foldConstantAndTemplateLiteral_4185(node, leftStr, right)
+			if (leftStr != j2gort.NullString) && this_.priv_PeepholeFoldConstants_isSimpleTemplateStringValue_4176(leftStr) {
+				return this_.priv_PeepholeFoldConstants_foldConstantAndTemplateLiteral_4183(node, leftStr, right)
 			}
 		}
 		if NodeUtil_IsLiteralValue(left, false) && NodeUtil_IsLiteralValue(right, false) {
-			return this_.priv_PeepholeFoldConstants_tryFoldAddConstantString_4169(node, left, right)
-		} else if (left.IsStringLit() && (j2gort.CheckNotNullString(left.GetString()) == "")) && this_.priv_PeepholeFoldConstants_isStringTyped_4187(right) {
-			return this_.priv_PeepholeFoldConstants_replace_4186(node, right.CloneTree_1(true))
-		} else if (right.IsStringLit() && (j2gort.CheckNotNullString(right.GetString()) == "")) && this_.priv_PeepholeFoldConstants_isStringTyped_4187(left) {
-			return this_.priv_PeepholeFoldConstants_replace_4186(node, left.CloneTree_1(true))
+			return this_.priv_PeepholeFoldConstants_tryFoldAddConstantString_4167(node, left, right)
+		} else if (left.IsStringLit() && (j2gort.CheckNotNullString(left.GetString()) == "")) && this_.priv_PeepholeFoldConstants_isStringTyped_4185(right) {
+			return this_.priv_PeepholeFoldConstants_replace_4184(node, right.CloneTree_1(true))
+		} else if (right.IsStringLit() && (j2gort.CheckNotNullString(right.GetString()) == "")) && this_.priv_PeepholeFoldConstants_isStringTyped_4185(left) {
+			return this_.priv_PeepholeFoldConstants_replace_4184(node, left.CloneTree_1(true))
 		} else {
-			return this_.priv_PeepholeFoldConstants_tryFoldAdjacentLiteralLeaves_4168(node, left, right)
+			return this_.priv_PeepholeFoldConstants_tryFoldAdjacentLiteralLeaves_4166(node, left, right)
 		}
 	} else {
-		return this_.priv_PeepholeFoldConstants_tryFoldArithmeticOp_4170(node, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldArithmeticOp_4168(node, left, right)
 	}
 }
 
 // Java method: PeepholeFoldConstants.foldTemplateLiteralAndConstant(com.google.javascript.rhino.Node oldNode, com.google.javascript.rhino.Node left, java.lang.String rightStr)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_foldTemplateLiteralAndConstant_4184(oldNode pkg_rhino.Node, left pkg_rhino.Node, rightStr string) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_foldTemplateLiteralAndConstant_4182(oldNode pkg_rhino.Node, left pkg_rhino.Node, rightStr string) pkg_rhino.Node {
 	_ = oldNode
 	_ = left
 	_ = rightStr
@@ -1213,7 +1213,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_foldTemplateLiter
 	if !(lastLeft.IsTemplateLitString()) {
 		j2gort.CheckState(false)
 	}
-	if this_.priv_PeepholeFoldConstants_isRestrictedOctalEscape_4182(lastLeft.GetRawString(), rightStr) {
+	if this_.priv_PeepholeFoldConstants_isRestrictedOctalEscape_4180(lastLeft.GetRawString(), rightStr) {
 		return oldNode
 	}
 	var mergeNode pkg_rhino.Node = pkg_rhino.IR_TemplateLiteralString((j2gort.StrValString(lastLeft.GetCookedString()) + j2gort.StrValString(rightStr)), (j2gort.StrValString(lastLeft.GetRawString()) + j2gort.StrValString(rightStr)))
@@ -1221,11 +1221,11 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_foldTemplateLiter
 	mergeNode.SrcrefTreeIfMissing(lastLeft)
 	lastLeft.ReplaceWith(mergeNode)
 	left.Detach()
-	return this_.priv_PeepholeFoldConstants_replace_4186(oldNode, left)
+	return this_.priv_PeepholeFoldConstants_replace_4184(oldNode, left)
 }
 
 // Java method: PeepholeFoldConstants.foldConstantAndTemplateLiteral(com.google.javascript.rhino.Node oldNode, java.lang.String leftStr, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_foldConstantAndTemplateLiteral_4185(oldNode pkg_rhino.Node, leftStr string, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_foldConstantAndTemplateLiteral_4183(oldNode pkg_rhino.Node, leftStr string, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = oldNode
 	_ = leftStr
 	_ = right
@@ -1234,7 +1234,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_foldConstantAndTe
 	if !(firstRight.IsTemplateLitString()) {
 		j2gort.CheckState(false)
 	}
-	if this_.priv_PeepholeFoldConstants_isRestrictedOctalEscape_4182(leftStr, firstRight.GetRawString()) {
+	if this_.priv_PeepholeFoldConstants_isRestrictedOctalEscape_4180(leftStr, firstRight.GetRawString()) {
 		return oldNode
 	}
 	var mergeNode pkg_rhino.Node = pkg_rhino.IR_TemplateLiteralString((j2gort.StrValString(leftStr) + j2gort.StrValString(firstRight.GetCookedString())), (j2gort.StrValString(leftStr) + j2gort.StrValString(firstRight.GetRawString())))
@@ -1242,11 +1242,11 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_foldConstantAndTe
 	mergeNode.SrcrefTreeIfMissing(firstRight)
 	firstRight.ReplaceWith(mergeNode)
 	right.Detach()
-	return this_.priv_PeepholeFoldConstants_replace_4186(oldNode, right)
+	return this_.priv_PeepholeFoldConstants_replace_4184(oldNode, right)
 }
 
 // Java method: PeepholeFoldConstants.replace(com.google.javascript.rhino.Node oldNode, com.google.javascript.rhino.Node newNode)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_replace_4186(oldNode pkg_rhino.Node, newNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_replace_4184(oldNode pkg_rhino.Node, newNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = oldNode
 	_ = newNode
 	oldNode.ReplaceWith(newNode)
@@ -1255,7 +1255,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_replace_4186(oldN
 }
 
 // Java method: PeepholeFoldConstants.isStringTyped(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isStringTyped_4187(n pkg_rhino.Node) bool {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isStringTyped_4185(n pkg_rhino.Node) bool {
 	_ = n
 	if NodeUtil_IsStringResult(n) {
 		return true
@@ -1267,7 +1267,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_isStringTyped_418
 }
 
 // Java method: PeepholeFoldConstants.tryFoldShift(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldShift_4188(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldShift_4186(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -1275,7 +1275,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldShift_4188
 	_ = leftVal
 	var rightVal *j2gort.BoxDouble = this_.GetSideEffectFreeNumberValue(right)
 	_ = rightVal
-	if !(this_.priv_PeepholeFoldConstants_isReasonableDoubleValue_4162(leftVal)) || !(this_.priv_PeepholeFoldConstants_isReasonableDoubleValue_4162(rightVal)) {
+	if !(this_.priv_PeepholeFoldConstants_isReasonableDoubleValue_4160(leftVal)) || !(this_.priv_PeepholeFoldConstants_isReasonableDoubleValue_4160(rightVal)) {
 		return n
 	}
 	if !(pkg_base.JSCompDoubles_IsMathematicalInteger(j2gort.UnboxDouble(leftVal))) {
@@ -1313,7 +1313,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldShift_4188
 }
 
 // Java method: PeepholeFoldConstants.tryFoldComparison(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldComparison_4189(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldComparison_4187(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -1681,19 +1681,19 @@ func PeepholeFoldConstants_EvaluateComparison(peepholeOptimization AbstractPeeph
 }
 
 // Java method: PeepholeFoldConstants.tryFoldCtorCall(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldCtorCall_4190(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldCtorCall_4188(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsNew()) {
 		j2gort.CheckArgument(false)
 	}
 	if PeepholeFoldConstants_InForcedStringContext(n) {
-		return this_.priv_PeepholeFoldConstants_tryFoldInForcedStringContext_4192(n)
+		return this_.priv_PeepholeFoldConstants_tryFoldInForcedStringContext_4190(n)
 	}
 	return n
 }
 
 // Java method: PeepholeFoldConstants.tryFoldUselessObjectDotDefinePropertiesCall(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldUselessObjectDotDefinePropertiesCall_4191(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldUselessObjectDotDefinePropertiesCall_4189(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsCall() || n.IsOptChainCall()) {
 		j2gort.CheckArgument(false)
@@ -1724,7 +1724,7 @@ func PeepholeFoldConstants_InForcedStringContext(n pkg_rhino.Node) bool {
 }
 
 // Java method: PeepholeFoldConstants.tryFoldInForcedStringContext(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldInForcedStringContext_4192(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldInForcedStringContext_4190(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsNew()) {
 		j2gort.CheckArgument(false)
@@ -1760,7 +1760,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldInForcedSt
 }
 
 // Java method: PeepholeFoldConstants.tryFoldGetElem(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldGetElem_4193(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldGetElem_4191(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -1769,18 +1769,18 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldGetElem_41
 	}
 	if left.IsObjectLit() {
 		if right.IsStringLit() {
-			return this_.priv_PeepholeFoldConstants_tryFoldObjectPropAccess_4199(n, left, right.GetString())
+			return this_.priv_PeepholeFoldConstants_tryFoldObjectPropAccess_4197(n, left, right.GetString())
 		}
 	} else if left.IsArrayLit() {
-		return this_.priv_PeepholeFoldConstants_tryFoldArrayAccess_4195(n, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldArrayAccess_4193(n, left, right)
 	} else if left.IsStringLit() {
-		return this_.priv_PeepholeFoldConstants_tryFoldStringArrayAccess_4198(n, left, right)
+		return this_.priv_PeepholeFoldConstants_tryFoldStringArrayAccess_4196(n, left, right)
 	}
 	return n
 }
 
 // Java method: PeepholeFoldConstants.tryFoldGetProp(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldGetProp_4194(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldGetProp_4192(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsGetProp() || n.IsOptChainGetProp()) {
 		j2gort.CheckArgument(false)
@@ -1790,7 +1790,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldGetProp_41
 	var name string = n.GetString()
 	_ = name
 	if left.IsObjectLit() {
-		return this_.priv_PeepholeFoldConstants_tryFoldObjectPropAccess_4199(n, left, name)
+		return this_.priv_PeepholeFoldConstants_tryFoldObjectPropAccess_4197(n, left, name)
 	}
 	if j2gort.CheckNotNullString(name) == "length" {
 		if NodeUtil_IsLValue(n) {
@@ -1846,7 +1846,7 @@ func PeepholeFoldConstants_IsFoldableElementIndexKey(right pkg_rhino.Node, intIn
 }
 
 // Java method: PeepholeFoldConstants.tryFoldArrayAccess(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldArrayAccess_4195(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldArrayAccess_4193(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -1855,7 +1855,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldArrayAcces
 	}
 	var index *j2gort.BoxDouble = this_.GetSideEffectFreeNumberValue(right)
 	_ = index
-	if !(this_.priv_PeepholeFoldConstants_isReasonableDoubleValue_4162(index)) {
+	if !(this_.priv_PeepholeFoldConstants_isReasonableDoubleValue_4160(index)) {
 		return n
 	}
 	var intIndex int32 = index.IntValue()
@@ -1901,7 +1901,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldArrayAcces
 }
 
 // Java method: PeepholeFoldConstants.tryFoldSpread(com.google.javascript.rhino.Node spread)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldSpread_4196(spread pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldSpread_4194(spread pkg_rhino.Node) pkg_rhino.Node {
 	_ = spread
 	if !(spread.IsSpread()) {
 		j2gort.CheckState(false)
@@ -1919,7 +1919,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldSpread_419
 }
 
 // Java method: PeepholeFoldConstants.tryFlattenArrayOrObjectLit(com.google.javascript.rhino.Node parentLit)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFlattenArrayOrObjectLit_4197(parentLit pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFlattenArrayOrObjectLit_4195(parentLit pkg_rhino.Node) pkg_rhino.Node {
 	_ = parentLit
 	{
 		var child pkg_rhino.Node = parentLit.GetFirstChild()
@@ -1963,7 +1963,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFlattenArrayOr
 }
 
 // Java method: PeepholeFoldConstants.tryFoldStringArrayAccess(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldStringArrayAccess_4198(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldStringArrayAccess_4196(n pkg_rhino.Node, left pkg_rhino.Node, right pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = right
@@ -1972,7 +1972,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldStringArra
 	}
 	var index *j2gort.BoxDouble = this_.GetSideEffectFreeNumberValue(right)
 	_ = index
-	if !(this_.priv_PeepholeFoldConstants_isReasonableDoubleValue_4162(index)) {
+	if !(this_.priv_PeepholeFoldConstants_isReasonableDoubleValue_4160(index)) {
 		return n
 	}
 	var intIndex int32 = index.IntValue()
@@ -2016,7 +2016,7 @@ func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldStringArra
 }
 
 // Java method: PeepholeFoldConstants.tryFoldObjectPropAccess(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, java.lang.String name)
-func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldObjectPropAccess_4199(n pkg_rhino.Node, left pkg_rhino.Node, name string) pkg_rhino.Node {
+func (this_ *PeepholeFoldConstants) priv_PeepholeFoldConstants_tryFoldObjectPropAccess_4197(n pkg_rhino.Node, left pkg_rhino.Node, name string) pkg_rhino.Node {
 	_ = n
 	_ = left
 	_ = name

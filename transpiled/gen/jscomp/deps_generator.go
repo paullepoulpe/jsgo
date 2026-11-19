@@ -209,25 +209,25 @@ func InitDepsGenerator(this_ *DepsGenerator, deps j2gort.Ext_java_util_Collectio
 
 // Java method: DepsGenerator.computeDependencyCalls()
 func (this_ *DepsGenerator) ComputeDependencyCalls() string {
-	var depsFiles j2gort.Ext_java_util_Map = this_.priv_DepsGenerator_parseDepsFiles_6097()
+	var depsFiles j2gort.Ext_java_util_Map = this_.priv_DepsGenerator_parseDepsFiles_6095()
 	_ = depsFiles
 	if StaticGet_DepsGenerator_Logger().IsLoggable(j2gort.Ext_java_util_logging_Level_F_FINE) {
 		StaticGet_DepsGenerator_Logger().Fine_1_string(("preparsedFiles: " + j2gort.StrVal(depsFiles)))
 	}
-	var jsFiles j2gort.Ext_java_util_Map = this_.priv_DepsGenerator_parseSources_6099(j2gort.AsIface[j2gort.Ext_java_util_Set](depsFiles.KeySet_0()))
+	var jsFiles j2gort.Ext_java_util_Map = this_.priv_DepsGenerator_parseSources_6097(j2gort.AsIface[j2gort.Ext_java_util_Set](depsFiles.KeySet_0()))
 	_ = jsFiles
 	if this_.errorManager.GetErrorCount() > int32(0) {
 		return j2gort.NullString
 	}
 	this_.CleanUpDuplicatedFiles(depsFiles, jsFiles)
-	jsFiles = this_.priv_DepsGenerator_removeMungedSymbols_6086(depsFiles, jsFiles)
-	this_.priv_DepsGenerator_validateDependencies_6087(j2gort.AsIface[j2gort.Ext_java_util_Collection](depsFiles.Values()), j2gort.AsIface[j2gort.Ext_java_util_Collection](jsFiles.Values()))
+	jsFiles = this_.priv_DepsGenerator_removeMungedSymbols_6084(depsFiles, jsFiles)
+	this_.priv_DepsGenerator_validateDependencies_6085(j2gort.AsIface[j2gort.Ext_java_util_Collection](depsFiles.Values()), j2gort.AsIface[j2gort.Ext_java_util_Collection](jsFiles.Values()))
 	if this_.errorManager.GetErrorCount() > int32(0) {
 		return j2gort.NullString
 	}
 	var output *j2gort.Ext_java_io_ByteArrayOutputStream = j2gort.NewExt_java_io_ByteArrayOutputStream()
 	_ = output
-	this_.priv_DepsGenerator_writeDepsContent_6100(depsFiles, jsFiles, j2gort.NewExt_java_io_PrintStream_1_Ext_java_io_OutputStream(output))
+	this_.priv_DepsGenerator_writeDepsContent_6098(depsFiles, jsFiles, j2gort.NewExt_java_io_PrintStream_1_Ext_java_io_OutputStream(output))
 	return func() string {
 		b_1 := output.ToByteArray()
 		return j2gort.NewStringFromBytes(b_1, 0, int32(len(b_1)), j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8)
@@ -262,15 +262,15 @@ func (this_ *DepsGenerator) CleanUpDuplicatedFiles(depsFiles j2gort.Ext_java_uti
 }
 
 // Java method: DepsGenerator.removeMungedSymbols(java.util.Map<java.lang.String,com.google.javascript.jscomp.deps.DependencyInfo> depFiles, java.util.Map<java.lang.String,com.google.javascript.jscomp.deps.DependencyInfo> jsFiles)
-func (this_ *DepsGenerator) priv_DepsGenerator_removeMungedSymbols_6086(depFiles j2gort.Ext_java_util_Map, jsFiles j2gort.Ext_java_util_Map) j2gort.Ext_java_util_Map {
+func (this_ *DepsGenerator) priv_DepsGenerator_removeMungedSymbols_6084(depFiles j2gort.Ext_java_util_Map, jsFiles j2gort.Ext_java_util_Map) j2gort.Ext_java_util_Map {
 	_ = depFiles
 	_ = jsFiles
 	var newJsFiles j2gort.Ext_java_util_Map = j2gort.NewExt_java_util_LinkedHashMap()
 	_ = newJsFiles
 	var providesMap j2gort.OrderedMap[string, DependencyInfo] = j2gort.NewOrderedMap[string, DependencyInfo]()
 	_ = providesMap
-	this_.priv_DepsGenerator_addToProvideMap_6094(j2gort.AsIface[j2gort.Ext_java_util_Collection](depFiles.Values()), &providesMap, true)
-	this_.priv_DepsGenerator_addToProvideMap_6094(j2gort.AsIface[j2gort.Ext_java_util_Collection](jsFiles.Values()), &providesMap, false)
+	this_.priv_DepsGenerator_addToProvideMap_6092(j2gort.AsIface[j2gort.Ext_java_util_Collection](depFiles.Values()), &providesMap, true)
+	this_.priv_DepsGenerator_addToProvideMap_6092(j2gort.AsIface[j2gort.Ext_java_util_Collection](jsFiles.Values()), &providesMap, false)
 	{
 		cur_4 := j2gort.NewMapValCursor(jsFiles)
 		for cur_4.HasNext() {
@@ -289,7 +289,7 @@ func (this_ *DepsGenerator) priv_DepsGenerator_removeMungedSymbols_6086(depFiles
 						var provider DependencyInfo = providesMap.Get(require.GetSymbol())
 						_ = provider
 						if provider == nil || provider.IsJavaNil_() {
-							this_.priv_DepsGenerator_reportMissingFile_6088(dependencyInfo, require.GetRawText())
+							this_.priv_DepsGenerator_reportMissingFile_6086(dependencyInfo, require.GetRawText())
 						} else {
 							newRequires.Add_1(j2gort.PtrToAny(require.WithSymbol(provider.GetPathRelativeToClosureBase())))
 						}
@@ -328,13 +328,13 @@ func (this_ *DepsGenerator) priv_DepsGenerator_removeMungedSymbols_6086(depFiles
 }
 
 // Java method: DepsGenerator.validateDependencies(java.lang.Iterable<com.google.javascript.jscomp.deps.DependencyInfo> preparsedFileDependencies, java.lang.Iterable<com.google.javascript.jscomp.deps.DependencyInfo> parsedFileDependencies)
-func (this_ *DepsGenerator) priv_DepsGenerator_validateDependencies_6087(preparsedFileDependencies j2gort.Ext_java_lang_Iterable, parsedFileDependencies j2gort.Ext_java_lang_Iterable) {
+func (this_ *DepsGenerator) priv_DepsGenerator_validateDependencies_6085(preparsedFileDependencies j2gort.Ext_java_lang_Iterable, parsedFileDependencies j2gort.Ext_java_lang_Iterable) {
 	_ = preparsedFileDependencies
 	_ = parsedFileDependencies
 	var providesMap j2gort.OrderedMap[string, DependencyInfo] = j2gort.NewOrderedMap[string, DependencyInfo]()
 	_ = providesMap
-	this_.priv_DepsGenerator_addToProvideMap_6094(preparsedFileDependencies, &providesMap, true)
-	this_.priv_DepsGenerator_addToProvideMap_6094(parsedFileDependencies, &providesMap, false)
+	this_.priv_DepsGenerator_addToProvideMap_6092(preparsedFileDependencies, &providesMap, true)
+	this_.priv_DepsGenerator_addToProvideMap_6092(parsedFileDependencies, &providesMap, false)
 	{
 		cur_11 := j2gort.NewIterCursor(j2gort.CheckNotNull(parsedFileDependencies))
 		for cur_11.HasNext() {
@@ -352,16 +352,16 @@ func (this_ *DepsGenerator) priv_DepsGenerator_validateDependencies_6087(prepars
 					var provider DependencyInfo = providesMap.Get(namespace)
 					_ = provider
 					if provider == nil || provider.IsJavaNil_() {
-						this_.priv_DepsGenerator_reportUndefinedNamespace_6091(namespace, depInfo)
+						this_.priv_DepsGenerator_reportUndefinedNamespace_6089(namespace, depInfo)
 					} else if provider == depInfo || ((provider == nil || provider.IsJavaNil_()) && (depInfo == nil || depInfo.IsJavaNil_())) {
-						this_.priv_DepsGenerator_reportSameFile_6090(namespace, depInfo)
+						this_.priv_DepsGenerator_reportSameFile_6088(namespace, depInfo)
 					} else {
 						var providerIsEs6Module bool = provider.IsEs6Module()
 						_ = providerIsEs6Module
 						switch (require.GetType()).Ordinal() {
 						case int32(1) /* Type.ES6_IMPORT */ :
 							if !(providerIsEs6Module) {
-								this_.priv_DepsGenerator_reportEs6ImportForNonEs6Module_6089(provider, depInfo)
+								this_.priv_DepsGenerator_reportEs6ImportForNonEs6Module_6087(provider, depInfo)
 							}
 						case int32(0) /* Type.GOOG_REQUIRE_SYMBOL */, int32(2) /* Type.PARSED_FROM_DEPS */ :
 						case int32(3) /* Type.COMMON_JS */, int32(4) /* Type.COMPILER_CHUNK */ :
@@ -375,35 +375,35 @@ func (this_ *DepsGenerator) priv_DepsGenerator_validateDependencies_6087(prepars
 }
 
 // Java method: DepsGenerator.reportMissingFile(com.google.javascript.jscomp.deps.DependencyInfo depInfo, java.lang.String path)
-func (this_ *DepsGenerator) priv_DepsGenerator_reportMissingFile_6088(depInfo DependencyInfo, path string) {
+func (this_ *DepsGenerator) priv_DepsGenerator_reportMissingFile_6086(depInfo DependencyInfo, path string) {
 	_ = depInfo
 	_ = path
 	this_.errorManager.Report_2(StaticGet_CheckLevel_ERROR(), JSError_Make_5(depInfo.GetName(), int32(-1), int32(-1), StaticGet_DepsGenerator_UNKNOWN_PATH_IMPORT(), []string{path}))
 }
 
 // Java method: DepsGenerator.reportEs6ImportForNonEs6Module(com.google.javascript.jscomp.deps.DependencyInfo provider, com.google.javascript.jscomp.deps.DependencyInfo depInfo)
-func (this_ *DepsGenerator) priv_DepsGenerator_reportEs6ImportForNonEs6Module_6089(provider DependencyInfo, depInfo DependencyInfo) {
+func (this_ *DepsGenerator) priv_DepsGenerator_reportEs6ImportForNonEs6Module_6087(provider DependencyInfo, depInfo DependencyInfo) {
 	_ = provider
 	_ = depInfo
 	this_.errorManager.Report_2(StaticGet_CheckLevel_ERROR(), JSError_Make_5(depInfo.GetName(), int32(-1), int32(-1), StaticGet_DepsGenerator_ES6_IMPORT_FOR_NON_ES6_MODULE(), []string{provider.GetName()}))
 }
 
 // Java method: DepsGenerator.reportSameFile(java.lang.String namespace, com.google.javascript.jscomp.deps.DependencyInfo depInfo)
-func (this_ *DepsGenerator) priv_DepsGenerator_reportSameFile_6090(namespace string, depInfo DependencyInfo) {
+func (this_ *DepsGenerator) priv_DepsGenerator_reportSameFile_6088(namespace string, depInfo DependencyInfo) {
 	_ = namespace
 	_ = depInfo
 	this_.errorManager.Report_2(StaticGet_CheckLevel_WARNING(), JSError_Make_5(depInfo.GetName(), int32(-1), int32(-1), StaticGet_DepsGenerator_SAME_FILE_WARNING(), []string{namespace}))
 }
 
 // Java method: DepsGenerator.reportUndefinedNamespace(java.lang.String namespace, com.google.javascript.jscomp.deps.DependencyInfo depInfo)
-func (this_ *DepsGenerator) priv_DepsGenerator_reportUndefinedNamespace_6091(namespace string, depInfo DependencyInfo) {
+func (this_ *DepsGenerator) priv_DepsGenerator_reportUndefinedNamespace_6089(namespace string, depInfo DependencyInfo) {
 	_ = namespace
 	_ = depInfo
 	this_.errorManager.Report_2(StaticGet_CheckLevel_ERROR(), JSError_Make_5(depInfo.GetName(), int32(-1), int32(-1), StaticGet_DepsGenerator_NEVER_PROVIDED_ERROR(), []string{namespace}))
 }
 
 // Java method: DepsGenerator.reportDuplicateProvide(java.lang.String namespace, com.google.javascript.jscomp.deps.DependencyInfo firstDep, com.google.javascript.jscomp.deps.DependencyInfo secondDep)
-func (this_ *DepsGenerator) priv_DepsGenerator_reportDuplicateProvide_6092(namespace string, firstDep DependencyInfo, secondDep DependencyInfo) {
+func (this_ *DepsGenerator) priv_DepsGenerator_reportDuplicateProvide_6090(namespace string, firstDep DependencyInfo, secondDep DependencyInfo) {
 	_ = namespace
 	_ = firstDep
 	_ = secondDep
@@ -417,13 +417,13 @@ func (this_ *DepsGenerator) priv_DepsGenerator_reportDuplicateProvide_6092(names
 }
 
 // Java method: DepsGenerator.reportNoDepsInDepsFile(java.lang.String filePath)
-func (this_ *DepsGenerator) priv_DepsGenerator_reportNoDepsInDepsFile_6093(filePath string) {
+func (this_ *DepsGenerator) priv_DepsGenerator_reportNoDepsInDepsFile_6091(filePath string) {
 	_ = filePath
 	this_.errorManager.Report_2(StaticGet_CheckLevel_WARNING(), JSError_Make_5(filePath, int32(-1), int32(-1), StaticGet_DepsGenerator_NO_DEPS_WARNING(), []string{}))
 }
 
 // Java method: DepsGenerator.addToProvideMap(java.lang.Iterable<com.google.javascript.jscomp.deps.DependencyInfo> depInfos, java.util.Map<java.lang.String,com.google.javascript.jscomp.deps.DependencyInfo> providesMap, boolean isFromDepsFile)
-func (this_ *DepsGenerator) priv_DepsGenerator_addToProvideMap_6094(depInfos j2gort.Ext_java_lang_Iterable, providesMap *j2gort.OrderedMap[string, DependencyInfo], isFromDepsFile bool) {
+func (this_ *DepsGenerator) priv_DepsGenerator_addToProvideMap_6092(depInfos j2gort.Ext_java_lang_Iterable, providesMap *j2gort.OrderedMap[string, DependencyInfo], isFromDepsFile bool) {
 	_ = depInfos
 	_ = providesMap
 	_ = isFromDepsFile
@@ -448,7 +448,7 @@ func (this_ *DepsGenerator) priv_DepsGenerator_addToProvideMap_6094(depInfos j2g
 				var prevValue DependencyInfo = providesMap.Put(provide, depInfo)
 				_ = prevValue
 				if prevValue != nil && !prevValue.IsJavaNil_() {
-					this_.priv_DepsGenerator_reportDuplicateProvide_6092(provide, prevValue, depInfo)
+					this_.priv_DepsGenerator_reportDuplicateProvide_6090(provide, prevValue, depInfo)
 				}
 			}
 
@@ -471,7 +471,7 @@ func (this_ *DepsGenerator) ShouldSkipDepsFile(file *SourceFile) bool {
 }
 
 // Java method: DepsGenerator.parseDepsFiles()
-func (this_ *DepsGenerator) priv_DepsGenerator_parseDepsFiles_6097() j2gort.Ext_java_util_Map {
+func (this_ *DepsGenerator) priv_DepsGenerator_parseDepsFiles_6095() j2gort.Ext_java_util_Map {
 	var depsParser *DepsFileRegexParser = this_.CreateDepsFileParser()
 	_ = depsParser
 	var depsFiles j2gort.Ext_java_util_Map = j2gort.NewExt_java_util_LinkedHashMap()
@@ -486,7 +486,7 @@ func (this_ *DepsGenerator) priv_DepsGenerator_parseDepsFiles_6097() j2gort.Ext_
 				var depInfos j2gort.Ext_java_util_List = depsParser.ParseFileReader(file.GetName(), file.GetCodeReader())
 				_ = depInfos
 				if depInfos.IsEmpty() {
-					this_.priv_DepsGenerator_reportNoDepsInDepsFile_6093(file.GetName())
+					this_.priv_DepsGenerator_reportNoDepsInDepsFile_6091(file.GetName())
 				} else {
 					{
 						cur_20 := j2gort.NewIterCursor(j2gort.CheckNotNull(depInfos))
@@ -494,7 +494,7 @@ func (this_ *DepsGenerator) priv_DepsGenerator_parseDepsFiles_6097() j2gort.Ext_
 							rawElem_21 := cur_20.Next()
 							info := j2gort.AsIface[DependencyInfo](rawElem_21)
 							_ = info
-							j2gort.MapPutStr(depsFiles, info.GetPathRelativeToClosureBase(), this_.priv_DepsGenerator_removeRelativePathProvide_6098(info))
+							j2gort.MapPutStr(depsFiles, info.GetPathRelativeToClosureBase(), this_.priv_DepsGenerator_removeRelativePathProvide_6096(info))
 						}
 					}
 				}
@@ -516,7 +516,7 @@ func (this_ *DepsGenerator) priv_DepsGenerator_parseDepsFiles_6097() j2gort.Ext_
 						rawElem_25 := cur_24.Next()
 						info_2 := j2gort.AsIface[DependencyInfo](rawElem_25)
 						_ = info_2
-						j2gort.MapPutStr(depsFiles, info_2.GetPathRelativeToClosureBase(), this_.priv_DepsGenerator_removeRelativePathProvide_6098(info_2))
+						j2gort.MapPutStr(depsFiles, info_2.GetPathRelativeToClosureBase(), this_.priv_DepsGenerator_removeRelativePathProvide_6096(info_2))
 					}
 				}
 			}
@@ -526,7 +526,7 @@ func (this_ *DepsGenerator) priv_DepsGenerator_parseDepsFiles_6097() j2gort.Ext_
 }
 
 // Java method: DepsGenerator.removeRelativePathProvide(com.google.javascript.jscomp.deps.DependencyInfo info)
-func (this_ *DepsGenerator) priv_DepsGenerator_removeRelativePathProvide_6098(info DependencyInfo) DependencyInfo {
+func (this_ *DepsGenerator) priv_DepsGenerator_removeRelativePathProvide_6096(info DependencyInfo) DependencyInfo {
 	_ = info
 	return Upcast_DependencyInfo(SimpleDependencyInfo_Builder_From(info).SetProvides_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_List](info.GetProvides().Stream().Filter(j2gort.NewLambda_Ext_java_util_function_Predicate(func(lp_26 any) bool {
 		p := j2gort.CastString(lp_26)
@@ -540,7 +540,7 @@ func (this_ *DepsGenerator) priv_DepsGenerator_removeRelativePathProvide_6098(in
 }
 
 // Java method: DepsGenerator.parseSources(java.util.Set<java.lang.String> preparsedFiles)
-func (this_ *DepsGenerator) priv_DepsGenerator_parseSources_6099(preparsedFiles j2gort.Ext_java_util_Set) j2gort.Ext_java_util_Map {
+func (this_ *DepsGenerator) priv_DepsGenerator_parseSources_6097(preparsedFiles j2gort.Ext_java_util_Set) j2gort.Ext_java_util_Map {
 	_ = preparsedFiles
 	var parsedFiles j2gort.Ext_java_util_Map = j2gort.NewExt_java_util_LinkedHashMap()
 	_ = parsedFiles
@@ -576,7 +576,7 @@ func (this_ *DepsGenerator) priv_DepsGenerator_parseSources_6099(preparsedFiles 
 }
 
 // Java method: DepsGenerator.writeDepsContent(java.util.Map<java.lang.String,com.google.javascript.jscomp.deps.DependencyInfo> depsFiles, java.util.Map<java.lang.String,com.google.javascript.jscomp.deps.DependencyInfo> jsFiles, java.io.PrintStream out)
-func (this_ *DepsGenerator) priv_DepsGenerator_writeDepsContent_6100(depsFiles j2gort.Ext_java_util_Map, jsFiles j2gort.Ext_java_util_Map, out *j2gort.Ext_java_io_PrintStream) {
+func (this_ *DepsGenerator) priv_DepsGenerator_writeDepsContent_6098(depsFiles j2gort.Ext_java_util_Map, jsFiles j2gort.Ext_java_util_Map, out *j2gort.Ext_java_io_PrintStream) {
 	_ = depsFiles
 	_ = jsFiles
 	_ = out

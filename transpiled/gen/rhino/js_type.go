@@ -235,7 +235,9 @@ type JSTypeBase struct {
 	registry                    *JSTypeRegistry  `gson:"registry"`
 	_tcHandle                   atomic.Uint32
 	subSourceNode               Node  `gson:"subSourceNode"`
+	typeId                      int32 `gson:"typeId"`
 	typeKindMask                int32 `gson:"typeKindMask"`
+	cachedHashCode              int32 `gson:"cachedHashCode"`
 	jstypeFlags                 int8  `gson:"jstypeFlags"`
 	protoFlags                  int8  `gson:"protoFlags"`
 	fnFlags                     int8  `gson:"fnFlags"`
@@ -347,6 +349,7 @@ func (this_ *JSTypeBase) initFields_JSType() {
 	this_.protoFlags = int8(int32(0))
 	this_.fnFlags = int8(int32(0))
 	this_.protoTemplateParamCountByte = int8(int32(0))
+	this_.cachedHashCode = int32(0)
 }
 
 func InitJSType_1(this_ *JSTypeBase, registry *JSTypeRegistry) {
@@ -366,6 +369,17 @@ func InitJSType_3(this_ *JSTypeBase, registry *JSTypeRegistry, templateTypeMap *
 	_ = typeKindMask
 	this_.initFields_JSType()
 	this_.registry = registry
+	if registry != nil {
+		this_.typeId = func() int32 {
+			r_1 := registry
+			old_2 := r_1.nextTypeId
+			nw_3 := old_2 + 1
+			r_1.nextTypeId = nw_3
+			return nw_3
+		}()
+	} else {
+		this_.typeId = int32(0)
+	}
 	this_.typeKindMask = typeKindMask
 	this_.typeKindMask = (typeKindMask | (javalang.Shl32((this_.self_.GetTypeClass()).Ordinal(), int(int32(26)))))
 	if templateTypeMap == nil {
@@ -482,12 +496,12 @@ func (this_ *JSTypeBase) GetPropertyKind_1_string(pname string) JSType_HasProper
 func (this_ *JSTypeBase) HasProperty_1_string(pname string) bool {
 	_ = pname
 	return !(func() bool {
-		re_1 := this_.self_.GetPropertyKind_2_string_bool(pname, false)
-		ae_2 := StaticGet_JSType_HasPropertyKind_ABSENT()
-		if re_1 == 0 {
+		re_4 := this_.self_.GetPropertyKind_2_string_bool(pname, false)
+		ae_5 := StaticGet_JSType_HasPropertyKind_ABSENT()
+		if re_4 == 0 {
 			j2gort.ThrowNPE()
 		}
-		return re_1 == ae_2
+		return re_4 == ae_5
 	}())
 }
 
@@ -495,12 +509,12 @@ func (this_ *JSTypeBase) HasProperty_1_string(pname string) bool {
 func (this_ *JSTypeBase) HasProperty_1_Property_Key(pname Property_Key) bool {
 	_ = pname
 	return !(func() bool {
-		re_3 := this_.self_.GetPropertyKind_2_Property_Key_bool(pname, false)
-		ae_4 := StaticGet_JSType_HasPropertyKind_ABSENT()
-		if re_3 == 0 {
+		re_6 := this_.self_.GetPropertyKind_2_Property_Key_bool(pname, false)
+		ae_7 := StaticGet_JSType_HasPropertyKind_ABSENT()
+		if re_6 == 0 {
 			j2gort.ThrowNPE()
 		}
-		return re_3 == ae_4
+		return re_6 == ae_7
 	}())
 }
 
@@ -771,9 +785,9 @@ func (this_ *JSTypeBase) ContainsReferenceAncestor(target JSType) bool {
 func (this_ *JSTypeBase) IsLiteralObject() bool {
 	var prototypeObjectType PrototypeObjectType
 	_ = prototypeObjectType
-	var ok_5 bool
-	prototypeObjectType, ok_5 = j2gort.TryCast[PrototypeObjectType](this_.self_)
-	if ok_5 {
+	var ok_8 bool
+	prototypeObjectType, ok_8 = j2gort.TryCast[PrototypeObjectType](this_.self_)
+	if ok_8 {
 		return prototypeObjectType.GetPrototypeObjectTypeBase().IsAnonymous()
 	}
 	return false
@@ -1092,17 +1106,17 @@ func (this_ *JSTypeBase) IsOrdinaryFunction() bool {
 }
 
 // Java method: JSType.equals(java.lang.@org.jspecify.annotations.Nullable Object other)
-func (this_ *JSTypeBase) Equals(arg_6 any) bool {
-	other := arg_6
+func (this_ *JSTypeBase) Equals(arg_9 any) bool {
+	other := arg_9
 	_ = other
 	if j2gort.RefEquals(this_.self_, other) {
 		return true
 	}
 	var jSType JSType
 	_ = jSType
-	var ok_7 bool
-	jSType, ok_7 = j2gort.TryCast[JSType](other)
-	return ok_7 && (EqualityChecker_Check(StaticGet_EqualityChecker_EqMethod_IDENTITY(), this_.self_, jSType))
+	var ok_10 bool
+	jSType, ok_10 = j2gort.TryCast[JSType](other)
+	return ok_10 && (EqualityChecker_Check(StaticGet_EqualityChecker_EqMethod_IDENTITY(), this_.self_, jSType))
 }
 
 // Java method: JSType.equalsJSType(com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType that)
@@ -1139,10 +1153,37 @@ func (this_ *JSTypeBase) HashCode() int32 {
 	if (int32(this_.jstypeFlags) & int32(int8(2))) != int32(0) {
 		return int32(-1)
 	}
+	var reg *JSTypeRegistry = this_.registry
+	_ = reg
+	var canCache bool = ((((reg != nil) && (reg.hashDepth == int32(0))) && ((int32(this_.jstypeFlags) & int32(int8(8))) != int32(0))) && reg.GetResolver().IsClosed())
+	_ = canCache
+	if canCache {
+		var cached int32 = this_.cachedHashCode
+		_ = cached
+		if cached != int32(0) {
+			return cached
+		}
+	}
 	this_.jstypeFlags = int8((int32(this_.jstypeFlags) | int32(int8(2))))
-	var hashCode int32 = this_.self_.RecursionUnsafeHashCode()
+	if reg != nil {
+		r_11 := reg
+		r_11.hashDepth = r_11.hashDepth + 1
+	}
+	var hashCode int32 = int32(0)
 	_ = hashCode
-	this_.jstypeFlags = int8((int32(this_.jstypeFlags) & ^(int32(int8(2)))))
+	func() {
+		defer func() {
+			if reg != nil {
+				r_12 := reg
+				r_12.hashDepth = r_12.hashDepth - 1
+			}
+			this_.jstypeFlags = int8((int32(this_.jstypeFlags) & ^(int32(int8(2)))))
+		}()
+		hashCode = this_.self_.RecursionUnsafeHashCode()
+	}()
+	if canCache && (hashCode != int32(0)) {
+		this_.cachedHashCode = hashCode
+	}
 	return hashCode
 }
 
@@ -1251,9 +1292,9 @@ func (this_ *JSTypeBase) IsBoxableScalar() bool {
 func (this_ *JSTypeBase) ToObjectType() ObjectType {
 	var objectType ObjectType
 	_ = objectType
-	var ok_8 bool
-	objectType, ok_8 = j2gort.TryCast[ObjectType](this_.self_)
-	if ok_8 {
+	var ok_13 bool
+	objectType, ok_13 = j2gort.TryCast[ObjectType](this_.self_)
+	if ok_13 {
 		return objectType
 	} else {
 		return nil
@@ -1282,12 +1323,12 @@ func (this_ *JSTypeBase) Dereference() ObjectType {
 func (this_ *JSTypeBase) CanTestForEqualityWith(that JSType) bool {
 	_ = that
 	return func() bool {
-		re_9 := this_.self_.TestForEquality(that)
-		ae_10 := pkg_base.StaticGet_Tri_UNKNOWN()
-		if re_9 == 0 {
+		re_14 := this_.self_.TestForEquality(that)
+		ae_15 := pkg_base.StaticGet_Tri_UNKNOWN()
+		if re_14 == 0 {
 			j2gort.ThrowNPE()
 		}
-		return re_9 == ae_10
+		return re_14 == ae_15
 	}()
 }
 
@@ -1534,7 +1575,7 @@ func (this_ *JSTypeBase) GetTypesUnderInequality(that JSType) JSType_TypePair {
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if this_.priv_JSType_isNullTypeOrVoidType_9126() && that.GetJSTypeBase().priv_JSType_isNullTypeOrVoidType_9126() {
+	if this_.priv_JSType_isNullTypeOrVoidType_9124() && that.GetJSTypeBase().priv_JSType_isNullTypeOrVoidType_9124() {
 		var noType JSType = this_.registry.GetNativeType(StaticGet_JSTypeNative_NO_TYPE())
 		_ = noType
 		return NewJSType_TypePair(noType, noType)
@@ -1558,14 +1599,14 @@ func (this_ *JSTypeBase) GetTypesUnderShallowInequality(that JSType) JSType_Type
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9126() {
+	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9124() {
 		return NewJSType_TypePair(nil, nil)
 	}
 	return NewJSType_TypePair(this_.self_, that)
 }
 
 // Java method: JSType.isNullTypeOrVoidType()
-func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9126() bool {
+func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9124() bool {
 	return ((this_.typeKindMask & (int32(131072) | int32(262144))) != int32(0))
 }
 
@@ -1680,6 +1721,7 @@ func (this_ *JSTypeBase) SetCachedResolveResult(result JSType) {
 // Java method: JSType.clearCachedResolveResult()
 func (this_ *JSTypeBase) ClearCachedResolveResult() {
 	this_.jstypeFlags = int8((int32(this_.jstypeFlags) & ^(int32(int8(8)))))
+	this_.cachedHashCode = int32(0)
 }
 
 // Java method: JSType.markResolved()
@@ -1743,9 +1785,9 @@ func (this_ *JSTypeBase) String() string {
 // Java method: JSType.toAnnotationString(com.google.javascript.rhino.jstype.JSType.Nullability nullability)
 func (this_ *JSTypeBase) ToAnnotationString(nullability JSType_Nullability) string {
 	_ = nullability
-	var val_11 TypeStringBuilder
-	InitTypeStringBuilder(&val_11, true)
-	var builder *TypeStringBuilder = &val_11
+	var val_16 TypeStringBuilder
+	InitTypeStringBuilder(&val_16, true)
+	var builder *TypeStringBuilder = &val_16
 	_ = builder
 	return (func() *TypeStringBuilder {
 		if nullability == StaticGet_JSType_Nullability_EXPLICIT() {
@@ -2019,17 +2061,17 @@ func (this_ JSType_TypePair) IdentityHash_() int32 {
 	}
 	var h_ int32 = 1
 	{
-		hi_12 := this_.typeA
+		hi_17 := this_.typeA
 		h_ = 31 * h_
-		if hi_12 != nil && !hi_12.IsJavaNil_() {
-			h_ += hi_12.GetJSTypeBase().HashCode()
+		if hi_17 != nil && !hi_17.IsJavaNil_() {
+			h_ += hi_17.GetJSTypeBase().HashCode()
 		}
 	}
 	{
-		hi_13 := this_.typeB
+		hi_18 := this_.typeB
 		h_ = 31 * h_
-		if hi_13 != nil && !hi_13.IsJavaNil_() {
-			h_ += hi_13.GetJSTypeBase().HashCode()
+		if hi_18 != nil && !hi_18.IsJavaNil_() {
+			h_ += hi_18.GetJSTypeBase().HashCode()
 		}
 	}
 	return h_

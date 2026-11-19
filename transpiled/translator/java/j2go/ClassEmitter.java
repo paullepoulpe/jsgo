@@ -1013,7 +1013,7 @@ public final class ClassEmitter {
             .append("NullString {\n\t\treturn 0\n\t}\n")
             .append("\tid := ")
             .append(nsPref)
-            .append("Intern(s)\n")
+            .append("InternOwned(s)\n")
             .append("\tif int(offset) < len(this_.ids_) {\n")
             .append("\t\t")
             .append(handleAtomicPkg)

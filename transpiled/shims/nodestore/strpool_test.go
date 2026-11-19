@@ -1180,3 +1180,127 @@ func TestWave39CJoinDollar(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+
+func TestWave40CInternOwnedZeroCloneAndRewind(t *testing.T) {
+	baseSnap := CaptureBaseline()
+	defer RewindBaseline(baseSnap)
+
+	if got := InternOwned(""); got != EmptyStringID {
+		t.Fatalf("InternOwned(\"\") = %d, want EmptyStringID (%d)", got, EmptyStringID)
+	}
+
+	// 1. Cross-deduplication parity with Intern, InternBytes, Lookup, and String.
+	s1 := strings.Clone("proto.google.cloud.dialogflow.cx.v3beta1.SessionClient_w40c_1")
+	idOwned := InternOwned(s1)
+	if idIntern := Intern("proto.google.cloud.dialogflow.cx.v3beta1.SessionClient_w40c_1"); idIntern != idOwned {
+		t.Fatalf("Intern after InternOwned returned %d, want %d", idIntern, idOwned)
+	}
+	if idBytes := InternBytes([]byte(s1)); idBytes != idOwned {
+		t.Fatalf("InternBytes after InternOwned returned %d, want %d", idBytes, idOwned)
+	}
+	s2 := "proto.google.cloud.dialogflow.cx.v3beta1.AgentsClient_w40c_2"
+	idFirst := Intern(s2)
+	if got := InternOwned(strings.Clone(s2)); got != idFirst {
+		t.Fatalf("InternOwned after Intern returned %d, want %d", got, idFirst)
+	}
+
+	// 2. Verify ZERO heap allocations on unsealed-slot misses (no strings.Clone!).
+	// Find a shard and warm it so its active chunk is mid-fill (slot ~8..480)
+	// and its hash table has plenty of spare capacity before the 3/4 load factor.
+	const targetShard = uint32(19)
+	sh := &poolShards[targetShard]
+	for n := 0; ; n++ {
+		sh.mu.RLock()
+		slot := sh.nextLocalIdx & strpoolChunkMask
+		hasRoom := len(sh.table) >= 128 && int(sh.count+32)*4 <= len(sh.table)*3 && slot >= 8 && slot <= strpoolChunkSize-32
+		sh.mu.RUnlock()
+		if hasRoom {
+			break
+		}
+		cand := fmt.Sprintf("w40c_warm_shard19_%06d", n)
+		if uint32(poolHash(cand))&(strpoolNumShards-1) == targetShard {
+			_ = InternOwned(cand)
+		}
+	}
+
+	var preOwned []string
+	for n := 0; len(preOwned) < 20; n++ {
+		cand := fmt.Sprintf("w40c_zero_clone_miss_%06d", n)
+		if uint32(poolHash(cand))&(strpoolNumShards-1) == targetShard {
+			preOwned = append(preOwned, cand)
+		}
+	}
+	callIdx := 0
+	missAllocs := testing.AllocsPerRun(15, func() {
+		s := preOwned[callIdx]
+		callIdx++
+		id := InternOwned(s)
+		if String(id) != s {
+			t.Fatalf("String(%d) != %q", id, s)
+		}
+	})
+	if missAllocs != 0 {
+		t.Fatalf("expected 0 heap allocs on InternOwned unsealed-slot miss, got %v", missAllocs)
+	}
+
+	// 3. Mid-chunk CaptureBaseline -> InternOwned past 512 chunk seal -> RewindBaseline -> re-intern.
+	midSnap := CaptureBaseline()
+	var sealedIDs []StringID
+	var sealedVals []string
+	for n := 0; len(sealedIDs) < 600; n++ {
+		cand := fmt.Sprintf("w40c_seal_owned_%06d", n)
+		if uint32(poolHash(cand))&(strpoolNumShards-1) == targetShard {
+			sealedVals = append(sealedVals, cand)
+			sealedIDs = append(sealedIDs, InternOwned(cand))
+		}
+	}
+	for i, id := range sealedIDs {
+		if got := String(id); got != sealedVals[i] {
+			t.Fatalf("sealed InternOwned String(%d) = %q, want %q", id, got, sealedVals[i])
+		}
+	}
+	RewindBaseline(midSnap)
+	for _, s := range preOwned[:callIdx] {
+		if Lookup(s) == 0 {
+			t.Fatalf("pre-snapshot InternOwned string %q lost after RewindBaseline", s)
+		}
+	}
+	for _, s := range sealedVals {
+		if Lookup(s) != 0 {
+			t.Fatalf("post-snapshot InternOwned string %q survived RewindBaseline", s)
+		}
+	}
+
+	// 4. Multi-goroutine -race stress mixing InternOwned, Intern, InternBytes, Lookup, and String.
+	var wg sync.WaitGroup
+	const workers = 16
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		w := w
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 1200; i++ {
+				val := fmt.Sprintf("w40c_race_owned_%d_%d", w%4, i)
+				var id StringID
+				switch i % 3 {
+				case 0:
+					id = InternOwned(val)
+				case 1:
+					id = Intern(val)
+				default:
+					id = InternBytes([]byte(val))
+				}
+				if got := String(id); got != val {
+					t.Errorf("String(%d) = %q, want %q", id, got, val)
+					return
+				}
+				if lid := Lookup(val); lid != id {
+					t.Errorf("Lookup(%q) = %d, want %d", val, lid, id)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}

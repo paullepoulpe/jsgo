@@ -2243,6 +2243,8 @@ func TestWave22C_RealGenDryRunSoundness(t *testing.T) {
 	ntSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "node_traversal.go"))
 	mdnuSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "make_declared_names_unique.go"))
 	normSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "normalize.go"))
+	crmSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "closure_rewrite_module.go"))
+	fsivSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "flow_sensitive_inline_variables.go"))
 	nsNodeSrc, _ := os.ReadFile(filepath.Join(repoRoot, "transpiled", "shims", "nodestore", "node.go"))
 	hasBlockOf := strings.Contains(string(nsNodeSrc), "func BlockOf(")
 	ntPreLowered := (!hasBlockOf || strings.Contains(string(ntSrc), "BlockOf(")) &&
@@ -2250,7 +2252,9 @@ func TestWave22C_RealGenDryRunSoundness(t *testing.T) {
 		strings.Contains(string(ntSrc), "unwrapNodeTraversalCallback_") &&
 		strings.Contains(string(ntSrc), "canReleaseSyntacticScopesForCallback_") &&
 		strings.Contains(string(mdnuSrc), "CanReleaseSyntacticScopes_") &&
-		strings.Contains(string(normSrc), "func (*Normalize_NormalizeStatements) CanReleaseSyntacticScopes_()")
+		strings.Contains(string(normSrc), "func (*Normalize_NormalizeStatements) CanReleaseSyntacticScopes_()") &&
+		strings.Contains(string(crmSrc), "func (*ClosureRewriteModule_ScriptPreprocessor) CanReleaseSyntacticScopes_()") &&
+		strings.Contains(string(fsivSrc), "func (*FlowSensitiveInlineVariables) CanReleaseSyntacticScopes_()")
 
 	dryStats, err := passes.RunOnPackageDir(
 		realJscompDir,

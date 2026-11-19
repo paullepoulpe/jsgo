@@ -1411,7 +1411,8 @@ func TestWave35B_RealGenRhinoParserParsingJscompCopyIdempotencyAndRace(t *testin
 
 	// Part 3 verification on real gen/rhino/property_map.go:
 	pmCode := normWS(readCopy("rhino/property_map.go"))
-	if !strings.Contains(pmCode, "properties *j2gort.OrderedMap[string, *Property]") ||
+	if (!strings.Contains(pmCode, "properties *j2gort.OrderedMap[string, *Property]") &&
+		!strings.Contains(pmCode, "store *PropertyMap_PropStore")) ||
 		strings.Contains(pmCode, "Ext_java_util_LinkedHashMap") {
 		t.Fatalf("expected PropertyMap.properties lowered to *j2gort.OrderedMap[string, *Property] in real rhino/property_map.go")
 	}

@@ -25,12 +25,10 @@ import (
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
 )
 
-var lambdaSingleton_extern_exports_pass_1 j2gort.Ext_java_util_function_Function
+var lambdaSingleton_extern_exports_pass_1 func(any) string
 
 func init() {
-	lambdaSingleton_extern_exports_pass_1 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
-		return j2gort.BoxString(j2gort.AsIface[ExternExportsPass_Export](mrp0_).GetExportedPath())
-	})
+	lambdaSingleton_extern_exports_pass_1 = func(mrp0_ any) string { return j2gort.AsIface[ExternExportsPass_Export](mrp0_).GetExportedPath() }
 }
 
 // Java class: com.google.javascript.jscomp.ExternExportsPass
@@ -170,7 +168,7 @@ func (this_ *ExternExportsPass) Process_2(externs pkg_rhino.Node, root pkg_rhino
 	_ = externs
 	_ = root
 	NodeTraversal_Traverse(this_.compiler, root, this_)
-	var sorted j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_TreeSet_1_Ext_java_util_Comparator(j2gort.Ext_java_util_Comparator_Comparing_1(lambdaSingleton_extern_exports_pass_1))
+	var sorted j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_TreeSet_1_Ext_java_util_Comparator(j2gort.ComparatorComparingStr(lambdaSingleton_extern_exports_pass_1))
 	_ = sorted
 	sorted.AddAll_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.exports))
 	{

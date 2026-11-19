@@ -566,28 +566,6 @@ func (s *NodeStore) addBlock(id uint32) *nodeBlock {
 	s.mu.Unlock()
 
 	active := !s.static && current.Load() == s
-	if active && blkIdx >= 8 {
-		chunk := new([16]nodeBlock)
-		first := s.base >> blockShift
-		s.mu.Lock()
-		for len(s.blocks) < blkIdx+16 {
-			s.blocks = append(s.blocks, nil)
-		}
-		for i := 0; i < 16; i++ {
-			idx := blkIdx + i
-			if s.blocks[idx] == nil {
-				b := &chunk[i]
-				s.blocks[idx] = b
-				if current.Load() == s {
-					nodeBlocks[first+uint32(idx)].Store(b)
-				}
-			}
-		}
-		blk := s.blocks[blkIdx]
-		s.mu.Unlock()
-		s.blockAllocMu.Unlock()
-		return blk
-	}
 	if active && blkIdx >= 2 {
 		chunk := new([4]nodeBlock)
 		first := s.base >> blockShift

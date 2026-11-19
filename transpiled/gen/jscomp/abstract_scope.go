@@ -137,7 +137,7 @@ func (*AbstractScopeBase) Implements_rhino_StaticScope()              {}
 
 func (this_ *AbstractScopeBase) initFields_AbstractScope() {
 	_ = this_
-
+	this_.implicitVars = nil
 }
 
 func InitAbstractScope(this_ *AbstractScopeBase, rootNode pkg_rhino.Node) {

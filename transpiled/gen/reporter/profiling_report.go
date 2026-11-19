@@ -28,7 +28,7 @@ var lambdaSingleton_profiling_report_1 j2gort.Ext_java_util_function_Function
 var lambdaSingleton_profiling_report_2 j2gort.Ext_java_util_function_ToIntFunction
 var lambdaSingleton_profiling_report_3 j2gort.Ext_java_util_function_ToIntFunction
 var lambdaSingleton_profiling_report_4 j2gort.Ext_java_util_function_ToLongFunction
-var lambdaSingleton_profiling_report_5 j2gort.Ext_java_util_function_Function
+var lambdaSingleton_profiling_report_5 func(any) string
 var lambdaSingleton_profiling_report_6 j2gort.Ext_java_util_function_Function
 
 func init() {
@@ -52,11 +52,11 @@ func init() {
 		_ = point
 		return -(j2gort.CastPtr[ProfilingReport_InstrumentationPointMetrics](point.GetValue()).totalTimesExecuted)
 	})
-	lambdaSingleton_profiling_report_5 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_14 any) any {
+	lambdaSingleton_profiling_report_5 = func(lp_14 any) string {
 		point := j2gort.AsIface[j2gort.Ext_java_util_Map_Entry](lp_14)
 		_ = point
-		return j2gort.BoxString(j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPoint](point.GetKey()).GetFileName())
-	})
+		return j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPoint](point.GetKey()).GetFileName()
+	}
 	lambdaSingleton_profiling_report_6 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_17 any) any {
 		row := j2gort.AsIface[j2gort.Ext_java_util_List](lp_17)
 		_ = row
@@ -151,7 +151,7 @@ func ProfilingReport_CreateTabSeparatedProfilingReport(instrumentationMapping j2
 	}
 	var result []j2gort.Ext_java_util_Map_Entry = j2gort.CopyCollectionToSlice[j2gort.Ext_java_util_Map_Entry](j2gort.AsIface[j2gort.Ext_java_util_Set](metrics.EntrySet()))
 	_ = result
-	j2gort.SliceSortComparator(result, j2gort.Ext_java_util_Comparator_Comparing_1(lambdaSingleton_profiling_report_5).ThenComparingLong(lambdaSingleton_profiling_report_4).ThenComparingInt(lambdaSingleton_profiling_report_3).ThenComparingInt(lambdaSingleton_profiling_report_2))
+	j2gort.SliceSortComparator(result, j2gort.ComparatorComparingStr(lambdaSingleton_profiling_report_5).ThenComparingLong(lambdaSingleton_profiling_report_4).ThenComparingInt(lambdaSingleton_profiling_report_3).ThenComparingInt(lambdaSingleton_profiling_report_2))
 	var output j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList()
 	_ = output
 	output.Add_1(j2gort.Ext_com_google_common_collect_ImmutableList_Of_6("File", "Function name", "Line", "Type", "Total executed", "Reports occurred"))

@@ -92,6 +92,12 @@ func NewTypedVar(inferred bool, name string, nameNode pkg_rhino.Node, type_ pkg_
 	InitTypedVar(this_, inferred, name, nameNode, type_, scope, index, input)
 	return this_
 }
+func allocPooled_TypedVar(slab_ *j2gort.PooledSlab[TypedVar], inferred bool, name string, nameNode pkg_rhino.Node, type_ pkg_rhino.JSType, scope *TypedScope, index int32, input *CompilerInput) *TypedVar {
+	clinit_TypedVar()
+	this_ := slab_.Alloc()
+	InitTypedVar(this_, inferred, name, nameNode, type_, scope, index, input)
+	return this_
+}
 
 func InitTypedVar(this_ *TypedVar, inferred bool, name string, nameNode pkg_rhino.Node, type_ pkg_rhino.JSType, scope *TypedScope, index int32, input *CompilerInput) {
 	_ = inferred
