@@ -166,7 +166,7 @@ func InitAnalyzePrototypeProperties(this_ *AnalyzePrototypeProperties, compiler 
 		for cur_1.HasNext() {
 			property := cur_1.NextStr()
 			_ = property
-			var nameInfo *AnalyzePrototypeProperties_NameInfo = this_.priv_AnalyzePrototypeProperties_getNameInfoForName_564(property, StaticGet_AnalyzePrototypeProperties_PROPERTY())
+			var nameInfo *AnalyzePrototypeProperties_NameInfo = this_.priv_AnalyzePrototypeProperties_getNameInfoForName_565(property, StaticGet_AnalyzePrototypeProperties_PROPERTY())
 			_ = nameInfo
 			if chunkGraph == nil {
 				this_.symbolGraph.Connect_3_any_any_any(this_.externNode, nil, nameInfo)
@@ -210,7 +210,7 @@ func (this_ *AnalyzePrototypeProperties) GetAllNameInfo() j2gort.Ext_java_util_C
 }
 
 // Java method: AnalyzePrototypeProperties.getNameInfoForName(java.lang.String name, com.google.javascript.jscomp.AnalyzePrototypeProperties.SymbolType type)
-func (this_ *AnalyzePrototypeProperties) priv_AnalyzePrototypeProperties_getNameInfoForName_564(name string, type_ AnalyzePrototypeProperties_SymbolType) *AnalyzePrototypeProperties_NameInfo {
+func (this_ *AnalyzePrototypeProperties) priv_AnalyzePrototypeProperties_getNameInfoForName_565(name string, type_ AnalyzePrototypeProperties_SymbolType) *AnalyzePrototypeProperties_NameInfo {
 	_ = name
 	_ = type_
 	if type_ == StaticGet_AnalyzePrototypeProperties_PROPERTY() {
@@ -300,11 +300,11 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) EnterScope(t *NodeTra
 	var root pkg_rhino.Node = scope.GetRootNode_0()
 	_ = root
 	if root.IsFunction() {
-		var propName string = this_.priv_ProcessProperties_getPrototypePropertyNameFromRValue_571(n)
+		var propName string = this_.priv_ProcessProperties_getPrototypePropertyNameFromRValue_572(n)
 		_ = propName
 		if propName != j2gort.NullString {
-			this_.symbolStack.Push(NewAnalyzePrototypeProperties_NameContext(this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_564(propName, StaticGet_AnalyzePrototypeProperties_PROPERTY()), scope))
-		} else if this_.priv_ProcessProperties_isGlobalFunctionDeclaration_569(t, n) {
+			this_.symbolStack.Push(NewAnalyzePrototypeProperties_NameContext(this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_565(propName, StaticGet_AnalyzePrototypeProperties_PROPERTY()), scope))
+		} else if this_.priv_ProcessProperties_isGlobalFunctionDeclaration_570(t, n) {
 			var parent pkg_rhino.Node = n.GetParent()
 			_ = parent
 			var name string
@@ -314,7 +314,7 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) EnterScope(t *NodeTra
 			} else {
 				name = n.GetFirstChild().GetString()
 			}
-			this_.symbolStack.Push(NewAnalyzePrototypeProperties_NameContext(this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_564(name, StaticGet_AnalyzePrototypeProperties_VAR()), j2gort.CastPtr[Scope](scope.GetClosestHoistScope())))
+			this_.symbolStack.Push(NewAnalyzePrototypeProperties_NameContext(this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_565(name, StaticGet_AnalyzePrototypeProperties_VAR()), j2gort.CastPtr[Scope](scope.GetClosestHoistScope())))
 		} else {
 			this_.symbolStack.Push(NewAnalyzePrototypeProperties_NameContext(this_.outer_.anonymousNode, scope))
 		}
@@ -340,10 +340,10 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) ShouldTraverse_3(t *N
 	_ = n
 	_ = parent
 	if !(this_.outer_.rootScopeUsesAreGlobal) {
-		var propName string = this_.priv_ProcessProperties_processNonFunctionPrototypeAssign_568(n, parent)
+		var propName string = this_.priv_ProcessProperties_processNonFunctionPrototypeAssign_569(n, parent)
 		_ = propName
 		if propName != j2gort.NullString {
-			this_.symbolStack.Push(NewAnalyzePrototypeProperties_NameContext(this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_564(propName, StaticGet_AnalyzePrototypeProperties_PROPERTY()), nil))
+			this_.symbolStack.Push(NewAnalyzePrototypeProperties_NameContext(this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_565(propName, StaticGet_AnalyzePrototypeProperties_PROPERTY()), nil))
 		}
 	}
 	return true
@@ -383,20 +383,20 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) Visit_3(t *NodeTraver
 				}
 			}
 		case int32(29) /* Token.OPTCHAIN_GETPROP */ :
-			this_.priv_ProcessProperties_addSymbolUse_567(n.GetString(), t.GetChunk(), StaticGet_AnalyzePrototypeProperties_PROPERTY())
+			this_.priv_ProcessProperties_addSymbolUse_568(n.GetString(), t.GetChunk(), StaticGet_AnalyzePrototypeProperties_PROPERTY())
 		case int32(26) /* Token.GETPROP */ :
 			propName = n.GetString()
 			if n.IsQualifiedName() {
 				if j2gort.CheckNotNullString(propName) == "prototype" {
-					if this_.priv_ProcessProperties_handlePossibleAssignmentToPrototype_573(t, n) {
+					if this_.priv_ProcessProperties_handlePossibleAssignmentToPrototype_574(t, n) {
 						return
 					}
 				} else if this_.outer_.compiler.GetCodingConvention().IsExported_2(propName, false) {
-					this_.priv_ProcessProperties_addGlobalUseOfSymbol_576(propName, t.GetChunk(), StaticGet_AnalyzePrototypeProperties_PROPERTY())
+					this_.priv_ProcessProperties_addGlobalUseOfSymbol_577(propName, t.GetChunk(), StaticGet_AnalyzePrototypeProperties_PROPERTY())
 					return
 				} else {
 					if parent.IsAssign() && (n == parent.GetFirstChild()) {
-						var rValueName string = this_.priv_ProcessProperties_getPrototypePropertyNameFromRValue_571(n)
+						var rValueName string = this_.priv_ProcessProperties_getPrototypePropertyNameFromRValue_572(n)
 						_ = rValueName
 						if rValueName != j2gort.NullString {
 							return
@@ -404,7 +404,7 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) Visit_3(t *NodeTraver
 					}
 				}
 			}
-			this_.priv_ProcessProperties_addSymbolUse_567(propName, t.GetChunk(), StaticGet_AnalyzePrototypeProperties_PROPERTY())
+			this_.priv_ProcessProperties_addSymbolUse_568(propName, t.GetChunk(), StaticGet_AnalyzePrototypeProperties_PROPERTY())
 		case int32(47) /* Token.OBJECTLIT */ :
 			lValueName = NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n))
 			if (lValueName != j2gort.NullString) && javalang.StringEndsWith(j2gort.CheckNotNullString(lValueName), ".prototype") {
@@ -420,7 +420,7 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) Visit_3(t *NodeTraver
 					case int32(129) /* Token.COMPUTED_PROP */, int32(125) /* Token.ITER_REST */, int32(126) /* Token.OBJECT_REST */, int32(127) /* Token.ITER_SPREAD */, int32(128) /* Token.OBJECT_SPREAD */ :
 					case int32(100) /* Token.STRING_KEY */, int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */, int32(107) /* Token.MEMBER_FUNCTION_DEF */ :
 						if !(propNode.IsQuotedStringKey()) {
-							this_.priv_ProcessProperties_addSymbolUse_567(propNode.GetString(), t.GetChunk(), StaticGet_AnalyzePrototypeProperties_PROPERTY())
+							this_.priv_ProcessProperties_addSymbolUse_568(propNode.GetString(), t.GetChunk(), StaticGet_AnalyzePrototypeProperties_PROPERTY())
 						}
 					default:
 						panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(("Unexpected child of " + j2gort.StrVal(n.GetToken()) + ": " + j2gort.StrValString(propNode.ToStringTree()))))))
@@ -434,7 +434,7 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) Visit_3(t *NodeTraver
 				_ = child
 				for ; child != 0; child = child.GetNext() {
 					if (child.IsMemberFunctionDef() || child.IsSetterDef()) || child.IsGetterDef() {
-						this_.priv_ProcessProperties_processMemberDef_574(t, child)
+						this_.priv_ProcessProperties_processMemberDef_575(t, child)
 					}
 				}
 			}
@@ -445,11 +445,11 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) Visit_3(t *NodeTraver
 				if var_.IsGlobal() {
 					if (var_.GetInitialValue() != 0) && var_.GetInitialValue().IsFunction() {
 						if t.InGlobalHoistScope() {
-							if !(this_.priv_ProcessProperties_processGlobalFunctionDeclaration_572(t, n, var_)) {
-								this_.priv_ProcessProperties_addGlobalUseOfSymbol_576(name, t.GetChunk(), StaticGet_AnalyzePrototypeProperties_VAR())
+							if !(this_.priv_ProcessProperties_processGlobalFunctionDeclaration_573(t, n, var_)) {
+								this_.priv_ProcessProperties_addGlobalUseOfSymbol_577(name, t.GetChunk(), StaticGet_AnalyzePrototypeProperties_VAR())
 							}
 						} else {
-							this_.priv_ProcessProperties_addSymbolUse_567(name, t.GetChunk(), StaticGet_AnalyzePrototypeProperties_VAR())
+							this_.priv_ProcessProperties_addSymbolUse_568(name, t.GetChunk(), StaticGet_AnalyzePrototypeProperties_VAR())
 						}
 					}
 				} else if j2gort.CastPtr[Scope](var_.GetScope()) != t.GetScope() {
@@ -473,17 +473,17 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) Visit_3(t *NodeTraver
 		default:
 		}
 	}
-	if !(this_.outer_.rootScopeUsesAreGlobal) && (this_.priv_ProcessProperties_processNonFunctionPrototypeAssign_568(n, parent) != j2gort.NullString) {
+	if !(this_.outer_.rootScopeUsesAreGlobal) && (this_.priv_ProcessProperties_processNonFunctionPrototypeAssign_569(n, parent) != j2gort.NullString) {
 		this_.symbolStack.Pop()
 	}
 }
 
 // Java method: ProcessProperties.addSymbolUse(java.lang.String name, com.google.javascript.jscomp.JSChunk chunk, com.google.javascript.jscomp.AnalyzePrototypeProperties.SymbolType type)
-func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_addSymbolUse_567(name string, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
+func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_addSymbolUse_568(name string, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
 	_ = name
 	_ = chunk
 	_ = type_
-	var info *AnalyzePrototypeProperties_NameInfo = this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_564(name, type_)
+	var info *AnalyzePrototypeProperties_NameInfo = this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_565(name, type_)
 	_ = info
 	var def *AnalyzePrototypeProperties_NameInfo = nil
 	_ = def
@@ -505,17 +505,17 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessPropertie
 }
 
 // Java method: ProcessProperties.processNonFunctionPrototypeAssign(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_processNonFunctionPrototypeAssign_568(n pkg_rhino.Node, parent pkg_rhino.Node) string {
+func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_processNonFunctionPrototypeAssign_569(n pkg_rhino.Node, parent pkg_rhino.Node) string {
 	_ = n
 	_ = parent
-	if this_.priv_ProcessProperties_isAssignRValue_570(n, parent) && !(n.IsFunction()) {
-		return this_.priv_ProcessProperties_getPrototypePropertyNameFromRValue_571(n)
+	if this_.priv_ProcessProperties_isAssignRValue_571(n, parent) && !(n.IsFunction()) {
+		return this_.priv_ProcessProperties_getPrototypePropertyNameFromRValue_572(n)
 	}
 	return j2gort.NullString
 }
 
 // Java method: ProcessProperties.isGlobalFunctionDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_isGlobalFunctionDeclaration_569(t *NodeTraversal, n pkg_rhino.Node) bool {
+func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_isGlobalFunctionDeclaration_570(t *NodeTraversal, n pkg_rhino.Node) bool {
 	_ = t
 	_ = n
 	if !(t.InGlobalHoistScope() || ((n.IsFunction() && (t.GetScopeRoot() == n)) && j2gort.CastPtr[Scope](j2gort.CastPtr[Scope](t.GetScope().GetParent()).GetClosestHoistScope()).IsGlobal())) {
@@ -525,14 +525,14 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessPropertie
 }
 
 // Java method: ProcessProperties.isAssignRValue(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_isAssignRValue_570(n pkg_rhino.Node, parent pkg_rhino.Node) bool {
+func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_isAssignRValue_571(n pkg_rhino.Node, parent pkg_rhino.Node) bool {
 	_ = n
 	_ = parent
 	return (((parent != 0) && parent.IsAssign()) && (parent.GetFirstChild() != n))
 }
 
 // Java method: ProcessProperties.getPrototypePropertyNameFromRValue(com.google.javascript.rhino.Node rValue)
-func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_getPrototypePropertyNameFromRValue_571(rValue pkg_rhino.Node) string {
+func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_getPrototypePropertyNameFromRValue_572(rValue pkg_rhino.Node) string {
 	_ = rValue
 	var lValue pkg_rhino.Node = NodeUtil_GetBestLValue(rValue)
 	_ = lValue
@@ -558,7 +558,7 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessPropertie
 }
 
 // Java method: ProcessProperties.processGlobalFunctionDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node nameNode, com.google.javascript.jscomp.Var v)
-func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_processGlobalFunctionDeclaration_572(t *NodeTraversal, nameNode pkg_rhino.Node, v *Var) bool {
+func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_processGlobalFunctionDeclaration_573(t *NodeTraversal, nameNode pkg_rhino.Node, v *Var) bool {
 	_ = t
 	_ = nameNode
 	_ = v
@@ -566,12 +566,12 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessPropertie
 	_ = firstChild
 	var parent pkg_rhino.Node = nameNode.GetParent()
 	_ = parent
-	if this_.priv_ProcessProperties_isGlobalFunctionDeclaration_569(t, parent) || ((firstChild != 0) && this_.priv_ProcessProperties_isGlobalFunctionDeclaration_569(t, firstChild)) {
+	if this_.priv_ProcessProperties_isGlobalFunctionDeclaration_570(t, parent) || ((firstChild != 0) && this_.priv_ProcessProperties_isGlobalFunctionDeclaration_570(t, firstChild)) {
 		var name string = nameNode.GetString()
 		_ = name
-		this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_564(name, StaticGet_AnalyzePrototypeProperties_VAR()).GetDeclarations().Add_1(NewAnalyzePrototypeProperties_GlobalFunction(nameNode, v, t.GetChunk()))
+		this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_565(name, StaticGet_AnalyzePrototypeProperties_VAR()).GetDeclarations().Add_1(NewAnalyzePrototypeProperties_GlobalFunction(nameNode, v, t.GetChunk()))
 		if this_.outer_.compiler.GetCodingConvention().IsExported_2(name, false) || this_.outer_.anchorUnusedVars {
-			this_.priv_ProcessProperties_addGlobalUseOfSymbol_576(name, t.GetChunk(), StaticGet_AnalyzePrototypeProperties_VAR())
+			this_.priv_ProcessProperties_addGlobalUseOfSymbol_577(name, t.GetChunk(), StaticGet_AnalyzePrototypeProperties_VAR())
 		}
 		return true
 	}
@@ -579,7 +579,7 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessPropertie
 }
 
 // Java method: ProcessProperties.handlePossibleAssignmentToPrototype(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node ref)
-func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_handlePossibleAssignmentToPrototype_573(t *NodeTraversal, ref pkg_rhino.Node) bool {
+func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_handlePossibleAssignmentToPrototype_574(t *NodeTraversal, ref pkg_rhino.Node) bool {
 	_ = t
 	_ = ref
 	var root pkg_rhino.Node = NodeUtil_GetRootOfQualifiedName_1_Node(ref)
@@ -593,9 +593,9 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessPropertie
 		var grandParent pkg_rhino.Node = parent.GetParent()
 		_ = grandParent
 		if NodeUtil_IsExprAssign(grandParent) && NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
-			var prop AnalyzePrototypeProperties_PrototypeProperty = NewAnalyzePrototypeProperties_AssignmentPrototypeProperty(grandParent, this_.priv_ProcessProperties_maybeGetVar_575(t, root), t.GetChunk())
+			var prop AnalyzePrototypeProperties_PrototypeProperty = NewAnalyzePrototypeProperties_AssignmentPrototypeProperty(grandParent, this_.priv_ProcessProperties_maybeGetVar_576(t, root), t.GetChunk())
 			_ = prop
-			this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_564(n.GetString(), StaticGet_AnalyzePrototypeProperties_PROPERTY()).GetDeclarations().Add_1(prop)
+			this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_565(n.GetString(), StaticGet_AnalyzePrototypeProperties_PROPERTY()).GetDeclarations().Add_1(prop)
 			return true
 		}
 	case int32(51) /* Token.ASSIGN */ :
@@ -609,9 +609,9 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessPropertie
 					if !(key.IsQuotedStringKey()) && !(key.IsComputedProp()) {
 						var name string = key.GetString()
 						_ = name
-						var prop_2 AnalyzePrototypeProperties_PrototypeProperty = NewAnalyzePrototypeProperties_LiteralPrototypeProperty(key.GetFirstChild(), n, this_.priv_ProcessProperties_maybeGetVar_575(t, root), t.GetChunk())
+						var prop_2 AnalyzePrototypeProperties_PrototypeProperty = NewAnalyzePrototypeProperties_LiteralPrototypeProperty(key.GetFirstChild(), n, this_.priv_ProcessProperties_maybeGetVar_576(t, root), t.GetChunk())
 						_ = prop_2
-						this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_564(name, StaticGet_AnalyzePrototypeProperties_PROPERTY()).GetDeclarations().Add_1(prop_2)
+						this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_565(name, StaticGet_AnalyzePrototypeProperties_PROPERTY()).GetDeclarations().Add_1(prop_2)
 					}
 				}
 			}
@@ -623,7 +623,7 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessPropertie
 }
 
 // Java method: ProcessProperties.processMemberDef(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_processMemberDef_574(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_processMemberDef_575(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if !((n.IsMemberFunctionDef() || n.IsGetterDef()) || n.IsSetterDef()) {
@@ -643,11 +643,11 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessPropertie
 	} else {
 		var_ = nil
 	}
-	this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_564(name, StaticGet_AnalyzePrototypeProperties_PROPERTY()).GetDeclarations().Add_1(NewAnalyzePrototypeProperties_ClassMemberFunction(n, var_, t.GetChunk()))
+	this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_565(name, StaticGet_AnalyzePrototypeProperties_PROPERTY()).GetDeclarations().Add_1(NewAnalyzePrototypeProperties_ClassMemberFunction(n, var_, t.GetChunk()))
 }
 
 // Java method: ProcessProperties.maybeGetVar(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node maybeName)
-func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_maybeGetVar_575(t *NodeTraversal, maybeName pkg_rhino.Node) *Var {
+func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_maybeGetVar_576(t *NodeTraversal, maybeName pkg_rhino.Node) *Var {
 	_ = t
 	_ = maybeName
 	if maybeName.IsName() {
@@ -658,11 +658,11 @@ func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessPropertie
 }
 
 // Java method: ProcessProperties.addGlobalUseOfSymbol(java.lang.String name, com.google.javascript.jscomp.JSChunk chunk, com.google.javascript.jscomp.AnalyzePrototypeProperties.SymbolType type)
-func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_addGlobalUseOfSymbol_576(name string, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
+func (this_ *AnalyzePrototypeProperties_ProcessProperties) priv_ProcessProperties_addGlobalUseOfSymbol_577(name string, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
 	_ = name
 	_ = chunk
 	_ = type_
-	this_.outer_.symbolGraph.Connect_3_any_any_any(this_.outer_.globalNode, chunk, this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_564(name, type_))
+	this_.outer_.symbolGraph.Connect_3_any_any_any(this_.outer_.globalNode, chunk, this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_565(name, type_))
 }
 
 // Java class: com.google.javascript.jscomp.AnalyzePrototypeProperties.ProcessExternProperties
@@ -726,9 +726,9 @@ func (this_ *AnalyzePrototypeProperties_ProcessExternProperties) Visit_3(t *Node
 	_ = n
 	_ = parent
 	if n.IsGetProp() {
-		this_.outer_.symbolGraph.Connect_3_any_any_any(this_.outer_.externNode, this_.outer_.firstChunk, this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_564(n.GetString(), StaticGet_AnalyzePrototypeProperties_PROPERTY()))
+		this_.outer_.symbolGraph.Connect_3_any_any_any(this_.outer_.externNode, this_.outer_.firstChunk, this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_565(n.GetString(), StaticGet_AnalyzePrototypeProperties_PROPERTY()))
 	} else if (n.IsMemberFunctionDef() || n.IsGetterDef()) || n.IsSetterDef() {
-		this_.outer_.symbolGraph.Connect_3_any_any_any(this_.outer_.externNode, this_.outer_.firstChunk, this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_564(n.GetString(), StaticGet_AnalyzePrototypeProperties_PROPERTY()))
+		this_.outer_.symbolGraph.Connect_3_any_any_any(this_.outer_.externNode, this_.outer_.firstChunk, this_.outer_.priv_AnalyzePrototypeProperties_getNameInfoForName_565(n.GetString(), StaticGet_AnalyzePrototypeProperties_PROPERTY()))
 	}
 }
 
@@ -1199,16 +1199,16 @@ func (this_ *AnalyzePrototypeProperties_AssignmentPrototypeProperty) GetRootVar(
 
 // Java method: AssignmentPrototypeProperty.getPrototype()
 func (this_ *AnalyzePrototypeProperties_AssignmentPrototypeProperty) GetPrototype() pkg_rhino.Node {
-	return this_.priv_AssignmentPrototypeProperty_getAssignNode_584().GetFirstFirstChild()
+	return this_.priv_AssignmentPrototypeProperty_getAssignNode_585().GetFirstFirstChild()
 }
 
 // Java method: AssignmentPrototypeProperty.getValue()
 func (this_ *AnalyzePrototypeProperties_AssignmentPrototypeProperty) GetValue() pkg_rhino.Node {
-	return this_.priv_AssignmentPrototypeProperty_getAssignNode_584().GetLastChild()
+	return this_.priv_AssignmentPrototypeProperty_getAssignNode_585().GetLastChild()
 }
 
 // Java method: AssignmentPrototypeProperty.getAssignNode()
-func (this_ *AnalyzePrototypeProperties_AssignmentPrototypeProperty) priv_AssignmentPrototypeProperty_getAssignNode_584() pkg_rhino.Node {
+func (this_ *AnalyzePrototypeProperties_AssignmentPrototypeProperty) priv_AssignmentPrototypeProperty_getAssignNode_585() pkg_rhino.Node {
 	return this_.exprNode.GetFirstChild()
 }
 

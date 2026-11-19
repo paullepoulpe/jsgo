@@ -120,7 +120,7 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 		parts = append(parts, "@abstract")
 	}
 	if info.HasLendsName() {
-		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3556("lends", info.GetLendsName().GetRoot()))
+		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3562("lends", info.GetLendsName().GetRoot()))
 	}
 	if info.HasConstAnnotation() && !(info.IsDefine()) {
 		parts = append(parts, "@const")
@@ -204,9 +204,9 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 	}
 	if info.HasBaseType() {
 		multiline = true
-		var typeNode pkg_rhino.Node = this_.priv_JSDocInfoPrinter_stripBang_3553(info.GetBaseType().GetRoot())
+		var typeNode pkg_rhino.Node = this_.priv_JSDocInfoPrinter_stripBang_3559(info.GetBaseType().GetRoot())
 		_ = typeNode
-		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3556("extends", typeNode))
+		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3562("extends", typeNode))
 	}
 	{
 		cur_3 := j2gort.NewIterCursor(j2gort.CheckNotNull(info.GetExtendedInterfaces()))
@@ -215,9 +215,9 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 			type_ := j2gort.Cast[pkg_rhino.JSTypeExpression](rawElem_4)
 			_ = type_
 			multiline = true
-			var typeNode_2 pkg_rhino.Node = this_.priv_JSDocInfoPrinter_stripBang_3553(type_.GetRoot())
+			var typeNode_2 pkg_rhino.Node = this_.priv_JSDocInfoPrinter_stripBang_3559(type_.GetRoot())
 			_ = typeNode_2
-			parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3556("extends", typeNode_2))
+			parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3562("extends", typeNode_2))
 		}
 	}
 	{
@@ -227,31 +227,32 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 			type__2 := j2gort.Cast[pkg_rhino.JSTypeExpression](rawElem_6)
 			_ = type__2
 			multiline = true
-			var typeNode_3 pkg_rhino.Node = this_.priv_JSDocInfoPrinter_stripBang_3553(type__2.GetRoot())
+			var typeNode_3 pkg_rhino.Node = this_.priv_JSDocInfoPrinter_stripBang_3559(type__2.GetRoot())
 			_ = typeNode_3
-			parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3556("implements", typeNode_3))
+			parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3562("implements", typeNode_3))
 		}
 	}
 	if info.HasThisType() {
 		multiline = true
-		var typeNode_4 pkg_rhino.Node = this_.priv_JSDocInfoPrinter_stripBang_3553(info.GetThisType().GetRoot())
+		var typeNode_4 pkg_rhino.Node = this_.priv_JSDocInfoPrinter_stripBang_3559(info.GetThisType().GetRoot())
 		_ = typeNode_4
-		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3556("this", typeNode_4))
+		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3562("this", typeNode_4))
 	}
-	if info.GetParameterCount() > int32(0) {
+	var paramCount int32 = info.GetParameterCount()
+	_ = paramCount
+	if paramCount > int32(0) {
 		multiline = true
 		{
-			cur_7 := j2gort.NewIterCursor(j2gort.CheckNotNull(info.GetParameterNames()))
-			for cur_7.HasNext() {
-				name_2 := cur_7.NextStr()
-				_ = name_2
-				parts = append(parts, "@param "+j2gort.StrValString(this_.priv_JSDocInfoPrinter_buildParamType_3558(info, name_2)))
+			var i int32 = int32(0)
+			_ = i
+			for ; i < paramCount; i = i + 1 {
+				parts = append(parts, "@param "+j2gort.StrValString(this_.priv_JSDocInfoPrinter_buildParamType_3564(info, info.GetParameterNameAt(i))))
 			}
 		}
 	}
 	if info.HasReturnType() {
 		multiline = true
-		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3555("return", info.GetReturnType(), info.GetReturnDescription()))
+		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3561("return", info.GetReturnType(), info.GetReturnDescription()))
 	}
 	if !(info.GetThrowsAnnotations().IsEmpty()) && !(j2gort.CheckNotNullString(j2gort.ListGetStr(info.GetThrowsAnnotations(), int32(0))) == "") {
 		multiline = true
@@ -261,17 +262,17 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 	_ = templates
 	if !(templates.IsEmpty()) {
 		multiline = true
-		templates.ForEach_1(j2gort.NewLambda_Ext_java_util_function_BiConsumer(func(lp_8 any, lp_9 any) {
-			name_3 := j2gort.CastString(lp_8)
-			_ = name_3
-			boundExpr := j2gort.Cast[pkg_rhino.JSTypeExpression](lp_9)
+		templates.ForEach_1(j2gort.NewLambda_Ext_java_util_function_BiConsumer(func(lp_7 any, lp_8 any) {
+			name_2 := j2gort.CastString(lp_7)
+			_ = name_2
+			boundExpr := j2gort.Cast[pkg_rhino.JSTypeExpression](lp_8)
 			_ = boundExpr
 			var boundRoot pkg_rhino.Node = boundExpr.GetRoot()
 			_ = boundRoot
 			if (boundRoot.RawToken_() == uint8(158)) && !(boundRoot.HasChildren()) {
-				parts = append(parts, "@template "+j2gort.StrValString(name_3))
+				parts = append(parts, "@template "+j2gort.StrValString(name_2))
 			} else {
-				parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3555("template", boundExpr, name_3))
+				parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3561("template", boundExpr, name_2))
 			}
 		}))
 	}
@@ -280,13 +281,13 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 	if !(typeTransformations.IsEmpty()) {
 		multiline = true
 		{
-			cur_10 := j2gort.NewMapEntryCursor(typeTransformations)
-			for cur_10.NextEntry() {
-				var name_3 string = cur_10.KeyStr()
-				_ = name_3
-				var tranformationDefinition string = NewCodePrinter_Builder(j2gort.CastNode[pkg_rhino.Node](cur_10.GetValue())).Build()
+			cur_9 := j2gort.NewMapEntryCursor(typeTransformations)
+			for cur_9.NextEntry() {
+				var name_2 string = cur_9.KeyStr()
+				_ = name_2
+				var tranformationDefinition string = NewCodePrinter_Builder(j2gort.CastNode[pkg_rhino.Node](cur_9.GetValue())).Build()
 				_ = tranformationDefinition
-				parts = append(parts, "@template "+j2gort.StrValString(name_3)+" := "+j2gort.StrValString(tranformationDefinition)+" =:")
+				parts = append(parts, "@template "+j2gort.StrValString(name_2)+" := "+j2gort.StrValString(tranformationDefinition)+" =:")
 			}
 		}
 	}
@@ -295,19 +296,19 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 	}
 	if info.HasType() && !(info.IsDefine()) {
 		if info.IsInlineType() {
-			parts = append(parts, this_.priv_JSDocInfoPrinter_typeNode_3559(info.GetType().GetRoot()))
+			parts = append(parts, this_.priv_JSDocInfoPrinter_typeNode_3565(info.GetType().GetRoot()))
 		} else {
-			parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3554("type", info.GetType()))
+			parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3560("type", info.GetType()))
 		}
 	}
 	if info.IsDefine() {
-		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3554("define", info.GetType()))
+		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3560("define", info.GetType()))
 	}
 	if info.HasTypedefType() {
-		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3554("typedef", info.GetTypedefType()))
+		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3560("typedef", info.GetTypedefType()))
 	}
 	if info.HasEnumParameterType() {
-		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3554("enum", info.GetEnumParameterType()))
+		parts = append(parts, this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3560("enum", info.GetEnumParameterType()))
 	}
 	if info.IsImplicitCast() {
 		parts = append(parts, "@implicitCast")
@@ -319,58 +320,58 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 	_ = suppressions
 	if !(suppressions.IsEmpty()) {
 		{
-			cur_11 := j2gort.NewMapEntryCursor(suppressions)
-			for cur_11.NextEntry() {
+			cur_10 := j2gort.NewMapEntryCursor(suppressions)
+			for cur_10.NextEntry() {
 				var warnings []string = func() []string {
-					arr_15 := j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](cur_11.GetKey()).ToArray_1_slice_any(func() []any {
-						arr_12 := j2gort.NewStringArray(int32(0))
-						if arr_12 == nil {
+					arr_14 := j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](cur_10.GetKey()).ToArray_1_slice_any(func() []any {
+						arr_11 := j2gort.NewStringArray(int32(0))
+						if arr_11 == nil {
 							return nil
 						}
-						out_13 := make([]any, len(arr_12))
-						for i_, el_14 := range arr_12 {
-							out_13[i_] = j2gort.BoxString(el_14)
+						out_12 := make([]any, len(arr_11))
+						for i_, el_13 := range arr_11 {
+							out_12[i_] = j2gort.BoxString(el_13)
 						}
-						return out_13
+						return out_12
 					}())
-					if arr_15 == nil {
+					if arr_14 == nil {
 						return nil
 					}
-					out_16 := make([]string, len(arr_15))
-					for i_, el_17 := range arr_15 {
-						out_16[i_] = j2gort.CastString(el_17)
+					out_15 := make([]string, len(arr_14))
+					for i_, el_16 := range arr_14 {
+						out_15[i_] = j2gort.CastString(el_16)
 					}
-					return out_16
+					return out_15
 				}()
 				_ = warnings
 				func() {
-					arrMut_18 := warnings
-					var arrBox_19 []any
-					if arrMut_18 != nil {
-						arrBox_19 = make([]any, len(arrMut_18))
-						for i_, el_20 := range arrMut_18 {
-							arrBox_19[i_] = j2gort.BoxString(el_20)
+					arrMut_17 := warnings
+					var arrBox_18 []any
+					if arrMut_17 != nil {
+						arrBox_18 = make([]any, len(arrMut_17))
+						for i_, el_19 := range arrMut_17 {
+							arrBox_18[i_] = j2gort.BoxString(el_19)
 						}
 					}
-					j2gort.Ext_java_util_Arrays_Sort_2(arrBox_19, j2gort.Ext_java_util_Comparator_NaturalOrder())
-					for i_, el_20 := range arrBox_19 {
-						arrMut_18[i_] = j2gort.CastString(el_20)
+					j2gort.Ext_java_util_Arrays_Sort_2(arrBox_18, j2gort.Ext_java_util_Comparator_NaturalOrder())
+					for i_, el_19 := range arrBox_18 {
+						arrMut_17[i_] = j2gort.CastString(el_19)
 					}
 				}()
-				var text string = j2gort.CastString(cur_11.GetValue())
+				var text string = j2gort.CastString(cur_10.GetValue())
 				_ = text
 				var sb j2gort.LocalStringBuilder
 
 				sb.AppendStr("@suppress {").AppendStr(j2gort.Ext_com_google_common_base_Joiner_On_1_uint16(uint16(44)).Join_1_slice_any(func() []any {
-					arr_21 := warnings
-					if arr_21 == nil {
+					arr_20 := warnings
+					if arr_20 == nil {
 						return nil
 					}
-					out_22 := make([]any, len(arr_21))
-					for i_, el_23 := range arr_21 {
-						out_22[i_] = j2gort.BoxString(el_23)
+					out_21 := make([]any, len(arr_20))
+					for i_, el_22 := range arr_20 {
+						out_21[i_] = j2gort.BoxString(el_22)
 					}
-					return out_22
+					return out_21
 				}())).AppendStr("}")
 				if !(j2gort.CheckNotNullString(text) == "") {
 					sb.AppendStr(" ").AppendStr(text)
@@ -421,9 +422,9 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 		parts = append(parts, "@legacyNamedTsExport")
 	}
 	{
-		cur_24 := j2gort.NewIterCursor(j2gort.CheckNotNull(info.GetTsTypes()))
-		for cur_24.HasNext() {
-			tsType := cur_24.NextStr()
+		cur_23 := j2gort.NewIterCursor(j2gort.CheckNotNull(info.GetTsTypes()))
+		for cur_23.HasNext() {
+			tsType := cur_23.NextStr()
 			_ = tsType
 			parts = append(parts, "@tsType "+j2gort.StrValString(tsType))
 		}
@@ -459,7 +460,7 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 }
 
 // Java method: JSDocInfoPrinter.stripBang(com.google.javascript.rhino.Node typeNode)
-func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_stripBang_3553(typeNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_stripBang_3559(typeNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = typeNode
 	if typeNode.RawToken_() == uint8(159) {
 		typeNode = typeNode.GetFirstChild()
@@ -468,29 +469,29 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_stripBang_3553(typeNode pkg
 }
 
 // Java method: JSDocInfoPrinter.buildAnnotationWithType(java.lang.String annotation, com.google.javascript.rhino.JSTypeExpression type)
-func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildAnnotationWithType_3554(annotation string, type_ pkg_rhino.JSTypeExpression) string {
+func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildAnnotationWithType_3560(annotation string, type_ pkg_rhino.JSTypeExpression) string {
 	_ = annotation
 	_ = type_
-	return this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3555(annotation, type_, j2gort.NullString)
+	return this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3561(annotation, type_, j2gort.NullString)
 }
 
 // Java method: JSDocInfoPrinter.buildAnnotationWithType(java.lang.String annotation, com.google.javascript.rhino.JSTypeExpression type, java.lang.@org.jspecify.annotations.Nullable String description)
-func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildAnnotationWithType_3555(annotation string, type_ pkg_rhino.JSTypeExpression, description string) string {
+func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildAnnotationWithType_3561(annotation string, type_ pkg_rhino.JSTypeExpression, description string) string {
 	_ = annotation
 	_ = type_
 	_ = description
-	return this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3557(annotation, type_.GetRoot(), description)
+	return this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3563(annotation, type_.GetRoot(), description)
 }
 
 // Java method: JSDocInfoPrinter.buildAnnotationWithType(java.lang.String annotation, com.google.javascript.rhino.Node type)
-func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildAnnotationWithType_3556(annotation string, type_ pkg_rhino.Node) string {
+func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildAnnotationWithType_3562(annotation string, type_ pkg_rhino.Node) string {
 	_ = annotation
 	_ = type_
-	return this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3557(annotation, type_, j2gort.NullString)
+	return this_.priv_JSDocInfoPrinter_buildAnnotationWithType_3563(annotation, type_, j2gort.NullString)
 }
 
 // Java method: JSDocInfoPrinter.buildAnnotationWithType(java.lang.String annotation, com.google.javascript.rhino.Node type, java.lang.@org.jspecify.annotations.Nullable String description)
-func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildAnnotationWithType_3557(annotation string, type_ pkg_rhino.Node, description string) string {
+func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildAnnotationWithType_3563(annotation string, type_ pkg_rhino.Node, description string) string {
 	_ = annotation
 	_ = type_
 	_ = description
@@ -499,7 +500,7 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildAnnotationWithType_355
 	sb.Append_1_string("@")
 	sb.Append_1_string(annotation)
 	sb.Append_1_string(" {")
-	this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, type_)
+	this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, type_)
 	sb.Append_1_string("}")
 	if description != j2gort.NullString {
 		sb.Append_1_string(" ")
@@ -509,13 +510,13 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildAnnotationWithType_355
 }
 
 // Java method: JSDocInfoPrinter.buildParamType(com.google.javascript.rhino.JSDocInfo info, java.lang.String name)
-func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildParamType_3558(info *pkg_rhino.JSDocInfo, name string) string {
+func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildParamType_3564(info *pkg_rhino.JSDocInfo, name string) string {
 	_ = info
 	_ = name
 	var type_ pkg_rhino.JSTypeExpression = info.GetParameterType(name)
 	_ = type_
 	if type_ != (pkg_rhino.JSTypeExpression{}) {
-		var p string = ("{" + j2gort.StrValString(this_.priv_JSDocInfoPrinter_typeNode_3559(type_.GetRoot())) + "} " + j2gort.StrValString(name) + j2gort.StrValString(func() string {
+		var p string = ("{" + j2gort.StrValString(this_.priv_JSDocInfoPrinter_typeNode_3565(type_.GetRoot())) + "} " + j2gort.StrValString(name) + j2gort.StrValString(func() string {
 			if this_.printDesc && (info.GetDescriptionForParameter(name) != j2gort.NullString) {
 				return info.GetDescriptionForParameter(name)
 			}
@@ -529,16 +530,16 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildParamType_3558(info *p
 }
 
 // Java method: JSDocInfoPrinter.typeNode(com.google.javascript.rhino.Node typeNode)
-func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_typeNode_3559(typeNode pkg_rhino.Node) string {
+func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_typeNode_3565(typeNode pkg_rhino.Node) string {
 	_ = typeNode
 	var sb *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 	_ = sb
-	this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, typeNode)
+	this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, typeNode)
 	return sb.String()
 }
 
 // Java method: JSDocInfoPrinter.appendTypeNode(java.lang.StringBuilder sb, com.google.javascript.rhino.Node typeNode)
-func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendTypeNode_3560(sb *j2gort.Ext_java_lang_StringBuilder, typeNode pkg_rhino.Node) {
+func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendTypeNode_3566(sb *j2gort.Ext_java_lang_StringBuilder, typeNode pkg_rhino.Node) {
 	_ = sb
 	_ = typeNode
 	if this_.useOriginalName && (typeNode.GetOriginalName() != j2gort.NullString) {
@@ -548,9 +549,9 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendTypeNode_3560(sb *j2g
 	switch typeNode.TokenSwitchOrd_() {
 	case int32(159) /* Token.BANG */ :
 		sb.Append_1_string("!")
-		this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, typeNode.GetFirstChild())
+		this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, typeNode.GetFirstChild())
 	case int32(160) /* Token.EQUALS */ :
-		this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, typeNode.GetFirstChild())
+		this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, typeNode.GetFirstChild())
 		sb.Append_1_string("=")
 	case int32(155) /* Token.PIPE */ :
 		sb.Append_1_string("(")
@@ -560,7 +561,7 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendTypeNode_3560(sb *j2g
 			var child pkg_rhino.Node = typeNode.GetFirstChild()
 			_ = child
 			for ; child != 0; child = child.GetNext() {
-				this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, child)
+				this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, child)
 				if child != lastChild {
 					sb.Append_1_string("|")
 				}
@@ -570,17 +571,17 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendTypeNode_3560(sb *j2g
 	case int32(125) /* Token.ITER_REST */ :
 		sb.Append_1_string("...")
 		if typeNode.HasChildren() && !(typeNode.GetFirstChild().IsEmpty()) {
-			this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, typeNode.GetFirstChild())
+			this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, typeNode.GetFirstChild())
 		}
 	case int32(156) /* Token.STAR */ :
 		sb.Append_1_string("*")
 	case int32(158) /* Token.QMARK */ :
 		sb.Append_1_string("?")
 		if typeNode.HasChildren() {
-			this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, typeNode.GetFirstChild())
+			this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, typeNode.GetFirstChild())
 		}
 	case int32(73) /* Token.FUNCTION */ :
-		this_.priv_JSDocInfoPrinter_appendFunctionNode_3561(sb, typeNode)
+		this_.priv_JSDocInfoPrinter_appendFunctionNode_3567(sb, typeNode)
 	case int32(162) /* Token.LC */ :
 		sb.Append_1_string("{")
 		var lb pkg_rhino.Node = typeNode.GetFirstChild()
@@ -593,7 +594,7 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendTypeNode_3560(sb *j2g
 			for ; colon != 0; colon = colon.GetNext() {
 				if colon.HasChildren() {
 					j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_string(colon.GetFirstChild().GetString())).Append_1_string(":")
-					this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, colon.GetLastChild())
+					this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, colon.GetLastChild())
 				} else {
 					sb.Append_1_string(colon.GetString())
 				}
@@ -607,7 +608,7 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendTypeNode_3560(sb *j2g
 		sb.Append_1_string("void")
 	case int32(25) /* Token.TYPEOF */ :
 		sb.Append_1_string("typeof ")
-		this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, typeNode.GetFirstChild())
+		this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, typeNode.GetFirstChild())
 	case int32(90) /* Token.BLOCK */ :
 		sb.Append_1_string("<")
 		var last pkg_rhino.Node = typeNode.GetLastChild()
@@ -616,7 +617,7 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendTypeNode_3560(sb *j2g
 			var type_ pkg_rhino.Node = typeNode.GetFirstChild()
 			_ = type_
 			for ; type_ != 0; type_ = type_.GetNext() {
-				this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, type_)
+				this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, type_)
 				if type_ != last {
 					sb.Append_1_string(",")
 				}
@@ -626,7 +627,7 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendTypeNode_3560(sb *j2g
 	case int32(35) /* Token.STRINGLIT */ :
 		sb.Append_1_string(typeNode.GetString())
 		if typeNode.HasChildren() {
-			this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, typeNode.GetOnlyChild())
+			this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, typeNode.GetOnlyChild())
 		}
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Unexpected typeNode: "+j2gort.StrVal(typeNode))))
@@ -634,7 +635,7 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendTypeNode_3560(sb *j2g
 }
 
 // Java method: JSDocInfoPrinter.appendFunctionNode(java.lang.StringBuilder sb, com.google.javascript.rhino.Node function)
-func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendFunctionNode_3561(sb *j2gort.Ext_java_lang_StringBuilder, function pkg_rhino.Node) {
+func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendFunctionNode_3567(sb *j2gort.Ext_java_lang_StringBuilder, function pkg_rhino.Node) {
 	_ = sb
 	_ = function
 	var hasNewOrThis bool = false
@@ -644,18 +645,18 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendFunctionNode_3561(sb 
 	_ = first
 	if first.IsNew() {
 		sb.Append_1_string("new:")
-		this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, first.GetFirstChild())
+		this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, first.GetFirstChild())
 		hasNewOrThis = true
 	} else if first.IsThis() {
 		sb.Append_1_string("this:")
-		this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, first.GetFirstChild())
+		this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, first.GetFirstChild())
 		hasNewOrThis = true
 	} else if first.IsEmpty() {
 		sb.Append_1_string(")")
 		return
 	} else if !(first.IsParamList()) {
 		sb.Append_1_string("):")
-		this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, first)
+		this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, first)
 		return
 	}
 	var paramList pkg_rhino.Node = pkg_rhino.Node(0)
@@ -675,7 +676,7 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendFunctionNode_3561(sb 
 				if !(firstParam) || hasNewOrThis {
 					sb.Append_1_string(",")
 				}
-				this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, param)
+				this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, param)
 				firstParam = false
 			}
 		}
@@ -685,6 +686,6 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_appendFunctionNode_3561(sb 
 	_ = returnType
 	if !(returnType.IsEmpty()) {
 		sb.Append_1_string(":")
-		this_.priv_JSDocInfoPrinter_appendTypeNode_3560(sb, returnType)
+		this_.priv_JSDocInfoPrinter_appendTypeNode_3566(sb, returnType)
 	}
 }

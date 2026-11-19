@@ -264,7 +264,7 @@ func (this_ *Parser) RecordComment(type_ Comment_Type, range_ SourceRange, value
 	}
 }
 
-func (this_ *Parser) priv_Parser_buildComments_7195() j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *Parser) priv_Parser_buildComments_7200() j2gort.Ext_com_google_common_collect_ImmutableList {
 	if this_.comments != nil {
 		return this_.comments.BuildImmList_()
 	} else {
@@ -273,7 +273,7 @@ func (this_ *Parser) priv_Parser_buildComments_7195() j2gort.Ext_com_google_comm
 }
 
 func (this_ *Parser) GetComments() j2gort.Ext_java_util_List {
-	return j2gort.AsIface[j2gort.Ext_java_util_List](this_.priv_Parser_buildComments_7195())
+	return j2gort.AsIface[j2gort.Ext_java_util_List](this_.priv_Parser_buildComments_7200())
 }
 
 // Java method: Parser.getFeatures()
@@ -299,7 +299,7 @@ func (this_ *Parser) ParseProgram() *ProgramTree {
 					e := j2gort.AsIface[javalang.IError](jex_4)
 					_ = e
 					if j2gort.JStrIndexOf(e.Error(), "java.lang.StackOverflowError") >= 0 {
-						this_.priv_Parser_reportError_7424("Too deep recursion while parsing", []any{})
+						this_.priv_Parser_reportError_7429("Too deep recursion while parsing", []any{})
 						retVal_2 = nil
 						didRet_1 = true
 						return
@@ -312,10 +312,10 @@ func (this_ *Parser) ParseProgram() *ProgramTree {
 		}()
 		var start SourcePosition = this_.lastSourcePosition
 		_ = start
-		var sourceElements j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_Parser_parseGlobalSourceElements_7200()
+		var sourceElements j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_Parser_parseGlobalSourceElements_7205()
 		_ = sourceElements
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_END_OF_FILE())
-		retVal_2 = NewProgramTree(this_.priv_Parser_getTreeLocation_7412(start), sourceElements, this_.priv_Parser_buildComments_7195())
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_END_OF_FILE())
+		retVal_2 = NewProgramTree(this_.priv_Parser_getTreeLocation_7417(start), sourceElements, this_.priv_Parser_buildComments_7200())
 		didRet_1 = true
 		return
 	}()
@@ -326,41 +326,41 @@ func (this_ *Parser) ParseProgram() *ProgramTree {
 }
 
 // Java method: Parser.parseGlobalSourceElements()
-func (this_ *Parser) priv_Parser_parseGlobalSourceElements_7200() j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *Parser) priv_Parser_parseGlobalSourceElements_7205() j2gort.Ext_com_google_common_collect_ImmutableList {
 	var result []ParseTree = []ParseTree{}
 	_ = result
-	for !(this_.priv_Parser_peek_7416(StaticGet_TokenType_END_OF_FILE())) {
-		result = append(result, j2gort.CheckNotNullElem(this_.priv_Parser_parseScriptElement_7201()))
+	for !(this_.priv_Parser_peek_7421(StaticGet_TokenType_END_OF_FILE())) {
+		result = append(result, j2gort.CheckNotNullElem(this_.priv_Parser_parseScriptElement_7206()))
 	}
 	return j2gort.ImmListFromTypedSlice(result)
 }
 
 // Java method: Parser.parseScriptElement()
-func (this_ *Parser) priv_Parser_parseScriptElement_7201() ParseTree {
-	if this_.priv_Parser_peekImportDeclaration_7202() {
-		return this_.priv_Parser_parseImportDeclaration_7203()
+func (this_ *Parser) priv_Parser_parseScriptElement_7206() ParseTree {
+	if this_.priv_Parser_peekImportDeclaration_7207() {
+		return this_.priv_Parser_parseImportDeclaration_7208()
 	}
-	if this_.priv_Parser_peekExportDeclaration_7206() {
-		return this_.priv_Parser_parseExportDeclaration_7207()
+	if this_.priv_Parser_peekExportDeclaration_7211() {
+		return this_.priv_Parser_parseExportDeclaration_7212()
 	}
-	return this_.priv_Parser_parseSourceElement_7231()
+	return this_.priv_Parser_parseSourceElement_7236()
 }
 
 // Java method: Parser.peekImportDeclaration()
-func (this_ *Parser) priv_Parser_peekImportDeclaration_7202() bool {
-	return (this_.priv_Parser_peek_7416(StaticGet_TokenType_IMPORT()) && (((this_.priv_Parser_peekIdOrKeyword_7403(int32(1)) || this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_STRING())) || this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_OPEN_CURLY())) || this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_STAR())))
+func (this_ *Parser) priv_Parser_peekImportDeclaration_7207() bool {
+	return (this_.priv_Parser_peek_7421(StaticGet_TokenType_IMPORT()) && (((this_.priv_Parser_peekIdOrKeyword_7408(int32(1)) || this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_STRING())) || this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_OPEN_CURLY())) || this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_STAR())))
 }
 
 // Java method: Parser.parseImportDeclaration()
-func (this_ *Parser) priv_Parser_parseImportDeclaration_7203() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseImportDeclaration_7208() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_IMPORT())
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_STRING()) {
-		var moduleSpecifier Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_STRING())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_IMPORT())
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_STRING()) {
+		var moduleSpecifier Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_STRING())
 		_ = moduleSpecifier
-		this_.priv_Parser_eatPossiblyImplicitSemiColon_7393()
-		return ToIface_ParseTree(allocPooled_ImportDeclarationTree(&this_.slab_ImportDeclarationTree, this_.priv_Parser_getTreeLocation_7412(start), (Token{}), nil, (Token{}), moduleSpecifier))
+		this_.priv_Parser_eatPossiblyImplicitSemiColon_7398()
+		return ToIface_ParseTree(allocPooled_ImportDeclarationTree(&this_.slab_ImportDeclarationTree, this_.priv_Parser_getTreeLocation_7417(start), (Token{}), nil, (Token{}), moduleSpecifier))
 	}
 	var defaultBindingIdentifier Token = (Token{})
 	_ = defaultBindingIdentifier
@@ -370,74 +370,74 @@ func (this_ *Parser) priv_Parser_parseImportDeclaration_7203() ParseTree {
 	_ = identifierSet
 	var parseExplicitNames bool = true
 	_ = parseExplicitNames
-	if this_.priv_Parser_peekId_7400() {
-		defaultBindingIdentifier = this_.priv_Parser_eatId_7405()
-		if this_.priv_Parser_peek_7416(StaticGet_TokenType_COMMA()) {
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+	if this_.priv_Parser_peekId_7405() {
+		defaultBindingIdentifier = this_.priv_Parser_eatId_7410()
+		if this_.priv_Parser_peek_7421(StaticGet_TokenType_COMMA()) {
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 		} else {
 			parseExplicitNames = false
 		}
-	} else if Keywords_IsKeyword_1_TokenType(this_.priv_Parser_peekType_7418()) {
-		var keyword Token = this_.priv_Parser_nextToken_7413()
+	} else if Keywords_IsKeyword_1_TokenType(this_.priv_Parser_peekType_7423()) {
+		var keyword Token = this_.priv_Parser_nextToken_7418()
 		_ = keyword
-		this_.priv_Parser_reportError_7422(keyword, "cannot use keyword '%s' here.", []any{j2gort.BoxNullableVal(keyword)})
+		this_.priv_Parser_reportError_7427(keyword, "cannot use keyword '%s' here.", []any{j2gort.BoxNullableVal(keyword)})
 	}
 	if parseExplicitNames {
-		if this_.priv_Parser_peek_7416(StaticGet_TokenType_STAR()) {
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_STAR())
-			this_.priv_Parser_eatPredefinedString_7309("as")
-			nameSpaceImportIdentifier = this_.priv_Parser_eatId_7405()
+		if this_.priv_Parser_peek_7421(StaticGet_TokenType_STAR()) {
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_STAR())
+			this_.priv_Parser_eatPredefinedString_7314("as")
+			nameSpaceImportIdentifier = this_.priv_Parser_eatId_7410()
 		} else {
-			identifierSet = this_.priv_Parser_parseImportSpecifierSet_7204()
+			identifierSet = this_.priv_Parser_parseImportSpecifierSet_7209()
 		}
 	}
-	this_.priv_Parser_eatPredefinedString_7309("from")
-	var moduleSpecifier_2 Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_STRING())
+	this_.priv_Parser_eatPredefinedString_7314("from")
+	var moduleSpecifier_2 Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_STRING())
 	_ = moduleSpecifier_2
-	this_.priv_Parser_eatPossiblyImplicitSemiColon_7393()
-	return ToIface_ParseTree(allocPooled_ImportDeclarationTree(&this_.slab_ImportDeclarationTree, this_.priv_Parser_getTreeLocation_7412(start), defaultBindingIdentifier, identifierSet, nameSpaceImportIdentifier, moduleSpecifier_2))
+	this_.priv_Parser_eatPossiblyImplicitSemiColon_7398()
+	return ToIface_ParseTree(allocPooled_ImportDeclarationTree(&this_.slab_ImportDeclarationTree, this_.priv_Parser_getTreeLocation_7417(start), defaultBindingIdentifier, identifierSet, nameSpaceImportIdentifier, moduleSpecifier_2))
 }
 
 // Java method: Parser.parseImportSpecifierSet()
-func (this_ *Parser) priv_Parser_parseImportSpecifierSet_7204() j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *Parser) priv_Parser_parseImportSpecifierSet_7209() j2gort.Ext_com_google_common_collect_ImmutableList {
 	var elements []ParseTree = []ParseTree{}
 	_ = elements
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_CURLY())
-	for this_.priv_Parser_peekIdOrKeyword_7402() {
-		elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parseImportSpecifier_7205()))
-		if !(this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_CURLY())) {
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_CURLY())
+	for this_.priv_Parser_peekIdOrKeyword_7407() {
+		elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parseImportSpecifier_7210()))
+		if !(this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_CURLY())) {
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 		}
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_CURLY())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_CURLY())
 	return j2gort.ImmListFromTypedSlice(elements)
 }
 
 // Java method: Parser.parseImportSpecifier()
-func (this_ *Parser) priv_Parser_parseImportSpecifier_7205() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseImportSpecifier_7210() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var importedName Token = this_.priv_Parser_eatIdOrKeywordAsId_7407()
+	var importedName Token = this_.priv_Parser_eatIdOrKeywordAsId_7412()
 	_ = importedName
 	var destinationName Token = (Token{})
 	_ = destinationName
-	if this_.priv_Parser_peekPredefinedString_7308("as") {
-		this_.priv_Parser_eatPredefinedString_7309("as")
-		destinationName = this_.priv_Parser_eatId_7405()
+	if this_.priv_Parser_peekPredefinedString_7313("as") {
+		this_.priv_Parser_eatPredefinedString_7314("as")
+		destinationName = this_.priv_Parser_eatId_7410()
 	} else if importedName.IsKeyword() {
-		this_.priv_Parser_reportExpectedError_7409((Token{}), "as")
+		this_.priv_Parser_reportExpectedError_7414((Token{}), "as")
 	}
-	return ToIface_ParseTree(allocPooled_ImportSpecifierTree(&this_.slab_ImportSpecifierTree, this_.priv_Parser_getTreeLocation_7412(start), importedName, destinationName))
+	return ToIface_ParseTree(allocPooled_ImportSpecifierTree(&this_.slab_ImportSpecifierTree, this_.priv_Parser_getTreeLocation_7417(start), importedName, destinationName))
 }
 
 // Java method: Parser.peekExportDeclaration()
-func (this_ *Parser) priv_Parser_peekExportDeclaration_7206() bool {
-	return this_.priv_Parser_peek_7416(StaticGet_TokenType_EXPORT())
+func (this_ *Parser) priv_Parser_peekExportDeclaration_7211() bool {
+	return this_.priv_Parser_peek_7421(StaticGet_TokenType_EXPORT())
 }
 
 // Java method: Parser.parseExportDeclaration()
-func (this_ *Parser) priv_Parser_parseExportDeclaration_7207() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseExportDeclaration_7212() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
 	var isDefault bool = false
 	_ = isDefault
@@ -447,41 +447,41 @@ func (this_ *Parser) priv_Parser_parseExportDeclaration_7207() ParseTree {
 	_ = isExportSpecifier
 	var needsSemiColon bool = true
 	_ = needsSemiColon
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_EXPORT())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_EXPORT())
 	var export ParseTree = nil
 	_ = export
 	var exportSpecifierList []ParseTree
 	_ = exportSpecifierList
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(65) /* TokenType.STAR */ :
 		isExportAll = true
-		this_.priv_Parser_nextToken_7413()
+		this_.priv_Parser_nextToken_7418()
 	case int32(2) /* TokenType.IDENTIFIER */ :
-		export = this_.priv_Parser_parseAsyncFunctionDeclaration_7240()
+		export = this_.priv_Parser_parseAsyncFunctionDeclaration_7245()
 	case int32(14) /* TokenType.FUNCTION */ :
-		export = this_.priv_Parser_parseFunctionDeclaration_7238()
+		export = this_.priv_Parser_parseFunctionDeclaration_7243()
 		needsSemiColon = false
 	case int32(29) /* TokenType.CLASS */ :
-		export = this_.priv_Parser_parseClassDeclaration_7211()
+		export = this_.priv_Parser_parseClassDeclaration_7216()
 		needsSemiColon = false
 	case int32(8) /* TokenType.DEFAULT */ :
 		isDefault = true
-		this_.priv_Parser_nextToken_7413()
-		export = this_.priv_Parser_parseExpression_7320()
+		this_.priv_Parser_nextToken_7418()
+		export = this_.priv_Parser_parseExpression_7325()
 		needsSemiColon = false
 	case int32(45) /* TokenType.OPEN_CURLY */ :
 		isExportSpecifier = true
-		exportSpecifierList = j2gort.ImmListToSliceNullable[ParseTree](this_.priv_Parser_parseExportSpecifierSet_7208())
+		exportSpecifierList = j2gort.ImmListToSliceNullable[ParseTree](this_.priv_Parser_parseExportSpecifierSet_7213())
 	case int32(25) /* TokenType.VAR */, int32(38) /* TokenType.LET */, int32(30) /* TokenType.CONST */ :
 		fallthrough
 	default:
-		export = ToIface_ParseTree(this_.priv_Parser_parseVariableDeclarationList_7258())
+		export = ToIface_ParseTree(this_.priv_Parser_parseVariableDeclarationList_7263())
 	}
 	var moduleSpecifier Token = (Token{})
 	_ = moduleSpecifier
-	if isExportAll || (isExportSpecifier && this_.priv_Parser_peekPredefinedString_7308("from")) {
-		this_.priv_Parser_eatPredefinedString_7309("from")
-		moduleSpecifier = this_.priv_Parser_eat_7408(StaticGet_TokenType_STRING())
+	if isExportAll || (isExportSpecifier && this_.priv_Parser_peekPredefinedString_7313("from")) {
+		this_.priv_Parser_eatPredefinedString_7314("from")
+		moduleSpecifier = this_.priv_Parser_eat_7413(StaticGet_TokenType_STRING())
 	} else if isExportSpecifier {
 		{
 
@@ -491,109 +491,109 @@ func (this_ *Parser) priv_Parser_parseExportDeclaration_7207() ParseTree {
 				var importedName Token = tree.AsExportSpecifier().importedName
 				_ = importedName
 				if importedName.IsKeyword() {
-					this_.priv_Parser_reportError_7422(importedName, "cannot use keyword '%s' here.", []any{j2gort.BoxNullableVal(importedName)})
+					this_.priv_Parser_reportError_7427(importedName, "cannot use keyword '%s' here.", []any{j2gort.BoxNullableVal(importedName)})
 				}
 			}
 		}
 	}
-	if needsSemiColon || this_.priv_Parser_peekImplicitSemiColon_7394() {
-		this_.priv_Parser_eatPossiblyImplicitSemiColon_7393()
+	if needsSemiColon || this_.priv_Parser_peekImplicitSemiColon_7399() {
+		this_.priv_Parser_eatPossiblyImplicitSemiColon_7398()
 	}
-	return ToIface_ParseTree(allocPooled_ExportDeclarationTree(&this_.slab_ExportDeclarationTree, this_.priv_Parser_getTreeLocation_7412(start), isDefault, isExportAll, export, j2gort.ImmListFromTypedSlice(exportSpecifierList), moduleSpecifier))
+	return ToIface_ParseTree(allocPooled_ExportDeclarationTree(&this_.slab_ExportDeclarationTree, this_.priv_Parser_getTreeLocation_7417(start), isDefault, isExportAll, export, j2gort.ImmListFromTypedSlice(exportSpecifierList), moduleSpecifier))
 }
 
 // Java method: Parser.parseExportSpecifierSet()
-func (this_ *Parser) priv_Parser_parseExportSpecifierSet_7208() j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *Parser) priv_Parser_parseExportSpecifierSet_7213() j2gort.Ext_com_google_common_collect_ImmutableList {
 	var elements []ParseTree = []ParseTree{}
 	_ = elements
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_CURLY())
-	for this_.priv_Parser_peekIdOrKeyword_7402() {
-		elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parseExportSpecifier_7209()))
-		if !(this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_CURLY())) {
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_CURLY())
+	for this_.priv_Parser_peekIdOrKeyword_7407() {
+		elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parseExportSpecifier_7214()))
+		if !(this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_CURLY())) {
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 		}
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_CURLY())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_CURLY())
 	return j2gort.ImmListFromTypedSlice(elements)
 }
 
 // Java method: Parser.parseExportSpecifier()
-func (this_ *Parser) priv_Parser_parseExportSpecifier_7209() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseExportSpecifier_7214() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var importedName Token = this_.priv_Parser_eatIdOrKeywordAsId_7407()
+	var importedName Token = this_.priv_Parser_eatIdOrKeywordAsId_7412()
 	_ = importedName
 	var destinationName Token = (Token{})
 	_ = destinationName
-	if this_.priv_Parser_peekPredefinedString_7308("as") {
-		this_.priv_Parser_eatPredefinedString_7309("as")
-		destinationName = this_.priv_Parser_eatIdOrKeywordAsId_7407()
+	if this_.priv_Parser_peekPredefinedString_7313("as") {
+		this_.priv_Parser_eatPredefinedString_7314("as")
+		destinationName = this_.priv_Parser_eatIdOrKeywordAsId_7412()
 	}
-	return ToIface_ParseTree(allocPooled_ExportSpecifierTree(&this_.slab_ExportSpecifierTree, this_.priv_Parser_getTreeLocation_7412(start), importedName, destinationName))
+	return ToIface_ParseTree(allocPooled_ExportSpecifierTree(&this_.slab_ExportSpecifierTree, this_.priv_Parser_getTreeLocation_7417(start), importedName, destinationName))
 }
 
 // Java method: Parser.peekClassDeclaration()
-func (this_ *Parser) priv_Parser_peekClassDeclaration_7210() bool {
-	return this_.priv_Parser_peek_7416(StaticGet_TokenType_CLASS())
+func (this_ *Parser) priv_Parser_peekClassDeclaration_7215() bool {
+	return this_.priv_Parser_peek_7421(StaticGet_TokenType_CLASS())
 }
 
 // Java method: Parser.parseClassDeclaration()
-func (this_ *Parser) priv_Parser_parseClassDeclaration_7211() ParseTree {
-	return this_.priv_Parser_parseClass_7213(false)
+func (this_ *Parser) priv_Parser_parseClassDeclaration_7216() ParseTree {
+	return this_.priv_Parser_parseClass_7218(false)
 }
 
 // Java method: Parser.parseClassExpression()
-func (this_ *Parser) priv_Parser_parseClassExpression_7212() ParseTree {
-	return this_.priv_Parser_parseClass_7213(true)
+func (this_ *Parser) priv_Parser_parseClassExpression_7217() ParseTree {
+	return this_.priv_Parser_parseClass_7218(true)
 }
 
 // Java method: Parser.parseClass(boolean isExpression)
-func (this_ *Parser) priv_Parser_parseClass_7213(isExpression bool) ParseTree {
+func (this_ *Parser) priv_Parser_parseClass_7218(isExpression bool) ParseTree {
 	_ = isExpression
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLASS())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLASS())
 	var name Token = (Token{})
 	_ = name
-	if !(isExpression) || this_.priv_Parser_peekId_7400() {
-		name = this_.priv_Parser_eatId_7405()
+	if !(isExpression) || this_.priv_Parser_peekId_7405() {
+		name = this_.priv_Parser_eatId_7410()
 	}
 	var superClass ParseTree = nil
 	_ = superClass
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_EXTENDS()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_EXTENDS())
-		superClass = this_.priv_Parser_parseLeftHandSideExpression_7369()
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_EXTENDS()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_EXTENDS())
+		superClass = this_.priv_Parser_parseLeftHandSideExpression_7374()
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_CURLY())
-	var elements j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_Parser_parseClassElements_7214()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_CURLY())
+	var elements j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_Parser_parseClassElements_7219()
 	_ = elements
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_CURLY())
-	return ToIface_ParseTree(allocPooled_ClassDeclarationTree(&this_.slab_ClassDeclarationTree, this_.priv_Parser_getTreeLocation_7412(start), name, superClass, elements))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_CURLY())
+	return ToIface_ParseTree(allocPooled_ClassDeclarationTree(&this_.slab_ClassDeclarationTree, this_.priv_Parser_getTreeLocation_7417(start), name, superClass, elements))
 }
 
 // Java method: Parser.parseClassElements()
-func (this_ *Parser) priv_Parser_parseClassElements_7214() j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *Parser) priv_Parser_parseClassElements_7219() j2gort.Ext_com_google_common_collect_ImmutableList {
 	var result *j2gort.Ext_com_google_common_collect_ImmutableList_Builder = (&j2gort.Ext_com_google_common_collect_ImmutableList_Builder{})
 	_ = result
 	for {
-		var token Token = this_.priv_Parser_peekToken_7420()
+		var token Token = this_.priv_Parser_peekToken_7425()
 		_ = token
 		if token.type_ == StaticGet_TokenType_SEMI_COLON() {
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_SEMI_COLON())
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_SEMI_COLON())
 			continue
 		} else {
-			if this_.priv_Parser_isClassElementStart_7215(token) {
+			if this_.priv_Parser_isClassElementStart_7220(token) {
 			} else {
 				return result.BuildImmList_()
 			}
 		}
-		result.AddVoid_(this_.priv_Parser_parseClassElement_7217())
+		result.AddVoid_(this_.priv_Parser_parseClassElement_7222())
 	}
 	panic("unreachable")
 }
 
 // Java method: Parser.isClassElementStart(com.google.javascript.jscomp.parsing.parser.Token token)
-func (this_ *Parser) priv_Parser_isClassElementStart_7215(token Token) bool {
+func (this_ *Parser) priv_Parser_isClassElementStart_7220(token Token) bool {
 	_ = token
 	switch (token.type_).Ordinal() {
 	case int32(2) /* TokenType.IDENTIFIER */, int32(104) /* TokenType.NUMBER */, int32(106) /* TokenType.BIGINT */, int32(65) /* TokenType.STAR */, int32(43) /* TokenType.STATIC */, int32(105) /* TokenType.STRING */, int32(49) /* TokenType.OPEN_SQUARE */ :
@@ -607,88 +607,88 @@ func (this_ *Parser) priv_Parser_isClassElementStart_7215(token Token) bool {
 }
 
 // Java method: Parser.createObjectLiteralElementInfo()
-func (this_ *Parser) priv_Parser_createObjectLiteralElementInfo_7216() *ClassOrObjectElementInfo {
-	return ClassOrObjectElementInfo_CreateObjectLiteralElementInfo(this_.priv_Parser_getTreeStartLocation_7410())
+func (this_ *Parser) priv_Parser_createObjectLiteralElementInfo_7221() *ClassOrObjectElementInfo {
+	return ClassOrObjectElementInfo_CreateObjectLiteralElementInfo(this_.priv_Parser_getTreeStartLocation_7415())
 }
 
 // Java method: Parser.parseClassElement()
-func (this_ *Parser) priv_Parser_parseClassElement_7217() ParseTree {
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_SEMI_COLON()) {
-		return ToIface_ParseTree(this_.priv_Parser_parseEmptyStatement_7263())
+func (this_ *Parser) priv_Parser_parseClassElement_7222() ParseTree {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_SEMI_COLON()) {
+		return ToIface_ParseTree(this_.priv_Parser_parseEmptyStatement_7268())
 	}
-	if this_.priv_Parser_peekClassStaticInitializerBlock_7220() {
-		return this_.priv_Parser_parseClassStaticInitializerBlock_7229()
+	if this_.priv_Parser_peekClassStaticInitializerBlock_7225() {
+		return this_.priv_Parser_parseClassStaticInitializerBlock_7234()
 	}
-	var elementInfo *ClassOrObjectElementInfo = ClassOrObjectElementInfo_CreateClassMemberInfo(this_.priv_Parser_getTreeStartLocation_7410(), this_.priv_Parser_eatStaticIfNotElementName_7218())
+	var elementInfo *ClassOrObjectElementInfo = ClassOrObjectElementInfo_CreateClassMemberInfo(this_.priv_Parser_getTreeStartLocation_7415(), this_.priv_Parser_eatStaticIfNotElementName_7223())
 	_ = elementInfo
-	if this_.priv_Parser_peekGetAccessor_7307() {
-		return this_.priv_Parser_parseGetAccessor_7312(elementInfo)
-	} else if this_.priv_Parser_peekSetAccessor_7313() {
-		return this_.priv_Parser_parseSetAccessor_7315(elementInfo)
-	} else if this_.priv_Parser_peekAsyncMethod_7219() {
-		return this_.priv_Parser_parseAsyncMethod_7228(elementInfo)
+	if this_.priv_Parser_peekGetAccessor_7312() {
+		return this_.priv_Parser_parseGetAccessor_7317(elementInfo)
+	} else if this_.priv_Parser_peekSetAccessor_7318() {
+		return this_.priv_Parser_parseSetAccessor_7320(elementInfo)
+	} else if this_.priv_Parser_peekAsyncMethod_7224() {
+		return this_.priv_Parser_parseAsyncMethod_7233(elementInfo)
 	} else {
-		return this_.priv_Parser_parseClassMemberDeclaration_7226(elementInfo)
+		return this_.priv_Parser_parseClassMemberDeclaration_7231(elementInfo)
 	}
 }
 
 // Java method: Parser.eatStaticIfNotElementName()
-func (this_ *Parser) priv_Parser_eatStaticIfNotElementName_7218() bool {
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_STATIC()) && this_.priv_Parser_isClassElementStart_7215(this_.priv_Parser_peekToken_7421(int32(1))) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_STATIC())
+func (this_ *Parser) priv_Parser_eatStaticIfNotElementName_7223() bool {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_STATIC()) && this_.priv_Parser_isClassElementStart_7220(this_.priv_Parser_peekToken_7426(int32(1))) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_STATIC())
 		return true
 	}
 	return false
 }
 
 // Java method: Parser.peekAsyncMethod()
-func (this_ *Parser) priv_Parser_peekAsyncMethod_7219() bool {
-	return ((this_.priv_Parser_peekPredefinedString_7308("async") && !(this_.priv_Parser_peekImplicitSemiColon_7395(int32(1)))) && (this_.priv_Parser_peekPropertyNameOrComputedProp_7302(int32(1)) || (this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_STAR()) && this_.priv_Parser_peekPropertyNameOrComputedProp_7302(int32(2)))))
+func (this_ *Parser) priv_Parser_peekAsyncMethod_7224() bool {
+	return ((this_.priv_Parser_peekPredefinedString_7313("async") && !(this_.priv_Parser_peekImplicitSemiColon_7400(int32(1)))) && (this_.priv_Parser_peekPropertyNameOrComputedProp_7307(int32(1)) || (this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_STAR()) && this_.priv_Parser_peekPropertyNameOrComputedProp_7307(int32(2)))))
 }
 
 // Java method: Parser.peekClassStaticInitializerBlock()
-func (this_ *Parser) priv_Parser_peekClassStaticInitializerBlock_7220() bool {
-	return (this_.priv_Parser_peek_7416(StaticGet_TokenType_STATIC()) && this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_OPEN_CURLY()))
+func (this_ *Parser) priv_Parser_peekClassStaticInitializerBlock_7225() bool {
+	return (this_.priv_Parser_peek_7421(StaticGet_TokenType_STATIC()) && this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_OPEN_CURLY()))
 }
 
 // Java method: Parser.parseClassElementName(com.google.javascript.jscomp.parsing.parser.ClassOrObjectElementInfo elementInfo)
-func (this_ *Parser) priv_Parser_parseClassElementName_7221(elementInfo *ClassOrObjectElementInfo) {
+func (this_ *Parser) priv_Parser_parseClassElementName_7226(elementInfo *ClassOrObjectElementInfo) {
 	_ = elementInfo
-	if this_.priv_Parser_peekPropertyName_7303(int32(0)) {
-		if this_.priv_Parser_peekIdOrKeyword_7402() {
-			elementInfo.SetName(this_.priv_Parser_eatIdOrKeywordAsId_7407())
+	if this_.priv_Parser_peekPropertyName_7308(int32(0)) {
+		if this_.priv_Parser_peekIdOrKeyword_7407() {
+			elementInfo.SetName(this_.priv_Parser_eatIdOrKeywordAsId_7412())
 			if elementInfo.GetName().IsKeyword() {
-				this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_KEYWORDS_AS_PROPERTIES())
+				this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_KEYWORDS_AS_PROPERTIES())
 			}
 		} else {
-			elementInfo.SetNameExpr(ToIface_ParseTree(this_.priv_Parser_parseLiteralExpression_7295()))
+			elementInfo.SetNameExpr(ToIface_ParseTree(this_.priv_Parser_parseLiteralExpression_7300()))
 		}
 	} else {
-		elementInfo.SetNameExpr(this_.priv_Parser_parseComputedPropertyName_7306())
+		elementInfo.SetNameExpr(this_.priv_Parser_parseComputedPropertyName_7311())
 	}
 }
 
 // Java method: Parser.parseFieldDefinition(com.google.javascript.jscomp.parsing.parser.ClassOrObjectElementInfo elementInfo)
-func (this_ *Parser) priv_Parser_parseFieldDefinition_7222(elementInfo *ClassOrObjectElementInfo) ParseTree {
+func (this_ *Parser) priv_Parser_parseFieldDefinition_7227(elementInfo *ClassOrObjectElementInfo) ParseTree {
 	_ = elementInfo
 	var initializer ParseTree = nil
 	_ = initializer
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_EQUAL()) {
-		initializer = this_.priv_Parser_parseInitializer_7262(StaticGet_Parser_Expression_NORMAL())
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_EQUAL()) {
+		initializer = this_.priv_Parser_parseInitializer_7267(StaticGet_Parser_Expression_NORMAL())
 	}
-	this_.priv_Parser_eatPossiblyImplicitSemiColon_7393()
+	this_.priv_Parser_eatPossiblyImplicitSemiColon_7398()
 	if elementInfo.HasName() {
-		return ToIface_ParseTree(allocPooled_FieldDeclarationTree(&this_.slab_FieldDeclarationTree, this_.priv_Parser_getTreeLocation_7412(elementInfo.start), elementInfo.GetName(), elementInfo.isStatic, initializer))
+		return ToIface_ParseTree(allocPooled_FieldDeclarationTree(&this_.slab_FieldDeclarationTree, this_.priv_Parser_getTreeLocation_7417(elementInfo.start), elementInfo.GetName(), elementInfo.isStatic, initializer))
 	} else {
 		if !(elementInfo.HasNameExpr()) {
 			j2gort.CheckState(false)
 		}
-		return ToIface_ParseTree(allocPooled_ComputedPropertyFieldTree(&this_.slab_ComputedPropertyFieldTree, this_.priv_Parser_getTreeLocation_7412(elementInfo.start), elementInfo.GetNameExpr(), elementInfo.isStatic, initializer))
+		return ToIface_ParseTree(allocPooled_ComputedPropertyFieldTree(&this_.slab_ComputedPropertyFieldTree, this_.priv_Parser_getTreeLocation_7417(elementInfo.start), elementInfo.GetNameExpr(), elementInfo.isStatic, initializer))
 	}
 }
 
 // Java method: Parser.parseMethodDefinition(com.google.javascript.jscomp.parsing.parser.ClassOrObjectElementInfo elementInfo, boolean isGenerator)
-func (this_ *Parser) priv_Parser_parseMethodDefinition_7223(elementInfo *ClassOrObjectElementInfo, isGenerator bool) ParseTree {
+func (this_ *Parser) priv_Parser_parseMethodDefinition_7228(elementInfo *ClassOrObjectElementInfo, isGenerator bool) ParseTree {
 	_ = elementInfo
 	_ = isGenerator
 	var kind FunctionDeclarationTree_Kind = FunctionDeclarationTree_Kind(0)
@@ -703,13 +703,13 @@ func (this_ *Parser) priv_Parser_parseMethodDefinition_7223(elementInfo *ClassOr
 	if elementInfo.HasName() {
 		builder.SetName(elementInfo.GetName())
 	}
-	this_.priv_Parser_parseFunctionTail_7230(builder, func() Parser_FunctionFlavor {
+	this_.priv_Parser_parseFunctionTail_7235(builder, func() Parser_FunctionFlavor {
 		if isGenerator {
 			return StaticGet_Parser_FunctionFlavor_GENERATOR()
 		}
 		return StaticGet_Parser_FunctionFlavor_NORMAL()
 	}())
-	var function ParseTree = ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7412(elementInfo.start)))
+	var function ParseTree = ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7417(elementInfo.start)))
 	_ = function
 	if kind == StaticGet_FunctionDeclarationTree_Kind_MEMBER() {
 		return function
@@ -717,274 +717,274 @@ func (this_ *Parser) priv_Parser_parseMethodDefinition_7223(elementInfo *ClassOr
 		if !(elementInfo.HasNameExpr()) {
 			j2gort.CheckState(false)
 		}
-		return ToIface_ParseTree(allocPooled_ComputedPropertyMethodTree(&this_.slab_ComputedPropertyMethodTree, this_.priv_Parser_getTreeLocation_7412(elementInfo.start), elementInfo.GetNameExpr(), function))
+		return ToIface_ParseTree(allocPooled_ComputedPropertyMethodTree(&this_.slab_ComputedPropertyMethodTree, this_.priv_Parser_getTreeLocation_7417(elementInfo.start), elementInfo.GetNameExpr(), function))
 	}
 }
 
 // Java method: Parser.parseObjectLiteralMethodDeclaration()
-func (this_ *Parser) priv_Parser_parseObjectLiteralMethodDeclaration_7224() ParseTree {
-	return this_.priv_Parser_parseMethodDeclaration_7225(this_.priv_Parser_createObjectLiteralElementInfo_7216())
+func (this_ *Parser) priv_Parser_parseObjectLiteralMethodDeclaration_7229() ParseTree {
+	return this_.priv_Parser_parseMethodDeclaration_7230(this_.priv_Parser_createObjectLiteralElementInfo_7221())
 }
 
 // Java method: Parser.parseMethodDeclaration(com.google.javascript.jscomp.parsing.parser.ClassOrObjectElementInfo elementInfo)
-func (this_ *Parser) priv_Parser_parseMethodDeclaration_7225(elementInfo *ClassOrObjectElementInfo) ParseTree {
+func (this_ *Parser) priv_Parser_parseMethodDeclaration_7230(elementInfo *ClassOrObjectElementInfo) ParseTree {
 	_ = elementInfo
-	var isGenerator bool = (this_.priv_Parser_eatOpt_7398(StaticGet_TokenType_STAR()) != (Token{}))
+	var isGenerator bool = (this_.priv_Parser_eatOpt_7403(StaticGet_TokenType_STAR()) != (Token{}))
 	_ = isGenerator
-	this_.priv_Parser_parseClassElementName_7221(elementInfo)
-	return this_.priv_Parser_parseMethodDefinition_7223(elementInfo, isGenerator)
+	this_.priv_Parser_parseClassElementName_7226(elementInfo)
+	return this_.priv_Parser_parseMethodDefinition_7228(elementInfo, isGenerator)
 }
 
 // Java method: Parser.parseClassMemberDeclaration(com.google.javascript.jscomp.parsing.parser.ClassOrObjectElementInfo elementInfo)
-func (this_ *Parser) priv_Parser_parseClassMemberDeclaration_7226(elementInfo *ClassOrObjectElementInfo) ParseTree {
+func (this_ *Parser) priv_Parser_parseClassMemberDeclaration_7231(elementInfo *ClassOrObjectElementInfo) ParseTree {
 	_ = elementInfo
-	var isGenerator bool = (this_.priv_Parser_eatOpt_7398(StaticGet_TokenType_STAR()) != (Token{}))
+	var isGenerator bool = (this_.priv_Parser_eatOpt_7403(StaticGet_TokenType_STAR()) != (Token{}))
 	_ = isGenerator
-	this_.priv_Parser_parseClassElementName_7221(elementInfo)
-	if this_.priv_Parser_peekType_7419(int32(0)) == StaticGet_TokenType_OPEN_PAREN() {
-		return this_.priv_Parser_parseMethodDefinition_7223(elementInfo, isGenerator)
+	this_.priv_Parser_parseClassElementName_7226(elementInfo)
+	if this_.priv_Parser_peekType_7424(int32(0)) == StaticGet_TokenType_OPEN_PAREN() {
+		return this_.priv_Parser_parseMethodDefinition_7228(elementInfo, isGenerator)
 	} else {
-		return this_.priv_Parser_parseFieldDefinition_7222(elementInfo)
+		return this_.priv_Parser_parseFieldDefinition_7227(elementInfo)
 	}
 }
 
 // Java method: Parser.parseObjectLiteralAsyncMethod()
-func (this_ *Parser) priv_Parser_parseObjectLiteralAsyncMethod_7227() ParseTree {
-	return this_.priv_Parser_parseAsyncMethod_7228(this_.priv_Parser_createObjectLiteralElementInfo_7216())
+func (this_ *Parser) priv_Parser_parseObjectLiteralAsyncMethod_7232() ParseTree {
+	return this_.priv_Parser_parseAsyncMethod_7233(this_.priv_Parser_createObjectLiteralElementInfo_7221())
 }
 
 // Java method: Parser.parseAsyncMethod(com.google.javascript.jscomp.parsing.parser.ClassOrObjectElementInfo elementInfo)
-func (this_ *Parser) priv_Parser_parseAsyncMethod_7228(elementInfo *ClassOrObjectElementInfo) ParseTree {
+func (this_ *Parser) priv_Parser_parseAsyncMethod_7233(elementInfo *ClassOrObjectElementInfo) ParseTree {
 	_ = elementInfo
-	this_.priv_Parser_eatPredefinedString_7309("async")
-	var generator bool = this_.priv_Parser_peek_7416(StaticGet_TokenType_STAR())
+	this_.priv_Parser_eatPredefinedString_7314("async")
+	var generator bool = this_.priv_Parser_peek_7421(StaticGet_TokenType_STAR())
 	_ = generator
 	if generator {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_STAR())
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_STAR())
 	}
-	if this_.priv_Parser_peekPropertyName_7303(int32(0)) {
-		if this_.priv_Parser_peekIdOrKeyword_7402() {
-			var name Token = this_.priv_Parser_eatIdOrKeywordAsId_7407()
+	if this_.priv_Parser_peekPropertyName_7308(int32(0)) {
+		if this_.priv_Parser_peekIdOrKeyword_7407() {
+			var name Token = this_.priv_Parser_eatIdOrKeywordAsId_7412()
 			_ = name
 			var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_MEMBER()).SetAsync(true).SetGenerator(generator).SetIsClassMember(elementInfo.isClassMember).SetStatic(elementInfo.isStatic).SetName(name)
 			_ = builder
-			this_.priv_Parser_parseFunctionTail_7230(builder, func() Parser_FunctionFlavor {
+			this_.priv_Parser_parseFunctionTail_7235(builder, func() Parser_FunctionFlavor {
 				if generator {
 					return StaticGet_Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR()
 				}
 				return StaticGet_Parser_FunctionFlavor_ASYNCHRONOUS()
 			}())
-			return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7412(name.GetStart())))
+			return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7417(name.GetStart())))
 		} else {
-			var nameExpr ParseTree = ToIface_ParseTree(this_.priv_Parser_parseLiteralExpression_7295())
+			var nameExpr ParseTree = ToIface_ParseTree(this_.priv_Parser_parseLiteralExpression_7300())
 			_ = nameExpr
 			var builder_2 *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_EXPRESSION()).SetAsync(true).SetGenerator(generator).SetIsClassMember(elementInfo.isClassMember).SetStatic(elementInfo.isStatic)
 			_ = builder_2
-			this_.priv_Parser_parseFunctionTail_7230(builder_2, func() Parser_FunctionFlavor {
+			this_.priv_Parser_parseFunctionTail_7235(builder_2, func() Parser_FunctionFlavor {
 				if generator {
 					return StaticGet_Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR()
 				}
 				return StaticGet_Parser_FunctionFlavor_ASYNCHRONOUS()
 			}())
-			var function ParseTree = ToIface_ParseTree(builder_2.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7412(nameExpr.GetStart())))
+			var function ParseTree = ToIface_ParseTree(builder_2.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7417(nameExpr.GetStart())))
 			_ = function
-			return ToIface_ParseTree(allocPooled_ComputedPropertyMethodTree(&this_.slab_ComputedPropertyMethodTree, this_.priv_Parser_getTreeLocation_7412(nameExpr.GetStart()), nameExpr, function))
+			return ToIface_ParseTree(allocPooled_ComputedPropertyMethodTree(&this_.slab_ComputedPropertyMethodTree, this_.priv_Parser_getTreeLocation_7417(nameExpr.GetStart()), nameExpr, function))
 		}
 	} else {
-		var nameExpr_2 ParseTree = this_.priv_Parser_parseComputedPropertyName_7306()
+		var nameExpr_2 ParseTree = this_.priv_Parser_parseComputedPropertyName_7311()
 		_ = nameExpr_2
 		var builder_3 *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_EXPRESSION()).SetAsync(true).SetGenerator(generator).SetIsClassMember(elementInfo.isClassMember).SetStatic(elementInfo.isStatic)
 		_ = builder_3
-		this_.priv_Parser_parseFunctionTail_7230(builder_3, func() Parser_FunctionFlavor {
+		this_.priv_Parser_parseFunctionTail_7235(builder_3, func() Parser_FunctionFlavor {
 			if generator {
 				return StaticGet_Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR()
 			}
 			return StaticGet_Parser_FunctionFlavor_ASYNCHRONOUS()
 		}())
-		var function_2 ParseTree = ToIface_ParseTree(builder_3.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7412(nameExpr_2.GetStart())))
+		var function_2 ParseTree = ToIface_ParseTree(builder_3.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7417(nameExpr_2.GetStart())))
 		_ = function_2
-		return ToIface_ParseTree(allocPooled_ComputedPropertyMethodTree(&this_.slab_ComputedPropertyMethodTree, this_.priv_Parser_getTreeLocation_7412(nameExpr_2.GetStart()), nameExpr_2, function_2))
+		return ToIface_ParseTree(allocPooled_ComputedPropertyMethodTree(&this_.slab_ComputedPropertyMethodTree, this_.priv_Parser_getTreeLocation_7417(nameExpr_2.GetStart()), nameExpr_2, function_2))
 	}
 }
 
 // Java method: Parser.parseClassStaticInitializerBlock()
-func (this_ *Parser) priv_Parser_parseClassStaticInitializerBlock_7229() ParseTree {
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_STATIC())
-	return ToIface_ParseTree(this_.priv_Parser_parseBlock_7255())
+func (this_ *Parser) priv_Parser_parseClassStaticInitializerBlock_7234() ParseTree {
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_STATIC())
+	return ToIface_ParseTree(this_.priv_Parser_parseBlock_7260())
 }
 
 // Java method: Parser.parseFunctionTail(com.google.javascript.jscomp.parsing.parser.trees.FunctionDeclarationTree.Builder builder, com.google.javascript.jscomp.parsing.parser.Parser.FunctionFlavor functionFlavor)
-func (this_ *Parser) priv_Parser_parseFunctionTail_7230(builder *FunctionDeclarationTree_Builder, functionFlavor Parser_FunctionFlavor) {
+func (this_ *Parser) priv_Parser_parseFunctionTail_7235(builder *FunctionDeclarationTree_Builder, functionFlavor Parser_FunctionFlavor) {
 	_ = builder
 	_ = functionFlavor
 	var prevInGenerator bool = this_.inGenerator
 	_ = prevInGenerator
 	this_.inGenerator = functionFlavor.FieldGet_isGenerator()
-	builder.SetGenerator(functionFlavor.FieldGet_isGenerator()).SetFormalParameterList(this_.priv_Parser_parseFormalParameterList_7246()).SetFunctionBody(ToIface_ParseTree(this_.priv_Parser_parseFunctionBody_7248()))
+	builder.SetGenerator(functionFlavor.FieldGet_isGenerator()).SetFormalParameterList(this_.priv_Parser_parseFormalParameterList_7251()).SetFunctionBody(ToIface_ParseTree(this_.priv_Parser_parseFunctionBody_7253()))
 	this_.inGenerator = prevInGenerator
 }
 
 // Java method: Parser.parseSourceElement()
-func (this_ *Parser) priv_Parser_parseSourceElement_7231() ParseTree {
-	if this_.priv_Parser_peekAsyncFunctionStart_7233() {
-		return this_.priv_Parser_parseAsyncFunctionDeclaration_7240()
+func (this_ *Parser) priv_Parser_parseSourceElement_7236() ParseTree {
+	if this_.priv_Parser_peekAsyncFunctionStart_7238() {
+		return this_.priv_Parser_parseAsyncFunctionDeclaration_7245()
 	}
-	if this_.priv_Parser_peekFunction_7235() {
-		return this_.priv_Parser_parseFunctionDeclaration_7238()
+	if this_.priv_Parser_peekFunction_7240() {
+		return this_.priv_Parser_parseFunctionDeclaration_7243()
 	}
-	if this_.priv_Parser_peekClassDeclaration_7210() {
-		return this_.priv_Parser_parseClassDeclaration_7211()
+	if this_.priv_Parser_peekClassDeclaration_7215() {
+		return this_.priv_Parser_parseClassDeclaration_7216()
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_LET()) {
-		return ToIface_ParseTree(this_.priv_Parser_parseVariableStatement_7257())
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_LET()) {
+		return ToIface_ParseTree(this_.priv_Parser_parseVariableStatement_7262())
 	}
-	return this_.priv_Parser_parseStatementStandard_7252()
+	return this_.priv_Parser_parseStatementStandard_7257()
 }
 
 // Java method: Parser.peekSourceElement()
-func (this_ *Parser) priv_Parser_peekSourceElement_7232() bool {
-	return ((this_.priv_Parser_peekFunction_7235() || this_.priv_Parser_peekStatementStandard_7254()) || this_.priv_Parser_peekDeclaration_7236())
+func (this_ *Parser) priv_Parser_peekSourceElement_7237() bool {
+	return ((this_.priv_Parser_peekFunction_7240() || this_.priv_Parser_peekStatementStandard_7259()) || this_.priv_Parser_peekDeclaration_7241())
 }
 
 // Java method: Parser.peekAsyncFunctionStart()
-func (this_ *Parser) priv_Parser_peekAsyncFunctionStart_7233() bool {
-	return ((this_.priv_Parser_peekPredefinedString_7308("async") && !(this_.priv_Parser_peekImplicitSemiColon_7395(int32(1)))) && this_.priv_Parser_peekFunction_7237(int32(1)))
+func (this_ *Parser) priv_Parser_peekAsyncFunctionStart_7238() bool {
+	return ((this_.priv_Parser_peekPredefinedString_7313("async") && !(this_.priv_Parser_peekImplicitSemiColon_7400(int32(1)))) && this_.priv_Parser_peekFunction_7242(int32(1)))
 }
 
 // Java method: Parser.eatAsyncFunctionStart()
-func (this_ *Parser) priv_Parser_eatAsyncFunctionStart_7234() {
-	this_.priv_Parser_eatPredefinedString_7309("async")
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_FUNCTION())
+func (this_ *Parser) priv_Parser_eatAsyncFunctionStart_7239() {
+	this_.priv_Parser_eatPredefinedString_7314("async")
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_FUNCTION())
 }
 
 // Java method: Parser.peekFunction()
-func (this_ *Parser) priv_Parser_peekFunction_7235() bool {
-	return this_.priv_Parser_peekFunction_7237(int32(0))
+func (this_ *Parser) priv_Parser_peekFunction_7240() bool {
+	return this_.priv_Parser_peekFunction_7242(int32(0))
 }
 
 // Java method: Parser.peekDeclaration()
-func (this_ *Parser) priv_Parser_peekDeclaration_7236() bool {
-	return (this_.priv_Parser_peek_7416(StaticGet_TokenType_LET()) || this_.priv_Parser_peekClassDeclaration_7210())
+func (this_ *Parser) priv_Parser_peekDeclaration_7241() bool {
+	return (this_.priv_Parser_peek_7421(StaticGet_TokenType_LET()) || this_.priv_Parser_peekClassDeclaration_7215())
 }
 
 // Java method: Parser.peekFunction(int index)
-func (this_ *Parser) priv_Parser_peekFunction_7237(index int32) bool {
+func (this_ *Parser) priv_Parser_peekFunction_7242(index int32) bool {
 	_ = index
-	return this_.priv_Parser_peek_7417(index, StaticGet_TokenType_FUNCTION())
+	return this_.priv_Parser_peek_7422(index, StaticGet_TokenType_FUNCTION())
 }
 
 // Java method: Parser.parseFunctionDeclaration()
-func (this_ *Parser) priv_Parser_parseFunctionDeclaration_7238() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseFunctionDeclaration_7243() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_Keywords_FUNCTION().type_)
-	var isGenerator bool = (this_.priv_Parser_eatOpt_7398(StaticGet_TokenType_STAR()) != (Token{}))
+	this_.priv_Parser_eat_7413(StaticGet_Keywords_FUNCTION().type_)
+	var isGenerator bool = (this_.priv_Parser_eatOpt_7403(StaticGet_TokenType_STAR()) != (Token{}))
 	_ = isGenerator
-	var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_DECLARATION()).SetName(this_.priv_Parser_eatId_7405())
+	var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_DECLARATION()).SetName(this_.priv_Parser_eatId_7410())
 	_ = builder
-	this_.priv_Parser_parseFunctionTail_7230(builder, func() Parser_FunctionFlavor {
+	this_.priv_Parser_parseFunctionTail_7235(builder, func() Parser_FunctionFlavor {
 		if isGenerator {
 			return StaticGet_Parser_FunctionFlavor_GENERATOR()
 		}
 		return StaticGet_Parser_FunctionFlavor_NORMAL()
 	}())
-	return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7412(start)))
+	return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7417(start)))
 }
 
 // Java method: Parser.parseFunctionExpression()
-func (this_ *Parser) priv_Parser_parseFunctionExpression_7239() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseFunctionExpression_7244() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_Keywords_FUNCTION().type_)
-	var isGenerator bool = (this_.priv_Parser_eatOpt_7398(StaticGet_TokenType_STAR()) != (Token{}))
+	this_.priv_Parser_eat_7413(StaticGet_Keywords_FUNCTION().type_)
+	var isGenerator bool = (this_.priv_Parser_eatOpt_7403(StaticGet_TokenType_STAR()) != (Token{}))
 	_ = isGenerator
-	var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_EXPRESSION()).SetName(this_.priv_Parser_eatIdOpt_7404())
+	var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_EXPRESSION()).SetName(this_.priv_Parser_eatIdOpt_7409())
 	_ = builder
-	this_.priv_Parser_parseFunctionTail_7230(builder, func() Parser_FunctionFlavor {
+	this_.priv_Parser_parseFunctionTail_7235(builder, func() Parser_FunctionFlavor {
 		if isGenerator {
 			return StaticGet_Parser_FunctionFlavor_GENERATOR()
 		}
 		return StaticGet_Parser_FunctionFlavor_NORMAL()
 	}())
-	return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7412(start)))
+	return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7417(start)))
 }
 
 // Java method: Parser.parseAsyncFunctionDeclaration()
-func (this_ *Parser) priv_Parser_parseAsyncFunctionDeclaration_7240() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseAsyncFunctionDeclaration_7245() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eatAsyncFunctionStart_7234()
-	var generator bool = this_.priv_Parser_peek_7416(StaticGet_TokenType_STAR())
+	this_.priv_Parser_eatAsyncFunctionStart_7239()
+	var generator bool = this_.priv_Parser_peek_7421(StaticGet_TokenType_STAR())
 	_ = generator
 	if generator {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_STAR())
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_STAR())
 	}
-	var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_DECLARATION()).SetName(this_.priv_Parser_eatId_7405()).SetAsync(true)
+	var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_DECLARATION()).SetName(this_.priv_Parser_eatId_7410()).SetAsync(true)
 	_ = builder
-	this_.priv_Parser_parseFunctionTail_7230(builder, func() Parser_FunctionFlavor {
+	this_.priv_Parser_parseFunctionTail_7235(builder, func() Parser_FunctionFlavor {
 		if generator {
 			return StaticGet_Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR()
 		}
 		return StaticGet_Parser_FunctionFlavor_ASYNCHRONOUS()
 	}())
-	return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7412(start)))
+	return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7417(start)))
 }
 
 // Java method: Parser.parseAsyncFunctionExpression()
-func (this_ *Parser) priv_Parser_parseAsyncFunctionExpression_7241() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseAsyncFunctionExpression_7246() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eatAsyncFunctionStart_7234()
-	var generator bool = this_.priv_Parser_peek_7416(StaticGet_TokenType_STAR())
+	this_.priv_Parser_eatAsyncFunctionStart_7239()
+	var generator bool = this_.priv_Parser_peek_7421(StaticGet_TokenType_STAR())
 	_ = generator
 	if generator {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_STAR())
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_STAR())
 	}
-	var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_EXPRESSION()).SetName(this_.priv_Parser_eatIdOpt_7404()).SetAsync(true)
+	var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_EXPRESSION()).SetName(this_.priv_Parser_eatIdOpt_7409()).SetAsync(true)
 	_ = builder
-	this_.priv_Parser_parseFunctionTail_7230(builder, func() Parser_FunctionFlavor {
+	this_.priv_Parser_parseFunctionTail_7235(builder, func() Parser_FunctionFlavor {
 		if generator {
 			return StaticGet_Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR()
 		}
 		return StaticGet_Parser_FunctionFlavor_ASYNCHRONOUS()
 	}())
-	return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7412(start)))
+	return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7417(start)))
 }
 
 // Java method: Parser.peekParameter()
-func (this_ *Parser) priv_Parser_peekParameter_7242() bool {
-	if this_.priv_Parser_peekId_7400() || this_.priv_Parser_peek_7416(StaticGet_TokenType_ELLIPSIS()) {
+func (this_ *Parser) priv_Parser_peekParameter_7247() bool {
+	if this_.priv_Parser_peekId_7405() || this_.priv_Parser_peek_7421(StaticGet_TokenType_ELLIPSIS()) {
 		return true
 	}
-	return (this_.priv_Parser_peek_7416(StaticGet_TokenType_OPEN_SQUARE()) || this_.priv_Parser_peek_7416(StaticGet_TokenType_OPEN_CURLY()))
+	return (this_.priv_Parser_peek_7421(StaticGet_TokenType_OPEN_SQUARE()) || this_.priv_Parser_peek_7421(StaticGet_TokenType_OPEN_CURLY()))
 }
 
 // Java method: Parser.parseParameter()
-func (this_ *Parser) priv_Parser_parseParameter_7243() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseParameter_7248() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
 	var parameter ParseTree = nil
 	_ = parameter
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_ELLIPSIS()) {
-		parameter = this_.priv_Parser_parseIterRest_7385(StaticGet_Parser_PatternKind_INITIALIZER())
-	} else if this_.priv_Parser_peekId_7400() {
-		parameter = ToIface_ParseTree(this_.priv_Parser_parseIdentifierExpression_7294())
-	} else if this_.priv_Parser_peekPatternStart_7382() {
-		parameter = this_.priv_Parser_parsePattern_7383(StaticGet_Parser_PatternKind_INITIALIZER())
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_ELLIPSIS()) {
+		parameter = this_.priv_Parser_parseIterRest_7390(StaticGet_Parser_PatternKind_INITIALIZER())
+	} else if this_.priv_Parser_peekId_7405() {
+		parameter = ToIface_ParseTree(this_.priv_Parser_parseIdentifierExpression_7299())
+	} else if this_.priv_Parser_peekPatternStart_7387() {
+		parameter = this_.priv_Parser_parsePattern_7388(StaticGet_Parser_PatternKind_INITIALIZER())
 	} else {
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "parseParameterCalled() without confirming a parameter exists.")))
 	}
-	if !(parameter.IsRestParameter()) && this_.priv_Parser_peek_7416(StaticGet_TokenType_EQUAL()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_EQUAL())
-		var defaultValue ParseTree = this_.priv_Parser_parseAssignmentExpression_7323()
+	if !(parameter.IsRestParameter()) && this_.priv_Parser_peek_7421(StaticGet_TokenType_EQUAL()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_EQUAL())
+		var defaultValue ParseTree = this_.priv_Parser_parseAssignmentExpression_7328()
 		_ = defaultValue
-		parameter = ToIface_ParseTree(allocPooled_DefaultParameterTree(&this_.slab_DefaultParameterTree, this_.priv_Parser_getTreeLocation_7412(start), parameter, defaultValue))
+		parameter = ToIface_ParseTree(allocPooled_DefaultParameterTree(&this_.slab_DefaultParameterTree, this_.priv_Parser_getTreeLocation_7417(start), parameter, defaultValue))
 	}
 	return parameter
 }
 
 // Java method: Parser.pushTreeScratch(com.google.javascript.jscomp.parsing.parser.trees.ParseTree tree)
-func (this_ *Parser) priv_Parser_pushTreeScratch_7244(tree ParseTree) {
+func (this_ *Parser) priv_Parser_pushTreeScratch_7249(tree ParseTree) {
 	_ = tree
 	var top int32 = this_.treeScratchTop
 	_ = top
@@ -1010,7 +1010,7 @@ func (this_ *Parser) priv_Parser_pushTreeScratch_7244(tree ParseTree) {
 }
 
 // Java method: Parser.pushCommaScratch(com.google.javascript.jscomp.parsing.parser.util.SourcePosition pos)
-func (this_ *Parser) priv_Parser_pushCommaScratch_7245(pos SourcePosition) {
+func (this_ *Parser) priv_Parser_pushCommaScratch_7250(pos SourcePosition) {
 	_ = pos
 	var top int32 = this_.commaScratchTop
 	_ = top
@@ -1036,93 +1036,93 @@ func (this_ *Parser) priv_Parser_pushCommaScratch_7245(pos SourcePosition) {
 }
 
 // Java method: Parser.parseFormalParameterList()
-func (this_ *Parser) priv_Parser_parseFormalParameterList_7246() *FormalParameterListTree {
-	var listStart SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseFormalParameterList_7251() *FormalParameterListTree {
+	var listStart SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = listStart
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-	if !(this_.priv_Parser_peekParameter_7242()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_FormalParameterListTree_1(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(listStart))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+	if !(this_.priv_Parser_peekParameter_7247()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_FormalParameterListTree_1(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(listStart))
 	}
-	var first ParseTree = this_.priv_Parser_parseParameter_7243()
+	var first ParseTree = this_.priv_Parser_parseParameter_7248()
 	_ = first
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_FormalParameterListTree_5(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(listStart), first, false, int32(0), (SourcePosition{}))
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_FormalParameterListTree_5(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(listStart), first, false, int32(0), (SourcePosition{}))
 	}
 	var trailingComma bool = false
 	_ = trailingComma
-	var firstComma Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+	var firstComma Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 	_ = firstComma
 	var firstCommaPos SourcePosition
 	_ = firstCommaPos
 	if firstComma != (Token{}) {
 		firstCommaPos = firstComma.GetStart()
 	} else {
-		firstCommaPos = this_.priv_Parser_getTreeEndLocation_7411()
+		firstCommaPos = this_.priv_Parser_getTreeEndLocation_7416()
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
 		if !(this_.config.atLeast8) {
-			this_.priv_Parser_reportError_7422(firstComma, "Invalid trailing comma in formal parameter list", []any{})
+			this_.priv_Parser_reportError_7427(firstComma, "Invalid trailing comma in formal parameter list", []any{})
 		}
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_FormalParameterListTree_5(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(listStart), first, true, int32(1), firstCommaPos)
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_FormalParameterListTree_5(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(listStart), first, true, int32(1), firstCommaPos)
 	}
-	if !(this_.priv_Parser_peekParameter_7242()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_FormalParameterListTree_5(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(listStart), first, false, int32(1), firstCommaPos)
+	if !(this_.priv_Parser_peekParameter_7247()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_FormalParameterListTree_5(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(listStart), first, false, int32(1), firstCommaPos)
 	}
-	var second ParseTree = this_.priv_Parser_parseParameter_7243()
+	var second ParseTree = this_.priv_Parser_parseParameter_7248()
 	_ = second
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_FormalParameterListTree_7(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(listStart), first, second, false, int32(1), firstCommaPos, (SourcePosition{}))
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_FormalParameterListTree_7(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(listStart), first, second, false, int32(1), firstCommaPos, (SourcePosition{}))
 	}
-	var secondComma Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+	var secondComma Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 	_ = secondComma
 	var secondCommaPos SourcePosition
 	_ = secondCommaPos
 	if secondComma != (Token{}) {
 		secondCommaPos = secondComma.GetStart()
 	} else {
-		secondCommaPos = this_.priv_Parser_getTreeEndLocation_7411()
+		secondCommaPos = this_.priv_Parser_getTreeEndLocation_7416()
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
 		if !(this_.config.atLeast8) {
-			this_.priv_Parser_reportError_7422(secondComma, "Invalid trailing comma in formal parameter list", []any{})
+			this_.priv_Parser_reportError_7427(secondComma, "Invalid trailing comma in formal parameter list", []any{})
 		}
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_FormalParameterListTree_7(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(listStart), first, second, true, int32(2), firstCommaPos, secondCommaPos)
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_FormalParameterListTree_7(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(listStart), first, second, true, int32(2), firstCommaPos, secondCommaPos)
 	}
-	if !(this_.priv_Parser_peekParameter_7242()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_FormalParameterListTree_7(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(listStart), first, second, false, int32(2), firstCommaPos, secondCommaPos)
+	if !(this_.priv_Parser_peekParameter_7247()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_FormalParameterListTree_7(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(listStart), first, second, false, int32(2), firstCommaPos, secondCommaPos)
 	}
-	var third ParseTree = this_.priv_Parser_parseParameter_7243()
+	var third ParseTree = this_.priv_Parser_parseParameter_7248()
 	_ = third
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_FormalParameterListTree_9(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(listStart), first, second, third, false, int32(2), firstCommaPos, secondCommaPos, (SourcePosition{}))
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_FormalParameterListTree_9(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(listStart), first, second, third, false, int32(2), firstCommaPos, secondCommaPos, (SourcePosition{}))
 	}
-	var thirdComma Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+	var thirdComma Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 	_ = thirdComma
 	var thirdCommaPos SourcePosition
 	_ = thirdCommaPos
 	if thirdComma != (Token{}) {
 		thirdCommaPos = thirdComma.GetStart()
 	} else {
-		thirdCommaPos = this_.priv_Parser_getTreeEndLocation_7411()
+		thirdCommaPos = this_.priv_Parser_getTreeEndLocation_7416()
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
 		if !(this_.config.atLeast8) {
-			this_.priv_Parser_reportError_7422(thirdComma, "Invalid trailing comma in formal parameter list", []any{})
+			this_.priv_Parser_reportError_7427(thirdComma, "Invalid trailing comma in formal parameter list", []any{})
 		}
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_FormalParameterListTree_9(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(listStart), first, second, third, true, int32(3), firstCommaPos, secondCommaPos, thirdCommaPos)
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_FormalParameterListTree_9(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(listStart), first, second, third, true, int32(3), firstCommaPos, secondCommaPos, thirdCommaPos)
 	}
-	if !(this_.priv_Parser_peekParameter_7242()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_FormalParameterListTree_9(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(listStart), first, second, third, false, int32(3), firstCommaPos, secondCommaPos, thirdCommaPos)
+	if !(this_.priv_Parser_peekParameter_7247()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_FormalParameterListTree_9(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(listStart), first, second, third, false, int32(3), firstCommaPos, secondCommaPos, thirdCommaPos)
 	}
 	var savedTreeTop int32 = this_.treeScratchTop
 	_ = savedTreeTop
@@ -1150,28 +1150,28 @@ func (this_ *Parser) priv_Parser_parseFormalParameterList_7246() *FormalParamete
 		_ = paramCount
 		var commaCount int32 = int32(3)
 		_ = commaCount
-		for this_.priv_Parser_peekParameter_7242() {
-			this_.priv_Parser_pushTreeScratch_7244(this_.priv_Parser_parseParameter_7243())
+		for this_.priv_Parser_peekParameter_7247() {
+			this_.priv_Parser_pushTreeScratch_7249(this_.priv_Parser_parseParameter_7248())
 			paramCount = paramCount + 1
-			if !(this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN())) {
-				var comma Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+			if !(this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN())) {
+				var comma Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 				_ = comma
-				this_.priv_Parser_pushCommaScratch_7245(func() SourcePosition {
+				this_.priv_Parser_pushCommaScratch_7250(func() SourcePosition {
 					if comma != (Token{}) {
 						return comma.GetStart()
 					}
-					return this_.priv_Parser_getTreeEndLocation_7411()
+					return this_.priv_Parser_getTreeEndLocation_7416()
 				}())
 				commaCount = commaCount + 1
-				if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
+				if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
 					if !(this_.config.atLeast8) {
-						this_.priv_Parser_reportError_7422(comma, "Invalid trailing comma in formal parameter list", []any{})
+						this_.priv_Parser_reportError_7427(comma, "Invalid trailing comma in formal parameter list", []any{})
 					}
 					trailingComma = true
 				}
 			}
 		}
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
 		var restParams []ParseTree = func() []ParseTree {
 			arrSrc_19 := this_.treeScratch
 			arrFrom_20 := savedTreeTop
@@ -1211,129 +1211,129 @@ func (this_ *Parser) priv_Parser_parseFormalParameterList_7246() *FormalParamete
 		} else {
 			restCommas = nil
 		}
-		return allocPooled_FormalParameterListTree_12(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(listStart), paramCount, first, second, third, restParams, trailingComma, commaCount, firstCommaPos, secondCommaPos, thirdCommaPos, restCommas)
+		return allocPooled_FormalParameterListTree_12(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(listStart), paramCount, first, second, third, restParams, trailingComma, commaCount, firstCommaPos, secondCommaPos, thirdCommaPos, restCommas)
 	}
 	panic("unreachable")
 }
 
 // Java method: Parser.parseSetterParameterList()
-func (this_ *Parser) priv_Parser_parseSetterParameterList_7247() *FormalParameterListTree {
-	var parameterList *FormalParameterListTree = this_.priv_Parser_parseFormalParameterList_7246()
+func (this_ *Parser) priv_Parser_parseSetterParameterList_7252() *FormalParameterListTree {
+	var parameterList *FormalParameterListTree = this_.priv_Parser_parseFormalParameterList_7251()
 	_ = parameterList
 	if parameterList.parameterCount != int32(1) {
-		this_.priv_Parser_reportError_7423(ToIface_ParseTree(parameterList), "Setter must have exactly 1 parameter, found %d", []any{j2gort.ValueOfInt(parameterList.parameterCount)})
+		this_.priv_Parser_reportError_7428(ToIface_ParseTree(parameterList), "Setter must have exactly 1 parameter, found %d", []any{j2gort.ValueOfInt(parameterList.parameterCount)})
 	}
 	if parameterList.parameterCount >= int32(1) {
 		var parameter ParseTree = parameterList.param0
 		_ = parameter
 		if parameter.IsRestParameter() {
-			this_.priv_Parser_reportError_7423(parameter, "Setter must not have a rest parameter", []any{})
+			this_.priv_Parser_reportError_7428(parameter, "Setter must not have a rest parameter", []any{})
 		}
 	}
 	return parameterList
 }
 
 // Java method: Parser.parseFunctionBody()
-func (this_ *Parser) priv_Parser_parseFunctionBody_7248() *BlockTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseFunctionBody_7253() *BlockTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_CURLY())
-	var result j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_Parser_parseSourceElementList_7249()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_CURLY())
+	var result j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_Parser_parseSourceElementList_7254()
 	_ = result
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_CURLY())
-	return allocPooled_BlockTree(&this_.slab_BlockTree, this_.priv_Parser_getTreeLocation_7412(start), result)
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_CURLY())
+	return allocPooled_BlockTree(&this_.slab_BlockTree, this_.priv_Parser_getTreeLocation_7417(start), result)
 }
 
 // Java method: Parser.parseSourceElementList()
-func (this_ *Parser) priv_Parser_parseSourceElementList_7249() j2gort.Ext_com_google_common_collect_ImmutableList {
-	if !(this_.priv_Parser_peekSourceElement_7232()) {
+func (this_ *Parser) priv_Parser_parseSourceElementList_7254() j2gort.Ext_com_google_common_collect_ImmutableList {
+	if !(this_.priv_Parser_peekSourceElement_7237()) {
 		return StaticGet_Parser_EMPTY_PARSE_TREES()
 	}
-	var first ParseTree = this_.priv_Parser_parseSourceElement_7231()
+	var first ParseTree = this_.priv_Parser_parseSourceElement_7236()
 	_ = first
-	if !(this_.priv_Parser_peekSourceElement_7232()) {
+	if !(this_.priv_Parser_peekSourceElement_7237()) {
 		return j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(first)
 	}
-	var second ParseTree = this_.priv_Parser_parseSourceElement_7231()
+	var second ParseTree = this_.priv_Parser_parseSourceElement_7236()
 	_ = second
-	if !(this_.priv_Parser_peekSourceElement_7232()) {
+	if !(this_.priv_Parser_peekSourceElement_7237()) {
 		return j2gort.Ext_com_google_common_collect_ImmutableList_Of_2(first, second)
 	}
 	var result []ParseTree = []ParseTree{}
 	_ = result
 	result = append(result, j2gort.CheckNotNullElem(first))
 	result = append(result, j2gort.CheckNotNullElem(second))
-	for this_.priv_Parser_peekSourceElement_7232() {
-		result = append(result, j2gort.CheckNotNullElem(this_.priv_Parser_parseSourceElement_7231()))
+	for this_.priv_Parser_peekSourceElement_7237() {
+		result = append(result, j2gort.CheckNotNullElem(this_.priv_Parser_parseSourceElement_7236()))
 	}
 	return j2gort.ImmListFromTypedSlice(result)
 }
 
 // Java method: Parser.parseIterSpread()
-func (this_ *Parser) priv_Parser_parseIterSpread_7250() *IterSpreadTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseIterSpread_7255() *IterSpreadTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_ELLIPSIS())
-	var operand ParseTree = this_.priv_Parser_parseAssignmentExpression_7323()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_ELLIPSIS())
+	var operand ParseTree = this_.priv_Parser_parseAssignmentExpression_7328()
 	_ = operand
-	return allocPooled_IterSpreadTree(&this_.slab_IterSpreadTree, this_.priv_Parser_getTreeLocation_7412(start), operand)
+	return allocPooled_IterSpreadTree(&this_.slab_IterSpreadTree, this_.priv_Parser_getTreeLocation_7417(start), operand)
 }
 
 // Java method: Parser.parseStatement()
-func (this_ *Parser) priv_Parser_parseStatement_7251() ParseTree {
-	return this_.priv_Parser_parseSourceElement_7231()
+func (this_ *Parser) priv_Parser_parseStatement_7256() ParseTree {
+	return this_.priv_Parser_parseSourceElement_7236()
 }
 
 // Java method: Parser.parseStatementStandard()
-func (this_ *Parser) priv_Parser_parseStatementStandard_7252() ParseTree {
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+func (this_ *Parser) priv_Parser_parseStatementStandard_7257() ParseTree {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(45) /* TokenType.OPEN_CURLY */ :
-		return ToIface_ParseTree(this_.priv_Parser_parseBlock_7255())
+		return ToIface_ParseTree(this_.priv_Parser_parseBlock_7260())
 	case int32(30) /* TokenType.CONST */, int32(25) /* TokenType.VAR */ :
-		return ToIface_ParseTree(this_.priv_Parser_parseVariableStatement_7257())
+		return ToIface_ParseTree(this_.priv_Parser_parseVariableStatement_7262())
 	case int32(52) /* TokenType.SEMI_COLON */ :
-		return ToIface_ParseTree(this_.priv_Parser_parseEmptyStatement_7263())
+		return ToIface_ParseTree(this_.priv_Parser_parseEmptyStatement_7268())
 	case int32(15) /* TokenType.IF */ :
-		return ToIface_ParseTree(this_.priv_Parser_parseIfStatement_7265())
+		return ToIface_ParseTree(this_.priv_Parser_parseIfStatement_7270())
 	case int32(10) /* TokenType.DO */ :
-		return this_.priv_Parser_parseDoWhileStatement_7266()
+		return this_.priv_Parser_parseDoWhileStatement_7271()
 	case int32(27) /* TokenType.WHILE */ :
-		return this_.priv_Parser_parseWhileStatement_7267()
+		return this_.priv_Parser_parseWhileStatement_7272()
 	case int32(13) /* TokenType.FOR */ :
-		return this_.priv_Parser_parseForStatement_7268()
+		return this_.priv_Parser_parseForStatement_7273()
 	case int32(6) /* TokenType.CONTINUE */ :
-		return this_.priv_Parser_parseContinueStatement_7276()
+		return this_.priv_Parser_parseContinueStatement_7281()
 	case int32(3) /* TokenType.BREAK */ :
-		return this_.priv_Parser_parseBreakStatement_7277()
+		return this_.priv_Parser_parseBreakStatement_7282()
 	case int32(19) /* TokenType.RETURN */ :
-		return this_.priv_Parser_parseReturnStatement_7278()
+		return this_.priv_Parser_parseReturnStatement_7283()
 	case int32(28) /* TokenType.WITH */ :
-		return this_.priv_Parser_parseWithStatement_7279()
+		return this_.priv_Parser_parseWithStatement_7284()
 	case int32(20) /* TokenType.SWITCH */ :
-		return this_.priv_Parser_parseSwitchStatement_7280()
+		return this_.priv_Parser_parseSwitchStatement_7285()
 	case int32(22) /* TokenType.THROW */ :
-		return this_.priv_Parser_parseThrowStatement_7285()
+		return this_.priv_Parser_parseThrowStatement_7290()
 	case int32(23) /* TokenType.TRY */ :
-		return this_.priv_Parser_parseTryStatement_7286()
+		return this_.priv_Parser_parseTryStatement_7291()
 	case int32(7) /* TokenType.DEBUGGER */ :
-		return this_.priv_Parser_parseDebuggerStatement_7289()
+		return this_.priv_Parser_parseDebuggerStatement_7294()
 	default:
-		if this_.priv_Parser_peekLabelledStatement_7284() {
-			return this_.priv_Parser_parseLabelledStatement_7283()
+		if this_.priv_Parser_peekLabelledStatement_7289() {
+			return this_.priv_Parser_parseLabelledStatement_7288()
 		}
-		return ToIface_ParseTree(this_.priv_Parser_parseExpressionStatement_7264())
+		return ToIface_ParseTree(this_.priv_Parser_parseExpressionStatement_7269())
 	}
 	panic("unreachable switch expression")
 }
 
 // Java method: Parser.peekStatement()
-func (this_ *Parser) priv_Parser_peekStatement_7253() bool {
-	return this_.priv_Parser_peekSourceElement_7232()
+func (this_ *Parser) priv_Parser_peekStatement_7258() bool {
+	return this_.priv_Parser_peekSourceElement_7237()
 }
 
 // Java method: Parser.peekStatementStandard()
-func (this_ *Parser) priv_Parser_peekStatementStandard_7254() bool {
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+func (this_ *Parser) priv_Parser_peekStatementStandard_7259() bool {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(45) /* TokenType.OPEN_CURLY */, int32(25) /* TokenType.VAR */, int32(30) /* TokenType.CONST */, int32(52) /* TokenType.SEMI_COLON */, int32(15) /* TokenType.IF */, int32(10) /* TokenType.DO */, int32(27) /* TokenType.WHILE */, int32(13) /* TokenType.FOR */, int32(6) /* TokenType.CONTINUE */, int32(3) /* TokenType.BREAK */, int32(19) /* TokenType.RETURN */, int32(28) /* TokenType.WITH */, int32(20) /* TokenType.SWITCH */, int32(22) /* TokenType.THROW */, int32(23) /* TokenType.TRY */, int32(7) /* TokenType.DEBUGGER */, int32(44) /* TokenType.YIELD */, int32(2) /* TokenType.IDENTIFIER */, int32(113) /* TokenType.TYPE */, int32(114) /* TokenType.DECLARE */, int32(115) /* TokenType.MODULE */, int32(116) /* TokenType.NAMESPACE */, int32(21) /* TokenType.THIS */, int32(29) /* TokenType.CLASS */, int32(35) /* TokenType.SUPER */, int32(104) /* TokenType.NUMBER */, int32(106) /* TokenType.BIGINT */, int32(105) /* TokenType.STRING */, int32(112) /* TokenType.NO_SUBSTITUTION_TEMPLATE */, int32(109) /* TokenType.TEMPLATE_HEAD */, int32(101) /* TokenType.NULL */, int32(102) /* TokenType.TRUE */, int32(96) /* TokenType.SLASH */, int32(97) /* TokenType.SLASH_EQUAL */, int32(103) /* TokenType.FALSE */, int32(49) /* TokenType.OPEN_SQUARE */, int32(47) /* TokenType.OPEN_PAREN */, int32(18) /* TokenType.NEW */, int32(9) /* TokenType.DELETE */, int32(26) /* TokenType.VOID */, int32(24) /* TokenType.TYPEOF */, int32(68) /* TokenType.PLUS_PLUS */, int32(69) /* TokenType.MINUS_MINUS */, int32(63) /* TokenType.PLUS */, int32(64) /* TokenType.MINUS */, int32(77) /* TokenType.TILDE */, int32(76) /* TokenType.BANG */, int32(34) /* TokenType.IMPORT */ :
 		return true
 	default:
@@ -1343,292 +1343,292 @@ func (this_ *Parser) priv_Parser_peekStatementStandard_7254() bool {
 }
 
 // Java method: Parser.parseBlock()
-func (this_ *Parser) priv_Parser_parseBlock_7255() *BlockTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseBlock_7260() *BlockTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_CURLY())
-	var result j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_Parser_parseSourceElementList_7249()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_CURLY())
+	var result j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_Parser_parseSourceElementList_7254()
 	_ = result
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_CURLY())
-	return allocPooled_BlockTree(&this_.slab_BlockTree, this_.priv_Parser_getTreeLocation_7412(start), result)
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_CURLY())
+	return allocPooled_BlockTree(&this_.slab_BlockTree, this_.priv_Parser_getTreeLocation_7417(start), result)
 }
 
 // Java method: Parser.parseStatementList()
-func (this_ *Parser) priv_Parser_parseStatementList_7256() j2gort.Ext_com_google_common_collect_ImmutableList {
-	if !(this_.priv_Parser_peekStatement_7253()) {
+func (this_ *Parser) priv_Parser_parseStatementList_7261() j2gort.Ext_com_google_common_collect_ImmutableList {
+	if !(this_.priv_Parser_peekStatement_7258()) {
 		return StaticGet_Parser_EMPTY_PARSE_TREES()
 	}
-	var first ParseTree = this_.priv_Parser_parseStatement_7251()
+	var first ParseTree = this_.priv_Parser_parseStatement_7256()
 	_ = first
-	if !(this_.priv_Parser_peekStatement_7253()) {
+	if !(this_.priv_Parser_peekStatement_7258()) {
 		return j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(first)
 	}
 	var result []ParseTree = []ParseTree{}
 	_ = result
 	result = append(result, j2gort.CheckNotNullElem(first))
-	for this_.priv_Parser_peekStatement_7253() {
-		result = append(result, j2gort.CheckNotNullElem(this_.priv_Parser_parseStatement_7251()))
+	for this_.priv_Parser_peekStatement_7258() {
+		result = append(result, j2gort.CheckNotNullElem(this_.priv_Parser_parseStatement_7256()))
 	}
 	return j2gort.ImmListFromTypedSlice(result)
 }
 
 // Java method: Parser.parseVariableStatement()
-func (this_ *Parser) priv_Parser_parseVariableStatement_7257() *VariableStatementTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseVariableStatement_7262() *VariableStatementTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var declarations *VariableDeclarationListTree = this_.priv_Parser_parseVariableDeclarationList_7258()
+	var declarations *VariableDeclarationListTree = this_.priv_Parser_parseVariableDeclarationList_7263()
 	_ = declarations
-	this_.priv_Parser_eatPossiblyImplicitSemiColon_7393()
-	return allocPooled_VariableStatementTree(&this_.slab_VariableStatementTree, this_.priv_Parser_getTreeLocation_7412(start), declarations)
+	this_.priv_Parser_eatPossiblyImplicitSemiColon_7398()
+	return allocPooled_VariableStatementTree(&this_.slab_VariableStatementTree, this_.priv_Parser_getTreeLocation_7417(start), declarations)
 }
 
 // Java method: Parser.parseVariableDeclarationList()
-func (this_ *Parser) priv_Parser_parseVariableDeclarationList_7258() *VariableDeclarationListTree {
-	return this_.priv_Parser_parseVariableDeclarationList_7260(StaticGet_Parser_Expression_NORMAL())
+func (this_ *Parser) priv_Parser_parseVariableDeclarationList_7263() *VariableDeclarationListTree {
+	return this_.priv_Parser_parseVariableDeclarationList_7265(StaticGet_Parser_Expression_NORMAL())
 }
 
 // Java method: Parser.parseVariableDeclarationListNoIn()
-func (this_ *Parser) priv_Parser_parseVariableDeclarationListNoIn_7259() *VariableDeclarationListTree {
-	return this_.priv_Parser_parseVariableDeclarationList_7260(StaticGet_Parser_Expression_NO_IN())
+func (this_ *Parser) priv_Parser_parseVariableDeclarationListNoIn_7264() *VariableDeclarationListTree {
+	return this_.priv_Parser_parseVariableDeclarationList_7265(StaticGet_Parser_Expression_NO_IN())
 }
 
 // Java method: Parser.parseVariableDeclarationList(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseVariableDeclarationList_7260(expressionIn Parser_Expression) *VariableDeclarationListTree {
+func (this_ *Parser) priv_Parser_parseVariableDeclarationList_7265(expressionIn Parser_Expression) *VariableDeclarationListTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var token TokenType = this_.priv_Parser_peekType_7418()
+	var token TokenType = this_.priv_Parser_peekType_7423()
 	_ = token
 	switch (token).Ordinal() {
 	case int32(30) /* TokenType.CONST */, int32(38) /* TokenType.LET */, int32(25) /* TokenType.VAR */ :
-		this_.priv_Parser_eat_7408(token)
+		this_.priv_Parser_eat_7413(token)
 	default:
-		this_.priv_Parser_reportError_7422(this_.priv_Parser_peekToken_7420(), "expected declaration", []any{})
+		this_.priv_Parser_reportError_7427(this_.priv_Parser_peekToken_7425(), "expected declaration", []any{})
 		return nil
 	}
 	var declarations []*VariableDeclarationTree = []*VariableDeclarationTree{}
 	_ = declarations
-	declarations = append(declarations, j2gort.CheckNotNullElem(this_.priv_Parser_parseVariableDeclaration_7261(token, expressionIn)))
-	for this_.priv_Parser_peek_7416(StaticGet_TokenType_COMMA()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
-		declarations = append(declarations, j2gort.CheckNotNullElem(this_.priv_Parser_parseVariableDeclaration_7261(token, expressionIn)))
+	declarations = append(declarations, j2gort.CheckNotNullElem(this_.priv_Parser_parseVariableDeclaration_7266(token, expressionIn)))
+	for this_.priv_Parser_peek_7421(StaticGet_TokenType_COMMA()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
+		declarations = append(declarations, j2gort.CheckNotNullElem(this_.priv_Parser_parseVariableDeclaration_7266(token, expressionIn)))
 	}
-	return allocPooled_VariableDeclarationListTree(&this_.slab_VariableDeclarationListTree, this_.priv_Parser_getTreeLocation_7412(start), token, j2gort.ImmListFromTypedSlice(declarations))
+	return allocPooled_VariableDeclarationListTree(&this_.slab_VariableDeclarationListTree, this_.priv_Parser_getTreeLocation_7417(start), token, j2gort.ImmListFromTypedSlice(declarations))
 }
 
 // Java method: Parser.parseVariableDeclaration(com.google.javascript.jscomp.parsing.parser.TokenType binding, com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseVariableDeclaration_7261(binding TokenType, expressionIn Parser_Expression) *VariableDeclarationTree {
+func (this_ *Parser) priv_Parser_parseVariableDeclaration_7266(binding TokenType, expressionIn Parser_Expression) *VariableDeclarationTree {
 	_ = binding
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
 	var lvalue ParseTree = nil
 	_ = lvalue
-	if this_.priv_Parser_peekPatternStart_7382() {
-		lvalue = this_.priv_Parser_parsePattern_7383(StaticGet_Parser_PatternKind_INITIALIZER())
+	if this_.priv_Parser_peekPatternStart_7387() {
+		lvalue = this_.priv_Parser_parsePattern_7388(StaticGet_Parser_PatternKind_INITIALIZER())
 	} else {
-		lvalue = ToIface_ParseTree(this_.priv_Parser_parseIdentifierExpression_7294())
+		lvalue = ToIface_ParseTree(this_.priv_Parser_parseIdentifierExpression_7299())
 	}
 	var initializer ParseTree = nil
 	_ = initializer
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_EQUAL()) {
-		initializer = this_.priv_Parser_parseInitializer_7262(expressionIn)
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_EQUAL()) {
+		initializer = this_.priv_Parser_parseInitializer_7267(expressionIn)
 	} else if expressionIn != StaticGet_Parser_Expression_NO_IN() {
-		this_.priv_Parser_maybeReportNoInitializer_7272(binding, lvalue)
+		this_.priv_Parser_maybeReportNoInitializer_7277(binding, lvalue)
 	}
-	return allocPooled_VariableDeclarationTree(&this_.slab_VariableDeclarationTree, this_.priv_Parser_getTreeLocation_7412(start), lvalue, initializer)
+	return allocPooled_VariableDeclarationTree(&this_.slab_VariableDeclarationTree, this_.priv_Parser_getTreeLocation_7417(start), lvalue, initializer)
 }
 
 // Java method: Parser.parseInitializer(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseInitializer_7262(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseInitializer_7267(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_EQUAL())
-	return this_.priv_Parser_parseAssignment_7325(expressionIn)
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_EQUAL())
+	return this_.priv_Parser_parseAssignment_7330(expressionIn)
 }
 
 // Java method: Parser.parseEmptyStatement()
-func (this_ *Parser) priv_Parser_parseEmptyStatement_7263() *EmptyStatementTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseEmptyStatement_7268() *EmptyStatementTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_SEMI_COLON())
-	return allocPooled_EmptyStatementTree(&this_.slab_EmptyStatementTree, this_.priv_Parser_getTreeLocation_7412(start))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_SEMI_COLON())
+	return allocPooled_EmptyStatementTree(&this_.slab_EmptyStatementTree, this_.priv_Parser_getTreeLocation_7417(start))
 }
 
 // Java method: Parser.parseExpressionStatement()
-func (this_ *Parser) priv_Parser_parseExpressionStatement_7264() *ExpressionStatementTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseExpressionStatement_7269() *ExpressionStatementTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var expression ParseTree = this_.priv_Parser_parseExpression_7320()
+	var expression ParseTree = this_.priv_Parser_parseExpression_7325()
 	_ = expression
-	this_.priv_Parser_eatPossiblyImplicitSemiColon_7393()
-	return allocPooled_ExpressionStatementTree(&this_.slab_ExpressionStatementTree, this_.priv_Parser_getTreeLocation_7412(start), expression)
+	this_.priv_Parser_eatPossiblyImplicitSemiColon_7398()
+	return allocPooled_ExpressionStatementTree(&this_.slab_ExpressionStatementTree, this_.priv_Parser_getTreeLocation_7417(start), expression)
 }
 
 // Java method: Parser.parseIfStatement()
-func (this_ *Parser) priv_Parser_parseIfStatement_7265() *IfStatementTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseIfStatement_7270() *IfStatementTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_IF())
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-	var condition ParseTree = this_.priv_Parser_parseExpression_7320()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_IF())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+	var condition ParseTree = this_.priv_Parser_parseExpression_7325()
 	_ = condition
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-	var ifClause ParseTree = this_.priv_Parser_parseStatement_7251()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+	var ifClause ParseTree = this_.priv_Parser_parseStatement_7256()
 	_ = ifClause
 	var elseClause ParseTree = nil
 	_ = elseClause
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_ELSE()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_ELSE())
-		elseClause = this_.priv_Parser_parseStatement_7251()
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_ELSE()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_ELSE())
+		elseClause = this_.priv_Parser_parseStatement_7256()
 	}
-	return allocPooled_IfStatementTree(&this_.slab_IfStatementTree, this_.priv_Parser_getTreeLocation_7412(start), condition, ifClause, elseClause)
+	return allocPooled_IfStatementTree(&this_.slab_IfStatementTree, this_.priv_Parser_getTreeLocation_7417(start), condition, ifClause, elseClause)
 }
 
 // Java method: Parser.parseDoWhileStatement()
-func (this_ *Parser) priv_Parser_parseDoWhileStatement_7266() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseDoWhileStatement_7271() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_DO())
-	var body ParseTree = this_.priv_Parser_parseStatement_7251()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_DO())
+	var body ParseTree = this_.priv_Parser_parseStatement_7256()
 	_ = body
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_WHILE())
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-	var condition ParseTree = this_.priv_Parser_parseExpression_7320()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_WHILE())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+	var condition ParseTree = this_.priv_Parser_parseExpression_7325()
 	_ = condition
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_SEMI_COLON()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_SEMI_COLON())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_SEMI_COLON()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_SEMI_COLON())
 	}
-	return ToIface_ParseTree(allocPooled_DoWhileStatementTree(&this_.slab_DoWhileStatementTree, this_.priv_Parser_getTreeLocation_7412(start), body, condition))
+	return ToIface_ParseTree(allocPooled_DoWhileStatementTree(&this_.slab_DoWhileStatementTree, this_.priv_Parser_getTreeLocation_7417(start), body, condition))
 }
 
 // Java method: Parser.parseWhileStatement()
-func (this_ *Parser) priv_Parser_parseWhileStatement_7267() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseWhileStatement_7272() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_WHILE())
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-	var condition ParseTree = this_.priv_Parser_parseExpression_7320()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_WHILE())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+	var condition ParseTree = this_.priv_Parser_parseExpression_7325()
 	_ = condition
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-	var body ParseTree = this_.priv_Parser_parseStatement_7251()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+	var body ParseTree = this_.priv_Parser_parseStatement_7256()
 	_ = body
-	return ToIface_ParseTree(allocPooled_WhileStatementTree(&this_.slab_WhileStatementTree, this_.priv_Parser_getTreeLocation_7412(start), condition, body))
+	return ToIface_ParseTree(allocPooled_WhileStatementTree(&this_.slab_WhileStatementTree, this_.priv_Parser_getTreeLocation_7417(start), condition, body))
 }
 
 // Java method: Parser.parseForStatement()
-func (this_ *Parser) priv_Parser_parseForStatement_7268() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseForStatement_7273() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_FOR())
-	var awaited bool = this_.priv_Parser_peekPredefinedString_7308("await")
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_FOR())
+	var awaited bool = this_.priv_Parser_peekPredefinedString_7313("await")
 	_ = awaited
 	if awaited {
-		this_.priv_Parser_eatPredefinedString_7309("await")
+		this_.priv_Parser_eatPredefinedString_7314("await")
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-	if this_.priv_Parser_peekVariableDeclarationList_7273() {
-		var variables *VariableDeclarationListTree = this_.priv_Parser_parseVariableDeclarationListNoIn_7259()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+	if this_.priv_Parser_peekVariableDeclarationList_7278() {
+		var variables *VariableDeclarationListTree = this_.priv_Parser_parseVariableDeclarationListNoIn_7264()
 		_ = variables
-		if this_.priv_Parser_peek_7416(StaticGet_TokenType_IN()) {
+		if this_.priv_Parser_peek_7421(StaticGet_TokenType_IN()) {
 			if awaited {
-				this_.priv_Parser_reportError_7424("for-await-of is the only allowed asynchronous iteration", []any{})
+				this_.priv_Parser_reportError_7429("for-await-of is the only allowed asynchronous iteration", []any{})
 			}
 			if int32(len(variables.declarations)) > int32(1) {
-				this_.priv_Parser_reportError_7424("for-in statement may not have more than one variable declaration", []any{})
+				this_.priv_Parser_reportError_7429("for-in statement may not have more than one variable declaration", []any{})
 			}
 			var declaration *VariableDeclarationTree = variables.declarations[int32(0)]
 			_ = declaration
 			if declaration.initializer != nil && !declaration.initializer.IsJavaNil_() {
 				if this_.config.atLeast6 {
-					this_.priv_Parser_reportError_7424("for-in statement may not have initializer", []any{})
+					this_.priv_Parser_reportError_7429("for-in statement may not have initializer", []any{})
 				} else {
 					this_.errorReporter.ReportWarning_3(declaration.GetParseTreeBase().location.start, "for-in statement should not have initializer", []any{})
 				}
 			}
-			return this_.priv_Parser_parseForInStatement_7275(start, ToIface_ParseTree(variables))
-		} else if this_.priv_Parser_peekPredefinedString_7308("of") {
+			return this_.priv_Parser_parseForInStatement_7280(start, ToIface_ParseTree(variables))
+		} else if this_.priv_Parser_peekPredefinedString_7313("of") {
 			if int32(len(variables.declarations)) > int32(1) {
 				if awaited {
-					this_.priv_Parser_reportError_7424("for-await-of statement may not have more than one variable declaration", []any{})
+					this_.priv_Parser_reportError_7429("for-await-of statement may not have more than one variable declaration", []any{})
 				} else {
-					this_.priv_Parser_reportError_7424("for-of statement may not have more than one variable declaration", []any{})
+					this_.priv_Parser_reportError_7429("for-of statement may not have more than one variable declaration", []any{})
 				}
 			}
 			var declaration_2 *VariableDeclarationTree = variables.declarations[int32(0)]
 			_ = declaration_2
 			if declaration_2.initializer != nil && !declaration_2.initializer.IsJavaNil_() {
 				if awaited {
-					this_.priv_Parser_reportError_7424("for-await-of statement may not have initializer", []any{})
+					this_.priv_Parser_reportError_7429("for-await-of statement may not have initializer", []any{})
 				} else {
-					this_.priv_Parser_reportError_7424("for-of statement may not have initializer", []any{})
+					this_.priv_Parser_reportError_7429("for-of statement may not have initializer", []any{})
 				}
 			}
 			if awaited {
-				return this_.priv_Parser_parseForAwaitOfStatement_7270(start, ToIface_ParseTree(variables))
+				return this_.priv_Parser_parseForAwaitOfStatement_7275(start, ToIface_ParseTree(variables))
 			} else {
-				return this_.priv_Parser_parseForOfStatement_7269(start, ToIface_ParseTree(variables))
+				return this_.priv_Parser_parseForOfStatement_7274(start, ToIface_ParseTree(variables))
 			}
 		} else {
-			this_.priv_Parser_checkVanillaForInitializers_7271(variables)
-			return this_.priv_Parser_parseForStatement_7274(start, ToIface_ParseTree(variables))
+			this_.priv_Parser_checkVanillaForInitializers_7276(variables)
+			return this_.priv_Parser_parseForStatement_7279(start, ToIface_ParseTree(variables))
 		}
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_SEMI_COLON()) {
-		return this_.priv_Parser_parseForStatement_7274(start, nil)
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_SEMI_COLON()) {
+		return this_.priv_Parser_parseForStatement_7279(start, nil)
 	}
-	var initializer ParseTree = this_.priv_Parser_parseExpressionNoIn_7319()
+	var initializer ParseTree = this_.priv_Parser_parseExpressionNoIn_7324()
 	_ = initializer
-	if (this_.priv_Parser_peek_7416(StaticGet_TokenType_IN()) || this_.priv_Parser_peek_7416(StaticGet_TokenType_EQUAL())) || this_.priv_Parser_peekPredefinedString_7308("of") {
-		initializer = this_.priv_Parser_transformLeftHandSideExpression_7334(initializer)
+	if (this_.priv_Parser_peek_7421(StaticGet_TokenType_IN()) || this_.priv_Parser_peek_7421(StaticGet_TokenType_EQUAL())) || this_.priv_Parser_peekPredefinedString_7313("of") {
+		initializer = this_.priv_Parser_transformLeftHandSideExpression_7339(initializer)
 		if !(initializer.IsValidAssignmentTarget()) {
-			this_.priv_Parser_reportError_7424("invalid assignment target", []any{})
+			this_.priv_Parser_reportError_7429("invalid assignment target", []any{})
 		}
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_IN()) || this_.priv_Parser_peekPredefinedString_7308("of") {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_IN()) || this_.priv_Parser_peekPredefinedString_7313("of") {
 		if (initializer.GetParseTreeBase().type_ != StaticGet_ParseTreeType_BINARY_OPERATOR()) && (initializer.GetParseTreeBase().type_ != StaticGet_ParseTreeType_COMMA_EXPRESSION()) {
-			if this_.priv_Parser_peek_7416(StaticGet_TokenType_IN()) {
-				return this_.priv_Parser_parseForInStatement_7275(start, initializer)
+			if this_.priv_Parser_peek_7421(StaticGet_TokenType_IN()) {
+				return this_.priv_Parser_parseForInStatement_7280(start, initializer)
 			} else {
 				if awaited {
-					return this_.priv_Parser_parseForAwaitOfStatement_7270(start, initializer)
+					return this_.priv_Parser_parseForAwaitOfStatement_7275(start, initializer)
 				} else {
-					return this_.priv_Parser_parseForOfStatement_7269(start, initializer)
+					return this_.priv_Parser_parseForOfStatement_7274(start, initializer)
 				}
 			}
 		}
 	}
-	return this_.priv_Parser_parseForStatement_7274(start, initializer)
+	return this_.priv_Parser_parseForStatement_7279(start, initializer)
 }
 
 // Java method: Parser.parseForOfStatement(com.google.javascript.jscomp.parsing.parser.util.SourcePosition start, com.google.javascript.jscomp.parsing.parser.trees.ParseTree initializer)
-func (this_ *Parser) priv_Parser_parseForOfStatement_7269(start SourcePosition, initializer ParseTree) ParseTree {
+func (this_ *Parser) priv_Parser_parseForOfStatement_7274(start SourcePosition, initializer ParseTree) ParseTree {
 	_ = start
 	_ = initializer
-	this_.priv_Parser_eatPredefinedString_7309("of")
-	var collection ParseTree = this_.priv_Parser_parseExpression_7320()
+	this_.priv_Parser_eatPredefinedString_7314("of")
+	var collection ParseTree = this_.priv_Parser_parseExpression_7325()
 	_ = collection
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-	var body ParseTree = this_.priv_Parser_parseStatement_7251()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+	var body ParseTree = this_.priv_Parser_parseStatement_7256()
 	_ = body
-	return ToIface_ParseTree(allocPooled_ForOfStatementTree(&this_.slab_ForOfStatementTree, this_.priv_Parser_getTreeLocation_7412(start), initializer, collection, body))
+	return ToIface_ParseTree(allocPooled_ForOfStatementTree(&this_.slab_ForOfStatementTree, this_.priv_Parser_getTreeLocation_7417(start), initializer, collection, body))
 }
 
 // Java method: Parser.parseForAwaitOfStatement(com.google.javascript.jscomp.parsing.parser.util.SourcePosition start, com.google.javascript.jscomp.parsing.parser.trees.ParseTree initializer)
-func (this_ *Parser) priv_Parser_parseForAwaitOfStatement_7270(start SourcePosition, initializer ParseTree) ParseTree {
+func (this_ *Parser) priv_Parser_parseForAwaitOfStatement_7275(start SourcePosition, initializer ParseTree) ParseTree {
 	_ = start
 	_ = initializer
-	this_.priv_Parser_eatPredefinedString_7309("of")
-	var collection ParseTree = this_.priv_Parser_parseExpression_7320()
+	this_.priv_Parser_eatPredefinedString_7314("of")
+	var collection ParseTree = this_.priv_Parser_parseExpression_7325()
 	_ = collection
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-	var body ParseTree = this_.priv_Parser_parseStatement_7251()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+	var body ParseTree = this_.priv_Parser_parseStatement_7256()
 	_ = body
-	return ToIface_ParseTree(allocPooled_ForAwaitOfStatementTree(&this_.slab_ForAwaitOfStatementTree, this_.priv_Parser_getTreeLocation_7412(start), initializer, collection, body))
+	return ToIface_ParseTree(allocPooled_ForAwaitOfStatementTree(&this_.slab_ForAwaitOfStatementTree, this_.priv_Parser_getTreeLocation_7417(start), initializer, collection, body))
 }
 
 // Java method: Parser.checkVanillaForInitializers(com.google.javascript.jscomp.parsing.parser.trees.VariableDeclarationListTree variables)
-func (this_ *Parser) priv_Parser_checkVanillaForInitializers_7271(variables *VariableDeclarationListTree) {
+func (this_ *Parser) priv_Parser_checkVanillaForInitializers_7276(variables *VariableDeclarationListTree) {
 	_ = variables
 	{
 
@@ -1636,26 +1636,26 @@ func (this_ *Parser) priv_Parser_checkVanillaForInitializers_7271(variables *Var
 
 			_ = declaration
 			if declaration.initializer == nil || declaration.initializer.IsJavaNil_() {
-				this_.priv_Parser_maybeReportNoInitializer_7272(variables.declarationType, declaration.lvalue)
+				this_.priv_Parser_maybeReportNoInitializer_7277(variables.declarationType, declaration.lvalue)
 			}
 		}
 	}
 }
 
 // Java method: Parser.maybeReportNoInitializer(com.google.javascript.jscomp.parsing.parser.TokenType token, com.google.javascript.jscomp.parsing.parser.trees.ParseTree lvalue)
-func (this_ *Parser) priv_Parser_maybeReportNoInitializer_7272(token TokenType, lvalue ParseTree) {
+func (this_ *Parser) priv_Parser_maybeReportNoInitializer_7277(token TokenType, lvalue ParseTree) {
 	_ = token
 	_ = lvalue
 	if token == StaticGet_TokenType_CONST() {
-		this_.priv_Parser_reportError_7424("const variables must have an initializer", []any{})
+		this_.priv_Parser_reportError_7429("const variables must have an initializer", []any{})
 	} else if lvalue.IsPattern() {
-		this_.priv_Parser_reportError_7424("destructuring must have an initializer", []any{})
+		this_.priv_Parser_reportError_7429("destructuring must have an initializer", []any{})
 	}
 }
 
 // Java method: Parser.peekVariableDeclarationList()
-func (this_ *Parser) priv_Parser_peekVariableDeclarationList_7273() bool {
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+func (this_ *Parser) priv_Parser_peekVariableDeclarationList_7278() bool {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(25) /* TokenType.VAR */, int32(30) /* TokenType.CONST */, int32(38) /* TokenType.LET */ :
 		return true
 	default:
@@ -1665,146 +1665,146 @@ func (this_ *Parser) priv_Parser_peekVariableDeclarationList_7273() bool {
 }
 
 // Java method: Parser.parseForStatement(com.google.javascript.jscomp.parsing.parser.util.SourcePosition start, com.google.javascript.jscomp.parsing.parser.trees.@org.jspecify.annotations.Nullable ParseTree initializer)
-func (this_ *Parser) priv_Parser_parseForStatement_7274(start SourcePosition, initializer ParseTree) ParseTree {
+func (this_ *Parser) priv_Parser_parseForStatement_7279(start SourcePosition, initializer ParseTree) ParseTree {
 	_ = start
 	_ = initializer
 	if initializer == nil || initializer.IsJavaNil_() {
-		initializer = ToIface_ParseTree(allocPooled_NullTree(&this_.slab_NullTree, NewSourceRange(this_.priv_Parser_getTreeEndLocation_7411(), this_.priv_Parser_getTreeStartLocation_7410())))
+		initializer = ToIface_ParseTree(allocPooled_NullTree(&this_.slab_NullTree, NewSourceRange(this_.priv_Parser_getTreeEndLocation_7416(), this_.priv_Parser_getTreeStartLocation_7415())))
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_SEMI_COLON())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_SEMI_COLON())
 	var condition ParseTree = nil
 	_ = condition
-	if !(this_.priv_Parser_peek_7416(StaticGet_TokenType_SEMI_COLON())) {
-		condition = this_.priv_Parser_parseExpression_7320()
+	if !(this_.priv_Parser_peek_7421(StaticGet_TokenType_SEMI_COLON())) {
+		condition = this_.priv_Parser_parseExpression_7325()
 	} else {
-		condition = ToIface_ParseTree(allocPooled_NullTree(&this_.slab_NullTree, NewSourceRange(this_.priv_Parser_getTreeEndLocation_7411(), this_.priv_Parser_getTreeStartLocation_7410())))
+		condition = ToIface_ParseTree(allocPooled_NullTree(&this_.slab_NullTree, NewSourceRange(this_.priv_Parser_getTreeEndLocation_7416(), this_.priv_Parser_getTreeStartLocation_7415())))
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_SEMI_COLON())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_SEMI_COLON())
 	var increment ParseTree = nil
 	_ = increment
-	if !(this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN())) {
-		increment = this_.priv_Parser_parseExpression_7320()
+	if !(this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN())) {
+		increment = this_.priv_Parser_parseExpression_7325()
 	} else {
-		increment = ToIface_ParseTree(allocPooled_NullTree(&this_.slab_NullTree, NewSourceRange(this_.priv_Parser_getTreeEndLocation_7411(), this_.priv_Parser_getTreeStartLocation_7410())))
+		increment = ToIface_ParseTree(allocPooled_NullTree(&this_.slab_NullTree, NewSourceRange(this_.priv_Parser_getTreeEndLocation_7416(), this_.priv_Parser_getTreeStartLocation_7415())))
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-	var body ParseTree = this_.priv_Parser_parseStatement_7251()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+	var body ParseTree = this_.priv_Parser_parseStatement_7256()
 	_ = body
-	return ToIface_ParseTree(allocPooled_ForStatementTree(&this_.slab_ForStatementTree, this_.priv_Parser_getTreeLocation_7412(start), initializer, condition, increment, body))
+	return ToIface_ParseTree(allocPooled_ForStatementTree(&this_.slab_ForStatementTree, this_.priv_Parser_getTreeLocation_7417(start), initializer, condition, increment, body))
 }
 
 // Java method: Parser.parseForInStatement(com.google.javascript.jscomp.parsing.parser.util.SourcePosition start, com.google.javascript.jscomp.parsing.parser.trees.ParseTree initializer)
-func (this_ *Parser) priv_Parser_parseForInStatement_7275(start SourcePosition, initializer ParseTree) ParseTree {
+func (this_ *Parser) priv_Parser_parseForInStatement_7280(start SourcePosition, initializer ParseTree) ParseTree {
 	_ = start
 	_ = initializer
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_IN())
-	var collection ParseTree = this_.priv_Parser_parseExpression_7320()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_IN())
+	var collection ParseTree = this_.priv_Parser_parseExpression_7325()
 	_ = collection
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-	var body ParseTree = this_.priv_Parser_parseStatement_7251()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+	var body ParseTree = this_.priv_Parser_parseStatement_7256()
 	_ = body
-	return ToIface_ParseTree(allocPooled_ForInStatementTree(&this_.slab_ForInStatementTree, this_.priv_Parser_getTreeLocation_7412(start), initializer, collection, body))
+	return ToIface_ParseTree(allocPooled_ForInStatementTree(&this_.slab_ForInStatementTree, this_.priv_Parser_getTreeLocation_7417(start), initializer, collection, body))
 }
 
 // Java method: Parser.parseContinueStatement()
-func (this_ *Parser) priv_Parser_parseContinueStatement_7276() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseContinueStatement_7281() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CONTINUE())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CONTINUE())
 	var name Token = (Token{})
 	_ = name
-	if !(this_.priv_Parser_peekImplicitSemiColon_7394()) {
-		name = this_.priv_Parser_eatIdOpt_7404()
+	if !(this_.priv_Parser_peekImplicitSemiColon_7399()) {
+		name = this_.priv_Parser_eatIdOpt_7409()
 	}
-	this_.priv_Parser_eatPossiblyImplicitSemiColon_7393()
-	return ToIface_ParseTree(allocPooled_ContinueStatementTree(&this_.slab_ContinueStatementTree, this_.priv_Parser_getTreeLocation_7412(start), name))
+	this_.priv_Parser_eatPossiblyImplicitSemiColon_7398()
+	return ToIface_ParseTree(allocPooled_ContinueStatementTree(&this_.slab_ContinueStatementTree, this_.priv_Parser_getTreeLocation_7417(start), name))
 }
 
 // Java method: Parser.parseBreakStatement()
-func (this_ *Parser) priv_Parser_parseBreakStatement_7277() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseBreakStatement_7282() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_BREAK())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_BREAK())
 	var name Token = (Token{})
 	_ = name
-	if !(this_.priv_Parser_peekImplicitSemiColon_7394()) {
-		name = this_.priv_Parser_eatIdOpt_7404()
+	if !(this_.priv_Parser_peekImplicitSemiColon_7399()) {
+		name = this_.priv_Parser_eatIdOpt_7409()
 	}
-	this_.priv_Parser_eatPossiblyImplicitSemiColon_7393()
-	return ToIface_ParseTree(allocPooled_BreakStatementTree(&this_.slab_BreakStatementTree, this_.priv_Parser_getTreeLocation_7412(start), name))
+	this_.priv_Parser_eatPossiblyImplicitSemiColon_7398()
+	return ToIface_ParseTree(allocPooled_BreakStatementTree(&this_.slab_BreakStatementTree, this_.priv_Parser_getTreeLocation_7417(start), name))
 }
 
 // Java method: Parser.parseReturnStatement()
-func (this_ *Parser) priv_Parser_parseReturnStatement_7278() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseReturnStatement_7283() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_RETURN())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_RETURN())
 	var expression ParseTree = nil
 	_ = expression
-	if !(this_.priv_Parser_peekImplicitSemiColon_7394()) {
-		expression = this_.priv_Parser_parseExpression_7320()
+	if !(this_.priv_Parser_peekImplicitSemiColon_7399()) {
+		expression = this_.priv_Parser_parseExpression_7325()
 	}
-	this_.priv_Parser_eatPossiblyImplicitSemiColon_7393()
-	return ToIface_ParseTree(allocPooled_ReturnStatementTree(&this_.slab_ReturnStatementTree, this_.priv_Parser_getTreeLocation_7412(start), expression))
+	this_.priv_Parser_eatPossiblyImplicitSemiColon_7398()
+	return ToIface_ParseTree(allocPooled_ReturnStatementTree(&this_.slab_ReturnStatementTree, this_.priv_Parser_getTreeLocation_7417(start), expression))
 }
 
 // Java method: Parser.parseWithStatement()
-func (this_ *Parser) priv_Parser_parseWithStatement_7279() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseWithStatement_7284() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_WITH())
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-	var expression ParseTree = this_.priv_Parser_parseExpression_7320()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_WITH())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+	var expression ParseTree = this_.priv_Parser_parseExpression_7325()
 	_ = expression
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-	var body ParseTree = this_.priv_Parser_parseStatement_7251()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+	var body ParseTree = this_.priv_Parser_parseStatement_7256()
 	_ = body
-	return ToIface_ParseTree(allocPooled_WithStatementTree(&this_.slab_WithStatementTree, this_.priv_Parser_getTreeLocation_7412(start), expression, body))
+	return ToIface_ParseTree(allocPooled_WithStatementTree(&this_.slab_WithStatementTree, this_.priv_Parser_getTreeLocation_7417(start), expression, body))
 }
 
 // Java method: Parser.parseSwitchStatement()
-func (this_ *Parser) priv_Parser_parseSwitchStatement_7280() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseSwitchStatement_7285() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_SWITCH())
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-	var expression ParseTree = this_.priv_Parser_parseExpression_7320()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_SWITCH())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+	var expression ParseTree = this_.priv_Parser_parseExpression_7325()
 	_ = expression
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_CURLY())
-	var caseClauses j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_Parser_parseCaseClauses_7281()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_CURLY())
+	var caseClauses j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_Parser_parseCaseClauses_7286()
 	_ = caseClauses
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_CURLY())
-	return ToIface_ParseTree(allocPooled_SwitchStatementTree(&this_.slab_SwitchStatementTree, this_.priv_Parser_getTreeLocation_7412(start), expression, caseClauses))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_CURLY())
+	return ToIface_ParseTree(allocPooled_SwitchStatementTree(&this_.slab_SwitchStatementTree, this_.priv_Parser_getTreeLocation_7417(start), expression, caseClauses))
 }
 
 // Java method: Parser.parseCaseClauses()
-func (this_ *Parser) priv_Parser_parseCaseClauses_7281() j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *Parser) priv_Parser_parseCaseClauses_7286() j2gort.Ext_com_google_common_collect_ImmutableList {
 	var foundDefaultClause bool = false
 	_ = foundDefaultClause
 	var result *j2gort.Ext_com_google_common_collect_ImmutableList_Builder = (&j2gort.Ext_com_google_common_collect_ImmutableList_Builder{})
 	_ = result
 	for {
-		var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+		var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 		_ = start
-		switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+		switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 		case int32(4) /* TokenType.CASE */ :
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_CASE())
-			var expression ParseTree = this_.priv_Parser_parseExpression_7320()
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_CASE())
+			var expression ParseTree = this_.priv_Parser_parseExpression_7325()
 			_ = expression
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_COLON())
-			var statements j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_Parser_parseCaseStatementsOpt_7282()
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_COLON())
+			var statements j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_Parser_parseCaseStatementsOpt_7287()
 			_ = statements
-			result.AddVoid_(j2gort.PtrToAny(allocPooled_CaseClauseTree(&this_.slab_CaseClauseTree, this_.priv_Parser_getTreeLocation_7412(start), expression, statements)))
+			result.AddVoid_(j2gort.PtrToAny(allocPooled_CaseClauseTree(&this_.slab_CaseClauseTree, this_.priv_Parser_getTreeLocation_7417(start), expression, statements)))
 		case int32(8) /* TokenType.DEFAULT */ :
 			if foundDefaultClause {
-				this_.priv_Parser_reportError_7424("Switch statements may have at most one default clause", []any{})
+				this_.priv_Parser_reportError_7429("Switch statements may have at most one default clause", []any{})
 			} else {
 				foundDefaultClause = true
 			}
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_DEFAULT())
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_COLON())
-			result.AddVoid_(j2gort.PtrToAny(allocPooled_DefaultClauseTree(&this_.slab_DefaultClauseTree, this_.priv_Parser_getTreeLocation_7412(start), this_.priv_Parser_parseCaseStatementsOpt_7282())))
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_DEFAULT())
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_COLON())
+			result.AddVoid_(j2gort.PtrToAny(allocPooled_DefaultClauseTree(&this_.slab_DefaultClauseTree, this_.priv_Parser_getTreeLocation_7417(start), this_.priv_Parser_parseCaseStatementsOpt_7287())))
 		default:
 			return result.BuildImmList_()
 		}
@@ -1813,322 +1813,322 @@ func (this_ *Parser) priv_Parser_parseCaseClauses_7281() j2gort.Ext_com_google_c
 }
 
 // Java method: Parser.parseCaseStatementsOpt()
-func (this_ *Parser) priv_Parser_parseCaseStatementsOpt_7282() j2gort.Ext_com_google_common_collect_ImmutableList {
-	return this_.priv_Parser_parseStatementList_7256()
+func (this_ *Parser) priv_Parser_parseCaseStatementsOpt_7287() j2gort.Ext_com_google_common_collect_ImmutableList {
+	return this_.priv_Parser_parseStatementList_7261()
 }
 
 // Java method: Parser.parseLabelledStatement()
-func (this_ *Parser) priv_Parser_parseLabelledStatement_7283() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseLabelledStatement_7288() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var name Token = this_.priv_Parser_eatId_7405()
+	var name Token = this_.priv_Parser_eatId_7410()
 	_ = name
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_COLON())
-	return ToIface_ParseTree(allocPooled_LabelledStatementTree(&this_.slab_LabelledStatementTree, this_.priv_Parser_getTreeLocation_7412(start), name, this_.priv_Parser_parseStatement_7251()))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_COLON())
+	return ToIface_ParseTree(allocPooled_LabelledStatementTree(&this_.slab_LabelledStatementTree, this_.priv_Parser_getTreeLocation_7417(start), name, this_.priv_Parser_parseStatement_7256()))
 }
 
 // Java method: Parser.peekLabelledStatement()
-func (this_ *Parser) priv_Parser_peekLabelledStatement_7284() bool {
-	return (this_.priv_Parser_peekId_7400() && this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_COLON()))
+func (this_ *Parser) priv_Parser_peekLabelledStatement_7289() bool {
+	return (this_.priv_Parser_peekId_7405() && this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_COLON()))
 }
 
 // Java method: Parser.parseThrowStatement()
-func (this_ *Parser) priv_Parser_parseThrowStatement_7285() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseThrowStatement_7290() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_THROW())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_THROW())
 	var value ParseTree = nil
 	_ = value
-	if this_.priv_Parser_peekImplicitSemiColon_7394() {
-		this_.priv_Parser_reportError_7424("semicolon/newline not allowed after 'throw'", []any{})
+	if this_.priv_Parser_peekImplicitSemiColon_7399() {
+		this_.priv_Parser_reportError_7429("semicolon/newline not allowed after 'throw'", []any{})
 	} else {
-		value = this_.priv_Parser_parseExpression_7320()
+		value = this_.priv_Parser_parseExpression_7325()
 	}
-	this_.priv_Parser_eatPossiblyImplicitSemiColon_7393()
-	return ToIface_ParseTree(allocPooled_ThrowStatementTree(&this_.slab_ThrowStatementTree, this_.priv_Parser_getTreeLocation_7412(start), value))
+	this_.priv_Parser_eatPossiblyImplicitSemiColon_7398()
+	return ToIface_ParseTree(allocPooled_ThrowStatementTree(&this_.slab_ThrowStatementTree, this_.priv_Parser_getTreeLocation_7417(start), value))
 }
 
 // Java method: Parser.parseTryStatement()
-func (this_ *Parser) priv_Parser_parseTryStatement_7286() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseTryStatement_7291() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_TRY())
-	var body ParseTree = ToIface_ParseTree(this_.priv_Parser_parseBlock_7255())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_TRY())
+	var body ParseTree = ToIface_ParseTree(this_.priv_Parser_parseBlock_7260())
 	_ = body
 	var catchBlock ParseTree = nil
 	_ = catchBlock
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CATCH()) {
-		catchBlock = ToIface_ParseTree(this_.priv_Parser_parseCatch_7287())
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CATCH()) {
+		catchBlock = ToIface_ParseTree(this_.priv_Parser_parseCatch_7292())
 	}
 	var finallyBlock ParseTree = nil
 	_ = finallyBlock
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_FINALLY()) {
-		finallyBlock = ToIface_ParseTree(this_.priv_Parser_parseFinallyBlock_7288())
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_FINALLY()) {
+		finallyBlock = ToIface_ParseTree(this_.priv_Parser_parseFinallyBlock_7293())
 	}
 	if (catchBlock == nil || catchBlock.IsJavaNil_()) && (finallyBlock == nil || finallyBlock.IsJavaNil_()) {
-		this_.priv_Parser_reportError_7424("'catch' or 'finally' expected.", []any{})
+		this_.priv_Parser_reportError_7429("'catch' or 'finally' expected.", []any{})
 	}
-	return ToIface_ParseTree(allocPooled_TryStatementTree(&this_.slab_TryStatementTree, this_.priv_Parser_getTreeLocation_7412(start), body, catchBlock, finallyBlock))
+	return ToIface_ParseTree(allocPooled_TryStatementTree(&this_.slab_TryStatementTree, this_.priv_Parser_getTreeLocation_7417(start), body, catchBlock, finallyBlock))
 }
 
 // Java method: Parser.parseCatch()
-func (this_ *Parser) priv_Parser_parseCatch_7287() *CatchTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseCatch_7292() *CatchTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CATCH())
-	var exception ParseTree = ToIface_ParseTree(allocPooled_EmptyStatementTree(&this_.slab_EmptyStatementTree, NewSourceRange(this_.priv_Parser_getTreeEndLocation_7411(), this_.priv_Parser_getTreeStartLocation_7410())))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CATCH())
+	var exception ParseTree = ToIface_ParseTree(allocPooled_EmptyStatementTree(&this_.slab_EmptyStatementTree, NewSourceRange(this_.priv_Parser_getTreeEndLocation_7416(), this_.priv_Parser_getTreeStartLocation_7415())))
 	_ = exception
-	if this_.priv_Parser_peekToken_7420().type_ == StaticGet_TokenType_OPEN_PAREN() {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-		if this_.priv_Parser_peekPatternStart_7382() {
-			exception = this_.priv_Parser_parsePattern_7383(StaticGet_Parser_PatternKind_INITIALIZER())
+	if this_.priv_Parser_peekToken_7425().type_ == StaticGet_TokenType_OPEN_PAREN() {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+		if this_.priv_Parser_peekPatternStart_7387() {
+			exception = this_.priv_Parser_parsePattern_7388(StaticGet_Parser_PatternKind_INITIALIZER())
 		} else {
-			exception = ToIface_ParseTree(this_.priv_Parser_parseIdentifierExpression_7294())
+			exception = ToIface_ParseTree(this_.priv_Parser_parseIdentifierExpression_7299())
 		}
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
 	} else {
-		this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_OPTIONAL_CATCH_BINDING())
+		this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_OPTIONAL_CATCH_BINDING())
 	}
-	var catchBody *BlockTree = this_.priv_Parser_parseBlock_7255()
+	var catchBody *BlockTree = this_.priv_Parser_parseBlock_7260()
 	_ = catchBody
-	return allocPooled_CatchTree(&this_.slab_CatchTree, this_.priv_Parser_getTreeLocation_7412(start), exception, ToIface_ParseTree(catchBody))
+	return allocPooled_CatchTree(&this_.slab_CatchTree, this_.priv_Parser_getTreeLocation_7417(start), exception, ToIface_ParseTree(catchBody))
 }
 
 // Java method: Parser.parseFinallyBlock()
-func (this_ *Parser) priv_Parser_parseFinallyBlock_7288() *FinallyTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseFinallyBlock_7293() *FinallyTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_FINALLY())
-	var finallyBlock *BlockTree = this_.priv_Parser_parseBlock_7255()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_FINALLY())
+	var finallyBlock *BlockTree = this_.priv_Parser_parseBlock_7260()
 	_ = finallyBlock
-	return allocPooled_FinallyTree(&this_.slab_FinallyTree, this_.priv_Parser_getTreeLocation_7412(start), ToIface_ParseTree(finallyBlock))
+	return allocPooled_FinallyTree(&this_.slab_FinallyTree, this_.priv_Parser_getTreeLocation_7417(start), ToIface_ParseTree(finallyBlock))
 }
 
 // Java method: Parser.parseDebuggerStatement()
-func (this_ *Parser) priv_Parser_parseDebuggerStatement_7289() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseDebuggerStatement_7294() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_DEBUGGER())
-	this_.priv_Parser_eatPossiblyImplicitSemiColon_7393()
-	return ToIface_ParseTree(allocPooled_DebuggerStatementTree(&this_.slab_DebuggerStatementTree, this_.priv_Parser_getTreeLocation_7412(start)))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_DEBUGGER())
+	this_.priv_Parser_eatPossiblyImplicitSemiColon_7398()
+	return ToIface_ParseTree(allocPooled_DebuggerStatementTree(&this_.slab_DebuggerStatementTree, this_.priv_Parser_getTreeLocation_7417(start)))
 }
 
 // Java method: Parser.parsePrimaryExpression()
-func (this_ *Parser) priv_Parser_parsePrimaryExpression_7290() ParseTree {
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+func (this_ *Parser) priv_Parser_parsePrimaryExpression_7295() ParseTree {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(29) /* TokenType.CLASS */ :
-		return this_.priv_Parser_parseClassExpression_7212()
+		return this_.priv_Parser_parseClassExpression_7217()
 	case int32(35) /* TokenType.SUPER */ :
-		return ToIface_ParseTree(this_.priv_Parser_parseSuperExpression_7291())
+		return ToIface_ParseTree(this_.priv_Parser_parseSuperExpression_7296())
 	case int32(21) /* TokenType.THIS */ :
-		return ToIface_ParseTree(this_.priv_Parser_parseThisExpression_7292())
+		return ToIface_ParseTree(this_.priv_Parser_parseThisExpression_7297())
 	case int32(34) /* TokenType.IMPORT */ :
-		return ToIface_ParseTree(this_.priv_Parser_parseDynamicImportExpression_7293())
+		return ToIface_ParseTree(this_.priv_Parser_parseDynamicImportExpression_7298())
 	case int32(2) /* TokenType.IDENTIFIER */, int32(113) /* TokenType.TYPE */, int32(114) /* TokenType.DECLARE */, int32(115) /* TokenType.MODULE */, int32(116) /* TokenType.NAMESPACE */ :
-		return ToIface_ParseTree(this_.priv_Parser_parseIdentifierExpression_7294())
+		return ToIface_ParseTree(this_.priv_Parser_parseIdentifierExpression_7299())
 	case int32(104) /* TokenType.NUMBER */, int32(105) /* TokenType.STRING */, int32(106) /* TokenType.BIGINT */, int32(102) /* TokenType.TRUE */, int32(103) /* TokenType.FALSE */, int32(101) /* TokenType.NULL */ :
-		return ToIface_ParseTree(this_.priv_Parser_parseLiteralExpression_7295())
+		return ToIface_ParseTree(this_.priv_Parser_parseLiteralExpression_7300())
 	case int32(112) /* TokenType.NO_SUBSTITUTION_TEMPLATE */, int32(109) /* TokenType.TEMPLATE_HEAD */ :
-		return ToIface_ParseTree(this_.priv_Parser_parseTemplateLiteral_7296(nil))
+		return ToIface_ParseTree(this_.priv_Parser_parseTemplateLiteral_7301(nil))
 	case int32(49) /* TokenType.OPEN_SQUARE */ :
-		return this_.priv_Parser_parseArrayLiteral_7299()
+		return this_.priv_Parser_parseArrayLiteral_7304()
 	case int32(45) /* TokenType.OPEN_CURLY */ :
-		return this_.priv_Parser_parseObjectLiteral_7300()
+		return this_.priv_Parser_parseObjectLiteral_7305()
 	case int32(47) /* TokenType.OPEN_PAREN */ :
-		return this_.priv_Parser_parseCoverParenthesizedExpressionAndArrowParameterList_7317()
+		return this_.priv_Parser_parseCoverParenthesizedExpressionAndArrowParameterList_7322()
 	case int32(96) /* TokenType.SLASH */, int32(97) /* TokenType.SLASH_EQUAL */ :
-		return this_.priv_Parser_parseRegularExpressionLiteral_7298()
+		return this_.priv_Parser_parseRegularExpressionLiteral_7303()
 	default:
-		return this_.priv_Parser_parseMissingPrimaryExpression_7318()
+		return this_.priv_Parser_parseMissingPrimaryExpression_7323()
 	}
 	panic("unreachable switch expression")
 }
 
 // Java method: Parser.parseSuperExpression()
-func (this_ *Parser) priv_Parser_parseSuperExpression_7291() *SuperExpressionTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseSuperExpression_7296() *SuperExpressionTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_SUPER())
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_QUESTION_DOT()) {
-		this_.priv_Parser_reportError_7424("Optional chaining is forbidden in super?.", []any{})
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_SUPER())
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_QUESTION_DOT()) {
+		this_.priv_Parser_reportError_7429("Optional chaining is forbidden in super?.", []any{})
 	}
-	return allocPooled_SuperExpressionTree(&this_.slab_SuperExpressionTree, this_.priv_Parser_getTreeLocation_7412(start))
+	return allocPooled_SuperExpressionTree(&this_.slab_SuperExpressionTree, this_.priv_Parser_getTreeLocation_7417(start))
 }
 
 // Java method: Parser.parseThisExpression()
-func (this_ *Parser) priv_Parser_parseThisExpression_7292() *ThisExpressionTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseThisExpression_7297() *ThisExpressionTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_THIS())
-	return allocPooled_ThisExpressionTree(&this_.slab_ThisExpressionTree, this_.priv_Parser_getTreeLocation_7412(start))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_THIS())
+	return allocPooled_ThisExpressionTree(&this_.slab_ThisExpressionTree, this_.priv_Parser_getTreeLocation_7417(start))
 }
 
 // Java method: Parser.parseDynamicImportExpression()
-func (this_ *Parser) priv_Parser_parseDynamicImportExpression_7293() *DynamicImportTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseDynamicImportExpression_7298() *DynamicImportTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_IMPORT())
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_QUESTION_DOT()) {
-		this_.priv_Parser_reportError_7424("Optional chaining is forbidden in import?.", []any{})
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_IMPORT())
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_QUESTION_DOT()) {
+		this_.priv_Parser_reportError_7429("Optional chaining is forbidden in import?.", []any{})
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-	var argument ParseTree = this_.priv_Parser_parseAssignmentExpression_7323()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+	var argument ParseTree = this_.priv_Parser_parseAssignmentExpression_7328()
 	_ = argument
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-	this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT())
-	return allocPooled_DynamicImportTree(&this_.slab_DynamicImportTree, this_.priv_Parser_getTreeLocation_7412(start), argument)
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+	this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT())
+	return allocPooled_DynamicImportTree(&this_.slab_DynamicImportTree, this_.priv_Parser_getTreeLocation_7417(start), argument)
 }
 
 // Java method: Parser.parseIdentifierExpression()
-func (this_ *Parser) priv_Parser_parseIdentifierExpression_7294() *IdentifierExpressionTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseIdentifierExpression_7299() *IdentifierExpressionTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var identifier Token = this_.priv_Parser_eatId_7405()
+	var identifier Token = this_.priv_Parser_eatId_7410()
 	_ = identifier
-	return allocPooled_IdentifierExpressionTree(&this_.slab_IdentifierExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), identifier)
+	return allocPooled_IdentifierExpressionTree(&this_.slab_IdentifierExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), identifier)
 }
 
 // Java method: Parser.parseLiteralExpression()
-func (this_ *Parser) priv_Parser_parseLiteralExpression_7295() *LiteralExpressionTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseLiteralExpression_7300() *LiteralExpressionTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var literal Token = this_.priv_Parser_nextLiteralToken_7297()
+	var literal Token = this_.priv_Parser_nextLiteralToken_7302()
 	_ = literal
 	if (literal.type_ == StaticGet_TokenType_STRING()) && literal.HasUnescapedUnicodeLineOrParagraphSeparator() {
-		this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP())
+		this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP())
 	}
 	if (literal.type_ == StaticGet_TokenType_NUMBER()) && (j2gort.JStrIndexOf(literal.String(), "_") >= 0) {
-		this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_NUMERIC_SEPARATOR())
+		this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_NUMERIC_SEPARATOR())
 	}
 	if literal.type_ == StaticGet_TokenType_BIGINT() {
-		this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_BIGINT())
+		this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_BIGINT())
 	}
-	return allocPooled_LiteralExpressionTree(&this_.slab_LiteralExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), literal)
+	return allocPooled_LiteralExpressionTree(&this_.slab_LiteralExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), literal)
 }
 
 // Java method: Parser.parseTemplateLiteral(com.google.javascript.jscomp.parsing.parser.trees.@org.jspecify.annotations.Nullable ParseTree operand)
-func (this_ *Parser) priv_Parser_parseTemplateLiteral_7296(operand ParseTree) *TemplateLiteralExpressionTree {
+func (this_ *Parser) priv_Parser_parseTemplateLiteral_7301(operand ParseTree) *TemplateLiteralExpressionTree {
 	_ = operand
 	var start SourcePosition
 	_ = start
 	if operand == nil || operand.IsJavaNil_() {
-		start = this_.priv_Parser_getTreeStartLocation_7410()
+		start = this_.priv_Parser_getTreeStartLocation_7415()
 	} else {
 		start = operand.GetParseTreeBase().location.start
 	}
-	var token Token = this_.priv_Parser_nextToken_7413()
+	var token Token = this_.priv_Parser_nextToken_7418()
 	_ = token
 	if !(token.IsTemplateLiteralToken()) {
-		this_.priv_Parser_reportError_7422(token, "Unexpected template literal token %s.", []any{j2gort.BoxString(token.type_.String())})
+		this_.priv_Parser_reportError_7427(token, "Unexpected template literal token %s.", []any{j2gort.BoxString(token.type_.String())})
 	}
 	var isTaggedTemplate bool = (operand != nil && !operand.IsJavaNil_())
 	_ = isTaggedTemplate
 	var templateToken Token = token
 	_ = templateToken
 	if !(isTaggedTemplate) {
-		this_.priv_Parser_reportTemplateErrorIfPresent_7426(templateToken)
+		this_.priv_Parser_reportTemplateErrorIfPresent_7431(templateToken)
 	}
 	var elements *j2gort.Ext_com_google_common_collect_ImmutableList_Builder = (&j2gort.Ext_com_google_common_collect_ImmutableList_Builder{})
 	_ = elements
 	elements.AddVoid_(j2gort.PtrToAny(allocPooled_TemplateLiteralPortionTree(&this_.slab_TemplateLiteralPortionTree, templateToken.location, templateToken)))
 	if templateToken.type_ == StaticGet_TokenType_NO_SUBSTITUTION_TEMPLATE() {
-		return allocPooled_TemplateLiteralExpressionTree(&this_.slab_TemplateLiteralExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operand, elements.BuildImmList_())
+		return allocPooled_TemplateLiteralExpressionTree(&this_.slab_TemplateLiteralExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operand, elements.BuildImmList_())
 	}
-	var expression ParseTree = this_.priv_Parser_parseExpression_7320()
+	var expression ParseTree = this_.priv_Parser_parseExpression_7325()
 	_ = expression
 	elements.AddVoid_(j2gort.PtrToAny(allocPooled_TemplateSubstitutionTree(&this_.slab_TemplateSubstitutionTree, expression.GetParseTreeBase().location, expression)))
 	for !(this_.errorReporter.HadError()) {
-		templateToken = this_.priv_Parser_nextTemplateLiteralToken_7415()
+		templateToken = this_.priv_Parser_nextTemplateLiteralToken_7420()
 		if (templateToken.type_ == StaticGet_TokenType_ERROR()) || (templateToken.type_ == StaticGet_TokenType_END_OF_FILE()) {
 			break
 		}
 		if !(isTaggedTemplate) {
-			this_.priv_Parser_reportTemplateErrorIfPresent_7426(templateToken)
+			this_.priv_Parser_reportTemplateErrorIfPresent_7431(templateToken)
 		}
 		elements.AddVoid_(j2gort.PtrToAny(allocPooled_TemplateLiteralPortionTree(&this_.slab_TemplateLiteralPortionTree, templateToken.location, templateToken)))
 		if templateToken.type_ == StaticGet_TokenType_TEMPLATE_TAIL() {
 			break
 		}
-		expression = this_.priv_Parser_parseExpression_7320()
+		expression = this_.priv_Parser_parseExpression_7325()
 		elements.AddVoid_(j2gort.PtrToAny(allocPooled_TemplateSubstitutionTree(&this_.slab_TemplateSubstitutionTree, expression.GetParseTreeBase().location, expression)))
 	}
-	return allocPooled_TemplateLiteralExpressionTree(&this_.slab_TemplateLiteralExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operand, elements.BuildImmList_())
+	return allocPooled_TemplateLiteralExpressionTree(&this_.slab_TemplateLiteralExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operand, elements.BuildImmList_())
 }
 
 // Java method: Parser.nextLiteralToken()
-func (this_ *Parser) priv_Parser_nextLiteralToken_7297() Token {
-	return this_.priv_Parser_nextToken_7413()
+func (this_ *Parser) priv_Parser_nextLiteralToken_7302() Token {
+	return this_.priv_Parser_nextToken_7418()
 }
 
 // Java method: Parser.parseRegularExpressionLiteral()
-func (this_ *Parser) priv_Parser_parseRegularExpressionLiteral_7298() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseRegularExpressionLiteral_7303() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var literal Token = this_.priv_Parser_nextRegularExpressionLiteralToken_7414()
+	var literal Token = this_.priv_Parser_nextRegularExpressionLiteralToken_7419()
 	_ = literal
-	this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_REGEXP_SYNTAX())
-	return ToIface_ParseTree(allocPooled_LiteralExpressionTree(&this_.slab_LiteralExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), literal))
+	this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_REGEXP_SYNTAX())
+	return ToIface_ParseTree(allocPooled_LiteralExpressionTree(&this_.slab_LiteralExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), literal))
 }
 
 // Java method: Parser.parseArrayLiteral()
-func (this_ *Parser) priv_Parser_parseArrayLiteral_7299() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseArrayLiteral_7304() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
 	var elements []ParseTree = []ParseTree{}
 	_ = elements
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_SQUARE())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_SQUARE())
 	var trailingCommaToken Token = (Token{})
 	_ = trailingCommaToken
-	for (this_.priv_Parser_peek_7416(StaticGet_TokenType_COMMA()) || this_.priv_Parser_peek_7416(StaticGet_TokenType_ELLIPSIS())) || this_.priv_Parser_peekAssignmentExpression_7324() {
+	for (this_.priv_Parser_peek_7421(StaticGet_TokenType_COMMA()) || this_.priv_Parser_peek_7421(StaticGet_TokenType_ELLIPSIS())) || this_.priv_Parser_peekAssignmentExpression_7329() {
 		trailingCommaToken = (Token{})
-		if this_.priv_Parser_peek_7416(StaticGet_TokenType_COMMA()) {
-			var commaStart SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+		if this_.priv_Parser_peek_7421(StaticGet_TokenType_COMMA()) {
+			var commaStart SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 			_ = commaStart
-			trailingCommaToken = this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+			trailingCommaToken = this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 			elements = append(elements, allocPooled_NullTree(&this_.slab_NullTree, NewSourceRange(commaStart, commaStart)))
 		} else {
-			if this_.priv_Parser_peek_7416(StaticGet_TokenType_ELLIPSIS()) {
-				this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_SPREAD_EXPRESSIONS())
-				elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parseIterSpread_7250()))
+			if this_.priv_Parser_peek_7421(StaticGet_TokenType_ELLIPSIS()) {
+				this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_SPREAD_EXPRESSIONS())
+				elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parseIterSpread_7255()))
 			} else {
-				elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parseAssignmentExpression_7323()))
+				elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parseAssignmentExpression_7328()))
 			}
-			if !(this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_SQUARE())) {
-				trailingCommaToken = this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+			if !(this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_SQUARE())) {
+				trailingCommaToken = this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 			}
 		}
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_SQUARE())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_SQUARE())
 	this_.MaybeReportTrailingComma(trailingCommaToken)
-	return ToIface_ParseTree(allocPooled_ArrayLiteralExpressionTree(&this_.slab_ArrayLiteralExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), j2gort.ImmListFromTypedSlice(elements), (trailingCommaToken != (Token{}))))
+	return ToIface_ParseTree(allocPooled_ArrayLiteralExpressionTree(&this_.slab_ArrayLiteralExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), j2gort.ImmListFromTypedSlice(elements), (trailingCommaToken != (Token{}))))
 }
 
 // Java method: Parser.parseObjectLiteral()
-func (this_ *Parser) priv_Parser_parseObjectLiteral_7300() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseObjectLiteral_7305() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
 	var result []ParseTree = []ParseTree{}
 	_ = result
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_CURLY())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_CURLY())
 	var commaToken Token = (Token{})
 	_ = commaToken
-	for (this_.priv_Parser_peek_7416(StaticGet_TokenType_ELLIPSIS()) || this_.priv_Parser_peekPropertyNameOrComputedProp_7302(int32(0))) || this_.priv_Parser_peek_7416(StaticGet_TokenType_STAR()) {
-		result = append(result, j2gort.CheckNotNullElem(this_.priv_Parser_parseObjectLiteralPropertyAssignment_7304()))
-		commaToken = this_.priv_Parser_eatOpt_7398(StaticGet_TokenType_COMMA())
+	for (this_.priv_Parser_peek_7421(StaticGet_TokenType_ELLIPSIS()) || this_.priv_Parser_peekPropertyNameOrComputedProp_7307(int32(0))) || this_.priv_Parser_peek_7421(StaticGet_TokenType_STAR()) {
+		result = append(result, j2gort.CheckNotNullElem(this_.priv_Parser_parseObjectLiteralPropertyAssignment_7309()))
+		commaToken = this_.priv_Parser_eatOpt_7403(StaticGet_TokenType_COMMA())
 		if commaToken == (Token{}) {
 			break
 		}
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_CURLY())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_CURLY())
 	this_.MaybeReportTrailingComma(commaToken)
-	return ToIface_ParseTree(allocPooled_ObjectLiteralExpressionTree(&this_.slab_ObjectLiteralExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), j2gort.ImmListFromTypedSlice(result), (commaToken != (Token{}))))
+	return ToIface_ParseTree(allocPooled_ObjectLiteralExpressionTree(&this_.slab_ObjectLiteralExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), j2gort.ImmListFromTypedSlice(result), (commaToken != (Token{}))))
 }
 
 // Java method: Parser.maybeReportTrailingComma(com.google.javascript.jscomp.parsing.parser.Token commaToken)
 func (this_ *Parser) MaybeReportTrailingComma(commaToken Token) {
 	_ = commaToken
 	if commaToken != (Token{}) {
-		this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_TRAILING_COMMA())
+		this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_TRAILING_COMMA())
 		if this_.config.warnTrailingCommas {
 			this_.errorReporter.ReportWarning_3(commaToken.location.start, "Trailing comma is not legal in an ECMA-262 object initializer", []any{})
 		}
@@ -2136,15 +2136,15 @@ func (this_ *Parser) MaybeReportTrailingComma(commaToken Token) {
 }
 
 // Java method: Parser.peekPropertyNameOrComputedProp(int tokenIndex)
-func (this_ *Parser) priv_Parser_peekPropertyNameOrComputedProp_7302(tokenIndex int32) bool {
+func (this_ *Parser) priv_Parser_peekPropertyNameOrComputedProp_7307(tokenIndex int32) bool {
 	_ = tokenIndex
-	return (this_.priv_Parser_peekPropertyName_7303(tokenIndex) || (this_.priv_Parser_peekType_7419(tokenIndex) == StaticGet_TokenType_OPEN_SQUARE()))
+	return (this_.priv_Parser_peekPropertyName_7308(tokenIndex) || (this_.priv_Parser_peekType_7424(tokenIndex) == StaticGet_TokenType_OPEN_SQUARE()))
 }
 
 // Java method: Parser.peekPropertyName(int tokenIndex)
-func (this_ *Parser) priv_Parser_peekPropertyName_7303(tokenIndex int32) bool {
+func (this_ *Parser) priv_Parser_peekPropertyName_7308(tokenIndex int32) bool {
 	_ = tokenIndex
-	var type_ TokenType = this_.priv_Parser_peekType_7419(tokenIndex)
+	var type_ TokenType = this_.priv_Parser_peekType_7424(tokenIndex)
 	_ = type_
 	switch (type_).Ordinal() {
 	case int32(2) /* TokenType.IDENTIFIER */, int32(105) /* TokenType.STRING */, int32(104) /* TokenType.NUMBER */, int32(106) /* TokenType.BIGINT */ :
@@ -2156,48 +2156,48 @@ func (this_ *Parser) priv_Parser_peekPropertyName_7303(tokenIndex int32) bool {
 }
 
 // Java method: Parser.parseObjectLiteralPropertyAssignment()
-func (this_ *Parser) priv_Parser_parseObjectLiteralPropertyAssignment_7304() ParseTree {
-	var type_ TokenType = this_.priv_Parser_peekType_7418()
+func (this_ *Parser) priv_Parser_parseObjectLiteralPropertyAssignment_7309() ParseTree {
+	var type_ TokenType = this_.priv_Parser_peekType_7423()
 	_ = type_
 	if type_ == StaticGet_TokenType_STAR() {
-		return this_.priv_Parser_parseObjectLiteralPropertyAssignmentGenerator_7305()
+		return this_.priv_Parser_parseObjectLiteralPropertyAssignmentGenerator_7310()
 	} else if type_ == StaticGet_TokenType_ELLIPSIS() {
-		this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_OBJECT_LITERALS_WITH_SPREAD())
-		var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+		this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_OBJECT_LITERALS_WITH_SPREAD())
+		var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 		_ = start
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_ELLIPSIS())
-		var operand ParseTree = this_.priv_Parser_parseAssignmentExpression_7323()
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_ELLIPSIS())
+		var operand ParseTree = this_.priv_Parser_parseAssignmentExpression_7328()
 		_ = operand
-		return ToIface_ParseTree(allocPooled_ObjectSpreadTree(&this_.slab_ObjectSpreadTree, this_.priv_Parser_getTreeLocation_7412(start), operand))
+		return ToIface_ParseTree(allocPooled_ObjectSpreadTree(&this_.slab_ObjectSpreadTree, this_.priv_Parser_getTreeLocation_7417(start), operand))
 	} else if ((((type_ == StaticGet_TokenType_STRING()) || (type_ == StaticGet_TokenType_NUMBER())) || (type_ == StaticGet_TokenType_BIGINT())) || (type_ == StaticGet_TokenType_IDENTIFIER())) || Keywords_IsKeyword_1_TokenType(type_) {
-		if this_.priv_Parser_peekGetAccessor_7307() {
-			return this_.priv_Parser_parseObjectLiteralGetAccessor_7311()
-		} else if this_.priv_Parser_peekSetAccessor_7313() {
-			return this_.priv_Parser_parseObjectLiteralSetAccessor_7314()
-		} else if this_.priv_Parser_peekAsyncMethod_7219() {
-			return this_.priv_Parser_parseObjectLiteralAsyncMethod_7227()
-		} else if this_.priv_Parser_peekType_7419(int32(1)) == StaticGet_TokenType_OPEN_PAREN() {
-			return this_.priv_Parser_parseObjectLiteralMethodDeclaration_7224()
+		if this_.priv_Parser_peekGetAccessor_7312() {
+			return this_.priv_Parser_parseObjectLiteralGetAccessor_7316()
+		} else if this_.priv_Parser_peekSetAccessor_7318() {
+			return this_.priv_Parser_parseObjectLiteralSetAccessor_7319()
+		} else if this_.priv_Parser_peekAsyncMethod_7224() {
+			return this_.priv_Parser_parseObjectLiteralAsyncMethod_7232()
+		} else if this_.priv_Parser_peekType_7424(int32(1)) == StaticGet_TokenType_OPEN_PAREN() {
+			return this_.priv_Parser_parseObjectLiteralMethodDeclaration_7229()
 		} else {
-			return this_.priv_Parser_parseObjectLiteralPropertyNameAssignment_7316()
+			return this_.priv_Parser_parseObjectLiteralPropertyNameAssignment_7321()
 		}
 	} else if type_ == StaticGet_TokenType_OPEN_SQUARE() {
-		var start_2 SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+		var start_2 SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 		_ = start_2
-		var name ParseTree = this_.priv_Parser_parseComputedPropertyName_7306()
+		var name ParseTree = this_.priv_Parser_parseComputedPropertyName_7311()
 		_ = name
-		if this_.priv_Parser_peek_7416(StaticGet_TokenType_COLON()) {
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_COLON())
-			var value ParseTree = this_.priv_Parser_parseAssignmentExpression_7323()
+		if this_.priv_Parser_peek_7421(StaticGet_TokenType_COLON()) {
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_COLON())
+			var value ParseTree = this_.priv_Parser_parseAssignmentExpression_7328()
 			_ = value
-			return ToIface_ParseTree(allocPooled_ComputedPropertyDefinitionTree(&this_.slab_ComputedPropertyDefinitionTree, this_.priv_Parser_getTreeLocation_7412(start_2), name, value))
+			return ToIface_ParseTree(allocPooled_ComputedPropertyDefinitionTree(&this_.slab_ComputedPropertyDefinitionTree, this_.priv_Parser_getTreeLocation_7417(start_2), name, value))
 		} else {
 			var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_EXPRESSION())
 			_ = builder
-			this_.priv_Parser_parseFunctionTail_7230(builder, StaticGet_Parser_FunctionFlavor_NORMAL())
-			var value_2 ParseTree = ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7412(start_2)))
+			this_.priv_Parser_parseFunctionTail_7235(builder, StaticGet_Parser_FunctionFlavor_NORMAL())
+			var value_2 ParseTree = ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7417(start_2)))
 			_ = value_2
-			return ToIface_ParseTree(allocPooled_ComputedPropertyMethodTree(&this_.slab_ComputedPropertyMethodTree, this_.priv_Parser_getTreeLocation_7412(start_2), name, value_2))
+			return ToIface_ParseTree(allocPooled_ComputedPropertyMethodTree(&this_.slab_ComputedPropertyMethodTree, this_.priv_Parser_getTreeLocation_7417(start_2), name, value_2))
 		}
 	} else {
 		panic(j2gort.AsIface[javalang.IRuntimeException](j2gort.ConstructShimThrowable("java.lang.RuntimeException", "unreachable")))
@@ -2205,150 +2205,150 @@ func (this_ *Parser) priv_Parser_parseObjectLiteralPropertyAssignment_7304() Par
 }
 
 // Java method: Parser.parseObjectLiteralPropertyAssignmentGenerator()
-func (this_ *Parser) priv_Parser_parseObjectLiteralPropertyAssignmentGenerator_7305() ParseTree {
-	var type_ TokenType = this_.priv_Parser_peekType_7419(int32(1))
+func (this_ *Parser) priv_Parser_parseObjectLiteralPropertyAssignmentGenerator_7310() ParseTree {
+	var type_ TokenType = this_.priv_Parser_peekType_7424(int32(1))
 	_ = type_
 	if (((type_ == StaticGet_TokenType_STRING()) || (type_ == StaticGet_TokenType_NUMBER())) || (type_ == StaticGet_TokenType_IDENTIFIER())) || Keywords_IsKeyword_1_TokenType(type_) {
-		return this_.priv_Parser_parseObjectLiteralMethodDeclaration_7224()
+		return this_.priv_Parser_parseObjectLiteralMethodDeclaration_7229()
 	} else {
-		var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+		var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 		_ = start
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_STAR())
-		var name ParseTree = this_.priv_Parser_parseComputedPropertyName_7306()
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_STAR())
+		var name ParseTree = this_.priv_Parser_parseComputedPropertyName_7311()
 		_ = name
 		var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_EXPRESSION())
 		_ = builder
-		this_.priv_Parser_parseFunctionTail_7230(builder, StaticGet_Parser_FunctionFlavor_GENERATOR())
-		var value ParseTree = ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7412(start)))
+		this_.priv_Parser_parseFunctionTail_7235(builder, StaticGet_Parser_FunctionFlavor_GENERATOR())
+		var value ParseTree = ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7417(start)))
 		_ = value
-		return ToIface_ParseTree(allocPooled_ComputedPropertyMethodTree(&this_.slab_ComputedPropertyMethodTree, this_.priv_Parser_getTreeLocation_7412(start), name, value))
+		return ToIface_ParseTree(allocPooled_ComputedPropertyMethodTree(&this_.slab_ComputedPropertyMethodTree, this_.priv_Parser_getTreeLocation_7417(start), name, value))
 	}
 }
 
 // Java method: Parser.parseComputedPropertyName()
-func (this_ *Parser) priv_Parser_parseComputedPropertyName_7306() ParseTree {
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_SQUARE())
-	var assign ParseTree = this_.priv_Parser_parseAssignmentExpression_7323()
+func (this_ *Parser) priv_Parser_parseComputedPropertyName_7311() ParseTree {
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_SQUARE())
+	var assign ParseTree = this_.priv_Parser_parseAssignmentExpression_7328()
 	_ = assign
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_SQUARE())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_SQUARE())
 	return assign
 }
 
 // Java method: Parser.peekGetAccessor()
-func (this_ *Parser) priv_Parser_peekGetAccessor_7307() bool {
-	return (this_.priv_Parser_peekPredefinedString_7308("get") && this_.priv_Parser_peekPropertyNameOrComputedProp_7302(int32(1)))
+func (this_ *Parser) priv_Parser_peekGetAccessor_7312() bool {
+	return (this_.priv_Parser_peekPredefinedString_7313("get") && this_.priv_Parser_peekPropertyNameOrComputedProp_7307(int32(1)))
 }
 
 // Java method: Parser.peekPredefinedString(java.lang.String string)
-func (this_ *Parser) priv_Parser_peekPredefinedString_7308(string_ string) bool {
+func (this_ *Parser) priv_Parser_peekPredefinedString_7313(string_ string) bool {
 	_ = string_
-	return this_.priv_Parser_peekPredefinedString_7310(int32(0), string_)
+	return this_.priv_Parser_peekPredefinedString_7315(int32(0), string_)
 }
 
 // Java method: Parser.eatPredefinedString(java.lang.String string)
-func (this_ *Parser) priv_Parser_eatPredefinedString_7309(string_ string) Token {
+func (this_ *Parser) priv_Parser_eatPredefinedString_7314(string_ string) Token {
 	_ = string_
-	var token Token = this_.priv_Parser_eatId_7405()
+	var token Token = this_.priv_Parser_eatId_7410()
 	_ = token
 	if (token == (Token{})) || !(token.ValueEquals(string_)) {
-		this_.priv_Parser_reportExpectedError_7409(token, j2gort.BoxString(string_))
+		this_.priv_Parser_reportExpectedError_7414(token, j2gort.BoxString(string_))
 		return (Token{})
 	}
 	return token
 }
 
 // Java method: Parser.peekPredefinedString(int index, java.lang.String string)
-func (this_ *Parser) priv_Parser_peekPredefinedString_7310(index int32, string_ string) bool {
+func (this_ *Parser) priv_Parser_peekPredefinedString_7315(index int32, string_ string) bool {
 	_ = index
 	_ = string_
-	return (this_.priv_Parser_peek_7417(index, StaticGet_TokenType_IDENTIFIER()) && this_.priv_Parser_peekToken_7421(index).ValueEquals(string_))
+	return (this_.priv_Parser_peek_7422(index, StaticGet_TokenType_IDENTIFIER()) && this_.priv_Parser_peekToken_7426(index).ValueEquals(string_))
 }
 
 // Java method: Parser.parseObjectLiteralGetAccessor()
-func (this_ *Parser) priv_Parser_parseObjectLiteralGetAccessor_7311() ParseTree {
-	return this_.priv_Parser_parseGetAccessor_7312(this_.priv_Parser_createObjectLiteralElementInfo_7216())
+func (this_ *Parser) priv_Parser_parseObjectLiteralGetAccessor_7316() ParseTree {
+	return this_.priv_Parser_parseGetAccessor_7317(this_.priv_Parser_createObjectLiteralElementInfo_7221())
 }
 
 // Java method: Parser.parseGetAccessor(com.google.javascript.jscomp.parsing.parser.ClassOrObjectElementInfo elementInfo)
-func (this_ *Parser) priv_Parser_parseGetAccessor_7312(elementInfo *ClassOrObjectElementInfo) ParseTree {
+func (this_ *Parser) priv_Parser_parseGetAccessor_7317(elementInfo *ClassOrObjectElementInfo) ParseTree {
 	_ = elementInfo
-	this_.priv_Parser_eatPredefinedString_7309("get")
-	if this_.priv_Parser_peekPropertyName_7303(int32(0)) {
-		var propertyName Token = this_.priv_Parser_eatObjectLiteralPropertyName_7406()
+	this_.priv_Parser_eatPredefinedString_7314("get")
+	if this_.priv_Parser_peekPropertyName_7308(int32(0)) {
+		var propertyName Token = this_.priv_Parser_eatObjectLiteralPropertyName_7411()
 		_ = propertyName
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		var body *BlockTree = this_.priv_Parser_parseFunctionBody_7248()
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		var body *BlockTree = this_.priv_Parser_parseFunctionBody_7253()
 		_ = body
-		this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_GETTER())
-		return ToIface_ParseTree(allocPooled_GetAccessorTree(&this_.slab_GetAccessorTree, this_.priv_Parser_getTreeLocation_7412(elementInfo.start), propertyName, elementInfo.isClassMember, elementInfo.isStatic, body))
+		this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_GETTER())
+		return ToIface_ParseTree(allocPooled_GetAccessorTree(&this_.slab_GetAccessorTree, this_.priv_Parser_getTreeLocation_7417(elementInfo.start), propertyName, elementInfo.isClassMember, elementInfo.isStatic, body))
 	} else {
-		var property ParseTree = this_.priv_Parser_parseComputedPropertyName_7306()
+		var property ParseTree = this_.priv_Parser_parseComputedPropertyName_7311()
 		_ = property
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		var body_2 *BlockTree = this_.priv_Parser_parseFunctionBody_7248()
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		var body_2 *BlockTree = this_.priv_Parser_parseFunctionBody_7253()
 		_ = body_2
-		this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_GETTER())
-		return ToIface_ParseTree(allocPooled_ComputedPropertyGetterTree(&this_.slab_ComputedPropertyGetterTree, this_.priv_Parser_getTreeLocation_7412(elementInfo.start), property, elementInfo.isStatic, body_2))
+		this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_GETTER())
+		return ToIface_ParseTree(allocPooled_ComputedPropertyGetterTree(&this_.slab_ComputedPropertyGetterTree, this_.priv_Parser_getTreeLocation_7417(elementInfo.start), property, elementInfo.isStatic, body_2))
 	}
 }
 
 // Java method: Parser.peekSetAccessor()
-func (this_ *Parser) priv_Parser_peekSetAccessor_7313() bool {
-	return (this_.priv_Parser_peekPredefinedString_7308("set") && this_.priv_Parser_peekPropertyNameOrComputedProp_7302(int32(1)))
+func (this_ *Parser) priv_Parser_peekSetAccessor_7318() bool {
+	return (this_.priv_Parser_peekPredefinedString_7313("set") && this_.priv_Parser_peekPropertyNameOrComputedProp_7307(int32(1)))
 }
 
 // Java method: Parser.parseObjectLiteralSetAccessor()
-func (this_ *Parser) priv_Parser_parseObjectLiteralSetAccessor_7314() ParseTree {
-	return this_.priv_Parser_parseSetAccessor_7315(this_.priv_Parser_createObjectLiteralElementInfo_7216())
+func (this_ *Parser) priv_Parser_parseObjectLiteralSetAccessor_7319() ParseTree {
+	return this_.priv_Parser_parseSetAccessor_7320(this_.priv_Parser_createObjectLiteralElementInfo_7221())
 }
 
 // Java method: Parser.parseSetAccessor(com.google.javascript.jscomp.parsing.parser.ClassOrObjectElementInfo elementInfo)
-func (this_ *Parser) priv_Parser_parseSetAccessor_7315(elementInfo *ClassOrObjectElementInfo) ParseTree {
+func (this_ *Parser) priv_Parser_parseSetAccessor_7320(elementInfo *ClassOrObjectElementInfo) ParseTree {
 	_ = elementInfo
-	this_.priv_Parser_eatPredefinedString_7309("set")
-	if this_.priv_Parser_peekPropertyName_7303(int32(0)) {
-		var propertyName Token = this_.priv_Parser_eatObjectLiteralPropertyName_7406()
+	this_.priv_Parser_eatPredefinedString_7314("set")
+	if this_.priv_Parser_peekPropertyName_7308(int32(0)) {
+		var propertyName Token = this_.priv_Parser_eatObjectLiteralPropertyName_7411()
 		_ = propertyName
-		var parameter *FormalParameterListTree = this_.priv_Parser_parseSetterParameterList_7247()
+		var parameter *FormalParameterListTree = this_.priv_Parser_parseSetterParameterList_7252()
 		_ = parameter
-		var body *BlockTree = this_.priv_Parser_parseFunctionBody_7248()
+		var body *BlockTree = this_.priv_Parser_parseFunctionBody_7253()
 		_ = body
-		this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_SETTER())
-		return ToIface_ParseTree(allocPooled_SetAccessorTree(&this_.slab_SetAccessorTree, this_.priv_Parser_getTreeLocation_7412(elementInfo.start), propertyName, elementInfo.isClassMember, elementInfo.isStatic, parameter, body))
+		this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_SETTER())
+		return ToIface_ParseTree(allocPooled_SetAccessorTree(&this_.slab_SetAccessorTree, this_.priv_Parser_getTreeLocation_7417(elementInfo.start), propertyName, elementInfo.isClassMember, elementInfo.isStatic, parameter, body))
 	} else {
-		var property ParseTree = this_.priv_Parser_parseComputedPropertyName_7306()
+		var property ParseTree = this_.priv_Parser_parseComputedPropertyName_7311()
 		_ = property
-		var parameter_2 *FormalParameterListTree = this_.priv_Parser_parseSetterParameterList_7247()
+		var parameter_2 *FormalParameterListTree = this_.priv_Parser_parseSetterParameterList_7252()
 		_ = parameter_2
-		var body_2 *BlockTree = this_.priv_Parser_parseFunctionBody_7248()
+		var body_2 *BlockTree = this_.priv_Parser_parseFunctionBody_7253()
 		_ = body_2
-		this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_SETTER())
-		return ToIface_ParseTree(allocPooled_ComputedPropertySetterTree(&this_.slab_ComputedPropertySetterTree, this_.priv_Parser_getTreeLocation_7412(elementInfo.start), property, elementInfo.isStatic, parameter_2, body_2))
+		this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_SETTER())
+		return ToIface_ParseTree(allocPooled_ComputedPropertySetterTree(&this_.slab_ComputedPropertySetterTree, this_.priv_Parser_getTreeLocation_7417(elementInfo.start), property, elementInfo.isStatic, parameter_2, body_2))
 	}
 }
 
 // Java method: Parser.parseObjectLiteralPropertyNameAssignment()
-func (this_ *Parser) priv_Parser_parseObjectLiteralPropertyNameAssignment_7316() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseObjectLiteralPropertyNameAssignment_7321() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var name Token = this_.priv_Parser_eatObjectLiteralPropertyName_7406()
+	var name Token = this_.priv_Parser_eatObjectLiteralPropertyName_7411()
 	_ = name
-	var colon Token = this_.priv_Parser_eatOpt_7398(StaticGet_TokenType_COLON())
+	var colon Token = this_.priv_Parser_eatOpt_7403(StaticGet_TokenType_COLON())
 	_ = colon
 	if colon == (Token{}) {
 		if name.type_ != StaticGet_TokenType_IDENTIFIER() {
-			this_.priv_Parser_reportExpectedError_7409(this_.priv_Parser_peekToken_7420(), j2gort.BoxNullableVal(StaticGet_TokenType_COLON()))
+			this_.priv_Parser_reportExpectedError_7414(this_.priv_Parser_peekToken_7425(), j2gort.BoxNullableVal(StaticGet_TokenType_COLON()))
 		} else if name.IsKeyword() {
-			this_.priv_Parser_reportError_7422(name, "Cannot use keyword in short object literal", []any{})
-		} else if this_.priv_Parser_peek_7416(StaticGet_TokenType_EQUAL()) {
-			var idTree *IdentifierExpressionTree = allocPooled_IdentifierExpressionTree(&this_.slab_IdentifierExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), name)
+			this_.priv_Parser_reportError_7427(name, "Cannot use keyword in short object literal", []any{})
+		} else if this_.priv_Parser_peek_7421(StaticGet_TokenType_EQUAL()) {
+			var idTree *IdentifierExpressionTree = allocPooled_IdentifierExpressionTree(&this_.slab_IdentifierExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), name)
 			_ = idTree
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_EQUAL())
-			var defaultValue ParseTree = this_.priv_Parser_parseAssignmentExpression_7323()
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_EQUAL())
+			var defaultValue ParseTree = this_.priv_Parser_parseAssignmentExpression_7328()
 			_ = defaultValue
-			return ToIface_ParseTree(allocPooled_DefaultParameterTree(&this_.slab_DefaultParameterTree, this_.priv_Parser_getTreeLocation_7412(start), ToIface_ParseTree(idTree), defaultValue))
+			return ToIface_ParseTree(allocPooled_DefaultParameterTree(&this_.slab_DefaultParameterTree, this_.priv_Parser_getTreeLocation_7417(start), ToIface_ParseTree(idTree), defaultValue))
 		}
 	}
 	var value ParseTree
@@ -2356,77 +2356,77 @@ func (this_ *Parser) priv_Parser_parseObjectLiteralPropertyNameAssignment_7316()
 	if colon == (Token{}) {
 		value = nil
 	} else {
-		value = this_.priv_Parser_parseAssignmentExpression_7323()
+		value = this_.priv_Parser_parseAssignmentExpression_7328()
 	}
-	return ToIface_ParseTree(allocPooled_PropertyNameAssignmentTree(&this_.slab_PropertyNameAssignmentTree, this_.priv_Parser_getTreeLocation_7412(start), name, value))
+	return ToIface_ParseTree(allocPooled_PropertyNameAssignmentTree(&this_.slab_PropertyNameAssignmentTree, this_.priv_Parser_getTreeLocation_7417(start), name, value))
 }
 
 // Java method: Parser.parseCoverParenthesizedExpressionAndArrowParameterList()
-func (this_ *Parser) priv_Parser_parseCoverParenthesizedExpressionAndArrowParameterList_7317() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseCoverParenthesizedExpressionAndArrowParameterList_7322() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		if this_.priv_Parser_peek_7416(StaticGet_TokenType_ARROW()) {
-			return ToIface_ParseTree(allocPooled_FormalParameterListTree_1(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(start)))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		if this_.priv_Parser_peek_7421(StaticGet_TokenType_ARROW()) {
+			return ToIface_ParseTree(allocPooled_FormalParameterListTree_1(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(start)))
 		} else {
-			this_.priv_Parser_reportError_7424("invalid parenthesized expression", []any{})
-			return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7412(start)))
+			this_.priv_Parser_reportError_7429("invalid parenthesized expression", []any{})
+			return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7417(start)))
 		}
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_ELLIPSIS()) {
-		var restParam ParseTree = this_.priv_Parser_parseParameter_7243()
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_ELLIPSIS()) {
+		var restParam ParseTree = this_.priv_Parser_parseParameter_7248()
 		_ = restParam
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		if this_.priv_Parser_peek_7416(StaticGet_TokenType_ARROW()) {
-			return ToIface_ParseTree(allocPooled_FormalParameterListTree_5(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7412(start), restParam, false, int32(0), (SourcePosition{})))
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		if this_.priv_Parser_peek_7421(StaticGet_TokenType_ARROW()) {
+			return ToIface_ParseTree(allocPooled_FormalParameterListTree_5(&this_.slab_FormalParameterListTree, this_.priv_Parser_getTreeLocation_7417(start), restParam, false, int32(0), (SourcePosition{})))
 		} else {
-			this_.priv_Parser_reportError_7424("invalid parenthesized expression", []any{})
-			return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7412(start)))
+			this_.priv_Parser_reportError_7429("invalid parenthesized expression", []any{})
+			return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7417(start)))
 		}
 	}
-	var result ParseTree = this_.priv_Parser_parseExpression_7320()
+	var result ParseTree = this_.priv_Parser_parseExpression_7325()
 	_ = result
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_COMMA()) {
-		if this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_CLOSE_PAREN()) {
-			this_.priv_Parser_resetScanner_7336(start)
-			return ToIface_ParseTree(this_.priv_Parser_parseFormalParameterList_7246())
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_COMMA()) {
+		if this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_CLOSE_PAREN()) {
+			this_.priv_Parser_resetScanner_7341(start)
+			return ToIface_ParseTree(this_.priv_Parser_parseFormalParameterList_7251())
 		} else {
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
-			result = ToIface_ParseTree(allocPooled_CommaExpressionTree(&this_.slab_CommaExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), j2gort.Ext_com_google_common_collect_ImmutableList_Of_2(result, this_.priv_Parser_parseParameter_7243())))
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
+			result = ToIface_ParseTree(allocPooled_CommaExpressionTree(&this_.slab_CommaExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), j2gort.Ext_com_google_common_collect_ImmutableList_Of_2(result, this_.priv_Parser_parseParameter_7248())))
 		}
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-	return ToIface_ParseTree(allocPooled_ParenExpressionTree(&this_.slab_ParenExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), result))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+	return ToIface_ParseTree(allocPooled_ParenExpressionTree(&this_.slab_ParenExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), result))
 }
 
 // Java method: Parser.parseMissingPrimaryExpression()
-func (this_ *Parser) priv_Parser_parseMissingPrimaryExpression_7318() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseMissingPrimaryExpression_7323() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_nextToken_7413()
-	this_.priv_Parser_reportError_7424("primary expression expected", []any{})
-	return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7412(start)))
+	this_.priv_Parser_nextToken_7418()
+	this_.priv_Parser_reportError_7429("primary expression expected", []any{})
+	return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7417(start)))
 }
 
 // Java method: Parser.parseExpressionNoIn()
-func (this_ *Parser) priv_Parser_parseExpressionNoIn_7319() ParseTree {
-	return this_.priv_Parser_parse_7322(StaticGet_Parser_Expression_NO_IN())
+func (this_ *Parser) priv_Parser_parseExpressionNoIn_7324() ParseTree {
+	return this_.priv_Parser_parse_7327(StaticGet_Parser_Expression_NO_IN())
 }
 
 // Java method: Parser.parseExpression()
-func (this_ *Parser) priv_Parser_parseExpression_7320() ParseTree {
-	return this_.priv_Parser_parse_7322(StaticGet_Parser_Expression_NORMAL())
+func (this_ *Parser) priv_Parser_parseExpression_7325() ParseTree {
+	return this_.priv_Parser_parse_7327(StaticGet_Parser_Expression_NORMAL())
 }
 
 // Java method: Parser.peekExpression()
-func (this_ *Parser) priv_Parser_peekExpression_7321() bool {
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+func (this_ *Parser) priv_Parser_peekExpression_7326() bool {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(76) /* TokenType.BANG */, int32(29) /* TokenType.CLASS */, int32(9) /* TokenType.DELETE */, int32(103) /* TokenType.FALSE */, int32(14) /* TokenType.FUNCTION */, int32(2) /* TokenType.IDENTIFIER */, int32(113) /* TokenType.TYPE */, int32(114) /* TokenType.DECLARE */, int32(115) /* TokenType.MODULE */, int32(116) /* TokenType.NAMESPACE */, int32(64) /* TokenType.MINUS */, int32(69) /* TokenType.MINUS_MINUS */, int32(18) /* TokenType.NEW */, int32(101) /* TokenType.NULL */, int32(104) /* TokenType.NUMBER */, int32(106) /* TokenType.BIGINT */, int32(45) /* TokenType.OPEN_CURLY */, int32(47) /* TokenType.OPEN_PAREN */, int32(49) /* TokenType.OPEN_SQUARE */, int32(63) /* TokenType.PLUS */, int32(68) /* TokenType.PLUS_PLUS */, int32(96) /* TokenType.SLASH */, int32(97) /* TokenType.SLASH_EQUAL */, int32(105) /* TokenType.STRING */, int32(112) /* TokenType.NO_SUBSTITUTION_TEMPLATE */, int32(109) /* TokenType.TEMPLATE_HEAD */, int32(35) /* TokenType.SUPER */, int32(21) /* TokenType.THIS */, int32(77) /* TokenType.TILDE */, int32(102) /* TokenType.TRUE */, int32(24) /* TokenType.TYPEOF */, int32(26) /* TokenType.VOID */, int32(44) /* TokenType.YIELD */ :
 		return true
 	case int32(34) /* TokenType.IMPORT */ :
-		return (this_.priv_Parser_peekImportCall_7367() || this_.priv_Parser_peekImportDot_7368())
+		return (this_.priv_Parser_peekImportCall_7372() || this_.priv_Parser_peekImportDot_7373())
 	default:
 		return false
 	}
@@ -2434,80 +2434,80 @@ func (this_ *Parser) priv_Parser_peekExpression_7321() bool {
 }
 
 // Java method: Parser.parse(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parse_7322(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parse_7327(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var result ParseTree = this_.priv_Parser_parseAssignment_7325(expressionIn)
+	var result ParseTree = this_.priv_Parser_parseAssignment_7330(expressionIn)
 	_ = result
-	if (this_.priv_Parser_peek_7416(StaticGet_TokenType_COMMA()) && !(this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_ELLIPSIS()))) && !(this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_CLOSE_PAREN())) {
+	if (this_.priv_Parser_peek_7421(StaticGet_TokenType_COMMA()) && !(this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_ELLIPSIS()))) && !(this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_CLOSE_PAREN())) {
 		var exprs []ParseTree = []ParseTree{}
 		_ = exprs
 		exprs = append(exprs, j2gort.CheckNotNullElem(result))
-		for (this_.priv_Parser_peek_7416(StaticGet_TokenType_COMMA()) && !(this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_ELLIPSIS()))) && !(this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_CLOSE_PAREN())) {
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
-			exprs = append(exprs, j2gort.CheckNotNullElem(this_.priv_Parser_parseAssignment_7325(expressionIn)))
+		for (this_.priv_Parser_peek_7421(StaticGet_TokenType_COMMA()) && !(this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_ELLIPSIS()))) && !(this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_CLOSE_PAREN())) {
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
+			exprs = append(exprs, j2gort.CheckNotNullElem(this_.priv_Parser_parseAssignment_7330(expressionIn)))
 		}
-		return ToIface_ParseTree(allocPooled_CommaExpressionTree(&this_.slab_CommaExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), j2gort.ImmListFromTypedSlice(exprs)))
+		return ToIface_ParseTree(allocPooled_CommaExpressionTree(&this_.slab_CommaExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), j2gort.ImmListFromTypedSlice(exprs)))
 	}
 	return result
 }
 
 // Java method: Parser.parseAssignmentExpression()
-func (this_ *Parser) priv_Parser_parseAssignmentExpression_7323() ParseTree {
-	return this_.priv_Parser_parseAssignment_7325(StaticGet_Parser_Expression_NORMAL())
+func (this_ *Parser) priv_Parser_parseAssignmentExpression_7328() ParseTree {
+	return this_.priv_Parser_parseAssignment_7330(StaticGet_Parser_Expression_NORMAL())
 }
 
 // Java method: Parser.peekAssignmentExpression()
-func (this_ *Parser) priv_Parser_peekAssignmentExpression_7324() bool {
-	return this_.priv_Parser_peekExpression_7321()
+func (this_ *Parser) priv_Parser_peekAssignmentExpression_7329() bool {
+	return this_.priv_Parser_peekExpression_7326()
 }
 
 // Java method: Parser.parseAssignment(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseAssignment_7325(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseAssignment_7330(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_YIELD()) && this_.priv_Parser_inGeneratorContext_7340() {
-		return this_.priv_Parser_parseYield_7341(expressionIn)
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_YIELD()) && this_.priv_Parser_inGeneratorContext_7345() {
+		return this_.priv_Parser_parseYield_7346(expressionIn)
 	}
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseConditional_7342(expressionIn)
+	var left ParseTree = this_.priv_Parser_parseConditional_7347(expressionIn)
 	_ = left
-	if this_.priv_Parser_isStartOfAsyncArrowFunction_7326(left) {
-		this_.priv_Parser_resetScanner_7337(left)
-		return this_.priv_Parser_parseAsyncArrowFunction_7331(expressionIn)
+	if this_.priv_Parser_isStartOfAsyncArrowFunction_7331(left) {
+		this_.priv_Parser_resetScanner_7342(left)
+		return this_.priv_Parser_parseAsyncArrowFunction_7336(expressionIn)
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_ARROW()) {
-		return this_.priv_Parser_completeAssignmentExpressionParseAtArrow_7327(left, expressionIn)
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_ARROW()) {
+		return this_.priv_Parser_completeAssignmentExpressionParseAtArrow_7332(left, expressionIn)
 	}
-	if this_.priv_Parser_peekAssignmentOperator_7339() {
-		if !(this_.priv_Parser_peek_7416(StaticGet_TokenType_EQUAL())) {
+	if this_.priv_Parser_peekAssignmentOperator_7344() {
+		if !(this_.priv_Parser_peek_7421(StaticGet_TokenType_EQUAL())) {
 			if !(left.IsValidNonVanillaAssignmentTarget()) {
-				this_.priv_Parser_reportError_7424("invalid assignment target", []any{})
-				return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7412(this_.priv_Parser_getTreeStartLocation_7410())))
+				this_.priv_Parser_reportError_7429("invalid assignment target", []any{})
+				return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7417(this_.priv_Parser_getTreeStartLocation_7415())))
 			}
 		}
-		left = this_.priv_Parser_transformLeftHandSideExpression_7334(left)
+		left = this_.priv_Parser_transformLeftHandSideExpression_7339(left)
 		if !(left.IsValidAssignmentTarget()) {
-			this_.priv_Parser_reportError_7424("invalid assignment target", []any{})
-			return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7412(this_.priv_Parser_getTreeStartLocation_7410())))
+			this_.priv_Parser_reportError_7429("invalid assignment target", []any{})
+			return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7417(this_.priv_Parser_getTreeStartLocation_7415())))
 		}
-		var operator Token = this_.priv_Parser_nextToken_7413()
+		var operator Token = this_.priv_Parser_nextToken_7418()
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseAssignment_7325(expressionIn)
+		var right ParseTree = this_.priv_Parser_parseAssignment_7330(expressionIn)
 		_ = right
-		return ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		return ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	}
 	return left
 }
 
 // Java method: Parser.isStartOfAsyncArrowFunction(com.google.javascript.jscomp.parsing.parser.trees.ParseTree partialExpression)
-func (this_ *Parser) priv_Parser_isStartOfAsyncArrowFunction_7326(partialExpression ParseTree) bool {
+func (this_ *Parser) priv_Parser_isStartOfAsyncArrowFunction_7331(partialExpression ParseTree) bool {
 	_ = partialExpression
 	if partialExpression.GetParseTreeBase().type_ == StaticGet_ParseTreeType_IDENTIFIER_EXPRESSION() {
 		var identifierToken Token = partialExpression.AsIdentifierExpression().identifierToken
 		_ = identifierToken
-		return ((((identifierToken.ValueEquals("async") && !(this_.priv_Parser_peekImplicitSemiColon_7395(int32(0)))) && this_.priv_Parser_peekId_7400()) && !(this_.priv_Parser_peekImplicitSemiColon_7395(int32(1)))) && this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_ARROW()))
+		return ((((identifierToken.ValueEquals("async") && !(this_.priv_Parser_peekImplicitSemiColon_7400(int32(0)))) && this_.priv_Parser_peekId_7405()) && !(this_.priv_Parser_peekImplicitSemiColon_7400(int32(1)))) && this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_ARROW()))
 	} else if partialExpression.GetParseTreeBase().type_ == StaticGet_ParseTreeType_CALL_EXPRESSION() {
 		var callExpression *CallExpressionTree = partialExpression.AsCallExpression()
 		_ = callExpression
@@ -2515,42 +2515,42 @@ func (this_ *Parser) priv_Parser_isStartOfAsyncArrowFunction_7326(partialExpress
 		_ = callee
 		var arguments ParseTree = ToIface_ParseTree(callExpression.arguments)
 		_ = arguments
-		return (((((callee.GetParseTreeBase().type_ == StaticGet_ParseTreeType_IDENTIFIER_EXPRESSION()) && callee.AsIdentifierExpression().identifierToken.ValueEquals("async")) && (callee.GetParseTreeBase().location.end.line == arguments.GetParseTreeBase().location.start.line)) && !(this_.priv_Parser_peekImplicitSemiColon_7394())) && this_.priv_Parser_peek_7416(StaticGet_TokenType_ARROW()))
+		return (((((callee.GetParseTreeBase().type_ == StaticGet_ParseTreeType_IDENTIFIER_EXPRESSION()) && callee.AsIdentifierExpression().identifierToken.ValueEquals("async")) && (callee.GetParseTreeBase().location.end.line == arguments.GetParseTreeBase().location.start.line)) && !(this_.priv_Parser_peekImplicitSemiColon_7399())) && this_.priv_Parser_peek_7421(StaticGet_TokenType_ARROW()))
 	} else {
 		return false
 	}
 }
 
 // Java method: Parser.completeAssignmentExpressionParseAtArrow(com.google.javascript.jscomp.parsing.parser.trees.ParseTree leftOfArrow, com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_completeAssignmentExpressionParseAtArrow_7327(leftOfArrow ParseTree, expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_completeAssignmentExpressionParseAtArrow_7332(leftOfArrow ParseTree, expressionIn Parser_Expression) ParseTree {
 	_ = leftOfArrow
 	_ = expressionIn
 	if leftOfArrow.GetParseTreeBase().type_ == StaticGet_ParseTreeType_CALL_EXPRESSION() {
-		return this_.priv_Parser_completeAssignmentExpressionParseAtArrow_7330(leftOfArrow.AsCallExpression())
+		return this_.priv_Parser_completeAssignmentExpressionParseAtArrow_7335(leftOfArrow.AsCallExpression())
 	} else {
-		return this_.priv_Parser_completeArrowFunctionParseAtArrow_7328(leftOfArrow, expressionIn)
+		return this_.priv_Parser_completeArrowFunctionParseAtArrow_7333(leftOfArrow, expressionIn)
 	}
 }
 
 // Java method: Parser.completeArrowFunctionParseAtArrow(com.google.javascript.jscomp.parsing.parser.trees.ParseTree leftOfArrow, com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_completeArrowFunctionParseAtArrow_7328(leftOfArrow ParseTree, expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_completeArrowFunctionParseAtArrow_7333(leftOfArrow ParseTree, expressionIn Parser_Expression) ParseTree {
 	_ = leftOfArrow
 	_ = expressionIn
-	var arrowFormalParameters *FormalParameterListTree = this_.priv_Parser_transformToArrowFormalParameters_7329(leftOfArrow)
+	var arrowFormalParameters *FormalParameterListTree = this_.priv_Parser_transformToArrowFormalParameters_7334(leftOfArrow)
 	_ = arrowFormalParameters
-	if this_.priv_Parser_peekImplicitSemiColon_7394() {
-		this_.priv_Parser_reportError_7424("No newline allowed before '=>'", []any{})
+	if this_.priv_Parser_peekImplicitSemiColon_7399() {
+		this_.priv_Parser_reportError_7429("No newline allowed before '=>'", []any{})
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_ARROW())
-	var arrowFunctionBody ParseTree = this_.priv_Parser_parseArrowFunctionBody_7332(expressionIn, StaticGet_Parser_FunctionFlavor_NORMAL())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_ARROW())
+	var arrowFunctionBody ParseTree = this_.priv_Parser_parseArrowFunctionBody_7337(expressionIn, StaticGet_Parser_FunctionFlavor_NORMAL())
 	_ = arrowFunctionBody
 	var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_ARROW()).SetFormalParameterList(arrowFormalParameters).SetFunctionBody(arrowFunctionBody)
 	_ = builder
-	return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7412(arrowFormalParameters.GetParseTreeBase().location.start)))
+	return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7417(arrowFormalParameters.GetParseTreeBase().location.start)))
 }
 
 // Java method: Parser.transformToArrowFormalParameters(com.google.javascript.jscomp.parsing.parser.trees.ParseTree leftOfArrow)
-func (this_ *Parser) priv_Parser_transformToArrowFormalParameters_7329(leftOfArrow ParseTree) *FormalParameterListTree {
+func (this_ *Parser) priv_Parser_transformToArrowFormalParameters_7334(leftOfArrow ParseTree) *FormalParameterListTree {
 	_ = leftOfArrow
 	var arrowParameterList *FormalParameterListTree = nil
 	_ = arrowParameterList
@@ -2560,17 +2560,17 @@ func (this_ *Parser) priv_Parser_transformToArrowFormalParameters_7329(leftOfArr
 	case int32(26) /* ParseTreeType.IDENTIFIER_EXPRESSION */ :
 		arrowParameterList = allocPooled_FormalParameterListTree_5(&this_.slab_FormalParameterListTree, leftOfArrow.GetParseTreeBase().location, leftOfArrow, false, int32(0), (SourcePosition{}))
 	case int32(46) /* ParseTreeType.ARGUMENT_LIST */, int32(52) /* ParseTreeType.PAREN_EXPRESSION */ :
-		this_.priv_Parser_resetScanner_7337(leftOfArrow)
-		arrowParameterList = this_.priv_Parser_parseFormalParameterList_7246()
+		this_.priv_Parser_resetScanner_7342(leftOfArrow)
+		arrowParameterList = this_.priv_Parser_parseFormalParameterList_7251()
 	default:
-		this_.priv_Parser_reportError_7423(leftOfArrow, "invalid arrow function parameters", []any{})
-		arrowParameterList = this_.priv_Parser_newEmptyFormalParameterList_7333(leftOfArrow.GetParseTreeBase().location)
+		this_.priv_Parser_reportError_7428(leftOfArrow, "invalid arrow function parameters", []any{})
+		arrowParameterList = this_.priv_Parser_newEmptyFormalParameterList_7338(leftOfArrow.GetParseTreeBase().location)
 	}
 	return arrowParameterList
 }
 
 // Java method: Parser.completeAssignmentExpressionParseAtArrow(com.google.javascript.jscomp.parsing.parser.trees.CallExpressionTree callExpression)
-func (this_ *Parser) priv_Parser_completeAssignmentExpressionParseAtArrow_7330(callExpression *CallExpressionTree) ParseTree {
+func (this_ *Parser) priv_Parser_completeAssignmentExpressionParseAtArrow_7335(callExpression *CallExpressionTree) ParseTree {
 	_ = callExpression
 	var operand ParseTree = callExpression.operand
 	_ = operand
@@ -2579,46 +2579,46 @@ func (this_ *Parser) priv_Parser_completeAssignmentExpressionParseAtArrow_7330(c
 	var result ParseTree = nil
 	_ = result
 	if operand.GetParseTreeBase().location.end.line < arguments.GetParseTreeBase().location.start.line {
-		this_.priv_Parser_resetScannerAfter_7338(operand)
+		this_.priv_Parser_resetScannerAfter_7343(operand)
 		result = operand
 	} else {
-		this_.priv_Parser_reportError_7424("'=>' unexpected", []any{})
+		this_.priv_Parser_reportError_7429("'=>' unexpected", []any{})
 		result = ToIface_ParseTree(callExpression)
 	}
 	return result
 }
 
 // Java method: Parser.parseAsyncArrowFunction(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseAsyncArrowFunction_7331(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseAsyncArrowFunction_7336(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eatPredefinedString_7309("async")
-	if this_.priv_Parser_peekImplicitSemiColon_7394() {
-		this_.priv_Parser_reportError_7424("No newline allowed between `async` and arrow function parameter list", []any{})
+	this_.priv_Parser_eatPredefinedString_7314("async")
+	if this_.priv_Parser_peekImplicitSemiColon_7399() {
+		this_.priv_Parser_reportError_7429("No newline allowed between `async` and arrow function parameter list", []any{})
 	}
 	var arrowParameterList *FormalParameterListTree = nil
 	_ = arrowParameterList
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_OPEN_PAREN()) {
-		arrowParameterList = this_.priv_Parser_parseFormalParameterList_7246()
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_OPEN_PAREN()) {
+		arrowParameterList = this_.priv_Parser_parseFormalParameterList_7251()
 	} else {
-		var singleParameter *IdentifierExpressionTree = this_.priv_Parser_parseIdentifierExpression_7294()
+		var singleParameter *IdentifierExpressionTree = this_.priv_Parser_parseIdentifierExpression_7299()
 		_ = singleParameter
 		arrowParameterList = allocPooled_FormalParameterListTree_5(&this_.slab_FormalParameterListTree, singleParameter.GetParseTreeBase().location, ToIface_ParseTree(singleParameter), false, int32(0), (SourcePosition{}))
 	}
-	if this_.priv_Parser_peekImplicitSemiColon_7394() {
-		this_.priv_Parser_reportError_7424("No newline allowed before '=>'", []any{})
+	if this_.priv_Parser_peekImplicitSemiColon_7399() {
+		this_.priv_Parser_reportError_7429("No newline allowed before '=>'", []any{})
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_ARROW())
-	var arrowFunctionBody ParseTree = this_.priv_Parser_parseArrowFunctionBody_7332(expressionIn, StaticGet_Parser_FunctionFlavor_ASYNCHRONOUS())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_ARROW())
+	var arrowFunctionBody ParseTree = this_.priv_Parser_parseArrowFunctionBody_7337(expressionIn, StaticGet_Parser_FunctionFlavor_ASYNCHRONOUS())
 	_ = arrowFunctionBody
 	var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_ARROW()).SetAsync(true).SetFormalParameterList(arrowParameterList).SetFunctionBody(arrowFunctionBody)
 	_ = builder
-	return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7412(start)))
+	return ToIface_ParseTree(builder.buildWithPooledSlab_FunctionDeclarationTree(&this_.slab_FunctionDeclarationTree, this_.priv_Parser_getTreeLocation_7417(start)))
 }
 
 // Java method: Parser.parseArrowFunctionBody(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn, com.google.javascript.jscomp.parsing.parser.Parser.FunctionFlavor functionFlavor)
-func (this_ *Parser) priv_Parser_parseArrowFunctionBody_7332(expressionIn Parser_Expression, functionFlavor Parser_FunctionFlavor) ParseTree {
+func (this_ *Parser) priv_Parser_parseArrowFunctionBody_7337(expressionIn Parser_Expression, functionFlavor Parser_FunctionFlavor) ParseTree {
 	_ = expressionIn
 	_ = functionFlavor
 	var prevInGenerator bool = this_.inGenerator
@@ -2626,28 +2626,28 @@ func (this_ *Parser) priv_Parser_parseArrowFunctionBody_7332(expressionIn Parser
 	this_.inGenerator = functionFlavor.FieldGet_isGenerator()
 	var arrowFunctionBody ParseTree = nil
 	_ = arrowFunctionBody
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_OPEN_CURLY()) {
-		arrowFunctionBody = ToIface_ParseTree(this_.priv_Parser_parseFunctionBody_7248())
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_OPEN_CURLY()) {
+		arrowFunctionBody = ToIface_ParseTree(this_.priv_Parser_parseFunctionBody_7253())
 	} else {
-		arrowFunctionBody = this_.priv_Parser_parseAssignment_7325(expressionIn)
+		arrowFunctionBody = this_.priv_Parser_parseAssignment_7330(expressionIn)
 	}
 	this_.inGenerator = prevInGenerator
 	return arrowFunctionBody
 }
 
 // Java method: Parser.newEmptyFormalParameterList(com.google.javascript.jscomp.parsing.parser.util.SourceRange location)
-func (this_ *Parser) priv_Parser_newEmptyFormalParameterList_7333(location SourceRange) *FormalParameterListTree {
+func (this_ *Parser) priv_Parser_newEmptyFormalParameterList_7338(location SourceRange) *FormalParameterListTree {
 	_ = location
 	return allocPooled_FormalParameterListTree_1(&this_.slab_FormalParameterListTree, location)
 }
 
 // Java method: Parser.transformLeftHandSideExpression(com.google.javascript.jscomp.parsing.parser.trees.ParseTree tree)
-func (this_ *Parser) priv_Parser_transformLeftHandSideExpression_7334(tree ParseTree) ParseTree {
+func (this_ *Parser) priv_Parser_transformLeftHandSideExpression_7339(tree ParseTree) ParseTree {
 	_ = tree
 	switch (tree.GetParseTreeBase().type_).Ordinal() {
 	case int32(28) /* ParseTreeType.ARRAY_LITERAL_EXPRESSION */, int32(29) /* ParseTreeType.OBJECT_LITERAL_EXPRESSION */ :
-		this_.priv_Parser_resetScanner_7337(tree)
-		return this_.priv_Parser_parseLeftHandSidePattern_7335()
+		this_.priv_Parser_resetScanner_7342(tree)
+		return this_.priv_Parser_parseLeftHandSidePattern_7340()
 	default:
 		return tree
 	}
@@ -2655,33 +2655,33 @@ func (this_ *Parser) priv_Parser_transformLeftHandSideExpression_7334(tree Parse
 }
 
 // Java method: Parser.parseLeftHandSidePattern()
-func (this_ *Parser) priv_Parser_parseLeftHandSidePattern_7335() ParseTree {
-	return this_.priv_Parser_parsePattern_7383(StaticGet_Parser_PatternKind_ANY())
+func (this_ *Parser) priv_Parser_parseLeftHandSidePattern_7340() ParseTree {
+	return this_.priv_Parser_parsePattern_7388(StaticGet_Parser_PatternKind_ANY())
 }
 
 // Java method: Parser.resetScanner(com.google.javascript.jscomp.parsing.parser.util.SourcePosition start)
-func (this_ *Parser) priv_Parser_resetScanner_7336(start SourcePosition) {
+func (this_ *Parser) priv_Parser_resetScanner_7341(start SourcePosition) {
 	_ = start
 	this_.lastSourcePosition = start
 	this_.scanner.SetPosition(this_.lastSourcePosition)
 }
 
 // Java method: Parser.resetScanner(com.google.javascript.jscomp.parsing.parser.trees.ParseTree tree)
-func (this_ *Parser) priv_Parser_resetScanner_7337(tree ParseTree) {
+func (this_ *Parser) priv_Parser_resetScanner_7342(tree ParseTree) {
 	_ = tree
 	this_.scanner.SetPosition(tree.GetParseTreeBase().location.start)
 }
 
 // Java method: Parser.resetScannerAfter(com.google.javascript.jscomp.parsing.parser.trees.ParseTree parseTree)
-func (this_ *Parser) priv_Parser_resetScannerAfter_7338(parseTree ParseTree) {
+func (this_ *Parser) priv_Parser_resetScannerAfter_7343(parseTree ParseTree) {
 	_ = parseTree
 	this_.lastSourcePosition = parseTree.GetParseTreeBase().location.end
 	this_.scanner.SetPosition(this_.lastSourcePosition)
 }
 
 // Java method: Parser.peekAssignmentOperator()
-func (this_ *Parser) priv_Parser_peekAssignmentOperator_7339() bool {
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+func (this_ *Parser) priv_Parser_peekAssignmentOperator_7344() bool {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(84) /* TokenType.EQUAL */, int32(87) /* TokenType.STAR_EQUAL */, int32(88) /* TokenType.STAR_STAR_EQUAL */, int32(97) /* TokenType.SLASH_EQUAL */, int32(89) /* TokenType.PERCENT_EQUAL */, int32(85) /* TokenType.PLUS_EQUAL */, int32(86) /* TokenType.MINUS_EQUAL */, int32(90) /* TokenType.LEFT_SHIFT_EQUAL */, int32(91) /* TokenType.RIGHT_SHIFT_EQUAL */, int32(92) /* TokenType.UNSIGNED_RIGHT_SHIFT_EQUAL */, int32(93) /* TokenType.AMPERSAND_EQUAL */, int32(95) /* TokenType.CARET_EQUAL */, int32(94) /* TokenType.BAR_EQUAL */, int32(99) /* TokenType.OR_EQUAL */, int32(98) /* TokenType.AND_EQUAL */, int32(100) /* TokenType.QUESTION_QUESTION_EQUAL */ :
 		return true
 	default:
@@ -2691,194 +2691,194 @@ func (this_ *Parser) priv_Parser_peekAssignmentOperator_7339() bool {
 }
 
 // Java method: Parser.inGeneratorContext()
-func (this_ *Parser) priv_Parser_inGeneratorContext_7340() bool {
+func (this_ *Parser) priv_Parser_inGeneratorContext_7345() bool {
 	return this_.inGenerator
 }
 
 // Java method: Parser.parseYield(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseYield_7341(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseYield_7346(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_YIELD())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_YIELD())
 	var isYieldAll bool = false
 	_ = isYieldAll
 	var expression ParseTree = nil
 	_ = expression
-	if !(this_.priv_Parser_peekImplicitSemiColon_7394()) {
-		isYieldAll = (this_.priv_Parser_eatOpt_7398(StaticGet_TokenType_STAR()) != (Token{}))
-		if this_.priv_Parser_peekAssignmentExpression_7324() {
-			expression = this_.priv_Parser_parseAssignment_7325(expressionIn)
+	if !(this_.priv_Parser_peekImplicitSemiColon_7399()) {
+		isYieldAll = (this_.priv_Parser_eatOpt_7403(StaticGet_TokenType_STAR()) != (Token{}))
+		if this_.priv_Parser_peekAssignmentExpression_7329() {
+			expression = this_.priv_Parser_parseAssignment_7330(expressionIn)
 		} else if isYieldAll {
-			this_.priv_Parser_reportError_7424("yield* requires an expression", []any{})
+			this_.priv_Parser_reportError_7429("yield* requires an expression", []any{})
 		}
 	}
-	return ToIface_ParseTree(allocPooled_YieldExpressionTree(&this_.slab_YieldExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), isYieldAll, expression))
+	return ToIface_ParseTree(allocPooled_YieldExpressionTree(&this_.slab_YieldExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), isYieldAll, expression))
 }
 
 // Java method: Parser.parseConditional(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseConditional_7342(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseConditional_7347(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var condition ParseTree = this_.priv_Parser_parseShortCircuit_7343(expressionIn)
+	var condition ParseTree = this_.priv_Parser_parseShortCircuit_7348(expressionIn)
 	_ = condition
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_QUESTION()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_QUESTION())
-		var left ParseTree = this_.priv_Parser_parseAssignment_7325(expressionIn)
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_QUESTION()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_QUESTION())
+		var left ParseTree = this_.priv_Parser_parseAssignment_7330(expressionIn)
 		_ = left
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_COLON())
-		var right ParseTree = this_.priv_Parser_parseAssignment_7325(expressionIn)
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_COLON())
+		var right ParseTree = this_.priv_Parser_parseAssignment_7330(expressionIn)
 		_ = right
-		return ToIface_ParseTree(allocPooled_ConditionalExpressionTree(&this_.slab_ConditionalExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), condition, left, right))
+		return ToIface_ParseTree(allocPooled_ConditionalExpressionTree(&this_.slab_ConditionalExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), condition, left, right))
 	}
 	return condition
 }
 
 // Java method: Parser.parseShortCircuit(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseShortCircuit_7343(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseShortCircuit_7348(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseLogicalOR_7345(expressionIn)
+	var left ParseTree = this_.priv_Parser_parseLogicalOR_7350(expressionIn)
 	_ = left
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_QUESTION_QUESTION()) {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_QUESTION_QUESTION()) {
 		if left.GetParseTreeBase().type_ == StaticGet_ParseTreeType_BINARY_OPERATOR() {
 			var binaryTree *BinaryOperatorTree = left.AsBinaryOperator()
 			_ = binaryTree
 			if (binaryTree.operator.type_ == StaticGet_TokenType_AND()) || (binaryTree.operator.type_ == StaticGet_TokenType_OR()) {
-				this_.priv_Parser_reportError_7424("Logical OR and logical AND require parentheses when used with '??'", []any{})
+				this_.priv_Parser_reportError_7429("Logical OR and logical AND require parentheses when used with '??'", []any{})
 			}
 		}
-		return this_.priv_Parser_parseNullishCoalesce_7344(expressionIn, left, start)
+		return this_.priv_Parser_parseNullishCoalesce_7349(expressionIn, left, start)
 	} else {
 		return left
 	}
 }
 
 // Java method: Parser.parseNullishCoalesce(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn, com.google.javascript.jscomp.parsing.parser.trees.ParseTree left, com.google.javascript.jscomp.parsing.parser.util.SourcePosition start)
-func (this_ *Parser) priv_Parser_parseNullishCoalesce_7344(expressionIn Parser_Expression, left ParseTree, start SourcePosition) ParseTree {
+func (this_ *Parser) priv_Parser_parseNullishCoalesce_7349(expressionIn Parser_Expression, left ParseTree, start SourcePosition) ParseTree {
 	_ = expressionIn
 	_ = left
 	_ = start
-	for this_.priv_Parser_peek_7416(StaticGet_TokenType_QUESTION_QUESTION()) {
-		var operator Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_QUESTION_QUESTION())
+	for this_.priv_Parser_peek_7421(StaticGet_TokenType_QUESTION_QUESTION()) {
+		var operator Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_QUESTION_QUESTION())
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseBitwiseOR_7347(expressionIn)
+		var right ParseTree = this_.priv_Parser_parseBitwiseOR_7352(expressionIn)
 		_ = right
-		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_AND()) || this_.priv_Parser_peek_7416(StaticGet_TokenType_OR()) {
-		this_.priv_Parser_reportError_7424("Logical OR and logical AND require parentheses when used with '??'", []any{})
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_AND()) || this_.priv_Parser_peek_7421(StaticGet_TokenType_OR()) {
+		this_.priv_Parser_reportError_7429("Logical OR and logical AND require parentheses when used with '??'", []any{})
 	}
 	return left
 }
 
 // Java method: Parser.parseLogicalOR(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseLogicalOR_7345(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseLogicalOR_7350(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseLogicalAND_7346(expressionIn)
+	var left ParseTree = this_.priv_Parser_parseLogicalAND_7351(expressionIn)
 	_ = left
-	for this_.priv_Parser_peek_7416(StaticGet_TokenType_OR()) {
-		var operator Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_OR())
+	for this_.priv_Parser_peek_7421(StaticGet_TokenType_OR()) {
+		var operator Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_OR())
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseLogicalAND_7346(expressionIn)
+		var right ParseTree = this_.priv_Parser_parseLogicalAND_7351(expressionIn)
 		_ = right
-		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	}
 	return left
 }
 
 // Java method: Parser.parseLogicalAND(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseLogicalAND_7346(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseLogicalAND_7351(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseBitwiseOR_7347(expressionIn)
+	var left ParseTree = this_.priv_Parser_parseBitwiseOR_7352(expressionIn)
 	_ = left
-	for this_.priv_Parser_peek_7416(StaticGet_TokenType_AND()) {
-		var operator Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_AND())
+	for this_.priv_Parser_peek_7421(StaticGet_TokenType_AND()) {
+		var operator Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_AND())
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseBitwiseOR_7347(expressionIn)
+		var right ParseTree = this_.priv_Parser_parseBitwiseOR_7352(expressionIn)
 		_ = right
-		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	}
 	return left
 }
 
 // Java method: Parser.parseBitwiseOR(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseBitwiseOR_7347(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseBitwiseOR_7352(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseBitwiseXOR_7348(expressionIn)
+	var left ParseTree = this_.priv_Parser_parseBitwiseXOR_7353(expressionIn)
 	_ = left
-	for this_.priv_Parser_peek_7416(StaticGet_TokenType_BAR()) {
-		var operator Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_BAR())
+	for this_.priv_Parser_peek_7421(StaticGet_TokenType_BAR()) {
+		var operator Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_BAR())
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseBitwiseXOR_7348(expressionIn)
+		var right ParseTree = this_.priv_Parser_parseBitwiseXOR_7353(expressionIn)
 		_ = right
-		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	}
 	return left
 }
 
 // Java method: Parser.parseBitwiseXOR(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseBitwiseXOR_7348(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseBitwiseXOR_7353(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseBitwiseAND_7349(expressionIn)
+	var left ParseTree = this_.priv_Parser_parseBitwiseAND_7354(expressionIn)
 	_ = left
-	for this_.priv_Parser_peek_7416(StaticGet_TokenType_CARET()) {
-		var operator Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_CARET())
+	for this_.priv_Parser_peek_7421(StaticGet_TokenType_CARET()) {
+		var operator Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_CARET())
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseBitwiseAND_7349(expressionIn)
+		var right ParseTree = this_.priv_Parser_parseBitwiseAND_7354(expressionIn)
 		_ = right
-		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	}
 	return left
 }
 
 // Java method: Parser.parseBitwiseAND(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseBitwiseAND_7349(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseBitwiseAND_7354(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseEquality_7350(expressionIn)
+	var left ParseTree = this_.priv_Parser_parseEquality_7355(expressionIn)
 	_ = left
-	for this_.priv_Parser_peek_7416(StaticGet_TokenType_AMPERSAND()) {
-		var operator Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_AMPERSAND())
+	for this_.priv_Parser_peek_7421(StaticGet_TokenType_AMPERSAND()) {
+		var operator Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_AMPERSAND())
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseEquality_7350(expressionIn)
+		var right ParseTree = this_.priv_Parser_parseEquality_7355(expressionIn)
 		_ = right
-		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	}
 	return left
 }
 
 // Java method: Parser.parseEquality(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseEquality_7350(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseEquality_7355(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseRelational_7352(expressionIn)
+	var left ParseTree = this_.priv_Parser_parseRelational_7357(expressionIn)
 	_ = left
-	for this_.priv_Parser_peekEqualityOperator_7351() {
-		var operator Token = this_.priv_Parser_nextToken_7413()
+	for this_.priv_Parser_peekEqualityOperator_7356() {
+		var operator Token = this_.priv_Parser_nextToken_7418()
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseRelational_7352(expressionIn)
+		var right ParseTree = this_.priv_Parser_parseRelational_7357(expressionIn)
 		_ = right
-		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	}
 	return left
 }
 
 // Java method: Parser.peekEqualityOperator()
-func (this_ *Parser) priv_Parser_peekEqualityOperator_7351() bool {
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+func (this_ *Parser) priv_Parser_peekEqualityOperator_7356() bool {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(59) /* TokenType.EQUAL_EQUAL */, int32(60) /* TokenType.NOT_EQUAL */, int32(61) /* TokenType.EQUAL_EQUAL_EQUAL */, int32(62) /* TokenType.NOT_EQUAL_EQUAL */ :
 		return true
 	default:
@@ -2888,26 +2888,26 @@ func (this_ *Parser) priv_Parser_peekEqualityOperator_7351() bool {
 }
 
 // Java method: Parser.parseRelational(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_parseRelational_7352(expressionIn Parser_Expression) ParseTree {
+func (this_ *Parser) priv_Parser_parseRelational_7357(expressionIn Parser_Expression) ParseTree {
 	_ = expressionIn
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseShiftExpression_7354()
+	var left ParseTree = this_.priv_Parser_parseShiftExpression_7359()
 	_ = left
-	for this_.priv_Parser_peekRelationalOperator_7353(expressionIn) {
-		var operator Token = this_.priv_Parser_nextToken_7413()
+	for this_.priv_Parser_peekRelationalOperator_7358(expressionIn) {
+		var operator Token = this_.priv_Parser_nextToken_7418()
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseShiftExpression_7354()
+		var right ParseTree = this_.priv_Parser_parseShiftExpression_7359()
 		_ = right
-		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	}
 	return left
 }
 
 // Java method: Parser.peekRelationalOperator(com.google.javascript.jscomp.parsing.parser.Parser.Expression expressionIn)
-func (this_ *Parser) priv_Parser_peekRelationalOperator_7353(expressionIn Parser_Expression) bool {
+func (this_ *Parser) priv_Parser_peekRelationalOperator_7358(expressionIn Parser_Expression) bool {
 	_ = expressionIn
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(54) /* TokenType.OPEN_ANGLE */, int32(55) /* TokenType.CLOSE_ANGLE */, int32(57) /* TokenType.GREATER_EQUAL */, int32(56) /* TokenType.LESS_EQUAL */, int32(17) /* TokenType.INSTANCEOF */ :
 		return true
 	case int32(16) /* TokenType.IN */ :
@@ -2919,24 +2919,24 @@ func (this_ *Parser) priv_Parser_peekRelationalOperator_7353(expressionIn Parser
 }
 
 // Java method: Parser.parseShiftExpression()
-func (this_ *Parser) priv_Parser_parseShiftExpression_7354() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseShiftExpression_7359() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseAdditiveExpression_7356()
+	var left ParseTree = this_.priv_Parser_parseAdditiveExpression_7361()
 	_ = left
-	for this_.priv_Parser_peekShiftOperator_7355() {
-		var operator Token = this_.priv_Parser_nextToken_7413()
+	for this_.priv_Parser_peekShiftOperator_7360() {
+		var operator Token = this_.priv_Parser_nextToken_7418()
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseAdditiveExpression_7356()
+		var right ParseTree = this_.priv_Parser_parseAdditiveExpression_7361()
 		_ = right
-		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	}
 	return left
 }
 
 // Java method: Parser.peekShiftOperator()
-func (this_ *Parser) priv_Parser_peekShiftOperator_7355() bool {
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+func (this_ *Parser) priv_Parser_peekShiftOperator_7360() bool {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(70) /* TokenType.LEFT_SHIFT */, int32(71) /* TokenType.RIGHT_SHIFT */, int32(72) /* TokenType.UNSIGNED_RIGHT_SHIFT */ :
 		return true
 	default:
@@ -2946,24 +2946,24 @@ func (this_ *Parser) priv_Parser_peekShiftOperator_7355() bool {
 }
 
 // Java method: Parser.parseAdditiveExpression()
-func (this_ *Parser) priv_Parser_parseAdditiveExpression_7356() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseAdditiveExpression_7361() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseMultiplicativeExpression_7358()
+	var left ParseTree = this_.priv_Parser_parseMultiplicativeExpression_7363()
 	_ = left
-	for this_.priv_Parser_peekAdditiveOperator_7357() {
-		var operator Token = this_.priv_Parser_nextToken_7413()
+	for this_.priv_Parser_peekAdditiveOperator_7362() {
+		var operator Token = this_.priv_Parser_nextToken_7418()
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseMultiplicativeExpression_7358()
+		var right ParseTree = this_.priv_Parser_parseMultiplicativeExpression_7363()
 		_ = right
-		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	}
 	return left
 }
 
 // Java method: Parser.peekAdditiveOperator()
-func (this_ *Parser) priv_Parser_peekAdditiveOperator_7357() bool {
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+func (this_ *Parser) priv_Parser_peekAdditiveOperator_7362() bool {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(63) /* TokenType.PLUS */, int32(64) /* TokenType.MINUS */ :
 		return true
 	default:
@@ -2973,24 +2973,24 @@ func (this_ *Parser) priv_Parser_peekAdditiveOperator_7357() bool {
 }
 
 // Java method: Parser.parseMultiplicativeExpression()
-func (this_ *Parser) priv_Parser_parseMultiplicativeExpression_7358() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseMultiplicativeExpression_7363() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseExponentiationExpression_7360()
+	var left ParseTree = this_.priv_Parser_parseExponentiationExpression_7365()
 	_ = left
-	for this_.priv_Parser_peekMultiplicativeOperator_7359() {
-		var operator Token = this_.priv_Parser_nextToken_7413()
+	for this_.priv_Parser_peekMultiplicativeOperator_7364() {
+		var operator Token = this_.priv_Parser_nextToken_7418()
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseExponentiationExpression_7360()
+		var right ParseTree = this_.priv_Parser_parseExponentiationExpression_7365()
 		_ = right
-		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		left = ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	}
 	return left
 }
 
 // Java method: Parser.peekMultiplicativeOperator()
-func (this_ *Parser) priv_Parser_peekMultiplicativeOperator_7359() bool {
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+func (this_ *Parser) priv_Parser_peekMultiplicativeOperator_7364() bool {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(65) /* TokenType.STAR */, int32(96) /* TokenType.SLASH */, int32(67) /* TokenType.PERCENT */ :
 		return true
 	default:
@@ -3000,47 +3000,47 @@ func (this_ *Parser) priv_Parser_peekMultiplicativeOperator_7359() bool {
 }
 
 // Java method: Parser.parseExponentiationExpression()
-func (this_ *Parser) priv_Parser_parseExponentiationExpression_7360() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseExponentiationExpression_7365() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var left ParseTree = this_.priv_Parser_parseUnaryExpression_7361()
+	var left ParseTree = this_.priv_Parser_parseUnaryExpression_7366()
 	_ = left
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_STAR_STAR()) {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_STAR_STAR()) {
 		if left.GetParseTreeBase().type_ == StaticGet_ParseTreeType_UNARY_EXPRESSION() {
-			this_.priv_Parser_reportError_7424("Unary operator '%s' requires parentheses before '**'", []any{j2gort.BoxNullableVal(left.AsUnaryExpression().operator)})
+			this_.priv_Parser_reportError_7429("Unary operator '%s' requires parentheses before '**'", []any{j2gort.BoxNullableVal(left.AsUnaryExpression().operator)})
 		} else if left.GetParseTreeBase().type_ == StaticGet_ParseTreeType_AWAIT_EXPRESSION() {
-			this_.priv_Parser_reportError_7424("Unary operator 'await' requires parentheses before '**'", []any{})
+			this_.priv_Parser_reportError_7429("Unary operator 'await' requires parentheses before '**'", []any{})
 		}
-		var operator Token = this_.priv_Parser_nextToken_7413()
+		var operator Token = this_.priv_Parser_nextToken_7418()
 		_ = operator
-		var right ParseTree = this_.priv_Parser_parseExponentiationExpression_7360()
+		var right ParseTree = this_.priv_Parser_parseExponentiationExpression_7365()
 		_ = right
-		return ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7412(start), left, operator, right))
+		return ToIface_ParseTree(allocPooled_BinaryOperatorTree(&this_.slab_BinaryOperatorTree, this_.priv_Parser_getTreeLocation_7417(start), left, operator, right))
 	} else {
 		return left
 	}
 }
 
 // Java method: Parser.parseUnaryExpression()
-func (this_ *Parser) priv_Parser_parseUnaryExpression_7361() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseUnaryExpression_7366() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	if this_.priv_Parser_peekUnaryOperator_7362() {
-		var operator Token = this_.priv_Parser_nextToken_7413()
+	if this_.priv_Parser_peekUnaryOperator_7367() {
+		var operator Token = this_.priv_Parser_nextToken_7418()
 		_ = operator
-		var operand ParseTree = this_.priv_Parser_parseUnaryExpression_7361()
+		var operand ParseTree = this_.priv_Parser_parseUnaryExpression_7366()
 		_ = operand
-		return ToIface_ParseTree(allocPooled_UnaryExpressionTree(&this_.slab_UnaryExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operator, operand))
-	} else if this_.priv_Parser_peekAwaitExpression_7363() {
-		return this_.priv_Parser_parseAwaitExpression_7364()
+		return ToIface_ParseTree(allocPooled_UnaryExpressionTree(&this_.slab_UnaryExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operator, operand))
+	} else if this_.priv_Parser_peekAwaitExpression_7368() {
+		return this_.priv_Parser_parseAwaitExpression_7369()
 	} else {
-		return this_.priv_Parser_parseUpdateExpression_7365()
+		return this_.priv_Parser_parseUpdateExpression_7370()
 	}
 }
 
 // Java method: Parser.peekUnaryOperator()
-func (this_ *Parser) priv_Parser_peekUnaryOperator_7362() bool {
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+func (this_ *Parser) priv_Parser_peekUnaryOperator_7367() bool {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(9) /* TokenType.DELETE */, int32(26) /* TokenType.VOID */, int32(24) /* TokenType.TYPEOF */, int32(63) /* TokenType.PLUS */, int32(64) /* TokenType.MINUS */, int32(77) /* TokenType.TILDE */, int32(76) /* TokenType.BANG */ :
 		return true
 	default:
@@ -3050,37 +3050,37 @@ func (this_ *Parser) priv_Parser_peekUnaryOperator_7362() bool {
 }
 
 // Java method: Parser.peekAwaitExpression()
-func (this_ *Parser) priv_Parser_peekAwaitExpression_7363() bool {
-	return this_.priv_Parser_peekPredefinedString_7308("await")
+func (this_ *Parser) priv_Parser_peekAwaitExpression_7368() bool {
+	return this_.priv_Parser_peekPredefinedString_7313("await")
 }
 
 // Java method: Parser.parseAwaitExpression()
-func (this_ *Parser) priv_Parser_parseAwaitExpression_7364() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseAwaitExpression_7369() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eatPredefinedString_7309("await")
-	var expression ParseTree = this_.priv_Parser_parseUnaryExpression_7361()
+	this_.priv_Parser_eatPredefinedString_7314("await")
+	var expression ParseTree = this_.priv_Parser_parseUnaryExpression_7366()
 	_ = expression
-	return ToIface_ParseTree(allocPooled_AwaitExpressionTree(&this_.slab_AwaitExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), expression))
+	return ToIface_ParseTree(allocPooled_AwaitExpressionTree(&this_.slab_AwaitExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), expression))
 }
 
 // Java method: Parser.parseUpdateExpression()
-func (this_ *Parser) priv_Parser_parseUpdateExpression_7365() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseUpdateExpression_7370() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	if this_.priv_Parser_peekUpdateOperator_7366() {
-		var operator Token = this_.priv_Parser_nextToken_7413()
+	if this_.priv_Parser_peekUpdateOperator_7371() {
+		var operator Token = this_.priv_Parser_nextToken_7418()
 		_ = operator
-		var operand ParseTree = this_.priv_Parser_parseUnaryExpression_7361()
+		var operand ParseTree = this_.priv_Parser_parseUnaryExpression_7366()
 		_ = operand
-		return ToIface_ParseTree(allocPooledVia_UpdateExpressionTree_Prefix(&this_.slab_UpdateExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operator, operand))
+		return ToIface_ParseTree(allocPooledVia_UpdateExpressionTree_Prefix(&this_.slab_UpdateExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operator, operand))
 	} else {
-		var lhs ParseTree = this_.priv_Parser_parseLeftHandSideExpression_7369()
+		var lhs ParseTree = this_.priv_Parser_parseLeftHandSideExpression_7374()
 		_ = lhs
-		if this_.priv_Parser_peekUpdateOperator_7366() && !(this_.priv_Parser_peekImplicitSemiColon_7394()) {
-			var operator_2 Token = this_.priv_Parser_nextToken_7413()
+		if this_.priv_Parser_peekUpdateOperator_7371() && !(this_.priv_Parser_peekImplicitSemiColon_7399()) {
+			var operator_2 Token = this_.priv_Parser_nextToken_7418()
 			_ = operator_2
-			return ToIface_ParseTree(allocPooledVia_UpdateExpressionTree_Postfix(&this_.slab_UpdateExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operator_2, lhs))
+			return ToIface_ParseTree(allocPooledVia_UpdateExpressionTree_Postfix(&this_.slab_UpdateExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operator_2, lhs))
 		} else {
 			return lhs
 		}
@@ -3088,8 +3088,8 @@ func (this_ *Parser) priv_Parser_parseUpdateExpression_7365() ParseTree {
 }
 
 // Java method: Parser.peekUpdateOperator()
-func (this_ *Parser) priv_Parser_peekUpdateOperator_7366() bool {
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+func (this_ *Parser) priv_Parser_peekUpdateOperator_7371() bool {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(68) /* TokenType.PLUS_PLUS */, int32(69) /* TokenType.MINUS_MINUS */ :
 		return true
 	default:
@@ -3099,20 +3099,20 @@ func (this_ *Parser) priv_Parser_peekUpdateOperator_7366() bool {
 }
 
 // Java method: Parser.peekImportCall()
-func (this_ *Parser) priv_Parser_peekImportCall_7367() bool {
-	return (this_.priv_Parser_peek_7416(StaticGet_TokenType_IMPORT()) && this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_OPEN_PAREN()))
+func (this_ *Parser) priv_Parser_peekImportCall_7372() bool {
+	return (this_.priv_Parser_peek_7421(StaticGet_TokenType_IMPORT()) && this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_OPEN_PAREN()))
 }
 
 // Java method: Parser.peekImportDot()
-func (this_ *Parser) priv_Parser_peekImportDot_7368() bool {
-	return (this_.priv_Parser_peek_7416(StaticGet_TokenType_IMPORT()) && this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_PERIOD()))
+func (this_ *Parser) priv_Parser_peekImportDot_7373() bool {
+	return (this_.priv_Parser_peek_7421(StaticGet_TokenType_IMPORT()) && this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_PERIOD()))
 }
 
 // Java method: Parser.parseLeftHandSideExpression()
-func (this_ *Parser) priv_Parser_parseLeftHandSideExpression_7369() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseLeftHandSideExpression_7374() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	var operand ParseTree = this_.priv_Parser_parseNewExpression_7376()
+	var operand ParseTree = this_.priv_Parser_parseNewExpression_7381()
 	_ = operand
 	var newExpressionTree *NewExpressionTree
 	_ = newExpressionTree
@@ -3120,141 +3120,141 @@ func (this_ *Parser) priv_Parser_parseLeftHandSideExpression_7369() ParseTree {
 	newExpressionTree, ok_32 = j2gort.TryCast[*NewExpressionTree](operand)
 	ok_31 := !ok_32
 	if ok_31 || (newExpressionTree.arguments != nil) {
-		for this_.priv_Parser_peekCallSuffix_7370() {
-			switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+		for this_.priv_Parser_peekCallSuffix_7375() {
+			switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 			case int32(47) /* TokenType.OPEN_PAREN */ :
-				var arguments *ArgumentListTree = this_.priv_Parser_parseArguments_7379()
+				var arguments *ArgumentListTree = this_.priv_Parser_parseArguments_7384()
 				_ = arguments
-				operand = ToIface_ParseTree(allocPooled_CallExpressionTree(&this_.slab_CallExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operand, arguments))
+				operand = ToIface_ParseTree(allocPooled_CallExpressionTree(&this_.slab_CallExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operand, arguments))
 			case int32(49) /* TokenType.OPEN_SQUARE */ :
-				this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_SQUARE())
-				var member ParseTree = this_.priv_Parser_parseExpression_7320()
+				this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_SQUARE())
+				var member ParseTree = this_.priv_Parser_parseExpression_7325()
 				_ = member
-				this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_SQUARE())
-				operand = ToIface_ParseTree(allocPooled_MemberLookupExpressionTree(&this_.slab_MemberLookupExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operand, member))
+				this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_SQUARE())
+				operand = ToIface_ParseTree(allocPooled_MemberLookupExpressionTree(&this_.slab_MemberLookupExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operand, member))
 			case int32(51) /* TokenType.PERIOD */ :
-				this_.priv_Parser_eat_7408(StaticGet_TokenType_PERIOD())
-				var id Token = this_.priv_Parser_eatIdOrKeywordAsId_7407()
+				this_.priv_Parser_eat_7413(StaticGet_TokenType_PERIOD())
+				var id Token = this_.priv_Parser_eatIdOrKeywordAsId_7412()
 				_ = id
-				operand = ToIface_ParseTree(allocPooled_MemberExpressionTree(&this_.slab_MemberExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operand, id))
+				operand = ToIface_ParseTree(allocPooled_MemberExpressionTree(&this_.slab_MemberExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operand, id))
 			case int32(112) /* TokenType.NO_SUBSTITUTION_TEMPLATE */, int32(109) /* TokenType.TEMPLATE_HEAD */ :
-				operand = ToIface_ParseTree(this_.priv_Parser_parseTemplateLiteral_7296(operand))
+				operand = ToIface_ParseTree(this_.priv_Parser_parseTemplateLiteral_7301(operand))
 			default:
-				panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", "unexpected case: "+j2gort.StrVal(this_.priv_Parser_peekType_7418()))))
+				panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", "unexpected case: "+j2gort.StrVal(this_.priv_Parser_peekType_7423()))))
 			}
 		}
-		operand = this_.priv_Parser_maybeParseOptionalExpression_7371(operand)
+		operand = this_.priv_Parser_maybeParseOptionalExpression_7376(operand)
 	}
 	return operand
 }
 
 // Java method: Parser.peekCallSuffix()
-func (this_ *Parser) priv_Parser_peekCallSuffix_7370() bool {
-	return ((((this_.priv_Parser_peek_7416(StaticGet_TokenType_OPEN_PAREN()) || this_.priv_Parser_peek_7416(StaticGet_TokenType_OPEN_SQUARE())) || this_.priv_Parser_peek_7416(StaticGet_TokenType_PERIOD())) || this_.priv_Parser_peek_7416(StaticGet_TokenType_NO_SUBSTITUTION_TEMPLATE())) || this_.priv_Parser_peek_7416(StaticGet_TokenType_TEMPLATE_HEAD()))
+func (this_ *Parser) priv_Parser_peekCallSuffix_7375() bool {
+	return ((((this_.priv_Parser_peek_7421(StaticGet_TokenType_OPEN_PAREN()) || this_.priv_Parser_peek_7421(StaticGet_TokenType_OPEN_SQUARE())) || this_.priv_Parser_peek_7421(StaticGet_TokenType_PERIOD())) || this_.priv_Parser_peek_7421(StaticGet_TokenType_NO_SUBSTITUTION_TEMPLATE())) || this_.priv_Parser_peek_7421(StaticGet_TokenType_TEMPLATE_HEAD()))
 }
 
 // Java method: Parser.maybeParseOptionalExpression(com.google.javascript.jscomp.parsing.parser.trees.ParseTree operand)
-func (this_ *Parser) priv_Parser_maybeParseOptionalExpression_7371(operand ParseTree) ParseTree {
+func (this_ *Parser) priv_Parser_maybeParseOptionalExpression_7376(operand ParseTree) ParseTree {
 	_ = operand
 	var start SourcePosition = operand.GetParseTreeBase().location.start
 	_ = start
-	for this_.priv_Parser_peek_7416(StaticGet_TokenType_QUESTION_DOT()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_QUESTION_DOT())
-		switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+	for this_.priv_Parser_peek_7421(StaticGet_TokenType_QUESTION_DOT()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_QUESTION_DOT())
+		switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 		case int32(47) /* TokenType.OPEN_PAREN */ :
-			var arguments *ArgumentListTree = this_.priv_Parser_parseArguments_7379()
+			var arguments *ArgumentListTree = this_.priv_Parser_parseArguments_7384()
 			_ = arguments
-			operand = ToIface_ParseTree(allocPooled_OptChainCallExpressionTree(&this_.slab_OptChainCallExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operand, arguments, true, arguments.hasTrailingComma))
+			operand = ToIface_ParseTree(allocPooled_OptChainCallExpressionTree(&this_.slab_OptChainCallExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operand, arguments, true, arguments.hasTrailingComma))
 		case int32(49) /* TokenType.OPEN_SQUARE */ :
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_SQUARE())
-			var member ParseTree = this_.priv_Parser_parseExpression_7320()
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_SQUARE())
+			var member ParseTree = this_.priv_Parser_parseExpression_7325()
 			_ = member
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_SQUARE())
-			operand = ToIface_ParseTree(allocPooled_OptionalMemberLookupExpressionTree(&this_.slab_OptionalMemberLookupExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operand, member, true))
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_SQUARE())
+			operand = ToIface_ParseTree(allocPooled_OptionalMemberLookupExpressionTree(&this_.slab_OptionalMemberLookupExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operand, member, true))
 		case int32(112) /* TokenType.NO_SUBSTITUTION_TEMPLATE */, int32(109) /* TokenType.TEMPLATE_HEAD */ :
-			this_.priv_Parser_reportError_7424("template literal cannot be used within optional chaining", []any{})
+			this_.priv_Parser_reportError_7429("template literal cannot be used within optional chaining", []any{})
 		default:
-			if this_.priv_Parser_peekIdOrKeyword_7402() {
-				var id Token = this_.priv_Parser_eatIdOrKeywordAsId_7407()
+			if this_.priv_Parser_peekIdOrKeyword_7407() {
+				var id Token = this_.priv_Parser_eatIdOrKeywordAsId_7412()
 				_ = id
-				operand = ToIface_ParseTree(allocPooled_OptionalMemberExpressionTree(&this_.slab_OptionalMemberExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operand, id, true))
+				operand = ToIface_ParseTree(allocPooled_OptionalMemberExpressionTree(&this_.slab_OptionalMemberExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operand, id, true))
 			} else {
-				this_.priv_Parser_reportError_7424("syntax error: %s not allowed in optional chain", []any{j2gort.BoxNullableVal(this_.priv_Parser_peekType_7418())})
+				this_.priv_Parser_reportError_7429("syntax error: %s not allowed in optional chain", []any{j2gort.BoxNullableVal(this_.priv_Parser_peekType_7423())})
 			}
 		}
-		operand = this_.priv_Parser_parseRemainingOptionalChainSegment_7372(operand)
+		operand = this_.priv_Parser_parseRemainingOptionalChainSegment_7377(operand)
 	}
 	return operand
 }
 
 // Java method: Parser.parseRemainingOptionalChainSegment(com.google.javascript.jscomp.parsing.parser.trees.ParseTree optionalExpression)
-func (this_ *Parser) priv_Parser_parseRemainingOptionalChainSegment_7372(optionalExpression ParseTree) ParseTree {
+func (this_ *Parser) priv_Parser_parseRemainingOptionalChainSegment_7377(optionalExpression ParseTree) ParseTree {
 	_ = optionalExpression
 	var start SourcePosition = optionalExpression.GetParseTreeBase().location.start
 	_ = start
-	for this_.priv_Parser_peekOptionalChainSuffix_7373() {
-		if (this_.priv_Parser_peekType_7418() == StaticGet_TokenType_NO_SUBSTITUTION_TEMPLATE()) || (this_.priv_Parser_peekType_7418() == StaticGet_TokenType_TEMPLATE_HEAD()) {
-			this_.priv_Parser_reportError_7424("template literal cannot be used within optional chaining", []any{})
+	for this_.priv_Parser_peekOptionalChainSuffix_7378() {
+		if (this_.priv_Parser_peekType_7423() == StaticGet_TokenType_NO_SUBSTITUTION_TEMPLATE()) || (this_.priv_Parser_peekType_7423() == StaticGet_TokenType_TEMPLATE_HEAD()) {
+			this_.priv_Parser_reportError_7429("template literal cannot be used within optional chaining", []any{})
 			break
 		}
-		switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+		switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 		case int32(51) /* TokenType.PERIOD */ :
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_PERIOD())
-			var id Token = this_.priv_Parser_eatIdOrKeywordAsId_7407()
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_PERIOD())
+			var id Token = this_.priv_Parser_eatIdOrKeywordAsId_7412()
 			_ = id
-			optionalExpression = ToIface_ParseTree(allocPooled_OptionalMemberExpressionTree(&this_.slab_OptionalMemberExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), optionalExpression, id, false))
+			optionalExpression = ToIface_ParseTree(allocPooled_OptionalMemberExpressionTree(&this_.slab_OptionalMemberExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), optionalExpression, id, false))
 		case int32(47) /* TokenType.OPEN_PAREN */ :
-			var arguments *ArgumentListTree = this_.priv_Parser_parseArguments_7379()
+			var arguments *ArgumentListTree = this_.priv_Parser_parseArguments_7384()
 			_ = arguments
-			optionalExpression = ToIface_ParseTree(allocPooled_OptChainCallExpressionTree(&this_.slab_OptChainCallExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), optionalExpression, arguments, false, arguments.hasTrailingComma))
+			optionalExpression = ToIface_ParseTree(allocPooled_OptChainCallExpressionTree(&this_.slab_OptChainCallExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), optionalExpression, arguments, false, arguments.hasTrailingComma))
 		case int32(49) /* TokenType.OPEN_SQUARE */ :
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_SQUARE())
-			var member ParseTree = this_.priv_Parser_parseExpression_7320()
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_SQUARE())
+			var member ParseTree = this_.priv_Parser_parseExpression_7325()
 			_ = member
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_SQUARE())
-			optionalExpression = ToIface_ParseTree(allocPooled_OptionalMemberLookupExpressionTree(&this_.slab_OptionalMemberLookupExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), optionalExpression, member, false))
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_SQUARE())
+			optionalExpression = ToIface_ParseTree(allocPooled_OptionalMemberLookupExpressionTree(&this_.slab_OptionalMemberLookupExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), optionalExpression, member, false))
 		default:
-			panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", "unexpected case: "+j2gort.StrVal(this_.priv_Parser_peekType_7418()))))
+			panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", "unexpected case: "+j2gort.StrVal(this_.priv_Parser_peekType_7423()))))
 		}
 	}
 	return optionalExpression
 }
 
 // Java method: Parser.peekOptionalChainSuffix()
-func (this_ *Parser) priv_Parser_peekOptionalChainSuffix_7373() bool {
-	return ((((this_.priv_Parser_peek_7416(StaticGet_TokenType_OPEN_PAREN()) || this_.priv_Parser_peek_7416(StaticGet_TokenType_OPEN_SQUARE())) || this_.priv_Parser_peek_7416(StaticGet_TokenType_PERIOD())) || this_.priv_Parser_peek_7416(StaticGet_TokenType_NO_SUBSTITUTION_TEMPLATE())) || this_.priv_Parser_peek_7416(StaticGet_TokenType_TEMPLATE_HEAD()))
+func (this_ *Parser) priv_Parser_peekOptionalChainSuffix_7378() bool {
+	return ((((this_.priv_Parser_peek_7421(StaticGet_TokenType_OPEN_PAREN()) || this_.priv_Parser_peek_7421(StaticGet_TokenType_OPEN_SQUARE())) || this_.priv_Parser_peek_7421(StaticGet_TokenType_PERIOD())) || this_.priv_Parser_peek_7421(StaticGet_TokenType_NO_SUBSTITUTION_TEMPLATE())) || this_.priv_Parser_peek_7421(StaticGet_TokenType_TEMPLATE_HEAD()))
 }
 
 // Java method: Parser.parseMemberExpressionNoNew()
-func (this_ *Parser) priv_Parser_parseMemberExpressionNoNew_7374() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseMemberExpressionNoNew_7379() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
 	var operand ParseTree = nil
 	_ = operand
-	if this_.priv_Parser_peekImportDot_7368() {
-		operand = this_.priv_Parser_parseImportDotMeta_7378()
-	} else if this_.priv_Parser_peekAsyncFunctionStart_7233() {
-		operand = this_.priv_Parser_parseAsyncFunctionExpression_7241()
-	} else if this_.priv_Parser_peekFunction_7235() {
-		operand = this_.priv_Parser_parseFunctionExpression_7239()
+	if this_.priv_Parser_peekImportDot_7373() {
+		operand = this_.priv_Parser_parseImportDotMeta_7383()
+	} else if this_.priv_Parser_peekAsyncFunctionStart_7238() {
+		operand = this_.priv_Parser_parseAsyncFunctionExpression_7246()
+	} else if this_.priv_Parser_peekFunction_7240() {
+		operand = this_.priv_Parser_parseFunctionExpression_7244()
 	} else {
-		operand = this_.priv_Parser_parsePrimaryExpression_7290()
+		operand = this_.priv_Parser_parsePrimaryExpression_7295()
 	}
-	for this_.priv_Parser_peekMemberExpressionSuffix_7375() {
-		switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+	for this_.priv_Parser_peekMemberExpressionSuffix_7380() {
+		switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 		case int32(49) /* TokenType.OPEN_SQUARE */ :
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_SQUARE())
-			var member ParseTree = this_.priv_Parser_parseExpression_7320()
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_SQUARE())
+			var member ParseTree = this_.priv_Parser_parseExpression_7325()
 			_ = member
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_SQUARE())
-			operand = ToIface_ParseTree(allocPooled_MemberLookupExpressionTree(&this_.slab_MemberLookupExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operand, member))
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_SQUARE())
+			operand = ToIface_ParseTree(allocPooled_MemberLookupExpressionTree(&this_.slab_MemberLookupExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operand, member))
 		case int32(51) /* TokenType.PERIOD */ :
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_PERIOD())
-			var id Token = this_.priv_Parser_eatIdOrKeywordAsId_7407()
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_PERIOD())
+			var id Token = this_.priv_Parser_eatIdOrKeywordAsId_7412()
 			_ = id
-			operand = ToIface_ParseTree(allocPooled_MemberExpressionTree(&this_.slab_MemberExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operand, id))
+			operand = ToIface_ParseTree(allocPooled_MemberExpressionTree(&this_.slab_MemberExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operand, id))
 		case int32(112) /* TokenType.NO_SUBSTITUTION_TEMPLATE */, int32(109) /* TokenType.TEMPLATE_HEAD */ :
-			operand = ToIface_ParseTree(this_.priv_Parser_parseTemplateLiteral_7296(operand))
+			operand = ToIface_ParseTree(this_.priv_Parser_parseTemplateLiteral_7301(operand))
 		default:
 			panic(j2gort.AsIface[javalang.IRuntimeException](j2gort.ConstructShimThrowable("java.lang.RuntimeException", "unreachable")))
 		}
@@ -3263,75 +3263,75 @@ func (this_ *Parser) priv_Parser_parseMemberExpressionNoNew_7374() ParseTree {
 }
 
 // Java method: Parser.peekMemberExpressionSuffix()
-func (this_ *Parser) priv_Parser_peekMemberExpressionSuffix_7375() bool {
-	return (((this_.priv_Parser_peek_7416(StaticGet_TokenType_OPEN_SQUARE()) || this_.priv_Parser_peek_7416(StaticGet_TokenType_PERIOD())) || this_.priv_Parser_peek_7416(StaticGet_TokenType_NO_SUBSTITUTION_TEMPLATE())) || this_.priv_Parser_peek_7416(StaticGet_TokenType_TEMPLATE_HEAD()))
+func (this_ *Parser) priv_Parser_peekMemberExpressionSuffix_7380() bool {
+	return (((this_.priv_Parser_peek_7421(StaticGet_TokenType_OPEN_SQUARE()) || this_.priv_Parser_peek_7421(StaticGet_TokenType_PERIOD())) || this_.priv_Parser_peek_7421(StaticGet_TokenType_NO_SUBSTITUTION_TEMPLATE())) || this_.priv_Parser_peek_7421(StaticGet_TokenType_TEMPLATE_HEAD()))
 }
 
 // Java method: Parser.parseNewExpression()
-func (this_ *Parser) priv_Parser_parseNewExpression_7376() ParseTree {
-	if !(this_.priv_Parser_peek_7416(StaticGet_TokenType_NEW())) {
-		return this_.priv_Parser_parseMemberExpressionNoNew_7374()
-	} else if this_.priv_Parser_peek_7417(int32(1), StaticGet_TokenType_PERIOD()) {
-		return this_.priv_Parser_parseNewDotSomething_7377()
+func (this_ *Parser) priv_Parser_parseNewExpression_7381() ParseTree {
+	if !(this_.priv_Parser_peek_7421(StaticGet_TokenType_NEW())) {
+		return this_.priv_Parser_parseMemberExpressionNoNew_7379()
+	} else if this_.priv_Parser_peek_7422(int32(1), StaticGet_TokenType_PERIOD()) {
+		return this_.priv_Parser_parseNewDotSomething_7382()
 	} else {
-		var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+		var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 		_ = start
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_NEW())
-		if this_.priv_Parser_peek_7416(StaticGet_TokenType_QUESTION_DOT()) {
-			this_.priv_Parser_reportError_7424("Optional chaining is forbidden in `new?.target` contexts.", []any{})
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_NEW())
+		if this_.priv_Parser_peek_7421(StaticGet_TokenType_QUESTION_DOT()) {
+			this_.priv_Parser_reportError_7429("Optional chaining is forbidden in `new?.target` contexts.", []any{})
 		}
-		var operand ParseTree = this_.priv_Parser_parseNewExpression_7376()
+		var operand ParseTree = this_.priv_Parser_parseNewExpression_7381()
 		_ = operand
-		if this_.priv_Parser_peek_7416(StaticGet_TokenType_QUESTION_DOT()) {
-			this_.priv_Parser_reportError_7424("Optional chaining is forbidden in construction contexts.", []any{})
+		if this_.priv_Parser_peek_7421(StaticGet_TokenType_QUESTION_DOT()) {
+			this_.priv_Parser_reportError_7429("Optional chaining is forbidden in construction contexts.", []any{})
 		}
 		var arguments *ArgumentListTree = nil
 		_ = arguments
-		if this_.priv_Parser_peek_7416(StaticGet_TokenType_OPEN_PAREN()) {
-			arguments = this_.priv_Parser_parseArguments_7379()
+		if this_.priv_Parser_peek_7421(StaticGet_TokenType_OPEN_PAREN()) {
+			arguments = this_.priv_Parser_parseArguments_7384()
 		}
-		return ToIface_ParseTree(allocPooled_NewExpressionTree(&this_.slab_NewExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), operand, arguments, ((arguments != nil) && arguments.hasTrailingComma)))
+		return ToIface_ParseTree(allocPooled_NewExpressionTree(&this_.slab_NewExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), operand, arguments, ((arguments != nil) && arguments.hasTrailingComma)))
 	}
 }
 
 // Java method: Parser.parseNewDotSomething()
-func (this_ *Parser) priv_Parser_parseNewDotSomething_7377() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseNewDotSomething_7382() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_NEW())
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_PERIOD())
-	this_.priv_Parser_eatPredefinedString_7309("target")
-	return ToIface_ParseTree(allocPooled_NewTargetExpressionTree(&this_.slab_NewTargetExpressionTree, this_.priv_Parser_getTreeLocation_7412(start)))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_NEW())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_PERIOD())
+	this_.priv_Parser_eatPredefinedString_7314("target")
+	return ToIface_ParseTree(allocPooled_NewTargetExpressionTree(&this_.slab_NewTargetExpressionTree, this_.priv_Parser_getTreeLocation_7417(start)))
 }
 
 // Java method: Parser.parseImportDotMeta()
-func (this_ *Parser) priv_Parser_parseImportDotMeta_7378() ParseTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseImportDotMeta_7383() ParseTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_IMPORT())
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_PERIOD())
-	this_.priv_Parser_eatPredefinedString_7309("meta")
-	return ToIface_ParseTree(allocPooled_ImportMetaExpressionTree(&this_.slab_ImportMetaExpressionTree, this_.priv_Parser_getTreeLocation_7412(start)))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_IMPORT())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_PERIOD())
+	this_.priv_Parser_eatPredefinedString_7314("meta")
+	return ToIface_ParseTree(allocPooled_ImportMetaExpressionTree(&this_.slab_ImportMetaExpressionTree, this_.priv_Parser_getTreeLocation_7417(start)))
 }
 
 // Java method: Parser.parseArguments()
-func (this_ *Parser) priv_Parser_parseArguments_7379() *ArgumentListTree {
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+func (this_ *Parser) priv_Parser_parseArguments_7384() *ArgumentListTree {
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_PAREN())
-	if !(this_.priv_Parser_peekAssignmentOrSpread_7380()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_ArgumentListTree_1(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7412(start))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_PAREN())
+	if !(this_.priv_Parser_peekAssignmentOrSpread_7385()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_ArgumentListTree_1(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7417(start))
 	}
-	var first ParseTree = this_.priv_Parser_parseAssignmentOrSpread_7381()
+	var first ParseTree = this_.priv_Parser_parseAssignmentOrSpread_7386()
 	_ = first
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_ArgumentListTree_5(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7412(start), first, false, int32(0), (SourcePosition{}))
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_ArgumentListTree_5(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7417(start), first, false, int32(0), (SourcePosition{}))
 	}
 	var trailingComma bool = false
 	_ = trailingComma
-	var firstComma Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+	var firstComma Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 	_ = firstComma
 	var c0 SourcePosition
 	_ = c0
@@ -3347,24 +3347,24 @@ func (this_ *Parser) priv_Parser_parseArguments_7379() *ArgumentListTree {
 	} else {
 		commaCount = int32(0)
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
 		if !(this_.config.atLeast8) {
-			this_.priv_Parser_reportError_7422(firstComma, "Invalid trailing comma in arguments list", []any{})
+			this_.priv_Parser_reportError_7427(firstComma, "Invalid trailing comma in arguments list", []any{})
 		}
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_ArgumentListTree_5(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7412(start), first, true, commaCount, c0)
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_ArgumentListTree_5(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7417(start), first, true, commaCount, c0)
 	}
-	if !(this_.priv_Parser_peekAssignmentOrSpread_7380()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_ArgumentListTree_5(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7412(start), first, false, commaCount, c0)
+	if !(this_.priv_Parser_peekAssignmentOrSpread_7385()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_ArgumentListTree_5(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7417(start), first, false, commaCount, c0)
 	}
-	var second ParseTree = this_.priv_Parser_parseAssignmentOrSpread_7381()
+	var second ParseTree = this_.priv_Parser_parseAssignmentOrSpread_7386()
 	_ = second
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_ArgumentListTree_7(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7412(start), first, second, false, commaCount, c0, (SourcePosition{}))
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_ArgumentListTree_7(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7417(start), first, second, false, commaCount, c0, (SourcePosition{}))
 	}
-	var secondComma Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+	var secondComma Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 	_ = secondComma
 	var c1 SourcePosition = (SourcePosition{})
 	_ = c1
@@ -3378,24 +3378,24 @@ func (this_ *Parser) priv_Parser_parseArguments_7379() *ArgumentListTree {
 		}
 		commaCount = commaCount + 1
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
 		if !(this_.config.atLeast8) {
-			this_.priv_Parser_reportError_7422(secondComma, "Invalid trailing comma in arguments list", []any{})
+			this_.priv_Parser_reportError_7427(secondComma, "Invalid trailing comma in arguments list", []any{})
 		}
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_ArgumentListTree_7(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7412(start), first, second, true, commaCount, c0, c1)
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_ArgumentListTree_7(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7417(start), first, second, true, commaCount, c0, c1)
 	}
-	if !(this_.priv_Parser_peekAssignmentOrSpread_7380()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_ArgumentListTree_7(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7412(start), first, second, false, commaCount, c0, c1)
+	if !(this_.priv_Parser_peekAssignmentOrSpread_7385()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_ArgumentListTree_7(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7417(start), first, second, false, commaCount, c0, c1)
 	}
-	var third ParseTree = this_.priv_Parser_parseAssignmentOrSpread_7381()
+	var third ParseTree = this_.priv_Parser_parseAssignmentOrSpread_7386()
 	_ = third
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_ArgumentListTree_9(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7412(start), first, second, third, false, commaCount, c0, c1, (SourcePosition{}))
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_ArgumentListTree_9(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7417(start), first, second, third, false, commaCount, c0, c1, (SourcePosition{}))
 	}
-	var thirdComma Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+	var thirdComma Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 	_ = thirdComma
 	var c2 SourcePosition = (SourcePosition{})
 	_ = c2
@@ -3411,16 +3411,16 @@ func (this_ *Parser) priv_Parser_parseArguments_7379() *ArgumentListTree {
 		}
 		commaCount = commaCount + 1
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
 		if !(this_.config.atLeast8) {
-			this_.priv_Parser_reportError_7422(thirdComma, "Invalid trailing comma in arguments list", []any{})
+			this_.priv_Parser_reportError_7427(thirdComma, "Invalid trailing comma in arguments list", []any{})
 		}
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_ArgumentListTree_9(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7412(start), first, second, third, true, commaCount, c0, c1, c2)
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_ArgumentListTree_9(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7417(start), first, second, third, true, commaCount, c0, c1, c2)
 	}
-	if !(this_.priv_Parser_peekAssignmentOrSpread_7380()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
-		return allocPooled_ArgumentListTree_9(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7412(start), first, second, third, false, commaCount, c0, c1, c2)
+	if !(this_.priv_Parser_peekAssignmentOrSpread_7385()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
+		return allocPooled_ArgumentListTree_9(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7417(start), first, second, third, false, commaCount, c0, c1, c2)
 	}
 	var savedTreeTop int32 = this_.treeScratchTop
 	_ = savedTreeTop
@@ -3446,11 +3446,11 @@ func (this_ *Parser) priv_Parser_parseArguments_7379() *ArgumentListTree {
 	{
 		var argCount int32 = int32(3)
 		_ = argCount
-		for this_.priv_Parser_peekAssignmentOrSpread_7380() {
-			this_.priv_Parser_pushTreeScratch_7244(this_.priv_Parser_parseAssignmentOrSpread_7381())
+		for this_.priv_Parser_peekAssignmentOrSpread_7385() {
+			this_.priv_Parser_pushTreeScratch_7249(this_.priv_Parser_parseAssignmentOrSpread_7386())
 			argCount = argCount + 1
-			if !(this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN())) {
-				var comma Token = this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+			if !(this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN())) {
+				var comma Token = this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 				_ = comma
 				if comma != (Token{}) {
 					var pos_3 SourcePosition = comma.GetStart()
@@ -3462,19 +3462,19 @@ func (this_ *Parser) priv_Parser_parseArguments_7379() *ArgumentListTree {
 					} else if commaCount == int32(2) {
 						c2 = pos_3
 					} else {
-						this_.priv_Parser_pushCommaScratch_7245(pos_3)
+						this_.priv_Parser_pushCommaScratch_7250(pos_3)
 					}
 					commaCount = commaCount + 1
 				}
-				if this_.priv_Parser_peek_7416(StaticGet_TokenType_CLOSE_PAREN()) {
+				if this_.priv_Parser_peek_7421(StaticGet_TokenType_CLOSE_PAREN()) {
 					if !(this_.config.atLeast8) {
-						this_.priv_Parser_reportError_7422(comma, "Invalid trailing comma in arguments list", []any{})
+						this_.priv_Parser_reportError_7427(comma, "Invalid trailing comma in arguments list", []any{})
 					}
 					trailingComma = true
 				}
 			}
 		}
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_PAREN())
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_PAREN())
 		var restArgs []ParseTree = func() []ParseTree {
 			arrSrc_35 := this_.treeScratch
 			arrFrom_36 := savedTreeTop
@@ -3514,278 +3514,278 @@ func (this_ *Parser) priv_Parser_parseArguments_7379() *ArgumentListTree {
 		} else {
 			restCommas = nil
 		}
-		return allocPooled_ArgumentListTree_12(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7412(start), argCount, first, second, third, restArgs, trailingComma, commaCount, c0, c1, c2, restCommas)
+		return allocPooled_ArgumentListTree_12(&this_.slab_ArgumentListTree, this_.priv_Parser_getTreeLocation_7417(start), argCount, first, second, third, restArgs, trailingComma, commaCount, c0, c1, c2, restCommas)
 	}
 	panic("unreachable")
 }
 
 // Java method: Parser.peekAssignmentOrSpread()
-func (this_ *Parser) priv_Parser_peekAssignmentOrSpread_7380() bool {
-	return (this_.priv_Parser_peek_7416(StaticGet_TokenType_ELLIPSIS()) || this_.priv_Parser_peekAssignmentExpression_7324())
+func (this_ *Parser) priv_Parser_peekAssignmentOrSpread_7385() bool {
+	return (this_.priv_Parser_peek_7421(StaticGet_TokenType_ELLIPSIS()) || this_.priv_Parser_peekAssignmentExpression_7329())
 }
 
 // Java method: Parser.parseAssignmentOrSpread()
-func (this_ *Parser) priv_Parser_parseAssignmentOrSpread_7381() ParseTree {
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_ELLIPSIS()) {
-		return ToIface_ParseTree(this_.priv_Parser_parseIterSpread_7250())
+func (this_ *Parser) priv_Parser_parseAssignmentOrSpread_7386() ParseTree {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_ELLIPSIS()) {
+		return ToIface_ParseTree(this_.priv_Parser_parseIterSpread_7255())
 	}
-	return this_.priv_Parser_parseAssignmentExpression_7323()
+	return this_.priv_Parser_parseAssignmentExpression_7328()
 }
 
 // Java method: Parser.peekPatternStart()
-func (this_ *Parser) priv_Parser_peekPatternStart_7382() bool {
-	return (this_.priv_Parser_peek_7416(StaticGet_TokenType_OPEN_SQUARE()) || this_.priv_Parser_peek_7416(StaticGet_TokenType_OPEN_CURLY()))
+func (this_ *Parser) priv_Parser_peekPatternStart_7387() bool {
+	return (this_.priv_Parser_peek_7421(StaticGet_TokenType_OPEN_SQUARE()) || this_.priv_Parser_peek_7421(StaticGet_TokenType_OPEN_CURLY()))
 }
 
 // Java method: Parser.parsePattern(com.google.javascript.jscomp.parsing.parser.Parser.PatternKind kind)
-func (this_ *Parser) priv_Parser_parsePattern_7383(kind Parser_PatternKind) ParseTree {
+func (this_ *Parser) priv_Parser_parsePattern_7388(kind Parser_PatternKind) ParseTree {
 	_ = kind
-	switch (this_.priv_Parser_peekType_7418()).Ordinal() {
+	switch (this_.priv_Parser_peekType_7423()).Ordinal() {
 	case int32(49) /* TokenType.OPEN_SQUARE */ :
-		return this_.priv_Parser_parseArrayPattern_7387(kind)
+		return this_.priv_Parser_parseArrayPattern_7392(kind)
 	case int32(45) /* TokenType.OPEN_CURLY */ :
 		fallthrough
 	default:
-		return this_.priv_Parser_parseObjectPattern_7388(kind)
+		return this_.priv_Parser_parseObjectPattern_7393(kind)
 	}
 	panic("unreachable")
 }
 
 // Java method: Parser.peekArrayPatternElement()
-func (this_ *Parser) priv_Parser_peekArrayPatternElement_7384() bool {
-	return this_.priv_Parser_peekExpression_7321()
+func (this_ *Parser) priv_Parser_peekArrayPatternElement_7389() bool {
+	return this_.priv_Parser_peekExpression_7326()
 }
 
 // Java method: Parser.parseIterRest(com.google.javascript.jscomp.parsing.parser.Parser.PatternKind patternKind)
-func (this_ *Parser) priv_Parser_parseIterRest_7385(patternKind Parser_PatternKind) ParseTree {
+func (this_ *Parser) priv_Parser_parseIterRest_7390(patternKind Parser_PatternKind) ParseTree {
 	_ = patternKind
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_ELLIPSIS())
-	var patternAssignmentTarget ParseTree = this_.priv_Parser_parseRestAssignmentTarget_7386(patternKind)
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_ELLIPSIS())
+	var patternAssignmentTarget ParseTree = this_.priv_Parser_parseRestAssignmentTarget_7391(patternKind)
 	_ = patternAssignmentTarget
-	return ToIface_ParseTree(allocPooled_IterRestTree(&this_.slab_IterRestTree, this_.priv_Parser_getTreeLocation_7412(start), patternAssignmentTarget))
+	return ToIface_ParseTree(allocPooled_IterRestTree(&this_.slab_IterRestTree, this_.priv_Parser_getTreeLocation_7417(start), patternAssignmentTarget))
 }
 
 // Java method: Parser.parseRestAssignmentTarget(com.google.javascript.jscomp.parsing.parser.Parser.PatternKind patternKind)
-func (this_ *Parser) priv_Parser_parseRestAssignmentTarget_7386(patternKind Parser_PatternKind) ParseTree {
+func (this_ *Parser) priv_Parser_parseRestAssignmentTarget_7391(patternKind Parser_PatternKind) ParseTree {
 	_ = patternKind
-	var patternAssignmentTarget ParseTree = this_.priv_Parser_parsePatternAssignmentTargetNoDefault_7392(patternKind)
+	var patternAssignmentTarget ParseTree = this_.priv_Parser_parsePatternAssignmentTargetNoDefault_7397(patternKind)
 	_ = patternAssignmentTarget
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_EQUAL()) {
-		this_.priv_Parser_reportError_7424("A default value cannot be specified after '...'", []any{})
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_EQUAL()) {
+		this_.priv_Parser_reportError_7429("A default value cannot be specified after '...'", []any{})
 	}
 	return patternAssignmentTarget
 }
 
 // Java method: Parser.parseArrayPattern(com.google.javascript.jscomp.parsing.parser.Parser.PatternKind kind)
-func (this_ *Parser) priv_Parser_parseArrayPattern_7387(kind Parser_PatternKind) ParseTree {
+func (this_ *Parser) priv_Parser_parseArrayPattern_7392(kind Parser_PatternKind) ParseTree {
 	_ = kind
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
 	var elements []ParseTree = []ParseTree{}
 	_ = elements
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_SQUARE())
-	for this_.priv_Parser_peek_7416(StaticGet_TokenType_COMMA()) || this_.priv_Parser_peekArrayPatternElement_7384() {
-		if this_.priv_Parser_peek_7416(StaticGet_TokenType_COMMA()) {
-			var nullStart SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_SQUARE())
+	for this_.priv_Parser_peek_7421(StaticGet_TokenType_COMMA()) || this_.priv_Parser_peekArrayPatternElement_7389() {
+		if this_.priv_Parser_peek_7421(StaticGet_TokenType_COMMA()) {
+			var nullStart SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 			_ = nullStart
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
-			elements = append(elements, allocPooled_NullTree(&this_.slab_NullTree, this_.priv_Parser_getTreeLocation_7412(nullStart)))
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
+			elements = append(elements, allocPooled_NullTree(&this_.slab_NullTree, this_.priv_Parser_getTreeLocation_7417(nullStart)))
 		} else {
-			elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parsePatternAssignmentTarget_7391(kind)))
-			if this_.priv_Parser_peek_7416(StaticGet_TokenType_COMMA()) {
-				this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+			elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parsePatternAssignmentTarget_7396(kind)))
+			if this_.priv_Parser_peek_7421(StaticGet_TokenType_COMMA()) {
+				this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 			} else {
 				break
 			}
 		}
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_ELLIPSIS()) {
-		this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_ARRAY_PATTERN_REST())
-		elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parseIterRest_7385(kind)))
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_ELLIPSIS()) {
+		this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_ARRAY_PATTERN_REST())
+		elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parseIterRest_7390(kind)))
 	}
-	if this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_SQUARE()) == (Token{}) {
-		return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7412(this_.priv_Parser_getTreeStartLocation_7410())))
+	if this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_SQUARE()) == (Token{}) {
+		return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7417(this_.priv_Parser_getTreeStartLocation_7415())))
 	}
-	return ToIface_ParseTree(allocPooled_ArrayPatternTree(&this_.slab_ArrayPatternTree, this_.priv_Parser_getTreeLocation_7412(start), j2gort.ImmListFromTypedSlice(elements)))
+	return ToIface_ParseTree(allocPooled_ArrayPatternTree(&this_.slab_ArrayPatternTree, this_.priv_Parser_getTreeLocation_7417(start), j2gort.ImmListFromTypedSlice(elements)))
 }
 
 // Java method: Parser.parseObjectPattern(com.google.javascript.jscomp.parsing.parser.Parser.PatternKind kind)
-func (this_ *Parser) priv_Parser_parseObjectPattern_7388(kind Parser_PatternKind) ParseTree {
+func (this_ *Parser) priv_Parser_parseObjectPattern_7393(kind Parser_PatternKind) ParseTree {
 	_ = kind
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
 	var fields []ParseTree = []ParseTree{}
 	_ = fields
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_OPEN_CURLY())
-	for this_.priv_Parser_peekObjectPatternField_7389() {
-		fields = append(fields, j2gort.CheckNotNullElem(this_.priv_Parser_parseObjectPatternField_7390(kind)))
-		if this_.priv_Parser_peek_7416(StaticGet_TokenType_COMMA()) {
-			this_.priv_Parser_eat_7408(StaticGet_TokenType_COMMA())
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_OPEN_CURLY())
+	for this_.priv_Parser_peekObjectPatternField_7394() {
+		fields = append(fields, j2gort.CheckNotNullElem(this_.priv_Parser_parseObjectPatternField_7395(kind)))
+		if this_.priv_Parser_peek_7421(StaticGet_TokenType_COMMA()) {
+			this_.priv_Parser_eat_7413(StaticGet_TokenType_COMMA())
 		} else {
 			break
 		}
 	}
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_ELLIPSIS()) {
-		this_.priv_Parser_recordFeatureUsed_7427(StaticGet_FeatureSet_Feature_OBJECT_PATTERN_REST())
-		var restStart SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_ELLIPSIS()) {
+		this_.priv_Parser_recordFeatureUsed_7432(StaticGet_FeatureSet_Feature_OBJECT_PATTERN_REST())
+		var restStart SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 		_ = restStart
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_ELLIPSIS())
-		var patternAssignmentTarget ParseTree = this_.priv_Parser_parseRestAssignmentTarget_7386(kind)
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_ELLIPSIS())
+		var patternAssignmentTarget ParseTree = this_.priv_Parser_parseRestAssignmentTarget_7391(kind)
 		_ = patternAssignmentTarget
-		fields = append(fields, allocPooled_ObjectRestTree(&this_.slab_ObjectRestTree, this_.priv_Parser_getTreeLocation_7412(restStart), patternAssignmentTarget))
+		fields = append(fields, allocPooled_ObjectRestTree(&this_.slab_ObjectRestTree, this_.priv_Parser_getTreeLocation_7417(restStart), patternAssignmentTarget))
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_CLOSE_CURLY())
-	return ToIface_ParseTree(allocPooled_ObjectPatternTree(&this_.slab_ObjectPatternTree, this_.priv_Parser_getTreeLocation_7412(start), j2gort.ImmListFromTypedSlice(fields)))
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_CLOSE_CURLY())
+	return ToIface_ParseTree(allocPooled_ObjectPatternTree(&this_.slab_ObjectPatternTree, this_.priv_Parser_getTreeLocation_7417(start), j2gort.ImmListFromTypedSlice(fields)))
 }
 
 // Java method: Parser.peekObjectPatternField()
-func (this_ *Parser) priv_Parser_peekObjectPatternField_7389() bool {
-	return this_.priv_Parser_peekPropertyNameOrComputedProp_7302(int32(0))
+func (this_ *Parser) priv_Parser_peekObjectPatternField_7394() bool {
+	return this_.priv_Parser_peekPropertyNameOrComputedProp_7307(int32(0))
 }
 
 // Java method: Parser.parseObjectPatternField(com.google.javascript.jscomp.parsing.parser.Parser.PatternKind kind)
-func (this_ *Parser) priv_Parser_parseObjectPatternField_7390(kind Parser_PatternKind) ParseTree {
+func (this_ *Parser) priv_Parser_parseObjectPatternField_7395(kind Parser_PatternKind) ParseTree {
 	_ = kind
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
-	if this_.priv_Parser_peekType_7418() == StaticGet_TokenType_OPEN_SQUARE() {
-		var key ParseTree = this_.priv_Parser_parseComputedPropertyName_7306()
+	if this_.priv_Parser_peekType_7423() == StaticGet_TokenType_OPEN_SQUARE() {
+		var key ParseTree = this_.priv_Parser_parseComputedPropertyName_7311()
 		_ = key
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_COLON())
-		var value ParseTree = this_.priv_Parser_parsePatternAssignmentTarget_7391(kind)
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_COLON())
+		var value ParseTree = this_.priv_Parser_parsePatternAssignmentTarget_7396(kind)
 		_ = value
-		return ToIface_ParseTree(allocPooled_ComputedPropertyDefinitionTree(&this_.slab_ComputedPropertyDefinitionTree, this_.priv_Parser_getTreeLocation_7412(start), key, value))
+		return ToIface_ParseTree(allocPooled_ComputedPropertyDefinitionTree(&this_.slab_ComputedPropertyDefinitionTree, this_.priv_Parser_getTreeLocation_7417(start), key, value))
 	}
 	var name Token = (Token{})
 	_ = name
-	if this_.priv_Parser_peekIdOrKeyword_7402() {
-		var idToken Token = this_.priv_Parser_eatIdOrKeywordAsId_7407()
+	if this_.priv_Parser_peekIdOrKeyword_7407() {
+		var idToken Token = this_.priv_Parser_eatIdOrKeywordAsId_7412()
 		_ = idToken
-		if !(this_.priv_Parser_peek_7416(StaticGet_TokenType_COLON())) {
+		if !(this_.priv_Parser_peek_7421(StaticGet_TokenType_COLON())) {
 			if idToken.IsKeyword() {
-				this_.priv_Parser_reportError_7424("cannot use keyword '%s' here.", []any{j2gort.BoxNullableVal(idToken)})
+				this_.priv_Parser_reportError_7429("cannot use keyword '%s' here.", []any{j2gort.BoxNullableVal(idToken)})
 			}
-			if this_.priv_Parser_peek_7416(StaticGet_TokenType_EQUAL()) {
-				var idTree *IdentifierExpressionTree = allocPooled_IdentifierExpressionTree(&this_.slab_IdentifierExpressionTree, this_.priv_Parser_getTreeLocation_7412(start), idToken)
+			if this_.priv_Parser_peek_7421(StaticGet_TokenType_EQUAL()) {
+				var idTree *IdentifierExpressionTree = allocPooled_IdentifierExpressionTree(&this_.slab_IdentifierExpressionTree, this_.priv_Parser_getTreeLocation_7417(start), idToken)
 				_ = idTree
-				this_.priv_Parser_eat_7408(StaticGet_TokenType_EQUAL())
-				var defaultValue ParseTree = this_.priv_Parser_parseAssignmentExpression_7323()
+				this_.priv_Parser_eat_7413(StaticGet_TokenType_EQUAL())
+				var defaultValue ParseTree = this_.priv_Parser_parseAssignmentExpression_7328()
 				_ = defaultValue
-				return ToIface_ParseTree(allocPooled_DefaultParameterTree(&this_.slab_DefaultParameterTree, this_.priv_Parser_getTreeLocation_7412(start), ToIface_ParseTree(idTree), defaultValue))
+				return ToIface_ParseTree(allocPooled_DefaultParameterTree(&this_.slab_DefaultParameterTree, this_.priv_Parser_getTreeLocation_7417(start), ToIface_ParseTree(idTree), defaultValue))
 			}
-			return ToIface_ParseTree(allocPooled_PropertyNameAssignmentTree(&this_.slab_PropertyNameAssignmentTree, this_.priv_Parser_getTreeLocation_7412(start), idToken, nil))
+			return ToIface_ParseTree(allocPooled_PropertyNameAssignmentTree(&this_.slab_PropertyNameAssignmentTree, this_.priv_Parser_getTreeLocation_7417(start), idToken, nil))
 		}
 		name = idToken
 	} else {
-		name = this_.priv_Parser_parseLiteralExpression_7295().literalToken
+		name = this_.priv_Parser_parseLiteralExpression_7300().literalToken
 	}
-	this_.priv_Parser_eat_7408(StaticGet_TokenType_COLON())
-	var value_2 ParseTree = this_.priv_Parser_parsePatternAssignmentTarget_7391(kind)
+	this_.priv_Parser_eat_7413(StaticGet_TokenType_COLON())
+	var value_2 ParseTree = this_.priv_Parser_parsePatternAssignmentTarget_7396(kind)
 	_ = value_2
-	return ToIface_ParseTree(allocPooled_PropertyNameAssignmentTree(&this_.slab_PropertyNameAssignmentTree, this_.priv_Parser_getTreeLocation_7412(start), name, value_2))
+	return ToIface_ParseTree(allocPooled_PropertyNameAssignmentTree(&this_.slab_PropertyNameAssignmentTree, this_.priv_Parser_getTreeLocation_7417(start), name, value_2))
 }
 
 // Java method: Parser.parsePatternAssignmentTarget(com.google.javascript.jscomp.parsing.parser.Parser.PatternKind patternKind)
-func (this_ *Parser) priv_Parser_parsePatternAssignmentTarget_7391(patternKind Parser_PatternKind) ParseTree {
+func (this_ *Parser) priv_Parser_parsePatternAssignmentTarget_7396(patternKind Parser_PatternKind) ParseTree {
 	_ = patternKind
-	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7410()
+	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7415()
 	_ = start
 	var assignmentTarget ParseTree = nil
 	_ = assignmentTarget
-	assignmentTarget = this_.priv_Parser_parsePatternAssignmentTargetNoDefault_7392(patternKind)
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_EQUAL()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_EQUAL())
-		var defaultValue ParseTree = this_.priv_Parser_parseAssignmentExpression_7323()
+	assignmentTarget = this_.priv_Parser_parsePatternAssignmentTargetNoDefault_7397(patternKind)
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_EQUAL()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_EQUAL())
+		var defaultValue ParseTree = this_.priv_Parser_parseAssignmentExpression_7328()
 		_ = defaultValue
-		assignmentTarget = ToIface_ParseTree(allocPooled_DefaultParameterTree(&this_.slab_DefaultParameterTree, this_.priv_Parser_getTreeLocation_7412(start), assignmentTarget, defaultValue))
+		assignmentTarget = ToIface_ParseTree(allocPooled_DefaultParameterTree(&this_.slab_DefaultParameterTree, this_.priv_Parser_getTreeLocation_7417(start), assignmentTarget, defaultValue))
 	}
 	return assignmentTarget
 }
 
 // Java method: Parser.parsePatternAssignmentTargetNoDefault(com.google.javascript.jscomp.parsing.parser.Parser.PatternKind kind)
-func (this_ *Parser) priv_Parser_parsePatternAssignmentTargetNoDefault_7392(kind Parser_PatternKind) ParseTree {
+func (this_ *Parser) priv_Parser_parsePatternAssignmentTargetNoDefault_7397(kind Parser_PatternKind) ParseTree {
 	_ = kind
 	var assignmentTarget ParseTree = nil
 	_ = assignmentTarget
-	if this_.priv_Parser_peekPatternStart_7382() {
-		assignmentTarget = this_.priv_Parser_parsePattern_7383(kind)
+	if this_.priv_Parser_peekPatternStart_7387() {
+		assignmentTarget = this_.priv_Parser_parsePattern_7388(kind)
 	} else {
-		assignmentTarget = this_.priv_Parser_parseLeftHandSideExpression_7369()
+		assignmentTarget = this_.priv_Parser_parseLeftHandSideExpression_7374()
 		if !(assignmentTarget.IsValidAssignmentTarget()) {
-			this_.priv_Parser_reportError_7424("invalid assignment target", []any{})
+			this_.priv_Parser_reportError_7429("invalid assignment target", []any{})
 		}
 		if (kind == StaticGet_Parser_PatternKind_INITIALIZER()) && (assignmentTarget.GetParseTreeBase().type_ != StaticGet_ParseTreeType_IDENTIFIER_EXPRESSION()) {
-			this_.priv_Parser_reportError_7424("Only an identifier or destructuring pattern is allowed here.", []any{})
+			this_.priv_Parser_reportError_7429("Only an identifier or destructuring pattern is allowed here.", []any{})
 		}
 	}
 	return assignmentTarget
 }
 
 // Java method: Parser.eatPossiblyImplicitSemiColon()
-func (this_ *Parser) priv_Parser_eatPossiblyImplicitSemiColon_7393() {
-	if this_.priv_Parser_peek_7416(StaticGet_TokenType_SEMI_COLON()) {
-		this_.priv_Parser_eat_7408(StaticGet_TokenType_SEMI_COLON())
+func (this_ *Parser) priv_Parser_eatPossiblyImplicitSemiColon_7398() {
+	if this_.priv_Parser_peek_7421(StaticGet_TokenType_SEMI_COLON()) {
+		this_.priv_Parser_eat_7413(StaticGet_TokenType_SEMI_COLON())
 		return
 	}
-	if this_.priv_Parser_peekImplicitSemiColon_7394() {
+	if this_.priv_Parser_peekImplicitSemiColon_7399() {
 		return
 	}
-	this_.priv_Parser_reportError_7424("Semi-colon expected", []any{})
+	this_.priv_Parser_reportError_7429("Semi-colon expected", []any{})
 }
 
 // Java method: Parser.peekImplicitSemiColon()
-func (this_ *Parser) priv_Parser_peekImplicitSemiColon_7394() bool {
-	return this_.priv_Parser_peekImplicitSemiColon_7395(int32(0))
+func (this_ *Parser) priv_Parser_peekImplicitSemiColon_7399() bool {
+	return this_.priv_Parser_peekImplicitSemiColon_7400(int32(0))
 }
 
 // Java method: Parser.peekImplicitSemiColon(int index)
-func (this_ *Parser) priv_Parser_peekImplicitSemiColon_7395(index int32) bool {
+func (this_ *Parser) priv_Parser_peekImplicitSemiColon_7400(index int32) bool {
 	_ = index
 	var lineAdvanced bool = false
 	_ = lineAdvanced
 	if index == int32(0) {
-		lineAdvanced = (this_.priv_Parser_getNextLine_7397() > this_.priv_Parser_getLastLine_7396())
+		lineAdvanced = (this_.priv_Parser_getNextLine_7402() > this_.priv_Parser_getLastLine_7401())
 	} else {
-		lineAdvanced = (this_.priv_Parser_peekToken_7421(index).location.start.line > this_.priv_Parser_peekToken_7421((index - int32(1))).location.end.line)
+		lineAdvanced = (this_.priv_Parser_peekToken_7426(index).location.start.line > this_.priv_Parser_peekToken_7426((index - int32(1))).location.end.line)
 	}
-	return (((lineAdvanced || this_.priv_Parser_peek_7417(index, StaticGet_TokenType_SEMI_COLON())) || this_.priv_Parser_peek_7417(index, StaticGet_TokenType_CLOSE_CURLY())) || this_.priv_Parser_peek_7417(index, StaticGet_TokenType_END_OF_FILE()))
+	return (((lineAdvanced || this_.priv_Parser_peek_7422(index, StaticGet_TokenType_SEMI_COLON())) || this_.priv_Parser_peek_7422(index, StaticGet_TokenType_CLOSE_CURLY())) || this_.priv_Parser_peek_7422(index, StaticGet_TokenType_END_OF_FILE()))
 }
 
 // Java method: Parser.getLastLine()
-func (this_ *Parser) priv_Parser_getLastLine_7396() int32 {
+func (this_ *Parser) priv_Parser_getLastLine_7401() int32 {
 	return this_.lastSourcePosition.line
 }
 
 // Java method: Parser.getNextLine()
-func (this_ *Parser) priv_Parser_getNextLine_7397() int32 {
-	return this_.priv_Parser_peekToken_7420().location.start.line
+func (this_ *Parser) priv_Parser_getNextLine_7402() int32 {
+	return this_.priv_Parser_peekToken_7425().location.start.line
 }
 
 // Java method: Parser.eatOpt(com.google.javascript.jscomp.parsing.parser.TokenType expectedTokenType)
-func (this_ *Parser) priv_Parser_eatOpt_7398(expectedTokenType TokenType) Token {
+func (this_ *Parser) priv_Parser_eatOpt_7403(expectedTokenType TokenType) Token {
 	_ = expectedTokenType
-	if this_.priv_Parser_peek_7416(expectedTokenType) {
-		return this_.priv_Parser_eat_7408(expectedTokenType)
+	if this_.priv_Parser_peek_7421(expectedTokenType) {
+		return this_.priv_Parser_eat_7413(expectedTokenType)
 	}
 	return (Token{})
 }
 
 // Java method: Parser.inStrictContext()
-func (this_ *Parser) priv_Parser_inStrictContext_7399() bool {
+func (this_ *Parser) priv_Parser_inStrictContext_7404() bool {
 	return this_.config.isStrictMode
 }
 
 // Java method: Parser.peekId()
-func (this_ *Parser) priv_Parser_peekId_7400() bool {
-	return this_.priv_Parser_peekId_7401(int32(0))
+func (this_ *Parser) priv_Parser_peekId_7405() bool {
+	return this_.priv_Parser_peekId_7406(int32(0))
 }
 
 // Java method: Parser.peekId(int index)
-func (this_ *Parser) priv_Parser_peekId_7401(index int32) bool {
+func (this_ *Parser) priv_Parser_peekId_7406(index int32) bool {
 	_ = index
-	var token Token = this_.priv_Parser_peekToken_7421(index)
+	var token Token = this_.priv_Parser_peekToken_7426(index)
 	_ = token
 	var typeToCheck TokenType = token.type_
 	_ = typeToCheck
@@ -3799,39 +3799,39 @@ func (this_ *Parser) priv_Parser_peekId_7401(index int32) bool {
 		}
 		typeToCheck = k.type_
 	}
-	return (!(this_.priv_Parser_inStrictContext_7399()) && Keywords_IsStrictKeyword(typeToCheck))
+	return (!(this_.priv_Parser_inStrictContext_7404()) && Keywords_IsStrictKeyword(typeToCheck))
 }
 
 // Java method: Parser.peekIdOrKeyword()
-func (this_ *Parser) priv_Parser_peekIdOrKeyword_7402() bool {
-	return this_.priv_Parser_peekIdOrKeyword_7403(int32(0))
+func (this_ *Parser) priv_Parser_peekIdOrKeyword_7407() bool {
+	return this_.priv_Parser_peekIdOrKeyword_7408(int32(0))
 }
 
 // Java method: Parser.peekIdOrKeyword(int index)
-func (this_ *Parser) priv_Parser_peekIdOrKeyword_7403(index int32) bool {
+func (this_ *Parser) priv_Parser_peekIdOrKeyword_7408(index int32) bool {
 	_ = index
-	var type_ TokenType = this_.priv_Parser_peekType_7419(index)
+	var type_ TokenType = this_.priv_Parser_peekType_7424(index)
 	_ = type_
 	return ((StaticGet_TokenType_IDENTIFIER() == type_) || Keywords_IsKeyword_1_TokenType(type_))
 }
 
 // Java method: Parser.eatIdOpt()
-func (this_ *Parser) priv_Parser_eatIdOpt_7404() Token {
-	if this_.priv_Parser_peekId_7400() {
-		return this_.priv_Parser_eatIdOrKeywordAsId_7407()
+func (this_ *Parser) priv_Parser_eatIdOpt_7409() Token {
+	if this_.priv_Parser_peekId_7405() {
+		return this_.priv_Parser_eatIdOrKeywordAsId_7412()
 	} else {
 		return (Token{})
 	}
 }
 
 // Java method: Parser.eatId()
-func (this_ *Parser) priv_Parser_eatId_7405() Token {
-	if this_.priv_Parser_peekId_7400() {
-		return this_.priv_Parser_eatIdOrKeywordAsId_7407()
+func (this_ *Parser) priv_Parser_eatId_7410() Token {
+	if this_.priv_Parser_peekId_7405() {
+		return this_.priv_Parser_eatIdOrKeywordAsId_7412()
 	} else {
-		this_.priv_Parser_reportExpectedError_7409(this_.priv_Parser_peekToken_7420(), j2gort.BoxNullableVal(StaticGet_TokenType_IDENTIFIER()))
-		if this_.priv_Parser_peekIdOrKeyword_7402() {
-			return this_.priv_Parser_eatIdOrKeywordAsId_7407()
+		this_.priv_Parser_reportExpectedError_7414(this_.priv_Parser_peekToken_7425(), j2gort.BoxNullableVal(StaticGet_TokenType_IDENTIFIER()))
+		if this_.priv_Parser_peekIdOrKeyword_7407() {
+			return this_.priv_Parser_eatIdOrKeywordAsId_7412()
 		} else {
 			return (Token{})
 		}
@@ -3839,71 +3839,71 @@ func (this_ *Parser) priv_Parser_eatId_7405() Token {
 }
 
 // Java method: Parser.eatObjectLiteralPropertyName()
-func (this_ *Parser) priv_Parser_eatObjectLiteralPropertyName_7406() Token {
-	var token Token = this_.priv_Parser_peekToken_7420()
+func (this_ *Parser) priv_Parser_eatObjectLiteralPropertyName_7411() Token {
+	var token Token = this_.priv_Parser_peekToken_7425()
 	_ = token
 	switch (token.type_).Ordinal() {
 	case int32(105) /* TokenType.STRING */, int32(104) /* TokenType.NUMBER */, int32(106) /* TokenType.BIGINT */ :
-		return this_.priv_Parser_nextToken_7413()
+		return this_.priv_Parser_nextToken_7418()
 	case int32(2) /* TokenType.IDENTIFIER */ :
 		fallthrough
 	default:
-		return this_.priv_Parser_eatIdOrKeywordAsId_7407()
+		return this_.priv_Parser_eatIdOrKeywordAsId_7412()
 	}
 	panic("unreachable")
 }
 
 // Java method: Parser.eatIdOrKeywordAsId()
-func (this_ *Parser) priv_Parser_eatIdOrKeywordAsId_7407() Token {
-	var token Token = this_.priv_Parser_nextToken_7413()
+func (this_ *Parser) priv_Parser_eatIdOrKeywordAsId_7412() Token {
+	var token Token = this_.priv_Parser_nextToken_7418()
 	_ = token
 	if token.type_ == StaticGet_TokenType_IDENTIFIER() {
 		return token
 	} else if Keywords_IsKeyword_1_TokenType(token.type_) {
 		return Token_Identifier(token.location, Keywords_Get_1_TokenType(token.type_).String())
 	} else {
-		this_.priv_Parser_reportExpectedError_7409(token, j2gort.BoxNullableVal(StaticGet_TokenType_IDENTIFIER()))
+		this_.priv_Parser_reportExpectedError_7414(token, j2gort.BoxNullableVal(StaticGet_TokenType_IDENTIFIER()))
 	}
 	return (Token{})
 }
 
 // Java method: Parser.eat(com.google.javascript.jscomp.parsing.parser.TokenType expectedTokenType)
-func (this_ *Parser) priv_Parser_eat_7408(expectedTokenType TokenType) Token {
+func (this_ *Parser) priv_Parser_eat_7413(expectedTokenType TokenType) Token {
 	_ = expectedTokenType
-	var token Token = this_.priv_Parser_nextToken_7413()
+	var token Token = this_.priv_Parser_nextToken_7418()
 	_ = token
 	if token.type_ != expectedTokenType {
-		this_.priv_Parser_reportExpectedError_7409(token, j2gort.BoxNullableVal(expectedTokenType))
+		this_.priv_Parser_reportExpectedError_7414(token, j2gort.BoxNullableVal(expectedTokenType))
 		return (Token{})
 	}
 	return token
 }
 
 // Java method: Parser.reportExpectedError(com.google.javascript.jscomp.parsing.parser.@org.jspecify.annotations.Nullable Token token, java.lang.Object expected)
-func (this_ *Parser) priv_Parser_reportExpectedError_7409(token Token, expected any) {
+func (this_ *Parser) priv_Parser_reportExpectedError_7414(token Token, expected any) {
 	_ = token
 	_ = expected
-	this_.priv_Parser_reportError_7422(token, "'%s' expected", []any{expected})
+	this_.priv_Parser_reportError_7427(token, "'%s' expected", []any{expected})
 }
 
 // Java method: Parser.getTreeStartLocation()
-func (this_ *Parser) priv_Parser_getTreeStartLocation_7410() SourcePosition {
-	return this_.priv_Parser_peekToken_7420().location.start
+func (this_ *Parser) priv_Parser_getTreeStartLocation_7415() SourcePosition {
+	return this_.priv_Parser_peekToken_7425().location.start
 }
 
 // Java method: Parser.getTreeEndLocation()
-func (this_ *Parser) priv_Parser_getTreeEndLocation_7411() SourcePosition {
+func (this_ *Parser) priv_Parser_getTreeEndLocation_7416() SourcePosition {
 	return this_.lastSourcePosition
 }
 
 // Java method: Parser.getTreeLocation(com.google.javascript.jscomp.parsing.parser.util.SourcePosition start)
-func (this_ *Parser) priv_Parser_getTreeLocation_7412(start SourcePosition) SourceRange {
+func (this_ *Parser) priv_Parser_getTreeLocation_7417(start SourcePosition) SourceRange {
 	_ = start
-	return NewSourceRange(start, this_.priv_Parser_getTreeEndLocation_7411())
+	return NewSourceRange(start, this_.priv_Parser_getTreeEndLocation_7416())
 }
 
 // Java method: Parser.nextToken()
-func (this_ *Parser) priv_Parser_nextToken_7413() Token {
+func (this_ *Parser) priv_Parser_nextToken_7418() Token {
 	var token Token = this_.scanner.NextToken()
 	_ = token
 	this_.lastSourcePosition = token.location.end
@@ -3911,7 +3911,7 @@ func (this_ *Parser) priv_Parser_nextToken_7413() Token {
 }
 
 // Java method: Parser.nextRegularExpressionLiteralToken()
-func (this_ *Parser) priv_Parser_nextRegularExpressionLiteralToken_7414() Token {
+func (this_ *Parser) priv_Parser_nextRegularExpressionLiteralToken_7419() Token {
 	var token Token = this_.scanner.NextRegularExpressionLiteralToken()
 	_ = token
 	this_.lastSourcePosition = token.location.end
@@ -3919,7 +3919,7 @@ func (this_ *Parser) priv_Parser_nextRegularExpressionLiteralToken_7414() Token 
 }
 
 // Java method: Parser.nextTemplateLiteralToken()
-func (this_ *Parser) priv_Parser_nextTemplateLiteralToken_7415() Token {
+func (this_ *Parser) priv_Parser_nextTemplateLiteralToken_7420() Token {
 	var token Token = this_.scanner.NextTemplateLiteralToken()
 	_ = token
 	this_.lastSourcePosition = token.location.end
@@ -3927,73 +3927,73 @@ func (this_ *Parser) priv_Parser_nextTemplateLiteralToken_7415() Token {
 }
 
 // Java method: Parser.peek(com.google.javascript.jscomp.parsing.parser.TokenType expectedType)
-func (this_ *Parser) priv_Parser_peek_7416(expectedType TokenType) bool {
+func (this_ *Parser) priv_Parser_peek_7421(expectedType TokenType) bool {
 	_ = expectedType
-	return this_.priv_Parser_peek_7417(int32(0), expectedType)
+	return this_.priv_Parser_peek_7422(int32(0), expectedType)
 }
 
 // Java method: Parser.peek(int index, com.google.javascript.jscomp.parsing.parser.TokenType expectedType)
-func (this_ *Parser) priv_Parser_peek_7417(index int32, expectedType TokenType) bool {
+func (this_ *Parser) priv_Parser_peek_7422(index int32, expectedType TokenType) bool {
 	_ = index
 	_ = expectedType
-	return (this_.priv_Parser_peekType_7419(index) == expectedType)
+	return (this_.priv_Parser_peekType_7424(index) == expectedType)
 }
 
 // Java method: Parser.peekType()
-func (this_ *Parser) priv_Parser_peekType_7418() TokenType {
-	return this_.priv_Parser_peekType_7419(int32(0))
+func (this_ *Parser) priv_Parser_peekType_7423() TokenType {
+	return this_.priv_Parser_peekType_7424(int32(0))
 }
 
 // Java method: Parser.peekType(int index)
-func (this_ *Parser) priv_Parser_peekType_7419(index int32) TokenType {
+func (this_ *Parser) priv_Parser_peekType_7424(index int32) TokenType {
 	_ = index
-	return this_.priv_Parser_peekToken_7421(index).type_
+	return this_.priv_Parser_peekToken_7426(index).type_
 }
 
 // Java method: Parser.peekToken()
-func (this_ *Parser) priv_Parser_peekToken_7420() Token {
-	return this_.priv_Parser_peekToken_7421(int32(0))
+func (this_ *Parser) priv_Parser_peekToken_7425() Token {
+	return this_.priv_Parser_peekToken_7426(int32(0))
 }
 
 // Java method: Parser.peekToken(int index)
-func (this_ *Parser) priv_Parser_peekToken_7421(index int32) Token {
+func (this_ *Parser) priv_Parser_peekToken_7426(index int32) Token {
 	_ = index
 	return this_.scanner.PeekToken_1(index)
 }
 
 // Java method: Parser.reportError(com.google.javascript.jscomp.parsing.parser.Token token, java.lang.String message, java.lang.Object[] arguments)
-func (this_ *Parser) priv_Parser_reportError_7422(token Token, message string, arguments []any) {
+func (this_ *Parser) priv_Parser_reportError_7427(token Token, message string, arguments []any) {
 	_ = token
 	_ = message
 	_ = arguments
 	if token == (Token{}) {
-		this_.priv_Parser_reportError_7424(message, arguments)
+		this_.priv_Parser_reportError_7429(message, arguments)
 	} else {
 		this_.errorReporter.ReportError_3(token.GetStart(), message, arguments)
 	}
 }
 
 // Java method: Parser.reportError(com.google.javascript.jscomp.parsing.parser.trees.ParseTree parseTree, java.lang.String message, java.lang.Object[] arguments)
-func (this_ *Parser) priv_Parser_reportError_7423(parseTree ParseTree, message string, arguments []any) {
+func (this_ *Parser) priv_Parser_reportError_7428(parseTree ParseTree, message string, arguments []any) {
 	_ = parseTree
 	_ = message
 	_ = arguments
 	if parseTree == nil || parseTree.IsJavaNil_() {
-		this_.priv_Parser_reportError_7424(message, arguments)
+		this_.priv_Parser_reportError_7429(message, arguments)
 	} else {
 		this_.errorReporter.ReportError_3(parseTree.GetParseTreeBase().location.start, message, arguments)
 	}
 }
 
 // Java method: Parser.reportError(java.lang.String message, java.lang.Object[] arguments)
-func (this_ *Parser) priv_Parser_reportError_7424(message string, arguments []any) {
+func (this_ *Parser) priv_Parser_reportError_7429(message string, arguments []any) {
 	_ = message
 	_ = arguments
 	this_.errorReporter.ReportError_3(this_.scanner.GetPosition_0(), message, arguments)
 }
 
 // Java method: Parser.reportError(com.google.javascript.jscomp.parsing.parser.util.SourcePosition position, java.lang.String message, java.lang.Object[] arguments)
-func (this_ *Parser) priv_Parser_reportError_7425(position SourcePosition, message string, arguments []any) {
+func (this_ *Parser) priv_Parser_reportError_7430(position SourcePosition, message string, arguments []any) {
 	_ = position
 	_ = message
 	_ = arguments
@@ -4001,7 +4001,7 @@ func (this_ *Parser) priv_Parser_reportError_7425(position SourcePosition, messa
 }
 
 // Java method: Parser.reportTemplateErrorIfPresent(com.google.javascript.jscomp.parsing.parser.Token templateToken)
-func (this_ *Parser) priv_Parser_reportTemplateErrorIfPresent_7426(templateToken Token) {
+func (this_ *Parser) priv_Parser_reportTemplateErrorIfPresent_7431(templateToken Token) {
 	_ = templateToken
 	var errorMessage string = templateToken.GetErrorMessage()
 	_ = errorMessage
@@ -4013,14 +4013,14 @@ func (this_ *Parser) priv_Parser_reportTemplateErrorIfPresent_7426(templateToken
 		this_.errorReporter.ReportWarning_3(templateToken.GetErrorPosition(), "%s", []any{j2gort.BoxString(errorMessage)})
 		return
 	case int32(1) /* ErrorLevel.ERROR */ :
-		this_.priv_Parser_reportError_7425(templateToken.GetErrorPosition(), "%s", []any{j2gort.BoxString(errorMessage)})
+		this_.priv_Parser_reportError_7430(templateToken.GetErrorPosition(), "%s", []any{j2gort.BoxString(errorMessage)})
 		return
 	}
 	panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError")))
 }
 
 // Java method: Parser.recordFeatureUsed(com.google.javascript.jscomp.parsing.parser.FeatureSet.Feature feature)
-func (this_ *Parser) priv_Parser_recordFeatureUsed_7427(feature *FeatureSet_Feature) *Parser {
+func (this_ *Parser) priv_Parser_recordFeatureUsed_7432(feature *FeatureSet_Feature) *Parser {
 	_ = feature
 	this_.features = this_.features.With_1_FeatureSet_Feature(feature)
 	return this_

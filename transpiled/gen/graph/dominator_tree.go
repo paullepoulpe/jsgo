@@ -85,7 +85,7 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 	j2gort.CheckNotNullIface(j2gort.AsIface[DiGraph_DiGraphNode[N, E]](graph.GetNode(entry)))
 	var postOrder j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList()
 	_ = postOrder
-	var postOrderIndex j2gort.OrderedMap[N, *j2gort.BoxInt] = j2gort.NewOrderedMap[N, *j2gort.BoxInt]()
+	var postOrderIndex j2gort.OrderedMap[N, int32] = j2gort.NewOrderedMap[N, int32]()
 	_ = postOrderIndex
 	DominatorTree_BuildPostOrder[N, E](graph, entry, postOrder, j2gort.NewExt_java_util_LinkedHashMap())
 	var numNodes int32 = postOrder.Size()
@@ -106,13 +106,19 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 					}()
 				}
 				return j2gort.Cast[N](tv_1)
-			}(), j2gort.ValueOfInt(i))
+			}(), i)
 		}
 	}
 	var idomIndexes []int32 = make([]int32, numNodes)
 	_ = idomIndexes
 	j2gort.ArraysFillRange(idomIndexes, int32(0), numNodes, int32(-1))
-	var startNodeIndex int32 = j2gort.UnboxInt(postOrderIndex.Get(entry))
+	var startNodeIndex int32 = func() int32 {
+		if v_, ok_ := postOrderIndex.GetOk(entry); ok_ {
+			return v_
+		}
+		j2gort.ThrowNPE()
+		return 0
+	}()
 	_ = startNodeIndex
 	{
 		a_2 := idomIndexes
@@ -159,7 +165,13 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 				}() {
 					continue
 				}
-				var nodeIdx int32 = j2gort.UnboxInt(postOrderIndex.Get(node))
+				var nodeIdx int32 = func() int32 {
+					if v_, ok_ := postOrderIndex.GetOk(node); ok_ {
+						return v_
+					}
+					j2gort.ThrowNPE()
+					return 0
+				}()
 				_ = nodeIdx
 				var newIdomIdx int32 = int32(-1)
 				_ = newIdomIdx
@@ -171,10 +183,21 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 						_ = pred
 						var predValue N = pred.GetValue()
 						_ = predValue
-						var predIdx *j2gort.BoxInt = postOrderIndex.Get(predValue)
+						predIdx, predIdxOk_ := postOrderIndex.GetOk(predValue)
+						_ = predIdxOk_
 						_ = predIdx
-						if (predIdx != nil) && (idomIndexes[j2gort.UnboxInt(predIdx)] != int32(-1)) {
-							newIdomIdx = j2gort.UnboxInt(predIdx)
+						if (predIdxOk_) && (idomIndexes[func() int32 {
+							if !predIdxOk_ {
+								j2gort.ThrowNPE()
+							}
+							return predIdx
+						}()] != int32(-1)) {
+							newIdomIdx = func() int32 {
+								if !predIdxOk_ {
+									j2gort.ThrowNPE()
+								}
+								return predIdx
+							}()
 							break
 						}
 					}
@@ -188,10 +211,21 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 							_ = pred_2
 							var predValue_2 N = pred_2.GetValue()
 							_ = predValue_2
-							var predIdx_2 *j2gort.BoxInt = postOrderIndex.Get(predValue_2)
+							predIdx_2, predIdx_2Ok_ := postOrderIndex.GetOk(predValue_2)
+							_ = predIdx_2Ok_
 							_ = predIdx_2
-							if (predIdx_2 != nil) && (idomIndexes[j2gort.UnboxInt(predIdx_2)] != int32(-1)) {
-								newIdomIdx = DominatorTree_Intersect(idomIndexes, j2gort.UnboxInt(predIdx_2), newIdomIdx)
+							if (predIdx_2Ok_) && (idomIndexes[func() int32 {
+								if !predIdx_2Ok_ {
+									j2gort.ThrowNPE()
+								}
+								return predIdx_2
+							}()] != int32(-1)) {
+								newIdomIdx = DominatorTree_Intersect(idomIndexes, func() int32 {
+									if !predIdx_2Ok_ {
+										j2gort.ThrowNPE()
+									}
+									return predIdx_2
+								}(), newIdomIdx)
 							}
 						}
 					}

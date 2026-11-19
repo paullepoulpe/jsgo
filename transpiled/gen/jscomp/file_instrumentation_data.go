@@ -31,7 +31,7 @@ type FileInstrumentationData struct {
 	arrayName        string                                                                            `gson:"arrayName"`
 	fileName         string                                                                            `gson:"fileName"`
 	branchPresent    *j2gort.Ext_java_util_BitSet                                                      `gson:"branchPresent"`
-	branchesInLine   j2gort.OrderedMap[int32, *j2gort.BoxInt]                                          `gson:"branchesInLine"`
+	branchesInLine   j2gort.OrderedMap[int32, int32]                                                   `gson:"branchesInLine"`
 	branchNodes      j2gort.CustomOrderedMap[*FileInstrumentationData_BranchIndexPair, pkg_rhino.Node] `gson:"branchNodes"`
 	idHash_          atomic.Int32
 }
@@ -80,7 +80,7 @@ func InitFileInstrumentationData(this_ *FileInstrumentationData, fileName string
 	this_.arrayName = arrayName
 	this_.instrumentedBits = j2gort.NewExt_java_util_BitSet()
 	this_.branchPresent = j2gort.NewExt_java_util_BitSet()
-	this_.branchesInLine = j2gort.NewOrderedMap[int32, *j2gort.BoxInt]()
+	this_.branchesInLine = j2gort.NewOrderedMap[int32, int32]()
 	this_.branchNodes = j2gort.NewCustomOrderedMap[*FileInstrumentationData_BranchIndexPair,
 
 		// Java method: FileInstrumentationData.getArrayName()
@@ -185,28 +185,43 @@ func (this_ *FileInstrumentationData) AddBranches(lineNumber int32, numberOfBran
 	_ = numberOfBranches
 	var lineIdx int32 = (lineNumber - int32(1))
 	_ = lineIdx
-	var currentValue *j2gort.BoxInt = this_.branchesInLine.Get(lineIdx)
+	currentValue, currentValueOk_ := this_.branchesInLine.GetOk(lineIdx)
+	_ = currentValueOk_
 	_ = currentValue
-	if currentValue == nil {
-		this_.branchesInLine.Put(lineIdx, j2gort.ValueOfInt(numberOfBranches))
+	if !currentValueOk_ {
+		this_.branchesInLine.Put(lineIdx, numberOfBranches)
 	} else {
-		this_.branchesInLine.Put(lineIdx, j2gort.ValueOfInt((j2gort.UnboxInt(currentValue) + numberOfBranches)))
+		this_.branchesInLine.Put(lineIdx, (func() int32 {
+			if !currentValueOk_ {
+				j2gort.ThrowNPE()
+			}
+			return currentValue
+
+			// Java method: FileInstrumentationData.getNumBranches(int lineNumber)
+		}() + numberOfBranches))
 	}
 }
 
-// Java method: FileInstrumentationData.getNumBranches(int lineNumber)
 func (this_ *FileInstrumentationData) GetNumBranches(lineNumber int32) int32 {
 	_ = lineNumber
-	var numBranches *j2gort.BoxInt = this_.branchesInLine.Get(lineNumber - int32(1))
+	numBranches, numBranchesOk_ := this_.branchesInLine.GetOk(lineNumber - int32(1))
+	_ = numBranchesOk_
 	_ = numBranches
-	if numBranches == nil {
+	if !numBranchesOk_ {
 		return int32(0)
 	} else {
-		return j2gort.UnboxInt(numBranches)
+		return func() int32 {
+			if !numBranchesOk_ {
+				j2gort.ThrowNPE(
+
+				// Java class: com.google.javascript.jscomp.instrumentation.FileInstrumentationData.BranchIndexPair
+				)
+			}
+			return numBranches
+		}()
 	}
 }
 
-// Java class: com.google.javascript.jscomp.instrumentation.FileInstrumentationData.BranchIndexPair
 type FileInstrumentationData_BranchIndexPair struct {
 	line   int32 `gson:"line"`
 	branch int32 `gson:"branch"`

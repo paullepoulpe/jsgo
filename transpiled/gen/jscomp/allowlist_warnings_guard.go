@@ -237,7 +237,7 @@ func (this_ *AllowlistWarningsGuard) FormatWarning_2(error_ *JSError, withMetaDa
 	_ = withMetaData
 	var sb j2gort.LocalStringBuilder
 
-	sb.AppendStr(this_.priv_AllowlistWarningsGuard_normalizeSourceName_556(error_.SourceName())).AppendStr(":")
+	sb.AppendStr(this_.priv_AllowlistWarningsGuard_normalizeSourceName_557(error_.SourceName())).AppendStr(":")
 	if withMetaData {
 		sb.AppendInt(error_.GetLineNumber())
 	}
@@ -258,7 +258,7 @@ func (this_ *AllowlistWarningsGuard) FormatWarning_2(error_ *JSError, withMetaDa
 }
 
 // Java method: AllowlistWarningsGuard.normalizeSourceName(java.lang.String sourceName)
-func (this_ *AllowlistWarningsGuard) priv_AllowlistWarningsGuard_normalizeSourceName_556(sourceName string) string {
+func (this_ *AllowlistWarningsGuard) priv_AllowlistWarningsGuard_normalizeSourceName_557(sourceName string) string {
 	_ = sourceName
 	if sourceName != j2gort.NullString {
 		return j2gort.JStrReplaceFirst(sourceName, "blaze-out/[^/]*/(bin|genfiles)/", "")

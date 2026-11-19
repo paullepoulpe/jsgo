@@ -227,6 +227,9 @@ func pinAstData(d *astNodeData) {
 	if atomic.LoadUint32(&d.linkState_)&astLinkFlagPinned == 0 {
 		atomic.OrUint32(&d.linkState_, astLinkFlagPinned)
 	}
+	if d.jsdoc_ != nil {
+		pinOptimizationJsdoc(d.jsdoc_)
+	}
 }
 
 func (d *astNodeData) ensureChildSlice() {
@@ -416,8 +419,13 @@ func (d *astNodeData) resetBuilderFields() {
 	} else if cap(d.child_) > astBuilderMaxPooledChildren {
 		d.child_ = nil
 	}
-	if d.jsdoc_ != nil {
+	if j := d.jsdoc_; j != nil {
 		d.jsdoc_ = nil
+		if atomic.LoadUint32(&d.linkState_)&astLinkFlagPinned == 0 {
+			recycleJsdocSingle(j)
+		} else {
+			pinOptimizationJsdoc(j)
+		}
 	}
 	d.valueBits_ = 0
 	d.booleanProperties_ = 0
@@ -440,6 +448,7 @@ func recycleAstBuilderTree(root *astBuilderBundle) {
 	root.poolNext = nil
 	workHead := root
 	var freeHead *astBuilderBundle
+	var jsdocFreeHead *jsdocBuilderBundle
 	for workHead != nil {
 		b := workHead
 		workHead = b.poolNext
@@ -472,8 +481,12 @@ func recycleAstBuilderTree(root *astBuilderBundle) {
 				d.child_ = nil
 			}
 		}
-		if d.jsdoc_ != nil {
+		if j := d.jsdoc_; j != nil {
 			d.jsdoc_ = nil
+			if jb := j.bundle; jb != nil && j == &jb.jsdoc && atomic.CompareAndSwapUint32(&jb.linkState, jsdocLinkFlagClaimed, jsdocLinkFlagInFreeList) {
+				jb.poolNext = jsdocFreeHead
+				jsdocFreeHead = jb
+			}
 		}
 		d.valueBits_ = 0
 		d.booleanProperties_ = 0
@@ -496,6 +509,9 @@ func recycleAstBuilderTree(root *astBuilderBundle) {
 		b.node.idx = 0
 		b.poolNext = freeHead
 		freeHead = b
+	}
+	if jsdocFreeHead != nil {
+		pushJsdocFreeList(jsdocFreeHead)
 	}
 	if freeHead == nil {
 		return
@@ -1317,6 +1333,7 @@ func (m *AstNode) GetJsdoc() *OptimizationJsdoc {
 			return OptimizationJsdoc_GetDefaultInstance()
 		}
 		if d.jsdoc_ != nil {
+			pinOptimizationJsdoc(d.jsdoc_)
 			return d.jsdoc_
 		}
 	}
@@ -1503,7 +1520,25 @@ func (m *AstNode) SetRelativeColumn(v int32) *AstNode {
 
 func (m *AstNode) SetJsdoc(v *OptimizationJsdoc) *AstNode {
 	d := m.mutData()
-	d.jsdoc_ = v
+	if old := d.jsdoc_; old != v {
+		if old != nil {
+			if atomic.LoadUint32(&d.linkState_)&astLinkFlagPinned == 0 {
+				recycleJsdocSingle(old)
+			} else {
+				pinOptimizationJsdoc(old)
+			}
+		}
+		if v != nil {
+			if atomic.LoadUint32(&d.linkState_)&astLinkFlagPinned != 0 {
+				pinOptimizationJsdoc(v)
+			} else if jb := v.bundle; jb != nil && v == &jb.jsdoc {
+				if !atomic.CompareAndSwapUint32(&jb.linkState, 0, jsdocLinkFlagClaimed) {
+					pinJsdocBundle(jb)
+				}
+			}
+		}
+		d.jsdoc_ = v
+	}
 	d.cachedSize = 0
 	return m
 }
@@ -1792,9 +1827,12 @@ func (s *astNodeSlab) putRecTo(idx uint32, dst []byte, pos int) int {
 		a = s.getAux(idx, rec.auxIdx)
 		if a.jsdocIdx != 0 {
 			jsdoc := &s.jsdocs[a.jsdocIdx-1]
-			js := jsdoc.serializedSize()
+			js := int(atomic.LoadInt32(&jsdoc.cachedSize)) - 1
+			if js < 0 {
+				js = jsdoc.serializedSize()
+			}
 			pos = putTag1Varint(dst, pos, 0x3A, uint64(js))
-			pos = len(jsdoc.appendTo(dst[:pos : pos+js]))
+			pos = jsdoc.putTo(dst, pos)
 		}
 	}
 	if vc == AstNode_ValueCase_TEMPLATE_STRING_VALUE && rec.flags&astNodeFlagHasTemplate != 0 {
@@ -1869,10 +1907,13 @@ func (d *astNodeData) putDataTo(dst []byte, pos int) int {
 	if d.relativeColumn_ != 0 {
 		pos = putTag1Varint(dst, pos, 0x30, uint64(uint32((d.relativeColumn_<<1)^(d.relativeColumn_>>31))))
 	}
-	if d.jsdoc_ != nil {
-		js := d.jsdoc_.serializedSize()
+	if j := d.jsdoc_; j != nil {
+		js := int(atomic.LoadInt32(&j.cachedSize)) - 1
+		if js < 0 {
+			js = j.serializedSize()
+		}
 		pos = putTag1Varint(dst, pos, 0x3A, uint64(js))
-		pos = len(d.jsdoc_.appendTo(dst[:pos : pos+js]))
+		pos = j.putTo(dst, pos)
 	}
 	if vc == AstNode_ValueCase_TEMPLATE_STRING_VALUE && d.flags_&astNodeFlagHasTemplate != 0 {
 		raw, cooked := unpackTemplateStringBits(d.valueBits_)
@@ -1992,7 +2033,11 @@ func (d *astNodeData) mergeIntoBuilder(r *protoReader, slab *astNodeSlab) {
 			if d.jsdoc_ == nil {
 				d.jsdoc_ = &OptimizationJsdoc{}
 			} else {
+				pinOptimizationJsdoc(d.jsdoc_)
 				cp := *d.jsdoc_
+				cp.bundle = nil
+				cp.kind_ = append([]int32(nil), d.jsdoc_.kind_...)
+				cp.unknownFields = append([]byte(nil), d.jsdoc_.unknownFields...)
 				cp.cachedSize = 0
 				d.jsdoc_ = &cp
 			}
@@ -2824,10 +2869,208 @@ func (m *TypeProto) Build() *TypeProto {
 
 type OptimizationJsdoc_Builder = OptimizationJsdoc
 
-func OptimizationJsdoc_NewBuilder() *OptimizationJsdoc_Builder { return &OptimizationJsdoc{} }
+const (
+	jsdocLinkFlagClaimed    uint32 = 1 << 0
+	jsdocLinkFlagInFreeList uint32 = 1 << 1
+	jsdocLinkFlagPinned     uint32 = 1 << 2
+
+	jsdocBuilderChunkSize      = 256
+	jsdocBuilderMaxFreeBundles = 65536
+)
+
+type jsdocBuilderBundle struct {
+	jsdoc     OptimizationJsdoc
+	poolNext  *jsdocBuilderBundle
+	linkState uint32
+}
+
+type jsdocBuilderAllocBatch struct {
+	idx  uint32
+	done uint32
+	ptrs [jsdocBuilderChunkSize]*jsdocBuilderBundle
+}
+
+type jsdocBuilderChunk struct {
+	items [jsdocBuilderChunkSize]jsdocBuilderBundle
+}
+
+var (
+	jsdocBuilderBatchPtr  atomic.Pointer[jsdocBuilderAllocBatch]
+	jsdocBuilderPoolMu    sync.Mutex
+	jsdocBuilderCurBatch  *jsdocBuilderAllocBatch
+	jsdocBuilderBatchFree []*jsdocBuilderAllocBatch
+	jsdocBuilderRetired   []*jsdocBuilderAllocBatch
+	jsdocBuilderFree      []*jsdocBuilderBundle
+)
+
+func pinJsdocBundle(jb *jsdocBuilderBundle) {
+	if atomic.LoadUint32(&jb.linkState)&jsdocLinkFlagPinned == 0 {
+		atomic.OrUint32(&jb.linkState, jsdocLinkFlagPinned)
+	}
+}
+
+func pinOptimizationJsdoc(j *OptimizationJsdoc) {
+	if j != nil {
+		if jb := j.bundle; jb != nil && j == &jb.jsdoc {
+			pinJsdocBundle(jb)
+		}
+	}
+}
+
+func rescueOptimizationJsdoc(j *OptimizationJsdoc) {
+	if j != nil {
+		if jb := j.bundle; jb != nil && j == &jb.jsdoc {
+			if atomic.LoadUint32(&jb.linkState)&jsdocLinkFlagInFreeList != 0 {
+				atomic.OrUint32(&jb.linkState, jsdocLinkFlagPinned)
+			}
+		}
+	}
+}
+
+func (m *OptimizationJsdoc) resetBuilderFields() {
+	var savedKind []int32
+	if cap(m.kind_) > 0 && cap(m.kind_) <= 32 {
+		savedKind = m.kind_[:0]
+	}
+	jb := m.bundle
+	*m = OptimizationJsdoc{
+		bundle: jb,
+		kind_:  savedKind,
+	}
+}
+
+func (m *OptimizationJsdoc) ResetForPool() {
+	if m == nil {
+		return
+	}
+	m.resetBuilderFields()
+	if jb := m.bundle; jb != nil && m == &jb.jsdoc {
+		atomic.StoreUint32(&jb.linkState, 0)
+	}
+}
+
+func recycleJsdocSingle(j *OptimizationJsdoc) {
+	if jb := j.bundle; jb != nil && j == &jb.jsdoc && atomic.CompareAndSwapUint32(&jb.linkState, jsdocLinkFlagClaimed, jsdocLinkFlagInFreeList) {
+		jb.poolNext = nil
+		jsdocBuilderPoolMu.Lock()
+		if len(jsdocBuilderFree) < jsdocBuilderMaxFreeBundles {
+			jsdocBuilderFree = append(jsdocBuilderFree, jb)
+		}
+		jsdocBuilderPoolMu.Unlock()
+	}
+}
+
+func pushJsdocFreeList(head *jsdocBuilderBundle) {
+	jsdocBuilderPoolMu.Lock()
+	for head != nil {
+		jb := head
+		head = jb.poolNext
+		jb.poolNext = nil
+		if len(jsdocBuilderFree) < jsdocBuilderMaxFreeBundles {
+			jsdocBuilderFree = append(jsdocBuilderFree, jb)
+		}
+	}
+	jsdocBuilderPoolMu.Unlock()
+}
+
+//go:noinline
+func newJsdocBuilderSlow() *OptimizationJsdoc {
+	jsdocBuilderPoolMu.Lock()
+	if batch := jsdocBuilderBatchPtr.Load(); batch != nil {
+		if i := atomic.AddUint32(&batch.idx, 1) - 1; i < jsdocBuilderChunkSize {
+			b := batch.ptrs[i]
+			atomic.AddUint32(&batch.done, 1)
+			jsdocBuilderPoolMu.Unlock()
+			return &b.jsdoc
+		}
+	}
+	if old := jsdocBuilderCurBatch; old != nil {
+		jsdocBuilderCurBatch = nil
+		jsdocBuilderBatchPtr.Store(nil)
+		if atomic.LoadUint32(&old.done) == jsdocBuilderChunkSize {
+			clear(old.ptrs[:])
+			if len(jsdocBuilderBatchFree) < 16 {
+				jsdocBuilderBatchFree = append(jsdocBuilderBatchFree, old)
+			}
+		} else {
+			jsdocBuilderRetired = append(jsdocBuilderRetired, old)
+		}
+	}
+	if len(jsdocBuilderRetired) > 0 {
+		w := 0
+		for _, rb := range jsdocBuilderRetired {
+			if atomic.LoadUint32(&rb.done) == jsdocBuilderChunkSize {
+				clear(rb.ptrs[:])
+				if len(jsdocBuilderBatchFree) < 16 {
+					jsdocBuilderBatchFree = append(jsdocBuilderBatchFree, rb)
+				}
+			} else {
+				jsdocBuilderRetired[w] = rb
+				w++
+			}
+		}
+		clear(jsdocBuilderRetired[w:])
+		jsdocBuilderRetired = jsdocBuilderRetired[:w]
+	}
+	var nb *jsdocBuilderAllocBatch
+	if nbf := len(jsdocBuilderBatchFree); nbf > 0 {
+		nb = jsdocBuilderBatchFree[nbf-1]
+		jsdocBuilderBatchFree[nbf-1] = nil
+		jsdocBuilderBatchFree = jsdocBuilderBatchFree[:nbf-1]
+	} else {
+		nb = &jsdocBuilderAllocBatch{idx: jsdocBuilderChunkSize}
+	}
+	filled := 0
+	for len(jsdocBuilderFree) > 0 && filled < jsdocBuilderChunkSize {
+		last := len(jsdocBuilderFree) - 1
+		jb := jsdocBuilderFree[last]
+		jsdocBuilderFree[last] = nil
+		jsdocBuilderFree = jsdocBuilderFree[:last]
+		if atomic.CompareAndSwapUint32(&jb.linkState, jsdocLinkFlagInFreeList, 0) {
+			jb.jsdoc.resetBuilderFields()
+			nb.ptrs[filled] = jb
+			filled++
+		}
+	}
+	if filled < jsdocBuilderChunkSize {
+		nc := &jsdocBuilderChunk{}
+		need := jsdocBuilderChunkSize - filled
+		for i := 0; i < need; i++ {
+			b := &nc.items[i]
+			b.jsdoc.bundle = b
+			nb.ptrs[filled+i] = b
+		}
+		for i := need; i < jsdocBuilderChunkSize; i++ {
+			b := &nc.items[i]
+			b.jsdoc.bundle = b
+			atomic.StoreUint32(&b.linkState, jsdocLinkFlagInFreeList)
+			jsdocBuilderFree = append(jsdocBuilderFree, b)
+		}
+	}
+	ret := nb.ptrs[0]
+	atomic.StoreUint32(&nb.done, 1)
+	atomic.StoreUint32(&nb.idx, 1)
+	jsdocBuilderCurBatch = nb
+	jsdocBuilderBatchPtr.Store(nb)
+	jsdocBuilderPoolMu.Unlock()
+	return &ret.jsdoc
+}
+
+func OptimizationJsdoc_NewBuilder() *OptimizationJsdoc_Builder {
+	if batch := jsdocBuilderBatchPtr.Load(); batch != nil {
+		if i := atomic.AddUint32(&batch.idx, 1) - 1; i < jsdocBuilderChunkSize {
+			b := batch.ptrs[i]
+			atomic.AddUint32(&batch.done, 1)
+			return &b.jsdoc
+		}
+	}
+	return newJsdocBuilderSlow()
+}
 
 func (m *OptimizationJsdoc) GetKindValueList() []int32 {
+	rescueOptimizationJsdoc(m)
 	if m.kind_ != nil {
+		pinOptimizationJsdoc(m)
 		return m.kind_
 	}
 	if m.kindInlineLen_ == 0 {
@@ -2840,6 +3083,7 @@ func (m *OptimizationJsdoc) GetKindValueList() []int32 {
 	return out
 }
 func (m *OptimizationJsdoc) GetKindList() []JsdocTag {
+	rescueOptimizationJsdoc(m)
 	n := m.GetKindCount()
 	out := make([]JsdocTag, n)
 	for i := 0; i < n; i++ {
@@ -2882,7 +3126,11 @@ func (m *OptimizationJsdoc) SetClosureUnawareModePointer(v int32) *OptimizationJ
 	return m
 }
 func (m *OptimizationJsdoc) Build() *OptimizationJsdoc {
-	m.cachedSize = 0
+	if sz := m.scalarsSerializedSize(); sz < math.MaxInt32 {
+		m.cachedSize = int32(sz + 1)
+	} else {
+		m.cachedSize = 0
+	}
 	return m
 }
 

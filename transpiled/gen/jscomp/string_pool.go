@@ -22,7 +22,6 @@ import (
 
 	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
 	pkg_rhino "github.com/paullepoulpe/jsgo/transpiled/gen/rhino"
-	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
 	"github.com/paullepoulpe/jsgo/transpiled/shims/nodestore"
 )
 
@@ -190,12 +189,12 @@ func StringPool_S_Builder() *StringPool_Builder {
 
 // Java class: com.google.javascript.jscomp.serialization.StringPool.Builder
 type StringPool_Builder struct {
-	pool      []string `gson:"pool"`
-	hashTable []int32  `gson:"hashTable"`
-	maxLength int32    `gson:"maxLength"`
-	size      int32    `gson:"size"`
-	idHash_   atomic.Int32
-	built     bool `gson:"built"`
+	pool          []string                         `gson:"pool"`
+	indexByString j2gort.OrderedMap[string, int32] `gson:"indexByString"`
+	maxLength     int32                            `gson:"maxLength"`
+	size          int32                            `gson:"size"`
+	idHash_       atomic.Int32
+	built         bool `gson:"built"`
 }
 
 func (this_ *StringPool_Builder) BindSelf_(s any) {
@@ -226,7 +225,7 @@ func (this_ *StringPool_Builder) initFields_StringPool_Builder() {
 
 	this_.pool = j2gort.NewStringArray(int32(32))
 
-	this_.hashTable = make([]int32, int32(64))
+	this_.indexByString = j2gort.NewOrderedMapCap[string, int32](int32(1024))
 
 }
 
@@ -246,26 +245,16 @@ func InitStringPool_Builder(this_ *StringPool_Builder) {
 func (this_ *StringPool_Builder) Put(string_ string) int32 {
 	_ = string_
 	j2gort.CheckNotNullString(string_)
-	var h int32 = javalang.StringHashCode(j2gort.CheckNotNullString(string_))
-	_ = h
-	var table []int32 = this_.hashTable
-	_ = table
-	var mask int32 = (int32(len(table)) - int32(1))
-	_ = mask
-	var slot int32 = ((h ^ (javalang.Ushr32(h, int(int32(16))))) & mask)
-	_ = slot
-	for {
-		var entry int32 = table[slot]
-		_ = entry
-		if entry == int32(0) {
-			break
-		}
-		var existingId int32 = (entry - int32(1))
-		_ = existingId
-		if j2gort.CheckNotNullString(this_.pool[existingId]) == string_ {
-			return existingId
-		}
-		slot = ((slot + int32(1)) & mask)
+	existing, existingOk_ := this_.indexByString.GetOk(string_)
+	_ = existingOk_
+	_ = existing
+	if existingOk_ {
+		return func() int32 {
+			if !existingOk_ {
+				j2gort.ThrowNPE()
+			}
+			return existing
+		}()
 	}
 	if this_.built {
 		this_.pool = func() []string {
@@ -304,47 +293,8 @@ func (this_ *StringPool_Builder) Put(string_ string) int32 {
 		a_11[i_12] = string_
 	}
 	this_.size = (id + int32(1))
-	{
-		a_13 := table
-		i_14 := slot
-		a_13[i_14] = (id + int32(1))
-	}
-	if (this_.size * int32(4)) >= (int32(len(table)) * int32(3)) {
-		this_.priv_Builder_rehash_7752((int32(len(table)) * int32(2)))
-	}
+	this_.indexByString.Put(string_, id)
 	return id
-}
-
-// Java method: Builder.rehash(int newCap)
-func (this_ *StringPool_Builder) priv_Builder_rehash_7752(newCap int32) {
-	_ = newCap
-	var newTable []int32 = make([]int32, newCap)
-	_ = newTable
-	var mask int32 = (newCap - int32(1))
-	_ = mask
-	var items []string = this_.pool
-	_ = items
-	{
-		var id int32 = int32(0)
-		_ = id
-		var n int32 = this_.size
-		_ = n
-		for ; id < n; id = id + 1 {
-			var h int32 = javalang.StringHashCode(j2gort.CheckNotNullString(items[id]))
-			_ = h
-			var slot int32 = ((h ^ (javalang.Ushr32(h, int(int32(16))))) & mask)
-			_ = slot
-			for newTable[slot] != int32(0) {
-				slot = ((slot + int32(1)) & mask)
-			}
-			{
-				a_15 := newTable
-				i_16 := slot
-				a_15[i_16] = (id + int32(1))
-			}
-		}
-	}
-	this_.hashTable = newTable
 }
 
 // Java method: Builder.putAnd(java.lang.String string)

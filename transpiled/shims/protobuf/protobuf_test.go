@@ -1794,3 +1794,140 @@ func TestWave36CIntrusiveAstBuilderArenaCOWAndConcurrentSafety(t *testing.T) {
 		t.Fatalf("expected <= 1 allocs for ByteString_CopyFromUtf8 wire-slab fast path, got %.2f", utf8Allocs)
 	}
 }
+
+func TestWave37COptimizationJsdocPoolingPinningAndDirectWirePutTo(t *testing.T) {
+	defJsdoc := protobuf.OptimizationJsdoc_GetDefaultInstance()
+
+	// 1. Warm pool & verify JSDocSerializer pattern (NewBuilder -> AddKind/Set* -> Build -> DefaultInstance.Equals -> SetJsdoc -> ToByteString)
+	// recycles both inline (<=7 tags) and overflow (>7 tags) OptimizationJsdoc instances with ~0 heap allocs/op.
+	manyTags := []protobuf.JsdocTag{
+		protobuf.JsdocTag_JSDOC_FILEOVERVIEW,
+		protobuf.JsdocTag_JSDOC_CONST,
+		protobuf.JsdocTag_JSDOC_CONSTRUCTOR,
+		protobuf.JsdocTag_JSDOC_NO_INLINE,
+		protobuf.JsdocTag_JSDOC_NO_SIDE_EFFECTS,
+		protobuf.JsdocTag_JSDOC_MODIFIES_THIS,
+		protobuf.JsdocTag_JSDOC_THROWS,
+		protobuf.JsdocTag_JSDOC_ABSTRACT,
+		protobuf.JsdocTag_JSDOC_DEFINE,
+	}
+
+	buildAndSerialize := func(seed int32) protobuf.ByteString {
+		jRoot := protobuf.OptimizationJsdoc_NewBuilder()
+		for _, tg := range manyTags {
+			jRoot.AddKind(tg)
+		}
+		jRootBuilt := jRoot.
+			SetLicenseTextPointer(seed + 1).
+			SetDescriptionPointer(seed + 2).
+			SetMeaningPointer(seed + 3).
+			SetAlternateMessageIdPointer(seed + 4).
+			SetClosureUnawareModePointer(seed + 5).
+			Build()
+		if defJsdoc.Equals(jRootBuilt) {
+			t.Fatal("expected non-default jRootBuilt")
+		}
+
+		root := protobuf.AstNode_NewBuilder().
+			SetKind(protobuf.NodeKind_SOURCE_FILE).
+			SetSourceFile(1).
+			SetJsdoc(jRootBuilt)
+
+		for i := int32(0); i < 6; i++ {
+			jc := protobuf.OptimizationJsdoc_NewBuilder().
+				AddKind(protobuf.JsdocTag_JSDOC_NO_INLINE).
+				AddKind(protobuf.JsdocTag_JSDOC_CONST).
+				SetMeaningPointer(seed + 10 + i).
+				Build()
+			if defJsdoc.Equals(jc) {
+				t.Fatal("expected non-default child jsdoc")
+			}
+			ch := protobuf.AstNode_NewBuilder().
+				SetKind(protobuf.NodeKind_FUNCTION_LITERAL).
+				SetJsdoc(jc).
+				Build()
+			root.AddChild(ch)
+		}
+		return root.Build().ToByteString()
+	}
+
+	refBS := buildAndSerialize(100)
+	parsed, err := protobuf.AstNode_ParseFrom(refBS.BytesView())
+	if err != nil {
+		t.Fatalf("AstNode_ParseFrom failed: %v", err)
+	}
+	if parsed.GetJsdoc().GetKindCount() != len(manyTags) ||
+		parsed.GetJsdoc().GetLicenseTextPointer() != 101 ||
+		parsed.GetJsdoc().GetDescriptionPointer() != 102 ||
+		parsed.GetJsdoc().GetMeaningPointer() != 103 ||
+		parsed.GetJsdoc().GetAlternateMessageIdPointer() != 104 ||
+		parsed.GetJsdoc().GetClosureUnawareModePointer() != 105 {
+		t.Fatalf("parsed root jsdoc mismatch: %v", parsed.GetJsdoc().String())
+	}
+	// Re-serialize from astNodeSlab (putRecTo -> jsdoc.putTo) and verify exact wire bytes.
+	if !bytes.Equal(parsed.ToByteArray(), refBS.BytesView()) {
+		t.Fatal("slab putRecTo OptimizationJsdoc wire bytes mismatch")
+	}
+	parsed.ReleaseSlab()
+
+	// Warm up pool batch completely and measure steady-state allocations.
+	for i := 0; i < 64; i++ {
+		_ = buildAndSerialize(int32(200 + i))
+	}
+	allocs := testing.AllocsPerRun(100, func() {
+		bs := buildAndSerialize(100)
+		if !bytes.Equal(bs.BytesView(), refBS.BytesView()) {
+			t.Fatal("recycled OptimizationJsdoc wire mismatch")
+		}
+	})
+	if allocs > 1 {
+		t.Fatalf("expected <= 1 allocs/op with pooled OptimizationJsdoc + AstNode, got %.2f", allocs)
+	}
+
+	// 2. Pinning invariants: GetJsdoc(), multi-parent SetJsdoc(), ResetForPool(), and post-recycle Equals() rescue.
+	sharedJsdoc := protobuf.OptimizationJsdoc_NewBuilder().
+		AddKind(protobuf.JsdocTag_JSDOC_ENUM).
+		SetDescriptionPointer(777).
+		Build()
+	p1 := protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_SOURCE_FILE).SetJsdoc(sharedJsdoc).Build()
+	p2 := protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_SOURCE_FILE).SetJsdoc(sharedJsdoc).Build()
+	_ = p1.ToByteString() // must NOT recycle sharedJsdoc because p2 also claimed/pinned it
+
+	getterJsdoc := protobuf.OptimizationJsdoc_NewBuilder().
+		AddKind(protobuf.JsdocTag_JSDOC_INTERFACE).
+		SetMeaningPointer(888).
+		Build()
+	var inlineAst protobuf.AstNode
+	inlineAst.SetKind(protobuf.NodeKind_BLOCK).SetJsdoc(getterJsdoc)
+	gotGetter := inlineAst.GetJsdoc() // pins getterJsdoc
+	inlineAst.ResetForPool()
+
+	// Churn pool heavily to ensure pinned sharedJsdoc & gotGetter are never overwritten.
+	for i := 0; i < 600; i++ {
+		_ = buildAndSerialize(int32(1000 + i))
+	}
+	if sharedJsdoc.GetDescriptionPointer() != 777 || p2.GetJsdoc().GetDescriptionPointer() != 777 {
+		t.Fatalf("multi-parent sharedJsdoc corrupted after pool churn: %d", sharedJsdoc.GetDescriptionPointer())
+	}
+	if gotGetter.GetMeaningPointer() != 888 {
+		t.Fatalf("GetJsdoc()-pinned instance corrupted after ResetForPool + churn: %d", gotGetter.GetMeaningPointer())
+	}
+
+	// 3. Concurrent -race stress across 8 goroutines.
+	var wg sync.WaitGroup
+	for g := 0; g < 8; g++ {
+		g := g
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 80; i++ {
+				bs := buildAndSerialize(int32(g*1000 + i))
+				if bs.IsEmpty() {
+					t.Errorf("empty serialized ByteString")
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}

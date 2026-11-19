@@ -164,7 +164,7 @@ func (this_ *AngularPass) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node)
 		_ = name
 		var fn pkg_rhino.Node = entry.GetFunctionNode()
 		_ = fn
-		var dependencies j2gort.Ext_java_util_List = this_.priv_AngularPass_createDependenciesList_592(fn)
+		var dependencies j2gort.Ext_java_util_List = this_.priv_AngularPass_createDependenciesList_593(fn)
 		_ = dependencies
 		if dependencies.IsEmpty() {
 			continue
@@ -194,7 +194,7 @@ func (this_ *AngularPass) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node)
 }
 
 // Java method: AngularPass.createDependenciesList(com.google.javascript.rhino.Node n)
-func (this_ *AngularPass) priv_AngularPass_createDependenciesList_592(n pkg_rhino.Node) j2gort.Ext_java_util_List {
+func (this_ *AngularPass) priv_AngularPass_createDependenciesList_593(n pkg_rhino.Node) j2gort.Ext_java_util_List {
 	_ = n
 	if !(n.IsFunction()) {
 		j2gort.CheckArgument(false)
@@ -202,13 +202,13 @@ func (this_ *AngularPass) priv_AngularPass_createDependenciesList_592(n pkg_rhin
 	var params pkg_rhino.Node = NodeUtil_GetFunctionParameters(n)
 	_ = params
 	if params != 0 {
-		return this_.priv_AngularPass_createStringsFromParamList_593(params)
+		return this_.priv_AngularPass_createStringsFromParamList_594(params)
 	}
 	return j2gort.NewExt_java_util_ArrayList()
 }
 
 // Java method: AngularPass.createStringsFromParamList(com.google.javascript.rhino.Node params)
-func (this_ *AngularPass) priv_AngularPass_createStringsFromParamList_593(params pkg_rhino.Node) j2gort.Ext_java_util_List {
+func (this_ *AngularPass) priv_AngularPass_createStringsFromParamList_594(params pkg_rhino.Node) j2gort.Ext_java_util_List {
 	_ = params
 	var param pkg_rhino.Node = params.GetFirstChild()
 	_ = param
@@ -237,12 +237,12 @@ func (this_ *AngularPass) Visit_3(unused *NodeTraversal, n pkg_rhino.Node, paren
 	var docInfo *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 	_ = docInfo
 	if (docInfo != nil) && docInfo.IsNgInject() {
-		this_.priv_AngularPass_addNode_594(n)
+		this_.priv_AngularPass_addNode_595(n)
 	}
 }
 
 // Java method: AngularPass.addNode(com.google.javascript.rhino.Node n)
-func (this_ *AngularPass) priv_AngularPass_addNode_594(n pkg_rhino.Node) {
+func (this_ *AngularPass) priv_AngularPass_addNode_595(n pkg_rhino.Node) {
 	_ = n
 	var injectAfter pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = injectAfter

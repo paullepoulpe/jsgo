@@ -284,32 +284,32 @@ func (this_ *AbstractVarBase) GetJSDocInfo() *pkg_rhino.JSDocInfo {
 
 // Java method: AbstractVar.isVar()
 func (this_ *AbstractVarBase) IsVar() bool {
-	return (this_.priv_AbstractVar_declarationTypeImpl_529() == pkg_rhino.StaticGet_Token_VAR())
+	return (this_.priv_AbstractVar_declarationTypeImpl_530() == pkg_rhino.StaticGet_Token_VAR())
 }
 
 // Java method: AbstractVar.isCatch()
 func (this_ *AbstractVarBase) IsCatch() bool {
-	return (this_.priv_AbstractVar_declarationTypeImpl_529() == pkg_rhino.StaticGet_Token_CATCH())
+	return (this_.priv_AbstractVar_declarationTypeImpl_530() == pkg_rhino.StaticGet_Token_CATCH())
 }
 
 // Java method: AbstractVar.isLet()
 func (this_ *AbstractVarBase) IsLet() bool {
-	return (this_.priv_AbstractVar_declarationTypeImpl_529() == pkg_rhino.StaticGet_Token_LET())
+	return (this_.priv_AbstractVar_declarationTypeImpl_530() == pkg_rhino.StaticGet_Token_LET())
 }
 
 // Java method: AbstractVar.isConst()
 func (this_ *AbstractVarBase) IsConst() bool {
-	return (this_.priv_AbstractVar_declarationTypeImpl_529() == pkg_rhino.StaticGet_Token_CONST())
+	return (this_.priv_AbstractVar_declarationTypeImpl_530() == pkg_rhino.StaticGet_Token_CONST())
 }
 
 // Java method: AbstractVar.isClass()
 func (this_ *AbstractVarBase) IsClass() bool {
-	return (this_.priv_AbstractVar_declarationTypeImpl_529() == pkg_rhino.StaticGet_Token_CLASS())
+	return (this_.priv_AbstractVar_declarationTypeImpl_530() == pkg_rhino.StaticGet_Token_CLASS())
 }
 
 // Java method: AbstractVar.isParam()
 func (this_ *AbstractVarBase) IsParam() bool {
-	return (this_.priv_AbstractVar_declarationTypeImpl_529() == pkg_rhino.StaticGet_Token_PARAM_LIST())
+	return (this_.priv_AbstractVar_declarationTypeImpl_530() == pkg_rhino.StaticGet_Token_PARAM_LIST())
 }
 
 // Java method: AbstractVar.isDefaultParam()
@@ -321,7 +321,7 @@ func (this_ *AbstractVarBase) IsDefaultParam() bool {
 
 // Java method: AbstractVar.isImport()
 func (this_ *AbstractVarBase) IsImport() bool {
-	return (this_.priv_AbstractVar_declarationTypeImpl_529() == pkg_rhino.StaticGet_Token_IMPORT())
+	return (this_.priv_AbstractVar_declarationTypeImpl_530() == pkg_rhino.StaticGet_Token_IMPORT())
 }
 
 // Java method: AbstractVar.isArguments()
@@ -339,7 +339,7 @@ func (this_ *AbstractVarBase) IsGoogModuleExports() bool {
 		sr_3 := "exports"
 		se_4 := this_.GetScopedNameBase().name
 		return j2gort.CheckNotNullString(sr_3) == se_4
-	}()) && this_.priv_AbstractVar_isImplicit_527())
+	}()) && this_.priv_AbstractVar_isImplicit_528())
 }
 
 // Java method: AbstractVar.isThis()
@@ -352,7 +352,7 @@ func (this_ *AbstractVarBase) IsThis() bool {
 }
 
 // Java method: AbstractVar.isImplicit()
-func (this_ *AbstractVarBase) priv_AbstractVar_isImplicit_527() bool {
+func (this_ *AbstractVarBase) priv_AbstractVar_isImplicit_528() bool {
 	if this_.implicitGoogNamespaceStrength != 0 {
 		return true
 	}
@@ -363,11 +363,11 @@ func (this_ *AbstractVarBase) priv_AbstractVar_isImplicit_527() bool {
 
 // Java method: AbstractVar.declarationType()
 func (this_ *AbstractVarBase) DeclarationType() pkg_rhino.Token {
-	return this_.priv_AbstractVar_declarationTypeImpl_529()
+	return this_.priv_AbstractVar_declarationTypeImpl_530()
 }
 
 // Java method: AbstractVar.declarationTypeImpl()
-func (this_ *AbstractVarBase) priv_AbstractVar_declarationTypeImpl_529() pkg_rhino.Token {
+func (this_ *AbstractVarBase) priv_AbstractVar_declarationTypeImpl_530() pkg_rhino.Token {
 	if this_.implicitGoogNamespaceStrength != 0 {
 		return pkg_rhino.Token(0)
 	}
@@ -380,7 +380,7 @@ func (this_ *AbstractVarBase) priv_AbstractVar_declarationTypeImpl_529() pkg_rhi
 			}
 		}
 	}
-	if !(this_.priv_AbstractVar_isImplicit_527()) {
+	if !(this_.priv_AbstractVar_isImplicit_528()) {
 		j2gort.CheckStateFmt(false, "The nameNode for %s must be a descendant of one of: %s", j2gort.BoxString(this_.GetScopedNameBase().name), StaticGet_AbstractVar_DECLARATION_TYPES())
 	}
 	return pkg_rhino.Token(0)

@@ -36,7 +36,6 @@ var lambdaSingleton_disambiguate_properties_5 j2gort.Ext_java_util_function_Func
 var lambdaSingleton_disambiguate_properties_6 j2gort.Ext_java_util_function_Function
 var lambdaSingleton_disambiguate_properties_7 j2gort.Ext_java_util_function_Function
 var lambdaSingleton_disambiguate_properties_8 j2gort.Ext_java_util_function_Function
-var lambdaSingleton_disambiguate_properties_9 j2gort.Ext_java_util_function_Function
 
 func init() {
 	lambdaSingleton_disambiguate_properties_1 = pkg_graph.NewLambda_LowestCommonAncestorFinder_Factory[*ColorGraphNode, any](func(mrp0_ pkg_graph.DiGraph[*ColorGraphNode, any]) *pkg_graph.LowestCommonAncestorFinder[*ColorGraphNode, any] {
@@ -51,17 +50,16 @@ func init() {
 		return NewDisambiguateProperties_TypeNodeJson(j2gort.AsIface[pkg_graph.DiGraph_DiGraphNode[*ColorGraphNode, any]](mrp0_))
 	})
 	lambdaSingleton_disambiguate_properties_4 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return j2gort.BoxString(j2gort.CastPtr[PropertyClustering](mrp0_).GetName()) })
-	lambdaSingleton_disambiguate_properties_5 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewPropertyClustering(j2gort.CastString(mrp0_)) })
-	lambdaSingleton_disambiguate_properties_6 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+	lambdaSingleton_disambiguate_properties_5 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
 		return NewDisambiguateProperties_TypeEdgeJson(j2gort.AsIface[pkg_graph.DiGraph_DiGraphEdge[*ColorGraphNode, any]](mrp0_))
 	})
-	lambdaSingleton_disambiguate_properties_7 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_28 any) any {
-		e := j2gort.AsIface[j2gort.Ext_java_util_Map_Entry](lp_28)
+	lambdaSingleton_disambiguate_properties_6 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_25 any) any {
+		e := j2gort.AsIface[j2gort.Ext_java_util_Map_Entry](lp_25)
 		_ = e
 		return j2gort.BoxString(j2gort.CastPtr[PropertyClustering](e.GetKey()).GetName())
 	})
-	lambdaSingleton_disambiguate_properties_8 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return j2gort.AsIface[j2gort.Ext_java_util_Map_Entry](mrp0_).GetValue() })
-	lambdaSingleton_disambiguate_properties_9 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
+	lambdaSingleton_disambiguate_properties_7 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return j2gort.AsIface[j2gort.Ext_java_util_Map_Entry](mrp0_).GetValue() })
+	lambdaSingleton_disambiguate_properties_8 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
 		return NewDisambiguateProperties_PropertyReferenceIndexJson(j2gort.CastPtr[PropertyClustering](mrp0_))
 	})
 }
@@ -195,10 +193,10 @@ func (this_ *DisambiguateProperties) Process_2(externs pkg_rhino.Node, root pkg_
 	var renamer *UseSiteRenamer = &val_4
 	_ = renamer
 	NodeTraversal_Traverse(this_.compiler, externs.GetParent(), findRefs)
-	var propIndex *j2gort.Ext_java_util_LinkedHashMap = findRefs.GetPropertyIndex()
-	_ = propIndex
-	DisambiguateProperties_InvalidateWellKnownProperties(propIndex)
-	this_.priv_DisambiguateProperties_logForDiagnostics_6220("prop_refs", NewDisambiguateProperties__Anon_113(this_, propIndex))
+	DisambiguateProperties_InvalidateWellKnownProperties(findRefs)
+	var allProps j2gort.Ext_java_util_ArrayList = findRefs.CollectProperties()
+	_ = allProps
+	this_.priv_DisambiguateProperties_logForDiagnostics_6225("prop_refs", NewDisambiguateProperties__Anon_113(this_, allProps))
 	graphBuilder.AddAll(j2gort.AsIface[j2gort.Ext_java_util_Collection](flattener.GetAllKnownTypes()))
 	var graph pkg_graph.DiGraph[*ColorGraphNode, any] = j2gort.AsIface[pkg_graph.DiGraph[*ColorGraphNode, any]](graphBuilder.Build())
 	_ = graph
@@ -214,63 +212,66 @@ func (this_ *DisambiguateProperties) Process_2(externs pkg_rhino.Node, root pkg_
 			if colorGraphNode.GetColor().IsUnion() {
 				continue
 			}
-			this_.priv_DisambiguateProperties_registerOwnDeclaredProperties_6218(colorGraphNode, propIndex)
+			this_.priv_DisambiguateProperties_registerOwnDeclaredProperties_6223(colorGraphNode, findRefs)
 		}
 	}
-	this_.priv_DisambiguateProperties_logForDiagnostics_6219("graph", j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any {
+	findRefs.ClearProperties()
+	this_.priv_DisambiguateProperties_logForDiagnostics_6224("graph", j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any {
 		return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableList](graph.GetNodes().Stream().Map(lambdaSingleton_disambiguate_properties_3).Sorted_1(j2gort.Ext_java_util_Comparator_ComparingInt(lambdaSingleton_disambiguate_properties_2)).Collect_1(j2gort.Ext_com_google_common_collect_ImmutableList_ToImmutableList()))
 	}))
-	this_.priv_DisambiguateProperties_invalidateBasedOnType_6214(flattener)
+	this_.priv_DisambiguateProperties_invalidateBasedOnType_6219(flattener)
 	pkg_graph.FixedPointGraphTraversal_NewTraversal[*ColorGraphNode, any](pkg_graph.ToIface_FixedPointGraphTraversal_EdgeCallback[*ColorGraphNode, any](propagator)).ComputeFixedPoint_1(graph)
 	var val_9 DisambiguateProperties_TrackerSummaryGenerator
 	InitDisambiguateProperties_TrackerSummaryGenerator(&val_9)
 	var trackerSummaryGenerator *DisambiguateProperties_TrackerSummaryGenerator = &val_9
 	_ = trackerSummaryGenerator
 	{
-		cur_10 := j2gort.NewMapValCursor(propIndex)
-		for cur_10.HasNext() {
-			rawElem_11 := cur_10.Next()
-			prop := j2gort.CastPtr[PropertyClustering](rawElem_11)
+		var i int32 = int32(0)
+		_ = i
+		var n int32 = allProps.Size()
+		_ = n
+		for ; i < n; i = i + 1 {
+			var prop *PropertyClustering = j2gort.CastPtr[PropertyClustering](allProps.Get(i))
 			_ = prop
 			var renameUsesResult UseSiteRenamer_RenameUsesResult = renamer.RenameUses(prop)
 			_ = renameUsesResult
 			trackerSummaryGenerator.AddRenameUsesResult(renameUsesResult)
 			if prop.IsInvalidated() && j2gort.SetContainsStr(this_.propertiesThatMustDisambiguate, prop.GetName()) {
-				this_.compiler.Report_1(this_.priv_DisambiguateProperties_createInvalidationError_6213(prop))
+				this_.compiler.Report_1(this_.priv_DisambiguateProperties_createInvalidationError_6218(prop))
 			}
 		}
 	}
 	this_.compiler.ReportDisambiguatePropertiesSummary(func() j2gort.Ext_java_util_function_Supplier {
-		bound_12 := trackerSummaryGenerator
-		return j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxString(bound_12.priv_TrackerSummaryGenerator_buildSummaryString_6222()) })
+		bound_10 := trackerSummaryGenerator
+		return j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxString(bound_10.priv_TrackerSummaryGenerator_buildSummaryString_6227()) })
 	}())
-	this_.priv_DisambiguateProperties_logForDiagnostics_6219("renaming_index", j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any {
-		return DisambiguateProperties_BuildRenamingIndex(propIndex, renamer)
+	this_.priv_DisambiguateProperties_logForDiagnostics_6224("renaming_index", j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any {
+		return DisambiguateProperties_BuildRenamingIndex(j2gort.AsIface[j2gort.Ext_java_util_List](allProps), renamer)
 	}))
-	this_.priv_DisambiguateProperties_logForDiagnostics_6219("mismatches", func() j2gort.Ext_com_google_common_base_Supplier {
-		bound_13 := this_.registry.GetMismatchLocationsForDebugging()
-		return j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any { return bound_13.Inverse() })
+	this_.priv_DisambiguateProperties_logForDiagnostics_6224("mismatches", func() j2gort.Ext_com_google_common_base_Supplier {
+		bound_11 := this_.registry.GetMismatchLocationsForDebugging()
+		return j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any { return bound_11.Inverse() })
 	}())
 	GatherGetterAndSetterProperties_Update(this_.compiler, externs, root)
 }
 
 // Java method: DisambiguateProperties.createInvalidationError(com.google.javascript.jscomp.disambiguate.PropertyClustering prop)
-func (this_ *DisambiguateProperties) priv_DisambiguateProperties_createInvalidationError_6213(prop *PropertyClustering) *JSError {
+func (this_ *DisambiguateProperties) priv_DisambiguateProperties_createInvalidationError_6218(prop *PropertyClustering) *JSError {
 	_ = prop
 	var additionalContext string = ""
 	_ = additionalContext
 	return JSError_Make_5(j2gort.NullString, int32(-1), int32(-1), StaticGet_DisambiguateProperties_PROPERTY_INVALIDATION(), []string{prop.GetName(), additionalContext})
 }
 
-// Java static method: DisambiguateProperties.buildRenamingIndex(java.util.LinkedHashMap<java.lang.String,com.google.javascript.jscomp.disambiguate.PropertyClustering> props, com.google.javascript.jscomp.disambiguate.UseSiteRenamer renamer)
-func DisambiguateProperties_BuildRenamingIndex(props *j2gort.Ext_java_util_LinkedHashMap, renamer *UseSiteRenamer) j2gort.Ext_com_google_common_collect_ImmutableMap {
+// Java static method: DisambiguateProperties.buildRenamingIndex(java.util.List<com.google.javascript.jscomp.disambiguate.PropertyClustering> props, com.google.javascript.jscomp.disambiguate.UseSiteRenamer renamer)
+func DisambiguateProperties_BuildRenamingIndex(props j2gort.Ext_java_util_List, renamer *UseSiteRenamer) j2gort.Ext_com_google_common_collect_ImmutableMap {
 	clinit_DisambiguateProperties()
 	_ = props
 	_ = renamer
 	var newNames *j2gort.Ext_com_google_common_collect_ImmutableSetMultimap = renamer.GetRenamingIndex()
 	_ = newNames
-	return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](j2gort.CastPtr[j2gort.Ext_com_google_common_collect_ImmutableSortedMap](j2gort.AsIface[j2gort.Ext_java_util_Collection](props.Values()).Stream().Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSortedMap_ToImmutableSortedMap_3(j2gort.Ext_java_util_Comparator_NaturalOrder(), lambdaSingleton_disambiguate_properties_4, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_14 any) any {
-		prop := j2gort.CastPtr[PropertyClustering](lp_14)
+	return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](j2gort.CastPtr[j2gort.Ext_com_google_common_collect_ImmutableSortedMap](props.Stream().Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSortedMap_ToImmutableSortedMap_3(j2gort.Ext_java_util_Comparator_NaturalOrder(), lambdaSingleton_disambiguate_properties_4, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_12 any) any {
+		prop := j2gort.CastPtr[PropertyClustering](lp_12)
 		_ = prop
 		return func() any {
 			if prop.IsInvalidated() {
@@ -281,51 +282,44 @@ func DisambiguateProperties_BuildRenamingIndex(props *j2gort.Ext_java_util_Linke
 	})))))
 }
 
-// Java static method: DisambiguateProperties.invalidateWellKnownProperties(java.util.LinkedHashMap<java.lang.String,com.google.javascript.jscomp.disambiguate.PropertyClustering> propIndex)
-func DisambiguateProperties_InvalidateWellKnownProperties(propIndex *j2gort.Ext_java_util_LinkedHashMap) {
+// Java static method: DisambiguateProperties.invalidateWellKnownProperties(com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferences findRefs)
+func DisambiguateProperties_InvalidateWellKnownProperties(findRefs *ColorFindPropertyReferences) {
 	clinit_DisambiguateProperties()
-	_ = propIndex
-	var names []string = j2gort.ImmListToSliceNullable[string](j2gort.ImmListOfStr3("prototype", "constructor", "then"))
-	_ = names
-	{
-
-		for _, name := range names {
-
-			_ = name
-			j2gort.CastPtr[PropertyClustering](j2gort.MapComputeIfAbsentStr(propIndex, name, lambdaSingleton_disambiguate_properties_5)).Invalidate(Invalidation_WellKnownProperty())
-		}
-	}
+	_ = findRefs
+	findRefs.GetOrCreateProperty("prototype").Invalidate(Invalidation_WellKnownProperty())
+	findRefs.GetOrCreateProperty("constructor").Invalidate(Invalidation_WellKnownProperty())
+	findRefs.GetOrCreateProperty("then").Invalidate(Invalidation_WellKnownProperty())
 }
 
 // Java method: DisambiguateProperties.invalidateBasedOnType(com.google.javascript.jscomp.disambiguate.ColorGraphNodeFactory flattener)
-func (this_ *DisambiguateProperties) priv_DisambiguateProperties_invalidateBasedOnType_6214(flattener *ColorGraphNodeFactory) {
+func (this_ *DisambiguateProperties) priv_DisambiguateProperties_invalidateBasedOnType_6219(flattener *ColorGraphNodeFactory) {
 	_ = flattener
 	{
-		cur_16 := j2gort.NewIterCursor(j2gort.CheckNotNull(flattener.GetAllKnownTypes()))
-		for cur_16.HasNext() {
-			rawElem_17 := cur_16.Next()
-			type_ := j2gort.CastPtr[ColorGraphNode](rawElem_17)
+		cur_13 := j2gort.NewIterCursor(j2gort.CheckNotNull(flattener.GetAllKnownTypes()))
+		for cur_13.HasNext() {
+			rawElem_14 := cur_13.Next()
+			type_ := j2gort.CastPtr[ColorGraphNode](rawElem_14)
 			_ = type_
 			if type_.GetColor().IsInvalidating() {
 				{
-					cur_18 := type_.GetAssociatedProps().IterKeys()
-					for cur_18.HasNext() {
+					cur_15 := type_.GetAssociatedProps().IterKeys()
+					for cur_15.HasNext() {
 
-						prop := cur_18.
+						prop := cur_15.
 							Next()
 						_ = prop
 						prop.Invalidate(Invalidation_InvalidatingType(type_.GetIndex()))
 					}
 				}
 			} else {
-				this_.priv_DisambiguateProperties_invalidateNonDeclaredPropertyAccesses_6215(type_)
+				this_.priv_DisambiguateProperties_invalidateNonDeclaredPropertyAccesses_6220(type_)
 			}
 		}
 	}
 }
 
 // Java method: DisambiguateProperties.invalidateNonDeclaredPropertyAccesses(com.google.javascript.jscomp.disambiguate.ColorGraphNode colorGraphNode)
-func (this_ *DisambiguateProperties) priv_DisambiguateProperties_invalidateNonDeclaredPropertyAccesses_6215(colorGraphNode *ColorGraphNode) {
+func (this_ *DisambiguateProperties) priv_DisambiguateProperties_invalidateNonDeclaredPropertyAccesses_6220(colorGraphNode *ColorGraphNode) {
 	_ = colorGraphNode
 	var color *pkg_colors.Color = colorGraphNode.GetColor()
 	_ = color
@@ -333,16 +327,16 @@ func (this_ *DisambiguateProperties) priv_DisambiguateProperties_invalidateNonDe
 		j2gort.CheckArgumentStr(false, "Not applicable to invalidating types. All their properties are invalidated")
 	}
 	{
-		cur_20 := colorGraphNode.GetAssociatedProps().IterKeys()
-		for cur_20.HasNext() {
+		cur_17 := colorGraphNode.GetAssociatedProps().IterKeys()
+		for cur_17.HasNext() {
 
-			prop := cur_20.
+			prop := cur_17.
 				Next()
 			_ = prop
 			if prop.IsInvalidated() {
 				continue
 			}
-			if !(this_.priv_DisambiguateProperties_mayHaveProperty_6217(color, prop.GetName())) {
+			if !(this_.priv_DisambiguateProperties_mayHaveProperty_6222(color, prop.GetName())) {
 				prop.Invalidate(Invalidation_UndeclaredAccess(colorGraphNode.GetIndex()))
 			}
 		}
@@ -350,7 +344,7 @@ func (this_ *DisambiguateProperties) priv_DisambiguateProperties_invalidateNonDe
 }
 
 // Java method: DisambiguateProperties.hasOwnPropertyFast(com.google.javascript.jscomp.colors.Color color, java.lang.String propertyName)
-func (this_ *DisambiguateProperties) priv_DisambiguateProperties_hasOwnPropertyFast_6216(color *pkg_colors.Color, propertyName string) bool {
+func (this_ *DisambiguateProperties) priv_DisambiguateProperties_hasOwnPropertyFast_6221(color *pkg_colors.Color, propertyName string) bool {
 	_ = color
 	_ = propertyName
 	var ownProps []string = color.GetOwnPropertiesArray()
@@ -389,7 +383,7 @@ func (this_ *DisambiguateProperties) priv_DisambiguateProperties_hasOwnPropertyF
 }
 
 // Java method: DisambiguateProperties.mayHaveProperty(com.google.javascript.jscomp.colors.Color color, java.lang.String propertyName)
-func (this_ *DisambiguateProperties) priv_DisambiguateProperties_mayHaveProperty_6217(color *pkg_colors.Color, propertyName string) bool {
+func (this_ *DisambiguateProperties) priv_DisambiguateProperties_mayHaveProperty_6222(color *pkg_colors.Color, propertyName string) bool {
 	_ = color
 	_ = propertyName
 	defer func() {
@@ -408,14 +402,14 @@ func (this_ *DisambiguateProperties) priv_DisambiguateProperties_mayHaveProperty
 				var n int32 = int32(len(unionElems))
 				_ = n
 				for ; i < n; i = i + 1 {
-					if this_.priv_DisambiguateProperties_mayHaveProperty_6217(unionElems[i], propertyName) {
+					if this_.priv_DisambiguateProperties_mayHaveProperty_6222(unionElems[i], propertyName) {
 						return true
 					}
 				}
 			}
 			return false
 		}
-		if this_.priv_DisambiguateProperties_hasOwnPropertyFast_6216(color, propertyName) {
+		if this_.priv_DisambiguateProperties_hasOwnPropertyFast_6221(color, propertyName) {
 			return true
 		}
 		var supertypes []*pkg_colors.Color = this_.registry.GetDisambiguationSupertypesArray(color)
@@ -426,7 +420,7 @@ func (this_ *DisambiguateProperties) priv_DisambiguateProperties_mayHaveProperty
 			var n_2 int32 = int32(len(supertypes))
 			_ = n_2
 			for ; i_2 < n_2; i_2 = i_2 + 1 {
-				if this_.priv_DisambiguateProperties_mayHaveProperty_6217(supertypes[i_2], propertyName) {
+				if this_.priv_DisambiguateProperties_mayHaveProperty_6222(supertypes[i_2], propertyName) {
 					return true
 				}
 			}
@@ -436,10 +430,10 @@ func (this_ *DisambiguateProperties) priv_DisambiguateProperties_mayHaveProperty
 	panic("unreachable")
 }
 
-// Java method: DisambiguateProperties.registerOwnDeclaredProperties(com.google.javascript.jscomp.disambiguate.ColorGraphNode colorGraphNode, java.util.LinkedHashMap<java.lang.String,com.google.javascript.jscomp.disambiguate.PropertyClustering> propIndex)
-func (this_ *DisambiguateProperties) priv_DisambiguateProperties_registerOwnDeclaredProperties_6218(colorGraphNode *ColorGraphNode, propIndex *j2gort.Ext_java_util_LinkedHashMap) {
+// Java method: DisambiguateProperties.registerOwnDeclaredProperties(com.google.javascript.jscomp.disambiguate.ColorGraphNode colorGraphNode, com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferences findRefs)
+func (this_ *DisambiguateProperties) priv_DisambiguateProperties_registerOwnDeclaredProperties_6223(colorGraphNode *ColorGraphNode, findRefs *ColorFindPropertyReferences) {
 	_ = colorGraphNode
-	_ = propIndex
+	_ = findRefs
 	if !(!(colorGraphNode.GetColor().IsUnion())) {
 		j2gort.CheckArgument(false)
 	}
@@ -453,7 +447,7 @@ func (this_ *DisambiguateProperties) priv_DisambiguateProperties_registerOwnDecl
 		for ; i < n; i = i + 1 {
 			var propName string = ownProps[i]
 			_ = propName
-			var prop *PropertyClustering = j2gort.CastPtr[PropertyClustering](j2gort.MapGetStr(propIndex, propName))
+			var prop *PropertyClustering = findRefs.GetProperty(propName)
 			_ = prop
 			if prop == nil {
 				continue
@@ -467,7 +461,7 @@ func (this_ *DisambiguateProperties) priv_DisambiguateProperties_registerOwnDecl
 }
 
 // Java method: DisambiguateProperties.logForDiagnostics(java.lang.String name, com.google.common.base.Supplier<java.lang.Object> data)
-func (this_ *DisambiguateProperties) priv_DisambiguateProperties_logForDiagnostics_6219(name string, data j2gort.Ext_com_google_common_base_Supplier) {
+func (this_ *DisambiguateProperties) priv_DisambiguateProperties_logForDiagnostics_6224(name string, data j2gort.Ext_com_google_common_base_Supplier) {
 	_ = name
 	_ = data
 	func() {
@@ -481,7 +475,7 @@ func (this_ *DisambiguateProperties) priv_DisambiguateProperties_logForDiagnosti
 }
 
 // Java method: DisambiguateProperties.logForDiagnostics(java.lang.String name, com.google.javascript.jscomp.diagnostic.LogFile.StreamedJsonProducer data)
-func (this_ *DisambiguateProperties) priv_DisambiguateProperties_logForDiagnostics_6220(name string, data pkg_diagnostic.LogFile_StreamedJsonProducer) {
+func (this_ *DisambiguateProperties) priv_DisambiguateProperties_logForDiagnostics_6225(name string, data pkg_diagnostic.LogFile_StreamedJsonProducer) {
 	_ = name
 	_ = data
 	func() {
@@ -557,7 +551,7 @@ func (this_ *DisambiguateProperties_TrackerSummaryGenerator) AddRenameUsesResult
 }
 
 // Java method: TrackerSummaryGenerator.buildSummaryString()
-func (this_ *DisambiguateProperties_TrackerSummaryGenerator) priv_TrackerSummaryGenerator_buildSummaryString_6222() string {
+func (this_ *DisambiguateProperties_TrackerSummaryGenerator) priv_TrackerSummaryGenerator_buildSummaryString_6227() string {
 	return j2gort.Ext_java_lang_String_Format_2("%d property names, %d disambiguated, %d invalidated, %d had a single cluster", []any{j2gort.ValueOfInt(this_.total), j2gort.ValueOfInt(this_.numDisambiguated), j2gort.ValueOfInt(this_.numInvalidated), j2gort.ValueOfInt(this_.numOnlyOneCluster)})
 }
 
@@ -614,10 +608,10 @@ func InitDisambiguateProperties_PropertyReferenceIndexJson(this_ *DisambiguatePr
 	} else {
 		var builder *j2gort.Ext_com_google_common_collect_ImmutableSortedSet_Builder = j2gort.Ext_com_google_common_collect_ImmutableSortedSet_NaturalOrder()
 		_ = builder
-		prop.ForEachUseSite(j2gort.NewLambda_Ext_java_util_function_BiConsumer(func(lp_22 any, lp_23 any) {
-			site := j2gort.CastNode[pkg_rhino.Node](lp_22)
+		prop.ForEachUseSite(j2gort.NewLambda_Ext_java_util_function_BiConsumer(func(lp_19 any, lp_20 any) {
+			site := j2gort.CastNode[pkg_rhino.Node](lp_19)
 			_ = site
-			owner := j2gort.CastPtr[ColorGraphNode](lp_23)
+			owner := j2gort.CastPtr[ColorGraphNode](lp_20)
 			_ = owner
 			builder.Add_1_any(NewDisambiguateProperties_PropertyReferenceJson(site, owner))
 		}))
@@ -626,24 +620,24 @@ func InitDisambiguateProperties_PropertyReferenceIndexJson(this_ *DisambiguatePr
 }
 
 // Java method: PropertyReferenceIndexJson.compareTo(com.google.javascript.jscomp.disambiguate.DisambiguateProperties.PropertyReferenceIndexJson x)
-func (this_ *DisambiguateProperties_PropertyReferenceIndexJson) CompareTo(arg_24 any) int32 {
-	x := j2gort.CastPtr[DisambiguateProperties_PropertyReferenceIndexJson](arg_24)
+func (this_ *DisambiguateProperties_PropertyReferenceIndexJson) CompareTo(arg_21 any) int32 {
+	x := j2gort.CastPtr[DisambiguateProperties_PropertyReferenceIndexJson](arg_21)
 	_ = x
 	return j2gort.JStrCompareTo(this_.name, x.name)
 }
 
 // Java method: PropertyReferenceIndexJson.writeJson(com.google.gson.stream.JsonWriter writer)
-func (this_ *DisambiguateProperties_PropertyReferenceIndexJson) priv_PropertyReferenceIndexJson_writeJson_6223(writer *j2gort.Ext_com_google_gson_stream_JsonWriter) {
+func (this_ *DisambiguateProperties_PropertyReferenceIndexJson) priv_PropertyReferenceIndexJson_writeJson_6228(writer *j2gort.Ext_com_google_gson_stream_JsonWriter) {
 	_ = writer
 	writer.Name(this_.name)
 	writer.BeginObject()
 	writer.Name("name").Value_1_string(this_.name)
 	writer.Name("refs").BeginArray()
 	{
-		cur_25 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.refs))
-		for cur_25.HasNext() {
-			rawElem_26 := cur_25.Next()
-			ref := j2gort.CastPtr[DisambiguateProperties_PropertyReferenceJson](rawElem_26)
+		cur_22 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.refs))
+		for cur_22.HasNext() {
+			rawElem_23 := cur_22.Next()
+			ref := j2gort.CastPtr[DisambiguateProperties_PropertyReferenceJson](rawElem_23)
 			_ = ref
 			StaticGet_DisambiguateProperties_GSON().ToJson_3_any_any_Ext_com_google_gson_stream_JsonWriter(j2gort.PtrToAny(ref), j2gort.PtrToAny(j2gort.ClassLiteral("com.google.javascript.jscomp.disambiguate.DisambiguateProperties.PropertyReferenceJson", "PropertyReferenceJson")), writer)
 		}
@@ -703,8 +697,8 @@ func InitDisambiguateProperties_PropertyReferenceJson(this_ *DisambiguatePropert
 }
 
 // Java method: PropertyReferenceJson.compareTo(com.google.javascript.jscomp.disambiguate.DisambiguateProperties.PropertyReferenceJson x)
-func (this_ *DisambiguateProperties_PropertyReferenceJson) CompareTo(arg_27 any) int32 {
-	x := j2gort.CastPtr[DisambiguateProperties_PropertyReferenceJson](arg_27)
+func (this_ *DisambiguateProperties_PropertyReferenceJson) CompareTo(arg_24 any) int32 {
+	x := j2gort.CastPtr[DisambiguateProperties_PropertyReferenceJson](arg_24)
 	_ = x
 	return j2gort.Ext_com_google_common_collect_ComparisonChain_Start().Compare_2_int32_int32(this_.receiverIndex, x.receiverIndex).Compare_2_any_any(j2gort.BoxString(this_.location), j2gort.BoxString(x.location)).Result()
 }
@@ -762,8 +756,8 @@ func InitDisambiguateProperties_TypeNodeJson(this_ *DisambiguateProperties_TypeN
 	this_.index = t.GetIndex()
 	this_.colorId = t.GetColor().GetId().String()
 	this_.invalidating = t.GetColor().IsInvalidating()
-	this_.edges = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSortedSet](n.GetOutEdges().Stream().Map(lambdaSingleton_disambiguate_properties_6).Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSortedSet_ToImmutableSortedSet(j2gort.Ext_java_util_Comparator_NaturalOrder())))
-	this_.props = j2gort.CastPtr[j2gort.Ext_com_google_common_collect_ImmutableSortedMap](j2gort.AsIface[j2gort.Ext_java_util_Set](t.GetAssociatedProps().ToJavaLinkedHashMap().EntrySet()).Stream().Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSortedMap_ToImmutableSortedMap_3(j2gort.Ext_java_util_Comparator_NaturalOrder(), lambdaSingleton_disambiguate_properties_7, lambdaSingleton_disambiguate_properties_8)))
+	this_.edges = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSortedSet](n.GetOutEdges().Stream().Map(lambdaSingleton_disambiguate_properties_5).Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSortedSet_ToImmutableSortedSet(j2gort.Ext_java_util_Comparator_NaturalOrder())))
+	this_.props = j2gort.CastPtr[j2gort.Ext_com_google_common_collect_ImmutableSortedMap](j2gort.AsIface[j2gort.Ext_java_util_Set](t.GetAssociatedProps().ToJavaLinkedHashMap().EntrySet()).Stream().Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSortedMap_ToImmutableSortedMap_3(j2gort.Ext_java_util_Comparator_NaturalOrder(), lambdaSingleton_disambiguate_properties_6, lambdaSingleton_disambiguate_properties_7)))
 }
 
 // Java class: com.google.javascript.jscomp.disambiguate.DisambiguateProperties.TypeEdgeJson
@@ -815,8 +809,8 @@ func InitDisambiguateProperties_TypeEdgeJson(this_ *DisambiguateProperties_TypeE
 }
 
 // Java method: TypeEdgeJson.compareTo(com.google.javascript.jscomp.disambiguate.DisambiguateProperties.TypeEdgeJson x)
-func (this_ *DisambiguateProperties_TypeEdgeJson) CompareTo(arg_29 any) int32 {
-	x := j2gort.CastPtr[DisambiguateProperties_TypeEdgeJson](arg_29)
+func (this_ *DisambiguateProperties_TypeEdgeJson) CompareTo(arg_26 any) int32 {
+	x := j2gort.CastPtr[DisambiguateProperties_TypeEdgeJson](arg_26)
 	_ = x
 	if !(this_.dest != x.dest) {
 		j2gort.CheckArgument(false)
@@ -826,9 +820,9 @@ func (this_ *DisambiguateProperties_TypeEdgeJson) CompareTo(arg_29 any) int32 {
 
 // Java class:
 type DisambiguateProperties__Anon_113 struct {
-	outer_          *DisambiguateProperties
-	cap_0_propIndex *j2gort.Ext_java_util_LinkedHashMap
-	idHash_         atomic.Int32
+	outer_         *DisambiguateProperties
+	cap_0_allProps j2gort.Ext_java_util_ArrayList
+	idHash_        atomic.Int32
 }
 
 func (this_ *DisambiguateProperties__Anon_113) BindSelf_(s any) {
@@ -858,10 +852,10 @@ func (this_ *DisambiguateProperties__Anon_113) initFields_DisambiguateProperties
 	_ = this_
 }
 
-func NewDisambiguateProperties__Anon_113(outer_ *DisambiguateProperties, cap_p_propIndex *j2gort.Ext_java_util_LinkedHashMap) *DisambiguateProperties__Anon_113 {
+func NewDisambiguateProperties__Anon_113(outer_ *DisambiguateProperties, cap_p_allProps j2gort.Ext_java_util_ArrayList) *DisambiguateProperties__Anon_113 {
 	this_ := &DisambiguateProperties__Anon_113{}
 	this_.outer_ = outer_
-	this_.cap_0_propIndex = cap_p_propIndex
+	this_.cap_0_allProps = cap_p_allProps
 	this_.initFields_DisambiguateProperties__Anon_113()
 	return this_
 }
@@ -869,16 +863,16 @@ func NewDisambiguateProperties__Anon_113(outer_ *DisambiguateProperties, cap_p_p
 // Java method: .writeJson(com.google.gson.stream.JsonWriter writer)
 func (this_ *DisambiguateProperties__Anon_113) WriteJson(writer *j2gort.Ext_com_google_gson_stream_JsonWriter) {
 	_ = writer
-	var propRefsJson j2gort.Ext_com_google_common_collect_ImmutableSortedSet = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSortedSet](j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.cap_0_propIndex.Values()).Stream().Map(lambdaSingleton_disambiguate_properties_9).Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSortedSet_ToImmutableSortedSet(j2gort.Ext_java_util_Comparator_NaturalOrder())))
+	var propRefsJson j2gort.Ext_com_google_common_collect_ImmutableSortedSet = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSortedSet](this_.cap_0_allProps.Stream().Map(lambdaSingleton_disambiguate_properties_8).Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSortedSet_ToImmutableSortedSet(j2gort.Ext_java_util_Comparator_NaturalOrder())))
 	_ = propRefsJson
 	writer.BeginObject()
 	{
-		cur_30 := j2gort.NewIterCursor(j2gort.CheckNotNull(propRefsJson))
-		for cur_30.HasNext() {
-			rawElem_31 := cur_30.Next()
-			propRef := j2gort.CastPtr[DisambiguateProperties_PropertyReferenceIndexJson](rawElem_31)
+		cur_27 := j2gort.NewIterCursor(j2gort.CheckNotNull(propRefsJson))
+		for cur_27.HasNext() {
+			rawElem_28 := cur_27.Next()
+			propRef := j2gort.CastPtr[DisambiguateProperties_PropertyReferenceIndexJson](rawElem_28)
 			_ = propRef
-			propRef.priv_PropertyReferenceIndexJson_writeJson_6223(writer)
+			propRef.priv_PropertyReferenceIndexJson_writeJson_6228(writer)
 		}
 	}
 	writer.EndObject()

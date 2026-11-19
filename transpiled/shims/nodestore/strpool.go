@@ -83,22 +83,73 @@ func HashBytes(b []byte) uint64 {
 	return h
 }
 
+const (
+	strpoolStageSize      = 32
+	strpoolStageMaxStrLen = 1536
+)
+
+type stagingState struct {
+	slab string
+	raw  *[strpoolStageSize]string
+}
+
+type stagingInit struct {
+	state stagingState
+	raw   [strpoolStageSize]string
+}
+
+type stagingBatch struct {
+	state  atomic.Pointer[stagingState]
+	sealed stagingState
+	offs   [strpoolStageSize + 1]uint16
+}
+
+type unsealedPoolData struct {
+	batches  [strpoolChunkSize]*stagingBatch
+	raw      [strpoolChunkSize]string
+	batchIdx [strpoolChunkSize]uint8
+}
+
+//go:noinline
+func (u *unsealedPoolData) at(slot uint32) string {
+	if b := u.batches[slot]; b != nil {
+		k := u.batchIdx[slot]
+		st := b.state.Load()
+		if st.raw == nil {
+			return st.slab[b.offs[k]:b.offs[k+1]]
+		}
+		return st.raw[k]
+	}
+	return u.raw[slot]
+}
+
 // poolChunk packs 512 interned strings into a single noscan backing string
 // once filled (whenever total byte length <= 65,535, which covers >99.99% of chunks),
 // replacing 512 individual heap string objects and 512 GC-scanned string pointers
 // (8 KiB) with 1 string pointer + 1,026 bytes of noscan uint16 cumulative offsets
 // (~1.1 KiB total, ptrdata = 24).
 type poolChunk struct {
-	slab   string
-	raw    *[strpoolChunkSize]string
-	offs16 [strpoolChunkSize + 1]uint16
+	slab     string
+	unsealed *unsealedPoolData
+	offs16   [strpoolChunkSize + 1]uint16
+}
+
+type unsealedPoolChunk struct {
+	chunk poolChunk
+	data  unsealedPoolData
+}
+
+func newUnsealedPoolChunk() *unsealedPoolChunk {
+	u := new(unsealedPoolChunk)
+	u.chunk.unsealed = &u.data
+	return u
 }
 
 func (c *poolChunk) at(slot uint32) string {
-	if c.raw == nil {
+	if c.unsealed == nil {
 		return c.slab[c.offs16[slot]:c.offs16[slot+1]]
 	}
-	return c.raw[slot]
+	return c.unsealed.at(slot)
 }
 
 type strpoolShard struct {
@@ -114,7 +165,57 @@ var (
 	emptyPoolChunk = &poolChunk{}
 	poolSeed       = maphash.MakeSeed()
 	rewindEpoch    atomic.Uint64
+
+	stageDirty      atomic.Bool
+	stageMu         sync.Mutex
+	stageBatch      *stagingBatch
+	stageBatchChunk []stagingBatch
+	stageRaw        *[strpoolStageSize]string
+	stageCount      uint8
 )
+
+func stageAllocString(str string) (*stagingBatch, uint8) {
+	stageMu.Lock()
+	b := stageBatch
+	if b == nil {
+		if len(stageBatchChunk) == 0 {
+			stageBatchChunk = make([]stagingBatch, 64)
+		}
+		b = &stageBatchChunk[0]
+		stageBatchChunk = stageBatchChunk[1:]
+		init := new(stagingInit)
+		init.state.raw = &init.raw
+		b.state.Store(&init.state)
+		stageBatch = b
+		stageRaw = &init.raw
+		stageCount = 0
+		stageDirty.Store(true)
+	}
+	k := stageCount
+	stageRaw[k] = str
+	endOff := b.offs[k] + uint16(len(str))
+	b.offs[k+1] = endOff
+	if int(k)+1 < strpoolStageSize {
+		stageCount = k + 1
+		stageMu.Unlock()
+		return b, k
+	}
+	rawCopy := *stageRaw
+	stageBatch = nil
+	stageRaw = nil
+	stageCount = 0
+	stageDirty.Store(false)
+	stageMu.Unlock()
+
+	var sb strings.Builder
+	sb.Grow(int(endOff))
+	for i := 0; i < strpoolStageSize; i++ {
+		sb.WriteString(rawCopy[i])
+	}
+	b.sealed.slab = sb.String()
+	b.state.Store(&b.sealed)
+	return b, k
+}
 
 func init() {
 	for i := range poolChunks {
@@ -122,8 +223,8 @@ func init() {
 	}
 	// Reserve localIdx 0 and 1 in shard 0 as "" so StringID 0 (unset) and
 	// EmptyStringID (1) resolve to "" via poolChunks[0].
-	c0 := &poolChunk{raw: new([strpoolChunkSize]string)}
-	poolChunks[0].Store(c0)
+	u0 := newUnsealedPoolChunk()
+	poolChunks[0].Store(&u0.chunk)
 	poolShards[0].nextLocalIdx = 2
 	poolShards[0].count = 2
 }
@@ -156,6 +257,7 @@ func CaptureBaseline() BaselineSnapshot {
 // bloated hash tables. Callers must invoke RewindBaseline only when no
 // concurrent compilation is reading or interning post-baseline IDs.
 func RewindBaseline(snap BaselineSnapshot) {
+	SealActivePoolChunks()
 	rewound := false
 	for i := range poolShards {
 		if poolShards[i].rewind(uint32(i), snap[i]) {
@@ -246,22 +348,73 @@ func (s *strpoolShard) rewind(shardIdx, baseIdx uint32) bool {
 		tailChunkIdx := baseIdx >> strpoolChunkShift
 		flatIdx := poolChunkIndex(shardIdx, tailChunkIdx)
 		if chunk := poolChunks[flatIdx].Load(); chunk != emptyPoolChunk {
-			if chunk.raw != nil {
-				endOff := min(uint32(strpoolChunkSize), curIdx-(tailChunkIdx<<strpoolChunkShift))
-				clear(chunk.raw[keep:endOff])
-			} else {
-				raw := new([strpoolChunkSize]string)
+			u := newUnsealedPoolChunk()
+			if chunk.unsealed != nil {
+				var b strings.Builder
+				total := 0
 				for i := uint32(0); i < keep; i++ {
-					raw[i] = strings.Clone(chunk.slab[chunk.offs16[i]:chunk.offs16[i+1]])
+					total += len(chunk.unsealed.at(i))
 				}
-				poolChunks[flatIdx].Store(&poolChunk{raw: raw})
+				b.Grow(total)
+				for i := uint32(0); i < keep; i++ {
+					b.WriteString(chunk.unsealed.at(i))
+				}
+				slab := b.String()
+				pos := 0
+				for i := uint32(0); i < keep; i++ {
+					n := len(chunk.unsealed.at(i))
+					u.data.raw[i] = slab[pos : pos+n]
+					pos += n
+				}
+			} else {
+				sub := chunk.slab[:chunk.offs16[keep]]
+				if keep < strpoolChunkSize/2 {
+					sub = strings.Clone(sub)
+				}
+				for i := uint32(0); i < keep; i++ {
+					u.data.raw[i] = sub[chunk.offs16[i]:chunk.offs16[i+1]]
+				}
 			}
+			poolChunks[flatIdx].Store(&u.chunk)
 		}
 	}
 
 	s.nextLocalIdx = baseIdx
 	s.count = baseIdx
 	return true
+}
+
+// SealActivePoolChunks compacts any uncloned string slices sitting in the
+// active staging batch into an owned slab string so caller source buffers
+// never remain pinned across compilation stages.
+func SealActivePoolChunks() {
+	if !stageDirty.Load() {
+		return
+	}
+	stageMu.Lock()
+	b := stageBatch
+	n := int(stageCount)
+	if b == nil || n == 0 {
+		stageDirty.Store(false)
+		stageMu.Unlock()
+		return
+	}
+	var rawCopy [strpoolStageSize]string
+	copy(rawCopy[:n], stageRaw[:n])
+	endOff := int(b.offs[n])
+	stageBatch = nil
+	stageRaw = nil
+	stageCount = 0
+	stageDirty.Store(false)
+	stageMu.Unlock()
+
+	var sb strings.Builder
+	sb.Grow(endOff)
+	for i := 0; i < n; i++ {
+		sb.WriteString(rawCopy[i])
+	}
+	b.sealed.slab = sb.String()
+	b.state.Store(&b.sealed)
 }
 
 func poolHash(s string) uint64 {
@@ -272,25 +425,36 @@ func stringAtShard(shardIdx, localIdx uint32) string {
 	return poolChunks[((localIdx>>strpoolChunkShift)<<6)|shardIdx].Load().at(localIdx & strpoolChunkMask)
 }
 
-func sealPoolChunk(chunk *poolChunk, lastStr string, owned bool) *poolChunk {
-	raw := chunk.raw
+func sealPoolChunk(chunk *poolChunk, lastStr string) *poolChunk {
+	ud := chunk.unsealed
 	total := len(lastStr)
-	for i := 0; i < strpoolChunkSize-1; i++ {
-		total += len(raw[i])
+	for i := uint32(0); i < strpoolChunkSize-1; i++ {
+		total += len(ud.at(i))
 	}
 	if total > 0xFFFF {
-		if !owned {
-			lastStr = strings.Clone(lastStr)
+		var b strings.Builder
+		b.Grow(total)
+		for i := uint32(0); i < strpoolChunkSize-1; i++ {
+			b.WriteString(ud.at(i))
 		}
-		raw[strpoolChunkSize-1] = lastStr
-		return chunk
+		b.WriteString(lastStr)
+		slab := b.String()
+		u := newUnsealedPoolChunk()
+		pos := 0
+		for i := uint32(0); i < strpoolChunkSize-1; i++ {
+			n := len(ud.at(i))
+			u.data.raw[i] = slab[pos : pos+n]
+			pos += n
+		}
+		u.data.raw[strpoolChunkSize-1] = slab[pos:]
+		return &u.chunk
 	}
 	var b strings.Builder
 	b.Grow(total)
 	sealed := new(poolChunk)
 	pos := uint16(0)
-	for i := 0; i < strpoolChunkSize-1; i++ {
-		si := raw[i]
+	for i := uint32(0); i < strpoolChunkSize-1; i++ {
+		si := ud.at(i)
 		b.WriteString(si)
 		pos += uint16(len(si))
 		sealed.offs16[i+1] = pos
@@ -313,22 +477,29 @@ func (s *strpoolShard) allocString(shardIdx uint32, str string, owned bool) uint
 	slot := localIdx & strpoolChunkMask
 	chunk := poolChunks[flatIdx].Load()
 	if slot == strpoolChunkMask {
-		if sealed := sealPoolChunk(chunk, str, owned); sealed != chunk {
-			poolChunks[flatIdx].Store(sealed)
-		}
+		poolChunks[flatIdx].Store(sealPoolChunk(chunk, str))
 		return localIdx
 	}
-	if !owned {
-		// Clone on miss so substring slices from parser inputs never pin SourceFile backing buffers.
-		str = strings.Clone(str)
-	}
+	var u *unsealedPoolData
+	var fresh *unsealedPoolChunk
 	if chunk == emptyPoolChunk {
-		raw := new([strpoolChunkSize]string)
-		raw[slot] = str
-		poolChunks[flatIdx].Store(&poolChunk{raw: raw})
-		return localIdx
+		fresh = newUnsealedPoolChunk()
+		u = &fresh.data
+	} else {
+		u = chunk.unsealed
 	}
-	chunk.raw[slot] = str
+	if owned {
+		u.raw[slot] = str
+	} else if len(str) > strpoolStageMaxStrLen {
+		u.raw[slot] = strings.Clone(str)
+	} else {
+		b, k := stageAllocString(str)
+		u.batches[slot] = b
+		u.batchIdx[slot] = k
+	}
+	if fresh != nil {
+		poolChunks[flatIdx].Store(&fresh.chunk)
+	}
 	return localIdx
 }
 
@@ -421,12 +592,16 @@ func Intern(str string) StringID {
 
 // String returns the string value for id, or "" if id is 0 or 1.
 func String(id StringID) string {
+	return stringFast(id, (*unsealedPoolData).at)
+}
+
+func stringFast(id StringID, slow func(*unsealedPoolData, uint32) string) string {
 	c := poolChunks[uint16(id>>strpoolChunkShift)].Load()
-	s := id & strpoolChunkMask
-	if c.raw == nil {
+	s := uint32(id & strpoolChunkMask)
+	if c.unsealed == nil {
 		return c.slab[c.offs16[s]:c.offs16[s+1]]
 	}
-	return c.raw[s]
+	return slow(c.unsealed, s)
 }
 
 // Lookup returns the ID of str if already interned, or 0 if not present.
@@ -515,29 +690,26 @@ type joinDot4Bucket struct {
 
 type joinDot2Shard struct {
 	buckets [joinDot2SlotsPerSh]atomic.Pointer[joinDot2Bucket]
-	seen    [joinDot2SlotsPerSh]atomic.Uint32
+	seen    [joinDot2SlotsPerSh]atomic.Uint64
 	mu      sync.Mutex
-	cur     *[joinDotBucketChunk]joinDot2Bucket
-	pos     uint8
-	chunks  uint8
+	cur     []joinDot2Bucket
+	chunks  uint32
 }
 
 type joinDot3Shard struct {
 	buckets [joinDot3SlotsPerSh]atomic.Pointer[joinDot3Bucket]
-	seen    [joinDot3SlotsPerSh]atomic.Uint32
+	seen    [joinDot3SlotsPerSh]atomic.Uint64
 	mu      sync.Mutex
-	cur     *[joinDotBucketChunk]joinDot3Bucket
-	pos     uint8
-	chunks  uint8
+	cur     []joinDot3Bucket
+	chunks  uint32
 }
 
 type joinDot4Shard struct {
 	buckets [joinDot4SlotsPerSh]atomic.Pointer[joinDot4Bucket]
-	seen    [joinDot4SlotsPerSh]atomic.Uint32
+	seen    [joinDot4SlotsPerSh]atomic.Uint64
 	mu      sync.Mutex
-	cur     *[joinDotBucketChunk]joinDot4Bucket
-	pos     uint8
-	chunks  uint8
+	cur     []joinDot4Bucket
+	chunks  uint32
 }
 
 var (
@@ -545,6 +717,16 @@ var (
 	joinDot3Shards [joinDotNumShards]atomic.Pointer[joinDot3Shard]
 	joinDot4Shards [joinDotNumShards]atomic.Pointer[joinDot4Shard]
 )
+
+func joinDotCheckSeen(seen *atomic.Uint64, h32 uint32) bool {
+	fp := uint16(h32^(h32>>16)) | 1
+	sv := seen.Load()
+	if uint16(sv) == fp || uint16(sv>>16) == fp || uint16(sv>>32) == fp || uint16(sv>>48) == fp {
+		return true
+	}
+	seen.Store((sv << 16) | uint64(fp))
+	return false
+}
 
 func getJoinDot2Shard(shardIdx uint32) *joinDot2Shard {
 	if sh := joinDot2Shards[shardIdx].Load(); sh != nil {
@@ -559,22 +741,18 @@ func getJoinDot2Shard(shardIdx uint32) *joinDot2Shard {
 
 func (sh *joinDot2Shard) allocBucket() *joinDot2Bucket {
 	sh.mu.Lock()
-	if sh.cur != nil && int(sh.pos) < joinDotBucketChunk {
-		b := &sh.cur[sh.pos]
-		sh.pos++
-		sh.mu.Unlock()
-		return b
-	}
-	if sh.chunks < joinDotMaxChunksSh {
-		c := new([joinDotBucketChunk]joinDot2Bucket)
-		sh.cur = c
-		sh.pos = 1
+	if len(sh.cur) == 0 {
+		n := joinDotBucketChunk
+		if sh.chunks >= 2 {
+			n = 256
+		}
+		sh.cur = make([]joinDot2Bucket, n)
 		sh.chunks++
-		sh.mu.Unlock()
-		return &c[0]
 	}
+	b := &sh.cur[0]
+	sh.cur = sh.cur[1:]
 	sh.mu.Unlock()
-	return &joinDot2Bucket{}
+	return b
 }
 
 func getJoinDot3Shard(shardIdx uint32) *joinDot3Shard {
@@ -590,22 +768,18 @@ func getJoinDot3Shard(shardIdx uint32) *joinDot3Shard {
 
 func (sh *joinDot3Shard) allocBucket() *joinDot3Bucket {
 	sh.mu.Lock()
-	if sh.cur != nil && int(sh.pos) < joinDotBucketChunk {
-		b := &sh.cur[sh.pos]
-		sh.pos++
-		sh.mu.Unlock()
-		return b
-	}
-	if sh.chunks < joinDotMaxChunksSh {
-		c := new([joinDotBucketChunk]joinDot3Bucket)
-		sh.cur = c
-		sh.pos = 1
+	if len(sh.cur) == 0 {
+		n := joinDotBucketChunk
+		if sh.chunks >= 2 {
+			n = 256
+		}
+		sh.cur = make([]joinDot3Bucket, n)
 		sh.chunks++
-		sh.mu.Unlock()
-		return &c[0]
 	}
+	b := &sh.cur[0]
+	sh.cur = sh.cur[1:]
 	sh.mu.Unlock()
-	return &joinDot3Bucket{}
+	return b
 }
 
 func getJoinDot4Shard(shardIdx uint32) *joinDot4Shard {
@@ -621,22 +795,18 @@ func getJoinDot4Shard(shardIdx uint32) *joinDot4Shard {
 
 func (sh *joinDot4Shard) allocBucket() *joinDot4Bucket {
 	sh.mu.Lock()
-	if sh.cur != nil && int(sh.pos) < joinDotBucketChunk {
-		b := &sh.cur[sh.pos]
-		sh.pos++
-		sh.mu.Unlock()
-		return b
-	}
-	if sh.chunks < joinDotMaxChunksSh {
-		c := new([joinDotBucketChunk]joinDot4Bucket)
-		sh.cur = c
-		sh.pos = 1
+	if len(sh.cur) == 0 {
+		n := joinDotBucketChunk
+		if sh.chunks >= 2 {
+			n = 256
+		}
+		sh.cur = make([]joinDot4Bucket, n)
 		sh.chunks++
-		sh.mu.Unlock()
-		return &c[0]
 	}
+	b := &sh.cur[0]
+	sh.cur = sh.cur[1:]
 	sh.mu.Unlock()
-	return &joinDot4Bucket{}
+	return b
 }
 
 // JoinDot returns a + "." + b, deduplicating repeated qualified-name joins via
@@ -684,12 +854,8 @@ func joinDot2Miss(a, b string, shardIdx, slot, h32 uint32) string {
 	out := formatJoin2(a, b)
 	sh := getJoinDot2Shard(shardIdx)
 	old := sh.buckets[slot].Load()
-	if old != nil && old.out3 != "" {
-		tag := h32 | 1
-		if sh.seen[slot].Load() != tag {
-			sh.seen[slot].Store(tag)
-			return out
-		}
+	if old != nil && old.out3 != "" && !joinDotCheckSeen(&sh.seen[slot], h32) {
+		return out
 	}
 	nb := sh.allocBucket()
 	nb.out0 = out
@@ -755,12 +921,8 @@ func joinDot3Miss(a, b, c string, shardIdx, slot, h32 uint32) string {
 	out := formatJoin3(a, b, c)
 	sh := getJoinDot3Shard(shardIdx)
 	old := sh.buckets[slot].Load()
-	if old != nil && old.out3 != "" {
-		tag := h32 | 1
-		if sh.seen[slot].Load() != tag {
-			sh.seen[slot].Store(tag)
-			return out
-		}
+	if old != nil && old.out3 != "" && !joinDotCheckSeen(&sh.seen[slot], h32) {
+		return out
 	}
 	nb := sh.allocBucket()
 	nb.out0 = out
@@ -838,12 +1000,8 @@ func joinDot4Miss(a, b, c, d string, shardIdx, slot, h32 uint32) string {
 	out := formatJoin4(a, b, c, d)
 	sh := getJoinDot4Shard(shardIdx)
 	old := sh.buckets[slot].Load()
-	if old != nil && old.out3 != "" {
-		tag := h32 | 1
-		if sh.seen[slot].Load() != tag {
-			sh.seen[slot].Store(tag)
-			return out
-		}
+	if old != nil && old.out3 != "" && !joinDotCheckSeen(&sh.seen[slot], h32) {
+		return out
 	}
 	nb := sh.allocBucket()
 	nb.out0 = out

@@ -118,7 +118,7 @@ func (this_ *ClosureReverseAbstractInterpreter) GetPreciserScopeKnowingCondition
 				var restricter j2gort.Ext_com_google_common_base_Function = j2gort.AsIface[j2gort.Ext_com_google_common_base_Function](j2gort.MapGetStr(this_.restricters, callee.GetString()))
 				_ = restricter
 				if restricter != nil {
-					return this_.priv_ClosureReverseAbstractInterpreter_restrictParameter_7826(param, paramType, blindScope, restricter, outcome.IsTruthy())
+					return this_.priv_ClosureReverseAbstractInterpreter_restrictParameter_7836(param, paramType, blindScope, restricter, outcome.IsTruthy())
 				}
 			}
 		}
@@ -127,7 +127,7 @@ func (this_ *ClosureReverseAbstractInterpreter) GetPreciserScopeKnowingCondition
 }
 
 // Java method: ClosureReverseAbstractInterpreter.restrictParameter(com.google.javascript.rhino.Node parameter, com.google.javascript.rhino.jstype.JSType type, com.google.javascript.jscomp.type.FlowScope blindScope, com.google.common.base.Function<com.google.javascript.jscomp.type.ClosureReverseAbstractInterpreter.TypeRestriction,com.google.javascript.rhino.jstype.JSType> restriction, boolean outcome)
-func (this_ *ClosureReverseAbstractInterpreter) priv_ClosureReverseAbstractInterpreter_restrictParameter_7826(parameter pkg_rhino.Node, type_ pkg_rhino.JSType, blindScope FlowScope, restriction j2gort.Ext_com_google_common_base_Function, outcome bool) FlowScope {
+func (this_ *ClosureReverseAbstractInterpreter) priv_ClosureReverseAbstractInterpreter_restrictParameter_7836(parameter pkg_rhino.Node, type_ pkg_rhino.JSType, blindScope FlowScope, restriction j2gort.Ext_com_google_common_base_Function, outcome bool) FlowScope {
 	_ = parameter
 	_ = type_
 	_ = blindScope

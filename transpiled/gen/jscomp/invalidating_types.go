@@ -246,15 +246,15 @@ func (this_ *InvalidatingTypes_Builder) AddAllTypeMismatches(mismatches j2gort.E
 			rawElem_6 := cur_5.Next()
 			mismatch := j2gort.CastPtr[TypeMismatch](rawElem_6)
 			_ = mismatch
-			this_.priv_Builder_addTypeWithReason_3431(mismatch.Found(), mismatch.Location())
-			this_.priv_Builder_addTypeWithReason_3431(mismatch.Required(), mismatch.Location())
+			this_.priv_Builder_addTypeWithReason_3434(mismatch.Found(), mismatch.Location())
+			this_.priv_Builder_addTypeWithReason_3434(mismatch.Required(), mismatch.Location())
 		}
 	}
 	return this_
 }
 
 // Java method: Builder.addTypeWithReason(com.google.javascript.rhino.jstype.JSType type, com.google.javascript.rhino.Node location)
-func (this_ *InvalidatingTypes_Builder) priv_Builder_addTypeWithReason_3431(type_ pkg_rhino.JSType, location pkg_rhino.Node) {
+func (this_ *InvalidatingTypes_Builder) priv_Builder_addTypeWithReason_3434(type_ pkg_rhino.JSType, location pkg_rhino.Node) {
 	_ = type_
 	_ = location
 	type_ = type_.RestrictByNotNullOrUndefined()
@@ -265,13 +265,13 @@ func (this_ *InvalidatingTypes_Builder) priv_Builder_addTypeWithReason_3431(type
 				rawElem_8 := cur_7.Next()
 				alt := j2gort.AsIface[pkg_rhino.JSType](rawElem_8)
 				_ = alt
-				this_.priv_Builder_addTypeWithReason_3431(alt, location)
+				this_.priv_Builder_addTypeWithReason_3434(alt, location)
 			}
 		}
 		return
 	}
 	if type_.IsEnumElementType() {
-		this_.priv_Builder_addTypeWithReason_3431(type_.GetEnumeratedTypeOfEnumElement(), location)
+		this_.priv_Builder_addTypeWithReason_3434(type_.GetEnumeratedTypeOfEnumElement(), location)
 		return
 	}
 	var objType pkg_rhino.ObjectType = type_.ToMaybeObjectType()
@@ -279,19 +279,19 @@ func (this_ *InvalidatingTypes_Builder) priv_Builder_addTypeWithReason_3431(type
 	if objType == nil || objType.IsJavaNil_() {
 		return
 	}
-	this_.priv_Builder_recordTypeWithReason_3432(objType, location)
-	this_.priv_Builder_recordTypeWithReason_3432(objType.GetImplicitPrototype(), location)
+	this_.priv_Builder_recordTypeWithReason_3435(objType, location)
+	this_.priv_Builder_recordTypeWithReason_3435(objType.GetImplicitPrototype(), location)
 	if objType.IsConstructor() {
 		var instanceType pkg_rhino.ObjectType = objType.ToMaybeFunctionType().GetInstanceType()
 		_ = instanceType
-		this_.priv_Builder_recordTypeWithReason_3432(instanceType, location)
+		this_.priv_Builder_recordTypeWithReason_3435(instanceType, location)
 	} else if objType.IsInstanceType() {
-		this_.priv_Builder_recordTypeWithReason_3432(pkg_rhino.ToIface_ObjectType(objType.GetConstructor()), location)
+		this_.priv_Builder_recordTypeWithReason_3435(pkg_rhino.ToIface_ObjectType(objType.GetConstructor()), location)
 	}
 }
 
 // Java method: Builder.recordTypeWithReason(com.google.javascript.rhino.jstype.ObjectType type, com.google.javascript.rhino.Node location)
-func (this_ *InvalidatingTypes_Builder) priv_Builder_recordTypeWithReason_3432(type_ pkg_rhino.ObjectType, location pkg_rhino.Node) {
+func (this_ *InvalidatingTypes_Builder) priv_Builder_recordTypeWithReason_3435(type_ pkg_rhino.ObjectType, location pkg_rhino.Node) {
 	_ = type_
 	_ = location
 	if type_ == nil || type_.IsJavaNil_() {

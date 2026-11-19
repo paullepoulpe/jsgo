@@ -94,18 +94,18 @@ func (this_ *OptimizeConstructors) Process_3(externs pkg_rhino.Node, root pkg_rh
 	{
 		cur_1 := refMap.names.IterEntries()
 		for cur_1.NextEntry() {
-			this_.priv_OptimizeConstructors_addConstructorsToBeRemoved_4057(cur_1.Key(), cur_1.Value())
+			this_.priv_OptimizeConstructors_addConstructorsToBeRemoved_4063(cur_1.Key(), cur_1.Value())
 		}
 	}
 	for _, ref := range this_.removableConstructors {
 		_ = ref
-		this_.priv_OptimizeConstructors_removeConstructorMethod_4062(ref)
+		this_.priv_OptimizeConstructors_removeConstructorMethod_4068(ref)
 	}
 
 }
 
 // Java method: OptimizeConstructors.addConstructorsToBeRemoved(java.lang.String name, com.google.javascript.jscomp.OptimizeCalls.NodeList refs)
-func (this_ *OptimizeConstructors) priv_OptimizeConstructors_addConstructorsToBeRemoved_4057(name string, refs *OptimizeCalls_NodeList) {
+func (this_ *OptimizeConstructors) priv_OptimizeConstructors_addConstructorsToBeRemoved_4063(name string, refs *OptimizeCalls_NodeList) {
 	_ = name
 	_ = refs
 	if !(OptimizeCalls_MayBeOptimizableName(this_.compiler, name)) {
@@ -125,7 +125,7 @@ func (this_ *OptimizeConstructors) priv_OptimizeConstructors_addConstructorsToBe
 		for ; i < size; i = i + 1 {
 			var n pkg_rhino.Node = refs.Get(i)
 			_ = n
-			var definition pkg_rhino.Node = this_.priv_OptimizeConstructors_getClassDefinitionOrFunction_4059(n)
+			var definition pkg_rhino.Node = this_.priv_OptimizeConstructors_getClassDefinitionOrFunction_4065(n)
 			_ = definition
 			if definition != 0 {
 				if candidateClassDefinition != 0 {
@@ -143,7 +143,7 @@ func (this_ *OptimizeConstructors) priv_OptimizeConstructors_addConstructorsToBe
 							_ = fn
 							var body pkg_rhino.Node = fn.GetLastChild()
 							_ = body
-							if !(body.HasChildren()) && this_.priv_OptimizeConstructors_hasRemovableParameterList_4061(constructor) {
+							if !(body.HasChildren()) && this_.priv_OptimizeConstructors_hasRemovableParameterList_4067(constructor) {
 								candidateConstructor = constructor
 							}
 						}
@@ -151,7 +151,7 @@ func (this_ *OptimizeConstructors) priv_OptimizeConstructors_addConstructorsToBe
 					}
 				}
 			} else {
-				if this_.priv_OptimizeConstructors_isClassExtendsExpression_4058(n) {
+				if this_.priv_OptimizeConstructors_isClassExtendsExpression_4064(n) {
 					var subclassLiteral pkg_rhino.Node = n.GetParent()
 					_ = subclassLiteral
 					var subclassConstructor pkg_rhino.Node = NodeUtil_GetEs6ClassConstructorMemberFunctionDef(subclassLiteral)
@@ -216,7 +216,7 @@ func OptimizeConstructors_IsAssigningReference(n pkg_rhino.Node) bool {
 }
 
 // Java method: OptimizeConstructors.isClassExtendsExpression(com.google.javascript.rhino.Node n)
-func (this_ *OptimizeConstructors) priv_OptimizeConstructors_isClassExtendsExpression_4058(n pkg_rhino.Node) bool {
+func (this_ *OptimizeConstructors) priv_OptimizeConstructors_isClassExtendsExpression_4064(n pkg_rhino.Node) bool {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -224,7 +224,7 @@ func (this_ *OptimizeConstructors) priv_OptimizeConstructors_isClassExtendsExpre
 }
 
 // Java method: OptimizeConstructors.getClassDefinitionOrFunction(com.google.javascript.rhino.Node n)
-func (this_ *OptimizeConstructors) priv_OptimizeConstructors_getClassDefinitionOrFunction_4059(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *OptimizeConstructors) priv_OptimizeConstructors_getClassDefinitionOrFunction_4065(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -241,7 +241,7 @@ func (this_ *OptimizeConstructors) priv_OptimizeConstructors_getClassDefinitionO
 	} else {
 		return pkg_rhino.Node(0)
 	}
-	expr = this_.priv_OptimizeConstructors_unwrap_4060(expr)
+	expr = this_.priv_OptimizeConstructors_unwrap_4066(expr)
 	if OptimizeConstructors_IsDefinitionClassLiteralOrFunction(expr) {
 		return expr
 	} else {
@@ -250,7 +250,7 @@ func (this_ *OptimizeConstructors) priv_OptimizeConstructors_getClassDefinitionO
 }
 
 // Java method: OptimizeConstructors.unwrap(com.google.javascript.rhino.Node expr)
-func (this_ *OptimizeConstructors) priv_OptimizeConstructors_unwrap_4060(expr pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *OptimizeConstructors) priv_OptimizeConstructors_unwrap_4066(expr pkg_rhino.Node) pkg_rhino.Node {
 	_ = expr
 	for expr.IsCast() || expr.IsComma() {
 		expr = expr.GetLastChild()
@@ -321,7 +321,7 @@ func OptimizeConstructors_ConstructorHasRemovableDefinition(member pkg_rhino.Nod
 }
 
 // Java method: OptimizeConstructors.hasRemovableParameterList(com.google.javascript.rhino.Node member)
-func (this_ *OptimizeConstructors) priv_OptimizeConstructors_hasRemovableParameterList_4061(member pkg_rhino.Node) bool {
+func (this_ *OptimizeConstructors) priv_OptimizeConstructors_hasRemovableParameterList_4067(member pkg_rhino.Node) bool {
 	_ = member
 	var fn pkg_rhino.Node = member.GetFirstChild()
 	_ = fn
@@ -366,7 +366,7 @@ func OptimizeConstructors_GetOnlySuperCall(fn pkg_rhino.Node) pkg_rhino.Node {
 }
 
 // Java method: OptimizeConstructors.removeConstructorMethod(com.google.javascript.rhino.Node member)
-func (this_ *OptimizeConstructors) priv_OptimizeConstructors_removeConstructorMethod_4062(member pkg_rhino.Node) {
+func (this_ *OptimizeConstructors) priv_OptimizeConstructors_removeConstructorMethod_4068(member pkg_rhino.Node) {
 	_ = member
 	if !(member.IsMemberFunctionDef()) {
 		j2gort.CheckState(false)

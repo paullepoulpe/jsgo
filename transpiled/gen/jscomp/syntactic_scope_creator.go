@@ -264,37 +264,37 @@ func (this_ *SyntacticScopeCreator_ScopeScanner) Populate_0() {
 		if !(args.IsParamList()) {
 			j2gort.CheckState(false)
 		}
-		this_.priv_ScopeScanner_declareLHS_5303(this_.scope, args)
+		this_.priv_ScopeScanner_declareLHS_5311(this_.scope, args)
 		var fnName string = fnNameNode.GetString()
 		_ = fnName
 		if !(j2gort.CheckNotNullString(fnName) == "") && NodeUtil_IsFunctionExpression(n) {
-			this_.priv_ScopeScanner_declareVar_5306(this_.scope, fnNameNode)
+			this_.priv_ScopeScanner_declareVar_5314(this_.scope, fnNameNode)
 		}
 		return
 	case int32(105) /* Token.CLASS */ :
 		var classNameNode pkg_rhino.Node = n.GetFirstChild()
 		_ = classNameNode
 		if !(classNameNode.IsEmpty()) && NodeUtil_IsClassExpression(n) {
-			this_.priv_ScopeScanner_declareVar_5306(this_.scope, classNameNode)
+			this_.priv_ScopeScanner_declareVar_5314(this_.scope, classNameNode)
 		}
 		return
 	case int32(89) /* Token.ROOT */, int32(94) /* Token.SCRIPT */ :
 		if !(this_.scope.IsGlobal()) {
 			j2gort.CheckStateMsg(false, j2gort.PtrToAny(this_.scope))
 		}
-		this_.priv_ScopeScanner_scanVars_5305(n, this_.scope, this_.scope)
+		this_.priv_ScopeScanner_scanVars_5313(n, this_.scope, this_.scope)
 		return
 	case int32(123) /* Token.MODULE_BODY */ :
-		this_.priv_ScopeScanner_scanVars_5305(n, this_.scope, this_.scope)
+		this_.priv_ScopeScanner_scanVars_5313(n, this_.scope, this_.scope)
 		return
 	case int32(80) /* Token.FOR */, int32(112) /* Token.FOR_OF */, int32(113) /* Token.FOR_AWAIT_OF */, int32(81) /* Token.FOR_IN */, int32(91) /* Token.SWITCH_BODY */ :
-		this_.priv_ScopeScanner_scanVars_5305(n, nil, this_.scope)
+		this_.priv_ScopeScanner_scanVars_5313(n, nil, this_.scope)
 		return
 	case int32(90) /* Token.BLOCK */ :
 		if NodeUtil_IsFunctionBlock(n) || NodeUtil_IsClassStaticBlock(n) {
-			this_.priv_ScopeScanner_scanVars_5305(n, this_.scope, this_.scope)
+			this_.priv_ScopeScanner_scanVars_5313(n, this_.scope, this_.scope)
 		} else {
-			this_.priv_ScopeScanner_scanVars_5305(n, nil, this_.scope)
+			this_.priv_ScopeScanner_scanVars_5313(n, nil, this_.scope)
 		}
 		return
 	case int32(109) /* Token.COMPUTED_FIELD_DEF */, int32(108) /* Token.MEMBER_FIELD_DEF */ :
@@ -305,53 +305,53 @@ func (this_ *SyntacticScopeCreator_ScopeScanner) Populate_0() {
 }
 
 // Java method: ScopeScanner.declareLHS(com.google.javascript.jscomp.Scope s, com.google.javascript.rhino.Node n)
-func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_declareLHS_5303(s *Scope, n pkg_rhino.Node) {
+func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_declareLHS_5311(s *Scope, n pkg_rhino.Node) {
 	_ = s
 	_ = n
 	var first pkg_rhino.Node = n.GetFirstChild()
 	_ = first
 	if ((first != 0) && (first.GetNext() == 0)) && first.IsName() {
-		this_.priv_ScopeScanner_declareVar_5306(s, first)
+		this_.priv_ScopeScanner_declareVar_5314(s, first)
 		return
 	}
 	if !(((((((NodeUtil_IsNameDeclaration(n) || n.IsParamList()) || NodeUtil_IsAssignmentOp(n)) || n.IsCatch()) || n.IsDestructuringLhs()) || n.IsDefaultValue()) || n.IsImport()) || NodeUtil_IsEnhancedFor(n)) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(n))
 	}
-	this_.priv_ScopeScanner_declareLhsHelper_5304(s, n)
+	this_.priv_ScopeScanner_declareLhsHelper_5312(s, n)
 }
 
 // Java method: ScopeScanner.declareLhsHelper(com.google.javascript.jscomp.Scope s, com.google.javascript.rhino.Node n)
-func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_declareLhsHelper_5304(s *Scope, n pkg_rhino.Node) {
+func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_declareLhsHelper_5312(s *Scope, n pkg_rhino.Node) {
 	_ = s
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(116) /* Token.IMPORT */ :
-		this_.priv_ScopeScanner_declareLhsHelper_5304(s, n.GetFirstChild())
-		this_.priv_ScopeScanner_declareLhsHelper_5304(s, n.GetSecondChild())
+		this_.priv_ScopeScanner_declareLhsHelper_5312(s, n.GetFirstChild())
+		this_.priv_ScopeScanner_declareLhsHelper_5312(s, n.GetSecondChild())
 	case int32(84) /* Token.VAR */, int32(97) /* Token.CONST */, int32(111) /* Token.LET */, int32(103) /* Token.OBJECT_PATTERN */, int32(102) /* Token.ARRAY_PATTERN */, int32(49) /* Token.PARAM_LIST */, int32(117) /* Token.IMPORT_SPECS */ :
 		{
 			var child pkg_rhino.Node = n.GetFirstChild()
 			_ = child
 			for ; child != 0; child = child.GetNext() {
 				if child.IsName() {
-					this_.priv_ScopeScanner_declareVar_5306(s, child)
+					this_.priv_ScopeScanner_declareVar_5314(s, child)
 				} else {
-					this_.priv_ScopeScanner_declareLhsHelper_5304(s, child)
+					this_.priv_ScopeScanner_declareLhsHelper_5312(s, child)
 				}
 			}
 		}
 	case int32(104) /* Token.DESTRUCTURING_LHS */, int32(134) /* Token.DEFAULT_VALUE */, int32(86) /* Token.CATCH */, int32(125) /* Token.ITER_REST */, int32(126) /* Token.OBJECT_REST */, int32(101) /* Token.CAST */ :
-		this_.priv_ScopeScanner_declareLhsHelper_5304(s, n.GetFirstChild())
+		this_.priv_ScopeScanner_declareLhsHelper_5312(s, n.GetFirstChild())
 	case int32(118) /* Token.IMPORT_SPEC */, int32(129) /* Token.COMPUTED_PROP */, int32(100) /* Token.STRING_KEY */ :
-		this_.priv_ScopeScanner_declareLhsHelper_5304(s, n.GetLastChild())
+		this_.priv_ScopeScanner_declareLhsHelper_5312(s, n.GetLastChild())
 	case int32(32) /* Token.NAME */, int32(119) /* Token.IMPORT_STAR */, int32(26) /* Token.GETPROP */, int32(27) /* Token.GETELEM */ :
-		this_.priv_ScopeScanner_declareVar_5306(s, n)
+		this_.priv_ScopeScanner_declareVar_5314(s, n)
 	case int32(88) /* Token.EMPTY */ :
 	case int32(81) /* Token.FOR_IN */, int32(112) /* Token.FOR_OF */, int32(113) /* Token.FOR_AWAIT_OF */ :
-		this_.priv_ScopeScanner_declareLhsHelper_5304(s, n.GetFirstChild())
+		this_.priv_ScopeScanner_declareLhsHelper_5312(s, n.GetFirstChild())
 	default:
 		if NodeUtil_IsAssignmentOp(n) {
-			this_.priv_ScopeScanner_declareLhsHelper_5304(s, n.GetFirstChild())
+			this_.priv_ScopeScanner_declareLhsHelper_5312(s, n.GetFirstChild())
 		} else {
 			panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Invalid node in lhs: "+j2gort.StrVal(n))))
 		}
@@ -359,26 +359,26 @@ func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_declareLhsHel
 }
 
 // Java method: ScopeScanner.scanVars(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable Scope hoistScope, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable Scope blockScope)
-func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_scanVars_5305(n pkg_rhino.Node, hoistScope *Scope, blockScope *Scope) {
+func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_scanVars_5313(n pkg_rhino.Node, hoistScope *Scope, blockScope *Scope) {
 	_ = n
 	_ = hoistScope
 	_ = blockScope
 	switch n.TokenSwitchOrd_() {
 	case int32(84) /* Token.VAR */ :
 		if hoistScope != nil {
-			this_.priv_ScopeScanner_declareLHS_5303(hoistScope, n)
+			this_.priv_ScopeScanner_declareLHS_5311(hoistScope, n)
 		}
 		return
 	case int32(111) /* Token.LET */, int32(97) /* Token.CONST */ :
 		if blockScope != nil {
-			this_.priv_ScopeScanner_declareLHS_5303(blockScope, n)
+			this_.priv_ScopeScanner_declareLHS_5311(blockScope, n)
 		}
 		return
 	case int32(116) /* Token.IMPORT */ :
-		this_.priv_ScopeScanner_declareLHS_5303(hoistScope, n)
+		this_.priv_ScopeScanner_declareLHS_5311(hoistScope, n)
 		return
 	case int32(120) /* Token.EXPORT */ :
-		this_.priv_ScopeScanner_scanVars_5305(n.GetFirstChild(), hoistScope, blockScope)
+		this_.priv_ScopeScanner_scanVars_5313(n.GetFirstChild(), hoistScope, blockScope)
 		return
 	case int32(73) /* Token.FUNCTION */ :
 		if NodeUtil_IsFunctionExpression(n) || (blockScope == nil) {
@@ -389,7 +389,7 @@ func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_scanVars_5305
 		if j2gort.CheckNotNullString(fnName) == "" {
 			return
 		}
-		this_.priv_ScopeScanner_declareVar_5306(blockScope, n.GetFirstChild())
+		this_.priv_ScopeScanner_declareVar_5314(blockScope, n.GetFirstChild())
 		return
 	case int32(105) /* Token.CLASS */ :
 		if NodeUtil_IsClassExpression(n) || (blockScope == nil) {
@@ -400,18 +400,18 @@ func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_scanVars_5305
 		if j2gort.CheckNotNullString(className) == "" {
 			return
 		}
-		this_.priv_ScopeScanner_declareVar_5306(blockScope, n.GetFirstChild())
+		this_.priv_ScopeScanner_declareVar_5314(blockScope, n.GetFirstChild())
 		return
 	case int32(86) /* Token.CATCH */ :
 		if !(n.HasTwoChildren()) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
 		}
 		if blockScope != nil {
-			this_.priv_ScopeScanner_declareLHS_5303(blockScope, n)
+			this_.priv_ScopeScanner_declareLHS_5311(blockScope, n)
 		}
 		var block pkg_rhino.Node = n.GetSecondChild()
 		_ = block
-		this_.priv_ScopeScanner_scanVars_5305(block, hoistScope, blockScope)
+		this_.priv_ScopeScanner_scanVars_5313(block, hoistScope, blockScope)
 		return
 	case int32(94) /* Token.SCRIPT */ :
 		if (this_.changeRootSet != nil) && !(j2gort.SetContainsNode(this_.changeRootSet, n)) {
@@ -423,7 +423,7 @@ func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_scanVars_5305
 			var expr pkg_rhino.Node = n.GetFirstChild()
 			_ = expr
 			if (expr != 0) && SyntacticScopeCreator_ScopeScanner_IsLegacyGoogModule(expr) {
-				this_.priv_ScopeScanner_declareImplicitGoogNamespaceFromCall_5307(hoistScope, expr)
+				this_.priv_ScopeScanner_declareImplicitGoogNamespaceFromCall_5315(hoistScope, expr)
 			}
 			return
 		}
@@ -432,14 +432,14 @@ func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_scanVars_5305
 			break
 		}
 		if NodeUtil_IsGoogProvideCall(n) {
-			this_.priv_ScopeScanner_declareImplicitGoogNamespaceFromCall_5307(j2gort.CastPtr[Scope](hoistScope.GetGlobalScope()), n)
+			this_.priv_ScopeScanner_declareImplicitGoogNamespaceFromCall_5315(j2gort.CastPtr[Scope](hoistScope.GetGlobalScope()), n)
 		} else if NodeUtil_IsBundledGoogModuleCall(n.GetFirstChild()) && n.GetFirstChild().GetSecondChild().IsFunction() {
 			var fn pkg_rhino.Node = n.GetFirstChild().GetSecondChild()
 			_ = fn
 			var moduleCall pkg_rhino.Node = NodeUtil_GetFunctionBody(fn).GetFirstChild()
 			_ = moduleCall
 			if SyntacticScopeCreator_ScopeScanner_IsLegacyGoogModule(moduleCall) {
-				this_.priv_ScopeScanner_declareImplicitGoogNamespaceFromCall_5307(j2gort.CastPtr[Scope](hoistScope.GetGlobalScope()), moduleCall)
+				this_.priv_ScopeScanner_declareImplicitGoogNamespaceFromCall_5315(j2gort.CastPtr[Scope](hoistScope.GetGlobalScope()), moduleCall)
 			}
 		}
 	default:
@@ -458,7 +458,7 @@ func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_scanVars_5305
 			for child != 0 {
 				var next pkg_rhino.Node = child.GetNext()
 				_ = next
-				this_.priv_ScopeScanner_scanVars_5305(child, hoistScope, func() *Scope {
+				this_.priv_ScopeScanner_scanVars_5313(child, hoistScope, func() *Scope {
 					if enteringNewBlock {
 						return nil
 					}
@@ -471,7 +471,7 @@ func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_scanVars_5305
 }
 
 // Java method: ScopeScanner.declareVar(com.google.javascript.jscomp.Scope s, com.google.javascript.rhino.Node n)
-func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_declareVar_5306(s *Scope, n pkg_rhino.Node) {
+func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_declareVar_5314(s *Scope, n pkg_rhino.Node) {
 	_ = s
 	_ = n
 	if !(n.IsName() || n.IsImportStar()) {
@@ -499,7 +499,7 @@ func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_declareVar_53
 }
 
 // Java method: ScopeScanner.declareImplicitGoogNamespaceFromCall(com.google.javascript.jscomp.Scope s, com.google.javascript.rhino.Node exprCall)
-func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_declareImplicitGoogNamespaceFromCall_5307(s *Scope, exprCall pkg_rhino.Node) {
+func (this_ *SyntacticScopeCreator_ScopeScanner) priv_ScopeScanner_declareImplicitGoogNamespaceFromCall_5315(s *Scope, exprCall pkg_rhino.Node) {
 	_ = s
 	_ = exprCall
 	var namespaceNode pkg_rhino.Node = exprCall.GetFirstChild().GetSecondChild()

@@ -280,7 +280,7 @@ func (this_ *Es6RewriteModules) Process_2(externs pkg_rhino.Node, root pkg_rhino
 }
 
 // Java method: Es6RewriteModules.clearPerFileState()
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_clearPerFileState_2721() {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_clearPerFileState_2724() {
 	this_.typedefs = &j2gort.OrderedSet[string]{}
 	this_.namesToInlineByAlias = &j2gort.OrderedMap[string, *ModuleRenaming_GlobalizedModuleName]{
 
@@ -296,7 +296,7 @@ func (this_ *Es6RewriteModules) ShouldTraverse_3(nodeTraversal *NodeTraversal, n
 		nodeTraversal.GetScope()
 		NewEs6RewriteModules_RewriteRequiresForEs6Modules(this_).Rewrite(n)
 		if Es6RewriteModules_IsEs6ModuleRoot(n) {
-			this_.priv_Es6RewriteModules_clearPerFileState_2721()
+			this_.priv_Es6RewriteModules_clearPerFileState_2724()
 		} else {
 			return false
 		}
@@ -310,13 +310,13 @@ func (this_ *Es6RewriteModules) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pare
 	_ = n
 	_ = parent
 	if n.IsImport() {
-		this_.priv_Es6RewriteModules_maybeWarnExternModule_2722(t, n, parent)
-		this_.priv_Es6RewriteModules_visitImport_2723(t, n, parent)
+		this_.priv_Es6RewriteModules_maybeWarnExternModule_2725(t, n, parent)
+		this_.priv_Es6RewriteModules_visitImport_2726(t, n, parent)
 	} else if n.IsExport() {
-		this_.priv_Es6RewriteModules_maybeWarnExternModule_2722(t, n, parent)
-		this_.priv_Es6RewriteModules_visitExport_2724(t, n, parent)
+		this_.priv_Es6RewriteModules_maybeWarnExternModule_2725(t, n, parent)
+		this_.priv_Es6RewriteModules_visitExport_2727(t, n, parent)
 	} else if n.IsScript() {
-		this_.priv_Es6RewriteModules_visitScript_2728(t, n)
+		this_.priv_Es6RewriteModules_visitScript_2731(t, n)
 	} else if n.IsCall() {
 		if StaticGet_Es6RewriteModules_GOOG_DECLAREMODULEID().Matches(n.GetFirstChild()) {
 			n.GetParent().Detach()
@@ -329,7 +329,7 @@ func (this_ *Es6RewriteModules) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pare
 }
 
 // Java method: Es6RewriteModules.maybeWarnExternModule(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_maybeWarnExternModule_2722(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_maybeWarnExternModule_2725(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = n
 	_ = parent
@@ -342,7 +342,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_maybeWarnExternModule_272
 }
 
 // Java method: Es6RewriteModules.visitImport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node importDecl, com.google.javascript.rhino.Node parent)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitImport_2723(t *NodeTraversal, importDecl pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitImport_2726(t *NodeTraversal, importDecl pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = importDecl
 	_ = parent
@@ -371,7 +371,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitImport_2723(t *NodeT
 		if modulePath == nil {
 			modulePath = t.GetInput().GetPath().ResolveModuleAsPath(importName)
 		}
-		this_.priv_Es6RewriteModules_maybeAddImportedFileReferenceToSymbolTable_2738(importDecl.GetLastChild(), modulePath.String())
+		this_.priv_Es6RewriteModules_maybeAddImportedFileReferenceToSymbolTable_2741(importDecl.GetLastChild(), modulePath.String())
 	}
 	{
 		var child pkg_rhino.Node = importDecl.GetFirstChild()
@@ -382,14 +382,14 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitImport_2723(t *NodeT
 					var grandChild pkg_rhino.Node = child.GetFirstChild()
 					_ = grandChild
 					for ; grandChild != 0; grandChild = grandChild.GetNext() {
-						this_.priv_Es6RewriteModules_maybeAddAliasToSymbolTable_2737(grandChild.GetFirstChild(), t.GetSourceName())
+						this_.priv_Es6RewriteModules_maybeAddAliasToSymbolTable_2740(grandChild.GetFirstChild(), t.GetSourceName())
 						if !(grandChild.HasTwoChildren()) {
 							j2gort.CheckState(false)
 						}
 					}
 				}
 			} else if child.IsImportStar() {
-				this_.priv_Es6RewriteModules_maybeAddAliasToSymbolTable_2737(child, t.GetSourceName())
+				this_.priv_Es6RewriteModules_maybeAddAliasToSymbolTable_2740(child, t.GetSourceName())
 			}
 		}
 	}
@@ -398,7 +398,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitImport_2723(t *NodeT
 }
 
 // Java method: Es6RewriteModules.visitExport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export, com.google.javascript.rhino.Node parent)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitExport_2724(t *NodeTraversal, export pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitExport_2727(t *NodeTraversal, export pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = export
 	_ = parent
@@ -430,12 +430,12 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitExport_2724(t *NodeT
 		export.Detach()
 		t.ReportCodeChange_0()
 	} else {
-		this_.priv_Es6RewriteModules_visitExportDeclaration_2726(t, export)
+		this_.priv_Es6RewriteModules_visitExportDeclaration_2729(t, export)
 	}
 }
 
 // Java method: Es6RewriteModules.visitExportNameDeclaration(com.google.javascript.rhino.Node declaration)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitExportNameDeclaration_2725(declaration pkg_rhino.Node) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitExportNameDeclaration_2728(declaration pkg_rhino.Node) {
 	_ = declaration
 	if (declaration.GetJSDocInfo() != nil) && declaration.GetJSDocInfo().HasTypedefType() {
 		NodeUtil_VisitLhsNodesInNode(declaration, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_1 any) {
@@ -447,20 +447,20 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitExportNameDeclaratio
 }
 
 // Java method: Es6RewriteModules.visitExportDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitExportDeclaration_2726(t *NodeTraversal, export pkg_rhino.Node) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitExportDeclaration_2729(t *NodeTraversal, export pkg_rhino.Node) {
 	_ = t
 	_ = export
 	var declaration pkg_rhino.Node = export.GetFirstChild()
 	_ = declaration
 	if NodeUtil_IsNameDeclaration(declaration) {
-		this_.priv_Es6RewriteModules_visitExportNameDeclaration_2725(declaration)
+		this_.priv_Es6RewriteModules_visitExportNameDeclaration_2728(declaration)
 	}
 	export.ReplaceWith(declaration.Detach())
 	t.ReportCodeChange_0()
 }
 
 // Java method: Es6RewriteModules.inlineModuleToGlobalScope(com.google.javascript.rhino.Node moduleNode)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_inlineModuleToGlobalScope_2727(moduleNode pkg_rhino.Node) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_inlineModuleToGlobalScope_2730(moduleNode pkg_rhino.Node) {
 	_ = moduleNode
 	if !(moduleNode.IsModuleBody()) {
 		j2gort.CheckState(false)
@@ -472,14 +472,14 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_inlineModuleToGlobalScope
 }
 
 // Java method: Es6RewriteModules.visitScript(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node script)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitScript_2728(t *NodeTraversal, script pkg_rhino.Node) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitScript_2731(t *NodeTraversal, script pkg_rhino.Node) {
 	_ = t
 	_ = script
 	var moduleBody pkg_rhino.Node = script.GetFirstChild()
 	_ = moduleBody
 	var moduleObjectType AstFactory_Type = AstFactory_S_Type_1_Node(moduleBody)
 	_ = moduleObjectType
-	this_.priv_Es6RewriteModules_inlineModuleToGlobalScope_2727(moduleBody)
+	this_.priv_Es6RewriteModules_inlineModuleToGlobalScope_2730(moduleBody)
 	ClosureRewriteModule_CheckAndSetStrictModeDirective(t, script)
 	var thisModule *Module = this_.moduleMap.GetModule_1_ModuleLoader_ModulePath(t.GetInput().GetPath())
 	_ = thisModule
@@ -490,18 +490,18 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitScript_2728(t *NodeT
 	}
 	var moduleName string = qualifiedName.GetRoot()
 	_ = moduleName
-	var moduleVar pkg_rhino.Node = this_.priv_Es6RewriteModules_createExportsObject_2729(moduleName, t, script, moduleObjectType)
+	var moduleVar pkg_rhino.Node = this_.priv_Es6RewriteModules_createExportsObject_2732(moduleName, t, script, moduleObjectType)
 	_ = moduleVar
 	NodeTraversal_Traverse(this_.compiler, script, NewEs6RewriteModules_RenameGlobalVars(this_, thisModule))
 	moduleVar.GetFirstChild().SetString(moduleName)
 	moduleVar.MakeNonIndexableRecursive()
-	this_.priv_Es6RewriteModules_declareGlobalVariable_2739(moduleVar.GetFirstChild(), t)
-	this_.priv_Es6RewriteModules_rewriteRequires_2731(script)
+	this_.priv_Es6RewriteModules_declareGlobalVariable_2742(moduleVar.GetFirstChild(), t)
+	this_.priv_Es6RewriteModules_rewriteRequires_2734(script)
 	t.ReportCodeChange_0()
 }
 
 // Java method: Es6RewriteModules.createExportsObject(java.lang.String moduleName, com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node script, com.google.javascript.jscomp.AstFactory.Type moduleObjectType)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_createExportsObject_2729(moduleName string, t *NodeTraversal, script pkg_rhino.Node, moduleObjectType AstFactory_Type) pkg_rhino.Node {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_createExportsObject_2732(moduleName string, t *NodeTraversal, script pkg_rhino.Node, moduleObjectType AstFactory_Type) pkg_rhino.Node {
 	_ = moduleName
 	_ = t
 	_ = script
@@ -555,7 +555,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_createExportsObject_2729(
 			} else if mutated {
 				var globalExportName pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(boundVariableName, AstFactory_S_Type_1_Node(getProp))
 				_ = globalExportName
-				this_.priv_Es6RewriteModules_addGetterExport_2730(script, nodeForSourceInfo, moduleObject, exportedName, globalExportName)
+				this_.priv_Es6RewriteModules_addGetterExport_2733(script, nodeForSourceInfo, moduleObject, exportedName, globalExportName)
 				NodeUtil_AddFeatureToScript(t.GetCurrentScript(), pkg_parser.StaticGet_FeatureSet_Feature_GETTER(), this_.compiler)
 			} else {
 				var assign pkg_rhino.Node = this_.astFactory.CreateAssign_2_Node_Node(getProp, this_.astFactory.CreateName_2_string_AstFactory_Type(boundVariableName, AstFactory_S_Type_1_Node(getProp)))
@@ -574,7 +574,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_createExportsObject_2729(
 }
 
 // Java method: Es6RewriteModules.addGetterExport(com.google.javascript.rhino.Node script, com.google.javascript.rhino.Node forSourceInfo, com.google.javascript.rhino.Node objLit, java.lang.String exportedName, com.google.javascript.rhino.Node value)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_addGetterExport_2730(script pkg_rhino.Node, forSourceInfo pkg_rhino.Node, objLit pkg_rhino.Node, exportedName string, value pkg_rhino.Node) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_addGetterExport_2733(script pkg_rhino.Node, forSourceInfo pkg_rhino.Node, objLit pkg_rhino.Node, exportedName string, value pkg_rhino.Node) {
 	_ = script
 	_ = forSourceInfo
 	_ = objLit
@@ -598,7 +598,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_addGetterExport_2730(scri
 }
 
 // Java method: Es6RewriteModules.rewriteRequires(com.google.javascript.rhino.Node script)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_rewriteRequires_2731(script pkg_rhino.Node) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_rewriteRequires_2734(script pkg_rhino.Node) {
 	_ = script
 	NodeTraversal_S_Builder().SetCompiler(this_.compiler).SetCallback_1_NodeTraversal_AbstractPostOrderCallbackInterface(newReleasableLambda_NodeTraversal_AbstractPostOrderCallbackInterface(func(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
 		_ = t
@@ -608,9 +608,9 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_rewriteRequires_2731(scri
 			var fn pkg_rhino.Node = n.GetFirstChild()
 			_ = fn
 			if StaticGet_Es6RewriteModules_GOOG_REQUIRE().Matches(fn) || StaticGet_Es6RewriteModules_GOOG_REQUIRETYPE().Matches(fn) {
-				this_.priv_Es6RewriteModules_visitRequireOrGet_2735(t, n, parent, true)
+				this_.priv_Es6RewriteModules_visitRequireOrGet_2738(t, n, parent, true)
 			} else if StaticGet_Es6RewriteModules_GOOG_MODULE_GET().Matches(fn) {
-				this_.priv_Es6RewriteModules_visitGoogModuleGet_2733(t, n, parent)
+				this_.priv_Es6RewriteModules_visitGoogModuleGet_2736(t, n, parent)
 			}
 		}
 	})).Traverse(script)
@@ -627,7 +627,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_rewriteRequires_2731(scri
 				var count int32 = info.GetTypeNodeCount()
 				_ = count
 				for ; i < count; i = i + 1 {
-					this_.priv_Es6RewriteModules_inlineAliasedTypes_2732(t, info.GetTypeNodeAt(i))
+					this_.priv_Es6RewriteModules_inlineAliasedTypes_2735(t, info.GetTypeNodeAt(i))
 				}
 			}
 		}
@@ -646,7 +646,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_rewriteRequires_2731(scri
 }
 
 // Java method: Es6RewriteModules.inlineAliasedTypes(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node typeNode)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_inlineAliasedTypes_2732(t *NodeTraversal, typeNode pkg_rhino.Node) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_inlineAliasedTypes_2735(t *NodeTraversal, typeNode pkg_rhino.Node) {
 	_ = t
 	_ = typeNode
 	if typeNode.IsStringLit() {
@@ -682,13 +682,13 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_inlineAliasedTypes_2732(t
 		var child pkg_rhino.Node = typeNode.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			this_.priv_Es6RewriteModules_inlineAliasedTypes_2732(t, child)
+			this_.priv_Es6RewriteModules_inlineAliasedTypes_2735(t, child)
 		}
 	}
 }
 
 // Java method: Es6RewriteModules.visitGoogModuleGet(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node getCall, com.google.javascript.rhino.Node parent)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitGoogModuleGet_2733(t *NodeTraversal, getCall pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitGoogModuleGet_2736(t *NodeTraversal, getCall pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = getCall
 	_ = parent
@@ -700,11 +700,11 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitGoogModuleGet_2733(t
 		t.Report_3(getCall, StaticGet_ClosurePrimitiveErrors_MODULE_USES_GOOG_MODULE_GET(), []string{})
 		return
 	}
-	this_.priv_Es6RewriteModules_visitRequireOrGet_2735(t, getCall, parent, false)
+	this_.priv_Es6RewriteModules_visitRequireOrGet_2738(t, getCall, parent, false)
 }
 
 // Java method: Es6RewriteModules.getFallbackMetadataForNamespace(java.lang.String namespace)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_getFallbackMetadataForNamespace_2734(namespace string) ModuleMetadataMap_ModuleMetadata {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_getFallbackMetadataForNamespace_2737(namespace string) ModuleMetadataMap_ModuleMetadata {
 	_ = namespace
 	var builder ModuleMetadataMap_ModuleMetadata_Builder = ModuleMetadataMap_ModuleMetadata_S_Builder().ModuleType_1(StaticGet_ModuleMetadataMap_ModuleType_GOOG_PROVIDE()).UsesClosure(true).IsTestOnly(false)
 	_ = builder
@@ -713,7 +713,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_getFallbackMetadataForNam
 }
 
 // Java method: Es6RewriteModules.visitRequireOrGet(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node requireCall, com.google.javascript.rhino.Node parent, boolean isRequire)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitRequireOrGet_2735(t *NodeTraversal, requireCall pkg_rhino.Node, parent pkg_rhino.Node, isRequire bool) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitRequireOrGet_2738(t *NodeTraversal, requireCall pkg_rhino.Node, parent pkg_rhino.Node, isRequire bool) {
 	_ = t
 	_ = requireCall
 	_ = parent
@@ -739,7 +739,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitRequireOrGet_2735(t 
 	_ = isFromFallbackMetadata
 	if isFromFallbackMetadata {
 		t.Report_3(requireCall, StaticGet_ClosurePrimitiveErrors_MISSING_MODULE_OR_PROVIDE(), []string{namespace})
-		m = this_.priv_Es6RewriteModules_getFallbackMetadataForNamespace_2734(namespace)
+		m = this_.priv_Es6RewriteModules_getFallbackMetadataForNamespace_2737(namespace)
 	}
 	if isStoredInDeclaration {
 		if isRequire {
@@ -757,13 +757,13 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitRequireOrGet_2735(t 
 						if !(child.IsStringKey() && child.GetFirstChild().IsName()) {
 							j2gort.CheckStateMsg(false, j2gort.BoxNode(child))
 						}
-						var rep *ModuleRenaming_GlobalizedModuleName = this_.priv_Es6RewriteModules_getGlobalNameAndType_2736(m, namespace, isFromFallbackMetadata).Getprop(child.GetString())
+						var rep *ModuleRenaming_GlobalizedModuleName = this_.priv_Es6RewriteModules_getGlobalNameAndType_2739(m, namespace, isFromFallbackMetadata).Getprop(child.GetString())
 						_ = rep
 						this_.namesToInlineByAlias.Put(child.GetFirstChild().GetString(), rep)
 					}
 				}
 			} else if parent.IsName() {
-				var alias *ModuleRenaming_GlobalizedModuleName = this_.priv_Es6RewriteModules_getGlobalNameAndType_2736(m, namespace, isFromFallbackMetadata)
+				var alias *ModuleRenaming_GlobalizedModuleName = this_.priv_Es6RewriteModules_getGlobalNameAndType_2739(m, namespace, isFromFallbackMetadata)
 				_ = alias
 				this_.namesToInlineByAlias.Put(parent.GetString(), alias)
 				toDetach = parent.GetParent()
@@ -775,7 +775,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitRequireOrGet_2735(t 
 			}
 			toDetach.Detach()
 		} else {
-			var name *ModuleRenaming_GlobalizedModuleName = this_.priv_Es6RewriteModules_getGlobalNameAndType_2736(m, namespace, isFromFallbackMetadata)
+			var name *ModuleRenaming_GlobalizedModuleName = this_.priv_Es6RewriteModules_getGlobalNameAndType_2739(m, namespace, isFromFallbackMetadata)
 			_ = name
 			var replacement pkg_rhino.Node = name.ToQname(this_.astFactory).SrcrefTree(requireCall)
 			_ = replacement
@@ -790,7 +790,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_visitRequireOrGet_2735(t 
 }
 
 // Java method: Es6RewriteModules.getGlobalNameAndType(com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata metadata, java.lang.@org.jspecify.annotations.Nullable String googNamespace, boolean isFromMissingModuleOrProvide)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_getGlobalNameAndType_2736(metadata ModuleMetadataMap_ModuleMetadata, googNamespace string, isFromMissingModuleOrProvide bool) *ModuleRenaming_GlobalizedModuleName {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_getGlobalNameAndType_2739(metadata ModuleMetadataMap_ModuleMetadata, googNamespace string, isFromMissingModuleOrProvide bool) *ModuleRenaming_GlobalizedModuleName {
 	_ = metadata
 	_ = googNamespace
 	_ = isFromMissingModuleOrProvide
@@ -803,7 +803,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_getGlobalNameAndType_2736
 }
 
 // Java method: Es6RewriteModules.maybeAddAliasToSymbolTable(com.google.javascript.rhino.Node n, java.lang.String module)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_maybeAddAliasToSymbolTable_2737(n pkg_rhino.Node, module string) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_maybeAddAliasToSymbolTable_2740(n pkg_rhino.Node, module string) {
 	_ = n
 	_ = module
 	if this_.preprocessorSymbolTable == nil {
@@ -823,7 +823,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_maybeAddAliasToSymbolTabl
 }
 
 // Java method: Es6RewriteModules.maybeAddImportedFileReferenceToSymbolTable(com.google.javascript.rhino.Node importStringNode, java.lang.String importedFilePath)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_maybeAddImportedFileReferenceToSymbolTable_2738(importStringNode pkg_rhino.Node, importedFilePath string) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_maybeAddImportedFileReferenceToSymbolTable_2741(importStringNode pkg_rhino.Node, importedFilePath string) {
 	_ = importStringNode
 	_ = importedFilePath
 	if this_.preprocessorSymbolTable == nil {
@@ -840,7 +840,7 @@ func (this_ *Es6RewriteModules) priv_Es6RewriteModules_maybeAddImportedFileRefer
 }
 
 // Java method: Es6RewriteModules.declareGlobalVariable(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *Es6RewriteModules) priv_Es6RewriteModules_declareGlobalVariable_2739(n pkg_rhino.Node, t *NodeTraversal) {
+func (this_ *Es6RewriteModules) priv_Es6RewriteModules_declareGlobalVariable_2742(n pkg_rhino.Node, t *NodeTraversal) {
 	_ = n
 	_ = t
 	if !(n.IsName()) {
@@ -1007,7 +1007,7 @@ func (this_ *Es6RewriteModules_RewriteRequiresForEs6Modules) Visit_3(t *NodeTrav
 						if !(child_2.GetFirstChild().IsName()) {
 							j2gort.CheckState(false)
 						}
-						var globalName *ModuleRenaming_GlobalizedModuleName = this_.outer_.priv_Es6RewriteModules_getGlobalNameAndType_2736(moduleMetadata, name, false).Getprop(child_2.GetString())
+						var globalName *ModuleRenaming_GlobalizedModuleName = this_.outer_.priv_Es6RewriteModules_getGlobalNameAndType_2739(moduleMetadata, name, false).Getprop(child_2.GetString())
 						_ = globalName
 						var constNode pkg_rhino.Node = this_.outer_.astFactory.CreateSingleConstNameDeclaration(child_2.GetFirstChild().GetString(), globalName.ToQname(this_.outer_.astFactory))
 						_ = constNode
@@ -1119,7 +1119,7 @@ func (this_ *Es6RewriteModules_RenameGlobalVars) Visit_3(t *NodeTraversal, n pkg
 			var count int32 = info.GetTypeNodeCount()
 			_ = count
 			for ; i < count; i = i + 1 {
-				this_.priv_RenameGlobalVars_fixTypeNode_2742(t, info.GetTypeNodeAt(i))
+				this_.priv_RenameGlobalVars_fixTypeNode_2745(t, info.GetTypeNodeAt(i))
 			}
 		}
 	}
@@ -1135,19 +1135,19 @@ func (this_ *Es6RewriteModules_RenameGlobalVars) Visit_3(t *NodeTraversal, n pkg
 			n.SetOriginalName(name)
 			t.ReportCodeChange_1(n)
 			if NodeUtil_IsDeclarationLValue(n) {
-				this_.outer_.priv_Es6RewriteModules_declareGlobalVariable_2739(n, t)
+				this_.outer_.priv_Es6RewriteModules_declareGlobalVariable_2742(n, t)
 			}
 		} else if (var_ == nil) && j2gort.MapContainsKeyStr(this_.thisModule.BoundNames(), name) {
-			this_.outer_.priv_Es6RewriteModules_maybeAddAliasToSymbolTable_2737(n, t.GetSourceName())
+			this_.outer_.priv_Es6RewriteModules_maybeAddAliasToSymbolTable_2740(n, t.GetSourceName())
 			var binding *Binding = j2gort.CastPtr[Binding](j2gort.MapGetStr(this_.thisModule.BoundNames(), name))
 			_ = binding
-			var replacement pkg_rhino.Node = this_.priv_RenameGlobalVars_replace_2741(n, binding)
+			var replacement pkg_rhino.Node = this_.priv_RenameGlobalVars_replace_2744(n, binding)
 			_ = replacement
 			if ((replacement.IsName() && parent.IsCall()) && (parent.GetFirstChild() == n)) && parent.GetBooleanProp(pkg_rhino.StaticGet_Node_FREE_CALL()) {
 				parent.PutBooleanProp(pkg_rhino.StaticGet_Node_FREE_CALL(), true)
 			}
 			if NodeUtil_IsDeclarationLValue(n) {
-				this_.outer_.priv_Es6RewriteModules_declareGlobalVariable_2739(n, t)
+				this_.outer_.priv_Es6RewriteModules_declareGlobalVariable_2742(n, t)
 			}
 			t.ReportCodeChange_0()
 		}
@@ -1155,7 +1155,7 @@ func (this_ *Es6RewriteModules_RenameGlobalVars) Visit_3(t *NodeTraversal, n pkg
 }
 
 // Java method: RenameGlobalVars.replace(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.modules.Binding binding)
-func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_replace_2741(n pkg_rhino.Node, binding *Binding) pkg_rhino.Node {
+func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_replace_2744(n pkg_rhino.Node, binding *Binding) pkg_rhino.Node {
 	_ = n
 	_ = binding
 	if !(n.IsName()) {
@@ -1195,7 +1195,7 @@ func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_replace_2
 }
 
 // Java method: RenameGlobalVars.fixTypeNode(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node typeNode)
-func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_fixTypeNode_2742(t *NodeTraversal, typeNode pkg_rhino.Node) {
+func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_fixTypeNode_2745(t *NodeTraversal, typeNode pkg_rhino.Node) {
 	_ = t
 	_ = typeNode
 	if typeNode.IsStringLit() {
@@ -1222,7 +1222,7 @@ func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_fixTypeNo
 			} else {
 				rest = j2gort.JStrSubFrom(name, dot)
 			}
-			this_.priv_RenameGlobalVars_maybeSetNewName_2743(t, typeNode, name, (j2gort.StrValString(ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(thisModule.Metadata(), baseName).Join_0()) + j2gort.StrValString(rest)))
+			this_.priv_RenameGlobalVars_maybeSetNewName_2746(t, typeNode, name, (j2gort.StrValString(ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(thisModule.Metadata(), baseName).Join_0()) + j2gort.StrValString(rest)))
 		} else if (var_ == nil) && j2gort.MapContainsKeyStr(thisModule.BoundNames(), baseName) {
 			var binding *Binding = j2gort.CastPtr[Binding](j2gort.MapGetStr(thisModule.BoundNames(), baseName))
 			_ = binding
@@ -1235,12 +1235,12 @@ func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_fixTypeNo
 			}
 			var globalName string = ModuleRenaming_GetGlobalNameForJsDoc(this_.outer_.moduleMap, binding, propChain)
 			_ = globalName
-			this_.priv_RenameGlobalVars_maybeSetNewName_2743(t, typeNode, name, globalName)
+			this_.priv_RenameGlobalVars_maybeSetNewName_2746(t, typeNode, name, globalName)
 			if this_.outer_.preprocessorSymbolTable != nil {
 				var onlyBaseName pkg_rhino.Node = pkg_rhino.Node_NewString_1(baseName).Srcref(typeNode)
 				_ = onlyBaseName
 				onlyBaseName.SetLength(j2gort.JStrLen(baseName))
-				this_.outer_.priv_Es6RewriteModules_maybeAddAliasToSymbolTable_2737(onlyBaseName, t.GetSourceName())
+				this_.outer_.priv_Es6RewriteModules_maybeAddAliasToSymbolTable_2740(onlyBaseName, t.GetSourceName())
 			}
 		}
 		typeNode.SetOriginalName(name)
@@ -1249,13 +1249,13 @@ func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_fixTypeNo
 		var child pkg_rhino.Node = typeNode.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			this_.priv_RenameGlobalVars_fixTypeNode_2742(t, child)
+			this_.priv_RenameGlobalVars_fixTypeNode_2745(t, child)
 		}
 	}
 }
 
 // Java method: RenameGlobalVars.maybeSetNewName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node node, java.lang.String name, java.lang.String newName)
-func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_maybeSetNewName_2743(t *NodeTraversal, node pkg_rhino.Node, name string, newName string) {
+func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_maybeSetNewName_2746(t *NodeTraversal, node pkg_rhino.Node, name string, newName string) {
 	_ = t
 	_ = node
 	_ = name

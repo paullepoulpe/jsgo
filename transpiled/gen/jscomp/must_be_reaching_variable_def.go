@@ -218,7 +218,7 @@ func InitMustBeReachingVariableDef(this_ *MustBeReachingVariableDef, cfg Control
 }
 
 // Java method: MustBeReachingVariableDef.lookupVarIndex(java.lang.String name)
-func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_lookupVarIndex_3899(name string) int32 {
+func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_lookupVarIndex_3905(name string) int32 {
 	_ = name
 	var table []string = this_.nameTable
 	_ = table
@@ -280,7 +280,7 @@ func (this_ *MustBeReachingVariableDef) FlowThrough(n pkg_rhino.Node, input *Mus
 	_ = n
 	_ = input
 	this_.flowOutput = nil
-	this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n, n, input, false)
+	this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n, n, input, false)
 	var out *MustBeReachingVariableDef_MustDef = this_.flowOutput
 	_ = out
 	this_.flowOutput = nil
@@ -292,7 +292,7 @@ func (this_ *MustBeReachingVariableDef) FlowThrough(n pkg_rhino.Node, input *Mus
 }
 
 // Java method: MustBeReachingVariableDef.writableFlowOutput(com.google.javascript.jscomp.MustBeReachingVariableDef.MustDef input)
-func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_writableFlowOutput_3900(input *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
+func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_writableFlowOutput_3906(input *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
 	_ = input
 	var out *MustBeReachingVariableDef_MustDef = this_.flowOutput
 	_ = out
@@ -304,7 +304,7 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_writableF
 }
 
 // Java method: MustBeReachingVariableDef.computeMustDef(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node cfgNode, com.google.javascript.jscomp.MustBeReachingVariableDef.MustDef output, boolean conditional)
-func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeMustDef_3901(n pkg_rhino.Node, cfgNode pkg_rhino.Node, output *MustBeReachingVariableDef_MustDef, conditional bool) {
+func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeMustDef_3907(n pkg_rhino.Node, cfgNode pkg_rhino.Node, output *MustBeReachingVariableDef_MustDef, conditional bool) {
 	_ = n
 	_ = cfgNode
 	_ = output
@@ -313,7 +313,7 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeMu
 	case int32(90) /* Token.BLOCK */, int32(89) /* Token.ROOT */, int32(73) /* Token.FUNCTION */ :
 		return
 	case int32(78) /* Token.WHILE */, int32(79) /* Token.DO */, int32(74) /* Token.IF */, int32(80) /* Token.FOR */ :
-		this_.priv_MustBeReachingVariableDef_computeMustDef_3901(NodeUtil_GetConditionExpression(n), cfgNode, output, conditional)
+		this_.priv_MustBeReachingVariableDef_computeMustDef_3907(NodeUtil_GetConditionExpression(n), cfgNode, output, conditional)
 		return
 	case int32(81) /* Token.FOR_IN */, int32(112) /* Token.FOR_OF */, int32(113) /* Token.FOR_AWAIT_OF */ :
 		var lhs pkg_rhino.Node = n.GetFirstChild()
@@ -324,35 +324,35 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeMu
 			lhs = lhs.GetLastChild()
 		}
 		if lhs.IsName() {
-			this_.priv_MustBeReachingVariableDef_addToDefIfLocal_3902(lhs.GetString(), pkg_rhino.Node(0), rhs, output)
+			this_.priv_MustBeReachingVariableDef_addToDefIfLocal_3908(lhs.GetString(), pkg_rhino.Node(0), rhs, output)
 		} else if lhs.IsDestructuringLhs() {
 			lhs = lhs.GetFirstChild()
 		}
 		if lhs.IsDestructuringPattern() {
-			this_.priv_MustBeReachingVariableDef_computeMustDef_3901(lhs, cfgNode, output, true)
+			this_.priv_MustBeReachingVariableDef_computeMustDef_3907(lhs, cfgNode, output, true)
 		}
 		return
 	case int32(29) /* Token.OPTCHAIN_GETPROP */ :
-		this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetFirstChild(), cfgNode, output, conditional)
+		this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetFirstChild(), cfgNode, output, conditional)
 		return
 	case int32(69) /* Token.AND */, int32(68) /* Token.OR */, int32(70) /* Token.COALESCE */, int32(30) /* Token.OPTCHAIN_GETELEM */ :
-		this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetFirstChild(), cfgNode, output, conditional)
-		this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetLastChild(), cfgNode, output, true)
+		this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetFirstChild(), cfgNode, output, conditional)
+		this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetLastChild(), cfgNode, output, true)
 		return
 	case int32(31) /* Token.OPTCHAIN_CALL */ :
-		this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetFirstChild(), cfgNode, output, conditional)
+		this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetFirstChild(), cfgNode, output, conditional)
 		{
 			var c pkg_rhino.Node = n.GetSecondChild()
 			_ = c
 			for ; c != 0; c = c.GetNext() {
-				this_.priv_MustBeReachingVariableDef_computeMustDef_3901(c, cfgNode, output, true)
+				this_.priv_MustBeReachingVariableDef_computeMustDef_3907(c, cfgNode, output, true)
 			}
 		}
 		return
 	case int32(67) /* Token.HOOK */ :
-		this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetFirstChild(), cfgNode, output, conditional)
-		this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetSecondChild(), cfgNode, output, true)
-		this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetLastChild(), cfgNode, output, true)
+		this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetFirstChild(), cfgNode, output, conditional)
+		this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetSecondChild(), cfgNode, output, true)
+		this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetLastChild(), cfgNode, output, true)
 		return
 	case int32(111) /* Token.LET */, int32(97) /* Token.CONST */, int32(84) /* Token.VAR */ :
 		{
@@ -361,8 +361,8 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeMu
 			for ; c_2 != 0; c_2 = c_2.GetNext() {
 				if c_2.HasChildren() {
 					if c_2.IsName() {
-						this_.priv_MustBeReachingVariableDef_computeMustDef_3901(c_2.GetFirstChild(), cfgNode, output, conditional)
-						this_.priv_MustBeReachingVariableDef_addToDefIfLocal_3902(c_2.GetString(), func() pkg_rhino.Node {
+						this_.priv_MustBeReachingVariableDef_computeMustDef_3907(c_2.GetFirstChild(), cfgNode, output, conditional)
+						this_.priv_MustBeReachingVariableDef_addToDefIfLocal_3908(c_2.GetString(), func() pkg_rhino.Node {
 							if conditional {
 								return pkg_rhino.Node(0)
 							}
@@ -372,8 +372,8 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeMu
 						if !(c_2.IsDestructuringLhs()) {
 							j2gort.CheckStateMsg(false, j2gort.BoxNode(c_2))
 						}
-						this_.priv_MustBeReachingVariableDef_computeMustDef_3901(c_2.GetSecondChild(), cfgNode, output, conditional)
-						this_.priv_MustBeReachingVariableDef_computeMustDef_3901(c_2.GetFirstChild(), cfgNode, output, conditional)
+						this_.priv_MustBeReachingVariableDef_computeMustDef_3907(c_2.GetSecondChild(), cfgNode, output, conditional)
+						this_.priv_MustBeReachingVariableDef_computeMustDef_3907(c_2.GetFirstChild(), cfgNode, output, conditional)
 					}
 				}
 			}
@@ -381,23 +381,23 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeMu
 		return
 	case int32(134) /* Token.DEFAULT_VALUE */ :
 		if n.GetFirstChild().IsDestructuringPattern() {
-			this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetSecondChild(), cfgNode, output, true)
-			this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetFirstChild(), cfgNode, output, conditional)
+			this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetSecondChild(), cfgNode, output, true)
+			this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetFirstChild(), cfgNode, output, conditional)
 		} else if n.GetFirstChild().IsName() {
-			this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetSecondChild(), cfgNode, output, true)
-			this_.priv_MustBeReachingVariableDef_addToDefIfLocal_3902(n.GetFirstChild().GetString(), func() pkg_rhino.Node {
+			this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetSecondChild(), cfgNode, output, true)
+			this_.priv_MustBeReachingVariableDef_addToDefIfLocal_3908(n.GetFirstChild().GetString(), func() pkg_rhino.Node {
 				if conditional {
 					return pkg_rhino.Node(0)
 				}
 				return cfgNode
 			}(), pkg_rhino.Node(0), output)
 		} else {
-			this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetFirstChild(), cfgNode, output, conditional)
-			this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetSecondChild(), cfgNode, output, true)
+			this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetFirstChild(), cfgNode, output, conditional)
+			this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetSecondChild(), cfgNode, output, true)
 		}
 	case int32(32) /* Token.NAME */ :
 		if NodeUtil_IsLhsByDestructuring(n) {
-			this_.priv_MustBeReachingVariableDef_addToDefIfLocal_3902(n.GetString(), func() pkg_rhino.Node {
+			this_.priv_MustBeReachingVariableDef_addToDefIfLocal_3908(n.GetString(), func() pkg_rhino.Node {
 				if conditional {
 					return pkg_rhino.Node(0)
 				}
@@ -412,7 +412,7 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeMu
 				iifeCond_1 = j2gort.CheckNotNullString(sr_16) == se_17
 			}
 			if iifeCond_1 {
-				this_.priv_MustBeReachingVariableDef_escapeParameters_3903(output)
+				this_.priv_MustBeReachingVariableDef_escapeParameters_3909(output)
 			}
 		}
 		return
@@ -421,8 +421,8 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeMu
 			if n.GetFirstChild().IsName() {
 				var name pkg_rhino.Node = n.GetFirstChild()
 				_ = name
-				this_.priv_MustBeReachingVariableDef_computeMustDef_3901(name.GetNext(), cfgNode, output, conditional)
-				this_.priv_MustBeReachingVariableDef_addToDefIfLocal_3902(name.GetString(), func() pkg_rhino.Node {
+				this_.priv_MustBeReachingVariableDef_computeMustDef_3907(name.GetNext(), cfgNode, output, conditional)
+				this_.priv_MustBeReachingVariableDef_addToDefIfLocal_3908(name.GetString(), func() pkg_rhino.Node {
 					if conditional {
 						return pkg_rhino.Node(0)
 					}
@@ -437,11 +437,11 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeMu
 					se_19 := obj.GetString()
 					return j2gort.CheckNotNullString(sr_18) == se_19
 				}() {
-					this_.priv_MustBeReachingVariableDef_escapeParameters_3903(output)
+					this_.priv_MustBeReachingVariableDef_escapeParameters_3909(output)
 				}
 			} else if n.GetFirstChild().IsDestructuringPattern() {
-				this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetSecondChild(), cfgNode, output, conditional)
-				this_.priv_MustBeReachingVariableDef_computeMustDef_3901(n.GetFirstChild(), cfgNode, output, conditional)
+				this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetSecondChild(), cfgNode, output, conditional)
+				this_.priv_MustBeReachingVariableDef_computeMustDef_3907(n.GetFirstChild(), cfgNode, output, conditional)
 				return
 			}
 		}
@@ -449,7 +449,7 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeMu
 			var target pkg_rhino.Node = n.GetFirstChild()
 			_ = target
 			if target.IsName() {
-				this_.priv_MustBeReachingVariableDef_addToDefIfLocal_3902(target.GetString(), func() pkg_rhino.Node {
+				this_.priv_MustBeReachingVariableDef_addToDefIfLocal_3908(target.GetString(), func() pkg_rhino.Node {
 					if conditional {
 						return pkg_rhino.Node(0)
 					}
@@ -462,26 +462,26 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeMu
 			var c_3 pkg_rhino.Node = n.GetFirstChild()
 			_ = c_3
 			for ; c_3 != 0; c_3 = c_3.GetNext() {
-				this_.priv_MustBeReachingVariableDef_computeMustDef_3901(c_3, cfgNode, output, conditional)
+				this_.priv_MustBeReachingVariableDef_computeMustDef_3907(c_3, cfgNode, output, conditional)
 			}
 		}
 	}
 }
 
 // Java method: MustBeReachingVariableDef.addToDefIfLocal(java.lang.String name, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node node, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node rValue, com.google.javascript.jscomp.MustBeReachingVariableDef.MustDef input)
-func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_addToDefIfLocal_3902(name string, node pkg_rhino.Node, rValue pkg_rhino.Node, input *MustBeReachingVariableDef_MustDef) {
+func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_addToDefIfLocal_3908(name string, node pkg_rhino.Node, rValue pkg_rhino.Node, input *MustBeReachingVariableDef_MustDef) {
 	_ = name
 	_ = node
 	_ = rValue
 	_ = input
-	var varIdx int32 = this_.priv_MustBeReachingVariableDef_lookupVarIndex_3899(name)
+	var varIdx int32 = this_.priv_MustBeReachingVariableDef_lookupVarIndex_3905(name)
 	_ = varIdx
 	if varIdx < int32(0) {
 		return
 	}
 	var var_ *Var = this_.vars[varIdx]
 	_ = var_
-	var def *MustBeReachingVariableDef_MustDef = this_.priv_MustBeReachingVariableDef_writableFlowOutput_3900(input)
+	var def *MustBeReachingVariableDef_MustDef = this_.priv_MustBeReachingVariableDef_writableFlowOutput_3906(input)
 	_ = def
 	var defs []*MustBeReachingVariableDef_Definition = def.reachingDef
 	_ = defs
@@ -519,7 +519,7 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_addToDefI
 			var definition *MustBeReachingVariableDef_Definition = &val_24
 			_ = definition
 			if rValue != 0 {
-				this_.priv_MustBeReachingVariableDef_computeDependence_3904(definition, rValue)
+				this_.priv_MustBeReachingVariableDef_computeDependence_3910(definition, rValue)
 			}
 			{
 				a_25 := defs
@@ -531,9 +531,9 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_addToDefI
 }
 
 // Java method: MustBeReachingVariableDef.escapeParameters(com.google.javascript.jscomp.MustBeReachingVariableDef.MustDef input)
-func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_escapeParameters_3903(input *MustBeReachingVariableDef_MustDef) {
+func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_escapeParameters_3909(input *MustBeReachingVariableDef_MustDef) {
 	_ = input
-	var output *MustBeReachingVariableDef_MustDef = this_.priv_MustBeReachingVariableDef_writableFlowOutput_3900(input)
+	var output *MustBeReachingVariableDef_MustDef = this_.priv_MustBeReachingVariableDef_writableFlowOutput_3906(input)
 	_ = output
 	var defs []*MustBeReachingVariableDef_Definition = output.reachingDef
 	_ = defs
@@ -575,7 +575,7 @@ func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_escapePar
 }
 
 // Java method: MustBeReachingVariableDef.computeDependence(com.google.javascript.jscomp.MustBeReachingVariableDef.Definition def, com.google.javascript.rhino.Node rValue)
-func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeDependence_3904(def *MustBeReachingVariableDef_Definition, rValue pkg_rhino.Node) {
+func (this_ *MustBeReachingVariableDef) priv_MustBeReachingVariableDef_computeDependence_3910(def *MustBeReachingVariableDef_Definition, rValue pkg_rhino.Node) {
 	_ = def
 	_ = rValue
 	var prevTarget *MustBeReachingVariableDef_Definition = this_.currentDepTarget
@@ -596,7 +596,7 @@ func (this_ *MustBeReachingVariableDef) GetDef(name string, useNode pkg_rhino.No
 	if !(this_.GetCfg().HasNode(useNode)) {
 		j2gort.CheckArgument(false)
 	}
-	var varIdx int32 = this_.priv_MustBeReachingVariableDef_lookupVarIndex_3899(name)
+	var varIdx int32 = this_.priv_MustBeReachingVariableDef_lookupVarIndex_3905(name)
 	_ = varIdx
 	if varIdx < int32(0) {
 		return nil
@@ -1206,7 +1206,7 @@ func (this_ *MustBeReachingVariableDef__Anon_63) Visit_3(t *NodeTraversal, n pkg
 	_ = n
 	_ = parent
 	if n.IsName() {
-		var idx int32 = this_.outer_.priv_MustBeReachingVariableDef_lookupVarIndex_3899(n.GetString())
+		var idx int32 = this_.outer_.priv_MustBeReachingVariableDef_lookupVarIndex_3905(n.GetString())
 		_ = idx
 		var target *MustBeReachingVariableDef_Definition = this_.outer_.currentDepTarget
 		_ = target

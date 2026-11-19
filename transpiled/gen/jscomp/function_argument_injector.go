@@ -114,11 +114,11 @@ func (this_ *FunctionArgumentInjector) Inject_4_AbstractCompiler_Node_Node_Funct
 	_ = node
 	_ = parent
 	_ = replacements
-	return this_.priv_FunctionArgumentInjector_inject_2878(compiler, node, parent, replacements, true)
+	return this_.priv_FunctionArgumentInjector_inject_2881(compiler, node, parent, replacements, true)
 }
 
 // Java method: FunctionArgumentInjector.inject(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.rhino.Node node, com.google.javascript.rhino.Node parent, com.google.javascript.jscomp.FunctionArgumentInjector.ParamArgList replacements, boolean replaceThis)
-func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_inject_2878(compiler AbstractCompiler, node pkg_rhino.Node, parent pkg_rhino.Node, replacements *FunctionArgumentInjector_ParamArgList, replaceThis bool) pkg_rhino.Node {
+func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_inject_2881(compiler AbstractCompiler, node pkg_rhino.Node, parent pkg_rhino.Node, replacements *FunctionArgumentInjector_ParamArgList, replaceThis bool) pkg_rhino.Node {
 	_ = compiler
 	_ = node
 	_ = parent
@@ -156,11 +156,11 @@ func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_inject_2878
 		var key pkg_rhino.Node = node.GetFirstChild()
 		_ = key
 		if key != 0 {
-			key = this_.priv_FunctionArgumentInjector_inject_2878(compiler, key, node, replacements, replaceThis)
+			key = this_.priv_FunctionArgumentInjector_inject_2881(compiler, key, node, replacements, replaceThis)
 			var value pkg_rhino.Node = key.GetNext()
 			_ = value
 			if value != 0 {
-				value = this_.priv_FunctionArgumentInjector_inject_2878(compiler, value, node, replacements, false)
+				value = this_.priv_FunctionArgumentInjector_inject_2881(compiler, value, node, replacements, false)
 			}
 		}
 		return node
@@ -169,7 +169,7 @@ func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_inject_2878
 		var c pkg_rhino.Node = node.GetFirstChild()
 		_ = c
 		for ; c != 0; c = c.GetNext() {
-			c = this_.priv_FunctionArgumentInjector_inject_2878(compiler, c, node, replacements, replaceThis)
+			c = this_.priv_FunctionArgumentInjector_inject_2881(compiler, c, node, replacements, replaceThis)
 		}
 	}
 	return node
@@ -181,11 +181,11 @@ func (this_ *FunctionArgumentInjector) Inject_4_AbstractCompiler_Node_Node_Ext_j
 	_ = node
 	_ = parent
 	_ = replacements
-	return this_.priv_FunctionArgumentInjector_inject_2880(compiler, node, parent, replacements, true)
+	return this_.priv_FunctionArgumentInjector_inject_2883(compiler, node, parent, replacements, true)
 }
 
 // Java method: FunctionArgumentInjector.inject(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.rhino.Node node, com.google.javascript.rhino.Node parent, java.util.Map<java.lang.String,com.google.javascript.rhino.Node> replacements, boolean replaceThis)
-func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_inject_2880(compiler AbstractCompiler, node pkg_rhino.Node, parent pkg_rhino.Node, replacements j2gort.Ext_java_util_Map, replaceThis bool) pkg_rhino.Node {
+func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_inject_2883(compiler AbstractCompiler, node pkg_rhino.Node, parent pkg_rhino.Node, replacements j2gort.Ext_java_util_Map, replaceThis bool) pkg_rhino.Node {
 	_ = compiler
 	_ = node
 	_ = parent
@@ -223,11 +223,11 @@ func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_inject_2880
 		var key pkg_rhino.Node = node.GetFirstChild()
 		_ = key
 		if key != 0 {
-			key = this_.priv_FunctionArgumentInjector_inject_2880(compiler, key, node, replacements, replaceThis)
+			key = this_.priv_FunctionArgumentInjector_inject_2883(compiler, key, node, replacements, replaceThis)
 			var value pkg_rhino.Node = key.GetNext()
 			_ = value
 			if value != 0 {
-				value = this_.priv_FunctionArgumentInjector_inject_2880(compiler, value, node, replacements, false)
+				value = this_.priv_FunctionArgumentInjector_inject_2883(compiler, value, node, replacements, false)
 			}
 		}
 		return node
@@ -236,7 +236,7 @@ func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_inject_2880
 		var c pkg_rhino.Node = node.GetFirstChild()
 		_ = c
 		for ; c != 0; c = c.GetNext() {
-			c = this_.priv_FunctionArgumentInjector_inject_2880(compiler, c, node, replacements, replaceThis)
+			c = this_.priv_FunctionArgumentInjector_inject_2883(compiler, c, node, replacements, replaceThis)
 		}
 	}
 	return node
@@ -251,7 +251,7 @@ func (this_ *FunctionArgumentInjector) GetFunctionCallParameterMap(fnNode pkg_rh
 	InitFunctionArgumentInjector_ParamArgList(&val_1)
 	var argMap *FunctionArgumentInjector_ParamArgList = &val_1
 	_ = argMap
-	this_.priv_FunctionArgumentInjector_populateFunctionCallParameterMap_2884(argMap, fnNode, callNode, safeNameIdSupplier)
+	this_.priv_FunctionArgumentInjector_populateFunctionCallParameterMap_2887(argMap, fnNode, callNode, safeNameIdSupplier)
 	return argMap
 }
 
@@ -272,7 +272,7 @@ func (this_ *FunctionArgumentInjector) AcquireFunctionCallParameterMap(fnNode pk
 	} else {
 		argMap = NewFunctionArgumentInjector_ParamArgList()
 	}
-	this_.priv_FunctionArgumentInjector_populateFunctionCallParameterMap_2884(argMap, fnNode, callNode, safeNameIdSupplier)
+	this_.priv_FunctionArgumentInjector_populateFunctionCallParameterMap_2887(argMap, fnNode, callNode, safeNameIdSupplier)
 	return argMap
 }
 
@@ -286,7 +286,7 @@ func (this_ *FunctionArgumentInjector) ReleaseParamArgList(argMap *FunctionArgum
 }
 
 // Java method: FunctionArgumentInjector.populateFunctionCallParameterMap(com.google.javascript.jscomp.FunctionArgumentInjector.ParamArgList argMap, com.google.javascript.rhino.Node fnNode, com.google.javascript.rhino.Node callNode, java.util.function.Supplier<java.lang.String> safeNameIdSupplier)
-func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_populateFunctionCallParameterMap_2884(argMap *FunctionArgumentInjector_ParamArgList, fnNode pkg_rhino.Node, callNode pkg_rhino.Node, safeNameIdSupplier j2gort.Ext_java_util_function_Supplier) {
+func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_populateFunctionCallParameterMap_2887(argMap *FunctionArgumentInjector_ParamArgList, fnNode pkg_rhino.Node, callNode pkg_rhino.Node, safeNameIdSupplier j2gort.Ext_java_util_function_Supplier) {
 	_ = argMap
 	_ = fnNode
 	_ = callNode
@@ -459,10 +459,10 @@ func (this_ *FunctionArgumentInjector) FindModifiedParameters(fnNode pkg_rhino.N
 	if paramCount == int32(0) {
 		return j2gort.Ext_com_google_common_collect_ImmutableSet_Of_0()
 	}
-	var unsafe *j2gort.Ext_java_util_LinkedHashSet = FunctionArgumentInjector_CollectModifiedParameters(fnNode.GetLastChild(), p0, p1, p2, p3, moreParams, paramCount, false, nil)
+	var unsafe *j2gort.OrderedSet[string] = ordSet_FunctionArgumentInjector_CollectModifiedParameters(fnNode.GetLastChild(), p0, p1, p2, p3, moreParams, paramCount, false, nil)
 	_ = unsafe
 	if unsafe != nil {
-		return j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](unsafe))
+		return unsafe.ToImmutableSet()
 	} else {
 		return j2gort.Ext_com_google_common_collect_ImmutableSet_Of_0()
 	}
@@ -494,7 +494,7 @@ func FunctionArgumentInjector_MatchesParameterName(name string, p0 string, p1 st
 }
 
 // Java static method: FunctionArgumentInjector.collectModifiedParameters(com.google.javascript.rhino.Node n, java.lang.@org.jspecify.annotations.Nullable String p0, java.lang.@org.jspecify.annotations.Nullable String p1, java.lang.@org.jspecify.annotations.Nullable String p2, java.lang.@org.jspecify.annotations.Nullable String p3, java.lang.String @org.jspecify.annotations.Nullable [] moreParams, int paramCount, boolean inInnerClosure, java.util.@org.jspecify.annotations.Nullable LinkedHashSet<java.lang.String> unsafe)
-func FunctionArgumentInjector_CollectModifiedParameters(n pkg_rhino.Node, p0 string, p1 string, p2 string, p3 string, moreParams []string, paramCount int32, inInnerClosure bool, unsafe *j2gort.Ext_java_util_LinkedHashSet) *j2gort.Ext_java_util_LinkedHashSet {
+func ordSet_FunctionArgumentInjector_CollectModifiedParameters(n pkg_rhino.Node, p0 string, p1 string, p2 string, p3 string, moreParams []string, paramCount int32, inInnerClosure bool, unsafe *j2gort.OrderedSet[string]) *j2gort.OrderedSet[string] {
 	clinit_FunctionArgumentInjector()
 	_ = n
 	_ = p0
@@ -513,16 +513,16 @@ func FunctionArgumentInjector_CollectModifiedParameters(n pkg_rhino.Node, p0 str
 		_ = name
 		if FunctionArgumentInjector_MatchesParameterName(name, p0, p1, p2, p3, moreParams, paramCount) && (inInnerClosure || FunctionArgumentInjector_CanNameValueChange(n)) {
 			if unsafe == nil {
-				unsafe = j2gort.NewExt_java_util_LinkedHashSet()
+				unsafe = &j2gort.OrderedSet[string]{}
 			}
-			j2gort.SetAddStr(unsafe, name)
+			unsafe.Add(name)
 		}
 	}
 	{
 		var c pkg_rhino.Node = n.GetFirstChild()
 		_ = c
 		for ; c != 0; c = c.GetNext() {
-			unsafe = FunctionArgumentInjector_CollectModifiedParameters(c, p0, p1, p2, p3, moreParams, paramCount, inInnerClosure, unsafe)
+			unsafe = ordSet_FunctionArgumentInjector_CollectModifiedParameters(c, p0, p1, p2, p3, moreParams, paramCount, inInnerClosure, unsafe)
 		}
 	}
 	return unsafe
@@ -570,11 +570,11 @@ func (this_ *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(compiler 
 	_ = implicitThis
 	var hasMinimalParameters bool = (implicitThis && (argCount <= int32(2)))
 	_ = hasMinimalParameters
-	var collector *FunctionArgumentInjector_ReferencedAfterSideEffect = this_.priv_FunctionArgumentInjector_obtainCollector_2889(argMap, block)
+	var collector *FunctionArgumentInjector_ReferencedAfterSideEffect = this_.priv_FunctionArgumentInjector_obtainCollector_2892(argMap, block)
 	_ = collector
 	func() {
 		defer func() {
-			this_.priv_FunctionArgumentInjector_releaseCollector_2890(collector)
+			this_.priv_FunctionArgumentInjector_releaseCollector_2893(collector)
 		}()
 		{
 			var i int32 = int32(0)
@@ -685,7 +685,7 @@ func (this_ *FunctionArgumentInjector) MayHaveConditionalCode(n pkg_rhino.Node) 
 }
 
 // Java method: FunctionArgumentInjector.obtainCollector(com.google.javascript.jscomp.FunctionArgumentInjector.ParamArgList parameters, com.google.javascript.rhino.Node root)
-func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_obtainCollector_2889(parameters *FunctionArgumentInjector_ParamArgList, root pkg_rhino.Node) *FunctionArgumentInjector_ReferencedAfterSideEffect {
+func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_obtainCollector_2892(parameters *FunctionArgumentInjector_ParamArgList, root pkg_rhino.Node) *FunctionArgumentInjector_ReferencedAfterSideEffect {
 	_ = parameters
 	_ = root
 	var extraLocals *j2gort.Ext_java_util_LinkedHashSet = FunctionArgumentInjector_GatherLocalNames(root, nil)
@@ -708,7 +708,7 @@ func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_obtainColle
 }
 
 // Java method: FunctionArgumentInjector.releaseCollector(com.google.javascript.jscomp.FunctionArgumentInjector.ReferencedAfterSideEffect collector)
-func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_releaseCollector_2890(collector *FunctionArgumentInjector_ReferencedAfterSideEffect) {
+func (this_ *FunctionArgumentInjector) priv_FunctionArgumentInjector_releaseCollector_2893(collector *FunctionArgumentInjector_ReferencedAfterSideEffect) {
 	_ = collector
 	collector.ClearRefs()
 	if collector == this_.reusableCollector {
@@ -848,7 +848,7 @@ func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) HasNamesReferen
 // Java method: ReferencedAfterSideEffect.traverse(com.google.javascript.rhino.Node node)
 func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) Traverse(node pkg_rhino.Node) {
 	_ = node
-	if this_.priv_ReferencedAfterSideEffect_shouldTraverseChildren_2896(node) {
+	if this_.priv_ReferencedAfterSideEffect_shouldTraverseChildren_2899(node) {
 		{
 			var c pkg_rhino.Node = node.GetFirstChild()
 			_ = c
@@ -864,7 +864,7 @@ func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) Traverse(node p
 }
 
 // Java method: ReferencedAfterSideEffect.shouldTraverseChildren(com.google.javascript.rhino.Node node)
-func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) priv_ReferencedAfterSideEffect_shouldTraverseChildren_2896(node pkg_rhino.Node) bool {
+func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) priv_ReferencedAfterSideEffect_shouldTraverseChildren_2899(node pkg_rhino.Node) bool {
 	_ = node
 	if NodeUtil_IsLoopStructure(node) {
 		this_.loopsEntered = this_.loopsEntered + 1
@@ -878,7 +878,7 @@ func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) InLoop() bool {
 }
 
 // Java method: ReferencedAfterSideEffect.recordReferenced(java.lang.String name)
-func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) priv_ReferencedAfterSideEffect_recordReferenced_2898(name string) {
+func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) priv_ReferencedAfterSideEffect_recordReferenced_2901(name string) {
 	_ = name
 	if this_.parametersReferenced == nil {
 		this_.parametersReferenced = &j2gort.OrderedSet[string]{}
@@ -906,7 +906,7 @@ func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) Visit(n pkg_rhi
 			this_.parametersReferenced.Clear()
 		}
 	}
-	if !(this_.sideEffectSeen) && this_.priv_ReferencedAfterSideEffect_hasNonLocalSideEffect_2900(n) {
+	if !(this_.sideEffectSeen) && this_.priv_ReferencedAfterSideEffect_hasNonLocalSideEffect_2903(n) {
 		this_.sideEffectSeen = true
 	}
 	if this_.InLoop() || this_.sideEffectSeen {
@@ -914,16 +914,16 @@ func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) Visit(n pkg_rhi
 			var name_2 string = n.GetString()
 			_ = name_2
 			if this_.parameters.ContainsName(name_2) {
-				this_.priv_ReferencedAfterSideEffect_recordReferenced_2898(name_2)
+				this_.priv_ReferencedAfterSideEffect_recordReferenced_2901(name_2)
 			}
 		} else if n.IsThis() {
-			this_.priv_ReferencedAfterSideEffect_recordReferenced_2898("this")
+			this_.priv_ReferencedAfterSideEffect_recordReferenced_2901("this")
 		}
 	}
 }
 
 // Java method: ReferencedAfterSideEffect.hasNonLocalSideEffect(com.google.javascript.rhino.Node n)
-func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) priv_ReferencedAfterSideEffect_hasNonLocalSideEffect_2900(n pkg_rhino.Node) bool {
+func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) priv_ReferencedAfterSideEffect_hasNonLocalSideEffect_2903(n pkg_rhino.Node) bool {
 	_ = n
 	var sideEffect bool = false
 	_ = sideEffect
@@ -932,7 +932,7 @@ func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) priv_Referenced
 	if (NodeUtil_IsAssignmentOp(n) || (type_ == pkg_rhino.StaticGet_Token_INC())) || (type_ == pkg_rhino.StaticGet_Token_DEC()) {
 		var lhs pkg_rhino.Node = n.GetFirstChild()
 		_ = lhs
-		if !(this_.priv_ReferencedAfterSideEffect_isLocalName_2901(lhs)) {
+		if !(this_.priv_ReferencedAfterSideEffect_isLocalName_2904(lhs)) {
 			sideEffect = true
 		}
 	} else if type_ == pkg_rhino.StaticGet_Token_CALL() {
@@ -946,7 +946,7 @@ func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) priv_Referenced
 }
 
 // Java method: ReferencedAfterSideEffect.isLocalName(com.google.javascript.rhino.Node node)
-func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) priv_ReferencedAfterSideEffect_isLocalName_2901(node pkg_rhino.Node) bool {
+func (this_ *FunctionArgumentInjector_ReferencedAfterSideEffect) priv_ReferencedAfterSideEffect_isLocalName_2904(node pkg_rhino.Node) bool {
 	_ = node
 	if node.IsName() {
 		var name string = node.GetString()
@@ -1394,4 +1394,37 @@ func (this_ *FunctionArgumentInjector_ParamArgList) GetArg(name string) pkg_rhin
 		}
 	}
 	return pkg_rhino.Node(0)
+}
+func FunctionArgumentInjector_CollectModifiedParameters(n pkg_rhino.Node, p0 string, p1 string, p2 string, p3 string, moreParams []string, paramCount int32, inInnerClosure bool, unsafe *j2gort.Ext_java_util_LinkedHashSet) *j2gort.Ext_java_util_LinkedHashSet {
+	clinit_FunctionArgumentInjector()
+	_ = n
+	_ = p0
+	_ = p1
+	_ = p2
+	_ = p3
+	_ = moreParams
+	_ = paramCount
+	_ = inInnerClosure
+	_ = unsafe
+	if NodeUtil_IsFunctionOrNonStaticClassFieldInitializer(n) {
+		inInnerClosure = true
+	}
+	if n.IsName() {
+		var name string = n.GetString()
+		_ = name
+		if FunctionArgumentInjector_MatchesParameterName(name, p0, p1, p2, p3, moreParams, paramCount) && (inInnerClosure || FunctionArgumentInjector_CanNameValueChange(n)) {
+			if unsafe == nil {
+				unsafe = j2gort.NewExt_java_util_LinkedHashSet()
+			}
+			j2gort.SetAddStr(unsafe, name)
+		}
+	}
+	{
+		var c pkg_rhino.Node = n.GetFirstChild()
+		_ = c
+		for ; c != 0; c = c.GetNext() {
+			unsafe = FunctionArgumentInjector_CollectModifiedParameters(c, p0, p1, p2, p3, moreParams, paramCount, inInnerClosure, unsafe)
+		}
+	}
+	return unsafe
 }

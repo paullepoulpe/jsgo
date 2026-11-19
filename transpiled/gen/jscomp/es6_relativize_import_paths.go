@@ -140,10 +140,10 @@ func (this_ *Es6RelativizeImportPaths_Rewriter) ShouldTraverse_3(nodeTraversal *
 	case int32(89) /* Token.ROOT */, int32(123) /* Token.MODULE_BODY */, int32(94) /* Token.SCRIPT */ :
 		return true
 	case int32(116) /* Token.IMPORT */ :
-		this_.priv_Rewriter_visitImport_2551(nodeTraversal, n)
+		this_.priv_Rewriter_visitImport_2554(nodeTraversal, n)
 		return false
 	case int32(120) /* Token.EXPORT */ :
-		this_.priv_Rewriter_visitExport_2552(nodeTraversal, n)
+		this_.priv_Rewriter_visitExport_2555(nodeTraversal, n)
 		return false
 	default:
 		return false
@@ -152,7 +152,7 @@ func (this_ *Es6RelativizeImportPaths_Rewriter) ShouldTraverse_3(nodeTraversal *
 }
 
 // Java method: Rewriter.visitImport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node importDecl)
-func (this_ *Es6RelativizeImportPaths_Rewriter) priv_Rewriter_visitImport_2551(t *NodeTraversal, importDecl pkg_rhino.Node) {
+func (this_ *Es6RelativizeImportPaths_Rewriter) priv_Rewriter_visitImport_2554(t *NodeTraversal, importDecl pkg_rhino.Node) {
 	_ = t
 	_ = importDecl
 	var specifierNode pkg_rhino.Node = importDecl.GetLastChild()
@@ -228,11 +228,11 @@ func (this_ *Es6RelativizeImportPaths_Rewriter) priv_Rewriter_visitImport_2551(t
 }
 
 // Java method: Rewriter.visitExport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *Es6RelativizeImportPaths_Rewriter) priv_Rewriter_visitExport_2552(t *NodeTraversal, export pkg_rhino.Node) {
+func (this_ *Es6RelativizeImportPaths_Rewriter) priv_Rewriter_visitExport_2555(t *NodeTraversal, export pkg_rhino.Node) {
 	_ = t
 	_ = export
 	if export.HasTwoChildren() {
-		this_.priv_Rewriter_visitImport_2551(t, export)
+		this_.priv_Rewriter_visitImport_2554(t, export)
 	}
 }
 func (*Es6RelativizeImportPaths_Rewriter) NoOpVisit_()                 {}

@@ -120,18 +120,18 @@ func (this_ *PolymerPass) Visit_3(traversal *NodeTraversal, node pkg_rhino.Node,
 	_ = parent
 	if PolymerPassStaticUtils_IsPolymerCall(node) {
 		if this_.polymerElementExterns != 0 {
-			this_.priv_PolymerPass_rewritePolymer1ClassDefinition_4400(node, parent, traversal)
+			this_.priv_PolymerPass_rewritePolymer1ClassDefinition_4406(node, parent, traversal)
 		} else if !(this_.warnedPolymer1ExternsMissing) {
 			this_.compiler.Report_1(JSError_Make_3(node, StaticGet_PolymerPassErrors_POLYMER_MISSING_EXTERNS(), []string{}))
 			this_.warnedPolymer1ExternsMissing = true
 		}
 	} else if PolymerPassStaticUtils_IsPolymerClass(node) {
-		this_.priv_PolymerPass_rewritePolymer2ClassDefinition_4401(node, traversal)
+		this_.priv_PolymerPass_rewritePolymer2ClassDefinition_4407(node, traversal)
 	}
 }
 
 // Java method: PolymerPass.getModuleMetadata(com.google.javascript.jscomp.NodeTraversal traversal)
-func (this_ *PolymerPass) priv_PolymerPass_getModuleMetadata_4399(traversal *NodeTraversal) ModuleMetadataMap_ModuleMetadata {
+func (this_ *PolymerPass) priv_PolymerPass_getModuleMetadata_4405(traversal *NodeTraversal) ModuleMetadataMap_ModuleMetadata {
 	_ = traversal
 	var script pkg_rhino.Node = traversal.GetCurrentScript()
 	_ = script
@@ -147,7 +147,7 @@ func (this_ *PolymerPass) priv_PolymerPass_getModuleMetadata_4399(traversal *Nod
 }
 
 // Java method: PolymerPass.rewritePolymer1ClassDefinition(com.google.javascript.rhino.Node node, com.google.javascript.rhino.Node parent, com.google.javascript.jscomp.NodeTraversal traversal)
-func (this_ *PolymerPass) priv_PolymerPass_rewritePolymer1ClassDefinition_4400(node pkg_rhino.Node, parent pkg_rhino.Node, traversal *NodeTraversal) {
+func (this_ *PolymerPass) priv_PolymerPass_rewritePolymer1ClassDefinition_4406(node pkg_rhino.Node, parent pkg_rhino.Node, traversal *NodeTraversal) {
 	_ = node
 	_ = parent
 	_ = traversal
@@ -163,14 +163,14 @@ func (this_ *PolymerPass) priv_PolymerPass_rewritePolymer1ClassDefinition_4400(n
 		traversal.ReportCodeChange_0()
 	}
 	if NodeUtil_IsNameDeclaration(grandparent) && grandparent.GetParent().IsExport() {
-		this_.priv_PolymerPass_normalizePolymerExport_4402(grandparent, grandparent.GetParent())
+		this_.priv_PolymerPass_normalizePolymerExport_4408(grandparent, grandparent.GetParent())
 		traversal.ReportCodeChange_0()
 	}
-	var def *PolymerClassDefinition = PolymerClassDefinition_ExtractFromCallNode(node, this_.compiler, this_.priv_PolymerPass_getModuleMetadata_4399(traversal), this_.behaviorExtractor)
+	var def *PolymerClassDefinition = PolymerClassDefinition_ExtractFromCallNode(node, this_.compiler, this_.priv_PolymerPass_getModuleMetadata_4405(traversal), this_.behaviorExtractor)
 	_ = def
 	if def != nil {
 		if def.nativeBaseElement != j2gort.NullString {
-			this_.priv_PolymerPass_appendPolymerElementExterns_4403(def)
+			this_.priv_PolymerPass_appendPolymerElementExterns_4409(def)
 		}
 		clinit_PolymerClassRewriter()
 		var val_2 PolymerClassRewriter
@@ -182,7 +182,7 @@ func (this_ *PolymerPass) priv_PolymerPass_rewritePolymer1ClassDefinition_4400(n
 }
 
 // Java method: PolymerPass.rewritePolymer2ClassDefinition(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.NodeTraversal traversal)
-func (this_ *PolymerPass) priv_PolymerPass_rewritePolymer2ClassDefinition_4401(node pkg_rhino.Node, traversal *NodeTraversal) {
+func (this_ *PolymerPass) priv_PolymerPass_rewritePolymer2ClassDefinition_4407(node pkg_rhino.Node, traversal *NodeTraversal) {
 	_ = node
 	_ = traversal
 	var def *PolymerClassDefinition = PolymerClassDefinition_ExtractFromClassNode(node, this_.compiler)
@@ -204,7 +204,7 @@ func (this_ *PolymerPass) priv_PolymerPass_rewritePolymer2ClassDefinition_4401(n
 }
 
 // Java method: PolymerPass.normalizePolymerExport(com.google.javascript.rhino.Node nameDecl, com.google.javascript.rhino.Node export)
-func (this_ *PolymerPass) priv_PolymerPass_normalizePolymerExport_4402(nameDecl pkg_rhino.Node, export pkg_rhino.Node) {
+func (this_ *PolymerPass) priv_PolymerPass_normalizePolymerExport_4408(nameDecl pkg_rhino.Node, export pkg_rhino.Node) {
 	_ = nameDecl
 	_ = export
 	var name pkg_rhino.Node = nameDecl.GetFirstChild()
@@ -218,7 +218,7 @@ func (this_ *PolymerPass) priv_PolymerPass_normalizePolymerExport_4402(nameDecl 
 }
 
 // Java method: PolymerPass.appendPolymerElementExterns(com.google.javascript.jscomp.PolymerClassDefinition def)
-func (this_ *PolymerPass) priv_PolymerPass_appendPolymerElementExterns_4403(def *PolymerClassDefinition) {
+func (this_ *PolymerPass) priv_PolymerPass_appendPolymerElementExterns_4409(def *PolymerClassDefinition) {
 	_ = def
 	if !(this_.nativeExternsAdded.Add(def.nativeBaseElement)) {
 		return

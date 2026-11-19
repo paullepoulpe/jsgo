@@ -137,12 +137,12 @@ func (this_ *CheckPrimitiveAsObject) Visit_3(t *NodeTraversal, n pkg_rhino.Node,
 	_ = t
 	_ = n
 	_ = parent
-	this_.priv_CheckPrimitiveAsObject_checkForPrimitiveObjectConstructor_6547(t, n)
-	this_.priv_CheckPrimitiveAsObject_checkForPrimitiveObjectDeclaration_6545(t, n)
+	this_.priv_CheckPrimitiveAsObject_checkForPrimitiveObjectConstructor_6552(t, n)
+	this_.priv_CheckPrimitiveAsObject_checkForPrimitiveObjectDeclaration_6550(t, n)
 }
 
 // Java method: CheckPrimitiveAsObject.checkForPrimitiveObjectDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckPrimitiveAsObject) priv_CheckPrimitiveAsObject_checkForPrimitiveObjectDeclaration_6545(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckPrimitiveAsObject) priv_CheckPrimitiveAsObject_checkForPrimitiveObjectDeclaration_6550(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	var jsDocInfo *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
@@ -154,14 +154,14 @@ func (this_ *CheckPrimitiveAsObject) priv_CheckPrimitiveAsObject_checkForPrimiti
 			var count int32 = jsDocInfo.GetTypeNodeCount()
 			_ = count
 			for ; i < count; i = i + 1 {
-				this_.priv_CheckPrimitiveAsObject_checkTypeNodeForPrimitiveObjectDeclaration_6546(t, jsDocInfo.GetTypeNodeAt(i))
+				this_.priv_CheckPrimitiveAsObject_checkTypeNodeForPrimitiveObjectDeclaration_6551(t, jsDocInfo.GetTypeNodeAt(i))
 			}
 		}
 	}
 }
 
 // Java method: CheckPrimitiveAsObject.checkTypeNodeForPrimitiveObjectDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node typeRoot)
-func (this_ *CheckPrimitiveAsObject) priv_CheckPrimitiveAsObject_checkTypeNodeForPrimitiveObjectDeclaration_6546(t *NodeTraversal, typeRoot pkg_rhino.Node) {
+func (this_ *CheckPrimitiveAsObject) priv_CheckPrimitiveAsObject_checkTypeNodeForPrimitiveObjectDeclaration_6551(t *NodeTraversal, typeRoot pkg_rhino.Node) {
 	_ = t
 	_ = typeRoot
 	NodeUtil_VisitPreOrder_2(typeRoot, NewLambda_NodeUtil_Visitor(func(node pkg_rhino.Node) {
@@ -177,7 +177,7 @@ func (this_ *CheckPrimitiveAsObject) priv_CheckPrimitiveAsObject_checkTypeNodeFo
 }
 
 // Java method: CheckPrimitiveAsObject.checkForPrimitiveObjectConstructor(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckPrimitiveAsObject) priv_CheckPrimitiveAsObject_checkForPrimitiveObjectConstructor_6547(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckPrimitiveAsObject) priv_CheckPrimitiveAsObject_checkForPrimitiveObjectConstructor_6552(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if n.IsNew() {

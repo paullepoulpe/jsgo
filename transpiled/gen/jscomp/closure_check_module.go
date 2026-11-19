@@ -517,7 +517,7 @@ func (this_ *ClosureCheckModule) Visit_4(t *NodeTraversal, n pkg_rhino.Node, cur
 	var jsDoc *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 	_ = jsDoc
 	if jsDoc != nil {
-		this_.priv_ClosureCheckModule_checkJSDoc_1139(t, jsDoc)
+		this_.priv_ClosureCheckModule_checkJSDoc_1140(t, jsDoc)
 	}
 	{
 		var callee pkg_rhino.Node = pkg_rhino.Node(0)
@@ -541,7 +541,7 @@ func (this_ *ClosureCheckModule) Visit_4(t *NodeTraversal, n pkg_rhino.Node, cur
 					}
 				}
 			} else if (StaticGet_ClosureCheckModule_GOOG_REQUIRE().Matches(callee) || StaticGet_ClosureCheckModule_GOOG_REQUIRE_TYPE().Matches(callee)) || StaticGet_ClosureCheckModule_GOOG_FORWARD_DECLARE().Matches(callee) {
-				this_.priv_ClosureCheckModule_checkRequireCall_1143(t, n, parent)
+				this_.priv_ClosureCheckModule_checkRequireCall_1144(t, n, parent)
 			} else if StaticGet_ClosureCheckModule_GOOG_MODULE_GET().Matches(callee) && t.InModuleHoistScope() {
 				t.Report_3(n, StaticGet_ClosurePrimitiveErrors_MODULE_USES_GOOG_MODULE_GET(), []string{})
 			} else if StaticGet_ClosureCheckModule_GOOG_MODULE_DECLARE_LEGACY_NAMESPACE().Matches(callee) {
@@ -550,7 +550,7 @@ func (this_ *ClosureCheckModule) Visit_4(t *NodeTraversal, n pkg_rhino.Node, cur
 		case int32(51) /* Token.ASSIGN */ :
 			{
 				if ClosureCheckModule_IsExportLhs(n.GetFirstChild()) {
-					this_.priv_ClosureCheckModule_checkModuleExport_1142(t, n, parent)
+					this_.priv_ClosureCheckModule_checkModuleExport_1143(t, n, parent)
 				}
 				break
 			}
@@ -584,7 +584,7 @@ func (this_ *ClosureCheckModule) Visit_4(t *NodeTraversal, n pkg_rhino.Node, cur
 				if !(parent.IsGetProp()) && n.IsQualifiedName() {
 					var node pkg_rhino.Node = n
 					_ = node
-					for this_.priv_ClosureCheckModule_checkImproperReferenceToImport_1141(t, node, node.GetQualifiedName(), func() string {
+					for this_.priv_ClosureCheckModule_checkImproperReferenceToImport_1142(t, node, node.GetQualifiedName(), func() string {
 						if node.GetParent().IsGetProp() {
 							return node.GetParent().GetString()
 						}
@@ -606,7 +606,7 @@ func (this_ *ClosureCheckModule) Visit_4(t *NodeTraversal, n pkg_rhino.Node, cur
 }
 
 // Java method: ClosureCheckModule.checkJSDoc(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.JSDocInfo jsDoc)
-func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkJSDoc_1139(t *NodeTraversal, jsDoc *pkg_rhino.JSDocInfo) {
+func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkJSDoc_1140(t *NodeTraversal, jsDoc *pkg_rhino.JSDocInfo) {
 	_ = t
 	_ = jsDoc
 	{
@@ -615,13 +615,13 @@ func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkJSDoc_1139(t *Node
 		var count int32 = jsDoc.GetTypeNodeCount()
 		_ = count
 		for ; i < count; i = i + 1 {
-			this_.priv_ClosureCheckModule_checkTypeExpression_1140(t, jsDoc.GetTypeNodeAt(i))
+			this_.priv_ClosureCheckModule_checkTypeExpression_1141(t, jsDoc.GetTypeNodeAt(i))
 		}
 	}
 }
 
 // Java method: ClosureCheckModule.checkTypeExpression(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node node)
-func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkTypeExpression_1140(t *NodeTraversal, node pkg_rhino.Node) {
+func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkTypeExpression_1141(t *NodeTraversal, node pkg_rhino.Node) {
 	_ = t
 	_ = node
 	if node.IsStringLit() {
@@ -629,7 +629,7 @@ func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkTypeExpression_114
 		_ = qname
 		var nextQnamePart string = j2gort.NullString
 		_ = nextQnamePart
-		for this_.priv_ClosureCheckModule_checkImproperReferenceToImport_1141(t, node, qname, nextQnamePart) {
+		for this_.priv_ClosureCheckModule_checkImproperReferenceToImport_1142(t, node, qname, nextQnamePart) {
 			var lastDot int32 = j2gort.JStrLastIndexOfCp(qname, int32(uint16(46)))
 			_ = lastDot
 			if lastDot < int32(0) {
@@ -643,7 +643,7 @@ func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkTypeExpression_114
 		var child pkg_rhino.Node = node.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			this_.priv_ClosureCheckModule_checkTypeExpression_1140(t, child)
+			this_.priv_ClosureCheckModule_checkTypeExpression_1141(t, child)
 		}
 	}
 }
@@ -659,7 +659,7 @@ func ClosureCheckModule_IsLocalVar(v *Var) bool {
 }
 
 // Java method: ClosureCheckModule.checkImproperReferenceToImport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, java.lang.String qname, java.lang.@org.jspecify.annotations.Nullable String nextQnamePart)
-func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkImproperReferenceToImport_1141(t *NodeTraversal, n pkg_rhino.Node, qname string, nextQnamePart string) bool {
+func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkImproperReferenceToImport_1142(t *NodeTraversal, n pkg_rhino.Node, qname string, nextQnamePart string) bool {
 	_ = t
 	_ = n
 	_ = qname
@@ -719,7 +719,7 @@ func ClosureCheckModule_IsExportLhs(lhs pkg_rhino.Node) bool {
 }
 
 // Java method: ClosureCheckModule.checkModuleExport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkModuleExport_1142(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkModuleExport_1143(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = n
 	_ = parent
@@ -770,7 +770,7 @@ func ClosureCheckModule_ExtractFirstArgumentName(callNode pkg_rhino.Node) string
 }
 
 // Java method: ClosureCheckModule.checkRequireCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node callNode, com.google.javascript.rhino.Node parent)
-func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkRequireCall_1143(t *NodeTraversal, callNode pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkRequireCall_1144(t *NodeTraversal, callNode pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = callNode
 	_ = parent
@@ -786,7 +786,7 @@ func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkRequireCall_1143(t
 		_ = key
 		this_.currentModuleInfo.importsByLongRequiredName.PutIfAbsent(key, parent)
 	case int32(32) /* Token.NAME */, int32(104) /* Token.DESTRUCTURING_LHS */ :
-		this_.priv_ClosureCheckModule_checkShortGoogRequireCall_1144(t, callNode, parent.GetParent())
+		this_.priv_ClosureCheckModule_checkShortGoogRequireCall_1145(t, callNode, parent.GetParent())
 	case int32(115) /* Token.AWAIT */ :
 		var grandParentToken pkg_rhino.Token = parent.GetParent().GetToken()
 		_ = grandParentToken
@@ -809,7 +809,7 @@ func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkRequireCall_1143(t
 				}
 				return re_5 == ae_6
 			}() {
-				this_.priv_ClosureCheckModule_checkShortGoogRequireCall_1144(t, callNode, parent.GetGrandparent())
+				this_.priv_ClosureCheckModule_checkShortGoogRequireCall_1145(t, callNode, parent.GetGrandparent())
 			}
 		}
 	default:
@@ -818,7 +818,7 @@ func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkRequireCall_1143(t
 }
 
 // Java method: ClosureCheckModule.checkShortGoogRequireCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node callNode, com.google.javascript.rhino.Node declaration)
-func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkShortGoogRequireCall_1144(t *NodeTraversal, callNode pkg_rhino.Node, declaration pkg_rhino.Node) {
+func (this_ *ClosureCheckModule) priv_ClosureCheckModule_checkShortGoogRequireCall_1145(t *NodeTraversal, callNode pkg_rhino.Node, declaration pkg_rhino.Node) {
 	_ = t
 	_ = callNode
 	_ = declaration

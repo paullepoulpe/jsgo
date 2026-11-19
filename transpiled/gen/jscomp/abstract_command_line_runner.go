@@ -302,7 +302,7 @@ func (this_ *AbstractCommandLineRunnerBase) IsInTestMode() bool {
 }
 
 // Java method: AbstractCommandLineRunner.isOutputInJson()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_isOutputInJson_137() bool {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_isOutputInJson_138() bool {
 	return ((this_.config.jsonStreamMode == StaticGet_CompilerOptions_JsonStreamMode_OUT()) || (this_.config.jsonStreamMode == StaticGet_CompilerOptions_JsonStreamMode_BOTH()))
 }
 
@@ -400,7 +400,7 @@ func (this_ *AbstractCommandLineRunnerBase) SetRunOptions(options *CompilerOptio
 	_ = options
 	var diagnosticGroups *DiagnosticGroups = this_.GetDiagnosticGroups()
 	_ = diagnosticGroups
-	if this_.config.ShouldSaveAfterStage1() || this_.config.priv_CommandLineConfig_shouldContinueCompilation_224() {
+	if this_.config.ShouldSaveAfterStage1() || this_.config.priv_CommandLineConfig_shouldContinueCompilation_225() {
 		if options.IsChecksOnly() {
 			panic(NewFlagUsageException("checks_only mode is incompatible with multi-stage compilation"))
 		}
@@ -464,10 +464,10 @@ func (this_ *AbstractCommandLineRunnerBase) SetRunOptions(options *CompilerOptio
 	options.SetCodingConvention(this_.config.codingConvention)
 	options.SetSummaryDetailLevel(this_.config.summaryDetailLevel)
 	options.SetTrustedStrings(true)
-	this_.legacyOutputCharset = this_.priv_AbstractCommandLineRunner_getLegacyOutputCharset_182()
+	this_.legacyOutputCharset = this_.priv_AbstractCommandLineRunner_getLegacyOutputCharset_183()
 	options.SetOutputCharset(this_.legacyOutputCharset)
-	this_.outputCharset2 = this_.priv_AbstractCommandLineRunner_getOutputCharset2_183()
-	this_.inputCharset = this_.priv_AbstractCommandLineRunner_getInputCharset_181()
+	this_.outputCharset2 = this_.priv_AbstractCommandLineRunner_getOutputCharset2_184()
+	this_.inputCharset = this_.priv_AbstractCommandLineRunner_getInputCharset_182()
 	if j2gort.JStrLen(this_.config.jsOutputFile) > int32(0) {
 		if this_.config.skipNormalOutputs {
 			panic(NewFlagUsageException("skip_normal_outputs and js_output_file cannot be used together."))
@@ -484,7 +484,7 @@ func (this_ *AbstractCommandLineRunnerBase) SetRunOptions(options *CompilerOptio
 	}
 	if j2gort.JStrLen(this_.config.createSourceMap) > int32(0) {
 		options.SetSourceMapOutputPath(this_.config.createSourceMap)
-	} else if this_.priv_AbstractCommandLineRunner_isOutputInJson_137() {
+	} else if this_.priv_AbstractCommandLineRunner_isOutputInJson_138() {
 		options.SetSourceMapOutputPath("%outname%")
 	}
 	options.SetSourceMapDetailLevel(this_.config.sourceMapDetailLevel)
@@ -693,7 +693,7 @@ func (this_ *AbstractCommandLineRunnerBase) ParseJsonFilesFromInputStream() j2go
 }
 
 // Java method: AbstractCommandLineRunner.createInputs(java.util.List<com.google.javascript.jscomp.AbstractCommandLineRunner.FlagEntry<com.google.javascript.jscomp.AbstractCommandLineRunner.JsSourceType>> files, boolean allowStdIn, java.util.List<com.google.javascript.jscomp.AbstractCommandLineRunner.JsChunkSpec> jsChunkSpecs)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_createInputs_151(files j2gort.Ext_java_util_List, allowStdIn bool, jsChunkSpecs j2gort.Ext_java_util_List) j2gort.Ext_java_util_List {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_createInputs_152(files j2gort.Ext_java_util_List, allowStdIn bool, jsChunkSpecs j2gort.Ext_java_util_List) j2gort.Ext_java_util_List {
 	_ = files
 	_ = allowStdIn
 	_ = jsChunkSpecs
@@ -701,7 +701,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_creat
 }
 
 // Java method: AbstractCommandLineRunner.createInputs(java.util.List<com.google.javascript.jscomp.AbstractCommandLineRunner.FlagEntry<com.google.javascript.jscomp.AbstractCommandLineRunner.JsSourceType>> files, java.util.List<com.google.javascript.jscomp.AbstractCommandLineRunner.JsonFileSpec> jsonFiles, java.util.List<com.google.javascript.jscomp.AbstractCommandLineRunner.JsChunkSpec> jsChunkSpecs)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_createInputs_152(files j2gort.Ext_java_util_List, jsonFiles j2gort.Ext_java_util_List, jsChunkSpecs j2gort.Ext_java_util_List) j2gort.Ext_java_util_List {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_createInputs_153(files j2gort.Ext_java_util_List, jsonFiles j2gort.Ext_java_util_List, jsChunkSpecs j2gort.Ext_java_util_List) j2gort.Ext_java_util_List {
 	_ = files
 	_ = jsonFiles
 	_ = jsChunkSpecs
@@ -825,7 +825,7 @@ func (this_ *AbstractCommandLineRunnerBase) CreateInputs_4(files j2gort.Ext_java
 }
 
 // Java method: AbstractCommandLineRunner.deduplicateIjsFiles(java.util.List<com.google.javascript.jscomp.AbstractCommandLineRunner.FlagEntry<com.google.javascript.jscomp.AbstractCommandLineRunner.JsSourceType>> files, java.util.List<java.lang.String> moduleRoots, boolean hasChunkSpecs)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_deduplicateIjsFiles_154(files j2gort.Ext_java_util_List, moduleRoots j2gort.Ext_java_util_List, hasChunkSpecs bool) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_deduplicateIjsFiles_155(files j2gort.Ext_java_util_List, moduleRoots j2gort.Ext_java_util_List, hasChunkSpecs bool) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = files
 	_ = moduleRoots
 	_ = hasChunkSpecs
@@ -842,7 +842,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_dedup
 			if (j2gort.Cast[AbstractCommandLineRunner_JsSourceType](file.flag) == StaticGet_AbstractCommandLineRunner_JsSourceType_JS()) || (j2gort.Cast[AbstractCommandLineRunner_JsSourceType](file.flag) == StaticGet_AbstractCommandLineRunner_JsSourceType_WEAKDEP()) {
 				var absoluteName string = file.value
 				_ = absoluteName
-				var relativeName string = this_.priv_AbstractCommandLineRunner_getModuleRootRelativeName_155(absoluteName, moduleRoots)
+				var relativeName string = this_.priv_AbstractCommandLineRunner_getModuleRootRelativeName_156(absoluteName, moduleRoots)
 				_ = relativeName
 				relativeToAbsoluteName.Put(relativeName, absoluteName)
 			}
@@ -863,7 +863,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_dedup
 				errors = append(errors, j2gort.CheckNotNullElem(JSError_Make_2(StaticGet_IjsErrors_BAD_IJS_FILE_NAME(), []string{absoluteName_2})))
 				continue
 			}
-			var relativeName_2 string = this_.priv_AbstractCommandLineRunner_getModuleRootRelativeName_155(absoluteName_2, moduleRoots)
+			var relativeName_2 string = this_.priv_AbstractCommandLineRunner_getModuleRootRelativeName_156(absoluteName_2, moduleRoots)
 			_ = relativeName_2
 			var relativeNonIjsName string = j2gort.JStrSub(relativeName_2, int32(0), (j2gort.JStrLen(relativeName_2) - j2gort.JStrLen(".i.js")))
 			_ = relativeNonIjsName
@@ -877,7 +877,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_dedup
 }
 
 // Java method: AbstractCommandLineRunner.getModuleRootRelativeName(java.lang.String filename, java.util.List<java.lang.String> moduleRoots)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getModuleRootRelativeName_155(filename string, moduleRoots j2gort.Ext_java_util_List) string {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getModuleRootRelativeName_156(filename string, moduleRoots j2gort.Ext_java_util_List) string {
 	_ = filename
 	_ = moduleRoots
 	{
@@ -894,7 +894,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getMo
 }
 
 // Java method: AbstractCommandLineRunner.createSourceInputs(java.util.List<com.google.javascript.jscomp.AbstractCommandLineRunner.JsChunkSpec> jsChunkSpecs, java.util.List<com.google.javascript.jscomp.AbstractCommandLineRunner.FlagEntry<com.google.javascript.jscomp.AbstractCommandLineRunner.JsSourceType>> files, java.util.List<com.google.javascript.jscomp.AbstractCommandLineRunner.JsonFileSpec> jsonFiles, java.util.List<java.lang.String> moduleRoots)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_createSourceInputs_156(jsChunkSpecs j2gort.Ext_java_util_List, files j2gort.Ext_java_util_List, jsonFiles j2gort.Ext_java_util_List, moduleRoots j2gort.Ext_java_util_List) j2gort.Ext_java_util_List {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_createSourceInputs_157(jsChunkSpecs j2gort.Ext_java_util_List, files j2gort.Ext_java_util_List, jsonFiles j2gort.Ext_java_util_List, moduleRoots j2gort.Ext_java_util_List) j2gort.Ext_java_util_List {
 	_ = jsChunkSpecs
 	_ = files
 	_ = jsonFiles
@@ -910,7 +910,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_creat
 		files = j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.ImmListOfPtr(NewAbstractCommandLineRunner_FlagEntry(j2gort.BoxNullableVal(StaticGet_AbstractCommandLineRunner_JsSourceType_JS()), "-")))
 	}
 	{
-		cur_29 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.priv_AbstractCommandLineRunner_deduplicateIjsFiles_154(files, moduleRoots, !(jsChunkSpecs.IsEmpty()))))
+		cur_29 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.priv_AbstractCommandLineRunner_deduplicateIjsFiles_155(files, moduleRoots, !(jsChunkSpecs.IsEmpty()))))
 		for cur_29.HasNext() {
 			rawElem_30 := cur_29.Next()
 			error_ := j2gort.CastPtr[JSError](rawElem_30)
@@ -935,11 +935,11 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_creat
 			}
 		}()
 		if jsonFiles != nil {
-			retVal_32 = this_.priv_AbstractCommandLineRunner_createInputs_152(files, jsonFiles, jsChunkSpecs)
+			retVal_32 = this_.priv_AbstractCommandLineRunner_createInputs_153(files, jsonFiles, jsChunkSpecs)
 			didRet_31 = true
 			return
 		} else {
-			retVal_32 = this_.priv_AbstractCommandLineRunner_createInputs_151(files, true, jsChunkSpecs)
+			retVal_32 = this_.priv_AbstractCommandLineRunner_createInputs_152(files, true, jsChunkSpecs)
 			didRet_31 = true
 			return
 		}
@@ -951,18 +951,15 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_creat
 }
 
 // Java method: AbstractCommandLineRunner.createExternInputs(java.util.List<java.lang.String> files)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_createExternInputs_157(files j2gort.Ext_java_util_List) j2gort.Ext_java_util_List {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_createExternInputs_158(files *[]string) j2gort.Ext_java_util_List {
 	_ = files
 	var externFiles j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList()
 	_ = externFiles
-	{
-		cur_35 := j2gort.NewIterCursor(j2gort.CheckNotNull(files))
-		for cur_35.HasNext() {
-			file := cur_35.NextStr()
-			_ = file
-			externFiles.Add_1(NewAbstractCommandLineRunner_FlagEntry(j2gort.BoxNullableVal(StaticGet_AbstractCommandLineRunner_JsSourceType_EXTERN()), file))
-		}
+	for _, file := range *files {
+		_ = file
+		externFiles.Add_1(NewAbstractCommandLineRunner_FlagEntry(j2gort.BoxNullableVal(StaticGet_AbstractCommandLineRunner_JsSourceType_EXTERN()), file))
 	}
+
 	var didRet_36 bool
 	var retVal_37 j2gort.Ext_java_util_List
 	func() {
@@ -979,7 +976,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_creat
 				}
 			}
 		}()
-		retVal_37 = this_.priv_AbstractCommandLineRunner_createInputs_151(externFiles, false, j2gort.NewExt_java_util_ArrayList())
+		retVal_37 = this_.priv_AbstractCommandLineRunner_createInputs_152(externFiles, false, j2gort.NewExt_java_util_ArrayList())
 		didRet_36 = true
 		return
 	}()
@@ -1007,7 +1004,7 @@ func AbstractCommandLineRunner_CreateJsChunks(specs j2gort.Ext_java_util_List, i
 	_ = chunkNames
 	var chunksByName j2gort.Ext_java_util_Map = j2gort.NewExt_java_util_LinkedHashMap()
 	_ = chunksByName
-	var chunksFileCountMap j2gort.OrderedMap[string, *j2gort.BoxInt] = j2gort.NewOrderedMap[string, *j2gort.BoxInt]()
+	var chunksFileCountMap j2gort.OrderedMap[string, int32] = j2gort.NewOrderedMap[string, int32]()
 	_ = chunksFileCountMap
 	var numJsFilesExpected int32 = int32(0)
 	_ = numJsFilesExpected
@@ -1046,7 +1043,7 @@ func AbstractCommandLineRunner_CreateJsChunks(specs j2gort.Ext_java_util_List, i
 				numJsFilesExpected = (numJsFilesExpected + spec.numJsFiles)
 			}
 			chunkNames = j2gort.SliceInsertAt(chunkNames, int32(0), spec.name)
-			chunksFileCountMap.Put(spec.name, j2gort.ValueOfInt(spec.numJsFiles))
+			chunksFileCountMap.Put(spec.name, spec.numJsFiles)
 			j2gort.MapPutStr(chunksByName, spec.name, chunk)
 		}
 	}
@@ -1068,7 +1065,13 @@ func AbstractCommandLineRunner_CreateJsChunks(specs j2gort.Ext_java_util_List, i
 	_ = chunkIndex
 	for _, chunkName := range chunkNames {
 		_ = chunkName
-		var numJsFiles int32 = j2gort.UnboxInt(chunksFileCountMap.Get(chunkName))
+		var numJsFiles int32 = func() int32 {
+			if v_, ok_ := chunksFileCountMap.GetOk(chunkName); ok_ {
+				return v_
+			}
+			j2gort.ThrowNPE()
+			return 0
+		}()
 		_ = numJsFiles
 		var chunk_2 *JSChunk = j2gort.CastPtr[JSChunk](j2gort.MapGetStr(chunksByName, chunkName))
 		_ = chunk_2
@@ -1208,7 +1211,7 @@ func (this_ *AbstractCommandLineRunnerBase) WriteChunkOutput(fileName string, ou
 	if this_.parsedChunkWrappers == nil {
 		this_.parsedChunkWrappers = AbstractCommandLineRunner_ParseChunkWrappers(this_.config.chunkWrapper, j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_Ext_java_lang_Iterable(this_.compiler.GetChunkGraph().GetAllChunks())))
 	}
-	if !(this_.priv_AbstractCommandLineRunner_isOutputInJson_137()) {
+	if !(this_.priv_AbstractCommandLineRunner_isOutputInJson_138()) {
 		AbstractCommandLineRunner_MaybeCreateDirsForPath(fileName)
 	}
 	var baseName string = j2gort.NewExt_java_io_File_1_string(fileName).GetName()
@@ -1300,13 +1303,13 @@ func AbstractCommandLineRunner_MaybeCreateDirsForPath(pathPrefix string) {
 }
 
 // Java method: AbstractCommandLineRunner.createDefaultOutput()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_createDefaultOutput_164() j2gort.Ext_java_lang_Appendable {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_createDefaultOutput_165() j2gort.Ext_java_lang_Appendable {
 	var writeOutputToFile bool = !(j2gort.CheckNotNullString(this_.config.jsOutputFile) == "")
 	_ = writeOutputToFile
 	if writeOutputToFile {
-		return j2gort.AsIface[j2gort.Ext_java_lang_Appendable](this_.priv_AbstractCommandLineRunner_fileNameToLegacyOutputWriter_189(this_.config.jsOutputFile))
+		return j2gort.AsIface[j2gort.Ext_java_lang_Appendable](this_.priv_AbstractCommandLineRunner_fileNameToLegacyOutputWriter_190(this_.config.jsOutputFile))
 	} else {
-		return j2gort.AsIface[j2gort.Ext_java_lang_Appendable](this_.priv_AbstractCommandLineRunner_streamToLegacyOutputWriter_192(j2gort.AsIface[j2gort.Ext_java_io_OutputStream](this_.defaultJsOutput)))
+		return j2gort.AsIface[j2gort.Ext_java_lang_Appendable](this_.priv_AbstractCommandLineRunner_streamToLegacyOutputWriter_193(j2gort.AsIface[j2gort.Ext_java_io_OutputStream](this_.defaultJsOutput)))
 	}
 }
 
@@ -1354,7 +1357,7 @@ func (this_ *AbstractCommandLineRunnerBase) DoRun() int32 {
 	_ = externs
 	var chunks j2gort.Ext_java_util_List = nil
 	_ = chunks
-	this_.rootRelativePathsMap = this_.priv_AbstractCommandLineRunner_constructRootRelativePathsMap_209()
+	this_.rootRelativePathsMap = this_.priv_AbstractCommandLineRunner_constructRootRelativePathsMap_210()
 	var writeOutputToFile bool = !(j2gort.CheckNotNullString(this_.config.jsOutputFile) == "")
 	_ = writeOutputToFile
 	var outputFileNames []string = []string{}
@@ -1419,7 +1422,7 @@ func (this_ *AbstractCommandLineRunnerBase) DoRun() int32 {
 	options.SetDoLateLocalization(this_.config.ShouldDoLateLocalization())
 	options.SetAlwaysGatherSourceMapInfo(this_.config.ShouldAlwaysGatherSourceMapInfo())
 	this_.compiler.InitOptions(options)
-	var sources j2gort.Ext_java_util_List = this_.priv_AbstractCommandLineRunner_createSourceInputs_156(jsChunkSpecs, this_.config.mixedJsSources, jsonFiles, this_.config.moduleRoots)
+	var sources j2gort.Ext_java_util_List = this_.priv_AbstractCommandLineRunner_createSourceInputs_157(jsChunkSpecs, this_.config.mixedJsSources, jsonFiles, this_.config.moduleRoots)
 	_ = sources
 	if !(jsChunkSpecs.IsEmpty()) {
 		if this_.IsInTestMode() {
@@ -1478,13 +1481,13 @@ func (this_ *AbstractCommandLineRunnerBase) DoRun() int32 {
 			}
 		}
 		if typedAstListInputFilename != j2gort.NullString {
-			this_.priv_AbstractCommandLineRunner_initChunksWithTypedAstFilesystem_170(externs, chunks, options, typedAstListInputFilename)
+			this_.priv_AbstractCommandLineRunner_initChunksWithTypedAstFilesystem_171(externs, chunks, options, typedAstListInputFilename)
 		} else {
 			this_.compiler.InitChunks(externs, chunks, options)
 		}
 	} else {
 		if typedAstListInputFilename != j2gort.NullString {
-			this_.priv_AbstractCommandLineRunner_initWithTypedAstFilesystem_169(externs, sources, options, typedAstListInputFilename)
+			this_.priv_AbstractCommandLineRunner_initWithTypedAstFilesystem_170(externs, sources, options, typedAstListInputFilename)
 		} else {
 			this_.compiler.Init(externs, sources, options)
 		}
@@ -1508,7 +1511,7 @@ func (this_ *AbstractCommandLineRunnerBase) DoRun() int32 {
 			defer func() {
 				this_.compiler.GenerateReport()
 			}()
-			this_.priv_AbstractCommandLineRunner_performCompilation_166(metricsRecorder)
+			this_.priv_AbstractCommandLineRunner_performCompilation_167(metricsRecorder)
 			var refresh bool = (((chunks != nil) && (this_.config.restoredCompilationStage != int32(-1))) && (this_.config.saveAfterCompilationStage == int32(-1)))
 			_ = refresh
 			if refresh {
@@ -1551,18 +1554,18 @@ func (this_ *AbstractCommandLineRunnerBase) DoRun() int32 {
 }
 
 // Java method: AbstractCommandLineRunner.performCompilation(com.google.javascript.jscomp.CompileMetricsRecorderInterface metricsRecorder)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_performCompilation_166(metricsRecorder CompileMetricsRecorderInterface) {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_performCompilation_167(metricsRecorder CompileMetricsRecorderInterface) {
 	_ = metricsRecorder
-	this_.priv_AbstractCommandLineRunner_initializeStateBeforeCompilation_171()
-	this_.priv_AbstractCommandLineRunner_runCompilerPasses_167(metricsRecorder)
+	this_.priv_AbstractCommandLineRunner_initializeStateBeforeCompilation_172()
+	this_.priv_AbstractCommandLineRunner_runCompilerPasses_168(metricsRecorder)
 	if !(this_.compiler.HasErrors()) {
-		this_.priv_AbstractCommandLineRunner_saveState_173()
+		this_.priv_AbstractCommandLineRunner_saveState_174()
 	}
 	this_.compiler.PerformPostCompilationTasks()
 }
 
 // Java method: AbstractCommandLineRunner.runCompilerPasses(com.google.javascript.jscomp.CompileMetricsRecorderInterface metricsRecorder)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_runCompilerPasses_167(metricsRecorder CompileMetricsRecorderInterface) {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_runCompilerPasses_168(metricsRecorder CompileMetricsRecorderInterface) {
 	_ = metricsRecorder
 	var runStage1 bool = false
 	_ = runStage1
@@ -1641,7 +1644,7 @@ func (this_ *AbstractCommandLineRunnerBase) GetCompileMetricsRecorder() CompileM
 }
 
 // Java method: AbstractCommandLineRunner.initWithTypedAstFilesystem(java.util.List<com.google.javascript.jscomp.SourceFile> externs, java.util.List<com.google.javascript.jscomp.SourceFile> sources, com.google.javascript.jscomp.CompilerOptions options, java.lang.String filename)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_initWithTypedAstFilesystem_169(externs j2gort.Ext_java_util_List, sources j2gort.Ext_java_util_List, options *CompilerOptions, filename string) {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_initWithTypedAstFilesystem_170(externs j2gort.Ext_java_util_List, sources j2gort.Ext_java_util_List, options *CompilerOptions, filename string) {
 	_ = externs
 	_ = sources
 	_ = options
@@ -1668,7 +1671,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_initW
 }
 
 // Java method: AbstractCommandLineRunner.initChunksWithTypedAstFilesystem(java.util.List<com.google.javascript.jscomp.SourceFile> externs, java.util.List<com.google.javascript.jscomp.JSChunk> chunks, com.google.javascript.jscomp.CompilerOptions options, java.lang.String filename)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_initChunksWithTypedAstFilesystem_170(externs j2gort.Ext_java_util_List, chunks j2gort.Ext_java_util_List, options *CompilerOptions, filename string) {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_initChunksWithTypedAstFilesystem_171(externs j2gort.Ext_java_util_List, chunks j2gort.Ext_java_util_List, options *CompilerOptions, filename string) {
 	_ = externs
 	_ = chunks
 	_ = options
@@ -1695,9 +1698,9 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_initC
 }
 
 // Java method: AbstractCommandLineRunner.initializeStateBeforeCompilation()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_initializeStateBeforeCompilation_171() {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_initializeStateBeforeCompilation_172() {
 	if this_.config.restoredCompilationStage != int32(-1) {
-		this_.priv_AbstractCommandLineRunner_restoreState_172(this_.config.GetContinueSavedCompilationFileName())
+		this_.priv_AbstractCommandLineRunner_restoreState_173(this_.config.GetContinueSavedCompilationFileName())
 	} else if this_.config.typedAstListInputFilename != j2gort.NullString {
 	} else {
 		this_.compiler.ParseForCompilation()
@@ -1705,7 +1708,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_initi
 }
 
 // Java method: AbstractCommandLineRunner.restoreState(java.lang.String filename)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_restoreState_172(filename string) {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_restoreState_173(filename string) {
 	_ = filename
 	func() {
 		defer func() {
@@ -1729,7 +1732,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_resto
 }
 
 // Java method: AbstractCommandLineRunner.saveState()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_saveState_173() {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_saveState_174() {
 	if this_.config.GetSaveCompilationStateToFilename() == j2gort.NullString {
 		return
 	}
@@ -1765,7 +1768,7 @@ func (this_ *AbstractCommandLineRunnerBase) ProcessResults(result *Result, chunk
 		if this_.compiler.GetRoot() == 0 {
 			return int32(1)
 		} else {
-			var jsOutput j2gort.Ext_java_lang_Appendable = this_.priv_AbstractCommandLineRunner_createDefaultOutput_164()
+			var jsOutput j2gort.Ext_java_lang_Appendable = this_.priv_AbstractCommandLineRunner_createDefaultOutput_165()
 			_ = jsOutput
 			var cfg ControlFlowGraph[pkg_rhino.Node] = this_.compiler.ComputeCFG()
 			_ = cfg
@@ -1786,7 +1789,7 @@ func (this_ *AbstractCommandLineRunnerBase) ProcessResults(result *Result, chunk
 			this_.compiler.Report_1(JSError_Make_2(StaticGet_AbstractCommandLineRunner_NO_TREE_GENERATED_ERROR(), []string{}))
 			return int32(1)
 		} else {
-			var jsOutput_2 j2gort.Ext_java_lang_Appendable = this_.priv_AbstractCommandLineRunner_createDefaultOutput_164()
+			var jsOutput_2 j2gort.Ext_java_lang_Appendable = this_.priv_AbstractCommandLineRunner_createDefaultOutput_165()
 			_ = jsOutput_2
 			this_.compiler.GetJsRoot().AppendStringTree(jsOutput_2)
 			jsOutput_2.Append_1_any("\n")
@@ -1799,7 +1802,7 @@ func (this_ *AbstractCommandLineRunnerBase) ProcessResults(result *Result, chunk
 			this_.compiler.Report_1(JSError_Make_2(StaticGet_AbstractCommandLineRunner_NO_TREE_GENERATED_ERROR(), []string{}))
 			return int32(1)
 		} else {
-			var jsOutput_3 j2gort.Ext_java_lang_Appendable = this_.priv_AbstractCommandLineRunner_createDefaultOutput_164()
+			var jsOutput_3 j2gort.Ext_java_lang_Appendable = this_.priv_AbstractCommandLineRunner_createDefaultOutput_165()
 			_ = jsOutput_3
 			this_.compiler.GetJsRoot().AppendJsonTree(jsOutput_3)
 			AbstractCommandLineRunner_CloseAppendable(jsOutput_3)
@@ -1807,19 +1810,19 @@ func (this_ *AbstractCommandLineRunnerBase) ProcessResults(result *Result, chunk
 		}
 	}
 	if this_.config.skipNormalOutputs {
-		this_.priv_AbstractCommandLineRunner_outputManifest_200()
-		this_.priv_AbstractCommandLineRunner_outputBundle_201()
-		this_.priv_AbstractCommandLineRunner_outputChunkGraphJson_204()
+		this_.priv_AbstractCommandLineRunner_outputManifest_201()
+		this_.priv_AbstractCommandLineRunner_outputBundle_202()
+		this_.priv_AbstractCommandLineRunner_outputChunkGraphJson_205()
 		return int32(0)
 	} else if (options.GetOutputJs() != StaticGet_CompilerOptions_OutputJs_NONE()) && result.success {
-		this_.priv_AbstractCommandLineRunner_outputChunkGraphJson_204()
+		this_.priv_AbstractCommandLineRunner_outputChunkGraphJson_205()
 		if chunks == nil {
 			this_.OutputSingleBinary(options)
-			if !(this_.priv_AbstractCommandLineRunner_isOutputInJson_137()) {
-				this_.priv_AbstractCommandLineRunner_outputSourceMap_195(options, this_.config.jsOutputFile)
+			if !(this_.priv_AbstractCommandLineRunner_isOutputInJson_138()) {
+				this_.priv_AbstractCommandLineRunner_outputSourceMap_196(options, this_.config.jsOutputFile)
 			}
 		} else {
-			var error_ *DiagnosticType = this_.priv_AbstractCommandLineRunner_outputChunkBinaryAndSourceMaps_179(this_.compiler.GetChunkGraph(), options)
+			var error_ *DiagnosticType = this_.priv_AbstractCommandLineRunner_outputChunkBinaryAndSourceMaps_180(this_.compiler.GetChunkGraph(), options)
 			_ = error_
 			if error_ != nil {
 				this_.compiler.Report_1(JSError_Make_2(error_, []string{}))
@@ -1828,18 +1831,18 @@ func (this_ *AbstractCommandLineRunnerBase) ProcessResults(result *Result, chunk
 		}
 		if options.GetExternExportsPath() != j2gort.NullString {
 			func() {
-				var eeOut j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_openExternExportsStream_186(options, this_.config.jsOutputFile)
+				var eeOut j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_openExternExportsStream_187(options, this_.config.jsOutputFile)
 				_ = eeOut
 				defer j2gort.CloseResource(eeOut)
 				eeOut.Append_1_any(j2gort.BoxString(result.externExport))
 			}()
 		}
-		this_.priv_AbstractCommandLineRunner_outputNameMaps_197()
-		this_.priv_AbstractCommandLineRunner_outputStringMap_198()
-		this_.priv_AbstractCommandLineRunner_outputManifest_200()
-		this_.priv_AbstractCommandLineRunner_outputBundle_201()
-		this_.priv_AbstractCommandLineRunner_outputInstrumentationMapping_202()
-		if this_.priv_AbstractCommandLineRunner_isOutputInJson_137() {
+		this_.priv_AbstractCommandLineRunner_outputNameMaps_198()
+		this_.priv_AbstractCommandLineRunner_outputStringMap_199()
+		this_.priv_AbstractCommandLineRunner_outputManifest_201()
+		this_.priv_AbstractCommandLineRunner_outputBundle_202()
+		this_.priv_AbstractCommandLineRunner_outputInstrumentationMapping_203()
+		if this_.priv_AbstractCommandLineRunner_isOutputInJson_138() {
 			this_.OutputJsonStream()
 		}
 	}
@@ -1869,13 +1872,13 @@ func (this_ *AbstractCommandLineRunnerBase) OutputSingleBinary(options *Compiler
 		marker = "%output|jsstring%"
 		escaper = this_.GetJavascriptEscaper()
 	}
-	if this_.priv_AbstractCommandLineRunner_isOutputInJson_137() {
+	if this_.priv_AbstractCommandLineRunner_isOutputInJson_138() {
 		this_.filesToStreamOut = append(this_.filesToStreamOut, this_.CreateJsonFile(options, marker, escaper))
 	} else {
 		if !(j2gort.CheckNotNullString(this_.config.jsOutputFile) == "") {
 			AbstractCommandLineRunner_MaybeCreateDirsForPath(this_.config.jsOutputFile)
 		}
-		var jsOutput j2gort.Ext_java_lang_Appendable = this_.priv_AbstractCommandLineRunner_createDefaultOutput_164()
+		var jsOutput j2gort.Ext_java_lang_Appendable = this_.priv_AbstractCommandLineRunner_createDefaultOutput_165()
 		_ = jsOutput
 		this_.WriteOutput_8(jsOutput, this_.compiler, NewCompiler_SingleBinaryLicenseTracker(ToIface_AbstractCompiler(this_.compiler)), nil, this_.config.outputWrapper, marker, escaper, this_.config.jsOutputFile)
 		AbstractCommandLineRunner_CloseAppendable(jsOutput)
@@ -1926,13 +1929,13 @@ func (this_ *AbstractCommandLineRunnerBase) OutputJsonStream() {
 }
 
 // Java method: AbstractCommandLineRunner.outputChunkBinaryAndSourceMaps(com.google.javascript.jscomp.JSChunkGraph chunkGraph, B options)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputChunkBinaryAndSourceMaps_179(chunkGraph *JSChunkGraph, options *CompilerOptions) *DiagnosticType {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputChunkBinaryAndSourceMaps_180(chunkGraph *JSChunkGraph, options *CompilerOptions) *DiagnosticType {
 	_ = chunkGraph
 	_ = options
 	var chunks j2gort.Ext_java_lang_Iterable = chunkGraph.GetAllChunks()
 	_ = chunks
 	this_.parsedChunkWrappers = AbstractCommandLineRunner_ParseChunkWrappers(this_.config.chunkWrapper, chunks)
-	if !(this_.priv_AbstractCommandLineRunner_isOutputInJson_137()) {
+	if !(this_.priv_AbstractCommandLineRunner_isOutputInJson_138()) {
 		AbstractCommandLineRunner_MaybeCreateDirsForPath((j2gort.StrValString(this_.config.chunkOutputPathPrefix) + "dummy"))
 	}
 	var mapFileOut j2gort.Ext_java_io_Writer = nil
@@ -1962,17 +1965,17 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outpu
 					continue
 				}
 			}
-			if this_.priv_AbstractCommandLineRunner_isOutputInJson_137() {
-				this_.filesToStreamOut = append(this_.filesToStreamOut, this_.priv_AbstractCommandLineRunner_createJsonFileFromChunk_180(m))
+			if this_.priv_AbstractCommandLineRunner_isOutputInJson_138() {
+				this_.filesToStreamOut = append(this_.filesToStreamOut, this_.priv_AbstractCommandLineRunner_createJsonFileFromChunk_181(m))
 			} else {
 				if this_.ShouldGenerateMapPerChunk(options) {
-					mapFileOut = this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_190(this_.ExpandSourceMapPath(options, m))
+					mapFileOut = this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_191(this_.ExpandSourceMapPath(options, m))
 				}
 				var chunkFilename string = this_.GetChunkOutputFileName(m)
 				_ = chunkFilename
 				AbstractCommandLineRunner_MaybeCreateDirsForPath(chunkFilename)
 				func() {
-					var writer j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_fileNameToLegacyOutputWriter_189(chunkFilename)
+					var writer j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_fileNameToLegacyOutputWriter_190(chunkFilename)
 					_ = writer
 					defer j2gort.CloseResource(writer)
 					if options.ShouldGatherSourceMapInfo() {
@@ -1998,7 +2001,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outpu
 }
 
 // Java method: AbstractCommandLineRunner.createJsonFileFromChunk(com.google.javascript.jscomp.JSChunk chunk)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_createJsonFileFromChunk_180(chunk *JSChunk) *AbstractCommandLineRunner_JsonFileSpec {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_createJsonFileFromChunk_181(chunk *JSChunk) *AbstractCommandLineRunner_JsonFileSpec {
 	_ = chunk
 	this_.compiler.ResetAndIntitializeSourceMap()
 	var filename string = this_.GetChunkOutputFileName(chunk)
@@ -2018,7 +2021,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_creat
 }
 
 // Java method: AbstractCommandLineRunner.getInputCharset()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getInputCharset_181() j2gort.Ext_java_nio_charset_Charset {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getInputCharset_182() j2gort.Ext_java_nio_charset_Charset {
 	if !(j2gort.CheckNotNullString(this_.config.charset) == "") {
 		if !(j2gort.Ext_java_nio_charset_Charset_IsSupported(this_.config.charset)) {
 			panic(NewFlagUsageException((j2gort.StrValString(this_.config.charset) + " is not a valid charset name.")))
@@ -2029,7 +2032,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getIn
 }
 
 // Java method: AbstractCommandLineRunner.getLegacyOutputCharset()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getLegacyOutputCharset_182() j2gort.Ext_java_nio_charset_Charset {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getLegacyOutputCharset_183() j2gort.Ext_java_nio_charset_Charset {
 	if !(j2gort.CheckNotNullString(this_.config.charset) == "") {
 		if !(j2gort.Ext_java_nio_charset_Charset_IsSupported(this_.config.charset)) {
 			panic(NewFlagUsageException((j2gort.StrValString(this_.config.charset) + " is not a valid charset name.")))
@@ -2040,7 +2043,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getLe
 }
 
 // Java method: AbstractCommandLineRunner.getOutputCharset2()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getOutputCharset2_183() j2gort.Ext_java_nio_charset_Charset {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getOutputCharset2_184() j2gort.Ext_java_nio_charset_Charset {
 	if !(j2gort.CheckNotNullString(this_.config.charset) == "") {
 		if !(j2gort.Ext_java_nio_charset_Charset_IsSupported(this_.config.charset)) {
 			panic(NewFlagUsageException((j2gort.StrValString(this_.config.charset) + " is not a valid charset name.")))
@@ -2056,7 +2059,7 @@ func (this_ *AbstractCommandLineRunnerBase) CreateExterns(options *CompilerOptio
 	if this_.IsInTestMode() {
 		return j2gort.AsIface[j2gort.Ext_java_util_List](this_.externsSupplierForTesting.Get())
 	} else {
-		return this_.priv_AbstractCommandLineRunner_createExternInputs_157(this_.config.externs)
+		return this_.priv_AbstractCommandLineRunner_createExternInputs_158(&this_.config.externs)
 	}
 }
 
@@ -2067,7 +2070,7 @@ func (this_ *AbstractCommandLineRunnerBase) ShouldGenerateMapPerChunk(options *C
 }
 
 // Java method: AbstractCommandLineRunner.openExternExportsStream(B options, java.lang.String path)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_openExternExportsStream_186(options *CompilerOptions, path string) j2gort.Ext_java_io_Writer {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_openExternExportsStream_187(options *CompilerOptions, path string) j2gort.Ext_java_io_Writer {
 	_ = options
 	_ = path
 	var externExportsPath string = options.GetExternExportsPath()
@@ -2082,11 +2085,11 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_openE
 		_ = outputFile
 		exPath = (j2gort.StrValString(outputFile.GetParent()) + j2gort.StrValChar(j2gort.Ext_java_io_File_F_SeparatorChar) + j2gort.StrValString(exPath))
 	}
-	return this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_190(exPath)
+	return this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_191(exPath)
 }
 
 // Java method: AbstractCommandLineRunner.expandCommandLinePath(java.lang.String path, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable JSChunk forChunk)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_expandCommandLinePath_187(path string, forChunk *JSChunk) string {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_expandCommandLinePath_188(path string, forChunk *JSChunk) string {
 	_ = path
 	_ = forChunk
 	var sub string = j2gort.NullString
@@ -2108,11 +2111,11 @@ func (this_ *AbstractCommandLineRunnerBase) ExpandSourceMapPath(options *Compile
 	if !(options.ShouldGatherSourceMapInfo()) {
 		return j2gort.NullString
 	}
-	return this_.priv_AbstractCommandLineRunner_expandCommandLinePath_187(options.GetSourceMapOutputPath(), forChunk)
+	return this_.priv_AbstractCommandLineRunner_expandCommandLinePath_188(options.GetSourceMapOutputPath(), forChunk)
 }
 
 // Java method: AbstractCommandLineRunner.fileNameToLegacyOutputWriter(java.lang.String fileName)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_fileNameToLegacyOutputWriter_189(fileName string) j2gort.Ext_java_io_Writer {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_fileNameToLegacyOutputWriter_190(fileName string) j2gort.Ext_java_io_Writer {
 	_ = fileName
 	if fileName == j2gort.NullString {
 		return nil
@@ -2120,11 +2123,11 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_fileN
 	if this_.IsInTestMode() {
 		return j2gort.NewExt_java_io_StringWriter()
 	}
-	return this_.priv_AbstractCommandLineRunner_streamToLegacyOutputWriter_192(this_.FilenameToOutputStream(fileName))
+	return this_.priv_AbstractCommandLineRunner_streamToLegacyOutputWriter_193(this_.FilenameToOutputStream(fileName))
 }
 
 // Java method: AbstractCommandLineRunner.fileNameToOutputWriter2(java.lang.String fileName)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_fileNameToOutputWriter2_190(fileName string) j2gort.Ext_java_io_Writer {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_fileNameToOutputWriter2_191(fileName string) j2gort.Ext_java_io_Writer {
 	_ = fileName
 	if fileName == j2gort.NullString {
 		return nil
@@ -2132,7 +2135,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_fileN
 	if this_.IsInTestMode() {
 		return j2gort.NewExt_java_io_StringWriter()
 	}
-	return this_.priv_AbstractCommandLineRunner_streamToOutputWriter2_193(this_.FilenameToOutputStream(fileName))
+	return this_.priv_AbstractCommandLineRunner_streamToOutputWriter2_194(this_.FilenameToOutputStream(fileName))
 }
 
 // Java method: AbstractCommandLineRunner.filenameToOutputStream(java.lang.String fileName)
@@ -2145,7 +2148,7 @@ func (this_ *AbstractCommandLineRunnerBase) FilenameToOutputStream(fileName stri
 }
 
 // Java method: AbstractCommandLineRunner.streamToLegacyOutputWriter(java.io.OutputStream stream)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_streamToLegacyOutputWriter_192(stream j2gort.Ext_java_io_OutputStream) j2gort.Ext_java_io_Writer {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_streamToLegacyOutputWriter_193(stream j2gort.Ext_java_io_OutputStream) j2gort.Ext_java_io_Writer {
 	_ = stream
 	if this_.legacyOutputCharset == nil {
 		return this_.CreateWriter(stream, j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8)
@@ -2155,7 +2158,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_strea
 }
 
 // Java method: AbstractCommandLineRunner.streamToOutputWriter2(java.io.OutputStream stream)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_streamToOutputWriter2_193(stream j2gort.Ext_java_io_OutputStream) j2gort.Ext_java_io_Writer {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_streamToOutputWriter2_194(stream j2gort.Ext_java_io_OutputStream) j2gort.Ext_java_io_Writer {
 	_ = stream
 	if this_.outputCharset2 == nil {
 		return this_.CreateWriter(stream, j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8)
@@ -2172,7 +2175,7 @@ func (this_ *AbstractCommandLineRunnerBase) CreateWriter(stream j2gort.Ext_java_
 }
 
 // Java method: AbstractCommandLineRunner.outputSourceMap(B options, java.lang.String associatedName)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputSourceMap_195(options *CompilerOptions, associatedName string) {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputSourceMap_196(options *CompilerOptions, associatedName string) {
 	_ = options
 	_ = associatedName
 	if !(options.ShouldGatherSourceMapInfo()) || (j2gort.CheckNotNullString(options.GetSourceMapOutputPath()) == "/dev/null") {
@@ -2182,7 +2185,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outpu
 	_ = outName
 	AbstractCommandLineRunner_MaybeCreateDirsForPath(outName)
 	func() {
-		var out j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_190(outName)
+		var out j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_191(outName)
 		_ = out
 		defer j2gort.CloseResource(out)
 		this_.compiler.GetSourceMap().AppendTo(j2gort.AsIface[j2gort.Ext_java_lang_Appendable](out), associatedName)
@@ -2190,7 +2193,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outpu
 }
 
 // Java method: AbstractCommandLineRunner.getMapPath(java.lang.String outputFile)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getMapPath_196(outputFile string) string {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getMapPath_197(outputFile string) string {
 	_ = outputFile
 	var basePath string = ""
 	_ = basePath
@@ -2220,13 +2223,13 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getMa
 }
 
 // Java method: AbstractCommandLineRunner.outputNameMaps()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputNameMaps_197() {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputNameMaps_198() {
 	var propertyMapOutputPath string = j2gort.NullString
 	_ = propertyMapOutputPath
 	var variableMapOutputPath string = j2gort.NullString
 	_ = variableMapOutputPath
 	if this_.config.createNameMapFiles {
-		var basePath string = this_.priv_AbstractCommandLineRunner_getMapPath_196(this_.config.jsOutputFile)
+		var basePath string = this_.priv_AbstractCommandLineRunner_getMapPath_197(this_.config.jsOutputFile)
 		_ = basePath
 		propertyMapOutputPath = (j2gort.StrValString(basePath) + "_props_map.out")
 		variableMapOutputPath = (j2gort.StrValString(basePath) + "_vars_map.out")
@@ -2252,7 +2255,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outpu
 }
 
 // Java method: AbstractCommandLineRunner.outputStringMap()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputStringMap_198() {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputStringMap_199() {
 	if !(j2gort.CheckNotNullString(this_.config.stringMapOutputPath) == "") {
 		if this_.compiler.GetStringMap() == nil {
 			if !(j2gort.NewExt_java_io_File_1_string(this_.config.stringMapOutputPath).CreateNewFile()) {
@@ -2336,32 +2339,32 @@ func AbstractCommandLineRunner_CreateDefineReplacements(definitions j2gort.Ext_j
 }
 
 // Java method: AbstractCommandLineRunner.shouldGenerateOutputPerChunk(java.lang.String output)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_shouldGenerateOutputPerChunk_199(output string) bool {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_shouldGenerateOutputPerChunk_200(output string) bool {
 	_ = output
 	return ((len(this_.config.chunk) != 0 && (output != j2gort.NullString)) && (j2gort.JStrIndexOf(output, "%outname%") >= 0))
 }
 
 // Java method: AbstractCommandLineRunner.outputManifest()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputManifest_200() {
-	this_.priv_AbstractCommandLineRunner_outputManifestOrBundle_203(this_.config.outputManifests, true)
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputManifest_201() {
+	this_.priv_AbstractCommandLineRunner_outputManifestOrBundle_204(this_.config.outputManifests, true)
 }
 
 // Java method: AbstractCommandLineRunner.outputBundle()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputBundle_201() {
-	this_.priv_AbstractCommandLineRunner_outputManifestOrBundle_203(this_.config.outputBundles, false)
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputBundle_202() {
+	this_.priv_AbstractCommandLineRunner_outputManifestOrBundle_204(this_.config.outputBundles, false)
 }
 
 // Java method: AbstractCommandLineRunner.outputInstrumentationMapping()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputInstrumentationMapping_202() {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputInstrumentationMapping_203() {
 	if !(j2gort.Ext_com_google_common_base_Strings_IsNullOrEmpty(this_.config.instrumentationMappingFile)) {
-		var path string = this_.priv_AbstractCommandLineRunner_expandCommandLinePath_187(this_.config.instrumentationMappingFile, nil)
+		var path string = this_.priv_AbstractCommandLineRunner_expandCommandLinePath_188(this_.config.instrumentationMappingFile, nil)
 		_ = path
 		this_.compiler.GetInstrumentationMapping().Save(path)
 	}
 }
 
 // Java method: AbstractCommandLineRunner.outputManifestOrBundle(java.util.List<java.lang.String> outputFiles, boolean isManifest)
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputManifestOrBundle_203(outputFiles j2gort.Ext_java_util_List, isManifest bool) {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputManifestOrBundle_204(outputFiles j2gort.Ext_java_util_List, isManifest bool) {
 	_ = outputFiles
 	_ = isManifest
 	if outputFiles.IsEmpty() {
@@ -2375,7 +2378,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outpu
 			if j2gort.CheckNotNullString(output) == "" {
 				continue
 			}
-			if this_.priv_AbstractCommandLineRunner_shouldGenerateOutputPerChunk_199(output) {
+			if this_.priv_AbstractCommandLineRunner_shouldGenerateOutputPerChunk_200(output) {
 				var chunks j2gort.Ext_java_lang_Iterable = this_.compiler.GetChunkGraph().GetAllChunks()
 				_ = chunks
 				{
@@ -2385,7 +2388,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outpu
 						chunk := j2gort.CastPtr[JSChunk](rawElem_90)
 						_ = chunk
 						func() {
-							var out j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_190(this_.priv_AbstractCommandLineRunner_expandCommandLinePath_187(output, chunk))
+							var out j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_191(this_.priv_AbstractCommandLineRunner_expandCommandLinePath_188(output, chunk))
 							_ = out
 							defer j2gort.CloseResource(out)
 							if isManifest {
@@ -2398,7 +2401,7 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outpu
 				}
 			} else {
 				func() {
-					var out_2 j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_190(this_.priv_AbstractCommandLineRunner_expandCommandLinePath_187(output, nil))
+					var out_2 j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_191(this_.priv_AbstractCommandLineRunner_expandCommandLinePath_188(output, nil))
 					_ = out_2
 					defer j2gort.CloseResource(out_2)
 					if len(this_.config.chunk) == 0 {
@@ -2419,10 +2422,10 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outpu
 }
 
 // Java method: AbstractCommandLineRunner.outputChunkGraphJson()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputChunkGraphJson_204() {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outputChunkGraphJson_205() {
 	if (this_.config.outputChunkDependencies != j2gort.NullString) && (j2gort.JStrLen(this_.config.outputChunkDependencies) != int32(0)) {
 		func() {
-			var out j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_190(this_.config.outputChunkDependencies)
+			var out j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_191(this_.config.outputChunkDependencies)
 			_ = out
 			defer j2gort.CloseResource(out)
 			this_.PrintChunkGraphJsonTo(j2gort.AsIface[j2gort.Ext_java_lang_Appendable](out))
@@ -2564,7 +2567,7 @@ func (this_ *AbstractCommandLineRunnerBase) PrintBundleTo(chunk *JSChunk, out j2
 }
 
 // Java method: AbstractCommandLineRunner.constructRootRelativePathsMap()
-func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_constructRootRelativePathsMap_209() j2gort.Ext_java_util_Map {
+func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_constructRootRelativePathsMap_210() j2gort.Ext_java_util_Map {
 	var rootRelativePathsMap j2gort.Ext_java_util_Map = j2gort.NewExt_java_util_LinkedHashMap()
 	_ = rootRelativePathsMap
 	{
@@ -2598,7 +2601,7 @@ type AbstractCommandLineRunner_CommandLineConfig struct {
 	printAst                         bool                                                          `gson:"printAst"`
 	jscompDevMode                    CompilerOptions_DevMode                                       `gson:"jscompDevMode"`
 	loggingLevel                     string                                                        `gson:"loggingLevel"`
-	externs                          j2gort.Ext_java_util_List                                     `gson:"externs"`
+	externs                          []string                                                      `gson:"externs"`
 	mixedJsSources                   j2gort.Ext_java_util_List                                     `gson:"mixedJsSources"`
 	defaultToStdin                   bool                                                          `gson:"defaultToStdin"`
 	jsOutputFile                     string                                                        `gson:"jsOutputFile"`
@@ -2681,7 +2684,7 @@ func (this_ *AbstractCommandLineRunner_CommandLineConfig) initFields_AbstractCom
 
 	this_.jscompDevMode = StaticGet_CompilerOptions_DevMode_OFF()
 	this_.loggingLevel = j2gort.Ext_java_util_logging_Level_F_WARNING.GetName()
-	this_.externs = j2gort.NewExt_java_util_ArrayList()
+	this_.externs = []string{}
 	this_.mixedJsSources = j2gort.NewExt_java_util_ArrayList()
 
 	this_.continueSavedCompilationFileName = j2gort.NullString
@@ -2783,8 +2786,9 @@ func (this_ *AbstractCommandLineRunner_CommandLineConfig) SetLoggingLevel(loggin
 // Java method: CommandLineConfig.setExterns(java.util.List<java.lang.String> externs)
 func (this_ *AbstractCommandLineRunner_CommandLineConfig) SetExterns(externs j2gort.Ext_java_util_List) *AbstractCommandLineRunner_CommandLineConfig {
 	_ = externs
-	this_.externs.Clear()
-	this_.externs.AddAll_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](externs))
+	clear(this_.externs)
+	this_.externs = this_.externs[:0]
+	this_.externs = j2gort.AppendStrCol(this_.externs, j2gort.AsIface[j2gort.Ext_java_util_Collection](externs))
 	return this_
 }
 
@@ -2845,11 +2849,11 @@ func (this_ *AbstractCommandLineRunner_CommandLineConfig) GetContinueSavedCompil
 
 // Java method: CommandLineConfig.shouldRestoreAndPerformStages2And3()
 func (this_ *AbstractCommandLineRunner_CommandLineConfig) ShouldRestoreAndPerformStages2And3() bool {
-	return ((this_.priv_CommandLineConfig_shouldContinueCompilation_224() && (this_.restoredCompilationStage == int32(1))) && (this_.saveAfterCompilationStage < int32(0)))
+	return ((this_.priv_CommandLineConfig_shouldContinueCompilation_225() && (this_.restoredCompilationStage == int32(1))) && (this_.saveAfterCompilationStage < int32(0)))
 }
 
 // Java method: CommandLineConfig.shouldContinueCompilation()
-func (this_ *AbstractCommandLineRunner_CommandLineConfig) priv_CommandLineConfig_shouldContinueCompilation_224() bool {
+func (this_ *AbstractCommandLineRunner_CommandLineConfig) priv_CommandLineConfig_shouldContinueCompilation_225() bool {
 	if this_.continueSavedCompilationFileName != j2gort.NullString {
 		if !((this_.restoredCompilationStage > int32(0)) && (this_.restoredCompilationStage < int32(3))) {
 			j2gort.CheckStateFmt(false, "invalid restored compilation stage: %s", j2gort.ValueOfInt(this_.restoredCompilationStage))
@@ -2872,12 +2876,12 @@ func (this_ *AbstractCommandLineRunner_CommandLineConfig) ShouldRestoreTypedAsts
 
 // Java method: CommandLineConfig.shouldRestoreAndPerformStage2AndSave()
 func (this_ *AbstractCommandLineRunner_CommandLineConfig) ShouldRestoreAndPerformStage2AndSave() bool {
-	return ((this_.priv_CommandLineConfig_shouldContinueCompilation_224() && (this_.restoredCompilationStage == int32(1))) && (this_.saveAfterCompilationStage == int32(2)))
+	return ((this_.priv_CommandLineConfig_shouldContinueCompilation_225() && (this_.restoredCompilationStage == int32(1))) && (this_.saveAfterCompilationStage == int32(2)))
 }
 
 // Java method: CommandLineConfig.shouldRestoreAndPerformStage3()
 func (this_ *AbstractCommandLineRunner_CommandLineConfig) ShouldRestoreAndPerformStage3() bool {
-	if this_.priv_CommandLineConfig_shouldContinueCompilation_224() && (this_.restoredCompilationStage == int32(2)) {
+	if this_.priv_CommandLineConfig_shouldContinueCompilation_225() && (this_.restoredCompilationStage == int32(2)) {
 		if !(this_.saveAfterCompilationStage < int32(0)) {
 			j2gort.CheckStateFmt(false, "request to save after stage %s is invalid when restoring from stage 2", j2gort.ValueOfInt(this_.saveAfterCompilationStage))
 		}

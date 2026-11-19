@@ -175,17 +175,17 @@ func (this_ *CheckSuspiciousCode) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 	_ = t
 	_ = n
 	_ = parent
-	this_.priv_CheckSuspiciousCode_checkMissingSemicolon_1119(t, n)
-	this_.priv_CheckSuspiciousCode_checkNaN_1120(t, n)
-	this_.priv_CheckSuspiciousCode_checkInvalidIn_1121(t, n)
-	this_.priv_CheckSuspiciousCode_checkNonObjectInstanceOf_1122(t, n)
-	this_.priv_CheckSuspiciousCode_checkNegatedLeftOperandOfInOperator_1123(t, n)
-	this_.priv_CheckSuspiciousCode_checkLeftOperandOfLogicalOperator_1124(t, n)
+	this_.priv_CheckSuspiciousCode_checkMissingSemicolon_1120(t, n)
+	this_.priv_CheckSuspiciousCode_checkNaN_1121(t, n)
+	this_.priv_CheckSuspiciousCode_checkInvalidIn_1122(t, n)
+	this_.priv_CheckSuspiciousCode_checkNonObjectInstanceOf_1123(t, n)
+	this_.priv_CheckSuspiciousCode_checkNegatedLeftOperandOfInOperator_1124(t, n)
+	this_.priv_CheckSuspiciousCode_checkLeftOperandOfLogicalOperator_1125(t, n)
 	CheckSuspiciousCode_CheckSuspiciousBreakingOutOfOptionalChain(t, n)
 }
 
 // Java method: CheckSuspiciousCode.checkMissingSemicolon(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkMissingSemicolon_1119(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkMissingSemicolon_1120(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	switch n.TokenSwitchOrd_() {
@@ -218,7 +218,7 @@ func CheckSuspiciousCode_ReportIfWasEmpty(t *NodeTraversal, block pkg_rhino.Node
 }
 
 // Java method: CheckSuspiciousCode.checkNaN(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkNaN_1120(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkNaN_1121(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	switch n.TokenSwitchOrd_() {
@@ -240,7 +240,7 @@ func CheckSuspiciousCode_ReportIfNaN(t *NodeTraversal, n pkg_rhino.Node) {
 }
 
 // Java method: CheckSuspiciousCode.checkInvalidIn(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkInvalidIn_1121(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkInvalidIn_1122(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if n.IsIn() {
@@ -249,7 +249,7 @@ func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkInvalidIn_1121(t
 }
 
 // Java method: CheckSuspiciousCode.checkNonObjectInstanceOf(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkNonObjectInstanceOf_1122(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkNonObjectInstanceOf_1123(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if n.IsInstanceOf() {
@@ -271,7 +271,7 @@ func CheckSuspiciousCode_ReportIfNonObject(t *NodeTraversal, n pkg_rhino.Node, d
 }
 
 // Java method: CheckSuspiciousCode.checkNegatedLeftOperandOfInOperator(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkNegatedLeftOperandOfInOperator_1123(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkNegatedLeftOperandOfInOperator_1124(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if n.IsIn() && n.GetFirstChild().IsNot() {
@@ -280,7 +280,7 @@ func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkNegatedLeftOpera
 }
 
 // Java method: CheckSuspiciousCode.checkLeftOperandOfLogicalOperator(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkLeftOperandOfLogicalOperator_1124(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkLeftOperandOfLogicalOperator_1125(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if n.IsOr() || n.IsAnd() {
@@ -291,7 +291,7 @@ func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_checkLeftOperandOfLog
 		} else {
 			operator = "&&"
 		}
-		var v pkg_base.Tri = this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1125(n.GetFirstChild())
+		var v pkg_base.Tri = this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1126(n.GetFirstChild())
 		_ = v
 		if v != pkg_base.StaticGet_Tri_UNKNOWN() {
 			var result string
@@ -321,21 +321,21 @@ func CheckSuspiciousCode_CheckSuspiciousBreakingOutOfOptionalChain(t *NodeTraver
 }
 
 // Java method: CheckSuspiciousCode.getBooleanValueWithTypes(com.google.javascript.rhino.Node n)
-func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_getBooleanValueWithTypes_1125(n pkg_rhino.Node) pkg_base.Tri {
+func (this_ *CheckSuspiciousCode) priv_CheckSuspiciousCode_getBooleanValueWithTypes_1126(n pkg_rhino.Node) pkg_base.Tri {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(51) /* Token.ASSIGN */, int32(50) /* Token.COMMA */ :
-		return this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1125(n.GetLastChild())
+		return this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1126(n.GetLastChild())
 	case int32(19) /* Token.NOT */ :
-		return this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1125(n.GetLastChild()).Not()
+		return this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1126(n.GetLastChild()).Not()
 	case int32(69) /* Token.AND */ :
-		return pkg_base.StaticGet_Tri_UNKNOWN().And(this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1125(n.GetLastChild()))
+		return pkg_base.StaticGet_Tri_UNKNOWN().And(this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1126(n.GetLastChild()))
 	case int32(68) /* Token.OR */ :
-		return pkg_base.StaticGet_Tri_UNKNOWN().Or(this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1125(n.GetLastChild()))
+		return pkg_base.StaticGet_Tri_UNKNOWN().Or(this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1126(n.GetLastChild()))
 	case int32(67) /* Token.HOOK */ :
-		var trueValue pkg_base.Tri = this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1125(n.GetSecondChild())
+		var trueValue pkg_base.Tri = this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1126(n.GetSecondChild())
 		_ = trueValue
-		var falseValue pkg_base.Tri = this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1125(n.GetLastChild())
+		var falseValue pkg_base.Tri = this_.priv_CheckSuspiciousCode_getBooleanValueWithTypes_1126(n.GetLastChild())
 		_ = falseValue
 		if j2gort.CheckNotNullEnum(trueValue) == falseValue {
 			return trueValue

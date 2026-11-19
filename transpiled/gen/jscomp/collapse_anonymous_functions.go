@@ -99,7 +99,7 @@ func (this_ *CollapseAnonymousFunctions) Visit_3(t *NodeTraversal, n pkg_rhino.N
 	}
 	var value pkg_rhino.Node = name.GetFirstChild()
 	_ = value
-	if (((value != 0) && value.IsFunction()) && !(value.IsArrowFunction())) && !(this_.priv_CollapseAnonymousFunctions_isRecursiveFunction_1391(value)) {
+	if (((value != 0) && value.IsFunction()) && !(value.IsArrowFunction())) && !(this_.priv_CollapseAnonymousFunctions_isRecursiveFunction_1393(value)) {
 		var fnName pkg_rhino.Node = value.GetFirstChild()
 		_ = fnName
 		if fnName.GetBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME()) && !(name.GetBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME())) {
@@ -118,7 +118,7 @@ func (this_ *CollapseAnonymousFunctions) Visit_3(t *NodeTraversal, n pkg_rhino.N
 }
 
 // Java method: CollapseAnonymousFunctions.isRecursiveFunction(com.google.javascript.rhino.Node function)
-func (this_ *CollapseAnonymousFunctions) priv_CollapseAnonymousFunctions_isRecursiveFunction_1391(function pkg_rhino.Node) bool {
+func (this_ *CollapseAnonymousFunctions) priv_CollapseAnonymousFunctions_isRecursiveFunction_1393(function pkg_rhino.Node) bool {
 	_ = function
 	var name pkg_rhino.Node = function.GetFirstChild()
 	_ = name
@@ -129,11 +129,11 @@ func (this_ *CollapseAnonymousFunctions) priv_CollapseAnonymousFunctions_isRecur
 	_ = args
 	var body pkg_rhino.Node = args.GetNext()
 	_ = body
-	return this_.priv_CollapseAnonymousFunctions_containsName_1392(body, name.GetString())
+	return this_.priv_CollapseAnonymousFunctions_containsName_1394(body, name.GetString())
 }
 
 // Java method: CollapseAnonymousFunctions.containsName(com.google.javascript.rhino.Node n, java.lang.String name)
-func (this_ *CollapseAnonymousFunctions) priv_CollapseAnonymousFunctions_containsName_1392(n pkg_rhino.Node, name string) bool {
+func (this_ *CollapseAnonymousFunctions) priv_CollapseAnonymousFunctions_containsName_1394(n pkg_rhino.Node, name string) bool {
 	_ = n
 	_ = name
 	if n.IsName() && (j2gort.CheckNotNullString(n.GetString()) == name) {
@@ -143,7 +143,7 @@ func (this_ *CollapseAnonymousFunctions) priv_CollapseAnonymousFunctions_contain
 		var child pkg_rhino.Node = n.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			if this_.priv_CollapseAnonymousFunctions_containsName_1392(child, name) {
+			if this_.priv_CollapseAnonymousFunctions_containsName_1394(child, name) {
 				return true
 			}
 		}

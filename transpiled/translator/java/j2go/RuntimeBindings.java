@@ -1983,7 +1983,7 @@ public final class RuntimeBindings {
         \tboxByteCache_  [256]BoxByte
         \tboxShortCache_ [256]BoxShort
         \tboxCharCache_  [128]BoxChar
-        \tboxIntCache_   [1152]BoxInt // [-128..1023]
+        \tboxIntCache_   [65664]BoxInt // [-128..65535]
         \tboxLongCache_  [256]BoxLong
         )
 
@@ -2054,8 +2054,8 @@ public final class RuntimeBindings {
         func (b *BoxInt) String() string      { return strconv.FormatInt(int64(b.Val), 10) }
         func (*BoxInt) JavaClassInfo_() (string, string) { return "java.lang.Integer", "Integer" }
         func ValueOfInt(v int32) *BoxInt {
-        \tif v >= -128 && v < 1024 {
-        \t\treturn &boxIntCache_[v+128]
+        \tif u := uint32(v) + 128; u < uint32(len(boxIntCache_)) {
+        \t\treturn &boxIntCache_[u]
         \t}
         \treturn &BoxInt{Val: v}
         }
@@ -11599,6 +11599,7 @@ public final class RuntimeBindings {
     full.append("package j2gort\n\n");
     full.append("import (\n");
     full.append("\t\"fmt\"\n");
+    full.append("\t\"hash/maphash\"\n");
     full.append("\t\"math\"\n");
     full.append("\t\"math/big\"\n");
     full.append("\t\"math/bits\"\n");
@@ -11626,6 +11627,7 @@ public final class RuntimeBindings {
         """
         var (
         \t_ = fmt.Sprint
+        \t_ = maphash.MakeSeed
         \t_ = math.NaN
         \t_ = big.NewInt
         \t_ = bits.Reverse32
@@ -11919,16 +11921,15 @@ public final class RuntimeBindings {
     } else if (qn.equals("com.google.common.collect.ImmutableSet")) {
       String atomicPkg = imports.std("sync/atomic");
       out.append("\telems_ []any `gson:\"-\"`\n");
-      out.append("\tsingleArr_ [1]any `gson:\"-\"`\n");
       out.append("\tstrs_ []string `gson:\"-\"`\n");
-      out.append("\tsingleStr_ [1]string `gson:\"-\"`\n");
       out.append("\tidx_ ").append(atomicPkg).append(".Pointer[immSetIdx] `gson:\"-\"`\n");
-      out.append("\tu8Bits_ [4]uint64 `gson:\"-\"`\n");
       out.append("\tu8Tab_ *[256]bool `gson:\"-\"`\n");
       out.append("\tu8PtrNil_ any `gson:\"-\"`\n");
       out.append("\thasU8Bits_ bool `gson:\"-\"`\n");
-    } else if (qn.equals("com.google.common.collect.ImmutableSortedSet")
-        || qn.equals("com.google.common.collect.ImmutableSortedSet.Builder")) {
+    } else if (qn.equals("com.google.common.collect.ImmutableSortedSet")) {
+      out.append("\tsortedCore_ *JMapCore `gson:\"-\"`\n");
+      out.append("\tsingleArr_ [1]any `gson:\"-\"`\n");
+    } else if (qn.equals("com.google.common.collect.ImmutableSortedSet.Builder")) {
       out.append("\tsortedCore_ *JMapCore `gson:\"-\"`\n");
     } else if (qn.equals("com.google.common.collect.ImmutableMap")) {
       out.append("\tinlineCore JMapCore `gson:\"-\"`\n");
@@ -11963,6 +11964,8 @@ public final class RuntimeBindings {
       out.append("\tinlineEnumMap jEnumMapCore `gson:\"-\"`\n");
     } else if (qn.equals("java.util.BitSet")) {
       RuntimeCollectionsBindings.emitExtraStructFields(te, out);
+    } else if (qn.equals("java.io.Reader")) {
+      out.append("\toneBuf_ [1]uint16 `gson:\"-\"`\n");
     }
     RuntimeProtobufBindings.emitExtraStructFields(this, te, imports, out);
     for (VariableElement ve : resolver.getReferencedExternalFields()) {
@@ -14315,31 +14318,81 @@ public final class RuntimeBindings {
     if (isTe != null && resolver.getReferencedExternalTypes().contains(isTe)) {
       String st = goStructType(isTe, imports);
       String isGo = goTypeInJ2gort(isTe.asType(), imports);
+      String atomicPkg = imports.std("sync/atomic");
+      String maphashPkg = imports.std("hash/maphash");
+      String stringsPkg = imports.std("strings");
       out.append("var emptyU8Tab_ [256]bool\n");
       out.append("var emptyImmutableSet_ ").append(isGo).append("\n");
-      out.append("func init() {\n\tobj := &").append(st).append("{elems_: emptyAnySlice_, u8Tab_: &emptyU8Tab_, hasU8Bits_: true}\n\tobj.BindExtSelf_(obj)\n\temptyImmutableSet_ = obj\n}\n\n");
+      out.append("var emptyStrImmSet_ *").append(st).append("\n");
+      out.append("const immSetStr1CacheMask_ = 511\n");
+      out.append("var immSetStr1Seed_ = ").append(maphashPkg).append(".MakeSeed()\n");
+      out.append("var immSetStr1L1_ [immSetStr1CacheMask_ + 1]").append(atomicPkg).append(".Pointer[immStrSet1_]\n");
+      out.append("var immSetStr1Cache_ [immSetStr1CacheMask_ + 1][2]").append(atomicPkg).append(".Pointer[immStrSet1_]\n");
+      out.append("type immStrSet1_ struct {\n\tset ").append(st).append("\n\tbuf [1]string\n}\n");
+      out.append("type immStrSet2_ struct {\n\tset ").append(st).append("\n\tbuf [2]string\n}\n");
+      out.append("type immStrSet4_ struct {\n\tset ").append(st).append("\n\tbuf [4]string\n}\n");
+      out.append("type immStrSet8_ struct {\n\tset ").append(st).append("\n\tbuf [8]string\n}\n");
+      out.append("type immAnySet1_ struct {\n\tset ").append(st).append("\n\tbuf [1]any\n}\n");
+      out.append("type immAnySet2_ struct {\n\tset ").append(st).append("\n\tbuf [2]any\n}\n");
+      out.append("type immAnySet4_ struct {\n\tset ").append(st).append("\n\tbuf [4]any\n}\n");
+      out.append("type immAnySet8_ struct {\n\tset ").append(st).append("\n\tbuf [8]any\n}\n");
+      out.append("func init() {\n\tobj := &").append(st).append("{elems_: emptyAnySlice_, u8Tab_: &emptyU8Tab_, hasU8Bits_: true}\n\tobj.BindExtSelf_(obj)\n\temptyImmutableSet_ = obj\n")
+          .append("\tes := &immStrSet1_{}\n\tes.set.u8Tab_ = &emptyU8Tab_\n\tes.set.strs_ = es.buf[:1:1]\n\tes.set.BindExtSelf_(&es.set)\n\temptyStrImmSet_ = &es.set\n")
+          .append("\tregisterRuntimePoolPurger(func() {\n\t\tfor i := range immSetStr1L1_ {\n\t\t\timmSetStr1L1_[i].Store(nil)\n\t\t\timmSetStr1Cache_[i][0].Store(nil)\n\t\t\timmSetStr1Cache_[i][1].Store(nil)\n\t\t}\n\t})\n}\n\n");
       out.append("func newImmutableSetShell() *").append(st).append(" {\n");
       out.append("\tobj := &").append(st).append("{u8Tab_: &emptyU8Tab_}\n");
       out.append("\tobj.BindExtSelf_(obj)\n");
       out.append("\treturn obj\n}\n\n");
       out.append("func ImmSetOfStr1(s0 string) ").append(isGo).append(" {\n");
+      out.append("\treturn immSetOfStr1Fast_(s0, immSetOfStr1Slow)\n}\n\n");
+      out.append("func immSetOfStr1Fast_(s0 string, slow func(string) ").append(isGo).append(") ").append(isGo).append(" {\n");
+      out.append("\tif uint(len(s0)-1) < 64 {\n");
+      out.append("\t\tif c := immSetStr1L1_[(uint32(s0[0])<<4^uint32(s0[len(s0)-1]))&immSetStr1CacheMask_].Load(); c != nil && c.buf[0] == s0 {\n\t\t\treturn &c.set\n\t\t}\n\t}\n");
+      out.append("\treturn slow(s0)\n}\n\n");
+      out.append("//go:noinline\n");
+      out.append("func immSetOfStr1Slow(s0 string) ").append(isGo).append(" {\n");
       out.append("\tif s0 == NullString { ThrowNPE() }\n");
-      out.append("\tobj := &").append(st).append("{u8Tab_: &emptyU8Tab_}\n\tobj.BindExtSelf_(obj)\n");
-      out.append("\tobj.singleStr_[0] = s0\n\tobj.strs_ = obj.singleStr_[:1:1]\n\treturn obj\n}\n\n");
+      out.append("\tn := len(s0)\n\tif n == 0 { return emptyStrImmSet_ }\n");
+      out.append("\tif n <= 64 {\n");
+      out.append("\t\tl1 := (uint32(s0[0])<<4 ^ uint32(s0[n-1])) & immSetStr1CacheMask_\n");
+      out.append("\t\th := ").append(maphashPkg).append(".String(immSetStr1Seed_, s0)\n");
+      out.append("\t\tbkt := &immSetStr1Cache_[uint32(h)&immSetStr1CacheMask_]\n");
+      out.append("\t\tif c0 := bkt[0].Load(); c0 != nil && c0.buf[0] == s0 {\n\t\t\timmSetStr1L1_[l1].Store(c0)\n\t\t\treturn &c0.set\n\t\t}\n");
+      out.append("\t\tif c1 := bkt[1].Load(); c1 != nil && c1.buf[0] == s0 {\n\t\t\timmSetStr1L1_[l1].Store(c1)\n\t\t\treturn &c1.set\n\t\t}\n");
+      out.append("\t\tsc := ").append(stringsPkg).append(".Clone(s0)\n");
+      out.append("\t\tc := &immStrSet1_{}\n\t\tc.buf[0] = sc\n\t\tc.set.u8Tab_ = &emptyU8Tab_\n\t\tc.set.strs_ = c.buf[:1:1]\n\t\tc.set.BindExtSelf_(&c.set)\n");
+      out.append("\t\tif bkt[0].Load() == nil {\n\t\t\tbkt[0].Store(c)\n\t\t} else {\n\t\t\tbkt[int((h>>32)&1)].Store(c)\n\t\t}\n");
+      out.append("\t\timmSetStr1L1_[l1].Store(c)\n\t\treturn &c.set\n\t}\n");
+      out.append("\tc := &immStrSet1_{}\n\tc.buf[0] = s0\n\tc.set.u8Tab_ = &emptyU8Tab_\n\tc.set.strs_ = c.buf[:1:1]\n\tc.set.BindExtSelf_(&c.set)\n\treturn &c.set\n}\n\n");
       out.append("func ImmSetOfStr2(s0, s1 string) ").append(isGo).append(" {\n");
       out.append("\tif s0 == NullString || s1 == NullString { ThrowNPE() }\n");
       out.append("\tif s0 == s1 { return ImmSetOfStr1(s0) }\n");
-      out.append("\tobj := &").append(st).append("{strs_: []string{s0, s1}, u8Tab_: &emptyU8Tab_}\n\tobj.BindExtSelf_(obj)\n\treturn obj\n}\n\n");
+      out.append("\tc := &immStrSet2_{}\n\tc.buf[0] = s0\n\tc.buf[1] = s1\n\tc.set.u8Tab_ = &emptyU8Tab_\n\tc.set.strs_ = c.buf[:2:2]\n\tc.set.BindExtSelf_(&c.set)\n\treturn &c.set\n}\n\n");
+      out.append("func finishImmStrSetSmall(src []string) *").append(st).append(" {\n");
+      out.append("\tn := len(src)\n");
+      out.append("\tswitch {\n");
+      out.append("\tcase n <= 2:\n\t\tc := &immStrSet2_{}\n\t\tcopy(c.buf[:n], src)\n\t\tc.set.u8Tab_ = &emptyU8Tab_\n\t\tc.set.strs_ = c.buf[:n:n]\n\t\tc.set.BindExtSelf_(&c.set)\n\t\treturn &c.set\n");
+      out.append("\tcase n <= 4:\n\t\tc := &immStrSet4_{}\n\t\tcopy(c.buf[:n], src)\n\t\tc.set.u8Tab_ = &emptyU8Tab_\n\t\tc.set.strs_ = c.buf[:n:n]\n\t\tc.set.BindExtSelf_(&c.set)\n\t\treturn &c.set\n");
+      out.append("\tdefault:\n\t\tc := &immStrSet8_{}\n\t\tcopy(c.buf[:n], src)\n\t\tc.set.u8Tab_ = &emptyU8Tab_\n\t\tc.set.strs_ = c.buf[:n:n]\n\t\tc.set.BindExtSelf_(&c.set)\n\t\treturn &c.set\n\t}\n}\n\n");
       out.append("func finishImmStrSetOwn(strs []string, _ *JSetCore) *").append(st).append(" {\n");
       out.append("\tobj := &").append(st).append("{strs_: strs[:len(strs):len(strs)], u8Tab_: &emptyU8Tab_}\n\tobj.BindExtSelf_(obj)\n");
       out.append("\treturn obj\n}\n\n");
       out.append("func finishImmSetSingleRaw(e0 any) *").append(st).append(" {\n");
-      out.append("\tobj := &").append(st).append("{u8Tab_: &emptyU8Tab_}\n");
-      out.append("\tobj.BindExtSelf_(obj)\n");
-      out.append("\tobj.singleArr_[0] = e0\n");
-      out.append("\tobj.elems_ = obj.singleArr_[:1:1]\n");
-      out.append("\ttryInitImmEnumSingle(obj, e0)\n");
-      out.append("\treturn obj\n}\n\n");
+      out.append("\tc := &immAnySet1_{}\n");
+      out.append("\tc.set.u8Tab_ = &emptyU8Tab_\n");
+      out.append("\tc.set.BindExtSelf_(&c.set)\n");
+      out.append("\tc.buf[0] = e0\n");
+      out.append("\tc.set.elems_ = c.buf[:1:1]\n");
+      out.append("\ttryInitImmEnumSingle(&c.set, e0)\n");
+      out.append("\treturn &c.set\n}\n\n");
+      out.append("func finishImmSetSmall(src []any) *").append(st).append(" {\n");
+      out.append("\tn := len(src)\n");
+      out.append("\tvar obj *").append(st).append("\n");
+      out.append("\tswitch {\n");
+      out.append("\tcase n <= 2:\n\t\tc := &immAnySet2_{}\n\t\tcopy(c.buf[:n], src)\n\t\tc.set.elems_ = c.buf[:n:n]\n\t\tobj = &c.set\n");
+      out.append("\tcase n <= 4:\n\t\tc := &immAnySet4_{}\n\t\tcopy(c.buf[:n], src)\n\t\tc.set.elems_ = c.buf[:n:n]\n\t\tobj = &c.set\n");
+      out.append("\tdefault:\n\t\tc := &immAnySet8_{}\n\t\tcopy(c.buf[:n], src)\n\t\tc.set.elems_ = c.buf[:n:n]\n\t\tobj = &c.set\n\t}\n");
+      out.append("\tobj.u8Tab_ = &emptyU8Tab_\n\tobj.BindExtSelf_(obj)\n\ttryInitImmEnumMulti(obj, obj.elems_)\n\treturn obj\n}\n\n");
       out.append("func newImmSet1(e0 any) ").append(isGo).append(" {\n");
       out.append("\tif s0, ok := e0.(string); ok {\n\t\treturn ImmSetOfStr1(s0)\n\t}\n");
       out.append("\te0 = ToAny(e0)\n\tif e0 == nil { ThrowNPE() }\n");
@@ -14349,7 +14402,7 @@ public final class RuntimeBindings {
       out.append("\te0 = ToAny(e0)\n\tif e0 == nil { ThrowNPE() }\n");
       out.append("\te1 = ToAny(e1)\n\tif e1 == nil { ThrowNPE() }\n");
       out.append("\tif elemJavaEquals(e0, e1, false) {\n\t\treturn finishImmSetSingleRaw(e0)\n\t}\n");
-      out.append("\treturn finishImmSetMulti([]any{e0, e1}, nil)\n}\n\n");
+      out.append("\tc := &immAnySet2_{}\n\tc.buf[0] = e0\n\tc.buf[1] = e1\n\tc.set.elems_ = c.buf[:2:2]\n\tc.set.u8Tab_ = &emptyU8Tab_\n\tc.set.BindExtSelf_(&c.set)\n\ttryInitImmEnumMulti(&c.set, c.set.elems_)\n\treturn &c.set\n}\n\n");
       out.append("func wrapImmutableSetFromSetCoreOwn(sc *JSetCore) ").append(isGo).append(" {\n");
       out.append("\tif sc == nil || sc.Size() == 0 {\n\t\treturn emptyImmutableSet_\n\t}\n");
       out.append("\tif sc.mode == jSetModeStr {\n\t\tsc.sealForImmutable()\n\t\tst := sc.ext.(*jSetStrState)\n\t\thasNull := false\n\t\tfor _, s := range st.strs { if s == NullString { hasNull = true; break } }\n\t\tif !hasNull {\n\t\t\tif len(st.strs) == 1 { return ImmSetOfStr1(st.strs[0]) }\n\t\t\treturn finishImmStrSetOwn(st.strs, sc)\n\t\t}\n\t}\n");
@@ -14357,16 +14410,16 @@ public final class RuntimeBindings {
       out.append("\treturn finishImmSetMulti(sc.LiveKeys(), sc)\n}\n\n");
       out.append("func wrapImmutableSetCore(mc *JMapCore) ").append(isGo).append(" {\n");
       out.append("\tif mc == nil || mc.Size() == 0 {\n\t\treturn emptyImmutableSet_\n\t}\n");
-      out.append("\tif mc.mode == jMapModeStr {\n\t\thasNull := false\n\t\tfor i := int(mc.firstIdx); i < len(mc.strEntries); i++ {\n\t\t\tk := mc.strEntries[i].key\n\t\t\tif k == NullString { hasNull = true; break }\n\t\t}\n\t\tif !hasNull {\n\t\t\tif mc.Size() == 1 {\n\t\t\t\tfor i := int(mc.firstIdx); i < len(mc.strEntries); i++ {\n\t\t\t\t\tif k := mc.strEntries[i].key; k != jTombstoneStr { return ImmSetOfStr1(k) }\n\t\t\t\t}\n\t\t\t}\n\t\t\tstrs := make([]string, 0, mc.Size())\n\t\t\tfor i := int(mc.firstIdx); i < len(mc.strEntries); i++ {\n\t\t\t\tif k := mc.strEntries[i].key; k != jTombstoneStr { strs = append(strs, k) }\n\t\t\t}\n\t\t\treturn finishImmStrSetOwn(strs, nil)\n\t\t}\n\t}\n");
+      out.append("\tif mc.mode == jMapModeStr {\n\t\thasNull := false\n\t\tfor i := int(mc.firstIdx); i < len(mc.strEntries); i++ {\n\t\t\tk := mc.strEntries[i].key\n\t\t\tif k == NullString { hasNull = true; break }\n\t\t}\n\t\tif !hasNull {\n\t\t\tn := int(mc.Size())\n\t\t\tif n == 1 {\n\t\t\t\tfor i := int(mc.firstIdx); i < len(mc.strEntries); i++ {\n\t\t\t\t\tif k := mc.strEntries[i].key; k != jTombstoneStr { return ImmSetOfStr1(k) }\n\t\t\t\t}\n\t\t\t}\n\t\t\tif n <= 8 {\n\t\t\t\tvar sbuf [8]string\n\t\t\t\tw := 0\n\t\t\t\tfor i := int(mc.firstIdx); i < len(mc.strEntries); i++ {\n\t\t\t\t\tif k := mc.strEntries[i].key; k != jTombstoneStr { sbuf[w] = k; w++ }\n\t\t\t\t}\n\t\t\t\treturn finishImmStrSetSmall(sbuf[:w])\n\t\t\t}\n\t\t\tstrs := make([]string, 0, n)\n\t\t\tfor i := int(mc.firstIdx); i < len(mc.strEntries); i++ {\n\t\t\t\tif k := mc.strEntries[i].key; k != jTombstoneStr { strs = append(strs, k) }\n\t\t\t}\n\t\t\treturn finishImmStrSetOwn(strs, nil)\n\t\t}\n\t}\n");
       out.append("\tif mc.Size() == 1 {\n\t\treturn finishImmSetSingleRaw(mc.FirstKey())\n\t}\n");
       out.append("\treturn finishImmSetMulti(mc.LiveKeys(), nil)\n}\n\n");
       out.append("func wrapImmutableSet(items []any) ").append(isGo).append(" {\n");
       out.append("\tswitch len(items) {\n\tcase 0:\n\t\treturn emptyImmutableSet_\n");
       out.append("\tcase 1:\n\t\tif s0, ok := items[0].(string); ok && s0 != NullString { return ImmSetOfStr1(s0) }\n\t\treturn finishImmSetSingleRaw(ToAny(items[0]))\n\t}\n");
       out.append("\tif len(items) <= 8 {\n\t\tvar buf [8]any\n\t\tn := 0\n\t\tallStr := true\n\t\tfor _, raw := range items {\n\t\t\tv := ToAny(raw)\n\t\t\tif _, ok := v.(string); !ok { allStr = false }\n\t\t\tdup := false\n\t\t\tfor j := 0; j < n; j++ {\n\t\t\t\tif elemJavaEquals(buf[j], v, false) { dup = true; break }\n\t\t\t}\n\t\t\tif !dup { buf[n] = v; n++ }\n\t\t}\n");
-      out.append("\t\tif allStr {\n\t\t\tif n == 1 { return ImmSetOfStr1(buf[0].(string)) }\n\t\t\tstrs := make([]string, n)\n\t\t\tfor i := 0; i < n; i++ { strs[i] = buf[i].(string) }\n\t\t\treturn finishImmStrSetOwn(strs, nil)\n\t\t}\n");
+      out.append("\t\tif allStr {\n\t\t\tif n == 1 { return ImmSetOfStr1(buf[0].(string)) }\n\t\t\tvar sbuf [8]string\n\t\t\tfor i := 0; i < n; i++ { sbuf[i] = buf[i].(string) }\n\t\t\treturn finishImmStrSetSmall(sbuf[:n])\n\t\t}\n");
       out.append("\t\tif n == 1 {\n\t\t\treturn finishImmSetSingleRaw(buf[0])\n\t\t}\n");
-      out.append("\t\telems := make([]any, n)\n\t\tcopy(elems, buf[:n])\n\t\treturn finishImmSetMulti(elems, nil)\n\t}\n");
+      out.append("\t\treturn finishImmSetSmall(buf[:n])\n\t}\n");
       out.append("\tsc := &JSetCore{}\n\tsc.InitExpectedSize(int32(len(items)))\n\tfor _, x := range items { sc.Add(x) }\n\treturn wrapImmutableSetFromSetCoreOwn(sc)\n}\n\n");
       TypeElement isbTe = resolver.elements.getTypeElement("com.google.common.collect.ImmutableSet.Builder");
       TypeElement issbTe = resolver.elements.getTypeElement("com.google.common.collect.ImmutableSortedSet.Builder");
@@ -14996,8 +15049,7 @@ public final class RuntimeBindings {
     if (isTe != null && resolver.getReferencedExternalTypes().contains(isTe)) {
       String isSt = goStructType(isTe, imports);
       out.append("\tif p, ok := s.(*").append(isSt).append("); ok && p != nil && p.hasU8Bits_ {\n")
-          .append("\t\tu := uint8(v)\n")
-          .append("\t\treturn (p.u8Bits_[u>>6]&(uint64(1)<<(u&63))) != 0 && p.u8PtrNil_ == any((*E)(nil))\n")
+          .append("\t\treturn p.u8Tab_[uint8(v)] && p.u8PtrNil_ == any((*E)(nil))\n")
           .append("\t}\n");
     }
     String reflPkgU8 = imports.std("reflect");

@@ -49,6 +49,8 @@ type JSType interface {
 	IsJavaNil_() bool
 	GetJSTypeBase() *JSTypeBase
 	FastTypeClass() JSTypeClass
+	GetWellFormedTemplatizedKind() int32
+	MayHaveNonStringifiableKey() bool
 	HasKindMaskProxy(int32) bool
 	HasKindMask(int32) bool
 	GetTypeClass() JSTypeClass
@@ -302,8 +304,10 @@ func StaticSet_JSType_TYPE_CLASSES(v []JSTypeClass) {
 	clinit_JSType()
 	static_JSType_TYPE_CLASSES = v
 }
-func StaticGet_JSType_EMPTY_TYPE_MASK() int32           { return int32(14) }
-func StaticGet_JSType_CAN_RESOLVE_TO_OTHER_MASK() int32 { return int32(5184) }
+func StaticGet_JSType_EMPTY_TYPE_MASK() int32                      { return int32(14) }
+func StaticGet_JSType_WELL_FORMED_TEMPLATIZED_ACTIVE_MASK() int32  { return int32(13760) }
+func StaticGet_JSType_NON_STRINGIFIABLE_KEY_CANDIDATE_MASK() int32 { return int32(16781377) }
+func StaticGet_JSType_CAN_RESOLVE_TO_OTHER_MASK() int32            { return int32(5184) }
 
 var clinitDone_JSType uint32
 var clinitState_JSType j2gort.ClinitState
@@ -362,6 +366,16 @@ func InitJSType_3(this_ *JSTypeBase, registry *JSTypeRegistry, templateTypeMap *
 // Java method: JSType.fastTypeClass()
 func (this_ *JSTypeBase) FastTypeClass() JSTypeClass {
 	return StaticGet_JSType_TYPE_CLASSES()[javalang.Shr32(this_.typeKindMask, int(int32(26)))]
+}
+
+// Java method: JSType.getWellFormedTemplatizedKind()
+func (this_ *JSTypeBase) GetWellFormedTemplatizedKind() int32 {
+	return (this_.typeKindMask & int32(13760))
+}
+
+// Java method: JSType.mayHaveNonStringifiableKey()
+func (this_ *JSTypeBase) MayHaveNonStringifiableKey() bool {
+	return ((this_.typeKindMask & int32(16781377)) != int32(0))
 }
 
 // Java method: JSType.hasKindMaskProxy(int mask)
@@ -1467,7 +1481,7 @@ func (this_ *JSTypeBase) GetTypesUnderInequality(that JSType) JSType_TypePair {
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if this_.priv_JSType_isNullTypeOrVoidType_9086() && that.GetJSTypeBase().priv_JSType_isNullTypeOrVoidType_9086() {
+	if this_.priv_JSType_isNullTypeOrVoidType_9102() && that.GetJSTypeBase().priv_JSType_isNullTypeOrVoidType_9102() {
 		var noType JSType = this_.registry.GetNativeType(StaticGet_JSTypeNative_NO_TYPE())
 		_ = noType
 		return NewJSType_TypePair(noType, noType)
@@ -1491,14 +1505,14 @@ func (this_ *JSTypeBase) GetTypesUnderShallowInequality(that JSType) JSType_Type
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9086() {
+	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9102() {
 		return NewJSType_TypePair(nil, nil)
 	}
 	return NewJSType_TypePair(this_.self_, that)
 }
 
 // Java method: JSType.isNullTypeOrVoidType()
-func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9086() bool {
+func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9102() bool {
 	return ((this_.typeKindMask & (int32(131072) | int32(262144))) != int32(0))
 }
 

@@ -125,12 +125,12 @@ func (this_ *Es6ForOfConverter) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pare
 	_ = n
 	_ = parent
 	if n.IsForOf() {
-		this_.priv_Es6ForOfConverter_visitForOf_2483(t, n)
+		this_.priv_Es6ForOfConverter_visitForOf_2486(t, n)
 	}
 }
 
 // Java method: Es6ForOfConverter.visitForOf(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node node)
-func (this_ *Es6ForOfConverter) priv_Es6ForOfConverter_visitForOf_2483(t *NodeTraversal, node pkg_rhino.Node) {
+func (this_ *Es6ForOfConverter) priv_Es6ForOfConverter_visitForOf_2486(t *NodeTraversal, node pkg_rhino.Node) {
 	_ = t
 	_ = node
 	var variable pkg_rhino.Node = node.RemoveFirstChild()

@@ -132,7 +132,7 @@ func InitExternExportsPass(this_ *ExternExportsPass, compiler AbstractCompiler) 
 	this_.externsRoot = pkg_rhino.IR_Script_0()
 	this_.alreadyExportedPaths = j2gort.NewOrderedSet[string]()
 	this_.mappedPaths = j2gort.NewOrderedMap[string, string]()
-	this_.priv_ExternExportsPass_initExportMethods_2818()
+	this_.priv_ExternExportsPass_initExportMethods_2821()
 }
 
 // Java static method: ExternExportsPass.computePathPrefixes(java.lang.String path)
@@ -158,7 +158,7 @@ func ExternExportsPass_ComputePathPrefixes(path string) j2gort.Ext_com_google_co
 }
 
 // Java method: ExternExportsPass.initExportMethods()
-func (this_ *ExternExportsPass) priv_ExternExportsPass_initExportMethods_2818() {
+func (this_ *ExternExportsPass) priv_ExternExportsPass_initExportMethods_2821() {
 	var convention CodingConvention = this_.compiler.GetCodingConvention()
 	_ = convention
 	this_.exportSymbolFunctionNames = j2gort.ImmSetOfStr2(convention.GetExportSymbolFunction(), "google_exportSymbol")
@@ -182,11 +182,11 @@ func (this_ *ExternExportsPass) Process_2(externs pkg_rhino.Node, root pkg_rhino
 			export.GenerateExterns()
 		}
 	}
-	this_.priv_ExternExportsPass_setGeneratedExternsOnCompiler_2819()
+	this_.priv_ExternExportsPass_setGeneratedExternsOnCompiler_2822()
 }
 
 // Java method: ExternExportsPass.setGeneratedExternsOnCompiler()
-func (this_ *ExternExportsPass) priv_ExternExportsPass_setGeneratedExternsOnCompiler_2819() {
+func (this_ *ExternExportsPass) priv_ExternExportsPass_setGeneratedExternsOnCompiler_2822() {
 	var builder *CodePrinter_Builder = NewCodePrinter_Builder(this_.externsRoot).SetPrettyPrint(true).SetOutputTypes(true).SetTypeRegistry(this_.compiler.GetTypeRegistry())
 	_ = builder
 	this_.compiler.SetExternExports(("/**\n * @fileoverview Generated externs.\n * @externs\n */\n" + j2gort.StrValString(builder.Build())))
@@ -197,14 +197,14 @@ func (this_ *ExternExportsPass) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pare
 	_ = t
 	_ = n
 	_ = parent
-	this_.priv_ExternExportsPass_lookForQnameDefinition_2820(n)
-	this_.priv_ExternExportsPass_lookForAtExportOnThisDotProperty_2824(t, n)
-	this_.priv_ExternExportsPass_lookForSymbolExportCall_2821(n)
-	this_.priv_ExternExportsPass_lookForPropertyExportCall_2822(n)
+	this_.priv_ExternExportsPass_lookForQnameDefinition_2823(n)
+	this_.priv_ExternExportsPass_lookForAtExportOnThisDotProperty_2827(t, n)
+	this_.priv_ExternExportsPass_lookForSymbolExportCall_2824(n)
+	this_.priv_ExternExportsPass_lookForPropertyExportCall_2825(n)
 }
 
 // Java method: ExternExportsPass.lookForQnameDefinition(com.google.javascript.rhino.Node n)
-func (this_ *ExternExportsPass) priv_ExternExportsPass_lookForQnameDefinition_2820(n pkg_rhino.Node) {
+func (this_ *ExternExportsPass) priv_ExternExportsPass_lookForQnameDefinition_2823(n pkg_rhino.Node) {
 	_ = n
 	if n.IsClass() {
 		if NodeUtil_IsClassDeclaration(n) {
@@ -240,9 +240,9 @@ func (this_ *ExternExportsPass) priv_ExternExportsPass_lookForQnameDefinition_28
 }
 
 // Java method: ExternExportsPass.lookForSymbolExportCall(com.google.javascript.rhino.Node n)
-func (this_ *ExternExportsPass) priv_ExternExportsPass_lookForSymbolExportCall_2821(n pkg_rhino.Node) {
+func (this_ *ExternExportsPass) priv_ExternExportsPass_lookForSymbolExportCall_2824(n pkg_rhino.Node) {
 	_ = n
-	if !(this_.priv_ExternExportsPass_isCallToOneOf_2823(n, this_.exportSymbolFunctionNames)) {
+	if !(this_.priv_ExternExportsPass_isCallToOneOf_2826(n, this_.exportSymbolFunctionNames)) {
 		return
 	}
 	if !(n.HasXChildren(int32(3))) {
@@ -261,9 +261,9 @@ func (this_ *ExternExportsPass) priv_ExternExportsPass_lookForSymbolExportCall_2
 }
 
 // Java method: ExternExportsPass.lookForPropertyExportCall(com.google.javascript.rhino.Node n)
-func (this_ *ExternExportsPass) priv_ExternExportsPass_lookForPropertyExportCall_2822(n pkg_rhino.Node) {
+func (this_ *ExternExportsPass) priv_ExternExportsPass_lookForPropertyExportCall_2825(n pkg_rhino.Node) {
 	_ = n
-	if !(this_.priv_ExternExportsPass_isCallToOneOf_2823(n, this_.exportPropertyFunctionNames)) {
+	if !(this_.priv_ExternExportsPass_isCallToOneOf_2826(n, this_.exportPropertyFunctionNames)) {
 		return
 	}
 	if !(n.HasXChildren(int32(4))) {
@@ -287,7 +287,7 @@ func (this_ *ExternExportsPass) priv_ExternExportsPass_lookForPropertyExportCall
 }
 
 // Java method: ExternExportsPass.isCallToOneOf(com.google.javascript.rhino.Node n, com.google.common.collect.ImmutableSet<java.lang.String> functionQnames)
-func (this_ *ExternExportsPass) priv_ExternExportsPass_isCallToOneOf_2823(n pkg_rhino.Node, functionQnames j2gort.Ext_com_google_common_collect_ImmutableSet) bool {
+func (this_ *ExternExportsPass) priv_ExternExportsPass_isCallToOneOf_2826(n pkg_rhino.Node, functionQnames j2gort.Ext_com_google_common_collect_ImmutableSet) bool {
 	_ = n
 	_ = functionQnames
 	if !(n.IsCall()) {
@@ -300,7 +300,7 @@ func (this_ *ExternExportsPass) priv_ExternExportsPass_isCallToOneOf_2823(n pkg_
 }
 
 // Java method: ExternExportsPass.lookForAtExportOnThisDotProperty(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node thisDotPropName)
-func (this_ *ExternExportsPass) priv_ExternExportsPass_lookForAtExportOnThisDotProperty_2824(t *NodeTraversal, thisDotPropName pkg_rhino.Node) {
+func (this_ *ExternExportsPass) priv_ExternExportsPass_lookForAtExportOnThisDotProperty_2827(t *NodeTraversal, thisDotPropName pkg_rhino.Node) {
 	_ = t
 	_ = thisDotPropName
 	if !(thisDotPropName.IsGetProp()) || !(thisDotPropName.GetFirstChild().IsThis()) {
@@ -451,29 +451,29 @@ func (this_ *ExternExportsPass_ExportBase) AppendExtern(path string, valueToExpo
 			_ = jsdoc_2
 			if isCompletePathPrefix && (valueToExport != 0) {
 				if valueToExport.IsFunction() {
-					initializer = this_.priv_Export_createExternFunction_2829(valueToExport)
+					initializer = this_.priv_Export_createExternFunction_2832(valueToExport)
 				} else if valueToExport.IsClass() {
-					initializer = this_.priv_Export_createExternFunctionForEs6Class_2834(valueToExport)
+					initializer = this_.priv_Export_createExternFunctionForEs6Class_2837(valueToExport)
 				} else {
 					if !(valueToExport.IsObjectLit()) {
 						j2gort.CheckState(false)
 					}
-					initializer = this_.priv_Export_createExternObjectLit_2837(valueToExport)
+					initializer = this_.priv_Export_createExternObjectLit_2840(valueToExport)
 				}
 			} else if !(isCompletePathPrefix) && exportedValueDefinesNewType {
-				jsdoc_2 = this_.priv_Export_buildNamespaceJSDoc_2836()
-				initializer = this_.priv_Export_createExternObjectLit_2837(pkg_rhino.IR_Objectlit([]pkg_rhino.Node{}))
+				jsdoc_2 = this_.priv_Export_buildNamespaceJSDoc_2839()
+				initializer = this_.priv_Export_createExternObjectLit_2840(pkg_rhino.IR_Objectlit([]pkg_rhino.Node{}))
 				initializer.SetJSDocInfo(nil)
 			} else {
 				initializer = pkg_rhino.IR_Empty()
 			}
-			this_.priv_Export_appendPathDefinition_2828(pathPrefix, initializer, jsdoc_2)
+			this_.priv_Export_appendPathDefinition_2831(pathPrefix, initializer, jsdoc_2)
 		}
 	}
 }
 
 // Java method: Export.appendPathDefinition(java.lang.String path, com.google.javascript.rhino.Node initializer, com.google.javascript.rhino.JSDocInfo jsdoc)
-func (this_ *ExternExportsPass_ExportBase) priv_Export_appendPathDefinition_2828(path string, initializer pkg_rhino.Node, jsdoc *pkg_rhino.JSDocInfo) {
+func (this_ *ExternExportsPass_ExportBase) priv_Export_appendPathDefinition_2831(path string, initializer pkg_rhino.Node, jsdoc *pkg_rhino.JSDocInfo) {
 	_ = path
 	_ = initializer
 	_ = jsdoc
@@ -509,9 +509,9 @@ func (this_ *ExternExportsPass_ExportBase) priv_Export_appendPathDefinition_2828
 }
 
 // Java method: Export.createExternFunction(com.google.javascript.rhino.Node exportedFunction)
-func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternFunction_2829(exportedFunction pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternFunction_2832(exportedFunction pkg_rhino.Node) pkg_rhino.Node {
 	_ = exportedFunction
-	var paramList pkg_rhino.Node = this_.priv_Export_createExternsParamListFromOriginalFunction_2830(exportedFunction)
+	var paramList pkg_rhino.Node = this_.priv_Export_createExternsParamListFromOriginalFunction_2833(exportedFunction)
 	_ = paramList
 	var externFunction pkg_rhino.Node = pkg_rhino.IR_Function(pkg_rhino.IR_Name(""), paramList, pkg_rhino.IR_Block_0())
 	_ = externFunction
@@ -520,7 +520,7 @@ func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternFunction_2829
 }
 
 // Java method: Export.createExternsParamListFromOriginalFunction(com.google.javascript.rhino.Node exportedFunction)
-func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternsParamListFromOriginalFunction_2830(exportedFunction pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternsParamListFromOriginalFunction_2833(exportedFunction pkg_rhino.Node) pkg_rhino.Node {
 	_ = exportedFunction
 	var originalParamList pkg_rhino.Node = NodeUtil_GetFunctionParameters(exportedFunction)
 	_ = originalParamList
@@ -530,22 +530,22 @@ func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternsParamListFro
 		var originalParam pkg_rhino.Node = originalParamList.GetFirstChild()
 		_ = originalParam
 		for ; originalParam != 0; originalParam = originalParam.GetNext() {
-			originalParamNames.Add_1(j2gort.BoxString(this_.priv_Export_getOriginalNameForParam_2833(originalParam)))
+			originalParamNames.Add_1(j2gort.BoxString(this_.priv_Export_getOriginalNameForParam_2836(originalParam)))
 		}
 	}
-	return this_.priv_Export_createExternsParamListFromOriginalParamList_2832(originalParamNames)
+	return this_.priv_Export_createExternsParamListFromOriginalParamList_2835(originalParamNames)
 }
 
 // Java method: Export.createExternsParamListFromFunctionType(com.google.javascript.rhino.jstype.JSType functionType)
-func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternsParamListFromFunctionType_2831(functionType pkg_rhino.JSType) pkg_rhino.Node {
+func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternsParamListFromFunctionType_2834(functionType pkg_rhino.JSType) pkg_rhino.Node {
 	_ = functionType
 	var emptyParamNames j2gort.Ext_java_util_List = j2gort.Ext_java_util_Collections_NCopies(functionType.AssertFunctionType().GetParameterCount(), "")
 	_ = emptyParamNames
-	return this_.priv_Export_createExternsParamListFromOriginalParamList_2832(emptyParamNames)
+	return this_.priv_Export_createExternsParamListFromOriginalParamList_2835(emptyParamNames)
 }
 
 // Java method: Export.createExternsParamListFromOriginalParamList(java.util.List<java.lang.String> originalParamNames)
-func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternsParamListFromOriginalParamList_2832(originalParamNames j2gort.Ext_java_util_List) pkg_rhino.Node {
+func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternsParamListFromOriginalParamList_2835(originalParamNames j2gort.Ext_java_util_List) pkg_rhino.Node {
 	_ = originalParamNames
 	var paramList pkg_rhino.Node = pkg_rhino.IR_ParamList([]pkg_rhino.Node{})
 	_ = paramList
@@ -570,7 +570,7 @@ func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternsParamListFro
 }
 
 // Java method: Export.getOriginalNameForParam(com.google.javascript.rhino.Node paramNode)
-func (this_ *ExternExportsPass_ExportBase) priv_Export_getOriginalNameForParam_2833(paramNode pkg_rhino.Node) string {
+func (this_ *ExternExportsPass_ExportBase) priv_Export_getOriginalNameForParam_2836(paramNode pkg_rhino.Node) string {
 	_ = paramNode
 	var nameOrPatternNode pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = nameOrPatternNode
@@ -598,31 +598,31 @@ func (this_ *ExternExportsPass_ExportBase) priv_Export_getOriginalNameForParam_2
 }
 
 // Java method: Export.createExternFunctionForEs6Class(com.google.javascript.rhino.Node exportedClass)
-func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternFunctionForEs6Class_2834(exportedClass pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternFunctionForEs6Class_2837(exportedClass pkg_rhino.Node) pkg_rhino.Node {
 	_ = exportedClass
 	var constructorMethodDefinition pkg_rhino.Node = NodeUtil_GetEs6ClassConstructorMemberFunctionDef(exportedClass)
 	_ = constructorMethodDefinition
 	if constructorMethodDefinition == 0 {
 		var classJSType pkg_rhino.JSType = exportedClass.GetJSType()
 		_ = classJSType
-		var paramList pkg_rhino.Node = this_.priv_Export_createExternsParamListFromFunctionType_2831(classJSType)
+		var paramList pkg_rhino.Node = this_.priv_Export_createExternsParamListFromFunctionType_2834(classJSType)
 		_ = paramList
 		var externFunction pkg_rhino.Node = pkg_rhino.IR_Function(pkg_rhino.IR_Name(""), paramList, pkg_rhino.IR_Block_0())
 		_ = externFunction
 		externFunction.SetJSType(classJSType)
 		return externFunction
 	} else {
-		return this_.priv_Export_createExternFunction_2829(constructorMethodDefinition.GetOnlyChild())
+		return this_.priv_Export_createExternFunction_2832(constructorMethodDefinition.GetOnlyChild())
 	}
 }
 
 // Java method: Export.buildEmptyJSDoc()
-func (this_ *ExternExportsPass_ExportBase) priv_Export_buildEmptyJSDoc_2835() *pkg_rhino.JSDocInfo {
+func (this_ *ExternExportsPass_ExportBase) priv_Export_buildEmptyJSDoc_2838() *pkg_rhino.JSDocInfo {
 	return pkg_rhino.JSDocInfo_S_Builder().Build_1(true)
 }
 
 // Java method: Export.buildNamespaceJSDoc()
-func (this_ *ExternExportsPass_ExportBase) priv_Export_buildNamespaceJSDoc_2836() *pkg_rhino.JSDocInfo {
+func (this_ *ExternExportsPass_ExportBase) priv_Export_buildNamespaceJSDoc_2839() *pkg_rhino.JSDocInfo {
 	var builder *pkg_rhino.JSDocInfo_Builder = pkg_rhino.JSDocInfo_S_Builder()
 	_ = builder
 	builder.RecordConstancy()
@@ -631,12 +631,12 @@ func (this_ *ExternExportsPass_ExportBase) priv_Export_buildNamespaceJSDoc_2836(
 }
 
 // Java method: Export.createExternObjectLit(com.google.javascript.rhino.Node exportedObjectLit)
-func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternObjectLit_2837(exportedObjectLit pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ExternExportsPass_ExportBase) priv_Export_createExternObjectLit_2840(exportedObjectLit pkg_rhino.Node) pkg_rhino.Node {
 	_ = exportedObjectLit
 	var lit pkg_rhino.Node = pkg_rhino.IR_Objectlit([]pkg_rhino.Node{})
 	_ = lit
 	lit.SetJSType(exportedObjectLit.GetJSType())
-	lit.SetJSDocInfo(this_.priv_Export_buildEmptyJSDoc_2835())
+	lit.SetJSDocInfo(this_.priv_Export_buildEmptyJSDoc_2838())
 	var index int32 = int32(1)
 	_ = index
 	{

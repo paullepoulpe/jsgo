@@ -215,7 +215,7 @@ func (this_ *CodeGeneratorBase) TagAsStrict() {
 }
 
 // Java method: CodeGenerator.printJsDocComment(com.google.javascript.rhino.Node node, com.google.javascript.rhino.JSDocInfo jsDocInfo)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_printJsDocComment_1305(node pkg_rhino.Node, jsDocInfo *pkg_rhino.JSDocInfo) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_printJsDocComment_1306(node pkg_rhino.Node, jsDocInfo *pkg_rhino.JSDocInfo) {
 	_ = node
 	_ = jsDocInfo
 	var jsdocAsString string = j2gort.NullString
@@ -234,13 +234,13 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_printJsDocComment_1305(node p
 }
 
 // Java method: CodeGenerator.printNonJsDocComment(com.google.javascript.rhino.Node node, com.google.javascript.rhino.NonJSDocComment nonJsDocComment)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_printNonJsDocComment_1306(node pkg_rhino.Node, nonJsDocComment *pkg_rhino.NonJSDocComment) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_printNonJsDocComment_1307(node pkg_rhino.Node, nonJsDocComment *pkg_rhino.NonJSDocComment) {
 	_ = node
 	_ = nonJsDocComment
 	var nonJsDocCommentString string = nonJsDocComment.GetCommentString()
 	_ = nonJsDocCommentString
 	if !(j2gort.CheckNotNullString(nonJsDocCommentString) == "") {
-		this_.priv_CodeGenerator_addNonJsDocNonTrailing_1341(node, nonJsDocComment)
+		this_.priv_CodeGenerator_addNonJsDocNonTrailing_1342(node, nonJsDocComment)
 	}
 }
 
@@ -257,26 +257,26 @@ func (this_ *CodeGeneratorBase) PrintLeadingCommentsInOrder(node pkg_rhino.Node)
 	_ = printNonJsDoc
 	if printJsDoc && printNonJsDoc {
 		if jsDocInfo.GetOriginalCommentPosition() < nonJsDocComment.GetStartPosition().GetOffset() {
-			this_.priv_CodeGenerator_printJsDocComment_1305(node, jsDocInfo)
-			this_.priv_CodeGenerator_printNonJsDocComment_1306(node, nonJsDocComment)
+			this_.priv_CodeGenerator_printJsDocComment_1306(node, jsDocInfo)
+			this_.priv_CodeGenerator_printNonJsDocComment_1307(node, nonJsDocComment)
 		} else {
-			this_.priv_CodeGenerator_printNonJsDocComment_1306(node, nonJsDocComment)
-			this_.priv_CodeGenerator_printJsDocComment_1305(node, jsDocInfo)
+			this_.priv_CodeGenerator_printNonJsDocComment_1307(node, nonJsDocComment)
+			this_.priv_CodeGenerator_printJsDocComment_1306(node, jsDocInfo)
 		}
 		return
 	}
 	if printJsDoc {
-		this_.priv_CodeGenerator_printJsDocComment_1305(node, jsDocInfo)
+		this_.priv_CodeGenerator_printJsDocComment_1306(node, jsDocInfo)
 		return
 	}
 	if printNonJsDoc {
-		this_.priv_CodeGenerator_printNonJsDocComment_1306(node, nonJsDocComment)
+		this_.priv_CodeGenerator_printNonJsDocComment_1307(node, nonJsDocComment)
 		return
 	}
 }
 
 // Java method: CodeGenerator.hasTrailingCommentOnSameLine(com.google.javascript.rhino.Node node)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node pkg_rhino.Node) bool {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node pkg_rhino.Node) bool {
 	_ = node
 	if !(this_.printNonJsDocComments) {
 		return false
@@ -296,7 +296,7 @@ func (this_ *CodeGeneratorBase) PrintTrailingComment(node pkg_rhino.Node) {
 		var nonJsDocCommentString string = node.GetTrailingNonJSDocCommentString()
 		_ = nonJsDocCommentString
 		if !(j2gort.CheckNotNullString(nonJsDocCommentString) == "") {
-			this_.priv_CodeGenerator_addNonJsDoctrailing_1342(nonJsDocComment, this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+			this_.priv_CodeGenerator_addNonJsDoctrailing_1343(nonJsDocComment, this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 		}
 	}
 }
@@ -359,7 +359,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		if !(childCount == int32(2)) {
 			j2gort.CheckStateFmt(false, "Bad binary operator \"%s\": expected 2 arguments but got %s", j2gort.BoxString(opstr), j2gort.ValueOfInt(childCount))
 		}
-		var p int32 = this_.priv_CodeGenerator_precedence_1316(node)
+		var p int32 = this_.priv_CodeGenerator_precedence_1317(node)
 		_ = p
 		var rhsContext CodeGenerator_Context = CodeGenerator_GetContextForNoInOperator(context)
 		_ = rhsContext
@@ -369,11 +369,11 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			this_.Add_1_string("(")
 		}
 		if NodeUtil_IsAssignmentOp(node) || (type_ == pkg_rhino.StaticGet_Token_EXPONENT()) {
-			this_.priv_CodeGenerator_addExpr_1327(first, (p + int32(1)), context)
+			this_.priv_CodeGenerator_addExpr_1328(first, (p + int32(1)), context)
 			this_.cc.AddOp(opstr, true)
-			this_.priv_CodeGenerator_addExpr_1327(last, p, rhsContext)
+			this_.priv_CodeGenerator_addExpr_1328(last, p, rhsContext)
 		} else {
-			this_.priv_CodeGenerator_unrollBinaryOperator_1325(node, type_, opstr, context, rhsContext, p, (p + int32(1)))
+			this_.priv_CodeGenerator_unrollBinaryOperator_1326(node, type_, opstr, context, rhsContext, p, (p + int32(1)))
 		}
 		if node.IsAssign() && needsParens {
 			this_.Add_1_string(")")
@@ -421,7 +421,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		this_.Add_1_string("throw")
 		this_.cc.MaybeInsertSpace()
 		this_.Add_1_Node(first)
-		this_.cc.EndStatement_2(true, this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+		this_.cc.EndStatement_2(true, this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 	case int32(0) /* Token.RETURN */ :
 		this_.Add_1_string("return")
 		if childCount == int32(1) {
@@ -438,30 +438,30 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 				j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
 			}
 		}
-		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 	case int32(84) /* Token.VAR */ :
 		this_.Add_1_string("var ")
 		this_.AddList_4(first, false, CodeGenerator_GetContextForNoInOperator(context), ",")
 		if (node.GetParent() == 0) || NodeUtil_IsStatement(node) {
-			this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+			this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 		}
 	case int32(97) /* Token.CONST */ :
 		this_.Add_1_string("const ")
 		this_.AddList_4(first, false, CodeGenerator_GetContextForNoInOperator(context), ",")
 		if (node.GetParent() == 0) || NodeUtil_IsStatement(node) {
-			this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+			this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 		}
 	case int32(111) /* Token.LET */ :
 		this_.Add_1_string("let ")
 		this_.AddList_4(first, false, CodeGenerator_GetContextForNoInOperator(context), ",")
 		if (node.GetParent() == 0) || NodeUtil_IsStatement(node) {
-			this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+			this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 		}
 	case int32(99) /* Token.LABEL_NAME */ :
 		if !(!(j2gort.CheckNotNullString(node.GetString()) == "")) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
 		}
-		this_.priv_CodeGenerator_addIdentifier_1314(node.GetString())
+		this_.priv_CodeGenerator_addIdentifier_1315(node.GetString())
 	case int32(104) /* Token.DESTRUCTURING_LHS */ :
 		this_.Add_1_Node(first)
 		if first != last {
@@ -469,22 +469,22 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 				j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
 			}
 			this_.cc.AddOp("=", true)
-			this_.priv_CodeGenerator_addExpr_1327(last, NodeUtil_Precedence(pkg_rhino.StaticGet_Token_ASSIGN()), CodeGenerator_GetContextForNoInOperator(context))
+			this_.priv_CodeGenerator_addExpr_1328(last, NodeUtil_Precedence(pkg_rhino.StaticGet_Token_ASSIGN()), CodeGenerator_GetContextForNoInOperator(context))
 		}
 	case int32(32) /* Token.NAME */ :
 		if this_.useOriginalName && (node.GetOriginalName() != j2gort.NullString) {
-			this_.priv_CodeGenerator_addIdentifier_1314(node.GetOriginalName())
+			this_.priv_CodeGenerator_addIdentifier_1315(node.GetOriginalName())
 		} else {
-			this_.priv_CodeGenerator_addIdentifier_1314(node.GetString())
+			this_.priv_CodeGenerator_addIdentifier_1315(node.GetString())
 		}
-		this_.priv_CodeGenerator_maybeAddOptional_1324(node)
-		this_.priv_CodeGenerator_maybeAddTypeDecl_1322(node)
+		this_.priv_CodeGenerator_maybeAddOptional_1325(node)
+		this_.priv_CodeGenerator_maybeAddTypeDecl_1323(node)
 		if (first != 0) && !(first.IsEmpty()) {
 			if !(childCount == int32(1)) {
 				j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
 			}
 			this_.cc.AddOp("=", true)
-			this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(pkg_rhino.StaticGet_Token_ASSIGN()), CodeGenerator_GetContextForNoInOperator(context))
+			this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(pkg_rhino.StaticGet_Token_ASSIGN()), CodeGenerator_GetContextForNoInOperator(context))
 		}
 	case int32(46) /* Token.ARRAYLIT */ :
 		this_.Add_1_string("[")
@@ -494,7 +494,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		this_.Add_1_string("[")
 		this_.AddArrayList(first)
 		this_.Add_1_string("]")
-		this_.priv_CodeGenerator_maybeAddTypeDecl_1322(node)
+		this_.priv_CodeGenerator_maybeAddTypeDecl_1323(node)
 	case int32(49) /* Token.PARAM_LIST */ :
 		if ((node.GetParent().IsArrowFunction() && node.HasOneChild()) && first.IsName()) && !(this_.gentsMode) {
 			this_.Add_1_Node(first)
@@ -505,14 +505,14 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		}
 	case int32(134) /* Token.DEFAULT_VALUE */ :
 		this_.Add_1_Node(first)
-		this_.priv_CodeGenerator_maybeAddTypeDecl_1322(node)
+		this_.priv_CodeGenerator_maybeAddTypeDecl_1323(node)
 		this_.cc.AddOp("=", true)
-		this_.priv_CodeGenerator_addExpr_1327(first.GetNext(), int32(1), StaticGet_CodeGenerator_Context_OTHER())
+		this_.priv_CodeGenerator_addExpr_1328(first.GetNext(), int32(1), StaticGet_CodeGenerator_Context_OTHER())
 	case int32(50) /* Token.COMMA */ :
 		if !(childCount == int32(2)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
 		}
-		this_.priv_CodeGenerator_unrollBinaryOperator_1325(node, pkg_rhino.StaticGet_Token_COMMA(), ",", context, CodeGenerator_GetContextForNoInOperator(context), int32(0), int32(0))
+		this_.priv_CodeGenerator_unrollBinaryOperator_1326(node, pkg_rhino.StaticGet_Token_COMMA(), ",", context, CodeGenerator_GetContextForNoInOperator(context), int32(0), int32(0))
 	case int32(33) /* Token.NUMBER */ :
 		if !(childCount == int32(0)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -528,7 +528,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
 		}
 		this_.cc.AddOp(NodeUtil_OpToStrNoFail(type_), false)
-		this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(type_), StaticGet_CodeGenerator_Context_OTHER())
+		this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(type_), StaticGet_CodeGenerator_Context_OTHER())
 	case int32(67) /* Token.HOOK */ :
 		if !(childCount == int32(3)) {
 			j2gort.CheckStateFmt(false, "%s wrong number of children: %s", j2gort.BoxNode(node), j2gort.ValueOfInt(childCount))
@@ -537,11 +537,11 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		_ = p_2
 		var rhsContext_2 CodeGenerator_Context = CodeGenerator_GetContextForNoInOperator(context)
 		_ = rhsContext_2
-		this_.priv_CodeGenerator_addExpr_1327(first, (p_2 + int32(1)), context)
+		this_.priv_CodeGenerator_addExpr_1328(first, (p_2 + int32(1)), context)
 		this_.cc.AddOp("?", true)
-		this_.priv_CodeGenerator_addExpr_1327(first.GetNext(), int32(1), rhsContext_2)
+		this_.priv_CodeGenerator_addExpr_1328(first.GetNext(), int32(1), rhsContext_2)
 		this_.cc.AddOp(":", true)
-		this_.priv_CodeGenerator_addExpr_1327(last, int32(1), rhsContext_2)
+		this_.priv_CodeGenerator_addExpr_1328(last, int32(1), rhsContext_2)
 	case int32(42) /* Token.REGEXP */ :
 		if !(first.IsStringLit()) || !(last.IsStringLit()) {
 			panic(j2gort.AsIface[javalang.IError](j2gort.ConstructShimThrowable("java.lang.Error", "Expected children to be strings")))
@@ -564,17 +564,17 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
 		}
 		if node.IsArrowFunction() {
-			this_.priv_CodeGenerator_addArrowFunction_1319(node, first, last, context)
+			this_.priv_CodeGenerator_addArrowFunction_1320(node, first, last, context)
 		} else {
-			this_.priv_CodeGenerator_addFunction_1320(node, first, last, context)
+			this_.priv_CodeGenerator_addFunction_1321(node, first, last, context)
 		}
 	case int32(125) /* Token.ITER_REST */, int32(126) /* Token.OBJECT_REST */ :
 		this_.Add_1_string("...")
 		this_.Add_1_Node(first)
-		this_.priv_CodeGenerator_maybeAddTypeDecl_1322(node)
+		this_.priv_CodeGenerator_maybeAddTypeDecl_1323(node)
 	case int32(127) /* Token.ITER_SPREAD */, int32(128) /* Token.OBJECT_SPREAD */ :
 		this_.Add_1_string("...")
-		this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(type_), StaticGet_CodeGenerator_Context_OTHER())
+		this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(type_), StaticGet_CodeGenerator_Context_OTHER())
 	case int32(120) /* Token.EXPORT */ :
 		this_.Add_1_string("export")
 		if node.GetBooleanProp(pkg_rhino.StaticGet_Node_EXPORT_DEFAULT()) {
@@ -592,7 +592,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			this_.Add_1_string("from")
 			this_.Add_1_Node(last)
 		}
-		this_.priv_CodeGenerator_processEnd_1352(first, context)
+		this_.priv_CodeGenerator_processEnd_1353(first, context)
 	case int32(116) /* Token.IMPORT */ :
 		this_.Add_1_string("import")
 		var second pkg_rhino.Node = first.GetNext()
@@ -610,7 +610,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			this_.Add_1_string("from")
 		}
 		this_.Add_1_Node(last)
-		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 	case int32(121) /* Token.EXPORT_SPECS */, int32(117) /* Token.IMPORT_SPECS */ :
 		this_.Add_1_string("{")
 		{
@@ -641,7 +641,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		this_.Add_1_string(node.GetString())
 	case int32(124) /* Token.DYNAMIC_IMPORT */ :
 		this_.Add_1_string("import(")
-		this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(type_), context)
+		this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(type_), context)
 		this_.Add_1_string(")")
 	case int32(136) /* Token.IMPORT_META */ :
 		this_.Add_1_string("import.meta")
@@ -665,10 +665,10 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			if !(name.IsEmpty()) {
 				this_.Add_1_Node(name)
 			}
-			this_.priv_CodeGenerator_maybeAddGenericTypes_1323(first)
+			this_.priv_CodeGenerator_maybeAddGenericTypes_1324(first)
 			if !(superClass.IsEmpty()) {
 				this_.Add_1_string("extends")
-				this_.priv_CodeGenerator_addExpr_1327(superClass, int32(1), StaticGet_CodeGenerator_Context_OTHER())
+				this_.priv_CodeGenerator_addExpr_1328(superClass, int32(1), StaticGet_CodeGenerator_Context_OTHER())
 			}
 			var interfaces pkg_rhino.Node = node.GetImplements()
 			_ = interfaces
@@ -696,7 +696,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			_ = c_2
 			for ; c_2 != 0; c_2 = c_2.GetNext() {
 				this_.Add_1_Node(c_2)
-				this_.priv_CodeGenerator_processEnd_1352(c_2, context)
+				this_.priv_CodeGenerator_processEnd_1353(c_2, context)
 				this_.cc.EndLine()
 			}
 		}
@@ -719,7 +719,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		if !((((node.GetParent().IsObjectLit() || node.GetParent().IsClassMembers()) || node.GetParent().IsInterfaceMembers()) || node.GetParent().IsRecordType()) || node.GetParent().IsIndexSignature()) {
 			j2gort.CheckState(false)
 		}
-		this_.priv_CodeGenerator_maybeAddAccessibilityModifier_1321(node)
+		this_.priv_CodeGenerator_maybeAddAccessibilityModifier_1322(node)
 		if node.IsStaticMember() {
 			this_.Add_1_string("static ")
 		}
@@ -750,8 +750,8 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		_ = name_2
 		if node.IsMemberVariableDef() {
 			this_.Add_1_string(node.GetString())
-			this_.priv_CodeGenerator_maybeAddOptional_1324(node)
-			this_.priv_CodeGenerator_maybeAddTypeDecl_1322(node)
+			this_.priv_CodeGenerator_maybeAddOptional_1325(node)
+			this_.priv_CodeGenerator_maybeAddTypeDecl_1323(node)
 		} else {
 			if !(childCount == int32(1)) {
 				j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -769,23 +769,23 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			var body pkg_rhino.Node = fn.GetLastChild()
 			_ = body
 			if node.IsPrivateIdentifier() {
-				this_.priv_CodeGenerator_addIdentifier_1314(name_2)
-				this_.priv_CodeGenerator_maybeAddGenericTypes_1323(fn.GetFirstChild())
+				this_.priv_CodeGenerator_addIdentifier_1315(name_2)
+				this_.priv_CodeGenerator_maybeAddGenericTypes_1324(fn.GetFirstChild())
 			} else if (!(node.IsQuotedStringKey()) && pkg_rhino.TokenStream_IsJSIdentifier(name_2)) && NodeUtil_IsLatin(name_2) {
 				this_.Add_1_string(name_2)
-				this_.priv_CodeGenerator_maybeAddGenericTypes_1323(fn.GetFirstChild())
+				this_.priv_CodeGenerator_maybeAddGenericTypes_1324(fn.GetFirstChild())
 			} else {
 				var d float64 = CodeGenerator_GetSimpleNumber(name_2)
 				_ = d
 				if !(math.IsNaN(d)) {
 					this_.cc.AddNumber(d, node)
 				} else {
-					this_.priv_CodeGenerator_addJsString_1343(node)
+					this_.priv_CodeGenerator_addJsString_1344(node)
 				}
 			}
-			this_.priv_CodeGenerator_maybeAddOptional_1324(fn)
+			this_.priv_CodeGenerator_maybeAddOptional_1325(fn)
 			this_.Add_1_Node(parameters)
-			this_.priv_CodeGenerator_maybeAddTypeDecl_1322(fn)
+			this_.priv_CodeGenerator_maybeAddTypeDecl_1323(fn)
 			this_.Add_1_Node(body)
 		}
 	case int32(108) /* Token.MEMBER_FIELD_DEF */, int32(109) /* Token.COMPUTED_FIELD_DEF */ :
@@ -799,18 +799,18 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		_ = init
 		switch (type_).Ordinal() {
 		case int32(108) /* Token.MEMBER_FIELD_DEF */ :
-			this_.priv_CodeGenerator_addIdentifier_1314(node.GetString())
+			this_.priv_CodeGenerator_addIdentifier_1315(node.GetString())
 			init = first
 		case int32(109) /* Token.COMPUTED_FIELD_DEF */ :
 			this_.Add_1_string("[")
-			this_.priv_CodeGenerator_addExpr_1327(first, int32(1), StaticGet_CodeGenerator_Context_OTHER())
+			this_.priv_CodeGenerator_addExpr_1328(first, int32(1), StaticGet_CodeGenerator_Context_OTHER())
 			this_.Add_1_string("]")
 			init = node.GetSecondChild()
 		default:
 		}
 		if init != 0 {
 			this_.cc.AddOp("=", true)
-			this_.priv_CodeGenerator_addExpr_1327(init, int32(1), StaticGet_CodeGenerator_Context_OTHER())
+			this_.priv_CodeGenerator_addExpr_1328(init, int32(1), StaticGet_CodeGenerator_Context_OTHER())
 		}
 		this_.Add_1_string(";")
 	case int32(94) /* Token.SCRIPT */, int32(123) /* Token.MODULE_BODY */, int32(90) /* Token.BLOCK */, int32(89) /* Token.ROOT */ :
@@ -857,7 +857,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		if NodeUtil_IsNameDeclaration(first) {
 			this_.self_.Add_2(first, StaticGet_CodeGenerator_Context_IN_FOR_INIT_CLAUSE())
 		} else {
-			this_.priv_CodeGenerator_addExpr_1327(first, int32(0), StaticGet_CodeGenerator_Context_IN_FOR_INIT_CLAUSE())
+			this_.priv_CodeGenerator_addExpr_1328(first, int32(0), StaticGet_CodeGenerator_Context_IN_FOR_INIT_CLAUSE())
 		}
 		this_.Add_1_string(";")
 		if !(first.GetNext().IsEmpty()) {
@@ -870,7 +870,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		}
 		this_.Add_1_Node(first.GetNext().GetNext())
 		this_.Add_1_string(")")
-		this_.priv_CodeGenerator_addNonEmptyStatement_1326(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
+		this_.priv_CodeGenerator_addNonEmptyStatement_1327(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
 	case int32(81) /* Token.FOR_IN */ :
 		if !(childCount == int32(3)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -882,7 +882,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		this_.Add_1_string("in")
 		this_.Add_1_Node(first.GetNext())
 		this_.Add_1_string(")")
-		this_.priv_CodeGenerator_addNonEmptyStatement_1326(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
+		this_.priv_CodeGenerator_addNonEmptyStatement_1327(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
 	case int32(112) /* Token.FOR_OF */ :
 		if !(childCount == int32(3)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -894,9 +894,9 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		this_.cc.MaybeInsertSpace()
 		this_.Add_1_string("of")
 		this_.cc.MaybeInsertSpace()
-		this_.priv_CodeGenerator_addExpr_1327(first.GetNext(), NodeUtil_Precedence(pkg_rhino.StaticGet_Token_ASSIGN()), StaticGet_CodeGenerator_Context_OTHER())
+		this_.priv_CodeGenerator_addExpr_1328(first.GetNext(), NodeUtil_Precedence(pkg_rhino.StaticGet_Token_ASSIGN()), StaticGet_CodeGenerator_Context_OTHER())
 		this_.Add_1_string(")")
-		this_.priv_CodeGenerator_addNonEmptyStatement_1326(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
+		this_.priv_CodeGenerator_addNonEmptyStatement_1327(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
 	case int32(113) /* Token.FOR_AWAIT_OF */ :
 		if !(childCount == int32(3)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -908,22 +908,22 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		this_.cc.MaybeInsertSpace()
 		this_.Add_1_string("of")
 		this_.cc.MaybeInsertSpace()
-		this_.priv_CodeGenerator_addExpr_1327(first.GetNext(), NodeUtil_Precedence(pkg_rhino.StaticGet_Token_ASSIGN()), StaticGet_CodeGenerator_Context_OTHER())
+		this_.priv_CodeGenerator_addExpr_1328(first.GetNext(), NodeUtil_Precedence(pkg_rhino.StaticGet_Token_ASSIGN()), StaticGet_CodeGenerator_Context_OTHER())
 		this_.Add_1_string(")")
-		this_.priv_CodeGenerator_addNonEmptyStatement_1326(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
+		this_.priv_CodeGenerator_addNonEmptyStatement_1327(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
 	case int32(79) /* Token.DO */ :
 		if !(childCount == int32(2)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
 		}
 		this_.Add_1_string("do")
-		this_.priv_CodeGenerator_addNonEmptyStatement_1326(first, StaticGet_CodeGenerator_Context_OTHER(), false)
+		this_.priv_CodeGenerator_addNonEmptyStatement_1327(first, StaticGet_CodeGenerator_Context_OTHER(), false)
 		this_.cc.MaybeInsertSpace()
 		this_.Add_1_string("while")
 		this_.cc.MaybeInsertSpace()
 		this_.Add_1_string("(")
 		this_.Add_1_Node(last)
 		this_.Add_1_string(")")
-		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 	case int32(78) /* Token.WHILE */ :
 		if !(childCount == int32(2)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -933,26 +933,26 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		this_.Add_1_string("(")
 		this_.Add_1_Node(first)
 		this_.Add_1_string(")")
-		this_.priv_CodeGenerator_addNonEmptyStatement_1326(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
+		this_.priv_CodeGenerator_addNonEmptyStatement_1327(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
 	case int32(88) /* Token.EMPTY */ :
 		if !(childCount == int32(0)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
 		}
 	case int32(29) /* Token.OPTCHAIN_GETPROP */ :
-		this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(type_), context)
+		this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(type_), context)
 		this_.Add_1_string(func() string {
 			if node.IsOptionalChainStart() {
 				return "?."
 			}
 			return "."
 		}())
-		this_.priv_CodeGenerator_addGetpropIdentifier_1315(node)
+		this_.priv_CodeGenerator_addGetpropIdentifier_1316(node)
 	case int32(26) /* Token.GETPROP */ :
 		if this_.useOriginalName && (node.GetOriginalName() != j2gort.NullString) {
 			if StaticGet_CodeGenerator_JSCOMP_SCOPE().Matches(node.GetFirstChild()) && node.GetParent().IsAssign() {
 				this_.Add_1_string("var ")
 			}
-			this_.priv_CodeGenerator_addGetpropIdentifier_1315(node)
+			this_.priv_CodeGenerator_addGetpropIdentifier_1316(node)
 			break
 		}
 		var breakOutOfOptionalChain bool = NodeUtil_IsOptChainNode(first)
@@ -962,7 +962,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		if needsParens_2 {
 			this_.Add_1_string("(")
 		}
-		this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(type_), context)
+		this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(type_), context)
 		if needsParens_2 {
 			this_.Add_1_string(")")
 		}
@@ -970,13 +970,13 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			this_.Add_1_string(("[\"" + j2gort.StrValString(node.GetString()) + "\"]"))
 		} else {
 			this_.Add_1_string(".")
-			this_.priv_CodeGenerator_addGetpropIdentifier_1315(node)
+			this_.priv_CodeGenerator_addGetpropIdentifier_1316(node)
 		}
 	case int32(30) /* Token.OPTCHAIN_GETELEM */ :
 		if !(childCount == int32(2)) {
 			j2gort.CheckStateFmt(false, "Bad GETELEM node: Expected 2 children but got %s. For node: %s", j2gort.ValueOfInt(childCount), j2gort.BoxNode(node))
 		}
-		this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(type_), context)
+		this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(type_), context)
 		if node.IsOptionalChainStart() {
 			this_.Add_1_string("?.")
 		}
@@ -992,7 +992,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		if needsParens_3 {
 			this_.Add_1_string("(")
 		}
-		this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(type_), context)
+		this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(type_), context)
 		if needsParens_3 {
 			this_.Add_1_string(")")
 		}
@@ -1006,7 +1006,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		this_.Add_1_string("with(")
 		this_.Add_1_Node(first)
 		this_.Add_1_string(")")
-		this_.priv_CodeGenerator_addNonEmptyStatement_1326(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
+		this_.priv_CodeGenerator_addNonEmptyStatement_1327(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
 	case int32(71) /* Token.INC */, int32(72) /* Token.DEC */ :
 		if !(childCount == int32(1)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -1021,7 +1021,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		var postProp bool = node.GetBooleanProp(pkg_rhino.StaticGet_Node_INCRDECR_PROP())
 		_ = postProp
 		if postProp {
-			this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(type_), context)
+			this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(type_), context)
 			this_.cc.AddOp(o, false)
 		} else {
 			this_.cc.AddOp(o, false)
@@ -1030,10 +1030,10 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 	case int32(31) /* Token.OPTCHAIN_CALL */ :
 		if CodeGenerator_IsIndirectEval(first) || (node.GetBooleanProp(pkg_rhino.StaticGet_Node_FREE_CALL()) && NodeUtil_IsNormalOrOptChainGet(first)) {
 			this_.Add_1_string("(0,")
-			this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(pkg_rhino.StaticGet_Token_COMMA()), StaticGet_CodeGenerator_Context_OTHER())
+			this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(pkg_rhino.StaticGet_Token_COMMA()), StaticGet_CodeGenerator_Context_OTHER())
 			this_.Add_1_string(")")
 		} else {
-			this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(type_), context)
+			this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(type_), context)
 		}
 		var args pkg_rhino.Node = first.GetNext()
 		_ = args
@@ -1044,7 +1044,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		this_.AddList_1(args)
 		this_.Add_1_string(")")
 	case int32(28) /* Token.CALL */ :
-		this_.priv_CodeGenerator_addInvocationTarget_1317(node, context)
+		this_.priv_CodeGenerator_addInvocationTarget_1318(node, context)
 		this_.Add_1_string("(")
 		this_.AddList_1(first.GetNext())
 		this_.Add_1_string(")")
@@ -1065,12 +1065,12 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		this_.Add_1_Node(first)
 		this_.Add_1_string(")")
 		if hasElse {
-			this_.priv_CodeGenerator_addNonEmptyStatement_1326(first.GetNext(), StaticGet_CodeGenerator_Context_BEFORE_DANGLING_ELSE(), false)
+			this_.priv_CodeGenerator_addNonEmptyStatement_1327(first.GetNext(), StaticGet_CodeGenerator_Context_BEFORE_DANGLING_ELSE(), false)
 			this_.cc.MaybeInsertSpace()
 			this_.Add_1_string("else")
-			this_.priv_CodeGenerator_addNonEmptyStatement_1326(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
+			this_.priv_CodeGenerator_addNonEmptyStatement_1327(last, CodeGenerator_GetContextForNonEmptyExpression(context), false)
 		} else {
-			this_.priv_CodeGenerator_addNonEmptyStatement_1326(first.GetNext(), StaticGet_CodeGenerator_Context_OTHER(), false)
+			this_.priv_CodeGenerator_addNonEmptyStatement_1327(first.GetNext(), StaticGet_CodeGenerator_Context_OTHER(), false)
 		}
 		if ambiguousElseClause {
 			this_.cc.EndBlock_0()
@@ -1103,11 +1103,11 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		}
 		if first != 0 {
 			this_.cc.MaybeInsertSpace()
-			this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(type_), StaticGet_CodeGenerator_Context_OTHER())
+			this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(type_), StaticGet_CodeGenerator_Context_OTHER())
 		}
 	case int32(115) /* Token.AWAIT */ :
 		this_.Add_1_string("await ")
-		this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(type_), StaticGet_CodeGenerator_Context_OTHER())
+		this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(type_), StaticGet_CodeGenerator_Context_OTHER())
 	case int32(38) /* Token.FALSE */ :
 		if !(childCount == int32(0)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -1130,13 +1130,13 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			this_.Add_1_string(" ")
 			this_.Add_1_Node(first)
 		}
-		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 	case int32(98) /* Token.DEBUGGER */ :
 		if !(childCount == int32(0)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
 		}
 		this_.Add_1_string("debugger")
-		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 	case int32(82) /* Token.BREAK */ :
 		if !(childCount <= int32(1)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -1149,13 +1149,13 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			this_.Add_1_string(" ")
 			this_.Add_1_Node(first)
 		}
-		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 	case int32(93) /* Token.EXPR_RESULT */ :
 		if !(childCount == int32(1)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
 		}
 		this_.self_.Add_2(first, StaticGet_CodeGenerator_Context_START_OF_EXPR())
-		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+		this_.cc.EndStatement_1(this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 	case int32(23) /* Token.NEW */ :
 		this_.Add_1_string("new ")
 		var precedence int32 = NodeUtil_Precedence(type_)
@@ -1168,7 +1168,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		if NodeUtil_Has(first, lambdaSingleton_code_generator_1, StaticGet_NodeUtil_MATCH_NOT_FUNCTION()) || NodeUtil_IsOptChainNode(first) {
 			precedence = (NodeUtil_Precedence(first.GetToken()) + int32(1))
 		}
-		this_.priv_CodeGenerator_addExpr_1327(first, precedence, StaticGet_CodeGenerator_Context_OTHER())
+		this_.priv_CodeGenerator_addExpr_1328(first, precedence, StaticGet_CodeGenerator_Context_OTHER())
 		var next pkg_rhino.Node = first.GetNext()
 		_ = next
 		if next != 0 {
@@ -1187,7 +1187,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		if !(childCount == int32(0)) {
 			j2gort.CheckStateFmt(false, "String node %s may not have children", j2gort.BoxNode(node))
 		}
-		this_.priv_CodeGenerator_addJsString_1343(node)
+		this_.priv_CodeGenerator_addJsString_1344(node)
 	case int32(24) /* Token.DELPROP */ :
 		if !(childCount == int32(1)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -1222,7 +1222,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			this_.Add_1_string(")")
 		}
 	case int32(129) /* Token.COMPUTED_PROP */ :
-		this_.priv_CodeGenerator_maybeAddAccessibilityModifier_1321(node)
+		this_.priv_CodeGenerator_maybeAddAccessibilityModifier_1322(node)
 		if node.GetBooleanProp(pkg_rhino.StaticGet_Node_STATIC_MEMBER()) {
 			this_.Add_1_string("static ")
 		}
@@ -1239,9 +1239,9 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			}
 		}
 		this_.Add_1_string("[")
-		this_.priv_CodeGenerator_addExpr_1327(first, int32(1), StaticGet_CodeGenerator_Context_OTHER())
+		this_.priv_CodeGenerator_addExpr_1328(first, int32(1), StaticGet_CodeGenerator_Context_OTHER())
 		this_.Add_1_string("]")
-		this_.priv_CodeGenerator_maybeAddTypeDecl_1322(node)
+		this_.priv_CodeGenerator_maybeAddTypeDecl_1323(node)
 		if (node.GetBooleanProp(pkg_rhino.StaticGet_Node_COMPUTED_PROP_METHOD()) || node.GetBooleanProp(pkg_rhino.StaticGet_Node_COMPUTED_PROP_GETTER())) || node.GetBooleanProp(pkg_rhino.StaticGet_Node_COMPUTED_PROP_SETTER()) {
 			var function pkg_rhino.Node = first.GetNext()
 			_ = function
@@ -1261,7 +1261,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 					j2gort.CheckStateStr(false, "initializers should only exist in object literals, not classes")
 				}
 				this_.cc.Add_1_string(":")
-				this_.priv_CodeGenerator_addExpr_1327(initializer, int32(1), StaticGet_CodeGenerator_Context_OTHER())
+				this_.priv_CodeGenerator_addExpr_1328(initializer, int32(1), StaticGet_CodeGenerator_Context_OTHER())
 			} else {
 				if !(node.GetBooleanProp(pkg_rhino.StaticGet_Node_COMPUTED_PROP_VARIABLE())) {
 					j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -1270,7 +1270,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		}
 	case int32(103) /* Token.OBJECT_PATTERN */ :
 		this_.AddObjectPattern(node)
-		this_.priv_CodeGenerator_maybeAddTypeDecl_1322(node)
+		this_.priv_CodeGenerator_maybeAddTypeDecl_1323(node)
 	case int32(75) /* Token.SWITCH */ :
 		this_.Add_1_string("switch(")
 		this_.Add_1_Node(first)
@@ -1305,7 +1305,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		if !(last.IsBlock()) {
 			this_.cc.MaybeInsertSpace()
 		}
-		this_.priv_CodeGenerator_addNonEmptyStatement_1326(last, CodeGenerator_GetContextForNonEmptyExpression(context), true)
+		this_.priv_CodeGenerator_addNonEmptyStatement_1327(last, CodeGenerator_GetContextForNonEmptyExpression(context), true)
 	case int32(101) /* Token.CAST */ :
 		if this_.preserveTypeAnnotations {
 			this_.Add_1_string("(")
@@ -1315,7 +1315,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			this_.self_.Add_2(first, context)
 		}
 	case int32(130) /* Token.TAGGED_TEMPLATELIT */ :
-		this_.priv_CodeGenerator_addInvocationTarget_1317(node, context)
+		this_.priv_CodeGenerator_addInvocationTarget_1318(node, context)
 		this_.Add_1_Node(first.GetNext())
 	case int32(131) /* Token.TEMPLATELIT */ :
 		this_.cc.BeginTemplateLit()
@@ -1324,7 +1324,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			_ = c_6
 			for ; c_6 != 0; c_6 = c_6.GetNext() {
 				if c_6.IsTemplateLitString() {
-					this_.Add_1_string(this_.priv_CodeGenerator_escapeUnrecognizedCharacters_1351(c_6.GetRawString()))
+					this_.Add_1_string(this_.priv_CodeGenerator_escapeUnrecognizedCharacters_1352(c_6.GetRawString()))
 				} else {
 					this_.cc.BeginTemplateLitSub()
 					this_.self_.Add_2(c_6.GetFirstChild(), StaticGet_CodeGenerator_Context_START_OF_EXPR())
@@ -1346,7 +1346,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 	case int32(147) /* Token.NAMED_TYPE */ :
 		this_.Add_1_Node(first)
 	case int32(151) /* Token.ARRAY_TYPE */ :
-		this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(pkg_rhino.StaticGet_Token_ARRAY_TYPE()), context)
+		this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(pkg_rhino.StaticGet_Token_ARRAY_TYPE()), context)
 		this_.Add_1_string("[]")
 	case int32(140) /* Token.FUNCTION_TYPE */ :
 		var returnType pkg_rhino.Node = first
@@ -1372,7 +1372,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		this_.AddList_4(first, false, StaticGet_CodeGenerator_Context_STATEMENT(), ",")
 		this_.Add_1_string(">")
 	case int32(152) /* Token.GENERIC_TYPE */ :
-		this_.priv_CodeGenerator_addIdentifier_1314(node.GetString())
+		this_.priv_CodeGenerator_addIdentifier_1315(node.GetString())
 		if node.HasChildren() {
 			this_.Add_1_string("extends")
 			this_.cc.MaybeInsertSpace()
@@ -1391,7 +1391,7 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 			_ = members_2
 			this_.Add_1_string("interface")
 			this_.Add_1_Node(name_3)
-			this_.priv_CodeGenerator_maybeAddGenericTypes_1323(name_3)
+			this_.priv_CodeGenerator_maybeAddGenericTypes_1324(name_3)
 			if !(superTypes.IsEmpty()) {
 				this_.Add_1_string("extends")
 				var superType pkg_rhino.Node = superTypes.GetFirstChild()
@@ -1436,25 +1436,25 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		this_.Add_1_string(node.GetString())
 		this_.cc.AddOp("=", true)
 		this_.Add_1_Node(last)
-		this_.cc.EndStatement_2(true, this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+		this_.cc.EndStatement_2(true, this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 	case int32(171) /* Token.DECLARE */ :
 		this_.Add_1_string("declare")
 		this_.Add_1_Node(first)
-		this_.priv_CodeGenerator_processEnd_1352(node, context)
+		this_.priv_CodeGenerator_processEnd_1353(node, context)
 	case int32(173) /* Token.INDEX_SIGNATURE */ :
 		this_.Add_1_string("[")
 		this_.Add_1_Node(first)
 		this_.Add_1_string("]")
-		this_.priv_CodeGenerator_maybeAddTypeDecl_1322(node)
-		this_.cc.EndStatement_2(true, this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+		this_.priv_CodeGenerator_maybeAddTypeDecl_1323(node)
+		this_.cc.EndStatement_2(true, this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 	case int32(174) /* Token.CALL_SIGNATURE */ :
 		if node.GetBooleanProp(pkg_rhino.StaticGet_Node_CONSTRUCT_SIGNATURE()) {
 			this_.Add_1_string("new ")
 		}
-		this_.priv_CodeGenerator_maybeAddGenericTypes_1323(node)
+		this_.priv_CodeGenerator_maybeAddGenericTypes_1324(node)
 		this_.Add_1_Node(first)
-		this_.priv_CodeGenerator_maybeAddTypeDecl_1322(node)
-		this_.cc.EndStatement_2(true, this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1308(node))
+		this_.priv_CodeGenerator_maybeAddTypeDecl_1323(node)
+		this_.cc.EndStatement_2(true, this_.priv_CodeGenerator_hasTrailingCommentOnSameLine_1309(node))
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(("Unknown token " + j2gort.StrVal(type_) + "\n" + j2gort.StrValString(node.ToStringTree()))))))
 	}
@@ -1463,30 +1463,30 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 }
 
 // Java method: CodeGenerator.addIdentifier(java.lang.String identifier)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_addIdentifier_1314(identifier string) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_addIdentifier_1315(identifier string) {
 	_ = identifier
 	this_.cc.AddIdentifier(CodeGenerator_IdentifierEscape(identifier))
 }
 
 // Java method: CodeGenerator.addGetpropIdentifier(com.google.javascript.rhino.Node getprop)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_addGetpropIdentifier_1315(getprop pkg_rhino.Node) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_addGetpropIdentifier_1316(getprop pkg_rhino.Node) {
 	_ = getprop
 	this_.cc.StartSourceMapping(getprop)
-	this_.priv_CodeGenerator_addIdentifier_1314(getprop.GetString())
+	this_.priv_CodeGenerator_addIdentifier_1315(getprop.GetString())
 	this_.cc.EndSourceMapping(getprop)
 }
 
 // Java method: CodeGenerator.precedence(com.google.javascript.rhino.Node n)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_precedence_1316(n pkg_rhino.Node) int32 {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_precedence_1317(n pkg_rhino.Node) int32 {
 	_ = n
 	if n.IsCast() {
-		return this_.priv_CodeGenerator_precedence_1316(n.GetFirstChild())
+		return this_.priv_CodeGenerator_precedence_1317(n.GetFirstChild())
 	}
 	return NodeUtil_Precedence(n.GetToken())
 }
 
 // Java method: CodeGenerator.addInvocationTarget(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.CodeGenerator.Context context)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_addInvocationTarget_1317(node pkg_rhino.Node, context CodeGenerator_Context) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_addInvocationTarget_1318(node pkg_rhino.Node, context CodeGenerator_Context) {
 	_ = node
 	_ = context
 	var first pkg_rhino.Node = node.GetFirstChild()
@@ -1495,13 +1495,13 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_addInvocationTarget_1317(node
 	_ = needsParens
 	if CodeGenerator_IsIndirectEval(first) || (node.GetBooleanProp(pkg_rhino.StaticGet_Node_FREE_CALL()) && NodeUtil_IsNormalOrOptChainGet(first)) {
 		this_.Add_1_string("(0,")
-		this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(pkg_rhino.StaticGet_Token_COMMA()), StaticGet_CodeGenerator_Context_OTHER())
+		this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(pkg_rhino.StaticGet_Token_COMMA()), StaticGet_CodeGenerator_Context_OTHER())
 		this_.Add_1_string(")")
 	} else {
 		if needsParens {
 			this_.Add_1_string("(")
 		}
-		this_.priv_CodeGenerator_addExpr_1327(first, NodeUtil_Precedence(node.GetToken()), context)
+		this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(node.GetToken()), context)
 		if needsParens {
 			this_.Add_1_string(")")
 		}
@@ -1509,7 +1509,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_addInvocationTarget_1317(node
 }
 
 // Java method: CodeGenerator.arrowFunctionNeedsParens(com.google.javascript.rhino.Node n)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_arrowFunctionNeedsParens_1318(n pkg_rhino.Node) bool {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_arrowFunctionNeedsParens_1319(n pkg_rhino.Node) bool {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -1534,7 +1534,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_arrowFunctionNeedsParens_1318
 }
 
 // Java method: CodeGenerator.addArrowFunction(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node first, com.google.javascript.rhino.Node last, com.google.javascript.jscomp.CodeGenerator.Context context)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_addArrowFunction_1319(n pkg_rhino.Node, first pkg_rhino.Node, last pkg_rhino.Node, context CodeGenerator_Context) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_addArrowFunction_1320(n pkg_rhino.Node, first pkg_rhino.Node, last pkg_rhino.Node, context CodeGenerator_Context) {
 	_ = n
 	_ = first
 	_ = last
@@ -1542,22 +1542,22 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_addArrowFunction_1319(n pkg_r
 	if !(j2gort.CheckNotNullString(first.GetString()) == "") {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(first))
 	}
-	var funcNeedsParens bool = this_.priv_CodeGenerator_arrowFunctionNeedsParens_1318(n)
+	var funcNeedsParens bool = this_.priv_CodeGenerator_arrowFunctionNeedsParens_1319(n)
 	_ = funcNeedsParens
 	if funcNeedsParens {
 		this_.Add_1_string("(")
 	}
-	this_.priv_CodeGenerator_maybeAddGenericTypes_1323(first)
+	this_.priv_CodeGenerator_maybeAddGenericTypes_1324(first)
 	if n.IsAsyncFunction() {
 		this_.Add_1_string("async")
 	}
 	this_.Add_1_Node(first.GetNext())
-	this_.priv_CodeGenerator_maybeAddTypeDecl_1322(n)
+	this_.priv_CodeGenerator_maybeAddTypeDecl_1323(n)
 	this_.cc.AddOp("=>", true)
 	if last.IsBlock() {
 		this_.Add_1_Node(last)
 	} else {
-		this_.priv_CodeGenerator_addExpr_1327(last, (NodeUtil_Precedence(pkg_rhino.StaticGet_Token_COMMA()) + int32(1)), CodeGenerator_GetContextForArrowFunctionBody(context))
+		this_.priv_CodeGenerator_addExpr_1328(last, (NodeUtil_Precedence(pkg_rhino.StaticGet_Token_COMMA()) + int32(1)), CodeGenerator_GetContextForArrowFunctionBody(context))
 	}
 	this_.cc.EndFunction((context == StaticGet_CodeGenerator_Context_STATEMENT()))
 	if funcNeedsParens {
@@ -1566,7 +1566,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_addArrowFunction_1319(n pkg_r
 }
 
 // Java method: CodeGenerator.addFunction(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node first, com.google.javascript.rhino.Node last, com.google.javascript.jscomp.CodeGenerator.Context context)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_addFunction_1320(n pkg_rhino.Node, first pkg_rhino.Node, last pkg_rhino.Node, context CodeGenerator_Context) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_addFunction_1321(n pkg_rhino.Node, first pkg_rhino.Node, last pkg_rhino.Node, context CodeGenerator_Context) {
 	_ = n
 	_ = first
 	_ = last
@@ -1589,9 +1589,9 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_addFunction_1320(n pkg_rhino.
 		}
 	}
 	this_.Add_1_Node(first)
-	this_.priv_CodeGenerator_maybeAddGenericTypes_1323(first)
+	this_.priv_CodeGenerator_maybeAddGenericTypes_1324(first)
 	this_.Add_1_Node(first.GetNext())
-	this_.priv_CodeGenerator_maybeAddTypeDecl_1322(n)
+	this_.priv_CodeGenerator_maybeAddTypeDecl_1323(n)
 	this_.Add_1_Node(last)
 	this_.cc.EndFunction((context == StaticGet_CodeGenerator_Context_STATEMENT()))
 	if funcNeedsParens {
@@ -1600,7 +1600,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_addFunction_1320(n pkg_rhino.
 }
 
 // Java method: CodeGenerator.maybeAddAccessibilityModifier(com.google.javascript.rhino.Node n)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_maybeAddAccessibilityModifier_1321(n pkg_rhino.Node) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_maybeAddAccessibilityModifier_1322(n pkg_rhino.Node) {
 	_ = n
 	var access pkg_rhino.JSDocInfo_Visibility = n.GetAccessModifier()
 	_ = access
@@ -1610,7 +1610,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_maybeAddAccessibilityModifier
 }
 
 // Java method: CodeGenerator.maybeAddTypeDecl(com.google.javascript.rhino.Node n)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_maybeAddTypeDecl_1322(n pkg_rhino.Node) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_maybeAddTypeDecl_1323(n pkg_rhino.Node) {
 	_ = n
 	if n.GetDeclaredTypeExpression() != 0 {
 		this_.Add_1_string(":")
@@ -1620,7 +1620,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_maybeAddTypeDecl_1322(n pkg_r
 }
 
 // Java method: CodeGenerator.maybeAddGenericTypes(com.google.javascript.rhino.Node n)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_maybeAddGenericTypes_1323(n pkg_rhino.Node) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_maybeAddGenericTypes_1324(n pkg_rhino.Node) {
 	_ = n
 	var generics pkg_rhino.Node = n.GetGenericType()
 	_ = generics
@@ -1630,7 +1630,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_maybeAddGenericTypes_1323(n p
 }
 
 // Java method: CodeGenerator.maybeAddOptional(com.google.javascript.rhino.Node n)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_maybeAddOptional_1324(n pkg_rhino.Node) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_maybeAddOptional_1325(n pkg_rhino.Node) {
 	_ = n
 	if n.GetBooleanProp(pkg_rhino.StaticGet_Node_OPT_ES6_TYPED()) {
 		this_.Add_1_string("?")
@@ -1638,7 +1638,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_maybeAddOptional_1324(n pkg_r
 }
 
 // Java method: CodeGenerator.unrollBinaryOperator(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Token op, java.lang.String opStr, com.google.javascript.jscomp.CodeGenerator.Context context, com.google.javascript.jscomp.CodeGenerator.Context rhsContext, int leftPrecedence, int rightPrecedence)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_unrollBinaryOperator_1325(n pkg_rhino.Node, op pkg_rhino.Token, opStr string, context CodeGenerator_Context, rhsContext CodeGenerator_Context, leftPrecedence int32, rightPrecedence int32) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_unrollBinaryOperator_1326(n pkg_rhino.Node, op pkg_rhino.Token, opStr string, context CodeGenerator_Context, rhsContext CodeGenerator_Context, leftPrecedence int32, rightPrecedence int32) {
 	_ = n
 	_ = op
 	_ = opStr
@@ -1651,13 +1651,13 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_unrollBinaryOperator_1325(n p
 	for firstNonOperator.GetToken() == op {
 		firstNonOperator = firstNonOperator.GetFirstChild()
 	}
-	this_.priv_CodeGenerator_addExpr_1327(firstNonOperator, leftPrecedence, context)
+	this_.priv_CodeGenerator_addExpr_1328(firstNonOperator, leftPrecedence, context)
 	var current pkg_rhino.Node = firstNonOperator
 	_ = current
 	for doFirst_5 := true; doFirst_5 || (current != n); doFirst_5 = false {
 		current = current.GetParent()
 		this_.cc.AddOp(opStr, true)
-		this_.priv_CodeGenerator_addExpr_1327(current.GetSecondChild(), rightPrecedence, rhsContext)
+		this_.priv_CodeGenerator_addExpr_1328(current.GetSecondChild(), rightPrecedence, rhsContext)
 	}
 }
 
@@ -1724,7 +1724,7 @@ func CodeGenerator_IsIndirectEval(n pkg_rhino.Node) bool {
 }
 
 // Java method: CodeGenerator.addNonEmptyStatement(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.CodeGenerator.Context context, boolean allowNonBlockChild)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_addNonEmptyStatement_1326(n pkg_rhino.Node, context CodeGenerator_Context, allowNonBlockChild bool) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_addNonEmptyStatement_1327(n pkg_rhino.Node, context CodeGenerator_Context, allowNonBlockChild bool) {
 	_ = n
 	_ = context
 	_ = allowNonBlockChild
@@ -1800,11 +1800,11 @@ func CodeGenerator_IsBlockDeclOrDo(n pkg_rhino.Node) bool {
 }
 
 // Java method: CodeGenerator.addExpr(com.google.javascript.rhino.Node n, int minPrecedence, com.google.javascript.jscomp.CodeGenerator.Context context)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_addExpr_1327(n pkg_rhino.Node, minPrecedence int32, context CodeGenerator_Context) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_addExpr_1328(n pkg_rhino.Node, minPrecedence int32, context CodeGenerator_Context) {
 	_ = n
 	_ = minPrecedence
 	_ = context
-	if this_.priv_CodeGenerator_opRequiresParentheses_1328(n, minPrecedence, context) {
+	if this_.priv_CodeGenerator_opRequiresParentheses_1329(n, minPrecedence, context) {
 		this_.Add_1_string("(")
 		this_.self_.Add_2(n, StaticGet_CodeGenerator_Context_OTHER())
 		this_.Add_1_string(")")
@@ -1814,27 +1814,27 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_addExpr_1327(n pkg_rhino.Node
 }
 
 // Java method: CodeGenerator.opRequiresParentheses(com.google.javascript.rhino.Node n, int minPrecedence, com.google.javascript.jscomp.CodeGenerator.Context context)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_opRequiresParentheses_1328(n pkg_rhino.Node, minPrecedence int32, context CodeGenerator_Context) bool {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_opRequiresParentheses_1329(n pkg_rhino.Node, minPrecedence int32, context CodeGenerator_Context) bool {
 	_ = n
 	_ = minPrecedence
 	_ = context
 	if context.InForInInitClause() && n.IsIn() {
 		return true
-	} else if NodeUtil_IsUnaryOperator(n) && this_.priv_CodeGenerator_isFirstOperandOfExponentiationExpression_1332(n) {
+	} else if NodeUtil_IsUnaryOperator(n) && this_.priv_CodeGenerator_isFirstOperandOfExponentiationExpression_1333(n) {
 		return true
-	} else if this_.priv_CodeGenerator_isLogicalAndOrLogicalOrChildOfNullishCoalesce_1329(n) || this_.priv_CodeGenerator_isNullishCoalesceChildOfLogicalAndOrLogicalOr_1330(n) {
+	} else if this_.priv_CodeGenerator_isLogicalAndOrLogicalOrChildOfNullishCoalesce_1330(n) || this_.priv_CodeGenerator_isNullishCoalesceChildOfLogicalAndOrLogicalOr_1331(n) {
 		return true
 	} else if n.IsAssign() && n.GetParent().IsClass() {
 		return true
 	} else {
-		return (this_.priv_CodeGenerator_precedence_1316(n) < minPrecedence)
+		return (this_.priv_CodeGenerator_precedence_1317(n) < minPrecedence)
 	}
 }
 
 // Java method: CodeGenerator.isLogicalAndOrLogicalOrChildOfNullishCoalesce(com.google.javascript.rhino.Node n)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_isLogicalAndOrLogicalOrChildOfNullishCoalesce_1329(n pkg_rhino.Node) bool {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_isLogicalAndOrLogicalOrChildOfNullishCoalesce_1330(n pkg_rhino.Node) bool {
 	_ = n
-	var expr pkg_rhino.Node = this_.priv_CodeGenerator_skipTransparentCasts_1331(n)
+	var expr pkg_rhino.Node = this_.priv_CodeGenerator_skipTransparentCasts_1332(n)
 	_ = expr
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -1846,9 +1846,9 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_isLogicalAndOrLogicalOrChildO
 }
 
 // Java method: CodeGenerator.isNullishCoalesceChildOfLogicalAndOrLogicalOr(com.google.javascript.rhino.Node n)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_isNullishCoalesceChildOfLogicalAndOrLogicalOr_1330(n pkg_rhino.Node) bool {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_isNullishCoalesceChildOfLogicalAndOrLogicalOr_1331(n pkg_rhino.Node) bool {
 	_ = n
-	var expr pkg_rhino.Node = this_.priv_CodeGenerator_skipTransparentCasts_1331(n)
+	var expr pkg_rhino.Node = this_.priv_CodeGenerator_skipTransparentCasts_1332(n)
 	_ = expr
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -1858,7 +1858,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_isNullishCoalesceChildOfLogic
 }
 
 // Java method: CodeGenerator.skipTransparentCasts(com.google.javascript.rhino.Node n)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_skipTransparentCasts_1331(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_skipTransparentCasts_1332(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	for !(this_.preserveTypeAnnotations) && n.IsCast() {
 		n = n.GetFirstChild()
@@ -1867,7 +1867,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_skipTransparentCasts_1331(n p
 }
 
 // Java method: CodeGenerator.isFirstOperandOfExponentiationExpression(com.google.javascript.rhino.Node n)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_isFirstOperandOfExponentiationExpression_1332(n pkg_rhino.Node) bool {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_isFirstOperandOfExponentiationExpression_1333(n pkg_rhino.Node) bool {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -1910,10 +1910,10 @@ func (this_ *CodeGeneratorBase) AddList_4(firstInList pkg_rhino.Node, isArrayOrF
 				minPrecedence = int32(0)
 			}
 			if isFirst {
-				this_.priv_CodeGenerator_addExpr_1327(n, minPrecedence, lhsContext)
+				this_.priv_CodeGenerator_addExpr_1328(n, minPrecedence, lhsContext)
 			} else {
 				this_.cc.AddOp(separator, true)
-				this_.priv_CodeGenerator_addExpr_1327(n, minPrecedence, CodeGenerator_GetContextForNoInOperator(lhsContext))
+				this_.priv_CodeGenerator_addExpr_1328(n, minPrecedence, CodeGenerator_GetContextForNoInOperator(lhsContext))
 			}
 		}
 	}
@@ -1945,12 +1945,12 @@ func (this_ *CodeGeneratorBase) AddStringKey(n pkg_rhino.Node) {
 		if !(math.IsNaN(d)) {
 			this_.cc.AddNumber(d, n)
 		} else {
-			this_.priv_CodeGenerator_addJsString_1343(n)
+			this_.priv_CodeGenerator_addJsString_1344(n)
 		}
 	}
 	if n.HasChildren() {
 		this_.Add_1_string(":")
-		this_.priv_CodeGenerator_addExpr_1327(n.GetFirstChild(), int32(1), StaticGet_CodeGenerator_Context_OTHER())
+		this_.priv_CodeGenerator_addExpr_1328(n.GetFirstChild(), int32(1), StaticGet_CodeGenerator_Context_OTHER())
 	}
 }
 
@@ -1986,7 +1986,7 @@ func (this_ *CodeGeneratorBase) AddArrayList(firstInList pkg_rhino.Node) {
 			if n != firstInList {
 				this_.cc.ListSeparator()
 			}
-			this_.priv_CodeGenerator_addExpr_1327(n, int32(1), StaticGet_CodeGenerator_Context_OTHER())
+			this_.priv_CodeGenerator_addExpr_1328(n, int32(1), StaticGet_CodeGenerator_Context_OTHER())
 			lastWasEmpty = n.IsEmpty()
 		}
 	}
@@ -2021,7 +2021,7 @@ func (this_ *CodeGeneratorBase) AddAllSiblings(n pkg_rhino.Node) {
 }
 
 // Java method: CodeGenerator.addNonJsDocNonTrailing(com.google.javascript.rhino.Node node, com.google.javascript.rhino.NonJSDocComment nonJsDocComment)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_addNonJsDocNonTrailing_1341(node pkg_rhino.Node, nonJsDocComment *pkg_rhino.NonJSDocComment) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_addNonJsDocNonTrailing_1342(node pkg_rhino.Node, nonJsDocComment *pkg_rhino.NonJSDocComment) {
 	_ = node
 	_ = nonJsDocComment
 	var content string = nonJsDocComment.GetCommentString()
@@ -2045,7 +2045,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_addNonJsDocNonTrailing_1341(n
 }
 
 // Java method: CodeGenerator.addNonJsDoctrailing(com.google.javascript.rhino.NonJSDocComment nonJsDocComment, boolean sameLine)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_addNonJsDoctrailing_1342(nonJsDocComment *pkg_rhino.NonJSDocComment, sameLine bool) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_addNonJsDoctrailing_1343(nonJsDocComment *pkg_rhino.NonJSDocComment, sameLine bool) {
 	_ = nonJsDocComment
 	_ = sameLine
 	var content string = nonJsDocComment.GetCommentString()
@@ -2068,13 +2068,13 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_addNonJsDoctrailing_1342(nonJ
 }
 
 // Java method: CodeGenerator.addJsString(com.google.javascript.rhino.Node n)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_addJsString_1343(n pkg_rhino.Node) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_addJsString_1344(n pkg_rhino.Node) {
 	_ = n
-	this_.Add_1_string(this_.priv_CodeGenerator_jsString_1344(n.GetString()))
+	this_.Add_1_string(this_.priv_CodeGenerator_jsString_1345(n.GetString()))
 }
 
 // Java method: CodeGenerator.jsString(java.lang.String s)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_jsString_1344(s string) string {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_jsString_1345(s string) string {
 	_ = s
 	var singleq int32 = int32(0)
 	_ = singleq
@@ -2113,17 +2113,17 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_jsString_1344(s string) strin
 		doublequote = "\\\""
 		singlequote = "'"
 	}
-	return (j2gort.StrValChar(quote) + j2gort.StrValString(this_.priv_CodeGenerator_strEscape_1346(s, doublequote, singlequote, "`", "\\\\", "$", false)) + j2gort.StrValChar(quote))
+	return (j2gort.StrValChar(quote) + j2gort.StrValString(this_.priv_CodeGenerator_strEscape_1347(s, doublequote, singlequote, "`", "\\\\", "$", false)) + j2gort.StrValChar(quote))
 }
 
 // Java method: CodeGenerator.regexpEscape(java.lang.String s)
 func (this_ *CodeGeneratorBase) RegexpEscape(s string) string {
 	_ = s
-	return ("/" + j2gort.StrValString(this_.priv_CodeGenerator_strEscape_1346(s, "\"", "'", "`", "\\", "$", true)) + "/")
+	return ("/" + j2gort.StrValString(this_.priv_CodeGenerator_strEscape_1347(s, "\"", "'", "`", "\\", "$", true)) + "/")
 }
 
 // Java method: CodeGenerator.strEscape(java.lang.String s, java.lang.String doublequoteEscape, java.lang.String singlequoteEscape, java.lang.String backtickEscape, java.lang.String backslashEscape, java.lang.String dollarEscape, boolean isRegexp)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_strEscape_1346(s string, doublequoteEscape string, singlequoteEscape string, backtickEscape string, backslashEscape string, dollarEscape string, isRegexp bool) string {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_strEscape_1347(s string, doublequoteEscape string, singlequoteEscape string, backtickEscape string, backslashEscape string, dollarEscape string, isRegexp bool) string {
 	_ = s
 	_ = doublequoteEscape
 	_ = singlequoteEscape
@@ -2169,13 +2169,13 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_strEscape_1346(s string, doub
 			case uint16(96):
 				sb.Append_1_string(backtickEscape)
 			case uint16(61):
-				this_.priv_CodeGenerator_appendEscapedEq_1347(sb, isRegexp)
+				this_.priv_CodeGenerator_appendEscapedEq_1348(sb, isRegexp)
 			case uint16(38):
-				this_.priv_CodeGenerator_appendEscapedAmp_1348(sb, isRegexp)
+				this_.priv_CodeGenerator_appendEscapedAmp_1349(sb, isRegexp)
 			case uint16(62):
-				this_.priv_CodeGenerator_appendEscapedGt_1349(sb, s, i, isRegexp)
+				this_.priv_CodeGenerator_appendEscapedGt_1350(sb, s, i, isRegexp)
 			case uint16(60):
-				this_.priv_CodeGenerator_appendEscapedLt_1350(sb, s, i, isRegexp)
+				this_.priv_CodeGenerator_appendEscapedLt_1351(sb, s, i, isRegexp)
 			default:
 				if isRegexp || !(this_.outputFeatureSet.Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP())) {
 					if int32(c) == int32(uint16(8232)) {
@@ -2199,7 +2199,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_strEscape_1346(s string, doub
 }
 
 // Java method: CodeGenerator.appendEscapedEq(java.lang.StringBuilder sb, boolean isRegexp)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_appendEscapedEq_1347(sb *j2gort.Ext_java_lang_StringBuilder, isRegexp bool) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_appendEscapedEq_1348(sb *j2gort.Ext_java_lang_StringBuilder, isRegexp bool) {
 	_ = sb
 	_ = isRegexp
 	if this_.trustedStrings || isRegexp {
@@ -2210,7 +2210,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_appendEscapedEq_1347(sb *j2go
 }
 
 // Java method: CodeGenerator.appendEscapedAmp(java.lang.StringBuilder sb, boolean isRegexp)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_appendEscapedAmp_1348(sb *j2gort.Ext_java_lang_StringBuilder, isRegexp bool) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_appendEscapedAmp_1349(sb *j2gort.Ext_java_lang_StringBuilder, isRegexp bool) {
 	_ = sb
 	_ = isRegexp
 	if this_.trustedStrings || isRegexp {
@@ -2221,7 +2221,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_appendEscapedAmp_1348(sb *j2g
 }
 
 // Java method: CodeGenerator.appendEscapedGt(java.lang.StringBuilder sb, java.lang.String s, int index, boolean isRegexp)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_appendEscapedGt_1349(sb *j2gort.Ext_java_lang_StringBuilder, s string, index int32, isRegexp bool) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_appendEscapedGt_1350(sb *j2gort.Ext_java_lang_StringBuilder, s string, index int32, isRegexp bool) {
 	_ = sb
 	_ = s
 	_ = index
@@ -2238,7 +2238,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_appendEscapedGt_1349(sb *j2go
 }
 
 // Java method: CodeGenerator.appendEscapedLt(java.lang.StringBuilder sb, java.lang.String s, int index, boolean isRegexp)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_appendEscapedLt_1350(sb *j2gort.Ext_java_lang_StringBuilder, s string, index int32, isRegexp bool) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_appendEscapedLt_1351(sb *j2gort.Ext_java_lang_StringBuilder, s string, index int32, isRegexp bool) {
 	_ = sb
 	_ = s
 	_ = index
@@ -2261,7 +2261,7 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_appendEscapedLt_1350(sb *j2go
 }
 
 // Java method: CodeGenerator.escapeUnrecognizedCharacters(java.lang.String s)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_escapeUnrecognizedCharacters_1351(s string) string {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_escapeUnrecognizedCharacters_1352(s string) string {
 	_ = s
 	var sb *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 	_ = sb
@@ -2279,13 +2279,13 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_escapeUnrecognizedCharacters_
 			case uint16(8), uint16(12), uint16(10), uint16(13), uint16(9), uint16(92), uint16(34), uint16(39), uint16(36), uint16(96), uint16(8232), uint16(8233):
 				sb.Append_1_uint16(c)
 			case uint16(61):
-				this_.priv_CodeGenerator_appendEscapedEq_1347(sb, false)
+				this_.priv_CodeGenerator_appendEscapedEq_1348(sb, false)
 			case uint16(38):
-				this_.priv_CodeGenerator_appendEscapedAmp_1348(sb, false)
+				this_.priv_CodeGenerator_appendEscapedAmp_1349(sb, false)
 			case uint16(62):
-				this_.priv_CodeGenerator_appendEscapedGt_1349(sb, s, i, false)
+				this_.priv_CodeGenerator_appendEscapedGt_1350(sb, s, i, false)
 			case uint16(60):
-				this_.priv_CodeGenerator_appendEscapedLt_1350(sb, s, i, false)
+				this_.priv_CodeGenerator_appendEscapedLt_1351(sb, s, i, false)
 			default:
 				if ((this_.outputCharsetEncoder != nil) && this_.outputCharsetEncoder.CanEncode(c)) || ((int32(c) > int32(31)) && (int32(c) < int32(127))) {
 					sb.Append_1_uint16(c)
@@ -2400,7 +2400,7 @@ func CodeGenerator_GetContextForArrowFunctionBody(context CodeGenerator_Context)
 }
 
 // Java method: CodeGenerator.processEnd(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.CodeGenerator.Context context)
-func (this_ *CodeGeneratorBase) priv_CodeGenerator_processEnd_1352(n pkg_rhino.Node, context CodeGenerator_Context) {
+func (this_ *CodeGeneratorBase) priv_CodeGenerator_processEnd_1353(n pkg_rhino.Node, context CodeGenerator_Context) {
 	_ = n
 	_ = context
 	switch n.TokenSwitchOrd_() {
@@ -2414,11 +2414,11 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_processEnd_1352(n pkg_rhino.N
 		}
 	case int32(171) /* Token.DECLARE */ :
 		if n.GetParent().RawToken_() != uint8(176) {
-			this_.priv_CodeGenerator_processEnd_1352(n.GetFirstChild(), context)
+			this_.priv_CodeGenerator_processEnd_1353(n.GetFirstChild(), context)
 		}
 	case int32(120) /* Token.EXPORT */ :
 		if (n.GetParent().RawToken_() != uint8(176)) && !(n.GetFirstChild().IsDeclare()) {
-			this_.priv_CodeGenerator_processEnd_1352(n.GetFirstChild(), context)
+			this_.priv_CodeGenerator_processEnd_1353(n.GetFirstChild(), context)
 		}
 	case int32(129) /* Token.COMPUTED_PROP */ :
 		if n.HasOneChild() {

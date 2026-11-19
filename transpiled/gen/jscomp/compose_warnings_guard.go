@@ -76,7 +76,7 @@ func InitComposeWarningsGuard_1_Ext_java_util_List(this_ *ComposeWarningsGuard, 
 	_ = guards
 	InitWarningsGuard(&this_.WarningsGuardBase)
 	this_.initFields_ComposeWarningsGuard()
-	this_.priv_ComposeWarningsGuard_addGuards_2113(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](guards))
+	this_.priv_ComposeWarningsGuard_addGuards_2116(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](guards))
 }
 
 // Java constructor: ComposeWarningsGuard(com.google.javascript.jscomp.WarningsGuard[] guards)
@@ -112,7 +112,7 @@ func (this_ *ComposeWarningsGuard) AddGuard(guard WarningsGuard) {
 		if composeGuard.demoteErrors {
 			this_.demoteErrors = composeGuard.demoteErrors
 		}
-		this_.priv_ComposeWarningsGuard_addGuards_2113(j2gort.NewExt_java_util_ArrayList_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_NavigableSet](composeGuard.guards.DescendingSet())))
+		this_.priv_ComposeWarningsGuard_addGuards_2116(j2gort.NewExt_java_util_ArrayList_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_NavigableSet](composeGuard.guards.DescendingSet())))
 	} else {
 		this_.numberOfAdds = this_.numberOfAdds + 1
 		this_.orderOfAddition.Put(guard, j2gort.ValueOfInt(this_.numberOfAdds))
@@ -122,7 +122,7 @@ func (this_ *ComposeWarningsGuard) AddGuard(guard WarningsGuard) {
 }
 
 // Java method: ComposeWarningsGuard.addGuards(java.lang.Iterable<com.google.javascript.jscomp.WarningsGuard> guards)
-func (this_ *ComposeWarningsGuard) priv_ComposeWarningsGuard_addGuards_2113(guards j2gort.Ext_java_lang_Iterable) {
+func (this_ *ComposeWarningsGuard) priv_ComposeWarningsGuard_addGuards_2116(guards j2gort.Ext_java_lang_Iterable) {
 	_ = guards
 	{
 		cur_5 := j2gort.NewIterCursor(j2gort.CheckNotNull(guards))
@@ -160,9 +160,9 @@ func (this_ *ComposeWarningsGuard) Level(error_ *JSError) *CheckLevel {
 // Java method: ComposeWarningsGuard.mustRunChecks(com.google.javascript.jscomp.DiagnosticGroup group)
 func (this_ *ComposeWarningsGuard) MustRunChecks(group *DiagnosticGroup) pkg_base.Tri {
 	_ = group
-	var enable bool = this_.priv_ComposeWarningsGuard_enables_2116(group)
+	var enable bool = this_.priv_ComposeWarningsGuard_enables_2119(group)
 	_ = enable
-	var disable bool = this_.priv_ComposeWarningsGuard_disables_2115(group)
+	var disable bool = this_.priv_ComposeWarningsGuard_disables_2118(group)
 	_ = disable
 	if !(!(enable) || !(disable)) {
 		j2gort.CheckStateFmt(false, "%s applied to %s", this_, j2gort.PtrToAny(group))
@@ -177,7 +177,7 @@ func (this_ *ComposeWarningsGuard) MustRunChecks(group *DiagnosticGroup) pkg_bas
 }
 
 // Java method: ComposeWarningsGuard.disables(com.google.javascript.jscomp.DiagnosticGroup group)
-func (this_ *ComposeWarningsGuard) priv_ComposeWarningsGuard_disables_2115(group *DiagnosticGroup) bool {
+func (this_ *ComposeWarningsGuard) priv_ComposeWarningsGuard_disables_2118(group *DiagnosticGroup) bool {
 	_ = group
 	{
 		cur_9 := j2gort.NewIterCursor(j2gort.CheckNotNull(group.GetTypes()))
@@ -210,7 +210,7 @@ func (this_ *ComposeWarningsGuard) priv_ComposeWarningsGuard_disables_2115(group
 }
 
 // Java method: ComposeWarningsGuard.enables(com.google.javascript.jscomp.DiagnosticGroup group)
-func (this_ *ComposeWarningsGuard) priv_ComposeWarningsGuard_enables_2116(group *DiagnosticGroup) bool {
+func (this_ *ComposeWarningsGuard) priv_ComposeWarningsGuard_enables_2119(group *DiagnosticGroup) bool {
 	_ = group
 	{
 		cur_13 := j2gort.NewIterCursor(j2gort.CheckNotNullPtr(this_.guards))

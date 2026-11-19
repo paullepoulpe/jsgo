@@ -122,7 +122,7 @@ func InitConcretizeStaticInheritanceForInlining(this_ *ConcretizeStaticInheritan
 }
 
 // Java method: ConcretizeStaticInheritanceForInlining.putClassAlias(java.lang.String name, com.google.javascript.jscomp.ConcretizeStaticInheritanceForInlining.JavascriptClass cls)
-func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheritanceForInlining_putClassAlias_2120(name string, cls *ConcretizeStaticInheritanceForInlining_JavascriptClass) {
+func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheritanceForInlining_putClassAlias_2123(name string, cls *ConcretizeStaticInheritanceForInlining_JavascriptClass) {
 	_ = name
 	_ = cls
 	this_.classByAlias.Put(name, cls)
@@ -137,7 +137,7 @@ func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheri
 }
 
 // Java method: ConcretizeStaticInheritanceForInlining.getClassKeyIfPresent(com.google.javascript.rhino.Node n)
-func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheritanceForInlining_getClassKeyIfPresent_2121(n pkg_rhino.Node) string {
+func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheritanceForInlining_getClassKeyIfPresent_2124(n pkg_rhino.Node) string {
 	_ = n
 	if this_.classByAlias.IsEmpty() {
 		return j2gort.NullString
@@ -198,11 +198,11 @@ func (this_ *ConcretizeStaticInheritanceForInlining) Process_2(externs pkg_rhino
 	var findStaticMembers *ConcretizeStaticInheritanceForInlining_FindStaticMembers = NewConcretizeStaticInheritanceForInlining_FindStaticMembers(this_)
 	_ = findStaticMembers
 	NodeTraversal_Traverse(this_.compiler, root, findStaticMembers)
-	this_.priv_ConcretizeStaticInheritanceForInlining_processInherits_2122(findStaticMembers)
+	this_.priv_ConcretizeStaticInheritanceForInlining_processInherits_2125(findStaticMembers)
 }
 
 // Java method: ConcretizeStaticInheritanceForInlining.processInherits(com.google.javascript.jscomp.ConcretizeStaticInheritanceForInlining.FindStaticMembers findStaticMembers)
-func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheritanceForInlining_processInherits_2122(findStaticMembers *ConcretizeStaticInheritanceForInlining_FindStaticMembers) {
+func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheritanceForInlining_processInherits_2125(findStaticMembers *ConcretizeStaticInheritanceForInlining_FindStaticMembers) {
 	_ = findStaticMembers
 	for _, inheritsCall := range findStaticMembers.inheritsCalls {
 		_ = inheritsCall
@@ -225,13 +225,13 @@ func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheri
 		if (superClass == nil) || (subClass == nil) {
 			continue
 		}
-		this_.priv_ConcretizeStaticInheritanceForInlining_copyStaticMembers_2123(superClass, subClass, inheritsCall, findStaticMembers)
+		this_.priv_ConcretizeStaticInheritanceForInlining_copyStaticMembers_2126(superClass, subClass, inheritsCall, findStaticMembers)
 	}
 
 }
 
 // Java method: ConcretizeStaticInheritanceForInlining.copyStaticMembers(com.google.javascript.jscomp.ConcretizeStaticInheritanceForInlining.JavascriptClass superClass, com.google.javascript.jscomp.ConcretizeStaticInheritanceForInlining.JavascriptClass subClass, com.google.javascript.rhino.Node inheritsCall, com.google.javascript.jscomp.ConcretizeStaticInheritanceForInlining.FindStaticMembers findStaticMembers)
-func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheritanceForInlining_copyStaticMembers_2123(superClass *ConcretizeStaticInheritanceForInlining_JavascriptClass, subClass *ConcretizeStaticInheritanceForInlining_JavascriptClass, inheritsCall pkg_rhino.Node, findStaticMembers *ConcretizeStaticInheritanceForInlining_FindStaticMembers) {
+func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheritanceForInlining_copyStaticMembers_2126(superClass *ConcretizeStaticInheritanceForInlining_JavascriptClass, subClass *ConcretizeStaticInheritanceForInlining_JavascriptClass, inheritsCall pkg_rhino.Node, findStaticMembers *ConcretizeStaticInheritanceForInlining_FindStaticMembers) {
 	_ = superClass
 	_ = subClass
 	_ = inheritsCall
@@ -249,7 +249,7 @@ func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheri
 			if superClass.definedProperties.Contains(memberName) {
 				continue
 			}
-			if this_.priv_ConcretizeStaticInheritanceForInlining_isOverriden_2124(subClass, memberName) {
+			if this_.priv_ConcretizeStaticInheritanceForInlining_isOverriden_2127(subClass, memberName) {
 				continue
 			}
 			if findStaticMembers.IsBefore(inheritsCall, staticMember) {
@@ -284,7 +284,7 @@ func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheri
 }
 
 // Java method: ConcretizeStaticInheritanceForInlining.isOverriden(com.google.javascript.jscomp.ConcretizeStaticInheritanceForInlining.JavascriptClass subClass, java.lang.String memberName)
-func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheritanceForInlining_isOverriden_2124(subClass *ConcretizeStaticInheritanceForInlining_JavascriptClass, memberName string) bool {
+func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheritanceForInlining_isOverriden_2127(subClass *ConcretizeStaticInheritanceForInlining_JavascriptClass, memberName string) bool {
 	_ = subClass
 	_ = memberName
 	if subClass.staticMemberNames.Contains(memberName) {
@@ -297,10 +297,10 @@ func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheri
 }
 
 // Java method: ConcretizeStaticInheritanceForInlining.getReferencedClass(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheritanceForInlining_getReferencedClass_2125(t *NodeTraversal, n pkg_rhino.Node) *ConcretizeStaticInheritanceForInlining_JavascriptClass {
+func (this_ *ConcretizeStaticInheritanceForInlining) priv_ConcretizeStaticInheritanceForInlining_getReferencedClass_2128(t *NodeTraversal, n pkg_rhino.Node) *ConcretizeStaticInheritanceForInlining_JavascriptClass {
 	_ = t
 	_ = n
-	var className string = this_.priv_ConcretizeStaticInheritanceForInlining_getClassKeyIfPresent_2121(n)
+	var className string = this_.priv_ConcretizeStaticInheritanceForInlining_getClassKeyIfPresent_2124(n)
 	_ = className
 	if className == j2gort.NullString {
 		return nil
@@ -377,8 +377,8 @@ func (this_ *ConcretizeStaticInheritanceForInlining_JavascriptClass) AddStaticMe
 type ConcretizeStaticInheritanceForInlining_FindStaticMembers struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer_        *ConcretizeStaticInheritanceForInlining
-	inheritsCalls []pkg_rhino.Node                                  `gson:"inheritsCalls"`
-	nodeOrder     j2gort.OrderedMap[pkg_rhino.Node, *j2gort.BoxInt] `gson:"nodeOrder"`
+	inheritsCalls []pkg_rhino.Node                         `gson:"inheritsCalls"`
+	nodeOrder     j2gort.OrderedMap[pkg_rhino.Node, int32] `gson:"nodeOrder"`
 }
 
 func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) BindSelf_(s any) {
@@ -416,7 +416,7 @@ func (*ConcretizeStaticInheritanceForInlining_FindStaticMembers) Implements_jsco
 func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) initFields_ConcretizeStaticInheritanceForInlining_FindStaticMembers() {
 	_ = this_
 	this_.inheritsCalls = []pkg_rhino.Node{}
-	this_.nodeOrder = j2gort.NewOrderedMap[pkg_rhino.Node, *j2gort.BoxInt](
+	this_.nodeOrder = j2gort.NewOrderedMap[pkg_rhino.Node, int32](
 
 	// Java constructor: FindStaticMembers()
 	)
@@ -443,28 +443,28 @@ func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) Visit_3(t
 	case int32(28) /* Token.CALL */ :
 		if this_.outer_.inherits.Matches(n.GetFirstChild()) {
 			this_.inheritsCalls = append(this_.inheritsCalls, n)
-			this_.nodeOrder.Put(n, j2gort.ValueOfInt(this_.nodeOrder.Size()))
+			this_.nodeOrder.Put(n, this_.nodeOrder.Size())
 		}
 		if NodeUtil_IsObjectDefinePropertiesDefinition(n) {
-			this_.priv_FindStaticMembers_visitDefinedPropertiesCall_2127(t, n)
+			this_.priv_FindStaticMembers_visitDefinedPropertiesCall_2130(t, n)
 		}
 	case int32(97) /* Token.CONST */, int32(111) /* Token.LET */, int32(84) /* Token.VAR */ :
-		this_.priv_FindStaticMembers_visitVariableDeclaration_2131(n)
+		this_.priv_FindStaticMembers_visitVariableDeclaration_2134(n)
 	case int32(51) /* Token.ASSIGN */ :
-		this_.priv_FindStaticMembers_visitAssign_2130(t, n)
+		this_.priv_FindStaticMembers_visitAssign_2133(t, n)
 	case int32(73) /* Token.FUNCTION */ :
-		this_.priv_FindStaticMembers_visitFunctionClassDef_2128(n)
+		this_.priv_FindStaticMembers_visitFunctionClassDef_2131(n)
 	default:
 	}
 }
 
 // Java method: FindStaticMembers.visitDefinedPropertiesCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node definePropertiesCall)
-func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_FindStaticMembers_visitDefinedPropertiesCall_2127(t *NodeTraversal, definePropertiesCall pkg_rhino.Node) {
+func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_FindStaticMembers_visitDefinedPropertiesCall_2130(t *NodeTraversal, definePropertiesCall pkg_rhino.Node) {
 	_ = t
 	_ = definePropertiesCall
 	var object pkg_rhino.Node = definePropertiesCall.GetSecondChild()
 	_ = object
-	var c *ConcretizeStaticInheritanceForInlining_JavascriptClass = this_.outer_.priv_ConcretizeStaticInheritanceForInlining_getReferencedClass_2125(t, object)
+	var c *ConcretizeStaticInheritanceForInlining_JavascriptClass = this_.outer_.priv_ConcretizeStaticInheritanceForInlining_getReferencedClass_2128(t, object)
 	_ = c
 	if c != nil {
 		{
@@ -479,7 +479,7 @@ func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_Find
 }
 
 // Java method: FindStaticMembers.visitFunctionClassDef(com.google.javascript.rhino.Node n)
-func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_FindStaticMembers_visitFunctionClassDef_2128(n pkg_rhino.Node) {
+func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_FindStaticMembers_visitFunctionClassDef_2131(n pkg_rhino.Node) {
 	_ = n
 	var classInfo *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(n)
 	_ = classInfo
@@ -492,13 +492,13 @@ func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_Find
 		if this_.outer_.classByAlias.ContainsKey(name) {
 			this_.outer_.duplicateClassNames.Add(name)
 		} else {
-			this_.outer_.priv_ConcretizeStaticInheritanceForInlining_putClassAlias_2120(name, NewConcretizeStaticInheritanceForInlining_JavascriptClass())
+			this_.outer_.priv_ConcretizeStaticInheritanceForInlining_putClassAlias_2123(name, NewConcretizeStaticInheritanceForInlining_JavascriptClass())
 		}
 	}
 }
 
 // Java method: FindStaticMembers.setAlias(java.lang.String original, java.lang.String alias)
-func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_FindStaticMembers_setAlias_2129(original string, alias string) {
+func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_FindStaticMembers_setAlias_2132(original string, alias string) {
 	_ = original
 	_ = alias
 	j2gort.CheckNotNullString(original)
@@ -506,40 +506,40 @@ func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_Find
 	if !(this_.outer_.classByAlias.ContainsKey(original)) {
 		j2gort.CheckArgument(false)
 	}
-	this_.outer_.priv_ConcretizeStaticInheritanceForInlining_putClassAlias_2120(alias, this_.outer_.classByAlias.Get(original))
+	this_.outer_.priv_ConcretizeStaticInheritanceForInlining_putClassAlias_2123(alias, this_.outer_.classByAlias.Get(original))
 }
 
 // Java method: FindStaticMembers.visitAssign(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_FindStaticMembers_visitAssign_2130(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_FindStaticMembers_visitAssign_2133(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if this_.outer_.classByAlias.IsEmpty() {
 		return
 	}
-	var existingClassQname string = this_.outer_.priv_ConcretizeStaticInheritanceForInlining_getClassKeyIfPresent_2121(n.GetLastChild())
+	var existingClassQname string = this_.outer_.priv_ConcretizeStaticInheritanceForInlining_getClassKeyIfPresent_2124(n.GetLastChild())
 	_ = existingClassQname
 	if existingClassQname != j2gort.NullString {
 		var alias string = n.GetFirstChild().GetQualifiedName()
 		_ = alias
 		if alias != j2gort.NullString {
-			this_.priv_FindStaticMembers_setAlias_2129(existingClassQname, alias)
+			this_.priv_FindStaticMembers_setAlias_2132(existingClassQname, alias)
 		}
 	} else if n.GetFirstChild().IsGetProp() {
 		var getProp pkg_rhino.Node = n.GetFirstChild()
 		_ = getProp
 		var classNode pkg_rhino.Node = getProp.GetFirstChild()
 		_ = classNode
-		var refClass *ConcretizeStaticInheritanceForInlining_JavascriptClass = this_.outer_.priv_ConcretizeStaticInheritanceForInlining_getReferencedClass_2125(t, classNode)
+		var refClass *ConcretizeStaticInheritanceForInlining_JavascriptClass = this_.outer_.priv_ConcretizeStaticInheritanceForInlining_getReferencedClass_2128(t, classNode)
 		_ = refClass
 		if (refClass != nil) && !(j2gort.SetContainsStr(StaticGet_ConcretizeStaticInheritanceForInlining_BANNED_PROP_NAMES(), getProp.GetString())) {
 			refClass.AddStaticMember(n)
-			this_.nodeOrder.Put(n, j2gort.ValueOfInt(this_.nodeOrder.Size()))
+			this_.nodeOrder.Put(n, this_.nodeOrder.Size())
 		}
 	}
 }
 
 // Java method: FindStaticMembers.visitVariableDeclaration(com.google.javascript.rhino.Node n)
-func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_FindStaticMembers_visitVariableDeclaration_2131(n pkg_rhino.Node) {
+func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_FindStaticMembers_visitVariableDeclaration_2134(n pkg_rhino.Node) {
 	_ = n
 	if this_.outer_.classByAlias.IsEmpty() {
 		return
@@ -549,13 +549,13 @@ func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_Find
 	if !(child.HasChildren()) {
 		return
 	}
-	var maybeOriginalName string = this_.outer_.priv_ConcretizeStaticInheritanceForInlining_getClassKeyIfPresent_2121(child.GetFirstChild())
+	var maybeOriginalName string = this_.outer_.priv_ConcretizeStaticInheritanceForInlining_getClassKeyIfPresent_2124(child.GetFirstChild())
 	_ = maybeOriginalName
 	if maybeOriginalName != j2gort.NullString {
 		var maybeAlias string = child.GetQualifiedName()
 		_ = maybeAlias
 		if maybeAlias != j2gort.NullString {
-			this_.priv_FindStaticMembers_setAlias_2129(maybeOriginalName, maybeAlias)
+			this_.priv_FindStaticMembers_setAlias_2132(maybeOriginalName, maybeAlias)
 		}
 	}
 }
@@ -564,11 +564,23 @@ func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) priv_Find
 func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) IsBefore(earlier pkg_rhino.Node, later pkg_rhino.Node) bool {
 	_ = earlier
 	_ = later
-	var earlierPosition *j2gort.BoxInt = this_.nodeOrder.Get(earlier)
+	earlierPosition, earlierPositionOk_ := this_.nodeOrder.GetOk(earlier)
+	_ = earlierPositionOk_
 	_ = earlierPosition
-	var laterPosition *j2gort.BoxInt = this_.nodeOrder.Get(later)
+	laterPosition, laterPositionOk_ := this_.nodeOrder.GetOk(later)
+	_ = laterPositionOk_
 	_ = laterPosition
-	return (((earlierPosition != nil) && (laterPosition != nil)) && (j2gort.UnboxInt(earlierPosition) < j2gort.UnboxInt(laterPosition)))
+	return (((earlierPositionOk_) && (laterPositionOk_)) && (func() int32 {
+		if !earlierPositionOk_ {
+			j2gort.ThrowNPE()
+		}
+		return earlierPosition
+	}() < func() int32 {
+		if !laterPositionOk_ {
+			j2gort.ThrowNPE()
+		}
+		return laterPosition
+	}()))
 }
 func (*ConcretizeStaticInheritanceForInlining_FindStaticMembers) AlwaysShouldTraverse_()      {}
 func (*ConcretizeStaticInheritanceForInlining_FindStaticMembers) CanReleaseSyntacticScopes_() {}

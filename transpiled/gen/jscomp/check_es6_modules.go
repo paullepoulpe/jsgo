@@ -137,10 +137,10 @@ func (this_ *CheckEs6Modules) ShouldTraverse_3(t *NodeTraversal, n pkg_rhino.Nod
 	case int32(94) /* Token.SCRIPT */ :
 		return n.GetBooleanProp(pkg_rhino.StaticGet_Node_ES6_MODULE())
 	case int32(116) /* Token.IMPORT */ :
-		this_.priv_CheckEs6Modules_visitImport_6502(t, n)
+		this_.priv_CheckEs6Modules_visitImport_6507(t, n)
 		return false
 	case int32(120) /* Token.EXPORT */ :
-		this_.priv_CheckEs6Modules_visitExport_6503(t, n)
+		this_.priv_CheckEs6Modules_visitExport_6508(t, n)
 		return false
 	default:
 		return false
@@ -149,7 +149,7 @@ func (this_ *CheckEs6Modules) ShouldTraverse_3(t *NodeTraversal, n pkg_rhino.Nod
 }
 
 // Java method: CheckEs6Modules.visitImport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node importNode)
-func (this_ *CheckEs6Modules) priv_CheckEs6Modules_visitImport_6502(t *NodeTraversal, importNode pkg_rhino.Node) {
+func (this_ *CheckEs6Modules) priv_CheckEs6Modules_visitImport_6507(t *NodeTraversal, importNode pkg_rhino.Node) {
 	_ = t
 	_ = importNode
 	var specifier string = importNode.GetLastChild().GetString()
@@ -162,7 +162,7 @@ func (this_ *CheckEs6Modules) priv_CheckEs6Modules_visitImport_6502(t *NodeTrave
 }
 
 // Java method: CheckEs6Modules.visitExport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *CheckEs6Modules) priv_CheckEs6Modules_visitExport_6503(t *NodeTraversal, export pkg_rhino.Node) {
+func (this_ *CheckEs6Modules) priv_CheckEs6Modules_visitExport_6508(t *NodeTraversal, export pkg_rhino.Node) {
 	_ = t
 	_ = export
 	if export.GetBooleanProp(pkg_rhino.StaticGet_Node_EXPORT_DEFAULT()) {

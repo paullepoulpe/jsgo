@@ -126,7 +126,7 @@ func clinitSlow_RewriteAsyncIteration() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_RewriteAsyncIteration, &clinitDone_RewriteAsyncIteration)
-	static_RewriteAsyncIteration_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7181([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_GENERATORS(), pkg_parser.StaticGet_FeatureSet_Feature_FOR_AWAIT_OF()})
+	static_RewriteAsyncIteration_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7186([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_GENERATORS(), pkg_parser.StaticGet_FeatureSet_Feature_FOR_AWAIT_OF()})
 	static_RewriteAsyncIteration_CANNOT_CONVERT_ASYNCGEN = DiagnosticType_Error("JSC_CANNOT_CONVERT_ASYNCGEN", "Cannot convert async generator. {0}")
 }
 
@@ -240,50 +240,50 @@ func (this_ *RewriteAsyncIteration) Visit_3(t *NodeTraversal, n pkg_rhino.Node, 
 			}
 		}
 		if n.IsAsyncGeneratorFunction() {
-			this_.priv_RewriteAsyncIteration_convertAsyncGenerator_4949(n)
-			this_.priv_RewriteAsyncIteration_prependTempVarDeclarations_4962(ctx, t)
+			this_.priv_RewriteAsyncIteration_convertAsyncGenerator_4956(n)
+			this_.priv_RewriteAsyncIteration_prependTempVarDeclarations_4969(ctx, t)
 		}
 		this_.contextStack.Pop()
 	case int32(115) /* Token.AWAIT */ :
 		j2gort.CheckNotNullNode(ctx.function)
 		if ctx.function.IsAsyncGeneratorFunction() {
-			this_.priv_RewriteAsyncIteration_convertAwaitOfAsyncGenerator_4950(ctx, n)
+			this_.priv_RewriteAsyncIteration_convertAwaitOfAsyncGenerator_4957(ctx, n)
 		}
 	case int32(114) /* Token.YIELD */ :
 		j2gort.CheckNotNullNode(ctx.function)
 		if ctx.function.IsAsyncGeneratorFunction() {
-			this_.priv_RewriteAsyncIteration_convertYieldOfAsyncGenerator_4951(ctx, n)
+			this_.priv_RewriteAsyncIteration_convertYieldOfAsyncGenerator_4958(ctx, n)
 		}
 	case int32(0) /* Token.RETURN */ :
 		j2gort.CheckNotNullNode(ctx.function)
 		if ctx.function.IsAsyncGeneratorFunction() {
-			this_.priv_RewriteAsyncIteration_convertReturnOfAsyncGenerator_4952(ctx, n)
+			this_.priv_RewriteAsyncIteration_convertReturnOfAsyncGenerator_4959(ctx, n)
 		}
 	case int32(113) /* Token.FOR_AWAIT_OF */ :
 		j2gort.CheckNotNullNode(ctx.function)
 		if !(ctx.function.IsAsyncFunction()) {
 			j2gort.CheckState(false)
 		}
-		this_.priv_RewriteAsyncIteration_replaceForAwaitOf_4953(ctx, n)
+		this_.priv_RewriteAsyncIteration_replaceForAwaitOf_4960(ctx, n)
 		NodeUtil_AddFeatureToScript(t.GetCurrentScript(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS(), this_.compiler)
 	case int32(37) /* Token.THIS */ :
 		if ctx.MustReplaceThisSuperArgs() {
-			this_.priv_RewriteAsyncIteration_replaceThis_4959(ctx, n)
+			this_.priv_RewriteAsyncIteration_replaceThis_4966(ctx, n)
 		}
 	case int32(32) /* Token.NAME */ :
 		if ctx.MustReplaceThisSuperArgs() && n.MatchesName_1_string("arguments") {
-			this_.priv_RewriteAsyncIteration_replaceArguments_4960(ctx, n)
+			this_.priv_RewriteAsyncIteration_replaceArguments_4967(ctx, n)
 		}
 	case int32(110) /* Token.SUPER */ :
 		if ctx.MustReplaceThisSuperArgs() {
-			this_.priv_RewriteAsyncIteration_replaceSuper_4961(ctx, n, parent)
+			this_.priv_RewriteAsyncIteration_replaceSuper_4968(ctx, n, parent)
 		}
 	default:
 	}
 }
 
 // Java method: RewriteAsyncIteration.convertAsyncGenerator(com.google.javascript.rhino.Node originalFunction)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertAsyncGenerator_4949(originalFunction pkg_rhino.Node) {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertAsyncGenerator_4956(originalFunction pkg_rhino.Node) {
 	_ = originalFunction
 	j2gort.CheckNotNullNode(originalFunction)
 	if !(originalFunction.IsAsyncGeneratorFunction()) {
@@ -308,7 +308,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertAsyncGener
 }
 
 // Java method: RewriteAsyncIteration.convertAwaitOfAsyncGenerator(com.google.javascript.jscomp.RewriteAsyncIteration.LexicalContext ctx, com.google.javascript.rhino.Node awaitNode)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertAwaitOfAsyncGenerator_4950(ctx *RewriteAsyncIteration_LexicalContext, awaitNode pkg_rhino.Node) {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertAwaitOfAsyncGenerator_4957(ctx *RewriteAsyncIteration_LexicalContext, awaitNode pkg_rhino.Node) {
 	_ = ctx
 	_ = awaitNode
 	j2gort.CheckNotNullNode(awaitNode)
@@ -332,7 +332,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertAwaitOfAsy
 }
 
 // Java method: RewriteAsyncIteration.convertYieldOfAsyncGenerator(com.google.javascript.jscomp.RewriteAsyncIteration.LexicalContext ctx, com.google.javascript.rhino.Node yieldNode)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertYieldOfAsyncGenerator_4951(ctx *RewriteAsyncIteration_LexicalContext, yieldNode pkg_rhino.Node) {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertYieldOfAsyncGenerator_4958(ctx *RewriteAsyncIteration_LexicalContext, yieldNode pkg_rhino.Node) {
 	_ = ctx
 	_ = yieldNode
 	j2gort.CheckNotNullNode(yieldNode)
@@ -366,7 +366,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertYieldOfAsy
 }
 
 // Java method: RewriteAsyncIteration.convertReturnOfAsyncGenerator(com.google.javascript.jscomp.RewriteAsyncIteration.LexicalContext ctx, com.google.javascript.rhino.Node returnNode)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertReturnOfAsyncGenerator_4952(ctx *RewriteAsyncIteration_LexicalContext, returnNode pkg_rhino.Node) {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertReturnOfAsyncGenerator_4959(ctx *RewriteAsyncIteration_LexicalContext, returnNode pkg_rhino.Node) {
 	_ = ctx
 	_ = returnNode
 	j2gort.CheckNotNullNode(returnNode)
@@ -393,7 +393,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertReturnOfAs
 }
 
 // Java method: RewriteAsyncIteration.replaceForAwaitOf(com.google.javascript.jscomp.RewriteAsyncIteration.LexicalContext ctx, com.google.javascript.rhino.Node forAwaitOf)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceForAwaitOf_4953(ctx *RewriteAsyncIteration_LexicalContext, forAwaitOf pkg_rhino.Node) {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceForAwaitOf_4960(ctx *RewriteAsyncIteration_LexicalContext, forAwaitOf pkg_rhino.Node) {
 	_ = ctx
 	_ = forAwaitOf
 	var forAwaitId int32 = func() int32 {
@@ -475,19 +475,19 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceForAwaitOf
 	_ = returnFuncDecl
 	var resetTempResult pkg_rhino.Node = this_.astFactory.ExprResult(this_.astFactory.CreateAssign_2_string_Node(resultTempName, this_.astFactory.CreateUndefinedValue()))
 	_ = resetTempResult
-	var resultDeclaration pkg_rhino.Node = this_.astFactory.ExprResult(this_.astFactory.CreateAssign_2_string_Node(resultTempName, this_.priv_RewriteAsyncIteration_constructAwaitNextResult_4958(ctx, iteratorTempName, resultType, iterableResultType)))
+	var resultDeclaration pkg_rhino.Node = this_.astFactory.ExprResult(this_.astFactory.CreateAssign_2_string_Node(resultTempName, this_.priv_RewriteAsyncIteration_constructAwaitNextResult_4965(ctx, iteratorTempName, resultType, iterableResultType)))
 	_ = resultDeclaration
-	var newForLoop pkg_rhino.Node = this_.astFactory.CreateFor(this_.astFactory.CreateEmpty(), this_.astFactory.CreateEmpty(), this_.astFactory.CreateEmpty(), this_.astFactory.CreateBlock([]pkg_rhino.Node{resetTempResult, resultDeclaration, breakIfDone, lhsAssignment, this_.priv_RewriteAsyncIteration_ensureBlock_4957(originalBody)}))
+	var newForLoop pkg_rhino.Node = this_.astFactory.CreateFor(this_.astFactory.CreateEmpty(), this_.astFactory.CreateEmpty(), this_.astFactory.CreateEmpty(), this_.astFactory.CreateBlock([]pkg_rhino.Node{resetTempResult, resultDeclaration, breakIfDone, lhsAssignment, this_.priv_RewriteAsyncIteration_ensureBlock_4964(originalBody)}))
 	_ = newForLoop
 	if replacementPoint.IsLabel() {
 		newForLoop = this_.astFactory.CreateLabel(replacementPoint.GetFirstChild().CloneNode_0(), newForLoop)
 	}
-	var tryNode pkg_rhino.Node = this_.priv_RewriteAsyncIteration_createOuterTry_4954(newForLoop)
+	var tryNode pkg_rhino.Node = this_.priv_RewriteAsyncIteration_createOuterTry_4961(newForLoop)
 	_ = tryNode
 	initializer.InsertBefore(newForLoop)
-	var catchNode pkg_rhino.Node = this_.priv_RewriteAsyncIteration_createOuterCatch_4955(catchErrorParamTempName, errorResultTempName)
+	var catchNode pkg_rhino.Node = this_.priv_RewriteAsyncIteration_createOuterCatch_4962(catchErrorParamTempName, errorResultTempName)
 	_ = catchNode
-	var finallyNode pkg_rhino.Node = this_.priv_RewriteAsyncIteration_createOuterFinally_4956(ctx, iterableResultType, resultType, resultTempName, returnFuncTempName, iteratorTempName, errorResultTempName)
+	var finallyNode pkg_rhino.Node = this_.priv_RewriteAsyncIteration_createOuterFinally_4963(ctx, iterableResultType, resultType, resultTempName, returnFuncTempName, iteratorTempName, errorResultTempName)
 	_ = finallyNode
 	var tryCatchFinally pkg_rhino.Node = this_.astFactory.CreateTryCatchFinally(tryNode, catchNode, finallyNode)
 	_ = tryCatchFinally
@@ -500,7 +500,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceForAwaitOf
 }
 
 // Java method: RewriteAsyncIteration.createOuterTry(com.google.javascript.rhino.Node newForLoop)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_createOuterTry_4954(newForLoop pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_createOuterTry_4961(newForLoop pkg_rhino.Node) pkg_rhino.Node {
 	_ = newForLoop
 	var tryNode pkg_rhino.Node = this_.astFactory.CreateBlock([]pkg_rhino.Node{})
 	_ = tryNode
@@ -509,7 +509,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_createOuterTry_49
 }
 
 // Java method: RewriteAsyncIteration.createOuterCatch(java.lang.String catchErrorParamTempName, java.lang.String errorResultTempName)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_createOuterCatch_4955(catchErrorParamTempName string, errorResultTempName string) pkg_rhino.Node {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_createOuterCatch_4962(catchErrorParamTempName string, errorResultTempName string) pkg_rhino.Node {
 	_ = catchErrorParamTempName
 	_ = errorResultTempName
 	var catchBodyStmt pkg_rhino.Node = this_.astFactory.ExprResult(this_.astFactory.CreateAssign_2_string_Node(errorResultTempName, this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{this_.astFactory.CreateStringKey("error", this_.astFactory.CreateNameWithUnknownType(catchErrorParamTempName))})))
@@ -521,7 +521,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_createOuterCatch_
 }
 
 // Java method: RewriteAsyncIteration.createOuterFinally(com.google.javascript.jscomp.RewriteAsyncIteration.LexicalContext ctx, com.google.javascript.jscomp.AstFactory.Type iterableResultType, com.google.javascript.jscomp.AstFactory.Type resultType, java.lang.String resultTempName, java.lang.String returnFuncTempName, java.lang.String iteratorTempName, java.lang.String errorResultTempName)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_createOuterFinally_4956(ctx *RewriteAsyncIteration_LexicalContext, iterableResultType AstFactory_Type, resultType AstFactory_Type, resultTempName string, returnFuncTempName string, iteratorTempName string, errorResultTempName string) pkg_rhino.Node {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_createOuterFinally_4963(ctx *RewriteAsyncIteration_LexicalContext, iterableResultType AstFactory_Type, resultType AstFactory_Type, resultTempName string, returnFuncTempName string, iteratorTempName string, errorResultTempName string) pkg_rhino.Node {
 	_ = ctx
 	_ = iterableResultType
 	_ = resultType
@@ -575,7 +575,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_createOuterFinall
 }
 
 // Java method: RewriteAsyncIteration.ensureBlock(com.google.javascript.rhino.Node possiblyBlock)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_ensureBlock_4957(possiblyBlock pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_ensureBlock_4964(possiblyBlock pkg_rhino.Node) pkg_rhino.Node {
 	_ = possiblyBlock
 	if possiblyBlock.IsBlock() {
 		return possiblyBlock
@@ -585,7 +585,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_ensureBlock_4957(
 }
 
 // Java method: RewriteAsyncIteration.constructAwaitNextResult(com.google.javascript.jscomp.RewriteAsyncIteration.LexicalContext ctx, java.lang.String iteratorTempName, com.google.javascript.jscomp.AstFactory.Type iteratorType, com.google.javascript.jscomp.AstFactory.Type iterableResultType)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_constructAwaitNextResult_4958(ctx *RewriteAsyncIteration_LexicalContext, iteratorTempName string, iteratorType AstFactory_Type, iterableResultType AstFactory_Type) pkg_rhino.Node {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_constructAwaitNextResult_4965(ctx *RewriteAsyncIteration_LexicalContext, iteratorTempName string, iteratorType AstFactory_Type, iterableResultType AstFactory_Type) pkg_rhino.Node {
 	_ = ctx
 	_ = iteratorTempName
 	_ = iteratorType
@@ -604,7 +604,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_constructAwaitNex
 }
 
 // Java method: RewriteAsyncIteration.replaceThis(com.google.javascript.jscomp.RewriteAsyncIteration.LexicalContext ctx, com.google.javascript.rhino.Node n)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceThis_4959(ctx *RewriteAsyncIteration_LexicalContext, n pkg_rhino.Node) {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceThis_4966(ctx *RewriteAsyncIteration_LexicalContext, n pkg_rhino.Node) {
 	_ = ctx
 	_ = n
 	if !(n.IsThis()) {
@@ -626,7 +626,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceThis_4959(
 }
 
 // Java method: RewriteAsyncIteration.replaceArguments(com.google.javascript.jscomp.RewriteAsyncIteration.LexicalContext ctx, com.google.javascript.rhino.Node n)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceArguments_4960(ctx *RewriteAsyncIteration_LexicalContext, n pkg_rhino.Node) {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceArguments_4967(ctx *RewriteAsyncIteration_LexicalContext, n pkg_rhino.Node) {
 	_ = ctx
 	_ = n
 	if !(n.IsName() && func() bool {
@@ -652,7 +652,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceArguments_
 }
 
 // Java method: RewriteAsyncIteration.replaceSuper(com.google.javascript.jscomp.RewriteAsyncIteration.LexicalContext ctx, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceSuper_4961(ctx *RewriteAsyncIteration_LexicalContext, n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceSuper_4968(ctx *RewriteAsyncIteration_LexicalContext, n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = ctx
 	_ = n
 	_ = parent
@@ -702,7 +702,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceSuper_4961
 }
 
 // Java method: RewriteAsyncIteration.prependTempVarDeclarations(com.google.javascript.jscomp.RewriteAsyncIteration.LexicalContext ctx, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_prependTempVarDeclarations_4962(ctx *RewriteAsyncIteration_LexicalContext, t *NodeTraversal) {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_prependTempVarDeclarations_4969(ctx *RewriteAsyncIteration_LexicalContext, t *NodeTraversal) {
 	_ = ctx
 	_ = t
 	if !(ctx != nil) {
@@ -733,7 +733,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_prependTempVarDec
 			replacedMethodReference := cur_13.
 				Next()
 			_ = replacedMethodReference
-			prefixBlock.AddChildToBack(this_.priv_RewriteAsyncIteration_createSuperMethodReferenceGetter_4963(replacedMethodReference, t))
+			prefixBlock.AddChildToBack(this_.priv_RewriteAsyncIteration_createSuperMethodReferenceGetter_4970(replacedMethodReference, t))
 		}
 	}
 	prefixBlock.SrcrefTreeIfMissing(block)
@@ -745,7 +745,7 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_prependTempVarDec
 }
 
 // Java method: RewriteAsyncIteration.createSuperMethodReferenceGetter(com.google.javascript.rhino.Node replacedMethodReference, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_createSuperMethodReferenceGetter_4963(replacedMethodReference pkg_rhino.Node, t *NodeTraversal) pkg_rhino.Node {
+func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_createSuperMethodReferenceGetter_4970(replacedMethodReference pkg_rhino.Node, t *NodeTraversal) pkg_rhino.Node {
 	_ = replacedMethodReference
 	_ = t
 	var typeOfSuper AstFactory_Type = AstFactory_S_Type_1_Node(replacedMethodReference.GetFirstChild())

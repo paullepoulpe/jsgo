@@ -156,13 +156,13 @@ func InitAstAnalyzer(this_ *AstAnalyzer, options *AstAnalyzer_Options, typeRegis
 // Java method: AstAnalyzer.mayEffectMutableState(com.google.javascript.rhino.Node n)
 func (this_ *AstAnalyzer) MayEffectMutableState(n pkg_rhino.Node) bool {
 	_ = n
-	return this_.priv_AstAnalyzer_checkForStateChangeHelper_603(n, true)
+	return this_.priv_AstAnalyzer_checkForStateChangeHelper_604(n, true)
 }
 
 // Java method: AstAnalyzer.mayHaveSideEffects(com.google.javascript.rhino.Node n)
 func (this_ *AstAnalyzer) MayHaveSideEffects(n pkg_rhino.Node) bool {
 	_ = n
-	return this_.priv_AstAnalyzer_checkForStateChangeHelper_603(n, false)
+	return this_.priv_AstAnalyzer_checkForStateChangeHelper_604(n, false)
 }
 
 // Java method: AstAnalyzer.functionCallHasSideEffects(com.google.javascript.rhino.Node callNode)
@@ -211,7 +211,7 @@ func (this_ *AstAnalyzer) FunctionCallHasSideEffects(callNode pkg_rhino.Node) bo
 		if !(this_.hasRegexpGlobalReferences) && this_.assumeKnownBuiltinsArePure {
 			if callee.GetFirstChild().IsRegExp() && j2gort.SetContainsStr(StaticGet_AstAnalyzer_REGEXP_METHODS(), method) {
 				return false
-			} else if this_.priv_AstAnalyzer_isTypedAsString_602(callee.GetFirstChild()) {
+			} else if this_.priv_AstAnalyzer_isTypedAsString_603(callee.GetFirstChild()) {
 				var param pkg_rhino.Node = callee.GetNext()
 				_ = param
 				if param != 0 {
@@ -234,7 +234,7 @@ func (this_ *AstAnalyzer) FunctionCallHasSideEffects(callNode pkg_rhino.Node) bo
 }
 
 // Java method: AstAnalyzer.isTypedAsString(com.google.javascript.rhino.Node n)
-func (this_ *AstAnalyzer) priv_AstAnalyzer_isTypedAsString_602(n pkg_rhino.Node) bool {
+func (this_ *AstAnalyzer) priv_AstAnalyzer_isTypedAsString_603(n pkg_rhino.Node) bool {
 	_ = n
 	if n.IsStringLit() {
 		return true
@@ -259,7 +259,7 @@ func (this_ *AstAnalyzer) priv_AstAnalyzer_isTypedAsString_602(n pkg_rhino.Node)
 }
 
 // Java method: AstAnalyzer.checkForStateChangeHelper(com.google.javascript.rhino.Node n, boolean checkForNewObjects)
-func (this_ *AstAnalyzer) priv_AstAnalyzer_checkForStateChangeHelper_603(n pkg_rhino.Node, checkForNewObjects bool) bool {
+func (this_ *AstAnalyzer) priv_AstAnalyzer_checkForStateChangeHelper_604(n pkg_rhino.Node, checkForNewObjects bool) bool {
 	_ = n
 	_ = checkForNewObjects
 	var parent pkg_rhino.Node = n.GetParent()
@@ -270,11 +270,11 @@ func (this_ *AstAnalyzer) priv_AstAnalyzer_checkForStateChangeHelper_603(n pkg_r
 	case int32(110) /* Token.SUPER */ :
 		return false
 	case int32(47) /* Token.OBJECTLIT */, int32(46) /* Token.ARRAYLIT */, int32(42) /* Token.REGEXP */ :
-		return (checkForNewObjects || this_.priv_AstAnalyzer_checkForChangeStateInChildren_604(n, checkForNewObjects))
+		return (checkForNewObjects || this_.priv_AstAnalyzer_checkForChangeStateInChildren_605(n, checkForNewObjects))
 	case int32(126) /* Token.OBJECT_REST */, int32(128) /* Token.OBJECT_SPREAD */ :
-		return (!(this_.assumeGettersArePure) || this_.priv_AstAnalyzer_checkForChangeStateInChildren_604(n, checkForNewObjects))
+		return (!(this_.assumeGettersArePure) || this_.priv_AstAnalyzer_checkForChangeStateInChildren_605(n, checkForNewObjects))
 	case int32(125) /* Token.ITER_REST */, int32(127) /* Token.ITER_SPREAD */ :
-		return (NodeUtil_IteratesImpureIterable(n) || this_.priv_AstAnalyzer_checkForChangeStateInChildren_604(n, checkForNewObjects))
+		return (NodeUtil_IteratesImpureIterable(n) || this_.priv_AstAnalyzer_checkForChangeStateInChildren_605(n, checkForNewObjects))
 	case int32(32) /* Token.NAME */ :
 		return n.HasChildren()
 	case int32(73) /* Token.FUNCTION */ :
@@ -285,47 +285,47 @@ func (this_ *AstAnalyzer) priv_AstAnalyzer_checkForStateChangeHelper_603(n pkg_r
 		return func() bool {
 			switch parent.TokenSwitchOrd_() {
 			case int32(106) /* Token.CLASS_MEMBERS */ :
-				return this_.priv_AstAnalyzer_checkForStateChangeHelper_603(n.GetFirstChild(), checkForNewObjects)
+				return this_.priv_AstAnalyzer_checkForStateChangeHelper_604(n.GetFirstChild(), checkForNewObjects)
 			case int32(103) /* Token.OBJECT_PATTERN */ :
-				return (parent.GetLastChild().IsObjectRest() || this_.priv_AstAnalyzer_checkForChangeStateInChildren_604(n, checkForNewObjects))
+				return (parent.GetLastChild().IsObjectRest() || this_.priv_AstAnalyzer_checkForChangeStateInChildren_605(n, checkForNewObjects))
 			case int32(47) /* Token.OBJECTLIT */ :
-				return this_.priv_AstAnalyzer_checkForChangeStateInChildren_604(n, checkForNewObjects)
+				return this_.priv_AstAnalyzer_checkForChangeStateInChildren_605(n, checkForNewObjects)
 			default:
 				panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Illegal COMPUTED_PROP parent "+j2gort.StrVal(parent))))
 			}
 			panic("unreachable switch expression")
 		}()
 	case int32(108) /* Token.MEMBER_FIELD_DEF */ :
-		return ((n.IsStaticMember() && n.HasChildren()) && this_.priv_AstAnalyzer_checkForStateChangeHelper_603(n.GetFirstChild(), checkForNewObjects))
+		return ((n.IsStaticMember() && n.HasChildren()) && this_.priv_AstAnalyzer_checkForStateChangeHelper_604(n.GetFirstChild(), checkForNewObjects))
 	case int32(109) /* Token.COMPUTED_FIELD_DEF */ :
-		return (this_.priv_AstAnalyzer_checkForStateChangeHelper_603(n.GetFirstChild(), checkForNewObjects) || ((n.IsStaticMember() && (n.GetSecondChild() != 0)) && this_.priv_AstAnalyzer_checkForStateChangeHelper_603(n.GetSecondChild(), checkForNewObjects)))
+		return (this_.priv_AstAnalyzer_checkForStateChangeHelper_604(n.GetFirstChild(), checkForNewObjects) || ((n.IsStaticMember() && (n.GetSecondChild() != 0)) && this_.priv_AstAnalyzer_checkForStateChangeHelper_604(n.GetSecondChild(), checkForNewObjects)))
 	case int32(105) /* Token.CLASS */ :
-		return (((checkForNewObjects || NodeUtil_IsClassDeclaration(n)) || this_.priv_AstAnalyzer_checkForStateChangeHelper_603(n.GetSecondChild(), checkForNewObjects)) || this_.priv_AstAnalyzer_checkForStateChangeHelper_603(n.GetLastChild(), checkForNewObjects))
+		return (((checkForNewObjects || NodeUtil_IsClassDeclaration(n)) || this_.priv_AstAnalyzer_checkForStateChangeHelper_604(n.GetSecondChild(), checkForNewObjects)) || this_.priv_AstAnalyzer_checkForStateChangeHelper_604(n.GetLastChild(), checkForNewObjects))
 	case int32(23) /* Token.NEW */ :
-		return ((checkForNewObjects || this_.ConstructorCallHasSideEffects(n)) || this_.priv_AstAnalyzer_checkForChangeStateInChildren_604(n, checkForNewObjects))
+		return ((checkForNewObjects || this_.ConstructorCallHasSideEffects(n)) || this_.priv_AstAnalyzer_checkForChangeStateInChildren_605(n, checkForNewObjects))
 	case int32(28) /* Token.CALL */, int32(31) /* Token.OPTCHAIN_CALL */, int32(130) /* Token.TAGGED_TEMPLATELIT */ :
-		return (this_.FunctionCallHasSideEffects(n) || this_.priv_AstAnalyzer_checkForChangeStateInChildren_604(n, checkForNewObjects))
+		return (this_.FunctionCallHasSideEffects(n) || this_.priv_AstAnalyzer_checkForChangeStateInChildren_605(n, checkForNewObjects))
 	case int32(101) /* Token.CAST */, int32(69) /* Token.AND */, int32(90) /* Token.BLOCK */, int32(89) /* Token.ROOT */, int32(93) /* Token.EXPR_RESULT */, int32(67) /* Token.HOOK */, int32(74) /* Token.IF */, int32(106) /* Token.CLASS_MEMBERS */, int32(49) /* Token.PARAM_LIST */, int32(134) /* Token.DEFAULT_VALUE */, int32(33) /* Token.NUMBER */, int32(34) /* Token.BIGINT */, int32(68) /* Token.OR */, int32(70) /* Token.COALESCE */, int32(37) /* Token.THIS */, int32(39) /* Token.TRUE */, int32(38) /* Token.FALSE */, int32(36) /* Token.NULL */, int32(35) /* Token.STRINGLIT */, int32(75) /* Token.SWITCH */, int32(132) /* Token.TEMPLATELIT_SUB */, int32(48) /* Token.TRY */, int32(88) /* Token.EMPTY */, int32(131) /* Token.TEMPLATELIT */, int32(133) /* Token.TEMPLATELIT_STRING */ :
-		return this_.priv_AstAnalyzer_checkForChangeStateInChildren_604(n, checkForNewObjects)
+		return this_.priv_AstAnalyzer_checkForChangeStateInChildren_605(n, checkForNewObjects)
 	case int32(100) /* Token.STRING_KEY */ :
 		if parent.IsObjectPattern() {
-			if this_.priv_AstAnalyzer_getPropertyKind_608(n.GetString()).HasGetter() {
+			if this_.priv_AstAnalyzer_getPropertyKind_609(n.GetString()).HasGetter() {
 				return true
 			} else if parent.GetLastChild().IsObjectRest() {
 				return true
 			}
 		}
-		return this_.priv_AstAnalyzer_checkForChangeStateInChildren_604(n, checkForNewObjects)
+		return this_.priv_AstAnalyzer_checkForChangeStateInChildren_605(n, checkForNewObjects)
 	case int32(27) /* Token.GETELEM */, int32(30) /* Token.OPTCHAIN_GETELEM */ :
-		return this_.priv_AstAnalyzer_checkForChangeStateInChildren_604(n, checkForNewObjects)
+		return this_.priv_AstAnalyzer_checkForChangeStateInChildren_605(n, checkForNewObjects)
 	case int32(26) /* Token.GETPROP */, int32(29) /* Token.OPTCHAIN_GETPROP */ :
-		return (this_.priv_AstAnalyzer_getPropertyKind_608(n.GetString()).HasGetterOrSetter() || this_.priv_AstAnalyzer_checkForChangeStateInChildren_604(n, checkForNewObjects))
+		return (this_.priv_AstAnalyzer_getPropertyKind_609(n.GetString()).HasGetterOrSetter() || this_.priv_AstAnalyzer_checkForChangeStateInChildren_605(n, checkForNewObjects))
 	default:
 		if NodeUtil_IsSimpleOperator(n) {
-			return this_.priv_AstAnalyzer_checkForChangeStateInChildren_604(n, checkForNewObjects)
+			return this_.priv_AstAnalyzer_checkForChangeStateInChildren_605(n, checkForNewObjects)
 		}
 		if NodeUtil_IsAssignmentOp(n) {
-			return this_.priv_AstAnalyzer_checkAssignmentForChangeState_605(n, checkForNewObjects)
+			return this_.priv_AstAnalyzer_checkAssignmentForChangeState_606(n, checkForNewObjects)
 		}
 		return true
 	}
@@ -333,14 +333,14 @@ func (this_ *AstAnalyzer) priv_AstAnalyzer_checkForStateChangeHelper_603(n pkg_r
 }
 
 // Java method: AstAnalyzer.checkForChangeStateInChildren(com.google.javascript.rhino.Node n, boolean checkForNewObjects)
-func (this_ *AstAnalyzer) priv_AstAnalyzer_checkForChangeStateInChildren_604(n pkg_rhino.Node, checkForNewObjects bool) bool {
+func (this_ *AstAnalyzer) priv_AstAnalyzer_checkForChangeStateInChildren_605(n pkg_rhino.Node, checkForNewObjects bool) bool {
 	_ = n
 	_ = checkForNewObjects
 	{
 		var c pkg_rhino.Node = n.GetFirstChild()
 		_ = c
 		for ; c != 0; c = c.GetNext() {
-			if this_.priv_AstAnalyzer_checkForStateChangeHelper_603(c, checkForNewObjects) {
+			if this_.priv_AstAnalyzer_checkForStateChangeHelper_604(c, checkForNewObjects) {
 				return true
 			}
 		}
@@ -349,7 +349,7 @@ func (this_ *AstAnalyzer) priv_AstAnalyzer_checkForChangeStateInChildren_604(n p
 }
 
 // Java method: AstAnalyzer.checkAssignmentForChangeState(com.google.javascript.rhino.Node assignOp, boolean checkForNewObjects)
-func (this_ *AstAnalyzer) priv_AstAnalyzer_checkAssignmentForChangeState_605(assignOp pkg_rhino.Node, checkForNewObjects bool) bool {
+func (this_ *AstAnalyzer) priv_AstAnalyzer_checkAssignmentForChangeState_606(assignOp pkg_rhino.Node, checkForNewObjects bool) bool {
 	_ = assignOp
 	_ = checkForNewObjects
 	var assignTarget pkg_rhino.Node = assignOp.GetFirstChild()
@@ -359,7 +359,7 @@ func (this_ *AstAnalyzer) priv_AstAnalyzer_checkAssignmentForChangeState_605(ass
 	}
 	var assignValue pkg_rhino.Node = assignOp.GetLastChild()
 	_ = assignValue
-	if this_.priv_AstAnalyzer_checkForStateChangeHelper_603(assignTarget, checkForNewObjects) || this_.priv_AstAnalyzer_checkForStateChangeHelper_603(assignValue, checkForNewObjects) {
+	if this_.priv_AstAnalyzer_checkForStateChangeHelper_604(assignTarget, checkForNewObjects) || this_.priv_AstAnalyzer_checkForStateChangeHelper_604(assignValue, checkForNewObjects) {
 		return true
 	}
 	if !(NodeUtil_IsNormalGet(assignTarget)) {
@@ -418,11 +418,11 @@ func (this_ *AstAnalyzer) NodeTypeMayHaveSideEffects(n pkg_rhino.Node) bool {
 		return NodeUtil_IteratesImpureIterable(n)
 	case int32(100) /* Token.STRING_KEY */ :
 		if n.GetParent().IsObjectPattern() {
-			return this_.priv_AstAnalyzer_getPropertyKind_608(n.GetString()).HasGetter()
+			return this_.priv_AstAnalyzer_getPropertyKind_609(n.GetString()).HasGetter()
 		}
 		return false
 	case int32(26) /* Token.GETPROP */, int32(29) /* Token.OPTCHAIN_GETPROP */ :
-		return this_.priv_AstAnalyzer_getPropertyKind_608(n.GetString()).HasGetterOrSetter()
+		return this_.priv_AstAnalyzer_getPropertyKind_609(n.GetString()).HasGetterOrSetter()
 	default:
 		return false
 	}
@@ -430,7 +430,7 @@ func (this_ *AstAnalyzer) NodeTypeMayHaveSideEffects(n pkg_rhino.Node) bool {
 }
 
 // Java method: AstAnalyzer.getPropertyKind(java.lang.String name)
-func (this_ *AstAnalyzer) priv_AstAnalyzer_getPropertyKind_608(name string) *AccessorSummary_PropertyAccessKind {
+func (this_ *AstAnalyzer) priv_AstAnalyzer_getPropertyKind_609(name string) *AccessorSummary_PropertyAccessKind {
 	_ = name
 	if this_.assumeGettersArePure {
 		return StaticGet_AccessorSummary_PropertyAccessKind_NORMAL()

@@ -8,6 +8,8 @@ package protobuf
 
 import (
 	"bytes"
+	"math"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
 )
@@ -180,14 +182,15 @@ func jsdocTag_text(value int32) string {
 //
 // Java: com.google.javascript.jscomp.serialization.OptimizationJsdoc
 type OptimizationJsdoc struct {
+	bundle                     *jsdocBuilderBundle
 	kind_                      []int32
+	unknownFields              []byte
 	licenseTextPointer_        int32
 	descriptionPointer_        int32
 	meaningPointer_            int32
 	alternateMessageIdPointer_ int32
 	closureUnawareModePointer_ int32
-	unknownFields              []byte
-	cachedSize                 int
+	cachedSize                 int32
 	kindInlineLen_             uint8
 	kindInline_                [7]uint8
 }
@@ -229,6 +232,8 @@ func (m *OptimizationJsdoc) Equals(other any) bool {
 	if m == o {
 		return true
 	}
+	rescueOptimizationJsdoc(m)
+	rescueOptimizationJsdoc(o)
 	n := m.GetKindCount()
 	if n != o.GetKindCount() ||
 		m.licenseTextPointer_ != o.licenseTextPointer_ ||
@@ -279,56 +284,72 @@ func (m *OptimizationJsdoc) GetClosureUnawareModePointer() int32 {
 	return m.closureUnawareModePointer_
 }
 
-// appendTo is OptimizationJsdoc.writeTo(CodedOutputStream): fields in number order, then unknown fields.
-func (m *OptimizationJsdoc) appendTo(b []byte) []byte {
+// putTo writes OptimizationJsdoc wire bytes directly into dst[pos:] without slice growth checks.
+func (m *OptimizationJsdoc) putTo(dst []byte, pos int) int {
 	if len(m.kind_) > 0 {
 		packedLen := 0
 		for _, x := range m.kind_ {
 			packedLen += protoVarintLen(uint64(int64(x)))
 		}
-		b = protoAppendTag(b, 1, 2)
-		b = protoAppendVarint(b, uint64(packedLen))
+		pos = putTag1Varint(dst, pos, 0x0A, uint64(packedLen))
 		for _, x := range m.kind_ {
-			b = protoAppendInt32(b, x)
+			pos += protoPutVarint(dst[pos:], uint64(int64(x)))
 		}
-	} else if m.kindInlineLen_ > 0 {
-		n := int(m.kindInlineLen_)
-		b = append(b, 0x0A, byte(n))
-		b = append(b, m.kindInline_[:n]...)
+	} else if n := int(m.kindInlineLen_); n > 0 {
+		_ = dst[pos+1+n]
+		dst[pos] = 0x0A
+		dst[pos+1] = byte(n)
+		pos += 2 + copy(dst[pos+2:], m.kindInline_[:n])
 	}
 	if m.licenseTextPointer_ != 0 {
-		b = protoAppendTag(b, 2, 0)
-		b = protoAppendInt32(b, m.licenseTextPointer_)
+		pos = putTag1Varint(dst, pos, 0x10, uint64(int64(m.licenseTextPointer_)))
 	}
 	if m.descriptionPointer_ != 0 {
-		b = protoAppendTag(b, 3, 0)
-		b = protoAppendInt32(b, m.descriptionPointer_)
+		pos = putTag1Varint(dst, pos, 0x18, uint64(int64(m.descriptionPointer_)))
 	}
 	if m.meaningPointer_ != 0 {
-		b = protoAppendTag(b, 4, 0)
-		b = protoAppendInt32(b, m.meaningPointer_)
+		pos = putTag1Varint(dst, pos, 0x20, uint64(int64(m.meaningPointer_)))
 	}
 	if m.alternateMessageIdPointer_ != 0 {
-		b = protoAppendTag(b, 5, 0)
-		b = protoAppendInt32(b, m.alternateMessageIdPointer_)
+		pos = putTag1Varint(dst, pos, 0x28, uint64(int64(m.alternateMessageIdPointer_)))
 	}
 	if m.closureUnawareModePointer_ != 0 {
-		b = protoAppendTag(b, 6, 0)
-		b = protoAppendInt32(b, m.closureUnawareModePointer_)
+		pos = putTag1Varint(dst, pos, 0x30, uint64(int64(m.closureUnawareModePointer_)))
 	}
 	if len(m.unknownFields) > 0 {
-		b = append(b, protoCanonicalUnknownFields(m.unknownFields)...)
+		uf := protoCanonicalUnknownFields(m.unknownFields)
+		pos += copy(dst[pos:], uf)
 	}
-	return b
+	return pos
+}
+
+// appendTo is OptimizationJsdoc.writeTo(CodedOutputStream): fields in number order, then unknown fields.
+func (m *OptimizationJsdoc) appendTo(b []byte) []byte {
+	sz := m.serializedSize()
+	if sz == 0 {
+		return b
+	}
+	off := len(b)
+	if cap(b)-off < sz {
+		next := make([]byte, off+sz)
+		copy(next, b)
+		b = next
+	} else {
+		b = b[:off+sz]
+	}
+	end := m.putTo(b, off)
+	return b[:end]
 }
 
 // serializedSize is getSerializedSize() (memoized once immutable).
 func (m *OptimizationJsdoc) serializedSize() int {
-	if m.cachedSize > 0 {
-		return m.cachedSize - 1
+	if cs := atomic.LoadInt32(&m.cachedSize); cs > 0 {
+		return int(cs - 1)
 	}
 	size := m.scalarsSerializedSize()
-	m.cachedSize = size + 1
+	if size < math.MaxInt32 {
+		atomic.StoreInt32(&m.cachedSize, int32(size+1))
+	}
 	return size
 }
 
@@ -366,16 +387,21 @@ func (m *OptimizationJsdoc) scalarsSerializedSize() int {
 
 // Java: OptimizationJsdoc.toByteArray()
 func (m *OptimizationJsdoc) ToByteArray() []byte {
+	rescueOptimizationJsdoc(m)
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
 }
 
 // mergeFromReader is OptimizationJsdoc.Builder.mergeFrom(CodedInputStream) on a mutable m.
 func (m *OptimizationJsdoc) mergeFromReader(r *protoReader) {
+	m.cachedSize = 0
 	for {
 		start := r.pos
 		tag := r.readTag()
 		switch tag {
 		case 0:
+			if sz := m.scalarsSerializedSize(); sz < math.MaxInt32 {
+				m.cachedSize = int32(sz + 1)
+			}
 			return
 		case 8:
 			m.addKindNum(r.readInt32())
@@ -432,6 +458,7 @@ func (m *OptimizationJsdoc) printText(p *protoTextPrinter) {
 
 // String is OptimizationJsdoc.toString() (protobuf text format).
 func (m *OptimizationJsdoc) String() string {
+	rescueOptimizationJsdoc(m)
 	p := &protoTextPrinter{}
 	m.printText(p)
 	return p.sb.String()

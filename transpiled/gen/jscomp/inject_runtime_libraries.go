@@ -76,11 +76,11 @@ func InitInjectRuntimeLibraries(this_ *InjectRuntimeLibraries, compiler Abstract
 func (this_ *InjectRuntimeLibraries) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	this_.priv_InjectRuntimeLibraries_injectLibraries_3206()
+	this_.priv_InjectRuntimeLibraries_injectLibraries_3209()
 }
 
 // Java method: InjectRuntimeLibraries.injectLibraries()
-func (this_ *InjectRuntimeLibraries) priv_InjectRuntimeLibraries_injectLibraries_3206() {
+func (this_ *InjectRuntimeLibraries) priv_InjectRuntimeLibraries_injectLibraries_3209() {
 	{
 		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.forceInjectedLibraries))
 		for cur_1.HasNext() {

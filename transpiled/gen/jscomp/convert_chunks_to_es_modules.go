@@ -188,15 +188,15 @@ func (this_ *ConvertChunksToESModules) Process_2(externs pkg_rhino.Node, root pk
 			}
 		}
 	}
-	this_.priv_ConvertChunksToESModules_convertChunkSourcesToModules_2222()
-	this_.priv_ConvertChunksToESModules_addExportStatements_2223()
-	this_.priv_ConvertChunksToESModules_addImportStatements_2224()
-	this_.priv_ConvertChunksToESModules_rewriteDynamicImportCallbacks_2225()
+	this_.priv_ConvertChunksToESModules_convertChunkSourcesToModules_2225()
+	this_.priv_ConvertChunksToESModules_addExportStatements_2226()
+	this_.priv_ConvertChunksToESModules_addImportStatements_2227()
+	this_.priv_ConvertChunksToESModules_rewriteDynamicImportCallbacks_2228()
 	NodeUtil_AddFeatureToAllScripts(root, pkg_parser.StaticGet_FeatureSet_Feature_MODULES(), this_.compiler)
 }
 
 // Java method: ConvertChunksToESModules.convertChunkSourcesToModules()
-func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_convertChunkSourcesToModules_2222() {
+func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_convertChunkSourcesToModules_2225() {
 	{
 		cur_3 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.compiler.GetChunkGraph().GetAllChunks()))
 		for cur_3.HasNext() {
@@ -255,7 +255,7 @@ func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_convertChun
 }
 
 // Java method: ConvertChunksToESModules.addExportStatements()
-func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_addExportStatements_2223() {
+func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_addExportStatements_2226() {
 	{
 		cur_7 := this_.crossChunkExports.IterEntries()
 		for cur_7.NextEntry() {
@@ -301,7 +301,7 @@ func ConvertChunksToESModules_GetChunkName(chunk *JSChunk) string {
 }
 
 // Java method: ConvertChunksToESModules.addImportStatements()
-func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_addImportStatements_2224() {
+func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_addImportStatements_2227() {
 	{
 		cur_9 := this_.crossChunkImports.IterEntries()
 		for cur_9.NextEntry() {
@@ -403,7 +403,7 @@ func ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(compiler A
 }
 
 // Java method: ConvertChunksToESModules.rewriteDynamicImportCallbacks()
-func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_rewriteDynamicImportCallbacks_2225() {
+func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_rewriteDynamicImportCallbacks_2228() {
 	var astFactory *AstFactory = this_.compiler.CreateAstFactory()
 	_ = astFactory
 	for _, dynamicImportCallback := range this_.dynamicImportCallbacks {
@@ -450,7 +450,7 @@ func ConvertChunksToESModules_IsDynamicImportCallback(call pkg_rhino.Node) bool 
 }
 
 // Java method: ConvertChunksToESModules.visitCallAndTraverse(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_visitCallAndTraverse_2226(t *NodeTraversal, call pkg_rhino.Node) bool {
+func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_visitCallAndTraverse_2229(t *NodeTraversal, call pkg_rhino.Node) bool {
 	_ = t
 	_ = call
 	if !(call.IsCall()) {
@@ -700,7 +700,7 @@ func (this_ *ConvertChunksToESModules_FindCrossChunkReferences) ShouldTraverse_3
 		this_.VisitScript(t, n)
 		return true
 	} else if n.IsCall() {
-		return this_.outer_.priv_ConvertChunksToESModules_visitCallAndTraverse_2226(t, n)
+		return this_.outer_.priv_ConvertChunksToESModules_visitCallAndTraverse_2229(t, n)
 	} else if n.IsName() {
 		this_.outer_.VisitName(t, n, StaticGet_ConvertChunksToESModules_ImportType_STATIC())
 		return true

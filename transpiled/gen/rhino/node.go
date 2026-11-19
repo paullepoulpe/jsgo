@@ -1400,8 +1400,8 @@ func (this_ Node) AddChildrenToBack(children Node) {
 // Java method: Node.insertAfter(com.google.javascript.rhino.Node existing)
 func (this_ Node) InsertAfter(existing Node) {
 	_ = existing
-	existing.priv_Node_checkAttached_8391()
-	this_.priv_Node_checkDetached_8392()
+	existing.priv_Node_checkAttached_8405()
+	this_.priv_Node_checkDetached_8406()
 	var existingParent Node = existing.nodeGet_parent()
 	_ = existingParent
 	var existingNext Node = existing.nodeGet_next()
@@ -1429,8 +1429,8 @@ func (this_ Node) InsertAfter(existing Node) {
 // Java method: Node.insertBefore(com.google.javascript.rhino.Node existing)
 func (this_ Node) InsertBefore(existing Node) {
 	_ = existing
-	existing.priv_Node_checkAttached_8391()
-	this_.priv_Node_checkDetached_8392()
+	existing.priv_Node_checkAttached_8405()
+	this_.priv_Node_checkDetached_8406()
 	var existingParent Node = existing.nodeGet_parent()
 	_ = existingParent
 	var existingPrevious Node = existing.nodeGet_previous()
@@ -1515,8 +1515,8 @@ func (this_ Node) AddChildrenAfter(children Node, node Node) {
 // Java method: Node.replaceWith(com.google.javascript.rhino.Node replacement)
 func (this_ Node) ReplaceWith(replacement Node) {
 	_ = replacement
-	this_.priv_Node_checkAttached_8391()
-	replacement.priv_Node_checkDetached_8392()
+	this_.priv_Node_checkAttached_8405()
+	replacement.priv_Node_checkDetached_8406()
 	var existingParent Node = this_.nodeGet_parent()
 	_ = existingParent
 	var existingNext Node = this_.nodeGet_next()
@@ -1565,7 +1565,7 @@ func (this_ Node) ReplaceWith(replacement Node) {
 
 // Java method: Node.detach()
 func (this_ Node) Detach() Node {
-	this_.priv_Node_checkAttached_8391()
+	this_.priv_Node_checkAttached_8405()
 	var existingParent Node = this_.nodeGet_parent()
 	_ = existingParent
 	var existingNext Node = this_.nodeGet_next()
@@ -1601,14 +1601,14 @@ func (this_ Node) Detach() Node {
 }
 
 // Java method: Node.checkAttached()
-func (this_ Node) priv_Node_checkAttached_8391() {
+func (this_ Node) priv_Node_checkAttached_8405() {
 	if !(this_.nodeGet_parent() != 0) {
 		j2gort.CheckStateFmt(false, "Has no parent: %s", j2gort.BoxNode(this_))
 	}
 }
 
 // Java method: Node.checkDetached()
-func (this_ Node) priv_Node_checkDetached_8392() {
+func (this_ Node) priv_Node_checkDetached_8406() {
 	if !(this_.nodeGet_parent() == 0) {
 		j2gort.CheckStateFmt(false, "Has parent: %s", j2gort.BoxNode(this_))
 	}
@@ -1675,7 +1675,7 @@ func (this_ Node) DetachChildren() {
 }
 
 // Java method: Node.lookupColdProperty(com.google.javascript.rhino.Node.Prop prop)
-func (this_ Node) priv_Node_lookupColdProperty_8396(prop Node_Prop) *Node_PropListItem {
+func (this_ Node) priv_Node_lookupColdProperty_8410(prop Node_Prop) *Node_PropListItem {
 	_ = prop
 	var x *Node_PropListItem = this_.nodeGet_propListHead()
 	_ = x
@@ -1697,26 +1697,26 @@ func (this_ Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 		if !(j2gort.IfaceEquals[StaticSourceFile](this_.nodeGet_sourceFile(), nil)) {
 			return Node_PropListItem_ObjectItem(int8((StaticGet_Node_Prop_SOURCE_FILE()).Ordinal()), this_.nodeGet_sourceFile(), nil)
 		}
-		return this_.priv_Node_lookupColdProperty_8396(prop)
+		return this_.priv_Node_lookupColdProperty_8410(prop)
 	}
 	if prop == StaticGet_Node_Prop_JSDOC_INFO() {
 		if this_.nodeGet_jsDocInfo() != nil {
 			return Node_PropListItem_ObjectItem(int8((StaticGet_Node_Prop_JSDOC_INFO()).Ordinal()), j2gort.PtrToAny(this_.nodeGet_jsDocInfo()), nil)
 		}
-		return this_.priv_Node_lookupColdProperty_8396(prop)
+		return this_.priv_Node_lookupColdProperty_8410(prop)
 	}
 	if prop == StaticGet_Node_Prop_TYPE_BEFORE_CAST() {
 		if !(j2gort.IfaceEquals[JSType](this_.nodeGet_typeBeforeCast(), nil)) {
 			return Node_PropListItem_ObjectItem(int8((StaticGet_Node_Prop_TYPE_BEFORE_CAST()).Ordinal()), this_.nodeGet_typeBeforeCast(), nil)
 		}
-		return this_.priv_Node_lookupColdProperty_8396(prop)
+		return this_.priv_Node_lookupColdProperty_8410(prop)
 	}
 	var mask int32 = StaticGet_Node_INLINE_BOOL_MASKS()[(prop).Ordinal()]
 	_ = mask
 	if mask != int32(0) {
 		if (this_.nodeGet_propFlags() & mask) != int32(0) {
 			if this_.nodeGet_propListHead() != nil {
-				var cold *Node_PropListItem = this_.priv_Node_lookupColdProperty_8396(prop)
+				var cold *Node_PropListItem = this_.priv_Node_lookupColdProperty_8410(prop)
 				_ = cold
 				if cold != nil {
 					return cold
@@ -1724,7 +1724,7 @@ func (this_ Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 			}
 			return StaticGet_Node_STATIC_INLINE_BOOL_ITEMS()[j2gort.IntTrailingZeros(mask)]
 		}
-		return this_.priv_Node_lookupColdProperty_8396(prop)
+		return this_.priv_Node_lookupColdProperty_8410(prop)
 	}
 	if prop == StaticGet_Node_Prop_CONSTANT_VAR_FLAGS() {
 		var v int32 = ((javalang.Ushr32(this_.nodeGet_propFlags(), int(int32(26)))) & int32(3))
@@ -1732,7 +1732,7 @@ func (this_ Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 		if v != int32(0) {
 			return StaticGet_Node_STATIC_CONST_VAR_ITEMS()[v]
 		}
-		return this_.priv_Node_lookupColdProperty_8396(prop)
+		return this_.priv_Node_lookupColdProperty_8410(prop)
 	}
 	if prop == StaticGet_Node_Prop_SIDE_EFFECT_FLAGS() {
 		var v_2 int32 = ((javalang.Ushr32(this_.nodeGet_propFlags(), int(int32(28)))) & int32(15))
@@ -1740,15 +1740,15 @@ func (this_ Node) LookupProperty(prop Node_Prop) *Node_PropListItem {
 		if v_2 != int32(0) {
 			return StaticGet_Node_STATIC_SIDE_EFFECT_ITEMS()[v_2]
 		}
-		return this_.priv_Node_lookupColdProperty_8396(prop)
+		return this_.priv_Node_lookupColdProperty_8410(prop)
 	}
 	if prop == StaticGet_Node_Prop_CHANGE_TIME() {
 		if this_.nodeGet_changeTime() != int32(0) {
 			return Node_PropListItem_IntItem(int8((StaticGet_Node_Prop_CHANGE_TIME()).Ordinal()), this_.nodeGet_changeTime(), nil)
 		}
-		return this_.priv_Node_lookupColdProperty_8396(prop)
+		return this_.priv_Node_lookupColdProperty_8410(prop)
 	}
-	return this_.priv_Node_lookupColdProperty_8396(prop)
+	return this_.priv_Node_lookupColdProperty_8410(prop)
 }
 
 // Java method: Node.clonePropsFrom(com.google.javascript.rhino.Node other)
@@ -1982,7 +1982,7 @@ func Node_RebuildListWithoutProp(item *Node_PropListItem, prop Node_Prop) *Node_
 }
 
 // Java method: Node.removeColdProp(com.google.javascript.rhino.Node.Prop prop)
-func (this_ Node) priv_Node_removeColdProp_8401(prop Node_Prop) {
+func (this_ Node) priv_Node_removeColdProp_8415(prop Node_Prop) {
 	_ = prop
 	var head *Node_PropListItem = this_.nodeGet_propListHead()
 	_ = head
@@ -2002,7 +2002,7 @@ func (this_ Node) GetProp(propType Node_Prop) any {
 		if !(j2gort.IfaceEquals[StaticSourceFile](this_.nodeGet_sourceFile(), nil)) {
 			return this_.nodeGet_sourceFile()
 		}
-		var item *Node_PropListItem = this_.priv_Node_lookupColdProperty_8396(propType)
+		var item *Node_PropListItem = this_.priv_Node_lookupColdProperty_8410(propType)
 		_ = item
 		if item == nil {
 			return nil
@@ -2014,7 +2014,7 @@ func (this_ Node) GetProp(propType Node_Prop) any {
 		if this_.nodeGet_jsDocInfo() != nil {
 			return j2gort.PtrToAny(this_.nodeGet_jsDocInfo())
 		}
-		var item_2 *Node_PropListItem = this_.priv_Node_lookupColdProperty_8396(propType)
+		var item_2 *Node_PropListItem = this_.priv_Node_lookupColdProperty_8410(propType)
 		_ = item_2
 		if item_2 == nil {
 			return nil
@@ -2026,7 +2026,7 @@ func (this_ Node) GetProp(propType Node_Prop) any {
 		if !(j2gort.IfaceEquals[JSType](this_.nodeGet_typeBeforeCast(), nil)) {
 			return this_.nodeGet_typeBeforeCast()
 		}
-		var item_3 *Node_PropListItem = this_.priv_Node_lookupColdProperty_8396(propType)
+		var item_3 *Node_PropListItem = this_.priv_Node_lookupColdProperty_8410(propType)
 		_ = item_3
 		if item_3 == nil {
 			return nil
@@ -2053,7 +2053,7 @@ func (this_ Node) GetProp(propType Node_Prop) any {
 			panic(j2gort.AsIface[javalang.IUnsupportedOperationException](j2gort.ConstructShimThrowable("java.lang.UnsupportedOperationException")))
 		}
 	}
-	var item_4 *Node_PropListItem = this_.priv_Node_lookupColdProperty_8396(propType)
+	var item_4 *Node_PropListItem = this_.priv_Node_lookupColdProperty_8410(propType)
 	_ = item_4
 	if item_4 == nil {
 		return nil
@@ -2069,11 +2069,11 @@ func (this_ Node) GetBooleanProp(propType Node_Prop) bool {
 	if mask != int32(0) {
 		return ((this_.nodeGet_propFlags() & mask) != int32(0))
 	}
-	return this_.priv_Node_getColdBooleanProp_8404(propType)
+	return this_.priv_Node_getColdBooleanProp_8418(propType)
 }
 
 // Java method: Node.getColdBooleanProp(com.google.javascript.rhino.Node.Prop propType)
-func (this_ Node) priv_Node_getColdBooleanProp_8404(propType Node_Prop) bool {
+func (this_ Node) priv_Node_getColdBooleanProp_8418(propType Node_Prop) bool {
 	_ = propType
 	if (((propType == StaticGet_Node_Prop_SOURCE_FILE()) && !(j2gort.IfaceEquals[StaticSourceFile](this_.nodeGet_sourceFile(), nil))) || ((propType == StaticGet_Node_Prop_JSDOC_INFO()) && (this_.nodeGet_jsDocInfo() != nil))) || ((propType == StaticGet_Node_Prop_TYPE_BEFORE_CAST()) && !(j2gort.IfaceEquals[JSType](this_.nodeGet_typeBeforeCast(), nil))) {
 		panic(j2gort.AsIface[javalang.IUnsupportedOperationException](j2gort.ConstructShimThrowable("java.lang.UnsupportedOperationException")))
@@ -2081,15 +2081,15 @@ func (this_ Node) priv_Node_getColdBooleanProp_8404(propType Node_Prop) bool {
 	if (propType == StaticGet_Node_Prop_CHANGE_TIME()) && (this_.nodeGet_changeTime() != int32(0)) {
 		return true
 	}
-	var item *Node_PropListItem = this_.priv_Node_lookupColdProperty_8396(propType)
+	var item *Node_PropListItem = this_.priv_Node_lookupColdProperty_8410(propType)
 	_ = item
 	return ((item != nil) && (item.GetIntValue() != int32(0)))
 }
 
 // Java method: Node.getColdIntProp(com.google.javascript.rhino.Node.Prop propType)
-func (this_ Node) priv_Node_getColdIntProp_8405(propType Node_Prop) int32 {
+func (this_ Node) priv_Node_getColdIntProp_8419(propType Node_Prop) int32 {
 	_ = propType
-	var item *Node_PropListItem = this_.priv_Node_lookupColdProperty_8396(propType)
+	var item *Node_PropListItem = this_.priv_Node_lookupColdProperty_8410(propType)
 	_ = item
 	if item == nil {
 		return int32(0)
@@ -2099,14 +2099,14 @@ func (this_ Node) priv_Node_getColdIntProp_8405(propType Node_Prop) int32 {
 }
 
 // Java method: Node.getIntProp(com.google.javascript.rhino.Node.Prop propType)
-func (this_ Node) priv_Node_getIntProp_8406(propType Node_Prop) int32 {
+func (this_ Node) priv_Node_getIntProp_8420(propType Node_Prop) int32 {
 	_ = propType
 	var mask int32 = StaticGet_Node_INLINE_BOOL_MASKS()[(propType).Ordinal()]
 	_ = mask
 	if mask != int32(0) {
 		if (this_.nodeGet_propFlags() & mask) != int32(0) {
 			if this_.nodeGet_propListHead() != nil {
-				var cold *Node_PropListItem = this_.priv_Node_lookupColdProperty_8396(propType)
+				var cold *Node_PropListItem = this_.priv_Node_lookupColdProperty_8410(propType)
 				_ = cold
 				if cold != nil {
 					return cold.GetIntValue()
@@ -2114,7 +2114,7 @@ func (this_ Node) priv_Node_getIntProp_8406(propType Node_Prop) int32 {
 			}
 			return int32(1)
 		}
-		return this_.priv_Node_getColdIntProp_8405(propType)
+		return this_.priv_Node_getColdIntProp_8419(propType)
 	}
 	if propType == StaticGet_Node_Prop_CONSTANT_VAR_FLAGS() {
 		var v int32 = ((javalang.Ushr32(this_.nodeGet_propFlags(), int(int32(26)))) & int32(3))
@@ -2122,7 +2122,7 @@ func (this_ Node) priv_Node_getIntProp_8406(propType Node_Prop) int32 {
 		if v != int32(0) {
 			return v
 		}
-		return this_.priv_Node_getColdIntProp_8405(propType)
+		return this_.priv_Node_getColdIntProp_8419(propType)
 	}
 	if propType == StaticGet_Node_Prop_SIDE_EFFECT_FLAGS() {
 		var v_2 int32 = ((javalang.Ushr32(this_.nodeGet_propFlags(), int(int32(28)))) & int32(15))
@@ -2130,14 +2130,14 @@ func (this_ Node) priv_Node_getIntProp_8406(propType Node_Prop) int32 {
 		if v_2 != int32(0) {
 			return v_2
 		}
-		return this_.priv_Node_getColdIntProp_8405(propType)
+		return this_.priv_Node_getColdIntProp_8419(propType)
 	}
 	if propType == StaticGet_Node_Prop_CHANGE_TIME() {
 		if this_.nodeGet_changeTime() != int32(0) {
 			return this_.nodeGet_changeTime()
 		}
 		if this_.nodeGet_propListHead() != nil {
-			return this_.priv_Node_getColdIntProp_8405(propType)
+			return this_.priv_Node_getColdIntProp_8419(propType)
 		} else {
 			return int32(0)
 		}
@@ -2151,7 +2151,7 @@ func (this_ Node) priv_Node_getIntProp_8406(propType Node_Prop) int32 {
 	if (propType == StaticGet_Node_Prop_TYPE_BEFORE_CAST()) && !(j2gort.IfaceEquals[JSType](this_.nodeGet_typeBeforeCast(), nil)) {
 		panic(j2gort.AsIface[javalang.IUnsupportedOperationException](j2gort.ConstructShimThrowable("java.lang.UnsupportedOperationException")))
 	}
-	return this_.priv_Node_getColdIntProp_8405(propType)
+	return this_.priv_Node_getColdIntProp_8419(propType)
 }
 
 // Java method: Node.putProp(com.google.javascript.rhino.Node.Prop prop, java.lang.@org.jspecify.annotations.Nullable Object value)
@@ -2161,19 +2161,19 @@ func (this_ Node) PutProp(prop Node_Prop, value any) {
 	if prop == StaticGet_Node_Prop_SOURCE_FILE() {
 		if value == nil {
 			this_.nodeSet_sourceFile(nil)
-			this_.priv_Node_removeColdProp_8401(prop)
+			this_.priv_Node_removeColdProp_8415(prop)
 			return
 		}
 		if j2gort.InstanceOf[StaticSourceFile](value) {
 			this_.nodeSet_sourceFile(j2gort.AsIface[StaticSourceFile](value))
-			this_.priv_Node_removeColdProp_8401(prop)
+			this_.priv_Node_removeColdProp_8415(prop)
 			return
 		}
 		this_.nodeSet_sourceFile(nil)
 	} else if prop == StaticGet_Node_Prop_JSDOC_INFO() {
 		if value == nil {
 			this_.nodeSet_jsDocInfo(nil)
-			this_.priv_Node_removeColdProp_8401(prop)
+			this_.priv_Node_removeColdProp_8415(prop)
 			return
 		}
 		var info *JSDocInfo
@@ -2182,14 +2182,14 @@ func (this_ Node) PutProp(prop Node_Prop, value any) {
 		info, ok_55 = j2gort.TryCast[*JSDocInfo](value)
 		if ok_55 {
 			this_.nodeSet_jsDocInfo(info)
-			this_.priv_Node_removeColdProp_8401(prop)
+			this_.priv_Node_removeColdProp_8415(prop)
 			return
 		}
 		this_.nodeSet_jsDocInfo(nil)
 	} else if prop == StaticGet_Node_Prop_TYPE_BEFORE_CAST() {
 		if value == nil {
 			this_.nodeSet_typeBeforeCast(nil)
-			this_.priv_Node_removeColdProp_8401(prop)
+			this_.priv_Node_removeColdProp_8415(prop)
 			return
 		}
 		var jsType JSType
@@ -2198,7 +2198,7 @@ func (this_ Node) PutProp(prop Node_Prop, value any) {
 		jsType, ok_56 = j2gort.TryCast[JSType](value)
 		if ok_56 {
 			this_.nodeSet_typeBeforeCast(jsType)
-			this_.priv_Node_removeColdProp_8401(prop)
+			this_.priv_Node_removeColdProp_8415(prop)
 			return
 		}
 		this_.nodeSet_typeBeforeCast(nil)
@@ -2225,7 +2225,7 @@ func (this_ Node) PutProp(prop Node_Prop, value any) {
 		}
 	} else {
 		if value != nil {
-			var existing *Node_PropListItem = this_.priv_Node_lookupColdProperty_8396(prop)
+			var existing *Node_PropListItem = this_.priv_Node_lookupColdProperty_8410(prop)
 			_ = existing
 			if ((existing != nil) && existing.IsObjectItem()) && j2gort.RefEquals(existing.objectValue, value) {
 				return
@@ -2253,7 +2253,7 @@ func (this_ Node) PutBooleanProp(propType Node_Prop, value bool) {
 		} else {
 			this_.nodeSet_propFlags((this_.nodeGet_propFlags() & ^(mask)))
 		}
-		this_.priv_Node_removeColdProp_8401(propType)
+		this_.priv_Node_removeColdProp_8415(propType)
 		return
 	}
 	this_.PutIntProp(propType, func() int32 {
@@ -2273,31 +2273,31 @@ func (this_ Node) PutIntProp(prop Node_Prop, value int32) {
 	if mask != int32(0) {
 		if value == int32(0) {
 			this_.nodeSet_propFlags((this_.nodeGet_propFlags() & ^(mask)))
-			this_.priv_Node_removeColdProp_8401(prop)
+			this_.priv_Node_removeColdProp_8415(prop)
 			return
 		}
 		this_.nodeSet_propFlags((this_.nodeGet_propFlags() | mask))
 		if value == int32(1) {
-			this_.priv_Node_removeColdProp_8401(prop)
+			this_.priv_Node_removeColdProp_8415(prop)
 			return
 		}
 	} else if prop == StaticGet_Node_Prop_CONSTANT_VAR_FLAGS() {
 		if (value & ^(int32(3))) == int32(0) {
 			this_.nodeSet_propFlags(((this_.nodeGet_propFlags() & ^(int32(201326592))) | (javalang.Shl32(value, int(int32(26))))))
-			this_.priv_Node_removeColdProp_8401(prop)
+			this_.priv_Node_removeColdProp_8415(prop)
 			return
 		}
 		this_.nodeSet_propFlags((this_.nodeGet_propFlags() & ^(int32(201326592))))
 	} else if prop == StaticGet_Node_Prop_SIDE_EFFECT_FLAGS() {
 		if (value & ^(int32(15))) == int32(0) {
 			this_.nodeSet_propFlags(((this_.nodeGet_propFlags() & ^(int32(-268435456))) | (javalang.Shl32(value, int(int32(28))))))
-			this_.priv_Node_removeColdProp_8401(prop)
+			this_.priv_Node_removeColdProp_8415(prop)
 			return
 		}
 		this_.nodeSet_propFlags((this_.nodeGet_propFlags() & ^(int32(-268435456))))
 	} else if prop == StaticGet_Node_Prop_CHANGE_TIME() {
 		this_.nodeSet_changeTime(value)
-		this_.priv_Node_removeColdProp_8401(prop)
+		this_.priv_Node_removeColdProp_8415(prop)
 		return
 	} else if prop == StaticGet_Node_Prop_SOURCE_FILE() {
 		this_.nodeSet_sourceFile(nil)
@@ -2316,7 +2316,7 @@ func (this_ Node) PutIntProp(prop Node_Prop, value int32) {
 		}
 	} else {
 		if value != int32(0) {
-			var existing *Node_PropListItem = this_.priv_Node_lookupColdProperty_8396(prop)
+			var existing *Node_PropListItem = this_.priv_Node_lookupColdProperty_8410(prop)
 			_ = existing
 			if ((existing != nil) && existing.IsIntItem()) && (existing.intValue == value) {
 				return
@@ -2354,7 +2354,7 @@ func (this_ Node) RemoveProp(prop Node_Prop) {
 			this_.nodeSet_changeTime(int32(0))
 		}
 	}
-	this_.priv_Node_removeColdProp_8401(prop)
+	this_.priv_Node_removeColdProp_8415(prop)
 }
 
 // Java static method: Node.nodePropertyToBit(com.google.javascript.jscomp.serialization.NodeProperty prop)
@@ -2430,7 +2430,7 @@ func (this_ Node) SerializeProperties() int64 {
 		var seFlags int32 = ((javalang.Ushr32(flags, int(int32(28)))) & int32(15))
 		_ = seFlags
 		if seFlags != int32(0) {
-			propSet = this_.priv_Node_setNodePropertySideEffectFlags_8412(propSet, seFlags)
+			propSet = this_.priv_Node_setNodePropertySideEffectFlags_8426(propSet, seFlags)
 		}
 	}
 	if !(j2gort.IfaceEquals[JSType](this_.nodeGet_typeBeforeCast(), nil)) {
@@ -2455,7 +2455,7 @@ func (this_ Node) SerializeProperties() int64 {
 					propSet = Node_SetNodePropertyBit(propSet, j2gort.Ext_com_google_javascript_jscomp_serialization_NodeProperty_F_IS_DECLARED_CONSTANT)
 				}
 			case int32(8) /* Prop.SIDE_EFFECT_FLAGS */ :
-				propSet = this_.priv_Node_setNodePropertySideEffectFlags_8412(propSet, propListItem.GetIntValue())
+				propSet = this_.priv_Node_setNodePropertySideEffectFlags_8426(propSet, propListItem.GetIntValue())
 			case int32(54) /* Prop.CLOSURE_UNAWARE_SHADOW */ :
 				propSet = Node_SetNodePropertyBit(propSet, j2gort.Ext_com_google_javascript_jscomp_serialization_NodeProperty_F_CLOSURE_UNAWARE_SHADOW)
 			default:
@@ -2473,7 +2473,7 @@ func (this_ Node) SerializeProperties() int64 {
 }
 
 // Java method: Node.setNodePropertySideEffectFlags(long propSet, int sideEffectFlags)
-func (this_ Node) priv_Node_setNodePropertySideEffectFlags_8412(propSet int64, sideEffectFlags int32) int64 {
+func (this_ Node) priv_Node_setNodePropertySideEffectFlags_8426(propSet int64, sideEffectFlags int32) int64 {
 	_ = propSet
 	_ = sideEffectFlags
 	if Node_AnyBitSet(sideEffectFlags, int32(1)) {
@@ -2536,7 +2536,7 @@ func (this_ Node) GetPropListDebugString() string {
 			boolBits = (boolBits & ^(javalang.Shl32(int32(1), int(bit))))
 			propListStrRepr = append(propListStrRepr, (StaticGet_Node_INLINE_BIT_TO_PROP()[bit]).Name())
 		}
-		if ((flags & int32(16777216)) != int32(0)) && ((this_.nodeGet_propListHead() == nil) || (this_.priv_Node_lookupColdProperty_8396(StaticGet_Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE()) == nil)) {
+		if ((flags & int32(16777216)) != int32(0)) && ((this_.nodeGet_propListHead() == nil) || (this_.priv_Node_lookupColdProperty_8410(StaticGet_Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE()) == nil)) {
 			propListStrRepr = append(propListStrRepr, (StaticGet_Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE()).Name())
 		}
 	}
@@ -2557,7 +2557,7 @@ func (this_ Node) DeserializeProperties(propSet int64, isInClosureUnawareSubtree
 			j2gort.CheckStateMsg(false, j2gort.PtrToAny(this_.nodeGet_propListHead()))
 		}
 	} else {
-		if !(this_.priv_Node_validatePropListTailOrdering_8503(isInClosureUnawareSubtree)) {
+		if !(this_.priv_Node_validatePropListTailOrdering_8517(isInClosureUnawareSubtree)) {
 			j2gort.CheckStateStr(false, "Node not ready to receive properties")
 		}
 	}
@@ -2737,7 +2737,7 @@ func (this_ Node) IsColorFromTypeCast() bool {
 }
 
 // Java method: Node.getSortedPropTypes()
-func (this_ Node) priv_Node_getSortedPropTypes_8434() []int8 {
+func (this_ Node) priv_Node_getSortedPropTypes_8448() []int8 {
 	var flags int32 = this_.nodeGet_propFlags()
 	_ = flags
 	var head *Node_PropListItem = this_.nodeGet_propListHead()
@@ -2906,14 +2906,9 @@ func (this_ Node) SetString(str string) {
 	}
 }
 
-// Java method: Node.setStringFromStringPool(com.google.javascript.rhino.RhinoStringPool.LazyInternedStringList stringPool, int offset)
+// Java method: Node.setStringFromStringPool(LazyInternedStringList, int)
 func (this_ Node) SetStringFromStringPool(stringPool *RhinoStringPool_LazyInternedStringList, offset int32) {
-	_ = stringPool
-	_ = offset
-	{
-		r_93 := (this_)
-		r_93.nodeSet_str(stringPool.Get(offset))
-	}
+	nodestore.Node(this_).SetStringPayload(stringPool.InternID_(offset))
 }
 
 // Java method: Node.getRawString()
@@ -2938,17 +2933,17 @@ func (this_ Node) ToString_3(printSource bool, printAnnotations bool, printType 
 	_ = printType
 	var sb *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 	_ = sb
-	this_.priv_Node_toString_8446(sb, printSource, printAnnotations, printType)
+	this_.priv_Node_toString_8460(sb, printSource, printAnnotations, printType)
 	return sb.String()
 }
 
 // Java method: Node.toString(java.lang.StringBuilder sb, boolean printSource, boolean printAnnotations, boolean printType)
-func (this_ Node) priv_Node_toString_8446(sb *j2gort.Ext_java_lang_StringBuilder, printSource bool, printAnnotations bool, printType bool) {
+func (this_ Node) priv_Node_toString_8460(sb *j2gort.Ext_java_lang_StringBuilder, printSource bool, printAnnotations bool, printType bool) {
 	_ = sb
 	_ = printSource
 	_ = printAnnotations
 	_ = printType
-	sb.Append_1_any_9815(j2gort.BoxNullableVal(this_.nodeGet_token()))
+	sb.Append_1_any_9831(j2gort.BoxNullableVal(this_.nodeGet_token()))
 	if this_ != 0 && nodestore.Node(this_).KindFlags() == 3 {
 		sb.Append_1_uint16(uint16(32))
 		sb.Append_1_string(this_.GetString())
@@ -2980,7 +2975,7 @@ func (this_ Node) priv_Node_toString_8446(sb *j2gort.Ext_java_lang_StringBuilder
 		}
 	}
 	if printAnnotations {
-		var keys []int8 = this_.priv_Node_getSortedPropTypes_8434()
+		var keys []int8 = this_.priv_Node_getSortedPropTypes_8448()
 		_ = keys
 		{
 			var i int32 = int32(0)
@@ -2996,15 +2991,15 @@ func (this_ Node) priv_Node_toString_8446(sb *j2gort.Ext_java_lang_StringBuilder
 				sb.Append_1_string(j2gort.Ext_com_google_common_base_Ascii_ToLowerCase_1_string(j2gort.StrVal(type_)))
 				sb.Append_1_string(": ")
 				if (type_ == StaticGet_Node_Prop_SOURCE_FILE()) && !(j2gort.IfaceEquals[StaticSourceFile](this_.nodeGet_sourceFile(), nil)) {
-					sb.Append_1_any_9815(this_.nodeGet_sourceFile())
+					sb.Append_1_any_9831(this_.nodeGet_sourceFile())
 				} else if (type_ == StaticGet_Node_Prop_JSDOC_INFO()) && (this_.nodeGet_jsDocInfo() != nil) {
-					sb.Append_1_any_9815(j2gort.PtrToAny(this_.nodeGet_jsDocInfo()))
+					sb.Append_1_any_9831(j2gort.PtrToAny(this_.nodeGet_jsDocInfo()))
 				} else if (type_ == StaticGet_Node_Prop_TYPE_BEFORE_CAST()) && !(j2gort.IfaceEquals[JSType](this_.nodeGet_typeBeforeCast(), nil)) {
-					sb.Append_1_any_9815(this_.nodeGet_typeBeforeCast())
+					sb.Append_1_any_9831(this_.nodeGet_typeBeforeCast())
 				} else if (type_ == StaticGet_Node_Prop_CHANGE_TIME()) && (this_.nodeGet_changeTime() != int32(0)) {
 					sb.Append_1_int32(this_.nodeGet_changeTime())
 				} else {
-					sb.Append_1_any_9815(j2gort.PtrToAny(this_.LookupProperty(type_)))
+					sb.Append_1_any_9831(j2gort.PtrToAny(this_.LookupProperty(type_)))
 				}
 				sb.Append_1_uint16(uint16(93))
 			}
@@ -3042,7 +3037,7 @@ func Node_CreateJsonPairRawValue(name string, value string) string {
 }
 
 // Java method: Node.toJson(java.lang.Appendable sb)
-func (this_ Node) priv_Node_toJson_8447(sb j2gort.Ext_java_lang_Appendable) {
+func (this_ Node) priv_Node_toJson_8461(sb j2gort.Ext_java_lang_Appendable) {
 	_ = sb
 	sb.Append_1_uint16(uint16(123))
 	sb.Append_1_any(j2gort.BoxString(Node_CreateJsonPair("token", j2gort.CheckNotNullEnum(this_.nodeGet_token()).String())))
@@ -3078,7 +3073,7 @@ func (this_ Node) priv_Node_toJson_8447(sb j2gort.Ext_java_lang_Appendable) {
 		sb.Append_1_any(",")
 		sb.Append_1_any(j2gort.BoxString(Node_CreateJsonPair("original_name", this_.nodeGet_originalName())))
 	}
-	var keys []int8 = this_.priv_Node_getSortedPropTypes_8434()
+	var keys []int8 = this_.priv_Node_getSortedPropTypes_8448()
 	_ = keys
 	if int32(len(keys)) != int32(0) {
 		sb.Append_1_any(",")
@@ -3125,7 +3120,7 @@ func (this_ Node) priv_Node_toJson_8447(sb j2gort.Ext_java_lang_Appendable) {
 			var child Node = this_.nodeGet_first()
 			_ = child
 			for ; child != 0; child = child.nodeGet_next() {
-				child.priv_Node_toJson_8447(sb)
+				child.priv_Node_toJson_8461(sb)
 				if child.nodeGet_next() != 0 {
 					sb.Append_1_uint16(uint16(44))
 				}
@@ -3138,36 +3133,36 @@ func (this_ Node) priv_Node_toJson_8447(sb j2gort.Ext_java_lang_Appendable) {
 
 // Java method: Node.toStringTree()
 func (this_ Node) ToStringTree() string {
-	return this_.priv_Node_toStringTreeImpl_8449()
+	return this_.priv_Node_toStringTreeImpl_8463()
 }
 
 // Java method: Node.toStringTreeImpl()
-func (this_ Node) priv_Node_toStringTreeImpl_8449() string {
-	var didRet_94 bool
-	var retVal_95 string
+func (this_ Node) priv_Node_toStringTreeImpl_8463() string {
+	var didRet_93 bool
+	var retVal_94 string
 	func() {
 		defer func() {
-			if rec_96 := recover(); rec_96 != nil {
-				jex_97 := javalang.RecoverException(rec_96)
-				_ = jex_97
-				if j2gort.InstanceOf[javaio.IIOException](jex_97) {
-					e := j2gort.AsIface[javaio.IIOException](jex_97)
+			if rec_95 := recover(); rec_95 != nil {
+				jex_96 := javalang.RecoverException(rec_95)
+				_ = jex_96
+				if j2gort.InstanceOf[javaio.IIOException](jex_96) {
+					e := j2gort.AsIface[javaio.IIOException](jex_96)
 					_ = e
 					panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Should not happen\n"+j2gort.StrVal(e))))
 				} else {
-					panic(rec_96)
+					panic(rec_95)
 				}
 			}
 		}()
 		var s *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 		_ = s
 		this_.AppendStringTree(s)
-		retVal_95 = s.String()
-		didRet_94 = true
+		retVal_94 = s.String()
+		didRet_93 = true
 		return
 	}()
-	if didRet_94 {
-		return retVal_95
+	if didRet_93 {
+		return retVal_94
 	}
 	panic("unreachable")
 }
@@ -3218,21 +3213,21 @@ func Node_ToJsonTreeHelper(n Node, sb j2gort.Ext_java_lang_Appendable) {
 	clinit_Node()
 	_ = n
 	_ = sb
-	n.priv_Node_toJson_8447(sb)
+	n.priv_Node_toJson_8461(sb)
 }
 
 // Java method: Node.setStaticSourceFileFrom(com.google.javascript.rhino.Node other)
 func (this_ Node) SetStaticSourceFileFrom(other Node) {
 	_ = other
 	this_.nodeSet_sourceFile(other.GetStaticSourceFile())
-	this_.priv_Node_removeColdProp_8401(StaticGet_Node_Prop_SOURCE_FILE())
+	this_.priv_Node_removeColdProp_8415(StaticGet_Node_Prop_SOURCE_FILE())
 }
 
 // Java method: Node.setStaticSourceFile(com.google.javascript.rhino.@org.jspecify.annotations.Nullable StaticSourceFile file)
 func (this_ Node) SetStaticSourceFile(file StaticSourceFile) Node {
 	_ = file
 	this_.nodeSet_sourceFile(file)
-	this_.priv_Node_removeColdProp_8401(StaticGet_Node_Prop_SOURCE_FILE())
+	this_.priv_Node_removeColdProp_8415(StaticGet_Node_Prop_SOURCE_FILE())
 	return this_
 }
 
@@ -3290,11 +3285,13 @@ func (this_ Node) SetOriginalName(s string) {
 	}
 }
 
-// Java method: Node.setOriginalNameFromStringPool(com.google.javascript.rhino.RhinoStringPool.LazyInternedStringList stringPool, int offset)
+// Java method: Node.setOriginalNameFromStringPool(LazyInternedStringList, int)
 func (this_ Node) SetOriginalNameFromStringPool(stringPool *RhinoStringPool_LazyInternedStringList, offset int32) {
-	_ = stringPool
-	_ = offset
-	this_.nodeSet_originalName(stringPool.Get(offset))
+	id := stringPool.InternID_(offset)
+	if this_ == 0 {
+		panic(nodeNullPtrEx)
+	}
+	nodestore.Node(this_).SetOrigNameID(id)
 }
 
 // Java method: Node.setOriginalNameFromName(com.google.javascript.rhino.Node name)
@@ -3461,12 +3458,12 @@ func (this_ Node) GetPropListHeadForTesting() *Node_PropListItem {
 }
 
 // Java method: Node.applyPropListHeadItems(com.google.javascript.rhino.Node.@org.jspecify.annotations.Nullable PropListItem item)
-func (this_ Node) priv_Node_applyPropListHeadItems_8478(item *Node_PropListItem) {
+func (this_ Node) priv_Node_applyPropListHeadItems_8492(item *Node_PropListItem) {
 	_ = item
 	if item == nil {
 		return
 	}
-	this_.priv_Node_applyPropListHeadItems_8478(item.next)
+	this_.priv_Node_applyPropListHeadItems_8492(item.next)
 	var prop Node_Prop = StaticGet_Node_PropValues()[int32(item.propType)]
 	_ = prop
 	if item.IsObjectItem() {
@@ -3485,7 +3482,7 @@ func (this_ Node) SetPropListHead(propListHead *Node_PropListItem) {
 	this_.nodeSet_propFlags(int32(0))
 	this_.nodeSet_changeTime(int32(0))
 	this_.nodeSet_propListHead(nil)
-	this_.priv_Node_applyPropListHeadItems_8478(propListHead)
+	this_.priv_Node_applyPropListHeadItems_8492(propListHead)
 }
 
 // Java method: Node.getParent()
@@ -3515,7 +3512,7 @@ func (this_ Node) GetAncestor(level int32) Node {
 	}
 	var node Node = this_
 	_ = node
-	for (node != 0) && (func() int32 { old_98 := level; nw_99 := old_98 - 1; level = nw_99; return old_98 }() > int32(0)) {
+	for (node != 0) && (func() int32 { old_97 := level; nw_98 := old_97 - 1; level = nw_98; return old_97 }() > int32(0)) {
 		node = node.GetParent()
 	}
 	return node
@@ -3656,7 +3653,7 @@ func (this_ Node) IsEquivalentTo_1(node Node) bool {
 }
 
 // Java method: Node.getSecondToLastPropListItem()
-func (this_ Node) priv_Node_getSecondToLastPropListItem_8501() *Node_PropListItem {
+func (this_ Node) priv_Node_getSecondToLastPropListItem_8515() *Node_PropListItem {
 	if this_.GetIsInClosureUnawareSubtree() {
 		return this_.LookupProperty(StaticGet_Node_Prop_IS_IN_CLOSURE_UNAWARE_SUBTREE())
 	}
@@ -3681,7 +3678,7 @@ func (this_ Node) priv_Node_getSecondToLastPropListItem_8501() *Node_PropListIte
 }
 
 // Java method: Node.getLastPropListItem()
-func (this_ Node) priv_Node_getLastPropListItem_8502() *Node_PropListItem {
+func (this_ Node) priv_Node_getLastPropListItem_8516() *Node_PropListItem {
 	if !(j2gort.IfaceEquals[StaticSourceFile](this_.nodeGet_sourceFile(), nil)) {
 		return Node_PropListItem_ObjectItem(int8((StaticGet_Node_Prop_SOURCE_FILE()).Ordinal()), this_.nodeGet_sourceFile(), nil)
 	}
@@ -3697,7 +3694,7 @@ func (this_ Node) priv_Node_getLastPropListItem_8502() *Node_PropListItem {
 }
 
 // Java method: Node.validatePropListTailOrdering(boolean shouldNodeBeClosureUnaware)
-func (this_ Node) priv_Node_validatePropListTailOrdering_8503(shouldNodeBeClosureUnaware bool) bool {
+func (this_ Node) priv_Node_validatePropListTailOrdering_8517(shouldNodeBeClosureUnaware bool) bool {
 	_ = shouldNodeBeClosureUnaware
 	if j2gort.IfaceEquals[StaticSourceFile](this_.GetStaticSourceFile(), nil) {
 		return false
@@ -3715,10 +3712,10 @@ func Node_ValidateMemorySensitivePropertyGuarantees(node1 Node, shouldNode1BeClo
 	_ = shouldNode1BeClosureUnaware
 	_ = node2
 	_ = shouldNode2BeClosureUnaware
-	if !(node1.priv_Node_validatePropListTailOrdering_8503(shouldNode1BeClosureUnaware)) {
+	if !(node1.priv_Node_validatePropListTailOrdering_8517(shouldNode1BeClosureUnaware)) {
 		return false
 	}
-	if !(node2.priv_Node_validatePropListTailOrdering_8503(shouldNode2BeClosureUnaware)) {
+	if !(node2.priv_Node_validatePropListTailOrdering_8517(shouldNode2BeClosureUnaware)) {
 		return false
 	}
 	if !(j2gort.IfaceEquals[StaticSourceFile](node1.GetStaticSourceFile(), node2.GetStaticSourceFile())) {
@@ -3933,7 +3930,7 @@ func Node_PropEqualsForEquivalence(prop Node_Prop, a Node, b Node) bool {
 	case int32(22) /* Prop.YIELD_ALL */ :
 		return (a.IsYieldAll() == b.IsYieldAll())
 	case int32(23) /* Prop.EXPORT_DEFAULT */, int32(24) /* Prop.EXPORT_ALL_FROM */, int32(4) /* Prop.INCRDECR */, int32(5) /* Prop.QUOTED */ :
-		return (a.priv_Node_getIntProp_8406(prop) == b.priv_Node_getIntProp_8406(prop))
+		return (a.priv_Node_getIntProp_8420(prop) == b.priv_Node_getIntProp_8420(prop))
 	case int32(13) /* Prop.FREE_CALL */, int32(12) /* Prop.DIRECT_EVAL */, int32(28) /* Prop.COMPUTED_PROP_METHOD */, int32(29) /* Prop.COMPUTED_PROP_GETTER */, int32(30) /* Prop.COMPUTED_PROP_SETTER */ :
 		return (a.GetBooleanProp(prop) == b.GetBooleanProp(prop))
 	default:
@@ -4186,9 +4183,9 @@ func Node_InitPow31() []int32 {
 		_ = i
 		for ; i < int32(64); i = i + 1 {
 			{
-				a_100 := table
-				i_101 := i
-				a_100[i_101] = p
+				a_99 := table
+				i_100 := i
+				a_99[i_100] = p
 			}
 			p = (p * int32(31))
 		}
@@ -4317,11 +4314,11 @@ func (this_ Node) MatchesName_1_Node(n Node) bool {
 // Java method: Node.matchesQualifiedName(java.lang.String name)
 func (this_ Node) MatchesQualifiedName_1_string(name string) bool {
 	_ = name
-	return this_.priv_Node_matchesQualifiedName_8517(name, j2gort.JStrLen(name))
+	return this_.priv_Node_matchesQualifiedName_8531(name, j2gort.JStrLen(name))
 }
 
 // Java method: Node.matchesQualifiedName(java.lang.String qname, int endIndex)
-func (this_ Node) priv_Node_matchesQualifiedName_8517(qname string, endIndex int32) bool {
+func (this_ Node) priv_Node_matchesQualifiedName_8531(qname string, endIndex int32) bool {
 	_ = qname
 	_ = endIndex
 	var start int32 = (j2gort.JStrLastIndexOfCpFrom(qname, int32(uint16(46)), (endIndex-int32(1))) + int32(1))
@@ -4341,7 +4338,7 @@ func (this_ Node) priv_Node_matchesQualifiedName_8517(qname string, endIndex int
 			return (((start == int32(0)) && (endIndex == int32(5))) && javalang.StringStartsWith(j2gort.CheckNotNullString(qname), "super"))
 		case int32(26) /* Token.GETPROP */ :
 			prop = this_.GetString()
-			return ((((start > int32(1)) && (j2gort.JStrLen(prop) == (endIndex - start))) && j2gort.JStrRegionMatches(prop, false, int32(0), qname, start, (endIndex-start))) && this_.GetFirstChild().priv_Node_matchesQualifiedName_8517(qname, (start-int32(1))))
+			return ((((start > int32(1)) && (j2gort.JStrLen(prop) == (endIndex - start))) && j2gort.JStrRegionMatches(prop, false, int32(0), qname, start, (endIndex-start))) && this_.GetFirstChild().priv_Node_matchesQualifiedName_8531(qname, (start-int32(1))))
 		case int32(107) /* Token.MEMBER_FUNCTION_DEF */ :
 			fallthrough
 		default:
@@ -4437,30 +4434,30 @@ func Node_CopyBaseNodeFields(source Node, dest Node, cloneTypeExprs bool) {
 	_ = dest
 	_ = cloneTypeExprs
 	{
+		r_101 := dest
+		r_101.nodeSet_linenoCharno(source.nodeGet_linenoCharno())
+	}
+	{
 		r_102 := dest
-		r_102.nodeSet_linenoCharno(source.nodeGet_linenoCharno())
+		r_102.nodeSet_length(source.nodeGet_length())
 	}
 	{
 		r_103 := dest
-		r_103.nodeSet_length(source.nodeGet_length())
+		r_103.nodeSet_jstypeOrColor(source.nodeGet_jstypeOrColor())
 	}
 	{
 		r_104 := dest
-		r_104.nodeSet_jstypeOrColor(source.nodeGet_jstypeOrColor())
+		r_104.nodeSet_originalName(source.nodeGet_originalName())
 	}
 	{
 		r_105 := dest
-		r_105.nodeSet_originalName(source.nodeGet_originalName())
-	}
-	{
-		r_106 := dest
-		r_106.nodeSet_sourceFile(source.nodeGet_sourceFile())
+		r_105.nodeSet_sourceFile(source.nodeGet_sourceFile())
 	}
 	var info *JSDocInfo = source.nodeGet_jsDocInfo()
 	_ = info
 	{
-		r_107 := dest
-		r_107.nodeSet_jsDocInfo(func() *JSDocInfo {
+		r_106 := dest
+		r_106.nodeSet_jsDocInfo(func() *JSDocInfo {
 			if cloneTypeExprs && (info != nil) {
 				return info.Clone_1(true)
 			}
@@ -4468,20 +4465,20 @@ func Node_CopyBaseNodeFields(source Node, dest Node, cloneTypeExprs bool) {
 		}())
 	}
 	{
+		r_107 := dest
+		r_107.nodeSet_typeBeforeCast(source.nodeGet_typeBeforeCast())
+	}
+	{
 		r_108 := dest
-		r_108.nodeSet_typeBeforeCast(source.nodeGet_typeBeforeCast())
+		r_108.nodeSet_propFlags(source.nodeGet_propFlags())
 	}
 	{
 		r_109 := dest
-		r_109.nodeSet_propFlags(source.nodeGet_propFlags())
+		r_109.nodeSet_changeTime(source.nodeGet_changeTime())
 	}
 	{
 		r_110 := dest
-		r_110.nodeSet_changeTime(source.nodeGet_changeTime())
-	}
-	{
-		r_111 := dest
-		r_111.nodeSet_propListHead(source.nodeGet_propListHead())
+		r_110.nodeSet_propListHead(source.nodeGet_propListHead())
 	}
 }
 
@@ -4507,36 +4504,36 @@ func (this_ Node) CloneTree_1(cloneTypeExprs bool) Node {
 				var n2clone Node = n2.CloneTree_1(cloneTypeExprs)
 				_ = n2clone
 				{
-					r_112 := n2clone
-					r_112.nodeSet_parent(result)
+					r_111 := n2clone
+					r_111.nodeSet_parent(result)
 				}
 				if firstChild == 0 {
 					firstChild = n2clone
 					lastChild = firstChild
 				} else {
 					{
-						r_113 := lastChild
-						r_113.nodeSet_next(n2clone)
+						r_112 := lastChild
+						r_112.nodeSet_next(n2clone)
 					}
 					{
-						r_114 := n2clone
-						r_114.nodeSet_previous(lastChild)
+						r_113 := n2clone
+						r_113.nodeSet_previous(lastChild)
 					}
 					lastChild = n2clone
 				}
 			}
 		}
 		{
-			r_115 := firstChild
-			r_115.nodeSet_previous(lastChild)
+			r_114 := firstChild
+			r_114.nodeSet_previous(lastChild)
 		}
 		{
-			r_116 := lastChild
-			r_116.nodeSet_next(Node(0))
+			r_115 := lastChild
+			r_115.nodeSet_next(Node(0))
 		}
 		{
-			r_117 := result
-			r_117.nodeSet_first(firstChild)
+			r_116 := result
+			r_116.nodeSet_first(firstChild)
 		}
 	}
 	var shadow Node = this_.GetClosureUnawareShadow()
@@ -4924,7 +4921,7 @@ func (this_ Node) GetSideEffectFlags() int32 {
 	var v int32 = ((javalang.Ushr32(this_.nodeGet_propFlags(), int(int32(28)))) & int32(15))
 	_ = v
 	if (v == int32(0)) && (this_.nodeGet_propListHead() != nil) {
-		v = this_.priv_Node_getColdIntProp_8405(StaticGet_Node_Prop_SIDE_EFFECT_FLAGS())
+		v = this_.priv_Node_getColdIntProp_8419(StaticGet_Node_Prop_SIDE_EFFECT_FLAGS())
 	}
 	return (^(v) & int32(15))
 }
@@ -4967,20 +4964,20 @@ func Node_AnyBitSet(value int32, mask int32) bool {
 }
 
 // Java method: Node.getConstantVarFlags()
-func (this_ Node) priv_Node_getConstantVarFlags_8584() int32 {
+func (this_ Node) priv_Node_getConstantVarFlags_8598() int32 {
 	var v int32 = ((javalang.Ushr32(this_.nodeGet_propFlags(), int(int32(26)))) & int32(3))
 	_ = v
 	if (v == int32(0)) && (this_.nodeGet_propListHead() != nil) {
-		v = this_.priv_Node_getColdIntProp_8405(StaticGet_Node_Prop_CONSTANT_VAR_FLAGS())
+		v = this_.priv_Node_getColdIntProp_8419(StaticGet_Node_Prop_CONSTANT_VAR_FLAGS())
 	}
 	return v
 }
 
 // Java method: Node.setConstantVarFlag(int flag, boolean value)
-func (this_ Node) priv_Node_setConstantVarFlag_8585(flag int32, value bool) {
+func (this_ Node) priv_Node_setConstantVarFlag_8599(flag int32, value bool) {
 	_ = flag
 	_ = value
-	var flags int32 = this_.priv_Node_getConstantVarFlags_8584()
+	var flags int32 = this_.priv_Node_getConstantVarFlags_8598()
 	_ = flags
 	if value {
 		flags = (flags | flag)
@@ -4995,7 +4992,7 @@ func (this_ Node) IsDeclaredConstantVar() bool {
 	if !(this_.IsName() || this_.IsImportStar()) {
 		j2gort.CheckStateFmt(false, "Should only be called on name or import * nodes. Found %s", j2gort.BoxNode(this_))
 	}
-	return ((this_.priv_Node_getConstantVarFlags_8584() & int32(1)) != int32(0))
+	return ((this_.priv_Node_getConstantVarFlags_8598() & int32(1)) != int32(0))
 }
 
 // Java method: Node.setDeclaredConstantVar(boolean value)
@@ -5004,7 +5001,7 @@ func (this_ Node) SetDeclaredConstantVar(value bool) {
 	if !(this_.IsName() || this_.IsImportStar()) {
 		j2gort.CheckStateFmt(false, "Should only be called on name or import * nodes. Found %s", j2gort.BoxNode(this_))
 	}
-	this_.priv_Node_setConstantVarFlag_8585(int32(1), value)
+	this_.priv_Node_setConstantVarFlag_8599(int32(1), value)
 }
 
 // Java method: Node.isInferredConstantVar()
@@ -5012,7 +5009,7 @@ func (this_ Node) IsInferredConstantVar() bool {
 	if !(this_.IsName() || this_.IsImportStar()) {
 		j2gort.CheckStateFmt(false, "Should only be called on name or import * nodes. Found %s", j2gort.BoxNode(this_))
 	}
-	return ((this_.priv_Node_getConstantVarFlags_8584() & int32(2)) != int32(0))
+	return ((this_.priv_Node_getConstantVarFlags_8598() & int32(2)) != int32(0))
 }
 
 // Java method: Node.setInferredConstantVar(boolean value)
@@ -5021,7 +5018,7 @@ func (this_ Node) SetInferredConstantVar(value bool) {
 	if !(this_.IsName() || this_.IsImportStar()) {
 		j2gort.CheckStateFmt(false, "Should only be called on name or import * nodes. Found %s", j2gort.BoxNode(this_))
 	}
-	this_.priv_Node_setConstantVarFlag_8585(int32(2), value)
+	this_.priv_Node_setConstantVarFlag_8599(int32(2), value)
 }
 
 // Java method: Node.isQuotedStringKey()
@@ -6184,9 +6181,7 @@ func NewNode_StringNode_3(token Token, stringPool *RhinoStringPool_LazyInternedS
 	rec_.Token = tok_
 	rec_.LinenoCharno = -1
 	rec_.KindFlags = 3
-	if s_ := stringPool.Get(offset); s_ != j2gort.NullString {
-		rec_.Payload = uint32(nodestore.Intern(s_))
-	}
+	rec_.Payload = uint32(stringPool.InternID_(offset))
 	return Node(raw_)
 }
 
@@ -6212,8 +6207,8 @@ func (this_ Node) nodeSub3_CloneNode_1(cloneTypeExprs bool) Node {
 	_ = clone
 	Node_CopyBaseNodeFields(this_, clone, cloneTypeExprs)
 	{
-		r_118 := clone
-		r_118.nodeSet_str(this_.nodeGet_str())
+		r_117 := clone
+		r_117.nodeSet_str(this_.nodeGet_str())
 	}
 	return clone
 }

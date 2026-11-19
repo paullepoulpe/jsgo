@@ -36,11 +36,11 @@ func init() {
 
 // Java class: com.google.javascript.jscomp.serialization.ColorSerializer
 type ColorSerializer struct {
-	serializationMode       *SerializationOptions                                 `gson:"serializationMode"`
-	getStringPoolIndexFn    ColorSerializer_StringPoolIndexFn                     `gson:"getStringPoolIndexFn"`
-	propertyFilter          ColorSerializer_PropertyFilter                        `gson:"propertyFilter"`
-	colorIdToTypePointer    j2gort.OrderedMap[pkg_colors.ColorId, *j2gort.BoxInt] `gson:"colorIdToTypePointer"`
-	colorsInSerializedOrder []*pkg_colors.Color                                   `gson:"colorsInSerializedOrder"`
+	serializationMode       *SerializationOptions                        `gson:"serializationMode"`
+	getStringPoolIndexFn    ColorSerializer_StringPoolIndexFn            `gson:"getStringPoolIndexFn"`
+	propertyFilter          ColorSerializer_PropertyFilter               `gson:"propertyFilter"`
+	colorIdToTypePointer    j2gort.OrderedMap[pkg_colors.ColorId, int32] `gson:"colorIdToTypePointer"`
+	colorsInSerializedOrder []*pkg_colors.Color                          `gson:"colorsInSerializedOrder"`
 	idHash_                 atomic.Int32
 }
 
@@ -69,7 +69,7 @@ func init() {
 
 func (this_ *ColorSerializer) initFields_ColorSerializer() {
 	_ = this_
-	this_.colorIdToTypePointer = j2gort.NewOrderedMapCap[pkg_colors.ColorId, *j2gort.BoxInt](int32(4096))
+	this_.colorIdToTypePointer = j2gort.NewOrderedMapCap[pkg_colors.ColorId, int32](int32(4096))
 	this_.colorsInSerializedOrder = make([]*pkg_colors.Color, 0, int32(4096))
 }
 
@@ -144,15 +144,21 @@ func (this_ *ColorSerializer) AddColor(color *pkg_colors.Color) int32 {
 	_ = color
 	var id pkg_colors.ColorId = color.GetId()
 	_ = id
-	var existing *j2gort.BoxInt = this_.colorIdToTypePointer.Get(id)
+	existing, existingOk_ := this_.colorIdToTypePointer.GetOk(id)
+	_ = existingOk_
 	_ = existing
-	if existing != nil {
-		return j2gort.UnboxInt(existing)
+	if existingOk_ {
+		return func() int32 {
+			if !existingOk_ {
+				j2gort.ThrowNPE()
+			}
+			return existing
+		}()
 	}
 	var index int32 = int32(len(this_.colorsInSerializedOrder))
 	_ = index
 	this_.colorsInSerializedOrder = append(this_.colorsInSerializedOrder, color)
-	this_.colorIdToTypePointer.Put(id, j2gort.ValueOfInt(index))
+	this_.colorIdToTypePointer.Put(id, index)
 	return index
 }
 
@@ -168,9 +174,10 @@ func (this_ *ColorSerializer) GenerateTypePool(getDisambiguationSupertypesFn Col
 		for ; i < int32(len(this_.colorsInSerializedOrder)); i = i + 1 {
 			var color *pkg_colors.Color = this_.colorsInSerializedOrder[i]
 			_ = color
-			var typePointer *j2gort.BoxInt = this_.colorIdToTypePointer.Get(color.GetId())
+			typePointer, typePointerOk_ := this_.colorIdToTypePointer.GetOk(color.GetId())
+			_ = typePointerOk_
 			_ = typePointer
-			typePoolBuilder.AddType_1_Ext_com_google_javascript_jscomp_serialization_TypeProto(this_.priv_ColorSerializer_generateTypeProto_7701(color))
+			typePoolBuilder.AddType_1_Ext_com_google_javascript_jscomp_serialization_TypeProto(this_.priv_ColorSerializer_generateTypeProto_7706(color))
 			var supertypes []*pkg_colors.Color = getDisambiguationSupertypesFn.Apply(color)
 			_ = supertypes
 			{
@@ -179,7 +186,12 @@ func (this_ *ColorSerializer) GenerateTypePool(getDisambiguationSupertypesFn Col
 				var sLen int32 = int32(len(supertypes))
 				_ = sLen
 				for ; s < sLen; s = s + 1 {
-					typePoolBuilder.AddDisambiguationEdgesBuilder_0().SetSubtype(j2gort.UnboxInt(typePointer)).SetSupertype(this_.AddColor(supertypes[s]))
+					typePoolBuilder.AddDisambiguationEdgesBuilder_0().SetSubtype(func() int32 {
+						if !typePointerOk_ {
+							j2gort.ThrowNPE()
+						}
+						return typePointer
+					}()).SetSupertype(this_.AddColor(supertypes[s]))
 				}
 			}
 		}
@@ -192,7 +204,8 @@ func (this_ *ColorSerializer) GenerateTypePool(getDisambiguationSupertypesFn Col
 		_ = srcRefToTypePointerList
 		for _, color_2 := range this_.colorsInSerializedOrder {
 			_ = color_2
-			var typePointer_2 *j2gort.BoxInt = this_.colorIdToTypePointer.Get(color_2.GetId())
+			typePointer_2, typePointer_2Ok_ := this_.colorIdToTypePointer.GetOk(color_2.GetId())
+			_ = typePointer_2Ok_
 			_ = typePointer_2
 			{
 				cur_7 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](getMismatchSourceRefsFn.Apply(j2gort.PtrToAny(color_2)))))
@@ -202,7 +215,12 @@ func (this_ *ColorSerializer) GenerateTypePool(getDisambiguationSupertypesFn Col
 					var typePointerList j2gort.Ext_java_util_ArrayList = j2gort.OrderedMapComputeIfAbsentFn(&srcRefToTypePointerList, srcRef, nil, lambdaSingleton_color_serializer_1)
 
 					_ = typePointerList
-					typePointerList.Add_1(j2gort.PtrToAny(typePointer_2))
+					typePointerList.Add_1(func() any {
+						if !typePointer_2Ok_ {
+							return nil
+						}
+						return j2gort.ValueOfInt(typePointer_2)
+					}())
 				}
 			}
 		}
@@ -218,7 +236,7 @@ func (this_ *ColorSerializer) GenerateTypePool(getDisambiguationSupertypesFn Col
 }
 
 // Java method: ColorSerializer.generateTypeProto(com.google.javascript.jscomp.colors.Color color)
-func (this_ *ColorSerializer) priv_ColorSerializer_generateTypeProto_7701(color *pkg_colors.Color) *j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto {
+func (this_ *ColorSerializer) priv_ColorSerializer_generateTypeProto_7706(color *pkg_colors.Color) *j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto {
 	_ = color
 	var typeProtoBuilder *j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto_Builder = j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto_NewBuilder_0()
 	_ = typeProtoBuilder
@@ -227,13 +245,13 @@ func (this_ *ColorSerializer) priv_ColorSerializer_generateTypeProto_7701(color 
 	} else {
 		var objectTypeProtoBuilder *j2gort.Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto_Builder = typeProtoBuilder.GetObjectBuilder()
 		_ = objectTypeProtoBuilder
-		objectTypeProtoBuilder.SetIsInvalidating(color.IsInvalidating()).SetUuid(color.GetId().AsByteString()).SetPropertiesKeepOriginalName(color.GetPropertiesKeepOriginalName()).AddAllInstanceType(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.AddColors_1_Color(color.GetInstanceColorsArray()))).AddAllPrototype(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.AddColors_1_Color(color.GetPrototypesArray()))).SetMarkedConstructor(color.IsConstructor()).AddAllOwnProperty(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.priv_ColorSerializer_getOwnPropertyStringPoolOffsets_7702(color))).SetClosureAssert(color.IsClosureAssert())
+		objectTypeProtoBuilder.SetIsInvalidating(color.IsInvalidating()).SetUuid(color.GetId().AsByteString()).SetPropertiesKeepOriginalName(color.GetPropertiesKeepOriginalName()).AddAllInstanceType(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.AddColors_1_Color(color.GetInstanceColorsArray()))).AddAllPrototype(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.AddColors_1_Color(color.GetPrototypesArray()))).SetMarkedConstructor(color.IsConstructor()).AddAllOwnProperty(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.priv_ColorSerializer_getOwnPropertyStringPoolOffsets_7707(color))).SetClosureAssert(color.IsClosureAssert())
 	}
 	return j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto](typeProtoBuilder.Build())
 }
 
 // Java method: ColorSerializer.getOwnPropertyStringPoolOffsets(com.google.javascript.jscomp.colors.Color color)
-func (this_ *ColorSerializer) priv_ColorSerializer_getOwnPropertyStringPoolOffsets_7702(color *pkg_colors.Color) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *ColorSerializer) priv_ColorSerializer_getOwnPropertyStringPoolOffsets_7707(color *pkg_colors.Color) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = color
 	var ownProperties []string = color.GetOwnPropertiesArray()
 	_ = ownProperties

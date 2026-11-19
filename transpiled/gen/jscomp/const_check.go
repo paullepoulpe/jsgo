@@ -136,12 +136,12 @@ func (this_ *ConstCheck) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_
 			_ = name
 			var var_ *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(name))
 			_ = var_
-			if this_.priv_ConstCheck_isConstant_2174(var_, n) {
+			if this_.priv_ConstCheck_isConstant_2177(var_, n) {
 				if n.IsFromExterns() {
 					this_.initializedConstants.Add(var_)
 				} else if n.HasChildren() {
 					if !(this_.initializedConstants.Add(var_)) {
-						this_.priv_ConstCheck_reportError_2175(n, var_, name)
+						this_.priv_ConstCheck_reportError_2178(n, var_, name)
 					}
 				}
 			}
@@ -154,8 +154,8 @@ func (this_ *ConstCheck) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_
 			_ = name_2
 			var var__2 *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(name_2))
 			_ = var__2
-			if this_.priv_ConstCheck_isConstant_2174(var__2, lhs) && !(this_.initializedConstants.Add(var__2)) {
-				this_.priv_ConstCheck_reportError_2175(n, var__2, name_2)
+			if this_.priv_ConstCheck_isConstant_2177(var__2, lhs) && !(this_.initializedConstants.Add(var__2)) {
+				this_.priv_ConstCheck_reportError_2178(n, var__2, name_2)
 			} else if ((var__2 != nil) && var__2.IsGoogModuleExports()) && !(this_.initializedConstants.Add(var__2)) {
 				this_.compiler.Report_1(JSError_Make_3(n, StaticGet_ConstCheck_CONST_REASSIGNED_VALUE_ERROR(), []string{"exports", n.GetSourceFileName()}))
 			}
@@ -168,8 +168,8 @@ func (this_ *ConstCheck) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_
 			_ = name_3
 			var var__3 *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(name_3))
 			_ = var__3
-			if this_.priv_ConstCheck_isConstant_2174(var__3, lhs_2) {
-				this_.priv_ConstCheck_reportError_2175(n, var__3, name_3)
+			if this_.priv_ConstCheck_isConstant_2177(var__3, lhs_2) {
+				this_.priv_ConstCheck_reportError_2178(n, var__3, name_3)
 			}
 		}
 	default:
@@ -177,7 +177,7 @@ func (this_ *ConstCheck) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_
 }
 
 // Java method: ConstCheck.isConstant(com.google.javascript.jscomp.Var var, com.google.javascript.rhino.Node nameNode)
-func (this_ *ConstCheck) priv_ConstCheck_isConstant_2174(var_ *Var, nameNode pkg_rhino.Node) bool {
+func (this_ *ConstCheck) priv_ConstCheck_isConstant_2177(var_ *Var, nameNode pkg_rhino.Node) bool {
 	_ = var_
 	_ = nameNode
 	j2gort.CheckNotNullPtr(var_)
@@ -185,7 +185,7 @@ func (this_ *ConstCheck) priv_ConstCheck_isConstant_2174(var_ *Var, nameNode pkg
 }
 
 // Java method: ConstCheck.reportError(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.Var var, java.lang.String name)
-func (this_ *ConstCheck) priv_ConstCheck_reportError_2175(n pkg_rhino.Node, var_ *Var, name string) {
+func (this_ *ConstCheck) priv_ConstCheck_reportError_2178(n pkg_rhino.Node, var_ *Var, name string) {
 	_ = n
 	_ = var_
 	_ = name

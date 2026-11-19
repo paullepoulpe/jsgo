@@ -127,7 +127,7 @@ func (this_ *DeadAssignmentsElimination) EnterScopeWithCfg(t *NodeTraversal) {
 func (this_ *DeadAssignmentsElimination) ExitScopeWithCfg(t *NodeTraversal) {
 	_ = t
 	if t.InFunctionBlockScope() {
-		this_.priv_DeadAssignmentsElimination_eliminateDeadAssignments_2331(t)
+		this_.priv_DeadAssignmentsElimination_eliminateDeadAssignments_2334(t)
 		this_.functionStack.RemoveFirst()
 		if this_.
 
@@ -138,7 +138,7 @@ func (this_ *DeadAssignmentsElimination) ExitScopeWithCfg(t *NodeTraversal) {
 	}
 }
 
-func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_eliminateDeadAssignments_2331(t *NodeTraversal) {
+func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_eliminateDeadAssignments_2334(t *NodeTraversal) {
 	_ = t
 	if !(t.InFunctionBlockScope()) {
 		j2gort.CheckArgument(false)
@@ -185,7 +185,7 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_elimina
 	this_.liveness.Analyze()
 	var allVarsInFn j2gort.Ext_java_util_Map = this_.liveness.GetAllVariables()
 	_ = allVarsInFn
-	this_.priv_DeadAssignmentsElimination_tryRemoveDeadAssignments_2333(t, cfg, allVarsInFn)
+	this_.priv_DeadAssignmentsElimination_tryRemoveDeadAssignments_2336(t, cfg, allVarsInFn)
 }
 
 // Java method: DeadAssignmentsElimination.isRemovableAssign(com.google.javascript.rhino.Node n)
@@ -195,7 +195,7 @@ func (this_ *DeadAssignmentsElimination) IsRemovableAssign(n pkg_rhino.Node) boo
 }
 
 // Java method: DeadAssignmentsElimination.tryRemoveDeadAssignments(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.ControlFlowGraph<com.google.javascript.rhino.Node> cfg, java.util.Map<java.lang.String,com.google.javascript.jscomp.Var> allVarsInFn)
-func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_tryRemoveDeadAssignments_2333(t *NodeTraversal, cfg ControlFlowGraph[pkg_rhino.Node], allVarsInFn j2gort.Ext_java_util_Map) {
+func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_tryRemoveDeadAssignments_2336(t *NodeTraversal, cfg ControlFlowGraph[pkg_rhino.Node], allVarsInFn j2gort.Ext_java_util_Map) {
 	_ = t
 	_ = cfg
 	_ = allVarsInFn
@@ -216,36 +216,36 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_tryRemo
 			}
 			switch n.TokenSwitchOrd_() {
 			case int32(74) /* Token.IF */, int32(78) /* Token.WHILE */, int32(79) /* Token.DO */ :
-				this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2334(t, NodeUtil_GetConditionExpression(n), state, allVarsInFn)
+				this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2337(t, NodeUtil_GetConditionExpression(n), state, allVarsInFn)
 				continue
 			case int32(80) /* Token.FOR */, int32(81) /* Token.FOR_IN */, int32(112) /* Token.FOR_OF */, int32(113) /* Token.FOR_AWAIT_OF */ :
 				if n.IsVanillaFor() {
-					this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2334(t, NodeUtil_GetConditionExpression(n), state, allVarsInFn)
+					this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2337(t, NodeUtil_GetConditionExpression(n), state, allVarsInFn)
 				}
 				continue
 			case int32(75) /* Token.SWITCH */, int32(76) /* Token.CASE */, int32(0) /* Token.RETURN */ :
 				if n.HasChildren() {
-					this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2334(t, n.GetFirstChild(), state, allVarsInFn)
+					this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2337(t, n.GetFirstChild(), state, allVarsInFn)
 				}
 				continue
 			default:
 			}
-			this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2334(t, n, state, allVarsInFn)
+			this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2337(t, n, state, allVarsInFn)
 		}
 	}
 }
 
 // Java method: DeadAssignmentsElimination.tryRemoveAssignment(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.DataFlowAnalysis.LinearFlowState<com.google.javascript.jscomp.LiveVariablesAnalysis.LiveVariableLattice> state, java.util.Map<java.lang.String,com.google.javascript.jscomp.Var> allVarsInFn)
-func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_tryRemoveAssignment_2334(t *NodeTraversal, n pkg_rhino.Node, state *DataFlowAnalysis_LinearFlowState, allVarsInFn j2gort.Ext_java_util_Map) {
+func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_tryRemoveAssignment_2337(t *NodeTraversal, n pkg_rhino.Node, state *DataFlowAnalysis_LinearFlowState, allVarsInFn j2gort.Ext_java_util_Map) {
 	_ = t
 	_ = n
 	_ = state
 	_ = allVarsInFn
-	this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2335(t, n, n, state, allVarsInFn)
+	this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2338(t, n, n, state, allVarsInFn)
 }
 
 // Java method: DeadAssignmentsElimination.tryRemoveAssignment(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node exprRoot, com.google.javascript.jscomp.DataFlowAnalysis.LinearFlowState<com.google.javascript.jscomp.LiveVariablesAnalysis.LiveVariableLattice> state, java.util.Map<java.lang.String,com.google.javascript.jscomp.Var> allVarsInFn)
-func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_tryRemoveAssignment_2335(t *NodeTraversal, n pkg_rhino.Node, exprRoot pkg_rhino.Node, state *DataFlowAnalysis_LinearFlowState, allVarsInFn j2gort.Ext_java_util_Map) {
+func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_tryRemoveAssignment_2338(t *NodeTraversal, n pkg_rhino.Node, exprRoot pkg_rhino.Node, state *DataFlowAnalysis_LinearFlowState, allVarsInFn j2gort.Ext_java_util_Map) {
 	_ = t
 	_ = n
 	_ = exprRoot
@@ -269,11 +269,11 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_tryRemo
 		var rhs pkg_rhino.Node = NodeUtil_GetRValueOfLValue(lhs)
 		_ = rhs
 		if rhs != 0 {
-			this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2335(t, rhs, exprRoot, state, allVarsInFn)
+			this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2338(t, rhs, exprRoot, state, allVarsInFn)
 			rhs = NodeUtil_GetRValueOfLValue(lhs)
 		}
 		if isDeclarationNode && (lhs.GetNext() != 0) {
-			this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2335(t, lhs.GetNext(), exprRoot, state, allVarsInFn)
+			this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2338(t, lhs.GetNext(), exprRoot, state, allVarsInFn)
 		}
 		if isDeclarationNode && ((rhs == 0) || NodeUtil_IsAnyFor(parent.GetParent())) {
 			return
@@ -311,7 +311,7 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_tryRemo
 		if j2gort.CastPtr[LiveVariablesAnalysis_LiveVariableLattice](state.GetOut()).IsLive(index) {
 			return
 		}
-		if j2gort.CastPtr[LiveVariablesAnalysis_LiveVariableLattice](state.GetIn()).IsLive(index) && this_.priv_DeadAssignmentsElimination_isVariableStillLiveWithinExpression_2336(n, exprRoot, var_.GetName()) {
+		if j2gort.CastPtr[LiveVariablesAnalysis_LiveVariableLattice](state.GetIn()).IsLive(index) && this_.priv_DeadAssignmentsElimination_isVariableStillLiveWithinExpression_2339(n, exprRoot, var_.GetName()) {
 			return
 		}
 		if n.IsAssign() {
@@ -350,7 +350,7 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_tryRemo
 				var next pkg_rhino.Node = c.GetNext()
 				_ = next
 				if !(ControlFlowGraph_IsEnteringNewCfgNode(c)) {
-					this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2335(t, c, exprRoot, state, allVarsInFn)
+					this_.priv_DeadAssignmentsElimination_tryRemoveAssignment_2338(t, c, exprRoot, state, allVarsInFn)
 				}
 				c = next
 			}
@@ -360,7 +360,7 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_tryRemo
 }
 
 // Java method: DeadAssignmentsElimination.isVariableStillLiveWithinExpression(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node exprRoot, java.lang.String variable)
-func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVariableStillLiveWithinExpression_2336(n pkg_rhino.Node, exprRoot pkg_rhino.Node, variable string) bool {
+func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVariableStillLiveWithinExpression_2339(n pkg_rhino.Node, exprRoot pkg_rhino.Node, variable string) bool {
 	_ = n
 	_ = exprRoot
 	_ = variable
@@ -373,7 +373,7 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVaria
 				var sibling pkg_rhino.Node = n.GetNext()
 				_ = sibling
 				for ; sibling != 0; sibling = sibling.GetNext() {
-					state = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2337(sibling, variable)
+					state = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2340(sibling, variable)
 					if state != StaticGet_DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE() {
 						break
 					}
@@ -384,14 +384,14 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVaria
 			}
 		case int32(67) /* Token.HOOK */ :
 			if (n.GetNext() != 0) && (n.GetNext().GetNext() != 0) {
-				state = this_.priv_DeadAssignmentsElimination_checkHookBranchReadBeforeKill_2338(n.GetNext(), n.GetNext().GetNext(), variable)
+				state = this_.priv_DeadAssignmentsElimination_checkHookBranchReadBeforeKill_2341(n.GetNext(), n.GetNext().GetNext(), variable)
 			}
 		default:
 			{
 				var sibling_2 pkg_rhino.Node = n.GetNext()
 				_ = sibling_2
 				for ; sibling_2 != 0; sibling_2 = sibling_2.GetNext() {
-					state = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2337(sibling_2, variable)
+					state = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2340(sibling_2, variable)
 					if state != StaticGet_DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE() {
 						break
 					}
@@ -409,7 +409,7 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVaria
 }
 
 // Java method: DeadAssignmentsElimination.isVariableReadBeforeKill(com.google.javascript.rhino.Node n, java.lang.String variable)
-func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2337(n pkg_rhino.Node, variable string) DeadAssignmentsElimination_VariableLiveness {
+func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2340(n pkg_rhino.Node, variable string) DeadAssignmentsElimination_VariableLiveness {
 	_ = n
 	_ = variable
 	if ControlFlowGraph_IsEnteringNewCfgNode(n) {
@@ -422,7 +422,7 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVaria
 			}
 			var rhs pkg_rhino.Node = n.GetNext()
 			_ = rhs
-			var state DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2337(rhs, variable)
+			var state DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2340(rhs, variable)
 			_ = state
 			if state == StaticGet_DeadAssignmentsElimination_VariableLiveness_READ() {
 				return state
@@ -434,9 +434,9 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVaria
 	}
 	switch n.TokenSwitchOrd_() {
 	case int32(68) /* Token.OR */, int32(69) /* Token.AND */, int32(70) /* Token.COALESCE */, int32(29) /* Token.OPTCHAIN_GETPROP */, int32(30) /* Token.OPTCHAIN_GETELEM */ :
-		var v1 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2337(n.GetFirstChild(), variable)
+		var v1 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2340(n.GetFirstChild(), variable)
 		_ = v1
-		var v2 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2337(n.GetLastChild(), variable)
+		var v2 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2340(n.GetLastChild(), variable)
 		_ = v2
 		if v1 != StaticGet_DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE() {
 			return v1
@@ -446,7 +446,7 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVaria
 			return StaticGet_DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE()
 		}
 	case int32(31) /* Token.OPTCHAIN_CALL */ :
-		var v1_2 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2337(n.GetFirstChild(), variable)
+		var v1_2 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2340(n.GetFirstChild(), variable)
 		_ = v1_2
 		if v1_2 != StaticGet_DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE() {
 			return v1_2
@@ -455,7 +455,7 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVaria
 			var c pkg_rhino.Node = n.GetSecondChild()
 			_ = c
 			for ; c != 0; c = c.GetNext() {
-				var state_2 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2337(c, variable)
+				var state_2 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2340(c, variable)
 				_ = state_2
 				if state_2 != StaticGet_DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE() {
 					if state_2 == StaticGet_DeadAssignmentsElimination_VariableLiveness_READ() {
@@ -468,18 +468,18 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVaria
 		}
 		return StaticGet_DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE()
 	case int32(67) /* Token.HOOK */ :
-		var first DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2337(n.GetFirstChild(), variable)
+		var first DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2340(n.GetFirstChild(), variable)
 		_ = first
 		if first != StaticGet_DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE() {
 			return first
 		}
-		return this_.priv_DeadAssignmentsElimination_checkHookBranchReadBeforeKill_2338(n.GetSecondChild(), n.GetLastChild(), variable)
+		return this_.priv_DeadAssignmentsElimination_checkHookBranchReadBeforeKill_2341(n.GetSecondChild(), n.GetLastChild(), variable)
 	default:
 		{
 			var child pkg_rhino.Node = n.GetFirstChild()
 			_ = child
 			for ; child != 0; child = child.GetNext() {
-				var state_3 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2337(child, variable)
+				var state_3 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2340(child, variable)
 				_ = state_3
 				if state_3 != StaticGet_DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE() {
 					return state_3
@@ -491,13 +491,13 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_isVaria
 }
 
 // Java method: DeadAssignmentsElimination.checkHookBranchReadBeforeKill(com.google.javascript.rhino.Node trueCase, com.google.javascript.rhino.Node falseCase, java.lang.String variable)
-func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_checkHookBranchReadBeforeKill_2338(trueCase pkg_rhino.Node, falseCase pkg_rhino.Node, variable string) DeadAssignmentsElimination_VariableLiveness {
+func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_checkHookBranchReadBeforeKill_2341(trueCase pkg_rhino.Node, falseCase pkg_rhino.Node, variable string) DeadAssignmentsElimination_VariableLiveness {
 	_ = trueCase
 	_ = falseCase
 	_ = variable
-	var v1 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2337(trueCase, variable)
+	var v1 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2340(trueCase, variable)
 	_ = v1
-	var v2 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2337(falseCase, variable)
+	var v2 DeadAssignmentsElimination_VariableLiveness = this_.priv_DeadAssignmentsElimination_isVariableReadBeforeKill_2340(falseCase, variable)
 	_ = v2
 	if (v1 == StaticGet_DeadAssignmentsElimination_VariableLiveness_READ()) || (v2 == StaticGet_DeadAssignmentsElimination_VariableLiveness_READ()) {
 		return StaticGet_DeadAssignmentsElimination_VariableLiveness_READ()

@@ -131,10 +131,10 @@ func (this_ *AliasStrings) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node
 	_ = root
 	StaticGet_AliasStrings_Logger().Fine_1_string("Aliasing common strings")
 	NodeTraversal_Traverse(this_.compiler, root, this_)
-	this_.priv_AliasStrings_replaceStringsWithAliases_544()
-	this_.priv_AliasStrings_addAliasDeclarationNodes_545()
+	this_.priv_AliasStrings_replaceStringsWithAliases_545()
+	this_.priv_AliasStrings_addAliasDeclarationNodes_546()
 	if this_.outputStringUsage {
-		this_.priv_AliasStrings_outputStringUsage_548()
+		this_.priv_AliasStrings_outputStringUsage_549()
 	}
 }
 
@@ -170,7 +170,7 @@ func (this_ *AliasStrings) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pk
 		}
 		var occurrence pkg_rhino.Node = n
 		_ = occurrence
-		var info *AliasStrings_StringInfo = this_.priv_AliasStrings_getOrCreateStringInfo_543(str)
+		var info *AliasStrings_StringInfo = this_.priv_AliasStrings_getOrCreateStringInfo_544(str)
 		_ = info
 		info.occurrences = append(info.occurrences, occurrence)
 		var chunk *JSChunk = t.GetChunk()
@@ -206,7 +206,7 @@ func (this_ *AliasStrings) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pk
 }
 
 // Java method: AliasStrings.getOrCreateStringInfo(java.lang.String string)
-func (this_ *AliasStrings) priv_AliasStrings_getOrCreateStringInfo_543(string_ string) *AliasStrings_StringInfo {
+func (this_ *AliasStrings) priv_AliasStrings_getOrCreateStringInfo_544(string_ string) *AliasStrings_StringInfo {
 	_ = string_
 	var info *AliasStrings_StringInfo = j2gort.CastPtr[AliasStrings_StringInfo](j2gort.MapGetStr(this_.stringInfoMap, string_))
 	_ = info
@@ -218,7 +218,7 @@ func (this_ *AliasStrings) priv_AliasStrings_getOrCreateStringInfo_543(string_ s
 }
 
 // Java method: AliasStrings.replaceStringsWithAliases()
-func (this_ *AliasStrings) priv_AliasStrings_replaceStringsWithAliases_544() {
+func (this_ *AliasStrings) priv_AliasStrings_replaceStringsWithAliases_545() {
 	{
 		cur_5 := j2gort.NewMapEntryCursor(this_.stringInfoMap)
 		for cur_5.NextEntry() {
@@ -226,10 +226,10 @@ func (this_ *AliasStrings) priv_AliasStrings_replaceStringsWithAliases_544() {
 			_ = literal
 			var info *AliasStrings_StringInfo = j2gort.CastPtr[AliasStrings_StringInfo](cur_5.GetValue())
 			_ = info
-			if this_.priv_AliasStrings_shouldReplaceWithAlias_546(literal, info) {
+			if this_.priv_AliasStrings_shouldReplaceWithAlias_547(literal, info) {
 				for _, node := range info.occurrences {
 					_ = node
-					this_.priv_AliasStrings_replaceStringWithAliasName_547(node, info.GetVariableName(literal), info)
+					this_.priv_AliasStrings_replaceStringWithAliasName_548(node, info.GetVariableName(literal), info)
 				}
 
 			}
@@ -238,7 +238,7 @@ func (this_ *AliasStrings) priv_AliasStrings_replaceStringsWithAliases_544() {
 }
 
 // Java method: AliasStrings.addAliasDeclarationNodes()
-func (this_ *AliasStrings) priv_AliasStrings_addAliasDeclarationNodes_545() {
+func (this_ *AliasStrings) priv_AliasStrings_addAliasDeclarationNodes_546() {
 	{
 		cur_7 := j2gort.NewMapEntryCursor(this_.stringInfoMap)
 		for cur_7.NextEntry() {
@@ -265,7 +265,7 @@ func (this_ *AliasStrings) priv_AliasStrings_addAliasDeclarationNodes_545() {
 }
 
 // Java method: AliasStrings.shouldReplaceWithAlias(java.lang.String str, com.google.javascript.jscomp.AliasStrings.StringInfo info)
-func (this_ *AliasStrings) priv_AliasStrings_shouldReplaceWithAlias_546(str string, info *AliasStrings_StringInfo) bool {
+func (this_ *AliasStrings) priv_AliasStrings_shouldReplaceWithAlias_547(str string, info *AliasStrings_StringInfo) bool {
 	_ = str
 	_ = info
 	if this_.aliasStringsMode == StaticGet_CompilerOptions_AliasStringsMode_ALL_AGGRESSIVE() {
@@ -285,7 +285,7 @@ func (this_ *AliasStrings) priv_AliasStrings_shouldReplaceWithAlias_546(str stri
 }
 
 // Java method: AliasStrings.replaceStringWithAliasName(com.google.javascript.rhino.Node n, java.lang.String name, com.google.javascript.jscomp.AliasStrings.StringInfo info)
-func (this_ *AliasStrings) priv_AliasStrings_replaceStringWithAliasName_547(n pkg_rhino.Node, name string, info *AliasStrings_StringInfo) {
+func (this_ *AliasStrings) priv_AliasStrings_replaceStringWithAliasName_548(n pkg_rhino.Node, name string, info *AliasStrings_StringInfo) {
 	_ = n
 	_ = name
 	_ = info
@@ -300,7 +300,7 @@ func (this_ *AliasStrings) priv_AliasStrings_replaceStringWithAliasName_547(n pk
 }
 
 // Java method: AliasStrings.outputStringUsage()
-func (this_ *AliasStrings) priv_AliasStrings_outputStringUsage_548() {
+func (this_ *AliasStrings) priv_AliasStrings_outputStringUsage_549() {
 	var sb j2gort.LocalStringBuilder
 	sb.InitStr("Strings used more than once:\n")
 

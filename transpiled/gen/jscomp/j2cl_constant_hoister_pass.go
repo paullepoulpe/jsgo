@@ -100,7 +100,7 @@ func (this_ *J2clConstantHoisterPass) Process_2(externs pkg_rhino.Node, root pkg
 			rawElem_2 := cur_1.Next()
 			assignments := j2gort.AsIface[j2gort.Ext_java_util_Collection](rawElem_2)
 			_ = assignments
-			this_.priv_J2clConstantHoisterPass_maybeHoistClassField_3466(assignments, &hoistableFunctions)
+			this_.priv_J2clConstantHoisterPass_maybeHoistClassField_3472(assignments, &hoistableFunctions)
 		}
 	}
 }
@@ -113,7 +113,7 @@ func J2clConstantHoisterPass_IsHoistableFunction(t *NodeTraversal, node pkg_rhin
 }
 
 // Java method: J2clConstantHoisterPass.maybeHoistClassField(java.util.Collection<com.google.javascript.rhino.Node> assignments, java.util.Collection<com.google.javascript.rhino.Node> hoistableFunctions)
-func (this_ *J2clConstantHoisterPass) priv_J2clConstantHoisterPass_maybeHoistClassField_3466(assignments j2gort.Ext_java_util_Collection, hoistableFunctions *j2gort.OrderedSet[pkg_rhino.Node]) {
+func (this_ *J2clConstantHoisterPass) priv_J2clConstantHoisterPass_maybeHoistClassField_3472(assignments j2gort.Ext_java_util_Collection, hoistableFunctions *j2gort.OrderedSet[pkg_rhino.Node]) {
 	_ = assignments
 	_ = hoistableFunctions
 	if assignments.Size() != int32(2) {
@@ -148,11 +148,11 @@ func (this_ *J2clConstantHoisterPass) priv_J2clConstantHoisterPass_maybeHoistCla
 	if NodeUtil_GetEnclosingScript(clinitAssignment) != NodeUtil_GetEnclosingScript(topLevelDeclaration) {
 		return
 	}
-	this_.priv_J2clConstantHoisterPass_hoistConstantLikeField_3467(clinitAssignment, topLevelDeclaration)
+	this_.priv_J2clConstantHoisterPass_hoistConstantLikeField_3473(clinitAssignment, topLevelDeclaration)
 }
 
 // Java method: J2clConstantHoisterPass.hoistConstantLikeField(com.google.javascript.rhino.Node clinitAssignment, com.google.javascript.rhino.Node topLevelDeclaration)
-func (this_ *J2clConstantHoisterPass) priv_J2clConstantHoisterPass_hoistConstantLikeField_3467(clinitAssignment pkg_rhino.Node, topLevelDeclaration pkg_rhino.Node) {
+func (this_ *J2clConstantHoisterPass) priv_J2clConstantHoisterPass_hoistConstantLikeField_3473(clinitAssignment pkg_rhino.Node, topLevelDeclaration pkg_rhino.Node) {
 	_ = clinitAssignment
 	_ = topLevelDeclaration
 	var clinitAssignedValue pkg_rhino.Node = clinitAssignment.GetSecondChild()

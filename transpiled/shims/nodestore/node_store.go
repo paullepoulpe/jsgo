@@ -209,6 +209,7 @@ func FlushFastAlloc() {
 		fastSlice = nil
 		fastStore = nil
 	}
+	SealActivePoolChunks()
 }
 
 // CanUseSingleOwnerAlloc reports whether no concurrent Java threads or pool tasks
@@ -308,6 +309,8 @@ func SetCurrentNodeStore(s *NodeStore) *NodeStore {
 	currentMu.Lock()
 	if fastOwnerAllowed.Load() && fastSuspendCount.Load() == 0 {
 		FlushFastAlloc()
+	} else {
+		SealActivePoolChunks()
 	}
 	prev := current.Load()
 	if prev == staticStore {
@@ -531,14 +534,51 @@ func (s *NodeStore) addBlock(id uint32) *nodeBlock {
 	s.blockAllocMu.Lock()
 	blkIdx := int((id - s.base) >> blockShift)
 	s.mu.Lock()
+	if blkIdx < len(s.blocks) {
+		if blk := s.blocks[blkIdx]; blk != nil {
+			s.mu.Unlock()
+			s.blockAllocMu.Unlock()
+			return blk
+		}
+	}
+	s.mu.Unlock()
+
+	active := !s.static && current.Load() == s
+	if active && blkIdx >= 2 {
+		chunk := new([4]nodeBlock)
+		first := s.base >> blockShift
+		s.mu.Lock()
+		for len(s.blocks) < blkIdx+4 {
+			s.blocks = append(s.blocks, nil)
+		}
+		for i := 0; i < 4; i++ {
+			idx := blkIdx + i
+			if s.blocks[idx] == nil {
+				b := &chunk[i]
+				s.blocks[idx] = b
+				if current.Load() == s {
+					nodeBlocks[first+uint32(idx)].Store(b)
+				}
+			}
+		}
+		blk := s.blocks[blkIdx]
+		s.mu.Unlock()
+		s.blockAllocMu.Unlock()
+		return blk
+	}
+
+	fresh := new(nodeBlock)
+	s.mu.Lock()
 	for len(s.blocks) <= blkIdx {
 		s.blocks = append(s.blocks, nil)
 	}
 	blk := s.blocks[blkIdx]
 	if blk == nil {
-		blk = new(nodeBlock)
+		blk = fresh
 		s.blocks[blkIdx] = blk
-		nodeBlocks[id>>blockShift].Store(blk)
+		if s.static || current.Load() == s {
+			nodeBlocks[id>>blockShift].Store(blk)
+		}
 	}
 	s.mu.Unlock()
 	s.blockAllocMu.Unlock()
@@ -553,12 +593,7 @@ func isSingleOwnerFastPath() bool {
 
 // --- NodeAllocator: Thread-Local Batch Allocator ---
 
-type internCacheEntry struct {
-	s  string
-	id StringID
-}
-
-type internCacheTable [256]internCacheEntry
+type internCacheTable [256]StringID
 
 var internCachePool = sync.Pool{
 	New: func() any {
@@ -652,13 +687,11 @@ func (a *NodeAllocator) Intern(s string) StringID {
 		c = a.initInternCache()
 	}
 	idx := (uint32(len(s))*2654435761 ^ uint32(s[0]) ^ (uint32(s[len(s)-1]) << 8) ^ (uint32(s[len(s)>>1]) << 16)) & 255
-	e := &c[idx]
-	if e.id != 0 && e.s == s {
-		return e.id
+	if id := c[idx]; id != 0 && String(id) == s {
+		return id
 	}
 	id := Intern(s)
-	e.s = String(id)
-	e.id = id
+	c[idx] = id
 	a.internDirty = true
 	return id
 }
@@ -793,21 +826,21 @@ func checkDetachedAllocatorFail(c Node, rec *NodeData) {
 
 // AllocNode1Cached allocates a leaf node with token tok using the cached SetTemplate state.
 func (a *NodeAllocator) AllocNode1Cached(tok uint8) Node {
-	return allocNode1Cached(a, tok, allocNode1CachedSlow)
+	return allocNode1Cached(a, tok, (*NodeAllocator).allocNode1CachedSlow)
 }
 
 func allocNode1Cached(a *NodeAllocator, tok uint8, slow func(*NodeAllocator, uint8) Node) Node {
 	if id := a.next; id < a.end {
 		a.next++
-		rec := &a.blk[id&blockMask]
-		rec.Token, rec.SourceFile, rec.PropFlags, rec.LinenoCharno = tok, a.tmplSourceFile, a.tmplPropFlags, -1
+		r := &a.blk[id&blockMask]
+		r.Token, r.SourceFile, r.PropFlags, r.LinenoCharno = tok, a.tmplSourceFile, a.tmplPropFlags, -1
 		return id
 	}
 	return slow(a, tok)
 }
 
 //go:noinline
-func allocNode1CachedSlow(a *NodeAllocator, tok uint8) Node {
+func (a *NodeAllocator) allocNode1CachedSlow(tok uint8) Node {
 	return a.allocNode1Slow(tok, a.tmplNode)
 }
 
@@ -819,8 +852,8 @@ func (a *NodeAllocator) AllocNode1(tok uint8, tmpl Node) Node {
 func allocNode1(a *NodeAllocator, tok uint8, tmpl Node, slow func(*NodeAllocator, uint8, Node) Node) Node {
 	if id := a.next; id < a.end && a.tmplNode == tmpl {
 		a.next++
-		rec := &a.blk[id&blockMask]
-		rec.Token, rec.SourceFile, rec.PropFlags, rec.LinenoCharno = tok, a.tmplSourceFile, a.tmplPropFlags, -1
+		r := &a.blk[id&blockMask]
+		r.Token, r.SourceFile, r.PropFlags, r.LinenoCharno = tok, a.tmplSourceFile, a.tmplPropFlags, -1
 		return id
 	}
 	return slow(a, tok, tmpl)
@@ -837,18 +870,17 @@ func (a *NodeAllocator) allocNode1Slow(tok uint8, tmpl Node) Node {
 
 // AllocNode2 allocates a 1-child parent node with token tok, detached child c1, and template tmpl.
 func (a *NodeAllocator) AllocNode2(tok uint8, c1, tmpl Node) Node {
-	if id := a.next; id < a.end && a.tmplNode == tmpl && (c1^id)>>blockShift == 0 {
-		c1Rec := &a.blk[c1&blockMask]
-		if (c1Rec.Parent | c1Rec.Next | c1Rec.Previous) == 0 {
-			a.next++
-			rec := &a.blk[id&blockMask]
-			rec.First = c1
-			rec.Token = tok
-			rec.SourceFile = a.tmplSourceFile
-			rec.PropFlags = a.tmplPropFlags
-			rec.LinenoCharno = -1
-			c1Rec.Parent = id
-			c1Rec.Previous = c1
+	if id := a.next; id < a.end && a.tmplNode == tmpl && c1^id < blockLen {
+		if c := &a.blk[c1&blockMask]; (c.Parent | c.Previous | c.Next) == 0 {
+			a.next = id + 1
+			r := &a.blk[id&blockMask]
+			r.First = c1
+			r.Token = tok
+			r.SourceFile = a.tmplSourceFile
+			r.PropFlags = a.tmplPropFlags
+			r.LinenoCharno = -1
+			c.Parent = id
+			c.Previous = c1
 			return id
 		}
 	}
@@ -873,7 +905,7 @@ func (a *NodeAllocator) AllocNode3(tok uint8, c1, c2, tmpl Node) Node {
 	if id := a.next; id < a.end && a.tmplNode == tmpl &&
 		((c1^id)|(c2^id))>>blockShift == 0 && c1 != c2 {
 		c1Rec, c2Rec := &a.blk[c1&blockMask], &a.blk[c2&blockMask]
-		if (c1Rec.Parent | c1Rec.Next | c1Rec.Previous | c2Rec.Parent | c2Rec.Next | c2Rec.Previous) == 0 {
+		if (c1Rec.Parent | c1Rec.Previous | c1Rec.Next | c2Rec.Parent | c2Rec.Previous | c2Rec.Next) == 0 {
 			a.next++
 			rec := &a.blk[id&blockMask]
 			rec.First = c1
@@ -917,9 +949,9 @@ func (a *NodeAllocator) AllocNode4(tok uint8, c1, c2, c3, tmpl Node) Node {
 		c1Rec := &a.blk[c1&blockMask]
 		c2Rec := &a.blk[c2&blockMask]
 		c3Rec := &a.blk[c3&blockMask]
-		if (c1Rec.Parent | c1Rec.Next | c1Rec.Previous |
-			c2Rec.Parent | c2Rec.Next | c2Rec.Previous |
-			c3Rec.Parent | c3Rec.Next | c3Rec.Previous) == 0 {
+		if (c1Rec.Parent | c1Rec.Previous | c1Rec.Next |
+			c2Rec.Parent | c2Rec.Previous | c2Rec.Next |
+			c3Rec.Parent | c3Rec.Previous | c3Rec.Next) == 0 {
 			a.next++
 			rec := &a.blk[id&blockMask]
 			rec.First = c1
@@ -965,21 +997,21 @@ func (a *NodeAllocator) allocNode4Slow(tok uint8, c1, c2, c3, tmpl Node) Node {
 // AllocStringNodeCached allocates a StringNode (KindFlags = 3) with token tok and interned strID
 // using the cached SetTemplate state.
 func (a *NodeAllocator) AllocStringNodeCached(tok uint8, strID StringID) Node {
-	return allocStringNodeCached(a, tok, strID, allocStringNodeCachedSlow)
+	return allocStringNodeCached(a, tok, strID, (*NodeAllocator).allocStringNodeCachedSlow)
 }
 
 func allocStringNodeCached(a *NodeAllocator, tok uint8, strID StringID, slow func(*NodeAllocator, uint8, StringID) Node) Node {
 	if id := a.next; id < a.end {
 		a.next++
-		rec := &a.blk[id&blockMask]
-		rec.Token, rec.KindFlags, rec.Payload, rec.SourceFile, rec.PropFlags, rec.LinenoCharno = tok, 3, uint32(strID), a.tmplSourceFile, a.tmplPropFlags, -1
+		r := &a.blk[id&blockMask]
+		r.Token, r.KindFlags, r.Payload, r.SourceFile, r.PropFlags, r.LinenoCharno = tok, 3, uint32(strID), a.tmplSourceFile, a.tmplPropFlags, -1
 		return id
 	}
 	return slow(a, tok, strID)
 }
 
 //go:noinline
-func allocStringNodeCachedSlow(a *NodeAllocator, tok uint8, strID StringID) Node {
+func (a *NodeAllocator) allocStringNodeCachedSlow(tok uint8, strID StringID) Node {
 	return a.allocStringNodeSlow(tok, strID, a.tmplNode)
 }
 

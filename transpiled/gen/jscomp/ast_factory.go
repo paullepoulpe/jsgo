@@ -131,7 +131,7 @@ func InitAstFactory_3_AbstractCompiler_LifeCycleStage_JSTypeRegistry_RuntimeJsLi
 	this_.registry = registry
 	this_.runtimeJsLibManager = runtimeJsLibManager
 	this_.colorRegistry = nil
-	this_.unknownType = this_.priv_AstFactory_getNativeType_742(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
+	this_.unknownType = this_.priv_AstFactory_getNativeType_743(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	this_.typeMode = StaticGet_AstFactory_TypeMode_JSTYPE()
 }
 
@@ -227,7 +227,7 @@ func (this_ *AstFactory) IsAddingColors() bool {
 }
 
 // Java method: AstFactory.assertNotAddingColors()
-func (this_ *AstFactory) priv_AstFactory_assertNotAddingColors_620() {
+func (this_ *AstFactory) priv_AstFactory_assertNotAddingColors_621() {
 	if !(!(this_.IsAddingColors())) {
 		j2gort.CheckStateStr(false, "method not supported for colors")
 	}
@@ -335,7 +335,7 @@ func (this_ *AstFactory) CreateYield(type_ AstFactory_Type, value pkg_rhino.Node
 	_ = value
 	var result pkg_rhino.Node = pkg_rhino.IR_YieldNode(value)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	return result
 }
 
@@ -345,7 +345,7 @@ func (this_ *AstFactory) CreateAwait(type_ AstFactory_Type, value pkg_rhino.Node
 	_ = value
 	var result pkg_rhino.Node = pkg_rhino.IR_Await(value)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	return result
 }
 
@@ -354,7 +354,7 @@ func (this_ *AstFactory) CreateString(value string) pkg_rhino.Node {
 	_ = value
 	var result pkg_rhino.Node = pkg_rhino.IR_String(value)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE(), pkg_colors.StaticGet_StandardColors_STRING()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE(), pkg_colors.StaticGet_StandardColors_STRING()), result)
 	return result
 }
 
@@ -363,7 +363,7 @@ func (this_ *AstFactory) CreateNumber(value float64) pkg_rhino.Node {
 	_ = value
 	var result pkg_rhino.Node = pkg_rhino.IR_Number(value)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE(), pkg_colors.StaticGet_StandardColors_NUMBER()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE(), pkg_colors.StaticGet_StandardColors_NUMBER()), result)
 	return result
 }
 
@@ -377,7 +377,7 @@ func (this_ *AstFactory) CreateBoolean(value bool) pkg_rhino.Node {
 	} else {
 		result = pkg_rhino.IR_FalseNode()
 	}
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
 	return result
 }
 
@@ -385,7 +385,7 @@ func (this_ *AstFactory) CreateBoolean(value bool) pkg_rhino.Node {
 func (this_ *AstFactory) CreateNull() pkg_rhino.Node {
 	var result pkg_rhino.Node = pkg_rhino.IR_NullNode()
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_NULL_TYPE(), pkg_colors.StaticGet_StandardColors_NULL_OR_VOID()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_NULL_TYPE(), pkg_colors.StaticGet_StandardColors_NULL_OR_VOID()), result)
 	return result
 }
 
@@ -394,7 +394,7 @@ func (this_ *AstFactory) CreateVoid(child pkg_rhino.Node) pkg_rhino.Node {
 	_ = child
 	var result pkg_rhino.Node = pkg_rhino.IR_VoidNode(child)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE(), pkg_colors.StaticGet_StandardColors_NULL_OR_VOID()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE(), pkg_colors.StaticGet_StandardColors_NULL_OR_VOID()), result)
 	return result
 }
 
@@ -408,7 +408,7 @@ func (this_ *AstFactory) CreateNot(child pkg_rhino.Node) pkg_rhino.Node {
 	_ = child
 	var result pkg_rhino.Node = pkg_rhino.IR_Not(child)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
 	return result
 }
 
@@ -417,7 +417,7 @@ func (this_ *AstFactory) CreateThis(thisType AstFactory_Type) pkg_rhino.Node {
 	_ = thisType
 	var result pkg_rhino.Node = pkg_rhino.IR_ThisNode()
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(thisType, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(thisType, result)
 	return result
 }
 
@@ -426,7 +426,7 @@ func (this_ *AstFactory) CreateSuper(superType AstFactory_Type) pkg_rhino.Node {
 	_ = superType
 	var result pkg_rhino.Node = pkg_rhino.IR_SuperNode()
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(superType, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(superType, result)
 	return result
 }
 
@@ -435,7 +435,7 @@ func (this_ *AstFactory) CreateNewTarget(newTargetType AstFactory_Type) pkg_rhin
 	_ = newTargetType
 	var result pkg_rhino.Node = pkg_rhino.IR_NewTarget()
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(newTargetType, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(newTargetType, result)
 	return result
 }
 
@@ -447,7 +447,7 @@ func (this_ *AstFactory) CreateThisForEs6Class(functionNode pkg_rhino.Node) pkg_
 	}
 	var result pkg_rhino.Node = pkg_rhino.IR_ThisNode()
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(this_.priv_AstFactory_getTypeOfThisForEs6Class_649(functionNode), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(this_.priv_AstFactory_getTypeOfThisForEs6Class_650(functionNode), result)
 	return result
 }
 
@@ -465,7 +465,7 @@ func (this_ *AstFactory) CreateThisForEs6ClassMember(memberNode pkg_rhino.Node) 
 	if memberNode.IsStaticMember() {
 		var result pkg_rhino.Node = pkg_rhino.IR_ThisNode()
 		_ = result
-		this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_1_Node(classNode), result)
+		this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_1_Node(classNode), result)
 		return result
 	} else {
 		return this_.CreateThisForEs6Class(classNode)
@@ -473,11 +473,11 @@ func (this_ *AstFactory) CreateThisForEs6ClassMember(memberNode pkg_rhino.Node) 
 }
 
 // Java method: AstFactory.getTypeOfThisForFunctionNode(com.google.javascript.rhino.Node functionNode)
-func (this_ *AstFactory) priv_AstFactory_getTypeOfThisForFunctionNode_648(functionNode pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *AstFactory) priv_AstFactory_getTypeOfThisForFunctionNode_649(functionNode pkg_rhino.Node) pkg_rhino.JSType {
 	_ = functionNode
-	this_.priv_AstFactory_assertNotAddingColors_620()
+	this_.priv_AstFactory_assertNotAddingColors_621()
 	if this_.IsAddingTypes() {
-		var functionType *pkg_rhino.FunctionType = this_.priv_AstFactory_getFunctionType_650(functionNode)
+		var functionType *pkg_rhino.FunctionType = this_.priv_AstFactory_getFunctionType_651(functionNode)
 		_ = functionType
 		return j2gort.CheckNotNullIface(functionType.GetTypeOfThis())
 	} else {
@@ -486,16 +486,16 @@ func (this_ *AstFactory) priv_AstFactory_getTypeOfThisForFunctionNode_648(functi
 }
 
 // Java method: AstFactory.getTypeOfThisForEs6Class(com.google.javascript.rhino.Node functionNode)
-func (this_ *AstFactory) priv_AstFactory_getTypeOfThisForEs6Class_649(functionNode pkg_rhino.Node) AstFactory_Type {
+func (this_ *AstFactory) priv_AstFactory_getTypeOfThisForEs6Class_650(functionNode pkg_rhino.Node) AstFactory_Type {
 	_ = functionNode
 	if !(functionNode.IsClass()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(functionNode))
 	}
 	switch (this_.typeMode).Ordinal() {
 	case int32(0) /* TypeMode.JSTYPE */ :
-		return AstFactory_S_Type_1_JSType(this_.priv_AstFactory_getTypeOfThisForFunctionNode_648(functionNode))
+		return AstFactory_S_Type_1_JSType(this_.priv_AstFactory_getTypeOfThisForFunctionNode_649(functionNode))
 	case int32(1) /* TypeMode.COLOR */ :
-		return AstFactory_S_Type_1_Color(this_.priv_AstFactory_getInstanceOfColor_711(functionNode.GetColor()))
+		return AstFactory_S_Type_1_Color(this_.priv_AstFactory_getInstanceOfColor_712(functionNode.GetColor()))
 	case int32(2) /* TypeMode.NONE */ :
 		return AstFactory_NoTypeInformation()
 	}
@@ -503,12 +503,12 @@ func (this_ *AstFactory) priv_AstFactory_getTypeOfThisForEs6Class_649(functionNo
 }
 
 // Java method: AstFactory.getFunctionType(com.google.javascript.rhino.Node functionNode)
-func (this_ *AstFactory) priv_AstFactory_getFunctionType_650(functionNode pkg_rhino.Node) *pkg_rhino.FunctionType {
+func (this_ *AstFactory) priv_AstFactory_getFunctionType_651(functionNode pkg_rhino.Node) *pkg_rhino.FunctionType {
 	_ = functionNode
 	if !(functionNode.IsFunction() || functionNode.IsClass()) {
 		j2gort.CheckStateFmt(false, "not a function or class: %s", j2gort.BoxNode(functionNode))
 	}
-	this_.priv_AstFactory_assertNotAddingColors_620()
+	this_.priv_AstFactory_assertNotAddingColors_621()
 	var typeBeforeCast pkg_rhino.JSType = functionNode.GetJSTypeBeforeCast()
 	_ = typeBeforeCast
 	var functionType *pkg_rhino.FunctionType = nil
@@ -525,7 +525,7 @@ func (this_ *AstFactory) priv_AstFactory_getFunctionType_650(functionNode pkg_rh
 func (this_ *AstFactory) CreateThisAliasReferenceForEs6Class(aliasName string, functionNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = aliasName
 	_ = functionNode
-	return this_.CreateName_2_string_AstFactory_Type(aliasName, this_.priv_AstFactory_getTypeOfThisForEs6Class_649(functionNode))
+	return this_.CreateName_2_string_AstFactory_Type(aliasName, this_.priv_AstFactory_getTypeOfThisForEs6Class_650(functionNode))
 }
 
 // Java method: AstFactory.createSingleNameDeclaration(com.google.javascript.rhino.Token tokenType, java.lang.String name, com.google.javascript.rhino.Node value)
@@ -620,7 +620,7 @@ func (this_ *AstFactory) CreateName_2_string_AstFactory_Type(name string, type_ 
 	}
 	var result pkg_rhino.Node = pkg_rhino.IR_Name(name)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	if this_.lifeCycleStage.IsNormalized() && javalang.StringStartsWith(j2gort.CheckNotNullString(name), "$jscomp") {
 		result.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME(), true)
 	}
@@ -636,7 +636,7 @@ func (this_ *AstFactory) CreateConstantName(name string, type_ AstFactory_Type) 
 	}
 	var result pkg_rhino.Node = pkg_rhino.IR_Name(name)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	if this_.lifeCycleStage.IsNormalized() {
 		result.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME(), true)
 	}
@@ -726,7 +726,7 @@ func (this_ *AstFactory) CreateQNameUsingJSTypeInfo(globalTypedScope *TypedScope
 	if !((globalTypedScope == nil) || globalTypedScope.IsGlobal()) {
 		j2gort.CheckArgumentMsg(false, j2gort.PtrToAny(globalTypedScope))
 	}
-	this_.priv_AstFactory_assertNotAddingColors_620()
+	this_.priv_AstFactory_assertNotAddingColors_621()
 	var nameParts j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(StaticGet_AstFactory_DOT_SPLITTER(), qname)
 	_ = nameParts
 	if !(!(nameParts.IsEmpty())) {
@@ -790,11 +790,11 @@ func (this_ *AstFactory) CreateQName_3_StaticScope_string_Ext_java_lang_Iterable
 	_ = propertyNames
 	var baseNameNode pkg_rhino.Node = this_.CreateName_2_StaticScope_string(scope, baseName)
 	_ = baseNameNode
-	return this_.priv_AstFactory_createQName_670(scope, baseName, baseNameNode, propertyNames)
+	return this_.priv_AstFactory_createQName_671(scope, baseName, baseNameNode, propertyNames)
 }
 
 // Java method: AstFactory.createQName(com.google.javascript.rhino.StaticScope scope, java.lang.String baseName, com.google.javascript.rhino.Node baseNameNode, java.lang.Iterable<java.lang.String> propertyNames)
-func (this_ *AstFactory) priv_AstFactory_createQName_670(scope pkg_rhino.StaticScope, baseName string, baseNameNode pkg_rhino.Node, propertyNames j2gort.Ext_java_lang_Iterable) pkg_rhino.Node {
+func (this_ *AstFactory) priv_AstFactory_createQName_671(scope pkg_rhino.StaticScope, baseName string, baseNameNode pkg_rhino.Node, propertyNames j2gort.Ext_java_lang_Iterable) pkg_rhino.Node {
 	_ = scope
 	_ = baseName
 	_ = baseNameNode
@@ -838,7 +838,7 @@ func (this_ *AstFactory) CreateQName_2_StaticScope_RuntimeJsLibManager_JsLibFiel
 	var baseNameNode pkg_rhino.Node
 	_ = baseNameNode
 	if j2gort.CheckNotNullString(baseName) == "$jscomp" {
-		baseNameNode = this_.priv_AstFactory_createJscomp_676()
+		baseNameNode = this_.priv_AstFactory_createJscomp_677()
 	} else {
 		baseNameNode = this_.CreateName_2_string_AstFactory_Type(baseName, AstFactory_S_Type_2_JSType_Color(this_.unknownType, pkg_colors.StaticGet_StandardColors_UNKNOWN()))
 	}
@@ -847,13 +847,13 @@ func (this_ *AstFactory) CreateQName_2_StaticScope_RuntimeJsLibManager_JsLibFiel
 	}
 	var propertyNames j2gort.Ext_java_lang_Iterable = j2gort.Ext_com_google_common_collect_Iterables_Skip(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](parts), int32(1))
 	_ = propertyNames
-	return this_.priv_AstFactory_createQName_670(scope, baseName, baseNameNode, propertyNames)
+	return this_.priv_AstFactory_createQName_671(scope, baseName, baseNameNode, propertyNames)
 }
 
 // Java method: AstFactory.createQNameWithUnknownType(java.lang.String qname)
 func (this_ *AstFactory) CreateQNameWithUnknownType_1_string(qname string) pkg_rhino.Node {
 	_ = qname
-	return this_.priv_AstFactory_createQNameWithUnknownType_674(j2gort.SplitterSplitStr(StaticGet_AstFactory_DOT_SPLITTER(), qname))
+	return this_.priv_AstFactory_createQNameWithUnknownType_675(j2gort.SplitterSplitStr(StaticGet_AstFactory_DOT_SPLITTER(), qname))
 }
 
 // Java method: AstFactory.createQNameWithUnknownType(com.google.javascript.jscomp.js.RuntimeJsLibManager.JsLibField field)
@@ -869,7 +869,7 @@ func (this_ *AstFactory) CreateQNameWithUnknownType_1_RuntimeJsLibManager_JsLibF
 	var baseNameNode pkg_rhino.Node
 	_ = baseNameNode
 	if j2gort.CheckNotNullString(baseName) == "$jscomp" {
-		baseNameNode = this_.priv_AstFactory_createJscomp_676()
+		baseNameNode = this_.priv_AstFactory_createJscomp_677()
 	} else {
 		baseNameNode = this_.CreateName_2_string_AstFactory_Type(baseName, AstFactory_S_Type_2_JSType_Color(this_.unknownType, pkg_colors.StaticGet_StandardColors_UNKNOWN()))
 	}
@@ -882,7 +882,7 @@ func (this_ *AstFactory) CreateQNameWithUnknownType_1_RuntimeJsLibManager_JsLibF
 }
 
 // Java method: AstFactory.createQNameWithUnknownType(java.lang.Iterable<java.lang.String> names)
-func (this_ *AstFactory) priv_AstFactory_createQNameWithUnknownType_674(names j2gort.Ext_java_lang_Iterable) pkg_rhino.Node {
+func (this_ *AstFactory) priv_AstFactory_createQNameWithUnknownType_675(names j2gort.Ext_java_lang_Iterable) pkg_rhino.Node {
 	_ = names
 	var baseName string = j2gort.CheckNotNullString(j2gort.CastString(j2gort.Ext_com_google_common_collect_Iterables_GetFirst(names, nil)))
 	_ = baseName
@@ -901,10 +901,10 @@ func (this_ *AstFactory) CreateQNameWithUnknownType_2(baseName string, propertyN
 }
 
 // Java method: AstFactory.createJscomp()
-func (this_ *AstFactory) priv_AstFactory_createJscomp_676() pkg_rhino.Node {
+func (this_ *AstFactory) priv_AstFactory_createJscomp_677() pkg_rhino.Node {
 	var jscomp pkg_rhino.Node = pkg_rhino.IR_Name("$jscomp")
 	_ = jscomp
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSType_Color(this_.unknownType, pkg_colors.StaticGet_StandardColors_UNKNOWN()), jscomp)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSType_Color(this_.unknownType, pkg_colors.StaticGet_StandardColors_UNKNOWN()), jscomp)
 	if this_.lifeCycleStage.IsNormalized() {
 		jscomp.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME(), true)
 	}
@@ -918,7 +918,7 @@ func (this_ *AstFactory) CreatePrototypeAccess(receiver pkg_rhino.Node) pkg_rhin
 	_ = result
 	switch (this_.typeMode).Ordinal() {
 	case int32(0) /* TypeMode.JSTYPE */ :
-		result.SetJSType(this_.priv_AstFactory_getJsTypeForProperty_743(receiver, "prototype"))
+		result.SetJSType(this_.priv_AstFactory_getJsTypeForProperty_744(receiver, "prototype"))
 	case int32(1) /* TypeMode.COLOR */ :
 		j2gort.CheckNotNullPtr(receiver.GetColor())
 		var possiblePrototypes []*pkg_colors.Color = receiver.GetColor().GetPrototypesArray()
@@ -954,11 +954,11 @@ func (this_ *AstFactory) CreateJSCompDotGlobalAccess(scope pkg_rhino.StaticScope
 func (this_ *AstFactory) CreateGetPropWithoutColor(receiver pkg_rhino.Node, propertyName string) pkg_rhino.Node {
 	_ = receiver
 	_ = propertyName
-	this_.priv_AstFactory_assertNotAddingColors_620()
+	this_.priv_AstFactory_assertNotAddingColors_621()
 	var result pkg_rhino.Node = pkg_rhino.IR_Getprop_2(receiver, propertyName)
 	_ = result
 	if this_.IsAddingTypes() {
-		result.SetJSType(this_.priv_AstFactory_getJsTypeForProperty_743(receiver, propertyName))
+		result.SetJSType(this_.priv_AstFactory_getJsTypeForProperty_744(receiver, propertyName))
 	}
 	return result
 }
@@ -970,7 +970,7 @@ func (this_ *AstFactory) CreateGetProp(receiver pkg_rhino.Node, propertyName str
 	_ = type_
 	var result pkg_rhino.Node = pkg_rhino.IR_Getprop_2(receiver, propertyName)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	return result
 }
 
@@ -978,7 +978,7 @@ func (this_ *AstFactory) CreateGetProp(receiver pkg_rhino.Node, propertyName str
 func (this_ *AstFactory) CreateGetPropsWithoutColors(receiver pkg_rhino.Node, propertyNames j2gort.Ext_java_lang_Iterable) pkg_rhino.Node {
 	_ = receiver
 	_ = propertyNames
-	this_.priv_AstFactory_assertNotAddingColors_620()
+	this_.priv_AstFactory_assertNotAddingColors_621()
 	var result pkg_rhino.Node = receiver
 	_ = result
 	{
@@ -1015,7 +1015,7 @@ func (this_ *AstFactory) CreateGetPropWithUnknownType(receiver pkg_rhino.Node, p
 	_ = propertyName
 	var result pkg_rhino.Node = pkg_rhino.IR_Getprop_2(receiver, propertyName)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSType_Color(this_.unknownType, pkg_colors.StaticGet_StandardColors_UNKNOWN()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSType_Color(this_.unknownType, pkg_colors.StaticGet_StandardColors_UNKNOWN()), result)
 	return result
 }
 
@@ -1026,7 +1026,7 @@ func (this_ *AstFactory) CreateStartOptChainGetprop(receiver pkg_rhino.Node, pro
 	_ = type_
 	var result pkg_rhino.Node = pkg_rhino.IR_StartOptChainGetprop(receiver, propertyName)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	return result
 }
 
@@ -1037,7 +1037,7 @@ func (this_ *AstFactory) CreateContinueOptChainGetprop(receiver pkg_rhino.Node, 
 	_ = type_
 	var result pkg_rhino.Node = pkg_rhino.IR_ContinueOptChainGetprop(receiver, propertyName)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	return result
 }
 
@@ -1048,7 +1048,7 @@ func (this_ *AstFactory) CreateStartOptChainGetelem(receiver pkg_rhino.Node, ele
 	_ = type_
 	var result pkg_rhino.Node = pkg_rhino.IR_StartOptChainGetelem(receiver, elem)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	return result
 }
 
@@ -1059,7 +1059,7 @@ func (this_ *AstFactory) CreateContinueOptChainGetelem(receiver pkg_rhino.Node, 
 	_ = type_
 	var result pkg_rhino.Node = pkg_rhino.IR_ContinueOptChainGetelem(receiver, elem)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	return result
 }
 
@@ -1070,7 +1070,7 @@ func (this_ *AstFactory) CreateStartOptChainCall(receiver pkg_rhino.Node, type_ 
 	_ = args
 	var result pkg_rhino.Node = pkg_rhino.IR_StartOptChainCall(receiver, args)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	return result
 }
 
@@ -1081,7 +1081,7 @@ func (this_ *AstFactory) CreateContinueOptChainCall(receiver pkg_rhino.Node, typ
 	_ = args
 	var result pkg_rhino.Node = pkg_rhino.IR_ContinueOptChainCall(receiver, args)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	return result
 }
 
@@ -1091,7 +1091,7 @@ func (this_ *AstFactory) CreateGetElem(receiver pkg_rhino.Node, key pkg_rhino.No
 	_ = key
 	var result pkg_rhino.Node = pkg_rhino.IR_Getelem(receiver, key)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSType_Color(this_.unknownType, pkg_colors.StaticGet_StandardColors_UNKNOWN()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSType_Color(this_.unknownType, pkg_colors.StaticGet_StandardColors_UNKNOWN()), result)
 	return result
 }
 
@@ -1100,7 +1100,7 @@ func (this_ *AstFactory) CreateDelProp(target pkg_rhino.Node) pkg_rhino.Node {
 	_ = target
 	var result pkg_rhino.Node = pkg_rhino.IR_Delprop(target)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
 	return result
 }
 
@@ -1110,7 +1110,7 @@ func (this_ *AstFactory) CreateStringKey(key string, value pkg_rhino.Node) pkg_r
 	_ = value
 	var result pkg_rhino.Node = pkg_rhino.IR_StringKey_2(key, value)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSType_Color(value.GetJSType(), value.GetColor()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSType_Color(value.GetJSType(), value.GetColor()), result)
 	return result
 }
 
@@ -1120,7 +1120,7 @@ func (this_ *AstFactory) CreateComputedProperty(key pkg_rhino.Node, value pkg_rh
 	_ = value
 	var result pkg_rhino.Node = pkg_rhino.IR_ComputedProp(key, value)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSType_Color(value.GetJSType(), value.GetColor()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSType_Color(value.GetJSType(), value.GetColor()), result)
 	return result
 }
 
@@ -1144,7 +1144,7 @@ func (this_ *AstFactory) CreateIn(left pkg_rhino.Node, right pkg_rhino.Node) pkg
 	_ = right
 	var result pkg_rhino.Node = pkg_rhino.IR_In(left, right)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
 	return result
 }
 
@@ -1154,7 +1154,7 @@ func (this_ *AstFactory) CreateComma(left pkg_rhino.Node, right pkg_rhino.Node) 
 	_ = right
 	var result pkg_rhino.Node = pkg_rhino.IR_Comma(left, right)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSType_Color(right.GetJSType(), right.GetColor()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSType_Color(right.GetJSType(), right.GetColor()), result)
 	return result
 }
 
@@ -1229,7 +1229,7 @@ func (this_ *AstFactory) CreateAdd(left pkg_rhino.Node, right pkg_rhino.Node) pk
 	_ = result
 	switch (this_.typeMode).Ordinal() {
 	case int32(0) /* TypeMode.JSTYPE */ :
-		result.SetJSType(this_.priv_AstFactory_getNativeType_742(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER_STRING()))
+		result.SetJSType(this_.priv_AstFactory_getNativeType_743(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER_STRING()))
 	case int32(1) /* TypeMode.COLOR */ :
 		result.SetColor(j2gort.CastPtr[pkg_colors.Color](StaticGet_AstFactory_BigintNumberStringColor().Get()))
 	case int32(2) /* TypeMode.NONE */ :
@@ -1243,7 +1243,7 @@ func (this_ *AstFactory) CreateSub(left pkg_rhino.Node, right pkg_rhino.Node) pk
 	_ = right
 	var result pkg_rhino.Node = pkg_rhino.IR_Sub(left, right)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE(), pkg_colors.StaticGet_StandardColors_NUMBER()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE(), pkg_colors.StaticGet_StandardColors_NUMBER()), result)
 	return result
 }
 
@@ -1253,7 +1253,7 @@ func (this_ *AstFactory) CreateInc(operand pkg_rhino.Node, isPost bool) pkg_rhin
 	_ = isPost
 	var result pkg_rhino.Node = pkg_rhino.IR_Inc(operand, isPost)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE(), pkg_colors.StaticGet_StandardColors_NUMBER()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE(), pkg_colors.StaticGet_StandardColors_NUMBER()), result)
 	return result
 }
 
@@ -1263,7 +1263,7 @@ func (this_ *AstFactory) CreateLessThan(left pkg_rhino.Node, right pkg_rhino.Nod
 	_ = right
 	var result pkg_rhino.Node = pkg_rhino.IR_Lt(left, right)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
 	return result
 }
 
@@ -1273,7 +1273,7 @@ func (this_ *AstFactory) CreateBitwiseAnd(left pkg_rhino.Node, right pkg_rhino.N
 	_ = right
 	var result pkg_rhino.Node = pkg_rhino.IR_BitwiseAnd(left, right)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE(), pkg_colors.StaticGet_StandardColors_NUMBER()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE(), pkg_colors.StaticGet_StandardColors_NUMBER()), result)
 	return result
 }
 
@@ -1283,7 +1283,7 @@ func (this_ *AstFactory) CreateRightShift(left pkg_rhino.Node, right pkg_rhino.N
 	_ = right
 	var result pkg_rhino.Node = pkg_rhino.IR_RightShift(left, right)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE(), pkg_colors.StaticGet_StandardColors_NUMBER()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE(), pkg_colors.StaticGet_StandardColors_NUMBER()), result)
 	return result
 }
 
@@ -1294,7 +1294,7 @@ func (this_ *AstFactory) CreateCall(callee pkg_rhino.Node, resultType AstFactory
 	_ = args
 	var result pkg_rhino.Node = NodeUtil_NewCallNode(callee, args)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(resultType, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(resultType, result)
 	return result
 }
 
@@ -1352,18 +1352,18 @@ func (this_ *AstFactory) CreateNewNode(target pkg_rhino.Node, args []pkg_rhino.N
 		if instanceType.IsFunctionType() {
 			instanceType = j2gort.AsIface[pkg_rhino.JSType](instanceType.ToMaybeFunctionType().GetInstanceType())
 		} else {
-			instanceType = this_.priv_AstFactory_getNativeType_742(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
+			instanceType = this_.priv_AstFactory_getNativeType_743(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 		}
 		result.SetJSType(instanceType)
 	case int32(1) /* TypeMode.COLOR */ :
-		result.SetColor(this_.priv_AstFactory_getInstanceOfColor_711(target.GetColor()))
+		result.SetColor(this_.priv_AstFactory_getInstanceOfColor_712(target.GetColor()))
 	case int32(2) /* TypeMode.NONE */ :
 	}
 	return result
 }
 
 // Java method: AstFactory.getInstanceOfColor(com.google.javascript.jscomp.colors.Color color)
-func (this_ *AstFactory) priv_AstFactory_getInstanceOfColor_711(color *pkg_colors.Color) *pkg_colors.Color {
+func (this_ *AstFactory) priv_AstFactory_getInstanceOfColor_712(color *pkg_colors.Color) *pkg_colors.Color {
 	_ = color
 	var possibleInstanceColors []*pkg_colors.Color = color.GetInstanceColorsArray()
 	_ = possibleInstanceColors
@@ -1391,7 +1391,7 @@ func (this_ *AstFactory) CreateConstructorCall(classType AstFactory_Type, callee
 		_ = instanceType
 		result.SetJSType(instanceType)
 	case int32(1) /* TypeMode.COLOR */ :
-		result.SetColor(this_.priv_AstFactory_getInstanceOfColor_711(classType.GetColor(this_.colorRegistry)))
+		result.SetColor(this_.priv_AstFactory_getInstanceOfColor_712(classType.GetColor(this_.colorRegistry)))
 	case int32(2) /* TypeMode.NONE */ :
 	}
 	return result
@@ -1410,7 +1410,7 @@ func (this_ *AstFactory) CreateAssign_2_Node_Node(lhs pkg_rhino.Node, rhs pkg_rh
 	_ = rhs
 	var result pkg_rhino.Node = pkg_rhino.IR_Assign(lhs, rhs)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_1_Node(rhs), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_1_Node(rhs), result)
 	return result
 }
 
@@ -1444,7 +1444,7 @@ func (this_ *AstFactory) CreateObjectLit_2(type_ AstFactory_Type, elements []pkg
 	_ = elements
 	var result pkg_rhino.Node = pkg_rhino.IR_Objectlit(elements)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	return result
 }
 
@@ -1468,7 +1468,7 @@ func (this_ *AstFactory) CreateEmptyFunction(type_ AstFactory_Type) pkg_rhino.No
 			j2gort.CheckArgumentMsg(false, type_)
 		}
 	}
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	return result
 }
 
@@ -1496,7 +1496,7 @@ func (this_ *AstFactory) CreateFunction(name string, paramList pkg_rhino.Node, b
 			j2gort.CheckArgumentMsg(false, type_)
 		}
 	}
-	this_.priv_AstFactory_setJSTypeOrColor_744(type_, result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(type_, result)
 	return result
 }
 
@@ -1569,7 +1569,7 @@ func (this_ *AstFactory) CreateMemberFunctionDef(name string, function pkg_rhino
 	}
 	var result pkg_rhino.Node = pkg_rhino.IR_MemberFunctionDef(name, function)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_1_Node(function), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_1_Node(function), result)
 	return result
 }
 
@@ -1579,7 +1579,7 @@ func (this_ *AstFactory) CreateSheq(expr1 pkg_rhino.Node, expr2 pkg_rhino.Node) 
 	_ = expr2
 	var result pkg_rhino.Node = pkg_rhino.IR_Sheq(expr1, expr2)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
 	return result
 }
 
@@ -1589,7 +1589,7 @@ func (this_ *AstFactory) CreateEq(expr1 pkg_rhino.Node, expr2 pkg_rhino.Node) pk
 	_ = expr2
 	var result pkg_rhino.Node = pkg_rhino.IR_Eq(expr1, expr2)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
 	return result
 }
 
@@ -1599,7 +1599,7 @@ func (this_ *AstFactory) CreateNe(expr1 pkg_rhino.Node, expr2 pkg_rhino.Node) pk
 	_ = expr2
 	var result pkg_rhino.Node = pkg_rhino.IR_Ne(expr1, expr2)
 	_ = result
-	this_.priv_AstFactory_setJSTypeOrColor_744(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
+	this_.priv_AstFactory_setJSTypeOrColor_745(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE(), pkg_colors.StaticGet_StandardColors_BOOLEAN()), result)
 	return result
 }
 
@@ -1652,7 +1652,7 @@ func (this_ *AstFactory) CreateArraylit_1_Ext_java_lang_Iterable(elements j2gort
 	_ = result
 	switch (this_.typeMode).Ordinal() {
 	case int32(0) /* TypeMode.JSTYPE */ :
-		result.SetJSType(pkg_rhino.ToIface_JSType(this_.registry.CreateTemplatizedType_2_ObjectType_JSType(this_.registry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE()), []pkg_rhino.JSType{this_.priv_AstFactory_getNativeType_742(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())})))
+		result.SetJSType(pkg_rhino.ToIface_JSType(this_.registry.CreateTemplatizedType_2_ObjectType_JSType(this_.registry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE()), []pkg_rhino.JSType{this_.priv_AstFactory_getNativeType_743(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())})))
 	case int32(1) /* TypeMode.COLOR */ :
 		result.SetColor(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ARRAY_ID()))
 	case int32(2) /* TypeMode.NONE */ :
@@ -1676,7 +1676,7 @@ func (this_ *AstFactory) CreateJSCompMakeIteratorCall(iterable pkg_rhino.Node, s
 		_ = iterableType
 		var makeIteratorType pkg_rhino.JSType = makeIteratorName.GetJSType()
 		_ = makeIteratorType
-		makeIteratorName.SetJSType(this_.priv_AstFactory_replaceTemplate_739(makeIteratorType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
+		makeIteratorName.SetJSType(this_.priv_AstFactory_replaceTemplate_740(makeIteratorType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
 		type_ = AstFactory_S_Type_1_JSType(makeIteratorName.GetJSType().AssertFunctionType().GetReturnType())
 	case int32(1) /* TypeMode.COLOR */ :
 		type_ = AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ITERATOR_ID()))
@@ -1718,7 +1718,7 @@ func (this_ *AstFactory) CreateJscompArrayFromIteratorCall(iterator pkg_rhino.No
 			_ = iterableType
 			var makeIteratorType pkg_rhino.JSType = makeIteratorName.GetJSType()
 			_ = makeIteratorType
-			makeIteratorName.SetJSType(this_.priv_AstFactory_replaceTemplate_739(makeIteratorType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
+			makeIteratorName.SetJSType(this_.priv_AstFactory_replaceTemplate_740(makeIteratorType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
 			return AstFactory_S_Type_1_JSType(makeIteratorName.GetJSType().AssertFunctionType().GetReturnType())
 		case int32(1) /* TypeMode.COLOR */ :
 			return AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ARRAY_ID()))
@@ -1751,7 +1751,7 @@ func (this_ *AstFactory) CreateJscompArrayFromIterableCall(iterable pkg_rhino.No
 			_ = iterableType
 			var makeIterableType pkg_rhino.JSType = makeIterableName.GetJSType()
 			_ = makeIterableType
-			makeIterableName.SetJSType(this_.priv_AstFactory_replaceTemplate_739(makeIterableType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
+			makeIterableName.SetJSType(this_.priv_AstFactory_replaceTemplate_740(makeIterableType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
 			return AstFactory_S_Type_1_JSType(makeIterableName.GetJSType().AssertFunctionType().GetReturnType())
 		case int32(1) /* TypeMode.COLOR */ :
 			return func() AstFactory_Type {
@@ -1786,7 +1786,7 @@ func (this_ *AstFactory) CreateJSCompMakeAsyncIteratorCall(iterable pkg_rhino.No
 		_ = asyncIterableType
 		var makeAsyncIteratorType pkg_rhino.JSType = makeIteratorAsyncName.GetJSType()
 		_ = makeAsyncIteratorType
-		makeIteratorAsyncName.SetJSType(this_.priv_AstFactory_replaceTemplate_739(makeAsyncIteratorType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(asyncIterableType)))
+		makeIteratorAsyncName.SetJSType(this_.priv_AstFactory_replaceTemplate_740(makeAsyncIteratorType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(asyncIterableType)))
 		resultType = AstFactory_S_Type_1_JSType(makeIteratorAsyncName.GetJSType().AssertFunctionType().GetReturnType())
 	case int32(1) /* TypeMode.COLOR */ :
 		resultType = AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ASYNC_ITERATOR_ITERABLE_ID()))
@@ -1802,7 +1802,7 @@ func (this_ *AstFactory) CreateJSCompMakeAsyncIteratorCall(iterable pkg_rhino.No
 }
 
 // Java method: AstFactory.replaceTemplate(com.google.javascript.rhino.jstype.JSType templatedType, com.google.common.collect.ImmutableList<com.google.javascript.rhino.jstype.JSType> templateTypes)
-func (this_ *AstFactory) priv_AstFactory_replaceTemplate_739(templatedType pkg_rhino.JSType, templateTypes j2gort.Ext_com_google_common_collect_ImmutableList) pkg_rhino.JSType {
+func (this_ *AstFactory) priv_AstFactory_replaceTemplate_740(templatedType pkg_rhino.JSType, templateTypes j2gort.Ext_com_google_common_collect_ImmutableList) pkg_rhino.JSType {
 	_ = templatedType
 	_ = templateTypes
 	var typeMap *pkg_rhino.TemplateTypeMap = this_.registry.GetEmptyTemplateTypeMap().CopyWithKeysFromAndValues(templatedType.GetTemplateTypeMap(), templateTypes)
@@ -1817,7 +1817,7 @@ func (this_ *AstFactory) CreateEmptyAsyncGeneratorWrapperArgument(asyncGenerator
 	_ = generatorType
 	if this_.IsAddingTypes() {
 		if asyncGeneratorWrapperType.IsUnknownType() {
-			generatorType = AstFactory_S_Type_1_JSType(pkg_rhino.ToIface_JSType(this_.registry.CreateFunctionType_2_JSType_JSType(this_.priv_AstFactory_replaceTemplate_739(this_.priv_AstFactory_getNativeType_742(pkg_rhino.StaticGet_JSTypeNative_GENERATOR_TYPE()), j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(this_.unknownType)), []pkg_rhino.JSType{})))
+			generatorType = AstFactory_S_Type_1_JSType(pkg_rhino.ToIface_JSType(this_.registry.CreateFunctionType_2_JSType_JSType(this_.priv_AstFactory_replaceTemplate_740(this_.priv_AstFactory_getNativeType_743(pkg_rhino.StaticGet_JSTypeNative_GENERATOR_TYPE()), j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(this_.unknownType)), []pkg_rhino.JSType{})))
 		} else {
 			var wrapperFnType *pkg_rhino.FunctionType = asyncGeneratorWrapperType.ToMaybeFunctionType()
 			_ = wrapperFnType
@@ -1861,14 +1861,14 @@ func (this_ *AstFactory) CreateJscompAsyncExecutePromiseGeneratorFunctionCall(sc
 }
 
 // Java method: AstFactory.getNativeType(com.google.javascript.rhino.jstype.JSTypeNative nativeType)
-func (this_ *AstFactory) priv_AstFactory_getNativeType_742(nativeType pkg_rhino.JSTypeNative) pkg_rhino.JSType {
+func (this_ *AstFactory) priv_AstFactory_getNativeType_743(nativeType pkg_rhino.JSTypeNative) pkg_rhino.JSType {
 	_ = nativeType
 	j2gort.CheckNotNullPtr(this_.registry)
 	return j2gort.CheckNotNullIface(this_.registry.GetNativeType(nativeType))
 }
 
 // Java method: AstFactory.getJsTypeForProperty(com.google.javascript.rhino.Node receiver, java.lang.String propertyName)
-func (this_ *AstFactory) priv_AstFactory_getJsTypeForProperty_743(receiver pkg_rhino.Node, propertyName string) pkg_rhino.JSType {
+func (this_ *AstFactory) priv_AstFactory_getJsTypeForProperty_744(receiver pkg_rhino.Node, propertyName string) pkg_rhino.JSType {
 	_ = receiver
 	_ = propertyName
 	var getpropType pkg_rhino.JSType = nil
@@ -1891,13 +1891,13 @@ func (this_ *AstFactory) priv_AstFactory_getJsTypeForProperty_743(receiver pkg_r
 		getpropType = this_.unknownType
 	}
 	if (getpropType.IsUnknownType() && (j2gort.CheckNotNullString(propertyName) == "global")) && receiver.MatchesName_1_string("$jscomp") {
-		getpropType = this_.priv_AstFactory_getNativeType_742(pkg_rhino.StaticGet_JSTypeNative_GLOBAL_THIS())
+		getpropType = this_.priv_AstFactory_getNativeType_743(pkg_rhino.StaticGet_JSTypeNative_GLOBAL_THIS())
 	}
 	return getpropType
 }
 
 // Java method: AstFactory.setJSTypeOrColor(com.google.javascript.jscomp.AstFactory.Type type, com.google.javascript.rhino.Node result)
-func (this_ *AstFactory) priv_AstFactory_setJSTypeOrColor_744(type_ AstFactory_Type, result pkg_rhino.Node) {
+func (this_ *AstFactory) priv_AstFactory_setJSTypeOrColor_745(type_ AstFactory_Type, result pkg_rhino.Node) {
 	_ = type_
 	_ = result
 	switch (this_.typeMode).Ordinal() {

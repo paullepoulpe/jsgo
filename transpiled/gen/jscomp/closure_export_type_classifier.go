@@ -93,23 +93,23 @@ func ClosureExportTypeClassifier_Classify(moduleRoot pkg_rhino.Node, googNamespa
 	InitClosureExportTypeClassifier(&val_1)
 	var classifier *ClosureExportTypeClassifier = &val_1
 	_ = classifier
-	classifier.priv_ClosureExportTypeClassifier_addGoogModuleExports_1164()
+	classifier.priv_ClosureExportTypeClassifier_addGoogModuleExports_1165()
 	ClosureExportTypeClassifier_ForEachTopLevelStatement(moduleRoot, func() j2gort.Ext_java_util_function_Consumer {
 		bound_2 := classifier
 		return j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) {
-			bound_2.priv_ClosureExportTypeClassifier_visitStatement_1165(j2gort.CastNode[pkg_rhino.Node](mrp0_))
+			bound_2.priv_ClosureExportTypeClassifier_visitStatement_1166(j2gort.CastNode[pkg_rhino.Node](mrp0_))
 		})
 	}())
 	var info *ClosureExportTypeClassifier_NameInfo = classifier.topLevelNames.Get("exports")
 	_ = info
-	if classifier.forcedNamedExport.Contains(googNamespace) || (classifier.priv_ClosureExportTypeClassifier_kindOfName_1172(info, int32(0)) == StaticGet_ClosureExportTypeClassifier_Kind_NAMESPACE()) {
+	if classifier.forcedNamedExport.Contains(googNamespace) || (classifier.priv_ClosureExportTypeClassifier_kindOfName_1173(info, int32(0)) == StaticGet_ClosureExportTypeClassifier_Kind_NAMESPACE()) {
 		return StaticGet_ClosureExportTypeClassifier_TsExportType_NAMED()
 	}
 	return StaticGet_ClosureExportTypeClassifier_TsExportType_DEFAULT()
 }
 
 // Java method: ClosureExportTypeClassifier.addGoogModuleExports()
-func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_addGoogModuleExports_1164() {
+func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_addGoogModuleExports_1165() {
 	var val_3 ClosureExportTypeClassifier_NameInfo
 	InitClosureExportTypeClassifier_NameInfo(&val_3)
 	var info *ClosureExportTypeClassifier_NameInfo = &val_3
@@ -140,29 +140,29 @@ func ClosureExportTypeClassifier_ForEachTopLevelStatement(moduleRoot pkg_rhino.N
 }
 
 // Java method: ClosureExportTypeClassifier.visitStatement(com.google.javascript.rhino.Node statement)
-func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visitStatement_1165(statement pkg_rhino.Node) {
+func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visitStatement_1166(statement pkg_rhino.Node) {
 	_ = statement
 	switch statement.TokenSwitchOrd_() {
 	case int32(84) /* Token.VAR */, int32(111) /* Token.LET */, int32(97) /* Token.CONST */ :
-		this_.priv_ClosureExportTypeClassifier_visitNameDeclaration_1167(statement)
+		this_.priv_ClosureExportTypeClassifier_visitNameDeclaration_1168(statement)
 	case int32(105) /* Token.CLASS */, int32(73) /* Token.FUNCTION */ :
 		var name pkg_rhino.Node = statement.GetFirstChild()
 		_ = name
-		var info *ClosureExportTypeClassifier_NameInfo = this_.priv_ClosureExportTypeClassifier_getOrCreate_1171(name.GetString())
+		var info *ClosureExportTypeClassifier_NameInfo = this_.priv_ClosureExportTypeClassifier_getOrCreate_1172(name.GetString())
 		_ = info
 		{
 			r_5 := info
 			r_5.isNeverNamespace = true
 		}
 	case int32(93) /* Token.EXPR_RESULT */ :
-		this_.priv_ClosureExportTypeClassifier_maybeRecordLegacyNamedTsExport_1166(statement)
-		this_.priv_ClosureExportTypeClassifier_visitExpression_1169(statement.GetFirstChild())
+		this_.priv_ClosureExportTypeClassifier_maybeRecordLegacyNamedTsExport_1167(statement)
+		this_.priv_ClosureExportTypeClassifier_visitExpression_1170(statement.GetFirstChild())
 	default:
 	}
 }
 
 // Java method: ClosureExportTypeClassifier.maybeRecordLegacyNamedTsExport(com.google.javascript.rhino.Node statement)
-func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_maybeRecordLegacyNamedTsExport_1166(statement pkg_rhino.Node) {
+func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_maybeRecordLegacyNamedTsExport_1167(statement pkg_rhino.Node) {
 	_ = statement
 	if !(NodeUtil_IsGoogModuleCall(statement)) {
 		return
@@ -178,28 +178,28 @@ func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_maybe
 }
 
 // Java method: ClosureExportTypeClassifier.visitNameDeclaration(com.google.javascript.rhino.Node declaration)
-func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visitNameDeclaration_1167(declaration pkg_rhino.Node) {
+func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visitNameDeclaration_1168(declaration pkg_rhino.Node) {
 	_ = declaration
 	{
 		var lhs pkg_rhino.Node = declaration.GetFirstChild()
 		_ = lhs
 		for ; lhs != 0; lhs = lhs.GetNext() {
 			if lhs.IsName() {
-				this_.priv_ClosureExportTypeClassifier_visitDeclaredName_1168(lhs)
+				this_.priv_ClosureExportTypeClassifier_visitDeclaredName_1169(lhs)
 			}
 		}
 	}
 }
 
 // Java method: ClosureExportTypeClassifier.visitDeclaredName(com.google.javascript.rhino.Node lhs)
-func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visitDeclaredName_1168(lhs pkg_rhino.Node) {
+func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visitDeclaredName_1169(lhs pkg_rhino.Node) {
 	_ = lhs
 	var initializer pkg_rhino.Node = lhs.GetFirstChild()
 	_ = initializer
-	var info *ClosureExportTypeClassifier_NameInfo = this_.priv_ClosureExportTypeClassifier_getOrCreate_1171(lhs.GetString())
+	var info *ClosureExportTypeClassifier_NameInfo = this_.priv_ClosureExportTypeClassifier_getOrCreate_1172(lhs.GetString())
 	_ = info
 	if (initializer != 0) && initializer.IsAssign() {
-		this_.priv_ClosureExportTypeClassifier_visitExpression_1169(initializer)
+		this_.priv_ClosureExportTypeClassifier_visitExpression_1170(initializer)
 	}
 	var jsdoc *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(lhs)
 	_ = jsdoc
@@ -221,16 +221,16 @@ func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visit
 }
 
 // Java method: ClosureExportTypeClassifier.visitExpression(com.google.javascript.rhino.Node expr)
-func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visitExpression_1169(expr pkg_rhino.Node) {
+func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visitExpression_1170(expr pkg_rhino.Node) {
 	_ = expr
 	switch expr.TokenSwitchOrd_() {
 	case int32(51) /* Token.ASSIGN */ :
-		this_.priv_ClosureExportTypeClassifier_visitAssign_1170(expr)
+		this_.priv_ClosureExportTypeClassifier_visitAssign_1171(expr)
 	case int32(26) /* Token.GETPROP */ :
 		if (expr.GetJSDocInfo() != nil) && expr.GetFirstChild().IsName() {
 			var variableName string = expr.GetFirstChild().GetString()
 			_ = variableName
-			r_9 := this_.priv_ClosureExportTypeClassifier_getOrCreate_1171(variableName)
+			r_9 := this_.priv_ClosureExportTypeClassifier_getOrCreate_1172(variableName)
 			r_9.propertyCount = r_9.propertyCount + 1
 		}
 	default:
@@ -238,7 +238,7 @@ func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visit
 }
 
 // Java method: ClosureExportTypeClassifier.visitAssign(com.google.javascript.rhino.Node expr)
-func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visitAssign_1170(expr pkg_rhino.Node) {
+func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visitAssign_1171(expr pkg_rhino.Node) {
 	_ = expr
 	var lhs pkg_rhino.Node = expr.GetFirstChild()
 	_ = lhs
@@ -247,7 +247,7 @@ func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visit
 	var jsdoc *pkg_rhino.JSDocInfo = expr.GetJSDocInfo()
 	_ = jsdoc
 	if lhs.IsName() {
-		var assigned *ClosureExportTypeClassifier_NameInfo = this_.priv_ClosureExportTypeClassifier_getOrCreate_1171(lhs.GetString())
+		var assigned *ClosureExportTypeClassifier_NameInfo = this_.priv_ClosureExportTypeClassifier_getOrCreate_1172(lhs.GetString())
 		_ = assigned
 		{
 			r_10 := assigned
@@ -268,20 +268,20 @@ func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visit
 		return
 	}
 	if lhs.IsGetProp() && lhs.GetFirstChild().IsName() {
-		r_14 := this_.priv_ClosureExportTypeClassifier_getOrCreate_1171(lhs.GetFirstChild().GetString())
+		r_14 := this_.priv_ClosureExportTypeClassifier_getOrCreate_1172(lhs.GetFirstChild().GetString())
 		r_14.propertyCount = r_14.propertyCount + 1
 	}
 }
 
 // Java method: ClosureExportTypeClassifier.getOrCreate(java.lang.String name)
-func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_getOrCreate_1171(name string) *ClosureExportTypeClassifier_NameInfo {
+func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_getOrCreate_1172(name string) *ClosureExportTypeClassifier_NameInfo {
 	_ = name
 	return j2gort.OrderedMapComputeIfAbsentFn(&this_.topLevelNames, name, nil, lambdaSingleton_closure_export_type_classifier_1)
 
 }
 
 // Java method: ClosureExportTypeClassifier.kindOfName(com.google.javascript.jscomp.ClosureExportTypeClassifier.NameInfo info, int depth)
-func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_kindOfName_1172(info *ClosureExportTypeClassifier_NameInfo, depth int32) ClosureExportTypeClassifier_Kind {
+func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_kindOfName_1173(info *ClosureExportTypeClassifier_NameInfo, depth int32) ClosureExportTypeClassifier_Kind {
 	_ = info
 	_ = depth
 	if info.isNeverNamespace {
@@ -293,7 +293,7 @@ func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_kindO
 	var kind ClosureExportTypeClassifier_Kind = ClosureExportTypeClassifier_Kind(0)
 	_ = kind
 	if (info.value != 0) || (info.jsdoc != nil) {
-		kind = this_.priv_ClosureExportTypeClassifier_kindOfValue_1173(info.value, info.jsdoc, depth)
+		kind = this_.priv_ClosureExportTypeClassifier_kindOfValue_1174(info.value, info.jsdoc, depth)
 	} else {
 		if info.isGoogModuleExports {
 			kind = StaticGet_ClosureExportTypeClassifier_Kind_EMPTY_OBJECT()
@@ -308,7 +308,7 @@ func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_kindO
 }
 
 // Java method: ClosureExportTypeClassifier.kindOfValue(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node value, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo jsdoc, int depth)
-func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_kindOfValue_1173(value pkg_rhino.Node, jsdoc *pkg_rhino.JSDocInfo, depth int32) ClosureExportTypeClassifier_Kind {
+func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_kindOfValue_1174(value pkg_rhino.Node, jsdoc *pkg_rhino.JSDocInfo, depth int32) ClosureExportTypeClassifier_Kind {
 	_ = value
 	_ = jsdoc
 	_ = depth
@@ -345,10 +345,10 @@ func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_kindO
 			if aliased == nil {
 				return StaticGet_ClosureExportTypeClassifier_Kind_NOT_NAMESPACE()
 			}
-			return this_.priv_ClosureExportTypeClassifier_kindOfName_1172(aliased, (depth + int32(1)))
+			return this_.priv_ClosureExportTypeClassifier_kindOfName_1173(aliased, (depth + int32(1)))
 		}()
 	case int32(101) /* Token.CAST */ :
-		return this_.priv_ClosureExportTypeClassifier_kindOfValue_1173(value.GetFirstChild(), value.GetJSDocInfo(), depth)
+		return this_.priv_ClosureExportTypeClassifier_kindOfValue_1174(value.GetFirstChild(), value.GetJSDocInfo(), depth)
 	default:
 		return StaticGet_ClosureExportTypeClassifier_Kind_NOT_NAMESPACE()
 	}

@@ -1395,7 +1395,6 @@ func tryInitImmEnumSingle(obj *Ext_com_google_common_collect_ImmutableSetBase, e
 			tab := new([256]bool)
 			tab[u] = true
 			obj.u8Tab_ = tab
-			obj.u8Bits_[u>>6] = uint64(1) << (u & 63)
 			obj.u8PtrNil_ = reflect.Zero(reflect.PointerTo(rt0)).Interface()
 			obj.hasU8Bits_ = true
 		}
@@ -1412,10 +1411,8 @@ func tryInitImmEnumMulti(obj *Ext_com_google_common_collect_ImmutableSetBase, el
 		if u0 == 0 {
 			return false
 		}
-		var maskBits [4]uint64
 		tab := new([256]bool)
 		tab[u0] = true
-		maskBits[u0>>6] |= uint64(1) << (u0 & 63)
 		for i := 1; i < len(elems); i++ {
 			ei := elems[i]
 			if ei == nil || reflect.TypeOf(ei) != rt0 {
@@ -1426,10 +1423,8 @@ func tryInitImmEnumMulti(obj *Ext_com_google_common_collect_ImmutableSetBase, el
 				return false
 			}
 			tab[u] = true
-			maskBits[u>>6] |= uint64(1) << (u & 63)
 		}
 		obj.u8Tab_ = tab
-		obj.u8Bits_ = maskBits
 		obj.u8PtrNil_ = reflect.Zero(reflect.PointerTo(rt0)).Interface()
 		obj.hasU8Bits_ = true
 		return true
@@ -2040,8 +2035,8 @@ func (b *Ext_com_google_common_collect_ImmutableSetBase) immSetContainsU8Fallbac
 	if b == nil {
 		ThrowNPE()
 	}
-	if b.hasU8Bits_ {
-		return (b.u8Bits_[u>>6] & (uint64(1) << (u & 63))) != 0
+	if b.hasU8Bits_ && b.u8Tab_ != nil {
+		return b.u8Tab_[u]
 	}
 	return false
 }
@@ -2053,7 +2048,7 @@ func (s *Ext_com_google_common_collect_ImmutableSetBase) immSetContains(v any) b
 		}
 		if ea, ok := v.(jEnumOrdAccessor); ok {
 			u := ea.EnumOrdinal_() + 1
-			if u <= 0 || u >= 256 || (s.u8Bits_[uint(u)>>6]&(uint64(1)<<(uint(u)&63))) == 0 {
+			if u <= 0 || u >= 256 || !s.u8Tab_[u] {
 				return false
 			}
 			return reflect.TypeOf(v) == reflect.TypeOf(s.elems_[0])
@@ -2255,7 +2250,7 @@ func immSetEquals(s *Ext_com_google_common_collect_ImmutableSetBase, other any) 
 			return true
 		}
 		if s.hasU8Bits_ && os.hasU8Bits_ {
-			return s.u8PtrNil_ == os.u8PtrNil_ && s.u8Bits_ == os.u8Bits_
+			return s.u8PtrNil_ == os.u8PtrNil_ && len(s.elems_) == len(os.elems_) && *s.u8Tab_ == *os.u8Tab_
 		}
 	}
 	st, ok := other.(Ext_java_util_Set)
@@ -5190,12 +5185,30 @@ func (c *JIterCursor) NextNode() uint32 {
 }
 
 func newJavaSet2(e0, e1 any) Ext_com_google_common_collect_ImmutableSet {
+	if s0, ok0 := e0.(string); ok0 {
+		if s1, ok1 := e1.(string); ok1 {
+			if s0 == NullString || s1 == NullString {
+				ThrowNPE()
+			}
+			if s0 == s1 {
+				panic(javalang.NewIllegalArgumentException("duplicate element"))
+			}
+			return ImmSetOfStr2(s0, s1)
+		}
+	}
 	e0 = CheckNotNull(ToAny(e0))
 	e1 = CheckNotNull(ToAny(e1))
 	if elemJavaEquals(e0, e1, false) {
 		panic(javalang.NewIllegalArgumentException("duplicate element"))
 	}
-	return finishImmSetMulti([]any{e0, e1}, nil)
+	c := &immAnySet2_{}
+	c.buf[0] = e0
+	c.buf[1] = e1
+	c.set.elems_ = c.buf[:2:2]
+	c.set.u8Tab_ = &emptyU8Tab_
+	c.set.BindExtSelf_(&c.set)
+	tryInitImmEnumMulti(&c.set, c.set.elems_)
+	return &c.set
 }
 
 func immSetFromCheckedSlice(dupThrows bool, items []any) Ext_com_google_common_collect_ImmutableSet {
@@ -5208,8 +5221,12 @@ func immSetFromCheckedSlice(dupThrows bool, items []any) Ext_com_google_common_c
 	if len(items) <= 8 {
 		var buf [8]any
 		n := 0
+		allStr := true
 		for _, raw := range items {
 			v := CheckNotNull(ToAny(raw))
+			if _, ok := v.(string); !ok {
+				allStr = false
+			}
 			dup := false
 			for j := 0; j < n; j++ {
 				if elemJavaEquals(buf[j], v, false) {
@@ -5228,9 +5245,14 @@ func immSetFromCheckedSlice(dupThrows bool, items []any) Ext_com_google_common_c
 		if n == 1 {
 			return newImmSet1(buf[0])
 		}
-		elems := make([]any, n)
-		copy(elems, buf[:n])
-		return finishImmSetMulti(elems, nil)
+		if allStr {
+			var sbuf [8]string
+			for i := 0; i < n; i++ {
+				sbuf[i] = buf[i].(string)
+			}
+			return finishImmStrSetSmall(sbuf[:n])
+		}
+		return finishImmSetSmall(buf[:n])
 	}
 	sc := &JSetCore{}
 	sc.InitExpectedSize(int32(len(items)))
@@ -5338,9 +5360,7 @@ func immSetFromStrSlice(dupThrows bool, src []string) Ext_com_google_common_coll
 		if n == 1 {
 			return ImmSetOfStr1(buf[0])
 		}
-		strs := make([]string, n)
-		copy(strs, buf[:n])
-		return finishImmStrSetOwn(strs, nil)
+		return finishImmStrSetSmall(buf[:n])
 	}
 	sc := &JSetCore{}
 	sc.InitExpectedSize(int32(len(src)))
@@ -5502,9 +5522,42 @@ func immSetFromSetCoreCopyChecked(src *JSetCore) Ext_com_google_common_collect_I
 	if src == nil || src.Size() == 0 {
 		return emptyImmutableSet_
 	}
+	n := int(src.Size())
 	if src.mode == jSetModeStr {
 		st := src.ext.(*jSetStrState)
-		strs := make([]string, 0, src.Size())
+		if n == 1 {
+			for i := int(src.firstIdx); i < len(st.strs); i++ {
+				s := st.strs[i]
+				if s == jTombstoneStr {
+					continue
+				}
+				if s == NullString {
+					ThrowNPE()
+				}
+				return ImmSetOfStr1(s)
+			}
+			return emptyImmutableSet_
+		}
+		if n <= 8 {
+			var sbuf [8]string
+			w := 0
+			for i := int(src.firstIdx); i < len(st.strs); i++ {
+				s := st.strs[i]
+				if s == jTombstoneStr {
+					continue
+				}
+				if s == NullString {
+					ThrowNPE()
+				}
+				sbuf[w] = s
+				w++
+			}
+			if w == 1 {
+				return ImmSetOfStr1(sbuf[0])
+			}
+			return finishImmStrSetSmall(sbuf[:w])
+		}
+		strs := make([]string, 0, n)
 		for i := int(src.firstIdx); i < len(st.strs); i++ {
 			s := st.strs[i]
 			if s == jTombstoneStr {
@@ -5520,23 +5573,28 @@ func immSetFromSetCoreCopyChecked(src *JSetCore) Ext_com_google_common_collect_I
 		}
 		return finishImmStrSetOwn(strs, nil)
 	}
-	if src.Size() == 1 {
+	if n == 1 {
 		return newImmSet1(src.FirstKey())
 	}
-	if src.Size() <= 8 {
-		elems := src.LiveKeys()
-		for _, v := range elems {
-			CheckNotNull(v)
+	if n <= 8 {
+		var buf [8]any
+		w := 0
+		src.ForEach(func(k any) bool {
+			buf[w] = CheckNotNull(k)
+			w++
+			return true
+		})
+		if w == 1 {
+			return newImmSet1(buf[0])
 		}
-		return finishImmSetMulti(elems, nil)
+		return finishImmSetSmall(buf[:w])
 	}
-	sc := &JSetCore{}
-	sc.InitExpectedSize(src.Size())
+	elems := make([]any, 0, n)
 	src.ForEach(func(k any) bool {
-		sc.Add(CheckNotNull(k))
+		elems = append(elems, CheckNotNull(k))
 		return true
 	})
-	return wrapImmutableSetFromSetCoreOwn(sc)
+	return finishImmSetMulti(elems, nil)
 }
 
 func immSetFromSetCoreCopy(src *JSetCore) Ext_com_google_common_collect_ImmutableSet {
@@ -8251,6 +8309,49 @@ func biMapOp_putIfAbsent_2(b *jBiMapCore, k, v any) any {
 	}
 	return biMapOp_put_2(b, k, v)
 }
+func biMapPutStr(b *jBiMapCore, k string, v any) any {
+	if b.immutable {
+		panic(javalang.NewUnsupportedOperationException("immutable"))
+	}
+	v = ToAny(v)
+	if b.fwd.ContainsStr(k) && javalang.ObjectsEquals(b.fwd.GetStr(k), v) {
+		return v
+	}
+	if b.rev.ContainsKey(v) {
+		panic(javalang.NewIllegalArgumentException("value already present: " + StrVal(v)))
+	}
+	if b.fwd.ContainsStr(k) {
+		oldV := b.fwd.GetStr(k)
+		if os, ok := oldV.(string); ok {
+			b.rev.RemoveStr(os)
+		} else {
+			b.rev.Remove(oldV)
+		}
+	}
+	old := b.fwd.PutStr(k, v)
+	bk := BoxString(k)
+	if vs, ok := v.(string); ok {
+		b.rev.PutStr(vs, bk)
+	} else {
+		b.rev.Put(v, bk)
+	}
+	return old
+}
+func biMapRemoveStr(b *jBiMapCore, k string) any {
+	if b.immutable {
+		panic(javalang.NewUnsupportedOperationException("immutable"))
+	}
+	if !b.fwd.ContainsStr(k) {
+		return nil
+	}
+	oldV := b.fwd.RemoveStr(k)
+	if os, ok := oldV.(string); ok {
+		b.rev.RemoveStr(os)
+	} else {
+		b.rev.Remove(oldV)
+	}
+	return oldV
+}
 func biMapOp_remove_1(b *jBiMapCore, k any) any {
 	if b.immutable {
 		panic(javalang.NewUnsupportedOperationException("immutable"))
@@ -9189,6 +9290,63 @@ func (s *jMultimapLiveSet) Contains(v any) bool {
 	b := s.getBucket()
 	return b != nil && b.(*JMapCore).ContainsKey(v)
 }
+func (s *jMultimapLiveSet) SetContainsStr_(k string) bool {
+	b := s.getBucket()
+	return b != nil && b.(*JMapCore).ContainsStr(k)
+}
+func (s *jMultimapLiveSet) SetAddStr_(k string) bool {
+	if s.mm.immutable {
+		panic(javalang.NewUnsupportedOperationException("immutable"))
+	}
+	b := s.getBucket()
+	if b == nil {
+		sm := s.mm.newBucket().(*JMapCore)
+		sm.PutStr(k, true)
+		switch s.keyKind {
+		case 1:
+			s.mm.keys.PutStr(s.strKey, sm)
+		case 2:
+			s.mm.keys.PutNode(s.nodeKey, sm)
+		default:
+			s.mm.keys.Put(s.key, sm)
+		}
+		s.mm.total++
+		return true
+	}
+	sm := b.(*JMapCore)
+	if sm.ContainsStr(k) {
+		return false
+	}
+	sm.PutStr(k, true)
+	s.mm.total++
+	return true
+}
+func (s *jMultimapLiveSet) SetRemoveStr_(k string) bool {
+	if s.mm.immutable {
+		panic(javalang.NewUnsupportedOperationException("immutable"))
+	}
+	b := s.getBucket()
+	if b == nil {
+		return false
+	}
+	sm := b.(*JMapCore)
+	if !sm.ContainsStr(k) {
+		return false
+	}
+	sm.RemoveStr(k)
+	s.mm.total--
+	if sm.IsEmpty() {
+		switch s.keyKind {
+		case 1:
+			s.mm.keys.RemoveStr(s.strKey)
+		case 2:
+			s.mm.keys.RemoveNode(s.nodeKey)
+		default:
+			s.mm.keys.Remove(s.key)
+		}
+	}
+	return true
+}
 func (s *jMultimapLiveSet) Add_1(v any) bool        { return s.putVal(v) }
 func (s *jMultimapLiveSet) Remove_1_any(v any) bool { return s.remVal(v) }
 func (s *jMultimapLiveSet) Clear() {
@@ -9293,9 +9451,20 @@ type jMultimapLiveKeySet struct {
 	mm *jMultimapCore
 }
 
-func (s *jMultimapLiveKeySet) Size() int32         { return s.mm.keys.Size() }
-func (s *jMultimapLiveKeySet) Contains(k any) bool { return s.mm.keys.ContainsKey(k) }
-func (s *jMultimapLiveKeySet) Clear()              { multimapOp_clear_0(s.mm) }
+func (s *jMultimapLiveKeySet) Size() int32                   { return s.mm.keys.Size() }
+func (s *jMultimapLiveKeySet) Contains(k any) bool           { return s.mm.keys.ContainsKey(k) }
+func (s *jMultimapLiveKeySet) SetContainsStr_(k string) bool { return s.mm.keys.ContainsStr(k) }
+func (s *jMultimapLiveKeySet) SetAddStr_(_ string) bool {
+	panic(javalang.NewUnsupportedOperationException("keySet.add"))
+}
+func (s *jMultimapLiveKeySet) SetRemoveStr_(k string) bool {
+	if !s.mm.keys.ContainsStr(k) {
+		return false
+	}
+	_ = s.mm.removeAllStr(k)
+	return true
+}
+func (s *jMultimapLiveKeySet) Clear() { multimapOp_clear_0(s.mm) }
 func (s *jMultimapLiveKeySet) Remove_1_any(k any) bool {
 	if !s.mm.keys.ContainsKey(k) {
 		return false
@@ -9342,6 +9511,28 @@ type jMultimapAsMap struct {
 
 func (m *jMultimapAsMap) Size() int32            { return m.mm.keys.Size() }
 func (m *jMultimapAsMap) ContainsKey(k any) bool { return m.mm.keys.ContainsKey(k) }
+func (m *jMultimapAsMap) MapGetStr_(k string) any {
+	if !m.mm.keys.ContainsStr(k) {
+		return nil
+	}
+	return m.mm.getStr(k)
+}
+func (m *jMultimapAsMap) MapGetOrDefaultStr_(k string, def any) any {
+	if !m.mm.keys.ContainsStr(k) {
+		return ToAny(def)
+	}
+	return m.mm.getStr(k)
+}
+func (m *jMultimapAsMap) MapContainsStr_(k string) bool { return m.mm.keys.ContainsStr(k) }
+func (m *jMultimapAsMap) MapPutStr_(_ string, _ any) any {
+	panic(javalang.NewUnsupportedOperationException("asMap.put"))
+}
+func (m *jMultimapAsMap) MapRemoveStr_(k string) any {
+	if !m.mm.keys.ContainsStr(k) {
+		return nil
+	}
+	return m.mm.removeAllStr(k)
+}
 func (m *jMultimapAsMap) Get(k any) any {
 	if !m.mm.keys.ContainsKey(k) {
 		return nil
@@ -10893,6 +11084,69 @@ func (m *jTableRowMap) containsKeyImpl(c any) bool {
 		return javalang.ObjectsEquals(e.col0, c)
 	}
 	return e.multi != nil && e.multi.ContainsKey(c)
+}
+func (m *jTableRowMap) MapContainsStr_(c string) bool {
+	if m == nil {
+		ThrowNPE()
+	}
+	if c == NullString {
+		return false
+	}
+	e, _ := m.resolveEntry()
+	if e == nil {
+		return false
+	}
+	if e.hasSingle {
+		cs, ok := e.col0.(string)
+		return ok && cs == c
+	}
+	return e.multi != nil && e.multi.ContainsStr(c)
+}
+func (m *jTableRowMap) MapGetStr_(c string) any {
+	if m == nil {
+		ThrowNPE()
+	}
+	if c == NullString {
+		return nil
+	}
+	e, _ := m.resolveEntry()
+	if e == nil {
+		return nil
+	}
+	if e.hasSingle {
+		if cs, ok := e.col0.(string); ok && cs == c {
+			return e.val0
+		}
+		return nil
+	}
+	if e.multi != nil {
+		return e.multi.GetStr(c)
+	}
+	return nil
+}
+func (m *jTableRowMap) MapGetOrDefaultStr_(c string, def any) any {
+	if v := m.MapGetStr_(c); v != nil {
+		return v
+	}
+	return ToAny(def)
+}
+func (m *jTableRowMap) MapPutStr_(c string, v any) any {
+	if m == nil {
+		ThrowNPE()
+	}
+	return m.putImpl(BoxString(c), v)
+}
+func (m *jTableRowMap) MapRemoveStr_(c string) any {
+	if m == nil {
+		ThrowNPE()
+	}
+	if c == NullString {
+		return nil
+	}
+	if !m.MapContainsStr_(c) {
+		return nil
+	}
+	return m.removeImpl(BoxString(c))
 }
 
 func (m *jTableRowMap) containsValueImpl(v any) bool {

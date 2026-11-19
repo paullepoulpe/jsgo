@@ -34,10 +34,12 @@
 package rhino
 
 import (
+	"sync"
 	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
+	"github.com/paullepoulpe/jsgo/transpiled/shims/nodestore"
 )
 
 // Java class: com.google.javascript.rhino.RhinoStringPool
@@ -97,6 +99,8 @@ func RhinoStringPool_AddOrGet(s string) string {
 // Java class: com.google.javascript.rhino.RhinoStringPool.LazyInternedStringList
 type RhinoStringPool_LazyInternedStringList struct {
 	pool []string `gson:"pool"`
+	ids_ []uint32 `gson:"-"`
+	epoch_ uint64 `gson:"-"`
 	size int32 `gson:"size"`
 	idHash_ atomic.Int32
 }
@@ -120,6 +124,52 @@ func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.RhinoStringPool.LazyInternedStringList", "com.google.javascript.rhino.RhinoStringPool$LazyInternedStringList", func(v_ any) bool {
 		return j2gort.InstanceOf[*RhinoStringPool_LazyInternedStringList](v_)
 	})
+}
+var lazyStringPoolEpochMu_ sync.Mutex
+
+func (this_ *RhinoStringPool_LazyInternedStringList) InternID_(offset int32) nodestore.StringID {
+	return internIDFast_(this_, offset, (*RhinoStringPool_LazyInternedStringList).internIDSlow_)
+}
+
+func internIDFast_(this_ *RhinoStringPool_LazyInternedStringList, offset int32, slow func(*RhinoStringPool_LazyInternedStringList, int32) nodestore.StringID) nodestore.StringID {
+	if this_ != nil {
+		if ids := this_.ids_; uint(offset) < uint(len(ids)) && atomic.LoadUint64(&this_.epoch_) == nodestore.Epoch() {
+			if id := atomic.LoadUint32(&ids[offset]); id != 0 {
+				return nodestore.StringID(id)
+			}
+		}
+	}
+	return slow(this_, offset)
+}
+
+//go:noinline
+func (this_ *RhinoStringPool_LazyInternedStringList) internIDSlow_(offset int32) nodestore.StringID {
+	if this_ == nil {
+		j2gort.ThrowNPE()
+	}
+	if offset < 0 || offset >= this_.size {
+		_ = this_.Get(offset)
+	}
+	ep := nodestore.Epoch()
+	if atomic.LoadUint64(&this_.epoch_) != ep {
+		lazyStringPoolEpochMu_.Lock()
+		if ep = nodestore.Epoch(); atomic.LoadUint64(&this_.epoch_) != ep {
+			for i := range this_.ids_ {
+				atomic.StoreUint32(&this_.ids_[i], 0)
+			}
+			atomic.StoreUint64(&this_.epoch_, ep)
+		}
+		lazyStringPoolEpochMu_.Unlock()
+	}
+	s := this_.pool[offset]
+	if s == j2gort.NullString {
+		return 0
+	}
+	id := nodestore.Intern(s)
+	if int(offset) < len(this_.ids_) {
+		atomic.StoreUint32(&this_.ids_[offset], uint32(id))
+	}
+	return id
 }
 
 func (this_ *RhinoStringPool_LazyInternedStringList) initFields_RhinoStringPool_LazyInternedStringList() {
@@ -149,6 +199,10 @@ func InitRhinoStringPool_LazyInternedStringList_1(this_ *RhinoStringPool_LazyInt
 	}
 	this_.pool = copy_
 	this_.size = n
+	if this_.size > 0 {
+		this_.ids_ = make([]uint32, int(this_.size))
+		atomic.StoreUint64(&this_.epoch_, nodestore.Epoch())
+	}
 }
 
 // Java constructor: LazyInternedStringList(java.lang.String[] trustedArray, int size)
@@ -164,6 +218,10 @@ func InitRhinoStringPool_LazyInternedStringList_2(this_ *RhinoStringPool_LazyInt
 	this_.initFields_RhinoStringPool_LazyInternedStringList()
 	this_.pool = trustedArray
 	this_.size = size
+	if this_.size > 0 {
+		this_.ids_ = make([]uint32, int(this_.size))
+		atomic.StoreUint64(&this_.epoch_, nodestore.Epoch())
+	}
 }
 
 // Java method: LazyInternedStringList.size()

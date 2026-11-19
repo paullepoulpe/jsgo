@@ -164,7 +164,7 @@ func InitJSChunkGraph_1_Ext_java_util_List(this_ *JSChunkGraph, chunksInDepOrder
 	if !(!(chunksInDepOrder.IsEmpty())) {
 		j2gort.CheckState(false)
 	}
-	chunksInDepOrder = this_.priv_JSChunkGraph_makeWeakChunk_3520(chunksInDepOrder)
+	chunksInDepOrder = this_.priv_JSChunkGraph_makeWeakChunk_3526(chunksInDepOrder)
 	this_.chunks = make([]*JSChunk, chunksInDepOrder.Size())
 	{
 		var chunkIndex int32 = int32(0)
@@ -183,14 +183,14 @@ func InitJSChunkGraph_1_Ext_java_util_List(this_ *JSChunkGraph, chunksInDepOrder
 			}
 		}
 	}
-	this_.chunksByDepth = this_.priv_JSChunkGraph_initChunksByDepth_3519()
-	this_.selfPlusTransitiveDeps = this_.priv_JSChunkGraph_initTransitiveDepsBitSets_3521()
-	this_.subtreeSize = this_.priv_JSChunkGraph_initSubtreeSize_3522()
+	this_.chunksByDepth = this_.priv_JSChunkGraph_initChunksByDepth_3525()
+	this_.selfPlusTransitiveDeps = this_.priv_JSChunkGraph_initTransitiveDepsBitSets_3527()
+	this_.subtreeSize = this_.priv_JSChunkGraph_initSubtreeSize_3528()
 	JSChunkGraph_MoveMarkedWeakSources(this_.GetChunkByName("$weak$"), this_.GetAllInputs())
 }
 
 // Java method: JSChunkGraph.initChunksByDepth()
-func (this_ *JSChunkGraph) priv_JSChunkGraph_initChunksByDepth_3519() j2gort.Ext_java_util_List {
+func (this_ *JSChunkGraph) priv_JSChunkGraph_initChunksByDepth_3525() j2gort.Ext_java_util_List {
 	var tmpChunksByDepth []j2gort.Ext_java_util_List = []j2gort.Ext_java_util_List{}
 	_ = tmpChunksByDepth
 	{
@@ -229,7 +229,7 @@ func (this_ *JSChunkGraph) priv_JSChunkGraph_initChunksByDepth_3519() j2gort.Ext
 }
 
 // Java method: JSChunkGraph.makeWeakChunk(java.util.List<com.google.javascript.jscomp.JSChunk> chunksInDepOrder)
-func (this_ *JSChunkGraph) priv_JSChunkGraph_makeWeakChunk_3520(chunksInDepOrder j2gort.Ext_java_util_List) j2gort.Ext_java_util_List {
+func (this_ *JSChunkGraph) priv_JSChunkGraph_makeWeakChunk_3526(chunksInDepOrder j2gort.Ext_java_util_List) j2gort.Ext_java_util_List {
 	_ = chunksInDepOrder
 	var hasWeakChunk bool = false
 	_ = hasWeakChunk
@@ -328,7 +328,7 @@ func (this_ *JSChunkGraph) priv_JSChunkGraph_makeWeakChunk_3520(chunksInDepOrder
 }
 
 // Java method: JSChunkGraph.initTransitiveDepsBitSets()
-func (this_ *JSChunkGraph) priv_JSChunkGraph_initTransitiveDepsBitSets_3521() []*j2gort.Ext_java_util_BitSet {
+func (this_ *JSChunkGraph) priv_JSChunkGraph_initTransitiveDepsBitSets_3527() []*j2gort.Ext_java_util_BitSet {
 	var array []*j2gort.Ext_java_util_BitSet = make([]*j2gort.Ext_java_util_BitSet, int32(len(this_.chunks)))
 	_ = array
 	{
@@ -360,7 +360,7 @@ func (this_ *JSChunkGraph) priv_JSChunkGraph_initTransitiveDepsBitSets_3521() []
 }
 
 // Java method: JSChunkGraph.initSubtreeSize()
-func (this_ *JSChunkGraph) priv_JSChunkGraph_initSubtreeSize_3522() []int32 {
+func (this_ *JSChunkGraph) priv_JSChunkGraph_initSubtreeSize_3528() []int32 {
 	var subtreeSize []int32 = make([]int32, int32(len(this_.chunks)))
 	_ = subtreeSize
 	{
@@ -631,11 +631,11 @@ func (this_ *JSChunkGraph) GetDeepestCommonDependencyInclusive_1(chunks j2gort.E
 // Java method: JSChunkGraph.getTransitiveDepsDeepestFirst(com.google.javascript.jscomp.JSChunk m)
 func (this_ *JSChunkGraph) GetTransitiveDepsDeepestFirst(m *JSChunk) j2gort.Ext_java_util_List {
 	_ = m
-	return StaticGet_JSChunkGraph_InverseDepthComparator_INSTANCE().SortedCopy(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.priv_JSChunkGraph_getTransitiveDeps_3538(m)))
+	return StaticGet_JSChunkGraph_InverseDepthComparator_INSTANCE().SortedCopy(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.priv_JSChunkGraph_getTransitiveDeps_3544(m)))
 }
 
 // Java method: JSChunkGraph.getTransitiveDeps(com.google.javascript.jscomp.JSChunk m)
-func (this_ *JSChunkGraph) priv_JSChunkGraph_getTransitiveDeps_3538(m *JSChunk) j2gort.Ext_java_util_Set {
+func (this_ *JSChunkGraph) priv_JSChunkGraph_getTransitiveDeps_3544(m *JSChunk) j2gort.Ext_java_util_Set {
 	_ = m
 	return this_.dependencyMap.ComputeIfAbsent(m, lambdaSingleton_js_chunk_graph_2)
 }
@@ -678,7 +678,7 @@ func (this_ *JSChunkGraph) ManageDependencies(compiler AbstractCompiler, depende
 	InitSortedDependencies(&val_46, j2gort.ImmListFromTypedSlice(originalInputs))
 	var sorter *SortedDependencies = &val_46
 	_ = sorter
-	var entryPointInputs j2gort.OrderedSet[*CompilerInput] = this_.priv_JSChunkGraph_createEntryPointInputs_3541(compiler, dependencyOptions, this_.GetAllInputs(), sorter)
+	var entryPointInputs j2gort.OrderedSet[*CompilerInput] = this_.priv_JSChunkGraph_createEntryPointInputs_3547(compiler, dependencyOptions, this_.GetAllInputs(), sorter)
 	_ = entryPointInputs
 	var inputsByProvide j2gort.OrderedMap[string, *j2gort.Ext_java_util_LinkedHashSet] = j2gort.NewOrderedMap[string, *j2gort.Ext_java_util_LinkedHashSet]()
 	_ = inputsByProvide
@@ -811,7 +811,7 @@ func (this_ *JSChunkGraph) ManageDependencies(compiler AbstractCompiler, depende
 					rawElem_66 := cur_65.Next()
 					entryPoint := j2gort.CastPtr[CompilerInput](rawElem_66)
 					_ = entryPoint
-					transitiveClosure.AddAll_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.priv_JSChunkGraph_getDepthFirstDependenciesOf_3540(entryPoint, &inputsNotYetReached, &inputsByProvide)))
+					transitiveClosure.AddAll_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.priv_JSChunkGraph_getDepthFirstDependenciesOf_3546(entryPoint, &inputsNotYetReached, &inputsByProvide)))
 				}
 			}
 			{
@@ -890,7 +890,7 @@ func (this_ *JSChunkGraph) ManageDependencies(compiler AbstractCompiler, depende
 }
 
 // Java method: JSChunkGraph.getDepthFirstDependenciesOf(com.google.javascript.jscomp.CompilerInput rootInput, java.util.LinkedHashSet<com.google.javascript.jscomp.CompilerInput> unreachedInputs, java.util.LinkedHashMap<java.lang.String,java.util.LinkedHashSet<com.google.javascript.jscomp.CompilerInput>> inputsByProvide)
-func (this_ *JSChunkGraph) priv_JSChunkGraph_getDepthFirstDependenciesOf_3540(rootInput *CompilerInput, unreachedInputs *j2gort.OrderedSet[*CompilerInput], inputsByProvide *j2gort.OrderedMap[string, *j2gort.Ext_java_util_LinkedHashSet]) j2gort.Ext_java_util_List {
+func (this_ *JSChunkGraph) priv_JSChunkGraph_getDepthFirstDependenciesOf_3546(rootInput *CompilerInput, unreachedInputs *j2gort.OrderedSet[*CompilerInput], inputsByProvide *j2gort.OrderedMap[string, *j2gort.Ext_java_util_LinkedHashSet]) j2gort.Ext_java_util_List {
 	_ = rootInput
 	_ = unreachedInputs
 	_ = inputsByProvide
@@ -917,7 +917,7 @@ func (this_ *JSChunkGraph) priv_JSChunkGraph_getDepthFirstDependenciesOf_3540(ro
 						input := j2gort.CastPtr[CompilerInput](rawElem_76)
 						_ = input
 						if j2gort.CheckNotNullPtr(unreachedInputs).Contains(input) {
-							orderedInputs = j2gort.AppendCollection[*CompilerInput](orderedInputs, j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.priv_JSChunkGraph_getDepthFirstDependenciesOf_3540(input, unreachedInputs, inputsByProvide)))
+							orderedInputs = j2gort.AppendCollection[*CompilerInput](orderedInputs, j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.priv_JSChunkGraph_getDepthFirstDependenciesOf_3546(input, unreachedInputs, inputsByProvide)))
 						}
 					}
 				}
@@ -929,7 +929,7 @@ func (this_ *JSChunkGraph) priv_JSChunkGraph_getDepthFirstDependenciesOf_3540(ro
 }
 
 // Java method: JSChunkGraph.createEntryPointInputs(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.DependencyOptions dependencyOptions, java.lang.Iterable<com.google.javascript.jscomp.CompilerInput> inputs, com.google.javascript.jscomp.deps.SortedDependencies<com.google.javascript.jscomp.CompilerInput> sorter)
-func (this_ *JSChunkGraph) priv_JSChunkGraph_createEntryPointInputs_3541(compiler AbstractCompiler, dependencyOptions *DependencyOptions, inputs j2gort.Ext_java_lang_Iterable, sorter *SortedDependencies) j2gort.OrderedSet[*CompilerInput] {
+func (this_ *JSChunkGraph) priv_JSChunkGraph_createEntryPointInputs_3547(compiler AbstractCompiler, dependencyOptions *DependencyOptions, inputs j2gort.Ext_java_lang_Iterable, sorter *SortedDependencies) j2gort.OrderedSet[*CompilerInput] {
 	_ = compiler
 	_ = dependencyOptions
 	_ = inputs

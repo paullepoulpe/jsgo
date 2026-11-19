@@ -402,7 +402,7 @@ func (this_ *CompilerInput) AddRequire(require *DependencyInfo_Require) {
 // Java method: CompilerInput.getDependencyInfo()
 func (this_ *CompilerInput) GetDependencyInfo() DependencyInfo {
 	if this_.dependencyInfo == nil || this_.dependencyInfo.IsJavaNil_() {
-		this_.dependencyInfo = this_.priv_CompilerInput_generateDependencyInfo_1622()
+		this_.dependencyInfo = this_.priv_CompilerInput_generateDependencyInfo_1625()
 	}
 	if !(this_.extraRequires.IsEmpty()) || !(this_.extraProvides.IsEmpty()) {
 		this_.dependencyInfo = j2gort.AsIface[DependencyInfo](SimpleDependencyInfo_S_Builder(this_.GetName(), this_.GetName()).SetProvides_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](CompilerInput_Concat(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.dependencyInfo.GetProvides()), j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.extraProvides)))).SetRequires_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](CompilerInput_Concat(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.dependencyInfo.GetRequires()), j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.extraRequires)))).SetTypeRequires_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.dependencyInfo.GetTypeRequires())).SetLoadFlags(j2gort.AsIface[j2gort.Ext_java_util_Map](this_.dependencyInfo.GetLoadFlags())).SetHasExternsAnnotation(this_.dependencyInfo.GetHasExternsAnnotation()).SetHasNoCompileAnnotation(this_.dependencyInfo.GetHasNoCompileAnnotation()).Build())
@@ -413,7 +413,7 @@ func (this_ *CompilerInput) GetDependencyInfo() DependencyInfo {
 }
 
 // Java method: CompilerInput.generateDependencyInfo()
-func (this_ *CompilerInput) priv_CompilerInput_generateDependencyInfo_1622() DependencyInfo {
+func (this_ *CompilerInput) priv_CompilerInput_generateDependencyInfo_1625() DependencyInfo {
 	j2gort.CheckNotNullIface(this_.compiler)
 	j2gort.CheckNotNullIface(this_.compiler.GetErrorManager())
 	if JsFileRegexParser_IsSupported() && this_.compiler.PreferRegexParser() {
@@ -907,7 +907,7 @@ func InitCompilerInput_JsAst(this_ *CompilerInput_JsAst) {
 // Java method: JsAst.getAstRoot(com.google.javascript.jscomp.AbstractCompiler compiler)
 func (this_ *CompilerInput_JsAst) GetAstRoot(compiler AbstractCompiler) pkg_rhino.Node {
 	_ = compiler
-	if this_.priv_JsAst_isParsed_1641() {
+	if this_.priv_JsAst_isParsed_1644() {
 		return this_.root
 	}
 	var astRootSource j2gort.Ext_java_util_function_Supplier = compiler.GetTypedAstDeserializer(this_.outer_.sourceFile)
@@ -916,7 +916,7 @@ func (this_ *CompilerInput_JsAst) GetAstRoot(compiler AbstractCompiler) pkg_rhin
 		this_.root = j2gort.CastNode[pkg_rhino.Node](astRootSource.Get())
 		this_.features = j2gort.CastPtr[pkg_parser.FeatureSet](this_.root.GetFeatureSet())
 	} else {
-		this_.priv_JsAst_parse_1642(compiler)
+		this_.priv_JsAst_parse_1645(compiler)
 	}
 	if !(j2gort.IfaceEquals[pkg_rhino.StaticSourceFile](this_.root.GetStaticSourceFile(), this_.outer_.sourceFile)) {
 		j2gort.CheckState(false)
@@ -933,12 +933,12 @@ func (this_ *CompilerInput_JsAst) ClearAst() {
 }
 
 // Java method: JsAst.isParsed()
-func (this_ *CompilerInput_JsAst) priv_JsAst_isParsed_1641() bool {
+func (this_ *CompilerInput_JsAst) priv_JsAst_isParsed_1644() bool {
 	return (this_.root != 0)
 }
 
 // Java method: JsAst.parse(com.google.javascript.jscomp.AbstractCompiler compiler)
-func (this_ *CompilerInput_JsAst) priv_JsAst_parse_1642(compiler AbstractCompiler) {
+func (this_ *CompilerInput_JsAst) priv_JsAst_parse_1645(compiler AbstractCompiler) {
 	_ = compiler
 	func() {
 		defer func() {

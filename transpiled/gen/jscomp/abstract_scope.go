@@ -184,7 +184,7 @@ func (this_ *AbstractScopeBase) GetRootNode_0() pkg_rhino.Node {
 
 // Java method: AbstractScope.getGlobalScope()
 func (this_ *AbstractScopeBase) GetGlobalScope() AbstractScope {
-	var result AbstractScope = this_.priv_AbstractScope_thisScope_490()
+	var result AbstractScope = this_.priv_AbstractScope_thisScope_491()
 	_ = result
 	for !(j2gort.IfaceEquals[AbstractScope](j2gort.AsIface[AbstractScope](result.GetParent()), nil)) {
 		result = j2gort.AsIface[AbstractScope](result.GetParent())
@@ -388,7 +388,7 @@ func (this_ *AbstractScopeBase) GetVar(name string) any {
 	var implicit AbstractScope_ImplicitVar = AbstractScope_ImplicitVar_Of(name)
 	_ = implicit
 	{
-		var scope AbstractScope = this_.priv_AbstractScope_thisScope_490()
+		var scope AbstractScope = this_.priv_AbstractScope_thisScope_491()
 		_ = scope
 		for ; scope != nil && !scope.IsJavaNil_(); scope = j2gort.AsIface[AbstractScope](scope.GetParent()) {
 			var var_ AbstractVar = j2gort.AsIface[AbstractVar](scope.GetOwnDeclaredVar(name))
@@ -410,7 +410,7 @@ func (this_ *AbstractScopeBase) GetVar(name string) any {
 // Java method: AbstractScope.getArgumentsVar()
 func (this_ *AbstractScopeBase) GetArgumentsVar() AbstractVar {
 	{
-		var scope AbstractScope = this_.priv_AbstractScope_thisScope_490()
+		var scope AbstractScope = this_.priv_AbstractScope_thisScope_491()
 		_ = scope
 		for ; scope != nil && !scope.IsJavaNil_(); scope = j2gort.AsIface[AbstractScope](scope.GetParent()) {
 			var arguments AbstractVar = scope.GetOwnImplicitSlot(StaticGet_AbstractScope_ImplicitVar_ARGUMENTS())
@@ -426,11 +426,11 @@ func (this_ *AbstractScopeBase) GetArgumentsVar() AbstractVar {
 // Java method: AbstractScope.canDeclare(java.lang.String name)
 func (this_ *AbstractScopeBase) CanDeclare(name string) bool {
 	_ = name
-	return (!(this_.HasOwnSlot(name)) && ((!(this_.IsFunctionBlockScope()) || !(j2gort.AsIface[AbstractScope](this_.self_.GetParent()).HasOwnSlot(name))) || this_.priv_AbstractScope_isBleedingFunctionName_467(name)))
+	return (!(this_.HasOwnSlot(name)) && ((!(this_.IsFunctionBlockScope()) || !(j2gort.AsIface[AbstractScope](this_.self_.GetParent()).HasOwnSlot(name))) || this_.priv_AbstractScope_isBleedingFunctionName_468(name)))
 }
 
 // Java method: AbstractScope.isBleedingFunctionName(java.lang.String name)
-func (this_ *AbstractScopeBase) priv_AbstractScope_isBleedingFunctionName_467(name string) bool {
+func (this_ *AbstractScopeBase) priv_AbstractScope_isBleedingFunctionName_468(name string) bool {
 	_ = name
 	var var_ AbstractVar = j2gort.AsIface[AbstractVar](this_.self_.GetVar(name))
 	_ = var_
@@ -545,7 +545,7 @@ func (this_ *AbstractScopeBase) IsHoistScope() bool {
 
 // Java method: AbstractScope.getClosestHoistScope()
 func (this_ *AbstractScopeBase) GetClosestHoistScope() AbstractScope {
-	var current AbstractScope = this_.priv_AbstractScope_thisScope_490()
+	var current AbstractScope = this_.priv_AbstractScope_thisScope_491()
 	_ = current
 	for current != nil && !current.IsJavaNil_() {
 		if current.IsHoistScope() {
@@ -558,7 +558,7 @@ func (this_ *AbstractScopeBase) GetClosestHoistScope() AbstractScope {
 
 // Java method: AbstractScope.getClosestCfgRootScope()
 func (this_ *AbstractScopeBase) GetClosestCfgRootScope() AbstractScope {
-	var current AbstractScope = this_.priv_AbstractScope_thisScope_490()
+	var current AbstractScope = this_.priv_AbstractScope_thisScope_491()
 	_ = current
 	for !(current.IsCfgRootScope()) {
 		current = j2gort.AsIface[AbstractScope](current.GetParent())
@@ -580,7 +580,7 @@ func (this_ *AbstractScopeBase) GetClosestContainerScope() AbstractScope {
 }
 
 // Java method: AbstractScope.thisScope()
-func (this_ *AbstractScopeBase) priv_AbstractScope_thisScope_490() AbstractScope {
+func (this_ *AbstractScopeBase) priv_AbstractScope_thisScope_491() AbstractScope {
 	return this_.self_
 }
 
@@ -606,7 +606,7 @@ func (this_ *AbstractScopeBase) CheckRootScope() {
 // Java method: AbstractScope.getCommonParent(S other)
 func (this_ *AbstractScopeBase) GetCommonParent(other AbstractScope) AbstractScope {
 	_ = other
-	var left AbstractScope = this_.priv_AbstractScope_thisScope_490()
+	var left AbstractScope = this_.priv_AbstractScope_thisScope_491()
 	_ = left
 	var right AbstractScope = other
 	_ = right

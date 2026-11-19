@@ -285,7 +285,7 @@ func (this_ *CheckJSDoc) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) 
 }
 
 // Java method: CheckJSDoc.checkJsDocInBlockComments(java.lang.String fileName)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_checkJsDocInBlockComments_1055(fileName string) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_checkJsDocInBlockComments_1056(fileName string) {
 	_ = fileName
 	if !(this_.compiler.GetOptions().PreservesDetailedSourceInfo()) {
 		return
@@ -311,35 +311,35 @@ func (this_ *CheckJSDoc) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_
 	_ = n
 	_ = parent
 	if n.IsScript() {
-		this_.priv_CheckJSDoc_checkJsDocInBlockComments_1055(n.GetSourceFileName())
+		this_.priv_CheckJSDoc_checkJsDocInBlockComments_1056(n.GetSourceFileName())
 	}
 	var info *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 	_ = info
-	this_.priv_CheckJSDoc_validateTypeAnnotations_1068(n, info)
-	this_.priv_CheckJSDoc_validateFunctionJsDoc_1065(n, info)
-	this_.priv_CheckJSDoc_validateMsgJsDoc_1067(n, info)
-	this_.priv_CheckJSDoc_validateNoCollapse_1064(n, info)
-	this_.priv_CheckJSDoc_validateClassLevelJsDoc_1062(n, info)
-	this_.priv_CheckJSDoc_validateArrowFunction_1071(n)
-	this_.priv_CheckJSDoc_validateRestParameter_1072(n)
-	this_.priv_CheckJSDoc_validateDefaultValue_1073(n)
-	this_.priv_CheckJSDoc_validateTemplates_1058(n, info)
-	this_.priv_CheckJSDoc_validateTypedefs_1057(n, info)
-	this_.priv_CheckJSDoc_validateNoSideEffects_1074(n, info)
-	this_.priv_CheckJSDoc_validateAbstractJsDoc_1063(n, info)
-	this_.priv_CheckJSDoc_validateDefinesDeclaration_1075(n, info)
-	this_.priv_CheckJSDoc_validateSuppress_1056(n, info)
-	this_.priv_CheckJSDoc_validateImplicitCast_1076(n, info)
-	this_.priv_CheckJSDoc_validateClosurePrimitive_1077(n, info)
-	this_.priv_CheckJSDoc_validateReturnJsDoc_1078(n, info)
-	this_.priv_CheckJSDoc_validateTsType_1079(n, info)
-	this_.priv_CheckJSDoc_validateJsDocTypeNames_1080(info)
-	this_.priv_CheckJSDoc_validateIsUsedViaDotConstructor_1081(n, info)
-	this_.priv_CheckJSDoc_validateLegacyNamedTsExport_1082(n, info)
+	this_.priv_CheckJSDoc_validateTypeAnnotations_1069(n, info)
+	this_.priv_CheckJSDoc_validateFunctionJsDoc_1066(n, info)
+	this_.priv_CheckJSDoc_validateMsgJsDoc_1068(n, info)
+	this_.priv_CheckJSDoc_validateNoCollapse_1065(n, info)
+	this_.priv_CheckJSDoc_validateClassLevelJsDoc_1063(n, info)
+	this_.priv_CheckJSDoc_validateArrowFunction_1072(n)
+	this_.priv_CheckJSDoc_validateRestParameter_1073(n)
+	this_.priv_CheckJSDoc_validateDefaultValue_1074(n)
+	this_.priv_CheckJSDoc_validateTemplates_1059(n, info)
+	this_.priv_CheckJSDoc_validateTypedefs_1058(n, info)
+	this_.priv_CheckJSDoc_validateNoSideEffects_1075(n, info)
+	this_.priv_CheckJSDoc_validateAbstractJsDoc_1064(n, info)
+	this_.priv_CheckJSDoc_validateDefinesDeclaration_1076(n, info)
+	this_.priv_CheckJSDoc_validateSuppress_1057(n, info)
+	this_.priv_CheckJSDoc_validateImplicitCast_1077(n, info)
+	this_.priv_CheckJSDoc_validateClosurePrimitive_1078(n, info)
+	this_.priv_CheckJSDoc_validateReturnJsDoc_1079(n, info)
+	this_.priv_CheckJSDoc_validateTsType_1080(n, info)
+	this_.priv_CheckJSDoc_validateJsDocTypeNames_1081(info)
+	this_.priv_CheckJSDoc_validateIsUsedViaDotConstructor_1082(n, info)
+	this_.priv_CheckJSDoc_validateLegacyNamedTsExport_1083(n, info)
 }
 
 // Java method: CheckJSDoc.validateSuppress(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateSuppress_1056(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateSuppress_1057(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if (info == nil) || info.GetSuppressions().IsEmpty() {
@@ -382,14 +382,14 @@ func CheckJSDoc_ContainsOnlySuppressionFor(jsdoc *pkg_rhino.JSDocInfo, allowedSu
 }
 
 // Java method: CheckJSDoc.validateTypedefs(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateTypedefs_1057(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateTypedefs_1058(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if (info == nil) || !(info.HasTypedefType()) {
 		return
 	}
-	if this_.priv_CheckJSDoc_isClassDecl_1059(n) {
-		this_.priv_CheckJSDoc_reportMisplaced_1069(n, "typedef", "@typedef is not allowed on a class declaration.")
+	if this_.priv_CheckJSDoc_isClassDecl_1060(n) {
+		this_.priv_CheckJSDoc_reportMisplaced_1070(n, "typedef", "@typedef is not allowed on a class declaration.")
 		return
 	}
 	var lvalue pkg_rhino.Node
@@ -400,18 +400,18 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateTypedefs_1057(n pkg_rhino.Node,
 		lvalue = n
 	}
 	if !(lvalue.IsQualifiedName()) {
-		this_.priv_CheckJSDoc_reportMisplaced_1069(n, "typedef", "@typedef is only allowed on qualified name declarations. Did you mean @type?")
+		this_.priv_CheckJSDoc_reportMisplaced_1070(n, "typedef", "@typedef is only allowed on qualified name declarations. Did you mean @type?")
 	} else if CheckJSDoc_IsPrototypeOrInstanceDecl(lvalue) {
-		this_.priv_CheckJSDoc_reportMisplaced_1069(n, "typedef", "@typedef is not allowed on instance or prototype properties. Did you mean @type?")
+		this_.priv_CheckJSDoc_reportMisplaced_1070(n, "typedef", "@typedef is not allowed on instance or prototype properties. Did you mean @type?")
 	}
 }
 
 // Java method: CheckJSDoc.validateTemplates(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateTemplates_1058(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateTemplates_1059(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
-	if (((((info != nil) && !(info.GetTemplateTypeNames().IsEmpty())) && !(info.IsConstructorOrInterface())) && !(this_.priv_CheckJSDoc_isClassDecl_1059(n))) && !(info.ContainsFunctionDeclaration())) && (CheckJSDoc_GetFunctionDecl(n) == 0) {
-		this_.priv_CheckJSDoc_reportMisplaced_1069(n, "template", "@template is only allowed in class, constructor, interface, function or method declarations")
+	if (((((info != nil) && !(info.GetTemplateTypeNames().IsEmpty())) && !(info.IsConstructorOrInterface())) && !(this_.priv_CheckJSDoc_isClassDecl_1060(n))) && !(info.ContainsFunctionDeclaration())) && (CheckJSDoc_GetFunctionDecl(n) == 0) {
+		this_.priv_CheckJSDoc_reportMisplaced_1070(n, "template", "@template is only allowed in class, constructor, interface, function or method declarations")
 	}
 }
 
@@ -441,19 +441,19 @@ func CheckJSDoc_GetFunctionDecl(n pkg_rhino.Node) pkg_rhino.Node {
 }
 
 // Java method: CheckJSDoc.isClassDecl(com.google.javascript.rhino.Node n)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_isClassDecl_1059(n pkg_rhino.Node) bool {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_isClassDecl_1060(n pkg_rhino.Node) bool {
 	_ = n
-	return (((this_.priv_CheckJSDoc_isClass_1061(n) || (n.IsAssign() && this_.priv_CheckJSDoc_isClass_1061(n.GetLastChild()))) || (NodeUtil_IsNameDeclaration(n) && this_.priv_CheckJSDoc_isNameInitializeWithClass_1060(n.GetFirstChild()))) || this_.priv_CheckJSDoc_isNameInitializeWithClass_1060(n))
+	return (((this_.priv_CheckJSDoc_isClass_1062(n) || (n.IsAssign() && this_.priv_CheckJSDoc_isClass_1062(n.GetLastChild()))) || (NodeUtil_IsNameDeclaration(n) && this_.priv_CheckJSDoc_isNameInitializeWithClass_1061(n.GetFirstChild()))) || this_.priv_CheckJSDoc_isNameInitializeWithClass_1061(n))
 }
 
 // Java method: CheckJSDoc.isNameInitializeWithClass(com.google.javascript.rhino.Node n)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_isNameInitializeWithClass_1060(n pkg_rhino.Node) bool {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_isNameInitializeWithClass_1061(n pkg_rhino.Node) bool {
 	_ = n
-	return ((((n != 0) && n.IsName()) && n.HasChildren()) && this_.priv_CheckJSDoc_isClassDecl_1059(n.GetFirstChild()))
+	return ((((n != 0) && n.IsName()) && n.HasChildren()) && this_.priv_CheckJSDoc_isClassDecl_1060(n.GetFirstChild()))
 }
 
 // Java method: CheckJSDoc.isClass(com.google.javascript.rhino.Node n)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_isClass_1061(n pkg_rhino.Node) bool {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_isClass_1062(n pkg_rhino.Node) bool {
 	_ = n
 	return (n.IsClass() || (n.IsCall() && this_.compiler.GetCodingConvention().IsClassFactoryCall(n)))
 }
@@ -474,29 +474,29 @@ func CheckJSDoc_IsPrototypeOrInstanceDecl(n pkg_rhino.Node) bool {
 }
 
 // Java method: CheckJSDoc.validateClassLevelJsDoc(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateClassLevelJsDoc_1062(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateClassLevelJsDoc_1063(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if ((info != nil) && n.IsMemberFunctionDef()) && CheckJSDoc_HasClassLevelJsDoc(info) {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_DISALLOWED_MEMBER_JSDOC(), []string{})
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_DISALLOWED_MEMBER_JSDOC(), []string{})
 	}
 }
 
 // Java method: CheckJSDoc.validateAbstractJsDoc(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateAbstractJsDoc_1063(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateAbstractJsDoc_1064(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if (info == nil) || !(info.IsAbstract()) {
 		return
 	}
-	if this_.priv_CheckJSDoc_isClassDecl_1059(n) {
+	if this_.priv_CheckJSDoc_isClassDecl_1060(n) {
 		return
 	}
 	if n.IsGetProp() {
 		if !(n.GetFirstChild().IsThis() && (info.GetReturnType() != (pkg_rhino.JSTypeExpression{}))) {
-			this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "abstract undeclared methods can only be written as class fields"})
+			this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "abstract undeclared methods can only be written as class fields"})
 		} else if !((n.GetParent().IsExprResult() && n.GetGrandparent().IsBlock()) && n.GetParent().GetGrandparent().IsFunction()) {
-			this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "abstract methods without an initializer must be declared in a constructor function."})
+			this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "abstract methods without an initializer must be declared in a constructor function."})
 			return
 		}
 		return
@@ -504,23 +504,23 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateAbstractJsDoc_1063(n pkg_rhino.
 	var functionNode pkg_rhino.Node = CheckJSDoc_GetFunctionDecl(n)
 	_ = functionNode
 	if functionNode == 0 {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "only functions or non-static methods can be abstract"})
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "only functions or non-static methods can be abstract"})
 		return
 	}
 	if !(info.IsConstructor()) && NodeUtil_GetFunctionBody(functionNode).HasChildren() {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "function with a non-empty body cannot be abstract"})
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "function with a non-empty body cannot be abstract"})
 		return
 	}
 	if NodeUtil_IsEs6ConstructorMemberFunctionDef(n) {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "constructors cannot be abstract"})
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "constructors cannot be abstract"})
 		return
 	}
 	if (((((!(info.IsConstructor()) && !(n.IsMemberFunctionDef())) && !(n.IsStringKey())) && !(n.IsComputedProp())) && !(n.IsGetterDef())) && !(n.IsSetterDef())) && !(NodeUtil_IsPrototypeMethod(functionNode)) {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "only functions or non-static methods can be abstract"})
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "only functions or non-static methods can be abstract"})
 		return
 	}
 	if n.IsStaticMember() {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "static methods cannot be abstract"})
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "static methods cannot be abstract"})
 		return
 	}
 }
@@ -533,18 +533,18 @@ func CheckJSDoc_HasClassLevelJsDoc(info *pkg_rhino.JSDocInfo) bool {
 }
 
 // Java method: CheckJSDoc.validateNoCollapse(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateNoCollapse_1064(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateNoCollapse_1065(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if (info == nil) || !(info.IsNoCollapse()) {
 		return
 	}
 	if n.IsFromExterns() {
-		this_.priv_CheckJSDoc_reportMisplaced_1069(n, "nocollapse", "This JSDoc has no effect in externs.")
+		this_.priv_CheckJSDoc_reportMisplaced_1070(n, "nocollapse", "This JSDoc has no effect in externs.")
 		return
 	}
 	if NodeUtil_IsPrototypePropertyDeclaration(n.GetParent()) || (n.GetParent().IsClassMembers() && !(n.IsStaticMember())) {
-		this_.priv_CheckJSDoc_reportMisplaced_1069(n, "nocollapse", "This JSDoc has no effect on prototype properties and non-static fields.")
+		this_.priv_CheckJSDoc_reportMisplaced_1070(n, "nocollapse", "This JSDoc has no effect on prototype properties and non-static fields.")
 	}
 	if n.IsAssign() {
 		var assignee pkg_rhino.Node = n.GetFirstChild()
@@ -553,26 +553,26 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateNoCollapse_1064(n pkg_rhino.Nod
 			var rootOfQname pkg_rhino.Node = NodeUtil_GetRootOfQualifiedName_1_Node(assignee)
 			_ = rootOfQname
 			if !(rootOfQname.IsName()) {
-				this_.priv_CheckJSDoc_reportMisplaced_1069(n, "nocollapse", "This JSDoc has no effect.")
+				this_.priv_CheckJSDoc_reportMisplaced_1070(n, "nocollapse", "This JSDoc has no effect.")
 			}
 		}
 	}
 }
 
 // Java method: CheckJSDoc.validateFunctionJsDoc(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateFunctionJsDoc_1065(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateFunctionJsDoc_1066(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if info == nil {
 		return
 	}
-	if (info.ContainsFunctionDeclaration() && !(info.HasType())) && !(this_.priv_CheckJSDoc_isJSDocOnFunctionNode_1066(n, info)) {
-		this_.priv_CheckJSDoc_reportMisplaced_1069(n, "function", "This JSDoc is not attached to a function node. Are you missing parentheses?")
+	if (info.ContainsFunctionDeclaration() && !(info.HasType())) && !(this_.priv_CheckJSDoc_isJSDocOnFunctionNode_1067(n, info)) {
+		this_.priv_CheckJSDoc_reportMisplaced_1070(n, "function", "This JSDoc is not attached to a function node. Are you missing parentheses?")
 	}
 }
 
 // Java method: CheckJSDoc.isJSDocOnFunctionNode(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_isJSDocOnFunctionNode_1066(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) bool {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_isJSDocOnFunctionNode_1067(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) bool {
 	_ = n
 	_ = info
 	switch n.TokenSwitchOrd_() {
@@ -588,7 +588,7 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_isJSDocOnFunctionNode_1066(n pkg_rhino.
 		_ = lhs
 		var rhs pkg_rhino.Node = NodeUtil_GetRValueOfLValue(lhs)
 		_ = rhs
-		if ((rhs != 0) && this_.priv_CheckJSDoc_isClass_1061(rhs)) && !(info.IsConstructor()) {
+		if ((rhs != 0) && this_.priv_CheckJSDoc_isClass_1062(rhs)) && !(info.IsConstructor()) {
 			return false
 		}
 		return true
@@ -599,7 +599,7 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_isJSDocOnFunctionNode_1066(n pkg_rhino.
 }
 
 // Java method: CheckJSDoc.validateMsgJsDoc(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateMsgJsDoc_1067(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateMsgJsDoc_1068(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if info == nil {
@@ -622,7 +622,7 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateMsgJsDoc_1067(n pkg_rhino.Node,
 		default:
 		}
 		if !(descOkay) {
-			this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_MISPLACED_MSG_ANNOTATION(), []string{})
+			this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_MSG_ANNOTATION(), []string{})
 		}
 	}
 }
@@ -641,7 +641,7 @@ func CheckJSDoc_IsValidMsgName(nameNode pkg_rhino.Node) bool {
 }
 
 // Java method: CheckJSDoc.validateTypeAnnotations(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateTypeAnnotations_1068(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateTypeAnnotations_1069(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if (info != nil) && info.HasType() {
@@ -669,7 +669,7 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateTypeAnnotations_1068(n pkg_rhin
 		default:
 		}
 		if !(valid) {
-			this_.priv_CheckJSDoc_reportMisplaced_1069(n, "type", "Type annotations are not allowed here. Are you missing parentheses?")
+			this_.priv_CheckJSDoc_reportMisplaced_1070(n, "type", "Type annotations are not allowed here. Are you missing parentheses?")
 		}
 	}
 }
@@ -690,7 +690,7 @@ func CheckJSDoc_IsTypeAnnotationAllowedForName(n pkg_rhino.Node) bool {
 }
 
 // Java method: CheckJSDoc.reportMisplaced(com.google.javascript.rhino.Node n, java.lang.String annotationName, java.lang.String note)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_reportMisplaced_1069(n pkg_rhino.Node, annotationName string, note string) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_reportMisplaced_1070(n pkg_rhino.Node, annotationName string, note string) {
 	_ = n
 	_ = annotationName
 	_ = note
@@ -698,7 +698,7 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_reportMisplaced_1069(n pkg_rhino.Node, 
 }
 
 // Java method: CheckJSDoc.report(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.DiagnosticType type, java.lang.String[] arguments)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_report_1070(n pkg_rhino.Node, type_ *DiagnosticType, arguments []string) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_report_1071(n pkg_rhino.Node, type_ *DiagnosticType, arguments []string) {
 	_ = n
 	_ = type_
 	_ = arguments
@@ -706,19 +706,19 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_report_1070(n pkg_rhino.Node, type_ *Di
 }
 
 // Java method: CheckJSDoc.validateArrowFunction(com.google.javascript.rhino.Node n)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateArrowFunction_1071(n pkg_rhino.Node) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateArrowFunction_1072(n pkg_rhino.Node) {
 	_ = n
 	if n.IsArrowFunction() {
 		var info *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(n)
 		_ = info
 		if (info != nil) && info.IsConstructorOrInterface() {
-			this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_ARROW_FUNCTION_AS_CONSTRUCTOR(), []string{})
+			this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_ARROW_FUNCTION_AS_CONSTRUCTOR(), []string{})
 		}
 	}
 }
 
 // Java method: CheckJSDoc.validateRestParameter(com.google.javascript.rhino.Node restParam)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateRestParameter_1072(restParam pkg_rhino.Node) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateRestParameter_1073(restParam pkg_rhino.Node) {
 	_ = restParam
 	if !(restParam.IsRest()) || !(restParam.GetParent().IsParamList()) {
 		return
@@ -756,7 +756,7 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateRestParameter_1072(restParam pk
 }
 
 // Java method: CheckJSDoc.validateDefaultValue(com.google.javascript.rhino.Node n)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateDefaultValue_1073(n pkg_rhino.Node) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateDefaultValue_1074(n pkg_rhino.Node) {
 	_ = n
 	if n.IsDefaultValue() && n.GetParent().IsParamList() {
 		var targetNode pkg_rhino.Node = n.GetFirstChild()
@@ -774,13 +774,13 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateDefaultValue_1073(n pkg_rhino.N
 		var typeNode pkg_rhino.Node = typeExpr.GetRoot()
 		_ = typeNode
 		if typeNode.RawToken_() != uint8(160) {
-			this_.priv_CheckJSDoc_report_1070(typeNode, StaticGet_CheckJSDoc_DEFAULT_PARAM_MUST_BE_MARKED_OPTIONAL(), []string{})
+			this_.priv_CheckJSDoc_report_1071(typeNode, StaticGet_CheckJSDoc_DEFAULT_PARAM_MUST_BE_MARKED_OPTIONAL(), []string{})
 		}
 	}
 }
 
 // Java method: CheckJSDoc.validateNoSideEffects(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateNoSideEffects_1074(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateNoSideEffects_1075(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if info == nil {
@@ -790,61 +790,61 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateNoSideEffects_1074(n pkg_rhino.
 		return
 	}
 	if info.HasSideEffectsArgumentsAnnotation() || info.ModifiesThis() {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_INVALID_MODIFIES_ANNOTATION(), []string{})
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_INVALID_MODIFIES_ANNOTATION(), []string{})
 	}
 }
 
 // Java method: CheckJSDoc.validateDefinesDeclaration(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateDefinesDeclaration_1075(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateDefinesDeclaration_1076(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if ((info != nil) && info.IsDefine()) && n.IsLet() {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_INVALID_DEFINE_ON_LET(), []string{})
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_INVALID_DEFINE_ON_LET(), []string{})
 	}
 }
 
 // Java method: CheckJSDoc.validateImplicitCast(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateImplicitCast_1076(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateImplicitCast_1077(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if (!(this_.inExterns) && (info != nil)) && info.IsImplicitCast() {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_TypeCheck_ILLEGAL_IMPLICIT_CAST(), []string{})
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_TypeCheck_ILLEGAL_IMPLICIT_CAST(), []string{})
 	}
 }
 
 // Java method: CheckJSDoc.validateClosurePrimitive(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateClosurePrimitive_1077(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateClosurePrimitive_1078(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if (info == nil) || !(info.HasClosurePrimitiveId()) {
 		return
 	}
-	if !(this_.priv_CheckJSDoc_isJSDocOnFunctionNode_1066(n, info)) {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"closurePrimitive", "must be on a function node"})
+	if !(this_.priv_CheckJSDoc_isJSDocOnFunctionNode_1067(n, info)) {
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"closurePrimitive", "must be on a function node"})
 	}
 }
 
 // Java method: CheckJSDoc.validateReturnJsDoc(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateReturnJsDoc_1078(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateReturnJsDoc_1079(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if !(n.IsReturn()) || (info == nil) {
 		return
 	}
 	if (info.ContainsDeclaration() && !(info.HasType())) && !(info.HasTypedefType()) {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_JSDOC_ON_RETURN(), []string{})
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_JSDOC_ON_RETURN(), []string{})
 	}
 }
 
 // Java method: CheckJSDoc.validateTsType(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateTsType_1079(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateTsType_1080(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if (info == nil) || info.GetTsTypes().IsEmpty() {
 		return
 	}
-	if !(this_.priv_CheckJSDoc_isJSDocOnFunctionNode_1066(n, info)) {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_MISPLACED_TS_TYPE_ANNOTATION(), []string{"must be on a function node"})
+	if !(this_.priv_CheckJSDoc_isJSDocOnFunctionNode_1067(n, info)) {
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_TS_TYPE_ANNOTATION(), []string{"must be on a function node"})
 	}
 }
 
@@ -856,7 +856,7 @@ func CheckJSDoc_IsFromTs(n pkg_rhino.Node) bool {
 }
 
 // Java method: CheckJSDoc.validateJsDocTypeNames(com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateJsDocTypeNames_1080(info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateJsDocTypeNames_1081(info *pkg_rhino.JSDocInfo) {
 	_ = info
 	if info == nil {
 		return
@@ -873,19 +873,19 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateJsDocTypeNames_1080(info *pkg_r
 }
 
 // Java method: CheckJSDoc.validateIsUsedViaDotConstructor(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateIsUsedViaDotConstructor_1081(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateIsUsedViaDotConstructor_1082(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if (info == nil) || !(info.IsUsedViaDotConstructor()) {
 		return
 	}
 	if !(n.IsFunction() && info.IsConstructor()) && !(NodeUtil_IsEs6ConstructorMemberFunctionDef(n)) {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"usedViaDotConstructor", "must be on a constructor"})
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"usedViaDotConstructor", "must be on a constructor"})
 	}
 }
 
 // Java method: CheckJSDoc.validateLegacyNamedTsExport(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckJSDoc) priv_CheckJSDoc_validateLegacyNamedTsExport_1082(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDoc) priv_CheckJSDoc_validateLegacyNamedTsExport_1083(n pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = info
 	if (info == nil) || !(info.IsLegacyNamedTsExport()) {
@@ -894,7 +894,7 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateLegacyNamedTsExport_1082(n pkg_
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
 	if !(n.IsCall()) || !(NodeUtil_IsGoogModuleCall(parent) || NodeUtil_IsGoogProvideCall(parent)) {
-		this_.priv_CheckJSDoc_report_1070(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@legacyNamedTsExport", "must be on a goog.module or goog.provide call"})
+		this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@legacyNamedTsExport", "must be on a goog.module or goog.provide call"})
 	}
 }
 

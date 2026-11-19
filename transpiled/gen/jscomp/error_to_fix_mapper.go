@@ -163,7 +163,7 @@ func (this_ *ErrorToFixMapper) GetFixesForJsError(error_ *JSError) j2gort.Ext_co
 	}
 	switch j2gort.CheckNotNullString(error_.Type().key) {
 	case "JSC_IMPLICITLY_NONNULL_JSDOC", "JSC_IMPLICITLY_NULLABLE_JSDOC", "JSC_MISSING_NULLABILITY_MODIFIER_JSDOC", "JSC_NULL_MISSING_NULLABILITY_MODIFIER_JSDOC":
-		return this_.priv_ErrorToFixMapper_getFixesForImplicitNullabilityErrors_7860(error_)
+		return this_.priv_ErrorToFixMapper_getFixesForImplicitNullabilityErrors_7870(error_)
 	default:
 		return j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()
 	}
@@ -175,37 +175,37 @@ func (this_ *ErrorToFixMapper) GetFixForJsError(error_ *JSError) *SuggestedFix {
 	_ = error_
 	switch j2gort.CheckNotNullString(error_.Type().key) {
 	case "JSC_REDECLARED_VARIABLE":
-		return this_.priv_ErrorToFixMapper_getFixForRedeclaration_7857(error_)
+		return this_.priv_ErrorToFixMapper_getFixForRedeclaration_7867(error_)
 	case "JSC_REFERENCE_BEFORE_DECLARE":
-		return this_.priv_ErrorToFixMapper_getFixForEarlyReference_7858(error_)
+		return this_.priv_ErrorToFixMapper_getFixForEarlyReference_7868(error_)
 	case "JSC_MISSING_SEMICOLON":
-		return this_.priv_ErrorToFixMapper_getFixForMissingSemicolon_7862(error_)
+		return this_.priv_ErrorToFixMapper_getFixForMissingSemicolon_7872(error_)
 	case "JSC_REQUIRES_NOT_SORTED":
-		return this_.priv_ErrorToFixMapper_getFixForUnsortedRequires_7868(error_)
+		return this_.priv_ErrorToFixMapper_getFixForUnsortedRequires_7878(error_)
 	case "JSC_PROVIDES_NOT_SORTED":
-		return this_.priv_ErrorToFixMapper_getFixForUnsortedProvides_7869(error_)
+		return this_.priv_ErrorToFixMapper_getFixForUnsortedProvides_7879(error_)
 	case "JSC_DEBUGGER_STATEMENT_PRESENT":
 		return NewSuggestedFix_Builder().AttachMatchedNodeInfo(error_.Node(), this_.compiler).SetDescription("Remove debugger statement").Delete_1(error_.Node()).Build()
 	case "JSC_USELESS_EMPTY_STATEMENT":
-		return this_.priv_ErrorToFixMapper_removeEmptyStatement_7861(error_)
+		return this_.priv_ErrorToFixMapper_removeEmptyStatement_7871(error_)
 	case "JSC_INEXISTENT_PROPERTY_WITH_SUGGESTION", "JSC_STRICT_INEXISTENT_PROPERTY_WITH_SUGGESTION":
-		return this_.priv_ErrorToFixMapper_getFixForInexistentProperty_7865(error_)
+		return this_.priv_ErrorToFixMapper_getFixForInexistentProperty_7875(error_)
 	case "JSC_MISSING_CALL_TO_SUPER":
-		return this_.priv_ErrorToFixMapper_getFixForMissingSuper_7863(error_)
+		return this_.priv_ErrorToFixMapper_getFixForMissingSuper_7873(error_)
 	case "JSC_INVALID_SUPER_CALL_WITH_SUGGESTION":
-		return this_.priv_ErrorToFixMapper_getFixForInvalidSuper_7864(error_)
+		return this_.priv_ErrorToFixMapper_getFixForInvalidSuper_7874(error_)
 	case "JSC_MISSING_REQUIRE", "JSC_MISSING_REQUIRE_IN_PROVIDES_FILE":
-		return this_.priv_ErrorToFixMapper_getFixForMissingRequire_7866(error_, StaticGet_SuggestedFix_ImportType_REQUIRE())
+		return this_.priv_ErrorToFixMapper_getFixForMissingRequire_7876(error_, StaticGet_SuggestedFix_ImportType_REQUIRE())
 	case "JSC_MISSING_REQUIRE_TYPE", "JSC_MISSING_REQUIRE_TYPE_IN_PROVIDES_FILE":
-		return this_.priv_ErrorToFixMapper_getFixForMissingRequire_7866(error_, StaticGet_SuggestedFix_ImportType_REQUIRE_TYPE())
+		return this_.priv_ErrorToFixMapper_getFixForMissingRequire_7876(error_, StaticGet_SuggestedFix_ImportType_REQUIRE_TYPE())
 	case "JSC_EXTRA_REQUIRE_WARNING":
-		return this_.priv_ErrorToFixMapper_getFixForExtraRequire_7867(error_)
+		return this_.priv_ErrorToFixMapper_getFixForExtraRequire_7877(error_)
 	case "JSC_REFERENCE_TO_SHORT_IMPORT_BY_LONG_NAME_INCLUDING_SHORT_NAME", "JSC_REFERENCE_TO_FULLY_QUALIFIED_IMPORT_NAME":
-		return this_.priv_ErrorToFixMapper_getFixForReferenceToShortImportByLongName_7859(error_)
+		return this_.priv_ErrorToFixMapper_getFixForReferenceToShortImportByLongName_7869(error_)
 	case "JSC_REDUNDANT_NULLABILITY_MODIFIER_JSDOC":
-		return this_.priv_ErrorToFixMapper_getFixForRedundantNullabilityModifierJsDoc_7870(error_)
+		return this_.priv_ErrorToFixMapper_getFixForRedundantNullabilityModifierJsDoc_7880(error_)
 	case "JSC_MISSING_CONST_ON_CONSTANT_CASE":
-		return this_.priv_ErrorToFixMapper_getFixForConstantCaseErrors_7871(error_)
+		return this_.priv_ErrorToFixMapper_getFixForConstantCaseErrors_7881(error_)
 	default:
 		return nil
 	}
@@ -213,7 +213,7 @@ func (this_ *ErrorToFixMapper) GetFixForJsError(error_ *JSError) *SuggestedFix {
 }
 
 // Java method: ErrorToFixMapper.getFixForRedeclaration(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForRedeclaration_7857(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForRedeclaration_7867(error_ *JSError) *SuggestedFix {
 	_ = error_
 	var name pkg_rhino.Node = error_.Node()
 	_ = name
@@ -280,7 +280,7 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForRedeclaration_7857
 }
 
 // Java method: ErrorToFixMapper.getFixForEarlyReference(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForEarlyReference_7858(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForEarlyReference_7868(error_ *JSError) *SuggestedFix {
 	_ = error_
 	var m *j2gort.Ext_java_util_regex_Matcher = StaticGet_ErrorToFixMapper_EARLY_REF().Matcher(j2gort.BoxString(error_.Description()))
 	_ = m
@@ -295,7 +295,7 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForEarlyReference_785
 }
 
 // Java method: ErrorToFixMapper.getFixForReferenceToShortImportByLongName(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForReferenceToShortImportByLongName_7859(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForReferenceToShortImportByLongName_7869(error_ *JSError) *SuggestedFix {
 	_ = error_
 	var fix *SuggestedFix_Builder = NewSuggestedFix_Builder().AttachMatchedNodeInfo(error_.Node(), this_.compiler)
 	_ = fix
@@ -309,7 +309,7 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForReferenceToShortIm
 	_ = match
 	var script pkg_rhino.Node = this_.compiler.GetScriptNode(error_.SourceName())
 	_ = script
-	var scriptMetadata *ScriptMetadata = this_.priv_ErrorToFixMapper_getMetadataForScript_7872(script)
+	var scriptMetadata *ScriptMetadata = this_.priv_ErrorToFixMapper_getMetadataForScript_7882(script)
 	_ = scriptMetadata
 	var fullNameMatcher *j2gort.Ext_java_util_regex_Matcher = StaticGet_ErrorToFixMapper_FULLY_QUALIFIED_NAME().Matcher(j2gort.BoxString(error_.Description()))
 	_ = fullNameMatcher
@@ -337,7 +337,7 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForReferenceToShortIm
 }
 
 // Java method: ErrorToFixMapper.getFixesForImplicitNullabilityErrors(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixesForImplicitNullabilityErrors_7860(error_ *JSError) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixesForImplicitNullabilityErrors_7870(error_ *JSError) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = error_
 	if error_.Node().GetSourceFileName() == j2gort.NullString {
 		return j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()
@@ -362,19 +362,19 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixesForImplicitNullabil
 }
 
 // Java method: ErrorToFixMapper.removeEmptyStatement(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_removeEmptyStatement_7861(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_removeEmptyStatement_7871(error_ *JSError) *SuggestedFix {
 	_ = error_
 	return NewSuggestedFix_Builder().AttachMatchedNodeInfo(error_.Node(), this_.compiler).SetDescription("Remove empty statement").DeleteWithoutRemovingWhitespace(error_.Node()).Build()
 }
 
 // Java method: ErrorToFixMapper.getFixForMissingSemicolon(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForMissingSemicolon_7862(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForMissingSemicolon_7872(error_ *JSError) *SuggestedFix {
 	_ = error_
 	return NewSuggestedFix_Builder().AttachMatchedNodeInfo(error_.Node(), this_.compiler).InsertAfter(error_.Node(), ";").Build()
 }
 
 // Java method: ErrorToFixMapper.getFixForMissingSuper(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForMissingSuper_7863(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForMissingSuper_7873(error_ *JSError) *SuggestedFix {
 	_ = error_
 	var constructorFunction pkg_rhino.Node = error_.Node().GetFirstChild()
 	_ = constructorFunction
@@ -384,7 +384,7 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForMissingSuper_7863(
 }
 
 // Java method: ErrorToFixMapper.getFixForInvalidSuper(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForInvalidSuper_7864(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForInvalidSuper_7874(error_ *JSError) *SuggestedFix {
 	_ = error_
 	var m *j2gort.Ext_java_util_regex_Matcher = StaticGet_ErrorToFixMapper_DID_YOU_MEAN().Matcher(j2gort.BoxString(error_.Description()))
 	_ = m
@@ -397,7 +397,7 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForInvalidSuper_7864(
 }
 
 // Java method: ErrorToFixMapper.getFixForInexistentProperty(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForInexistentProperty_7865(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForInexistentProperty_7875(error_ *JSError) *SuggestedFix {
 	_ = error_
 	var m *j2gort.Ext_java_util_regex_Matcher = StaticGet_ErrorToFixMapper_DID_YOU_MEAN().Matcher(j2gort.BoxString(error_.Description()))
 	_ = m
@@ -410,7 +410,7 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForInexistentProperty
 }
 
 // Java method: ErrorToFixMapper.getFixForMissingRequire(com.google.javascript.jscomp.JSError error, com.google.javascript.refactoring.SuggestedFix.ImportType importType)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForMissingRequire_7866(error_ *JSError, importType SuggestedFix_ImportType) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForMissingRequire_7876(error_ *JSError, importType SuggestedFix_ImportType) *SuggestedFix {
 	_ = error_
 	_ = importType
 	var regexMatcher *j2gort.Ext_java_util_regex_Matcher = StaticGet_ErrorToFixMapper_MISSING_REQUIRE().Matcher(j2gort.BoxString(error_.Description()))
@@ -428,7 +428,7 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForMissingRequire_786
 	j2gort.CheckStateFmt(javalang.StringStartsWith(j2gort.CheckNotNullString(qName), j2gort.CheckNotNullString(namespaceToRequire)), "Expected error location %s to start with namespace <%s>", j2gort.BoxNode(error_.Node()), j2gort.BoxString(namespaceToRequire))
 	var script pkg_rhino.Node = this_.compiler.GetScriptNode(error_.SourceName())
 	_ = script
-	var scriptMetadata *ScriptMetadata = this_.priv_ErrorToFixMapper_getMetadataForScript_7872(script)
+	var scriptMetadata *ScriptMetadata = this_.priv_ErrorToFixMapper_getMetadataForScript_7882(script)
 	_ = scriptMetadata
 	var val_5 NodeMetadata
 	InitNodeMetadata_1(&val_5, this_.compiler)
@@ -449,7 +449,7 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForMissingRequire_786
 }
 
 // Java method: ErrorToFixMapper.getFixForExtraRequire(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForExtraRequire_7867(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForExtraRequire_7877(error_ *JSError) *SuggestedFix {
 	_ = error_
 	var node pkg_rhino.Node = error_.Node()
 	_ = node
@@ -475,7 +475,7 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForExtraRequire_7867(
 }
 
 // Java method: ErrorToFixMapper.getFixForUnsortedRequires(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForUnsortedRequires_7868(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForUnsortedRequires_7878(error_ *JSError) *SuggestedFix {
 	_ = error_
 	var script pkg_rhino.Node = NodeUtil_GetEnclosingScript(error_.Node())
 	_ = script
@@ -492,7 +492,7 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForUnsortedRequires_7
 }
 
 // Java method: ErrorToFixMapper.getFixForUnsortedProvides(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForUnsortedProvides_7869(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForUnsortedProvides_7879(error_ *JSError) *SuggestedFix {
 	_ = error_
 	var script pkg_rhino.Node = NodeUtil_GetEnclosingScript(error_.Node())
 	_ = script
@@ -509,13 +509,13 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForUnsortedProvides_7
 }
 
 // Java method: ErrorToFixMapper.getFixForRedundantNullabilityModifierJsDoc(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForRedundantNullabilityModifierJsDoc_7870(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForRedundantNullabilityModifierJsDoc_7880(error_ *JSError) *SuggestedFix {
 	_ = error_
 	return NewSuggestedFix_Builder().AttachMatchedNodeInfo(error_.Node(), this_.compiler).ReplaceText(error_.Node(), int32(1), "").Build()
 }
 
 // Java method: ErrorToFixMapper.getFixForConstantCaseErrors(com.google.javascript.jscomp.JSError error)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForConstantCaseErrors_7871(error_ *JSError) *SuggestedFix {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForConstantCaseErrors_7881(error_ *JSError) *SuggestedFix {
 	_ = error_
 	var n pkg_rhino.Node = error_.Node()
 	_ = n
@@ -539,7 +539,7 @@ func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getFixForConstantCaseErrors
 }
 
 // Java method: ErrorToFixMapper.getMetadataForScript(com.google.javascript.rhino.Node script)
-func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getMetadataForScript_7872(script pkg_rhino.Node) *ScriptMetadata {
+func (this_ *ErrorToFixMapper) priv_ErrorToFixMapper_getMetadataForScript_7882(script pkg_rhino.Node) *ScriptMetadata {
 	_ = script
 	if !(script.IsScript()) {
 		j2gort.CheckArgument(false)

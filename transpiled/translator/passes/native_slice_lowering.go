@@ -35,11 +35,13 @@ func (p *NativeSliceLoweringPass) Apply(ctx *PassContext) (int, error) {
 		parentsByFile[f], _ = buildParentMap(f)
 	}
 
+	count := 0
 	eligible := analyzeSliceCandidates(ctx, parentsByFile)
-	if len(eligible) == 0 {
-		return 0, nil
+	if len(eligible) > 0 {
+		count += applySliceRewrites(ctx, eligible, parentsByFile)
 	}
-	return applySliceRewrites(ctx, eligible, parentsByFile), nil
+	count += applyOrderedMapValueSliceLowering(ctx, parentsByFile)
+	return count, nil
 }
 
 type sliceInitKind uint8
@@ -95,6 +97,7 @@ const (
 	opStmtClear
 	opStmtIterSlice
 	opStmtIterCursor
+	opStmtForEach
 )
 
 type sliceRewriteOp struct {
@@ -102,6 +105,7 @@ type sliceRewriteOp struct {
 	initKind      sliceInitKind
 	cand          *sliceCandidate
 	otherCand     *sliceCandidate
+	forEachSpec   *setForEachSpec
 	file          *ast.File
 	spanNode      ast.Node
 	accessExpr    ast.Expr
@@ -665,6 +669,13 @@ func analyzeSliceCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[as
 			}
 		}
 	}
+	for _, cand := range candidates {
+		for _, op := range cand.ops {
+			if op.kind == opExprAccParamArg && op.otherCand != nil && accMutates[op.otherCand] && op.call != nil {
+				markMut(cand, op.call, parentsByFile[op.file])
+			}
+		}
+	}
 
 	// Validate each candidate individually before group resolution.
 	// order-independent: sets per-candidate boolean disqualified flag
@@ -673,7 +684,7 @@ func analyzeSliceCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[as
 			cand.disqualified = true
 			continue
 		}
-		if cand.isAccParam && (cand.inPkgAccCalls == 0 || !accMutates[cand]) {
+		if cand.isAccParam && (cand.inPkgAccCalls == 0 || (cand.isExportedAccFn && !accMutates[cand])) {
 			cand.disqualified = true
 			continue
 		}
@@ -1288,10 +1299,9 @@ func validateSliceCandidateUse(
 					}
 					recordDeref(staticCall)
 					*handoffs = append(*handoffs, handoffEdge{dst: cand, src: ac, propagateNil: false})
-					markMut(cand, staticCall, parents)
 					cand.ops = append(cand.ops, sliceRewriteOp{
 						kind: opExprAccParamArg, cand: cand, otherCand: ac, file: file, spanNode: adaptedTop,
-						outerExpr: adaptedTop, accessExpr: accessExpr,
+						call: staticCall, outerExpr: adaptedTop, accessExpr: accessExpr,
 					})
 					return
 				}
@@ -1817,6 +1827,41 @@ func validateSliceCandidateUse(
 		cand.clearPositions = append(cand.clearPositions, mCall.Pos())
 		cand.ops = append(cand.ops, sliceRewriteOp{kind: opStmtClear, cand: cand, file: file, spanNode: es, stmt: es, call: mCall, accessExpr: accessExpr})
 		markMut(cand, mCall, parents)
+
+	case "ForEach":
+		if !inExprStmt || len(mCall.Args) != 1 {
+			cand.disqualified = true
+			return
+		}
+		es, boundAs, fnLit, paramName, paramPos, drop, elemTypes, unboxOps, ok := matchForEachConsumerLambda(mCall, parents, info, varUseCounts)
+		if !ok || !canReplaceStmtIn(parents[es]) {
+			cand.disqualified = true
+			return
+		}
+		for _, et := range elemTypes {
+			if !cand.addReadType(et, accessExpr, info) {
+				cand.disqualified = true
+				return
+			}
+		}
+		for _, uo := range unboxOps {
+			cand.ops = append(cand.ops, sliceRewriteOp{
+				kind: opExprRawUnbox, cand: cand, file: file, spanNode: uo.outer, outerExpr: uo.outer, elemIdent: uo.id,
+			})
+		}
+		recordDeref(es)
+		cand.loopBodies = append(cand.loopBodies, fnLit.Body)
+		cand.ops = append(cand.ops, sliceRewriteOp{
+			kind: opStmtForEach, cand: cand, file: file, spanNode: es, stmt: es, accessExpr: accessExpr,
+			forEachSpec: &setForEachSpec{
+				exprStmt:  es,
+				boundAs:   boundAs,
+				fnLit:     fnLit,
+				paramName: paramName,
+				paramPos:  paramPos,
+				dropStmts: drop,
+			},
+		})
 
 	case "IterSlice_":
 		rs, ok := parents[mCall].(*ast.RangeStmt)
@@ -2613,6 +2658,26 @@ func applySingleSliceRewrite(ctx *PassContext, op sliceRewriteOp, parents map[as
 		}
 		op.file.Decls = append(op.file.Decls, wrapperDecl)
 		return true
+
+	case opStmtForEach:
+		spec := op.forEachSpec
+		if spec == nil || len(spec.fnLit.Body.List) < spec.dropStmts {
+			return false
+		}
+		pos := spec.exprStmt.Pos()
+		rangeLoop := &ast.RangeStmt{
+			For:    pos,
+			Key:    &ast.Ident{NamePos: spec.paramPos, Name: "_"},
+			Value:  &ast.Ident{NamePos: spec.paramPos, Name: spec.paramName},
+			TokPos: spec.paramPos,
+			Tok:    token.DEFINE,
+			X:      sliceValExpr(pos),
+			Body:   &ast.BlockStmt{List: spec.fnLit.Body.List[spec.dropStmts:]},
+		}
+		if spec.boundAs != nil {
+			return replaceStmtInParent(parents[spec.exprStmt], spec.exprStmt, []ast.Stmt{&ast.BlockStmt{List: []ast.Stmt{spec.boundAs, rangeLoop}}}, parents)
+		}
+		return replaceStmtInParent(parents[spec.exprStmt], spec.exprStmt, []ast.Stmt{rangeLoop}, parents)
 	}
 	return false
 }
@@ -3138,6 +3203,11 @@ func isGuardedNonNilVarUse(
 				return true
 			}
 			if cur == ifStmt.Else && condGuaranteesNil(ifStmt.Cond, accessExpr, v, info) && !nodeAssignsNilBefore(ifStmt.Else, useNode.Pos(), v, info) {
+				return true
+			}
+		}
+		if forStmt, ok := parents[cur].(*ast.ForStmt); ok && cur == forStmt.Body && forStmt.Cond != nil {
+			if condGuaranteesNonNil(forStmt.Cond, accessExpr, v, info) && !stmtAssignsNilBetween(forStmt.Body.List, token.NoPos, useNode.Pos(), v, info) {
 				return true
 			}
 		}
@@ -4632,4 +4702,913 @@ func exprCallsMethodOrigin(expr ast.Expr, targetFn *types.Func, ownerStruct *typ
 		return true
 	})
 	return found
+}
+
+type ordMapValSliceCand struct {
+	v               *types.Var
+	isField         bool
+	ownerStruct     *types.Named
+	declFile        *ast.File
+	declTypeCarrier ast.Node // *ast.Field or *ast.ValueSpec
+	defCount        int
+	disqualified    bool
+	matchedPutCalls map[*ast.CallExpr]bool
+	readTypes       []types.Type
+	writeTypes      []types.Type
+	spellSites      []typeSpellSite
+	j2gortSites     []typeSpellSite
+	typeIndexRewr   []struct {
+		file *ast.File
+		ix   *ast.IndexListExpr
+	}
+	localVarSpecs []struct {
+		file *ast.File
+		vs   *ast.ValueSpec
+	}
+	sizeCalls []struct {
+		file *ast.File
+		call *ast.CallExpr
+		id   *ast.Ident
+	}
+	isEmptyCalls []struct {
+		file *ast.File
+		call *ast.CallExpr
+		id   *ast.Ident
+	}
+	getCalls []struct {
+		file  *ast.File
+		outer ast.Expr
+		id    *ast.Ident
+		idx   ast.Expr
+	}
+	getInitAdds []ordMapValSliceGetInitAdd
+}
+
+type ordMapValSliceGetInitAdd struct {
+	file       *ast.File
+	listId     *ast.Ident
+	keyName    string
+	ifStmt     *ast.IfStmt
+	capExpr    ast.Expr // nil for 0-arg NewExt_java_util_ArrayList()
+	addStmt    *ast.ExprStmt
+	mapAccess  ast.Expr
+	elemRawArg ast.Expr
+	unwrapsBox bool
+}
+
+// applyOrderedMapValueSliceLowering lowers non-escaping OrderedMap / CustomOrderedMap / IdentityOrderedMap
+// fields and locals whose value type is Ext_java_util_ArrayList / Ext_java_util_List (such as
+// RemoveUnusedCode.removablesForPropertyNames) to native Go slice values OrderedMap[K, []T].
+func applyOrderedMapValueSliceLowering(ctx *PassContext, parentsByFile map[*ast.File]map[ast.Node]ast.Node) int {
+	info := ctx.Info
+	if info == nil || len(ctx.Files) == 0 {
+		return 0
+	}
+
+	isArrayListOrListType := func(t types.Type) bool {
+		if t == nil {
+			return false
+		}
+		named, ok := types.Unalias(t).(*types.Named)
+		if !ok || named.Obj() == nil || !isJ2gortPkg(named.Obj().Pkg()) {
+			return false
+		}
+		switch named.Obj().Name() {
+		case "Ext_java_util_ArrayList", "Ext_java_util_List":
+			return true
+		}
+		return false
+	}
+
+	isOrdMapListValType := func(t types.Type) bool {
+		if t == nil {
+			return false
+		}
+		named, ok := types.Unalias(t).(*types.Named)
+		if !ok || named.Obj() == nil || !isJ2gortPkg(named.Obj().Pkg()) {
+			return false
+		}
+		switch named.Obj().Name() {
+		case "OrderedMap", "CustomOrderedMap", "IdentityOrderedMap":
+		default:
+			return false
+		}
+		targs := named.TypeArgs()
+		return targs != nil && targs.Len() == 2 && isArrayListOrListType(targs.At(1))
+	}
+
+	isNewOrdMapListCall := func(expr ast.Expr) (*ast.IndexListExpr, bool) {
+		call, ok := stripParens(expr).(*ast.CallExpr)
+		if !ok || call.Ellipsis.IsValid() {
+			return nil, false
+		}
+		fnName, _, _, isJ2 := isJ2gortCall(call, info)
+		if !isJ2 {
+			return nil, false
+		}
+		switch fnName {
+		case "NewOrderedMap", "NewCustomOrderedMap", "NewIdentityOrderedMap":
+			if len(call.Args) != 0 {
+				return nil, false
+			}
+		case "NewOrderedMapCap", "NewCustomOrderedMapCap", "NewIdentityOrderedMapCap":
+			if len(call.Args) != 1 || !isIntegerExpr(call.Args[0], info) {
+				return nil, false
+			}
+		default:
+			return nil, false
+		}
+		ile, ok := stripParens(call.Fun).(*ast.IndexListExpr)
+		if !ok || len(ile.Indices) != 2 {
+			return nil, false
+		}
+		return ile, true
+	}
+
+	cands := make(map[*types.Var]*ordMapValSliceCand)
+	var allCands []*ordMapValSliceCand
+	watchedStructs := make(map[*types.Named]bool)
+
+	for _, file := range ctx.Files {
+		if !ctx.ShouldTransform(file) || ctx.ModifiedFiles[file] {
+			continue
+		}
+		parents := parentsByFile[file]
+		for _, decl := range file.Decls {
+			gd, ok := decl.(*ast.GenDecl)
+			if !ok || gd.Tok != token.TYPE {
+				continue
+			}
+			for _, s := range gd.Specs {
+				ts, ok := s.(*ast.TypeSpec)
+				if !ok || ts.Assign.IsValid() || (ts.TypeParams != nil && len(ts.TypeParams.List) > 0) {
+					continue
+				}
+				st, stOK := ts.Type.(*ast.StructType)
+				tn, tnOK := info.Defs[ts.Name].(*types.TypeName)
+				if !stOK || !tnOK || st.Fields == nil {
+					continue
+				}
+				named := namedOrigin(tn.Type())
+				if named == nil || (named.TypeParams() != nil && named.TypeParams().Len() > 0) {
+					continue
+				}
+				for _, fld := range st.Fields.List {
+					if len(fld.Names) != 1 {
+						continue
+					}
+					v := varFromObj(info.Defs[fld.Names[0]])
+					if v == nil || !v.IsField() || v.Exported() || v.Embedded() || !isOrdMapListValType(v.Type()) {
+						continue
+					}
+					c := &ordMapValSliceCand{
+						v:               v,
+						isField:         true,
+						ownerStruct:     named,
+						declFile:        file,
+						declTypeCarrier: fld,
+						matchedPutCalls: make(map[*ast.CallExpr]bool),
+						spellSites:      []typeSpellSite{{file: file, pos: fld.Pos()}},
+					}
+					cands[v] = c
+					allCands = append(allCands, c)
+					watchedStructs[named] = true
+				}
+			}
+		}
+
+		ast.Inspect(file, func(n ast.Node) bool {
+			switch s := n.(type) {
+			case *ast.DeclStmt:
+				gd, ok := s.Decl.(*ast.GenDecl)
+				if !ok || gd.Tok != token.VAR || len(gd.Specs) != 1 || enclosingFuncBody(s, parents) == nil {
+					return true
+				}
+				vs, ok := gd.Specs[0].(*ast.ValueSpec)
+				if !ok || len(vs.Names) != 1 || len(vs.Values) != 1 {
+					return true
+				}
+				v := varFromObj(info.Defs[vs.Names[0]])
+				if v == nil || v.IsField() || vs.Names[0].Name == "_" || cands[v] != nil || !isOrdMapListValType(v.Type()) {
+					return true
+				}
+				ile, initOK := isNewOrdMapListCall(vs.Values[0])
+				if !initOK {
+					return true
+				}
+				c := &ordMapValSliceCand{
+					v:               v,
+					declFile:        file,
+					declTypeCarrier: vs,
+					matchedPutCalls: make(map[*ast.CallExpr]bool),
+					spellSites:      []typeSpellSite{{file: file, pos: vs.Pos()}},
+				}
+				c.typeIndexRewr = append(c.typeIndexRewr, struct {
+					file *ast.File
+					ix   *ast.IndexListExpr
+				}{file: file, ix: ile})
+				cands[v] = c
+				allCands = append(allCands, c)
+
+			case *ast.AssignStmt:
+				if s.Tok != token.DEFINE || len(s.Lhs) != 1 || len(s.Rhs) != 1 || enclosingFuncBody(s, parents) == nil {
+					return true
+				}
+				id, ok := s.Lhs[0].(*ast.Ident)
+				if !ok || id.Name == "_" {
+					return true
+				}
+				v := varFromObj(info.Defs[id])
+				if v == nil || v.IsField() || cands[v] != nil || !isOrdMapListValType(v.Type()) {
+					return true
+				}
+				ile, initOK := isNewOrdMapListCall(s.Rhs[0])
+				if !initOK {
+					return true
+				}
+				c := &ordMapValSliceCand{
+					v:               v,
+					declFile:        file,
+					matchedPutCalls: make(map[*ast.CallExpr]bool),
+					spellSites:      []typeSpellSite{{file: file, pos: s.Pos()}},
+				}
+				c.typeIndexRewr = append(c.typeIndexRewr, struct {
+					file *ast.File
+					ix   *ast.IndexListExpr
+				}{file: file, ix: ile})
+				cands[v] = c
+				allCands = append(allCands, c)
+			}
+			return true
+		})
+	}
+
+	if len(allCands) == 0 {
+		return 0
+	}
+
+	if len(watchedStructs) > 0 {
+		checkStructValueCopies(ctx, parentsByFile, watchedStructs, func(fv *types.Var) {
+			if c := cands[fv]; c != nil {
+				c.disqualified = true
+			}
+		}, func(named *types.Named) {
+			for _, c := range allCands {
+				if c.ownerStruct == named {
+					c.disqualified = true
+				}
+			}
+		})
+	}
+
+	type useSite struct {
+		id   *ast.Ident
+		file *ast.File
+	}
+	usesByVar := make(map[*types.Var][]useSite)
+	for _, file := range ctx.Files {
+		ast.Inspect(file, func(n ast.Node) bool {
+			id, ok := n.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if c := cands[varFromObj(info.Defs[id])]; c != nil {
+				c.defCount++
+				if !ctx.ShouldTransform(file) || ctx.ModifiedFiles[file] {
+					c.disqualified = true
+				}
+			}
+			if v := varFromObj(info.Uses[id]); v != nil {
+				usesByVar[v] = append(usesByVar[v], useSite{id: id, file: file})
+			}
+			return true
+		})
+	}
+
+	matchLocalDecl := func(initExpr ast.Expr, parents map[ast.Node]ast.Node) (ast.Stmt, *ast.ValueSpec, *ast.Ident) {
+		switch p := parents[initExpr].(type) {
+		case *ast.ValueSpec:
+			if len(p.Names) == 1 && len(p.Values) == 1 && p.Values[0] == initExpr {
+				if gd, ok := parents[p].(*ast.GenDecl); ok && gd.Tok == token.VAR && len(gd.Specs) == 1 {
+					if ds, ok := parents[gd].(*ast.DeclStmt); ok {
+						return ds, p, p.Names[0]
+					}
+				}
+			}
+		case *ast.AssignStmt:
+			if p.Tok == token.DEFINE && len(p.Lhs) == 1 && len(p.Rhs) == 1 && p.Rhs[0] == initExpr {
+				if id, ok := p.Lhs[0].(*ast.Ident); ok {
+					return p, nil, id
+				}
+			}
+		}
+		return nil, nil, nil
+	}
+
+	validateReadOnlySliceLocal := func(cand *ordMapValSliceCand, declFile *ast.File, vs *ast.ValueSpec, listId *ast.Ident) bool {
+		if listId == nil || listId.Name == "_" {
+			return false
+		}
+		lv := varFromObj(info.Defs[listId])
+		if lv == nil {
+			return false
+		}
+		if vs != nil && vs.Type != nil {
+			cand.spellSites = append(cand.spellSites, typeSpellSite{file: declFile, pos: vs.Pos()})
+			cand.localVarSpecs = append(cand.localVarSpecs, struct {
+				file *ast.File
+				vs   *ast.ValueSpec
+			}{file: declFile, vs: vs})
+		}
+		for _, us := range usesByVar[lv] {
+			if !ctx.ShouldTransform(us.file) || ctx.ModifiedFiles[us.file] {
+				return false
+			}
+			up := parentsByFile[us.file]
+			uid := us.id
+			if as, ok := up[uid].(*ast.AssignStmt); ok && as.Tok == token.ASSIGN && len(as.Lhs) == 1 && len(as.Rhs) == 1 && stripParens(as.Rhs[0]) == uid {
+				if bId, ok := stripParens(as.Lhs[0]).(*ast.Ident); ok && bId.Name == "_" {
+					continue
+				}
+			}
+			top := unwrapParensUp(uid, up)
+			if bin, ok := up[top].(*ast.BinaryExpr); ok && (bin.Op == token.EQL || bin.Op == token.NEQ) {
+				other := bin.Y
+				if bin.Y == top {
+					other = bin.X
+				}
+				if isNilIdent(other, info) {
+					continue
+				}
+			}
+			topCheck := unwrapEnclosingCheckNotNulls(uid, up, info)
+			sel, ok := up[topCheck].(*ast.SelectorExpr)
+			if !ok || sel.X != topCheck {
+				return false
+			}
+			mc, ok := up[sel].(*ast.CallExpr)
+			if !ok || mc.Fun != sel || mc.Ellipsis.IsValid() {
+				return false
+			}
+			_, inES := up[mc].(*ast.ExprStmt)
+			switch sel.Sel.Name {
+			case "Size":
+				if inES || len(mc.Args) != 0 || !isUnshadowedBuiltin("len", mc.Pos(), ctx.Pkg) || !isUnshadowedUniverseType("int32", mc.Pos(), ctx.Pkg) {
+					return false
+				}
+				cand.sizeCalls = append(cand.sizeCalls, struct {
+					file *ast.File
+					call *ast.CallExpr
+					id   *ast.Ident
+				}{file: us.file, call: mc, id: uid})
+			case "IsEmpty":
+				if inES || len(mc.Args) != 0 || !isUnshadowedBuiltin("len", mc.Pos(), ctx.Pkg) {
+					return false
+				}
+				cand.isEmptyCalls = append(cand.isEmptyCalls, struct {
+					file *ast.File
+					call *ast.CallExpr
+					id   *ast.Ident
+				}{file: us.file, call: mc, id: uid})
+			case "Get":
+				if len(mc.Args) != 1 || !isIntegerExpr(mc.Args[0], info) {
+					return false
+				}
+				outer, readT, ok := enclosingUnboxExpr(mc, up, info)
+				_, outerES := up[outer].(*ast.ExprStmt)
+				if !ok || outerES || isInvalidOrUntyped(readT) {
+					return false
+				}
+				cand.readTypes = append(cand.readTypes, readT)
+				cand.getCalls = append(cand.getCalls, struct {
+					file  *ast.File
+					outer ast.Expr
+					id    *ast.Ident
+					idx   ast.Expr
+				}{file: us.file, outer: outer, id: uid, idx: mc.Args[0]})
+			default:
+				return false
+			}
+		}
+		return true
+	}
+
+	tryMatchGetInitAdd := func(cand *ordMapValSliceCand, file *ast.File, mapAccess ast.Expr, getCall *ast.CallExpr, parents map[ast.Node]ast.Node) bool {
+		if len(getCall.Args) != 1 {
+			return false
+		}
+		keyId, ok := stripParens(getCall.Args[0]).(*ast.Ident)
+		if !ok || keyId.Name == "_" {
+			return false
+		}
+		keyVar := varFromObj(info.Uses[keyId])
+		if keyVar == nil || keyVar.IsField() {
+			return false
+		}
+		declStmt, vs, listId := matchLocalDecl(getCall, parents)
+		if declStmt == nil || listId == nil || listId.Name == "_" {
+			return false
+		}
+		listVar := varFromObj(info.Defs[listId])
+		block, _ := parents[declStmt].(*ast.BlockStmt)
+		if listVar == nil || block == nil {
+			return false
+		}
+		idx := slices.Index(block.List, declStmt)
+		if idx < 0 || idx+2 >= len(block.List) {
+			return false
+		}
+		hasBlank := false
+		ifIdx := idx + 1
+		if asBlank, ok := block.List[ifIdx].(*ast.AssignStmt); ok && asBlank.Tok == token.ASSIGN && len(asBlank.Lhs) == 1 && len(asBlank.Rhs) == 1 {
+			if bId, ok1 := stripParens(asBlank.Lhs[0]).(*ast.Ident); ok1 && bId.Name == "_" {
+				if rId, ok2 := stripParens(asBlank.Rhs[0]).(*ast.Ident); ok2 && varFromObj(info.Uses[rId]) == listVar {
+					hasBlank = true
+					ifIdx++
+				}
+			}
+		}
+		addIdx := ifIdx + 1
+		if addIdx >= len(block.List) {
+			return false
+		}
+		ifStmt, ok := block.List[ifIdx].(*ast.IfStmt)
+		if !ok || ifStmt.Init != nil || ifStmt.Else != nil || ifStmt.Body == nil || len(ifStmt.Body.List) != 2 {
+			return false
+		}
+		// Match `if list == nil`
+		bin, ok := stripParens(ifStmt.Cond).(*ast.BinaryExpr)
+		if !ok || bin.Op != token.EQL {
+			return false
+		}
+		condL, condR := stripParens(bin.X), stripParens(bin.Y)
+		if isNilIdent(condL, info) {
+			condL, condR = condR, condL
+		}
+		condId, ok := condL.(*ast.Ident)
+		if !ok || varFromObj(info.Uses[condId]) != listVar || !isNilIdent(condR, info) {
+			return false
+		}
+		// Body[0]: `list = NewExt_java_util_ArrayList()` or `NewExt_java_util_ArrayList_1_int32(cap)`
+		initAs, ok := ifStmt.Body.List[0].(*ast.AssignStmt)
+		if !ok || initAs.Tok != token.ASSIGN || len(initAs.Lhs) != 1 || len(initAs.Rhs) != 1 {
+			return false
+		}
+		initLhs, ok := stripParens(initAs.Lhs[0]).(*ast.Ident)
+		if !ok || varFromObj(info.Uses[initLhs]) != listVar {
+			return false
+		}
+		allocCall, ok := stripParens(initAs.Rhs[0]).(*ast.CallExpr)
+		if !ok || allocCall.Ellipsis.IsValid() {
+			return false
+		}
+		allocFn, _, _, allocJ2 := isJ2gortCall(allocCall, info)
+		if !allocJ2 {
+			return false
+		}
+		var capExpr ast.Expr
+		switch allocFn {
+		case "NewExt_java_util_ArrayList":
+			if len(allocCall.Args) != 0 {
+				return false
+			}
+		case "NewExt_java_util_ArrayList_1_int32":
+			if len(allocCall.Args) != 1 || !isIntegerExpr(allocCall.Args[0], info) || exprReferencesVar(allocCall.Args[0], keyVar, info) {
+				return false
+			}
+			capExpr = allocCall.Args[0]
+			if !isUnshadowedBuiltin("make", allocCall.Pos(), ctx.Pkg) {
+				return false
+			}
+		default:
+			return false
+		}
+		// Body[1]: `m.Put(keyId, list)`
+		putEs, ok := ifStmt.Body.List[1].(*ast.ExprStmt)
+		if !ok {
+			return false
+		}
+		putCall, ok := stripParens(putEs.X).(*ast.CallExpr)
+		if !ok || len(putCall.Args) != 2 || putCall.Ellipsis.IsValid() {
+			return false
+		}
+		putSel, ok := stripParens(putCall.Fun).(*ast.SelectorExpr)
+		if !ok || putSel.Sel.Name != "Put" || !sameAccessPath(putSel.X, mapAccess, cand.v, info) {
+			return false
+		}
+		putKeyId, ok1 := stripParens(putCall.Args[0]).(*ast.Ident)
+		putListId, ok2 := stripParens(putCall.Args[1]).(*ast.Ident)
+		if !ok1 || !ok2 || varFromObj(info.Uses[putKeyId]) != keyVar || varFromObj(info.Uses[putListId]) != listVar {
+			return false
+		}
+		// Next statement: `list.Add_1(elemExpr)`
+		addEs, ok := block.List[addIdx].(*ast.ExprStmt)
+		if !ok || !isUnshadowedBuiltin("append", addEs.Pos(), ctx.Pkg) {
+			return false
+		}
+		addCall, ok := stripParens(addEs.X).(*ast.CallExpr)
+		if !ok || len(addCall.Args) != 1 || addCall.Ellipsis.IsValid() {
+			return false
+		}
+		addSel, ok := stripParens(addCall.Fun).(*ast.SelectorExpr)
+		if !ok || addSel.Sel.Name != "Add_1" {
+			return false
+		}
+		addRecvId, ok := stripParens(addSel.X).(*ast.Ident)
+		if !ok || varFromObj(info.Uses[addRecvId]) != listVar {
+			return false
+		}
+		elemArg := addCall.Args[0]
+		if exprReferencesVar(elemArg, listVar, info) || exprReferencesVar(elemArg, cand.v, info) || hasClosureMutation(elemArg) {
+			return false
+		}
+		unboxed, elemT, ok := unwrapBoxedAddArg(elemArg, info)
+		if !ok || isInvalidOrUntyped(elemT) {
+			return false
+		}
+		expectedUses := 4
+		if hasBlank {
+			expectedUses = 5
+		}
+		if len(usesByVar[listVar]) != expectedUses {
+			return false
+		}
+
+		cand.matchedPutCalls[putCall] = true
+		cand.writeTypes = append(cand.writeTypes, elemT)
+		cand.spellSites = append(cand.spellSites, typeSpellSite{file: file, pos: ifStmt.Pos()})
+		cand.j2gortSites = append(cand.j2gortSites, typeSpellSite{file: file, pos: addEs.Pos()})
+		if vs != nil && vs.Type != nil {
+			cand.spellSites = append(cand.spellSites, typeSpellSite{file: file, pos: vs.Pos()})
+			cand.localVarSpecs = append(cand.localVarSpecs, struct {
+				file *ast.File
+				vs   *ast.ValueSpec
+			}{file: file, vs: vs})
+		}
+		cand.getInitAdds = append(cand.getInitAdds, ordMapValSliceGetInitAdd{
+			file:       file,
+			listId:     listId,
+			keyName:    keyId.Name,
+			ifStmt:     ifStmt,
+			capExpr:    capExpr,
+			addStmt:    addEs,
+			mapAccess:  mapAccess,
+			elemRawArg: elemArg,
+			unwrapsBox: unboxed != stripParens(elemArg),
+		})
+		return true
+	}
+
+	// Pre-pass over Get calls so matchedPutCalls is populated regardless of AST order.
+	for _, cand := range allCands {
+		if cand.disqualified {
+			continue
+		}
+		for _, us := range usesByVar[cand.v] {
+			if !ctx.ShouldTransform(us.file) || ctx.ModifiedFiles[us.file] {
+				cand.disqualified = true
+				break
+			}
+			up := parentsByFile[us.file]
+			var accessExpr ast.Expr = us.id
+			if cand.isField {
+				sel, ok := up[us.id].(*ast.SelectorExpr)
+				if !ok || sel.Sel != us.id || !isPureFieldSelector(sel, info) {
+					cand.disqualified = true
+					break
+				}
+				accessExpr = sel
+			}
+			if mSel, ok := up[accessExpr].(*ast.SelectorExpr); ok && mSel.X == accessExpr && mSel.Sel.Name == "Get" {
+				if mCall, ok := up[mSel].(*ast.CallExpr); ok && mCall.Fun == mSel && !mCall.Ellipsis.IsValid() {
+					_ = tryMatchGetInitAdd(cand, us.file, accessExpr, mCall, up)
+				}
+			}
+		}
+	}
+
+	// Full validation pass over every use of every candidate map.
+	for _, cand := range allCands {
+		if cand.disqualified || cand.defCount != 1 {
+			cand.disqualified = true
+			continue
+		}
+		matchedGetCalls := make(map[*ast.CallExpr]bool, len(cand.getInitAdds))
+		for _, gia := range cand.getInitAdds {
+			up := parentsByFile[gia.file]
+			if vs, ok := up[gia.listId].(*ast.ValueSpec); ok && len(vs.Values) == 1 {
+				if gc, ok := vs.Values[0].(*ast.CallExpr); ok {
+					matchedGetCalls[gc] = true
+				}
+			} else if as, ok := up[gia.listId].(*ast.AssignStmt); ok && len(as.Rhs) == 1 {
+				if gc, ok := as.Rhs[0].(*ast.CallExpr); ok {
+					matchedGetCalls[gc] = true
+				}
+			}
+		}
+
+		for _, us := range usesByVar[cand.v] {
+			if cand.disqualified {
+				break
+			}
+			up := parentsByFile[us.file]
+			var accessExpr ast.Expr = us.id
+			if cand.isField {
+				sel, ok := up[us.id].(*ast.SelectorExpr)
+				if !ok || sel.Sel != us.id || !isPureFieldSelector(sel, info) {
+					cand.disqualified = true
+					break
+				}
+				accessExpr = sel
+			}
+			if as, ok := up[accessExpr].(*ast.AssignStmt); ok {
+				if as.Tok == token.ASSIGN && len(as.Lhs) == 1 && len(as.Rhs) == 1 {
+					if stripParens(as.Lhs[0]) == accessExpr {
+						ile, initOK := isNewOrdMapListCall(as.Rhs[0])
+						if !initOK {
+							cand.disqualified = true
+							break
+						}
+						cand.spellSites = append(cand.spellSites, typeSpellSite{file: us.file, pos: as.Pos()})
+						cand.typeIndexRewr = append(cand.typeIndexRewr, struct {
+							file *ast.File
+							ix   *ast.IndexListExpr
+						}{file: us.file, ix: ile})
+						continue
+					}
+					if !cand.isField && stripParens(as.Rhs[0]) == us.id {
+						if bId, ok := stripParens(as.Lhs[0]).(*ast.Ident); ok && bId.Name == "_" {
+							continue
+						}
+					}
+				}
+			}
+
+			mSel, ok := up[accessExpr].(*ast.SelectorExpr)
+			if !ok || mSel.X != accessExpr {
+				cand.disqualified = true
+				break
+			}
+			mCall, ok := up[mSel].(*ast.CallExpr)
+			if !ok || mCall.Fun != mSel || mCall.Ellipsis.IsValid() {
+				cand.disqualified = true
+				break
+			}
+			_, inES := up[mCall].(*ast.ExprStmt)
+
+			switch mSel.Sel.Name {
+			case "Size", "IsEmpty":
+				if inES || len(mCall.Args) != 0 {
+					cand.disqualified = true
+				}
+			case "ContainsKey":
+				if inES || len(mCall.Args) != 1 {
+					cand.disqualified = true
+				}
+			case "Clear":
+				if !inES || len(mCall.Args) != 0 {
+					cand.disqualified = true
+				}
+			case "Put":
+				if !cand.matchedPutCalls[mCall] {
+					cand.disqualified = true
+				}
+			case "Get":
+				if matchedGetCalls[mCall] {
+					continue
+				}
+				if inES || len(mCall.Args) != 1 {
+					cand.disqualified = true
+					break
+				}
+				ds, vs, listId := matchLocalDecl(mCall, up)
+				if ds == nil || !validateReadOnlySliceLocal(cand, us.file, vs, listId) {
+					cand.disqualified = true
+				}
+			case "Remove":
+				if inES || len(mCall.Args) != 1 {
+					cand.disqualified = true
+					break
+				}
+				ds, vs, listId := matchLocalDecl(mCall, up)
+				if ds == nil || !validateReadOnlySliceLocal(cand, us.file, vs, listId) {
+					cand.disqualified = true
+				}
+			case "IterEntries":
+				if inES || len(mCall.Args) != 0 {
+					cand.disqualified = true
+					break
+				}
+				ds, vs, curId := matchLocalDecl(mCall, up)
+				if ds == nil || vs != nil || curId == nil || curId.Name == "_" {
+					cand.disqualified = true
+					break
+				}
+				curVar := varFromObj(info.Defs[curId])
+				if curVar == nil {
+					cand.disqualified = true
+					break
+				}
+				for _, cus := range usesByVar[curVar] {
+					if !ctx.ShouldTransform(cus.file) || ctx.ModifiedFiles[cus.file] {
+						cand.disqualified = true
+						break
+					}
+					cup := parentsByFile[cus.file]
+					csel, ok := cup[cus.id].(*ast.SelectorExpr)
+					if !ok || csel.X != cus.id {
+						cand.disqualified = true
+						break
+					}
+					ccall, ok := cup[csel].(*ast.CallExpr)
+					if !ok || ccall.Fun != csel || len(ccall.Args) != 0 || ccall.Ellipsis.IsValid() {
+						cand.disqualified = true
+						break
+					}
+					switch csel.Sel.Name {
+					case "NextEntry", "Key":
+					case "Value":
+						vds, vvs, listId := matchLocalDecl(ccall, cup)
+						if vds == nil || !validateReadOnlySliceLocal(cand, cus.file, vvs, listId) {
+							cand.disqualified = true
+						}
+					default:
+						cand.disqualified = true
+					}
+					if cand.disqualified {
+						break
+					}
+				}
+			default:
+				cand.disqualified = true
+			}
+		}
+	}
+
+	slices.SortFunc(allCands, func(a, b *ordMapValSliceCand) int { return cmp.Compare(a.v.Pos(), b.v.Pos()) })
+
+	total := 0
+	for _, cand := range allCands {
+		if cand.disqualified || len(cand.getInitAdds) == 0 {
+			continue
+		}
+		dummy := &sliceCandidate{readTypes: cand.readTypes, writeTypes: cand.writeTypes}
+		elemT, ok := resolveGroupElemType([]*sliceCandidate{dummy})
+		if !ok || isEmptyInterfaceType(elemT) {
+			continue
+		}
+		if !canSpellTypeAtAllSites(elemT, cand.spellSites, ctx) || !canSpellJ2gortAtAllSites(cand.j2gortSites, ctx) {
+			continue
+		}
+
+		makeSliceTypeFor := func(f *ast.File) *ast.ArrayType {
+			elt, _ := typeExprForFile(elemT, f, ctx.Pkg, ctx.Importer)
+			return &ast.ArrayType{Elt: elt}
+		}
+		makeElemTypeFor := func(f *ast.File) func() ast.Expr {
+			return func() ast.Expr {
+				elt, _ := typeExprForFile(elemT, f, ctx.Pkg, ctx.Importer)
+				return elt
+			}
+		}
+		j2SelFor := func(f *ast.File) func(string, token.Pos) *ast.SelectorExpr {
+			return func(name string, pos token.Pos) *ast.SelectorExpr {
+				q, _ := j2gortQualifierForFile(f, ctx)
+				return &ast.SelectorExpr{X: &ast.Ident{NamePos: pos, Name: q}, Sel: &ast.Ident{NamePos: pos, Name: name}}
+			}
+		}
+
+		// 1. Rewrite expression sites first (`list.Size()`, `list.IsEmpty()`, `unbox(list.Get(i))`).
+		for _, sc := range cand.sizeCalls {
+			up := parentsByFile[sc.file]
+			pos := sc.call.Pos()
+			repl := &ast.CallExpr{
+				Fun: &ast.Ident{NamePos: pos, Name: "int32"},
+				Args: []ast.Expr{
+					&ast.CallExpr{
+						Fun:  &ast.Ident{NamePos: pos, Name: "len"},
+						Args: []ast.Expr{&ast.Ident{NamePos: sc.id.Pos(), Name: sc.id.Name}},
+					},
+				},
+			}
+			if replaceExprInParent(up[sc.call], sc.call, repl, up) {
+				ctx.MarkFileModified(sc.file)
+				total++
+			}
+		}
+		for _, ec := range cand.isEmptyCalls {
+			up := parentsByFile[ec.file]
+			pos := ec.call.Pos()
+			repl := &ast.BinaryExpr{
+				X: &ast.CallExpr{
+					Fun:  &ast.Ident{NamePos: pos, Name: "len"},
+					Args: []ast.Expr{&ast.Ident{NamePos: ec.id.Pos(), Name: ec.id.Name}},
+				},
+				Op: token.EQL,
+				Y:  &ast.BasicLit{Kind: token.INT, Value: "0"},
+			}
+			if replaceExprInParent(up[ec.call], ec.call, repl, up) {
+				ctx.MarkFileModified(ec.file)
+				total++
+			}
+		}
+		for _, gc := range cand.getCalls {
+			up := parentsByFile[gc.file]
+			repl := &ast.IndexExpr{
+				X:     &ast.Ident{NamePos: gc.id.Pos(), Name: gc.id.Name},
+				Index: gc.idx,
+			}
+			if replaceExprInParent(up[gc.outer], gc.outer, repl, up) {
+				ctx.MarkFileModified(gc.file)
+				total++
+			}
+		}
+
+		// 2. Rewrite `get-init-add` blocks (`if list == nil { list = make(...) }; list = append(list, elem); m.Put(k, list)`).
+		for _, gia := range cand.getInitAdds {
+			up := parentsByFile[gia.file]
+			pos := gia.ifStmt.Pos()
+			var initRhs ast.Expr
+			if gia.capExpr != nil {
+				initRhs = &ast.CallExpr{
+					Fun: &ast.Ident{NamePos: pos, Name: "make"},
+					Args: []ast.Expr{
+						makeSliceTypeFor(gia.file),
+						&ast.BasicLit{Kind: token.INT, Value: "0"},
+						gia.capExpr,
+					},
+				}
+			} else {
+				initRhs = &ast.CompositeLit{Type: makeSliceTypeFor(gia.file)}
+			}
+			gia.ifStmt.Body.List = []ast.Stmt{
+				&ast.AssignStmt{
+					Lhs: []ast.Expr{&ast.Ident{NamePos: pos, Name: gia.listId.Name}},
+					Tok: token.ASSIGN,
+					Rhs: []ast.Expr{initRhs},
+				},
+			}
+			unboxedElem := unwrapBoxArgExpr(gia.elemRawArg, gia.unwrapsBox)
+			writeElem := wrapSliceIfaceWriteElem(unboxedElem, elemT, makeElemTypeFor(gia.file), j2SelFor(gia.file), info)
+			addPos := gia.addStmt.Pos()
+			appendAs := &ast.AssignStmt{
+				Lhs: []ast.Expr{&ast.Ident{NamePos: addPos, Name: gia.listId.Name}},
+				Tok: token.ASSIGN,
+				Rhs: []ast.Expr{
+					&ast.CallExpr{
+						Fun: &ast.Ident{NamePos: addPos, Name: "append"},
+						Args: []ast.Expr{
+							&ast.Ident{NamePos: addPos, Name: gia.listId.Name},
+							writeElem,
+						},
+					},
+				},
+			}
+			putStmt := &ast.ExprStmt{
+				X: &ast.CallExpr{
+					Fun: &ast.SelectorExpr{
+						X:   clonePureExpr(gia.mapAccess),
+						Sel: &ast.Ident{NamePos: addPos, Name: "Put"},
+					},
+					Args: []ast.Expr{
+						&ast.Ident{NamePos: addPos, Name: gia.keyName},
+						&ast.Ident{NamePos: addPos, Name: gia.listId.Name},
+					},
+				},
+			}
+			if replaceStmtInParent(up[gia.addStmt], gia.addStmt, []ast.Stmt{appendAs, putStmt}, up) {
+				ctx.MarkFileModified(gia.file)
+				total++
+			}
+		}
+
+		// 3. Rewrite map declaration type, `NewOrderedMap[K, V]` type arguments, and local slice ValueSpecs.
+		switch d := cand.declTypeCarrier.(type) {
+		case *ast.Field:
+			if ile, ok := stripParens(d.Type).(*ast.IndexListExpr); ok && len(ile.Indices) == 2 {
+				ile.Indices[1] = makeSliceTypeFor(cand.declFile)
+				ctx.MarkFileModified(cand.declFile)
+				total++
+			}
+		case *ast.ValueSpec:
+			if d.Type != nil {
+				if ile, ok := stripParens(d.Type).(*ast.IndexListExpr); ok && len(ile.Indices) == 2 {
+					ile.Indices[1] = makeSliceTypeFor(cand.declFile)
+					ctx.MarkFileModified(cand.declFile)
+					total++
+				}
+			}
+		}
+		for _, tr := range cand.typeIndexRewr {
+			tr.ix.Indices[1] = makeSliceTypeFor(tr.file)
+			ctx.MarkFileModified(tr.file)
+			total++
+		}
+		for _, lvs := range cand.localVarSpecs {
+			lvs.vs.Type = makeSliceTypeFor(lvs.file)
+			ctx.MarkFileModified(lvs.file)
+			total++
+		}
+	}
+	return total
 }

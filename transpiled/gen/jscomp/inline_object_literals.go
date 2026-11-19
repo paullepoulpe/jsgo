@@ -99,7 +99,7 @@ func (this_ *InlineObjectLiterals) Process_2(externs pkg_rhino.Node, root pkg_rh
 type InlineObjectLiterals_InliningBehavior struct {
 	outer_          *InlineObjectLiterals
 	staleVars       j2gort.CustomOrderedSet[*Var] `gson:"staleVars"`
-	validProperties j2gort.Ext_java_util_HashSet  `gson:"validProperties"`
+	validProperties j2gort.OrderedSet[string]     `gson:"validProperties"`
 	idHash_         atomic.Int32
 }
 
@@ -136,7 +136,7 @@ func (*InlineObjectLiterals_InliningBehavior) Implements_jscomp_ReferenceCollect
 func (this_ *InlineObjectLiterals_InliningBehavior) initFields_InlineObjectLiterals_InliningBehavior() {
 	_ = this_
 	this_.staleVars = j2gort.NewCustomOrderedSet[*Var]()
-	this_.validProperties = j2gort.NewExt_java_util_HashSet()
+	this_.validProperties = j2gort.NewOrderedSet[string]()
 }
 
 // Java constructor: InliningBehavior()
@@ -181,21 +181,21 @@ func (this_ *InlineObjectLiterals_InliningBehavior) AfterExitScope(t *NodeTraver
 			}
 			var referenceInfo *ReferenceCollection = j2gort.CastPtr[ReferenceCollection](referenceMap.GetReferences(j2gort.PtrToAny(v)))
 			_ = referenceInfo
-			if (referenceInfo == nil) || this_.priv_InliningBehavior_isVarInlineForbidden_3334(v) {
+			if (referenceInfo == nil) || this_.priv_InliningBehavior_isVarInlineForbidden_3337(v) {
 				continue
 			}
-			if this_.priv_InliningBehavior_isInlinableObject_3335(referenceInfo) {
+			if this_.priv_InliningBehavior_isInlinableObject_3338(referenceInfo) {
 				this_.staleVars.Add(v)
 				var init *Reference = referenceInfo.GetInitializingReference()
 				_ = init
-				this_.priv_InliningBehavior_splitObject_3340(v, init, referenceInfo)
+				this_.priv_InliningBehavior_splitObject_3343(v, init, referenceInfo)
 			}
 		}
 	}
 }
 
 // Java method: InliningBehavior.recordStaleVarReferencesInTree(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.Scope scope)
-func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_recordStaleVarReferencesInTree_3333(node pkg_rhino.Node, scope *Scope) {
+func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_recordStaleVarReferencesInTree_3336(node pkg_rhino.Node, scope *Scope) {
 	_ = node
 	_ = scope
 	if node.IsName() {
@@ -210,26 +210,26 @@ func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_record
 			var c pkg_rhino.Node = node.GetFirstChild()
 			_ = c
 			for ; c != 0; c = c.GetNext() {
-				this_.priv_InliningBehavior_recordStaleVarReferencesInTree_3333(c, scope)
+				this_.priv_InliningBehavior_recordStaleVarReferencesInTree_3336(c, scope)
 			}
 		}
 	}
 }
 
 // Java method: InliningBehavior.isVarInlineForbidden(com.google.javascript.jscomp.Var var)
-func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_isVarInlineForbidden_3334(var_ *Var) bool {
+func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_isVarInlineForbidden_3337(var_ *Var) bool {
 	_ = var_
 	return ((((var_.IsGlobal() || var_.IsExtern()) || (!(this_.staleVars.IsEmpty()) && this_.staleVars.Contains(var_))) || this_.outer_.compiler.GetCodingConvention().IsExported_2(var_.GetName(), true)) || this_.outer_.compiler.GetCodingConvention().IsPropertyRenameFunction(var_.GetNameNode()))
 }
 
 // Java method: InliningBehavior.isInlinableObject(com.google.javascript.jscomp.ReferenceCollection refs)
-func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_isInlinableObject_3335(refs *ReferenceCollection) bool {
+func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_isInlinableObject_3338(refs *ReferenceCollection) bool {
 	_ = refs
 	var ret bool = false
 	_ = ret
 	var hasAnyValidProps bool = false
 	_ = hasAnyValidProps
-	var validProps j2gort.Ext_java_util_HashSet = this_.validProperties
+	var validProps *j2gort.OrderedSet[string] = &this_.validProperties
 	_ = validProps
 	{
 		var i int32 = int32(0)
@@ -257,20 +257,20 @@ func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_isInli
 				}
 				var propName string = parent.GetString()
 				_ = propName
-				if !(hasAnyValidProps) || !(j2gort.SetContainsStr(validProps, propName)) {
+				if !(hasAnyValidProps) || !(validProps.Contains(propName)) {
 					if NodeUtil_IsNameDeclOrSimpleAssignLhs(parent, grandparent) {
 						if !(hasAnyValidProps) {
 							validProps.Clear()
 							hasAnyValidProps = true
 						}
-						j2gort.SetAddStr(validProps, propName)
+						validProps.Add(propName)
 					} else {
 						return false
 					}
 				}
 				continue
 			}
-			if !(this_.priv_InliningBehavior_isVarOrAssignExprLhs_3336(name)) {
+			if !(this_.priv_InliningBehavior_isVarOrAssignExprLhs_3339(name)) {
 				return false
 			}
 			if NodeUtil_IsNameDeclaration(parent) && NodeUtil_IsAnyFor(grandparent) {
@@ -299,7 +299,7 @@ func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_isInli
 						validProps.Clear()
 						hasAnyValidProps = true
 					}
-					j2gort.SetAddStr(validProps, child.GetString())
+					validProps.Add(child.GetString())
 					var childVal pkg_rhino.Node = child.GetFirstChild()
 					_ = childVal
 					{
@@ -327,7 +327,7 @@ func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_isInli
 }
 
 // Java method: InliningBehavior.isVarOrAssignExprLhs(com.google.javascript.rhino.Node n)
-func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_isVarOrAssignExprLhs_3336(n pkg_rhino.Node) bool {
+func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_isVarOrAssignExprLhs_3339(n pkg_rhino.Node) bool {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -335,7 +335,7 @@ func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_isVarO
 }
 
 // Java method: InliningBehavior.computeVarList(com.google.javascript.jscomp.ReferenceCollection referenceInfo)
-func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_computeVarList_3337(referenceInfo *ReferenceCollection) j2gort.Ext_java_util_Map {
+func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_computeVarList_3340(referenceInfo *ReferenceCollection) j2gort.Ext_java_util_Map {
 	_ = referenceInfo
 	var varmap j2gort.Ext_java_util_Map = j2gort.NewExt_java_util_LinkedHashMap()
 	_ = varmap
@@ -395,7 +395,7 @@ func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_comput
 }
 
 // Java method: InliningBehavior.fillInitialValues(com.google.javascript.jscomp.Reference init, java.util.Map<java.lang.String,com.google.javascript.rhino.Node> initvals)
-func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_fillInitialValues_3338(init *Reference, initvals *j2gort.OrderedMap[string, pkg_rhino.Node]) {
+func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_fillInitialValues_3341(init *Reference, initvals *j2gort.OrderedMap[string, pkg_rhino.Node]) {
 	_ = init
 	_ = initvals
 	var object pkg_rhino.Node = init.GetAssignedValue()
@@ -413,7 +413,7 @@ func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_fillIn
 }
 
 // Java method: InliningBehavior.replaceAssignmentExpression(com.google.javascript.jscomp.Var v, com.google.javascript.jscomp.Reference ref, java.util.Map<java.lang.String,java.lang.String> varmap)
-func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_replaceAssignmentExpression_3339(v *Var, ref *Reference, varmap j2gort.Ext_java_util_Map) {
+func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_replaceAssignmentExpression_3342(v *Var, ref *Reference, varmap j2gort.Ext_java_util_Map) {
 	_ = v
 	_ = ref
 	_ = varmap
@@ -421,7 +421,7 @@ func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_replac
 	_ = nodes
 	var val pkg_rhino.Node = ref.GetAssignedValue()
 	_ = val
-	this_.priv_InliningBehavior_recordStaleVarReferencesInTree_3333(val, j2gort.CastPtr[Scope](v.GetScope()))
+	this_.priv_InliningBehavior_recordStaleVarReferencesInTree_3336(val, j2gort.CastPtr[Scope](v.GetScope()))
 	if !(val.IsObjectLit()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(val))
 	}
@@ -484,11 +484,11 @@ func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_replac
 }
 
 // Java method: InliningBehavior.splitObject(com.google.javascript.jscomp.Var v, com.google.javascript.jscomp.Reference init, com.google.javascript.jscomp.ReferenceCollection referenceInfo)
-func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_splitObject_3340(v *Var, init *Reference, referenceInfo *ReferenceCollection) {
+func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_splitObject_3343(v *Var, init *Reference, referenceInfo *ReferenceCollection) {
 	_ = v
 	_ = init
 	_ = referenceInfo
-	var varmap j2gort.Ext_java_util_Map = this_.priv_InliningBehavior_computeVarList_3337(referenceInfo)
+	var varmap j2gort.Ext_java_util_Map = this_.priv_InliningBehavior_computeVarList_3340(referenceInfo)
 	_ = varmap
 	var initvals j2gort.OrderedMap[string, pkg_rhino.Node] = j2gort.NewOrderedMap[string, pkg_rhino.Node]()
 	_ = initvals
@@ -500,7 +500,7 @@ func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_splitO
 	_ = defined
 	if defined {
 		vnode = init.GetParent()
-		this_.priv_InliningBehavior_fillInitialValues_3338(init, &initvals)
+		this_.priv_InliningBehavior_fillInitialValues_3341(init, &initvals)
 	} else if isBlockScoped {
 		var scopeRoot pkg_rhino.Node = j2gort.CastPtr[Scope](v.GetScope()).GetRootNode_0()
 		_ = scopeRoot
@@ -543,7 +543,7 @@ func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_splitO
 				newVarNode = pkg_rhino.IR_Declaration_2(lhs, declarationType).SrcrefTreeIfMissing(vnode)
 			} else {
 				newVarNode = pkg_rhino.IR_Declaration_3(lhs, val, declarationType).SrcrefTreeIfMissing(val)
-				this_.priv_InliningBehavior_recordStaleVarReferencesInTree_3333(val, j2gort.CastPtr[Scope](v.GetScope()))
+				this_.priv_InliningBehavior_recordStaleVarReferencesInTree_3336(val, j2gort.CastPtr[Scope](v.GetScope()))
 			}
 			newVarNode.InsertBefore(vnode)
 			this_.outer_.compiler.ReportChangeToEnclosingScope(vnode)
@@ -566,7 +566,7 @@ func (this_ *InlineObjectLiterals_InliningBehavior) priv_InliningBehavior_splitO
 			}
 			this_.outer_.compiler.ReportChangeToEnclosingScope(ref.GetNode())
 			if ref.IsLvalue() {
-				this_.priv_InliningBehavior_replaceAssignmentExpression_3339(v, ref, varmap)
+				this_.priv_InliningBehavior_replaceAssignmentExpression_3342(v, ref, varmap)
 			} else if NodeUtil_IsNameDeclaration(ref.GetParent()) {
 				ref.GetParent().Detach()
 			} else {

@@ -1,0 +1,2671 @@
+diff --git a/com/google/debugging/sourcemap/SourceMapGenerator.java b/com/google/debugging/sourcemap/SourceMapGenerator.java
+index b07ad72..6648594 100644
+--- a/com/google/debugging/sourcemap/SourceMapGenerator.java
++++ b/com/google/debugging/sourcemap/SourceMapGenerator.java
+@@ -68,6 +68,23 @@ public interface SourceMapGenerator {
+            FilePosition sourceStartPosition,
+            FilePosition outputStartPosition, FilePosition outputEndPosition);
+ 
++  default void addMapping(
++      String sourceName,
++      @Nullable String symbolName,
++      int sourceStartLine,
++      int sourceStartColumn,
++      int outputStartLine,
++      int outputStartColumn,
++      int outputEndLine,
++      int outputEndColumn) {
++    addMapping(
++        sourceName,
++        symbolName,
++        new FilePosition(sourceStartLine, sourceStartColumn),
++        new FilePosition(outputStartLine, outputStartColumn),
++        new FilePosition(outputEndLine, outputEndColumn));
++  }
++
+   /**
+    * Adds a sourcesContent entry for the corresponding source.
+    * @param source The source name.
+diff --git a/com/google/debugging/sourcemap/SourceMapGeneratorV3.java b/com/google/debugging/sourcemap/SourceMapGeneratorV3.java
+index 911ec40..52bafcb 100644
+--- a/com/google/debugging/sourcemap/SourceMapGeneratorV3.java
++++ b/com/google/debugging/sourcemap/SourceMapGeneratorV3.java
+@@ -103,14 +103,16 @@ public final class SourceMapGeneratorV3 implements SourceMapGenerator {
+    * The position that the current source map is offset in the
+    * buffer being used to generated the compiled source file.
+    */
+-  private FilePosition offsetPosition = new FilePosition(0, 0);
++  private int offsetPositionLine = 0;
++  private int offsetPositionColumn = 0;
+ 
+   /**
+    * The position that the current source map is offset in the
+    * generated the compiled source file by the addition of a
+    * an output wrapper prefix.
+    */
+-  private FilePosition prefixPosition = new FilePosition(0, 0);
++  private int prefixPositionLine = 0;
++  private int prefixPositionColumn = 0;
+ 
+   /**
+    * A list of extensions to be added to sourcemap. The value is a object
+@@ -137,8 +139,10 @@ public final class SourceMapGeneratorV3 implements SourceMapGenerator {
+     originalNameMap.clear();
+     lastSourceFile = null;
+     lastSourceFileIndex = -1;
+-    offsetPosition = new FilePosition(0, 0);
+-    prefixPosition = new FilePosition(0, 0);
++    offsetPositionLine = 0;
++    offsetPositionColumn = 0;
++    prefixPositionLine = 0;
++    prefixPositionColumn = 0;
+   }
+ 
+   /**
+@@ -172,7 +176,8 @@ public final class SourceMapGeneratorV3 implements SourceMapGenerator {
+       }
+     }
+ 
+-    prefixPosition = new FilePosition(prefixLine, prefixIndex);
++    prefixPositionLine = prefixLine;
++    prefixPositionColumn = prefixIndex;
+   }
+ 
+   /**
+@@ -189,7 +194,8 @@ public final class SourceMapGeneratorV3 implements SourceMapGenerator {
+   public void setStartingPosition(int offsetLine, int offsetIndex) {
+     checkState(offsetLine >= 0);
+     checkState(offsetIndex >= 0);
+-    offsetPosition = new FilePosition(offsetLine, offsetIndex);
++    offsetPositionLine = offsetLine;
++    offsetPositionColumn = offsetIndex;
+   }
+ 
+   /**
+@@ -202,56 +208,70 @@ public final class SourceMapGeneratorV3 implements SourceMapGenerator {
+       String sourceName, @Nullable String symbolName,
+       FilePosition sourceStartPosition,
+       FilePosition startPosition, FilePosition endPosition) {
++    addMapping(
++        sourceName,
++        symbolName,
++        sourceStartPosition.getLine(),
++        sourceStartPosition.getColumn(),
++        startPosition.getLine(),
++        startPosition.getColumn(),
++        endPosition.getLine(),
++        endPosition.getColumn());
++  }
++
++  @Override
++  public void addMapping(
++      String sourceName,
++      @Nullable String symbolName,
++      int sourceStartLine,
++      int sourceStartColumn,
++      int startLine,
++      int startColumn,
++      int endLine,
++      int endColumn) {
+ 
+     // Don't bother if there is not sufficient information to be useful.
+-    if (sourceName == null || sourceStartPosition.getLine() < 0) {
++    if (sourceName == null || sourceStartLine < 0) {
+       return;
+     }
+ 
+-    FilePosition adjustedStart = startPosition;
+-    FilePosition adjustedEnd = endPosition;
++    int adjustedStartLine = startLine;
++    int adjustedStartColumn = startColumn;
++    int adjustedEndLine = endLine;
++    int adjustedEndColumn = endColumn;
+ 
+-    if (offsetPosition.getLine() != 0
+-        || offsetPosition.getColumn() != 0) {
++    if (offsetPositionLine != 0 || offsetPositionColumn != 0) {
+       // If the mapping is found on the first line, we need to offset
+       // its character position by the number of characters found on
+       // the *last* line of the source file to which the code is
+       // being generated.
+-      int offsetLine = offsetPosition.getLine();
+-      int startOffsetPosition = offsetPosition.getColumn();
+-      int endOffsetPosition = offsetPosition.getColumn();
+-
+-      if (startPosition.getLine() > 0) {
+-        startOffsetPosition = 0;
+-      }
+-
+-      if (endPosition.getLine() > 0) {
+-        endOffsetPosition = 0;
+-      }
+-
+-      adjustedStart = new FilePosition(
+-          startPosition.getLine() + offsetLine,
+-          startPosition.getColumn() + startOffsetPosition);
++      int offsetLine = offsetPositionLine;
++      int startOffsetPosition = startLine > 0 ? 0 : offsetPositionColumn;
++      int endOffsetPosition = endLine > 0 ? 0 : offsetPositionColumn;
+ 
+-      adjustedEnd = new FilePosition(
+-          endPosition.getLine() + offsetLine,
+-          endPosition.getColumn() + endOffsetPosition);
++      adjustedStartLine = startLine + offsetLine;
++      adjustedStartColumn = startColumn + startOffsetPosition;
++      adjustedEndLine = endLine + offsetLine;
++      adjustedEndColumn = endColumn + endOffsetPosition;
+     }
+ 
+     // Create the new mapping.
+     Mapping mapping = new Mapping();
+     mapping.sourceFile = sourceName;
+-    mapping.originalPosition = sourceStartPosition;
++    mapping.originalLine = sourceStartLine;
++    mapping.originalColumn = sourceStartColumn;
+     mapping.originalName = symbolName;
+-    mapping.startPosition = adjustedStart;
+-    mapping.endPosition = adjustedEnd;
++    mapping.startLine = adjustedStartLine;
++    mapping.startColumn = adjustedStartColumn;
++    mapping.endLine = adjustedEndLine;
++    mapping.endColumn = adjustedEndColumn;
+ 
+     // Validate the mappings are in a proper order.
+     if (lastMapping != null) {
+-      int lastLine = lastMapping.startPosition.getLine();
+-      int lastColumn = lastMapping.startPosition.getColumn();
+-      int nextLine = mapping.startPosition.getLine();
+-      int nextColumn = mapping.startPosition.getColumn();
++      int lastLine = lastMapping.startLine;
++      int lastColumn = lastMapping.startColumn;
++      int nextLine = mapping.startLine;
++      int nextColumn = mapping.startColumn;
+       Preconditions.checkState(nextLine > lastLine
+           || (nextLine == lastLine && nextColumn >= lastColumn),
+           "Incorrect source mappings order, previous : (%s,%s)\n"
+@@ -590,13 +610,13 @@ public final class SourceMapGeneratorV3 implements SourceMapGenerator {
+     for (Mapping m : mappings) {
+       if (m.used) {
+         m.id = id++;
+-        int endPositionLine = m.endPosition.getLine();
++        int endPositionLine = m.endLine;
+         maxLine = Math.max(maxLine, endPositionLine);
+       }
+     }
+ 
+     // Adjust for the prefix.
+-    return maxLine + prefixPosition.getLine();
++    return maxLine + prefixPositionLine;
+   }
+ 
+   /**
+@@ -619,19 +639,22 @@ public final class SourceMapGeneratorV3 implements SourceMapGenerator {
+      * the line number and the character index are indexed by
+      * 1 for legacy reasons via the Rhino Node class.
+      */
+-    FilePosition originalPosition;
++    int originalLine;
++    int originalColumn;
+ 
+     /**
+      * The starting position of the code in the generated source
+      * file which this mapping represents. Indexed by 0.
+      */
+-    FilePosition startPosition;
++    int startLine;
++    int startColumn;
+ 
+     /**
+      * The ending position of the code in the generated source
+      * file which this mapping represents. Indexed by 0.
+      */
+-    FilePosition endPosition;
++    int endLine;
++    int endColumn;
+ 
+     /**
+      * The original name of the token found at the position
+@@ -716,19 +739,16 @@ public final class SourceMapGeneratorV3 implements SourceMapGenerator {
+     /**
+      * @return The line adjusted for the prefix position.
+      */
+-    private int getAdjustedLine(FilePosition p) {
+-      return p.getLine() + prefixPosition.getLine();
++    private int getAdjustedLine(int rawLine) {
++      return rawLine + prefixPositionLine;
+     }
+ 
+     /**
+      * @return The column adjusted for the prefix position.
+      */
+-    private int getAdjustedCol(FilePosition p) {
+-      int rawLine = p.getLine();
+-      int rawCol = p.getColumn();
++    private int getAdjustedCol(int rawLine, int rawCol) {
+       // Only the first line needs the character position adjusted.
+-      return (rawLine != 0)
+-          ? rawCol : rawCol + prefixPosition.getColumn();
++      return (rawLine != 0) ? rawCol : rawCol + prefixPositionColumn;
+     }
+ 
+     /**
+@@ -736,10 +756,10 @@ public final class SourceMapGeneratorV3 implements SourceMapGenerator {
+      */
+     private boolean isOverlapped(Mapping m1, Mapping m2) {
+       // No need to use adjusted values here, relative positions are sufficient.
+-      int l1 = m1.endPosition.getLine();
+-      int l2 = m2.startPosition.getLine();
+-      int c1 = m1.endPosition.getColumn();
+-      int c2 = m2.startPosition.getColumn();
++      int l1 = m1.endLine;
++      int l2 = m2.startLine;
++      int c1 = m1.endColumn;
++      int c2 = m2.startColumn;
+ 
+       return (l1 == l2 && c1 >= c2) || l1 > l2;
+     }
+@@ -749,8 +769,8 @@ public final class SourceMapGeneratorV3 implements SourceMapGenerator {
+      * provided mapping.
+      */
+     private void maybeVisit(MappingVisitor v, Mapping m) throws IOException {
+-      int nextLine = getAdjustedLine(m.endPosition);
+-      int nextCol = getAdjustedCol(m.endPosition);
++      int nextLine = getAdjustedLine(m.endLine);
++      int nextCol = getAdjustedCol(m.endLine, m.endColumn);
+       // If this anything remaining in this mapping beyond the
+       // current line and column position, write it out now.
+       if (line < nextLine || (line == nextLine && col < nextCol)) {
+@@ -763,8 +783,8 @@ public final class SourceMapGeneratorV3 implements SourceMapGenerator {
+      */
+     private void maybeVisitParent(MappingVisitor v, Mapping parent, Mapping m)
+         throws IOException {
+-      int nextLine = getAdjustedLine(m.startPosition);
+-      int nextCol = getAdjustedCol(m.startPosition);
++      int nextLine = getAdjustedLine(m.startLine);
++      int nextCol = getAdjustedCol(m.startLine, m.startColumn);
+       // If the previous value is null, no mapping exists.
+       checkState(line < nextLine || col <= nextCol);
+       if (line < nextLine || (line == nextLine && col < nextCol)) {
+@@ -943,8 +963,8 @@ public final class SourceMapGeneratorV3 implements SourceMapGenerator {
+         previousSourceFileId = sourceId;
+ 
+         // The relative source file line and column
+-        int srcline = m.originalPosition.getLine();
+-        int srcColumn = m.originalPosition.getColumn();
++        int srcline = m.originalLine;
++        int srcColumn = m.originalColumn;
+         Base64VLQ.encode(out, srcline - previousSourceLine);
+         previousSourceLine = srcline;
+ 
+diff --git a/com/google/javascript/jscomp/CheckMissingRequires.java b/com/google/javascript/jscomp/CheckMissingRequires.java
+index 09206cd..866932d 100644
+--- a/com/google/javascript/jscomp/CheckMissingRequires.java
++++ b/com/google/javascript/jscomp/CheckMissingRequires.java
+@@ -218,9 +218,10 @@ public class CheckMissingRequires extends AbstractModuleCallback implements Comp
+     if (info.hasType()) {
+       visitJsDocExpr(t, currentModule, info.getType(), Strength.WEAK_TYPE);
+     }
+-    for (String param : info.getParameterNames()) {
+-      if (info.hasParameterType(param)) {
+-        visitJsDocExpr(t, currentModule, info.getParameterType(param), Strength.WEAK_TYPE);
++    for (int i = 0, paramCount = info.getParameterCount(); i < paramCount; i++) {
++      JSTypeExpression paramType = info.getParameterTypeAt(i);
++      if (paramType != null) {
++        visitJsDocExpr(t, currentModule, paramType, Strength.WEAK_TYPE);
+       }
+     }
+     if (info.hasReturnType()) {
+diff --git a/com/google/javascript/jscomp/CodePrinter.java b/com/google/javascript/jscomp/CodePrinter.java
+index 53f9eea..cd2066d 100644
+--- a/com/google/javascript/jscomp/CodePrinter.java
++++ b/com/google/javascript/jscomp/CodePrinter.java
+@@ -32,6 +32,7 @@ import com.google.javascript.rhino.jstype.JSTypeRegistry;
+ import java.io.IOException;
+ import java.util.ArrayDeque;
+ import java.util.ArrayList;
++import java.util.Arrays;
+ import java.util.Deque;
+ import java.util.List;
+ import org.jspecify.annotations.Nullable;
+@@ -50,11 +51,20 @@ public final class CodePrinter {
+   // version.
+ 
+   private abstract static class MappedCodePrinter extends CodeConsumer {
+-    private final ArrayDeque<SourceMap.Mapping> mappings = new ArrayDeque<>();
+-    private final ArrayList<SourceMap.Mapping> allMappings = new ArrayList<>();
+-    // The ordered list of finalized mappings since the last line break. See #reportLineCut.
+-    private final ArrayList<SourceMap.Mapping> completeMappings = new ArrayList<>();
+-    // The index into allMappings to find the mappings added since the last line
++    private static final int[] EMPTY_INT_ARRAY = new int[0];
++
++    private Node @Nullable [] mappingNodes;
++    private int @Nullable [] startLines;
++    private int @Nullable [] startCols;
++    private int @Nullable [] endLines;
++    private int @Nullable [] endCols;
++    private int mappingCount = 0;
++    private int @Nullable [] openMappingStack;
++    private int openMappingDepth = 0;
++    // The ordered list of finalized mapping indices since the last line break. See #reportLineCut.
++    private int @Nullable [] completeMappingIds;
++    private int completeMappingCount = 0;
++    // The index into mappingNodes to find the mappings added since the last line
+     // break. See #reportLineCut.
+     private int firstCandidateMappingForCut = 0;
+     private final boolean createSrcMap;
+@@ -107,11 +117,39 @@ public final class CodePrinter {
+         int line = getCurrentLineIndex();
+         int index = getCurrentCharIndex();
+         checkState(line >= 0);
+-        SourceMap.Mapping mapping = new SourceMap.Mapping();
+-        mapping.node = node;
+-        mapping.start = new FilePosition(line, index);
+-        mappings.push(mapping);
+-        allMappings.add(mapping);
++        int id = this.mappingCount;
++        Node[] nodes = this.mappingNodes;
++        if (nodes == null) {
++          nodes = new Node[64];
++          this.mappingNodes = nodes;
++          this.startLines = new int[64];
++          this.startCols = new int[64];
++          this.endLines = new int[64];
++          this.endCols = new int[64];
++          this.openMappingStack = new int[32];
++          this.completeMappingIds = new int[64];
++        } else if (id == nodes.length) {
++          int newCap = id * 2;
++          nodes = Arrays.copyOf(nodes, newCap);
++          this.mappingNodes = nodes;
++          this.startLines = Arrays.copyOf(this.startLines, newCap);
++          this.startCols = Arrays.copyOf(this.startCols, newCap);
++          this.endLines = Arrays.copyOf(this.endLines, newCap);
++          this.endCols = Arrays.copyOf(this.endCols, newCap);
++        }
++        nodes[id] = node;
++        this.startLines[id] = line;
++        this.startCols[id] = index;
++        this.mappingCount = id + 1;
++
++        int depth = this.openMappingDepth;
++        int[] stack = this.openMappingStack;
++        if (depth == stack.length) {
++          stack = Arrays.copyOf(stack, depth * 2);
++          this.openMappingStack = stack;
++        }
++        stack[depth] = id;
++        this.openMappingDepth = depth + 1;
+       }
+     }
+ 
+@@ -121,35 +159,66 @@ public final class CodePrinter {
+      */
+     @Override
+     void endSourceMapping(Node node) {
+-      if (createSrcMap && !mappings.isEmpty() && mappings.peek().node == node) {
+-        SourceMap.Mapping mapping = mappings.pop();
++      if (createSrcMap
++          && this.openMappingDepth > 0
++          && this.mappingNodes[this.openMappingStack[this.openMappingDepth - 1]] == node) {
++        int depth = this.openMappingDepth - 1;
++        this.openMappingDepth = depth;
++        int id = this.openMappingStack[depth];
+         int line = getCurrentLineIndex();
+         int index = getCurrentCharIndex();
+         checkState(line >= 0);
+-        mapping.end = new FilePosition(line, index);
+-        completeMappings.add(mapping);
++        this.endLines[id] = line;
++        this.endCols[id] = index;
++
++        int compIdx = this.completeMappingCount;
++        int[] compIds = this.completeMappingIds;
++        if (compIdx == compIds.length) {
++          compIds = Arrays.copyOf(compIds, compIdx * 2);
++          this.completeMappingIds = compIds;
++        }
++        compIds[compIdx] = id;
++        this.completeMappingCount = compIdx + 1;
+       }
+     }
+ 
+     /**
+-     * Returns a list of sourcemap mappings that were generated while printing this code. Only
+-     * useful if createSrcMap was true for this MappedCodePrinter.
++     * Finalizes sourcemap mappings that were generated while printing this code. Only useful if
++     * createSrcMap was true for this MappedCodePrinter.
+      */
+-    @Nullable List<SourceMap.Mapping> getSourceMappings(String code) {
+-      if (!createSrcMap) {
+-        return null;
++    void finishSourceMappings(String code, SourceAndMappings out) {
++      if (!createSrcMap || this.mappingCount == 0) {
++        return;
+       }
+-      ImmutableList<Integer> lineLengths = computeLineLengths(code);
+-      ArrayList<SourceMap.Mapping> fixedMappings = new ArrayList<>(allMappings.size());
+-      for (int i = 0, size = allMappings.size(); i < size; i++) {
+-        SourceMap.Mapping mapping = allMappings.get(i);
+-        SourceMap.Mapping adjusted = new SourceMap.Mapping();
+-        adjusted.node = mapping.node;
+-        adjusted.start = mapping.start;
+-        adjusted.end = adjustEndPosition(lineLengths, mapping.end);
+-        fixedMappings.add(adjusted);
++      int[] lineLengths = computeLineLengths(code);
++      int lineCount = lineLengths.length;
++      int count = this.mappingCount;
++      int[] eLines = this.endLines;
++      int[] eCols = this.endCols;
++      for (int i = 0; i < count; i++) {
++        int line = eLines[i];
++        if (line < lineCount) {
++          int col = eCols[i];
++          int lineLen = lineLengths[line];
++          if (col > lineLen) {
++            checkState(
++                false,
++                "End position %s points to a column larger than line length %s",
++                new FilePosition(line, col),
++                lineLen);
++          }
++          if (col == lineLen) {
++            eLines[i] = line + 1;
++            eCols[i] = 0;
++          }
++        }
+       }
+-      return fixedMappings;
++      out.mappingNodes = this.mappingNodes;
++      out.startLines = this.startLines;
++      out.startCols = this.startCols;
++      out.endLines = eLines;
++      out.endCols = eCols;
++      out.mappingCount = count;
+     }
+ 
+     /**
+@@ -158,51 +227,40 @@ public final class CodePrinter {
+      * renormalized as needed.
+      */
+     void reportLineCut(int lineIndex, int charIndex) {
+-      if (createSrcMap) {
++      if (createSrcMap && this.mappingCount > 0) {
+         // To avoid iterating over every mapping, every time we cut a line (which can get
+         // excessively expensive for large files), we keep track of mappings that must be
+-        // before the next cut. For the start of mappings, we can use the order in allMappings.
++        // before the next cut. For the start of mappings, we can use the order in mappingNodes.
+         // However, mapping ends do not have their own entry in the list so we must track those
+         // separately.
+ 
+-        int mappingCount = allMappings.size();
+-        for (int i = firstCandidateMappingForCut; i < mappingCount; i++) {
+-          SourceMap.Mapping mapping = allMappings.get(i);
+-          mapping.start = convertPositionAfterLineCut(mapping.start, lineIndex, charIndex);
++        int count = this.mappingCount;
++        int[] sLines = this.startLines;
++        int[] sCols = this.startCols;
++        for (int i = firstCandidateMappingForCut; i < count; i++) {
++          if (sLines[i] == lineIndex && sCols[i] >= charIndex) {
++            sLines[i] = lineIndex + 1;
++            sCols[i] -= charIndex;
++          }
+         }
+-        firstCandidateMappingForCut = mappingCount;
+-
+-        for (int i = 0, size = completeMappings.size(); i < size; i++) {
+-          SourceMap.Mapping mapping = completeMappings.get(i);
+-          mapping.end = convertPositionAfterLineCut(mapping.end, lineIndex, charIndex);
++        firstCandidateMappingForCut = count;
++
++        int compCount = this.completeMappingCount;
++        if (compCount > 0) {
++          int[] compIds = this.completeMappingIds;
++          int[] eLines = this.endLines;
++          int[] eCols = this.endCols;
++          for (int i = 0; i < compCount; i++) {
++            int id = compIds[i];
++            if (eLines[id] == lineIndex && eCols[id] >= charIndex) {
++              eLines[id] = lineIndex + 1;
++              eCols[id] -= charIndex;
++            }
++          }
++          // To avoid iterating over every mapping, every time we cut a line, keep track of
++          // mappings that must end before the next cut.
++          this.completeMappingCount = 0;
+         }
+-        // To avoid iterating over every mapping, every time we cut a line, keep track of
+-        // mappings that must end before the next cut.
+-        completeMappings.clear();
+-      }
+-    }
+-
+-    /**
+-     * Converts the given position by normalizing it against the insertion at the given line and
+-     * character position.
+-     *
+-     * @param position The existing position before the newline was inserted.
+-     * @param lineIndex The index of the line at which the newline was inserted.
+-     * @param characterPosition The position on the line at which the newline was inserted.
+-     * @return The normalized position.
+-     * @throws IllegalStateException if an attempt to reverse a line cut is made on a previous line
+-     *     rather than the current line.
+-     */
+-    private static FilePosition convertPositionAfterLineCut(
+-        FilePosition position, int lineIndex, int characterPosition) {
+-      int originalLine = position.getLine();
+-      int originalChar = position.getColumn();
+-      if (originalLine == lineIndex && originalChar >= characterPosition) {
+-        // If the position falls on the line itself, then normalize it
+-        // if it falls at or after the place the newline was inserted.
+-        return new FilePosition(originalLine + 1, originalChar - characterPosition);
+-      } else {
+-        return position;
+       }
+     }
+ 
+@@ -224,53 +282,24 @@ public final class CodePrinter {
+     }
+ 
+     /** Calculates length of each line in compiled code. */
+-    private static ImmutableList<Integer> computeLineLengths(String code) {
+-      ImmutableList.Builder<Integer> builder = ImmutableList.<Integer>builder();
+-      int lineStartPos = 0;
++    private static int[] computeLineLengths(String code) {
+       int lineEndPos = code.indexOf('\n');
++      if (lineEndPos == -1) {
++        return EMPTY_INT_ARRAY;
++      }
++      int[] lengths = new int[64];
++      int count = 0;
++      int lineStartPos = 0;
+       while (lineEndPos > -1) {
+-        builder.add(lineEndPos - lineStartPos);
++        if (count == lengths.length) {
++          lengths = Arrays.copyOf(lengths, count * 2);
++        }
++        lengths[count++] = lineEndPos - lineStartPos;
+         // Next line starts where current line ends + 1 to skip "\n" character.
+         lineStartPos = lineEndPos + 1;
+         lineEndPos = code.indexOf('\n', lineStartPos);
+       }
+-      return builder.build();
+-    }
+-
+-    /**
+-     * Adjusts end position of a mapping. End position points to a column *after* the last character
+-     * that is covered by a mapping. And if it's end of the line there are 2 possibilities: either
+-     * point to the non-existent character after the last char on a line or point to the first
+-     * character on the next line. In some cases we end up with 2 mappings which should have the
+-     * same end position, but they use different styles as described above it leads to invalid
+-     * source maps.
+-     *
+-     * This method adjusts all such end positions, so if it points to the non-existing character
+-     * at the end of line - it is changed to point to the first character on the next line.
+-     *
+-     * @param lineLengths List of all line lengths in compiled code.
+-     * @param endPosition End position of a mapping.
+-     */
+-    private static FilePosition adjustEndPosition(
+-        List<Integer> lineLengths, FilePosition endPosition) {
+-      int line = endPosition.getLine();
+-      // if position points to non-existing line, return it unmodified
+-      if (line >= lineLengths.size()) {
+-        return endPosition;
+-      }
+-
+-      checkState(
+-          endPosition.getColumn() <= lineLengths.get(line),
+-          "End position %s points to a column larger than line length %s",
+-          endPosition,
+-          lineLengths.get(line));
+-
+-      // if end position points to the column just after the last character on the line -
+-      // change it to point the first character on the next line
+-      if (endPosition.getColumn() == lineLengths.get(line)) {
+-        return new FilePosition(line + 1, 0);
+-      }
+-      return endPosition;
++      return count == lengths.length ? lengths : Arrays.copyOf(lengths, count);
+     }
+   }
+ 
+@@ -806,10 +835,14 @@ public final class CodePrinter {
+      * Generates the source code and returns it.
+      */
+     public String build() {
+-      return buildWithSourceMappings().source;
++      return buildInternal(/* allowSourceMap= */ false).source;
+     }
+ 
+     public SourceAndMappings buildWithSourceMappings() {
++      return buildInternal(/* allowSourceMap= */ true);
++    }
++
++    private SourceAndMappings buildInternal(boolean allowSourceMap) {
+       if (root == null) {
+         throw new IllegalStateException("Cannot build without root node being specified");
+       }
+@@ -819,6 +852,7 @@ public final class CodePrinter {
+           root,
+           Format.fromOptions(opts, outputTypes, prettyPrint),
+           opts,
++          allowSourceMap && opts.shouldGatherSourceMapInfo(),
+           licenseTracker,
+           tagAsTypeSummary,
+           tagAsStrict,
+@@ -851,7 +885,12 @@ public final class CodePrinter {
+    */
+   public static class SourceAndMappings {
+     String source;
+-    @Nullable List<SourceMap.Mapping> mappings;
++    Node @Nullable [] mappingNodes;
++    int @Nullable [] startLines;
++    int @Nullable [] startCols;
++    int @Nullable [] endLines;
++    int @Nullable [] endCols;
++    int mappingCount;
+   }
+ 
+   /** Converts a tree to JS code */
+@@ -859,6 +898,7 @@ public final class CodePrinter {
+       Node root,
+       Format outputFormat,
+       CompilerOptions options,
++      boolean gatherSourceMapInfo,
+       @Nullable LicenseTracker licenseTracker,
+       boolean tagAsTypeSummary,
+       boolean tagAsStrict,
+@@ -871,12 +911,12 @@ public final class CodePrinter {
+             ? new CompactCodePrinter(
+                 lineBreak,
+                 options.getLineLengthThreshold(),
+-                options.shouldGatherSourceMapInfo(),
++                gatherSourceMapInfo,
+                 options.getSourceMapDetailLevel(),
+                 licenseTracker)
+             : new PrettyCodePrinter(
+                 options.getLineLengthThreshold(),
+-                options.shouldGatherSourceMapInfo(),
++                gatherSourceMapInfo,
+                 options.getSourceMapDetailLevel(),
+                 licenseTracker);
+     CodeGenerator cg = codeGeneratorFactory.getCodeGenerator(outputFormat, mcp);
+@@ -894,8 +934,8 @@ public final class CodePrinter {
+     SourceAndMappings result = new SourceAndMappings();
+     result.source = mcp.getCode();
+ 
+-    if (options.shouldGatherSourceMapInfo()) {
+-      result.mappings = mcp.getSourceMappings(result.source);
++    if (gatherSourceMapInfo) {
++      mcp.finishSourceMappings(result.source, result);
+     }
+ 
+     return result;
+diff --git a/com/google/javascript/jscomp/Compiler.java b/com/google/javascript/jscomp/Compiler.java
+index 007bfd2..d63ee97 100644
+--- a/com/google/javascript/jscomp/Compiler.java
++++ b/com/google/javascript/jscomp/Compiler.java
+@@ -2830,8 +2830,13 @@ public class Compiler extends AbstractCompiler implements ErrorHandler, SourceFi
+           }
+ 
+           if (options.shouldGatherSourceMapInfo()) {
+-            for (SourceMap.Mapping mapping : sourceAndMappings.mappings) {
+-              sourceMap.addMapping(mapping);
++            Node[] nodes = sourceAndMappings.mappingNodes;
++            int[] startLines = sourceAndMappings.startLines;
++            int[] startCols = sourceAndMappings.startCols;
++            int[] endLines = sourceAndMappings.endLines;
++            int[] endCols = sourceAndMappings.endCols;
++            for (int i = 0, count = sourceAndMappings.mappingCount; i < count; i++) {
++              sourceMap.addMapping(nodes[i], startLines[i], startCols[i], endLines[i], endCols[i]);
+             }
+           }
+           return null;
+@@ -2847,7 +2852,7 @@ public class Compiler extends AbstractCompiler implements ErrorHandler, SourceFi
+     // something else. Use the legacy license tracking implementation to match existing expectations
+     // about what licenses are included in the resulting JS.
+     ScriptNodeLicensesOnlyTracker lt = new ScriptNodeLicensesOnlyTracker(this);
+-    String code = toSourceAndMappings(n, false, lt).source;
++    String code = toSourceWithoutMappings(n, lt);
+     for (String license : lt.emitLicenses()) {
+       sb.append("/*\n").append(license).append("*/\n");
+     }
+@@ -3085,6 +3090,15 @@ public class Compiler extends AbstractCompiler implements ErrorHandler, SourceFi
+     return builder.buildWithSourceMappings();
+   }
+ 
++  private String toSourceWithoutMappings(Node n, LicenseTracker licenseTracker) {
++    CodePrinter.Builder builder = new CodePrinter.Builder(n);
++    builder.setCompilerOptions(options);
++    builder.setTagAsTypeSummary(options.shouldGenerateTypedExterns());
++    builder.setTagAsStrict(false);
++    builder.setLicenseTracker(licenseTracker);
++    return builder.build();
++  }
++
+   public static @Nullable String getLicenseForFile(
+       AbstractCompiler compiler, @Nullable String fileName) {
+     if (fileName == null) {
+diff --git a/com/google/javascript/jscomp/CrossChunkReferenceCollector.java b/com/google/javascript/jscomp/CrossChunkReferenceCollector.java
+index 4eb9405..ea1174e 100644
+--- a/com/google/javascript/jscomp/CrossChunkReferenceCollector.java
++++ b/com/google/javascript/jscomp/CrossChunkReferenceCollector.java
+@@ -26,6 +26,7 @@ import com.google.javascript.jscomp.ReferenceCollector.Behavior;
+ import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.Node;
+ import java.util.ArrayList;
++import java.util.Arrays;
+ import org.jspecify.annotations.Nullable;
+ 
+ /** Collects global variable references for use by {@link CrossChunkCodeMotion}. */
+@@ -381,7 +382,12 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+ 
+     private final JSChunk chunk;
+     private final Node statementNode;
+-    private @Nullable ArrayList<Reference> nonDeclarationReferences = null;
++    private @Nullable Reference nonDeclRef0 = null;
++    private @Nullable Reference nonDeclRef1 = null;
++    private @Nullable Reference nonDeclRef2 = null;
++    private @Nullable Reference nonDeclRef3 = null;
++    private Reference @Nullable [] nonDeclRefsRest = null;
++    private int nonDeclRefCount = 0;
+     @Nullable Node declaredNameNode = null;
+     @Nullable Reference declaredNameReference = null;
+     @Nullable Node declaredValueNode = null;
+@@ -393,10 +399,26 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+     }
+ 
+     void addNonDeclarationReference(Reference ref) {
+-      if (nonDeclarationReferences == null) {
+-        nonDeclarationReferences = new ArrayList<>();
++      int c = this.nonDeclRefCount;
++      switch (c) {
++        case 0 -> this.nonDeclRef0 = ref;
++        case 1 -> this.nonDeclRef1 = ref;
++        case 2 -> this.nonDeclRef2 = ref;
++        case 3 -> this.nonDeclRef3 = ref;
++        default -> {
++          Reference[] rest = this.nonDeclRefsRest;
++          int idx = c - 4;
++          if (rest == null) {
++            rest = new Reference[8];
++            this.nonDeclRefsRest = rest;
++          } else if (idx == rest.length) {
++            rest = Arrays.copyOf(rest, idx * 2);
++            this.nonDeclRefsRest = rest;
++          }
++          rest[idx] = ref;
++        }
+       }
+-      nonDeclarationReferences.add(ref);
++      this.nonDeclRefCount = c + 1;
+     }
+ 
+     int getOriginalOrder() {
+@@ -412,14 +434,20 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+     }
+ 
+     int getNonDeclarationReferenceCount() {
+-      return nonDeclarationReferences == null ? 0 : nonDeclarationReferences.size();
++      return this.nonDeclRefCount;
+     }
+ 
+     Reference getNonDeclarationReference(int index) {
+-      if (nonDeclarationReferences == null) {
+-        throw new NullPointerException();
++      if (index < 0 || index >= this.nonDeclRefCount) {
++        throw new IndexOutOfBoundsException(index);
+       }
+-      return nonDeclarationReferences.get(index);
++      return switch (index) {
++        case 0 -> this.nonDeclRef0;
++        case 1 -> this.nonDeclRef1;
++        case 2 -> this.nonDeclRef2;
++        case 3 -> this.nonDeclRef3;
++        default -> this.nonDeclRefsRest[index - 4];
++      };
+     }
+ 
+     boolean isDeclarationStatement() {
+diff --git a/com/google/javascript/jscomp/FunctionTypeBuilder.java b/com/google/javascript/jscomp/FunctionTypeBuilder.java
+index 7ea768a..2358057 100644
+--- a/com/google/javascript/jscomp/FunctionTypeBuilder.java
++++ b/com/google/javascript/jscomp/FunctionTypeBuilder.java
+@@ -618,8 +618,8 @@ final class FunctionTypeBuilder {
+   FunctionTypeBuilder inferParameterTypes(JSDocInfo info) {
+     // Create a fake args parent.
+     Node lp = IR.paramList();
+-    for (String name : info.getParameterNames()) {
+-      lp.addChildToBack(IR.name(name));
++    for (int i = 0, paramCount = info.getParameterCount(); i < paramCount; i++) {
++      lp.addChildToBack(IR.name(info.getParameterNameAt(i)));
+     }
+ 
+     return inferParameterTypes(lp, info);
+@@ -643,10 +643,9 @@ final class FunctionTypeBuilder {
+ 
+     FunctionParamBuilder builder = new FunctionParamBuilder(typeRegistry);
+     boolean warnedAboutArgList = false;
+-    Set<String> allJsDocParams =
+-        (info == null || info.getParameterCount() == 0)
+-            ? null
+-            : new LinkedHashSet<>(info.getParameterNames());
++    int jsDocParamCount = info == null ? 0 : info.getParameterCount();
++    long matchedJsDocParamsMask = 0L;
++    boolean[] matchedJsDocParamsExtra = jsDocParamCount > 64 ? new boolean[jsDocParamCount] : null;
+     boolean isVarArgs = false;
+     int paramIndex = 0;
+     for (Node param = paramsParent.getFirstChild(); param != null; param = param.getNext()) {
+@@ -667,28 +666,38 @@ final class FunctionTypeBuilder {
+       }
+ 
+       String paramName = null;
++      int jsDocParamIdx = -1;
+       if (paramLhs.isName()) {
+         paramName = paramLhs.getString();
++        if (jsDocParamCount > 0) {
++          jsDocParamIdx = info.getParameterIndex(paramName);
++        }
+       } else {
+         checkState(paramLhs.isDestructuringPattern());
+         // Right now, the only way to match a JSDoc param to a destructuring parameter is through
+         // ordering the JSDoc parameters. So the third formal parameter will correspond to the
+         // third JSDoc parameter.
+-        if (info != null) {
++        if (paramIndex < jsDocParamCount) {
+           paramName = info.getParameterNameAt(paramIndex);
++          jsDocParamIdx = paramIndex;
+         }
+       }
+-      if (allJsDocParams != null) {
+-        allJsDocParams.remove(paramName);
++      JSTypeExpression jsDocParamTypeExpr = null;
++      if (jsDocParamIdx >= 0) {
++        if (jsDocParamIdx < 64) {
++          matchedJsDocParamsMask |= (1L << jsDocParamIdx);
++        } else {
++          matchedJsDocParamsExtra[jsDocParamIdx] = true;
++        }
++        jsDocParamTypeExpr = info.getParameterTypeAt(jsDocParamIdx);
+       }
+ 
+       // type from JSDocInfo
+       JSType parameterType = null;
+-      if (info != null && info.hasParameterType(paramName)) {
+-        JSTypeExpression parameterTypeExpression = info.getParameterType(paramName);
+-        parameterType = parameterTypeExpression.evaluate(templateScope, typeRegistry);
+-        isOptionalParam = isOptionalParam || parameterTypeExpression.isOptionalArg();
+-        isVarArgs = isVarArgs || parameterTypeExpression.isVarArgs();
++      if (jsDocParamTypeExpr != null) {
++        parameterType = jsDocParamTypeExpr.evaluate(templateScope, typeRegistry);
++        isOptionalParam = isOptionalParam || jsDocParamTypeExpr.isOptionalArg();
++        isVarArgs = isVarArgs || jsDocParamTypeExpr.isVarArgs();
+       } else if (paramLhs.getJSDocInfo() != null && paramLhs.getJSDocInfo().hasType()) {
+         JSTypeExpression parameterTypeExpression = paramLhs.getJSDocInfo().getType();
+         parameterType = parameterTypeExpression.evaluate(templateScope, typeRegistry);
+@@ -716,9 +725,16 @@ final class FunctionTypeBuilder {
+       }
+     }
+ 
+-    if (allJsDocParams != null) {
+-      for (String inexistentName : allJsDocParams) {
+-        reportWarning(INEXISTENT_PARAM, inexistentName, formatFnName());
++    if (jsDocParamCount > 0) {
++      long expectedMask = jsDocParamCount >= 64 ? -1L : ((1L << jsDocParamCount) - 1L);
++      if (matchedJsDocParamsMask != expectedMask || matchedJsDocParamsExtra != null) {
++        for (int i = 0; i < jsDocParamCount; i++) {
++          boolean matched =
++              i < 64 ? ((matchedJsDocParamsMask & (1L << i)) != 0L) : matchedJsDocParamsExtra[i];
++          if (!matched) {
++            reportWarning(INEXISTENT_PARAM, info.getParameterNameAt(i), formatFnName());
++          }
++        }
+       }
+     }
+ 
+diff --git a/com/google/javascript/jscomp/GatherGetterAndSetterProperties.java b/com/google/javascript/jscomp/GatherGetterAndSetterProperties.java
+index d1322dd..d9d2c97 100644
+--- a/com/google/javascript/jscomp/GatherGetterAndSetterProperties.java
++++ b/com/google/javascript/jscomp/GatherGetterAndSetterProperties.java
+@@ -67,7 +67,8 @@ public final class GatherGetterAndSetterProperties implements CompilerPass {
+     private final LinkedHashMap<String, PropertyAccessKind> properties = new LinkedHashMap<>();
+ 
+     private void record(String property, PropertyAccessKind kind) {
+-      properties.merge(property, kind, PropertyAccessKind::unionWith);
++      PropertyAccessKind existing = properties.get(property);
++      properties.put(property, existing == null ? kind : existing.unionWith(kind));
+     }
+ 
+     @Override
+diff --git a/com/google/javascript/jscomp/GatherModuleMetadata.java b/com/google/javascript/jscomp/GatherModuleMetadata.java
+index cbfe0cb..c696b88 100644
+--- a/com/google/javascript/jscomp/GatherModuleMetadata.java
++++ b/com/google/javascript/jscomp/GatherModuleMetadata.java
+@@ -605,21 +605,31 @@ public final class GatherModuleMetadata implements CompilerPass {
+   // Must match closure/base.js's goog.VALID_MODULE_RE_ & also validates that dotted segments are
+   // non-empty.
+   private static boolean isValidModuleId(String id) {
+-    for (String segment : DOT_SPLITTER.split(id)) {
+-      if (segment.isEmpty()) {
+-        return false;
+-      }
+-      for (int i = 0; i < segment.length(); i++) {
+-        if (!Identifiers.isIdentifierPart(segment.charAt(i))) {
++    int len = id.length();
++    if (len == 0 || id.charAt(len - 1) == '.') {
++      return false;
++    }
++    char first = id.charAt(0);
++    if (!((first >= 'a' && first <= 'z')
++        || (first >= 'A' && first <= 'Z')
++        || first == '_'
++        || first == '$')) {
++      return false;
++    }
++    for (int i = 1; i < len; i++) {
++      char c = id.charAt(i);
++      if (c == '.') {
++        if (id.charAt(i - 1) == '.') {
+           return false;
+         }
++      } else if (!((c >= 'a' && c <= 'z')
++          || (c >= 'A' && c <= 'Z')
++          || (c >= '0' && c <= '9')
++          || c == '_'
++          || c == '$')) {
++        return false;
+       }
+     }
+-    return NAMESPACE_SEGMENT_REGEX.matcher(id).matches();
++    return true;
+   }
+-
+-  private static final Pattern NAMESPACE_SEGMENT_REGEX =
+-      Pattern.compile("^[a-zA-Z_$][a-zA-Z0-9_$.]*$");
+-
+-  private static final Splitter DOT_SPLITTER = Splitter.on('.');
+ }
+diff --git a/com/google/javascript/jscomp/GlobalNamespace.java b/com/google/javascript/jscomp/GlobalNamespace.java
+index 7d5b8d0..627d8a1 100644
+--- a/com/google/javascript/jscomp/GlobalNamespace.java
++++ b/com/google/javascript/jscomp/GlobalNamespace.java
+@@ -1308,8 +1308,6 @@ class GlobalNamespace
+      */
+     private int propertyBitSet = 0;
+ 
+-    private boolean multiRefMode = false;
+-
+     // Will be set to the JSDocInfo associated with the first SET_FROM_GLOBAL reference added
+     // that has JSDocInfo.
+     // e.g.
+@@ -1362,7 +1360,7 @@ class GlobalNamespace
+             return node;
+           }
+           default -> {
+-            arr = new Name[8];
++            arr = new Name[16];
+             arr[0] = this.prop0;
+             arr[1] = this.prop1;
+             arr[2] = this.prop2;
+@@ -1597,7 +1595,7 @@ class GlobalNamespace
+         this.ref0 = ref;
+         return;
+       }
+-      this.multiRefMode = true;
++      this.setBooleanProperty(NameProp.MULTI_REF_MODE);
+       if (this.ref1 == null) {
+         this.ref1 = ref;
+         return;
+@@ -1778,7 +1776,7 @@ class GlobalNamespace
+               existingRefForNewNode == null, "refs already exist: %s", existingRefForNewNode);
+           this.refsForNodeMap.put(newNode, ref);
+         }
+-      } else if (!this.multiRefMode) {
++      } else if (!this.getBooleanProperty(NameProp.MULTI_REF_MODE)) {
+         if (this.ref0 == null) {
+           this.ref0 = ref;
+         } else {
+@@ -1830,7 +1828,7 @@ class GlobalNamespace
+               ref);
+           this.refsForNodeMap.remove(refNode);
+         }
+-      } else if (!this.multiRefMode) {
++      } else if (!this.getBooleanProperty(NameProp.MULTI_REF_MODE)) {
+         if (this.ref0 == null) {
+           throw new NullPointerException("removeRef(" + ref + "): unknown ref");
+         }
+@@ -2014,7 +2012,7 @@ class GlobalNamespace
+         }
+         throw new NoSuchElementException();
+       }
+-      if (this.multiRefMode) {
++      if (this.getBooleanProperty(NameProp.MULTI_REF_MODE)) {
+         throw new NoSuchElementException();
+       }
+       throw new NullPointerException("no first Ref to get");
+@@ -2893,7 +2891,8 @@ class GlobalNamespace
+     OBJECTLIT(10), // var x = {};
+     FUNCTION(11), // function f() {}
+     GET_SET(12), // a getter, setter, or both; e.g. `obj.b` in `const obj = {set b(x) {}};`
+-    OTHER_OBJECT(13); // anything else, including `var x = 1;`, var x = new Something();`, etc.
++    OTHER_OBJECT(13), // anything else, including `var x = 1;`, var x = new Something();`, etc.
++    MULTI_REF_MODE(14); // Name has held more than one Ref
+ 
+     private static final int DECLARED_TYPE_KIND_MASK =
+         (CONSTRUCTOR_TYPE.bit | INTERFACE_TYPE.bit | ENUM_TYPE.bit | NOT_A_TYPE.bit);
+diff --git a/com/google/javascript/jscomp/InlineFunctions.java b/com/google/javascript/jscomp/InlineFunctions.java
+index f77eaa5..be7cdf9 100644
+--- a/com/google/javascript/jscomp/InlineFunctions.java
++++ b/com/google/javascript/jscomp/InlineFunctions.java
+@@ -115,7 +115,12 @@ class InlineFunctions implements CompilerPass {
+   }
+ 
+   private FunctionState getOrCreateFunctionState(String fnName) {
+-    return fns.computeIfAbsent(fnName, (String k) -> new FunctionState());
++    FunctionState fs = fns.get(fnName);
++    if (fs == null) {
++      fs = new FunctionState();
++      fns.put(fnName, fs);
++    }
++    return fs;
+   }
+ 
+   @Override
+diff --git a/com/google/javascript/jscomp/J2clClinitPrunerPass.java b/com/google/javascript/jscomp/J2clClinitPrunerPass.java
+index 622451c..1f54f55 100644
+--- a/com/google/javascript/jscomp/J2clClinitPrunerPass.java
++++ b/com/google/javascript/jscomp/J2clClinitPrunerPass.java
+@@ -170,18 +170,35 @@ public class J2clClinitPrunerPass implements CompilerPass {
+   private final class RedundantClinitPruner implements NodeTraversal.Callback {
+ 
+     private final ImmutableSet<Node> roots;
+-    private final Deque<HierarchicalSet<String>> stateStack = new ArrayDeque<>();
+-    private HierarchicalSet<String> clinitsCalledAtBranch = new HierarchicalSet<>(null);
++    private final Deque<HierarchicalSet> stateStack = new ArrayDeque<>();
++    private HierarchicalSet clinitsCalledAtBranch = new HierarchicalSet(null);
++    private @Nullable HierarchicalSet freeSetHead = null;
+ 
+     RedundantClinitPruner(Iterable<Node> roots) {
+       this.roots = (roots == null) ? ImmutableSet.of() : ImmutableSet.copyOf(roots);
+     }
+ 
++    private HierarchicalSet acquireHierarchicalSet(@Nullable HierarchicalSet parent) {
++      HierarchicalSet s = this.freeSetHead;
++      if (s != null) {
++        this.freeSetHead = s.parent;
++        s.parent = parent;
++        return s;
++      }
++      return new HierarchicalSet(parent);
++    }
++
++    private void releaseHierarchicalSet(HierarchicalSet s) {
++      s.clear();
++      s.parent = this.freeSetHead;
++      this.freeSetHead = s;
++    }
++
+     @Override
+     public boolean shouldTraverse(NodeTraversal t, Node node, Node parent) {
+       if (this.roots.contains(node)) {
+         // Reset the clinit call tracking when starting over on a new scope.
+-        clinitsCalledAtBranch = new HierarchicalSet<>(null);
++        clinitsCalledAtBranch = acquireHierarchicalSet(null);
+         stateStack.clear();
+       }
+ 
+@@ -191,11 +208,11 @@ public class J2clClinitPrunerPass implements CompilerPass {
+         // In the case of script roots, when using modules, we can not assume the scripts are going
+         // to be executed in program order.
+         stateStack.addLast(clinitsCalledAtBranch);
+-        clinitsCalledAtBranch = new HierarchicalSet<>(null);
++        clinitsCalledAtBranch = acquireHierarchicalSet(null);
+       }
+ 
+       if (isNewControlBranch(parent)) {
+-        clinitsCalledAtBranch = new HierarchicalSet<>(clinitsCalledAtBranch);
++        clinitsCalledAtBranch = acquireHierarchicalSet(clinitsCalledAtBranch);
+         if (isClinitMethod(parent)) {
+           // Adds itself as any of your children can assume clinit is already called.
+           clinitsCalledAtBranch.add(getQualifiedNameOfFunction(parent));
+@@ -210,7 +227,9 @@ public class J2clClinitPrunerPass implements CompilerPass {
+       tryRemovingClinit(node);
+ 
+       if (isNewControlBranch(parent)) {
+-        clinitsCalledAtBranch = clinitsCalledAtBranch.parent;
++        HierarchicalSet finished = clinitsCalledAtBranch;
++        clinitsCalledAtBranch = finished.parent;
++        releaseHierarchicalSet(finished);
+       }
+ 
+       if (NodeUtil.isFunctionDeclaration(node) || node.isScript()) {
+@@ -218,6 +237,7 @@ public class J2clClinitPrunerPass implements CompilerPass {
+         // function will be executed so assume there are no clinits already executed.
+         // In the case of script roots, when using modules, we can not assume the scripts are going
+         // to be executed in program order.
++        releaseHierarchicalSet(clinitsCalledAtBranch);
+         clinitsCalledAtBranch = stateStack.removeLast();
+       }
+     }
+@@ -442,21 +462,38 @@ public class J2clClinitPrunerPass implements CompilerPass {
+    * A minimalist implelementation of a hierarchical Set where an item might exist in current set or
+    * any of its parents.
+    */
+-  private static class HierarchicalSet<T> {
+-    private final Set<T> currentSet = new LinkedHashSet<>();
+-    private final @Nullable HierarchicalSet<T> parent;
++  private static final class HierarchicalSet {
++    private @Nullable LinkedHashSet<String> currentSet = null;
++    private @Nullable HierarchicalSet parent;
+ 
+-    HierarchicalSet(@Nullable HierarchicalSet<T> parent) {
++    HierarchicalSet(@Nullable HierarchicalSet parent) {
+       this.parent = parent;
+     }
+ 
+-    boolean add(T o) {
+-      return !parentsContains(o) && currentSet.add(o);
++    boolean add(String o) {
++      if (parentsContains(o)) {
++        return false;
++      }
++      if (this.currentSet == null) {
++        this.currentSet = new LinkedHashSet<>(4);
++      }
++      return this.currentSet.add(o);
++    }
++
++    void clear() {
++      if (this.currentSet != null) {
++        this.currentSet.clear();
++      }
+     }
+ 
+     /** Returns true either my parent or any of its parents contains the item. */
+-    private boolean parentsContains(T o) {
+-      return parent != null && (parent.currentSet.contains(o) || parent.parentsContains(o));
++    private boolean parentsContains(String o) {
++      for (HierarchicalSet p = this.parent; p != null; p = p.parent) {
++        if (p.currentSet != null && p.currentSet.contains(o)) {
++          return true;
++        }
++      }
++      return false;
+     }
+   }
+ 
+diff --git a/com/google/javascript/jscomp/JSDocInfoPrinter.java b/com/google/javascript/jscomp/JSDocInfoPrinter.java
+index a4fa127..0c2bc57 100644
+--- a/com/google/javascript/jscomp/JSDocInfoPrinter.java
++++ b/com/google/javascript/jscomp/JSDocInfoPrinter.java
+@@ -211,10 +211,11 @@ public final class JSDocInfoPrinter {
+       parts.add(buildAnnotationWithType("this", typeNode));
+     }
+ 
+-    if (info.getParameterCount() > 0) {
++    int paramCount = info.getParameterCount();
++    if (paramCount > 0) {
+       multiline = true;
+-      for (String name : info.getParameterNames()) {
+-        parts.add("@param " + buildParamType(info, name));
++      for (int i = 0; i < paramCount; i++) {
++        parts.add("@param " + buildParamType(info, info.getParameterNameAt(i)));
+       }
+     }
+ 
+diff --git a/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java b/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
+index 1868f95..5d28fa1 100644
+--- a/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
++++ b/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
+@@ -834,10 +834,16 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+ 
+     @Override
+     public String toString() {
+-      LinkedHashMap<String, String> declView =
+-          declarations != null ? declarations : new LinkedHashMap<>(0);
+-      if (declCount > 0 && declCount <= 4) {
+-        declView = new LinkedHashMap<>(declCount);
++      if (this.declarations != null) {
++        return toStringHelper(this)
++            .add("scopeRoot", scopeRoot)
++            .add("nameUsage", nameUsage)
++            .add("declarations", this.declarations)
++            .add("global", global)
++            .toString();
++      }
++      LinkedHashMap<String, String> declView = new LinkedHashMap<>(declCount);
++      if (declCount > 0) {
+         declView.put(declName0, declRep0);
+         if (declCount > 1) {
+           declView.put(declName1, declRep1);
+@@ -955,13 +961,14 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+           this.declCount = 4;
+         }
+         case 4 -> {
+-          LinkedHashMap<String, String> map = new LinkedHashMap<>(8);
+-          map.put(this.declName0, this.declRep0);
+-          map.put(this.declName1, this.declRep1);
+-          map.put(this.declName2, this.declRep2);
+-          map.put(this.declName3, this.declRep3);
+-          map.put(name, newName);
+-          this.declarations = map;
++          String n0 = this.declName0;
++          String r0 = this.declRep0;
++          String n1 = this.declName1;
++          String r1 = this.declRep1;
++          String n2 = this.declName2;
++          String r2 = this.declRep2;
++          String n3 = this.declName3;
++          String r3 = this.declRep3;
+           this.declName0 = null;
+           this.declRep0 = null;
+           this.declName1 = null;
+@@ -970,6 +977,12 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+           this.declRep2 = null;
+           this.declName3 = null;
+           this.declRep3 = null;
++          this.declarations = new LinkedHashMap<>(8);
++          this.declarations.put(n0, r0);
++          this.declarations.put(n1, r1);
++          this.declarations.put(n2, r2);
++          this.declarations.put(n3, r3);
++          this.declarations.put(name, newName);
+           this.declCount = 5;
+         }
+         default -> this.declarations.put(name, newName);
+@@ -1137,15 +1150,19 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+         }
+       } else if (c == 2) {
+         if (!name.equals(this.declName0) && !name.equals(this.declName1)) {
+-          LinkedHashMap<String, String> map = new LinkedHashMap<>(8);
+-          map.put(this.declName0, this.declRep0);
+-          map.put(this.declName1, this.declRep1);
+-          map.put(name, getUniqueName(name));
+-          this.declarations = map;
++          String n0 = this.declName0;
++          String r0 = this.declRep0;
++          String n1 = this.declName1;
++          String r1 = this.declRep1;
++          String newName = getUniqueName(name);
+           this.declName0 = null;
+           this.declRep0 = null;
+           this.declName1 = null;
+           this.declRep1 = null;
++          this.declarations = new LinkedHashMap<>(8);
++          this.declarations.put(n0, r0);
++          this.declarations.put(n1, r1);
++          this.declarations.put(name, newName);
+           this.declCount = 3;
+         }
+       } else if (!this.declarations.containsKey(name)) {
+diff --git a/com/google/javascript/jscomp/NodeUtil.java b/com/google/javascript/jscomp/NodeUtil.java
+index 65ad8e4..fe16ab5 100644
+--- a/com/google/javascript/jscomp/NodeUtil.java
++++ b/com/google/javascript/jscomp/NodeUtil.java
+@@ -3836,17 +3836,28 @@ public final class NodeUtil {
+ 
+   /** Determines whether the given name is a valid qualified name. */
+   public static boolean isValidQualifiedName(FeatureSet mode, String name) {
+-    if (name.endsWith(".") || name.startsWith(".")) {
++    int len = name.length();
++    if (len == 0 || name.charAt(0) == '.' || name.charAt(len - 1) == '.') {
+       return false;
+     }
+-
+-    List<String> parts = Splitter.on('.').splitToList(name);
+-    for (String part : parts) {
+-      if (!isValidPropertyName(mode, part)) {
++    int dot = name.indexOf('.');
++    if (dot == -1) {
++      return isValidSimpleName(name);
++    }
++    if (!isValidSimpleName(name.substring(0, dot))) {
++      return false;
++    }
++    int start = dot + 1;
++    while (true) {
++      int nextDot = name.indexOf('.', start);
++      if (nextDot == -1) {
++        return isValidPropertyName(mode, name.substring(start));
++      }
++      if (nextDot == start || !isValidPropertyName(mode, name.substring(start, nextDot))) {
+         return false;
+       }
++      start = nextDot + 1;
+     }
+-    return isValidSimpleName(parts.get(0));
+   }
+ 
+   /**
+diff --git a/com/google/javascript/jscomp/OptimizeParameters.java b/com/google/javascript/jscomp/OptimizeParameters.java
+index 3c09b2a..8ce168e 100644
+--- a/com/google/javascript/jscomp/OptimizeParameters.java
++++ b/com/google/javascript/jscomp/OptimizeParameters.java
+@@ -468,13 +468,18 @@ class OptimizeParameters implements CompilerPass, OptimizeCalls.CallGraphCompile
+    *   <li>none of the calls are tagged template literals, OR the special first argument is unused
+    * </ul>
+    */
++  private final ArrayList<Node> scratchCandidateDefinitions = new ArrayList<>();
++
+   private CandidateAnalysis analyzeCandidate(String refKind, String key, NodeList refs) {
+     CandidateAnalysis analysis = new CandidateAnalysis();
+     if (!OptimizeCalls.mayBeOptimizableName(compiler, key)) {
+-      decisionsLog.log("%s\t%s\tnot an optimizable name", refKind, key);
++      if (decisionsLog.isLogging()) {
++        decisionsLog.log("%s\t%s\tnot an optimizable name", refKind, key);
++      }
+       return analysis;
+     }
+-    final ArrayList<Node> definitions = new ArrayList<>();
++    final ArrayList<Node> definitions = this.scratchCandidateDefinitions;
++    definitions.clear();
+     boolean seenCandidateUse = false;
+     for (int i = 0, refCount = refs.size(); i < refCount; i++) {
+       Node n = refs.get(i);
+@@ -501,7 +506,9 @@ class OptimizeParameters implements CompilerPass, OptimizeCalls.CallGraphCompile
+       }
+     }
+     if (definitions.isEmpty()) {
+-      decisionsLog.log("%s\t%s\tno definition found", refKind, key);
++      if (decisionsLog.isLogging()) {
++        decisionsLog.log("%s\t%s\tno definition found", refKind, key);
++      }
+       return analysis;
+     }
+     if (analysis.hasTaggedTemplateLiterals()) {
+@@ -511,22 +518,30 @@ class OptimizeParameters implements CompilerPass, OptimizeCalls.CallGraphCompile
+           Node functionNode = fnList.get(j);
+           final Node firstParam = NodeUtil.getFunctionParameters(functionNode).getFirstChild();
+           if (firstParam != null && !firstParam.isUnusedParameter()) {
+-            decisionsLog.log(
+-                "%s\t%s\twill not optimize parameters for tagged template literals", refKind, key);
++            if (decisionsLog.isLogging()) {
++              decisionsLog.log(
++                  "%s\t%s\twill not optimize parameters for tagged template literals",
++                  refKind,
++                  key);
++            }
+             return analysis;
+           }
+         }
+       }
+-      decisionsLog.log(
+-          "%s\t%s\t%s",
+-          refKind,
+-          key,
+-          "first param is unused, so we will convert tagged template literals to normal calls");
++      if (decisionsLog.isLogging()) {
++        decisionsLog.log(
++            "%s\t%s\t%s",
++            refKind,
++            key,
++            "first param is unused, so we will convert tagged template literals to normal calls");
++      }
+       seenCandidateUse = true;
+     }
+ 
+     if (!seenCandidateUse) {
+-      decisionsLog.log("%s\t%s\tno usage found", refKind, key);
++      if (decisionsLog.isLogging()) {
++        decisionsLog.log("%s\t%s\tno usage found", refKind, key);
++      }
+       return analysis;
+     }
+     analysis.isSafeToOptimize = true;
+diff --git a/com/google/javascript/jscomp/OptimizeReturns.java b/com/google/javascript/jscomp/OptimizeReturns.java
+index ef75371..f385fbe 100644
+--- a/com/google/javascript/jscomp/OptimizeReturns.java
++++ b/com/google/javascript/jscomp/OptimizeReturns.java
+@@ -72,7 +72,9 @@ class OptimizeReturns implements OptimizeCalls.CallGraphCompilerPass, CompilerPa
+         String key = entry.getKey();
+         NodeList refs = entry.getValue();
+         if (isCandidate(key, refs)) {
+-          decisionsLog.log("name %s\tremoving return value", key);
++          if (decisionsLog.isLogging()) {
++            decisionsLog.log("name %s\tremoving return value", key);
++          }
+           toOptimize.add(refs);
+         }
+       }
+@@ -81,7 +83,9 @@ class OptimizeReturns implements OptimizeCalls.CallGraphCompilerPass, CompilerPa
+         String key = entry.getKey();
+         NodeList refs = entry.getValue();
+         if (isCandidate(key, refs)) {
+-          decisionsLog.log("property %s\tremoving return value", key);
++          if (decisionsLog.isLogging()) {
++            decisionsLog.log("property %s\tremoving return value", key);
++          }
+           toOptimize.add(refs);
+         }
+       }
+@@ -107,7 +111,9 @@ class OptimizeReturns implements OptimizeCalls.CallGraphCompilerPass, CompilerPa
+    */
+   private boolean isCandidate(String name, NodeList refs) {
+     if (!OptimizeCalls.mayBeOptimizableName(compiler, name)) {
+-      decisionsLog.log("%s\tnot an optimizable name", name);
++      if (decisionsLog.isLogging()) {
++        decisionsLog.log("%s\tnot an optimizable name", name);
++      }
+       return false;
+     }
+ 
+@@ -145,11 +151,15 @@ class OptimizeReturns implements OptimizeCalls.CallGraphCompilerPass, CompilerPa
+     }
+ 
+     if (!seenUse) {
+-      decisionsLog.log("%s\tno usage seen", name);
++      if (decisionsLog.isLogging()) {
++        decisionsLog.log("%s\tno usage seen", name);
++      }
+       return false;
+     }
+     if (!seenCandidateDefiniton) {
+-      decisionsLog.log("%s\tno definition seen", name);
++      if (decisionsLog.isLogging()) {
++        decisionsLog.log("%s\tno definition seen", name);
++      }
+       return false;
+     }
+     return true;
+diff --git a/com/google/javascript/jscomp/PureFunctionIdentifier.java b/com/google/javascript/jscomp/PureFunctionIdentifier.java
+index c0504b0..3b11c01 100644
+--- a/com/google/javascript/jscomp/PureFunctionIdentifier.java
++++ b/com/google/javascript/jscomp/PureFunctionIdentifier.java
+@@ -120,6 +120,8 @@ class PureFunctionIdentifier implements OptimizeCalls.CallGraphCompilerPass {
+ 
+   private final LinkedHashMap<String, AmbiguatedFunctionSummary> summariesByName =
+       new LinkedHashMap<>();
++  private final LinkedHashMap<String, AmbiguatedFunctionSummary> summariesByPropName =
++      new LinkedHashMap<>();
+ 
+   /**
+    * Mapping from function node to summaries for all names associated with that node.
+@@ -243,6 +245,7 @@ class PureFunctionIdentifier implements OptimizeCalls.CallGraphCompilerPass {
+     validateArtificialPurity();
+ 
+     markPureFunctionCalls();
++    this.summariesByPropName.clear();
+   }
+ 
+   /**
+@@ -450,10 +453,8 @@ class PureFunctionIdentifier implements OptimizeCalls.CallGraphCompilerPass {
+       }
+       return outCount;
+     }
+-    String calleeName = nameForReference(callee);
+     ensureScratchSummariesCapacity(outCount + 1);
+-    this.scratchSummaries[outCount] =
+-        summariesByName.getOrDefault(calleeName, unknownFunctionSummary);
++    this.scratchSummaries[outCount] = summaryForReference(callee);
+     return outCount + 1;
+   }
+ 
+@@ -527,42 +528,40 @@ class PureFunctionIdentifier implements OptimizeCalls.CallGraphCompilerPass {
+    * it needs access to scopes and also depends on global knowledge of functions.
+    */
+   private void populateDatastructuresForAnalysisTraversal(ReferenceMap referenceMap) {
+-    // Merge the prop and name references into a single map since only the name matters.
+-    LinkedHashMap<String, NodeList> referencesByName = new LinkedHashMap<>();
++    // Create and store a summary for all known variable names and property names in separate maps
++    // to avoid allocating "." + propName on every property reference lookup.
+     for (Map.Entry<String, NodeList> entry : referenceMap.names.entrySet()) {
+       NodeList refs = entry.getValue();
+       if (!refs.isEmpty()) {
+-        referencesByName.put(entry.getKey(), refs);
++        String name = entry.getKey();
++        checkState(!name.isEmpty());
++        summariesByName.put(
++            name, AmbiguatedFunctionSummary.createInGraph(reverseCallGraph, name));
+       }
+     }
+     for (Map.Entry<String, NodeList> entry : referenceMap.props.entrySet()) {
+       NodeList refs = entry.getValue();
+       if (!refs.isEmpty()) {
+-        String key = PROP_NAME_PREFIX + entry.getKey();
+-        NodeList existing = referencesByName.get(key);
+-        if (existing == null) {
+-          referencesByName.put(key, refs);
+-        } else {
+-          NodeList merged = new NodeList();
+-          merged.addAll(existing);
+-          merged.addAll(refs);
+-          referencesByName.put(key, merged);
+-        }
++        String propName = entry.getKey();
++        checkState(!propName.isEmpty());
++        summariesByPropName.put(
++            propName,
++            AmbiguatedFunctionSummary.createInGraph(
++                reverseCallGraph, PROP_NAME_PREFIX + propName));
+       }
+     }
+-    // Empty function names cause a crash during analysis that is better to detect here.
+-    // Additionally, functions require a name to be invoked in a statically analyzable way; there's
+-    // no value in tracking the set of anonymous functions.
+-    checkState(!referencesByName.containsKey(""));
+-    checkState(!referencesByName.containsKey(PROP_NAME_PREFIX));
+ 
+-    // Create and store a summary for all known names.
+-    for (String name : referencesByName.keySet()) {
+-      summariesByName.put(name, AmbiguatedFunctionSummary.createInGraph(reverseCallGraph, name));
++    for (Map.Entry<String, NodeList> entry : referenceMap.names.entrySet()) {
++      NodeList refs = entry.getValue();
++      if (!refs.isEmpty()) {
++        populateFunctionDefinitions(checkNotNull(summariesByName.get(entry.getKey())), refs);
++      }
+     }
+-
+-    for (Map.Entry<String, NodeList> entry : referencesByName.entrySet()) {
+-      populateFunctionDefinitions(entry.getKey(), entry.getValue());
++    for (Map.Entry<String, NodeList> entry : referenceMap.props.entrySet()) {
++      NodeList refs = entry.getValue();
++      if (!refs.isEmpty()) {
++        populateFunctionDefinitions(checkNotNull(summariesByPropName.get(entry.getKey())), refs);
++      }
+     }
+     putFunctionSummary(
+         IMPLICIT_PURE_FN,
+@@ -573,11 +572,11 @@ class PureFunctionIdentifier implements OptimizeCalls.CallGraphCompilerPass {
+    * For a name and its set of references, record the set of functions that may define that name or
+    * skiplist the name if there are unclear definitions.
+    *
+-   * @param name A variable or property name,
+-   * @param references The set of all nodes representing R- and L-value references to {@code name}.
++   * @param summaryForName Summary for the variable or property name.
++   * @param references The set of all nodes representing R- and L-value references to the name.
+    */
+-  private void populateFunctionDefinitions(String name, NodeList references) {
+-    AmbiguatedFunctionSummary summaryForName = checkNotNull(summariesByName.get(name));
++  private void populateFunctionDefinitions(
++      AmbiguatedFunctionSummary summaryForName, NodeList references) {
+ 
+     // Make sure we get absolutely every R-value assigned to `name` or at the very least detect
+     // there are some we're missing. Overlooking a single R-value would invalidate the analysis.
+@@ -633,9 +632,7 @@ class PureFunctionIdentifier implements OptimizeCalls.CallGraphCompilerPass {
+           putFunctionSummary(rvalue, summaryForName);
+         } else if (NodeUtil.isUndefined(rvalue)) {
+         } else {
+-          String rvalueName = nameForReference(rvalue);
+-          AmbiguatedFunctionSummary rvalueSummary =
+-              summariesByName.getOrDefault(rvalueName, unknownFunctionSummary);
++          AmbiguatedFunctionSummary rvalueSummary = summaryForReference(rvalue);
+ 
+           reverseCallGraph.connect(
+               rvalueSummary.graphNode,
+@@ -1319,14 +1316,14 @@ class PureFunctionIdentifier implements OptimizeCalls.CallGraphCompilerPass {
+   }
+ 
+   /**
+-   * Returns the unqualified name associated with an R-value.
+-   *
+-   * <p>For NAMEs this is the name. For GETPROPs this is the last segment including a leading dot.
++   * Returns the summary associated with an R-value variable or property reference without
++   * allocating a dot-prefixed String key.
+    */
+-  private static @Nullable String nameForReference(Node nameRef) {
++  private AmbiguatedFunctionSummary summaryForReference(Node nameRef) {
+     return switch (nameRef.getToken()) {
+-      case NAME -> nameRef.getString();
+-      case GETPROP, OPTCHAIN_GETPROP -> PROP_NAME_PREFIX + nameRef.getString();
++      case NAME -> summariesByName.getOrDefault(nameRef.getString(), unknownFunctionSummary);
++      case GETPROP, OPTCHAIN_GETPROP ->
++          summariesByPropName.getOrDefault(nameRef.getString(), unknownFunctionSummary);
+       default -> throw new IllegalStateException("Unexpected name reference: " + nameRef);
+     };
+   }
+diff --git a/com/google/javascript/jscomp/RenameProperties.java b/com/google/javascript/jscomp/RenameProperties.java
+index 0dfe36a..b6e7633 100644
+--- a/com/google/javascript/jscomp/RenameProperties.java
++++ b/com/google/javascript/jscomp/RenameProperties.java
+@@ -467,7 +467,11 @@ class RenameProperties implements CompilerPass {
+      * @param name The property name
+      */
+     private void countPropertyOccurrence(String name) {
+-      Property prop = propertyMap.computeIfAbsent(name, Property::new);
++      Property prop = propertyMap.get(name);
++      if (prop == null) {
++        prop = new Property(name);
++        propertyMap.put(name, prop);
++      }
+       prop.numOccurrences++;
+     }
+   }
+diff --git a/com/google/javascript/jscomp/RenameVars.java b/com/google/javascript/jscomp/RenameVars.java
+index 6cc99f5..f727e4f 100644
+--- a/com/google/javascript/jscomp/RenameVars.java
++++ b/com/google/javascript/jscomp/RenameVars.java
+@@ -286,7 +286,11 @@ final class RenameVars implements CompilerPass {
+ 
+     // Increment count of an assignment
+     void incCount(String name) {
+-      Assignment s = assignments.computeIfAbsent(name, Assignment::new);
++      Assignment s = assignments.get(name);
++      if (s == null) {
++        s = new Assignment(name);
++        assignments.put(name, s);
++      }
+       s.count++;
+     }
+   }
+diff --git a/com/google/javascript/jscomp/SourceMap.java b/com/google/javascript/jscomp/SourceMap.java
+index 09c71f2..1d79ded 100644
+--- a/com/google/javascript/jscomp/SourceMap.java
++++ b/com/google/javascript/jscomp/SourceMap.java
+@@ -174,6 +174,20 @@ public final class SourceMap {
+ 
+   public void addMapping(
+       Node node, FilePosition outputStartPosition, FilePosition outputEndPosition) {
++    addMapping(
++        node,
++        outputStartPosition.getLine(),
++        outputStartPosition.getColumn(),
++        outputEndPosition.getLine(),
++        outputEndPosition.getColumn());
++  }
++
++  public void addMapping(
++      Node node,
++      int outputStartLine,
++      int outputStartColumn,
++      int outputEndLine,
++      int outputEndColumn) {
+     // If the node does not have an associated source file or
+     // its line number is -1, then the node does not have sufficient
+     // information for a mapping to be useful.
+@@ -219,9 +233,12 @@ public final class SourceMap {
+     generator.addMapping(
+         sourceFileName,
+         originalName,
+-        new FilePosition(lineNo - lineBaseOffset, charNo),
+-        outputStartPosition,
+-        outputEndPosition);
++        lineNo - lineBaseOffset,
++        charNo,
++        outputStartLine,
++        outputStartColumn,
++        outputEndLine,
++        outputEndColumn);
+   }
+ 
+   public void addSourceFile(String name, String code) {
+diff --git a/com/google/javascript/jscomp/TypeCheck.java b/com/google/javascript/jscomp/TypeCheck.java
+index fd05e44..4f43bd8 100644
+--- a/com/google/javascript/jscomp/TypeCheck.java
++++ b/com/google/javascript/jscomp/TypeCheck.java
+@@ -422,6 +422,8 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+   /** Logs types for @logTypeInCompiler. */
+   private @Nullable DebugTypeLogger debugTypeLogger = null;
+ 
++  private final LinkedHashSet<JSType> nonStringifiableKeyVisited = new LinkedHashSet<>();
++
+   private static final class SuggestionPair {
+     private final String suggestion;
+     final int distance;
+@@ -3362,8 +3364,8 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+       checkTypeContainsObjectWithBadKey(n, info.getType());
+       checkTypeContainsObjectWithBadKey(n, info.getReturnType());
+       checkTypeContainsObjectWithBadKey(n, info.getTypedefType());
+-      for (String param : info.getParameterNames()) {
+-        checkTypeContainsObjectWithBadKey(n, info.getParameterType(param));
++      for (int i = 0, paramCount = info.getParameterCount(); i < paramCount; i++) {
++        checkTypeContainsObjectWithBadKey(n, info.getParameterTypeAt(i));
+       }
+     }
+   }
+@@ -3371,9 +3373,15 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+   private void checkTypeContainsObjectWithBadKey(Node n, JSTypeExpression type) {
+     if (type != null && type.getRoot().getJSType() != null) {
+       JSType realType = type.getRoot().getJSType();
+-      LinkedHashSet<JSType> alreadyCheckedTypes = new LinkedHashSet<>();
+-      JSType objectWithBadKey =
+-          findObjectWithNonStringifiableKey(realType, alreadyCheckedTypes);
++      if (!realType.mayHaveNonStringifiableKey()) {
++        return;
++      }
++      JSType objectWithBadKey;
++      try {
++        objectWithBadKey = findObjectWithNonStringifiableKey(realType);
++      } finally {
++        this.nonStringifiableKeyVisited.clear();
++      }
+       if (objectWithBadKey != null) {
+         compiler.report(JSError.make(n, NON_STRINGIFIABLE_OBJECT_KEY, objectWithBadKey.toString()));
+       }
+@@ -3480,14 +3488,14 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+    *
+    * @return non-stringifiable type which is used as key or null if all there are no such types.
+    */
+-  private @Nullable JSType findObjectWithNonStringifiableKey(
+-      JSType type, LinkedHashSet<JSType> alreadyCheckedTypes) {
+-    if (alreadyCheckedTypes.contains(type)) {
++  private @Nullable JSType findObjectWithNonStringifiableKey(JSType type) {
++    if (!type.mayHaveNonStringifiableKey()) {
++      return null;
++    }
++    if (!this.nonStringifiableKeyVisited.add(type)) {
+       // This can happen in recursive types. Current type already being checked earlier in
+       // stacktrace so now we just skip it.
+       return null;
+-    } else {
+-      alreadyCheckedTypes.add(type);
+     }
+     if (isObjectTypeWithNonStringifiableKey(type)) {
+       return type;
+@@ -3495,16 +3503,16 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     if (type.isUnionType()) {
+       UnionType union = type.toMaybeUnionType();
+       for (int i = 0, n = union.getAlternatesCount(); i < n; i++) {
+-        JSType result =
+-            findObjectWithNonStringifiableKey(union.getAlternateAt(i), alreadyCheckedTypes);
++        JSType result = findObjectWithNonStringifiableKey(union.getAlternateAt(i));
+         if (result != null) {
+           return result;
+         }
+       }
+     }
+     if (type.isTemplatizedType()) {
+-      for (JSType templateType : type.toMaybeTemplatizedType().getTemplateTypes()) {
+-        JSType result = findObjectWithNonStringifiableKey(templateType, alreadyCheckedTypes);
++      var templateTypes = type.toMaybeTemplatizedType().getTemplateTypes();
++      for (int i = 0, n = templateTypes.size(); i < n; i++) {
++        JSType result = findObjectWithNonStringifiableKey(templateTypes.get(i));
+         if (result != null) {
+           return result;
+         }
+@@ -3514,13 +3522,12 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+       FunctionType function = type.toMaybeFunctionType();
+       Parameter[] params = function.getParameterArray();
+       for (int i = 0, len = params.length; i < len; i++) {
+-        JSType result =
+-            findObjectWithNonStringifiableKey(params[i].getJSType(), alreadyCheckedTypes);
++        JSType result = findObjectWithNonStringifiableKey(params[i].getJSType());
+         if (result != null) {
+           return result;
+         }
+       }
+-      return findObjectWithNonStringifiableKey(function.getReturnType(), alreadyCheckedTypes);
++      return findObjectWithNonStringifiableKey(function.getReturnType());
+     }
+     return null;
+   }
+diff --git a/com/google/javascript/jscomp/TypeValidator.java b/com/google/javascript/jscomp/TypeValidator.java
+index 0a9bb34..58e34b0 100644
+--- a/com/google/javascript/jscomp/TypeValidator.java
++++ b/com/google/javascript/jscomp/TypeValidator.java
+@@ -61,7 +61,6 @@ import com.google.javascript.rhino.jstype.TemplateTypeMap;
+ import com.google.javascript.rhino.jstype.TemplatizedType;
+ import com.google.javascript.rhino.jstype.UnionType;
+ import com.google.javascript.rhino.jstype.UnknownType;
+-import com.google.javascript.rhino.jstype.Visitor;
+ import java.io.Serializable;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+@@ -1319,108 +1318,97 @@ class TypeValidator implements Serializable {
+     return originalDeclLevel == CheckLevel.OFF;
+   }
+ 
+-  private transient @Nullable WellFormedTemplatizedTypeVerifier reusableVerifier;
+-  private transient boolean verifierInUse;
+-
+   void expectWellFormedTemplatizedType(Node n) {
+     JSType type = n.getJSType();
+     if (type == null) {
+       return;
+     }
+-    if (!verifierInUse) {
+-      WellFormedTemplatizedTypeVerifier verifier = this.reusableVerifier;
+-      if (verifier == null) {
+-        verifier = new WellFormedTemplatizedTypeVerifier(null);
+-        this.reusableVerifier = verifier;
+-      }
+-      verifierInUse = true;
+-      verifier.node = n;
+-      try {
+-        type.visit(verifier);
+-      } finally {
+-        verifier.node = null;
+-        verifierInUse = false;
+-      }
+-    } else {
+-      type.visit(new WellFormedTemplatizedTypeVerifier(n));
++    int kind = type.getWellFormedTemplatizedKind();
++    if (kind != 0) {
++      checkWellFormedTemplatizedType(n, type, kind);
+     }
+   }
+ 
+-  final class WellFormedTemplatizedTypeVerifier extends Visitor.WithDefaultCase<Boolean> {
+-    Node node;
+-
+-    WellFormedTemplatizedTypeVerifier(Node node) {
+-      this.node = node;
+-    }
+-
+-    @Override
+-    protected Boolean caseDefault(@Nullable JSType type) {
+-      return true;
+-    }
+-
+-    @Override
+-    public Boolean caseEnumElementType(EnumElementType type) {
+-      return type.getPrimitiveType() == null || type.getPrimitiveType().visit(this);
+-    }
+-
+-    @Override
+-    public Boolean caseFunctionType(FunctionType type) {
+-      FunctionType.Parameter[] params = type.getParameterArray();
+-      for (int i = 0, len = params.length; i < len; i++) {
+-        if (!params[i].getJSType().visit(this)) {
+-          return false;
++  private boolean checkWellFormedTemplatizedType(Node node, JSType type, int kind) {
++    switch (kind) {
++      case JSType.KIND_FUNCTION -> {
++        FunctionType fn = (FunctionType) type;
++        FunctionType.Parameter[] params = fn.getParameterArray();
++        for (int i = 0, len = params.length; i < len; i++) {
++          JSType paramType = params[i].getJSType();
++          int paramKind = paramType.getWellFormedTemplatizedKind();
++          if (paramKind != 0 && !checkWellFormedTemplatizedType(node, paramType, paramKind)) {
++            return false;
++          }
+         }
++        JSType retType = fn.getReturnType();
++        int retKind = retType.getWellFormedTemplatizedKind();
++        return retKind == 0 || checkWellFormedTemplatizedType(node, retType, retKind);
+       }
+-      return type.getReturnType().visit(this);
+-    }
+-
+-    @Override
+-    public Boolean caseNamedType(NamedType type) {
+-      return type.getReferencedType().visit(this);
+-    }
+-
+-    @Override
+-    public Boolean caseUnionType(UnionType type) {
+-      // Avoid iterators in very hot code.
+-      int alternateCount = type.getAlternatesCount();
+-      for (int i = 0; i < alternateCount; i++) {
+-        var alternative = type.getAlternateAt(i);
+-        if (!alternative.visit(this)) {
+-          return false;
++      case JSType.KIND_UNION -> {
++        UnionType union = (UnionType) type;
++        int alternateCount = union.getAlternatesCount();
++        for (int i = 0; i < alternateCount; i++) {
++          JSType alternative = union.getAlternateAt(i);
++          int altKind = alternative.getWellFormedTemplatizedKind();
++          if (altKind != 0 && !checkWellFormedTemplatizedType(node, alternative, altKind)) {
++            return false;
++          }
+         }
++        return true;
+       }
+-      return true;
+-    }
+-
+-    @Override
+-    public Boolean caseTemplatizedType(TemplatizedType type) {
+-      TemplateTypeMap referencedTemplates = type.getReferencedType().getTemplateTypeMap();
+-      ImmutableList<JSType> templateTypes = type.getTemplateTypes();
+-      int refCount = referencedTemplates.size();
+-      for (int i = 0, len = templateTypes.size(); i < len; i++) {
+-        JSType assignedType = templateTypes.get(i);
+-        if (i < refCount) {
+-          TemplateType templateType = referencedTemplates.getTemplateKeyAt(i);
+-          if (!assignedType.isSubtype(templateType.getBound())) {
+-            registerMismatchAndReport(
+-                assignedType,
+-                templateType.getBound(),
+-                JSError.make(
+-                    node,
+-                    RhinoErrorReporter.BOUNDED_GENERIC_TYPE_ERROR,
+-                    assignedType.toString(),
+-                    templateType.getReferenceName(),
+-                    templateType.getBound().toString()));
+-            return false;
++      case JSType.KIND_TEMPLATIZED -> {
++        TemplatizedType templatized = (TemplatizedType) type;
++        TemplateTypeMap referencedTemplates = templatized.getReferencedType().getTemplateTypeMap();
++        ImmutableList<JSType> templateTypes = templatized.getTemplateTypes();
++        int refCount = referencedTemplates.size();
++        for (int i = 0, len = templateTypes.size(); i < len; i++) {
++          JSType assignedType = templateTypes.get(i);
++          if (i < refCount) {
++            TemplateType templateType = referencedTemplates.getTemplateKeyAt(i);
++            if (!assignedType.isSubtype(templateType.getBound())) {
++              registerMismatchAndReport(
++                  assignedType,
++                  templateType.getBound(),
++                  JSError.make(
++                      node,
++                      RhinoErrorReporter.BOUNDED_GENERIC_TYPE_ERROR,
++                      assignedType.toString(),
++                      templateType.getReferenceName(),
++                      templateType.getBound().toString()));
++              return false;
++            }
+           }
+         }
++        return true;
++      }
++      case JSType.KIND_NAMED -> {
++        NamedType named = (NamedType) type;
++        JSType ref = named.getReferencedType();
++        int refKind = ref.getWellFormedTemplatizedKind();
++        return refKind == 0 || checkWellFormedTemplatizedType(node, ref, refKind);
++      }
++      case JSType.KIND_TEMPLATE -> {
++        TemplateType templateType = (TemplateType) type;
++        if (templateType.containsCycle()) {
++          return false;
++        }
++        JSType bound = templateType.getBound();
++        int boundKind = bound.getWellFormedTemplatizedKind();
++        return boundKind == 0 || checkWellFormedTemplatizedType(node, bound, boundKind);
++      }
++      case JSType.KIND_ENUM_ELEMENT -> {
++        EnumElementType enumElement = (EnumElementType) type;
++        JSType prim = enumElement.getPrimitiveType();
++        if (prim == null) {
++          return true;
++        }
++        int primKind = prim.getWellFormedTemplatizedKind();
++        return primKind == 0 || checkWellFormedTemplatizedType(node, prim, primKind);
++      }
++      default -> {
++        return true;
+       }
+-      return true;
+-    }
+-
+-    @Override
+-    public Boolean caseTemplateType(TemplateType templateType) {
+-      return !templateType.containsCycle() && templateType.getBound().visit(this);
+     }
+   }
+ }
+diff --git a/com/google/javascript/jscomp/disambiguate/AmbiguateProperties.java b/com/google/javascript/jscomp/disambiguate/AmbiguateProperties.java
+index 79f99a9..ca528b3 100644
+--- a/com/google/javascript/jscomp/disambiguate/AmbiguateProperties.java
++++ b/com/google/javascript/jscomp/disambiguate/AmbiguateProperties.java
+@@ -585,7 +585,12 @@ public class AmbiguateProperties implements CompilerPass {
+   }
+ 
+   private Property getProperty(String name) {
+-    return propertyMap.computeIfAbsent(name, Property::new);
++    Property prop = propertyMap.get(name);
++    if (prop == null) {
++      prop = new Property(name);
++      propertyMap.put(name, prop);
++    }
++    return prop;
+   }
+ 
+   /** This method gets the Color from the Node argument or UNKNOWN if not present. */
+diff --git a/com/google/javascript/jscomp/disambiguate/ColorFindPropertyReferences.java b/com/google/javascript/jscomp/disambiguate/ColorFindPropertyReferences.java
+index 9b62e6a..af97c21 100644
+--- a/com/google/javascript/jscomp/disambiguate/ColorFindPropertyReferences.java
++++ b/com/google/javascript/jscomp/disambiguate/ColorFindPropertyReferences.java
+@@ -26,6 +26,7 @@ import com.google.javascript.jscomp.colors.Color;
+ import com.google.javascript.jscomp.colors.StandardColors;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.jstype.JSType;
++import java.util.ArrayList;
+ import java.util.LinkedHashMap;
+ import java.util.function.Function;
+ import org.jspecify.annotations.Nullable;
+@@ -57,7 +58,7 @@ final class ColorFindPropertyReferences extends AbstractPostOrderCallback {
+     boolean test(Node nameNode);
+   }
+ 
+-  private @Nullable LinkedHashMap<String, PropertyClustering> propIndex = new LinkedHashMap<>();
++  private final LinkedHashMap<String, PropertyClustering> propIndex = new LinkedHashMap<>();
+ 
+   private final ColorGraphNodeFactory colorGraphNodeFactory;
+   private final IsPropertyReflector isPropertyReflector;
+@@ -68,10 +69,29 @@ final class ColorFindPropertyReferences extends AbstractPostOrderCallback {
+     this.isPropertyReflector = isPropertyReflector;
+   }
+ 
+-  LinkedHashMap<String, PropertyClustering> getPropertyIndex() {
+-    LinkedHashMap<String, PropertyClustering> tmp = this.propIndex;
+-    this.propIndex = null;
+-    return tmp;
++  PropertyClustering getOrCreateProperty(String name) {
++    PropertyClustering prop = this.propIndex.get(name);
++    if (prop == null) {
++      prop = new PropertyClustering(name);
++      this.propIndex.put(name, prop);
++    }
++    return prop;
++  }
++
++  @Nullable PropertyClustering getProperty(String name) {
++    return this.propIndex.get(name);
++  }
++
++  ArrayList<PropertyClustering> collectProperties() {
++    ArrayList<PropertyClustering> list = new ArrayList<>(this.propIndex.size());
++    for (PropertyClustering prop : this.propIndex.values()) {
++      list.add(prop);
++    }
++    return list;
++  }
++
++  void clearProperties() {
++    this.propIndex.clear();
+   }
+ 
+   @Override
+@@ -202,8 +222,7 @@ final class ColorFindPropertyReferences extends AbstractPostOrderCallback {
+    * owner}.
+    */
+   private void registerPropertyUse(NodeTraversal t, Node site, Color owner) {
+-    PropertyClustering prop =
+-        this.propIndex.computeIfAbsent(site.getString(), PropertyClustering::new);
++    PropertyClustering prop = this.getOrCreateProperty(site.getString());
+     ColorGraphNode flatOwner = this.colorGraphNodeFactory.createNode(owner);
+ 
+     // Set the initial condition for flowing this property along the graph.
+diff --git a/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java b/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java
+index 45a74aa..9e1add4 100644
+--- a/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java
++++ b/com/google/javascript/jscomp/disambiguate/ColorGraphNodeFactory.java
+@@ -51,7 +51,12 @@ class ColorGraphNodeFactory {
+    */
+   public ColorGraphNode createNode(@Nullable Color color) {
+     Color key = this.simplifyColor(color);
+-    return this.typeIndex.computeIfAbsent(key, this::newColorGraphNode);
++    ColorGraphNode node = this.typeIndex.get(key);
++    if (node == null) {
++      node = this.newColorGraphNode(key);
++      this.typeIndex.put(key, node);
++    }
++    return node;
+   }
+ 
+   public ImmutableSet<ColorGraphNode> getAllKnownTypes() {
+diff --git a/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java b/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java
+index d1dd400..97239bd 100644
+--- a/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java
++++ b/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java
+@@ -53,8 +53,10 @@ import com.google.javascript.jscomp.graph.FixedPointGraphTraversal;
+ import com.google.javascript.jscomp.graph.LowestCommonAncestorFinder;
+ import com.google.javascript.rhino.Node;
+ import java.io.IOException;
++import java.util.ArrayList;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
++import java.util.List;
+ import java.util.Map;
+ 
+ /** Assembles the various parts of the diambiguator to execute them as a compiler pass. */
+@@ -97,9 +99,9 @@ public final class DisambiguateProperties implements CompilerPass {
+         new UseSiteRenamer(/* mutationCb= */ this.compiler::reportChangeToEnclosingScope);
+ 
+     NodeTraversal.traverse(this.compiler, externs.getParent(), findRefs);
+-    LinkedHashMap<String, PropertyClustering> propIndex = findRefs.getPropertyIndex();
+ 
+-    invalidateWellKnownProperties(propIndex);
++    invalidateWellKnownProperties(findRefs);
++    ArrayList<PropertyClustering> allProps = findRefs.collectProperties();
+     this.logForDiagnostics(
+         "prop_refs",
+         // use a StreamedJsonProducer instead of building up the entire json string at once to
+@@ -108,7 +110,7 @@ public final class DisambiguateProperties implements CompilerPass {
+           @Override
+           public void writeJson(JsonWriter writer) throws IOException {
+             ImmutableSortedSet<PropertyReferenceIndexJson> propRefsJson =
+-                propIndex.values().stream()
++                allProps.stream()
+                     .map(PropertyReferenceIndexJson::new)
+                     .collect(toImmutableSortedSet(naturalOrder()));
+ 
+@@ -136,8 +138,9 @@ public final class DisambiguateProperties implements CompilerPass {
+         // and we will add properties of each alternate elsewhere in this loop.
+         continue;
+       }
+-      registerOwnDeclaredProperties(colorGraphNode, propIndex);
++      registerOwnDeclaredProperties(colorGraphNode, findRefs);
+     }
++    findRefs.clearProperties();
+ 
+     this.logForDiagnostics(
+         "graph",
+@@ -152,7 +155,8 @@ public final class DisambiguateProperties implements CompilerPass {
+     FixedPointGraphTraversal.newTraversal(propagator).computeFixedPoint(graph);
+ 
+     TrackerSummaryGenerator trackerSummaryGenerator = new TrackerSummaryGenerator();
+-    for (PropertyClustering prop : propIndex.values()) {
++    for (int i = 0, n = allProps.size(); i < n; i++) {
++      PropertyClustering prop = allProps.get(i);
+       RenameUsesResult renameUsesResult = renamer.renameUses(prop);
+       trackerSummaryGenerator.addRenameUsesResult(renameUsesResult);
+       if (prop.isInvalidated() && this.propertiesThatMustDisambiguate.contains(prop.getName())) {
+@@ -161,7 +165,7 @@ public final class DisambiguateProperties implements CompilerPass {
+     }
+     compiler.reportDisambiguatePropertiesSummary(trackerSummaryGenerator::buildSummaryString);
+ 
+-    this.logForDiagnostics("renaming_index", () -> buildRenamingIndex(propIndex, renamer));
++    this.logForDiagnostics("renaming_index", () -> buildRenamingIndex(allProps, renamer));
+     this.logForDiagnostics("mismatches", this.registry.getMismatchLocationsForDebugging()::inverse);
+ 
+     GatherGetterAndSetterProperties.update(this.compiler, externs, root);
+@@ -203,9 +207,9 @@ public final class DisambiguateProperties implements CompilerPass {
+   }
+ 
+   private static ImmutableMap<String, Object> buildRenamingIndex(
+-      LinkedHashMap<String, PropertyClustering> props, UseSiteRenamer renamer) {
++      List<PropertyClustering> props, UseSiteRenamer renamer) {
+     ImmutableSetMultimap<String, String> newNames = renamer.getRenamingIndex();
+-    return props.values().stream()
++    return props.stream()
+         .collect(
+             toImmutableSortedMap(
+                 naturalOrder(),
+@@ -216,8 +220,7 @@ public final class DisambiguateProperties implements CompilerPass {
+                         : ImmutableSortedSet.copyOf(newNames.get(prop.getName()))));
+   }
+ 
+-  private static void invalidateWellKnownProperties(
+-      LinkedHashMap<String, PropertyClustering> propIndex) {
++  private static void invalidateWellKnownProperties(ColorFindPropertyReferences findRefs) {
+     /*
+      * Expand this list as needed; it wasn't created exhaustively.
+      *
+@@ -227,12 +230,9 @@ public final class DisambiguateProperties implements CompilerPass {
+      * <p>TODO(b/169899789): consider instead omitting these properties entirely from the serialized
+      * colors format.
+      */
+-    ImmutableList<String> names = ImmutableList.of("prototype", "constructor", "then");
+-    for (String name : names) {
+-      propIndex
+-          .computeIfAbsent(name, PropertyClustering::new)
+-          .invalidate(Invalidation.wellKnownProperty());
+-    }
++    findRefs.getOrCreateProperty("prototype").invalidate(Invalidation.wellKnownProperty());
++    findRefs.getOrCreateProperty("constructor").invalidate(Invalidation.wellKnownProperty());
++    findRefs.getOrCreateProperty("then").invalidate(Invalidation.wellKnownProperty());
+   }
+ 
+   private void invalidateBasedOnType(ColorGraphNodeFactory flattener) {
+@@ -342,7 +342,7 @@ public final class DisambiguateProperties implements CompilerPass {
+       new LinkedIdentityHashMap<>();
+ 
+   private void registerOwnDeclaredProperties(
+-      ColorGraphNode colorGraphNode, LinkedHashMap<String, PropertyClustering> propIndex) {
++      ColorGraphNode colorGraphNode, ColorFindPropertyReferences findRefs) {
+     checkArgument(!colorGraphNode.getColor().isUnion());
+ 
+     // For each type, get the list of its "own properties" and add them to its clustering. This
+@@ -351,7 +351,7 @@ public final class DisambiguateProperties implements CompilerPass {
+     String[] ownProps = colorGraphNode.getColor().getOwnPropertiesArray();
+     for (int i = 0, n = ownProps.length; i < n; i++) {
+       String propName = ownProps[i];
+-      PropertyClustering prop = propIndex.get(propName);
++      PropertyClustering prop = findRefs.getProperty(propName);
+       if (prop == null) {
+         // Ignore declared properties without any visible references to rename.
+         continue;
+diff --git a/com/google/javascript/jscomp/lint/CheckJSDocStyle.java b/com/google/javascript/jscomp/lint/CheckJSDocStyle.java
+index 24b0d52..cc6427c 100644
+--- a/com/google/javascript/jscomp/lint/CheckJSDocStyle.java
++++ b/com/google/javascript/jscomp/lint/CheckJSDocStyle.java
+@@ -184,7 +184,7 @@ public final class CheckJSDocStyle extends AbstractPostOrderCallback implements
+     } else {
+       if (t.inGlobalScope()
+           || hasAnyInlineJsDoc(function)
+-          || !jsDoc.getParameterNames().isEmpty()
++          || jsDoc.getParameterCount() > 0
+           || jsDoc.hasReturnType()
+           || jsDoc.isOverride()) {
+         checkParams(t, function, jsDoc);
+@@ -268,15 +268,12 @@ public final class CheckJSDocStyle extends AbstractPostOrderCallback implements
+       return;
+     }
+ 
+-    List<String> paramsFromJsDoc =
+-        jsDoc == null
+-            ? ImmutableList.of()
+-            : ImmutableList.copyOf(jsDoc.getParameterNames());
+-    if (paramsFromJsDoc.isEmpty()) {
++    int paramCountFromJsDoc = jsDoc == null ? 0 : jsDoc.getParameterCount();
++    if (paramCountFromJsDoc == 0) {
+       checkInlineParams(t, function, jsDoc);
+     } else {
+       Node paramList = NodeUtil.getFunctionParameters(function);
+-      if (!paramList.hasXChildren(paramsFromJsDoc.size())) {
++      if (!paramList.hasXChildren(paramCountFromJsDoc)) {
+         compiler.report(
+             JSError.make(
+                 paramList,
+@@ -289,12 +286,12 @@ public final class CheckJSDocStyle extends AbstractPostOrderCallback implements
+       }
+ 
+       Node param = paramList.getFirstChild();
+-      for (String s : paramsFromJsDoc) {
++      for (int i = 0; i < paramCountFromJsDoc; i++) {
+         if (param.getJSDocInfo() != null) {
+           t.report(param, MIXED_PARAM_JSDOC_STYLES);
+         }
+-        String name = s;
+-        JSTypeExpression paramType = jsDoc.getParameterType(name);
++        String name = jsDoc.getParameterNameAt(i);
++        JSTypeExpression paramType = jsDoc.getParameterTypeAt(i);
+         if (checkParam(t, param, name, paramType)) {
+           return;
+         }
+diff --git a/com/google/javascript/jscomp/lint/CheckNullabilityModifiers.java b/com/google/javascript/jscomp/lint/CheckNullabilityModifiers.java
+index a354234..b64f666 100644
+--- a/com/google/javascript/jscomp/lint/CheckNullabilityModifiers.java
++++ b/com/google/javascript/jscomp/lint/CheckNullabilityModifiers.java
+@@ -92,9 +92,10 @@ public class CheckNullabilityModifiers extends AbstractPostOrderCallback impleme
+       if (info.hasType()) {
+         handleHasType(info.getType(), n);
+       }
+-      for (String param : info.getParameterNames()) {
+-        if (info.hasParameterType(param)) {
+-          visitTypeExpression(info.getParameterType(param), false);
++      for (int i = 0, paramCount = info.getParameterCount(); i < paramCount; i++) {
++        JSTypeExpression paramType = info.getParameterTypeAt(i);
++        if (paramType != null) {
++          visitTypeExpression(paramType, false);
+         }
+       }
+       if (info.hasReturnType()) {
+diff --git a/com/google/javascript/jscomp/serialization/JSDocSerializer.java b/com/google/javascript/jscomp/serialization/JSDocSerializer.java
+index 0d4f02b..ef8bbff 100644
+--- a/com/google/javascript/jscomp/serialization/JSDocSerializer.java
++++ b/com/google/javascript/jscomp/serialization/JSDocSerializer.java
+@@ -46,140 +46,166 @@ public final class JSDocSerializer {
+     return deserializeJsdoc(serializeJsdoc(jsdoc, stringPool), stringPool.build());
+   }
+ 
++  private static OptimizationJsdoc.Builder addKind(
++      OptimizationJsdoc.@Nullable Builder b, JsdocTag tag) {
++    if (b == null) {
++      b = OptimizationJsdoc.newBuilder();
++    }
++    b.addKind(tag);
++    return b;
++  }
++
++  private static OptimizationJsdoc.Builder ensureBuilder(OptimizationJsdoc.@Nullable Builder b) {
++    return b != null ? b : OptimizationJsdoc.newBuilder();
++  }
++
+   static @Nullable OptimizationJsdoc serializeJsdoc(
+       JSDocInfo jsdoc, StringPool.Builder stringPool) {
+     if (jsdoc == null) {
+       return null;
+     }
+ 
+-    OptimizationJsdoc.Builder builder = OptimizationJsdoc.newBuilder();
++    OptimizationJsdoc.Builder builder = null;
+ 
+     if (jsdoc.hasFileOverview()) {
+-      builder.addKind(JsdocTag.JSDOC_FILEOVERVIEW);
++      builder = addKind(builder, JsdocTag.JSDOC_FILEOVERVIEW);
+     }
+ 
+     if (jsdoc.getLicense() != null) {
++      builder = ensureBuilder(builder);
+       builder.setLicenseTextPointer(stringPool.put(jsdoc.getLicense()));
+     }
+ 
+     if (jsdoc.isSassGeneratedCssTs()) {
+-      builder.addKind(JsdocTag.JSDOC_SASS_GENERATED_CSS_TS);
++      builder = addKind(builder, JsdocTag.JSDOC_SASS_GENERATED_CSS_TS);
+     }
+ 
+     // Used by CoverageInstrumentationCallback
+     if (jsdoc.isNoCoverage()) {
+-      builder.addKind(JsdocTag.JSDOC_NO_COVERAGE);
++      builder = addKind(builder, JsdocTag.JSDOC_NO_COVERAGE);
+     }
+ 
+     if (jsdoc.isNoInline()) {
+-      builder.addKind(JsdocTag.JSDOC_NO_INLINE);
++      builder = addKind(builder, JsdocTag.JSDOC_NO_INLINE);
+     }
+ 
+     if (jsdoc.isEncourageInlining()) {
+-      builder.addKind(JsdocTag.JSDOC_ENCOURAGE_INLINING);
++      builder = addKind(builder, JsdocTag.JSDOC_ENCOURAGE_INLINING);
+     }
+ 
+     if (jsdoc.isRequireInlining()) {
+-      builder.addKind(JsdocTag.JSDOC_REQUIRE_INLINING);
++      builder = addKind(builder, JsdocTag.JSDOC_REQUIRE_INLINING);
+     }
+ 
+     if (jsdoc.isNoCollapse()) {
+-      builder.addKind(JsdocTag.JSDOC_NO_COLLAPSE);
++      builder = addKind(builder, JsdocTag.JSDOC_NO_COLLAPSE);
+     }
+ 
+     if (jsdoc.isProvideGoog()) {
+-      builder.addKind(JsdocTag.JSDOC_PROVIDE_GOOG);
++      builder = addKind(builder, JsdocTag.JSDOC_PROVIDE_GOOG);
+     }
+ 
+     if (jsdoc.isProvideAlreadyProvided()) {
+-      builder.addKind(JsdocTag.JSDOC_PROVIDE_ALREADY_PROVIDED);
++      builder = addKind(builder, JsdocTag.JSDOC_PROVIDE_ALREADY_PROVIDED);
+     }
+ 
+     if (jsdoc.isTypeSummary()) {
+-      builder.addKind(JsdocTag.JSDOC_TYPE_SUMMARY_FILE);
++      builder = addKind(builder, JsdocTag.JSDOC_TYPE_SUMMARY_FILE);
+     }
+ 
+     if (jsdoc.isPureOrBreakMyCode()) {
+-      builder.addKind(JsdocTag.JSDOC_PURE_OR_BREAK_MY_CODE);
++      builder = addKind(builder, JsdocTag.JSDOC_PURE_OR_BREAK_MY_CODE);
+     }
+     if (jsdoc.isCollapsibleOrBreakMyCode()) {
+-      builder.addKind(JsdocTag.JSDOC_COLLAPSIBLE_OR_BREAK_MY_CODE);
++      builder = addKind(builder, JsdocTag.JSDOC_COLLAPSIBLE_OR_BREAK_MY_CODE);
+     }
+     if (jsdoc.hasThisType()) {
+-      builder.addKind(JsdocTag.JSDOC_THIS);
++      builder = addKind(builder, JsdocTag.JSDOC_THIS);
+     }
+     if (jsdoc.hasEnumParameterType()) {
+-      builder.addKind(JsdocTag.JSDOC_ENUM);
++      builder = addKind(builder, JsdocTag.JSDOC_ENUM);
+     }
+     if (jsdoc.isDefine()) {
+-      builder.addKind(JsdocTag.JSDOC_DEFINE);
++      builder = addKind(builder, JsdocTag.JSDOC_DEFINE);
+     }
+     if (jsdoc.hasConstAnnotation()) {
+-      builder.addKind(JsdocTag.JSDOC_CONST);
++      builder = addKind(builder, JsdocTag.JSDOC_CONST);
+     }
+     if (jsdoc.isAnyIdGenerator()) {
+-      builder.addKind(serializeIdGenerator(jsdoc));
++      builder = addKind(builder, serializeIdGenerator(jsdoc));
+     }
+ 
+     // Used by PureFunctionIdentifier
+     if (jsdoc.isNoSideEffects()) {
+-      builder.addKind(JsdocTag.JSDOC_NO_SIDE_EFFECTS);
++      builder = addKind(builder, JsdocTag.JSDOC_NO_SIDE_EFFECTS);
+     }
+     if (jsdoc.hasModifies()) {
+       for (String modifies : jsdoc.getModifies()) {
+         switch (modifies) {
+-          case "this" -> builder.addKind(JsdocTag.JSDOC_MODIFIES_THIS);
+-          case "arguments" -> builder.addKind(JsdocTag.JSDOC_MODIFIES_ARGUMENTS);
++          case "this" -> builder = addKind(builder, JsdocTag.JSDOC_MODIFIES_THIS);
++          case "arguments" -> builder = addKind(builder, JsdocTag.JSDOC_MODIFIES_ARGUMENTS);
+           default ->
+               // Currently, anything other than "this" is considered a modification to arguments
+-              builder.addKind(JsdocTag.JSDOC_MODIFIES_ARGUMENTS);
++              builder = addKind(builder, JsdocTag.JSDOC_MODIFIES_ARGUMENTS);
+         }
+       }
+     }
+     if (!jsdoc.getThrowsAnnotations().isEmpty()) {
+-      builder.addKind(JsdocTag.JSDOC_THROWS);
++      builder = addKind(builder, JsdocTag.JSDOC_THROWS);
+     }
+ 
+     // Used by DevirtualizeMethods and CollapseProperties
+     if (jsdoc.isConstructor()) {
+-      builder.addKind(JsdocTag.JSDOC_CONSTRUCTOR);
++      builder = addKind(builder, JsdocTag.JSDOC_CONSTRUCTOR);
+     }
+     if (jsdoc.isInterface()) {
+-      builder.addKind(JsdocTag.JSDOC_INTERFACE);
++      builder = addKind(builder, JsdocTag.JSDOC_INTERFACE);
+     }
+-    if (jsdoc.getSuppressions().contains("partialAlias")) {
+-      builder.addKind(JsdocTag.JSDOC_SUPPRESS_PARTIAL_ALIAS);
++    var suppressions = jsdoc.getSuppressions();
++    if (!suppressions.isEmpty()) {
++      if (suppressions.contains("partialAlias")) {
++        builder = addKind(builder, JsdocTag.JSDOC_SUPPRESS_PARTIAL_ALIAS);
++      }
+     }
+ 
+     // Used by ClosureCodeRemoval
+     if (jsdoc.isAbstract()) {
+-      builder.addKind(JsdocTag.JSDOC_ABSTRACT);
++      builder = addKind(builder, JsdocTag.JSDOC_ABSTRACT);
+     }
+ 
+     // Used by ReplaceMessages
+     if (jsdoc.getDescription() != null) {
++      builder = ensureBuilder(builder);
+       builder.setDescriptionPointer(stringPool.put(jsdoc.getDescription()));
+     }
+     if (jsdoc.getAlternateMessageId() != null) {
++      builder = ensureBuilder(builder);
+       builder.setAlternateMessageIdPointer(stringPool.put(jsdoc.getAlternateMessageId()));
+     }
+     if (jsdoc.getMeaning() != null) {
++      builder = ensureBuilder(builder);
+       builder.setMeaningPointer(stringPool.put(jsdoc.getMeaning()));
+     }
+-    if (jsdoc.getSuppressions().contains("messageConventions")) {
+-      builder.addKind(JsdocTag.JSDOC_SUPPRESS_MESSAGE_CONVENTION);
+-    }
+-    if (jsdoc.getSuppressions().contains("untranspilableFeatures")) {
+-      builder.addKind(JsdocTag.JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES);
++    if (!suppressions.isEmpty()) {
++      if (suppressions.contains("messageConventions")) {
++        builder = addKind(builder, JsdocTag.JSDOC_SUPPRESS_MESSAGE_CONVENTION);
++      }
++      if (suppressions.contains("untranspilableFeatures")) {
++        builder = addKind(builder, JsdocTag.JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES);
++      }
+     }
+     if (jsdoc.isUsedViaDotConstructor()) {
+-      builder.addKind(JsdocTag.JSDOC_USED_VIA_DOT_CONSTRUCTOR);
++      builder = addKind(builder, JsdocTag.JSDOC_USED_VIA_DOT_CONSTRUCTOR);
+     }
+     if (jsdoc.getPerFileClosureUnawareMode() != null) {
++      builder = ensureBuilder(builder);
+       builder.setClosureUnawareModePointer(
+           stringPool.put(jsdoc.getPerFileClosureUnawareMode().name()));
+     }
+ 
++    if (builder == null) {
++      return null;
++    }
+     OptimizationJsdoc result = builder.build();
+     if (OptimizationJsdoc.getDefaultInstance().equals(result)) {
+       return null;
+diff --git a/com/google/javascript/jscomp/serialization/StringPool.java b/com/google/javascript/jscomp/serialization/StringPool.java
+index e60780c..937c56e 100644
+--- a/com/google/javascript/jscomp/serialization/StringPool.java
++++ b/com/google/javascript/jscomp/serialization/StringPool.java
+@@ -23,6 +23,7 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+ import com.google.javascript.rhino.RhinoStringPool;
+ import com.google.protobuf.ByteString;
+ import java.util.Arrays;
++import java.util.LinkedHashMap;
+ 
+ /**
+  * Aggregates strings into a {@link StringPool}
+@@ -89,7 +90,7 @@ public final class StringPool {
+     private int maxLength = 0;
+     private String[] pool = new String[32];
+     private int size = 0;
+-    private int[] hashTable = new int[64];
++    private final LinkedHashMap<String, Integer> indexByString = new LinkedHashMap<>(1024);
+     private boolean built = false;
+ 
+     private Builder() {
+@@ -100,20 +101,9 @@ public final class StringPool {
+     public int put(String string) {
+       checkNotNull(string);
+ 
+-      int h = string.hashCode();
+-      int[] table = this.hashTable;
+-      int mask = table.length - 1;
+-      int slot = (h ^ (h >>> 16)) & mask;
+-      while (true) {
+-        int entry = table[slot];
+-        if (entry == 0) {
+-          break;
+-        }
+-        int existingId = entry - 1;
+-        if (this.pool[existingId].equals(string)) {
+-          return existingId;
+-        }
+-        slot = (slot + 1) & mask;
++      Integer existing = this.indexByString.get(string);
++      if (existing != null) {
++        return existing;
+       }
+ 
+       if (this.built) {
+@@ -128,28 +118,10 @@ public final class StringPool {
+       int id = this.size;
+       this.pool[id] = string;
+       this.size = id + 1;
+-      table[slot] = id + 1;
+-      if (this.size * 4 >= table.length * 3) {
+-        rehash(table.length * 2);
+-      }
++      this.indexByString.put(string, id);
+       return id;
+     }
+ 
+-    private void rehash(int newCap) {
+-      int[] newTable = new int[newCap];
+-      int mask = newCap - 1;
+-      String[] items = this.pool;
+-      for (int id = 0, n = this.size; id < n; id++) {
+-        int h = items[id].hashCode();
+-        int slot = (h ^ (h >>> 16)) & mask;
+-        while (newTable[slot] != 0) {
+-          slot = (slot + 1) & mask;
+-        }
+-        newTable[slot] = id + 1;
+-      }
+-      this.hashTable = newTable;
+-    }
+-
+     @CanIgnoreReturnValue
+     public Builder putAnd(String string) {
+       this.put(string);
+diff --git a/com/google/javascript/rhino/JSDocInfo.java b/com/google/javascript/rhino/JSDocInfo.java
+index 8e7e70e..9d93c0c 100644
+--- a/com/google/javascript/rhino/JSDocInfo.java
++++ b/com/google/javascript/rhino/JSDocInfo.java
+@@ -444,6 +444,10 @@ public final class JSDocInfo implements Serializable {
+       return keys.get(index);
+     }
+ 
++    @Nullable JSTypeExpression valueAt(int index) {
++      return values.get(index);
++    }
++
+     boolean putIfAbsent(String key, @Nullable JSTypeExpression value) {
+       int idx = indexOfKey(key);
+       if (idx < 0) {
+@@ -1172,6 +1176,18 @@ public final class JSDocInfo implements Serializable {
+ 
+   /** A piece of information (found in a marker) which contains a position with a string. */
+   public static class StringPosition extends ComparableSourcePosition<String> {
++    private @Nullable String stringItem = null;
++
++    @Override
++    public void setItem(String item) {
++      this.stringItem = item;
++    }
++
++    @Override
++    public @Nullable String getItem() {
++      return this.stringItem;
++    }
++
+     @Override
+     boolean isEquivalentTo(SourcePosition<String> that) {
+       return that != null && isSamePositionAs(that) && Objects.equals(getItem(), that.getItem());
+@@ -1793,6 +1809,22 @@ public final class JSDocInfo implements Serializable {
+     return params.keyAt(index);
+   }
+ 
++  public @Nullable JSTypeExpression getParameterTypeAt(int index) {
++    TypeMap params = PARAMETERS.get(this);
++    if (params == null || index >= params.size()) {
++      return null;
++    }
++    return params.valueAt(index);
++  }
++
++  public int getParameterIndex(@Nullable String parameter) {
++    if (parameter == null) {
++      return -1;
++    }
++    TypeMap params = PARAMETERS.get(this);
++    return params != null ? params.indexOfKey(parameter) : -1;
++  }
++
+   /** Gets the number of parameters defined. */
+   public int getParameterCount() {
+     TypeMap params = PARAMETERS.get(this);
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index b0406ab..c213553 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -97,14 +97,14 @@ public abstract class JSType {
+   static final int KIND_NO_RESOLVED_TYPE = 1 << 3;
+   static final int KIND_ALL = 1 << 4;
+   static final int KIND_CHECKED_UNKNOWN = 1 << 5;
+-  static final int KIND_UNION = 1 << 6;
+-  static final int KIND_FUNCTION = 1 << 7;
+-  static final int KIND_ENUM_ELEMENT = 1 << 8;
++  public static final int KIND_UNION = 1 << 6;
++  public static final int KIND_FUNCTION = 1 << 7;
++  public static final int KIND_ENUM_ELEMENT = 1 << 8;
+   static final int KIND_ENUM = 1 << 9;
+-  static final int KIND_NAMED = 1 << 10;
++  public static final int KIND_NAMED = 1 << 10;
+   static final int KIND_RECORD = 1 << 11;
+-  static final int KIND_TEMPLATIZED = 1 << 12;
+-  static final int KIND_TEMPLATE = 1 << 13;
++  public static final int KIND_TEMPLATIZED = 1 << 12;
++  public static final int KIND_TEMPLATE = 1 << 13;
+   static final int KIND_NUMBER_VALUE = 1 << 14;
+   static final int KIND_STRING_VALUE = 1 << 15;
+   static final int KIND_BOOLEAN_VALUE = 1 << 16;
+@@ -123,6 +123,17 @@ public abstract class JSType {
+   private static final int EMPTY_TYPE_MASK =
+       KIND_NO_TYPE | KIND_NO_OBJECT_TYPE | KIND_NO_RESOLVED_TYPE;
+ 
++  public static final int WELL_FORMED_TEMPLATIZED_ACTIVE_MASK =
++      KIND_FUNCTION
++          | KIND_UNION
++          | KIND_TEMPLATIZED
++          | KIND_TEMPLATE
++          | KIND_NAMED
++          | KIND_ENUM_ELEMENT;
++
++  private static final int NON_STRINGIFIABLE_KEY_CANDIDATE_MASK =
++      KIND_UNION | KIND_TEMPLATIZED | KIND_ORDINARY_FUNCTION | KIND_PROXY;
++
+   final JSTypeRegistry registry;
+   int typeKindMask;
+ 
+@@ -149,6 +160,14 @@ public abstract class JSType {
+     return TYPE_CLASSES[this.typeKindMask >> TYPE_CLASS_SHIFT];
+   }
+ 
++  public final int getWellFormedTemplatizedKind() {
++    return this.typeKindMask & WELL_FORMED_TEMPLATIZED_ACTIVE_MASK;
++  }
++
++  public final boolean mayHaveNonStringifiableKey() {
++    return (this.typeKindMask & NON_STRINGIFIABLE_KEY_CANDIDATE_MASK) != 0;
++  }
++
+   protected boolean hasKindMaskProxy(int mask) {
+     return false;
+   }

@@ -2462,8 +2462,8 @@ func TestWave20ATypeColorFastPathsAndAllocatorInternCache(t *testing.T) {
 		t.Fatalf("expected Flush() to reset internDirty and return internCache to pool")
 	}
 	for slot, e := range usedCache {
-		if e.id != 0 || e.s != "" {
-			t.Fatalf("Flush() left stale entry at slot %d: %+v", slot, e)
+		if e != 0 {
+			t.Fatalf("Flush() left stale entry at slot %d: %v", slot, e)
 		}
 	}
 

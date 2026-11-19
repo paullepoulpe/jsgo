@@ -143,9 +143,9 @@ func (this_ *AbstractMessageFormatterBase) GetLevelName(level *CheckLevel) strin
 	_ = level
 	switch j2gort.CheckNotNullPtr(level).Ordinal() {
 	case int32(0) /* CheckLevel.ERROR */ :
-		return this_.priv_AbstractMessageFormatter_maybeColorize_414("ERROR", StaticGet_AbstractMessageFormatter_Color_ERROR())
+		return this_.priv_AbstractMessageFormatter_maybeColorize_415("ERROR", StaticGet_AbstractMessageFormatter_Color_ERROR())
 	case int32(1) /* CheckLevel.WARNING */ :
-		return this_.priv_AbstractMessageFormatter_maybeColorize_414("WARNING", StaticGet_AbstractMessageFormatter_Color_WARNING())
+		return this_.priv_AbstractMessageFormatter_maybeColorize_415("WARNING", StaticGet_AbstractMessageFormatter_Color_WARNING())
 	default:
 		return level.String()
 	}
@@ -162,7 +162,7 @@ func (this_ *AbstractMessageFormatterBase) MaybeEmbolden(text string) string {
 }
 
 // Java method: AbstractMessageFormatter.maybeColorize(java.lang.String text, com.google.javascript.jscomp.AbstractMessageFormatter.Color color)
-func (this_ *AbstractMessageFormatterBase) priv_AbstractMessageFormatter_maybeColorize_414(text string, color AbstractMessageFormatter_Color) string {
+func (this_ *AbstractMessageFormatterBase) priv_AbstractMessageFormatter_maybeColorize_415(text string, color AbstractMessageFormatter_Color) string {
 	_ = text
 	_ = color
 	if !(this_.colorize) {

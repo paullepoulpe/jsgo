@@ -3,6 +3,7 @@ package j2gort
 
 import (
 	"fmt"
+	"hash/maphash"
 	"math"
 	"math/big"
 	"math/bits"
@@ -30,6 +31,7 @@ import (
 
 var (
 	_ = fmt.Sprint
+	_ = maphash.MakeSeed
 	_ = math.NaN
 	_ = big.NewInt
 	_ = bits.Reverse32
@@ -3770,13 +3772,13 @@ func (this_ *Ext_com_google_common_collect_HashBiMap) MapPutStr_(k string, v any
 	if this_ == nil {
 		ThrowNPE()
 	}
-	return biMapOp_put_2(this_.Core_.(*jBiMapCore), BoxString(k), v)
+	return biMapPutStr(this_.Core_.(*jBiMapCore), k, v)
 }
 func (this_ *Ext_com_google_common_collect_HashBiMap) MapRemoveStr_(k string) any {
 	if this_ == nil {
 		ThrowNPE()
 	}
-	return biMapOp_remove_1(this_.Core_.(*jBiMapCore), BoxString(k))
+	return biMapRemoveStr(this_.Core_.(*jBiMapCore), k)
 }
 func (this_ *Ext_com_google_common_collect_HashBiMap) MapGetNode_(n uint32) any {
 	if this_ == nil {
@@ -4466,13 +4468,13 @@ func (this_ *Ext_com_google_common_collect_ImmutableBiMapBase) MapPutStr_(k stri
 	if this_ == nil {
 		ThrowNPE()
 	}
-	return biMapOp_put_2(this_.Core_.(*jBiMapCore), BoxString(k), v)
+	return biMapPutStr(this_.Core_.(*jBiMapCore), k, v)
 }
 func (this_ *Ext_com_google_common_collect_ImmutableBiMapBase) MapRemoveStr_(k string) any {
 	if this_ == nil {
 		ThrowNPE()
 	}
-	return biMapOp_remove_1(this_.Core_.(*jBiMapCore), BoxString(k))
+	return biMapRemoveStr(this_.Core_.(*jBiMapCore), k)
 }
 func (this_ *Ext_com_google_common_collect_ImmutableBiMapBase) MapGetNode_(n uint32) any {
 	if this_ == nil {
@@ -6285,11 +6287,8 @@ func ToIface_Ext_com_google_common_collect_ImmutableSet[T interface {
 type Ext_com_google_common_collect_ImmutableSetBase struct {
 	Ext_com_google_common_collect_ImmutableCollectionBase `gson:"-"`
 	elems_                                                []any                     `gson:"-"`
-	singleArr_                                            [1]any                    `gson:"-"`
 	strs_                                                 []string                  `gson:"-"`
-	singleStr_                                            [1]string                 `gson:"-"`
 	idx_                                                  atomic.Pointer[immSetIdx] `gson:"-"`
-	u8Bits_                                               [4]uint64                 `gson:"-"`
 	u8Tab_                                                *[256]bool                `gson:"-"`
 	u8PtrNil_                                             any                       `gson:"-"`
 	hasU8Bits_                                            bool                      `gson:"-"`
@@ -7168,6 +7167,7 @@ func ToIface_Ext_com_google_common_collect_ImmutableSortedSet[T interface {
 type Ext_com_google_common_collect_ImmutableSortedSetBase struct {
 	Ext_com_google_common_collect_ImmutableSet_CachingAsListBase `gson:"-"`
 	sortedCore_                                                  *JMapCore `gson:"-"`
+	singleArr_                                                   [1]any    `gson:"-"`
 }
 
 func (b *Ext_com_google_common_collect_ImmutableSortedSetBase) IsJavaNil_() bool { return b == nil }
@@ -9184,6 +9184,33 @@ func (this_ *Ext_com_google_common_collect_Sets_SetViewBase) Stream() Ext_java_u
 }
 func (this_ *Ext_com_google_common_collect_Sets_SetViewBase) ForEach(arg0 Ext_java_util_function_Consumer) {
 	ExtDefault_Iterable_ForEach(this_.Self_, arg0)
+}
+
+func (this_ *Ext_com_google_common_collect_Sets_SetViewBase) SetContainsStr_(k string) bool {
+	if this_ == nil {
+		ThrowNPE()
+	}
+	c := this_.Core_.(*jSetViewCore)
+	switch c.mode {
+	case 0:
+		return SetContainsStr(c.s1, k) || SetContainsStr(c.s2, k)
+	case 1:
+		return SetContainsStr(c.s1, k) && SetContainsStr(c.s2, k)
+	default:
+		return SetContainsStr(c.s1, k) && !SetContainsStr(c.s2, k)
+	}
+}
+func (this_ *Ext_com_google_common_collect_Sets_SetViewBase) SetAddStr_(_ string) bool {
+	if this_ == nil {
+		ThrowNPE()
+	}
+	panic(javalang.NewUnsupportedOperationException("immutable"))
+}
+func (this_ *Ext_com_google_common_collect_Sets_SetViewBase) SetRemoveStr_(_ string) bool {
+	if this_ == nil {
+		ThrowNPE()
+	}
+	panic(javalang.NewUnsupportedOperationException("immutable"))
 }
 
 // External interface com.google.common.collect.SortedIterable
@@ -21865,7 +21892,7 @@ func (b *Ext_java_io_BufferedReader) Implements_j2gort_Ext_java_lang_Readable() 
 func (b *Ext_java_io_BufferedReader) Implements_j2gort_Ext_java_io_Closeable()       {}
 func (b *Ext_java_io_BufferedReader) Implements_j2gort_Ext_java_lang_AutoCloseable() {}
 func (this_ *Ext_java_io_BufferedReader) Read_0() int32 {
-	return extReaderReadOne(this_.Core_)
+	return extBufferedReaderReadOne(this_)
 }
 func (this_ *Ext_java_io_BufferedReader) ReadLine() string {
 	return extBufferedReaderReadLine(this_.Core_)
@@ -22367,7 +22394,7 @@ func (b *Ext_java_io_InputStreamReader) Implements_j2gort_Ext_java_lang_Readable
 func (b *Ext_java_io_InputStreamReader) Implements_j2gort_Ext_java_io_Closeable()       {}
 func (b *Ext_java_io_InputStreamReader) Implements_j2gort_Ext_java_lang_AutoCloseable() {}
 func (this_ *Ext_java_io_InputStreamReader) Read_0() int32 {
-	return extReaderReadOne(this_.Core_)
+	return extInputStreamReaderReadOne(this_)
 }
 func (this_ *Ext_java_io_InputStreamReader) Close_0() {
 	extReaderClose(this_.Core_)
@@ -22696,8 +22723,9 @@ func ToIface_Ext_java_io_Reader[T interface {
 }
 
 type Ext_java_io_ReaderBase struct {
-	Self_ Ext_java_io_Reader `gson:"-"`
-	Core_ any                `gson:"-"`
+	Self_   Ext_java_io_Reader `gson:"-"`
+	Core_   any                `gson:"-"`
+	oneBuf_ [1]uint16          `gson:"-"`
 }
 
 func (b *Ext_java_io_ReaderBase) IsJavaNil_() bool               { return b == nil }
@@ -22734,7 +22762,7 @@ func (b *Ext_java_io_ReaderBase) Implements_j2gort_Ext_java_lang_Readable()     
 func (b *Ext_java_io_ReaderBase) Implements_j2gort_Ext_java_io_Closeable()           {}
 func (b *Ext_java_io_ReaderBase) Implements_j2gort_Ext_java_lang_AutoCloseable()     {}
 func (this_ *Ext_java_io_ReaderBase) Read_0() int32 {
-	return extReaderReadOne(this_.Core_)
+	return extReaderReadOneBase(this_)
 }
 func (this_ *Ext_java_io_ReaderBase) Close_0() {
 	extReaderClose(this_.Core_)
@@ -22760,7 +22788,7 @@ func (b *Ext_java_io_StringReader) Implements_j2gort_Ext_java_lang_Readable()   
 func (b *Ext_java_io_StringReader) Implements_j2gort_Ext_java_io_Closeable()       {}
 func (b *Ext_java_io_StringReader) Implements_j2gort_Ext_java_lang_AutoCloseable() {}
 func (this_ *Ext_java_io_StringReader) Read_0() int32 {
-	return extReaderReadOne(this_.Core_)
+	return extStringReaderReadOne(this_)
 }
 func (this_ *Ext_java_io_StringReader) Close_0() {
 	extReaderClose(this_.Core_)
@@ -22920,7 +22948,7 @@ type Ext_java_lang_AbstractStringBuilder interface {
 	SetLength(int32)
 	CharAt(int32) uint16
 	SetCharAt(int32, uint16)
-	Append_1_any_9815(any) any
+	Append_1_any_9831(any) any
 	Append_1_string(string) any
 	Append_1_slice_uint16([]uint16) any
 	Append_1_int32(int32) any
@@ -23003,7 +23031,7 @@ func (this_ *Ext_java_lang_AbstractStringBuilderBase) CharAt(arg0 int32) uint16 
 func (this_ *Ext_java_lang_AbstractStringBuilderBase) SetCharAt(arg0 int32, arg1 uint16) {
 	this_.sbCore().setCharAt(arg0, arg1)
 }
-func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9815(arg0 any) any {
+func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9831(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	if this_.Self_ != nil {
 		return this_.Self_
@@ -23741,7 +23769,7 @@ func init() {
 }
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_AbstractStringBuilder() {}
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_Appendable()            {}
-func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9815(arg0 any) any {
+func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9831(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	return this_
 }
@@ -41624,11 +41652,63 @@ func init() {
 
 var emptyU8Tab_ [256]bool
 var emptyImmutableSet_ Ext_com_google_common_collect_ImmutableSet
+var emptyStrImmSet_ *Ext_com_google_common_collect_ImmutableSetBase
+
+const immSetStr1CacheMask_ = 511
+
+var immSetStr1Seed_ = maphash.MakeSeed()
+var immSetStr1L1_ [immSetStr1CacheMask_ + 1]atomic.Pointer[immStrSet1_]
+var immSetStr1Cache_ [immSetStr1CacheMask_ + 1][2]atomic.Pointer[immStrSet1_]
+
+type immStrSet1_ struct {
+	set Ext_com_google_common_collect_ImmutableSetBase
+	buf [1]string
+}
+type immStrSet2_ struct {
+	set Ext_com_google_common_collect_ImmutableSetBase
+	buf [2]string
+}
+type immStrSet4_ struct {
+	set Ext_com_google_common_collect_ImmutableSetBase
+	buf [4]string
+}
+type immStrSet8_ struct {
+	set Ext_com_google_common_collect_ImmutableSetBase
+	buf [8]string
+}
+type immAnySet1_ struct {
+	set Ext_com_google_common_collect_ImmutableSetBase
+	buf [1]any
+}
+type immAnySet2_ struct {
+	set Ext_com_google_common_collect_ImmutableSetBase
+	buf [2]any
+}
+type immAnySet4_ struct {
+	set Ext_com_google_common_collect_ImmutableSetBase
+	buf [4]any
+}
+type immAnySet8_ struct {
+	set Ext_com_google_common_collect_ImmutableSetBase
+	buf [8]any
+}
 
 func init() {
 	obj := &Ext_com_google_common_collect_ImmutableSetBase{elems_: emptyAnySlice_, u8Tab_: &emptyU8Tab_, hasU8Bits_: true}
 	obj.BindExtSelf_(obj)
 	emptyImmutableSet_ = obj
+	es := &immStrSet1_{}
+	es.set.u8Tab_ = &emptyU8Tab_
+	es.set.strs_ = es.buf[:1:1]
+	es.set.BindExtSelf_(&es.set)
+	emptyStrImmSet_ = &es.set
+	registerRuntimePoolPurger(func() {
+		for i := range immSetStr1L1_ {
+			immSetStr1L1_[i].Store(nil)
+			immSetStr1Cache_[i][0].Store(nil)
+			immSetStr1Cache_[i][1].Store(nil)
+		}
+	})
 }
 
 func newImmutableSetShell() *Ext_com_google_common_collect_ImmutableSetBase {
@@ -41638,14 +41718,59 @@ func newImmutableSetShell() *Ext_com_google_common_collect_ImmutableSetBase {
 }
 
 func ImmSetOfStr1(s0 string) Ext_com_google_common_collect_ImmutableSet {
+	return immSetOfStr1Fast_(s0, immSetOfStr1Slow)
+}
+
+func immSetOfStr1Fast_(s0 string, slow func(string) Ext_com_google_common_collect_ImmutableSet) Ext_com_google_common_collect_ImmutableSet {
+	if uint(len(s0)-1) < 64 {
+		if c := immSetStr1L1_[(uint32(s0[0])<<4^uint32(s0[len(s0)-1]))&immSetStr1CacheMask_].Load(); c != nil && c.buf[0] == s0 {
+			return &c.set
+		}
+	}
+	return slow(s0)
+}
+
+//go:noinline
+func immSetOfStr1Slow(s0 string) Ext_com_google_common_collect_ImmutableSet {
 	if s0 == NullString {
 		ThrowNPE()
 	}
-	obj := &Ext_com_google_common_collect_ImmutableSetBase{u8Tab_: &emptyU8Tab_}
-	obj.BindExtSelf_(obj)
-	obj.singleStr_[0] = s0
-	obj.strs_ = obj.singleStr_[:1:1]
-	return obj
+	n := len(s0)
+	if n == 0 {
+		return emptyStrImmSet_
+	}
+	if n <= 64 {
+		l1 := (uint32(s0[0])<<4 ^ uint32(s0[n-1])) & immSetStr1CacheMask_
+		h := maphash.String(immSetStr1Seed_, s0)
+		bkt := &immSetStr1Cache_[uint32(h)&immSetStr1CacheMask_]
+		if c0 := bkt[0].Load(); c0 != nil && c0.buf[0] == s0 {
+			immSetStr1L1_[l1].Store(c0)
+			return &c0.set
+		}
+		if c1 := bkt[1].Load(); c1 != nil && c1.buf[0] == s0 {
+			immSetStr1L1_[l1].Store(c1)
+			return &c1.set
+		}
+		sc := strings.Clone(s0)
+		c := &immStrSet1_{}
+		c.buf[0] = sc
+		c.set.u8Tab_ = &emptyU8Tab_
+		c.set.strs_ = c.buf[:1:1]
+		c.set.BindExtSelf_(&c.set)
+		if bkt[0].Load() == nil {
+			bkt[0].Store(c)
+		} else {
+			bkt[int((h>>32)&1)].Store(c)
+		}
+		immSetStr1L1_[l1].Store(c)
+		return &c.set
+	}
+	c := &immStrSet1_{}
+	c.buf[0] = s0
+	c.set.u8Tab_ = &emptyU8Tab_
+	c.set.strs_ = c.buf[:1:1]
+	c.set.BindExtSelf_(&c.set)
+	return &c.set
 }
 
 func ImmSetOfStr2(s0, s1 string) Ext_com_google_common_collect_ImmutableSet {
@@ -41655,9 +41780,40 @@ func ImmSetOfStr2(s0, s1 string) Ext_com_google_common_collect_ImmutableSet {
 	if s0 == s1 {
 		return ImmSetOfStr1(s0)
 	}
-	obj := &Ext_com_google_common_collect_ImmutableSetBase{strs_: []string{s0, s1}, u8Tab_: &emptyU8Tab_}
-	obj.BindExtSelf_(obj)
-	return obj
+	c := &immStrSet2_{}
+	c.buf[0] = s0
+	c.buf[1] = s1
+	c.set.u8Tab_ = &emptyU8Tab_
+	c.set.strs_ = c.buf[:2:2]
+	c.set.BindExtSelf_(&c.set)
+	return &c.set
+}
+
+func finishImmStrSetSmall(src []string) *Ext_com_google_common_collect_ImmutableSetBase {
+	n := len(src)
+	switch {
+	case n <= 2:
+		c := &immStrSet2_{}
+		copy(c.buf[:n], src)
+		c.set.u8Tab_ = &emptyU8Tab_
+		c.set.strs_ = c.buf[:n:n]
+		c.set.BindExtSelf_(&c.set)
+		return &c.set
+	case n <= 4:
+		c := &immStrSet4_{}
+		copy(c.buf[:n], src)
+		c.set.u8Tab_ = &emptyU8Tab_
+		c.set.strs_ = c.buf[:n:n]
+		c.set.BindExtSelf_(&c.set)
+		return &c.set
+	default:
+		c := &immStrSet8_{}
+		copy(c.buf[:n], src)
+		c.set.u8Tab_ = &emptyU8Tab_
+		c.set.strs_ = c.buf[:n:n]
+		c.set.BindExtSelf_(&c.set)
+		return &c.set
+	}
 }
 
 func finishImmStrSetOwn(strs []string, _ *JSetCore) *Ext_com_google_common_collect_ImmutableSetBase {
@@ -41667,11 +41823,38 @@ func finishImmStrSetOwn(strs []string, _ *JSetCore) *Ext_com_google_common_colle
 }
 
 func finishImmSetSingleRaw(e0 any) *Ext_com_google_common_collect_ImmutableSetBase {
-	obj := &Ext_com_google_common_collect_ImmutableSetBase{u8Tab_: &emptyU8Tab_}
+	c := &immAnySet1_{}
+	c.set.u8Tab_ = &emptyU8Tab_
+	c.set.BindExtSelf_(&c.set)
+	c.buf[0] = e0
+	c.set.elems_ = c.buf[:1:1]
+	tryInitImmEnumSingle(&c.set, e0)
+	return &c.set
+}
+
+func finishImmSetSmall(src []any) *Ext_com_google_common_collect_ImmutableSetBase {
+	n := len(src)
+	var obj *Ext_com_google_common_collect_ImmutableSetBase
+	switch {
+	case n <= 2:
+		c := &immAnySet2_{}
+		copy(c.buf[:n], src)
+		c.set.elems_ = c.buf[:n:n]
+		obj = &c.set
+	case n <= 4:
+		c := &immAnySet4_{}
+		copy(c.buf[:n], src)
+		c.set.elems_ = c.buf[:n:n]
+		obj = &c.set
+	default:
+		c := &immAnySet8_{}
+		copy(c.buf[:n], src)
+		c.set.elems_ = c.buf[:n:n]
+		obj = &c.set
+	}
+	obj.u8Tab_ = &emptyU8Tab_
 	obj.BindExtSelf_(obj)
-	obj.singleArr_[0] = e0
-	obj.elems_ = obj.singleArr_[:1:1]
-	tryInitImmEnumSingle(obj, e0)
+	tryInitImmEnumMulti(obj, obj.elems_)
 	return obj
 }
 
@@ -41703,7 +41886,14 @@ func newImmSet2(e0, e1 any) Ext_com_google_common_collect_ImmutableSet {
 	if elemJavaEquals(e0, e1, false) {
 		return finishImmSetSingleRaw(e0)
 	}
-	return finishImmSetMulti([]any{e0, e1}, nil)
+	c := &immAnySet2_{}
+	c.buf[0] = e0
+	c.buf[1] = e1
+	c.set.elems_ = c.buf[:2:2]
+	c.set.u8Tab_ = &emptyU8Tab_
+	c.set.BindExtSelf_(&c.set)
+	tryInitImmEnumMulti(&c.set, c.set.elems_)
+	return &c.set
 }
 
 func wrapImmutableSetFromSetCoreOwn(sc *JSetCore) Ext_com_google_common_collect_ImmutableSet {
@@ -41747,14 +41937,26 @@ func wrapImmutableSetCore(mc *JMapCore) Ext_com_google_common_collect_ImmutableS
 			}
 		}
 		if !hasNull {
-			if mc.Size() == 1 {
+			n := int(mc.Size())
+			if n == 1 {
 				for i := int(mc.firstIdx); i < len(mc.strEntries); i++ {
 					if k := mc.strEntries[i].key; k != jTombstoneStr {
 						return ImmSetOfStr1(k)
 					}
 				}
 			}
-			strs := make([]string, 0, mc.Size())
+			if n <= 8 {
+				var sbuf [8]string
+				w := 0
+				for i := int(mc.firstIdx); i < len(mc.strEntries); i++ {
+					if k := mc.strEntries[i].key; k != jTombstoneStr {
+						sbuf[w] = k
+						w++
+					}
+				}
+				return finishImmStrSetSmall(sbuf[:w])
+			}
+			strs := make([]string, 0, n)
 			for i := int(mc.firstIdx); i < len(mc.strEntries); i++ {
 				if k := mc.strEntries[i].key; k != jTombstoneStr {
 					strs = append(strs, k)
@@ -41804,18 +42006,16 @@ func wrapImmutableSet(items []any) Ext_com_google_common_collect_ImmutableSet {
 			if n == 1 {
 				return ImmSetOfStr1(buf[0].(string))
 			}
-			strs := make([]string, n)
+			var sbuf [8]string
 			for i := 0; i < n; i++ {
-				strs[i] = buf[i].(string)
+				sbuf[i] = buf[i].(string)
 			}
-			return finishImmStrSetOwn(strs, nil)
+			return finishImmStrSetSmall(sbuf[:n])
 		}
 		if n == 1 {
 			return finishImmSetSingleRaw(buf[0])
 		}
-		elems := make([]any, n)
-		copy(elems, buf[:n])
-		return finishImmSetMulti(elems, nil)
+		return finishImmSetSmall(buf[:n])
 	}
 	sc := &JSetCore{}
 	sc.InitExpectedSize(int32(len(items)))
@@ -42811,8 +43011,7 @@ func SetContainsTypedU8_[E ~uint8](s any, v E) bool {
 }
 func SetContainsU8_[E ~uint8](s any, v E) bool {
 	if p, ok := s.(*Ext_com_google_common_collect_ImmutableSetBase); ok && p != nil && p.hasU8Bits_ {
-		u := uint8(v)
-		return (p.u8Bits_[u>>6]&(uint64(1)<<(u&63))) != 0 && p.u8PtrNil_ == any((*E)(nil))
+		return p.u8Tab_[uint8(v)] && p.u8PtrNil_ == any((*E)(nil))
 	}
 	return setContainsU8Slow(s, v)
 }

@@ -69,10 +69,10 @@ func InitCheckTypeSummaryWarningsGuard(this_ *CheckTypeSummaryWarningsGuard, lev
 func (this_ *CheckTypeSummaryWarningsGuard) Level(error_ *JSError) *CheckLevel {
 	_ = error_
 	j2gort.CheckNotNullPtr(error_)
-	if (!(this_.priv_CheckTypeSummaryWarningsGuard_shouldDemoteIfTypeSummary_6374(error_))) {
+	if (!(this_.priv_CheckTypeSummaryWarningsGuard_shouldDemoteIfTypeSummary_6379(error_))) {
 		return nil
 	}
-	if (this_.priv_CheckTypeSummaryWarningsGuard_inTypeSummary_6373(error_)) {
+	if (this_.priv_CheckTypeSummaryWarningsGuard_inTypeSummary_6378(error_)) {
 		return this_.level
 	}
 	return nil
@@ -84,13 +84,13 @@ func (this_ *CheckTypeSummaryWarningsGuard) GetPriority() int32 {
 }
 
 // Java method: CheckTypeSummaryWarningsGuard.inTypeSummary(com.google.javascript.jscomp.JSError error)
-func (this_ *CheckTypeSummaryWarningsGuard) priv_CheckTypeSummaryWarningsGuard_inTypeSummary_6373(error_ *JSError) bool {
+func (this_ *CheckTypeSummaryWarningsGuard) priv_CheckTypeSummaryWarningsGuard_inTypeSummary_6378(error_ *JSError) bool {
 	_ = error_
 	return ((error_.SourceName() != j2gort.NullString) && javalang.StringEndsWith(j2gort.CheckNotNullString(error_.SourceName()), ".i.js"))
 }
 
 // Java method: CheckTypeSummaryWarningsGuard.shouldDemoteIfTypeSummary(com.google.javascript.jscomp.JSError error)
-func (this_ *CheckTypeSummaryWarningsGuard) priv_CheckTypeSummaryWarningsGuard_shouldDemoteIfTypeSummary_6374(error_ *JSError) bool {
+func (this_ *CheckTypeSummaryWarningsGuard) priv_CheckTypeSummaryWarningsGuard_shouldDemoteIfTypeSummary_6379(error_ *JSError) bool {
 	_ = error_
 	return !(error_.Type().Equals(j2gort.PtrToAny(StaticGet_ClosurePrimitiveErrors_DUPLICATE_NAMESPACE_AND_MODULE())))
 }

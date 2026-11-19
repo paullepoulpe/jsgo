@@ -404,8 +404,12 @@ public final class ClassEmitter {
             && (superTe == null
                 || !implementsInterface(superTe, "com.google.javascript.rhino.StaticSourceFile"));
     boolean hasJsDocHandle = qn.equals("com.google.javascript.rhino.JSDocInfo");
+    boolean isLazyInternedStringList =
+        qn.equals("com.google.javascript.rhino.RhinoStringPool.LazyInternedStringList");
     String handleAtomicPkg =
-        (hasTcHandle || hasSfHandle || hasJsDocHandle) ? fileCtx.imports.std("sync/atomic") : null;
+        (hasTcHandle || hasSfHandle || hasJsDocHandle || isLazyInternedStringList)
+            ? fileCtx.imports.std("sync/atomic")
+            : null;
 
     List<VariableElement> instanceFields = new ArrayList<>();
     for (Element m : te.getEnclosedElements()) {
@@ -650,6 +654,7 @@ public final class ClassEmitter {
           hasTcHandle
               || hasSfHandle
               || hasJsDocHandle
+              || isLazyInternedStringList
               || hasIdHash
               || hasFastInstSync
               || needsSelfField
@@ -712,6 +717,10 @@ public final class ClassEmitter {
               .append(gsonStructTag(ve))
               .append('\n');
         }
+        if (isLazyInternedStringList) {
+          out.append("\tids_ []uint32 `gson:\"-\"`\n");
+          out.append("\tepoch_ uint64 `gson:\"-\"`\n");
+        }
         if (hasIdHash && !packIdHashWithHandles) {
           out.append("\tidHash_ ").append(handleAtomicPkg).append(".Int32\n");
         }
@@ -766,6 +775,10 @@ public final class ClassEmitter {
           String fTag = gsonStructTag(ve);
           int b = classifyFieldPackingBucket(ve.asType(), null);
           buckets[b].add("\t" + fGoName + " " + fGoType + " " + fTag + "\n");
+        }
+        if (isLazyInternedStringList) {
+          buckets[0].add("\tids_ []uint32 `gson:\"-\"`\n");
+          buckets[1].add("\tepoch_ uint64 `gson:\"-\"`\n");
         }
         if (hasIdHash) {
           buckets[2].add("\tidHash_ " + handleAtomicPkg + ".Int32\n");
@@ -913,6 +926,92 @@ public final class ClassEmitter {
       }
       emitMarkerMethodsForType(te, structWithParams, isSubclassed, out);
       emitCrossPkgFieldAccessors(te, structWithParams, isValueStruct, instanceFields, out, fileCtx);
+      if (isLazyInternedStringList) {
+        String syncPkg = fileCtx.imports.std("sync");
+        String ns = resolver.runtime.nodestoreAlias(fileCtx.imports);
+        String nsPref = ns.isEmpty() ? "" : (ns + ".");
+        String rt = rtPrefix(fileCtx);
+        out.append("var lazyStringPoolEpochMu_ ").append(syncPkg).append(".Mutex\n\n");
+        out.append("func (this_ *")
+            .append(structWithParams)
+            .append(") InternID_(offset int32) ")
+            .append(nsPref)
+            .append("StringID {\n")
+            .append("\treturn internIDFast_(this_, offset, (*")
+            .append(structWithParams)
+            .append(").internIDSlow_)\n}\n\n");
+        out.append("func internIDFast_(this_ *")
+            .append(structWithParams)
+            .append(", offset int32, slow func(*")
+            .append(structWithParams)
+            .append(", int32) ")
+            .append(nsPref)
+            .append("StringID) ")
+            .append(nsPref)
+            .append("StringID {\n")
+            .append("\tif this_ != nil {\n")
+            .append("\t\tif ids := this_.ids_; uint(offset) < uint(len(ids)) && ")
+            .append(handleAtomicPkg)
+            .append(".LoadUint64(&this_.epoch_) == ")
+            .append(nsPref)
+            .append("Epoch() {\n")
+            .append("\t\t\tif id := ")
+            .append(handleAtomicPkg)
+            .append(".LoadUint32(&ids[offset]); id != 0 {\n")
+            .append("\t\t\t\treturn ")
+            .append(nsPref)
+            .append("StringID(id)\n")
+            .append("\t\t\t}\n")
+            .append("\t\t}\n")
+            .append("\t}\n")
+            .append("\treturn slow(this_, offset)\n}\n\n");
+        out.append("//go:noinline\n")
+            .append("func (this_ *")
+            .append(structWithParams)
+            .append(") internIDSlow_(offset int32) ")
+            .append(nsPref)
+            .append("StringID {\n")
+            .append("\tif this_ == nil {\n\t\t")
+            .append(rt)
+            .append("ThrowNPE()\n\t}\n")
+            .append("\tif offset < 0 || offset >= this_.size {\n\t\t_ = this_.Get(offset)\n\t}\n")
+            .append("\tep := ")
+            .append(nsPref)
+            .append("Epoch()\n")
+            .append("\tif ")
+            .append(handleAtomicPkg)
+            .append(".LoadUint64(&this_.epoch_) != ep {\n")
+            .append("\t\tlazyStringPoolEpochMu_.Lock()\n")
+            .append("\t\tif ep = ")
+            .append(nsPref)
+            .append("Epoch(); ")
+            .append(handleAtomicPkg)
+            .append(".LoadUint64(&this_.epoch_) != ep {\n")
+            .append("\t\t\tfor i := range this_.ids_ {\n")
+            .append("\t\t\t\t")
+            .append(handleAtomicPkg)
+            .append(".StoreUint32(&this_.ids_[i], 0)\n")
+            .append("\t\t\t}\n")
+            .append("\t\t\t")
+            .append(handleAtomicPkg)
+            .append(".StoreUint64(&this_.epoch_, ep)\n")
+            .append("\t\t}\n")
+            .append("\t\tlazyStringPoolEpochMu_.Unlock()\n")
+            .append("\t}\n")
+            .append("\ts := this_.pool[offset]\n")
+            .append("\tif s == ")
+            .append(rt)
+            .append("NullString {\n\t\treturn 0\n\t}\n")
+            .append("\tid := ")
+            .append(nsPref)
+            .append("Intern(s)\n")
+            .append("\tif int(offset) < len(this_.ids_) {\n")
+            .append("\t\t")
+            .append(handleAtomicPkg)
+            .append(".StoreUint32(&this_.ids_[offset], uint32(id))\n")
+            .append("\t}\n")
+            .append("\treturn id\n}\n");
+      }
       out.append('\n');
 
       out.append(staticOut);
@@ -3992,6 +4091,34 @@ public final class ClassEmitter {
                   out.append("\treturn this_\n}\n\n");
                   continue;
                 }
+                if (sig.goName.equals("SetStringFromStringPool")
+                    && ee.getParameters().size() == 2) {
+                  String ns = resolver.runtime.nodestoreAlias(fileCtx.imports);
+                  String nsPref = ns.isEmpty() ? "" : (ns + ".");
+                  String p0Go =
+                      resolver.goType(ee.getParameters().get(0).asType(), fileCtx.imports);
+                  out.append("// Java method: Node.setStringFromStringPool(LazyInternedStringList, int)\n");
+                  out.append("func (this_ Node) SetStringFromStringPool(stringPool ")
+                      .append(p0Go)
+                      .append(", offset int32) {\n\t")
+                      .append(nsPref)
+                      .append("Node(this_).SetStringPayload(stringPool.InternID_(offset))\n}\n\n");
+                  continue;
+                }
+                if (sig.goName.equals("SetOriginalNameFromStringPool")
+                    && ee.getParameters().size() == 2) {
+                  String ns = resolver.runtime.nodestoreAlias(fileCtx.imports);
+                  String nsPref = ns.isEmpty() ? "" : (ns + ".");
+                  String p0Go =
+                      resolver.goType(ee.getParameters().get(0).asType(), fileCtx.imports);
+                  out.append("// Java method: Node.setOriginalNameFromStringPool(LazyInternedStringList, int)\n");
+                  out.append("func (this_ Node) SetOriginalNameFromStringPool(stringPool ")
+                      .append(p0Go)
+                      .append(", offset int32) {\n\tid := stringPool.InternID_(offset)\n\tif this_ == 0 {\n\t\tpanic(nodeNullPtrEx)\n\t}\n\t")
+                      .append(nsPref)
+                      .append("Node(this_).SetOrigNameID(id)\n}\n\n");
+                  continue;
+                }
               }
             }
           }
@@ -4296,9 +4423,11 @@ public final class ClassEmitter {
                   resolver.types.getPrimitiveType(TypeKind.INT),
                   false,
                   ctx);
-          out.append("\tif s_ := ").append(poolGo).append(".Get(").append(offGo).append("); s_ != ")
-              .append(rt).append("NullString {\n\t\trec_.Payload = uint32(")
-              .append(nsPref).append("Intern(s_))\n\t}\n");
+          out.append("\trec_.Payload = uint32(")
+              .append(poolGo)
+              .append(".InternID_(")
+              .append(offGo)
+              .append("))\n");
           return true;
         }
       }

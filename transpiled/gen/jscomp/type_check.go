@@ -39,22 +39,23 @@ func init() {
 
 // Java class: com.google.javascript.jscomp.TypeCheck
 type TypeCheck struct {
-	compiler                AbstractCompiler                          `gson:"compiler"`
-	validator               *TypeValidator                            `gson:"validator"`
-	reverseInterpreter      pkg_jscomptype.ReverseAbstractInterpreter `gson:"reverseInterpreter"`
-	typeRegistry            *pkg_rhino.JSTypeRegistry                 `gson:"typeRegistry"`
-	topScope                *TypedScope                               `gson:"topScope"`
-	scopeCreator            *TypedScopeCreator                        `gson:"scopeCreator"`
-	inferJSDocInfo          *InferJSDocInfo                           `gson:"inferJSDocInfo"`
-	debugTypeLogger         *TypeCheck_DebugTypeLogger                `gson:"debugTypeLogger"`
-	typedCount              int32                                     `gson:"typedCount"`
-	nullCount               int32                                     `gson:"nullCount"`
-	unknownCount            int32                                     `gson:"unknownCount"`
-	idHash_                 atomic.Int32
-	reportUnknownTypes      bool                           `gson:"reportUnknownTypes"`
-	subtypingMode           pkg_rhino.JSType_SubtypingMode `gson:"subtypingMode"`
-	reportMissingProperties bool                           `gson:"reportMissingProperties"`
-	inExterns               bool                           `gson:"inExterns"`
+	compiler                   AbstractCompiler                          `gson:"compiler"`
+	validator                  *TypeValidator                            `gson:"validator"`
+	reverseInterpreter         pkg_jscomptype.ReverseAbstractInterpreter `gson:"reverseInterpreter"`
+	typeRegistry               *pkg_rhino.JSTypeRegistry                 `gson:"typeRegistry"`
+	topScope                   *TypedScope                               `gson:"topScope"`
+	scopeCreator               *TypedScopeCreator                        `gson:"scopeCreator"`
+	inferJSDocInfo             *InferJSDocInfo                           `gson:"inferJSDocInfo"`
+	debugTypeLogger            *TypeCheck_DebugTypeLogger                `gson:"debugTypeLogger"`
+	nonStringifiableKeyVisited j2gort.CustomOrderedSet[pkg_rhino.JSType] `gson:"nonStringifiableKeyVisited"`
+	typedCount                 int32                                     `gson:"typedCount"`
+	nullCount                  int32                                     `gson:"nullCount"`
+	unknownCount               int32                                     `gson:"unknownCount"`
+	idHash_                    atomic.Int32
+	reportUnknownTypes         bool                           `gson:"reportUnknownTypes"`
+	subtypingMode              pkg_rhino.JSType_SubtypingMode `gson:"subtypingMode"`
+	reportMissingProperties    bool                           `gson:"reportMissingProperties"`
+	inExterns                  bool                           `gson:"inExterns"`
 }
 
 func (this_ *TypeCheck) BindSelf_(s any) {
@@ -744,6 +745,7 @@ func (this_ *TypeCheck) initFields_TypeCheck() {
 	this_.subtypingMode = pkg_rhino.StaticGet_JSType_SubtypingMode_NORMAL()
 	this_.reportMissingProperties = true
 
+	this_.nonStringifiableKeyVisited = j2gort.NewCustomOrderedSet[pkg_rhino.JSType]()
 }
 
 // Java constructor: TypeCheck(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.type.ReverseAbstractInterpreter reverseInterpreter, com.google.javascript.rhino.jstype.JSTypeRegistry typeRegistry, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable TypedScope topScope, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable TypedScopeCreator scopeCreator)
@@ -878,7 +880,7 @@ func (this_ *TypeCheck) Check(node pkg_rhino.Node, externs bool) {
 }
 
 // Java method: TypeCheck.report(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.DiagnosticType diagnosticType, java.lang.String[] arguments)
-func (this_ *TypeCheck) priv_TypeCheck_report_5378(n pkg_rhino.Node, diagnosticType *DiagnosticType, arguments []string) {
+func (this_ *TypeCheck) priv_TypeCheck_report_5386(n pkg_rhino.Node, diagnosticType *DiagnosticType, arguments []string) {
 	_ = n
 	_ = diagnosticType
 	_ = arguments
@@ -907,7 +909,7 @@ func (this_ *TypeCheck) ShouldTraverse_3(t *NodeTraversal, n pkg_rhino.Node, par
 		var var_ *TypedVar = outerScope.LookupTypedVar(n.GetFirstChild().GetString())
 		_ = var_
 		if (((var_ != nil) && j2gort.CastPtr[TypedScope](var_.GetScope()).HasSameContainerScope(ToIface_AbstractScope(outerScope))) && !(j2gort.InstanceOf[*pkg_rhino.FunctionType](var_.GetType()))) && !(TypeValidator_HasDuplicateDeclarationSuppression(this_.compiler, var_.GetNameNode())) {
-			this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_FUNCTION_MASKS_VARIABLE(), []string{var_.GetName()})
+			this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_FUNCTION_MASKS_VARIABLE(), []string{var_.GetName()})
 		}
 	}
 	return true
@@ -935,14 +937,14 @@ func (this_ *TypeCheck) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_r
 	case int32(101) /* Token.CAST */ :
 		var expr pkg_rhino.Node = n.GetFirstChild()
 		_ = expr
-		var exprType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(expr)
+		var exprType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(expr)
 		_ = exprType
-		var castType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(n)
+		var castType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(n)
 		_ = castType
 		if !(expr.IsObjectLit()) {
 			this_.validator.ExpectCanCast(n, castType, exprType)
 		}
-		this_.priv_TypeCheck_ensureTyped_5453(n, castType)
+		this_.priv_TypeCheck_ensureTyped_5461(n, castType)
 		expr.SetJSTypeBeforeCast(exprType)
 		if castType.RestrictByNotNullOrUndefined().IsSubtypeOf_1(exprType) || expr.IsObjectLit() {
 			expr.SetJSType(castType)
@@ -950,79 +952,79 @@ func (this_ *TypeCheck) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_r
 	case int32(32) /* Token.NAME */ :
 		typeable = this_.VisitName(t, n, parent)
 	case int32(50) /* Token.COMMA */ :
-		this_.priv_TypeCheck_ensureTyped_5453(n, this_.priv_TypeCheck_getJSType_5448(n.GetLastChild()))
+		this_.priv_TypeCheck_ensureTyped_5461(n, this_.priv_TypeCheck_getJSType_5456(n.GetLastChild()))
 	case int32(37) /* Token.THIS */ :
-		this_.priv_TypeCheck_ensureTyped_5453(n, t.GetTypedScope().GetTypeOfThis())
+		this_.priv_TypeCheck_ensureTyped_5461(n, t.GetTypedScope().GetTypeOfThis())
 	case int32(36) /* Token.NULL */ :
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_NULL_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_NULL_TYPE())
 	case int32(33) /* Token.NUMBER */ :
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
 	case int32(34) /* Token.BIGINT */ :
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_BIGINT_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_BIGINT_TYPE())
 	case int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */ :
 	case int32(46) /* Token.ARRAYLIT */ :
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE())
 	case int32(42) /* Token.REGEXP */ :
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_REGEXP_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_REGEXP_TYPE())
 	case int32(26) /* Token.GETPROP */ :
-		this_.priv_TypeCheck_visitGetProp_5411(t, n)
+		this_.priv_TypeCheck_visitGetProp_5419(t, n)
 		typeable = !(parent.IsAssign() && (parent.GetFirstChild() == n))
 	case int32(29) /* Token.OPTCHAIN_GETPROP */ :
-		this_.priv_TypeCheck_visitOptChainGetProp_5412(n)
+		this_.priv_TypeCheck_visitOptChainGetProp_5420(n)
 	case int32(30) /* Token.OPTCHAIN_GETELEM */ :
-		this_.priv_TypeCheck_visitOptChainGetElem_5424(n)
+		this_.priv_TypeCheck_visitOptChainGetElem_5432(n)
 	case int32(27) /* Token.GETELEM */ :
-		this_.priv_TypeCheck_visitGetElem_5423(n)
+		this_.priv_TypeCheck_visitGetElem_5431(n)
 		typeable = false
 	case int32(84) /* Token.VAR */, int32(111) /* Token.LET */, int32(97) /* Token.CONST */ :
-		this_.priv_TypeCheck_visitVar_5425(t, n)
+		this_.priv_TypeCheck_visitVar_5433(t, n)
 		typeable = false
 	case int32(23) /* Token.NEW */ :
-		this_.priv_TypeCheck_visitNew_5426(n)
+		this_.priv_TypeCheck_visitNew_5434(n)
 	case int32(31) /* Token.OPTCHAIN_CALL */ :
-		this_.priv_TypeCheck_visitCall_5437(t, n)
+		this_.priv_TypeCheck_visitCall_5445(t, n)
 	case int32(28) /* Token.CALL */ :
-		this_.priv_TypeCheck_visitCall_5437(t, n)
+		this_.priv_TypeCheck_visitCall_5445(t, n)
 		typeable = !(parent.IsExprResult())
 	case int32(0) /* Token.RETURN */ :
-		this_.priv_TypeCheck_visitReturn_5441(t, n)
+		this_.priv_TypeCheck_visitReturn_5449(t, n)
 		typeable = false
 	case int32(114) /* Token.YIELD */ :
-		this_.priv_TypeCheck_visitYield_5442(t, n)
+		this_.priv_TypeCheck_visitYield_5450(t, n)
 	case int32(72) /* Token.DEC */, int32(71) /* Token.INC */ :
 		left = n.GetFirstChild()
-		this_.priv_TypeCheck_checkPropCreation_5391(left)
-		if this_.priv_TypeCheck_getJSType_5448(n).IsNumber() {
-			this_.validator.ExpectNumber(left, this_.priv_TypeCheck_getJSType_5448(left), "increment/decrement")
-			this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
+		this_.priv_TypeCheck_checkPropCreation_5399(left)
+		if this_.priv_TypeCheck_getJSType_5456(n).IsNumber() {
+			this_.validator.ExpectNumber(left, this_.priv_TypeCheck_getJSType_5456(left), "increment/decrement")
+			this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
 		} else {
-			this_.validator.ExpectBigIntOrNumber(left, this_.priv_TypeCheck_getJSType_5448(left), "increment/decrement")
+			this_.validator.ExpectBigIntOrNumber(left, this_.priv_TypeCheck_getJSType_5456(left), "increment/decrement")
 		}
 	case int32(87) /* Token.VOID */ :
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 	case int32(35) /* Token.STRINGLIT */, int32(25) /* Token.TYPEOF */, int32(131) /* Token.TEMPLATELIT */, int32(133) /* Token.TEMPLATELIT_STRING */ :
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
 	case int32(130) /* Token.TAGGED_TEMPLATELIT */ :
-		this_.priv_TypeCheck_visitTaggedTemplateLit_5443(n)
-		this_.priv_TypeCheck_ensureTyped_5451(n)
+		this_.priv_TypeCheck_visitTaggedTemplateLit_5451(n)
+		this_.priv_TypeCheck_ensureTyped_5459(n)
 	case int32(20) /* Token.BITNOT */ :
-		this_.priv_TypeCheck_visitBitwiseNOT_5381(n)
+		this_.priv_TypeCheck_visitBitwiseNOT_5389(n)
 	case int32(21) /* Token.POS */ :
-		this_.priv_TypeCheck_visitUnaryPlus_5379(n)
+		this_.priv_TypeCheck_visitUnaryPlus_5387(n)
 	case int32(22) /* Token.NEG */ :
-		this_.priv_TypeCheck_visitUnaryMinus_5380(n)
+		this_.priv_TypeCheck_visitUnaryMinus_5388(n)
 	case int32(4) /* Token.EQ */, int32(5) /* Token.NE */, int32(40) /* Token.SHEQ */, int32(41) /* Token.SHNE */ :
 		left = n.GetFirstChild()
 		right = n.GetLastChild()
 		if left.IsTypeOf() {
 			if right.IsStringLit() {
-				this_.priv_TypeCheck_checkTypeofString_5383(right, right.GetString())
+				this_.priv_TypeCheck_checkTypeofString_5391(right, right.GetString())
 			}
 		} else if right.IsTypeOf() && left.IsStringLit() {
-			this_.priv_TypeCheck_checkTypeofString_5383(left, left.GetString())
+			this_.priv_TypeCheck_checkTypeofString_5391(left, left.GetString())
 		}
-		leftType = this_.priv_TypeCheck_getJSType_5448(left)
-		rightType = this_.priv_TypeCheck_getJSType_5448(right)
+		leftType = this_.priv_TypeCheck_getJSType_5456(left)
+		rightType = this_.priv_TypeCheck_getJSType_5456(right)
 		var leftTypeRestricted pkg_rhino.JSType = leftType.RestrictByNotNullOrUndefined()
 		_ = leftTypeRestricted
 		var rightTypeRestricted pkg_rhino.JSType = rightType.RestrictByNotNullOrUndefined()
@@ -1044,16 +1046,16 @@ func (this_ *TypeCheck) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_r
 			}
 		}
 		if result != pkg_base.StaticGet_Tri_UNKNOWN() {
-			this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_DETERMINISTIC_TEST(), []string{leftType.String(), rightType.String(), result.String()})
+			this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_DETERMINISTIC_TEST(), []string{leftType.String(), rightType.String(), result.String()})
 		}
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
 	case int32(6) /* Token.LT */, int32(7) /* Token.LE */, int32(8) /* Token.GT */, int32(9) /* Token.GE */ :
 		var leftSide pkg_rhino.Node = n.GetFirstChild()
 		_ = leftSide
 		var rightSide pkg_rhino.Node = n.GetLastChild()
 		_ = rightSide
-		leftType = this_.priv_TypeCheck_getJSType_5448(leftSide)
-		rightType = this_.priv_TypeCheck_getJSType_5448(rightSide)
+		leftType = this_.priv_TypeCheck_getJSType_5456(leftSide)
+		rightType = this_.priv_TypeCheck_getJSType_5456(rightSide)
 		if rightType.IsUnknownType() {
 			this_.validator.ExpectUnknownOrComparable(leftSide, leftType, "left side of comparison")
 		} else if leftType.IsUnknownType() {
@@ -1070,78 +1072,78 @@ func (this_ *TypeCheck) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_r
 				var message string = "left side of comparison"
 				_ = message
 				this_.validator.ExpectString(leftSide, leftType, message)
-				this_.validator.ExpectNotNullOrUndefined(t, leftSide, leftType, message, this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE()))
+				this_.validator.ExpectNotNullOrUndefined(t, leftSide, leftType, message, this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE()))
 				message = "right side of comparison"
 				this_.validator.ExpectString(rightSide, rightType, message)
-				this_.validator.ExpectNotNullOrUndefined(t, rightSide, rightType, message, this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE()))
+				this_.validator.ExpectNotNullOrUndefined(t, rightSide, rightType, message, this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE()))
 			}
 		}
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
 	case int32(44) /* Token.IN */ :
 		left = n.GetFirstChild()
 		right = n.GetLastChild()
-		rightType = this_.priv_TypeCheck_getJSType_5448(right)
-		this_.validator.ExpectStringOrSymbol(left, this_.priv_TypeCheck_getJSType_5448(left), "left side of 'in'")
+		rightType = this_.priv_TypeCheck_getJSType_5456(right)
+		this_.validator.ExpectStringOrSymbol(left, this_.priv_TypeCheck_getJSType_5456(left), "left side of 'in'")
 		this_.validator.ExpectObject(n, rightType, "'in' requires an object")
 		if rightType.IsStruct() {
-			this_.priv_TypeCheck_report_5378(right, StaticGet_TypeCheck_IN_USED_WITH_STRUCT(), []string{})
+			this_.priv_TypeCheck_report_5386(right, StaticGet_TypeCheck_IN_USED_WITH_STRUCT(), []string{})
 		}
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
 	case int32(45) /* Token.INSTANCEOF */ :
 		left = n.GetFirstChild()
 		right = n.GetLastChild()
-		rightType = this_.priv_TypeCheck_getJSType_5448(right).RestrictByNotNullOrUndefined()
-		this_.validator.ExpectAnyObject(left, this_.priv_TypeCheck_getJSType_5448(left), "deterministic instanceof yields false")
+		rightType = this_.priv_TypeCheck_getJSType_5456(right).RestrictByNotNullOrUndefined()
+		this_.validator.ExpectAnyObject(left, this_.priv_TypeCheck_getJSType_5456(left), "deterministic instanceof yields false")
 		this_.validator.ExpectActualObject(right, rightType, "instanceof requires an object")
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
 	case int32(51) /* Token.ASSIGN */, int32(64) /* Token.ASSIGN_OR */, int32(65) /* Token.ASSIGN_AND */, int32(66) /* Token.ASSIGN_COALESCE */ :
-		this_.priv_TypeCheck_visitAssign_5387(t, n)
+		this_.priv_TypeCheck_visitAssign_5395(t, n)
 		typeable = false
 	case int32(55) /* Token.ASSIGN_LSH */, int32(56) /* Token.ASSIGN_RSH */, int32(57) /* Token.ASSIGN_URSH */, int32(61) /* Token.ASSIGN_DIV */, int32(62) /* Token.ASSIGN_MOD */, int32(52) /* Token.ASSIGN_BITOR */, int32(53) /* Token.ASSIGN_BITXOR */, int32(54) /* Token.ASSIGN_BITAND */, int32(59) /* Token.ASSIGN_SUB */, int32(58) /* Token.ASSIGN_ADD */, int32(60) /* Token.ASSIGN_MUL */, int32(63) /* Token.ASSIGN_EXPONENT */ :
-		this_.priv_TypeCheck_checkPropCreation_5391(n.GetFirstChild())
-		this_.priv_TypeCheck_visitBinaryOperator_5444(n.GetToken(), n)
+		this_.priv_TypeCheck_checkPropCreation_5399(n.GetFirstChild())
+		this_.priv_TypeCheck_visitBinaryOperator_5452(n.GetToken(), n)
 	case int32(10) /* Token.LSH */, int32(11) /* Token.RSH */, int32(12) /* Token.URSH */, int32(16) /* Token.DIV */, int32(17) /* Token.MOD */, int32(1) /* Token.BITOR */, int32(2) /* Token.BITXOR */, int32(3) /* Token.BITAND */, int32(14) /* Token.SUB */, int32(13) /* Token.ADD */, int32(15) /* Token.MUL */, int32(18) /* Token.EXPONENT */ :
-		this_.priv_TypeCheck_visitBinaryOperator_5444(n.GetToken(), n)
+		this_.priv_TypeCheck_visitBinaryOperator_5452(n.GetToken(), n)
 	case int32(39) /* Token.TRUE */, int32(38) /* Token.FALSE */, int32(19) /* Token.NOT */, int32(24) /* Token.DELPROP */ :
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
 	case int32(76) /* Token.CASE */ :
-		var switchConditionType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(parent.GetPrevious())
+		var switchConditionType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(parent.GetPrevious())
 		_ = switchConditionType
-		var caseType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(n.GetFirstChild())
+		var caseType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(n.GetFirstChild())
 		_ = caseType
 		this_.validator.ExpectSwitchMatchesCase(n, switchConditionType, caseType)
 		typeable = false
 	case int32(85) /* Token.WITH */ :
 		var child pkg_rhino.Node = n.GetFirstChild()
 		_ = child
-		childType = this_.priv_TypeCheck_getJSType_5448(child)
+		childType = this_.priv_TypeCheck_getJSType_5456(child)
 		this_.validator.ExpectObject(child, childType, "with requires an object")
 		typeable = false
 	case int32(73) /* Token.FUNCTION */ :
-		this_.priv_TypeCheck_visitFunction_5429(n)
+		this_.priv_TypeCheck_visitFunction_5437(n)
 	case int32(105) /* Token.CLASS */ :
-		this_.priv_TypeCheck_visitClass_5430(n)
+		this_.priv_TypeCheck_visitClass_5438(n)
 	case int32(123) /* Token.MODULE_BODY */ :
-		this_.priv_TypeCheck_visitModuleBody_5445(t, n)
+		this_.priv_TypeCheck_visitModuleBody_5453(t, n)
 	case int32(49) /* Token.PARAM_LIST */, int32(100) /* Token.STRING_KEY */, int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(129) /* Token.COMPUTED_PROP */, int32(108) /* Token.MEMBER_FIELD_DEF */, int32(109) /* Token.COMPUTED_FIELD_DEF */, int32(92) /* Token.LABEL */, int32(99) /* Token.LABEL_NAME */, int32(75) /* Token.SWITCH */, int32(91) /* Token.SWITCH_BODY */, int32(82) /* Token.BREAK */, int32(86) /* Token.CATCH */, int32(48) /* Token.TRY */, int32(94) /* Token.SCRIPT */, int32(120) /* Token.EXPORT */, int32(122) /* Token.EXPORT_SPEC */, int32(121) /* Token.EXPORT_SPECS */, int32(116) /* Token.IMPORT */, int32(118) /* Token.IMPORT_SPEC */, int32(117) /* Token.IMPORT_SPECS */, int32(119) /* Token.IMPORT_STAR */, int32(93) /* Token.EXPR_RESULT */, int32(90) /* Token.BLOCK */, int32(89) /* Token.ROOT */, int32(88) /* Token.EMPTY */, int32(77) /* Token.DEFAULT_CASE */, int32(83) /* Token.CONTINUE */, int32(98) /* Token.DEBUGGER */, int32(43) /* Token.THROW */, int32(79) /* Token.DO */, int32(74) /* Token.IF */, int32(78) /* Token.WHILE */, int32(80) /* Token.FOR */, int32(132) /* Token.TEMPLATELIT_SUB */, int32(125) /* Token.ITER_REST */, int32(126) /* Token.OBJECT_REST */, int32(104) /* Token.DESTRUCTURING_LHS */ :
 		typeable = false
 	case int32(124) /* Token.DYNAMIC_IMPORT */ :
-		this_.priv_TypeCheck_visitDynamicImport_5446(t, n)
+		this_.priv_TypeCheck_visitDynamicImport_5454(t, n)
 	case int32(102) /* Token.ARRAY_PATTERN */ :
-		this_.priv_TypeCheck_ensureTyped_5451(n)
-		this_.validator.ExpectAutoboxesToIterable(n, this_.priv_TypeCheck_getJSType_5448(n), "array pattern destructuring requires an Iterable")
+		this_.priv_TypeCheck_ensureTyped_5459(n)
+		this_.validator.ExpectAutoboxesToIterable(n, this_.priv_TypeCheck_getJSType_5456(n), "array pattern destructuring requires an Iterable")
 	case int32(103) /* Token.OBJECT_PATTERN */ :
-		this_.priv_TypeCheck_visitObjectPattern_5400(n)
+		this_.priv_TypeCheck_visitObjectPattern_5408(n)
 	case int32(134) /* Token.DEFAULT_VALUE */ :
-		this_.priv_TypeCheck_checkCanAssignToWithScope_5388(t, n, n.GetFirstChild(), this_.priv_TypeCheck_getJSType_5448(n.GetSecondChild()), nil, "default value has wrong type")
+		this_.priv_TypeCheck_checkCanAssignToWithScope_5396(t, n, n.GetFirstChild(), this_.priv_TypeCheck_getJSType_5456(n.GetSecondChild()), nil, "default value has wrong type")
 		var lhs pkg_rhino.Node = n.GetFirstChild()
 		_ = lhs
 		var rhs pkg_rhino.Node = n.GetSecondChild()
 		_ = rhs
 		if lhs.IsArrayPattern() {
-			this_.validator.ExpectAutoboxesToIterable(rhs, this_.priv_TypeCheck_getJSType_5448(rhs), "array pattern destructuring requires an Iterable")
+			this_.validator.ExpectAutoboxesToIterable(rhs, this_.priv_TypeCheck_getJSType_5456(rhs), "array pattern destructuring requires an Iterable")
 		} else if lhs.IsObjectPattern() {
-			this_.validator.ExpectObject(rhs, this_.priv_TypeCheck_getJSType_5448(rhs), "cannot destructure a 'null' or 'undefined' default value")
+			this_.validator.ExpectObject(rhs, this_.priv_TypeCheck_getJSType_5456(rhs), "cannot destructure a 'null' or 'undefined' default value")
 		}
 		typeable = false
 	case int32(106) /* Token.CLASS_MEMBERS */ :
@@ -1151,9 +1153,9 @@ func (this_ *TypeCheck) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_r
 			var child_2 pkg_rhino.Node = n.GetFirstChild()
 			_ = child_2
 			for ; child_2 != 0; child_2 = child_2.GetNext() {
-				this_.priv_TypeCheck_visitObjectOrClassLiteralKey_5401(child_2, n.GetParent(), typ)
+				this_.priv_TypeCheck_visitObjectOrClassLiteralKey_5409(child_2, n.GetParent(), typ)
 				if child_2.IsSetterDef() || child_2.IsGetterDef() {
-					this_.priv_TypeCheck_checkGetterOrSetterType_5385(child_2, parent.GetJSType().ToMaybeFunctionType())
+					this_.priv_TypeCheck_checkGetterOrSetterType_5393(child_2, parent.GetJSType().ToMaybeFunctionType())
 				}
 			}
 		}
@@ -1161,103 +1163,103 @@ func (this_ *TypeCheck) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_r
 	case int32(81) /* Token.FOR_IN */ :
 		var obj pkg_rhino.Node = n.GetSecondChild()
 		_ = obj
-		if this_.priv_TypeCheck_getJSType_5448(obj).IsStruct() {
-			this_.priv_TypeCheck_report_5378(obj, StaticGet_TypeCheck_IN_USED_WITH_STRUCT(), []string{})
+		if this_.priv_TypeCheck_getJSType_5456(obj).IsStruct() {
+			this_.priv_TypeCheck_report_5386(obj, StaticGet_TypeCheck_IN_USED_WITH_STRUCT(), []string{})
 		}
 		typeable = false
 	case int32(112) /* Token.FOR_OF */, int32(113) /* Token.FOR_AWAIT_OF */ :
-		this_.priv_TypeCheck_ensureTyped_5451(n.GetSecondChild())
+		this_.priv_TypeCheck_ensureTyped_5459(n.GetSecondChild())
 		typeable = false
 	case int32(110) /* Token.SUPER */, int32(135) /* Token.NEW_TARGET */, int32(136) /* Token.IMPORT_META */, int32(115) /* Token.AWAIT */, int32(69) /* Token.AND */, int32(67) /* Token.HOOK */, int32(68) /* Token.OR */, int32(70) /* Token.COALESCE */ :
-		this_.priv_TypeCheck_ensureTyped_5451(n)
+		this_.priv_TypeCheck_ensureTyped_5459(n)
 	case int32(47) /* Token.OBJECTLIT */ :
 		if j2gort.InstanceOf[*pkg_rhino.EnumType](parent.GetJSType()) {
-			this_.priv_TypeCheck_ensureTyped_5453(n, parent.GetJSType())
+			this_.priv_TypeCheck_ensureTyped_5461(n, parent.GetJSType())
 		} else {
-			this_.priv_TypeCheck_ensureTyped_5451(n)
+			this_.priv_TypeCheck_ensureTyped_5459(n)
 		}
-		var typ_2 pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(n)
+		var typ_2 pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(n)
 		_ = typ_2
 		{
 			var key pkg_rhino.Node = n.GetFirstChild()
 			_ = key
 			for ; key != 0; key = key.GetNext() {
-				this_.priv_TypeCheck_visitObjectOrClassLiteralKey_5401(key, n, typ_2)
+				this_.priv_TypeCheck_visitObjectOrClassLiteralKey_5409(key, n, typ_2)
 			}
 		}
 	case int32(127) /* Token.ITER_SPREAD */, int32(128) /* Token.OBJECT_SPREAD */ :
-		this_.priv_TypeCheck_checkSpread_5382(n)
+		this_.priv_TypeCheck_checkSpread_5390(n)
 		typeable = false
 	default:
-		this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_UNEXPECTED_TOKEN(), []string{j2gort.CheckNotNullEnum(n.GetToken()).String()})
-		this_.priv_TypeCheck_ensureTyped_5451(n)
+		this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_UNEXPECTED_TOKEN(), []string{j2gort.CheckNotNullEnum(n.GetToken()).String()})
+		this_.priv_TypeCheck_ensureTyped_5459(n)
 	}
 	if NodeUtil_IsBlocklessArrowFunctionResult(n) {
-		this_.priv_TypeCheck_visitImplicitReturnExpression_5440(t, n)
+		this_.priv_TypeCheck_visitImplicitReturnExpression_5448(t, n)
 	}
 	if (n.GetParent().IsForOf() || n.GetParent().IsForAwaitOf()) && (n.GetParent().GetFirstChild() == n) {
-		this_.priv_TypeCheck_checkForOfTypes_5410(t, n.GetParent())
+		this_.priv_TypeCheck_checkForOfTypes_5418(t, n.GetParent())
 	}
 	typeable = (typeable && !(this_.inExterns))
 	if typeable {
 		this_.debugTypeLogger.MaybeLogTypeOfNode(n)
-		this_.priv_TypeCheck_doPercentTypedAccounting_5384(n)
+		this_.priv_TypeCheck_doPercentTypedAccounting_5392(n)
 	}
-	this_.priv_TypeCheck_checkJsdocInfoContainsObjectWithBadKey_5456(n)
+	this_.priv_TypeCheck_checkJsdocInfoContainsObjectWithBadKey_5464(n)
 	this_.debugTypeLogger.StopLoggingIfThisIsWhereWeStarted(n)
 }
 
 // Java method: TypeCheck.visitUnaryPlus(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitUnaryPlus_5379(n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitUnaryPlus_5387(n pkg_rhino.Node) {
 	_ = n
-	if this_.priv_TypeCheck_getJSType_5448(n).IsNoType() {
-		this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_UNARY_OPERATION(), []string{NodeUtil_OpToStr(n.GetToken()), this_.priv_TypeCheck_getJSType_5448(n.GetFirstChild()).String()})
+	if this_.priv_TypeCheck_getJSType_5456(n).IsNoType() {
+		this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_UNARY_OPERATION(), []string{NodeUtil_OpToStr(n.GetToken()), this_.priv_TypeCheck_getJSType_5456(n.GetFirstChild()).String()})
 	} else {
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
 	}
 }
 
 // Java method: TypeCheck.visitUnaryMinus(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitUnaryMinus_5380(n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitUnaryMinus_5388(n pkg_rhino.Node) {
 	_ = n
-	var operatorType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(n)
+	var operatorType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(n)
 	_ = operatorType
-	var childType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(n.GetFirstChild())
+	var childType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(n.GetFirstChild())
 	_ = childType
 	if operatorType.IsNumber() {
 		this_.validator.ExpectNumber(n, childType, "sign operator")
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
 	} else {
 		this_.validator.ExpectBigIntOrNumber(n, childType, "unary minus operator")
 	}
 }
 
 // Java method: TypeCheck.visitBitwiseNOT(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitBitwiseNOT_5381(n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitBitwiseNOT_5389(n pkg_rhino.Node) {
 	_ = n
-	var operatorType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(n)
+	var operatorType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(n)
 	_ = operatorType
-	var childType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(n.GetFirstChild())
+	var childType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(n.GetFirstChild())
 	_ = childType
 	if operatorType.IsNumber() {
 		if !(childType.MatchesNumberContext()) {
-			this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_BIT_OPERATION(), []string{NodeUtil_OpToStr(n.GetToken()), childType.String()})
+			this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_BIT_OPERATION(), []string{NodeUtil_OpToStr(n.GetToken()), childType.String()})
 		} else {
 			this_.validator.ExpectNumberStrict(n, childType, "bitwise NOT")
 		}
-		this_.priv_TypeCheck_ensureTyped_5452(n, pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(n, pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
 	} else {
 		this_.validator.ExpectBigIntOrNumber(n, childType, "bitwise NOT")
 	}
 }
 
 // Java method: TypeCheck.checkSpread(com.google.javascript.rhino.Node spreadNode)
-func (this_ *TypeCheck) priv_TypeCheck_checkSpread_5382(spreadNode pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_checkSpread_5390(spreadNode pkg_rhino.Node) {
 	_ = spreadNode
 	var target pkg_rhino.Node = spreadNode.GetOnlyChild()
 	_ = target
-	this_.priv_TypeCheck_ensureTyped_5451(target)
-	var targetType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(target)
+	this_.priv_TypeCheck_ensureTyped_5459(target)
+	var targetType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(target)
 	_ = targetType
 	switch spreadNode.GetParent().TokenSwitchOrd_() {
 	case int32(47) /* Token.OBJECTLIT */ :
@@ -1269,7 +1271,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkSpread_5382(spreadNode pkg_rhino.Nod
 }
 
 // Java method: TypeCheck.checkTypeofString(com.google.javascript.rhino.Node n, java.lang.String s)
-func (this_ *TypeCheck) priv_TypeCheck_checkTypeofString_5383(n pkg_rhino.Node, s string) {
+func (this_ *TypeCheck) priv_TypeCheck_checkTypeofString_5391(n pkg_rhino.Node, s string) {
 	_ = n
 	_ = s
 	if !(((((((((j2gort.CheckNotNullString(s) == "number") || (j2gort.CheckNotNullString(s) == "string")) || (j2gort.CheckNotNullString(s) == "boolean")) || (j2gort.CheckNotNullString(s) == "undefined")) || (j2gort.CheckNotNullString(s) == "function")) || (j2gort.CheckNotNullString(s) == "object")) || (j2gort.CheckNotNullString(s) == "symbol")) || (j2gort.CheckNotNullString(s) == "unknown")) || (j2gort.CheckNotNullString(s) == "bigint")) {
@@ -1278,7 +1280,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkTypeofString_5383(n pkg_rhino.Node, 
 }
 
 // Java method: TypeCheck.doPercentTypedAccounting(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_doPercentTypedAccounting_5384(n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_doPercentTypedAccounting_5392(n pkg_rhino.Node) {
 	_ = n
 	var type_ pkg_rhino.JSType = n.GetJSType()
 	_ = type_
@@ -1295,7 +1297,7 @@ func (this_ *TypeCheck) priv_TypeCheck_doPercentTypedAccounting_5384(n pkg_rhino
 }
 
 // Java method: TypeCheck.checkGetterOrSetterType(com.google.javascript.rhino.Node child, com.google.javascript.rhino.jstype.FunctionType classType)
-func (this_ *TypeCheck) priv_TypeCheck_checkGetterOrSetterType_5385(child pkg_rhino.Node, classType *pkg_rhino.FunctionType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkGetterOrSetterType_5393(child pkg_rhino.Node, classType *pkg_rhino.FunctionType) {
 	_ = child
 	_ = classType
 	var propertyName string = child.GetString()
@@ -1305,7 +1307,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkGetterOrSetterType_5385(child pkg_rh
 	var propertyType pkg_rhino.JSType
 	_ = propertyType
 	if child.IsGetterDef() {
-		propertyType = this_.priv_TypeCheck_determineGetterType_5386(methodType)
+		propertyType = this_.priv_TypeCheck_determineGetterType_5394(methodType)
 	} else if methodType.GetParameterCount() == int32(1) {
 		propertyType = methodType.GetParameter(int32(0)).GetJSType()
 	} else {
@@ -1319,7 +1321,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkGetterOrSetterType_5385(child pkg_rh
 		officialPropertyType = classType.GetPrototype().GetPropertyType_1_string(propertyName)
 	}
 	if !(propertyType.Equals(officialPropertyType)) {
-		this_.priv_TypeCheck_report_5378(child, StaticGet_TypeCheck_CONFLICTING_GETTER_SETTER_TYPE(), []string{propertyName, func() string {
+		this_.priv_TypeCheck_report_5386(child, StaticGet_TypeCheck_CONFLICTING_GETTER_SETTER_TYPE(), []string{propertyName, func() string {
 			if child.IsGetterDef() {
 				return propertyType.String()
 			}
@@ -1334,7 +1336,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkGetterOrSetterType_5385(child pkg_rh
 }
 
 // Java method: TypeCheck.determineGetterType(com.google.javascript.rhino.jstype.FunctionType methodType)
-func (this_ *TypeCheck) priv_TypeCheck_determineGetterType_5386(methodType *pkg_rhino.FunctionType) pkg_rhino.JSType {
+func (this_ *TypeCheck) priv_TypeCheck_determineGetterType_5394(methodType *pkg_rhino.FunctionType) pkg_rhino.JSType {
 	_ = methodType
 	if !(methodType.IsReturnTypeInferred()) {
 		return methodType.GetReturnType()
@@ -1344,7 +1346,7 @@ func (this_ *TypeCheck) priv_TypeCheck_determineGetterType_5386(methodType *pkg_
 }
 
 // Java method: TypeCheck.visitAssign(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node assign)
-func (this_ *TypeCheck) priv_TypeCheck_visitAssign_5387(t *NodeTraversal, assign pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitAssign_5395(t *NodeTraversal, assign pkg_rhino.Node) {
 	_ = t
 	_ = assign
 	var info *pkg_rhino.JSDocInfo = assign.GetJSDocInfo()
@@ -1353,14 +1355,14 @@ func (this_ *TypeCheck) priv_TypeCheck_visitAssign_5387(t *NodeTraversal, assign
 	_ = lvalue
 	var rvalue pkg_rhino.Node = assign.GetLastChild()
 	_ = rvalue
-	var rightType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(rvalue)
+	var rightType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(rvalue)
 	_ = rightType
-	this_.priv_TypeCheck_checkCanAssignToWithScope_5388(t, assign, lvalue, rightType, info, "assignment")
-	this_.priv_TypeCheck_ensureTyped_5453(assign, rightType)
+	this_.priv_TypeCheck_checkCanAssignToWithScope_5396(t, assign, lvalue, rightType, info, "assignment")
+	this_.priv_TypeCheck_ensureTyped_5461(assign, rightType)
 }
 
 // Java method: TypeCheck.checkCanAssignToWithScope(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node nodeToWarn, com.google.javascript.rhino.Node lvalue, com.google.javascript.rhino.jstype.JSType rightType, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo info, java.lang.String msg)
-func (this_ *TypeCheck) priv_TypeCheck_checkCanAssignToWithScope_5388(t *NodeTraversal, nodeToWarn pkg_rhino.Node, lvalue pkg_rhino.Node, rightType pkg_rhino.JSType, info *pkg_rhino.JSDocInfo, msg string) {
+func (this_ *TypeCheck) priv_TypeCheck_checkCanAssignToWithScope_5396(t *NodeTraversal, nodeToWarn pkg_rhino.Node, lvalue pkg_rhino.Node, rightType pkg_rhino.JSType, info *pkg_rhino.JSDocInfo, msg string) {
 	_ = t
 	_ = nodeToWarn
 	_ = lvalue
@@ -1368,14 +1370,14 @@ func (this_ *TypeCheck) priv_TypeCheck_checkCanAssignToWithScope_5388(t *NodeTra
 	_ = info
 	_ = msg
 	if lvalue.IsDestructuringPattern() {
-		this_.priv_TypeCheck_checkDestructuringAssignment_5389(t, nodeToWarn, lvalue, rightType, msg)
+		this_.priv_TypeCheck_checkDestructuringAssignment_5397(t, nodeToWarn, lvalue, rightType, msg)
 	} else {
-		this_.priv_TypeCheck_checkCanAssignToNameGetpropOrGetelem_5390(t, nodeToWarn, lvalue, rightType, info, msg)
+		this_.priv_TypeCheck_checkCanAssignToNameGetpropOrGetelem_5398(t, nodeToWarn, lvalue, rightType, info, msg)
 	}
 }
 
 // Java method: TypeCheck.checkDestructuringAssignment(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node nodeToWarn, com.google.javascript.rhino.Node pattern, com.google.javascript.rhino.jstype.JSType rightType, java.lang.String msg)
-func (this_ *TypeCheck) priv_TypeCheck_checkDestructuringAssignment_5389(t *NodeTraversal, nodeToWarn pkg_rhino.Node, pattern pkg_rhino.Node, rightType pkg_rhino.JSType, msg string) {
+func (this_ *TypeCheck) priv_TypeCheck_checkDestructuringAssignment_5397(t *NodeTraversal, nodeToWarn pkg_rhino.Node, pattern pkg_rhino.Node, rightType pkg_rhino.JSType, msg string) {
 	_ = t
 	_ = nodeToWarn
 	_ = pattern
@@ -1387,13 +1389,13 @@ func (this_ *TypeCheck) priv_TypeCheck_checkDestructuringAssignment_5389(t *Node
 			rawElem_2 := cur_1.Next()
 			target := j2gort.CastPtr[DestructuredTarget](rawElem_2)
 			_ = target
-			this_.priv_TypeCheck_checkCanAssignToWithScope_5388(t, nodeToWarn, target.GetNode(), target.InferType(), nil, msg)
+			this_.priv_TypeCheck_checkCanAssignToWithScope_5396(t, nodeToWarn, target.GetNode(), target.InferType(), nil, msg)
 		}
 	}
 }
 
 // Java method: TypeCheck.checkCanAssignToNameGetpropOrGetelem(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node nodeToWarn, com.google.javascript.rhino.Node lvalue, com.google.javascript.rhino.jstype.JSType rightType, com.google.javascript.rhino.JSDocInfo info, java.lang.String msg)
-func (this_ *TypeCheck) priv_TypeCheck_checkCanAssignToNameGetpropOrGetelem_5390(t *NodeTraversal, nodeToWarn pkg_rhino.Node, lvalue pkg_rhino.Node, rightType pkg_rhino.JSType, info *pkg_rhino.JSDocInfo, msg string) {
+func (this_ *TypeCheck) priv_TypeCheck_checkCanAssignToNameGetpropOrGetelem_5398(t *NodeTraversal, nodeToWarn pkg_rhino.Node, lvalue pkg_rhino.Node, rightType pkg_rhino.JSType, info *pkg_rhino.JSDocInfo, msg string) {
 	_ = t
 	_ = nodeToWarn
 	_ = lvalue
@@ -1403,32 +1405,32 @@ func (this_ *TypeCheck) priv_TypeCheck_checkCanAssignToNameGetpropOrGetelem_5390
 	if !(((lvalue.IsName() || lvalue.IsGetProp()) || lvalue.IsGetElem()) || lvalue.IsCast()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(lvalue))
 	}
-	this_.priv_TypeCheck_checkNotReadonlyPropertyAssignment_5462(lvalue)
+	this_.priv_TypeCheck_checkNotReadonlyPropertyAssignment_5470(lvalue)
 	if lvalue.IsGetProp() {
 		var object pkg_rhino.Node = lvalue.GetFirstChild()
 		_ = object
-		var objectJsType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(object)
+		var objectJsType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(object)
 		_ = objectJsType
 		var pname string = lvalue.GetString()
 		_ = pname
 		if object.IsGetProp() {
-			var jsType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(object.GetFirstChild())
+			var jsType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(object.GetFirstChild())
 			_ = jsType
 			if jsType.IsInterface() && (j2gort.CheckNotNullString(object.GetString()) == "prototype") {
-				this_.priv_TypeCheck_visitInterfacePropertyAssignment_5407(object, lvalue)
+				this_.priv_TypeCheck_visitInterfacePropertyAssignment_5415(object, lvalue)
 			}
 		}
-		this_.priv_TypeCheck_checkEnumAlias_5447(t, info, rightType, nodeToWarn)
-		this_.priv_TypeCheck_checkPropCreation_5391(lvalue)
+		this_.priv_TypeCheck_checkEnumAlias_5455(t, info, rightType, nodeToWarn)
+		this_.priv_TypeCheck_checkPropCreation_5399(lvalue)
 		if j2gort.CheckNotNullString(pname) == "prototype" {
 			this_.validator.ExpectCanAssignToPrototype(objectJsType, nodeToWarn, rightType)
 			return
 		}
 		var objectCastType pkg_rhino.ObjectType = pkg_rhino.ObjectType_Cast(objectJsType.RestrictByNotNullOrUndefined())
 		_ = objectCastType
-		var expectedPropertyType pkg_rhino.JSType = this_.priv_TypeCheck_getPropertyTypeIfDeclared_5449(objectCastType, pname)
+		var expectedPropertyType pkg_rhino.JSType = this_.priv_TypeCheck_getPropertyTypeIfDeclared_5457(objectCastType, pname)
 		_ = expectedPropertyType
-		this_.priv_TypeCheck_checkPropertyInheritanceOnAssignment_5392(nodeToWarn, object, pname, info, expectedPropertyType)
+		this_.priv_TypeCheck_checkPropertyInheritanceOnAssignment_5400(nodeToWarn, object, pname, info, expectedPropertyType)
 		if !(expectedPropertyType.IsUnknownType()) {
 			if !(TypeCheck_PropertyIsImplicitCast(objectCastType, pname)) {
 				this_.validator.ExpectCanAssignToPropertyOf_5(nodeToWarn, rightType, expectedPropertyType, object, pname)
@@ -1438,17 +1440,17 @@ func (this_ *TypeCheck) priv_TypeCheck_checkCanAssignToNameGetpropOrGetelem_5390
 	} else if lvalue.IsGetElem() && lvalue.GetSecondChild().GetJSType().IsKnownSymbolValueType() {
 		var object_2 pkg_rhino.Node = lvalue.GetFirstChild()
 		_ = object_2
-		var objectJsType_2 pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(object_2)
+		var objectJsType_2 pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(object_2)
 		_ = objectJsType_2
 		var objectCastType_2 pkg_rhino.ObjectType = pkg_rhino.ObjectType_Cast(objectJsType_2.RestrictByNotNullOrUndefined())
 		_ = objectCastType_2
 		var property *pkg_rhino.KnownSymbolType = lvalue.GetLastChild().GetJSType().ToMaybeKnownSymbolType()
 		_ = property
-		var expectedPropertyType_2 pkg_rhino.JSType = this_.priv_TypeCheck_getPropertyTypeIfDeclared_5450(objectCastType_2, pkg_rhino.NewProperty_SymbolKey(property))
+		var expectedPropertyType_2 pkg_rhino.JSType = this_.priv_TypeCheck_getPropertyTypeIfDeclared_5458(objectCastType_2, pkg_rhino.NewProperty_SymbolKey(property))
 		_ = expectedPropertyType_2
-		this_.priv_TypeCheck_checkPropertyInheritanceOnAssignment_5393(nodeToWarn, object_2, pkg_rhino.NewProperty_SymbolKey(property), info, expectedPropertyType_2)
+		this_.priv_TypeCheck_checkPropertyInheritanceOnAssignment_5401(nodeToWarn, object_2, pkg_rhino.NewProperty_SymbolKey(property), info, expectedPropertyType_2)
 	}
-	var leftType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(lvalue)
+	var leftType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(lvalue)
 	_ = leftType
 	if lvalue.IsQualifiedName() {
 		var var_ *TypedVar = t.GetTypedScope().LookupTypedVar(lvalue.GetQualifiedName())
@@ -1469,10 +1471,10 @@ func (this_ *TypeCheck) priv_TypeCheck_checkCanAssignToNameGetpropOrGetelem_5390
 }
 
 // Java method: TypeCheck.checkPropCreation(com.google.javascript.rhino.Node lvalue)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropCreation_5391(lvalue pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropCreation_5399(lvalue pkg_rhino.Node) {
 	_ = lvalue
 	if lvalue.IsGetProp() {
-		var objType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(lvalue.GetFirstChild())
+		var objType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(lvalue.GetFirstChild())
 		_ = objType
 		if !(objType.IsEmptyType()) && !(objType.IsUnknownType()) {
 			var propName string = lvalue.GetString()
@@ -1493,15 +1495,15 @@ func (this_ *TypeCheck) priv_TypeCheck_checkPropCreation_5391(lvalue pkg_rhino.N
 				if !(iifeCond_1) {
 					if objType.IsStruct() {
 						if objType.RestrictByNotNullOrUndefined().IsUnionType() {
-							this_.priv_TypeCheck_report_5378(lvalue, StaticGet_TypeCheck_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE(), []string{})
+							this_.priv_TypeCheck_report_5386(lvalue, StaticGet_TypeCheck_ILLEGAL_PROPERTY_CREATION_ON_UNION_TYPE(), []string{})
 						} else {
-							this_.priv_TypeCheck_report_5378(lvalue, StaticGet_TypeCheck_ILLEGAL_PROPERTY_CREATION(), []string{})
+							this_.priv_TypeCheck_report_5386(lvalue, StaticGet_TypeCheck_ILLEGAL_PROPERTY_CREATION(), []string{})
 						}
 					} else {
-						if (!(objType.IsNoType()) && !(objType.IsUnknownType())) && objType.IsSubtypeOf_1(this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_NULL_VOID())) {
+						if (!(objType.IsNoType()) && !(objType.IsUnknownType())) && objType.IsSubtypeOf_1(this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_NULL_VOID())) {
 							return
 						}
-						this_.priv_TypeCheck_reportMissingProperty_5419(lvalue.GetFirstChild(), objType, lvalue, kind, true)
+						this_.priv_TypeCheck_reportMissingProperty_5427(lvalue.GetFirstChild(), objType, lvalue, kind, true)
 					}
 				}
 			}
@@ -1510,7 +1512,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkPropCreation_5391(lvalue pkg_rhino.N
 }
 
 // Java method: TypeCheck.checkPropertyInheritanceOnAssignment(com.google.javascript.rhino.Node assign, com.google.javascript.rhino.Node object, java.lang.String property, com.google.javascript.rhino.JSDocInfo info, com.google.javascript.rhino.jstype.JSType propertyType)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnAssignment_5392(assign pkg_rhino.Node, object pkg_rhino.Node, property string, info *pkg_rhino.JSDocInfo, propertyType pkg_rhino.JSType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnAssignment_5400(assign pkg_rhino.Node, object pkg_rhino.Node, property string, info *pkg_rhino.JSDocInfo, propertyType pkg_rhino.JSType) {
 	_ = assign
 	_ = object
 	_ = property
@@ -1519,25 +1521,25 @@ func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnAssignment_5392
 	if object.IsGetProp() && (j2gort.CheckNotNullString(object.GetString()) == "prototype") {
 		var preObject pkg_rhino.Node = object.GetFirstChild()
 		_ = preObject
-		var ctorType *pkg_rhino.FunctionType = this_.priv_TypeCheck_getJSType_5448(preObject).ToMaybeFunctionType()
+		var ctorType *pkg_rhino.FunctionType = this_.priv_TypeCheck_getJSType_5456(preObject).ToMaybeFunctionType()
 		_ = ctorType
 		if (ctorType == nil) || !(ctorType.HasInstanceType()) {
 			return
 		}
-		this_.priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheritance_5402(assign, ctorType, property, info, propertyType)
-		this_.priv_TypeCheck_checkAbstractMethodInConcreteClass_5406(assign, ctorType, info)
+		this_.priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheritance_5410(assign, ctorType, property, info, propertyType)
+		this_.priv_TypeCheck_checkAbstractMethodInConcreteClass_5414(assign, ctorType, info)
 	} else {
-		var ctorType_2 *pkg_rhino.FunctionType = this_.priv_TypeCheck_getJSType_5448(object).ToMaybeFunctionType()
+		var ctorType_2 *pkg_rhino.FunctionType = this_.priv_TypeCheck_getJSType_5456(object).ToMaybeFunctionType()
 		_ = ctorType_2
 		if (ctorType_2 == nil) || !(ctorType_2.HasInstanceType()) {
 			return
 		}
-		this_.priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInheritance_5403(assign, pkg_rhino.ToIface_ObjectType(ctorType_2), property, info, propertyType)
+		this_.priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInheritance_5411(assign, pkg_rhino.ToIface_ObjectType(ctorType_2), property, info, propertyType)
 	}
 }
 
 // Java method: TypeCheck.checkPropertyInheritanceOnAssignment(com.google.javascript.rhino.Node assign, com.google.javascript.rhino.Node object, com.google.javascript.rhino.jstype.Property.Key property, com.google.javascript.rhino.JSDocInfo info, com.google.javascript.rhino.jstype.JSType propertyType)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnAssignment_5393(assign pkg_rhino.Node, object pkg_rhino.Node, property pkg_rhino.Property_Key, info *pkg_rhino.JSDocInfo, propertyType pkg_rhino.JSType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnAssignment_5401(assign pkg_rhino.Node, object pkg_rhino.Node, property pkg_rhino.Property_Key, info *pkg_rhino.JSDocInfo, propertyType pkg_rhino.JSType) {
 	_ = assign
 	_ = object
 	_ = property
@@ -1546,45 +1548,45 @@ func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnAssignment_5393
 	if object.IsGetProp() && (j2gort.CheckNotNullString(object.GetString()) == "prototype") {
 		var preObject pkg_rhino.Node = object.GetFirstChild()
 		_ = preObject
-		var ctorType *pkg_rhino.FunctionType = this_.priv_TypeCheck_getJSType_5448(preObject).ToMaybeFunctionType()
+		var ctorType *pkg_rhino.FunctionType = this_.priv_TypeCheck_getJSType_5456(preObject).ToMaybeFunctionType()
 		_ = ctorType
 		if (ctorType == nil) || !(ctorType.HasInstanceType()) {
 			return
 		}
-		this_.priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheritance_5404(assign, ctorType, property, info, propertyType)
-		this_.priv_TypeCheck_checkAbstractMethodInConcreteClass_5406(assign, ctorType, info)
+		this_.priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheritance_5412(assign, ctorType, property, info, propertyType)
+		this_.priv_TypeCheck_checkAbstractMethodInConcreteClass_5414(assign, ctorType, info)
 	} else {
-		var ctorType_2 *pkg_rhino.FunctionType = this_.priv_TypeCheck_getJSType_5448(object).ToMaybeFunctionType()
+		var ctorType_2 *pkg_rhino.FunctionType = this_.priv_TypeCheck_getJSType_5456(object).ToMaybeFunctionType()
 		_ = ctorType_2
 		if (ctorType_2 == nil) || !(ctorType_2.HasInstanceType()) {
 			return
 		}
-		this_.priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInheritance_5405(assign, pkg_rhino.ToIface_ObjectType(ctorType_2), property, info, propertyType)
+		this_.priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInheritance_5413(assign, pkg_rhino.ToIface_ObjectType(ctorType_2), property, info, propertyType)
 	}
 }
 
 // Java method: TypeCheck.checkPropertyInheritanceOnPrototypeLitKey(com.google.javascript.rhino.Node key, java.lang.String propertyName, com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnPrototypeLitKey_5394(key pkg_rhino.Node, propertyName string, type_ pkg_rhino.ObjectType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnPrototypeLitKey_5402(key pkg_rhino.Node, propertyName string, type_ pkg_rhino.ObjectType) {
 	_ = key
 	_ = propertyName
 	_ = type_
-	this_.priv_TypeCheck_checkPropertyInheritance_5396(key, propertyName, type_.GetOwnerFunction(), type_)
+	this_.priv_TypeCheck_checkPropertyInheritance_5404(key, propertyName, type_.GetOwnerFunction(), type_)
 }
 
 // Java method: TypeCheck.checkPropertyInheritanceOnClassMember(com.google.javascript.rhino.Node key, java.lang.String propertyName, com.google.javascript.rhino.jstype.FunctionType ctorType)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnClassMember_5395(key pkg_rhino.Node, propertyName string, ctorType *pkg_rhino.FunctionType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnClassMember_5403(key pkg_rhino.Node, propertyName string, ctorType *pkg_rhino.FunctionType) {
 	_ = key
 	_ = propertyName
 	_ = ctorType
 	if key.IsStaticMember() {
-		this_.priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInheritance_5403(key, pkg_rhino.ToIface_ObjectType(ctorType), propertyName, key.GetJSDocInfo(), ctorType.GetPropertyType_1_string(propertyName))
+		this_.priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInheritance_5411(key, pkg_rhino.ToIface_ObjectType(ctorType), propertyName, key.GetJSDocInfo(), ctorType.GetPropertyType_1_string(propertyName))
 	} else {
-		this_.priv_TypeCheck_checkPropertyInheritance_5396(key, propertyName, ctorType, ctorType.GetInstanceType())
+		this_.priv_TypeCheck_checkPropertyInheritance_5404(key, propertyName, ctorType, ctorType.GetInstanceType())
 	}
 }
 
 // Java method: TypeCheck.checkPropertyInheritance(com.google.javascript.rhino.Node key, java.lang.String propertyName, com.google.javascript.rhino.jstype.FunctionType ctorType, com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritance_5396(key pkg_rhino.Node, propertyName string, ctorType *pkg_rhino.FunctionType, type_ pkg_rhino.ObjectType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritance_5404(key pkg_rhino.Node, propertyName string, ctorType *pkg_rhino.FunctionType, type_ pkg_rhino.ObjectType) {
 	_ = key
 	_ = propertyName
 	_ = ctorType
@@ -1592,32 +1594,32 @@ func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritance_5396(key pkg_rhi
 	if (ctorType == nil) || !(ctorType.HasInstanceType()) {
 		return
 	}
-	this_.priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheritance_5402(key.GetFirstChild(), ctorType, propertyName, key.GetJSDocInfo(), type_.GetPropertyType_1_string(propertyName))
-	this_.priv_TypeCheck_checkAbstractMethodInConcreteClass_5406(key, ctorType, key.GetJSDocInfo())
+	this_.priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheritance_5410(key.GetFirstChild(), ctorType, propertyName, key.GetJSDocInfo(), type_.GetPropertyType_1_string(propertyName))
+	this_.priv_TypeCheck_checkAbstractMethodInConcreteClass_5414(key, ctorType, key.GetJSDocInfo())
 }
 
 // Java method: TypeCheck.checkPropertyInheritanceOnPrototypeLitKey(com.google.javascript.rhino.Node key, com.google.javascript.rhino.jstype.Property.Key propertyName, com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnPrototypeLitKey_5397(key pkg_rhino.Node, propertyName pkg_rhino.Property_Key, type_ pkg_rhino.ObjectType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnPrototypeLitKey_5405(key pkg_rhino.Node, propertyName pkg_rhino.Property_Key, type_ pkg_rhino.ObjectType) {
 	_ = key
 	_ = propertyName
 	_ = type_
-	this_.priv_TypeCheck_checkPropertyInheritance_5399(key, propertyName, type_.GetOwnerFunction(), type_)
+	this_.priv_TypeCheck_checkPropertyInheritance_5407(key, propertyName, type_.GetOwnerFunction(), type_)
 }
 
 // Java method: TypeCheck.checkPropertyInheritanceOnClassMember(com.google.javascript.rhino.Node key, com.google.javascript.rhino.jstype.Property.Key propertyName, com.google.javascript.rhino.jstype.FunctionType ctorType)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnClassMember_5398(key pkg_rhino.Node, propertyName pkg_rhino.Property_Key, ctorType *pkg_rhino.FunctionType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritanceOnClassMember_5406(key pkg_rhino.Node, propertyName pkg_rhino.Property_Key, ctorType *pkg_rhino.FunctionType) {
 	_ = key
 	_ = propertyName
 	_ = ctorType
 	if key.IsStaticMember() {
-		this_.priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInheritance_5405(key, pkg_rhino.ToIface_ObjectType(ctorType), propertyName, key.GetJSDocInfo(), ctorType.GetPropertyType_1_Property_Key(propertyName))
+		this_.priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInheritance_5413(key, pkg_rhino.ToIface_ObjectType(ctorType), propertyName, key.GetJSDocInfo(), ctorType.GetPropertyType_1_Property_Key(propertyName))
 	} else {
-		this_.priv_TypeCheck_checkPropertyInheritance_5399(key, propertyName, ctorType, ctorType.GetInstanceType())
+		this_.priv_TypeCheck_checkPropertyInheritance_5407(key, propertyName, ctorType, ctorType.GetInstanceType())
 	}
 }
 
 // Java method: TypeCheck.checkPropertyInheritance(com.google.javascript.rhino.Node key, com.google.javascript.rhino.jstype.Property.Key propertyName, com.google.javascript.rhino.jstype.FunctionType ctorType, com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritance_5399(key pkg_rhino.Node, propertyName pkg_rhino.Property_Key, ctorType *pkg_rhino.FunctionType, type_ pkg_rhino.ObjectType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritance_5407(key pkg_rhino.Node, propertyName pkg_rhino.Property_Key, ctorType *pkg_rhino.FunctionType, type_ pkg_rhino.ObjectType) {
 	_ = key
 	_ = propertyName
 	_ = ctorType
@@ -1625,14 +1627,14 @@ func (this_ *TypeCheck) priv_TypeCheck_checkPropertyInheritance_5399(key pkg_rhi
 	if (ctorType == nil) || !(ctorType.HasInstanceType()) {
 		return
 	}
-	this_.priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheritance_5404(key.GetFirstChild(), ctorType, propertyName, key.GetJSDocInfo(), type_.GetPropertyType_1_Property_Key(propertyName))
-	this_.priv_TypeCheck_checkAbstractMethodInConcreteClass_5406(key, ctorType, key.GetJSDocInfo())
+	this_.priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheritance_5412(key.GetFirstChild(), ctorType, propertyName, key.GetJSDocInfo(), type_.GetPropertyType_1_Property_Key(propertyName))
+	this_.priv_TypeCheck_checkAbstractMethodInConcreteClass_5414(key, ctorType, key.GetJSDocInfo())
 }
 
 // Java method: TypeCheck.visitObjectPattern(com.google.javascript.rhino.Node pattern)
-func (this_ *TypeCheck) priv_TypeCheck_visitObjectPattern_5400(pattern pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitObjectPattern_5408(pattern pkg_rhino.Node) {
 	_ = pattern
-	var patternType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(pattern)
+	var patternType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(pattern)
 	_ = patternType
 	this_.validator.ExpectObject(pattern, patternType, "cannot destructure 'null' or 'undefined'")
 	{
@@ -1644,51 +1646,51 @@ func (this_ *TypeCheck) priv_TypeCheck_visitObjectPattern_5400(pattern pkg_rhino
 			if target.HasComputedProperty() {
 				var computedProperty pkg_rhino.Node = target.GetComputedProperty()
 				_ = computedProperty
-				this_.validator.ExpectIndexMatch(computedProperty, patternType, this_.priv_TypeCheck_getJSType_5448(computedProperty.GetFirstChild()))
+				this_.validator.ExpectIndexMatch(computedProperty, patternType, this_.priv_TypeCheck_getJSType_5456(computedProperty.GetFirstChild()))
 			} else if target.HasStringKey() {
 				var stringKey pkg_rhino.Node = target.GetStringKey()
 				_ = stringKey
 				if !(stringKey.IsQuotedStringKey()) {
 					if patternType.IsDict() {
-						this_.priv_TypeCheck_report_5378(stringKey, StaticGet_TypeValidator_ILLEGAL_PROPERTY_ACCESS(), []string{"unquoted", "dict"})
+						this_.priv_TypeCheck_report_5386(stringKey, StaticGet_TypeValidator_ILLEGAL_PROPERTY_ACCESS(), []string{"unquoted", "dict"})
 					}
-					this_.priv_TypeCheck_checkPropertyAccessForDestructuring_5414(pattern, patternType, stringKey, this_.priv_TypeCheck_getJSType_5448(target.GetNode()))
+					this_.priv_TypeCheck_checkPropertyAccessForDestructuring_5422(pattern, patternType, stringKey, this_.priv_TypeCheck_getJSType_5456(target.GetNode()))
 				} else if patternType.IsStruct() {
-					this_.priv_TypeCheck_report_5378(stringKey, StaticGet_TypeValidator_ILLEGAL_PROPERTY_ACCESS(), []string{"quoted", "struct"})
+					this_.priv_TypeCheck_report_5386(stringKey, StaticGet_TypeValidator_ILLEGAL_PROPERTY_ACCESS(), []string{"quoted", "struct"})
 				}
 			}
 		}
 	}
-	this_.priv_TypeCheck_ensureTyped_5451(pattern)
+	this_.priv_TypeCheck_ensureTyped_5459(pattern)
 }
 
 // Java method: TypeCheck.visitObjectOrClassLiteralKey(com.google.javascript.rhino.Node key, com.google.javascript.rhino.Node owner, com.google.javascript.rhino.jstype.JSType ownerType)
-func (this_ *TypeCheck) priv_TypeCheck_visitObjectOrClassLiteralKey_5401(key pkg_rhino.Node, owner pkg_rhino.Node, ownerType pkg_rhino.JSType) {
+func (this_ *TypeCheck) priv_TypeCheck_visitObjectOrClassLiteralKey_5409(key pkg_rhino.Node, owner pkg_rhino.Node, ownerType pkg_rhino.JSType) {
 	_ = key
 	_ = owner
 	_ = ownerType
 	if owner.IsFromExterns() {
-		this_.priv_TypeCheck_ensureTyped_5451(key)
+		this_.priv_TypeCheck_ensureTyped_5459(key)
 		return
 	}
 	if key.IsComputedProp() || key.IsComputedFieldDef() {
-		var keyType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(key.GetFirstChild())
+		var keyType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(key.GetFirstChild())
 		_ = keyType
 		this_.validator.ExpectIndexMatch(key, ownerType, keyType)
 		if keyType.IsKnownSymbolValueType() {
 			if owner.IsClass() {
 				var classConstructorType *pkg_rhino.FunctionType = owner.GetJSType().AssertFunctionType()
 				_ = classConstructorType
-				this_.priv_TypeCheck_checkPropertyInheritanceOnClassMember_5398(key, pkg_rhino.NewProperty_SymbolKey(keyType.ToMaybeKnownSymbolType()), classConstructorType)
+				this_.priv_TypeCheck_checkPropertyInheritanceOnClassMember_5406(key, pkg_rhino.NewProperty_SymbolKey(keyType.ToMaybeKnownSymbolType()), classConstructorType)
 			} else {
 				if !(owner.IsObjectLit()) {
 					j2gort.CheckStateFmt(false, "Unexpected owner %s", j2gort.BoxNode(owner))
 				}
 				var objectCastType pkg_rhino.ObjectType = pkg_rhino.ObjectType_Cast(ownerType.RestrictByNotNullOrUndefined())
 				_ = objectCastType
-				var expectedPropertyType pkg_rhino.JSType = this_.priv_TypeCheck_getPropertyTypeIfDeclared_5450(objectCastType, pkg_rhino.NewProperty_SymbolKey(keyType.ToMaybeKnownSymbolType()))
+				var expectedPropertyType pkg_rhino.JSType = this_.priv_TypeCheck_getPropertyTypeIfDeclared_5458(objectCastType, pkg_rhino.NewProperty_SymbolKey(keyType.ToMaybeKnownSymbolType()))
 				_ = expectedPropertyType
-				this_.validator.ExpectCanAssignToPropertyOf_5(key, expectedPropertyType, this_.priv_TypeCheck_getJSType_5448(key.GetSecondChild()), owner, keyType.ToMaybeKnownSymbolType().GetDisplayName())
+				this_.validator.ExpectCanAssignToPropertyOf_5(key, expectedPropertyType, this_.priv_TypeCheck_getJSType_5456(key.GetSecondChild()), owner, keyType.ToMaybeKnownSymbolType().GetDisplayName())
 			}
 		}
 		return
@@ -1698,7 +1700,7 @@ func (this_ *TypeCheck) priv_TypeCheck_visitObjectOrClassLiteralKey_5401(key pkg
 	}
 	if key.IsQuotedStringKey() {
 		if ownerType.IsStruct() {
-			this_.priv_TypeCheck_report_5378(key, func() *DiagnosticType {
+			this_.priv_TypeCheck_report_5386(key, func() *DiagnosticType {
 				if owner.IsClass() {
 					return StaticGet_TypeCheck_ILLEGAL_CLASS_KEY()
 				}
@@ -1707,7 +1709,7 @@ func (this_ *TypeCheck) priv_TypeCheck_visitObjectOrClassLiteralKey_5401(key pkg
 		}
 	} else {
 		if ownerType.IsDict() && !(NodeUtil_IsEs6ConstructorMemberFunctionDef(key)) {
-			this_.priv_TypeCheck_report_5378(key, func() *DiagnosticType {
+			this_.priv_TypeCheck_report_5386(key, func() *DiagnosticType {
 				if owner.IsClass() {
 					return StaticGet_TypeCheck_ILLEGAL_CLASS_KEY()
 				}
@@ -1721,15 +1723,15 @@ func (this_ *TypeCheck) priv_TypeCheck_visitObjectOrClassLiteralKey_5401(key pkg
 	var rvalue pkg_rhino.Node = key.GetFirstChild()
 	_ = rvalue
 	if rvalue == 0 {
-		this_.priv_TypeCheck_ensureTyped_5451(key)
+		this_.priv_TypeCheck_ensureTyped_5459(key)
 		return
 	}
-	var rightType pkg_rhino.JSType = TypeCheck_GetObjectLitKeyTypeFromValueType(key, this_.priv_TypeCheck_getJSType_5448(rvalue))
+	var rightType pkg_rhino.JSType = TypeCheck_GetObjectLitKeyTypeFromValueType(key, this_.priv_TypeCheck_getJSType_5456(rvalue))
 	_ = rightType
 	if rightType == nil || rightType.IsJavaNil_() {
-		rightType = this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
+		rightType = this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	}
-	var keyType_2 pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(key)
+	var keyType_2 pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(key)
 	_ = keyType_2
 	var propertyName string = NodeUtil_GetObjectOrClassLitKeyName(key)
 	_ = propertyName
@@ -1741,17 +1743,17 @@ func (this_ *TypeCheck) priv_TypeCheck_visitObjectOrClassLiteralKey_5401(key pkg
 	var valid bool = this_.validator.ExpectCanAssignToPropertyOf_5(key, rightType, allowedValueType, owner, propertyName)
 	_ = valid
 	if valid {
-		this_.priv_TypeCheck_ensureTyped_5453(key, rightType)
+		this_.priv_TypeCheck_ensureTyped_5461(key, rightType)
 	} else {
-		this_.priv_TypeCheck_ensureTyped_5451(key)
+		this_.priv_TypeCheck_ensureTyped_5459(key)
 	}
 	j2gort.CheckNotNullString(propertyName)
 	if owner.IsClass() {
 		var classConstructorType_2 *pkg_rhino.FunctionType = owner.GetJSType().AssertFunctionType()
 		_ = classConstructorType_2
-		this_.priv_TypeCheck_checkPropertyInheritanceOnClassMember_5395(key, propertyName, classConstructorType_2)
+		this_.priv_TypeCheck_checkPropertyInheritanceOnClassMember_5403(key, propertyName, classConstructorType_2)
 	} else if !(j2gort.IfaceEquals[pkg_rhino.ObjectType](ownerType.ToMaybeObjectType(), nil)) {
-		this_.priv_TypeCheck_checkPropertyInheritanceOnPrototypeLitKey_5394(key, propertyName, ownerType.ToMaybeObjectType())
+		this_.priv_TypeCheck_checkPropertyInheritanceOnPrototypeLitKey_5402(key, propertyName, ownerType.ToMaybeObjectType())
 	}
 }
 
@@ -1771,7 +1773,7 @@ func TypeCheck_PropertyIsImplicitCast(type_ pkg_rhino.ObjectType, prop string) b
 }
 
 // Java method: TypeCheck.checkDeclaredPropertyAgainstNominalInheritance(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.FunctionType ctorType, java.lang.String propertyName, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo info, com.google.javascript.rhino.jstype.JSType propertyType)
-func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheritance_5402(n pkg_rhino.Node, ctorType *pkg_rhino.FunctionType, propertyName string, info *pkg_rhino.JSDocInfo, propertyType pkg_rhino.JSType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheritance_5410(n pkg_rhino.Node, ctorType *pkg_rhino.FunctionType, propertyName string, info *pkg_rhino.JSDocInfo, propertyType pkg_rhino.JSType) {
 	_ = n
 	_ = ctorType
 	_ = propertyName
@@ -1848,7 +1850,7 @@ func TypeCheck_IsDeclaredLocally_2_FunctionType_string(ctorType *pkg_rhino.Funct
 }
 
 // Java method: TypeCheck.checkDeclaredPropertyAgainstPrototypalInheritance(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.ObjectType receiverType, java.lang.String propertyName, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo info, com.google.javascript.rhino.jstype.JSType propertyType)
-func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInheritance_5403(n pkg_rhino.Node, receiverType pkg_rhino.ObjectType, propertyName string, info *pkg_rhino.JSDocInfo, propertyType pkg_rhino.JSType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInheritance_5411(n pkg_rhino.Node, receiverType pkg_rhino.ObjectType, propertyName string, info *pkg_rhino.JSDocInfo, propertyType pkg_rhino.JSType) {
 	_ = n
 	_ = receiverType
 	_ = propertyName
@@ -1885,7 +1887,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInh
 }
 
 // Java method: TypeCheck.checkDeclaredPropertyAgainstNominalInheritance(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.FunctionType ctorType, com.google.javascript.rhino.jstype.Property.Key propertyName, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo info, com.google.javascript.rhino.jstype.JSType propertyType)
-func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheritance_5404(n pkg_rhino.Node, ctorType *pkg_rhino.FunctionType, propertyName pkg_rhino.Property_Key, info *pkg_rhino.JSDocInfo, propertyType pkg_rhino.JSType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheritance_5412(n pkg_rhino.Node, ctorType *pkg_rhino.FunctionType, propertyName pkg_rhino.Property_Key, info *pkg_rhino.JSDocInfo, propertyType pkg_rhino.JSType) {
 	_ = n
 	_ = ctorType
 	_ = propertyName
@@ -1962,7 +1964,7 @@ func TypeCheck_IsDeclaredLocally_2_FunctionType_Property_Key(ctorType *pkg_rhino
 }
 
 // Java method: TypeCheck.checkDeclaredPropertyAgainstPrototypalInheritance(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.ObjectType receiverType, com.google.javascript.rhino.jstype.Property.Key propertyName, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo info, com.google.javascript.rhino.jstype.JSType propertyType)
-func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInheritance_5405(n pkg_rhino.Node, receiverType pkg_rhino.ObjectType, propertyName pkg_rhino.Property_Key, info *pkg_rhino.JSDocInfo, propertyType pkg_rhino.JSType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInheritance_5413(n pkg_rhino.Node, receiverType pkg_rhino.ObjectType, propertyName pkg_rhino.Property_Key, info *pkg_rhino.JSDocInfo, propertyType pkg_rhino.JSType) {
 	_ = n
 	_ = receiverType
 	_ = propertyName
@@ -1993,7 +1995,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstPrototypalInh
 }
 
 // Java method: TypeCheck.checkAbstractMethodInConcreteClass(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.FunctionType ctorType, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *TypeCheck) priv_TypeCheck_checkAbstractMethodInConcreteClass_5406(n pkg_rhino.Node, ctorType *pkg_rhino.FunctionType, info *pkg_rhino.JSDocInfo) {
+func (this_ *TypeCheck) priv_TypeCheck_checkAbstractMethodInConcreteClass_5414(n pkg_rhino.Node, ctorType *pkg_rhino.FunctionType, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = ctorType
 	_ = info
@@ -2001,7 +2003,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkAbstractMethodInConcreteClass_5406(n
 		return
 	}
 	if ctorType.IsConstructor() && !(ctorType.IsAbstract()) {
-		this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_ABSTRACT_METHOD_IN_CONCRETE_CLASS(), []string{})
+		this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_ABSTRACT_METHOD_IN_CONCRETE_CLASS(), []string{})
 	}
 }
 
@@ -2067,21 +2069,21 @@ func TypeCheck_GetObjectLitKeyTypeFromValueType(key pkg_rhino.Node, valueType pk
 }
 
 // Java method: TypeCheck.visitInterfacePropertyAssignment(com.google.javascript.rhino.Node object, com.google.javascript.rhino.Node lvalue)
-func (this_ *TypeCheck) priv_TypeCheck_visitInterfacePropertyAssignment_5407(object pkg_rhino.Node, lvalue pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitInterfacePropertyAssignment_5415(object pkg_rhino.Node, lvalue pkg_rhino.Node) {
 	_ = object
 	_ = lvalue
 	if !(lvalue.GetParent().IsAssign()) {
-		this_.priv_TypeCheck_reportInvalidInterfaceMemberDeclaration_5408(object)
+		this_.priv_TypeCheck_reportInvalidInterfaceMemberDeclaration_5416(object)
 		return
 	}
 	var assign pkg_rhino.Node = lvalue.GetParent()
 	_ = assign
 	var rvalue pkg_rhino.Node = assign.GetSecondChild()
 	_ = rvalue
-	var rvalueType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(rvalue)
+	var rvalueType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(rvalue)
 	_ = rvalueType
 	if !(rvalueType.IsFunctionType()) {
-		this_.priv_TypeCheck_reportInvalidInterfaceMemberDeclaration_5408(object)
+		this_.priv_TypeCheck_reportInvalidInterfaceMemberDeclaration_5416(object)
 	}
 	if rvalue.IsFunction() && !(NodeUtil_IsEmptyBlock(NodeUtil_GetFunctionBody(rvalue))) {
 		var abstractMethodName string = this_.compiler.GetCodingConvention().GetAbstractMethodName()
@@ -2091,7 +2093,7 @@ func (this_ *TypeCheck) priv_TypeCheck_visitInterfacePropertyAssignment_5407(obj
 }
 
 // Java method: TypeCheck.reportInvalidInterfaceMemberDeclaration(com.google.javascript.rhino.Node interfaceNode)
-func (this_ *TypeCheck) priv_TypeCheck_reportInvalidInterfaceMemberDeclaration_5408(interfaceNode pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_reportInvalidInterfaceMemberDeclaration_5416(interfaceNode pkg_rhino.Node) {
 	_ = interfaceNode
 	var abstractMethodName string = this_.compiler.GetCodingConvention().GetAbstractMethodName()
 	_ = abstractMethodName
@@ -2128,26 +2130,26 @@ func (this_ *TypeCheck) VisitName(t *NodeTraversal, n pkg_rhino.Node, parent pkg
 	var type_ pkg_rhino.JSType = n.GetJSType()
 	_ = type_
 	if type_ == nil || type_.IsJavaNil_() {
-		type_ = this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
+		type_ = this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 		var var_ *TypedVar = t.GetTypedScope().LookupTypedVar(n.GetString())
 		_ = var_
 		if var_ != nil {
 			type_ = j2gort.CheckNotNullIface(var_.GetType())
 		}
 	}
-	this_.priv_TypeCheck_ensureTyped_5453(n, type_)
+	this_.priv_TypeCheck_ensureTyped_5461(n, type_)
 	return reportIfMissingType
 }
 
 // Java method: TypeCheck.checkForOfTypes(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node forOf)
-func (this_ *TypeCheck) priv_TypeCheck_checkForOfTypes_5410(t *NodeTraversal, forOf pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_checkForOfTypes_5418(t *NodeTraversal, forOf pkg_rhino.Node) {
 	_ = t
 	_ = forOf
 	var lhs pkg_rhino.Node = forOf.GetFirstChild()
 	_ = lhs
 	var iterable pkg_rhino.Node = forOf.GetSecondChild()
 	_ = iterable
-	var iterableType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(iterable)
+	var iterableType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(iterable)
 	_ = iterableType
 	var actualType pkg_rhino.JSType = nil
 	_ = actualType
@@ -2168,60 +2170,60 @@ func (this_ *TypeCheck) priv_TypeCheck_checkForOfTypes_5410(t *NodeTraversal, fo
 	if lhs.IsDestructuringLhs() {
 		lhs = lhs.GetFirstChild()
 	}
-	this_.priv_TypeCheck_checkCanAssignToWithScope_5388(t, forOf, lhs, actualType, lhs.GetJSDocInfo(), "declared type of for-of loop variable does not match inferred type")
+	this_.priv_TypeCheck_checkCanAssignToWithScope_5396(t, forOf, lhs, actualType, lhs.GetJSDocInfo(), "declared type of for-of loop variable does not match inferred type")
 }
 
 // Java method: TypeCheck.visitGetProp(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitGetProp_5411(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitGetProp_5419(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	var objNode pkg_rhino.Node = n.GetFirstChild()
 	_ = objNode
-	var childType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(objNode)
+	var childType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(objNode)
 	_ = childType
 	if childType.IsDict() {
-		this_.priv_TypeCheck_report_5378(n, StaticGet_TypeValidator_ILLEGAL_PROPERTY_ACCESS(), []string{"'.'", "dict"})
-	} else if this_.validator.ExpectNotNullOrUndefined(t, n, childType, "No properties on this expression", this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE())) {
-		this_.priv_TypeCheck_checkPropertyAccessForGetProp_5413(n)
+		this_.priv_TypeCheck_report_5386(n, StaticGet_TypeValidator_ILLEGAL_PROPERTY_ACCESS(), []string{"'.'", "dict"})
+	} else if this_.validator.ExpectNotNullOrUndefined(t, n, childType, "No properties on this expression", this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE())) {
+		this_.priv_TypeCheck_checkPropertyAccessForGetProp_5421(n)
 	}
-	this_.priv_TypeCheck_ensureTyped_5451(n)
+	this_.priv_TypeCheck_ensureTyped_5459(n)
 }
 
 // Java method: TypeCheck.visitOptChainGetProp(com.google.javascript.rhino.Node optChainGetProp)
-func (this_ *TypeCheck) priv_TypeCheck_visitOptChainGetProp_5412(optChainGetProp pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitOptChainGetProp_5420(optChainGetProp pkg_rhino.Node) {
 	_ = optChainGetProp
 	var property pkg_rhino.Node = optChainGetProp.GetLastChild()
 	_ = property
 	var objNode pkg_rhino.Node = optChainGetProp.GetFirstChild()
 	_ = objNode
-	var childType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(objNode)
+	var childType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(objNode)
 	_ = childType
 	if childType.IsDict() {
-		this_.priv_TypeCheck_report_5378(property, StaticGet_TypeValidator_ILLEGAL_PROPERTY_ACCESS(), []string{"'?.'", "dict"})
+		this_.priv_TypeCheck_report_5386(property, StaticGet_TypeValidator_ILLEGAL_PROPERTY_ACCESS(), []string{"'?.'", "dict"})
 	} else if !(childType.IsUnknownType()) {
-		this_.priv_TypeCheck_checkPropertyAccessForGetProp_5413(optChainGetProp)
+		this_.priv_TypeCheck_checkPropertyAccessForGetProp_5421(optChainGetProp)
 	}
-	this_.priv_TypeCheck_ensureTyped_5451(optChainGetProp)
+	this_.priv_TypeCheck_ensureTyped_5459(optChainGetProp)
 }
 
 // Java method: TypeCheck.checkPropertyAccessForGetProp(com.google.javascript.rhino.Node getProp)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropertyAccessForGetProp_5413(getProp pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropertyAccessForGetProp_5421(getProp pkg_rhino.Node) {
 	_ = getProp
 	if !(getProp.IsGetProp() || getProp.IsOptChainGetProp()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(getProp))
 	}
 	var objNode pkg_rhino.Node = getProp.GetFirstChild()
 	_ = objNode
-	var objType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(objNode)
+	var objType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(objNode)
 	_ = objType
-	var propType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(getProp)
+	var propType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(getProp)
 	_ = propType
-	this_.priv_TypeCheck_checkAbstractPropertyAccess_5415(getProp)
-	this_.priv_TypeCheck_checkPropertyAccess_5416(objType, getProp, propType, objNode)
+	this_.priv_TypeCheck_checkAbstractPropertyAccess_5423(getProp)
+	this_.priv_TypeCheck_checkPropertyAccess_5424(objType, getProp, propType, objNode)
 }
 
 // Java method: TypeCheck.checkPropertyAccessForDestructuring(com.google.javascript.rhino.Node pattern, com.google.javascript.rhino.jstype.JSType objectType, com.google.javascript.rhino.Node stringKey, com.google.javascript.rhino.jstype.JSType inferredPropType)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropertyAccessForDestructuring_5414(pattern pkg_rhino.Node, objectType pkg_rhino.JSType, stringKey pkg_rhino.Node, inferredPropType pkg_rhino.JSType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropertyAccessForDestructuring_5422(pattern pkg_rhino.Node, objectType pkg_rhino.JSType, stringKey pkg_rhino.Node, inferredPropType pkg_rhino.JSType) {
 	_ = pattern
 	_ = objectType
 	_ = stringKey
@@ -2239,16 +2241,16 @@ func (this_ *TypeCheck) priv_TypeCheck_checkPropertyAccessForDestructuring_5414(
 	if (patternParent.IsAssign() || patternParent.IsDestructuringLhs()) && (pattern.GetNext() != 0) {
 		objNode = pattern.GetNext()
 	}
-	this_.priv_TypeCheck_checkPropertyAccess_5416(objectType, stringKey, inferredPropType, objNode)
+	this_.priv_TypeCheck_checkPropertyAccess_5424(objectType, stringKey, inferredPropType, objNode)
 }
 
 // Java method: TypeCheck.checkAbstractPropertyAccess(com.google.javascript.rhino.Node method)
-func (this_ *TypeCheck) priv_TypeCheck_checkAbstractPropertyAccess_5415(method pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_checkAbstractPropertyAccess_5423(method pkg_rhino.Node) {
 	_ = method
 	if NodeUtil_IsLhsOfAssign(method) {
 		return
 	}
-	var methodType *pkg_rhino.FunctionType = this_.priv_TypeCheck_getJSType_5448(method).ToMaybeFunctionType()
+	var methodType *pkg_rhino.FunctionType = this_.priv_TypeCheck_getJSType_5456(method).ToMaybeFunctionType()
 	_ = methodType
 	if ((methodType == nil) || !(methodType.IsAbstract())) || methodType.IsConstructor() {
 		return
@@ -2256,18 +2258,18 @@ func (this_ *TypeCheck) priv_TypeCheck_checkAbstractPropertyAccess_5415(method p
 	var objectNode pkg_rhino.Node = method.GetFirstChild()
 	_ = objectNode
 	if objectNode.IsSuper() {
-		this_.priv_TypeCheck_report_5378(method, StaticGet_TypeCheck_ABSTRACT_SUPER_METHOD_NOT_USABLE(), []string{methodType.GetDisplayName()})
+		this_.priv_TypeCheck_report_5386(method, StaticGet_TypeCheck_ABSTRACT_SUPER_METHOD_NOT_USABLE(), []string{methodType.GetDisplayName()})
 	} else if objectNode.IsGetProp() {
 		var objectProp string = objectNode.GetString()
 		_ = objectProp
 		if (j2gort.CheckNotNullString(objectProp) == "prototype") || this_.compiler.GetCodingConvention().IsSuperClassReference(objectProp) {
-			this_.priv_TypeCheck_report_5378(method, StaticGet_TypeCheck_ABSTRACT_SUPER_METHOD_NOT_USABLE(), []string{methodType.GetDisplayName()})
+			this_.priv_TypeCheck_report_5386(method, StaticGet_TypeCheck_ABSTRACT_SUPER_METHOD_NOT_USABLE(), []string{methodType.GetDisplayName()})
 		}
 	}
 }
 
 // Java method: TypeCheck.checkPropertyAccess(com.google.javascript.rhino.jstype.JSType childType, com.google.javascript.rhino.Node propNode, com.google.javascript.rhino.jstype.JSType propType, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node objNode)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropertyAccess_5416(childType pkg_rhino.JSType, propNode pkg_rhino.Node, propType pkg_rhino.JSType, objNode pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropertyAccess_5424(childType pkg_rhino.JSType, propNode pkg_rhino.Node, propType pkg_rhino.JSType, objNode pkg_rhino.Node) {
 	_ = childType
 	_ = propNode
 	_ = propType
@@ -2283,16 +2285,16 @@ func (this_ *TypeCheck) priv_TypeCheck_checkPropertyAccess_5416(childType pkg_rh
 		if objectType != nil && !objectType.IsJavaNil_() {
 			if !(objectType.HasProperty_1_string(propName)) || objectType.Equals(this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())) {
 				if j2gort.InstanceOf[*pkg_rhino.EnumType](objectType) {
-					this_.priv_TypeCheck_report_5378(propNode, StaticGet_TypeCheck_INEXISTENT_ENUM_ELEMENT(), []string{propName})
+					this_.priv_TypeCheck_report_5386(propNode, StaticGet_TypeCheck_INEXISTENT_ENUM_ELEMENT(), []string{propName})
 				} else {
-					this_.priv_TypeCheck_checkPropertyAccessHelper_5418(j2gort.AsIface[pkg_rhino.JSType](objectType), propNode, objNode, false)
+					this_.priv_TypeCheck_checkPropertyAccessHelper_5426(j2gort.AsIface[pkg_rhino.JSType](objectType), propNode, objNode, false)
 				}
 			}
 		} else {
-			this_.priv_TypeCheck_checkPropertyAccessHelper_5418(childType, propNode, objNode, false)
+			this_.priv_TypeCheck_checkPropertyAccessHelper_5426(childType, propNode, objNode, false)
 		}
 	} else if (childType.IsUnionType() && isGetprop) && !(this_.IsLValueGetProp(propNode)) {
-		this_.priv_TypeCheck_checkPropertyAccessHelper_5418(childType, propNode, objNode, true)
+		this_.priv_TypeCheck_checkPropertyAccessHelper_5426(childType, propNode, objNode, true)
 	}
 }
 
@@ -2305,7 +2307,7 @@ func (this_ *TypeCheck) IsLValueGetProp(n pkg_rhino.Node) bool {
 }
 
 // Java method: TypeCheck.checkPropertyAccessHelper(com.google.javascript.rhino.jstype.JSType objectType, com.google.javascript.rhino.Node propNode, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node objNode, boolean strictCheck)
-func (this_ *TypeCheck) priv_TypeCheck_checkPropertyAccessHelper_5418(objectType pkg_rhino.JSType, propNode pkg_rhino.Node, objNode pkg_rhino.Node, strictCheck bool) {
+func (this_ *TypeCheck) priv_TypeCheck_checkPropertyAccessHelper_5426(objectType pkg_rhino.JSType, propNode pkg_rhino.Node, objNode pkg_rhino.Node, strictCheck bool) {
 	_ = objectType
 	_ = propNode
 	_ = objNode
@@ -2314,7 +2316,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkPropertyAccessHelper_5418(objectType
 	_ = isGetprop
 	var propName string = propNode.GetString()
 	_ = propName
-	if (!(this_.reportMissingProperties) || objectType.IsEmptyType()) || (isGetprop && this_.priv_TypeCheck_allowStrictPropertyAccessOnNode_5420(propNode)) {
+	if (!(this_.reportMissingProperties) || objectType.IsEmptyType()) || (isGetprop && this_.priv_TypeCheck_allowStrictPropertyAccessOnNode_5428(propNode)) {
 		return
 	}
 	var kind pkg_rhino.JSTypeRegistry_PropDefinitionKind = this_.typeRegistry.CanPropertyBeDefined(objectType, propName)
@@ -2357,17 +2359,17 @@ func (this_ *TypeCheck) priv_TypeCheck_checkPropertyAccessHelper_5418(objectType
 	}
 	var isStruct bool = objectType.IsStruct()
 	_ = isStruct
-	var loosePropertyDeclaration bool = ((!(isStruct) && isGetprop) && this_.priv_TypeCheck_isQNameAssignmentTarget_5422(propNode))
+	var loosePropertyDeclaration bool = ((!(isStruct) && isGetprop) && this_.priv_TypeCheck_isQNameAssignmentTarget_5430(propNode))
 	_ = loosePropertyDeclaration
-	var maybePropExistenceCheck bool = ((!(isStruct) && isGetprop) && this_.priv_TypeCheck_allowLoosePropertyAccessOnNode_5421(propNode))
+	var maybePropExistenceCheck bool = ((!(isStruct) && isGetprop) && this_.priv_TypeCheck_allowLoosePropertyAccessOnNode_5429(propNode))
 	_ = maybePropExistenceCheck
 	var strictReport bool = (((strictCheck || isLooselyAssociated) || loosePropertyDeclaration) || maybePropExistenceCheck)
 	_ = strictReport
-	this_.priv_TypeCheck_reportMissingProperty_5419(objNode, objectType, propNode, kind, strictReport)
+	this_.priv_TypeCheck_reportMissingProperty_5427(objNode, objectType, propNode, kind, strictReport)
 }
 
 // Java method: TypeCheck.reportMissingProperty(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node objNode, com.google.javascript.rhino.jstype.JSType objectType, com.google.javascript.rhino.Node propNode, com.google.javascript.rhino.jstype.JSTypeRegistry.PropDefinitionKind kind, boolean strictReport)
-func (this_ *TypeCheck) priv_TypeCheck_reportMissingProperty_5419(objNode pkg_rhino.Node, objectType pkg_rhino.JSType, propNode pkg_rhino.Node, kind pkg_rhino.JSTypeRegistry_PropDefinitionKind, strictReport bool) {
+func (this_ *TypeCheck) priv_TypeCheck_reportMissingProperty_5427(objNode pkg_rhino.Node, objectType pkg_rhino.JSType, propNode pkg_rhino.Node, kind pkg_rhino.JSTypeRegistry_PropDefinitionKind, strictReport bool) {
 	_ = objNode
 	_ = objectType
 	_ = propNode
@@ -2375,7 +2377,7 @@ func (this_ *TypeCheck) priv_TypeCheck_reportMissingProperty_5419(objNode pkg_rh
 	_ = strictReport
 	var propName string = propNode.GetString()
 	_ = propName
-	var isObjectType bool = objectType.Equals(this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE()))
+	var isObjectType bool = objectType.Equals(this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE()))
 	_ = isObjectType
 	var lowConfidence bool = ((objectType.IsUnknownType() || objectType.IsAllType()) || isObjectType)
 	_ = lowConfidence
@@ -2401,7 +2403,7 @@ func (this_ *TypeCheck) priv_TypeCheck_reportMissingProperty_5419(objNode pkg_rh
 		} else {
 			reportType = StaticGet_TypeCheck_INEXISTENT_PROPERTY_WITH_SUGGESTION()
 		}
-		this_.priv_TypeCheck_report_5378(propNode, reportType, []string{propName, func() string {
+		this_.priv_TypeCheck_report_5386(propNode, reportType, []string{propName, func() string {
 			if objNode != 0 {
 				return this_.typeRegistry.GetReadableTypeName(objNode)
 			}
@@ -2421,7 +2423,7 @@ func (this_ *TypeCheck) priv_TypeCheck_reportMissingProperty_5419(objNode pkg_rh
 		} else {
 			reportType_2 = StaticGet_TypeCheck_INEXISTENT_PROPERTY()
 		}
-		this_.priv_TypeCheck_report_5378(propNode, reportType_2, []string{propName, func() string {
+		this_.priv_TypeCheck_report_5386(propNode, reportType_2, []string{propName, func() string {
 			if objNode != 0 {
 				return this_.typeRegistry.GetReadableTypeName(objNode)
 			}
@@ -2431,13 +2433,13 @@ func (this_ *TypeCheck) priv_TypeCheck_reportMissingProperty_5419(objNode pkg_rh
 }
 
 // Java method: TypeCheck.allowStrictPropertyAccessOnNode(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_allowStrictPropertyAccessOnNode_5420(n pkg_rhino.Node) bool {
+func (this_ *TypeCheck) priv_TypeCheck_allowStrictPropertyAccessOnNode_5428(n pkg_rhino.Node) bool {
 	_ = n
 	return n.GetParent().IsTypeOf()
 }
 
 // Java method: TypeCheck.allowLoosePropertyAccessOnNode(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_allowLoosePropertyAccessOnNode_5421(n pkg_rhino.Node) bool {
+func (this_ *TypeCheck) priv_TypeCheck_allowLoosePropertyAccessOnNode_5429(n pkg_rhino.Node) bool {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -2445,7 +2447,7 @@ func (this_ *TypeCheck) priv_TypeCheck_allowLoosePropertyAccessOnNode_5421(n pkg
 }
 
 // Java method: TypeCheck.isQNameAssignmentTarget(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_isQNameAssignmentTarget_5422(n pkg_rhino.Node) bool {
+func (this_ *TypeCheck) priv_TypeCheck_isQNameAssignmentTarget_5430(n pkg_rhino.Node) bool {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -2462,28 +2464,28 @@ func TypeCheck_GetClosestPropertySuggestion(objectType pkg_rhino.JSType, propNam
 }
 
 // Java method: TypeCheck.visitGetElem(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitGetElem_5423(n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitGetElem_5431(n pkg_rhino.Node) {
 	_ = n
-	this_.validator.ExpectIndexMatch(n, this_.priv_TypeCheck_getJSType_5448(n.GetFirstChild()), this_.priv_TypeCheck_getJSType_5448(n.GetLastChild()))
-	this_.priv_TypeCheck_ensureTyped_5451(n)
+	this_.validator.ExpectIndexMatch(n, this_.priv_TypeCheck_getJSType_5456(n.GetFirstChild()), this_.priv_TypeCheck_getJSType_5456(n.GetLastChild()))
+	this_.priv_TypeCheck_ensureTyped_5459(n)
 }
 
 // Java method: TypeCheck.visitOptChainGetElem(com.google.javascript.rhino.Node optChainGetElem)
-func (this_ *TypeCheck) priv_TypeCheck_visitOptChainGetElem_5424(optChainGetElem pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitOptChainGetElem_5432(optChainGetElem pkg_rhino.Node) {
 	_ = optChainGetElem
 	var obj pkg_rhino.Node = optChainGetElem.GetFirstChild()
 	_ = obj
-	var objType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(obj)
+	var objType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(obj)
 	_ = objType
 	if objType.IsNullType() || objType.IsVoidType() {
-		this_.priv_TypeCheck_ensureTyped_5452(optChainGetElem, pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(optChainGetElem, pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 	} else {
-		this_.priv_TypeCheck_visitGetElem_5423(optChainGetElem)
+		this_.priv_TypeCheck_visitGetElem_5431(optChainGetElem)
 	}
 }
 
 // Java method: TypeCheck.visitVar(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitVar_5425(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitVar_5433(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if (n.GetParent().IsForOf() || n.GetParent().IsForIn()) || n.GetParent().IsForAwaitOf() {
@@ -2504,15 +2506,15 @@ func (this_ *TypeCheck) priv_TypeCheck_visitVar_5425(t *NodeTraversal, n pkg_rhi
 				var value pkg_rhino.Node = child.GetFirstChild()
 				_ = value
 				if value != 0 {
-					var valueType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(value)
+					var valueType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(value)
 					_ = valueType
 					var info *pkg_rhino.JSDocInfo = child.GetJSDocInfo()
 					_ = info
 					if info == nil {
 						info = varInfo
 					}
-					this_.priv_TypeCheck_checkEnumAlias_5447(t, info, valueType, value)
-					this_.priv_TypeCheck_checkCanAssignToWithScope_5388(t, value, child, valueType, info, "initializing variable")
+					this_.priv_TypeCheck_checkEnumAlias_5455(t, info, valueType, value)
+					this_.priv_TypeCheck_checkCanAssignToWithScope_5396(t, value, child, valueType, info, "initializing variable")
 				}
 			} else {
 				if !(child.IsDestructuringLhs()) {
@@ -2522,54 +2524,54 @@ func (this_ *TypeCheck) priv_TypeCheck_visitVar_5425(t *NodeTraversal, n pkg_rhi
 				_ = name
 				var value_2 pkg_rhino.Node = child.GetSecondChild()
 				_ = value_2
-				var valueType_2 pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(value_2)
+				var valueType_2 pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(value_2)
 				_ = valueType_2
-				this_.priv_TypeCheck_checkCanAssignToWithScope_5388(t, child, name, valueType_2, nil, "initializing variable")
+				this_.priv_TypeCheck_checkCanAssignToWithScope_5396(t, child, name, valueType_2, nil, "initializing variable")
 			}
 		}
 	}
 }
 
 // Java method: TypeCheck.visitNew(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitNew_5426(n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitNew_5434(n pkg_rhino.Node) {
 	_ = n
 	var constructor pkg_rhino.Node = n.GetFirstChild()
 	_ = constructor
-	var type_ pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(constructor).RestrictByNotNullOrUndefined()
+	var type_ pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(constructor).RestrictByNotNullOrUndefined()
 	_ = type_
-	if (!(this_.priv_TypeCheck_couldBeAConstructor_5427(type_)) || type_.Equals(this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_SYMBOL_OBJECT_FUNCTION_TYPE()))) || type_.Equals(this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_BIGINT_OBJECT_FUNCTION_TYPE())) {
-		this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_NOT_A_CONSTRUCTOR(), []string{type_.String()})
-		this_.priv_TypeCheck_ensureTyped_5451(n)
+	if (!(this_.priv_TypeCheck_couldBeAConstructor_5435(type_)) || type_.Equals(this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_SYMBOL_OBJECT_FUNCTION_TYPE()))) || type_.Equals(this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_BIGINT_OBJECT_FUNCTION_TYPE())) {
+		this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_NOT_A_CONSTRUCTOR(), []string{type_.String()})
+		this_.priv_TypeCheck_ensureTyped_5459(n)
 		return
 	}
 	var fnType *pkg_rhino.FunctionType = type_.ToMaybeFunctionType()
 	_ = fnType
 	if (fnType != nil) && fnType.HasInstanceType() {
 		if fnType.IsAbstract() {
-			this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_INSTANTIATE_ABSTRACT_CLASS(), []string{})
+			this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_INSTANTIATE_ABSTRACT_CLASS(), []string{})
 		}
-		this_.priv_TypeCheck_visitArgumentList_5438(n, fnType)
+		this_.priv_TypeCheck_visitArgumentList_5446(n, fnType)
 		var objType pkg_rhino.ObjectType = fnType.GetInstanceType()
 		_ = objType
-		this_.priv_TypeCheck_ensureTyped_5453(n, func() pkg_rhino.JSType {
+		this_.priv_TypeCheck_ensureTyped_5461(n, func() pkg_rhino.JSType {
 			if objType != nil && !objType.IsJavaNil_() {
 				return j2gort.AsIface[pkg_rhino.JSType](objType)
 			}
-			return this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
+			return this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 		}())
 	} else {
-		this_.priv_TypeCheck_ensureTyped_5451(n)
+		this_.priv_TypeCheck_ensureTyped_5459(n)
 	}
 }
 
 // Java method: TypeCheck.couldBeAConstructor(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *TypeCheck) priv_TypeCheck_couldBeAConstructor_5427(type_ pkg_rhino.JSType) bool {
+func (this_ *TypeCheck) priv_TypeCheck_couldBeAConstructor_5435(type_ pkg_rhino.JSType) bool {
 	_ = type_
 	return ((type_.IsConstructor() || type_.IsEmptyType()) || type_.IsUnknownType())
 }
 
 // Java method: TypeCheck.checkInterfaceConflictProperties(com.google.javascript.rhino.Node n, java.lang.String functionName, java.util.LinkedHashMap<com.google.javascript.rhino.jstype.Property.Key,com.google.javascript.rhino.jstype.ObjectType> properties, java.util.LinkedHashMap<com.google.javascript.rhino.jstype.Property.Key,com.google.javascript.rhino.jstype.ObjectType> currentProperties, com.google.javascript.rhino.jstype.ObjectType interfaceType)
-func (this_ *TypeCheck) priv_TypeCheck_checkInterfaceConflictProperties_5428(n pkg_rhino.Node, functionName string, properties *j2gort.Ext_java_util_LinkedHashMap, currentProperties *j2gort.Ext_java_util_LinkedHashMap, interfaceType pkg_rhino.ObjectType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkInterfaceConflictProperties_5436(n pkg_rhino.Node, functionName string, properties *j2gort.Ext_java_util_LinkedHashMap, currentProperties *j2gort.Ext_java_util_LinkedHashMap, interfaceType pkg_rhino.ObjectType) {
 	_ = n
 	_ = functionName
 	_ = properties
@@ -2611,13 +2613,13 @@ func (this_ *TypeCheck) priv_TypeCheck_checkInterfaceConflictProperties_5428(n p
 			rawElem_29 := cur_28.Next()
 			iType := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_29)
 			_ = iType
-			this_.priv_TypeCheck_checkInterfaceConflictProperties_5428(n, functionName, properties, currentProperties, iType)
+			this_.priv_TypeCheck_checkInterfaceConflictProperties_5436(n, functionName, properties, currentProperties, iType)
 		}
 	}
 }
 
 // Java method: TypeCheck.visitFunction(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitFunction_5429(n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitFunction_5437(n pkg_rhino.Node) {
 	_ = n
 	if NodeUtil_IsEs6Constructor(n) {
 		return
@@ -2625,9 +2627,9 @@ func (this_ *TypeCheck) priv_TypeCheck_visitFunction_5429(n pkg_rhino.Node) {
 	var functionType *pkg_rhino.FunctionType = pkg_rhino.JSType_ToMaybeFunctionType(n.GetJSType())
 	_ = functionType
 	if functionType.IsConstructor() {
-		this_.priv_TypeCheck_checkConstructor_5431(n, functionType)
+		this_.priv_TypeCheck_checkConstructor_5439(n, functionType)
 	} else if functionType.IsInterface() {
-		this_.priv_TypeCheck_checkInterface_5434(n, functionType)
+		this_.priv_TypeCheck_checkInterface_5442(n, functionType)
 	} else if n.IsAsyncGeneratorFunction() {
 		var returnType pkg_rhino.JSType = functionType.GetReturnType()
 		_ = returnType
@@ -2644,7 +2646,7 @@ func (this_ *TypeCheck) priv_TypeCheck_visitFunction_5429(n pkg_rhino.Node) {
 }
 
 // Java method: TypeCheck.visitClass(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitClass_5430(n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitClass_5438(n pkg_rhino.Node) {
 	_ = n
 	var functionType *pkg_rhino.FunctionType = pkg_rhino.JSType_ToMaybeFunctionType(n.GetJSType())
 	_ = functionType
@@ -2661,32 +2663,32 @@ func (this_ *TypeCheck) priv_TypeCheck_visitClass_5430(n pkg_rhino.Node) {
 					return "constructor"
 				}
 				return "interface"
-			}(), this_.priv_TypeCheck_getBestFunctionName_5435(n)}))
+			}(), this_.priv_TypeCheck_getBestFunctionName_5443(n)}))
 		}
 	}
 	if functionType.IsConstructor() {
-		this_.priv_TypeCheck_checkConstructor_5431(n, functionType)
+		this_.priv_TypeCheck_checkConstructor_5439(n, functionType)
 	} else if functionType.IsInterface() {
-		this_.priv_TypeCheck_checkInterface_5434(n, functionType)
+		this_.priv_TypeCheck_checkInterface_5442(n, functionType)
 	} else {
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "CLASS node's type must be either constructor or interface: "+j2gort.StrVal(functionType))))
 	}
 }
 
 // Java method: TypeCheck.checkConstructor(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.FunctionType functionType)
-func (this_ *TypeCheck) priv_TypeCheck_checkConstructor_5431(n pkg_rhino.Node, functionType *pkg_rhino.FunctionType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkConstructor_5439(n pkg_rhino.Node, functionType *pkg_rhino.FunctionType) {
 	_ = n
 	_ = functionType
 	var baseConstructor *pkg_rhino.FunctionType = functionType.GetSuperClassConstructor()
 	_ = baseConstructor
-	if (!(j2gort.ObjEqIface[pkg_rhino.JSType](baseConstructor, this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_OBJECT_FUNCTION_TYPE()))) && (baseConstructor != nil)) && baseConstructor.IsInterface() {
-		this_.compiler.Report_1(JSError_Make_3(n, StaticGet_TypeCheck_CONFLICTING_EXTENDED_TYPE(), []string{"constructor", this_.priv_TypeCheck_getBestFunctionName_5435(n)}))
+	if (!(j2gort.ObjEqIface[pkg_rhino.JSType](baseConstructor, this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_OBJECT_FUNCTION_TYPE()))) && (baseConstructor != nil)) && baseConstructor.IsInterface() {
+		this_.compiler.Report_1(JSError_Make_3(n, StaticGet_TypeCheck_CONFLICTING_EXTENDED_TYPE(), []string{"constructor", this_.priv_TypeCheck_getBestFunctionName_5443(n)}))
 	} else {
 		if (((n.IsFunction() && (baseConstructor != nil)) && (baseConstructor.GetSource() != 0)) && baseConstructor.GetSource().IsClass()) && !(functionType.GetSource().IsClass()) {
 			this_.compiler.Report_1(JSError_Make_3(n, StaticGet_TypeCheck_ES5_CLASS_EXTENDING_ES6_CLASS(), []string{functionType.GetDisplayName(), baseConstructor.GetDisplayName()}))
 		}
 		if baseConstructor != nil {
-			this_.priv_TypeCheck_checkStructDictSubtyping_5433(n, functionType, baseConstructor)
+			this_.priv_TypeCheck_checkStructDictSubtyping_5441(n, functionType, baseConstructor)
 		}
 		var alreadySeenInterfaces j2gort.CustomOrderedSet[pkg_rhino.JSType] = j2gort.NewCustomOrderedSet[pkg_rhino.JSType]()
 		_ = alreadySeenInterfaces
@@ -2710,11 +2712,11 @@ func (this_ *TypeCheck) priv_TypeCheck_checkConstructor_5431(n pkg_rhino.Node, f
 					badImplementedType = true
 				}
 				if badImplementedType {
-					this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_BAD_IMPLEMENTED_TYPE(), []string{this_.priv_TypeCheck_getBestFunctionName_5435(n)})
+					this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_BAD_IMPLEMENTED_TYPE(), []string{this_.priv_TypeCheck_getBestFunctionName_5443(n)})
 				}
-				baseInterface = this_.priv_TypeCheck_normalizeTemplatizedType_5432(baseInterface)
+				baseInterface = this_.priv_TypeCheck_normalizeTemplatizedType_5440(baseInterface)
 				if !(alreadySeenInterfaces.Add(baseInterface)) {
-					this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_SAME_INTERFACE_MULTIPLE_IMPLEMENTS(), []string{baseInterface.String()})
+					this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_SAME_INTERFACE_MULTIPLE_IMPLEMENTS(), []string{baseInterface.String()})
 				}
 			}
 		}
@@ -2726,7 +2728,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkConstructor_5431(n pkg_rhino.Node, f
 }
 
 // Java method: TypeCheck.normalizeTemplatizedType(com.google.javascript.rhino.jstype.JSType maybeTemplatizedType)
-func (this_ *TypeCheck) priv_TypeCheck_normalizeTemplatizedType_5432(maybeTemplatizedType pkg_rhino.JSType) pkg_rhino.JSType {
+func (this_ *TypeCheck) priv_TypeCheck_normalizeTemplatizedType_5440(maybeTemplatizedType pkg_rhino.JSType) pkg_rhino.JSType {
 	_ = maybeTemplatizedType
 	if !(maybeTemplatizedType.IsTemplatizedType()) {
 		return maybeTemplatizedType
@@ -2735,7 +2737,7 @@ func (this_ *TypeCheck) priv_TypeCheck_normalizeTemplatizedType_5432(maybeTempla
 }
 
 // Java method: TypeCheck.checkStructDictSubtyping(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.FunctionType subtype, com.google.javascript.rhino.jstype.FunctionType supertype)
-func (this_ *TypeCheck) priv_TypeCheck_checkStructDictSubtyping_5433(n pkg_rhino.Node, subtype *pkg_rhino.FunctionType, supertype *pkg_rhino.FunctionType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkStructDictSubtyping_5441(n pkg_rhino.Node, subtype *pkg_rhino.FunctionType, supertype *pkg_rhino.FunctionType) {
 	_ = n
 	_ = subtype
 	_ = supertype
@@ -2747,7 +2749,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkStructDictSubtyping_5433(n pkg_rhino
 }
 
 // Java method: TypeCheck.checkInterface(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.FunctionType functionType)
-func (this_ *TypeCheck) priv_TypeCheck_checkInterface_5434(n pkg_rhino.Node, functionType *pkg_rhino.FunctionType) {
+func (this_ *TypeCheck) priv_TypeCheck_checkInterface_5442(n pkg_rhino.Node, functionType *pkg_rhino.FunctionType) {
 	_ = n
 	_ = functionType
 	{
@@ -2757,7 +2759,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkInterface_5434(n pkg_rhino.Node, fun
 			extInterface := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_33)
 			_ = extInterface
 			if (extInterface.GetConstructor() != nil) && !(extInterface.GetConstructor().IsInterface()) {
-				this_.compiler.Report_1(JSError_Make_3(n, StaticGet_TypeCheck_CONFLICTING_EXTENDED_TYPE(), []string{"interface", this_.priv_TypeCheck_getBestFunctionName_5435(n)}))
+				this_.compiler.Report_1(JSError_Make_3(n, StaticGet_TypeCheck_CONFLICTING_EXTENDED_TYPE(), []string{"interface", this_.priv_TypeCheck_getBestFunctionName_5443(n)}))
 			}
 		}
 	}
@@ -2773,7 +2775,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkInterface_5434(n pkg_rhino.Node, fun
 				interfaceType := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_35)
 				_ = interfaceType
 				currentProperties.Clear()
-				this_.priv_TypeCheck_checkInterfaceConflictProperties_5428(n, this_.priv_TypeCheck_getBestFunctionName_5435(n), properties, currentProperties, interfaceType)
+				this_.priv_TypeCheck_checkInterfaceConflictProperties_5436(n, this_.priv_TypeCheck_getBestFunctionName_5443(n), properties, currentProperties, interfaceType)
 				properties.PutAll(currentProperties)
 			}
 		}
@@ -2789,7 +2791,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkInterface_5434(n pkg_rhino.Node, fun
 }
 
 // Java method: TypeCheck.getBestFunctionName(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_getBestFunctionName_5435(n pkg_rhino.Node) string {
+func (this_ *TypeCheck) priv_TypeCheck_getBestFunctionName_5443(n pkg_rhino.Node) string {
 	_ = n
 	if !(n.IsClass() || n.IsFunction()) {
 		j2gort.CheckState(false)
@@ -2804,7 +2806,7 @@ func (this_ *TypeCheck) priv_TypeCheck_getBestFunctionName_5435(n pkg_rhino.Node
 }
 
 // Java method: TypeCheck.checkCallConventions(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_checkCallConventions_5436(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_checkCallConventions_5444(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	var relationship *CodingConvention_SubclassRelationship = this_.compiler.GetCodingConvention().GetClassesDefinedByCall(n)
@@ -2830,49 +2832,49 @@ func (this_ *TypeCheck) priv_TypeCheck_checkCallConventions_5436(t *NodeTraversa
 }
 
 // Java method: TypeCheck.visitCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitCall_5437(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitCall_5445(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
-	this_.priv_TypeCheck_checkCallConventions_5436(t, n)
+	this_.priv_TypeCheck_checkCallConventions_5444(t, n)
 	var child pkg_rhino.Node = n.GetFirstChild()
 	_ = child
-	var childType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(child).RestrictByNotNullOrUndefined()
+	var childType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(child).RestrictByNotNullOrUndefined()
 	_ = childType
 	if !(childType.CanBeCalled()) {
-		this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_NOT_CALLABLE(), []string{childType.String()})
-		this_.priv_TypeCheck_ensureTyped_5451(n)
+		this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_NOT_CALLABLE(), []string{childType.String()})
+		this_.priv_TypeCheck_ensureTyped_5459(n)
 		return
 	}
 	if childType.IsFunctionType() {
 		var functionType *pkg_rhino.FunctionType = childType.ToMaybeFunctionType()
 		_ = functionType
 		if ((functionType.IsConstructor() && !(functionType.IsNativeObjectType())) && (functionType.GetReturnType().IsUnknownType() || functionType.GetReturnType().IsVoidType())) && !(n.GetFirstChild().IsSuper()) {
-			this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_CONSTRUCTOR_NOT_CALLABLE(), []string{childType.String()})
+			this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_CONSTRUCTOR_NOT_CALLABLE(), []string{childType.String()})
 		}
 		if functionType.IsOrdinaryFunction() && !(NodeUtil_IsNormalOrOptChainGet(child)) {
 			var receiverType pkg_rhino.JSType = functionType.GetTypeOfThis()
 			_ = receiverType
 			if ((receiverType.IsUnknownType() || receiverType.IsAllType()) || receiverType.IsVoidType()) || (receiverType.IsObjectType() && receiverType.ToObjectType().IsNativeObjectType()) {
 			} else {
-				this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_EXPECTED_THIS_TYPE(), []string{functionType.String()})
+				this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_EXPECTED_THIS_TYPE(), []string{functionType.String()})
 			}
 		}
-		this_.priv_TypeCheck_visitArgumentList_5438(n, functionType)
-		this_.priv_TypeCheck_ensureTyped_5453(n, functionType.GetReturnType())
+		this_.priv_TypeCheck_visitArgumentList_5446(n, functionType)
+		this_.priv_TypeCheck_ensureTyped_5461(n, functionType.GetReturnType())
 	} else {
-		this_.priv_TypeCheck_ensureTyped_5451(n)
+		this_.priv_TypeCheck_ensureTyped_5459(n)
 	}
 }
 
 // Java method: TypeCheck.visitArgumentList(com.google.javascript.rhino.Node call, com.google.javascript.rhino.jstype.FunctionType functionType)
-func (this_ *TypeCheck) priv_TypeCheck_visitArgumentList_5438(call pkg_rhino.Node, functionType *pkg_rhino.FunctionType) {
+func (this_ *TypeCheck) priv_TypeCheck_visitArgumentList_5446(call pkg_rhino.Node, functionType *pkg_rhino.FunctionType) {
 	_ = call
 	_ = functionType
-	this_.priv_TypeCheck_checkArgumentsMatchParameters_5439(call, functionType, int32(0))
+	this_.priv_TypeCheck_checkArgumentsMatchParameters_5447(call, functionType, int32(0))
 }
 
 // Java method: TypeCheck.checkArgumentsMatchParameters(com.google.javascript.rhino.Node call, com.google.javascript.rhino.jstype.FunctionType functionType, int firstParameterIndex)
-func (this_ *TypeCheck) priv_TypeCheck_checkArgumentsMatchParameters_5439(call pkg_rhino.Node, functionType *pkg_rhino.FunctionType, firstParameterIndex int32) {
+func (this_ *TypeCheck) priv_TypeCheck_checkArgumentsMatchParameters_5447(call pkg_rhino.Node, functionType *pkg_rhino.FunctionType, firstParameterIndex int32) {
 	_ = call
 	_ = functionType
 	_ = firstParameterIndex
@@ -2914,7 +2916,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkArgumentsMatchParameters_5439(call p
 			}
 		}
 		if checkArgumentTypeAgainstParameter {
-			this_.validator.ExpectArgumentMatchesParameter(argument, this_.priv_TypeCheck_getJSType_5448(argument), parameter.GetJSType(), call, normalArgumentCount)
+			this_.validator.ExpectArgumentMatchesParameter(argument, this_.priv_TypeCheck_getJSType_5456(argument), parameter.GetJSType(), call, normalArgumentCount)
 		}
 	}
 	var minArity int32 = functionType.GetMinArity()
@@ -2923,7 +2925,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkArgumentsMatchParameters_5439(call p
 	_ = maxArity
 	if spreadArgumentCount > int32(0) {
 		if normalArgumentCount > maxArity {
-			this_.priv_TypeCheck_report_5378(call, StaticGet_TypeCheck_WRONG_ARGUMENT_COUNT(), []string{this_.typeRegistry.GetReadableTypeNameNoDeref(call.GetFirstChild()), ("at least " + j2gort.StrValInt32(normalArgumentCount)), strconv.FormatInt(int64(minArity), 10), func() string {
+			this_.priv_TypeCheck_report_5386(call, StaticGet_TypeCheck_WRONG_ARGUMENT_COUNT(), []string{this_.typeRegistry.GetReadableTypeNameNoDeref(call.GetFirstChild()), ("at least " + j2gort.StrValInt32(normalArgumentCount)), strconv.FormatInt(int64(minArity), 10), func() string {
 				if maxArity == int32(2147483647) {
 					return ""
 				}
@@ -2932,7 +2934,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkArgumentsMatchParameters_5439(call p
 		}
 	} else {
 		if (minArity > normalArgumentCount) || (maxArity < normalArgumentCount) {
-			this_.priv_TypeCheck_report_5378(call, StaticGet_TypeCheck_WRONG_ARGUMENT_COUNT(), []string{this_.typeRegistry.GetReadableTypeNameNoDeref(call.GetFirstChild()), strconv.FormatInt(int64(normalArgumentCount), 10), strconv.FormatInt(int64(minArity), 10), func() string {
+			this_.priv_TypeCheck_report_5386(call, StaticGet_TypeCheck_WRONG_ARGUMENT_COUNT(), []string{this_.typeRegistry.GetReadableTypeNameNoDeref(call.GetFirstChild()), strconv.FormatInt(int64(normalArgumentCount), 10), strconv.FormatInt(int64(minArity), 10), func() string {
 				if maxArity == int32(2147483647) {
 					return ""
 				}
@@ -2943,12 +2945,12 @@ func (this_ *TypeCheck) priv_TypeCheck_checkArgumentsMatchParameters_5439(call p
 }
 
 // Java method: TypeCheck.visitImplicitReturnExpression(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node exprNode)
-func (this_ *TypeCheck) priv_TypeCheck_visitImplicitReturnExpression_5440(t *NodeTraversal, exprNode pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitImplicitReturnExpression_5448(t *NodeTraversal, exprNode pkg_rhino.Node) {
 	_ = t
 	_ = exprNode
 	var enclosingFunction pkg_rhino.Node = t.GetEnclosingFunction()
 	_ = enclosingFunction
-	var jsType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(enclosingFunction)
+	var jsType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(enclosingFunction)
 	_ = jsType
 	if jsType.IsFunctionType() {
 		var functionType *pkg_rhino.FunctionType = jsType.ToMaybeFunctionType()
@@ -2956,23 +2958,23 @@ func (this_ *TypeCheck) priv_TypeCheck_visitImplicitReturnExpression_5440(t *Nod
 		var expectedReturnType pkg_rhino.JSType = functionType.GetReturnType()
 		_ = expectedReturnType
 		if expectedReturnType == nil || expectedReturnType.IsJavaNil_() {
-			expectedReturnType = this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
+			expectedReturnType = this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 		} else if enclosingFunction.IsAsyncFunction() {
 			expectedReturnType = Promises_CreateAsyncReturnableType(this_.typeRegistry, expectedReturnType)
 		}
-		var actualReturnType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(exprNode)
+		var actualReturnType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(exprNode)
 		_ = actualReturnType
 		this_.validator.ExpectCanAssignTo(exprNode, actualReturnType, expectedReturnType, "inconsistent return type")
 	}
 }
 
 // Java method: TypeCheck.visitReturn(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitReturn_5441(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitReturn_5449(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	var enclosingFunction pkg_rhino.Node = t.GetEnclosingFunction()
 	_ = enclosingFunction
-	var jsType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(enclosingFunction)
+	var jsType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(enclosingFunction)
 	_ = jsType
 	if jsType.IsFunctionType() {
 		var functionType *pkg_rhino.FunctionType = jsType.ToMaybeFunctionType()
@@ -2980,7 +2982,7 @@ func (this_ *TypeCheck) priv_TypeCheck_visitReturn_5441(t *NodeTraversal, n pkg_
 		var returnType pkg_rhino.JSType = functionType.GetReturnType()
 		_ = returnType
 		if returnType == nil || returnType.IsJavaNil_() {
-			returnType = this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
+			returnType = this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 		} else if enclosingFunction.IsGeneratorFunction() {
 			returnType = JsIterables_GetReturnElementType(returnType, this_.typeRegistry)
 			if enclosingFunction.IsAsyncGeneratorFunction() {
@@ -2999,22 +3001,22 @@ func (this_ *TypeCheck) priv_TypeCheck_visitReturn_5441(t *NodeTraversal, n pkg_
 		var actualReturnType pkg_rhino.JSType = nil
 		_ = actualReturnType
 		if valueNode == 0 {
-			actualReturnType = this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
+			actualReturnType = this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 			valueNode = n
 		} else {
-			actualReturnType = this_.priv_TypeCheck_getJSType_5448(valueNode)
+			actualReturnType = this_.priv_TypeCheck_getJSType_5456(valueNode)
 		}
 		this_.validator.ExpectCanAssignTo(valueNode, actualReturnType, returnType, "inconsistent return type")
 	}
 }
 
 // Java method: TypeCheck.visitYield(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitYield_5442(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitYield_5450(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
-	var jsType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(t.GetEnclosingFunction())
+	var jsType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(t.GetEnclosingFunction())
 	_ = jsType
-	var declaredYieldType pkg_rhino.JSType = this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
+	var declaredYieldType pkg_rhino.JSType = this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	_ = declaredYieldType
 	if jsType.IsFunctionType() {
 		var functionType *pkg_rhino.FunctionType = jsType.ToMaybeFunctionType()
@@ -3031,10 +3033,10 @@ func (this_ *TypeCheck) priv_TypeCheck_visitYield_5442(t *NodeTraversal, n pkg_r
 	var actualYieldType pkg_rhino.JSType = nil
 	_ = actualYieldType
 	if valueNode == 0 {
-		actualYieldType = this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
+		actualYieldType = this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 		valueNode = n
 	} else {
-		actualYieldType = this_.priv_TypeCheck_getJSType_5448(valueNode)
+		actualYieldType = this_.priv_TypeCheck_getJSType_5456(valueNode)
 	}
 	if n.IsYieldAll() {
 		if t.GetEnclosingFunction().IsAsyncGeneratorFunction() {
@@ -3057,14 +3059,14 @@ func (this_ *TypeCheck) priv_TypeCheck_visitYield_5442(t *NodeTraversal, n pkg_r
 }
 
 // Java method: TypeCheck.visitTaggedTemplateLit(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitTaggedTemplateLit_5443(n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitTaggedTemplateLit_5451(n pkg_rhino.Node) {
 	_ = n
 	var tag pkg_rhino.Node = n.GetFirstChild()
 	_ = tag
 	var tagType pkg_rhino.JSType = tag.GetJSType().RestrictByNotNullOrUndefined()
 	_ = tagType
 	if !(tagType.CanBeCalled()) {
-		this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_NOT_CALLABLE(), []string{tagType.String()})
+		this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_NOT_CALLABLE(), []string{tagType.String()})
 		return
 	} else if !(tagType.IsFunctionType()) {
 		return
@@ -3074,7 +3076,7 @@ func (this_ *TypeCheck) priv_TypeCheck_visitTaggedTemplateLit_5443(n pkg_rhino.N
 	var parameters []pkg_rhino.FunctionType_Parameter = tagFnType.GetParameterArray()
 	_ = parameters
 	if int32(len(parameters)) == int32(0) {
-		this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_WRONG_ARGUMENT_COUNT(), []string{this_.typeRegistry.GetReadableTypeNameNoDeref(tag), strconv.FormatInt(int64(NodeUtil_GetInvocationArgsCount(n)), 10), "0", " and no more than 0 argument(s)"})
+		this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_WRONG_ARGUMENT_COUNT(), []string{this_.typeRegistry.GetReadableTypeNameNoDeref(tag), strconv.FormatInt(int64(NodeUtil_GetInvocationArgsCount(n)), 10), "0", " and no more than 0 argument(s)"})
 		return
 	}
 	var firstParameter pkg_rhino.FunctionType_Parameter = parameters[int32(0)]
@@ -3084,25 +3086,25 @@ func (this_ *TypeCheck) priv_TypeCheck_visitTaggedTemplateLit_5443(n pkg_rhino.N
 	if parameterType != nil && !parameterType.IsJavaNil_() {
 		this_.validator.ExpectITemplateArraySupertype(tag, parameterType, "Invalid type for the first parameter of tag function")
 	}
-	this_.priv_TypeCheck_checkArgumentsMatchParameters_5439(n, tagFnType, int32(1))
+	this_.priv_TypeCheck_checkArgumentsMatchParameters_5447(n, tagFnType, int32(1))
 }
 
 // Java method: TypeCheck.visitBinaryOperator(com.google.javascript.rhino.Token op, com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_visitBinaryOperator_5444(op pkg_rhino.Token, n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitBinaryOperator_5452(op pkg_rhino.Token, n pkg_rhino.Node) {
 	_ = op
 	_ = n
-	var operatorType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(n)
+	var operatorType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(n)
 	_ = operatorType
 	var left pkg_rhino.Node = n.GetFirstChild()
 	_ = left
-	var leftType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(left)
+	var leftType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(left)
 	_ = leftType
 	var right pkg_rhino.Node = n.GetLastChild()
 	_ = right
-	var rightType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5448(right)
+	var rightType pkg_rhino.JSType = this_.priv_TypeCheck_getJSType_5456(right)
 	_ = rightType
 	if operatorType.IsNoType() {
-		this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_BINARY_OPERATION(), []string{NodeUtil_OpToStr(n.GetToken()), leftType.String(), rightType.String()})
+		this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_BINARY_OPERATION(), []string{NodeUtil_OpToStr(n.GetToken()), leftType.String(), rightType.String()})
 		return
 	}
 	switch (op).Ordinal() {
@@ -3111,12 +3113,12 @@ func (this_ *TypeCheck) priv_TypeCheck_visitBinaryOperator_5444(op pkg_rhino.Tok
 			var opStr string = NodeUtil_OpToStr(n.GetToken())
 			_ = opStr
 			if !(leftType.MatchesNumberContext()) {
-				this_.priv_TypeCheck_report_5378(left, StaticGet_TypeCheck_BIT_OPERATION(), []string{opStr, leftType.String()})
+				this_.priv_TypeCheck_report_5386(left, StaticGet_TypeCheck_BIT_OPERATION(), []string{opStr, leftType.String()})
 			} else {
 				this_.validator.ExpectNumberStrict(n, leftType, ("operator " + j2gort.StrValString(opStr)))
 			}
 			if !(rightType.MatchesNumberContext()) {
-				this_.priv_TypeCheck_report_5378(right, StaticGet_TypeCheck_BIT_OPERATION(), []string{opStr, rightType.String()})
+				this_.priv_TypeCheck_report_5386(right, StaticGet_TypeCheck_BIT_OPERATION(), []string{opStr, rightType.String()})
 			} else {
 				this_.validator.ExpectNumberStrict(n, rightType, ("operator " + j2gort.StrValString(opStr)))
 			}
@@ -3142,13 +3144,13 @@ func (this_ *TypeCheck) priv_TypeCheck_visitBinaryOperator_5444(op pkg_rhino.Tok
 		}
 	case int32(58) /* Token.ASSIGN_ADD */, int32(13) /* Token.ADD */ :
 	default:
-		this_.priv_TypeCheck_report_5378(n, StaticGet_TypeCheck_UNEXPECTED_TOKEN(), []string{j2gort.CheckNotNullEnum(op).String()})
+		this_.priv_TypeCheck_report_5386(n, StaticGet_TypeCheck_UNEXPECTED_TOKEN(), []string{j2gort.CheckNotNullEnum(op).String()})
 	}
-	this_.priv_TypeCheck_ensureTyped_5451(n)
+	this_.priv_TypeCheck_ensureTyped_5459(n)
 }
 
 // Java method: TypeCheck.visitModuleBody(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node moduleBody)
-func (this_ *TypeCheck) priv_TypeCheck_visitModuleBody_5445(t *NodeTraversal, moduleBody pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitModuleBody_5453(t *NodeTraversal, moduleBody pkg_rhino.Node) {
 	_ = t
 	_ = moduleBody
 	var associatedModule *Module = ModuleImportResolver_GetModuleFromScopeRoot(this_.compiler.GetModuleMap(), NewLambda_CompilerInputProvider(func(b *pkg_rhino.InputId) *CompilerInput {
@@ -3185,23 +3187,23 @@ func (this_ *TypeCheck) priv_TypeCheck_visitModuleBody_5445(t *NodeTraversal, mo
 }
 
 // Java method: TypeCheck.visitDynamicImport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node dynamicImport)
-func (this_ *TypeCheck) priv_TypeCheck_visitDynamicImport_5446(t *NodeTraversal, dynamicImport pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_visitDynamicImport_5454(t *NodeTraversal, dynamicImport pkg_rhino.Node) {
 	_ = t
 	_ = dynamicImport
-	this_.priv_TypeCheck_ensureTyped_5453(dynamicImport, this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_PROMISE_TYPE()))
+	this_.priv_TypeCheck_ensureTyped_5461(dynamicImport, this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_PROMISE_TYPE()))
 	var importSpecifier pkg_rhino.Node = dynamicImport.GetFirstChild()
 	_ = importSpecifier
 	var importSpecifierType pkg_rhino.JSType = importSpecifier.GetJSType()
 	_ = importSpecifierType
 	if importSpecifierType == nil || importSpecifierType.IsJavaNil_() {
-		this_.priv_TypeCheck_ensureTyped_5452(importSpecifier, pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
+		this_.priv_TypeCheck_ensureTyped_5460(importSpecifier, pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
 	} else {
-		this_.validator.ExpectNotNullOrUndefined(t, importSpecifier, importSpecifierType, "dynamic import specifier", this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE()))
+		this_.validator.ExpectNotNullOrUndefined(t, importSpecifier, importSpecifierType, "dynamic import specifier", this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE()))
 	}
 }
 
 // Java method: TypeCheck.checkEnumAlias(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.JSDocInfo declInfo, com.google.javascript.rhino.jstype.JSType valueType, com.google.javascript.rhino.Node nodeToWarn)
-func (this_ *TypeCheck) priv_TypeCheck_checkEnumAlias_5447(t *NodeTraversal, declInfo *pkg_rhino.JSDocInfo, valueType pkg_rhino.JSType, nodeToWarn pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_checkEnumAlias_5455(t *NodeTraversal, declInfo *pkg_rhino.JSDocInfo, valueType pkg_rhino.JSType, nodeToWarn pkg_rhino.Node) {
 	_ = t
 	_ = declInfo
 	_ = valueType
@@ -3220,53 +3222,53 @@ func (this_ *TypeCheck) priv_TypeCheck_checkEnumAlias_5447(t *NodeTraversal, dec
 }
 
 // Java method: TypeCheck.getJSType(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_getJSType_5448(n pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *TypeCheck) priv_TypeCheck_getJSType_5456(n pkg_rhino.Node) pkg_rhino.JSType {
 	_ = n
 	var jsType pkg_rhino.JSType = n.GetJSType()
 	_ = jsType
 	if jsType == nil || jsType.IsJavaNil_() {
-		return this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
+		return this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	} else {
 		return jsType
 	}
 }
 
 // Java method: TypeCheck.getPropertyTypeIfDeclared(com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable ObjectType objectType, java.lang.String propertyName)
-func (this_ *TypeCheck) priv_TypeCheck_getPropertyTypeIfDeclared_5449(objectType pkg_rhino.ObjectType, propertyName string) pkg_rhino.JSType {
+func (this_ *TypeCheck) priv_TypeCheck_getPropertyTypeIfDeclared_5457(objectType pkg_rhino.ObjectType, propertyName string) pkg_rhino.JSType {
 	_ = objectType
 	_ = propertyName
 	j2gort.CheckNotNullString(propertyName)
 	if ((objectType != nil && !objectType.IsJavaNil_()) && objectType.HasProperty_1_string(propertyName)) && !(objectType.IsPropertyTypeInferred_1_string(propertyName)) {
 		return objectType.GetPropertyType_1_string(propertyName)
 	}
-	return this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
+	return this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 }
 
 // Java method: TypeCheck.getPropertyTypeIfDeclared(com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable ObjectType objectType, com.google.javascript.rhino.jstype.Property.Key propertyName)
-func (this_ *TypeCheck) priv_TypeCheck_getPropertyTypeIfDeclared_5450(objectType pkg_rhino.ObjectType, propertyName pkg_rhino.Property_Key) pkg_rhino.JSType {
+func (this_ *TypeCheck) priv_TypeCheck_getPropertyTypeIfDeclared_5458(objectType pkg_rhino.ObjectType, propertyName pkg_rhino.Property_Key) pkg_rhino.JSType {
 	_ = objectType
 	_ = propertyName
 	if ((objectType != nil && !objectType.IsJavaNil_()) && objectType.HasProperty_1_Property_Key(propertyName)) && !(objectType.IsPropertyTypeInferred_1_Property_Key(propertyName)) {
 		return objectType.GetPropertyType_1_Property_Key(propertyName)
 	}
-	return this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
+	return this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 }
 
 // Java method: TypeCheck.ensureTyped(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_ensureTyped_5451(n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_ensureTyped_5459(n pkg_rhino.Node) {
 	_ = n
-	this_.priv_TypeCheck_ensureTyped_5453(n, this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()))
+	this_.priv_TypeCheck_ensureTyped_5461(n, this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()))
 }
 
 // Java method: TypeCheck.ensureTyped(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.JSTypeNative type)
-func (this_ *TypeCheck) priv_TypeCheck_ensureTyped_5452(n pkg_rhino.Node, type_ pkg_rhino.JSTypeNative) {
+func (this_ *TypeCheck) priv_TypeCheck_ensureTyped_5460(n pkg_rhino.Node, type_ pkg_rhino.JSTypeNative) {
 	_ = n
 	_ = type_
-	this_.priv_TypeCheck_ensureTyped_5453(n, this_.priv_TypeCheck_getNativeType_5455(type_))
+	this_.priv_TypeCheck_ensureTyped_5461(n, this_.priv_TypeCheck_getNativeType_5463(type_))
 }
 
 // Java method: TypeCheck.ensureTyped(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.JSType type)
-func (this_ *TypeCheck) priv_TypeCheck_ensureTyped_5453(n pkg_rhino.Node, type_ pkg_rhino.JSType) {
+func (this_ *TypeCheck) priv_TypeCheck_ensureTyped_5461(n pkg_rhino.Node, type_ pkg_rhino.JSType) {
 	_ = n
 	_ = type_
 	if !((!(n.IsFunction()) || type_.IsFunctionType()) || type_.IsUnknownType()) {
@@ -3289,42 +3291,50 @@ func (this_ *TypeCheck) GetTypedPercent() float64 {
 }
 
 // Java method: TypeCheck.getNativeType(com.google.javascript.rhino.jstype.JSTypeNative typeId)
-func (this_ *TypeCheck) priv_TypeCheck_getNativeType_5455(typeId pkg_rhino.JSTypeNative) pkg_rhino.JSType {
+func (this_ *TypeCheck) priv_TypeCheck_getNativeType_5463(typeId pkg_rhino.JSTypeNative) pkg_rhino.JSType {
 	_ = typeId
 	return this_.typeRegistry.GetNativeType(typeId)
 }
 
 // Java method: TypeCheck.checkJsdocInfoContainsObjectWithBadKey(com.google.javascript.rhino.Node n)
-func (this_ *TypeCheck) priv_TypeCheck_checkJsdocInfoContainsObjectWithBadKey_5456(n pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_checkJsdocInfoContainsObjectWithBadKey_5464(n pkg_rhino.Node) {
 	_ = n
 	if n.GetJSDocInfo() != nil {
 		var info *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 		_ = info
-		this_.priv_TypeCheck_checkTypeContainsObjectWithBadKey_5457(n, info.GetType())
-		this_.priv_TypeCheck_checkTypeContainsObjectWithBadKey_5457(n, info.GetReturnType())
-		this_.priv_TypeCheck_checkTypeContainsObjectWithBadKey_5457(n, info.GetTypedefType())
+		this_.priv_TypeCheck_checkTypeContainsObjectWithBadKey_5465(n, info.GetType())
+		this_.priv_TypeCheck_checkTypeContainsObjectWithBadKey_5465(n, info.GetReturnType())
+		this_.priv_TypeCheck_checkTypeContainsObjectWithBadKey_5465(n, info.GetTypedefType())
 		{
-			cur_38 := j2gort.NewIterCursor(j2gort.CheckNotNull(info.GetParameterNames()))
-			for cur_38.HasNext() {
-				param := cur_38.NextStr()
-				_ = param
-				this_.priv_TypeCheck_checkTypeContainsObjectWithBadKey_5457(n, info.GetParameterType(param))
+			var i int32 = int32(0)
+			_ = i
+			var paramCount int32 = info.GetParameterCount()
+			_ = paramCount
+			for ; i < paramCount; i = i + 1 {
+				this_.priv_TypeCheck_checkTypeContainsObjectWithBadKey_5465(n, info.GetParameterTypeAt(i))
 			}
 		}
 	}
 }
 
 // Java method: TypeCheck.checkTypeContainsObjectWithBadKey(com.google.javascript.rhino.Node n, com.google.javascript.rhino.JSTypeExpression type)
-func (this_ *TypeCheck) priv_TypeCheck_checkTypeContainsObjectWithBadKey_5457(n pkg_rhino.Node, type_ pkg_rhino.JSTypeExpression) {
+func (this_ *TypeCheck) priv_TypeCheck_checkTypeContainsObjectWithBadKey_5465(n pkg_rhino.Node, type_ pkg_rhino.JSTypeExpression) {
 	_ = n
 	_ = type_
 	if (type_ != (pkg_rhino.JSTypeExpression{})) && !(j2gort.IfaceEquals[pkg_rhino.JSType](type_.GetRoot().GetJSType(), nil)) {
 		var realType pkg_rhino.JSType = type_.GetRoot().GetJSType()
 		_ = realType
-		var alreadyCheckedTypes j2gort.CustomOrderedSet[pkg_rhino.JSType] = j2gort.NewCustomOrderedSet[pkg_rhino.JSType]()
-		_ = alreadyCheckedTypes
-		var objectWithBadKey pkg_rhino.JSType = this_.priv_TypeCheck_findObjectWithNonStringifiableKey_5460(realType, &alreadyCheckedTypes)
+		if !(realType.MayHaveNonStringifiableKey()) {
+			return
+		}
+		var objectWithBadKey pkg_rhino.JSType = nil
 		_ = objectWithBadKey
+		func() {
+			defer func() {
+				this_.nonStringifiableKeyVisited.Clear()
+			}()
+			objectWithBadKey = this_.priv_TypeCheck_findObjectWithNonStringifiableKey_5468(realType)
+		}()
 		if objectWithBadKey != nil && !objectWithBadKey.IsJavaNil_() {
 			this_.compiler.Report_1(JSError_Make_3(n, StaticGet_TypeCheck_NON_STRINGIFIABLE_OBJECT_KEY(), []string{objectWithBadKey.String()}))
 		}
@@ -3332,13 +3342,13 @@ func (this_ *TypeCheck) priv_TypeCheck_checkTypeContainsObjectWithBadKey_5457(n 
 }
 
 // Java method: TypeCheck.isReasonableObjectPropertyKey(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *TypeCheck) priv_TypeCheck_isReasonableObjectPropertyKey_5458(type_ pkg_rhino.JSType) bool {
+func (this_ *TypeCheck) priv_TypeCheck_isReasonableObjectPropertyKey_5466(type_ pkg_rhino.JSType) bool {
 	_ = type_
 	if ((((((((((type_.IsUnknownType() || type_.IsNumber()) || type_.IsString()) || type_.IsSymbol()) || type_.IsBooleanObjectType()) || type_.IsBooleanValueType()) || type_.IsDateType()) || type_.IsRegexpType()) || type_.IsInterface()) || type_.IsRecordType()) || type_.IsNullType()) || type_.IsVoidType() {
 		return true
 	}
 	if type_.ToMaybeEnumElementType() != nil {
-		return this_.priv_TypeCheck_isReasonableObjectPropertyKey_5458(type_.ToMaybeEnumElementType().GetPrimitiveType())
+		return this_.priv_TypeCheck_isReasonableObjectPropertyKey_5466(type_.ToMaybeEnumElementType().GetPrimitiveType())
 	}
 	if type_.IsArrayType() {
 		return true
@@ -3347,15 +3357,15 @@ func (this_ *TypeCheck) priv_TypeCheck_isReasonableObjectPropertyKey_5458(type_ 
 		var templatizedType *pkg_rhino.TemplatizedType = type_.ToMaybeTemplatizedType()
 		_ = templatizedType
 		if templatizedType.GetReferencedType().IsArrayType() {
-			return this_.priv_TypeCheck_isReasonableObjectPropertyKey_5458(j2gort.CheckNotNullSlice(j2gort.CheckNotNullPtr(templatizedType).Slice_GetTemplateTypes())[int32(0)])
+			return this_.priv_TypeCheck_isReasonableObjectPropertyKey_5466(j2gort.CheckNotNullSlice(j2gort.CheckNotNullPtr(templatizedType).Slice_GetTemplateTypes())[int32(0)])
 		}
 	}
 	var namedType *pkg_rhino.NamedType
 	_ = namedType
-	var ok_39 bool
-	namedType, ok_39 = j2gort.TryCast[*pkg_rhino.NamedType](type_)
-	if ok_39 {
-		return this_.priv_TypeCheck_isReasonableObjectPropertyKey_5458(namedType.GetReferencedType())
+	var ok_38 bool
+	namedType, ok_38 = j2gort.TryCast[*pkg_rhino.NamedType](type_)
+	if ok_38 {
+		return this_.priv_TypeCheck_isReasonableObjectPropertyKey_5466(namedType.GetReferencedType())
 	}
 	if type_.IsUnionType() {
 		var union *pkg_rhino.UnionType = type_.ToMaybeUnionType()
@@ -3366,7 +3376,7 @@ func (this_ *TypeCheck) priv_TypeCheck_isReasonableObjectPropertyKey_5458(type_ 
 			var n int32 = union.GetAlternatesCount()
 			_ = n
 			for ; i < n; i = i + 1 {
-				if !(this_.priv_TypeCheck_isReasonableObjectPropertyKey_5458(union.GetAlternateAt(i))) {
+				if !(this_.priv_TypeCheck_isReasonableObjectPropertyKey_5466(union.GetAlternateAt(i))) {
 					return false
 				}
 			}
@@ -3381,13 +3391,13 @@ func (this_ *TypeCheck) priv_TypeCheck_isReasonableObjectPropertyKey_5458(type_ 
 		if (constructor != nil && !constructor.IsJavaNil_()) && constructor.IsInterface() {
 			return true
 		}
-		return this_.priv_TypeCheck_classHasToString_5461(objectType)
+		return this_.priv_TypeCheck_classHasToString_5469(objectType)
 	}
 	return false
 }
 
 // Java method: TypeCheck.isObjectTypeWithNonStringifiableKey(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *TypeCheck) priv_TypeCheck_isObjectTypeWithNonStringifiableKey_5459(type_ pkg_rhino.JSType) bool {
+func (this_ *TypeCheck) priv_TypeCheck_isObjectTypeWithNonStringifiableKey_5467(type_ pkg_rhino.JSType) bool {
 	_ = type_
 	if !(type_.IsTemplatizedType()) {
 		return false
@@ -3397,22 +3407,22 @@ func (this_ *TypeCheck) priv_TypeCheck_isObjectTypeWithNonStringifiableKey_5459(
 	var objectIndexKey *pkg_rhino.TemplateType = this_.typeRegistry.GetObjectIndexKey()
 	_ = objectIndexKey
 	if templateTypeMap.HasTemplateKey_1(objectIndexKey) {
-		return !(this_.priv_TypeCheck_isReasonableObjectPropertyKey_5458(templateTypeMap.GetResolvedTemplateType(objectIndexKey)))
+		return !(this_.priv_TypeCheck_isReasonableObjectPropertyKey_5466(templateTypeMap.GetResolvedTemplateType(objectIndexKey)))
 	} else {
 		return false
 	}
 }
 
-// Java method: TypeCheck.findObjectWithNonStringifiableKey(com.google.javascript.rhino.jstype.JSType type, java.util.LinkedHashSet<com.google.javascript.rhino.jstype.JSType> alreadyCheckedTypes)
-func (this_ *TypeCheck) priv_TypeCheck_findObjectWithNonStringifiableKey_5460(type_ pkg_rhino.JSType, alreadyCheckedTypes *j2gort.CustomOrderedSet[pkg_rhino.JSType]) pkg_rhino.JSType {
+// Java method: TypeCheck.findObjectWithNonStringifiableKey(com.google.javascript.rhino.jstype.JSType type)
+func (this_ *TypeCheck) priv_TypeCheck_findObjectWithNonStringifiableKey_5468(type_ pkg_rhino.JSType) pkg_rhino.JSType {
 	_ = type_
-	_ = alreadyCheckedTypes
-	if j2gort.CheckNotNullPtr(alreadyCheckedTypes).Contains(type_) {
+	if !(type_.MayHaveNonStringifiableKey()) {
 		return nil
-	} else {
-		alreadyCheckedTypes.Add(type_)
 	}
-	if this_.priv_TypeCheck_isObjectTypeWithNonStringifiableKey_5459(type_) {
+	if !(this_.nonStringifiableKeyVisited.Add(type_)) {
+		return nil
+	}
+	if this_.priv_TypeCheck_isObjectTypeWithNonStringifiableKey_5467(type_) {
 		return type_
 	}
 	if type_.IsUnionType() {
@@ -3424,7 +3434,7 @@ func (this_ *TypeCheck) priv_TypeCheck_findObjectWithNonStringifiableKey_5460(ty
 			var n int32 = union.GetAlternatesCount()
 			_ = n
 			for ; i < n; i = i + 1 {
-				var result pkg_rhino.JSType = this_.priv_TypeCheck_findObjectWithNonStringifiableKey_5460(union.GetAlternateAt(i), alreadyCheckedTypes)
+				var result pkg_rhino.JSType = this_.priv_TypeCheck_findObjectWithNonStringifiableKey_5468(union.GetAlternateAt(i))
 				_ = result
 				if result != nil && !result.IsJavaNil_() {
 					return result
@@ -3433,13 +3443,15 @@ func (this_ *TypeCheck) priv_TypeCheck_findObjectWithNonStringifiableKey_5460(ty
 		}
 	}
 	if type_.IsTemplatizedType() {
+		var templateTypes []pkg_rhino.JSType = j2gort.CheckNotNullPtr(type_.ToMaybeTemplatizedType()).Slice_GetTemplateTypes()
+		_ = templateTypes
 		{
-
-			for _, templateType := range j2gort.CheckNotNullSlice(j2gort.CheckNotNullPtr(type_.ToMaybeTemplatizedType()).
-				Slice_GetTemplateTypes()) {
-
-				_ = templateType
-				var result_2 pkg_rhino.JSType = this_.priv_TypeCheck_findObjectWithNonStringifiableKey_5460(templateType, alreadyCheckedTypes)
+			var i_2 int32 = int32(0)
+			_ = i_2
+			var n_2 int32 = int32(len(templateTypes))
+			_ = n_2
+			for ; i_2 < n_2; i_2 = i_2 + 1 {
+				var result_2 pkg_rhino.JSType = this_.priv_TypeCheck_findObjectWithNonStringifiableKey_5468(templateTypes[i_2])
 				_ = result_2
 				if result_2 != nil && !result_2.IsJavaNil_() {
 					return result_2
@@ -3453,25 +3465,25 @@ func (this_ *TypeCheck) priv_TypeCheck_findObjectWithNonStringifiableKey_5460(ty
 		var params []pkg_rhino.FunctionType_Parameter = function.GetParameterArray()
 		_ = params
 		{
-			var i_2 int32 = int32(0)
-			_ = i_2
+			var i_3 int32 = int32(0)
+			_ = i_3
 			var len_ int32 = int32(len(params))
 			_ = len_
-			for ; i_2 < len_; i_2 = i_2 + 1 {
-				var result_3 pkg_rhino.JSType = this_.priv_TypeCheck_findObjectWithNonStringifiableKey_5460(params[i_2].GetJSType(), alreadyCheckedTypes)
+			for ; i_3 < len_; i_3 = i_3 + 1 {
+				var result_3 pkg_rhino.JSType = this_.priv_TypeCheck_findObjectWithNonStringifiableKey_5468(params[i_3].GetJSType())
 				_ = result_3
 				if result_3 != nil && !result_3.IsJavaNil_() {
 					return result_3
 				}
 			}
 		}
-		return this_.priv_TypeCheck_findObjectWithNonStringifiableKey_5460(function.GetReturnType(), alreadyCheckedTypes)
+		return this_.priv_TypeCheck_findObjectWithNonStringifiableKey_5468(function.GetReturnType())
 	}
 	return nil
 }
 
 // Java method: TypeCheck.classHasToString(com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *TypeCheck) priv_TypeCheck_classHasToString_5461(type_ pkg_rhino.ObjectType) bool {
+func (this_ *TypeCheck) priv_TypeCheck_classHasToString_5469(type_ pkg_rhino.ObjectType) bool {
 	_ = type_
 	var toStringProperty *pkg_rhino.Property = type_.GetOwnSlot_1_string("toString")
 	_ = toStringProperty
@@ -3481,13 +3493,13 @@ func (this_ *TypeCheck) priv_TypeCheck_classHasToString_5461(type_ pkg_rhino.Obj
 	var parent pkg_rhino.ObjectType = type_.GetImplicitPrototype()
 	_ = parent
 	if (parent != nil && !parent.IsJavaNil_()) && !(parent.IsNativeObjectType()) {
-		return this_.priv_TypeCheck_classHasToString_5461(parent)
+		return this_.priv_TypeCheck_classHasToString_5469(parent)
 	}
 	return false
 }
 
 // Java method: TypeCheck.checkNotReadonlyPropertyAssignment(com.google.javascript.rhino.Node lhs)
-func (this_ *TypeCheck) priv_TypeCheck_checkNotReadonlyPropertyAssignment_5462(lhs pkg_rhino.Node) {
+func (this_ *TypeCheck) priv_TypeCheck_checkNotReadonlyPropertyAssignment_5470(lhs pkg_rhino.Node) {
 	_ = lhs
 	if !(lhs.IsGetProp()) && !(lhs.IsGetElem()) {
 		return
@@ -3497,7 +3509,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkNotReadonlyPropertyAssignment_5462(l
 	if lhsType == nil || lhsType.IsJavaNil_() {
 		return
 	}
-	var roArray pkg_rhino.JSType = this_.priv_TypeCheck_getNativeType_5455(pkg_rhino.StaticGet_JSTypeNative_READONLY_ARRAY_TYPE())
+	var roArray pkg_rhino.JSType = this_.priv_TypeCheck_getNativeType_5463(pkg_rhino.StaticGet_JSTypeNative_READONLY_ARRAY_TYPE())
 	_ = roArray
 	var union *pkg_rhino.UnionType = lhsType.ToMaybeUnionType()
 	_ = union

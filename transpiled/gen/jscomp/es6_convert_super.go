@@ -102,7 +102,7 @@ func clinitSlow_Es6ConvertSuper() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_Es6ConvertSuper, &clinitDone_Es6ConvertSuper)
-	static_Es6ConvertSuper_FEATURES_TO_RUN_FOR = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7181([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_SUPER(), pkg_parser.StaticGet_FeatureSet_Feature_CLASSES()})
+	static_Es6ConvertSuper_FEATURES_TO_RUN_FOR = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7186([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_SUPER(), pkg_parser.StaticGet_FeatureSet_Feature_CLASSES()})
 }
 
 func (this_ *Es6ConvertSuper) initFields_Es6ConvertSuper() {
@@ -134,12 +134,12 @@ func (this_ *Es6ConvertSuper) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent
 	if n.IsClass() {
 		this_.constructorSynthesizer.SynthesizeClassConstructorIfMissing(t, n)
 	} else if n.IsSuper() {
-		this_.priv_Es6ConvertSuper_visitSuper_2457(n, parent)
+		this_.priv_Es6ConvertSuper_visitSuper_2460(n, parent)
 	}
 }
 
 // Java method: Es6ConvertSuper.isInterface(com.google.javascript.rhino.Node classNode)
-func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_isInterface_2456(classNode pkg_rhino.Node) bool {
+func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_isInterface_2459(classNode pkg_rhino.Node) bool {
 	_ = classNode
 	var classJsDocInfo *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(classNode)
 	_ = classJsDocInfo
@@ -147,7 +147,7 @@ func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_isInterface_2456(classNode pk
 }
 
 // Java method: Es6ConvertSuper.visitSuper(com.google.javascript.rhino.Node node, com.google.javascript.rhino.Node parent)
-func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuper_2457(node pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuper_2460(node pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = node
 	_ = parent
 	if !(node.IsSuper()) {
@@ -165,13 +165,13 @@ func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuper_2457(node pkg_rhin
 		return
 	}
 	if parent.IsCall() {
-		this_.priv_Es6ConvertSuper_visitSuperCall_2458(node, parent, enclosingMemberDef)
+		this_.priv_Es6ConvertSuper_visitSuperCall_2461(node, parent, enclosingMemberDef)
 	} else if parent.IsGetProp() || parent.IsGetElem() {
 		if parent.GetFirstChild() == node {
 			if parent.GetParent().IsCall() && NodeUtil_IsInvocationTarget(parent) {
-				this_.priv_Es6ConvertSuper_visitSuperPropertyCall_2459(node, parent, enclosingMemberDef)
+				this_.priv_Es6ConvertSuper_visitSuperPropertyCall_2462(node, parent, enclosingMemberDef)
 			} else {
-				this_.priv_Es6ConvertSuper_visitSuperPropertyAccess_2460(node, parent, enclosingMemberDef)
+				this_.priv_Es6ConvertSuper_visitSuperPropertyAccess_2463(node, parent, enclosingMemberDef)
 			}
 		} else {
 			this_.compiler.Report_1(JSError_Make_3(node, StaticGet_TranspilationUtil_CANNOT_CONVERT_YET(), []string{"Only calls to super or to a method of super are supported."}))
@@ -184,7 +184,7 @@ func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuper_2457(node pkg_rhin
 }
 
 // Java method: Es6ConvertSuper.visitSuperCall(com.google.javascript.rhino.Node node, com.google.javascript.rhino.Node parent, com.google.javascript.rhino.Node enclosingMemberDef)
-func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuperCall_2458(node pkg_rhino.Node, parent pkg_rhino.Node, enclosingMemberDef pkg_rhino.Node) {
+func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuperCall_2461(node pkg_rhino.Node, parent pkg_rhino.Node, enclosingMemberDef pkg_rhino.Node) {
 	_ = node
 	_ = parent
 	_ = enclosingMemberDef
@@ -202,7 +202,7 @@ func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuperCall_2458(node pkg_
 		return
 	}
 	if NodeUtil_IsEs6ConstructorMemberFunctionDef(enclosingMemberDef) {
-		if node.IsFromExterns() || this_.priv_Es6ConvertSuper_isInterface_2456(clazz) {
+		if node.IsFromExterns() || this_.priv_Es6ConvertSuper_isInterface_2459(clazz) {
 			var enclosingStatement pkg_rhino.Node = NodeUtil_GetEnclosingStatement(node)
 			_ = enclosingStatement
 			var enclosingStatementParent pkg_rhino.Node = enclosingStatement.GetParent()
@@ -217,7 +217,7 @@ func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuperCall_2458(node pkg_
 }
 
 // Java method: Es6ConvertSuper.visitSuperPropertyCall(com.google.javascript.rhino.Node node, com.google.javascript.rhino.Node parent, com.google.javascript.rhino.Node enclosingMemberDef)
-func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuperPropertyCall_2459(node pkg_rhino.Node, parent pkg_rhino.Node, enclosingMemberDef pkg_rhino.Node) {
+func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuperPropertyCall_2462(node pkg_rhino.Node, parent pkg_rhino.Node, enclosingMemberDef pkg_rhino.Node) {
 	_ = node
 	_ = parent
 	_ = enclosingMemberDef
@@ -253,7 +253,7 @@ func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuperPropertyCall_2459(n
 		thisNode.MakeNonIndexable()
 		thisNode.InsertAfter(callTarget)
 		grandparent.SrcrefTreeIfMissing(parent)
-		this_.priv_Es6ConvertSuper_ensureNoCollapseOnStaticMemberDef_2461(enclosingMemberDef)
+		this_.priv_Es6ConvertSuper_ensureNoCollapseOnStaticMemberDef_2464(enclosingMemberDef)
 	} else {
 		var expandedSuper_2 pkg_rhino.Node = this_.astFactory.CreatePrototypeAccess(superName.CloneTree_0()).SrcrefTree(node)
 		_ = expandedSuper_2
@@ -272,7 +272,7 @@ func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuperPropertyCall_2459(n
 }
 
 // Java method: Es6ConvertSuper.visitSuperPropertyAccess(com.google.javascript.rhino.Node node, com.google.javascript.rhino.Node parent, com.google.javascript.rhino.Node enclosingMemberDef)
-func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuperPropertyAccess_2460(node pkg_rhino.Node, parent pkg_rhino.Node, enclosingMemberDef pkg_rhino.Node) {
+func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuperPropertyAccess_2463(node pkg_rhino.Node, parent pkg_rhino.Node, enclosingMemberDef pkg_rhino.Node) {
 	_ = node
 	_ = parent
 	_ = enclosingMemberDef
@@ -314,7 +314,7 @@ func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuperPropertyAccess_2460
 		_ = reflectGetCall
 		parent.ReplaceWith(reflectGetCall)
 		superPlaceholder.ReplaceWith(node.Detach())
-		this_.priv_Es6ConvertSuper_ensureNoCollapseOnStaticMemberDef_2461(enclosingMemberDef)
+		this_.priv_Es6ConvertSuper_ensureNoCollapseOnStaticMemberDef_2464(enclosingMemberDef)
 	}
 	node.ReplaceWith(newProp)
 	newProp.SetOriginalName("super")
@@ -322,7 +322,7 @@ func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_visitSuperPropertyAccess_2460
 }
 
 // Java method: Es6ConvertSuper.ensureNoCollapseOnStaticMemberDef(com.google.javascript.rhino.Node memberDef)
-func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_ensureNoCollapseOnStaticMemberDef_2461(memberDef pkg_rhino.Node) {
+func (this_ *Es6ConvertSuper) priv_Es6ConvertSuper_ensureNoCollapseOnStaticMemberDef_2464(memberDef pkg_rhino.Node) {
 	_ = memberDef
 	if !(memberDef.IsStaticMember()) {
 		return

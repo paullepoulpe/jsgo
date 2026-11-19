@@ -130,7 +130,7 @@ func (this_ *DiagnosticToSuppressionMapper) CreateSuppressionMap() *j2gort.Ext_c
 					diagnosticToSuppression.Merge(j2gort.PtrToAny(diagnosticType), j2gort.BoxString(suppression), func() j2gort.Ext_java_util_function_BiFunction {
 						bound_4 := this_
 						return j2gort.NewLambda_Ext_java_util_function_BiFunction(func(mrp0_ any, mrp1_ any) any {
-							return j2gort.BoxString(bound_4.priv_DiagnosticToSuppressionMapper_preferMoreTargetedGroup_2436(j2gort.CastString(mrp0_), j2gort.CastString(mrp1_)))
+							return j2gort.BoxString(bound_4.priv_DiagnosticToSuppressionMapper_preferMoreTargetedGroup_2439(j2gort.CastString(mrp0_), j2gort.CastString(mrp1_)))
 						})
 					}())
 				}
@@ -141,7 +141,7 @@ func (this_ *DiagnosticToSuppressionMapper) CreateSuppressionMap() *j2gort.Ext_c
 }
 
 // Java method: DiagnosticToSuppressionMapper.preferMoreTargetedGroup(java.lang.String next, java.lang.String current)
-func (this_ *DiagnosticToSuppressionMapper) priv_DiagnosticToSuppressionMapper_preferMoreTargetedGroup_2436(next string, current string) string {
+func (this_ *DiagnosticToSuppressionMapper) priv_DiagnosticToSuppressionMapper_preferMoreTargetedGroup_2439(next string, current string) string {
 	_ = next
 	_ = current
 	var nextGroup *DiagnosticGroup = j2gort.CastPtr[DiagnosticGroup](j2gort.MapGetStr(this_.diagnosticGroups, next))

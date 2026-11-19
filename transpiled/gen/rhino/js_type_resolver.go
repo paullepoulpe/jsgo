@@ -126,7 +126,7 @@ func (this_ *JSTypeResolver) ResolveIfClosed(captured JSType, caller JSTypeClass
 	}
 	switch (this_.state).Ordinal() {
 	case int32(0) /* State.CLOSED */, int32(2) /* State.CLOSING */ :
-		this_.priv_JSTypeResolver_doResolve_9246(captured)
+		this_.priv_JSTypeResolver_doResolve_9262(captured)
 	case int32(1) /* State.OPEN */ :
 		this_.resolutionQueue.AddLast(captured)
 	}
@@ -157,7 +157,7 @@ func (this_ *JSTypeResolver) OpenForDefinition() *JSTypeResolver_Closer {
 }
 
 // Java method: JSTypeResolver.resolveAll()
-func (this_ *JSTypeResolver) priv_JSTypeResolver_resolveAll_9245() {
+func (this_ *JSTypeResolver) priv_JSTypeResolver_resolveAll_9261() {
 	{
 		var iifeCond_1 bool
 		{
@@ -178,7 +178,7 @@ func (this_ *JSTypeResolver) priv_JSTypeResolver_resolveAll_9245() {
 	}
 	this_.state = StaticGet_JSTypeResolver_State_CLOSING()
 	for !(this_.resolutionQueue.IsEmpty()) {
-		this_.priv_JSTypeResolver_doResolve_9246(this_.resolutionQueue.RemoveFirst())
+		this_.priv_JSTypeResolver_doResolve_9262(this_.resolutionQueue.RemoveFirst())
 	}
 	this_.resolutionQueue = j2gort.Deque[JSType]{}
 	this_.state = StaticGet_JSTypeResolver_State_CLOSED()
@@ -198,7 +198,7 @@ func (this_ *JSTypeResolver) priv_JSTypeResolver_resolveAll_9245() {
 }
 
 // Java method: JSTypeResolver.doResolve(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *JSTypeResolver) priv_JSTypeResolver_doResolve_9246(type_ JSType) {
+func (this_ *JSTypeResolver) priv_JSTypeResolver_doResolve_9262(type_ JSType) {
 	_ = type_
 	type_.Resolve(this_.registry.GetErrorReporter())
 }
@@ -278,7 +278,7 @@ func (this_ *JSTypeResolver_Closer) Close_0() {
 		j2gort.CheckState(false)
 	}
 	this_.hasRun = true
-	this_.outer_.priv_JSTypeResolver_resolveAll_9245()
+	this_.outer_.priv_JSTypeResolver_resolveAll_9261()
 }
 
 // Java enum: com.google.javascript.rhino.jstype.JSTypeResolver.State

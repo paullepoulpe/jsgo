@@ -246,6 +246,20 @@ public final class MethodEmitter {
       }
     }
 
+    if (!delegatedToThis
+        && typeEl
+            .getQualifiedName()
+            .contentEquals("com.google.javascript.rhino.RhinoStringPool.LazyInternedStringList")) {
+      String atomicPkg = fileCtx.imports.std("sync/atomic");
+      String ns = resolver.runtime.nodestoreAlias(fileCtx.imports);
+      String nsPref = ns.isEmpty() ? "" : (ns + ".");
+      out.append("\tif this_.size > 0 {\n\t\tthis_.ids_ = make([]uint32, int(this_.size))\n\t\t")
+          .append(atomicPkg)
+          .append(".StoreUint64(&this_.epoch_, ")
+          .append(nsPref)
+          .append("Epoch())\n\t}\n");
+    }
+
     out.append("}\n\n");
     fileCtx.syncTempSeqFrom(ctx);
     fileCtx.deferredLocalTypes.addAll(ctx.deferredLocalTypes);

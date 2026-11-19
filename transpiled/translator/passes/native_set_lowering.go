@@ -59,6 +59,7 @@ const (
 	setInitCopyCol
 	setInitDirectCall
 	setInitIIFE
+	setInitPtrAlias
 )
 
 type setOpKind uint8
@@ -74,10 +75,11 @@ const (
 	setOpReturnUnwrap
 	setOpParamArg       // f(..., s, ...) -> f(..., &s, ...) / f(..., s, ...)
 	setOpFormatSink     // StrVal(s), StrConcat(..., s), ToStringHelper.Add(..., s)
+	setOpToJavaStr      // javalang.ToJavaString(s) -> (&s).String() / s.String()
 	setOpMethodDirect   // .Size(), .IsEmpty(), .Clear(), .HashCode()
 	setOpMethodUnbox1   // .Add_1(x)->.Add(u), .Contains(x)->.Contains(u), .Remove_1_any(x)->.Remove(u)
 	setOpStaticHelper   // j2gort.SetAddStr(s, k) -> s.Add(k), SetContainsNode -> s.Contains(n), etc.
-	setOpGetFirst       // enclosingUnbox(s.GetFirst()) -> s.GetFirst()
+	setOpGetFirst       // enclosingUnbox(s.GetFirst()) / s.Iterator().Next() -> s.GetFirst()
 	setOpAddAllSet      // s.AddAll_1(otherSet) -> s.AddAllSet(otherSet) / s.AddAllSetPtr(otherSet)
 	setOpAddAllCol      // s.AddAll_1(col) -> j2gort.OrderedSetAddAll*(&s, col)
 	setOpEqualsSet      // s.Equals(otherSet) -> s.EqualsSet(otherSet) / s.EqualsSetPtr(otherSet)
@@ -85,6 +87,8 @@ const (
 	setOpArrayDequeCopy  // NewExt_java_util_ArrayDeque_1_Ext_java_util_Collection(s) -> j2gort.ArrayDequeFromOrderedSet*(s)
 	setOpNativeDequeCopy // DequeFromCol[T](s) / NodeDequeFromCol[N](s) -> j2gort.DequeFromOrderedSet*(s) / NodeDequeFromOrderedSet*(s)
 	setOpIterCursor      // cur := NewIterCursor(s); for cur.HasNext() { ... } -> cur := s.Iter(); ...
+	setOpIterMethodLoop  // var it = s.Iterator(); for it.HasNext() { ... [it.Remove()] } -> s.Iter() (+ rmBuf_ if Remove)
+	setOpForEach         // s.ForEach(Consumer) -> for cur_ := s.Iter(); cur_.HasNext(); { ... }
 	setOpRawUnbox        // loop element unbox rewrite
 )
 
@@ -100,12 +104,34 @@ type setIIFESpec struct {
 	branches []setIIFEBranch
 }
 
+type setIterMethodSpec struct {
+	block       *ast.BlockStmt
+	declStmt    ast.Stmt
+	hasBlankIt  bool
+	forStmt     *ast.ForStmt
+	elemName    string
+	elemPos     token.Pos
+	dropStmts   int
+	removeStmts []*ast.ExprStmt
+}
+
+type setForEachSpec struct {
+	exprStmt  *ast.ExprStmt
+	boundAs   *ast.AssignStmt
+	fnLit     *ast.FuncLit
+	paramName string
+	paramPos  token.Pos
+	dropStmts int
+}
+
 type setRewriteOp struct {
 	kind          setOpKind
 	cand          *setCandidate
 	otherCand     *setCandidate
 	initKind      setInitKind
 	iifeSpec      *setIIFESpec
+	iterSpec      *setIterMethodSpec
+	forEachSpec   *setForEachSpec
 	file          *ast.File
 	spanNode      ast.Node
 	accessExpr    ast.Expr
@@ -122,15 +148,23 @@ type setRewriteOp struct {
 }
 
 type setCandidate struct {
-	v                *types.Var  // non-nil for local / field / param
-	fn               *types.Func // non-nil for Set-returning function / private method
-	paramFn          *types.Func // non-nil for Set parameter of unexported function / private method
-	paramIdx         int
-	fnDecl           *ast.FuncDecl
-	isField          bool
-	isParam          bool
-	isFunc           bool
-	isExportedFn     bool
+	v                  *types.Var  // non-nil for local / field / param
+	fn                 *types.Func // non-nil for Set-returning function / private method
+	paramFn            *types.Func // non-nil for Set parameter of unexported function / private method
+	paramIdx           int
+	fnDecl             *ast.FuncDecl
+	isField            bool
+	isParam            bool
+	isFunc             bool
+	isPtrAlias         bool
+	hasNonInitAssign   bool
+	paramReassigned    bool
+	hasNonNilCallerArg bool
+	returnsPtrCand     bool
+	hasElemMutOp       bool
+	hasPtrParamAssign  bool
+	hasExpParamTwin    bool
+	isExportedFn       bool
 	isPtr            bool // lowered to *j2gort.*OrderedSet[T] (nullable/lazy field, nullable local, or param)
 	useLocalSet      bool // lowered to j2gort.LocalOrderedSet[T] (standalone non-nullable stack local)
 	usesOrdSetOnly   bool // uses *OrderedSetFromSet / AddAllSet / ArrayDequeFrom*OrderedSet / EqualsSet / param
@@ -276,17 +310,29 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 				if !ok {
 					continue
 				}
-				// Collect Set parameters on unexported package functions, priv_ methods, and void non-generic exported package functions.
+				// Collect Set parameters on unexported package functions, priv_ methods, void/Set-returning non-generic exported package functions,
+				// and void non-generic exported methods on concrete package structs.
 				canCollectSetParams := false
 				if d.Type.Params != nil {
 					if !fnObj.Exported() && (sig.Recv() == nil || strings.HasPrefix(fnObj.Name(), "priv_")) {
 						canCollectSetParams = true
 					} else if fnObj.Exported() && sig.Recv() == nil &&
 						(d.Type.TypeParams == nil || len(d.Type.TypeParams.List) == 0) && isNonGenericFunc(fnObj) &&
-						(sig.Results() == nil || sig.Results().Len() == 0) &&
+						(sig.Results() == nil || sig.Results().Len() == 0 || (sig.Results().Len() == 1 && isCandidateSetReturnType(sig.Results().At(0).Type(), true))) &&
 						d.Name.Name != "main" && d.Name.Name != "init" && allFuncParamsNamed(d.Type) &&
 						(ctx.Pkg == nil || ctx.Pkg.Scope() == nil || ctx.Pkg.Scope().Lookup("ordSet_"+d.Name.Name) == nil) {
 						canCollectSetParams = true
+					} else if fnObj.Exported() && sig.Recv() != nil &&
+						(d.Type.TypeParams == nil || len(d.Type.TypeParams.List) == 0) && isNonGenericFunc(fnObj) &&
+						(sig.Results() == nil || sig.Results().Len() == 0) && allFuncParamsNamed(d.Type) &&
+						!strings.HasPrefix(d.Name.Name, "ordSet_") {
+						if recvOwner := ptrNamedOrigin(sig.Recv().Type()); recvOwner != nil &&
+							(recvOwner.TypeParams() == nil || recvOwner.TypeParams().Len() == 0) &&
+							!strings.HasSuffix(recvOwner.Obj().Name(), "Base") {
+							if obj, _, _ := types.LookupFieldOrMethod(types.NewPointer(recvOwner), true, ctx.Pkg, "ordSet_"+d.Name.Name); obj == nil {
+								canCollectSetParams = true
+							}
+						}
 					}
 				}
 				if canCollectSetParams {
@@ -295,6 +341,9 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 					var recvTArgs *types.TypeList
 					if sig.Recv() != nil {
 						recvOwner, recvTArgs = derefNamedAndTypeArgs(sig.Recv().Type())
+						if recvOwner == nil {
+							recvOwner = ptrNamedOrigin(sig.Recv().Type())
+						}
 					}
 					argPos := 0
 					for _, fld := range d.Type.Params.List {
@@ -389,17 +438,32 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 				for _, fnCand := range fns {
 					otherFn = fnCand
 				}
+			} else if unwrapped := unwrapCollectionAdaptersDown(initExpr, info); unwrapped != nil {
+				if srcCand := resolveSetVarAccess(unwrapped, varCands, info); srcCand != nil && !srcCand.isParam && !srcCand.isPtrAlias {
+					initK = setInitPtrAlias
+					argExpr = unwrapped
+					otherFn = srcCand
+				} else {
+					return
+				}
 			} else {
 				return
 			}
 			recvOwner, recvTArgs := enclosingMethodOwnerAndTArgs(span, parents, info)
 			cand := &setCandidate{
 				v: v, declFile: file, hasInit: !hasNil, hasNilAssign: hasNil,
-				ownerStruct: recvOwner, recvTArgs: recvTArgs,
+				isPtrAlias:      initK == setInitPtrAlias,
+				isPtr:           initK == setInitPtrAlias,
+				usesOrdSetOnly:  initK == setInitPtrAlias,
+				ownerStruct:     recvOwner,
+				recvTArgs:       recvTArgs,
 				hasIdentityKind: initIdent,
-				hasHashKind:     initHash || isConcreteHashSetType(v.Type()),
+				hasHashKind:     initHash || (initK != setInitPtrAlias && isConcreteHashSetType(v.Type())),
 				spellSites:      []typeSpellSite{{file: file, pos: span.Pos(), owner: recvOwner, recvTArgs: recvTArgs}},
 				j2gortSites:     []typeSpellSite{{file: file, pos: span.Pos()}},
+			}
+			if initK == setInitPtrAlias && otherFn != nil {
+				otherFn.usesOrdSetOnly = true
 			}
 			if otherFn != nil {
 				edges = append(edges, [2]*setCandidate{cand, otherFn})
@@ -411,8 +475,12 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 					}
 				}
 			}
+			var opOther *setCandidate
+			if initK == setInitDirectCall || initK == setInitPtrAlias {
+				opOther = otherFn
+			}
 			cand.ops = append(cand.ops, setRewriteOp{
-				kind: opK, cand: cand, initKind: initK, iifeSpec: iife, file: file, spanNode: span, argExpr: argExpr, call: asCallExpr(initExpr),
+				kind: opK, cand: cand, otherCand: opOther, initKind: initK, iifeSpec: iife, file: file, spanNode: span, argExpr: argExpr, call: asCallExpr(initExpr),
 			})
 			varCands[v] = cand
 			allCands = append(allCands, cand)
@@ -505,6 +573,13 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 				funcsMutating[cand.v] = make(map[*types.Func]bool)
 			}
 			funcsMutating[cand.v][fn] = true
+			if cand.isPtrAlias && len(cand.ops) > 0 && cand.ops[0].otherCand != nil && cand.ops[0].otherCand.v != nil {
+				ov := cand.ops[0].otherCand.v
+				if funcsMutating[ov] == nil {
+					funcsMutating[ov] = make(map[*types.Func]bool)
+				}
+				funcsMutating[ov][fn] = true
+			}
 		}
 	}
 
@@ -546,17 +621,60 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 		})
 	}
 
-	// Finalize pointer vs value representation on var/field candidates.
+	// Finalize pointer vs value representation across var/field/func candidates.
 	for _, cand := range allCands {
-		if cand.isFunc || cand.isParam {
+		if cand.isFunc {
+			if cand.returnsPtrCand {
+				cand.isPtr = true
+			}
 			continue
 		}
-		if !cand.hasInit || cand.hasNilAssign || cand.hasNilCheck {
+		if cand.isParam {
+			continue
+		}
+		if !cand.hasInit || cand.hasNilAssign || cand.hasNilCheck || cand.hasPtrParamAssign {
 			cand.isPtr = true
 		}
 	}
+	for changed := true; changed; {
+		changed = false
+		for _, cand := range allCands {
+			if cand.disqualified || cand.isPtr {
+				continue
+			}
+			if cand.isFunc {
+				ast.Inspect(cand.fnDecl.Body, func(n ast.Node) bool {
+					if _, isLit := n.(*ast.FuncLit); isLit {
+						return false
+					}
+					if ret, ok := n.(*ast.ReturnStmt); ok && len(ret.Results) == 1 {
+						inner := unwrapCollectionAdaptersDown(ret.Results[0], info)
+						if srcCand := resolveSetSourceExpr(inner, varCands, funcCands, info); srcCand != nil && srcCand.isPtr {
+							cand.isPtr = true
+							changed = true
+							return false
+						}
+					}
+					return true
+				})
+				continue
+			}
+			if cand.isParam {
+				continue
+			}
+			for i := range cand.ops {
+				op := &cand.ops[i]
+				if (op.kind == setOpDeclVarSpec || op.kind == setOpDeclShortVar || op.kind == setOpAssignInit) &&
+					op.initKind == setInitDirectCall && op.otherCand != nil && op.otherCand.isPtr {
+					cand.isPtr = true
+					changed = true
+					break
+				}
+			}
+		}
+	}
 
-	// Check pointer constraints on ops (e.g. direct Set-returning function calls return value OrderedSet, not *OrderedSet).
+	// Check pointer constraints on ops (e.g. direct Set-returning function calls must match pointer/value representation).
 	for _, cand := range allCands {
 		if cand.disqualified || cand.defCount != 1 || !ctx.ShouldTransform(cand.declFile) {
 			cand.disqualified = true
@@ -564,9 +682,22 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 		}
 		if (cand.isFunc && cand.isExportedFn && cand.inPkgCalls == 0) ||
 			(cand.isParam && cand.inPkgCalls == 0) ||
-			(cand.isParam && cand.isExportedFn && cand.nonSelfCalls == 0) {
+			(cand.isParam && cand.isExportedFn && cand.nonSelfCalls == 0) ||
+			(cand.isParam && cand.paramReassigned && cand.hasNonNilCallerArg) ||
+			(cand.hasPtrParamAssign && cand.hasElemMutOp) {
 			cand.disqualified = true
 			continue
+		}
+		if cand.isPtrAlias {
+			if len(cand.ops) == 0 || cand.ops[0].otherCand == nil {
+				cand.disqualified = true
+				continue
+			}
+			other := cand.ops[0].otherCand
+			if other.disqualified || other.hasNilAssign || other.hasNilCheck || other.hasNonInitAssign {
+				cand.disqualified = true
+				continue
+			}
 		}
 		if cand.v != nil && anySetLoopMutatesCandidate(cand, funcsMutating[cand.v], info) {
 			cand.disqualified = true
@@ -575,7 +706,12 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 		checkInitPtrHelper := func(k setInitKind, other *setCandidate) bool {
 			switch k {
 			case setInitDirectCall:
+				if other != nil {
+					return cand.isPtr == other.isPtr
+				}
 				return !cand.isPtr
+			case setInitPtrAlias:
+				return cand.isPtr
 			case setInitCap, setInitCopyCol:
 				if cand.isPtr {
 					cand.needsPtrRtHelper = true
@@ -618,6 +754,13 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 						cand.j2gortSites = append(cand.j2gortSites, typeSpellSite{file: op.file, pos: op.outerExpr.Pos()})
 					}
 				}
+			case setOpIterMethodLoop, setOpForEach:
+				if cand.isPtr {
+					if !isGuardedNonNilSetUse(op.spanNode, op.accessExpr, cand, parentsByFile[op.file], funcCands, info) {
+						op.needsNullWrap = true
+						cand.j2gortSites = append(cand.j2gortSites, typeSpellSite{file: op.file, pos: op.spanNode.Pos()})
+					}
+				}
 			}
 		}
 		if cand.needsPtrRtHelper && !hasPtrHelpers {
@@ -625,7 +768,7 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 		}
 	}
 
-	// Re-verify Set-returning functions do not return a nullable pointer candidate.
+	// Re-verify Set-returning functions match the pointer/value representation of their returned candidates.
 	for _, fc := range allCands {
 		if !fc.isFunc || fc.disqualified {
 			continue
@@ -636,7 +779,7 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 			}
 			if ret, ok := n.(*ast.ReturnStmt); ok && len(ret.Results) == 1 {
 				inner := unwrapCollectionAdaptersDown(ret.Results[0], info)
-				if srcCand := resolveSetSourceExpr(inner, varCands, funcCands, info); srcCand == nil || srcCand.isPtr {
+				if srcCand := resolveSetSourceExpr(inner, varCands, funcCands, info); srcCand == nil || srcCand.isPtr != fc.isPtr {
 					fc.disqualified = true
 				}
 			}
@@ -785,6 +928,42 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 				for _, pc := range pcs {
 					badRoots[pc.root()] = true
 				}
+				continue
+			}
+			if allIn && pcs[0].fnDecl != nil && pcs[0].fnDecl.Body != nil {
+				cloneConflict := false
+				ast.Inspect(pcs[0].fnDecl.Body, func(n ast.Node) bool {
+					if cloneConflict || n == nil {
+						return false
+					}
+					id, ok := n.(*ast.Ident)
+					if !ok {
+						return true
+					}
+					if vc := varCands[varFromObj(info.Uses[id])]; vc != nil && vc.isField && eligSet[vc] {
+						cloneConflict = true
+						return false
+					}
+					if fnObj, ok := info.Uses[id].(*types.Func); ok {
+						fnOrig := funcOrigin(fnObj)
+						if fc := funcCands[fnOrig]; fc != nil && !fc.isExportedFn && eligSet[fc] {
+							cloneConflict = true
+							return false
+						}
+						for _, opc := range paramCandsByFn[fnOrig] {
+							if !opc.isExportedFn && eligSet[opc] {
+								cloneConflict = true
+								return false
+							}
+						}
+					}
+					return true
+				})
+				if cloneConflict {
+					for _, pc := range pcs {
+						badRoots[pc.root()] = true
+					}
+				}
 			}
 		}
 		if len(badRoots) > 0 {
@@ -817,12 +996,12 @@ func isGuardedNonNilSetUse(
 	funcCands map[*types.Func]*setCandidate,
 	info *types.Info,
 ) bool {
-	if cand.v == nil {
+	if cand.v == nil || cand.isPtrAlias {
 		return true
 	}
 	return isGuardedNonNilVarUse(useNode, accessExpr, cand.v, parents, info, func(rhs ast.Expr) bool {
-		if _, _, _, _, _, ok := classifySetInitExpr(rhs, funcCands, info); ok {
-			return true
+		if k, _, otherFn, _, _, ok := classifySetInitExpr(rhs, funcCands, info); ok {
+			return k != setInitDirectCall || (otherFn != nil && !otherFn.isPtr)
 		}
 		if _, hasNil, _, _, _, ok := classifySetIIFEInit(rhs, funcCands, info); ok && !hasNil {
 			return true
@@ -1020,6 +1199,9 @@ func validateSetFuncBodyReturns(
 			fc.disqualified = true
 			return false
 		}
+		if srcCand.isPtr {
+			fc.returnsPtrCand = true
+		}
 		*edges = append(*edges, [2]*setCandidate{fc, srcCand})
 		if inner != stripParens(origRes) {
 			fc.ops = append(fc.ops, setRewriteOp{
@@ -1080,6 +1262,14 @@ func validateSetParamFuncCall(
 			continue
 		}
 		arg := unwrapCollectionAdaptersDown(call.Args[pc.paramIdx], info)
+		if isNilIdent(arg, info) {
+			pc.inPkgCalls++
+			pc.nonSelfCalls++
+			if pc.isExportedFn {
+				pc.paramCallIdents = append(pc.paramCallIdents, id)
+			}
+			continue
+		}
 		srcCand := resolveSetVarAccess(arg, varCands, info)
 		if srcCand == nil || srcCand.disqualified {
 			pc.disqualified = true
@@ -1088,6 +1278,7 @@ func validateSetParamFuncCall(
 		pc.inPkgCalls++
 		if srcCand != pc {
 			pc.nonSelfCalls++
+			pc.hasNonNilCallerArg = true
 		}
 		if pc.isExportedFn {
 			pc.paramCallIdents = append(pc.paramCallIdents, id)
@@ -1122,9 +1313,16 @@ func validateSetVarUse(
 	if as, ok := parents[accessExpr].(*ast.AssignStmt); ok {
 		for _, lhs := range as.Lhs {
 			if stripParens(lhs) == accessExpr {
-				if cand.isParam || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 || (cand.isField && !isPureFieldSelector(accessExpr.(*ast.SelectorExpr), info)) {
+				if cand.isPtrAlias || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 || (cand.isField && !isPureFieldSelector(accessExpr.(*ast.SelectorExpr), info)) {
 					cand.disqualified = true
 					return
+				}
+				if cand.isParam {
+					cand.paramReassigned = true
+				}
+				isNonInit := !cand.isField || !isInInitFieldsMethod(as, cand.ownerStruct, parents, info)
+				if isNonInit {
+					cand.hasNonInitAssign = true
 				}
 				rhs := as.Rhs[0]
 				if isNilIdent(rhs, info) {
@@ -1132,7 +1330,7 @@ func validateSetVarUse(
 					cand.ops = append(cand.ops, setRewriteOp{
 						kind: setOpAssignInit, cand: cand, initKind: setInitNil, file: file, spanNode: as, stmt: as, accessExpr: accessExpr,
 					})
-					if !cand.isField || !isInInitFieldsMethod(as, cand.ownerStruct, parents, info) {
+					if isNonInit {
 						markMut(cand, as, parents)
 					}
 					return
@@ -1165,7 +1363,7 @@ func validateSetVarUse(
 					cand.ops = append(cand.ops, setRewriteOp{
 						kind: setOpAssignInit, cand: cand, otherCand: srcCand, initKind: initK, file: file, spanNode: as, stmt: as, accessExpr: accessExpr, argExpr: argExpr, call: asCallExpr(rhs),
 					})
-					if !cand.isField || !isInInitFieldsMethod(as, cand.ownerStruct, parents, info) {
+					if isNonInit {
 						markMut(cand, as, parents)
 					}
 					return
@@ -1202,10 +1400,27 @@ func validateSetVarUse(
 					cand.ops = append(cand.ops, setRewriteOp{
 						kind: setOpAssignInit, cand: cand, initKind: setInitIIFE, iifeSpec: iife, file: file, spanNode: as, stmt: as, accessExpr: accessExpr,
 					})
-					if !cand.isField || !isInInitFieldsMethod(as, cand.ownerStruct, parents, info) {
+					if isNonInit {
 						markMut(cand, as, parents)
 					}
 					return
+				}
+				if cand.isField {
+					if unwrapped := unwrapCollectionAdaptersDown(rhs, info); unwrapped != nil {
+						if sc := resolveSetVarAccess(unwrapped, varCands, info); sc != nil && sc.isParam {
+							cand.hasPtrParamAssign = true
+							cand.usesOrdSetOnly = true
+							sc.usesOrdSetOnly = true
+							*edges = append(*edges, [2]*setCandidate{cand, sc})
+							cand.ops = append(cand.ops, setRewriteOp{
+								kind: setOpAssignInit, cand: cand, otherCand: sc, initKind: setInitPtrAlias, file: file, spanNode: as, stmt: as, accessExpr: accessExpr, argExpr: unwrapped,
+							})
+							if isNonInit {
+								markMut(cand, as, parents)
+							}
+							return
+						}
+					}
 				}
 				cand.disqualified = true
 				return
@@ -1335,6 +1550,40 @@ func validateSetValueConsumer(
 
 	adaptedTop := unwrapCollectionAdapters(accessExpr, parents, info)
 
+	// Allow RHS of `var alias = srcCand` (`setInitPtrAlias`) or `this_.f = paramCand` (`hasPtrParamAssign`).
+	switch par := parents[adaptedTop].(type) {
+	case *ast.ValueSpec:
+		if len(par.Names) == 1 && len(par.Values) == 1 && par.Values[0] == adaptedTop {
+			if dstCand := varCands[varFromObj(info.Defs[par.Names[0]])]; dstCand != nil && dstCand.isPtrAlias && len(dstCand.ops) > 0 && dstCand.ops[0].otherCand == cand {
+				if !addressable {
+					cand.disqualified = true
+					dstCand.disqualified = true
+				}
+				return
+			}
+		}
+	case *ast.AssignStmt:
+		if len(par.Lhs) == 1 && len(par.Rhs) == 1 && par.Rhs[0] == adaptedTop {
+			if par.Tok == token.DEFINE {
+				if lhsId, ok := par.Lhs[0].(*ast.Ident); ok {
+					if dstCand := varCands[varFromObj(info.Defs[lhsId])]; dstCand != nil && dstCand.isPtrAlias && len(dstCand.ops) > 0 && dstCand.ops[0].otherCand == cand {
+						if !addressable {
+							cand.disqualified = true
+							dstCand.disqualified = true
+						}
+						return
+					}
+				}
+			} else if par.Tok == token.ASSIGN && cand.isParam {
+				if sel, ok := stripParens(par.Lhs[0]).(*ast.SelectorExpr); ok {
+					if dstCand := varCands[varFromObj(info.Uses[sel.Sel])]; dstCand != nil && dstCand.isField {
+						return
+					}
+				}
+			}
+		}
+	}
+
 	// Case A: Returned from enclosing candidate Set-returning function (`return unsafe` / `return AsIface(unsafe)`).
 	if ret, ok := parents[adaptedTop].(*ast.ReturnStmt); ok && len(ret.Results) == 1 && ret.Results[0] == adaptedTop {
 		if enclFn := enclosingFuncObj(ret, parents, info); enclFn != nil && funcCands[funcOrigin(enclFn)] != nil {
@@ -1424,7 +1673,22 @@ func validateSetValueConsumer(
 			}
 		}
 
-		// Check if `cand` is passed as a Set parameter to an unexported function / priv_ method.
+		// Check `javalang.ToJavaString(s)` -> `(&s).String()` / `s.String()`.
+		if len(staticCall.Args) == 1 && (staticCall.Args[0] == adaptedTop || staticCall.Args[0] == pTop) {
+			if callee, _ := calleeFunc(staticCall, info); callee != nil && callee.Name() == "ToJavaString" && callee.Pkg() != nil &&
+				(callee.Pkg().Name() == "javalang" || strings.HasSuffix(callee.Pkg().Path(), "/javalang")) {
+				if _, isES := parents[staticCall].(*ast.ExprStmt); isES || (!cand.isPtr && !addressable) {
+					cand.disqualified = true
+					return
+				}
+				cand.ops = append(cand.ops, setRewriteOp{
+					kind: setOpToJavaStr, cand: cand, file: file, spanNode: staticCall, outerExpr: staticCall, accessExpr: accessExpr,
+				})
+				return
+			}
+		}
+
+		// Check if `cand` is passed as a Set parameter to an unexported function / priv_ method / ordSet_ method.
 		if callee, _ := calleeFunc(staticCall, info); callee != nil {
 			if pcs := paramCandsByFn[funcOrigin(callee)]; len(pcs) > 0 {
 				for _, pc := range pcs {
@@ -1436,22 +1700,32 @@ func validateSetValueConsumer(
 						}
 						if pc.ownerStruct != nil {
 							callSel, selOK := stripParens(staticCall.Fun).(*ast.SelectorExpr)
-							if !selOK {
+							if !selOK || isInterfaceType(info.Types[callSel.X].Type) {
 								cand.disqualified = true
 								pc.disqualified = true
 								return
 							}
 							callOwner, callTArgs := derefNamedAndTypeArgs(info.Types[callSel.X].Type)
-							var candTArgs *types.TypeList
-							if cand.isField {
-								candTArgs = ownerTypeArgsAtAccess(accessExpr, cand.ownerStruct, info)
-							} else {
-								candTArgs = cand.recvTArgs
+							if callOwner == nil {
+								callOwner = ptrNamedOrigin(info.Types[callSel.X].Type)
 							}
-							if callOwner != pc.ownerStruct || cand.ownerStruct != pc.ownerStruct || !sameTypeList(callTArgs, candTArgs) {
+							if callOwner != pc.ownerStruct {
 								cand.disqualified = true
 								pc.disqualified = true
 								return
+							}
+							if pc.recvTArgs != nil && pc.recvTArgs.Len() > 0 {
+								var candTArgs *types.TypeList
+								if cand.isField {
+									candTArgs = ownerTypeArgsAtAccess(accessExpr, cand.ownerStruct, info)
+								} else {
+									candTArgs = cand.recvTArgs
+								}
+								if cand.ownerStruct != pc.ownerStruct || !sameTypeList(callTArgs, candTArgs) {
+									cand.disqualified = true
+									pc.disqualified = true
+									return
+								}
 							}
 						}
 						cand.usesOrdSetOnly = true
@@ -1461,6 +1735,7 @@ func validateSetValueConsumer(
 							kind: setOpParamArg, cand: cand, otherCand: pc, file: file, spanNode: adaptedTop,
 							outerExpr: adaptedTop, accessExpr: accessExpr,
 						})
+						cand.hasElemMutOp = true
 						markMut(cand, staticCall, parents)
 						return
 					}
@@ -1523,6 +1798,7 @@ func validateSetValueConsumer(
 				accessExpr: accessExpr, call: mCall, methodsSel: sel, unwrapsBox: unboxed != stripParens(mCall.Args[0]),
 			})
 			if !isContains {
+				cand.hasElemMutOp = true
 				markMut(cand, mCall, parents)
 			}
 		} else {
@@ -1543,6 +1819,7 @@ func validateSetValueConsumer(
 				kind: setOpAddAllSet, cand: cand, otherCand: srcCand, file: file, spanNode: mCall, outerExpr: mCall,
 				accessExpr: accessExpr, argExpr: unwrappedArg,
 			})
+			cand.hasElemMutOp = true
 			markMut(cand, mCall, parents)
 			return
 		}
@@ -1552,6 +1829,7 @@ func validateSetValueConsumer(
 			kind: setOpAddAllCol, cand: cand, file: file, spanNode: mCall, outerExpr: mCall,
 			accessExpr: accessExpr, argExpr: mCall.Args[0],
 		})
+		cand.hasElemMutOp = true
 		markMut(cand, mCall, parents)
 
 	case "Size", "IsEmpty", "HashCode":
@@ -1593,6 +1871,7 @@ func validateSetValueConsumer(
 			kind: setOpMethodDirect, cand: cand, file: file, spanNode: mCall, outerExpr: mCall,
 			accessExpr: accessExpr, methodsSel: "Clear",
 		})
+		cand.hasElemMutOp = true
 		markMut(cand, mCall, parents)
 
 	case "GetFirst":
@@ -1605,6 +1884,20 @@ func validateSetValueConsumer(
 		cand.ops = append(cand.ops, setRewriteOp{
 			kind: setOpGetFirst, cand: cand, file: file, spanNode: outerExpr, outerExpr: outerExpr, accessExpr: accessExpr,
 		})
+
+	case "Iterator":
+		if len(mCall.Args) != 0 {
+			cand.disqualified = true
+			return
+		}
+		validateSetIteratorCall(mCall, accessExpr, addressable, file, cand, parents, info, varUseCounts, markMut)
+
+	case "ForEach":
+		if !addressable || !inExprStmt || len(mCall.Args) != 1 {
+			cand.disqualified = true
+			return
+		}
+		validateSetForEachCall(mCall, accessExpr, file, cand, parents, info, varUseCounts)
 
 	default:
 		cand.disqualified = true
@@ -1809,11 +2102,14 @@ func applySetRewrites(ctx *PassContext, eligible []*setCandidate, parentsByFile 
 		if cand.isParam && cand.isExportedFn && cand.fnDecl != nil && seenExpParamFn[cand.fnDecl] == nil {
 			continue
 		}
+		if cand.isFunc && cand.isExportedFn && cand.fnDecl != nil && seenExpParamFn[cand.fnDecl] != nil {
+			cand.hasExpParamTwin = true
+		}
 		for _, op := range cand.ops {
 			switch op.kind {
 			case setOpFuncDecl:
 				funcOps = append(funcOps, op)
-			case setOpDeclField, setOpDeclParam, setOpDeclVarSpec, setOpDeclShortVar, setOpAssignInit, setOpIterCursor:
+			case setOpDeclField, setOpDeclParam, setOpDeclVarSpec, setOpDeclShortVar, setOpAssignInit, setOpIterCursor, setOpIterMethodLoop, setOpForEach:
 				stmtOps = append(stmtOps, op)
 			default:
 				exprOps = append(exprOps, op)
@@ -1854,7 +2150,7 @@ func applySetRewrites(ctx *PassContext, eligible []*setCandidate, parentsByFile 
 		tw.fnDecl.Name.Name = twinName
 		seenId := make(map[*ast.Ident]bool, len(tw.callIds))
 		for _, cid := range tw.callIds {
-			if seenId[cid] {
+			if seenId[cid] || strings.HasPrefix(cid.Name, "ordSet_") {
 				continue
 			}
 			seenId[cid] = true
@@ -1963,6 +2259,15 @@ func applySingleSetRewrite(ctx *PassContext, op setRewriteOp, parents map[ast.No
 			}
 		case setInitDirectCall:
 			return rhs
+		case setInitPtrAlias:
+			if otherCand != nil && otherCand.isPtr {
+				return argExpr
+			}
+			var addr ast.Expr = &ast.UnaryExpr{OpPos: pos, Op: token.AND, X: wrapPrimaryTarget(argExpr)}
+			if inHeader {
+				addr = &ast.ParenExpr{X: addr}
+			}
+			return addr
 		}
 		return rhs
 	}
@@ -1985,6 +2290,9 @@ func applySingleSetRewrite(ctx *PassContext, op setRewriteOp, parents map[ast.No
 		return true
 
 	case setOpParamArg:
+		if op.cand.isPtr && op.outerExpr == op.accessExpr {
+			return false
+		}
 		parent := parents[op.outerExpr]
 		var repl ast.Expr = op.accessExpr
 		if !op.cand.isPtr {
@@ -2015,12 +2323,27 @@ func applySingleSetRewrite(ctx *PassContext, op setRewriteOp, parents map[ast.No
 		return true
 
 	case setOpFuncCallRename:
+		if strings.HasPrefix(op.elemIdent.Name, "ordSet_") {
+			return false
+		}
 		op.elemIdent.Name = "ordSet_" + op.cand.fn.Name()
 		return true
 
 	case setOpReturnUnwrap:
 		parent := parents[op.outerExpr]
 		return parent != nil && replaceExprInParent(parent, op.outerExpr, op.accessExpr, parents)
+
+	case setOpToJavaStr:
+		parent := parents[op.outerExpr]
+		pos := op.outerExpr.Pos()
+		var recv ast.Expr
+		if op.cand.isPtr {
+			recv = wrapPrimaryTarget(op.accessExpr)
+		} else {
+			recv = &ast.ParenExpr{X: &ast.UnaryExpr{OpPos: pos, Op: token.AND, X: wrapPrimaryTarget(op.accessExpr)}}
+		}
+		repl := &ast.CallExpr{Fun: &ast.SelectorExpr{X: recv, Sel: &ast.Ident{NamePos: pos, Name: "String"}}}
+		return parent != nil && replaceExprInParent(parent, op.outerExpr, repl, parents)
 
 	case setOpFormatSink:
 		if op.unwrapsBox && op.cand.isPtr {
@@ -2178,10 +2501,167 @@ func applySingleSetRewrite(ctx *PassContext, op setRewriteOp, parents map[ast.No
 		op.forStmt.Body.List = append([]ast.Stmt{defStmt}, op.forStmt.Body.List[op.dropStmts:]...)
 		return true
 
+	case setOpIterMethodLoop:
+		spec := op.iterSpec
+		if spec == nil || len(spec.forStmt.Body.List) < spec.dropStmts {
+			return false
+		}
+		idx := slices.Index(spec.block.List, spec.declStmt)
+		if idx < 0 {
+			return false
+		}
+		forIdx := idx + 1
+		if spec.hasBlankIt {
+			forIdx++
+		}
+		if forIdx >= len(spec.block.List) || spec.block.List[forIdx] != spec.forStmt {
+			return false
+		}
+		curName := pickFreshIdent(spec.forStmt.Body, "ordCur_")
+		rmBufName := pickFreshIdent(spec.forStmt.Body, "ordRmBuf_")
+		rmSliceName := pickFreshIdent(spec.forStmt.Body, "ordRmSlice_")
+		rmElemName := pickFreshIdent(spec.forStmt.Body, "ordRm_")
+		pos := spec.declStmt.Pos()
+
+		for _, rmEs := range spec.removeStmts {
+			appStmt := &ast.AssignStmt{
+				Lhs: []ast.Expr{&ast.Ident{NamePos: rmEs.Pos(), Name: rmSliceName}},
+				Tok: token.ASSIGN,
+				Rhs: []ast.Expr{
+					&ast.CallExpr{
+						Fun: &ast.Ident{NamePos: rmEs.Pos(), Name: "append"},
+						Args: []ast.Expr{
+							&ast.Ident{NamePos: rmEs.Pos(), Name: rmSliceName},
+							&ast.Ident{NamePos: rmEs.Pos(), Name: spec.elemName},
+						},
+					},
+				},
+			}
+			if !replaceStmtInParent(parents[rmEs], rmEs, []ast.Stmt{appStmt}, parents) {
+				return false
+			}
+		}
+
+		defStmt := &ast.AssignStmt{
+			Lhs: []ast.Expr{&ast.Ident{NamePos: spec.elemPos, Name: spec.elemName}},
+			Tok: token.DEFINE,
+			Rhs: []ast.Expr{
+				&ast.CallExpr{
+					Fun: &ast.SelectorExpr{X: &ast.Ident{NamePos: pos, Name: curName}, Sel: &ast.Ident{NamePos: spec.elemPos, Name: "Next"}},
+				},
+			},
+		}
+		newLoopBody := append([]ast.Stmt{defStmt}, spec.forStmt.Body.List[spec.dropStmts:]...)
+		newFor := &ast.ForStmt{
+			Init: &ast.AssignStmt{
+				Lhs: []ast.Expr{&ast.Ident{NamePos: pos, Name: curName}},
+				Tok: token.DEFINE,
+				Rhs: []ast.Expr{
+					&ast.CallExpr{
+						Fun: &ast.SelectorExpr{X: methodTarget(pos), Sel: &ast.Ident{NamePos: pos, Name: "Iter"}},
+					},
+				},
+			},
+			Cond: &ast.CallExpr{
+				Fun: &ast.SelectorExpr{X: &ast.Ident{NamePos: pos, Name: curName}, Sel: &ast.Ident{NamePos: pos, Name: "HasNext"}},
+			},
+			Body: &ast.BlockStmt{List: newLoopBody},
+		}
+
+		var wrappedStmts []ast.Stmt
+		if len(spec.removeStmts) > 0 {
+			bufDecl := &ast.DeclStmt{
+				Decl: &ast.GenDecl{
+					Tok: token.VAR,
+					Specs: []ast.Spec{
+						&ast.ValueSpec{
+							Names: []*ast.Ident{{NamePos: pos, Name: rmBufName}},
+							Type:  &ast.ArrayType{Len: &ast.BasicLit{Kind: token.INT, Value: "8"}, Elt: makeElemType()},
+						},
+					},
+				},
+			}
+			sliceDecl := &ast.AssignStmt{
+				Lhs: []ast.Expr{&ast.Ident{NamePos: pos, Name: rmSliceName}},
+				Tok: token.DEFINE,
+				Rhs: []ast.Expr{
+					&ast.SliceExpr{
+						X:    &ast.Ident{NamePos: pos, Name: rmBufName},
+						High: &ast.BasicLit{Kind: token.INT, Value: "0"},
+					},
+				},
+			}
+			drainLoop := &ast.RangeStmt{
+				Key:   &ast.Ident{NamePos: pos, Name: "_"},
+				Value: &ast.Ident{NamePos: pos, Name: rmElemName},
+				Tok:   token.DEFINE,
+				X:     &ast.Ident{NamePos: pos, Name: rmSliceName},
+				Body: &ast.BlockStmt{
+					List: []ast.Stmt{
+						&ast.ExprStmt{
+							X: &ast.CallExpr{
+								Fun:  &ast.SelectorExpr{X: wrapPrimaryTarget(op.accessExpr), Sel: &ast.Ident{NamePos: pos, Name: "Remove"}},
+								Args: []ast.Expr{&ast.Ident{NamePos: pos, Name: rmElemName}},
+							},
+						},
+					},
+				},
+			}
+			wrappedStmts = []ast.Stmt{bufDecl, sliceDecl, newFor, drainLoop}
+		} else {
+			wrappedStmts = []ast.Stmt{newFor}
+		}
+		wrappedBlock := &ast.BlockStmt{List: wrappedStmts}
+		spec.block.List = append(append(append([]ast.Stmt(nil), spec.block.List[:idx]...), wrappedBlock), spec.block.List[forIdx+1:]...)
+		if parents != nil {
+			parents[wrappedBlock] = spec.block
+		}
+		return true
+
+	case setOpForEach:
+		spec := op.forEachSpec
+		if spec == nil || len(spec.fnLit.Body.List) < spec.dropStmts {
+			return false
+		}
+		pos := spec.exprStmt.Pos()
+		curName := pickFreshIdent(spec.fnLit.Body, "ordCur_")
+		defStmt := &ast.AssignStmt{
+			Lhs: []ast.Expr{&ast.Ident{NamePos: spec.paramPos, Name: spec.paramName}},
+			Tok: token.DEFINE,
+			Rhs: []ast.Expr{
+				&ast.CallExpr{
+					Fun: &ast.SelectorExpr{X: &ast.Ident{NamePos: pos, Name: curName}, Sel: &ast.Ident{NamePos: spec.paramPos, Name: "Next"}},
+				},
+			},
+		}
+		newBody := append([]ast.Stmt{defStmt}, spec.fnLit.Body.List[spec.dropStmts:]...)
+		newFor := &ast.ForStmt{
+			Init: &ast.AssignStmt{
+				Lhs: []ast.Expr{&ast.Ident{NamePos: pos, Name: curName}},
+				Tok: token.DEFINE,
+				Rhs: []ast.Expr{
+					&ast.CallExpr{
+						Fun: &ast.SelectorExpr{X: methodTarget(pos), Sel: &ast.Ident{NamePos: pos, Name: "Iter"}},
+					},
+				},
+			},
+			Cond: &ast.CallExpr{
+				Fun: &ast.SelectorExpr{X: &ast.Ident{NamePos: pos, Name: curName}, Sel: &ast.Ident{NamePos: pos, Name: "HasNext"}},
+			},
+			Body: &ast.BlockStmt{List: newBody},
+		}
+		var stmts []ast.Stmt
+		if spec.boundAs != nil {
+			stmts = []ast.Stmt{spec.boundAs, newFor}
+		} else {
+			stmts = []ast.Stmt{newFor}
+		}
+		return replaceStmtInParent(parents[spec.exprStmt], spec.exprStmt, []ast.Stmt{&ast.BlockStmt{List: stmts}}, parents)
+
 	case setOpFuncDecl:
 		fn := op.cand.fnDecl
 		ordSetType := makeOrdSetType(fn.Type.Results.Pos())
-		if !op.cand.isExportedFn {
+		if !op.cand.isExportedFn || op.cand.hasExpParamTwin {
 			fn.Type.Results.List[0].Type = ordSetType
 			return true
 		}
@@ -2193,21 +2673,44 @@ func applySingleSetRewrite(ctx *PassContext, op setRewriteOp, parents map[ast.No
 		fn.Type.Results.List[0].Type = ordSetType
 
 		twinCall := &ast.CallExpr{Fun: &ast.Ident{Name: twinName}, Args: callArgs}
+		var wrapperStmts []ast.Stmt
+		if op.cand.isPtr {
+			wrapperStmts = []ast.Stmt{
+				&ast.IfStmt{
+					Init: &ast.AssignStmt{
+						Lhs: []ast.Expr{&ast.Ident{Name: "ordRes_"}},
+						Tok: token.DEFINE,
+						Rhs: []ast.Expr{twinCall},
+					},
+					Cond: &ast.BinaryExpr{X: &ast.Ident{Name: "ordRes_"}, Op: token.NEQ, Y: &ast.Ident{Name: "nil"}},
+					Body: &ast.BlockStmt{
+						List: []ast.Stmt{
+							&ast.ReturnStmt{
+								Results: []ast.Expr{
+									&ast.CallExpr{Fun: &ast.SelectorExpr{X: &ast.Ident{Name: "ordRes_"}, Sel: &ast.Ident{Name: "ToJavaSet"}}},
+								},
+							},
+						},
+					},
+				},
+				&ast.ReturnStmt{Results: []ast.Expr{&ast.Ident{Name: "nil"}}},
+			}
+		} else {
+			wrapperStmts = []ast.Stmt{
+				&ast.ReturnStmt{
+					Results: []ast.Expr{
+						&ast.CallExpr{Fun: &ast.SelectorExpr{X: twinCall, Sel: &ast.Ident{Name: "ToJavaSet"}}},
+					},
+				},
+			}
+		}
 		wrapperDecl := &ast.FuncDecl{
 			Name: &ast.Ident{Name: origFuncName},
 			Type: &ast.FuncType{
 				Params:  &ast.FieldList{List: wrapperParams},
 				Results: wrapperResults,
 			},
-			Body: &ast.BlockStmt{
-				List: []ast.Stmt{
-					&ast.ReturnStmt{
-						Results: []ast.Expr{
-							&ast.CallExpr{Fun: &ast.SelectorExpr{X: twinCall, Sel: &ast.Ident{Name: "ToJavaSet"}}},
-						},
-					},
-				},
-			},
+			Body: &ast.BlockStmt{List: wrapperStmts},
 		}
 		op.file.Decls = append(op.file.Decls, wrapperDecl)
 		return true
@@ -2634,7 +3137,500 @@ func validateStaticSetOp(
 		accessExpr: accessExpr, argExpr: arg, methodsSel: spec.method,
 	})
 	if spec.mut {
+		cand.hasElemMutOp = true
 		markMut(cand, staticCall, parents)
 	}
 	return true
+}
+
+func unwrapIteratorAdapters(expr ast.Expr, parents map[ast.Node]ast.Node, info *types.Info) ast.Expr {
+	for {
+		if pe, ok := parents[expr].(*ast.ParenExpr); ok && pe.X == expr {
+			expr = pe
+			continue
+		}
+		call, ok := parents[expr].(*ast.CallExpr)
+		if !ok || len(call.Args) != 1 || call.Ellipsis.IsValid() || call.Args[0] != expr {
+			return expr
+		}
+		if fnName, _, _, isJ2 := isJ2gortCall(call, info); isJ2 {
+			switch fnName {
+			case "CheckNotNull", "CheckNotNullPtr", "CheckNotNullIface":
+				expr = call
+				continue
+			case "AsIface", "Cast", "UncheckedCast":
+				if named := namedOrigin(info.Types[call].Type); named != nil && named.Obj() != nil &&
+					isJ2gortPkg(named.Obj().Pkg()) && named.Obj().Name() == "Ext_java_util_Iterator" {
+					expr = call
+					continue
+				}
+			}
+		}
+		return expr
+	}
+}
+
+func matchIterNextElemStmt(
+	stmts []ast.Stmt,
+	itVar *types.Var,
+	varUseCounts map[*types.Var]int,
+	parents map[ast.Node]ast.Node,
+	info *types.Info,
+) (*ast.Ident, types.Type, int, bool) {
+	if len(stmts) == 0 {
+		return nil, nil, 0, false
+	}
+	var lhsId *ast.Ident
+	var rhsExpr ast.Expr
+	switch s := stmts[0].(type) {
+	case *ast.DeclStmt:
+		gd, ok := s.Decl.(*ast.GenDecl)
+		if !ok || gd.Tok != token.VAR || len(gd.Specs) != 1 {
+			return nil, nil, 0, false
+		}
+		vs, ok := gd.Specs[0].(*ast.ValueSpec)
+		if !ok || len(vs.Names) != 1 || len(vs.Values) != 1 {
+			return nil, nil, 0, false
+		}
+		lhsId, rhsExpr = vs.Names[0], vs.Values[0]
+	case *ast.AssignStmt:
+		if s.Tok != token.DEFINE || len(s.Lhs) != 1 || len(s.Rhs) != 1 {
+			return nil, nil, 0, false
+		}
+		id, ok := s.Lhs[0].(*ast.Ident)
+		if !ok {
+			return nil, nil, 0, false
+		}
+		lhsId, rhsExpr = id, s.Rhs[0]
+	default:
+		return nil, nil, 0, false
+	}
+	if lhsId == nil || lhsId.Name == "_" || info.Defs[lhsId] == nil {
+		return nil, nil, 0, false
+	}
+	rhsStripped := stripParens(rhsExpr)
+	if isCursorMethodCall(rhsStripped, itVar, "Next", info) {
+		rawVar := varFromObj(info.Defs[lhsId])
+		if rawVar != nil && len(stmts) >= 2 && varUseCounts[rawVar] == 1 {
+			if unboxedId, elemT, ok := matchSingleDefineUnbox(stmts[1], rawVar, parents, info); ok {
+				return unboxedId, elemT, 2, true
+			}
+		}
+		return nil, nil, 0, false
+	}
+	var foundNext *ast.CallExpr
+	ast.Inspect(rhsStripped, func(n ast.Node) bool {
+		if foundNext != nil || n == nil {
+			return false
+		}
+		if c, ok := n.(*ast.CallExpr); ok && isCursorMethodCall(c, itVar, "Next", info) {
+			foundNext = c
+			return false
+		}
+		return true
+	})
+	if foundNext == nil {
+		return nil, nil, 0, false
+	}
+	outerExpr, elemT, ok := enclosingUnboxExpr(foundNext, parents, info)
+	if !ok || stripParens(outerExpr) != rhsStripped {
+		return nil, nil, 0, false
+	}
+	return lhsId, elemT, 1, true
+}
+
+func validateSetIteratorCall(
+	mCall *ast.CallExpr,
+	accessExpr ast.Expr,
+	addressable bool,
+	file *ast.File,
+	cand *setCandidate,
+	parents map[ast.Node]ast.Node,
+	info *types.Info,
+	varUseCounts map[*types.Var]int,
+	markMut func(*setCandidate, ast.Node, map[ast.Node]ast.Node),
+) {
+	itTop := unwrapIteratorAdapters(mCall, parents, info)
+
+	// Shape A: `unbox(s.Iterator().Next())` -> `s.GetFirst()`.
+	if nextSel, ok := parents[itTop].(*ast.SelectorExpr); ok && nextSel.X == itTop && nextSel.Sel.Name == "Next" {
+		if nextCall, ok := parents[nextSel].(*ast.CallExpr); ok && nextCall.Fun == nextSel && len(nextCall.Args) == 0 && !nextCall.Ellipsis.IsValid() {
+			outerExpr, expectedT, ok := enclosingUnboxExpr(nextCall, parents, info)
+			_, outerES := parents[outerExpr].(*ast.ExprStmt)
+			if !ok || outerES || !cand.addElemType(expectedT, accessExpr, info) {
+				cand.disqualified = true
+				return
+			}
+			cand.ops = append(cand.ops, setRewriteOp{
+				kind: setOpGetFirst, cand: cand, file: file, spanNode: outerExpr, outerExpr: outerExpr, accessExpr: accessExpr,
+			})
+			return
+		}
+	}
+
+	// Shape B: `var it = [AsIface](s.Iterator()); [_ = it;] for it.HasNext() { elem := unbox(it.Next()); ... [it.Remove()] }`.
+	if !addressable {
+		cand.disqualified = true
+		return
+	}
+	var declStmt ast.Stmt
+	var itId *ast.Ident
+	switch p := parents[itTop].(type) {
+	case *ast.ValueSpec:
+		if len(p.Names) == 1 && len(p.Values) == 1 && p.Values[0] == itTop {
+			if gd, ok := parents[p].(*ast.GenDecl); ok && gd.Tok == token.VAR && len(gd.Specs) == 1 {
+				if ds, ok := parents[gd].(*ast.DeclStmt); ok {
+					declStmt = ds
+					itId = p.Names[0]
+				}
+			}
+		}
+	case *ast.AssignStmt:
+		if p.Tok == token.DEFINE && len(p.Lhs) == 1 && len(p.Rhs) == 1 && p.Rhs[0] == itTop {
+			if id, ok := p.Lhs[0].(*ast.Ident); ok {
+				declStmt = p
+				itId = id
+			}
+		}
+	}
+	if declStmt == nil || itId == nil || itId.Name == "_" {
+		cand.disqualified = true
+		return
+	}
+	itVar := varFromObj(info.Defs[itId])
+	block, _ := parents[declStmt].(*ast.BlockStmt)
+	if itVar == nil || block == nil {
+		cand.disqualified = true
+		return
+	}
+	idx := slices.Index(block.List, declStmt)
+	if idx < 0 || idx+1 >= len(block.List) {
+		cand.disqualified = true
+		return
+	}
+	hasBlankIt := false
+	forIdx := idx + 1
+	if asBlank, ok := block.List[forIdx].(*ast.AssignStmt); ok && asBlank.Tok == token.ASSIGN && len(asBlank.Lhs) == 1 && len(asBlank.Rhs) == 1 {
+		if bId, ok1 := stripParens(asBlank.Lhs[0]).(*ast.Ident); ok1 && bId.Name == "_" {
+			if rId, ok2 := stripParens(asBlank.Rhs[0]).(*ast.Ident); ok2 && varFromObj(info.Uses[rId]) == itVar {
+				hasBlankIt = true
+				forIdx++
+			}
+		}
+	}
+	if forIdx >= len(block.List) {
+		cand.disqualified = true
+		return
+	}
+	forStmt, ok := block.List[forIdx].(*ast.ForStmt)
+	if !ok || forStmt.Init != nil || forStmt.Post != nil || forStmt.Cond == nil || forStmt.Body == nil || !isCursorMethodCall(forStmt.Cond, itVar, "HasNext", info) {
+		cand.disqualified = true
+		return
+	}
+	elemId, elemT, drop, elemOK := matchIterNextElemStmt(forStmt.Body.List, itVar, varUseCounts, parents, info)
+	if !elemOK || !cand.addElemType(elemT, accessExpr, info) {
+		cand.disqualified = true
+		return
+	}
+
+	var removeStmts []*ast.ExprStmt
+	valid := true
+	for _, st := range forStmt.Body.List[drop:] {
+		ast.Inspect(st, func(n ast.Node) bool {
+			if !valid || n == nil {
+				return false
+			}
+			if _, isLit := n.(*ast.FuncLit); isLit {
+				ast.Inspect(n, func(inner ast.Node) bool {
+					if uid, ok := inner.(*ast.Ident); ok && varFromObj(info.Uses[uid]) == itVar {
+						valid = false
+						return false
+					}
+					return true
+				})
+				return false
+			}
+			uid, ok := n.(*ast.Ident)
+			if !ok || varFromObj(info.Uses[uid]) != itVar {
+				return true
+			}
+			sel, selOK := parents[uid].(*ast.SelectorExpr)
+			if !selOK || sel.X != uid || sel.Sel.Name != "Remove" {
+				valid = false
+				return false
+			}
+			rc, rcOK := parents[sel].(*ast.CallExpr)
+			if !rcOK || rc.Fun != sel || len(rc.Args) != 0 || rc.Ellipsis.IsValid() {
+				valid = false
+				return false
+			}
+			es, esOK := parents[rc].(*ast.ExprStmt)
+			if !esOK {
+				valid = false
+				return false
+			}
+			removeStmts = append(removeStmts, es)
+			return true
+		})
+	}
+	baseUses := 2
+	if hasBlankIt {
+		baseUses = 3
+	}
+	if !valid || baseUses+len(removeStmts) != varUseCounts[itVar] {
+		cand.disqualified = true
+		return
+	}
+
+	if len(removeStmts) > 0 {
+		elemVar := varFromObj(info.Defs[elemId])
+		if elemVar == nil || !isIterRemoveBufferSafe(forStmt.Body.List[drop:], elemVar, accessExpr, cand.v, info) {
+			cand.disqualified = true
+			return
+		}
+		cand.usesOrdSetOnly = true
+		cand.hasElemMutOp = true
+		cand.spellSites = append(cand.spellSites, typeSpellSite{file: file, pos: declStmt.Pos(), accessExpr: accessExpr, owner: cand.ownerStruct, recvTArgs: cand.recvTArgs})
+		markMut(cand, forStmt, parents)
+	}
+
+	cand.loopBodies = append(cand.loopBodies, forStmt.Body)
+	cand.ops = append(cand.ops, setRewriteOp{
+		kind: setOpIterMethodLoop, cand: cand, file: file, spanNode: forStmt, accessExpr: accessExpr,
+		iterSpec: &setIterMethodSpec{
+			block:       block,
+			declStmt:    declStmt,
+			hasBlankIt:  hasBlankIt,
+			forStmt:     forStmt,
+			elemName:    elemId.Name,
+			elemPos:     elemId.Pos(),
+			dropStmts:   drop,
+			removeStmts: removeStmts,
+		},
+	})
+}
+
+func isIterRemoveBufferSafe(stmts []ast.Stmt, elemVar *types.Var, accessExpr ast.Expr, candVar *types.Var, info *types.Info) bool {
+	var recvVar *types.Var
+	if sel, ok := stripParens(accessExpr).(*ast.SelectorExpr); ok {
+		if rid, ok := stripParens(sel.X).(*ast.Ident); ok {
+			recvVar = varFromObj(info.Uses[rid])
+		} else {
+			return false
+		}
+	}
+	safe := true
+	for _, st := range stmts {
+		ast.Inspect(st, func(n ast.Node) bool {
+			if !safe || n == nil {
+				return false
+			}
+			if _, isLit := n.(*ast.FuncLit); isLit {
+				return false
+			}
+			switch x := n.(type) {
+			case *ast.ReturnStmt:
+				safe = false
+				return false
+			case *ast.BranchStmt:
+				if x.Tok == token.GOTO || x.Label != nil {
+					safe = false
+					return false
+				}
+			case *ast.AssignStmt:
+				for _, lhs := range x.Lhs {
+					if id, ok := stripParens(lhs).(*ast.Ident); ok && varFromObj(info.Uses[id]) == elemVar {
+						safe = false
+						return false
+					}
+				}
+			case *ast.IncDecStmt:
+				if id, ok := stripParens(x.X).(*ast.Ident); ok && varFromObj(info.Uses[id]) == elemVar {
+					safe = false
+					return false
+				}
+			case *ast.Ident:
+				uv := varFromObj(info.Uses[x])
+				if uv != nil && (uv == candVar || (recvVar != nil && uv == recvVar)) {
+					safe = false
+					return false
+				}
+			}
+			return true
+		})
+	}
+	return safe
+}
+
+func matchForEachConsumerLambda(
+	mCall *ast.CallExpr,
+	parents map[ast.Node]ast.Node,
+	info *types.Info,
+	varUseCounts map[*types.Var]int,
+) (es *ast.ExprStmt, boundAs *ast.AssignStmt, fnLit *ast.FuncLit, paramName string, paramPos token.Pos, drop int, elemTypes []types.Type, unboxOps []struct {
+	outer ast.Expr
+	id    *ast.Ident
+}, ok bool) {
+	exprStmt, isES := parents[mCall].(*ast.ExprStmt)
+	if !isES || len(mCall.Args) != 1 || mCall.Ellipsis.IsValid() {
+		return nil, nil, nil, "", 0, 0, nil, nil, false
+	}
+	lambdaArg := stripParens(mCall.Args[0])
+	if iifeCall, isCall := lambdaArg.(*ast.CallExpr); isCall && len(iifeCall.Args) == 0 && !iifeCall.Ellipsis.IsValid() {
+		if iifeLit, isLit := stripParens(iifeCall.Fun).(*ast.FuncLit); isLit && iifeLit.Body != nil {
+			switch len(iifeLit.Body.List) {
+			case 1:
+				if ret, isRet := iifeLit.Body.List[0].(*ast.ReturnStmt); isRet && len(ret.Results) == 1 {
+					lambdaArg = stripParens(ret.Results[0])
+				}
+			case 2:
+				as0, ok0 := iifeLit.Body.List[0].(*ast.AssignStmt)
+				ret1, ok1 := iifeLit.Body.List[1].(*ast.ReturnStmt)
+				if ok0 && ok1 && as0.Tok == token.DEFINE && len(as0.Lhs) == 1 && len(as0.Rhs) == 1 && len(ret1.Results) == 1 {
+					if bId, isId := as0.Lhs[0].(*ast.Ident); isId && bId.Name != "_" {
+						boundAs = as0
+						lambdaArg = stripParens(ret1.Results[0])
+					}
+				}
+			}
+		}
+	}
+	consCall, isCons := lambdaArg.(*ast.CallExpr)
+	if !isCons || len(consCall.Args) != 1 || consCall.Ellipsis.IsValid() {
+		return nil, nil, nil, "", 0, 0, nil, nil, false
+	}
+	fnName, _, _, isJ2 := isJ2gortCall(consCall, info)
+	if !isJ2 || fnName != "NewLambda_Ext_java_util_function_Consumer" {
+		return nil, nil, nil, "", 0, 0, nil, nil, false
+	}
+	fl, isFL := stripParens(consCall.Args[0]).(*ast.FuncLit)
+	if !isFL || fl.Body == nil || fl.Type.Params == nil || len(fl.Type.Params.List) != 1 || len(fl.Type.Params.List[0].Names) != 1 ||
+		(fl.Type.Results != nil && len(fl.Type.Results.List) > 0) {
+		return nil, nil, nil, "", 0, 0, nil, nil, false
+	}
+	pId := fl.Type.Params.List[0].Names[0]
+	pVar := varFromObj(info.Defs[pId])
+	if pId.Name == "_" || pVar == nil || varUseCounts[pVar] == 0 {
+		return nil, nil, nil, "", 0, 0, nil, nil, false
+	}
+	// Reject top-level `return` inside the Consumer lambda (`return` in Java Consumer means `continue`).
+	hasReturn := false
+	ast.Inspect(fl.Body, func(n ast.Node) bool {
+		if hasReturn || n == nil {
+			return false
+		}
+		if nested, isLit := n.(*ast.FuncLit); isLit && nested != fl {
+			return false
+		}
+		if _, isRet := n.(*ast.ReturnStmt); isRet {
+			hasReturn = true
+			return false
+		}
+		return true
+	})
+	if hasReturn {
+		return nil, nil, nil, "", 0, 0, nil, nil, false
+	}
+
+	if len(fl.Body.List) >= 1 && varUseCounts[pVar] == 1 {
+		if unboxedId, elemT, uOK := matchSingleDefineUnbox(fl.Body.List[0], pVar, parents, info); uOK {
+			return exprStmt, boundAs, fl, unboxedId.Name, unboxedId.Pos(), 1, []types.Type{elemT}, nil, true
+		}
+	}
+
+	valid := true
+	ast.Inspect(fl.Body, func(n ast.Node) bool {
+		if !valid || n == nil {
+			return false
+		}
+		uid, isId := n.(*ast.Ident)
+		if !isId || varFromObj(info.Uses[uid]) != pVar {
+			return true
+		}
+		if as, isAs := parents[uid].(*ast.AssignStmt); isAs && as.Tok == token.ASSIGN && len(as.Lhs) == 1 && len(as.Rhs) == 1 && as.Rhs[0] == uid {
+			if lhsBlank, isBlank := stripParens(as.Lhs[0]).(*ast.Ident); isBlank && lhsBlank.Name == "_" {
+				return true
+			}
+		}
+		outerExpr, expectedT, uOK := enclosingUnboxExpr(uid, parents, info)
+		_, outerES := parents[outerExpr].(*ast.ExprStmt)
+		if !uOK || outerES {
+			valid = false
+			return false
+		}
+		elemTypes = append(elemTypes, expectedT)
+		if outerExpr != uid {
+			unboxOps = append(unboxOps, struct {
+				outer ast.Expr
+				id    *ast.Ident
+			}{outer: outerExpr, id: uid})
+		}
+		return true
+	})
+	if !valid || len(elemTypes) == 0 {
+		return nil, nil, nil, "", 0, 0, nil, nil, false
+	}
+	return exprStmt, boundAs, fl, pId.Name, pId.Pos(), 0, elemTypes, unboxOps, true
+}
+
+func validateSetForEachCall(
+	mCall *ast.CallExpr,
+	accessExpr ast.Expr,
+	file *ast.File,
+	cand *setCandidate,
+	parents map[ast.Node]ast.Node,
+	info *types.Info,
+	varUseCounts map[*types.Var]int,
+) {
+	es, boundAs, fnLit, paramName, paramPos, drop, elemTypes, unboxOps, ok := matchForEachConsumerLambda(mCall, parents, info, varUseCounts)
+	if !ok {
+		cand.disqualified = true
+		return
+	}
+	for _, et := range elemTypes {
+		if !cand.addElemType(et, accessExpr, info) {
+			cand.disqualified = true
+			return
+		}
+	}
+	for _, uo := range unboxOps {
+		cand.ops = append(cand.ops, setRewriteOp{
+			kind: setOpRawUnbox, cand: cand, file: file, spanNode: uo.outer, outerExpr: uo.outer, elemIdent: uo.id,
+		})
+	}
+	cand.loopBodies = append(cand.loopBodies, fnLit.Body)
+	cand.ops = append(cand.ops, setRewriteOp{
+		kind: setOpForEach, cand: cand, file: file, spanNode: es, accessExpr: accessExpr,
+		forEachSpec: &setForEachSpec{
+			exprStmt:  es,
+			boundAs:   boundAs,
+			fnLit:     fnLit,
+			paramName: paramName,
+			paramPos:  paramPos,
+			dropStmts: drop,
+		},
+	})
+}
+
+func pickFreshIdent(scopeNode ast.Node, base string) string {
+	used := make(map[string]bool)
+	ast.Inspect(scopeNode, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok {
+			used[id.Name] = true
+		}
+		return true
+	})
+	if !used[base] {
+		return base
+	}
+	for i := 2; ; i++ {
+		cand := base + string(rune('0'+i%10))
+		if i >= 10 {
+			cand = base + "x"
+		}
+		if !used[cand] {
+			return cand
+		}
+		base += "_"
+	}
 }

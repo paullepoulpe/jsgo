@@ -357,7 +357,7 @@ func (this_ *JSChunk) GetIndex() int32 {
 }
 
 // Java method: JSChunk.readObject(java.io.ObjectInputStream in)
-func (this_ *JSChunk) priv_JSChunk_readObject_3518(in *j2gort.Ext_java_io_ObjectInputStream) {
+func (this_ *JSChunk) priv_JSChunk_readObject_3524(in *j2gort.Ext_java_io_ObjectInputStream) {
 	_ = in
 	in.DefaultReadObject()
 	this_.inputs = j2gort.NewOrderedMap[string, *CompilerInput]()

@@ -153,7 +153,7 @@ func (this_ *Es6RewriteSpreadExpressions) Visit_3(traversal *NodeTraversal, curr
 			_ = child
 			for ; child != 0; child = child.GetNext() {
 				if child.IsSpread() {
-					this_.priv_Es6RewriteSpreadExpressions_visitArrayLitOrCallWithSpread_2767(traversal, current)
+					this_.priv_Es6RewriteSpreadExpressions_visitArrayLitOrCallWithSpread_2770(traversal, current)
 					break
 				}
 			}
@@ -162,23 +162,23 @@ func (this_ *Es6RewriteSpreadExpressions) Visit_3(traversal *NodeTraversal, curr
 }
 
 // Java method: Es6RewriteSpreadExpressions.visitArrayLitOrCallWithSpread(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node spreadParent)
-func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_visitArrayLitOrCallWithSpread_2767(t *NodeTraversal, spreadParent pkg_rhino.Node) {
+func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_visitArrayLitOrCallWithSpread_2770(t *NodeTraversal, spreadParent pkg_rhino.Node) {
 	_ = t
 	_ = spreadParent
 	if spreadParent.IsArrayLit() {
-		this_.priv_Es6RewriteSpreadExpressions_visitArrayLitContainingSpread_2769(spreadParent)
+		this_.priv_Es6RewriteSpreadExpressions_visitArrayLitContainingSpread_2772(spreadParent)
 	} else if spreadParent.IsCall() {
-		this_.priv_Es6RewriteSpreadExpressions_visitCallContainingSpread_2770(t, spreadParent)
+		this_.priv_Es6RewriteSpreadExpressions_visitCallContainingSpread_2773(t, spreadParent)
 	} else {
 		if !(spreadParent.IsNew()) {
 			j2gort.CheckArgumentMsg(false, j2gort.BoxNode(spreadParent))
 		}
-		this_.priv_Es6RewriteSpreadExpressions_visitNewWithSpread_2772(spreadParent)
+		this_.priv_Es6RewriteSpreadExpressions_visitNewWithSpread_2775(spreadParent)
 	}
 }
 
 // Java method: Es6RewriteSpreadExpressions.extractSpreadGroups(com.google.javascript.rhino.Node spreadParent)
-func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_extractSpreadGroups_2768(spreadParent pkg_rhino.Node) j2gort.Ext_java_util_List {
+func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_extractSpreadGroups_2771(spreadParent pkg_rhino.Node) j2gort.Ext_java_util_List {
 	_ = spreadParent
 	if !((spreadParent.IsCall() || spreadParent.IsArrayLit()) || spreadParent.IsNew()) {
 		j2gort.CheckArgument(false)
@@ -222,12 +222,12 @@ func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_extra
 }
 
 // Java method: Es6RewriteSpreadExpressions.visitArrayLitContainingSpread(com.google.javascript.rhino.Node spreadParent)
-func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_visitArrayLitContainingSpread_2769(spreadParent pkg_rhino.Node) {
+func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_visitArrayLitContainingSpread_2772(spreadParent pkg_rhino.Node) {
 	_ = spreadParent
 	if !(spreadParent.IsArrayLit()) {
 		j2gort.CheckArgument(false)
 	}
-	var groups j2gort.Ext_java_util_List = this_.priv_Es6RewriteSpreadExpressions_extractSpreadGroups_2768(spreadParent)
+	var groups j2gort.Ext_java_util_List = this_.priv_Es6RewriteSpreadExpressions_extractSpreadGroups_2771(spreadParent)
 	_ = groups
 	var baseArrayLit pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = baseArrayLit
@@ -271,7 +271,7 @@ func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_visit
 }
 
 // Java method: Es6RewriteSpreadExpressions.visitCallContainingSpread(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node spreadParent)
-func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_visitCallContainingSpread_2770(t *NodeTraversal, spreadParent pkg_rhino.Node) {
+func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_visitCallContainingSpread_2773(t *NodeTraversal, spreadParent pkg_rhino.Node) {
 	_ = t
 	_ = spreadParent
 	if !(spreadParent.IsCall()) {
@@ -290,10 +290,10 @@ func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_visit
 	}
 	var joinedGroups pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = joinedGroups
-	if spreadParent.HasOneChild() && this_.priv_Es6RewriteSpreadExpressions_isSpreadOfArguments_2771(spreadParent.GetOnlyChild()) {
+	if spreadParent.HasOneChild() && this_.priv_Es6RewriteSpreadExpressions_isSpreadOfArguments_2774(spreadParent.GetOnlyChild()) {
 		joinedGroups = spreadParent.RemoveFirstChild().RemoveFirstChild()
 	} else {
-		var groups j2gort.Ext_java_util_List = this_.priv_Es6RewriteSpreadExpressions_extractSpreadGroups_2768(spreadParent)
+		var groups j2gort.Ext_java_util_List = this_.priv_Es6RewriteSpreadExpressions_extractSpreadGroups_2771(spreadParent)
 		_ = groups
 		if !(!(groups.IsEmpty())) {
 			j2gort.CheckState(false)
@@ -365,20 +365,20 @@ func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_visit
 }
 
 // Java method: Es6RewriteSpreadExpressions.isSpreadOfArguments(com.google.javascript.rhino.Node n)
-func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_isSpreadOfArguments_2771(n pkg_rhino.Node) bool {
+func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_isSpreadOfArguments_2774(n pkg_rhino.Node) bool {
 	_ = n
 	return (n.IsSpread() && n.GetOnlyChild().MatchesName_1_string("arguments"))
 }
 
 // Java method: Es6RewriteSpreadExpressions.visitNewWithSpread(com.google.javascript.rhino.Node spreadParent)
-func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_visitNewWithSpread_2772(spreadParent pkg_rhino.Node) {
+func (this_ *Es6RewriteSpreadExpressions) priv_Es6RewriteSpreadExpressions_visitNewWithSpread_2775(spreadParent pkg_rhino.Node) {
 	_ = spreadParent
 	if !(spreadParent.IsNew()) {
 		j2gort.CheckArgument(false)
 	}
 	var callee pkg_rhino.Node = spreadParent.RemoveFirstChild()
 	_ = callee
-	var groups j2gort.Ext_java_util_List = this_.priv_Es6RewriteSpreadExpressions_extractSpreadGroups_2768(spreadParent)
+	var groups j2gort.Ext_java_util_List = this_.priv_Es6RewriteSpreadExpressions_extractSpreadGroups_2771(spreadParent)
 	_ = groups
 	var baseArrayLit pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = baseArrayLit

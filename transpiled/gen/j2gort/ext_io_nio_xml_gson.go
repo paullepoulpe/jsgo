@@ -396,17 +396,115 @@ func asWriter(ext Ext_java_io_Writer) javaio.Writer {
 	return &extWriterAdapter{ext: ext}
 }
 
+var extReaderOneBufPool_ = sync.Pool{
+	New: func() any { return new([1]uint16) },
+}
+
+func extBufferedReaderReadOne(r *Ext_java_io_BufferedReader) int32 {
+	if r == nil {
+		ThrowNPE()
+	}
+	if br, ok := r.Core_.(*javaio.BufferedReader); ok && br != nil {
+		if br.Read(r.oneBuf_[:], 0, 1) > 0 {
+			return int32(r.oneBuf_[0])
+		}
+		return -1
+	}
+	return extReaderReadOneBase(&r.Ext_java_io_ReaderBase)
+}
+
+func extStringReaderReadOne(r *Ext_java_io_StringReader) int32 {
+	if r == nil {
+		ThrowNPE()
+	}
+	if sr, ok := r.Core_.(*javaio.StringReader); ok && sr != nil {
+		if ch, ok2 := sr.ReadChar(); ok2 {
+			return int32(ch)
+		}
+		return -1
+	}
+	return extReaderReadOneBase(&r.Ext_java_io_ReaderBase)
+}
+
+func extInputStreamReaderReadOne(r *Ext_java_io_InputStreamReader) int32 {
+	if r == nil {
+		ThrowNPE()
+	}
+	if isr, ok := r.Core_.(*javaio.InputStreamReader); ok && isr != nil {
+		if isr.Read(r.oneBuf_[:], 0, 1) > 0 {
+			return int32(r.oneBuf_[0])
+		}
+		return -1
+	}
+	return extReaderReadOneBase(&r.Ext_java_io_ReaderBase)
+}
+
+func extReaderReadOneBase(b *Ext_java_io_ReaderBase) int32 {
+	if b == nil {
+		ThrowNPE()
+	}
+	switch r := b.Core_.(type) {
+	case nil:
+		return -1
+	case *javaio.BufferedReader:
+		if r == nil || r.Read(b.oneBuf_[:], 0, 1) <= 0 {
+			return -1
+		}
+		return int32(b.oneBuf_[0])
+	case *javaio.StringReader:
+		if r != nil {
+			if ch, ok := r.ReadChar(); ok {
+				return int32(ch)
+			}
+		}
+		return -1
+	case *javaio.InputStreamReader:
+		if r == nil || r.Read(b.oneBuf_[:], 0, 1) <= 0 {
+			return -1
+		}
+		return int32(b.oneBuf_[0])
+	case javaio.Reader:
+		if r.Read(b.oneBuf_[:], 0, 1) <= 0 {
+			return -1
+		}
+		return int32(b.oneBuf_[0])
+	default:
+		return -1
+	}
+}
+
 func extReaderReadOne(core any) int32 {
-	r, ok := core.(javaio.Reader)
-	if !ok || r == nil {
+	switch r := core.(type) {
+	case nil:
+		return -1
+	case *javaio.StringReader:
+		if r != nil {
+			if ch, ok := r.ReadChar(); ok {
+				return int32(ch)
+			}
+		}
+		return -1
+	case *javaio.InputStreamReader:
+		if r == nil {
+			return -1
+		}
+		var buf [1]uint16
+		if r.Read(buf[:], 0, 1) <= 0 {
+			return -1
+		}
+		return int32(buf[0])
+	case javaio.Reader:
+		p := extReaderOneBufPool_.Get().(*[1]uint16)
+		n := r.Read(p[:], 0, 1)
+		c := int32(-1)
+		if n > 0 {
+			c = int32(p[0])
+		}
+		extReaderOneBufPool_.Put(p)
+		return c
+	default:
 		return -1
 	}
-	var buf [1]uint16
-	n := r.Read(buf[:], 0, 1)
-	if n <= 0 {
-		return -1
-	}
-	return int32(buf[0])
 }
 
 func extBufferedReaderReadLine(core any) string {

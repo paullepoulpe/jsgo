@@ -97,7 +97,7 @@ func (this_ *FunctionToBlockMutator) Mutate(fnName string, fnNode pkg_rhino.Node
 	_ = resultName
 	_ = needsDefaultResult
 	_ = isCallInLoop
-	return this_.priv_FunctionToBlockMutator_mutateInternal_2956(fnName, fnNode, callNode, resultName, needsDefaultResult, isCallInLoop, true)
+	return this_.priv_FunctionToBlockMutator_mutateInternal_2959(fnName, fnNode, callNode, resultName, needsDefaultResult, isCallInLoop, true)
 }
 
 // Java method: FunctionToBlockMutator.mutateWithoutRenaming(java.lang.String fnName, com.google.javascript.rhino.Node fnNode, com.google.javascript.rhino.Node callNode, java.lang.String resultName, boolean needsDefaultResult, boolean isCallInLoop)
@@ -108,11 +108,11 @@ func (this_ *FunctionToBlockMutator) MutateWithoutRenaming(fnName string, fnNode
 	_ = resultName
 	_ = needsDefaultResult
 	_ = isCallInLoop
-	return this_.priv_FunctionToBlockMutator_mutateInternal_2956(fnName, fnNode, callNode, resultName, needsDefaultResult, isCallInLoop, false)
+	return this_.priv_FunctionToBlockMutator_mutateInternal_2959(fnName, fnNode, callNode, resultName, needsDefaultResult, isCallInLoop, false)
 }
 
 // Java method: FunctionToBlockMutator.mutateInternal(java.lang.String fnName, com.google.javascript.rhino.Node fnNode, com.google.javascript.rhino.Node callNode, java.lang.String resultName, boolean needsDefaultResult, boolean isCallInLoop, boolean renameLocals)
-func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_mutateInternal_2956(fnName string, fnNode pkg_rhino.Node, callNode pkg_rhino.Node, resultName string, needsDefaultResult bool, isCallInLoop bool, renameLocals bool) pkg_rhino.Node {
+func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_mutateInternal_2959(fnName string, fnNode pkg_rhino.Node, callNode pkg_rhino.Node, resultName string, needsDefaultResult bool, isCallInLoop bool, renameLocals bool) pkg_rhino.Node {
 	_ = fnName
 	_ = fnNode
 	_ = callNode
@@ -124,7 +124,7 @@ func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_mutateInternal_
 	_ = newFnNode
 	pkg_rhino.IR_Root([]pkg_rhino.Node{pkg_rhino.IR_Script_1_Node([]pkg_rhino.Node{newFnNode})})
 	if renameLocals {
-		this_.priv_FunctionToBlockMutator_makeLocalNamesUnique_2957(newFnNode, isCallInLoop)
+		this_.priv_FunctionToBlockMutator_makeLocalNamesUnique_2960(newFnNode, isCallInLoop)
 		FunctionToBlockMutator_RewriteFunctionDeclarations(newFnNode.GetLastChild())
 	}
 	var modifiedParameters j2gort.Ext_com_google_common_collect_ImmutableSet = this_.functionArgumentInjector.FindModifiedParameters(newFnNode)
@@ -155,7 +155,7 @@ func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_mutateInternal_
 		newBlock = NodeUtil_GetFunctionBody(newFnNode)
 		newBlock.Detach()
 		if hasArgs {
-			var inlineResult pkg_rhino.Node = this_.priv_FunctionToBlockMutator_aliasAndInlineArguments_2960(newBlock, args, j2gort.AsIface[j2gort.Ext_java_util_Set](allNamesToAlias))
+			var inlineResult pkg_rhino.Node = this_.priv_FunctionToBlockMutator_aliasAndInlineArguments_2963(newBlock, args, j2gort.AsIface[j2gort.Ext_java_util_Set](allNamesToAlias))
 			_ = inlineResult
 			if !(newBlock == inlineResult) {
 				j2gort.CheckState(false)
@@ -165,7 +165,7 @@ func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_mutateInternal_
 	if isCallInLoop {
 		FunctionToBlockMutator_FixUninitializedVarDeclarations_2(newBlock, newBlock)
 	}
-	var labelName string = this_.priv_FunctionToBlockMutator_getLabelNameForFunction_2958(fnName)
+	var labelName string = this_.priv_FunctionToBlockMutator_getLabelNameForFunction_2961(fnName)
 	_ = labelName
 	var injectableBlock pkg_rhino.Node = FunctionToBlockMutator_ReplaceReturns(newBlock, resultName, labelName, needsDefaultResult)
 	_ = injectableBlock
@@ -309,7 +309,7 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarations_3(n pkg_rhino.Node, 
 }
 
 // Java method: FunctionToBlockMutator.makeLocalNamesUnique(com.google.javascript.rhino.Node fnNode, boolean isCallInLoop)
-func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_makeLocalNamesUnique_2957(fnNode pkg_rhino.Node, isCallInLoop bool) {
+func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_makeLocalNamesUnique_2960(fnNode pkg_rhino.Node, isCallInLoop bool) {
 	_ = fnNode
 	_ = isCallInLoop
 	var idSupplier j2gort.Ext_java_util_function_Supplier = j2gort.AsIface[j2gort.Ext_java_util_function_Supplier](this_.compiler.GetUniqueNameIdSupplier())
@@ -323,7 +323,7 @@ func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_makeLocalNamesU
 }
 
 // Java method: FunctionToBlockMutator.getLabelNameForFunction(java.lang.String fnName)
-func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_getLabelNameForFunction_2958(fnName string) string {
+func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_getLabelNameForFunction_2961(fnName string) string {
 	_ = fnName
 	var name string
 	_ = name
@@ -336,12 +336,12 @@ func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_getLabelNameFor
 }
 
 // Java method: FunctionToBlockMutator.getUniqueThisName()
-func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_getUniqueThisName_2959() string {
+func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_getUniqueThisName_2962() string {
 	return ("JSCompiler_inline_this_" + j2gort.StrValString(j2gort.CastString(this_.safeNameIdSupplier.Get())))
 }
 
 // Java method: FunctionToBlockMutator.aliasAndInlineArguments(com.google.javascript.rhino.Node fnTemplateRoot, com.google.javascript.jscomp.FunctionArgumentInjector.ParamArgList paramToArgMap, java.util.Set<java.lang.String> namesToAlias)
-func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_aliasAndInlineArguments_2960(fnTemplateRoot pkg_rhino.Node, paramToArgMap *FunctionArgumentInjector_ParamArgList, namesToAlias j2gort.Ext_java_util_Set) pkg_rhino.Node {
+func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_aliasAndInlineArguments_2963(fnTemplateRoot pkg_rhino.Node, paramToArgMap *FunctionArgumentInjector_ParamArgList, namesToAlias j2gort.Ext_java_util_Set) pkg_rhino.Node {
 	_ = fnTemplateRoot
 	_ = paramToArgMap
 	_ = namesToAlias
@@ -384,7 +384,7 @@ func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_aliasAndInlineA
 						var replacement pkg_rhino.Node = originalValue
 						_ = replacement
 						if !(originalValue.IsThis()) && (referencesThis || this_.compiler.GetAstAnalyzer().MayHaveSideEffects(originalValue)) {
-							var newName string = this_.priv_FunctionToBlockMutator_getUniqueThisName_2959()
+							var newName string = this_.priv_FunctionToBlockMutator_getUniqueThisName_2962()
 							_ = newName
 							var newValue pkg_rhino.Node = originalValue.CloneTree_0()
 							_ = newValue

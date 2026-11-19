@@ -182,7 +182,7 @@ func (this_ *CheckGlobalThis) Visit_3(unused *NodeTraversal, n pkg_rhino.Node, p
 	_ = unused
 	_ = n
 	_ = parent
-	if n.IsThis() && this_.priv_CheckGlobalThis_shouldReportThis_1054(n) {
+	if n.IsThis() && this_.priv_CheckGlobalThis_shouldReportThis_1055(n) {
 		this_.compiler.Report_1(JSError_Make_3(n, StaticGet_CheckGlobalThis_GLOBAL_THIS(), []string{}))
 	}
 	if n == this_.assignLhsChild {
@@ -191,7 +191,7 @@ func (this_ *CheckGlobalThis) Visit_3(unused *NodeTraversal, n pkg_rhino.Node, p
 }
 
 // Java method: CheckGlobalThis.shouldReportThis(com.google.javascript.rhino.Node n)
-func (this_ *CheckGlobalThis) priv_CheckGlobalThis_shouldReportThis_1054(n pkg_rhino.Node) bool {
+func (this_ *CheckGlobalThis) priv_CheckGlobalThis_shouldReportThis_1055(n pkg_rhino.Node) bool {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent

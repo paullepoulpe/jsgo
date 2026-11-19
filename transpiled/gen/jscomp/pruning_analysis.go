@@ -100,15 +100,15 @@ func PruningAnalysis_Create(sorter *SortedDependencies, entryPoints j2gort.Ext_j
 
 // Java method: PruningAnalysis.analyze()
 func (this_ *PruningAnalysis) Analyze() *PruningAnalysis_Result {
-	var total j2gort.Ext_com_google_common_collect_ImmutableMap = this_.priv_PruningAnalysis_calculateTotalBlame_4560()
+	var total j2gort.Ext_com_google_common_collect_ImmutableMap = this_.priv_PruningAnalysis_calculateTotalBlame_4566()
 	_ = total
-	var bottlenecks j2gort.Ext_com_google_common_collect_ImmutableMap = this_.priv_PruningAnalysis_calculateBottlenecks_4561()
+	var bottlenecks j2gort.Ext_com_google_common_collect_ImmutableMap = this_.priv_PruningAnalysis_calculateBottlenecks_4567()
 	_ = bottlenecks
 	return NewPruningAnalysis_Result(total, bottlenecks)
 }
 
 // Java method: PruningAnalysis.calculateTotalBlame()
-func (this_ *PruningAnalysis) priv_PruningAnalysis_calculateTotalBlame_4560() j2gort.Ext_com_google_common_collect_ImmutableMap {
+func (this_ *PruningAnalysis) priv_PruningAnalysis_calculateTotalBlame_4566() j2gort.Ext_com_google_common_collect_ImmutableMap {
 	var reachabilityPerEntryPoint j2gort.Ext_com_google_common_collect_ImmutableMap_Builder = j2gort.Ext_com_google_common_collect_ImmutableMap_S_Builder()
 	_ = reachabilityPerEntryPoint
 	{
@@ -126,8 +126,8 @@ func (this_ *PruningAnalysis) priv_PruningAnalysis_calculateTotalBlame_4560() j2
 }
 
 // Java method: PruningAnalysis.calculateBottlenecks()
-func (this_ *PruningAnalysis) priv_PruningAnalysis_calculateBottlenecks_4561() j2gort.Ext_com_google_common_collect_ImmutableMap {
-	var graph pkg_graph.DiGraph[string, string] = this_.priv_PruningAnalysis_buildGraph_4562()
+func (this_ *PruningAnalysis) priv_PruningAnalysis_calculateBottlenecks_4567() j2gort.Ext_com_google_common_collect_ImmutableMap {
+	var graph pkg_graph.DiGraph[string, string] = this_.priv_PruningAnalysis_buildGraph_4568()
 	_ = graph
 	var dominatorTree *pkg_graph.DominatorTree[string] = pkg_graph.DominatorTree_Compute[string, string](graph, "ENTRY POINTS ROOT")
 	_ = dominatorTree
@@ -158,7 +158,7 @@ func (this_ *PruningAnalysis) priv_PruningAnalysis_calculateBottlenecks_4561() j
 }
 
 // Java method: PruningAnalysis.buildGraph()
-func (this_ *PruningAnalysis) priv_PruningAnalysis_buildGraph_4562() pkg_graph.DiGraph[string, string] {
+func (this_ *PruningAnalysis) priv_PruningAnalysis_buildGraph_4568() pkg_graph.DiGraph[string, string] {
 	var graph pkg_graph.DiGraph[string, string] = j2gort.AsIface[pkg_graph.DiGraph[string, string]](pkg_graph.LinkedDirectedGraph_Create[string, string]())
 	_ = graph
 	graph.CreateNode("ENTRY POINTS ROOT")

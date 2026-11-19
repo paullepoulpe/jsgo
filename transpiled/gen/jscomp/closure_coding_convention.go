@@ -549,7 +549,7 @@ func (this_ *ClosureCodingConvention) DescribeCachingCall(node pkg_rhino.Node) *
 	}
 	var callTarget pkg_rhino.Node = node.GetFirstChild()
 	_ = callTarget
-	if this_.priv_ClosureCodingConvention_matchesCacheMethodName_1163(callTarget) {
+	if this_.priv_ClosureCodingConvention_matchesCacheMethodName_1164(callTarget) {
 		var paramCount int32 = (node.GetChildCount() - int32(1))
 		_ = paramCount
 		if (int32(3) <= paramCount) && (paramCount <= int32(4)) {
@@ -568,7 +568,7 @@ func (this_ *ClosureCodingConvention) DescribeCachingCall(node pkg_rhino.Node) *
 }
 
 // Java method: ClosureCodingConvention.matchesCacheMethodName(com.google.javascript.rhino.Node target)
-func (this_ *ClosureCodingConvention) priv_ClosureCodingConvention_matchesCacheMethodName_1163(target pkg_rhino.Node) bool {
+func (this_ *ClosureCodingConvention) priv_ClosureCodingConvention_matchesCacheMethodName_1164(target pkg_rhino.Node) bool {
 	_ = target
 	if target.IsGetProp() {
 		return target.MatchesQualifiedName_1_Node(StaticGet_ClosureCodingConvention_GoogCacheReflect())

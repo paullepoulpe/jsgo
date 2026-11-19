@@ -121,7 +121,7 @@ func (this_ *DependencyFile) WasModified() bool {
 // Java method: DependencyFile.ensureUpToDate()
 func (this_ *DependencyFile) EnsureUpToDate() {
 	if this_.dependencies.IsEmpty() || this_.WasModified() {
-		this_.priv_DependencyFile_loadGraph_6055()
+		this_.priv_DependencyFile_loadGraph_6057()
 	}
 }
 
@@ -132,7 +132,7 @@ func (this_ *DependencyFile) GetDependencyInfo(symbol string) DependencyInfo {
 }
 
 // Java method: DependencyFile.loadGraph()
-func (this_ *DependencyFile) priv_DependencyFile_loadGraph_6055() {
+func (this_ *DependencyFile) priv_DependencyFile_loadGraph_6057() {
 	this_.dependencies.Clear()
 	StaticGet_DependencyFile_Logger().Info_1_string("Loading dependency graph")
 	var errorManager ErrorManager = NewLoggerErrorManager_1(StaticGet_DependencyFile_Logger())

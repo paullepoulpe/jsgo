@@ -46,7 +46,10 @@ func (p *NativeMapLoweringPass) Apply(ctx *PassContext) (int, error) {
 	if err != nil {
 		return count, err
 	}
-	return count + tlCount, nil
+	count += tlCount
+	count += applyOrderedMapUnboxedIntLowering(ctx, parentsByFile)
+	count += applyOrderedMapValueSliceLowering(ctx, parentsByFile)
+	return count, nil
 }
 
 type mapFlavor uint8
@@ -6039,4 +6042,858 @@ func safeFuncParams(fn *ast.FuncDecl) *ast.FieldList {
 		return nil
 	}
 	return fn.Type.Params
+}
+
+// ---------------------------------------------------------------------------
+// Wave 37B: Unboxed int32 Specialization for OrderedMap / CustomOrderedMap / IdentityOrderedMap
+// Holding Non-Null Java Integer (*j2gort.BoxInt) Values
+// ---------------------------------------------------------------------------
+
+type unboxIntMapVarSpec struct {
+	v            *types.Var
+	cand         *unboxIntMapCand
+	fn           *ast.FuncDecl
+	file         *ast.File
+	declStmt     ast.Stmt
+	okName       string
+	hasReassign  bool
+	reassigns    []*ast.AssignStmt // `v = j2gort.ValueOfInt(expr)` -> `v, vOk_ = expr, true`
+	nilBins      []*ast.BinaryExpr // `v == nil` / `v != nil`
+	nilIsEq      []bool
+	unboxCalls   []*ast.CallExpr // `j2gort.UnboxInt([CheckNotNullPtr](v))`
+	ptrToAnyCall []*ast.CallExpr // `j2gort.PtrToAny(v)` -> `func() any { if !vOk_ { return nil }; return j2gort.ValueOfInt(v) }()`
+	putCalls     []*ast.CallExpr // `m.Put(k, v)` immediately after `v = j2gort.ValueOfInt(...)`
+}
+
+type unboxIntMapCand struct {
+	v             *types.Var
+	isField       bool
+	isPtr         bool
+	declFile      *ast.File
+	defCount      int
+	hasActiveOp   bool
+	disqualified  bool
+	touchedFiles  map[*ast.File]bool
+	indexValExprs []*ast.IndexListExpr // `OrderedMap[K, *j2gort.BoxInt]` / `NewOrderedMap[K, *j2gort.BoxInt]` -> replace Indices[1] with `int32`
+	putCalls      []*ast.CallExpr      // `m.Put(k, j2gort.ValueOfInt(x))` / `PutIfAbsent` -> unwrap arg 1
+	directGetUnb  []*unboxDirectGetOp  // `j2gort.UnboxInt([CheckNotNullPtr](m.Get(k)))`
+	localGetVars  []*unboxIntMapVarSpec
+}
+
+type unboxDirectGetOp struct {
+	file      *ast.File
+	outerCall *ast.CallExpr
+	getCall   *ast.CallExpr
+}
+
+func isJ2gortOrderedMapBoxIntType(t types.Type) (isPtr bool, ok bool) {
+	if t == nil {
+		return false, false
+	}
+	ut := types.Unalias(t)
+	if p, pOK := ut.(*types.Pointer); pOK {
+		isPtr = true
+		ut = types.Unalias(p.Elem())
+	}
+	nm, nmOK := ut.(*types.Named)
+	if !nmOK || nm.Obj() == nil || !isJ2gortPkg(nm.Obj().Pkg()) {
+		return false, false
+	}
+	switch nm.Obj().Name() {
+	case "OrderedMap", "CustomOrderedMap", "IdentityOrderedMap":
+	default:
+		return false, false
+	}
+	targs := nm.TypeArgs()
+	if targs == nil || targs.Len() != 2 {
+		return false, false
+	}
+	return isPtr, isPtrToJ2gortBoxInt(targs.At(1))
+}
+
+func isPtrToJ2gortBoxInt(t types.Type) bool {
+	if t == nil {
+		return false
+	}
+	p, ok := types.Unalias(t).(*types.Pointer)
+	if !ok {
+		return false
+	}
+	nm, ok := types.Unalias(p.Elem()).(*types.Named)
+	return ok && nm.Obj() != nil && isJ2gortPkg(nm.Obj().Pkg()) && nm.Obj().Name() == "BoxInt"
+}
+
+func unwrapValueOfIntCall(e ast.Expr, info *types.Info) (ast.Expr, bool) {
+	call, ok := stripParens(e).(*ast.CallExpr)
+	if !ok || call.Ellipsis.IsValid() || len(call.Args) != 1 {
+		return nil, false
+	}
+	fnName, _, _, isJ2 := isJ2gortCall(call, info)
+	if !isJ2 || fnName != "ValueOfInt" {
+		return nil, false
+	}
+	arg := call.Args[0]
+	if tv, okT := info.Types[arg]; !okT || !types.Identical(types.Unalias(tv.Type), types.Typ[types.Int32]) {
+		return nil, false
+	}
+	return arg, true
+}
+
+func enclosingUnboxIntOfExpr(inner ast.Expr, parents map[ast.Node]ast.Node, info *types.Info) *ast.CallExpr {
+	cur := unwrapParensUp(inner, parents)
+	if chkCall, ok := parents[cur].(*ast.CallExpr); ok && len(chkCall.Args) == 1 && !chkCall.Ellipsis.IsValid() && chkCall.Args[0] == cur {
+		if fnName, _, _, isJ2 := isJ2gortCall(chkCall, info); isJ2 && (fnName == "CheckNotNullPtr" || fnName == "CheckNotNull") {
+			cur = unwrapParensUp(chkCall, parents)
+		}
+	}
+	unbCall, ok := parents[cur].(*ast.CallExpr)
+	if !ok || len(unbCall.Args) != 1 || unbCall.Ellipsis.IsValid() || unbCall.Args[0] != cur {
+		return nil
+	}
+	fnName, _, _, isJ2 := isJ2gortCall(unbCall, info)
+	if !isJ2 || fnName != "UnboxInt" {
+		return nil
+	}
+	return unbCall
+}
+
+func applyOrderedMapUnboxedIntLowering(ctx *PassContext, parentsByFile map[*ast.File]map[ast.Node]ast.Node) int {
+	if ctx == nil || ctx.Info == nil || len(ctx.Files) == 0 || !j2gortHasExport(ctx, "ThrowNPE") {
+		return 0
+	}
+	info := ctx.Info
+	cands := make(map[*types.Var]*unboxIntMapCand)
+	var candList []*unboxIntMapCand
+
+	addCand := func(v *types.Var, isField, isPtr bool, file *ast.File, ile *ast.IndexListExpr) *unboxIntMapCand {
+		c := &unboxIntMapCand{
+			v:            v,
+			isField:      isField,
+			isPtr:        isPtr,
+			declFile:     file,
+			touchedFiles: map[*ast.File]bool{file: true},
+		}
+		if ile != nil {
+			if !isUnshadowedUniverseType("int32", ile.Indices[1].Pos(), ctx.Pkg) {
+				c.disqualified = true
+			}
+			c.indexValExprs = append(c.indexValExprs, ile)
+		}
+		cands[v] = c
+		candList = append(candList, c)
+		return c
+	}
+
+	extractOrdMapILE := func(tExpr ast.Expr) *ast.IndexListExpr {
+		if tExpr == nil {
+			return nil
+		}
+		cur := stripParens(tExpr)
+		if st, ok := cur.(*ast.StarExpr); ok {
+			cur = stripParens(st.X)
+		}
+		if ile, ok := cur.(*ast.IndexListExpr); ok && len(ile.Indices) == 2 {
+			return ile
+		}
+		return nil
+	}
+
+	extractInitILE := func(rhs ast.Expr) (*ast.IndexListExpr, bool) {
+		cur := stripParens(rhs)
+		if un, ok := cur.(*ast.UnaryExpr); ok && un.Op == token.AND {
+			cur = stripParens(un.X)
+		}
+		switch x := cur.(type) {
+		case *ast.CompositeLit:
+			if len(x.Elts) == 0 {
+				if ile := extractOrdMapILE(x.Type); ile != nil {
+					return ile, true
+				}
+			}
+		case *ast.CallExpr:
+			if ile, ok := stripParens(x.Fun).(*ast.IndexListExpr); ok && len(ile.Indices) == 2 {
+				fnName, _, _, isJ2 := isJ2gortCall(x, info)
+				if isJ2 {
+					switch fnName {
+					case "NewOrderedMap", "NewOrderedMapCap", "NewOrderedMapPtrCap", "AcquireOrderedMap", "AcquireOrderedMapCap",
+						"NewCustomOrderedMap", "NewCustomOrderedMapCap", "NewCustomOrderedMapPtrCap", "AcquireCustomOrderedMap", "AcquireCustomOrderedMapCap",
+						"NewIdentityOrderedMap", "NewIdentityOrderedMapCap", "NewIdentityOrderedMapPtrCap", "AcquireIdentityOrderedMap", "AcquireIdentityOrderedMapCap":
+						return ile, true
+					}
+				}
+			}
+		}
+		return nil, false
+	}
+
+	// Pass 1: Collect candidate OrderedMap[K, *j2gort.BoxInt] unexported fields and local variables.
+	for _, file := range ctx.Files {
+		parents := parentsByFile[file]
+		for _, decl := range file.Decls {
+			gd, ok := decl.(*ast.GenDecl)
+			if !ok || gd.Tok != token.TYPE {
+				continue
+			}
+			for _, s := range gd.Specs {
+				ts, ok := s.(*ast.TypeSpec)
+				if !ok || ts.Assign.IsValid() {
+					continue
+				}
+				st, ok := ts.Type.(*ast.StructType)
+				if !ok || st.Fields == nil {
+					continue
+				}
+				for _, fld := range st.Fields.List {
+					if len(fld.Names) != 1 {
+						continue
+					}
+					v := varFromObj(info.Defs[fld.Names[0]])
+					if v == nil || !v.IsField() || v.Exported() || v.Embedded() {
+						continue
+					}
+					isPtr, okM := isJ2gortOrderedMapBoxIntType(v.Type())
+					if !okM {
+						continue
+					}
+					ile := extractOrdMapILE(fld.Type)
+					if ile == nil {
+						continue
+					}
+					addCand(v, true, isPtr, file, ile)
+				}
+			}
+		}
+
+		ast.Inspect(file, func(n ast.Node) bool {
+			switch s := n.(type) {
+			case *ast.DeclStmt:
+				gd, ok := s.Decl.(*ast.GenDecl)
+				if !ok || gd.Tok != token.VAR || len(gd.Specs) != 1 || enclosingFuncBody(s, parents) == nil {
+					return true
+				}
+				vs, ok := gd.Specs[0].(*ast.ValueSpec)
+				if !ok || len(vs.Names) != 1 || len(vs.Values) > 1 || vs.Names[0].Name == "_" {
+					return true
+				}
+				v := varFromObj(info.Defs[vs.Names[0]])
+				if v == nil || v.IsField() || cands[v] != nil {
+					return true
+				}
+				isPtr, okM := isJ2gortOrderedMapBoxIntType(v.Type())
+				if !okM {
+					return true
+				}
+				var declILE *ast.IndexListExpr
+				if vs.Type != nil {
+					declILE = extractOrdMapILE(vs.Type)
+					if declILE == nil {
+						return true
+					}
+				}
+				c := addCand(v, false, isPtr, file, declILE)
+				if len(vs.Values) == 1 {
+					if isPtr && isNilIdent(vs.Values[0], info) {
+						return true
+					}
+					initILE, okI := extractInitILE(vs.Values[0])
+					if !okI || !isUnshadowedUniverseType("int32", initILE.Indices[1].Pos(), ctx.Pkg) {
+						c.disqualified = true
+						return true
+					}
+					c.indexValExprs = append(c.indexValExprs, initILE)
+				}
+			case *ast.AssignStmt:
+				if s.Tok != token.DEFINE || len(s.Lhs) != 1 || len(s.Rhs) != 1 || enclosingFuncBody(s, parents) == nil {
+					return true
+				}
+				id, ok := s.Lhs[0].(*ast.Ident)
+				if !ok || id.Name == "_" {
+					return true
+				}
+				v := varFromObj(info.Defs[id])
+				if v == nil || v.IsField() || cands[v] != nil {
+					return true
+				}
+				isPtr, okM := isJ2gortOrderedMapBoxIntType(v.Type())
+				if !okM {
+					return true
+				}
+				initILE, okI := extractInitILE(s.Rhs[0])
+				if !okI {
+					return true
+				}
+				addCand(v, false, isPtr, file, initILE)
+			}
+			return true
+		})
+	}
+
+	if len(candList) == 0 {
+		return 0
+	}
+
+	// Track local variables initialized via `var v *j2gort.BoxInt = m.Get(k)` or `v := m.Get(k)`.
+	getVars := make(map[*types.Var]*unboxIntMapVarSpec)
+
+	validateLocalGetDecl := func(mCand *unboxIntMapCand, getCall *ast.CallExpr, file *ast.File, parents map[ast.Node]ast.Node) bool {
+		cur := unwrapParensUp(getCall, parents)
+		var vId *ast.Ident
+		var declStmt ast.Stmt
+		switch p := parents[cur].(type) {
+		case *ast.ValueSpec:
+			if len(p.Names) != 1 || len(p.Values) != 1 || p.Values[0] != cur || p.Names[0].Name == "_" {
+				return false
+			}
+			gd, okG := parents[p].(*ast.GenDecl)
+			if !okG || gd.Tok != token.VAR || len(gd.Specs) != 1 {
+				return false
+			}
+			ds, okD := parents[gd].(*ast.DeclStmt)
+			if !okD {
+				return false
+			}
+			if _, okBlk := parents[ds].(*ast.BlockStmt); !okBlk {
+				return false
+			}
+			vId = p.Names[0]
+			declStmt = ds
+		case *ast.AssignStmt:
+			if p.Tok != token.DEFINE || len(p.Lhs) != 1 || len(p.Rhs) != 1 || p.Rhs[0] != cur {
+				return false
+			}
+			if _, okBlk := parents[p].(*ast.BlockStmt); !okBlk {
+				return false
+			}
+			id, okI := p.Lhs[0].(*ast.Ident)
+			if !okI || id.Name == "_" {
+				return false
+			}
+			vId = id
+			declStmt = p
+		default:
+			return false
+		}
+		vObj := varFromObj(info.Defs[vId])
+		if vObj == nil || !isPtrToJ2gortBoxInt(vObj.Type()) {
+			return false
+		}
+		fnDecl := enclosingFuncDeclNode(declStmt, parents)
+		if fnDecl == nil || fnDecl.Body == nil {
+			return false
+		}
+		okName := vId.Name + "Ok_"
+		if slabASTContainsIdent(fnDecl, okName) || !isUnshadowedUniverseType("int32", declStmt.Pos(), ctx.Pkg) || !isUnshadowedUniverseType("true", declStmt.Pos(), ctx.Pkg) {
+			return false
+		}
+		spec := &unboxIntMapVarSpec{
+			v:        vObj,
+			cand:     mCand,
+			fn:       fnDecl,
+			file:     file,
+			declStmt: declStmt,
+			okName:   okName,
+		}
+		getVars[vObj] = spec
+		mCand.localGetVars = append(mCand.localGetVars, spec)
+		mCand.hasActiveOp = true
+		return true
+	}
+
+	// Pass 2: Validate all definitions and uses of every candidate map across ctx.Files.
+	for _, file := range ctx.Files {
+		parents := parentsByFile[file]
+		ast.Inspect(file, func(n ast.Node) bool {
+			id, ok := n.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if c := cands[varFromObj(info.Defs[id])]; c != nil {
+				c.defCount++
+				c.touchedFiles[file] = true
+				if !ctx.ShouldTransform(file) || ctx.ModifiedFiles[file] {
+					c.disqualified = true
+				}
+			}
+			c := cands[varFromObj(info.Uses[id])]
+			if c == nil || c.disqualified {
+				return true
+			}
+			c.touchedFiles[file] = true
+			if !ctx.ShouldTransform(file) || ctx.ModifiedFiles[file] {
+				c.disqualified = true
+				return true
+			}
+
+			var accessExpr ast.Expr = id
+			if c.isField {
+				if kv, okKV := parents[id].(*ast.KeyValueExpr); okKV && kv.Key == id {
+					if c.isPtr && isNilIdent(kv.Value, info) {
+						return true
+					}
+					initILE, okI := extractInitILE(kv.Value)
+					if !okI || !isUnshadowedUniverseType("int32", initILE.Indices[1].Pos(), ctx.Pkg) {
+						c.disqualified = true
+						return true
+					}
+					c.indexValExprs = append(c.indexValExprs, initILE)
+					return true
+				}
+				sel, okS := parents[id].(*ast.SelectorExpr)
+				if !okS || sel.Sel != id || !isIndirectStructFieldSel(sel, info) {
+					c.disqualified = true
+					return true
+				}
+				accessExpr = sel
+			}
+
+			// Blank discard `_ = m`.
+			if as, okAs := parents[accessExpr].(*ast.AssignStmt); okAs && as.Tok == token.ASSIGN && len(as.Lhs) == 1 && len(as.Rhs) == 1 {
+				if lhsId, okL := stripParens(as.Lhs[0]).(*ast.Ident); okL && lhsId.Name == "_" && stripParens(as.Rhs[0]) == accessExpr {
+					return true
+				}
+				if stripParens(as.Lhs[0]) == accessExpr {
+					if c.isPtr && isNilIdent(as.Rhs[0], info) {
+						return true
+					}
+					initILE, okI := extractInitILE(as.Rhs[0])
+					if !okI || !isUnshadowedUniverseType("int32", initILE.Indices[1].Pos(), ctx.Pkg) {
+						c.disqualified = true
+						return true
+					}
+					c.indexValExprs = append(c.indexValExprs, initILE)
+					return true
+				}
+			}
+
+			pTop := unwrapParensUp(accessExpr, parents)
+
+			// Nil check `m == nil` / `m != nil` on pointer map.
+			if c.isPtr {
+				if bin, okB := parents[pTop].(*ast.BinaryExpr); okB && (bin.Op == token.EQL || bin.Op == token.NEQ) {
+					other := bin.Y
+					if bin.Y == pTop {
+						other = bin.X
+					}
+					if isNilIdent(other, info) {
+						return true
+					}
+				}
+			}
+
+			// Release helper `j2gort.ReleaseOrderedMap(&m)` / `j2gort.ReleaseOrderedMap(m)`.
+			addrTop := pTop
+			if !c.isPtr {
+				if un, okU := parents[pTop].(*ast.UnaryExpr); okU && un.Op == token.AND && un.X == pTop {
+					addrTop = unwrapParensUp(un, parents)
+				}
+			}
+			if relCall, okC := parents[addrTop].(*ast.CallExpr); okC && len(relCall.Args) == 1 && !relCall.Ellipsis.IsValid() && relCall.Args[0] == addrTop {
+				if fnName, _, _, isJ2 := isJ2gortCall(relCall, info); isJ2 {
+					switch fnName {
+					case "ReleaseOrderedMap", "ReleaseCustomOrderedMap", "ReleaseIdentityOrderedMap":
+						if ile, okILE := stripParens(relCall.Fun).(*ast.IndexListExpr); okILE && len(ile.Indices) == 2 {
+							if !isUnshadowedUniverseType("int32", ile.Indices[1].Pos(), ctx.Pkg) {
+								c.disqualified = true
+								return true
+							}
+							c.indexValExprs = append(c.indexValExprs, ile)
+						}
+						return true
+					}
+				}
+			}
+
+			// Method call on `m`.
+			mSel, okSel := parents[pTop].(*ast.SelectorExpr)
+			if !okSel || mSel.X != pTop || mSel.Sel == nil {
+				c.disqualified = true
+				return true
+			}
+			mCall, okCall := parents[mSel].(*ast.CallExpr)
+			if !okCall || mCall.Fun != mSel || mCall.Ellipsis.IsValid() {
+				c.disqualified = true
+				return true
+			}
+			_, inExprStmt := parents[mCall].(*ast.ExprStmt)
+
+			switch mSel.Sel.Name {
+			case "Size", "IsEmpty", "Clear", "ReleaseToPool", "IterKeys", "LiveKeySet", "KeysToImmutableSet", "String":
+				if len(mCall.Args) != 0 {
+					c.disqualified = true
+				}
+			case "ContainsKey":
+				if len(mCall.Args) != 1 {
+					c.disqualified = true
+				}
+			case "Remove":
+				if !inExprStmt || len(mCall.Args) != 1 {
+					c.disqualified = true
+				}
+			case "Put", "PutIfAbsent":
+				if !inExprStmt || len(mCall.Args) != 2 {
+					c.disqualified = true
+					return true
+				}
+				if _, okV := unwrapValueOfIntCall(mCall.Args[1], info); okV {
+					c.putCalls = append(c.putCalls, mCall)
+					c.hasActiveOp = true
+					return true
+				}
+				if argId, okI := stripParens(mCall.Args[1]).(*ast.Ident); okI {
+					if gv := getVars[varFromObj(info.Uses[argId])]; gv != nil && gv.cand == c {
+						gv.putCalls = append(gv.putCalls, mCall)
+						c.hasActiveOp = true
+						return true
+					}
+				}
+				c.disqualified = true
+			case "Get":
+				if len(mCall.Args) != 1 {
+					c.disqualified = true
+					return true
+				}
+				if unbCall := enclosingUnboxIntOfExpr(mCall, parents, info); unbCall != nil {
+					if !isUnshadowedUniverseType("int32", unbCall.Pos(), ctx.Pkg) {
+						c.disqualified = true
+						return true
+					}
+					c.directGetUnb = append(c.directGetUnb, &unboxDirectGetOp{
+						file:      file,
+						outerCall: unbCall,
+						getCall:   mCall,
+					})
+					c.hasActiveOp = true
+					return true
+				}
+				if !validateLocalGetDecl(c, mCall, file, parents) {
+					c.disqualified = true
+				}
+			default:
+				c.disqualified = true
+			}
+			return true
+		})
+	}
+
+	// Pass 3: Validate every use of every tracked `getResultVar` (`var ptr *BoxInt = m.Get(k)`).
+	for _, c := range candList {
+		if c.disqualified || c.defCount != 1 || !c.hasActiveOp {
+			c.disqualified = true
+			continue
+		}
+		for f := range c.touchedFiles {
+			if !ctx.ShouldTransform(f) || ctx.ModifiedFiles[f] {
+				c.disqualified = true
+				break
+			}
+		}
+		if c.disqualified {
+			continue
+		}
+		for _, gv := range c.localGetVars {
+			parents := parentsByFile[gv.file]
+			defSeen := 0
+			ast.Inspect(gv.fn.Body, func(n ast.Node) bool {
+				if c.disqualified || n == nil {
+					return false
+				}
+				if _, isFL := n.(*ast.FuncLit); isFL {
+					// Disqualify if gv.v is captured inside any nested closure.
+					ast.Inspect(n, func(cn ast.Node) bool {
+						if cid, okI := cn.(*ast.Ident); okI && varFromObj(info.Uses[cid]) == gv.v {
+							c.disqualified = true
+							return false
+						}
+						return !c.disqualified
+					})
+					return false
+				}
+				id, ok := n.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				if varFromObj(info.Defs[id]) == gv.v {
+					defSeen++
+					return true
+				}
+				if varFromObj(info.Uses[id]) != gv.v {
+					return true
+				}
+
+				pTop := unwrapParensUp(id, parents)
+
+				// 1. `_ = v` blank discard or `v = j2gort.ValueOfInt(expr)` reassignment.
+				if as, okAs := parents[pTop].(*ast.AssignStmt); okAs && as.Tok == token.ASSIGN && len(as.Lhs) == 1 && len(as.Rhs) == 1 {
+					if lhsId, okL := stripParens(as.Lhs[0]).(*ast.Ident); okL && lhsId.Name == "_" && as.Rhs[0] == pTop {
+						return true
+					}
+					if stripParens(as.Lhs[0]) == id {
+						if _, okBlk := parents[as].(*ast.BlockStmt); !okBlk {
+							c.disqualified = true
+							return false
+						}
+						if _, okV := unwrapValueOfIntCall(as.Rhs[0], info); okV {
+							gv.hasReassign = true
+							gv.reassigns = append(gv.reassigns, as)
+							return true
+						}
+						c.disqualified = true
+						return false
+					}
+				}
+
+				// 2. `v == nil` / `v != nil`.
+				if bin, okB := parents[pTop].(*ast.BinaryExpr); okB && (bin.Op == token.EQL || bin.Op == token.NEQ) {
+					other := bin.Y
+					if bin.Y == pTop {
+						other = bin.X
+					}
+					if isNilIdent(other, info) {
+						gv.nilBins = append(gv.nilBins, bin)
+						gv.nilIsEq = append(gv.nilIsEq, bin.Op == token.EQL)
+						return true
+					}
+				}
+
+				// 3. `j2gort.UnboxInt([CheckNotNullPtr](v))`.
+				if unbCall := enclosingUnboxIntOfExpr(id, parents, info); unbCall != nil {
+					gv.unboxCalls = append(gv.unboxCalls, unbCall)
+					return true
+				}
+
+				// 4. `j2gort.PtrToAny(v)` (not directly inside UnboxInt).
+				if ptrCall, okP := parents[pTop].(*ast.CallExpr); okP && len(ptrCall.Args) == 1 && !ptrCall.Ellipsis.IsValid() && ptrCall.Args[0] == pTop {
+					if fnName, _, _, isJ2 := isJ2gortCall(ptrCall, info); isJ2 && fnName == "PtrToAny" {
+						if !isUnshadowedUniverseType("any", ptrCall.Pos(), ctx.Pkg) || !isUnshadowedUniverseType("nil", ptrCall.Pos(), ctx.Pkg) {
+							c.disqualified = true
+							return false
+						}
+						gv.ptrToAnyCall = append(gv.ptrToAnyCall, ptrCall)
+						return true
+					}
+				}
+
+				// 5. `m.Put(k, v)` when preceded in the same BlockStmt by `v = j2gort.ValueOfInt(...)`.
+				if putCall, okP := parents[pTop].(*ast.CallExpr); okP && slices.Contains(gv.putCalls, putCall) && putCall.Args[1] == pTop {
+					es, okES := parents[putCall].(*ast.ExprStmt)
+					blk, okBlk := parents[es].(*ast.BlockStmt)
+					if okES && okBlk {
+						idx := slices.Index(blk.List, ast.Stmt(es))
+						if idx > 0 {
+							if prevAs, okPrev := blk.List[idx-1].(*ast.AssignStmt); okPrev && slices.Contains(gv.reassigns, prevAs) {
+								return true
+							}
+						}
+					}
+				}
+
+				c.disqualified = true
+				return false
+			})
+			if defSeen != 1 {
+				c.disqualified = true
+			}
+		}
+	}
+
+	// Pass 4: Apply rewrites cleanly on all eligible candidates.
+	count := 0
+	for _, c := range candList {
+		if c.disqualified {
+			continue
+		}
+		for _, ile := range c.indexValExprs {
+			ile.Indices[1] = &ast.Ident{NamePos: ile.Indices[1].Pos(), Name: "int32"}
+		}
+		for _, putCall := range c.putCalls {
+			if inner, ok := unwrapValueOfIntCall(putCall.Args[1], info); ok {
+				putCall.Args[1] = inner
+				count++
+			}
+		}
+		for _, dg := range c.directGetUnb {
+			parents := parentsByFile[dg.file]
+			j2Qual, okQ := j2gortQualifierForFile(dg.file, ctx)
+			if !okQ {
+				continue
+			}
+			getSel := stripParens(dg.getCall.Fun).(*ast.SelectorExpr)
+			getSel.Sel = &ast.Ident{NamePos: getSel.Sel.Pos(), Name: "GetOk"}
+			pos := dg.outerCall.Pos()
+			iife := &ast.CallExpr{
+				Fun: &ast.FuncLit{
+					Type: &ast.FuncType{
+						Func:    pos,
+						Params:  &ast.FieldList{},
+						Results: &ast.FieldList{List: []*ast.Field{{Type: &ast.Ident{NamePos: pos, Name: "int32"}}}},
+					},
+					Body: &ast.BlockStmt{
+						List: []ast.Stmt{
+							&ast.IfStmt{
+								Init: &ast.AssignStmt{
+									Lhs: []ast.Expr{&ast.Ident{Name: "v_"}, &ast.Ident{Name: "ok_"}},
+									Tok: token.DEFINE,
+									Rhs: []ast.Expr{dg.getCall},
+								},
+								Cond: &ast.Ident{Name: "ok_"},
+								Body: &ast.BlockStmt{
+									List: []ast.Stmt{&ast.ReturnStmt{Results: []ast.Expr{&ast.Ident{Name: "v_"}}}},
+								},
+							},
+							&ast.ExprStmt{
+								X: &ast.CallExpr{
+									Fun: &ast.SelectorExpr{X: &ast.Ident{Name: j2Qual}, Sel: &ast.Ident{Name: "ThrowNPE"}},
+								},
+							},
+							&ast.ReturnStmt{Results: []ast.Expr{&ast.BasicLit{Kind: token.INT, Value: "0"}}},
+						},
+					},
+				},
+			}
+			if parent := parents[dg.outerCall]; parent != nil && replaceExprInParent(parent, dg.outerCall, iife, parents) {
+				count++
+			}
+		}
+
+		for _, gv := range c.localGetVars {
+			parents := parentsByFile[gv.file]
+			j2Qual, okQ := j2gortQualifierForFile(gv.file, ctx)
+			if !okQ {
+				continue
+			}
+			vName := gv.v.Name()
+
+			// Rewrite `var v *BoxInt = m.Get(k)` / `v := m.Get(k)` -> `v, vOk_ := m.GetOk(k); _ = vOk_`.
+			var getCall *ast.CallExpr
+			switch ds := gv.declStmt.(type) {
+			case *ast.DeclStmt:
+				vs := ds.Decl.(*ast.GenDecl).Specs[0].(*ast.ValueSpec)
+				getCall = stripParens(vs.Values[0]).(*ast.CallExpr)
+			case *ast.AssignStmt:
+				getCall = stripParens(ds.Rhs[0]).(*ast.CallExpr)
+			}
+			getSel := stripParens(getCall.Fun).(*ast.SelectorExpr)
+			getSel.Sel = &ast.Ident{NamePos: getSel.Sel.Pos(), Name: "GetOk"}
+			newDef := &ast.AssignStmt{
+				Lhs: []ast.Expr{
+					&ast.Ident{NamePos: gv.declStmt.Pos(), Name: vName},
+					&ast.Ident{NamePos: gv.declStmt.Pos(), Name: gv.okName},
+				},
+				Tok: token.DEFINE,
+				Rhs: []ast.Expr{getCall},
+			}
+			blankOk := &ast.AssignStmt{
+				Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
+				Tok: token.ASSIGN,
+				Rhs: []ast.Expr{&ast.Ident{Name: gv.okName}},
+			}
+			blk := parents[gv.declStmt].(*ast.BlockStmt)
+			dIdx := slices.Index(blk.List, gv.declStmt)
+			blk.List = slices.Replace(blk.List, dIdx, dIdx+1, ast.Stmt(newDef), ast.Stmt(blankOk))
+			parents[newDef] = blk
+			parents[blankOk] = blk
+			count++
+
+			// Rewrite `v = j2gort.ValueOfInt(expr)` -> `v, vOk_ = expr, true`.
+			for _, as := range gv.reassigns {
+				inner, _ := unwrapValueOfIntCall(as.Rhs[0], info)
+				as.Lhs = []ast.Expr{
+					&ast.Ident{NamePos: as.Pos(), Name: vName},
+					&ast.Ident{NamePos: as.Pos(), Name: gv.okName},
+				}
+				as.Rhs = []ast.Expr{
+					inner,
+					&ast.Ident{NamePos: as.Pos(), Name: "true"},
+				}
+				count++
+			}
+
+			// Rewrite `v == nil` -> `!vOk_` and `v != nil` -> `vOk_`.
+			for i, bin := range gv.nilBins {
+				var repl ast.Expr = &ast.Ident{NamePos: bin.Pos(), Name: gv.okName}
+				if gv.nilIsEq[i] {
+					repl = &ast.UnaryExpr{OpPos: bin.Pos(), Op: token.NOT, X: repl}
+				}
+				if parent := parents[bin]; parent != nil && replaceExprInParent(parent, bin, repl, parents) {
+					count++
+				}
+			}
+
+			// Rewrite `j2gort.UnboxInt([CheckNotNullPtr](v))`.
+			for _, unbCall := range gv.unboxCalls {
+				pos := unbCall.Pos()
+				iife := &ast.CallExpr{
+					Fun: &ast.FuncLit{
+						Type: &ast.FuncType{
+							Func:    pos,
+							Params:  &ast.FieldList{},
+							Results: &ast.FieldList{List: []*ast.Field{{Type: &ast.Ident{NamePos: pos, Name: "int32"}}}},
+						},
+						Body: &ast.BlockStmt{
+							List: []ast.Stmt{
+								&ast.IfStmt{
+									Cond: &ast.UnaryExpr{Op: token.NOT, X: &ast.Ident{Name: gv.okName}},
+									Body: &ast.BlockStmt{
+										List: []ast.Stmt{
+											&ast.ExprStmt{
+												X: &ast.CallExpr{
+													Fun: &ast.SelectorExpr{X: &ast.Ident{Name: j2Qual}, Sel: &ast.Ident{Name: "ThrowNPE"}},
+												},
+											},
+										},
+									},
+								},
+								&ast.ReturnStmt{Results: []ast.Expr{&ast.Ident{Name: vName}}},
+							},
+						},
+					},
+				}
+				if parent := parents[unbCall]; parent != nil && replaceExprInParent(parent, unbCall, iife, parents) {
+					count++
+				}
+			}
+
+			// Rewrite `j2gort.PtrToAny(v)` -> `func() any { if !vOk_ { return nil }; return j2gort.ValueOfInt(v) }()`.
+			for _, pCall := range gv.ptrToAnyCall {
+				pos := pCall.Pos()
+				iife := &ast.CallExpr{
+					Fun: &ast.FuncLit{
+						Type: &ast.FuncType{
+							Func:    pos,
+							Params:  &ast.FieldList{},
+							Results: &ast.FieldList{List: []*ast.Field{{Type: &ast.Ident{NamePos: pos, Name: "any"}}}},
+						},
+						Body: &ast.BlockStmt{
+							List: []ast.Stmt{
+								&ast.IfStmt{
+									Cond: &ast.UnaryExpr{Op: token.NOT, X: &ast.Ident{Name: gv.okName}},
+									Body: &ast.BlockStmt{
+										List: []ast.Stmt{&ast.ReturnStmt{Results: []ast.Expr{&ast.Ident{Name: "nil"}}}},
+									},
+								},
+								&ast.ReturnStmt{
+									Results: []ast.Expr{
+										&ast.CallExpr{
+											Fun:  &ast.SelectorExpr{X: &ast.Ident{Name: j2Qual}, Sel: &ast.Ident{Name: "ValueOfInt"}},
+											Args: []ast.Expr{&ast.Ident{Name: vName}},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				if parent := parents[pCall]; parent != nil && replaceExprInParent(parent, pCall, iife, parents) {
+					count++
+				}
+			}
+		}
+
+		for f := range c.touchedFiles {
+			ctx.MarkFileModified(f)
+		}
+		count++
+	}
+
+	return count
 }

@@ -96,7 +96,7 @@ func clinitSlow_Es6RewriteBlockScopedDeclaration() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_Es6RewriteBlockScopedDeclaration, &clinitDone_Es6RewriteBlockScopedDeclaration)
-	static_Es6RewriteBlockScopedDeclaration_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7181([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS()})
+	static_Es6RewriteBlockScopedDeclaration_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7186([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS()})
 }
 
 func (this_ *Es6RewriteBlockScopedDeclaration) initFields_Es6RewriteBlockScopedDeclaration() {
@@ -135,7 +135,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration) Visit_3(t *NodeTraversal, n pkg_r
 			var nameNode pkg_rhino.Node = n.GetFirstChild()
 			_ = nameNode
 			for ; nameNode != 0; nameNode = nameNode.GetNext() {
-				this_.priv_Es6RewriteBlockScopedDeclaration_visitBlockScopedNameDeclaration_2561(n, nameNode)
+				this_.priv_Es6RewriteBlockScopedDeclaration_visitBlockScopedNameDeclaration_2564(n, nameNode)
 			}
 		}
 	}
@@ -160,18 +160,18 @@ func (this_ *Es6RewriteBlockScopedDeclaration) Process_2(externs pkg_rhino.Node,
 		(&ntb_).Traverse(root)
 	}
 
-	transformer.priv_LoopClosureTransformer_transformLoopClosure_2571()
-	this_.priv_Es6RewriteBlockScopedDeclaration_rewriteDeclsToVars_2568()
+	transformer.priv_LoopClosureTransformer_transformLoopClosure_2574()
+	this_.priv_Es6RewriteBlockScopedDeclaration_rewriteDeclsToVars_2571()
 	TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(this_.compiler, root, StaticGet_Es6RewriteBlockScopedDeclaration_TranspiledFeatures())
 }
 
 // Java method: Es6RewriteBlockScopedDeclaration.visitBlockScopedNameDeclaration(com.google.javascript.rhino.Node decl, com.google.javascript.rhino.Node nameNode)
-func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_visitBlockScopedNameDeclaration_2561(decl pkg_rhino.Node, nameNode pkg_rhino.Node) {
+func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_visitBlockScopedNameDeclaration_2564(decl pkg_rhino.Node, nameNode pkg_rhino.Node) {
 	_ = decl
 	_ = nameNode
 	var parent pkg_rhino.Node = decl.GetParent()
 	_ = parent
-	if (!(nameNode.HasChildren()) && ((parent == 0) || !(parent.IsForIn()))) && this_.priv_Es6RewriteBlockScopedDeclaration_inLoop_2562(decl) {
+	if (!(nameNode.HasChildren()) && ((parent == 0) || !(parent.IsForIn()))) && this_.priv_Es6RewriteBlockScopedDeclaration_inLoop_2565(decl) {
 		var undefined pkg_rhino.Node = this_.astFactory.CreateUndefinedValue().SrcrefTree(nameNode)
 		_ = undefined
 		nameNode.AddChildToFront(undefined)
@@ -180,7 +180,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclara
 }
 
 // Java method: Es6RewriteBlockScopedDeclaration.inLoop(com.google.javascript.rhino.Node n)
-func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_inLoop_2562(n pkg_rhino.Node) bool {
+func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_inLoop_2565(n pkg_rhino.Node) bool {
 	_ = n
 	var enclosingNode pkg_rhino.Node = NodeUtil_GetEnclosingNode(n, lambdaSingleton_es6_rewrite_block_scoped_declaration_1)
 	_ = enclosingNode
@@ -227,7 +227,7 @@ func Es6RewriteBlockScopedDeclaration_MaybeAddConstJSDoc(srcDeclaration pkg_rhin
 }
 
 // Java method: Es6RewriteBlockScopedDeclaration.handleLetConstDeclarationList(com.google.javascript.rhino.Node declarationList, com.google.javascript.rhino.Node parent)
-func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationList_2563(declarationList pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationList_2566(declarationList pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = declarationList
 	_ = parent
 	if declarationList.IsVar() {
@@ -237,11 +237,11 @@ func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclara
 		return
 	}
 	if parent.IsVanillaFor() {
-		this_.priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationListInVanillaForInitializer_2565(declarationList, parent)
+		this_.priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationListInVanillaForInitializer_2568(declarationList, parent)
 		return
 	}
 	if parent.IsForIn() {
-		this_.priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationListInForInInitializer_2564(declarationList, parent)
+		this_.priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationListInForInInitializer_2567(declarationList, parent)
 		return
 	}
 	for declarationList.HasChildren() {
@@ -259,7 +259,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclara
 }
 
 // Java method: Es6RewriteBlockScopedDeclaration.handleLetConstDeclarationListInForInInitializer(com.google.javascript.rhino.Node declarationList, com.google.javascript.rhino.Node parent)
-func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationListInForInInitializer_2564(declarationList pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationListInForInInitializer_2567(declarationList pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = declarationList
 	_ = parent
 	if !(parent.IsForIn()) {
@@ -286,7 +286,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclara
 			var newVar pkg_rhino.Node = pkg_rhino.IR_Var_1(newName).Srcref(name)
 			_ = newVar
 			Es6RewriteBlockScopedDeclaration_ExtractInlineJSDoc(declarationList, name, newVar)
-			this_.priv_Es6RewriteBlockScopedDeclaration_addNodeBeforeLoop_2566(newVar, loopNode)
+			this_.priv_Es6RewriteBlockScopedDeclaration_addNodeBeforeLoop_2569(newVar, loopNode)
 		}))
 		var destructuringPattern pkg_rhino.Node = lhs.RemoveFirstChild()
 		_ = destructuringPattern
@@ -301,18 +301,18 @@ func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclara
 		newStatement.SetToken(pkg_rhino.StaticGet_Token_VAR())
 		Es6RewriteBlockScopedDeclaration_ExtractInlineJSDoc(first, first.GetFirstChild(), newStatement)
 		first.ReplaceWith(name)
-		this_.priv_Es6RewriteBlockScopedDeclaration_addNodeBeforeLoop_2566(newStatement, loopNode)
+		this_.priv_Es6RewriteBlockScopedDeclaration_addNodeBeforeLoop_2569(newStatement, loopNode)
 	}
 }
 
 // Java method: Es6RewriteBlockScopedDeclaration.handleLetConstDeclarationListInVanillaForInitializer(com.google.javascript.rhino.Node declarationList, com.google.javascript.rhino.Node parent)
-func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationListInVanillaForInitializer_2565(declarationList pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationListInVanillaForInitializer_2568(declarationList pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = declarationList
 	_ = parent
 	if !(parent.IsVanillaFor()) {
 		j2gort.CheckState(false)
 	}
-	var insertSpot pkg_rhino.Node = this_.priv_Es6RewriteBlockScopedDeclaration_getInsertSpotBeforeLoop_2567(parent)
+	var insertSpot pkg_rhino.Node = this_.priv_Es6RewriteBlockScopedDeclaration_getInsertSpotBeforeLoop_2570(parent)
 	_ = insertSpot
 	for declarationList.HasChildren() {
 		var name pkg_rhino.Node = declarationList.GetLastChild()
@@ -333,17 +333,17 @@ func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclara
 }
 
 // Java method: Es6RewriteBlockScopedDeclaration.addNodeBeforeLoop(com.google.javascript.rhino.Node newNode, com.google.javascript.rhino.Node loopNode)
-func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_addNodeBeforeLoop_2566(newNode pkg_rhino.Node, loopNode pkg_rhino.Node) {
+func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_addNodeBeforeLoop_2569(newNode pkg_rhino.Node, loopNode pkg_rhino.Node) {
 	_ = newNode
 	_ = loopNode
-	var insertSpot pkg_rhino.Node = this_.priv_Es6RewriteBlockScopedDeclaration_getInsertSpotBeforeLoop_2567(loopNode)
+	var insertSpot pkg_rhino.Node = this_.priv_Es6RewriteBlockScopedDeclaration_getInsertSpotBeforeLoop_2570(loopNode)
 	_ = insertSpot
 	newNode.InsertBefore(insertSpot)
 	this_.compiler.ReportChangeToEnclosingScope(newNode)
 }
 
 // Java method: Es6RewriteBlockScopedDeclaration.getInsertSpotBeforeLoop(com.google.javascript.rhino.Node loopNode)
-func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_getInsertSpotBeforeLoop_2567(loopNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_getInsertSpotBeforeLoop_2570(loopNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = loopNode
 	var insertSpot pkg_rhino.Node = loopNode
 	_ = insertSpot
@@ -354,7 +354,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclara
 }
 
 // Java method: Es6RewriteBlockScopedDeclaration.rewriteDeclsToVars()
-func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_rewriteDeclsToVars_2568() {
+func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclaration_rewriteDeclsToVars_2571() {
 	if !(this_.letConsts.IsEmpty()) {
 		{
 			cur_2 := this_.letConsts.Iter()
@@ -362,7 +362,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclara
 				n := cur_2.
 					Next()
 				_ = n
-				this_.priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationList_2563(n, n.GetParent())
+				this_.priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationList_2566(n, n.GetParent())
 			}
 		}
 	}
@@ -507,7 +507,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) ShouldTrav
 		var object *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject = j2gort.OrderedMapComputeIfAbsent(&this_.loopObjectMap, loopNode, nil, func(lp_7 pkg_rhino.Node) *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject {
 			k := lp_7
 			_ = k
-			return NewEs6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject(this_.priv_LoopClosureTransformer_createUniqueObjectName_2569(t.GetInput()))
+			return NewEs6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject(this_.priv_LoopClosureTransformer_createUniqueObjectName_2572(t.GetInput()))
 		})
 
 		_ = object
@@ -518,23 +518,23 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) ShouldTrav
 }
 
 // Java method: LoopClosureTransformer.createUniqueObjectName(com.google.javascript.jscomp.CompilerInput input)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_createUniqueObjectName_2569(input *CompilerInput) string {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_createUniqueObjectName_2572(input *CompilerInput) string {
 	_ = input
 	return ("$jscomp$loop" + "$" + j2gort.StrValString(this_.outer_.uniqueIdSupplier.GetUniqueId(input)))
 }
 
 // Java method: LoopClosureTransformer.getLoopObjPropName(com.google.javascript.jscomp.Var var)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_getLoopObjPropName_2570(var_ *Var) string {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_getLoopObjPropName_2573(var_ *Var) string {
 	_ = var_
 	return var_.GetNameNode().GetString()
 }
 
 // Java method: LoopClosureTransformer.transformLoopClosure()
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_transformLoopClosure_2571() {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_transformLoopClosure_2574() {
 	if this_.loopObjectMap.IsEmpty() {
 		return
 	}
-	var wrapperFunctions j2gort.OrderedSet[pkg_rhino.Node] = this_.priv_LoopClosureTransformer_createWrapperFunctions_2573()
+	var wrapperFunctions j2gort.OrderedSet[pkg_rhino.Node] = this_.priv_LoopClosureTransformer_createWrapperFunctions_2576()
 	_ = wrapperFunctions
 	{
 		cur_8 := this_.loopObjectMap.IterKeys()
@@ -546,28 +546,28 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 			_ = loopObject
 			var objectLitNextIteration pkg_rhino.Node = this_.outer_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{})
 			_ = objectLitNextIteration
-			this_.priv_LoopClosureTransformer_renameVarsToProperties_2580(loopObject, objectLitNextIteration, loopNode)
-			var updateLoopObject pkg_rhino.Node = this_.outer_.astFactory.CreateAssign_2_Node_Node(this_.priv_LoopClosureTransformer_createLoopObjectNameNode_2583(loopObject), objectLitNextIteration)
+			this_.priv_LoopClosureTransformer_renameVarsToProperties_2583(loopObject, objectLitNextIteration, loopNode)
+			var updateLoopObject pkg_rhino.Node = this_.outer_.astFactory.CreateAssign_2_Node_Node(this_.priv_LoopClosureTransformer_createLoopObjectNameNode_2586(loopObject), objectLitNextIteration)
 			_ = updateLoopObject
-			var objectLit pkg_rhino.Node = pkg_rhino.IR_Var_2(this_.priv_LoopClosureTransformer_createLoopObjectNameNode_2583(loopObject), this_.outer_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{})).SrcrefTree(loopNode)
+			var objectLit pkg_rhino.Node = pkg_rhino.IR_Var_2(this_.priv_LoopClosureTransformer_createLoopObjectNameNode_2586(loopObject), this_.outer_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{})).SrcrefTree(loopNode)
 			_ = objectLit
-			this_.outer_.priv_Es6RewriteBlockScopedDeclaration_addNodeBeforeLoop_2566(objectLit, loopNode)
+			this_.outer_.priv_Es6RewriteBlockScopedDeclaration_addNodeBeforeLoop_2569(objectLit, loopNode)
 			if loopNode.IsVanillaFor() {
-				this_.priv_LoopClosureTransformer_changeVanillaForLoopHeader_2575(loopNode, updateLoopObject)
+				this_.priv_LoopClosureTransformer_changeVanillaForLoopHeader_2578(loopNode, updateLoopObject)
 			} else {
 				var loopBody pkg_rhino.Node = NodeUtil_GetLoopCodeBlock(loopNode)
 				_ = loopBody
 				loopBody.AddChildToFront(pkg_rhino.IR_ExprResult(updateLoopObject).SrcrefTreeIfMissing(loopNode))
 			}
 			this_.outer_.compiler.ReportChangeToEnclosingScope(loopNode)
-			this_.priv_LoopClosureTransformer_changeLoopLocalVariablesToProperties_2576(loopNode, loopObject)
+			this_.priv_LoopClosureTransformer_changeLoopLocalVariablesToProperties_2579(loopNode, loopObject)
 		}
 	}
-	this_.priv_LoopClosureTransformer_updateNamesInWrapperFunctions_2572(&wrapperFunctions)
+	this_.priv_LoopClosureTransformer_updateNamesInWrapperFunctions_2575(&wrapperFunctions)
 }
 
 // Java method: LoopClosureTransformer.updateNamesInWrapperFunctions(java.util.Set<com.google.javascript.rhino.Node> wrapperFunctions)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_updateNamesInWrapperFunctions_2572(wrapperFunctions *j2gort.OrderedSet[pkg_rhino.Node]) {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_updateNamesInWrapperFunctions_2575(wrapperFunctions *j2gort.OrderedSet[pkg_rhino.Node]) {
 	_ = wrapperFunctions
 	{
 		cur_9 := wrapperFunctions.Iter()
@@ -583,7 +583,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 				for ; param != 0; param = param.GetNext() {
 					var loopObjectName string = j2gort.JStrSub(param.GetString(), int32(0), j2gort.JStrIndexOf(param.GetString(), "$jscomp$loop_param$"))
 					_ = loopObjectName
-					this_.priv_LoopClosureTransformer_updateNames_2574(func_.GetLastChild(), param, loopObjectName)
+					this_.priv_LoopClosureTransformer_updateNames_2577(func_.GetLastChild(), param, loopObjectName)
 				}
 			}
 		}
@@ -591,7 +591,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 }
 
 // Java method: LoopClosureTransformer.createWrapperFunctions()
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_createWrapperFunctions_2573() j2gort.OrderedSet[pkg_rhino.Node] {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_createWrapperFunctions_2576() j2gort.OrderedSet[pkg_rhino.Node] {
 	var wrapperFunctions j2gort.OrderedSet[pkg_rhino.Node] = j2gort.NewOrderedSet[pkg_rhino.Node]()
 	_ = wrapperFunctions
 	{
@@ -650,12 +650,12 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 					{
 						a_13 := parameterNames
 						i_14 := loopObjectIndex
-						a_13[i_14] = this_.priv_LoopClosureTransformer_createUniqueParameterNameToUseWithinLoop_2582(functionOrObjectLit, object)
+						a_13[i_14] = this_.priv_LoopClosureTransformer_createUniqueParameterNameToUseWithinLoop_2585(functionOrObjectLit, object)
 					}
 					{
 						a_15 := objectNamesForCall
 						i_16 := loopObjectIndex
-						a_15[i_16] = this_.priv_LoopClosureTransformer_createLoopObjectNameNode_2583(object)
+						a_15[i_16] = this_.priv_LoopClosureTransformer_createLoopObjectNameNode_2586(object)
 					}
 					loopObjectIndex = loopObjectIndex + 1
 				}
@@ -682,7 +682,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 }
 
 // Java method: LoopClosureTransformer.updateNames(com.google.javascript.rhino.Node node, com.google.javascript.rhino.Node paramName, java.lang.String loopObjectName)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_updateNames_2574(node pkg_rhino.Node, paramName pkg_rhino.Node, loopObjectName string) {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_updateNames_2577(node pkg_rhino.Node, paramName pkg_rhino.Node, loopObjectName string) {
 	_ = node
 	_ = paramName
 	_ = loopObjectName
@@ -696,13 +696,13 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 		var child pkg_rhino.Node = node.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			this_.priv_LoopClosureTransformer_updateNames_2574(child, paramName, loopObjectName)
+			this_.priv_LoopClosureTransformer_updateNames_2577(child, paramName, loopObjectName)
 		}
 	}
 }
 
 // Java method: LoopClosureTransformer.changeVanillaForLoopHeader(com.google.javascript.rhino.Node loopNode, com.google.javascript.rhino.Node updateLoopObject)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_changeVanillaForLoopHeader_2575(loopNode pkg_rhino.Node, updateLoopObject pkg_rhino.Node) {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_changeVanillaForLoopHeader_2578(loopNode pkg_rhino.Node, updateLoopObject pkg_rhino.Node) {
 	_ = loopNode
 	_ = updateLoopObject
 	var initializer pkg_rhino.Node = loopNode.GetFirstChild()
@@ -712,7 +712,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 		if !(NodeUtil_IsNameDeclaration(initializer)) {
 			initializer = pkg_rhino.IR_ExprResult(initializer).Srcref(initializer)
 		}
-		this_.outer_.priv_Es6RewriteBlockScopedDeclaration_addNodeBeforeLoop_2566(initializer, loopNode)
+		this_.outer_.priv_Es6RewriteBlockScopedDeclaration_addNodeBeforeLoop_2569(initializer, loopNode)
 	}
 	var increment pkg_rhino.Node = loopNode.GetChildAtIndex(int32(2))
 	_ = increment
@@ -727,7 +727,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 }
 
 // Java method: LoopClosureTransformer.changeLoopLocalVariablesToProperties(com.google.javascript.rhino.Node loopNode, com.google.javascript.jscomp.Es6RewriteBlockScopedDeclaration.LoopClosureTransformer.LoopObject loopObject)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_changeLoopLocalVariablesToProperties_2576(loopNode pkg_rhino.Node, loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject) {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_changeLoopLocalVariablesToProperties_2579(loopNode pkg_rhino.Node, loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject) {
 	_ = loopNode
 	_ = loopObject
 	{
@@ -737,7 +737,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 			var_ := cur_17.
 				Next()
 			_ = var_
-			var newPropertyName string = this_.priv_LoopClosureTransformer_getLoopObjPropName_2570(var_)
+			var newPropertyName string = this_.priv_LoopClosureTransformer_getLoopObjPropName_2573(var_)
 			_ = newPropertyName
 			{
 				cur_19 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Set](this_.referenceMap.Get(j2gort.PtrToAny(var_)))))
@@ -748,12 +748,12 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 						j2gort.CheckStateMsg(false, j2gort.BoxNode(loopNode))
 					}
 					if loopNode.IsForIn() && (loopNode.GetFirstChild() == reference.GetParent()) {
-						this_.priv_LoopClosureTransformer_assignLoopVarToLoopObjectProperty_2579(loopNode, loopObject, var_, newPropertyName, reference)
+						this_.priv_LoopClosureTransformer_assignLoopVarToLoopObjectProperty_2582(loopNode, loopObject, var_, newPropertyName, reference)
 					} else {
 						if NodeUtil_IsNameDeclaration(reference.GetParent()) {
-							this_.priv_LoopClosureTransformer_replaceDeclarationWithProperty_2577(loopObject, newPropertyName, reference)
+							this_.priv_LoopClosureTransformer_replaceDeclarationWithProperty_2580(loopObject, newPropertyName, reference)
 						} else {
-							this_.priv_LoopClosureTransformer_replaceReferenceWithProperty_2578(loopObject, newPropertyName, reference)
+							this_.priv_LoopClosureTransformer_replaceReferenceWithProperty_2581(loopObject, newPropertyName, reference)
 						}
 					}
 				}
@@ -763,7 +763,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 }
 
 // Java method: LoopClosureTransformer.replaceDeclarationWithProperty(com.google.javascript.jscomp.Es6RewriteBlockScopedDeclaration.LoopClosureTransformer.LoopObject loopObject, java.lang.String newPropertyName, com.google.javascript.rhino.Node reference)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_replaceDeclarationWithProperty_2577(loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject, newPropertyName string, reference pkg_rhino.Node) {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_replaceDeclarationWithProperty_2580(loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject, newPropertyName string, reference pkg_rhino.Node) {
 	_ = loopObject
 	_ = newPropertyName
 	_ = reference
@@ -772,10 +772,10 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 	var grandParent pkg_rhino.Node = declaration.GetParent()
 	_ = grandParent
 	this_.outer_.letConsts.Remove(declaration)
-	this_.outer_.priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationList_2563(declaration, grandParent)
+	this_.outer_.priv_Es6RewriteBlockScopedDeclaration_handleLetConstDeclarationList_2566(declaration, grandParent)
 	declaration = reference.GetParent()
 	if reference.HasChildren() {
-		var newReference pkg_rhino.Node = this_.priv_LoopClosureTransformer_createLoopVarReferenceReplacement_2581(loopObject, reference, newPropertyName)
+		var newReference pkg_rhino.Node = this_.priv_LoopClosureTransformer_createLoopVarReferenceReplacement_2584(loopObject, reference, newPropertyName)
 		_ = newReference
 		var assign pkg_rhino.Node = this_.outer_.astFactory.CreateAssign_2_Node_Node(newReference, reference.RemoveFirstChild())
 		_ = assign
@@ -792,18 +792,18 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 }
 
 // Java method: LoopClosureTransformer.replaceReferenceWithProperty(com.google.javascript.jscomp.Es6RewriteBlockScopedDeclaration.LoopClosureTransformer.LoopObject loopObject, java.lang.String newPropertyName, com.google.javascript.rhino.Node reference)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_replaceReferenceWithProperty_2578(loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject, newPropertyName string, reference pkg_rhino.Node) {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_replaceReferenceWithProperty_2581(loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject, newPropertyName string, reference pkg_rhino.Node) {
 	_ = loopObject
 	_ = newPropertyName
 	_ = reference
 	var referenceParent pkg_rhino.Node = reference.GetParent()
 	_ = referenceParent
-	reference.ReplaceWith(this_.priv_LoopClosureTransformer_createLoopVarReferenceReplacement_2581(loopObject, reference, newPropertyName))
+	reference.ReplaceWith(this_.priv_LoopClosureTransformer_createLoopVarReferenceReplacement_2584(loopObject, reference, newPropertyName))
 	this_.outer_.compiler.ReportChangeToEnclosingScope(referenceParent)
 }
 
 // Java method: LoopClosureTransformer.assignLoopVarToLoopObjectProperty(com.google.javascript.rhino.Node loopNode, com.google.javascript.jscomp.Es6RewriteBlockScopedDeclaration.LoopClosureTransformer.LoopObject loopObject, com.google.javascript.jscomp.Var var, java.lang.String newPropertyName, com.google.javascript.rhino.Node reference)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_assignLoopVarToLoopObjectProperty_2579(loopNode pkg_rhino.Node, loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject, var_ *Var, newPropertyName string, reference pkg_rhino.Node) {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_assignLoopVarToLoopObjectProperty_2582(loopNode pkg_rhino.Node, loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject, var_ *Var, newPropertyName string, reference pkg_rhino.Node) {
 	_ = loopNode
 	_ = loopObject
 	_ = var_
@@ -822,7 +822,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 	}
 	var loopVarReference pkg_rhino.Node = reference.CloneNode_0()
 	_ = loopVarReference
-	var forInPropAssignmentStatemnt pkg_rhino.Node = pkg_rhino.IR_ExprResult(this_.outer_.astFactory.CreateAssign_2_Node_Node(this_.priv_LoopClosureTransformer_createLoopVarReferenceReplacement_2581(loopObject, reference, newPropertyName), loopVarReference)).SrcrefTreeIfMissing(reference)
+	var forInPropAssignmentStatemnt pkg_rhino.Node = pkg_rhino.IR_ExprResult(this_.outer_.astFactory.CreateAssign_2_Node_Node(this_.priv_LoopClosureTransformer_createLoopVarReferenceReplacement_2584(loopObject, reference, newPropertyName), loopVarReference)).SrcrefTreeIfMissing(reference)
 	_ = forInPropAssignmentStatemnt
 	var loopUpdateStatement pkg_rhino.Node = loopNode.GetLastChild().GetFirstChild()
 	_ = loopUpdateStatement
@@ -830,7 +830,7 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 }
 
 // Java method: LoopClosureTransformer.renameVarsToProperties(com.google.javascript.jscomp.Es6RewriteBlockScopedDeclaration.LoopClosureTransformer.LoopObject loopObject, com.google.javascript.rhino.Node objectLitNextIteration, com.google.javascript.rhino.Node scopeRoot)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_renameVarsToProperties_2580(loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject, objectLitNextIteration pkg_rhino.Node, scopeRoot pkg_rhino.Node) {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_renameVarsToProperties_2583(loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject, objectLitNextIteration pkg_rhino.Node, scopeRoot pkg_rhino.Node) {
 	_ = loopObject
 	_ = objectLitNextIteration
 	_ = scopeRoot
@@ -841,12 +841,12 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 			var_ := cur_20.
 				Next()
 			_ = var_
-			var newPropertyName string = this_.priv_LoopClosureTransformer_getLoopObjPropName_2570(var_)
+			var newPropertyName string = this_.priv_LoopClosureTransformer_getLoopObjPropName_2573(var_)
 			_ = newPropertyName
 			var newPropertyValue pkg_rhino.Node
 			_ = newPropertyValue
 			if var_.GetScopeRoot() == scopeRoot {
-				newPropertyValue = this_.priv_LoopClosureTransformer_createLoopVarReferenceReplacement_2581(loopObject, var_.GetNameNode(), newPropertyName)
+				newPropertyValue = this_.priv_LoopClosureTransformer_createLoopVarReferenceReplacement_2584(loopObject, var_.GetNameNode(), newPropertyName)
 			} else {
 				newPropertyValue = this_.outer_.astFactory.CreateUndefinedValue()
 			}
@@ -856,25 +856,25 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 }
 
 // Java method: LoopClosureTransformer.createLoopVarReferenceReplacement(com.google.javascript.jscomp.Es6RewriteBlockScopedDeclaration.LoopClosureTransformer.LoopObject loopObject, com.google.javascript.rhino.Node reference, java.lang.String propertyName)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_createLoopVarReferenceReplacement_2581(loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject, reference pkg_rhino.Node, propertyName string) pkg_rhino.Node {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_createLoopVarReferenceReplacement_2584(loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject, reference pkg_rhino.Node, propertyName string) pkg_rhino.Node {
 	_ = loopObject
 	_ = reference
 	_ = propertyName
-	var replacement pkg_rhino.Node = this_.outer_.astFactory.CreateGetProp(this_.priv_LoopClosureTransformer_createLoopObjectNameNode_2583(loopObject), propertyName, AstFactory_S_Type_1_Node(reference))
+	var replacement pkg_rhino.Node = this_.outer_.astFactory.CreateGetProp(this_.priv_LoopClosureTransformer_createLoopObjectNameNode_2586(loopObject), propertyName, AstFactory_S_Type_1_Node(reference))
 	_ = replacement
 	replacement.SrcrefTree(reference)
 	return replacement
 }
 
 // Java method: LoopClosureTransformer.createUniqueParameterNameToUseWithinLoop(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.Es6RewriteBlockScopedDeclaration.LoopClosureTransformer.LoopObject loopObject)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_createUniqueParameterNameToUseWithinLoop_2582(node pkg_rhino.Node, loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject) pkg_rhino.Node {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_createUniqueParameterNameToUseWithinLoop_2585(node pkg_rhino.Node, loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject) pkg_rhino.Node {
 	_ = node
 	_ = loopObject
 	return this_.outer_.astFactory.CreateName_2_string_AstFactory_Type((j2gort.StrValString(loopObject.name) + "$jscomp$loop_param$" + j2gort.StrValString(this_.outer_.uniqueIdSupplier.GetUniqueId(this_.outer_.compiler.GetInput(NodeUtil_GetInputId(node))))), AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_TOP_OBJECT()))
 }
 
 // Java method: LoopClosureTransformer.createLoopObjectNameNode(com.google.javascript.jscomp.Es6RewriteBlockScopedDeclaration.LoopClosureTransformer.LoopObject loopObject)
-func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_createLoopObjectNameNode_2583(loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject) pkg_rhino.Node {
+func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopClosureTransformer_createLoopObjectNameNode_2586(loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject) pkg_rhino.Node {
 	_ = loopObject
 	return this_.outer_.astFactory.CreateName_2_string_AstFactory_Type(loopObject.name, AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_TOP_OBJECT()))
 }

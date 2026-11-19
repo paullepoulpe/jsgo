@@ -73,11 +73,12 @@ func InitCodePrinter(this_ *CodePrinter) {
 	this_.initFields_CodePrinter()
 }
 
-// Java static method: CodePrinter.toSource(com.google.javascript.rhino.Node root, com.google.javascript.jscomp.CodePrinter.Format outputFormat, com.google.javascript.jscomp.CompilerOptions options, com.google.javascript.jscomp.CodePrinter.@org.jspecify.annotations.Nullable LicenseTracker licenseTracker, boolean tagAsTypeSummary, boolean tagAsStrict, boolean lineBreak, com.google.javascript.jscomp.CodePrinter.Builder.CodeGeneratorFactory codeGeneratorFactory)
-func CodePrinter_ToSource(root pkg_rhino.Node, outputFormat CodePrinter_Format, options *CompilerOptions, licenseTracker CodePrinter_LicenseTracker, tagAsTypeSummary bool, tagAsStrict bool, lineBreak bool, codeGeneratorFactory CodePrinter_Builder_CodeGeneratorFactory) *CodePrinter_SourceAndMappings {
+// Java static method: CodePrinter.toSource(com.google.javascript.rhino.Node root, com.google.javascript.jscomp.CodePrinter.Format outputFormat, com.google.javascript.jscomp.CompilerOptions options, boolean gatherSourceMapInfo, com.google.javascript.jscomp.CodePrinter.@org.jspecify.annotations.Nullable LicenseTracker licenseTracker, boolean tagAsTypeSummary, boolean tagAsStrict, boolean lineBreak, com.google.javascript.jscomp.CodePrinter.Builder.CodeGeneratorFactory codeGeneratorFactory)
+func CodePrinter_ToSource(root pkg_rhino.Node, outputFormat CodePrinter_Format, options *CompilerOptions, gatherSourceMapInfo bool, licenseTracker CodePrinter_LicenseTracker, tagAsTypeSummary bool, tagAsStrict bool, lineBreak bool, codeGeneratorFactory CodePrinter_Builder_CodeGeneratorFactory) *CodePrinter_SourceAndMappings {
 	_ = root
 	_ = outputFormat
 	_ = options
+	_ = gatherSourceMapInfo
 	_ = licenseTracker
 	_ = tagAsTypeSummary
 	_ = tagAsStrict
@@ -89,9 +90,9 @@ func CodePrinter_ToSource(root pkg_rhino.Node, outputFormat CodePrinter_Format, 
 	var mcp CodePrinter_MappedCodePrinter
 	_ = mcp
 	if outputFormat == StaticGet_CodePrinter_Format_COMPACT() {
-		mcp = NewCodePrinter_CompactCodePrinter(lineBreak, options.GetLineLengthThreshold(), options.ShouldGatherSourceMapInfo(), options.GetSourceMapDetailLevel(), licenseTracker)
+		mcp = NewCodePrinter_CompactCodePrinter(lineBreak, options.GetLineLengthThreshold(), gatherSourceMapInfo, options.GetSourceMapDetailLevel(), licenseTracker)
 	} else {
-		mcp = NewCodePrinter_PrettyCodePrinter(options.GetLineLengthThreshold(), options.ShouldGatherSourceMapInfo(), options.GetSourceMapDetailLevel(), licenseTracker)
+		mcp = NewCodePrinter_PrettyCodePrinter(options.GetLineLengthThreshold(), gatherSourceMapInfo, options.GetSourceMapDetailLevel(), licenseTracker)
 	}
 	var cg CodeGenerator = codeGeneratorFactory.GetCodeGenerator(outputFormat, j2gort.AsIface[CodeConsumer](mcp))
 	_ = cg
@@ -111,11 +112,8 @@ func CodePrinter_ToSource(root pkg_rhino.Node, outputFormat CodePrinter_Format, 
 		r_2 := result
 		r_2.source = mcp.GetCode()
 	}
-	if options.ShouldGatherSourceMapInfo() {
-		{
-			r_3 := result
-			r_3.mappings = mcp.GetSourceMappings(result.source)
-		}
+	if gatherSourceMapInfo {
+		mcp.FinishSourceMappings(result.source, result)
 	}
 	return result
 }
@@ -126,7 +124,7 @@ type CodePrinter_MappedCodePrinter interface {
 	IsJavaNil_() bool
 	GetCodePrinter_MappedCodePrinterBase() *CodePrinter_MappedCodePrinterBase
 	CodeConsumer
-	GetSourceMappings(string) j2gort.Ext_java_util_List
+	FinishSourceMappings(string, *CodePrinter_SourceAndMappings)
 	ReportLineCut(int32, int32)
 	GetCode() string
 	GetCurrentCharIndex() int32
@@ -147,12 +145,19 @@ func ToIface_CodePrinter_MappedCodePrinter[T interface {
 // Java class: com.google.javascript.jscomp.CodePrinter.MappedCodePrinter
 type CodePrinter_MappedCodePrinterBase struct {
 	CodeConsumerBase
-	mappings                    j2gort.Deque[*SourceMap_Mapping]    `gson:"mappings"`
-	allMappings                 []*SourceMap_Mapping                `gson:"allMappings"`
-	completeMappings            []*SourceMap_Mapping                `gson:"completeMappings"`
+	mappingNodes                []pkg_rhino.Node                    `gson:"mappingNodes"`
+	startLines                  []int32                             `gson:"startLines"`
+	startCols                   []int32                             `gson:"startCols"`
+	endLines                    []int32                             `gson:"endLines"`
+	endCols                     []int32                             `gson:"endCols"`
+	openMappingStack            []int32                             `gson:"openMappingStack"`
+	completeMappingIds          []int32                             `gson:"completeMappingIds"`
 	sourceMapDetailLevel        *SourceMap_DetailLevel              `gson:"sourceMapDetailLevel"`
 	licenseTracker              CodePrinter_LicenseTracker          `gson:"licenseTracker"`
 	code                        *j2gort.Ext_java_lang_StringBuilder `gson:"code"`
+	mappingCount                int32                               `gson:"mappingCount"`
+	openMappingDepth            int32                               `gson:"openMappingDepth"`
+	completeMappingCount        int32                               `gson:"completeMappingCount"`
 	firstCandidateMappingForCut int32                               `gson:"firstCandidateMappingForCut"`
 	lineLengthThreshold         int32                               `gson:"lineLengthThreshold"`
 	lineLength                  int32                               `gson:"lineLength"`
@@ -185,11 +190,37 @@ func (b *CodePrinter_MappedCodePrinterBase) GetCodePrinter_MappedCodePrinterBase
 func (*CodePrinter_MappedCodePrinterBase) Implements_jscomp_CodePrinter_MappedCodePrinter() {}
 func (*CodePrinter_MappedCodePrinterBase) Implements_jscomp_CodeConsumer()                  {}
 
+var static_CodePrinter_MappedCodePrinter_EMPTY_INT_ARRAY []int32
+
+func StaticGet_CodePrinter_MappedCodePrinter_EMPTY_INT_ARRAY() []int32 {
+	clinit_CodePrinter_MappedCodePrinter()
+	return static_CodePrinter_MappedCodePrinter_EMPTY_INT_ARRAY
+}
+func StaticSet_CodePrinter_MappedCodePrinter_EMPTY_INT_ARRAY(v []int32) {
+	clinit_CodePrinter_MappedCodePrinter()
+	static_CodePrinter_MappedCodePrinter_EMPTY_INT_ARRAY = v
+}
+
+var clinitDone_CodePrinter_MappedCodePrinter uint32
+var clinitState_CodePrinter_MappedCodePrinter j2gort.ClinitState
+
+func clinit_CodePrinter_MappedCodePrinter() {
+	if atomic.LoadUint32(&clinitDone_CodePrinter_MappedCodePrinter) != 0 {
+		return
+	}
+	clinitSlow_CodePrinter_MappedCodePrinter()
+}
+
+func clinitSlow_CodePrinter_MappedCodePrinter() {
+	if !j2gort.EnterClinit(&clinitState_CodePrinter_MappedCodePrinter, &clinitDone_CodePrinter_MappedCodePrinter) {
+		return
+	}
+	defer j2gort.ExitClinit(&clinitState_CodePrinter_MappedCodePrinter, &clinitDone_CodePrinter_MappedCodePrinter)
+	static_CodePrinter_MappedCodePrinter_EMPTY_INT_ARRAY = make([]int32, int32(0))
+}
+
 func (this_ *CodePrinter_MappedCodePrinterBase) initFields_CodePrinter_MappedCodePrinter() {
 	_ = this_
-	this_.mappings = j2gort.Deque[*SourceMap_Mapping]{}
-	this_.allMappings = []*SourceMap_Mapping{}
-	this_.completeMappings = []*SourceMap_Mapping{}
 
 	this_.code = j2gort.NewExt_java_lang_StringBuilder_1_int32(int32(1024))
 
@@ -247,29 +278,131 @@ func (this_ *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node pkg_rhin
 		if !(line >= int32(0)) {
 			j2gort.CheckState(false)
 		}
-		var val_4 SourceMap_Mapping
-		InitSourceMap_Mapping(&val_4)
-		var mapping *SourceMap_Mapping = &val_4
-		_ = mapping
-		{
-			r_5 := mapping
-			r_5.node = node
+		var id int32 = this_.mappingCount
+		_ = id
+		var nodes []pkg_rhino.Node = this_.mappingNodes
+		_ = nodes
+		if nodes == nil {
+			nodes = make([]pkg_rhino.Node, int32(64))
+			this_.mappingNodes = nodes
+			this_.startLines = make([]int32, int32(64))
+			this_.startCols = make([]int32, int32(64))
+			this_.endLines = make([]int32, int32(64))
+			this_.endCols = make([]int32, int32(64))
+			this_.openMappingStack = make([]int32, int32(32))
+			this_.completeMappingIds = make([]int32, int32(64))
+		} else if id == int32(len(nodes)) {
+			var newCap int32 = (id * int32(2))
+			_ = newCap
+			nodes = func() []pkg_rhino.Node {
+				arrSrc_3 := nodes
+				arrLen_4 := newCap
+				j2gort.CheckNotNullSlice(arrSrc_3)
+				if arrLen_4 < 0 {
+					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+				}
+				arrOut_5 := make([]pkg_rhino.Node, arrLen_4)
+				copy(arrOut_5, arrSrc_3)
+				return arrOut_5
+			}()
+			this_.mappingNodes = nodes
+			this_.startLines = func() []int32 {
+				arrSrc_6 := this_.startLines
+				arrLen_7 := newCap
+				j2gort.CheckNotNullSlice(arrSrc_6)
+				if arrLen_7 < 0 {
+					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+				}
+				arrOut_8 := make([]int32, arrLen_7)
+				copy(arrOut_8, arrSrc_6)
+				return arrOut_8
+			}()
+			this_.startCols = func() []int32 {
+				arrSrc_9 := this_.startCols
+				arrLen_10 := newCap
+				j2gort.CheckNotNullSlice(arrSrc_9)
+				if arrLen_10 < 0 {
+					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+				}
+				arrOut_11 := make([]int32, arrLen_10)
+				copy(arrOut_11, arrSrc_9)
+				return arrOut_11
+			}()
+			this_.endLines = func() []int32 {
+				arrSrc_12 := this_.endLines
+				arrLen_13 := newCap
+				j2gort.CheckNotNullSlice(arrSrc_12)
+				if arrLen_13 < 0 {
+					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+				}
+				arrOut_14 := make([]int32, arrLen_13)
+				copy(arrOut_14, arrSrc_12)
+				return arrOut_14
+			}()
+			this_.endCols = func() []int32 {
+				arrSrc_15 := this_.endCols
+				arrLen_16 := newCap
+				j2gort.CheckNotNullSlice(arrSrc_15)
+				if arrLen_16 < 0 {
+					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+				}
+				arrOut_17 := make([]int32, arrLen_16)
+				copy(arrOut_17, arrSrc_15)
+				return arrOut_17
+			}()
 		}
 		{
-			r_6 := mapping
-			r_6.start = pkg_sourcemap.NewFilePosition(line, index)
+			a_18 := nodes
+			i_19 := id
+			a_18[i_19] = node
 		}
-		this_.mappings.Push(mapping)
-		this_.allMappings = append(this_.allMappings, mapping)
+		{
+			a_20 := this_.startLines
+			i_21 := id
+			a_20[i_21] = line
+		}
+		{
+			a_22 := this_.startCols
+			i_23 := id
+			a_22[i_23] = index
+		}
+		this_.mappingCount = (id + int32(1))
+		var depth int32 = this_.openMappingDepth
+		_ = depth
+		var stack []int32 = this_.openMappingStack
+		_ = stack
+		if depth == int32(len(stack)) {
+			stack = func() []int32 {
+				arrSrc_24 := stack
+				arrLen_25 := (depth * int32(2))
+				j2gort.CheckNotNullSlice(arrSrc_24)
+				if arrLen_25 < 0 {
+					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+				}
+				arrOut_26 := make([]int32, arrLen_25)
+				copy(arrOut_26, arrSrc_24)
+				return arrOut_26
+			}()
+			this_.openMappingStack = stack
+		}
+		{
+			a_27 := stack
+			i_28 := depth
+			a_27[i_28] = id
+		}
+		this_.openMappingDepth = (depth + int32(1))
 	}
 }
 
 // Java method: MappedCodePrinter.endSourceMapping(com.google.javascript.rhino.Node node)
 func (this_ *CodePrinter_MappedCodePrinterBase) EndSourceMapping(node pkg_rhino.Node) {
 	_ = node
-	if (this_.createSrcMap && !(this_.mappings.IsEmpty())) && (this_.mappings.Peek().node == node) {
-		var mapping *SourceMap_Mapping = this_.mappings.Pop()
-		_ = mapping
+	if (this_.createSrcMap && (this_.openMappingDepth > int32(0))) && (this_.mappingNodes[this_.openMappingStack[(this_.openMappingDepth-int32(1))]] == node) {
+		var depth int32 = (this_.openMappingDepth - int32(1))
+		_ = depth
+		this_.openMappingDepth = depth
+		var id int32 = this_.openMappingStack[depth]
+		_ = id
 		var line int32 = this_.GetCurrentLineIndex()
 		_ = line
 		var index int32 = this_.GetCurrentCharIndex()
@@ -278,103 +411,171 @@ func (this_ *CodePrinter_MappedCodePrinterBase) EndSourceMapping(node pkg_rhino.
 			j2gort.CheckState(false)
 		}
 		{
-			r_7 := mapping
-			r_7.end = pkg_sourcemap.NewFilePosition(line, index)
+			a_29 := this_.endLines
+			i_30 := id
+			a_29[i_30] = line
 		}
-		this_.completeMappings = append(this_.completeMappings, mapping)
+		{
+			a_31 := this_.endCols
+			i_32 := id
+			a_31[i_32] = index
+		}
+		var compIdx int32 = this_.completeMappingCount
+		_ = compIdx
+		var compIds []int32 = this_.completeMappingIds
+		_ = compIds
+		if compIdx == int32(len(compIds)) {
+			compIds = func() []int32 {
+				arrSrc_33 := compIds
+				arrLen_34 := (compIdx * int32(2))
+				j2gort.CheckNotNullSlice(arrSrc_33)
+				if arrLen_34 < 0 {
+					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+				}
+				arrOut_35 := make([]int32, arrLen_34)
+				copy(arrOut_35, arrSrc_33)
+				return arrOut_35
+			}()
+			this_.completeMappingIds = compIds
+		}
+		{
+			a_36 := compIds
+			i_37 := compIdx
+			a_36[i_37] = id
+		}
+		this_.completeMappingCount = (compIdx + int32(1))
 	}
 }
 
-// Java method: MappedCodePrinter.getSourceMappings(java.lang.String code)
-func (this_ *CodePrinter_MappedCodePrinterBase) GetSourceMappings(code string) j2gort.Ext_java_util_List {
+// Java method: MappedCodePrinter.finishSourceMappings(java.lang.String code, com.google.javascript.jscomp.CodePrinter.SourceAndMappings out)
+func (this_ *CodePrinter_MappedCodePrinterBase) FinishSourceMappings(code string, out *CodePrinter_SourceAndMappings) {
 	_ = code
-	if !(this_.createSrcMap) {
-		return nil
+	_ = out
+	if !(this_.createSrcMap) || (this_.mappingCount == int32(0)) {
+		return
 	}
-	var lineLengths j2gort.Ext_com_google_common_collect_ImmutableList = CodePrinter_MappedCodePrinter_ComputeLineLengths(code)
+	var lineLengths []int32 = CodePrinter_MappedCodePrinter_ComputeLineLengths(code)
 	_ = lineLengths
-	var fixedMappings []*SourceMap_Mapping = j2gort.MakeNonNilSlice[*SourceMap_Mapping](int32(len(this_.allMappings)))
-	_ = fixedMappings
+	var lineCount int32 = int32(len(lineLengths))
+	_ = lineCount
+	var count int32 = this_.mappingCount
+	_ = count
+	var eLines []int32 = this_.endLines
+	_ = eLines
+	var eCols []int32 = this_.endCols
+	_ = eCols
 	{
 		var i int32 = int32(0)
 		_ = i
-		var size int32 = int32(len(this_.allMappings))
-		_ = size
-		for ; i < size; i = i + 1 {
-			var mapping *SourceMap_Mapping = this_.allMappings[i]
-			_ = mapping
-			var adjusted *SourceMap_Mapping = NewSourceMap_Mapping()
-			_ = adjusted
-			{
-				r_8 := adjusted
-				r_8.node = mapping.node
+		for ; i < count; i = i + 1 {
+			var line int32 = eLines[i]
+			_ = line
+			if line < lineCount {
+				var col int32 = eCols[i]
+				_ = col
+				var lineLen int32 = lineLengths[line]
+				_ = lineLen
+				if col > lineLen {
+					j2gort.CheckStateFmt(false, "End position %s points to a column larger than line length %s", pkg_sourcemap.NewFilePosition(line, col), j2gort.ValueOfInt(lineLen))
+				}
+				if col == lineLen {
+					{
+						a_38 := eLines
+						i_39 := i
+						a_38[i_39] = (line + int32(1))
+					}
+					{
+						a_40 := eCols
+						i_41 := i
+						a_40[i_41] = int32(0)
+					}
+				}
 			}
-			{
-				r_9 := adjusted
-				r_9.start = mapping.start
-			}
-			{
-				r_10 := adjusted
-				r_10.end = CodePrinter_MappedCodePrinter_AdjustEndPosition(j2gort.AsIface[j2gort.Ext_java_util_List](lineLengths), mapping.end)
-			}
-			fixedMappings = append(fixedMappings, adjusted)
 		}
 	}
-	return j2gort.WrapTypedArrayList(fixedMappings)
+	{
+		r_42 := out
+		r_42.mappingNodes = this_.mappingNodes
+	}
+	{
+		r_43 := out
+		r_43.startLines = this_.startLines
+	}
+	{
+		r_44 := out
+		r_44.startCols = this_.startCols
+	}
+	{
+		r_45 := out
+		r_45.endLines = eLines
+	}
+	{
+		r_46 := out
+		r_46.endCols = eCols
+	}
+	{
+		r_47 := out
+		r_47.mappingCount = count
+	}
 }
 
 // Java method: MappedCodePrinter.reportLineCut(int lineIndex, int charIndex)
 func (this_ *CodePrinter_MappedCodePrinterBase) ReportLineCut(lineIndex int32, charIndex int32) {
 	_ = lineIndex
 	_ = charIndex
-	if this_.createSrcMap {
-		var mappingCount int32 = int32(len(this_.allMappings))
-		_ = mappingCount
+	if this_.createSrcMap && (this_.mappingCount > int32(0)) {
+		var count int32 = this_.mappingCount
+		_ = count
+		var sLines []int32 = this_.startLines
+		_ = sLines
+		var sCols []int32 = this_.startCols
+		_ = sCols
 		{
 			var i int32 = this_.firstCandidateMappingForCut
 			_ = i
-			for ; i < mappingCount; i = i + 1 {
-				var mapping *SourceMap_Mapping = this_.allMappings[i]
-				_ = mapping
-				{
-					r_11 := mapping
-					r_11.start = CodePrinter_MappedCodePrinter_ConvertPositionAfterLineCut(mapping.start, lineIndex, charIndex)
+			for ; i < count; i = i + 1 {
+				if (sLines[i] == lineIndex) && (sCols[i] >= charIndex) {
+					{
+						a_48 := sLines
+						i_49 := i
+						a_48[i_49] = (lineIndex + int32(1))
+					}
+					a_50 := sCols
+					i_51 := i
+					a_50[i_51] = (a_50[i_51] - charIndex)
 				}
 			}
 		}
-		this_.firstCandidateMappingForCut = mappingCount
-		{
-			var i_2 int32 = int32(0)
-			_ = i_2
-			var size int32 = int32(len(this_.completeMappings))
-			_ = size
-			for ; i_2 < size; i_2 = i_2 + 1 {
-				var mapping_2 *SourceMap_Mapping = this_.completeMappings[i_2]
-				_ = mapping_2
-				{
-					r_12 := mapping_2
-					r_12.end = CodePrinter_MappedCodePrinter_ConvertPositionAfterLineCut(mapping_2.end, lineIndex, charIndex)
+		this_.firstCandidateMappingForCut = count
+		var compCount int32 = this_.completeMappingCount
+		_ = compCount
+		if compCount > int32(0) {
+			var compIds []int32 = this_.completeMappingIds
+			_ = compIds
+			var eLines []int32 = this_.endLines
+			_ = eLines
+			var eCols []int32 = this_.endCols
+			_ = eCols
+			{
+				var i_2 int32 = int32(0)
+				_ = i_2
+				for ; i_2 < compCount; i_2 = i_2 + 1 {
+					var id int32 = compIds[i_2]
+					_ = id
+					if (eLines[id] == lineIndex) && (eCols[id] >= charIndex) {
+						{
+							a_52 := eLines
+							i_53 := id
+							a_52[i_53] = (lineIndex + int32(1))
+						}
+						a_54 := eCols
+						i_55 := id
+						a_54[i_55] = (a_54[i_55] - charIndex)
+					}
 				}
 			}
+			this_.completeMappingCount = int32(0)
 		}
-		clear(this_.completeMappings)
-		this_.completeMappings = this_.completeMappings[:0]
-	}
-}
-
-// Java static method: MappedCodePrinter.convertPositionAfterLineCut(com.google.debugging.sourcemap.FilePosition position, int lineIndex, int characterPosition)
-func CodePrinter_MappedCodePrinter_ConvertPositionAfterLineCut(position *pkg_sourcemap.FilePosition, lineIndex int32, characterPosition int32) *pkg_sourcemap.FilePosition {
-	_ = position
-	_ = lineIndex
-	_ = characterPosition
-	var originalLine int32 = position.GetLine()
-	_ = originalLine
-	var originalChar int32 = position.GetColumn()
-	_ = originalChar
-	if (originalLine == lineIndex) && (originalChar >= characterPosition) {
-		return pkg_sourcemap.NewFilePosition((originalLine + int32(1)), (originalChar - characterPosition))
-	} else {
-		return position
 	}
 }
 
@@ -403,36 +604,57 @@ func (this_ *CodePrinter_MappedCodePrinterBase) GetCurrentLineIndex() int32 {
 }
 
 // Java static method: MappedCodePrinter.computeLineLengths(java.lang.String code)
-func CodePrinter_MappedCodePrinter_ComputeLineLengths(code string) j2gort.Ext_com_google_common_collect_ImmutableList {
+func CodePrinter_MappedCodePrinter_ComputeLineLengths(code string) []int32 {
+	clinit_CodePrinter_MappedCodePrinter()
 	_ = code
-	var builder []int32 = []int32{}
-	_ = builder
-	var lineStartPos int32 = int32(0)
-	_ = lineStartPos
 	var lineEndPos int32 = j2gort.JStrIndexOfCp(code, int32(uint16(10)))
 	_ = lineEndPos
+	if lineEndPos == int32(-1) {
+		return StaticGet_CodePrinter_MappedCodePrinter_EMPTY_INT_ARRAY()
+	}
+	var lengths []int32 = make([]int32, int32(64))
+	_ = lengths
+	var count int32 = int32(0)
+	_ = count
+	var lineStartPos int32 = int32(0)
+	_ = lineStartPos
 	for lineEndPos > int32(-1) {
-		builder = append(builder, lineEndPos-lineStartPos)
+		if count == int32(len(lengths)) {
+			lengths = func() []int32 {
+				arrSrc_56 := lengths
+				arrLen_57 := (count * int32(2))
+				j2gort.CheckNotNullSlice(arrSrc_56)
+				if arrLen_57 < 0 {
+					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+				}
+				arrOut_58 := make([]int32, arrLen_57)
+				copy(arrOut_58, arrSrc_56)
+				return arrOut_58
+			}()
+		}
+		{
+			a_59 := lengths
+			i_60 := func() int32 { old_61 := count; nw_62 := old_61 + 1; count = nw_62; return old_61 }()
+			a_59[i_60] = (lineEndPos - lineStartPos)
+		}
 		lineStartPos = (lineEndPos + int32(1))
 		lineEndPos = j2gort.JStrIndexOfCpFrom(code, int32(uint16(10)), lineStartPos)
 	}
-	return j2gort.ImmListFromTypedSlice(builder)
-}
-
-// Java static method: MappedCodePrinter.adjustEndPosition(java.util.List<java.lang.Integer> lineLengths, com.google.debugging.sourcemap.FilePosition endPosition)
-func CodePrinter_MappedCodePrinter_AdjustEndPosition(lineLengths j2gort.Ext_java_util_List, endPosition *pkg_sourcemap.FilePosition) *pkg_sourcemap.FilePosition {
-	_ = lineLengths
-	_ = endPosition
-	var line int32 = endPosition.GetLine()
-	_ = line
-	if line >= lineLengths.Size() {
-		return endPosition
+	if count == int32(len(lengths)) {
+		return lengths
+	} else {
+		return func() []int32 {
+			arrSrc_63 := lengths
+			arrLen_64 := count
+			j2gort.CheckNotNullSlice(arrSrc_63)
+			if arrLen_64 < 0 {
+				panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+			}
+			arrOut_65 := make([]int32, arrLen_64)
+			copy(arrOut_65, arrSrc_63)
+			return arrOut_65
+		}()
 	}
-	j2gort.CheckStateFmt((endPosition.GetColumn() <= j2gort.UnboxInt(j2gort.CastPtr[j2gort.BoxInt](lineLengths.Get(line)))), "End position %s points to a column larger than line length %s", j2gort.PtrToAny(endPosition), j2gort.PtrToAny(j2gort.CastPtr[j2gort.BoxInt](lineLengths.Get(line))))
-	if endPosition.GetColumn() == j2gort.UnboxInt(j2gort.CastPtr[j2gort.BoxInt](lineLengths.Get(line))) {
-		return pkg_sourcemap.NewFilePosition((line + int32(1)), int32(0))
-	}
-	return endPosition
 }
 
 // Java class: com.google.javascript.jscomp.CodePrinter.PrettyCodePrinter
@@ -518,26 +740,26 @@ func (this_ *CodePrinter_PrettyCodePrinter) AddNumber(x float64, n pkg_rhino.Nod
 	}
 	var d float64 = float64(0)
 	_ = d
-	var didRet_13 bool
+	var didRet_66 bool
 	func() {
 		defer func() {
-			if rec_14 := recover(); rec_14 != nil {
-				jex_15 := javalang.RecoverException(rec_14)
-				_ = jex_15
-				if j2gort.InstanceOf[javalang.INumberFormatException](jex_15) {
-					e := j2gort.AsIface[javalang.INumberFormatException](jex_15)
+			if rec_67 := recover(); rec_67 != nil {
+				jex_68 := javalang.RecoverException(rec_67)
+				_ = jex_68
+				if j2gort.InstanceOf[javalang.INumberFormatException](jex_68) {
+					e := j2gort.AsIface[javalang.INumberFormatException](jex_68)
 					_ = e
 					this_.CodePrinter_MappedCodePrinterBase.AddNumber(x, n)
-					didRet_13 = true
+					didRet_66 = true
 					return
 				} else {
-					panic(rec_14)
+					panic(rec_67)
 				}
 			}
 		}()
 		d = j2gort.ParseDouble(numberFromSource)
 	}()
-	if didRet_13 {
+	if didRet_66 {
 		return
 	}
 	if x != d {
@@ -721,65 +943,65 @@ func CodePrinter_PrettyCodePrinter_GetNumberFromSource(n pkg_rhino.Node) string 
 	_ = staticSrc
 	var src *SourceFile
 	_ = src
-	var ok_16 bool
-	src, ok_16 = j2gort.TryCast[*SourceFile](staticSrc)
-	if !ok_16 {
+	var ok_69 bool
+	src, ok_69 = j2gort.TryCast[*SourceFile](staticSrc)
+	if !ok_69 {
 		return j2gort.NullString
 	}
 	var srcCode string = j2gort.NullString
 	_ = srcCode
-	var didRet_17 bool
-	var retVal_18 string
+	var didRet_70 bool
+	var retVal_71 string
 	func() {
 		defer func() {
-			if rec_19 := recover(); rec_19 != nil {
-				jex_20 := javalang.RecoverException(rec_19)
-				_ = jex_20
-				if j2gort.InstanceOf[javaio.IIOException](jex_20) {
-					e := j2gort.AsIface[javaio.IIOException](jex_20)
+			if rec_72 := recover(); rec_72 != nil {
+				jex_73 := javalang.RecoverException(rec_72)
+				_ = jex_73
+				if j2gort.InstanceOf[javaio.IIOException](jex_73) {
+					e := j2gort.AsIface[javaio.IIOException](jex_73)
 					_ = e
-					retVal_18 = j2gort.NullString
-					didRet_17 = true
+					retVal_71 = j2gort.NullString
+					didRet_70 = true
 					return
 				} else {
-					panic(rec_19)
+					panic(rec_72)
 				}
 			}
 		}()
 		if src.IsStubSourceFileForAlreadyProvidedInput() {
-			retVal_18 = j2gort.NullString
-			didRet_17 = true
+			retVal_71 = j2gort.NullString
+			didRet_70 = true
 			return
 		}
 		srcCode = src.GetCode()
 	}()
-	if didRet_17 {
-		return retVal_18
+	if didRet_70 {
+		return retVal_71
 	}
 	var offset int32 = int32(0)
 	_ = offset
-	var didRet_21 bool
-	var retVal_22 string
+	var didRet_74 bool
+	var retVal_75 string
 	func() {
 		defer func() {
-			if rec_23 := recover(); rec_23 != nil {
-				jex_24 := javalang.RecoverException(rec_23)
-				_ = jex_24
-				if j2gort.InstanceOf[javalang.IIllegalArgumentException](jex_24) {
-					e_2 := j2gort.AsIface[javalang.IIllegalArgumentException](jex_24)
+			if rec_76 := recover(); rec_76 != nil {
+				jex_77 := javalang.RecoverException(rec_76)
+				_ = jex_77
+				if j2gort.InstanceOf[javalang.IIllegalArgumentException](jex_77) {
+					e_2 := j2gort.AsIface[javalang.IIllegalArgumentException](jex_77)
 					_ = e_2
-					retVal_22 = j2gort.NullString
-					didRet_21 = true
+					retVal_75 = j2gort.NullString
+					didRet_74 = true
 					return
 				} else {
-					panic(rec_23)
+					panic(rec_76)
 				}
 			}
 		}()
 		offset = n.GetSourceOffset()
 	}()
-	if didRet_21 {
-		return retVal_22
+	if didRet_74 {
+		return retVal_75
 	}
 	var endOffset int32 = (offset + n.GetLength())
 	_ = endOffset
@@ -979,7 +1201,7 @@ func InitCodePrinter_Builder(this_ *CodePrinter_Builder, node pkg_rhino.Node) {
 }
 
 // Java method: Builder.getOptions()
-func (this_ *CodePrinter_Builder) priv_Builder_getOptions_1362() *CompilerOptions {
+func (this_ *CodePrinter_Builder) priv_Builder_getOptions_1363() *CompilerOptions {
 	if this_.options == nil {
 		this_.options = NewCompilerOptions()
 	}
@@ -1053,17 +1275,23 @@ func (this_ *CodePrinter_Builder) SetCodeGeneratorFactory(factory CodePrinter_Bu
 
 // Java method: Builder.build()
 func (this_ *CodePrinter_Builder) Build() string {
-	return this_.BuildWithSourceMappings().source
+	return this_.priv_Builder_buildInternal_1375(false).source
 }
 
 // Java method: Builder.buildWithSourceMappings()
 func (this_ *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMappings {
+	return this_.priv_Builder_buildInternal_1375(true)
+}
+
+// Java method: Builder.buildInternal(boolean allowSourceMap)
+func (this_ *CodePrinter_Builder) priv_Builder_buildInternal_1375(allowSourceMap bool) *CodePrinter_SourceAndMappings {
+	_ = allowSourceMap
 	if this_.root == 0 {
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Cannot build without root node being specified")))
 	}
-	var opts *CompilerOptions = this_.priv_Builder_getOptions_1362()
+	var opts *CompilerOptions = this_.priv_Builder_getOptions_1363()
 	_ = opts
-	return CodePrinter_ToSource(this_.root, CodePrinter_Format_FromOptions(opts, this_.outputTypes, this_.prettyPrint), opts, this_.licenseTracker, this_.tagAsTypeSummary, this_.tagAsStrict, this_.lineBreak, this_.codeGeneratorFactory)
+	return CodePrinter_ToSource(this_.root, CodePrinter_Format_FromOptions(opts, this_.outputTypes, this_.prettyPrint), opts, (allowSourceMap && opts.ShouldGatherSourceMapInfo()), this_.licenseTracker, this_.tagAsTypeSummary, this_.tagAsStrict, this_.lineBreak, this_.codeGeneratorFactory)
 }
 
 // Java interface: com.google.javascript.jscomp.CodePrinter.Builder.CodeGeneratorFactory
@@ -1217,9 +1445,14 @@ func init() {
 
 // Java class: com.google.javascript.jscomp.CodePrinter.SourceAndMappings
 type CodePrinter_SourceAndMappings struct {
-	source   string                    `gson:"source"`
-	mappings j2gort.Ext_java_util_List `gson:"mappings"`
-	idHash_  atomic.Int32
+	source       string           `gson:"source"`
+	mappingNodes []pkg_rhino.Node `gson:"mappingNodes"`
+	startLines   []int32          `gson:"startLines"`
+	startCols    []int32          `gson:"startCols"`
+	endLines     []int32          `gson:"endLines"`
+	endCols      []int32          `gson:"endCols"`
+	mappingCount int32            `gson:"mappingCount"`
+	idHash_      atomic.Int32
 }
 
 func (this_ *CodePrinter_SourceAndMappings) BindSelf_(s any) {
@@ -1303,7 +1536,7 @@ func NewCodePrinter__Anon_10(outer_ *CodePrinter_Builder) *CodePrinter__Anon_10 
 func (this_ *CodePrinter__Anon_10) GetCodeGenerator(outputFormat CodePrinter_Format, cc CodeConsumer) CodeGenerator {
 	_ = outputFormat
 	_ = cc
-	var opts *CompilerOptions = this_.outer_.priv_Builder_getOptions_1362()
+	var opts *CompilerOptions = this_.outer_.priv_Builder_getOptions_1363()
 	_ = opts
 	if outputFormat == StaticGet_CodePrinter_Format_TYPED() {
 		return NewTypedCodeGenerator(cc, opts, this_.outer_.registry)

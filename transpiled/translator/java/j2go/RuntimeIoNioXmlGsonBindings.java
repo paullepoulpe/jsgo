@@ -1543,7 +1543,12 @@ public final class RuntimeIoNioXmlGsonBindings {
           "java.io.InputStreamReader",
           "java.io.StringReader" -> {
         if (m.equals("read") && arity == 0) {
-          return "\treturn extReaderReadOne(this_.Core_)\n";
+          return switch (qn) {
+            case "java.io.BufferedReader" -> "\treturn extBufferedReaderReadOne(this_)\n";
+            case "java.io.StringReader" -> "\treturn extStringReaderReadOne(this_)\n";
+            case "java.io.InputStreamReader" -> "\treturn extInputStreamReaderReadOne(this_)\n";
+            default -> "\treturn extReaderReadOneBase(this_)\n";
+          };
         }
         if (m.equals("readLine") && arity == 0) {
           return "\treturn extBufferedReaderReadLine(this_.Core_)\n";
@@ -2299,17 +2304,115 @@ public final class RuntimeIoNioXmlGsonBindings {
         \treturn &extWriterAdapter{ext: ext}
         }
 
+        var extReaderOneBufPool_ = sync.Pool{
+        \tNew: func() any { return new([1]uint16) },
+        }
+
+        func extBufferedReaderReadOne(r *Ext_java_io_BufferedReader) int32 {
+        \tif r == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif br, ok := r.Core_.(*javaio.BufferedReader); ok && br != nil {
+        \t\tif br.Read(r.oneBuf_[:], 0, 1) > 0 {
+        \t\t\treturn int32(r.oneBuf_[0])
+        \t\t}
+        \t\treturn -1
+        \t}
+        \treturn extReaderReadOneBase(&r.Ext_java_io_ReaderBase)
+        }
+
+        func extStringReaderReadOne(r *Ext_java_io_StringReader) int32 {
+        \tif r == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif sr, ok := r.Core_.(*javaio.StringReader); ok && sr != nil {
+        \t\tif ch, ok2 := sr.ReadChar(); ok2 {
+        \t\t\treturn int32(ch)
+        \t\t}
+        \t\treturn -1
+        \t}
+        \treturn extReaderReadOneBase(&r.Ext_java_io_ReaderBase)
+        }
+
+        func extInputStreamReaderReadOne(r *Ext_java_io_InputStreamReader) int32 {
+        \tif r == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif isr, ok := r.Core_.(*javaio.InputStreamReader); ok && isr != nil {
+        \t\tif isr.Read(r.oneBuf_[:], 0, 1) > 0 {
+        \t\t\treturn int32(r.oneBuf_[0])
+        \t\t}
+        \t\treturn -1
+        \t}
+        \treturn extReaderReadOneBase(&r.Ext_java_io_ReaderBase)
+        }
+
+        func extReaderReadOneBase(b *Ext_java_io_ReaderBase) int32 {
+        \tif b == nil {
+        \t\tThrowNPE()
+        \t}
+        \tswitch r := b.Core_.(type) {
+        \tcase nil:
+        \t\treturn -1
+        \tcase *javaio.BufferedReader:
+        \t\tif r == nil || r.Read(b.oneBuf_[:], 0, 1) <= 0 {
+        \t\t\treturn -1
+        \t\t}
+        \t\treturn int32(b.oneBuf_[0])
+        \tcase *javaio.StringReader:
+        \t\tif r != nil {
+        \t\t\tif ch, ok := r.ReadChar(); ok {
+        \t\t\t\treturn int32(ch)
+        \t\t\t}
+        \t\t}
+        \t\treturn -1
+        \tcase *javaio.InputStreamReader:
+        \t\tif r == nil || r.Read(b.oneBuf_[:], 0, 1) <= 0 {
+        \t\t\treturn -1
+        \t\t}
+        \t\treturn int32(b.oneBuf_[0])
+        \tcase javaio.Reader:
+        \t\tif r.Read(b.oneBuf_[:], 0, 1) <= 0 {
+        \t\t\treturn -1
+        \t\t}
+        \t\treturn int32(b.oneBuf_[0])
+        \tdefault:
+        \t\treturn -1
+        \t}
+        }
+
         func extReaderReadOne(core any) int32 {
-        \tr, ok := core.(javaio.Reader)
-        \tif !ok || r == nil {
+        \tswitch r := core.(type) {
+        \tcase nil:
+        \t\treturn -1
+        \tcase *javaio.StringReader:
+        \t\tif r != nil {
+        \t\t\tif ch, ok := r.ReadChar(); ok {
+        \t\t\t\treturn int32(ch)
+        \t\t\t}
+        \t\t}
+        \t\treturn -1
+        \tcase *javaio.InputStreamReader:
+        \t\tif r == nil {
+        \t\t\treturn -1
+        \t\t}
+        \t\tvar buf [1]uint16
+        \t\tif r.Read(buf[:], 0, 1) <= 0 {
+        \t\t\treturn -1
+        \t\t}
+        \t\treturn int32(buf[0])
+        \tcase javaio.Reader:
+        \t\tp := extReaderOneBufPool_.Get().(*[1]uint16)
+        \t\tn := r.Read(p[:], 0, 1)
+        \t\tc := int32(-1)
+        \t\tif n > 0 {
+        \t\t\tc = int32(p[0])
+        \t\t}
+        \t\textReaderOneBufPool_.Put(p)
+        \t\treturn c
+        \tdefault:
         \t\treturn -1
         \t}
-        \tvar buf [1]uint16
-        \tn := r.Read(buf[:], 0, 1)
-        \tif n <= 0 {
-        \t\treturn -1
-        \t}
-        \treturn int32(buf[0])
         }
 
         func extBufferedReaderReadLine(core any) string {

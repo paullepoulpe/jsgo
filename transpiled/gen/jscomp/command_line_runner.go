@@ -123,7 +123,7 @@ func InitCommandLineRunner_1(this_ *CommandLineRunner, args []string) {
 	_ = args
 	InitAbstractCommandLineRunner(&this_.AbstractCommandLineRunnerBase)
 	this_.initFields_CommandLineRunner()
-	this_.priv_CommandLineRunner_initConfigFromFlags_1404(args, j2gort.Ext_java_lang_System_F_Out, j2gort.Ext_java_lang_System_F_Err)
+	this_.priv_CommandLineRunner_initConfigFromFlags_1406(args, j2gort.Ext_java_lang_System_F_Out, j2gort.Ext_java_lang_System_F_Err)
 }
 
 // Java constructor: CommandLineRunner(java.lang.String[] args, java.io.PrintStream out, java.io.PrintStream err)
@@ -141,7 +141,7 @@ func InitCommandLineRunner_3(this_ *CommandLineRunner, args []string, out *j2gor
 	_ = err
 	InitAbstractCommandLineRunner_2(&this_.AbstractCommandLineRunnerBase, out, err)
 	this_.initFields_CommandLineRunner()
-	this_.priv_CommandLineRunner_initConfigFromFlags_1404(args, out, err)
+	this_.priv_CommandLineRunner_initConfigFromFlags_1406(args, out, err)
 }
 
 // Java constructor: CommandLineRunner(java.lang.String[] args, java.io.InputStream in, java.io.PrintStream out, java.io.PrintStream err)
@@ -160,7 +160,7 @@ func InitCommandLineRunner_4(this_ *CommandLineRunner, args []string, in j2gort.
 	_ = err
 	InitAbstractCommandLineRunner_3(&this_.AbstractCommandLineRunnerBase, in, out, err)
 	this_.initFields_CommandLineRunner()
-	this_.priv_CommandLineRunner_initConfigFromFlags_1404(args, out, err)
+	this_.priv_CommandLineRunner_initConfigFromFlags_1406(args, out, err)
 }
 
 // Java static method: CommandLineRunner.processArgs(java.lang.String[] args)
@@ -197,7 +197,7 @@ func CommandLineRunner_ProcessArgs(args []string) j2gort.Ext_java_util_List {
 }
 
 // Java method: CommandLineRunner.reportError(java.lang.String message)
-func (this_ *CommandLineRunner) priv_CommandLineRunner_reportError_1401(message string) {
+func (this_ *CommandLineRunner) priv_CommandLineRunner_reportError_1403(message string) {
 	_ = message
 	this_.errors = true
 	this_.errorStream.Println_1_string(message)
@@ -205,7 +205,7 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_reportError_1401(message 
 }
 
 // Java method: CommandLineRunner.processFlagFiles()
-func (this_ *CommandLineRunner) priv_CommandLineRunner_processFlagFiles_1402() {
+func (this_ *CommandLineRunner) priv_CommandLineRunner_processFlagFiles_1404() {
 	{
 		cur_2 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.flags.flagFiles))
 		for cur_2.HasNext() {
@@ -219,20 +219,20 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_processFlagFiles_1402() {
 						if j2gort.InstanceOf[javaio.IIOException](jex_4) {
 							ioErr := j2gort.AsIface[javaio.IIOException](jex_4)
 							_ = ioErr
-							this_.priv_CommandLineRunner_reportError_1401(("ERROR - " + j2gort.StrValString(flagFile) + " read error."))
+							this_.priv_CommandLineRunner_reportError_1403(("ERROR - " + j2gort.StrValString(flagFile) + " read error."))
 						} else {
 							panic(rec_3)
 						}
 					}
 				}()
-				this_.priv_CommandLineRunner_processFlagFile_1403(flagFile)
+				this_.priv_CommandLineRunner_processFlagFile_1405(flagFile)
 			}()
 		}
 	}
 }
 
 // Java method: CommandLineRunner.processFlagFile(java.lang.String flagFileString)
-func (this_ *CommandLineRunner) priv_CommandLineRunner_processFlagFile_1403(flagFileString string) {
+func (this_ *CommandLineRunner) priv_CommandLineRunner_processFlagFile_1405(flagFileString string) {
 	_ = flagFileString
 	var flagFile j2gort.Ext_java_nio_file_Path = j2gort.Ext_java_nio_file_Path_Of_2(flagFileString, []string{})
 	_ = flagFile
@@ -314,11 +314,11 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_processFlagFile_1403(flag
 	_ = previousMixedJsSources
 	StaticGet_CommandLineRunner_Flags_GuardLevels().Clear()
 	StaticGet_CommandLineRunner_Flags_MixedJsSources().Clear()
-	this_.flags.priv_Flags_parse_1409(tokens)
+	this_.flags.priv_Flags_parse_1411(tokens)
 	StaticGet_CommandLineRunner_Flags_GuardLevels().AddAll_1(previousGuardLevels)
 	StaticGet_CommandLineRunner_Flags_MixedJsSources().AddAll_1(previousMixedJsSources)
 	if !(this_.flags.flagFiles.IsEmpty()) {
-		this_.priv_CommandLineRunner_reportError_1401("ERROR - Arguments in the file cannot contain --flagfile option.")
+		this_.priv_CommandLineRunner_reportError_1403("ERROR - Arguments in the file cannot contain --flagfile option.")
 	}
 }
 
@@ -328,7 +328,7 @@ func (this_ *CommandLineRunner) GetVersionText() string {
 }
 
 // Java method: CommandLineRunner.initConfigFromFlags(java.lang.String[] args, java.io.PrintStream out, java.io.PrintStream err)
-func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1404(args []string, out *j2gort.Ext_java_io_PrintStream, err *j2gort.Ext_java_io_PrintStream) {
+func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1406(args []string, out *j2gort.Ext_java_io_PrintStream, err *j2gort.Ext_java_io_PrintStream) {
 	_ = args
 	_ = out
 	_ = err
@@ -355,18 +355,18 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1404(
 				if j2gort.InstanceOf[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_14) {
 					e := j2gort.AsIface[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_14)
 					_ = e
-					this_.priv_CommandLineRunner_reportError_1401(j2gort.ThrowableGetMessage(e))
+					this_.priv_CommandLineRunner_reportError_1403(j2gort.ThrowableGetMessage(e))
 				} else if j2gort.InstanceOf[javaio.IIOException](jex_14) {
 					ioErr := j2gort.AsIface[javaio.IIOException](jex_14)
 					_ = ioErr
-					this_.priv_CommandLineRunner_reportError_1401(("ERROR - ioException: " + j2gort.StrVal(ioErr)))
+					this_.priv_CommandLineRunner_reportError_1403(("ERROR - ioException: " + j2gort.StrVal(ioErr)))
 				} else {
 					panic(rec_13)
 				}
 			}
 		}()
-		this_.flags.priv_Flags_parse_1409(processedArgs)
-		this_.priv_CommandLineRunner_processFlagFiles_1402()
+		this_.flags.priv_Flags_parse_1411(processedArgs)
+		this_.priv_CommandLineRunner_processFlagFiles_1404()
 		mixedSources = this_.flags.GetMixedJsSources()
 		mappings = this_.flags.GetSourceMapLocationMappings()
 		sourceMapInputs = this_.flags.GetSourceMapInputs()
@@ -397,7 +397,7 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1404(
 					if j2gort.InstanceOf[javalang.IException](jex_18) {
 						e_2 := j2gort.AsIface[javalang.IException](jex_18)
 						_ = e_2
-						this_.priv_CommandLineRunner_reportError_1401("ERROR - invalid output_wrapper_file specified.")
+						this_.priv_CommandLineRunner_reportError_1403("ERROR - invalid output_wrapper_file specified.")
 					} else {
 						panic(rec_17)
 					}
@@ -410,10 +410,10 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1404(
 		}()
 	}
 	if !(j2gort.CheckNotNullString(this_.flags.outputWrapper) == "") && !(j2gort.JStrIndexOf(this_.flags.outputWrapper, "%output%") >= 0) {
-		this_.priv_CommandLineRunner_reportError_1401(("ERROR - invalid output_wrapper specified. Missing '" + "%output%" + "'."))
+		this_.priv_CommandLineRunner_reportError_1403(("ERROR - invalid output_wrapper specified. Missing '" + "%output%" + "'."))
 	}
 	if !(j2gort.CheckNotNullString(this_.flags.outputWrapper) == "") && (this_.flags.isolationMode != StaticGet_CompilerOptions_IsolationMode_NONE()) {
-		this_.priv_CommandLineRunner_reportError_1401("--output_wrapper and --isolation_mode may not be used together.")
+		this_.priv_CommandLineRunner_reportError_1403("--output_wrapper and --isolation_mode may not be used together.")
 	}
 	if this_.flags.isolationMode == StaticGet_CompilerOptions_IsolationMode_IIFE() {
 		{
@@ -427,7 +427,7 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1404(
 	_ = skipNormalOutputs
 	if this_.flags.compilationLevelParsed == StaticGet_CompilationLevel_BUNDLE() {
 		if j2gort.CheckNotNullString(this_.flags.jsOutputFile) == "" {
-			this_.priv_CommandLineRunner_reportError_1401("--compilation_level=BUNDLE cannot be used without a --js_output_file.")
+			this_.priv_CommandLineRunner_reportError_1403("--compilation_level=BUNDLE cannot be used without a --js_output_file.")
 		} else {
 			bundleFiles = j2gort.ImmListOfStr1(this_.flags.jsOutputFile)
 			{
@@ -447,7 +447,7 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1404(
 		conv = NewClosureCodingConvention()
 	}
 	if !(this_.flags.renaming) && (this_.flags.compilationLevelParsed == StaticGet_CompilationLevel_ADVANCED_OPTIMIZATIONS()) {
-		this_.priv_CommandLineRunner_reportError_1401("ERROR - renaming cannot be disabled when ADVANCED_OPTIMIZATIONS is used.")
+		this_.priv_CommandLineRunner_reportError_1403("ERROR - renaming cannot be disabled when ADVANCED_OPTIMIZATIONS is used.")
 	}
 	var dependencyOptions *DependencyOptions = nil
 	_ = dependencyOptions
@@ -459,7 +459,7 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1404(
 				if j2gort.InstanceOf[*FlagUsageException](jex_23) {
 					e_3 := j2gort.AsIface[*FlagUsageException](jex_23)
 					_ = e_3
-					this_.priv_CommandLineRunner_reportError_1401(j2gort.ThrowableGetMessage(e_3))
+					this_.priv_CommandLineRunner_reportError_1403(j2gort.ThrowableGetMessage(e_3))
 				} else {
 					panic(rec_22)
 				}
@@ -470,7 +470,7 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1404(
 	if this_.errors {
 		CommandLineRunner_Flags_PrintShortUsageAfterErrors(this_.errorStream)
 	} else if this_.flags.displayHelp || this_.flags.helpMarkdown {
-		this_.flags.priv_Flags_printUsage_1410(out)
+		this_.flags.priv_Flags_printUsage_1412(out)
 	} else {
 		this_.runCompiler = true
 		var config *AbstractCommandLineRunner_CommandLineConfig = this_.GetCommandLineConfig()
@@ -581,7 +581,7 @@ func (this_ *CommandLineRunner) CreateOptions() *CompilerOptions {
 			rawElem_26 := cur_25.Next()
 			formattingOption := j2gort.Cast[CommandLineRunner_FormattingOption](rawElem_26)
 			_ = formattingOption
-			formattingOption.priv_FormattingOption_applyToOptions_1425(options)
+			formattingOption.priv_FormattingOption_applyToOptions_1427(options)
 		}
 	}
 	options.SetClosurePass(this_.flags.processClosurePrimitives)
@@ -656,7 +656,7 @@ func (this_ *CommandLineRunner) CreateOptions() *CompilerOptions {
 					if j2gort.InstanceOf[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_32) {
 						e_2 := j2gort.AsIface[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_32)
 						_ = e_2
-						this_.priv_CommandLineRunner_reportError_1401("ERROR - invalid package_json_entry_names format specified.")
+						this_.priv_CommandLineRunner_reportError_1403("ERROR - invalid package_json_entry_names format specified.")
 					} else {
 						panic(rec_31)
 					}
@@ -708,7 +708,7 @@ func (this_ *CommandLineRunner) CreateCompiler() *Compiler {
 }
 
 // Java method: CommandLineRunner.getBundler()
-func (this_ *CommandLineRunner) priv_CommandLineRunner_getBundler_1405() *ClosureBundler {
+func (this_ *CommandLineRunner) priv_CommandLineRunner_getBundler_1407() *ClosureBundler {
 	if this_.bundler != nil {
 		return this_.bundler
 	}
@@ -733,13 +733,13 @@ func (this_ *CommandLineRunner) PrepForBundleAndAppendTo(out j2gort.Ext_java_lan
 	_ = out
 	_ = input
 	_ = content
-	this_.priv_CommandLineRunner_getBundler_1405().WithPath(input.GetName()).AppendTo_3_Ext_java_lang_Appendable_DependencyInfo_string(out, ToIface_DependencyInfo(input), content)
+	this_.priv_CommandLineRunner_getBundler_1407().WithPath(input.GetName()).AppendTo_3_Ext_java_lang_Appendable_DependencyInfo_string(out, ToIface_DependencyInfo(input), content)
 }
 
 // Java method: CommandLineRunner.appendRuntimeTo(java.lang.Appendable out)
 func (this_ *CommandLineRunner) AppendRuntimeTo(out j2gort.Ext_java_lang_Appendable) {
 	_ = out
-	this_.priv_CommandLineRunner_getBundler_1405().AppendRuntimeTo(out)
+	this_.priv_CommandLineRunner_getBundler_1407().AppendRuntimeTo(out)
 }
 
 // Java method: CommandLineRunner.createExterns(com.google.javascript.jscomp.CompilerOptions options)
@@ -1297,7 +1297,7 @@ func (this_ *CommandLineRunner_Flags) SetOption(name string, value string) bool 
 }
 
 // Java method: Flags.parse(java.util.List<java.lang.String> args)
-func (this_ *CommandLineRunner_Flags) priv_Flags_parse_1409(args j2gort.Ext_java_util_List) {
+func (this_ *CommandLineRunner_Flags) priv_Flags_parse_1411(args j2gort.Ext_java_util_List) {
 	_ = args
 	this_.parser.ParseArgument_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](args))
 	this_.compilationLevelParsed = CompilationLevel_FromString(j2gort.Ext_com_google_common_base_Ascii_ToUpperCase_1_string(this_.compilationLevel))
@@ -1311,7 +1311,7 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_parse_1409(args j2gort.Ext_java
 }
 
 // Java method: Flags.printUsage(java.io.PrintStream ps)
-func (this_ *CommandLineRunner_Flags) priv_Flags_printUsage_1410(ps *j2gort.Ext_java_io_PrintStream) {
+func (this_ *CommandLineRunner_Flags) priv_Flags_printUsage_1412(ps *j2gort.Ext_java_io_PrintStream) {
 	_ = ps
 	var outputStream *j2gort.Ext_java_io_OutputStreamWriter = j2gort.NewExt_java_io_OutputStreamWriter_2_Ext_java_io_OutputStream_Ext_java_nio_charset_Charset(j2gort.AsIface[j2gort.Ext_java_io_OutputStream](ps), j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8)
 	_ = outputStream
@@ -1339,14 +1339,14 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_printUsage_1410(ps *j2gort.Ext_
 				this_.maxLineLength = int32(5000)
 				this_.parser.SetUsageWidth(this_.maxLineLength)
 			}
-			this_.priv_Flags_printCategoryUsage_1411(cur_42.KeyStr(), j2gort.AsIface[j2gort.Ext_java_util_Collection](cur_42.GetValue()), outputStream, prefix, suffix)
+			this_.priv_Flags_printCategoryUsage_1413(cur_42.KeyStr(), j2gort.AsIface[j2gort.Ext_java_util_Collection](cur_42.GetValue()), outputStream, prefix, suffix)
 		}
 	}
 	ps.Flush()
 }
 
 // Java method: Flags.printCategoryUsage(java.lang.String categoryName, java.util.Collection<java.lang.String> options, java.io.OutputStreamWriter outputStream, java.lang.String prefix, java.lang.String suffix)
-func (this_ *CommandLineRunner_Flags) priv_Flags_printCategoryUsage_1411(categoryName string, options j2gort.Ext_java_util_Collection, outputStream *j2gort.Ext_java_io_OutputStreamWriter, prefix string, suffix string) {
+func (this_ *CommandLineRunner_Flags) priv_Flags_printCategoryUsage_1413(categoryName string, options j2gort.Ext_java_util_Collection, outputStream *j2gort.Ext_java_io_OutputStreamWriter, prefix string, suffix string) {
 	_ = categoryName
 	_ = options
 	_ = outputStream
@@ -1366,7 +1366,7 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_printCategoryUsage_1411(categor
 			}
 		}()
 		if prefix != j2gort.NullString {
-			this_.priv_Flags_printStringLineWrapped_1412(prefix, outputStream)
+			this_.priv_Flags_printStringLineWrapped_1414(prefix, outputStream)
 		}
 		if this_.helpMarkdown {
 			outputStream.Write_1_string(("# " + j2gort.StrValString(categoryName) + "\n"))
@@ -1423,13 +1423,13 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_printCategoryUsage_1411(categor
 			}))
 		}
 		if suffix != j2gort.NullString {
-			this_.priv_Flags_printStringLineWrapped_1412(suffix, outputStream)
+			this_.priv_Flags_printStringLineWrapped_1414(suffix, outputStream)
 		}
 	}()
 }
 
 // Java method: Flags.printStringLineWrapped(java.lang.String input, java.io.OutputStreamWriter outputStream)
-func (this_ *CommandLineRunner_Flags) priv_Flags_printStringLineWrapped_1412(input string, outputStream *j2gort.Ext_java_io_OutputStreamWriter) {
+func (this_ *CommandLineRunner_Flags) priv_Flags_printStringLineWrapped_1414(input string, outputStream *j2gort.Ext_java_io_OutputStreamWriter) {
 	_ = input
 	_ = outputStream
 	if j2gort.JStrLen(input) < this_.maxLineLength {
@@ -1449,7 +1449,7 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_printStringLineWrapped_1412(inp
 		foundMatch = true
 	}
 	outputStream.Write_1_string((j2gort.StrValString(j2gort.JStrSub(input, int32(0), endIndex)) + "\n"))
-	this_.priv_Flags_printStringLineWrapped_1412(("    " + j2gort.StrValString(j2gort.JStrSubFrom(input, func() int32 {
+	this_.priv_Flags_printStringLineWrapped_1414(("    " + j2gort.StrValString(j2gort.JStrSubFrom(input, func() int32 {
 		if foundMatch {
 			return (endIndex + int32(1))
 		}
@@ -1525,7 +1525,7 @@ func (this_ *CommandLineRunner_Flags) GetMixedJsSources() j2gort.Ext_java_util_L
 func (this_ *CommandLineRunner_Flags) GetSourceMapLocationMappings() j2gort.Ext_java_util_List {
 	var locationMappings []*SourceMap_PrefixLocationMapping = []*SourceMap_PrefixLocationMapping{}
 	_ = locationMappings
-	var split j2gort.Ext_com_google_common_collect_ImmutableMap = this_.priv_Flags_splitPipeParts_1416(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.sourceMapLocationMapping), "--source_map_location_mapping")
+	var split j2gort.Ext_com_google_common_collect_ImmutableMap = this_.priv_Flags_splitPipeParts_1418(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.sourceMapLocationMapping), "--source_map_location_mapping")
 	_ = split
 	{
 		cur_55 := j2gort.NewMapEntryCursor(split)
@@ -1538,11 +1538,11 @@ func (this_ *CommandLineRunner_Flags) GetSourceMapLocationMappings() j2gort.Ext_
 
 // Java method: Flags.getSourceMapInputs()
 func (this_ *CommandLineRunner_Flags) GetSourceMapInputs() j2gort.Ext_com_google_common_collect_ImmutableMap {
-	return this_.priv_Flags_splitPipeParts_1416(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.sourceMapInputs), "--source_map_input")
+	return this_.priv_Flags_splitPipeParts_1418(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.sourceMapInputs), "--source_map_input")
 }
 
 // Java method: Flags.splitPipeParts(java.lang.Iterable<java.lang.String> input, java.lang.String flagName)
-func (this_ *CommandLineRunner_Flags) priv_Flags_splitPipeParts_1416(input j2gort.Ext_java_lang_Iterable, flagName string) j2gort.Ext_com_google_common_collect_ImmutableMap {
+func (this_ *CommandLineRunner_Flags) priv_Flags_splitPipeParts_1418(input j2gort.Ext_java_lang_Iterable, flagName string) j2gort.Ext_com_google_common_collect_ImmutableMap {
 	_ = input
 	_ = flagName
 	var result j2gort.Ext_com_google_common_collect_ImmutableMap_Builder = j2gort.NewExt_com_google_common_collect_ImmutableMap_Builder()
@@ -3284,7 +3284,7 @@ func CommandLineRunner_FormattingOption_ValueOf(name string) CommandLineRunner_F
 }
 
 // Java method: FormattingOption.applyToOptions(com.google.javascript.jscomp.CompilerOptions options)
-func (this_ CommandLineRunner_FormattingOption) priv_FormattingOption_applyToOptions_1425(options *CompilerOptions) {
+func (this_ CommandLineRunner_FormattingOption) priv_FormattingOption_applyToOptions_1427(options *CompilerOptions) {
 	if this_ == 0 {
 		j2gort.ThrowNPE()
 	}

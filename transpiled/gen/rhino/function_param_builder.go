@@ -131,7 +131,7 @@ func InitFunctionParamBuilder_2(this_ *FunctionParamBuilder, registry *JSTypeReg
 }
 
 // Java method: FunctionParamBuilder.ensureParameters()
-func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_ensureParameters_8864() j2gort.Ext_java_util_ArrayList {
+func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_ensureParameters_8878() j2gort.Ext_java_util_ArrayList {
 	var list j2gort.Ext_java_util_ArrayList = this_.parameters
 	_ = list
 	if ((list == nil)) {
@@ -144,13 +144,13 @@ func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_ensureParameters_88
 // Java method: FunctionParamBuilder.addRequiredParams(com.google.javascript.rhino.jstype.JSType[] types)
 func (this_ *FunctionParamBuilder) AddRequiredParams(types []JSType) bool {
 	_ = types
-	if (this_.priv_FunctionParamBuilder_hasOptionalOrVarArgs_8871()) {
+	if (this_.priv_FunctionParamBuilder_hasOptionalOrVarArgs_8885()) {
 		return false
 	}
 	for _, el_1 := range j2gort.CheckNotNullSlice(types) {
 		type_ := el_1
 		_ = type_
-		this_.priv_FunctionParamBuilder_newParameter_8870(type_, false, false)
+		this_.priv_FunctionParamBuilder_newParameter_8884(type_, false, false)
 	}
 	return true
 }
@@ -164,7 +164,7 @@ func (this_ *FunctionParamBuilder) AddOptionalParams(types []JSType) bool {
 	for _, el_2 := range j2gort.CheckNotNullSlice(types) {
 		type_ := el_2
 		_ = type_
-		this_.priv_FunctionParamBuilder_newParameter_8870(this_.registry.CreateOptionalType(type_), true, false)
+		this_.priv_FunctionParamBuilder_newParameter_8884(this_.registry.CreateOptionalType(type_), true, false)
 	}
 	return true
 }
@@ -175,14 +175,14 @@ func (this_ *FunctionParamBuilder) AddVarArgs(type_ JSType) bool {
 	if (this_.HasVarArgs()) {
 		return false
 	}
-	this_.priv_FunctionParamBuilder_newParameter_8870(type_, false, true)
+	this_.priv_FunctionParamBuilder_newParameter_8884(type_, false, true)
 	return true
 }
 
 // Java method: FunctionParamBuilder.newParameterFrom(com.google.javascript.rhino.jstype.FunctionType.Parameter n)
 func (this_ *FunctionParamBuilder) NewParameterFrom(n FunctionType_Parameter) {
 	_ = n
-	this_.priv_FunctionParamBuilder_ensureParameters_8864().Add_1(j2gort.BoxNullableVal(n))
+	this_.priv_FunctionParamBuilder_ensureParameters_8878().Add_1(j2gort.BoxNullableVal(n))
 }
 
 // Java method: FunctionParamBuilder.newOptionalParameterFrom(com.google.javascript.rhino.jstype.FunctionType.Parameter p)
@@ -191,24 +191,24 @@ func (this_ *FunctionParamBuilder) NewOptionalParameterFrom(p FunctionType_Param
 	var isOptional bool = (p.IsOptional() || !(p.IsVariadic()))
 	_ = isOptional
 	if ((isOptional != p.IsOptional())) {
-		this_.priv_FunctionParamBuilder_newParameter_8870(p.GetJSType(), isOptional, p.IsVariadic())
+		this_.priv_FunctionParamBuilder_newParameter_8884(p.GetJSType(), isOptional, p.IsVariadic())
 	} else {
 		this_.NewParameterFrom(p)
 	}
 }
 
 // Java method: FunctionParamBuilder.newParameter(com.google.javascript.rhino.jstype.JSType type, boolean isOptional, boolean isVariadic)
-func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_newParameter_8870(type_ JSType, isOptional bool, isVariadic bool) {
+func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_newParameter_8884(type_ JSType, isOptional bool, isVariadic bool) {
 	_ = type_
 	_ = isOptional
 	_ = isVariadic
 	var parameter FunctionType_Parameter = FunctionType_Parameter_Create(type_, isOptional, isVariadic)
 	_ = parameter
-	this_.priv_FunctionParamBuilder_ensureParameters_8864().Add_1(j2gort.BoxNullableVal(parameter))
+	this_.priv_FunctionParamBuilder_ensureParameters_8878().Add_1(j2gort.BoxNullableVal(parameter))
 }
 
 // Java method: FunctionParamBuilder.hasOptionalOrVarArgs()
-func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_hasOptionalOrVarArgs_8871() bool {
+func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_hasOptionalOrVarArgs_8885() bool {
 	var list j2gort.Ext_java_util_ArrayList = this_.parameters
 	_ = list
 	if (((list == nil) || list.IsEmpty())) {

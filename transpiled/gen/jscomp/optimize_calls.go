@@ -97,6 +97,7 @@ func (this_ *OptimizeCalls) Process_2(externs pkg_rhino.Node, root pkg_rhino.Nod
 	InitOptimizeCalls_ReferenceMap(&val_1)
 	var references *OptimizeCalls_ReferenceMap = &val_1
 	_ = references
+	defer references.ReleaseSlabs_()
 	sc_ := NewSyntacticScopeCreator_1(this_.compiler)
 	defer func() {
 		references.globalScope = nil
@@ -112,7 +113,7 @@ func (this_ *OptimizeCalls) Process_2(externs pkg_rhino.Node, root pkg_rhino.Nod
 		(&ntb_).TraverseRoots(externs, root)
 	}
 
-	this_.priv_OptimizeCalls_eliminateAccessorsFrom_4038(references)
+	this_.priv_OptimizeCalls_eliminateAccessorsFrom_4044(references)
 	{
 
 		for _, pass := range this_.passes {
@@ -124,7 +125,7 @@ func (this_ *OptimizeCalls) Process_2(externs pkg_rhino.Node, root pkg_rhino.Nod
 }
 
 // Java method: OptimizeCalls.eliminateAccessorsFrom(com.google.javascript.jscomp.OptimizeCalls.ReferenceMap references)
-func (this_ *OptimizeCalls) priv_OptimizeCalls_eliminateAccessorsFrom_4038(references *OptimizeCalls_ReferenceMap) {
+func (this_ *OptimizeCalls) priv_OptimizeCalls_eliminateAccessorsFrom_4044(references *OptimizeCalls_ReferenceMap) {
 	_ = references
 	{
 		cur_4 := j2gort.NewMapKeyStrCursor(this_.compiler.GetAccessorSummary().GetAccessors())
@@ -376,6 +377,12 @@ func (this_ *OptimizeCalls_NodeList) initFields_OptimizeCalls_NodeList() {
 func NewOptimizeCalls_NodeList() *OptimizeCalls_NodeList {
 	clinit_OptimizeCalls_NodeList()
 	this_ := &OptimizeCalls_NodeList{}
+	InitOptimizeCalls_NodeList(this_)
+	return this_
+}
+func allocPooled_OptimizeCalls_NodeList(slab_ *j2gort.PooledSlab[OptimizeCalls_NodeList]) *OptimizeCalls_NodeList {
+	clinit_OptimizeCalls_NodeList()
+	this_ := slab_.Alloc()
 	InitOptimizeCalls_NodeList(this_)
 	return this_
 }
@@ -683,10 +690,11 @@ func (this_ *OptimizeCalls_NodeList) Get(index int32) pkg_rhino.Node {
 
 // Java class: com.google.javascript.jscomp.OptimizeCalls.ReferenceMap
 type OptimizeCalls_ReferenceMap struct {
-	globalScope *Scope                                             `gson:"globalScope"`
-	names       j2gort.OrderedMap[string, *OptimizeCalls_NodeList] `gson:"names"`
-	props       j2gort.OrderedMap[string, *OptimizeCalls_NodeList] `gson:"props"`
-	idHash_     atomic.Int32
+	globalScope                 *Scope                                             `gson:"globalScope"`
+	names                       j2gort.OrderedMap[string, *OptimizeCalls_NodeList] `gson:"names"`
+	props                       j2gort.OrderedMap[string, *OptimizeCalls_NodeList] `gson:"props"`
+	idHash_                     atomic.Int32
+	slab_OptimizeCalls_NodeList j2gort.PooledSlab[OptimizeCalls_NodeList]
 }
 
 func (this_ *OptimizeCalls_ReferenceMap) BindSelf_(s any) {
@@ -738,7 +746,7 @@ func (this_ *OptimizeCalls_ReferenceMap) AddNameReference(name string, n pkg_rhi
 	var refs *OptimizeCalls_NodeList = this_.names.Get(name)
 	_ = refs
 	if refs == nil {
-		refs = NewOptimizeCalls_NodeList()
+		refs = allocPooled_OptimizeCalls_NodeList(&this_.slab_OptimizeCalls_NodeList)
 		this_.names.Put(name, refs)
 	}
 	refs.Add(n)
@@ -751,7 +759,7 @@ func (this_ *OptimizeCalls_ReferenceMap) AddPropReference(name string, n pkg_rhi
 	var refs *OptimizeCalls_NodeList = this_.props.Get(name)
 	_ = refs
 	if refs == nil {
-		refs = NewOptimizeCalls_NodeList()
+		refs = allocPooled_OptimizeCalls_NodeList(&this_.slab_OptimizeCalls_NodeList)
 		this_.props.Put(name, refs)
 	}
 	refs.Add(n)
@@ -788,11 +796,40 @@ func OptimizeCalls_ReferenceMap_GetFunctionNodeList(definitionSites *OptimizeCal
 		return StaticGet_OptimizeCalls_NodeList_EMPTY()
 	}
 }
+func allocPooledVia_OptimizeCalls_ReferenceMap_GetFunctionNodeList(slab_ *j2gort.PooledSlab[OptimizeCalls_NodeList], definitionSites *OptimizeCalls_NodeList) *OptimizeCalls_NodeList {
+	_ = definitionSites
+	var result *OptimizeCalls_NodeList = nil
+	_ = result
+	{
+		var i int32 = int32(0)
+		_ = i
+		var count int32 = definitionSites.Size()
+		_ = count
+		for ; i < count; i = i + 1 {
+			result = allocPooledVia_OptimizeCalls_ReferenceMap_AppendDefinitionFunctionNodes(slab_, definitionSites.Get(i), result)
+		}
+	}
+	if result != nil {
+		return result
+	} else {
+		return StaticGet_OptimizeCalls_NodeList_EMPTY()
+	}
+}
 
 // Java static method: ReferenceMap.definitionFunctionNodeListFor(com.google.javascript.rhino.Node definitionSite)
 func OptimizeCalls_ReferenceMap_DefinitionFunctionNodeListFor(definitionSite pkg_rhino.Node) *OptimizeCalls_NodeList {
 	_ = definitionSite
 	var result *OptimizeCalls_NodeList = OptimizeCalls_ReferenceMap_AppendDefinitionFunctionNodes(definitionSite, nil)
+	_ = result
+	if result != nil {
+		return result
+	} else {
+		return StaticGet_OptimizeCalls_NodeList_EMPTY()
+	}
+}
+func allocPooledVia_OptimizeCalls_ReferenceMap_DefinitionFunctionNodeListFor(slab_ *j2gort.PooledSlab[OptimizeCalls_NodeList], definitionSite pkg_rhino.Node) *OptimizeCalls_NodeList {
+	_ = definitionSite
+	var result *OptimizeCalls_NodeList = allocPooledVia_OptimizeCalls_ReferenceMap_AppendDefinitionFunctionNodes(slab_, definitionSite, nil)
 	_ = result
 	if result != nil {
 		return result
@@ -867,6 +904,71 @@ func OptimizeCalls_ReferenceMap_AppendDefinitionFunctionNodes(definitionSite pkg
 	}
 	return fns
 }
+func allocPooledVia_OptimizeCalls_ReferenceMap_AppendDefinitionFunctionNodes(slab_ *j2gort.PooledSlab[OptimizeCalls_NodeList], definitionSite pkg_rhino.Node, fns *OptimizeCalls_NodeList) *OptimizeCalls_NodeList {
+	_ = definitionSite
+	_ = fns
+	if definitionSite.IsGetterDef() || definitionSite.IsSetterDef() {
+		return fns
+	}
+	var parent pkg_rhino.Node = definitionSite.GetParent()
+	_ = parent
+	if parent == 0 {
+		return fns
+	}
+	switch parent.TokenSwitchOrd_() {
+	case int32(105):
+		if definitionSite.IsFirstChildOf(parent) {
+			var constructorFnDef pkg_rhino.Node = NodeUtil_GetEs6ClassConstructorMemberFunctionDef(parent)
+			_ = constructorFnDef
+			if constructorFnDef != 0 {
+				if fns == nil {
+					fns = allocPooled_OptimizeCalls_NodeList(slab_)
+				}
+				fns.Add(constructorFnDef.GetOnlyChild())
+			}
+		}
+	case int32(73):
+		if fns == nil {
+			fns = allocPooled_OptimizeCalls_NodeList(slab_)
+		}
+		fns.Add(parent)
+	case int32(106):
+		if definitionSite.IsMemberFunctionDef() {
+			if fns == nil {
+				fns = allocPooled_OptimizeCalls_NodeList(slab_)
+			}
+			fns.Add(definitionSite.GetLastChild())
+		} else {
+			if !(definitionSite.IsMemberFieldDef()) {
+				j2gort.CheckArgumentMsg(false, j2gort.BoxNode(definitionSite))
+			}
+			var value pkg_rhino.Node = definitionSite.GetFirstChild()
+			_ = value
+			if value != 0 {
+				fns = allocPooledVia_OptimizeCalls_ReferenceMap_AddValueFunctionNodes(slab_, fns, value)
+			}
+		}
+	case int32(47):
+		if !(definitionSite.IsStringKey() || definitionSite.IsMemberFunctionDef()) {
+			j2gort.CheckArgumentMsg(false, j2gort.BoxNode(definitionSite))
+		}
+		fns = allocPooledVia_OptimizeCalls_ReferenceMap_AddValueFunctionNodes(slab_, fns, definitionSite.GetLastChild())
+	case int32(51):
+		var target pkg_rhino.Node = parent.GetFirstChild()
+		_ = target
+		var value_2 pkg_rhino.Node = parent.GetLastChild()
+		_ = value_2
+		if definitionSite == target {
+			fns = allocPooledVia_OptimizeCalls_ReferenceMap_AddValueFunctionNodes(slab_, fns, value_2)
+		}
+	case int32(97), int32(111), int32(84):
+		if definitionSite.IsName() && definitionSite.HasChildren() {
+			fns = allocPooledVia_OptimizeCalls_ReferenceMap_AddValueFunctionNodes(slab_, fns, definitionSite.GetFirstChild())
+		}
+	default:
+	}
+	return fns
+}
 
 // Java static method: ReferenceMap.addValueFunctionNodes(com.google.javascript.jscomp.OptimizeCalls.@org.jspecify.annotations.Nullable NodeList fns, com.google.javascript.rhino.Node n)
 func OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns *OptimizeCalls_NodeList, n pkg_rhino.Node) *OptimizeCalls_NodeList {
@@ -895,6 +997,36 @@ func OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns *OptimizeCalls_NodeLis
 		fns = OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns, n.GetLastChild())
 	case int32(101) /* Token.CAST */, int32(50) /* Token.COMMA */ :
 		fns = OptimizeCalls_ReferenceMap_AddValueFunctionNodes(fns, n.GetLastChild())
+	default:
+	}
+	return fns
+}
+func allocPooledVia_OptimizeCalls_ReferenceMap_AddValueFunctionNodes(slab_ *j2gort.PooledSlab[OptimizeCalls_NodeList], fns *OptimizeCalls_NodeList, n pkg_rhino.Node) *OptimizeCalls_NodeList {
+	_ = fns
+	_ = n
+	switch n.TokenSwitchOrd_() {
+	case int32(105):
+		var constructorFnDef pkg_rhino.Node = NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)
+		_ = constructorFnDef
+		if constructorFnDef != 0 {
+			if fns == nil {
+				fns = allocPooled_OptimizeCalls_NodeList(slab_)
+			}
+			fns.Add(constructorFnDef.GetOnlyChild())
+		}
+	case int32(73):
+		if fns == nil {
+			fns = allocPooled_OptimizeCalls_NodeList(slab_)
+		}
+		fns.Add(n)
+	case int32(67):
+		fns = allocPooledVia_OptimizeCalls_ReferenceMap_AddValueFunctionNodes(slab_, fns, n.GetSecondChild())
+		fns = allocPooledVia_OptimizeCalls_ReferenceMap_AddValueFunctionNodes(slab_, fns, n.GetLastChild())
+	case int32(68), int32(69), int32(70):
+		fns = allocPooledVia_OptimizeCalls_ReferenceMap_AddValueFunctionNodes(slab_, fns, n.GetFirstChild())
+		fns = allocPooledVia_OptimizeCalls_ReferenceMap_AddValueFunctionNodes(slab_, fns, n.GetLastChild())
+	case int32(101), int32(50):
+		fns = allocPooledVia_OptimizeCalls_ReferenceMap_AddValueFunctionNodes(slab_, fns, n.GetLastChild())
 	default:
 	}
 	return fns
@@ -1064,9 +1196,9 @@ func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) Visit_3(t *NodeTraversa
 	_ = unused
 	switch n.TokenSwitchOrd_() {
 	case int32(32) /* Token.NAME */ :
-		this_.priv_ReferenceMapBuildingCallback_maybeAddNameReference_4055(n.GetString(), n)
+		this_.priv_ReferenceMapBuildingCallback_maybeAddNameReference_4061(n.GetString(), n)
 	case int32(29) /* Token.OPTCHAIN_GETPROP */, int32(26) /* Token.GETPROP */ :
-		this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4056(n.GetString(), n)
+		this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4062(n.GetString(), n)
 	case int32(28) /* Token.CALL */ :
 		var fnName pkg_rhino.Node = n.GetFirstChild()
 		_ = fnName
@@ -1074,22 +1206,22 @@ func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) Visit_3(t *NodeTraversa
 			var propName pkg_rhino.Node = NodeUtil_GetArgumentForCallOrNew(n, int32(0))
 			_ = propName
 			if propName != 0 {
-				this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4056(propName.GetString(), n)
+				this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4062(propName.GetString(), n)
 			}
 		}
 	case int32(100) /* Token.STRING_KEY */, int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */, int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(108) /* Token.MEMBER_FIELD_DEF */ :
 		if !(n.IsQuotedStringKey()) {
-			this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4056(n.GetString(), n)
+			this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4062(n.GetString(), n)
 		}
 	case int32(110) /* Token.SUPER */ :
-		this_.priv_ReferenceMapBuildingCallback_visitSuper_4054(n)
+		this_.priv_ReferenceMapBuildingCallback_visitSuper_4060(n)
 	case int32(129) /* Token.COMPUTED_PROP */, int32(109) /* Token.COMPUTED_FIELD_DEF */, int32(30) /* Token.OPTCHAIN_GETELEM */, int32(27) /* Token.GETELEM */, int32(126) /* Token.OBJECT_REST */, int32(128) /* Token.OBJECT_SPREAD */ :
 	default:
 	}
 }
 
 // Java method: ReferenceMapBuildingCallback.visitSuper(com.google.javascript.rhino.Node superNode)
-func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildingCallback_visitSuper_4054(superNode pkg_rhino.Node) {
+func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildingCallback_visitSuper_4060(superNode pkg_rhino.Node) {
 	_ = superNode
 	var parent pkg_rhino.Node = superNode.GetParent()
 	_ = parent
@@ -1102,15 +1234,15 @@ func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildi
 			j2gort.CheckStateStr(false, "super call appears in class without extends clause")
 		}
 		if extendsNode.IsName() {
-			this_.priv_ReferenceMapBuildingCallback_maybeAddNameReference_4055(extendsNode.GetString(), superNode)
+			this_.priv_ReferenceMapBuildingCallback_maybeAddNameReference_4061(extendsNode.GetString(), superNode)
 		} else if extendsNode.IsGetProp() {
-			this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4056(extendsNode.GetString(), superNode)
+			this_.priv_ReferenceMapBuildingCallback_maybeAddPropReference_4062(extendsNode.GetString(), superNode)
 		}
 	}
 }
 
 // Java method: ReferenceMapBuildingCallback.maybeAddNameReference(java.lang.String name, com.google.javascript.rhino.Node n)
-func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildingCallback_maybeAddNameReference_4055(name string, n pkg_rhino.Node) {
+func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildingCallback_maybeAddNameReference_4061(name string, n pkg_rhino.Node) {
 	_ = name
 	_ = n
 	var var_ *Var = j2gort.CastPtr[Var](this_.globalScope.GetSlot(name))
@@ -1121,7 +1253,7 @@ func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildi
 }
 
 // Java method: ReferenceMapBuildingCallback.maybeAddPropReference(java.lang.String name, com.google.javascript.rhino.Node n)
-func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildingCallback_maybeAddPropReference_4056(name string, n pkg_rhino.Node) {
+func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) priv_ReferenceMapBuildingCallback_maybeAddPropReference_4062(name string, n pkg_rhino.Node) {
 	_ = name
 	_ = n
 	if this_.outer_.considerExterns || !(j2gort.SetContainsStr(this_.externProps, name)) {
@@ -1156,4 +1288,12 @@ func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) EnterScope(t *NodeTrave
 // Java method: ReferenceMapBuildingCallback.exitScope(com.google.javascript.jscomp.NodeTraversal t)
 func (this_ *OptimizeCalls_ReferenceMapBuildingCallback) ExitScope(t *NodeTraversal) {
 	_ = t
+}
+func (this_ *OptimizeCalls_ReferenceMap) ReleaseSlabs_() {
+	if this_ == nil {
+		return
+	}
+	j2gort.ReleaseOrderedMap(&this_.names)
+	j2gort.ReleaseOrderedMap(&this_.props)
+	this_.slab_OptimizeCalls_NodeList.Release()
 }

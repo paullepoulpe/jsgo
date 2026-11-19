@@ -943,3 +943,112 @@ func TestWave36CJoinDot4WayScanResistantCache(t *testing.T) {
 		t.Fatalf("expected 0 allocs across all 4 resident ways after 1-hit probe, got %v", allocs)
 	}
 }
+
+func TestWave37CStrPoolStagedBatchingAndJoinDot4WaySeenRing(t *testing.T) {
+	baseSnap := CaptureBaseline()
+	defer RewindBaseline(baseSnap)
+
+	// 1. Verify 32-slot lock-free stagingBatch cuts heap allocations by ~10x during Intern misses.
+	const count = 6400
+	var prebuilt strings.Builder
+	prebuilt.Grow(count * 24)
+	for i := 0; i < count; i++ {
+		fmt.Fprintf(&prebuilt, "w37c_staged_ident_%06d", i)
+	}
+	src := prebuilt.String()
+	ids := make([]StringID, count)
+
+	var mBefore, mAfter runtime.MemStats
+	runtime.ReadMemStats(&mBefore)
+	for i := 0; i < count; i++ {
+		ids[i] = Intern(src[i*24 : (i+1)*24])
+	}
+	runtime.ReadMemStats(&mAfter)
+	mallocs := mAfter.Mallocs - mBefore.Mallocs
+	// Without staged batching, 6,400 Intern misses on unowned slices would exceed 6,400 mallocs;
+	// with 32-slot stagingBatch, strpool overhead for 6,400 strings is ~500 objects total (< 1,200).
+	if mallocs > 1200 {
+		t.Fatalf("expected staged Intern batching to eliminate per-string Clone allocs, got %d mallocs for %d strings", mallocs, count)
+	}
+	for i := 0; i < count; i += 31 {
+		want := fmt.Sprintf("w37c_staged_ident_%06d", i)
+		if got := String(ids[i]); got != want {
+			t.Fatalf("String(%d) = %q, want %q", ids[i], got, want)
+		}
+	}
+
+	// 2. Verify SealActivePoolChunks immediately unpins <32 partial-batch substrings of large buffers.
+	SealActivePoolChunks()
+	runtime.GC()
+	runtime.GC()
+	var beforePin runtime.MemStats
+	runtime.ReadMemStats(&beforePin)
+
+	var partialIDs [20]StringID
+	func() {
+		for i := 0; i < len(partialIDs); i++ {
+			big := fmt.Sprintf("w37c_pin_%02d_", i) + strings.Repeat("X", 256<<10)
+			sub := big[:12]
+			partialIDs[i] = Intern(sub)
+		}
+	}()
+	SealActivePoolChunks()
+	runtime.GC()
+	runtime.GC()
+	var afterPin runtime.MemStats
+	runtime.ReadMemStats(&afterPin)
+	var pinDelta int64
+	if afterPin.HeapAlloc > beforePin.HeapAlloc {
+		pinDelta = int64(afterPin.HeapAlloc - beforePin.HeapAlloc)
+	}
+	// 20 * 256 KiB = 5 MiB; after SealActivePoolChunks, retention must be tiny (< 1 MiB).
+	if pinDelta > 1<<20 {
+		t.Fatalf("SealActivePoolChunks left caller buffers pinned: delta = %d bytes", pinDelta)
+	}
+	for i, id := range partialIDs {
+		want := fmt.Sprintf("w37c_pin_%02d_", i)
+		if got := String(id); got != want {
+			t.Fatalf("after SealActivePoolChunks: String(%d) = %q, want %q", id, got, want)
+		}
+	}
+
+	// 3. Verify JoinDot 4-fingerprint seen ring admits TWO interleaved 2-hit keys into a full 4-way bucket
+	// without ping-ponging forever on a 1-slot seen filter!
+	seen := make(map[uint32][]string)
+	var col []string
+	for i := 0; i < 400000; i++ {
+		cand := fmt.Sprintf("module$exports$w37c$ring%06d", i)
+		h := poolHash(cand)*0x9E3779B97F4A7C15 ^ poolHash("prototype")
+		idx := uint32(h >> (64 - joinDot2CacheBits))
+		list := append(seen[idx], cand)
+		seen[idx] = list
+		if len(list) == 6 {
+			col = list
+			break
+		}
+	}
+	if len(col) != 6 {
+		t.Fatal("failed to find 6 colliding JoinDot keys")
+	}
+	// Fill all 4 ways with cold keys col[0..3].
+	for i := 0; i < 4; i++ {
+		_ = JoinDot(col[i], "prototype")
+	}
+	// Interleave TWO new hot keys col[4] and col[5]: K4, K5, K4, K5!
+	// On a 1-slot seen filter, K4 and K5 overwrite each other's seen tag and NEVER get admitted;
+	// on the 4-fingerprint seen ring, both get admitted on their 2nd call and then hit with 0 allocs!
+	_ = JoinDot(col[4], "prototype")
+	_ = JoinDot(col[5], "prototype")
+	_ = JoinDot(col[4], "prototype")
+	_ = JoinDot(col[5], "prototype")
+
+	want4 := col[4] + ".prototype"
+	want5 := col[5] + ".prototype"
+	if allocs := testing.AllocsPerRun(100, func() {
+		if JoinDot(col[4], "prototype") != want4 || JoinDot(col[5], "prototype") != want5 {
+			t.Fatal("JoinDot interleaved admission mismatch")
+		}
+	}); allocs != 0 {
+		t.Fatalf("expected 0 allocs after interleaved 2-hit admission via 4-way seen ring, got %v", allocs)
+	}
+}

@@ -847,9 +847,9 @@ public final class RuntimeCollectionsBindings {
           .append("func (this_ *").append(structName).append(") MapContainsStr_(k string) bool {\n")
           .append("\tif this_ == nil { ThrowNPE() }\n\treturn this_.Core_.(*jBiMapCore).fwd.ContainsStr(k)\n}\n")
           .append("func (this_ *").append(structName).append(") MapPutStr_(k string, v any) any {\n")
-          .append("\tif this_ == nil { ThrowNPE() }\n\treturn biMapOp_put_2(this_.Core_.(*jBiMapCore), BoxString(k), v)\n}\n")
+          .append("\tif this_ == nil { ThrowNPE() }\n\treturn biMapPutStr(this_.Core_.(*jBiMapCore), k, v)\n}\n")
           .append("func (this_ *").append(structName).append(") MapRemoveStr_(k string) any {\n")
-          .append("\tif this_ == nil { ThrowNPE() }\n\treturn biMapOp_remove_1(this_.Core_.(*jBiMapCore), BoxString(k))\n}\n")
+          .append("\tif this_ == nil { ThrowNPE() }\n\treturn biMapRemoveStr(this_.Core_.(*jBiMapCore), k)\n}\n")
           .append("func (this_ *").append(structName).append(") MapGetNode_(n uint32) any {\n")
           .append("\tif this_ == nil { ThrowNPE() }\n\treturn this_.Core_.(*jBiMapCore).fwd.GetNode(n)\n}\n")
           .append("func (this_ *").append(structName).append(") MapGetOrDefaultNode_(n uint32, def any) any {\n")
@@ -942,6 +942,20 @@ public final class RuntimeCollectionsBindings {
           .append("\tif this_ == nil { ThrowNPE() }\n")
           .append("\tc, _ := this_.getCore().(*jTableCore)\n")
           .append("\treturn c, ").append(isImmTbl).append("\n}\n");
+    }
+
+    if (qn.equals("com.google.common.collect.Sets.SetView")) {
+      out.append("func (this_ *").append(structName).append(") SetContainsStr_(k string) bool {\n")
+          .append("\tif this_ == nil { ThrowNPE() }\n")
+          .append("\tc := this_.Core_.(*jSetViewCore)\n")
+          .append("\tswitch c.mode {\n")
+          .append("\tcase 0:\n\t\treturn SetContainsStr(c.s1, k) || SetContainsStr(c.s2, k)\n")
+          .append("\tcase 1:\n\t\treturn SetContainsStr(c.s1, k) && SetContainsStr(c.s2, k)\n")
+          .append("\tdefault:\n\t\treturn SetContainsStr(c.s1, k) && !SetContainsStr(c.s2, k)\n\t}\n}\n")
+          .append("func (this_ *").append(structName).append(") SetAddStr_(_ string) bool {\n")
+          .append("\tif this_ == nil { ThrowNPE() }\n\tpanic(javalang.NewUnsupportedOperationException(\"immutable\"))\n}\n")
+          .append("func (this_ *").append(structName).append(") SetRemoveStr_(_ string) bool {\n")
+          .append("\tif this_ == nil { ThrowNPE() }\n\tpanic(javalang.NewUnsupportedOperationException(\"immutable\"))\n}\n");
     }
   }
 
@@ -5448,7 +5462,6 @@ public final class RuntimeCollectionsBindings {
         \t\t\ttab := new([256]bool)
         \t\t\ttab[u] = true
         \t\t\tobj.u8Tab_ = tab
-        \t\t\tobj.u8Bits_[u>>6] = uint64(1) << (u & 63)
         \t\t\tobj.u8PtrNil_ = reflect.Zero(reflect.PointerTo(rt0)).Interface()
         \t\t\tobj.hasU8Bits_ = true
         \t\t}
@@ -5465,10 +5478,8 @@ public final class RuntimeCollectionsBindings {
         \t\tif u0 == 0 {
         \t\t\treturn false
         \t\t}
-        \t\tvar maskBits [4]uint64
         \t\ttab := new([256]bool)
         \t\ttab[u0] = true
-        \t\tmaskBits[u0>>6] |= uint64(1) << (u0 & 63)
         \t\tfor i := 1; i < len(elems); i++ {
         \t\t\tei := elems[i]
         \t\t\tif ei == nil || reflect.TypeOf(ei) != rt0 {
@@ -5479,10 +5490,8 @@ public final class RuntimeCollectionsBindings {
         \t\t\t\treturn false
         \t\t\t}
         \t\t\ttab[u] = true
-        \t\t\tmaskBits[u>>6] |= uint64(1) << (u & 63)
         \t\t}
         \t\tobj.u8Tab_ = tab
-        \t\tobj.u8Bits_ = maskBits
         \t\tobj.u8PtrNil_ = reflect.Zero(reflect.PointerTo(rt0)).Interface()
         \t\tobj.hasU8Bits_ = true
         \t\treturn true
@@ -6093,8 +6102,8 @@ public final class RuntimeCollectionsBindings {
         \tif b == nil {
         \t\tThrowNPE()
         \t}
-        \tif b.hasU8Bits_ {
-        \t\treturn (b.u8Bits_[u>>6] & (uint64(1) << (u & 63))) != 0
+        \tif b.hasU8Bits_ && b.u8Tab_ != nil {
+        \t\treturn b.u8Tab_[u]
         \t}
         \treturn false
         }
@@ -6106,7 +6115,7 @@ public final class RuntimeCollectionsBindings {
         \t\t}
         \t\tif ea, ok := v.(jEnumOrdAccessor); ok {
         \t\t\tu := ea.EnumOrdinal_() + 1
-        \t\t\tif u <= 0 || u >= 256 || (s.u8Bits_[uint(u)>>6]&(uint64(1)<<(uint(u)&63))) == 0 {
+        \t\t\tif u <= 0 || u >= 256 || !s.u8Tab_[u] {
         \t\t\t\treturn false
         \t\t\t}
         \t\t\treturn reflect.TypeOf(v) == reflect.TypeOf(s.elems_[0])
@@ -6308,7 +6317,7 @@ public final class RuntimeCollectionsBindings {
         \t\t\treturn true
         \t\t}
         \t\tif s.hasU8Bits_ && os.hasU8Bits_ {
-        \t\t\treturn s.u8PtrNil_ == os.u8PtrNil_ && s.u8Bits_ == os.u8Bits_
+        \t\t\treturn s.u8PtrNil_ == os.u8PtrNil_ && len(s.elems_) == len(os.elems_) && *s.u8Tab_ == *os.u8Tab_
         \t\t}
         \t}
         \tst, ok := other.(Ext_java_util_Set)
@@ -9252,12 +9261,30 @@ public final class RuntimeCollectionsBindings {
     return """
 
         func newJavaSet2(e0, e1 any) Ext_com_google_common_collect_ImmutableSet {
+        \tif s0, ok0 := e0.(string); ok0 {
+        \t\tif s1, ok1 := e1.(string); ok1 {
+        \t\t\tif s0 == NullString || s1 == NullString {
+        \t\t\t\tThrowNPE()
+        \t\t\t}
+        \t\t\tif s0 == s1 {
+        \t\t\t\tpanic(javalang.NewIllegalArgumentException("duplicate element"))
+        \t\t\t}
+        \t\t\treturn ImmSetOfStr2(s0, s1)
+        \t\t}
+        \t}
         \te0 = CheckNotNull(ToAny(e0))
         \te1 = CheckNotNull(ToAny(e1))
         \tif elemJavaEquals(e0, e1, false) {
         \t\tpanic(javalang.NewIllegalArgumentException("duplicate element"))
         \t}
-        \treturn finishImmSetMulti([]any{e0, e1}, nil)
+        \tc := &immAnySet2_{}
+        \tc.buf[0] = e0
+        \tc.buf[1] = e1
+        \tc.set.elems_ = c.buf[:2:2]
+        \tc.set.u8Tab_ = &emptyU8Tab_
+        \tc.set.BindExtSelf_(&c.set)
+        \ttryInitImmEnumMulti(&c.set, c.set.elems_)
+        \treturn &c.set
         }
 
         func immSetFromCheckedSlice(dupThrows bool, items []any) Ext_com_google_common_collect_ImmutableSet {
@@ -9270,8 +9297,12 @@ public final class RuntimeCollectionsBindings {
         \tif len(items) <= 8 {
         \t\tvar buf [8]any
         \t\tn := 0
+        \t\tallStr := true
         \t\tfor _, raw := range items {
         \t\t\tv := CheckNotNull(ToAny(raw))
+        \t\t\tif _, ok := v.(string); !ok {
+        \t\t\t\tallStr = false
+        \t\t\t}
         \t\t\tdup := false
         \t\t\tfor j := 0; j < n; j++ {
         \t\t\t\tif elemJavaEquals(buf[j], v, false) {
@@ -9290,9 +9321,14 @@ public final class RuntimeCollectionsBindings {
         \t\tif n == 1 {
         \t\t\treturn newImmSet1(buf[0])
         \t\t}
-        \t\telems := make([]any, n)
-        \t\tcopy(elems, buf[:n])
-        \t\treturn finishImmSetMulti(elems, nil)
+        \t\tif allStr {
+        \t\t\tvar sbuf [8]string
+        \t\t\tfor i := 0; i < n; i++ {
+        \t\t\t\tsbuf[i] = buf[i].(string)
+        \t\t\t}
+        \t\t\treturn finishImmStrSetSmall(sbuf[:n])
+        \t\t}
+        \t\treturn finishImmSetSmall(buf[:n])
         \t}
         \tsc := &JSetCore{}
         \tsc.InitExpectedSize(int32(len(items)))
@@ -9399,9 +9435,7 @@ public final class RuntimeCollectionsBindings {
         \t\tif n == 1 {
         \t\t\treturn ImmSetOfStr1(buf[0])
         \t\t}
-        \t\tstrs := make([]string, n)
-        \t\tcopy(strs, buf[:n])
-        \t\treturn finishImmStrSetOwn(strs, nil)
+        \t\treturn finishImmStrSetSmall(buf[:n])
         \t}
         \tsc := &JSetCore{}
         \tsc.InitExpectedSize(int32(len(src)))
@@ -9563,9 +9597,42 @@ public final class RuntimeCollectionsBindings {
         \tif src == nil || src.Size() == 0 {
         \t\treturn emptyImmutableSet_
         \t}
+        \tn := int(src.Size())
         \tif src.mode == jSetModeStr {
         \t\tst := src.ext.(*jSetStrState)
-        \t\tstrs := make([]string, 0, src.Size())
+        \t\tif n == 1 {
+        \t\t\tfor i := int(src.firstIdx); i < len(st.strs); i++ {
+        \t\t\t\ts := st.strs[i]
+        \t\t\t\tif s == jTombstoneStr {
+        \t\t\t\t\tcontinue
+        \t\t\t\t}
+        \t\t\t\tif s == NullString {
+        \t\t\t\t\tThrowNPE()
+        \t\t\t\t}
+        \t\t\t\treturn ImmSetOfStr1(s)
+        \t\t\t}
+        \t\t\treturn emptyImmutableSet_
+        \t\t}
+        \t\tif n <= 8 {
+        \t\t\tvar sbuf [8]string
+        \t\t\tw := 0
+        \t\t\tfor i := int(src.firstIdx); i < len(st.strs); i++ {
+        \t\t\t\ts := st.strs[i]
+        \t\t\t\tif s == jTombstoneStr {
+        \t\t\t\t\tcontinue
+        \t\t\t\t}
+        \t\t\t\tif s == NullString {
+        \t\t\t\t\tThrowNPE()
+        \t\t\t\t}
+        \t\t\t\tsbuf[w] = s
+        \t\t\t\tw++
+        \t\t\t}
+        \t\t\tif w == 1 {
+        \t\t\t\treturn ImmSetOfStr1(sbuf[0])
+        \t\t\t}
+        \t\t\treturn finishImmStrSetSmall(sbuf[:w])
+        \t\t}
+        \t\tstrs := make([]string, 0, n)
         \t\tfor i := int(src.firstIdx); i < len(st.strs); i++ {
         \t\t\ts := st.strs[i]
         \t\t\tif s == jTombstoneStr {
@@ -9581,23 +9648,28 @@ public final class RuntimeCollectionsBindings {
         \t\t}
         \t\treturn finishImmStrSetOwn(strs, nil)
         \t}
-        \tif src.Size() == 1 {
+        \tif n == 1 {
         \t\treturn newImmSet1(src.FirstKey())
         \t}
-        \tif src.Size() <= 8 {
-        \t\telems := src.LiveKeys()
-        \t\tfor _, v := range elems {
-        \t\t\tCheckNotNull(v)
+        \tif n <= 8 {
+        \t\tvar buf [8]any
+        \t\tw := 0
+        \t\tsrc.ForEach(func(k any) bool {
+        \t\t\tbuf[w] = CheckNotNull(k)
+        \t\t\tw++
+        \t\t\treturn true
+        \t\t})
+        \t\tif w == 1 {
+        \t\t\treturn newImmSet1(buf[0])
         \t\t}
-        \t\treturn finishImmSetMulti(elems, nil)
+        \t\treturn finishImmSetSmall(buf[:w])
         \t}
-        \tsc := &JSetCore{}
-        \tsc.InitExpectedSize(src.Size())
+        \telems := make([]any, 0, n)
         \tsrc.ForEach(func(k any) bool {
-        \t\tsc.Add(CheckNotNull(k))
+        \t\telems = append(elems, CheckNotNull(k))
         \t\treturn true
         \t})
-        \treturn wrapImmutableSetFromSetCoreOwn(sc)
+        \treturn finishImmSetMulti(elems, nil)
         }
 
         func immSetFromSetCoreCopy(src *JSetCore) Ext_com_google_common_collect_ImmutableSet {
@@ -12067,6 +12139,43 @@ public final class RuntimeCollectionsBindings {
         \tif b.fwd.ContainsKey(k) && b.fwd.Get(k) != nil { return b.fwd.Get(k) }
         \treturn biMapOp_put_2(b, k, v)
         }
+        func biMapPutStr(b *jBiMapCore, k string, v any) any {
+        \tif b.immutable { panic(javalang.NewUnsupportedOperationException("immutable")) }
+        \tv = ToAny(v)
+        \tif b.fwd.ContainsStr(k) && javalang.ObjectsEquals(b.fwd.GetStr(k), v) {
+        \t\treturn v
+        \t}
+        \tif b.rev.ContainsKey(v) {
+        \t\tpanic(javalang.NewIllegalArgumentException("value already present: " + StrVal(v)))
+        \t}
+        \tif b.fwd.ContainsStr(k) {
+        \t\toldV := b.fwd.GetStr(k)
+        \t\tif os, ok := oldV.(string); ok {
+        \t\t\tb.rev.RemoveStr(os)
+        \t\t} else {
+        \t\t\tb.rev.Remove(oldV)
+        \t\t}
+        \t}
+        \told := b.fwd.PutStr(k, v)
+        \tbk := BoxString(k)
+        \tif vs, ok := v.(string); ok {
+        \t\tb.rev.PutStr(vs, bk)
+        \t} else {
+        \t\tb.rev.Put(v, bk)
+        \t}
+        \treturn old
+        }
+        func biMapRemoveStr(b *jBiMapCore, k string) any {
+        \tif b.immutable { panic(javalang.NewUnsupportedOperationException("immutable")) }
+        \tif !b.fwd.ContainsStr(k) { return nil }
+        \toldV := b.fwd.RemoveStr(k)
+        \tif os, ok := oldV.(string); ok {
+        \t\tb.rev.RemoveStr(os)
+        \t} else {
+        \t\tb.rev.Remove(oldV)
+        \t}
+        \treturn oldV
+        }
         func biMapOp_remove_1(b *jBiMapCore, k any) any {
         \tif b.immutable { panic(javalang.NewUnsupportedOperationException("immutable")) }
         \tif !b.fwd.ContainsKey(k) { return nil }
@@ -12830,6 +12939,53 @@ public final class RuntimeCollectionsBindings {
         \tb := s.getBucket()
         \treturn b != nil && b.(*JMapCore).ContainsKey(v)
         }
+        func (s *jMultimapLiveSet) SetContainsStr_(k string) bool {
+        \tb := s.getBucket()
+        \treturn b != nil && b.(*JMapCore).ContainsStr(k)
+        }
+        func (s *jMultimapLiveSet) SetAddStr_(k string) bool {
+        \tif s.mm.immutable { panic(javalang.NewUnsupportedOperationException("immutable")) }
+        \tb := s.getBucket()
+        \tif b == nil {
+        \t\tsm := s.mm.newBucket().(*JMapCore)
+        \t\tsm.PutStr(k, true)
+        \t\tswitch s.keyKind {
+        \t\tcase 1:
+        \t\t\ts.mm.keys.PutStr(s.strKey, sm)
+        \t\tcase 2:
+        \t\t\ts.mm.keys.PutNode(s.nodeKey, sm)
+        \t\tdefault:
+        \t\t\ts.mm.keys.Put(s.key, sm)
+        \t\t}
+        \t\ts.mm.total++
+        \t\treturn true
+        \t}
+        \tsm := b.(*JMapCore)
+        \tif sm.ContainsStr(k) { return false }
+        \tsm.PutStr(k, true)
+        \ts.mm.total++
+        \treturn true
+        }
+        func (s *jMultimapLiveSet) SetRemoveStr_(k string) bool {
+        \tif s.mm.immutable { panic(javalang.NewUnsupportedOperationException("immutable")) }
+        \tb := s.getBucket()
+        \tif b == nil { return false }
+        \tsm := b.(*JMapCore)
+        \tif !sm.ContainsStr(k) { return false }
+        \tsm.RemoveStr(k)
+        \ts.mm.total--
+        \tif sm.IsEmpty() {
+        \t\tswitch s.keyKind {
+        \t\tcase 1:
+        \t\t\ts.mm.keys.RemoveStr(s.strKey)
+        \t\tcase 2:
+        \t\t\ts.mm.keys.RemoveNode(s.nodeKey)
+        \t\tdefault:
+        \t\t\ts.mm.keys.Remove(s.key)
+        \t\t}
+        \t}
+        \treturn true
+        }
         func (s *jMultimapLiveSet) Add_1(v any) bool           { return s.putVal(v) }
         func (s *jMultimapLiveSet) Remove_1_any(v any) bool    { return s.remVal(v) }
         func (s *jMultimapLiveSet) Clear() {
@@ -12922,6 +13078,15 @@ public final class RuntimeCollectionsBindings {
 
         func (s *jMultimapLiveKeySet) Size() int32             { return s.mm.keys.Size() }
         func (s *jMultimapLiveKeySet) Contains(k any) bool     { return s.mm.keys.ContainsKey(k) }
+        func (s *jMultimapLiveKeySet) SetContainsStr_(k string) bool { return s.mm.keys.ContainsStr(k) }
+        func (s *jMultimapLiveKeySet) SetAddStr_(_ string) bool {
+        \tpanic(javalang.NewUnsupportedOperationException("keySet.add"))
+        }
+        func (s *jMultimapLiveKeySet) SetRemoveStr_(k string) bool {
+        \tif !s.mm.keys.ContainsStr(k) { return false }
+        \t_ = s.mm.removeAllStr(k)
+        \treturn true
+        }
         func (s *jMultimapLiveKeySet) Clear()                  { multimapOp_clear_0(s.mm) }
         func (s *jMultimapLiveKeySet) Remove_1_any(k any) bool {
         \tif !s.mm.keys.ContainsKey(k) { return false }
@@ -12963,6 +13128,22 @@ public final class RuntimeCollectionsBindings {
 
         func (m *jMultimapAsMap) Size() int32             { return m.mm.keys.Size() }
         func (m *jMultimapAsMap) ContainsKey(k any) bool  { return m.mm.keys.ContainsKey(k) }
+        func (m *jMultimapAsMap) MapGetStr_(k string) any {
+        \tif !m.mm.keys.ContainsStr(k) { return nil }
+        \treturn m.mm.getStr(k)
+        }
+        func (m *jMultimapAsMap) MapGetOrDefaultStr_(k string, def any) any {
+        \tif !m.mm.keys.ContainsStr(k) { return ToAny(def) }
+        \treturn m.mm.getStr(k)
+        }
+        func (m *jMultimapAsMap) MapContainsStr_(k string) bool { return m.mm.keys.ContainsStr(k) }
+        func (m *jMultimapAsMap) MapPutStr_(_ string, _ any) any {
+        \tpanic(javalang.NewUnsupportedOperationException("asMap.put"))
+        }
+        func (m *jMultimapAsMap) MapRemoveStr_(k string) any {
+        \tif !m.mm.keys.ContainsStr(k) { return nil }
+        \treturn m.mm.removeAllStr(k)
+        }
         func (m *jMultimapAsMap) Get(k any) any {
         \tif !m.mm.keys.ContainsKey(k) { return nil }
         \treturn multimapOp_get_1(m.mm, k)
@@ -14438,6 +14619,43 @@ public final class RuntimeCollectionsBindings {
         \t\treturn javalang.ObjectsEquals(e.col0, c)
         \t}
         \treturn e.multi != nil && e.multi.ContainsKey(c)
+        }
+        func (m *jTableRowMap) MapContainsStr_(c string) bool {
+        \tif m == nil { ThrowNPE() }
+        \tif c == NullString { return false }
+        \te, _ := m.resolveEntry()
+        \tif e == nil { return false }
+        \tif e.hasSingle {
+        \t\tcs, ok := e.col0.(string)
+        \t\treturn ok && cs == c
+        \t}
+        \treturn e.multi != nil && e.multi.ContainsStr(c)
+        }
+        func (m *jTableRowMap) MapGetStr_(c string) any {
+        \tif m == nil { ThrowNPE() }
+        \tif c == NullString { return nil }
+        \te, _ := m.resolveEntry()
+        \tif e == nil { return nil }
+        \tif e.hasSingle {
+        \t\tif cs, ok := e.col0.(string); ok && cs == c { return e.val0 }
+        \t\treturn nil
+        \t}
+        \tif e.multi != nil { return e.multi.GetStr(c) }
+        \treturn nil
+        }
+        func (m *jTableRowMap) MapGetOrDefaultStr_(c string, def any) any {
+        \tif v := m.MapGetStr_(c); v != nil { return v }
+        \treturn ToAny(def)
+        }
+        func (m *jTableRowMap) MapPutStr_(c string, v any) any {
+        \tif m == nil { ThrowNPE() }
+        \treturn m.putImpl(BoxString(c), v)
+        }
+        func (m *jTableRowMap) MapRemoveStr_(c string) any {
+        \tif m == nil { ThrowNPE() }
+        \tif c == NullString { return nil }
+        \tif !m.MapContainsStr_(c) { return nil }
+        \treturn m.removeImpl(BoxString(c))
         }
 
         func (m *jTableRowMap) containsValueImpl(v any) bool {

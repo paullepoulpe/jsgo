@@ -28,7 +28,8 @@ type SourceMapGenerator interface {
 	AppendTo(j2gort.Ext_java_lang_Appendable, string)
 	AppendIndexMapTo(j2gort.Ext_java_lang_Appendable, string, j2gort.Ext_java_util_List)
 	Reset()
-	AddMapping(string, string, *FilePosition, *FilePosition, *FilePosition)
+	AddMapping_5(string, string, *FilePosition, *FilePosition, *FilePosition)
+	AddMapping_8(string, string, int32, int32, int32, int32, int32, int32)
 	AddSourcesContent(string, string)
 	SetWrapperPrefix(string)
 	SetStartingPosition(int32, int32)
@@ -50,3 +51,17 @@ func init() {
 		return j2gort.InstanceOf[SourceMapGenerator](v_)
 	})
 }
+// Java default interface method: SourceMapGenerator.addMapping(java.lang.String sourceName, java.lang.@org.jspecify.annotations.Nullable String symbolName, int sourceStartLine, int sourceStartColumn, int outputStartLine, int outputStartColumn, int outputEndLine, int outputEndColumn)
+func IfaceDefault_SourceMapGenerator_AddMapping_8(this_ SourceMapGenerator, sourceName string, symbolName string, sourceStartLine int32, sourceStartColumn int32, outputStartLine int32, outputStartColumn int32, outputEndLine int32, outputEndColumn int32) {
+	_ = this_
+	_ = sourceName
+	_ = symbolName
+	_ = sourceStartLine
+	_ = sourceStartColumn
+	_ = outputStartLine
+	_ = outputStartColumn
+	_ = outputEndLine
+	_ = outputEndColumn
+	this_.AddMapping_5(sourceName, symbolName, NewFilePosition(sourceStartLine, sourceStartColumn), NewFilePosition(outputStartLine, outputStartColumn), NewFilePosition(outputEndLine, outputEndColumn))
+}
+

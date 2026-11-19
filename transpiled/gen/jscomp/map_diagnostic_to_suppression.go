@@ -78,7 +78,7 @@ func MapDiagnosticToSuppression_Main(args []string) {
 	{
 		var val_1 MapDiagnosticToSuppression
 		InitMapDiagnosticToSuppression(&val_1)
-		(&val_1).priv_MapDiagnosticToSuppression_printSuppressions_3844(args)
+		(&val_1).priv_MapDiagnosticToSuppression_printSuppressions_3850(args)
 	}
 }
 
@@ -88,7 +88,7 @@ func MapDiagnosticToSuppression_PrintHelp() {
 }
 
 // Java method: MapDiagnosticToSuppression.printSuppressions(java.lang.String[] args)
-func (this_ *MapDiagnosticToSuppression) priv_MapDiagnosticToSuppression_printSuppressions_3844(args []string) {
+func (this_ *MapDiagnosticToSuppression) priv_MapDiagnosticToSuppression_printSuppressions_3850(args []string) {
 	_ = args
 	var parser *j2gort.Ext_org_kohsuke_args4j_CmdLineParser = j2gort.NewExt_org_kohsuke_args4j_CmdLineParser_1(this_)
 	_ = parser

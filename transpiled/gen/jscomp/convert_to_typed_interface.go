@@ -203,13 +203,13 @@ func (this_ *ConvertToTypedInterface) Process_2(externs pkg_rhino.Node, root pkg
 		_ = next
 		for ; script != 0; script = next {
 			next = script.GetNext()
-			this_.priv_ConvertToTypedInterface_processFile_6375(script)
+			this_.priv_ConvertToTypedInterface_processFile_6380(script)
 		}
 	}
 }
 
 // Java method: ConvertToTypedInterface.processFile(com.google.javascript.rhino.Node scriptNode)
-func (this_ *ConvertToTypedInterface) priv_ConvertToTypedInterface_processFile_6375(scriptNode pkg_rhino.Node) {
+func (this_ *ConvertToTypedInterface) priv_ConvertToTypedInterface_processFile_6380(scriptNode pkg_rhino.Node) {
 	_ = scriptNode
 	if !(scriptNode.IsScript()) {
 		j2gort.CheckArgument(false)
@@ -752,7 +752,7 @@ func ConvertToTypedInterface_SimplifyDeclarations_CountDots(name string) int32 {
 }
 
 // Java method: SimplifyDeclarations.removeDuplicateDeclarations()
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_removeDuplicateDeclarations_6377() {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_removeDuplicateDeclarations_6382() {
 	{
 		cur_4 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Set](this_.currentFile.GetDeclarations().KeySet())))
 		for cur_4.HasNext() {
@@ -775,7 +775,7 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 
 // Java method: SimplifyDeclarations.simplifyAll()
 func (this_ *ConvertToTypedInterface_SimplifyDeclarations) SimplifyAll() {
-	this_.priv_SimplifyDeclarations_removeDuplicateDeclarations_6377()
+	this_.priv_SimplifyDeclarations_removeDuplicateDeclarations_6382()
 	var seenNames []string = j2gort.ImmListToSliceNullable[string](j2gort.Ext_com_google_common_collect_ImmutableList_SortedCopyOf_2(StaticGet_ConvertToTypedInterface_SimplifyDeclarations_SHORT_TO_LONG(), j2gort.AsIface[j2gort.Ext_java_util_Set](this_.currentFile.GetDeclarations().KeySet())))
 	_ = seenNames
 	{
@@ -789,7 +789,7 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) SimplifyAll() {
 					rawElem_7 := cur_6.Next()
 					decl := j2gort.AsIface[PotentialDeclaration](rawElem_7)
 					_ = decl
-					this_.priv_SimplifyDeclarations_processDeclaration_6379(name, decl)
+					this_.priv_SimplifyDeclarations_processDeclaration_6384(name, decl)
 				}
 			}
 		}
@@ -797,10 +797,10 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) SimplifyAll() {
 }
 
 // Java method: SimplifyDeclarations.processDeclaration(java.lang.String name, com.google.javascript.jscomp.ijs.PotentialDeclaration decl)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processDeclaration_6379(name string, decl PotentialDeclaration) {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processDeclaration_6384(name string, decl PotentialDeclaration) {
 	_ = name
 	_ = decl
-	if this_.priv_SimplifyDeclarations_shouldRemove_6383(name, decl) {
+	if this_.priv_SimplifyDeclarations_shouldRemove_6388(name, decl) {
 		decl.Remove(this_.compiler)
 		return
 	}
@@ -808,17 +808,17 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 		ConvertToTypedInterface_MaybeReport(this_.compiler, decl.GetLhs(), StaticGet_ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE(), []string{})
 	}
 	if (decl.GetRhs() != 0) && decl.GetRhs().IsFunction() {
-		this_.priv_SimplifyDeclarations_processFunction_6381(decl.GetRhs())
+		this_.priv_SimplifyDeclarations_processFunction_6386(decl.GetRhs())
 	} else if (decl.GetRhs() != 0) && ConvertToTypedInterface_SimplifyDeclarations_IsClass(decl.GetRhs()) {
-		this_.priv_SimplifyDeclarations_processClass_6380(decl.GetRhs())
+		this_.priv_SimplifyDeclarations_processClass_6385(decl.GetRhs())
 	}
-	this_.priv_SimplifyDeclarations_setUndeclaredToUnusableType_6384(decl)
-	this_.priv_SimplifyDeclarations_elidePrivateMemberType_6385(decl)
+	this_.priv_SimplifyDeclarations_setUndeclaredToUnusableType_6389(decl)
+	this_.priv_SimplifyDeclarations_elidePrivateMemberType_6390(decl)
 	decl.Simplify(this_.compiler)
 }
 
 // Java method: SimplifyDeclarations.processClass(com.google.javascript.rhino.Node n)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processClass_6380(n pkg_rhino.Node) {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processClass_6385(n pkg_rhino.Node) {
 	_ = n
 	if !(ConvertToTypedInterface_SimplifyDeclarations_IsClass(n)) {
 		j2gort.CheckArgument(false)
@@ -834,12 +834,12 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 			case int32(88) /* Token.EMPTY */ :
 				NodeUtil_DeleteNode(member, this_.compiler)
 			case int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */ :
-				this_.priv_SimplifyDeclarations_processFunction_6381(member.GetLastChild())
+				this_.priv_SimplifyDeclarations_processFunction_6386(member.GetLastChild())
 			case int32(129) /* Token.COMPUTED_PROP */ :
 				if !(member.GetSecondChild().IsFunction()) {
 					j2gort.CheckStateFmt(false, "Non-function computed class member: %s", j2gort.BoxNode(member))
 				}
-				this_.priv_SimplifyDeclarations_processFunction_6381(member.GetSecondChild())
+				this_.priv_SimplifyDeclarations_processFunction_6386(member.GetSecondChild())
 			default:
 				panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", j2gort.StrVal(member.GetToken())+" should not be handled by processClass")))
 			}
@@ -849,16 +849,16 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 }
 
 // Java method: SimplifyDeclarations.processFunction(com.google.javascript.rhino.Node n)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processFunction_6381(n pkg_rhino.Node) {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processFunction_6386(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsFunction()) {
 		j2gort.CheckArgument(false)
 	}
-	this_.priv_SimplifyDeclarations_processFunctionParameters_6382(n.GetSecondChild())
+	this_.priv_SimplifyDeclarations_processFunctionParameters_6387(n.GetSecondChild())
 }
 
 // Java method: SimplifyDeclarations.processFunctionParameters(com.google.javascript.rhino.Node paramList)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processFunctionParameters_6382(paramList pkg_rhino.Node) {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_processFunctionParameters_6387(paramList pkg_rhino.Node) {
 	_ = paramList
 	if !(paramList.IsParamList()) {
 		j2gort.CheckArgument(false)
@@ -900,7 +900,7 @@ func ConvertToTypedInterface_SimplifyDeclarations_RootName(qualifiedName string)
 }
 
 // Java method: SimplifyDeclarations.shouldRemove(java.lang.String name, com.google.javascript.jscomp.ijs.PotentialDeclaration decl)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_shouldRemove_6383(name string, decl PotentialDeclaration) bool {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_shouldRemove_6388(name string, decl PotentialDeclaration) bool {
 	_ = name
 	_ = decl
 	if decl.IsDetached() {
@@ -916,7 +916,7 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 }
 
 // Java method: SimplifyDeclarations.setUndeclaredToUnusableType(com.google.javascript.jscomp.ijs.PotentialDeclaration decl)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_setUndeclaredToUnusableType_6384(decl PotentialDeclaration) {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_setUndeclaredToUnusableType_6389(decl PotentialDeclaration) {
 	_ = decl
 	var nameNode pkg_rhino.Node = decl.GetLhs()
 	_ = nameNode
@@ -932,9 +932,9 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 }
 
 // Java method: SimplifyDeclarations.elidePrivateMemberType(com.google.javascript.jscomp.ijs.PotentialDeclaration decl)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_elidePrivateMemberType_6385(decl PotentialDeclaration) {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_elidePrivateMemberType_6390(decl PotentialDeclaration) {
 	_ = decl
-	if this_.priv_SimplifyDeclarations_shouldElidePrivateMemberType_6386(decl) {
+	if this_.priv_SimplifyDeclarations_shouldElidePrivateMemberType_6391(decl) {
 		var jsdoc *pkg_rhino.JSDocInfo = decl.GetJsDoc()
 		_ = jsdoc
 		var jsdocNode pkg_rhino.Node = NodeUtil_GetBestJSDocInfoNode(decl.GetLhs())
@@ -944,7 +944,7 @@ func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarat
 }
 
 // Java method: SimplifyDeclarations.shouldElidePrivateMemberType(com.google.javascript.jscomp.ijs.PotentialDeclaration decl)
-func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_shouldElidePrivateMemberType_6386(decl PotentialDeclaration) bool {
+func (this_ *ConvertToTypedInterface_SimplifyDeclarations) priv_SimplifyDeclarations_shouldElidePrivateMemberType_6391(decl PotentialDeclaration) bool {
 	_ = decl
 	if !(this_.currentFile.IsFromTypeScript()) {
 		return false

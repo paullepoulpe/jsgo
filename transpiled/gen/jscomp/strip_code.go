@@ -788,7 +788,7 @@ func (this_ *StripCode_Strip) QualifiedNameBeginsWithStripType_1_string(name str
 			type_ := el_25
 			_ = type_
 			if j2gort.CheckNotNullString(name) == type_ {
-				this_.priv_Strip_logStripName_5182(name, "equals strip type")
+				this_.priv_Strip_logStripName_5190(name, "equals strip type")
 				return true
 			}
 		}
@@ -796,12 +796,12 @@ func (this_ *StripCode_Strip) QualifiedNameBeginsWithStripType_1_string(name str
 			type__2 := el_26
 			_ = type__2
 			if javalang.StringStartsWith(j2gort.CheckNotNullString(name), j2gort.CheckNotNullString(type__2)) {
-				this_.priv_Strip_logStripName_5182(name, "starts with strip type prefix")
+				this_.priv_Strip_logStripName_5190(name, "starts with strip type prefix")
 				return true
 			}
 		}
 	}
-	this_.priv_Strip_logNotAStripName_5181(name, "does not begin with a strip type")
+	this_.priv_Strip_logNotAStripName_5189(name, "does not begin with a strip type")
 	return false
 }
 
@@ -833,7 +833,7 @@ func (this_ *StripCode_Strip) IsMethodOrCtorCallThatTriggersRemoval(t *NodeTrave
 	}
 	var callee pkg_rhino.Node = function.GetFirstChild()
 	_ = callee
-	return (((this_.NameIncludesFieldNameToStrip(callee) || this_.NameIncludesFieldNameToStrip(function)) || this_.QualifiedNameBeginsWithStripType_1_Node(function)) || this_.priv_Strip_actsOnStripType_5179(t, n))
+	return (((this_.NameIncludesFieldNameToStrip(callee) || this_.NameIncludesFieldNameToStrip(function)) || this_.QualifiedNameBeginsWithStripType_1_Node(function)) || this_.priv_Strip_actsOnStripType_5187(t, n))
 }
 
 // Java method: Strip.nameIncludesFieldNameToStrip(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node n)
@@ -876,14 +876,14 @@ func (this_ *StripCode_Strip) NameIncludesFieldNameToStrip(n pkg_rhino.Node) boo
 }
 
 // Java method: Strip.actsOnStripType(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node callNode)
-func (this_ *StripCode_Strip) priv_Strip_actsOnStripType_5179(t *NodeTraversal, callNode pkg_rhino.Node) bool {
+func (this_ *StripCode_Strip) priv_Strip_actsOnStripType_5187(t *NodeTraversal, callNode pkg_rhino.Node) bool {
 	_ = t
 	_ = callNode
 	var classes *CodingConvention_SubclassRelationship = this_.outer_.compiler.GetCodingConvention().GetClassesDefinedByCall(callNode)
 	_ = classes
 	if classes != nil {
 		if this_.QualifiedNameBeginsWithStripType_1_string(classes.subclassName) {
-			this_.priv_Strip_logStripName_5182(classes.subclassName, "class defining call")
+			this_.priv_Strip_logStripName_5190(classes.subclassName, "class defining call")
 			return true
 		}
 		if this_.QualifiedNameBeginsWithStripType_1_string(classes.superclassName) {
@@ -897,15 +897,15 @@ func (this_ *StripCode_Strip) priv_Strip_actsOnStripType_5179(t *NodeTraversal, 
 func (this_ *StripCode_Strip) IsStripName(name string) bool {
 	_ = name
 	if j2gort.SetContainsStr(this_.outer_.stripNameSuffixes, name) {
-		this_.priv_Strip_logStripName_5182(name, "matches a suffix")
+		this_.priv_Strip_logStripName_5190(name, "matches a suffix")
 		return true
 	}
 	if j2gort.SetContainsStr(this_.outer_.stripNamePrefixes, name) {
-		this_.priv_Strip_logStripName_5182(name, "matches a prefix")
+		this_.priv_Strip_logStripName_5190(name, "matches a prefix")
 		return true
 	}
 	if (j2gort.CheckNotNullString(name) == "") || j2gort.BoxChar_IsUpperCase_1_uint16(j2gort.JStrCharAt(name, int32(0))) {
-		this_.priv_Strip_logNotAStripName_5181(name, "empty or starts with uppercase")
+		this_.priv_Strip_logNotAStripName_5189(name, "empty or starts with uppercase")
 		return false
 	}
 	var lcName string = javalang.StringToLowerCaseASCII(name)
@@ -915,7 +915,7 @@ func (this_ *StripCode_Strip) IsStripName(name string) bool {
 		_ = stripName
 		if javalang.StringStartsWith(j2gort.CheckNotNullString(lcName), j2gort.CheckNotNullString(stripName)) {
 			if this_.decisionsLog.IsLogging() {
-				this_.priv_Strip_logStripName_5183(name, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
+				this_.priv_Strip_logStripName_5191(name, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 					return "matches lc prefix: " + j2gort.StrValString(stripName)
 				}))
 			}
@@ -927,19 +927,19 @@ func (this_ *StripCode_Strip) IsStripName(name string) bool {
 		_ = stripName_2
 		if javalang.StringEndsWith(j2gort.CheckNotNullString(lcName), j2gort.CheckNotNullString(stripName_2)) {
 			if this_.decisionsLog.IsLogging() {
-				this_.priv_Strip_logStripName_5183(name, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
+				this_.priv_Strip_logStripName_5191(name, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 					return "matches lc suffix: " + j2gort.StrValString(stripName_2)
 				}))
 			}
 			return true
 		}
 	}
-	this_.priv_Strip_logNotAStripName_5181(name, "no matches")
+	this_.priv_Strip_logNotAStripName_5189(name, "no matches")
 	return false
 }
 
 // Java method: Strip.logNotAStripName(java.lang.String name, java.lang.String reason)
-func (this_ *StripCode_Strip) priv_Strip_logNotAStripName_5181(name string, reason string) {
+func (this_ *StripCode_Strip) priv_Strip_logNotAStripName_5189(name string, reason string) {
 	_ = name
 	_ = reason
 	if this_.decisionsLog.IsLogging() {
@@ -950,7 +950,7 @@ func (this_ *StripCode_Strip) priv_Strip_logNotAStripName_5181(name string, reas
 }
 
 // Java method: Strip.logStripName(java.lang.String name, java.lang.String reason)
-func (this_ *StripCode_Strip) priv_Strip_logStripName_5182(name string, reason string) {
+func (this_ *StripCode_Strip) priv_Strip_logStripName_5190(name string, reason string) {
 	_ = name
 	_ = reason
 	if this_.decisionsLog.IsLogging() {
@@ -961,7 +961,7 @@ func (this_ *StripCode_Strip) priv_Strip_logStripName_5182(name string, reason s
 }
 
 // Java method: Strip.logStripName(java.lang.String name, java.util.function.Supplier<java.lang.String> reasonSupplier)
-func (this_ *StripCode_Strip) priv_Strip_logStripName_5183(name string, reasonSupplier j2gort.Ext_java_util_function_Supplier) {
+func (this_ *StripCode_Strip) priv_Strip_logStripName_5191(name string, reasonSupplier j2gort.Ext_java_util_function_Supplier) {
 	_ = name
 	_ = reasonSupplier
 	if this_.decisionsLog.IsLogging() {

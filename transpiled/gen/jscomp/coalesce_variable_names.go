@@ -185,7 +185,7 @@ func (this_ *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 	}
 	this_.liveness.Analyze()
 	this_.liveAnalyses.Push(j2gort.PtrToAny(this_.liveness))
-	var interferenceGraph pkg_graph.UndiGraph[*Var, any] = this_.priv_CoalesceVariableNames_computeVariableNamesInterferenceGraph_1253(cfg, this_.liveness.GetEscapedLocals())
+	var interferenceGraph pkg_graph.UndiGraph[*Var, any] = this_.priv_CoalesceVariableNames_computeVariableNamesInterferenceGraph_1254(cfg, this_.liveness.GetEscapedLocals())
 	_ = interferenceGraph
 	var coloring pkg_graph.GraphColoring[*Var, any] = pkg_graph.ToIface_GraphColoring[*Var, any](pkg_graph.NewGraphColoring_GreedyGraphColoring_2[*Var, any](j2gort.AsIface[pkg_graph.AdjacencyGraph[*Var, any]](interferenceGraph), this_.coloringTieBreaker))
 	_ = coloring
@@ -230,7 +230,7 @@ func (this_ *CoalesceVariableNames) Visit_3(t *NodeTraversal, n pkg_rhino.Node, 
 		}
 		n.SetString(coalescedVar.GetName())
 		this_.compiler.ReportChangeToEnclosingScope(n)
-		this_.priv_CoalesceVariableNames_updateDeclarationsPostCoalescing_1251(n, coalescedVar, var_, parent)
+		this_.priv_CoalesceVariableNames_updateDeclarationsPostCoalescing_1252(n, coalescedVar, var_, parent)
 	} else {
 		var allMergedNames j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_TreeSet()
 		_ = allMergedNames
@@ -258,12 +258,12 @@ func (this_ *CoalesceVariableNames) Visit_3(t *NodeTraversal, n pkg_rhino.Node, 
 		if vNode.GetValue().Equals(j2gort.PtrToAny(coalescedVar)) {
 			return
 		}
-		this_.priv_CoalesceVariableNames_updateDeclarationsPostCoalescing_1251(n, coalescedVar, var_, parent)
+		this_.priv_CoalesceVariableNames_updateDeclarationsPostCoalescing_1252(n, coalescedVar, var_, parent)
 	}
 }
 
 // Java method: CoalesceVariableNames.updateDeclarationsPostCoalescing(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.Var coalescedVar, com.google.javascript.jscomp.Var originalVar, com.google.javascript.rhino.Node parent)
-func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_updateDeclarationsPostCoalescing_1251(n pkg_rhino.Node, coalescedVar *Var, originalVar *Var, parent pkg_rhino.Node) {
+func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_updateDeclarationsPostCoalescing_1252(n pkg_rhino.Node, coalescedVar *Var, originalVar *Var, parent pkg_rhino.Node) {
 	_ = n
 	_ = coalescedVar
 	_ = originalVar
@@ -271,14 +271,14 @@ func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_updateDeclaration
 	if !(n.IsName()) {
 		j2gort.CheckStateStr(false, "trying to update the declaration of a non-name node")
 	}
-	if NodeUtil_IsNameDeclaration(parent) || (((NodeUtil_GetEnclosingType(n, pkg_rhino.StaticGet_Token_DESTRUCTURING_LHS()) != 0) && NodeUtil_IsLhsByDestructuring(n)) && !(this_.priv_CoalesceVariableNames_isNameInsideDestructuringAssignment_1252(n))) {
-		this_.priv_CoalesceVariableNames_makeDeclarationVar_1256(coalescedVar)
-		this_.priv_CoalesceVariableNames_removeVarDeclaration_1255(n, originalVar)
+	if NodeUtil_IsNameDeclaration(parent) || (((NodeUtil_GetEnclosingType(n, pkg_rhino.StaticGet_Token_DESTRUCTURING_LHS()) != 0) && NodeUtil_IsLhsByDestructuring(n)) && !(this_.priv_CoalesceVariableNames_isNameInsideDestructuringAssignment_1253(n))) {
+		this_.priv_CoalesceVariableNames_makeDeclarationVar_1257(coalescedVar)
+		this_.priv_CoalesceVariableNames_removeVarDeclaration_1256(n, originalVar)
 	}
 }
 
 // Java method: CoalesceVariableNames.isNameInsideDestructuringAssignment(com.google.javascript.rhino.Node n)
-func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_isNameInsideDestructuringAssignment_1252(n pkg_rhino.Node) bool {
+func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_isNameInsideDestructuringAssignment_1253(n pkg_rhino.Node) bool {
 	_ = n
 	var enclosingTarget pkg_rhino.Node = NodeUtil_GetRootTarget(n)
 	_ = enclosingTarget
@@ -289,7 +289,7 @@ func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_isNameInsideDestr
 }
 
 // Java method: CoalesceVariableNames.computeVariableNamesInterferenceGraph(com.google.javascript.jscomp.ControlFlowGraph<com.google.javascript.rhino.Node> cfg, java.util.Set<? extends com.google.javascript.jscomp.Var> escaped)
-func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_computeVariableNamesInterferenceGraph_1253(cfg ControlFlowGraph[pkg_rhino.Node], escaped j2gort.Ext_java_util_Set) pkg_graph.UndiGraph[*Var, any] {
+func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_computeVariableNamesInterferenceGraph_1254(cfg ControlFlowGraph[pkg_rhino.Node], escaped j2gort.Ext_java_util_Set) pkg_graph.UndiGraph[*Var, any] {
 	_ = cfg
 	_ = escaped
 	var interferenceGraph pkg_graph.UndiGraph[*Var, any] = pkg_graph.ToIface_UndiGraph[*Var, any](pkg_graph.LinkedUndirectedGraph_Create[*Var, any]())
@@ -351,7 +351,7 @@ func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_computeVariableNa
 		if v.GetParentNode().IsClass() {
 			continue
 		}
-		if this_.priv_CoalesceVariableNames_isInMultipleLvalueDecl_1254(v) {
+		if this_.priv_CoalesceVariableNames_isInMultipleLvalueDecl_1255(v) {
 			continue
 		}
 		interferenceGraph.CreateNode(v)
@@ -431,7 +431,7 @@ func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_computeVariableNa
 }
 
 // Java method: CoalesceVariableNames.isInMultipleLvalueDecl(com.google.javascript.jscomp.Var v)
-func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_isInMultipleLvalueDecl_1254(v *Var) bool {
+func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_isInMultipleLvalueDecl_1255(v *Var) bool {
 	_ = v
 	var declarationType pkg_rhino.Token = v.DeclarationType()
 	_ = declarationType
@@ -456,7 +456,7 @@ func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_isInMultipleLvalu
 }
 
 // Java method: CoalesceVariableNames.removeVarDeclaration(com.google.javascript.rhino.Node name, com.google.javascript.jscomp.Var originalVar)
-func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_removeVarDeclaration_1255(name pkg_rhino.Node, originalVar *Var) {
+func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_removeVarDeclaration_1256(name pkg_rhino.Node, originalVar *Var) {
 	_ = name
 	_ = originalVar
 	var var_ pkg_rhino.Node = NodeUtil_GetEnclosingNode(name, lambdaSingleton_coalesce_variable_names_3)
@@ -491,7 +491,7 @@ func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_removeVarDeclarat
 				assign = NodeUtil_NewExpr(assign)
 			}
 			var_.ReplaceWith(assign)
-		} else if this_.priv_CoalesceVariableNames_isUninitializedLetNameInLoopBodyAndLive_1257(name, originalVar) {
+		} else if this_.priv_CoalesceVariableNames_isUninitializedLetNameInLoopBodyAndLive_1258(name, originalVar) {
 			name.Detach()
 			var undefinedValue pkg_rhino.Node = this_.astFactory.CreateUndefinedValue().SrcrefTree(name)
 			_ = undefinedValue
@@ -508,7 +508,7 @@ func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_removeVarDeclarat
 }
 
 // Java method: CoalesceVariableNames.makeDeclarationVar(com.google.javascript.jscomp.Var coalescedName)
-func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_makeDeclarationVar_1256(coalescedName *Var) {
+func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_makeDeclarationVar_1257(coalescedName *Var) {
 	_ = coalescedName
 	if coalescedName.IsConst() || coalescedName.IsLet() {
 		var nameNode pkg_rhino.Node = j2gort.CheckNotNullNode(coalescedName.GetNameNode())
@@ -547,7 +547,7 @@ func CoalesceVariableNames_IsUninitializedLetNameInLoopBody(nameNode pkg_rhino.N
 }
 
 // Java method: CoalesceVariableNames.isUninitializedLetNameInLoopBodyAndLive(com.google.javascript.rhino.Node nameNode, com.google.javascript.jscomp.Var originalVar)
-func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_isUninitializedLetNameInLoopBodyAndLive_1257(nameNode pkg_rhino.Node, originalVar *Var) bool {
+func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_isUninitializedLetNameInLoopBodyAndLive_1258(nameNode pkg_rhino.Node, originalVar *Var) bool {
 	_ = nameNode
 	_ = originalVar
 	if !(CoalesceVariableNames_IsUninitializedLetNameInLoopBody(nameNode)) {

@@ -163,7 +163,7 @@ func IsolatePolyfills_CreateJSCompPolyfillsAccess() pkg_rhino.Node {
 func (this_ *IsolatePolyfills) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	var injectedPolyfills j2gort.Ext_com_google_common_collect_ImmutableSet = this_.priv_IsolatePolyfills_findAllInjectedPolyfills_3442()
+	var injectedPolyfills j2gort.Ext_com_google_common_collect_ImmutableSet = this_.priv_IsolatePolyfills_findAllInjectedPolyfills_3445()
 	_ = injectedPolyfills
 	var polyfillUsages j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList()
 	_ = polyfillUsages
@@ -189,15 +189,15 @@ func (this_ *IsolatePolyfills) Process_2(externs pkg_rhino.Node, root pkg_rhino.
 			if (visitedNodes.Contains(usage.Node()) || (j2gort.CheckNotNullString(usage.Polyfill().library) == "")) || !(j2gort.SetContainsStr(injectedPolyfills, usage.Polyfill().nativeSymbol)) {
 				continue
 			}
-			this_.priv_IsolatePolyfills_rewritePolyfill_3444(usage)
+			this_.priv_IsolatePolyfills_rewritePolyfill_3447(usage)
 			visitedNodes.Add(usage.Node())
 		}
 	}
-	this_.priv_IsolatePolyfills_cleanUpJscompLookupPolyfilledValue_3448()
+	this_.priv_IsolatePolyfills_cleanUpJscompLookupPolyfilledValue_3451()
 }
 
 // Java method: IsolatePolyfills.findAllInjectedPolyfills()
-func (this_ *IsolatePolyfills) priv_IsolatePolyfills_findAllInjectedPolyfills_3442() j2gort.Ext_com_google_common_collect_ImmutableSet {
+func (this_ *IsolatePolyfills) priv_IsolatePolyfills_findAllInjectedPolyfills_3445() j2gort.Ext_com_google_common_collect_ImmutableSet {
 	var actualPolyfills j2gort.Ext_com_google_common_collect_ImmutableSet_Builder = j2gort.Ext_com_google_common_collect_ImmutableSet_S_Builder()
 	_ = actualPolyfills
 	var lastInjectedNode pkg_rhino.Node = this_.compiler.GetNodeForCodeInsertion(nil)
@@ -207,7 +207,7 @@ func (this_ *IsolatePolyfills) priv_IsolatePolyfills_findAllInjectedPolyfills_34
 }
 
 // Java method: IsolatePolyfills.isJSCompPolyfillCall(com.google.javascript.rhino.Node call)
-func (this_ *IsolatePolyfills) priv_IsolatePolyfills_isJSCompPolyfillCall_3443(call pkg_rhino.Node) bool {
+func (this_ *IsolatePolyfills) priv_IsolatePolyfills_isJSCompPolyfillCall_3446(call pkg_rhino.Node) bool {
 	_ = call
 	if !(call.IsCall()) {
 		return false
@@ -235,7 +235,7 @@ func (this_ *IsolatePolyfills) priv_IsolatePolyfills_isJSCompPolyfillCall_3443(c
 }
 
 // Java method: IsolatePolyfills.rewritePolyfill(com.google.javascript.jscomp.PolyfillUsageFinder.PolyfillUsage polyfillUsage)
-func (this_ *IsolatePolyfills) priv_IsolatePolyfills_rewritePolyfill_3444(polyfillUsage *PolyfillUsageFinder_PolyfillUsage) {
+func (this_ *IsolatePolyfills) priv_IsolatePolyfills_rewritePolyfill_3447(polyfillUsage *PolyfillUsageFinder_PolyfillUsage) {
 	_ = polyfillUsage
 	var polyfill *PolyfillUsageFinder_Polyfill = polyfillUsage.Polyfill()
 	_ = polyfill
@@ -266,19 +266,19 @@ func (this_ *IsolatePolyfills) priv_IsolatePolyfills_rewritePolyfill_3444(polyfi
 	if isGlobalClass {
 		polyfillAccess.ReplaceWith(pkg_rhino.IR_Getelem(this_.jscompPolyfillsObject.CloneTree_0(), pkg_rhino.IR_String(name)).SrcrefTree(polyfillAccess))
 	} else if (parent.IsCall() || parent.IsOptChainCall()) && polyfillAccess.IsFirstChildOf(parent) {
-		this_.priv_IsolatePolyfills_rewritePolyfillInCall_3445(polyfillAccess)
+		this_.priv_IsolatePolyfills_rewritePolyfillInCall_3448(polyfillAccess)
 	} else {
 		var methodName pkg_rhino.Node = pkg_rhino.IR_String(polyfillAccess.GetString()).Srcref(polyfillAccess)
 		_ = methodName
 		var receiver pkg_rhino.Node = polyfillAccess.RemoveFirstChild()
 		_ = receiver
-		polyfillAccess.ReplaceWith(this_.priv_IsolatePolyfills_createPolyfillMethodLookup_3447(receiver, methodName, NodeUtil_IsOptChainNode(polyfillAccess)).SrcrefTree(polyfillAccess))
+		polyfillAccess.ReplaceWith(this_.priv_IsolatePolyfills_createPolyfillMethodLookup_3450(receiver, methodName, NodeUtil_IsOptChainNode(polyfillAccess)).SrcrefTree(polyfillAccess))
 	}
 	this_.compiler.ReportChangeToEnclosingScope(parent)
 }
 
 // Java method: IsolatePolyfills.rewritePolyfillInCall(com.google.javascript.rhino.Node callee)
-func (this_ *IsolatePolyfills) priv_IsolatePolyfills_rewritePolyfillInCall_3445(callee pkg_rhino.Node) {
+func (this_ *IsolatePolyfills) priv_IsolatePolyfills_rewritePolyfillInCall_3448(callee pkg_rhino.Node) {
 	_ = callee
 	var methodName pkg_rhino.Node = pkg_rhino.IR_String(callee.GetString()).Srcref(callee)
 	_ = methodName
@@ -293,11 +293,11 @@ func (this_ *IsolatePolyfills) priv_IsolatePolyfills_rewritePolyfillInCall_3445(
 	var thisNode pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = thisNode
 	if requiresTemp {
-		thisNode = this_.priv_IsolatePolyfills_createTempName_3446(callee)
-		polyfilledMethod = pkg_rhino.IR_Comma(pkg_rhino.IR_Assign(thisNode.CloneTree_0(), receiver), this_.priv_IsolatePolyfills_createPolyfillMethodLookup_3447(thisNode.CloneTree_0(), methodName, isCalleeOptChain))
+		thisNode = this_.priv_IsolatePolyfills_createTempName_3449(callee)
+		polyfilledMethod = pkg_rhino.IR_Comma(pkg_rhino.IR_Assign(thisNode.CloneTree_0(), receiver), this_.priv_IsolatePolyfills_createPolyfillMethodLookup_3450(thisNode.CloneTree_0(), methodName, isCalleeOptChain))
 	} else {
 		thisNode = receiver
-		polyfilledMethod = this_.priv_IsolatePolyfills_createPolyfillMethodLookup_3447(receiver.CloneTree_0(), methodName, isCalleeOptChain)
+		polyfilledMethod = this_.priv_IsolatePolyfills_createPolyfillMethodLookup_3450(receiver.CloneTree_0(), methodName, isCalleeOptChain)
 	}
 	var receiverDotCall pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = receiverDotCall
@@ -311,7 +311,7 @@ func (this_ *IsolatePolyfills) priv_IsolatePolyfills_rewritePolyfillInCall_3445(
 }
 
 // Java method: IsolatePolyfills.createTempName(com.google.javascript.rhino.Node srcref)
-func (this_ *IsolatePolyfills) priv_IsolatePolyfills_createTempName_3446(srcref pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *IsolatePolyfills) priv_IsolatePolyfills_createTempName_3449(srcref pkg_rhino.Node) pkg_rhino.Node {
 	_ = srcref
 	if !(this_.isTempVarInitialized) {
 		this_.isTempVarInitialized = true
@@ -324,7 +324,7 @@ func (this_ *IsolatePolyfills) priv_IsolatePolyfills_createTempName_3446(srcref 
 }
 
 // Java method: IsolatePolyfills.createPolyfillMethodLookup(com.google.javascript.rhino.Node receiver, com.google.javascript.rhino.Node methodName, boolean isOptChainNode)
-func (this_ *IsolatePolyfills) priv_IsolatePolyfills_createPolyfillMethodLookup_3447(receiver pkg_rhino.Node, methodName pkg_rhino.Node, isOptChainNode bool) pkg_rhino.Node {
+func (this_ *IsolatePolyfills) priv_IsolatePolyfills_createPolyfillMethodLookup_3450(receiver pkg_rhino.Node, methodName pkg_rhino.Node, isOptChainNode bool) pkg_rhino.Node {
 	_ = receiver
 	_ = methodName
 	_ = isOptChainNode
@@ -341,7 +341,7 @@ func (this_ *IsolatePolyfills) priv_IsolatePolyfills_createPolyfillMethodLookup_
 }
 
 // Java method: IsolatePolyfills.cleanUpJscompLookupPolyfilledValue()
-func (this_ *IsolatePolyfills) priv_IsolatePolyfills_cleanUpJscompLookupPolyfilledValue_3448() {
+func (this_ *IsolatePolyfills) priv_IsolatePolyfills_cleanUpJscompLookupPolyfilledValue_3451() {
 	var syntheticExternsRoot pkg_rhino.Node = this_.compiler.GetSynthesizedExternsInput().GetAstRoot(this_.compiler)
 	_ = syntheticExternsRoot
 	scInline_1 := NewSyntacticScopeCreator_1(this_.compiler)
@@ -411,7 +411,7 @@ func (this_ *IsolatePolyfills__Anon_53) Visit_3(t *NodeTraversal, n pkg_rhino.No
 	_ = t
 	_ = n
 	_ = parent
-	if this_.outer_.priv_IsolatePolyfills_isJSCompPolyfillCall_3443(n) {
+	if this_.outer_.priv_IsolatePolyfills_isJSCompPolyfillCall_3446(n) {
 		var polyfilledSymbol string = n.GetSecondChild().GetString()
 		_ = polyfilledSymbol
 		j2gort.ImmSetBuilderAddStrVoid(this_.cap_0_actualPolyfills, polyfilledSymbol)

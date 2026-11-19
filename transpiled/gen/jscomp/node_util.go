@@ -3934,22 +3934,33 @@ func NodeUtil_IsValidQualifiedName_2_CompilerOptions_LanguageMode_string(mode Co
 func NodeUtil_IsValidQualifiedName_2_FeatureSet_string(mode *pkg_parser.FeatureSet, name string) bool {
 	_ = mode
 	_ = name
-	if javalang.StringEndsWith(j2gort.CheckNotNullString(name), ".") || javalang.StringStartsWith(j2gort.CheckNotNullString(name), ".") {
+	var len_ int32 = j2gort.JStrLen(name)
+	_ = len_
+	if ((len_ == int32(0)) || (int32(j2gort.JStrCharAt(name, int32(0))) == int32(uint16(46)))) || (int32(j2gort.JStrCharAt(name, (len_-int32(1)))) == int32(uint16(46))) {
 		return false
 	}
-	var parts j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(46)), name)
-	_ = parts
-	{
-		cur_31 := j2gort.NewIterCursor(j2gort.CheckNotNull(parts))
-		for cur_31.HasNext() {
-			part := cur_31.NextStr()
-			_ = part
-			if !(NodeUtil_IsValidPropertyName(mode, part)) {
-				return false
-			}
-		}
+	var dot int32 = j2gort.JStrIndexOfCp(name, int32(uint16(46)))
+	_ = dot
+	if dot == int32(-1) {
+		return NodeUtil_IsValidSimpleName(name)
 	}
-	return NodeUtil_IsValidSimpleName(j2gort.ListGetStr(parts, int32(0)))
+	if !(NodeUtil_IsValidSimpleName(j2gort.JStrSub(name, int32(0), dot))) {
+		return false
+	}
+	var start int32 = (dot + int32(1))
+	_ = start
+	for {
+		var nextDot int32 = j2gort.JStrIndexOfCpFrom(name, int32(uint16(46)), start)
+		_ = nextDot
+		if nextDot == int32(-1) {
+			return NodeUtil_IsValidPropertyName(mode, j2gort.JStrSubFrom(name, start))
+		}
+		if (nextDot == start) || !(NodeUtil_IsValidPropertyName(mode, j2gort.JStrSub(name, start, nextDot))) {
+			return false
+		}
+		start = (nextDot + int32(1))
+	}
+	panic("unreachable")
 }
 
 // Java static method: NodeUtil.isValidPropertyName(com.google.javascript.jscomp.parsing.parser.FeatureSet mode, java.lang.String name)
@@ -3966,9 +3977,9 @@ func NodeUtil_IsValidPropertyName(mode *pkg_parser.FeatureSet, name string) bool
 // Java static method: NodeUtil.getVarsDeclaredInBranch(com.google.javascript.rhino.Node root)
 func NodeUtil_GetVarsDeclaredInBranch(root pkg_rhino.Node) j2gort.Ext_java_util_Collection {
 	_ = root
-	var val_32 NodeUtil_VarCollector
-	InitNodeUtil_VarCollector(&val_32)
-	var collector *NodeUtil_VarCollector = &val_32
+	var val_31 NodeUtil_VarCollector
+	InitNodeUtil_VarCollector(&val_31)
+	var collector *NodeUtil_VarCollector = &val_31
 	_ = collector
 	NodeUtil_VisitPreOrder_3(root, collector, StaticGet_NodeUtil_MATCH_NOT_FUNCTION())
 	return j2gort.AsIface[j2gort.Ext_java_util_Collection](collector.vars.LiveValues())
@@ -4906,8 +4917,8 @@ func NodeUtil_NewCallNode(callTarget pkg_rhino.Node, parameters []pkg_rhino.Node
 	var call pkg_rhino.Node = pkg_rhino.IR_Call(callTarget, []pkg_rhino.Node{})
 	_ = call
 	call.PutBooleanProp(pkg_rhino.StaticGet_Node_FREE_CALL(), isFreeCall)
-	for _, el_33 := range j2gort.CheckNotNullSlice(parameters) {
-		parameter := el_33
+	for _, el_32 := range j2gort.CheckNotNullSlice(parameters) {
+		parameter := el_32
 		_ = parameter
 		call.AddChildToBack(parameter)
 	}
@@ -5371,7 +5382,7 @@ func NodeUtil_IsExpressionResultUsed(expr pkg_rhino.Node) bool {
 func NodeUtil_IsExecutedExactlyOnce(n pkg_rhino.Node) bool {
 	_ = n
 inspect:
-	for doFirst_34 := true; doFirst_34 || ((func() pkg_rhino.Node { var asgn_35 pkg_rhino.Node = n.GetParent(); n = asgn_35; return asgn_35 }()) != 0); doFirst_34 = false {
+	for doFirst_33 := true; doFirst_33 || ((func() pkg_rhino.Node { var asgn_34 pkg_rhino.Node = n.GetParent(); n = asgn_34; return asgn_34 }()) != 0); doFirst_33 = false {
 		var parent pkg_rhino.Node = n.GetParent()
 		_ = parent
 		switch parent.TokenSwitchOrd_() {
@@ -5456,11 +5467,11 @@ func NodeUtil_CountAstSizeUpToLimit(n pkg_rhino.Node, limit int32) int32 {
 	_ = wrappedSize
 	NodeUtil_VisitPreOrder_3(n, NewLambda_NodeUtil_Visitor(func(n12 pkg_rhino.Node) {
 		_ = n12
-		a_36 := wrappedSize
-		i_37 := int32(0)
-		a_36[i_37] = a_36[i_37] + 1
-	}), j2gort.NewNodeLambda_Ext_com_google_common_base_Predicate(func(rawNode_38 uint32) bool {
-		n1 := pkg_rhino.Node(rawNode_38)
+		a_35 := wrappedSize
+		i_36 := int32(0)
+		a_35[i_36] = a_35[i_36] + 1
+	}), j2gort.NewNodeLambda_Ext_com_google_common_base_Predicate(func(rawNode_37 uint32) bool {
+		n1 := pkg_rhino.Node(rawNode_37)
 		_ = n1
 		return (wrappedSize[int32(0)] < limit)
 	}))
@@ -5747,18 +5758,18 @@ func NodeUtil_CollectExternVariableNames(compiler AbstractCompiler, externs pkg_
 	_ = compiler
 	_ = externs
 	clinit_ReferenceCollector()
-	var val_39 ReferenceCollector
-	InitReferenceCollector_3(&val_39, compiler, StaticGet_ReferenceCollector_DO_NOTHING_BEHAVIOR(), NewSyntacticScopeCreator_1(compiler))
-	var externsRefs *ReferenceCollector = &val_39
+	var val_38 ReferenceCollector
+	InitReferenceCollector_3(&val_38, compiler, StaticGet_ReferenceCollector_DO_NOTHING_BEHAVIOR(), NewSyntacticScopeCreator_1(compiler))
+	var externsRefs *ReferenceCollector = &val_38
 	_ = externsRefs
 	externsRefs.Process_1(externs)
 	var externsNames j2gort.Ext_com_google_common_collect_ImmutableSet_Builder = j2gort.Ext_com_google_common_collect_ImmutableSet_S_Builder()
 	_ = externsNames
 	{
-		cur_40 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](externsRefs.GetAllSymbols())))
-		for cur_40.HasNext() {
-			rawElem_41 := cur_40.Next()
-			v := j2gort.CastPtr[Var](rawElem_41)
+		cur_39 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](externsRefs.GetAllSymbols())))
+		for cur_39.HasNext() {
+			rawElem_40 := cur_39.Next()
+			v := j2gort.CastPtr[Var](rawElem_40)
 			_ = v
 			if !(v.IsParam()) {
 				j2gort.ImmSetBuilderAddStrVoid(externsNames, v.GetName())
@@ -5835,9 +5846,9 @@ func NodeUtil_GetParentChangeScopeNodes(scopeNodes j2gort.Ext_java_util_List) j2
 	var parentScopeNodes j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_LinkedHashSet_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](scopeNodes))
 	_ = parentScopeNodes
 	{
-		cur_42 := j2gort.NewIterCursor(j2gort.CheckNotNull(scopeNodes))
-		for cur_42.HasNext() {
-			scopeNode := pkg_rhino.Node(cur_42.NextNode())
+		cur_41 := j2gort.NewIterCursor(j2gort.CheckNotNull(scopeNodes))
+		for cur_41.HasNext() {
+			scopeNode := pkg_rhino.Node(cur_41.NextNode())
 			_ = scopeNode
 			j2gort.SetAddNode(parentScopeNodes, ChangeTracker_GetEnclosingChangeScopeRoot(scopeNode))
 		}
@@ -5851,9 +5862,9 @@ func NodeUtil_RemoveNestedChangeScopeNodes(scopeNodes j2gort.Ext_java_util_List)
 	var uniqueScopeNodes j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_LinkedHashSet_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](scopeNodes))
 	_ = uniqueScopeNodes
 	{
-		cur_43 := j2gort.NewIterCursor(j2gort.CheckNotNull(scopeNodes))
-		for cur_43.HasNext() {
-			scopeNode := pkg_rhino.Node(cur_43.NextNode())
+		cur_42 := j2gort.NewIterCursor(j2gort.CheckNotNull(scopeNodes))
+		for cur_42.HasNext() {
+			scopeNode := pkg_rhino.Node(cur_42.NextNode())
 			_ = scopeNode
 			{
 				var ancestor pkg_rhino.Node = scopeNode.GetParent()
@@ -6154,10 +6165,10 @@ func NodeUtil_AddFeaturesToScript(scriptNode pkg_rhino.Node, features *pkg_parse
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(scriptNode))
 	}
 	{
-		cur_44 := j2gort.NewIterCursor(j2gort.CheckNotNull(features.GetFeatures()))
-		for cur_44.HasNext() {
-			rawElem_45 := cur_44.Next()
-			feature := j2gort.CastPtr[pkg_parser.FeatureSet_Feature](rawElem_45)
+		cur_43 := j2gort.NewIterCursor(j2gort.CheckNotNull(features.GetFeatures()))
+		for cur_43.HasNext() {
+			rawElem_44 := cur_43.Next()
+			feature := j2gort.CastPtr[pkg_parser.FeatureSet_Feature](rawElem_44)
 			_ = feature
 			NodeUtil_AddFeatureToScript(scriptNode, feature, compiler)
 		}
@@ -6457,8 +6468,8 @@ func InitNodeUtil_VarCollector(this_ *NodeUtil_VarCollector) {
 func (this_ *NodeUtil_VarCollector) Visit(n pkg_rhino.Node) {
 	_ = n
 	if n.IsVar() {
-		NodeUtil_VisitLhsNodesInNode(n, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_46 any) {
-			name := j2gort.CastNode[pkg_rhino.Node](lp_46)
+		NodeUtil_VisitLhsNodesInNode(n, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_45 any) {
+			name := j2gort.CastNode[pkg_rhino.Node](lp_45)
 			_ = name
 			this_.vars.PutIfAbsent(name.GetString(), name)
 		}))
@@ -6515,16 +6526,16 @@ func InitNodeUtil_MatchNameNode(this_ *NodeUtil_MatchNameNode, name string) {
 }
 
 // Java method: MatchNameNode.apply(com.google.javascript.rhino.Node n)
-func (this_ *NodeUtil_MatchNameNode) TestNode_(rawNode_47 uint32) bool {
+func (this_ *NodeUtil_MatchNameNode) TestNode_(rawNode_46 uint32) bool {
 	if this_ == nil {
 		j2gort.ThrowNPE()
 	}
-	n := pkg_rhino.Node(rawNode_47)
+	n := pkg_rhino.Node(rawNode_46)
 	_ = n
 	return (n.IsName() && func() bool {
-		sr_48 := n.GetString()
-		se_49 := this_.name
-		return j2gort.CheckNotNullString(sr_48) == se_49
+		sr_47 := n.GetString()
+		se_48 := this_.name
+		return j2gort.CheckNotNullString(sr_47) == se_48
 	}())
 }
 
@@ -6592,11 +6603,11 @@ func InitNodeUtil_MatchNodeType(this_ *NodeUtil_MatchNodeType, type_ pkg_rhino.T
 }
 
 // Java method: MatchNodeType.apply(com.google.javascript.rhino.Node n)
-func (this_ *NodeUtil_MatchNodeType) TestNode_(rawNode_50 uint32) bool {
+func (this_ *NodeUtil_MatchNodeType) TestNode_(rawNode_49 uint32) bool {
 	if this_ == nil {
 		j2gort.ThrowNPE()
 	}
-	n := pkg_rhino.Node(rawNode_50)
+	n := pkg_rhino.Node(rawNode_49)
 	_ = n
 	return (n.GetToken() == this_.type_)
 }
@@ -6662,11 +6673,11 @@ func InitNodeUtil_MatchDeclaration(this_ *NodeUtil_MatchDeclaration) {
 }
 
 // Java method: MatchDeclaration.apply(com.google.javascript.rhino.Node n)
-func (this_ *NodeUtil_MatchDeclaration) TestNode_(rawNode_51 uint32) bool {
+func (this_ *NodeUtil_MatchDeclaration) TestNode_(rawNode_50 uint32) bool {
 	if this_ == nil {
 		j2gort.ThrowNPE()
 	}
-	n := pkg_rhino.Node(rawNode_51)
+	n := pkg_rhino.Node(rawNode_50)
 	_ = n
 	return NodeUtil_IsDeclaration(n)
 }
@@ -6732,11 +6743,11 @@ func InitNodeUtil_MatchShallowStatement(this_ *NodeUtil_MatchShallowStatement) {
 }
 
 // Java method: MatchShallowStatement.apply(com.google.javascript.rhino.Node n)
-func (this_ *NodeUtil_MatchShallowStatement) TestNode_(rawNode_52 uint32) bool {
+func (this_ *NodeUtil_MatchShallowStatement) TestNode_(rawNode_51 uint32) bool {
 	if this_ == nil {
 		j2gort.ThrowNPE()
 	}
-	n := pkg_rhino.Node(rawNode_52)
+	n := pkg_rhino.Node(rawNode_51)
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -6864,12 +6875,12 @@ func (this_ *NodeUtil_PreOrderIterator) ComputeNext() any {
 	}
 	var returnValue pkg_rhino.Node = this_.current
 	_ = returnValue
-	this_.current = this_.priv_PreOrderIterator_calculateNextNode_4012(returnValue)
+	this_.current = this_.priv_PreOrderIterator_calculateNextNode_4018(returnValue)
 	return j2gort.BoxNode(returnValue)
 }
 
 // Java method: PreOrderIterator.calculateNextNode(com.google.javascript.rhino.Node currentNode)
-func (this_ *NodeUtil_PreOrderIterator) priv_PreOrderIterator_calculateNextNode_4012(currentNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *NodeUtil_PreOrderIterator) priv_PreOrderIterator_calculateNextNode_4018(currentNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = currentNode
 	j2gort.CheckNotNullNode(currentNode)
 	if j2gort.PredTestNode(this_.traverseNodePredicate, uint32(currentNode)) {
@@ -7033,17 +7044,17 @@ func (this_ *NodeUtil_GoogRequire) Equals(other_ any) bool {
 func (this_ *NodeUtil_GoogRequire) HashCode() int32 {
 	var h_ int32 = 0
 	{
-		hs_53 := this_.namespace
+		hs_52 := this_.namespace
 		h_ = 31 * h_
-		if hs_53 != j2gort.NullString {
-			h_ += javalang.StringHashCode(hs_53)
+		if hs_52 != j2gort.NullString {
+			h_ += javalang.StringHashCode(hs_52)
 		}
 	}
 	{
-		hs_54 := this_.property
+		hs_53 := this_.property
 		h_ = 31 * h_
-		if hs_54 != j2gort.NullString {
-			h_ += javalang.StringHashCode(hs_54)
+		if hs_53 != j2gort.NullString {
+			h_ += javalang.StringHashCode(hs_53)
 		}
 	}
 	if this_.isStrongRequire {
@@ -7102,10 +7113,10 @@ func (this_ *NodeUtil__Anon_66) EnterScope(t *NodeTraversal) {
 	_ = currentScope
 	if currentScope.IsModuleScope() {
 		{
-			cur_53 := (currentScope).iterVars_()
-			for cur_53.HasNext() {
+			cur_52 := (currentScope).iterVars_()
+			for cur_52.HasNext() {
 
-				v := cur_53.Next()
+				v := cur_52.Next()
 
 				_ = v
 				j2gort.SetAddStr(this_.cap_0_nameVars, v.GetName())
@@ -7181,10 +7192,10 @@ func (this_ *NodeUtil__Anon_67) EnterScope(t *NodeTraversal) {
 	var currentScope *Scope = t.GetScope()
 	_ = currentScope
 	{
-		cur_55 := (currentScope).iterVars_()
-		for cur_55.HasNext() {
+		cur_54 := (currentScope).iterVars_()
+		for cur_54.HasNext() {
 
-			v := cur_55.Next()
+			v := cur_54.Next()
 
 			_ = v
 			j2gort.MapPutStr(this_.cap_0_nameVarMap, v.GetName(), j2gort.PtrToAny(v))

@@ -100,7 +100,7 @@ func InitRescopeGlobalSymbols_5(this_ *RescopeGlobalSymbols, compiler AbstractCo
 }
 
 // Java method: RescopeGlobalSymbols.addExternForGlobalSymbolNamespace()
-func (this_ *RescopeGlobalSymbols) priv_RescopeGlobalSymbols_addExternForGlobalSymbolNamespace_4896() {
+func (this_ *RescopeGlobalSymbols) priv_RescopeGlobalSymbols_addExternForGlobalSymbolNamespace_4903() {
 	var varNode pkg_rhino.Node = pkg_rhino.IR_Var_1(pkg_rhino.IR_Name(this_.globalSymbolNamespace))
 	_ = varNode
 	var input *CompilerInput = this_.compiler.GetSynthesizedExternsInput()
@@ -114,7 +114,7 @@ func (this_ *RescopeGlobalSymbols) Process_2(externs pkg_rhino.Node, root pkg_rh
 	_ = externs
 	_ = root
 	if this_.addExtern {
-		this_.priv_RescopeGlobalSymbols_addExternForGlobalSymbolNamespace_4896()
+		this_.priv_RescopeGlobalSymbols_addExternForGlobalSymbolNamespace_4903()
 	}
 	NodeTraversal_Traverse(this_.compiler, root, NewRescopeGlobalSymbols_RewriteGlobalClassFunctionDeclarationsToVarAssignmentsCallback(this_.compiler))
 	var val_1 RescopeGlobalSymbolsRenameHelper_HelperBuilder
@@ -535,17 +535,17 @@ func (this_ *RescopeGlobalSymbols_RemoveGlobalVarCallback) Visit_3(t *NodeTraver
 		return
 	}
 	if NodeUtil_IsAnyFor(parent) && (parent.GetFirstChild() == n) {
-		var commas j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList()
+		var commas []pkg_rhino.Node = []pkg_rhino.Node{}
 		_ = commas
 		{
 			var c pkg_rhino.Node = n.GetFirstChild()
 			_ = c
 			for ; c != 0; c = c.GetNext() {
-				commas.Add_1(j2gort.BoxNode(c.CloneTree_0()))
+				commas = append(commas, c.CloneTree_0())
 			}
 		}
-		if !(commas.IsEmpty()) {
-			var comma pkg_rhino.Node = this_.priv_RemoveGlobalVarCallback_joinOnComma_4897(commas, n)
+		if len(commas) != 0 {
+			var comma pkg_rhino.Node = this_.priv_RemoveGlobalVarCallback_joinOnComma_4904(&commas, n)
 			_ = comma
 			comma.InsertBefore(n)
 		}
@@ -604,16 +604,16 @@ func RescopeGlobalSymbols_RemoveGlobalVarCallback_HasOnlyNameOrDestructuringChil
 }
 
 // Java method: RemoveGlobalVarCallback.joinOnComma(java.util.List<com.google.javascript.rhino.Node> commas, com.google.javascript.rhino.Node source)
-func (this_ *RescopeGlobalSymbols_RemoveGlobalVarCallback) priv_RemoveGlobalVarCallback_joinOnComma_4897(commas j2gort.Ext_java_util_List, source pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *RescopeGlobalSymbols_RemoveGlobalVarCallback) priv_RemoveGlobalVarCallback_joinOnComma_4904(commas *[]pkg_rhino.Node, source pkg_rhino.Node) pkg_rhino.Node {
 	_ = commas
 	_ = source
-	var comma pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](commas.Get(int32(0)))
+	var comma pkg_rhino.Node = (*commas)[int32(0)]
 	_ = comma
 	{
 		var i int32 = int32(1)
 		_ = i
-		for ; i < commas.Size(); i = i + 1 {
-			var nextComma pkg_rhino.Node = pkg_rhino.IR_Comma(comma, j2gort.CastNode[pkg_rhino.Node](commas.Get(i)))
+		for ; i < int32(len(*commas)); i = i + 1 {
+			var nextComma pkg_rhino.Node = pkg_rhino.IR_Comma(comma, (*commas)[i])
 			_ = nextComma
 			nextComma.SrcrefIfMissing(source)
 			comma = nextComma

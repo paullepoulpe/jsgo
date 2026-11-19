@@ -122,6 +122,29 @@ func JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc *pkg_rhino.JSDocInfo
 	return JSDocSerializer_DeserializeJsdoc(JSDocSerializer_SerializeJsdoc(jsdoc, stringPool), stringPool.Build())
 }
 
+// Java static method: JSDocSerializer.addKind(com.google.javascript.jscomp.serialization.OptimizationJsdoc.@org.jspecify.annotations.Nullable Builder b, com.google.javascript.jscomp.serialization.JsdocTag tag)
+func JSDocSerializer_AddKind(b *j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc_Builder, tag *j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag) *j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc_Builder {
+	clinit_JSDocSerializer()
+	_ = b
+	_ = tag
+	if b == nil {
+		b = j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc_NewBuilder_0()
+	}
+	b.AddKind(tag)
+	return b
+}
+
+// Java static method: JSDocSerializer.ensureBuilder(com.google.javascript.jscomp.serialization.OptimizationJsdoc.@org.jspecify.annotations.Nullable Builder b)
+func JSDocSerializer_EnsureBuilder(b *j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc_Builder) *j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc_Builder {
+	clinit_JSDocSerializer()
+	_ = b
+	if b != nil {
+		return b
+	} else {
+		return j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc_NewBuilder_0()
+	}
+}
+
 // Java static method: JSDocSerializer.serializeJsdoc(com.google.javascript.rhino.JSDocInfo jsdoc, com.google.javascript.jscomp.serialization.StringPool.Builder stringPool)
 func JSDocSerializer_SerializeJsdoc(jsdoc *pkg_rhino.JSDocInfo, stringPool *StringPool_Builder) *j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc {
 	clinit_JSDocSerializer()
@@ -130,64 +153,65 @@ func JSDocSerializer_SerializeJsdoc(jsdoc *pkg_rhino.JSDocInfo, stringPool *Stri
 	if jsdoc == nil {
 		return nil
 	}
-	var builder *j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc_Builder = j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc_NewBuilder_0()
+	var builder *j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc_Builder = nil
 	_ = builder
 	if jsdoc.HasFileOverview() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_FILEOVERVIEW)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_FILEOVERVIEW)
 	}
 	if jsdoc.GetLicense() != j2gort.NullString {
+		builder = JSDocSerializer_EnsureBuilder(builder)
 		builder.SetLicenseTextPointer(stringPool.Put(jsdoc.GetLicense()))
 	}
 	if jsdoc.IsSassGeneratedCssTs() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_SASS_GENERATED_CSS_TS)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_SASS_GENERATED_CSS_TS)
 	}
 	if jsdoc.IsNoCoverage() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_NO_COVERAGE)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_NO_COVERAGE)
 	}
 	if jsdoc.IsNoInline() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_NO_INLINE)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_NO_INLINE)
 	}
 	if jsdoc.IsEncourageInlining() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_ENCOURAGE_INLINING)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_ENCOURAGE_INLINING)
 	}
 	if jsdoc.IsRequireInlining() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_REQUIRE_INLINING)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_REQUIRE_INLINING)
 	}
 	if jsdoc.IsNoCollapse() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_NO_COLLAPSE)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_NO_COLLAPSE)
 	}
 	if jsdoc.IsProvideGoog() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_PROVIDE_GOOG)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_PROVIDE_GOOG)
 	}
 	if jsdoc.IsProvideAlreadyProvided() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_PROVIDE_ALREADY_PROVIDED)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_PROVIDE_ALREADY_PROVIDED)
 	}
 	if jsdoc.IsTypeSummary() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_TYPE_SUMMARY_FILE)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_TYPE_SUMMARY_FILE)
 	}
 	if jsdoc.IsPureOrBreakMyCode() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_PURE_OR_BREAK_MY_CODE)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_PURE_OR_BREAK_MY_CODE)
 	}
 	if jsdoc.IsCollapsibleOrBreakMyCode() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_COLLAPSIBLE_OR_BREAK_MY_CODE)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_COLLAPSIBLE_OR_BREAK_MY_CODE)
 	}
 	if jsdoc.HasThisType() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_THIS)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_THIS)
 	}
 	if jsdoc.HasEnumParameterType() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_ENUM)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_ENUM)
 	}
 	if jsdoc.IsDefine() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_DEFINE)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_DEFINE)
 	}
 	if jsdoc.HasConstAnnotation() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_CONST)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_CONST)
 	}
 	if jsdoc.IsAnyIdGenerator() {
-		builder.AddKind(JSDocSerializer_SerializeIdGenerator(jsdoc))
+		builder = JSDocSerializer_AddKind(builder, JSDocSerializer_SerializeIdGenerator(jsdoc))
 	}
 	if jsdoc.IsNoSideEffects() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_NO_SIDE_EFFECTS)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_NO_SIDE_EFFECTS)
 	}
 	if jsdoc.HasModifies() {
 		{
@@ -197,50 +221,63 @@ func JSDocSerializer_SerializeJsdoc(jsdoc *pkg_rhino.JSDocInfo, stringPool *Stri
 				_ = modifies
 				switch j2gort.CheckNotNullString(modifies) {
 				case "this":
-					builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_MODIFIES_THIS)
+					builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_MODIFIES_THIS)
 				case "arguments":
-					builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_MODIFIES_ARGUMENTS)
+					builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_MODIFIES_ARGUMENTS)
 				default:
-					builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_MODIFIES_ARGUMENTS)
+					builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_MODIFIES_ARGUMENTS)
 				}
 			}
 		}
 	}
 	if !(jsdoc.GetThrowsAnnotations().IsEmpty()) {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_THROWS)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_THROWS)
 	}
 	if jsdoc.IsConstructor() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_CONSTRUCTOR)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_CONSTRUCTOR)
 	}
 	if jsdoc.IsInterface() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_INTERFACE)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_INTERFACE)
 	}
-	if j2gort.SetContainsStr(jsdoc.GetSuppressions(), "partialAlias") {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_SUPPRESS_PARTIAL_ALIAS)
+	var suppressions j2gort.Ext_java_util_Set = jsdoc.GetSuppressions()
+	_ = suppressions
+	if !(suppressions.IsEmpty()) {
+		if j2gort.SetContainsStr(suppressions, "partialAlias") {
+			builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_SUPPRESS_PARTIAL_ALIAS)
+		}
 	}
 	if jsdoc.IsAbstract() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_ABSTRACT)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_ABSTRACT)
 	}
 	if jsdoc.GetDescription() != j2gort.NullString {
+		builder = JSDocSerializer_EnsureBuilder(builder)
 		builder.SetDescriptionPointer(stringPool.Put(jsdoc.GetDescription()))
 	}
 	if jsdoc.GetAlternateMessageId() != j2gort.NullString {
+		builder = JSDocSerializer_EnsureBuilder(builder)
 		builder.SetAlternateMessageIdPointer(stringPool.Put(jsdoc.GetAlternateMessageId()))
 	}
 	if jsdoc.GetMeaning() != j2gort.NullString {
+		builder = JSDocSerializer_EnsureBuilder(builder)
 		builder.SetMeaningPointer(stringPool.Put(jsdoc.GetMeaning()))
 	}
-	if j2gort.SetContainsStr(jsdoc.GetSuppressions(), "messageConventions") {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_SUPPRESS_MESSAGE_CONVENTION)
-	}
-	if j2gort.SetContainsStr(jsdoc.GetSuppressions(), "untranspilableFeatures") {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES)
+	if !(suppressions.IsEmpty()) {
+		if j2gort.SetContainsStr(suppressions, "messageConventions") {
+			builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_SUPPRESS_MESSAGE_CONVENTION)
+		}
+		if j2gort.SetContainsStr(suppressions, "untranspilableFeatures") {
+			builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_SUPPRESS_UNTRANSPILABLE_FEATURES)
+		}
 	}
 	if jsdoc.IsUsedViaDotConstructor() {
-		builder.AddKind(j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_USED_VIA_DOT_CONSTRUCTOR)
+		builder = JSDocSerializer_AddKind(builder, j2gort.Ext_com_google_javascript_jscomp_serialization_JsdocTag_F_JSDOC_USED_VIA_DOT_CONSTRUCTOR)
 	}
 	if jsdoc.GetPerFileClosureUnawareMode() != 0 {
+		builder = JSDocSerializer_EnsureBuilder(builder)
 		builder.SetClosureUnawareModePointer(stringPool.Put((jsdoc.GetPerFileClosureUnawareMode()).Name()))
+	}
+	if builder == nil {
+		return nil
 	}
 	var result *j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc = j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc](builder.Build())
 	_ = result

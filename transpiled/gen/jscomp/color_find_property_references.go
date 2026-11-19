@@ -24,16 +24,10 @@ import (
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
 )
 
-var lambdaSingleton_color_find_property_references_1 j2gort.Ext_java_util_function_Function
-
-func init() {
-	lambdaSingleton_color_find_property_references_1 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return NewPropertyClustering(j2gort.CastString(mrp0_)) })
-}
-
 // Java class: com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferences
 type ColorFindPropertyReferences struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	propIndex             *j2gort.Ext_java_util_LinkedHashMap             `gson:"propIndex"`
+	propIndex             j2gort.OrderedMap[string, *PropertyClustering]  `gson:"propIndex"`
 	colorGraphNodeFactory *ColorGraphNodeFactory                          `gson:"colorGraphNodeFactory"`
 	isPropertyReflector   ColorFindPropertyReferences_IsPropertyReflector `gson:"isPropertyReflector"`
 }
@@ -62,7 +56,7 @@ func (*ColorFindPropertyReferences) Implements_jscomp_NodeTraversal_Callback()  
 
 func (this_ *ColorFindPropertyReferences) initFields_ColorFindPropertyReferences() {
 	_ = this_
-	this_.propIndex = j2gort.NewExt_java_util_LinkedHashMap()
+	this_.propIndex = j2gort.NewOrderedMap[string, *PropertyClustering]()
 }
 
 // Java constructor: ColorFindPropertyReferences(com.google.javascript.jscomp.disambiguate.ColorGraphNodeFactory colorGraphNodeFactory, com.google.javascript.jscomp.disambiguate.ColorFindPropertyReferences.IsPropertyReflector isPropertyReflector)
@@ -81,12 +75,44 @@ func InitColorFindPropertyReferences(this_ *ColorFindPropertyReferences, colorGr
 	this_.isPropertyReflector = isPropertyReflector
 }
 
-// Java method: ColorFindPropertyReferences.getPropertyIndex()
-func (this_ *ColorFindPropertyReferences) GetPropertyIndex() *j2gort.Ext_java_util_LinkedHashMap {
-	var tmp *j2gort.Ext_java_util_LinkedHashMap = this_.propIndex
-	_ = tmp
-	this_.propIndex = nil
-	return tmp
+// Java method: ColorFindPropertyReferences.getOrCreateProperty(java.lang.String name)
+func (this_ *ColorFindPropertyReferences) GetOrCreateProperty(name string) *PropertyClustering {
+	_ = name
+	var prop *PropertyClustering = this_.propIndex.Get(name)
+	_ = prop
+	if prop == nil {
+		prop = NewPropertyClustering(name)
+		this_.propIndex.Put(name, prop)
+	}
+	return prop
+}
+
+// Java method: ColorFindPropertyReferences.getProperty(java.lang.String name)
+func (this_ *ColorFindPropertyReferences) GetProperty(name string) *PropertyClustering {
+	_ = name
+	return this_.propIndex.Get(name)
+}
+
+// Java method: ColorFindPropertyReferences.collectProperties()
+func (this_ *ColorFindPropertyReferences) CollectProperties() j2gort.Ext_java_util_ArrayList {
+	var list []*PropertyClustering = j2gort.MakeNonNilSlice[*PropertyClustering](this_.propIndex.Size())
+	_ = list
+	{
+		cur_1 := this_.propIndex.IterValues()
+		for cur_1.HasNext() {
+
+			prop := cur_1.
+				Next()
+			_ = prop
+			list = append(list, prop)
+		}
+	}
+	return j2gort.WrapTypedArrayList(list)
+}
+
+// Java method: ColorFindPropertyReferences.clearProperties()
+func (this_ *ColorFindPropertyReferences) ClearProperties() {
+	this_.propIndex.Clear()
 }
 
 // Java method: ColorFindPropertyReferences.visit(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
@@ -96,23 +122,23 @@ func (this_ *ColorFindPropertyReferences) Visit_3(t *NodeTraversal, n pkg_rhino.
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(26) /* Token.GETPROP */, int32(29) /* Token.OPTCHAIN_GETPROP */ :
-		this_.priv_ColorFindPropertyReferences_registerPropertyUse_6195(t, n, n.GetFirstChild().GetColor())
+		this_.priv_ColorFindPropertyReferences_registerPropertyUse_6200(t, n, n.GetFirstChild().GetColor())
 	case int32(47) /* Token.OBJECTLIT */ :
-		this_.priv_ColorFindPropertyReferences_handleObjectLit_6187(t, n)
+		this_.priv_ColorFindPropertyReferences_handleObjectLit_6192(t, n)
 	case int32(28) /* Token.CALL */ :
-		this_.priv_ColorFindPropertyReferences_handleCall_6188(t, n)
+		this_.priv_ColorFindPropertyReferences_handleCall_6193(t, n)
 	case int32(105) /* Token.CLASS */ :
-		this_.priv_ColorFindPropertyReferences_handleClass_6189(t, n)
+		this_.priv_ColorFindPropertyReferences_handleClass_6194(t, n)
 	case int32(103) /* Token.OBJECT_PATTERN */ :
-		this_.priv_ColorFindPropertyReferences_handleObjectPattern_6191(t, n)
+		this_.priv_ColorFindPropertyReferences_handleObjectPattern_6196(t, n)
 	case int32(73) /* Token.FUNCTION */ :
-		this_.priv_ColorFindPropertyReferences_handleFunction_6190(n)
+		this_.priv_ColorFindPropertyReferences_handleFunction_6195(n)
 	default:
 	}
 }
 
 // Java method: ColorFindPropertyReferences.handleObjectLit(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleObjectLit_6187(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleObjectLit_6192(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if n.GetParent().IsCall() && NodeUtil_IsObjectDefinePropertiesDefinition(n.GetParent()) {
@@ -120,15 +146,15 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 	}
 	var owner *pkg_colors.Color = n.GetColor()
 	_ = owner
-	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6194(t, n, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_1 any) any {
-		m := j2gort.CastNode[pkg_rhino.Node](lp_1)
+	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6199(t, n, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_3 any) any {
+		m := j2gort.CastNode[pkg_rhino.Node](lp_3)
 		_ = m
 		return j2gort.PtrToAny(owner)
 	}))
 }
 
 // Java method: ColorFindPropertyReferences.handleCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleCall_6188(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleCall_6193(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var target pkg_rhino.Node = call.GetFirstChild()
@@ -137,20 +163,20 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 		return
 	}
 	if this_.isPropertyReflector.Test(target) {
-		this_.priv_ColorFindPropertyReferences_handlePropertyReflectorCall_6192(t, call)
+		this_.priv_ColorFindPropertyReferences_handlePropertyReflectorCall_6197(t, call)
 	} else if NodeUtil_IsObjectDefinePropertiesDefinition(call) {
-		this_.priv_ColorFindPropertyReferences_handleObjectDefineProperties_6193(t, call)
+		this_.priv_ColorFindPropertyReferences_handleObjectDefineProperties_6198(t, call)
 	}
 }
 
 // Java method: ColorFindPropertyReferences.handleClass(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node classNode)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleClass_6189(t *NodeTraversal, classNode pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleClass_6194(t *NodeTraversal, classNode pkg_rhino.Node) {
 	_ = t
 	_ = classNode
 	var classType *pkg_colors.Color = classNode.GetColor()
 	_ = classType
-	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6194(t, NodeUtil_GetClassMembers(classNode), j2gort.NewLambda_Ext_java_util_function_Function(func(lp_2 any) any {
-		m := j2gort.CastNode[pkg_rhino.Node](lp_2)
+	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6199(t, NodeUtil_GetClassMembers(classNode), j2gort.NewLambda_Ext_java_util_function_Function(func(lp_4 any) any {
+		m := j2gort.CastNode[pkg_rhino.Node](lp_4)
 		_ = m
 		if m.IsStaticMember() {
 			return j2gort.PtrToAny(classType)
@@ -179,7 +205,7 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 }
 
 // Java method: ColorFindPropertyReferences.handleFunction(com.google.javascript.rhino.Node fnNode)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleFunction_6190(fnNode pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleFunction_6195(fnNode pkg_rhino.Node) {
 	_ = fnNode
 	var fnType *pkg_colors.Color = fnNode.GetColor()
 	_ = fnType
@@ -189,20 +215,20 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 }
 
 // Java method: ColorFindPropertyReferences.handleObjectPattern(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node pattern)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleObjectPattern_6191(t *NodeTraversal, pattern pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleObjectPattern_6196(t *NodeTraversal, pattern pkg_rhino.Node) {
 	_ = t
 	_ = pattern
 	var owner *pkg_colors.Color = pattern.GetColor()
 	_ = owner
-	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6194(t, pattern, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_3 any) any {
-		m := j2gort.CastNode[pkg_rhino.Node](lp_3)
+	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6199(t, pattern, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_5 any) any {
+		m := j2gort.CastNode[pkg_rhino.Node](lp_5)
 		_ = m
 		return j2gort.PtrToAny(owner)
 	}))
 }
 
 // Java method: ColorFindPropertyReferences.handlePropertyReflectorCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handlePropertyReflectorCall_6192(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handlePropertyReflectorCall_6197(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var name pkg_rhino.Node = call.GetSecondChild()
@@ -219,11 +245,11 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 	} else {
 		objColor = obj.GetColor()
 	}
-	this_.priv_ColorFindPropertyReferences_registerPropertyUse_6195(t, name, objColor)
+	this_.priv_ColorFindPropertyReferences_registerPropertyUse_6200(t, name, objColor)
 }
 
 // Java method: ColorFindPropertyReferences.handleObjectDefineProperties(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleObjectDefineProperties_6193(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleObjectDefineProperties_6198(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var typeObj pkg_rhino.Node = call.GetSecondChild()
@@ -235,15 +261,15 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 	}
 	var type_ *pkg_colors.Color = typeObj.GetColor()
 	_ = type_
-	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6194(t, objectLiteral, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_4 any) any {
-		m := j2gort.CastNode[pkg_rhino.Node](lp_4)
+	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6199(t, objectLiteral, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_6 any) any {
+		m := j2gort.CastNode[pkg_rhino.Node](lp_6)
 		_ = m
 		return j2gort.PtrToAny(type_)
 	}))
 }
 
 // Java method: ColorFindPropertyReferences.traverseObjectlitLike(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, java.util.function.Function<com.google.javascript.rhino.Node,com.google.javascript.jscomp.colors.Color> memberOwnerFn)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_traverseObjectlitLike_6194(t *NodeTraversal, n pkg_rhino.Node, memberOwnerFn j2gort.Ext_java_util_function_Function) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_traverseObjectlitLike_6199(t *NodeTraversal, n pkg_rhino.Node, memberOwnerFn j2gort.Ext_java_util_function_Function) {
 	_ = t
 	_ = n
 	_ = memberOwnerFn
@@ -261,7 +287,7 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_trave
 				if child.IsQuotedStringKey() {
 					continue
 				}
-				this_.priv_ColorFindPropertyReferences_registerPropertyUse_6195(t, child, j2gort.CastPtr[pkg_colors.Color](memberOwnerFn.Apply(j2gort.BoxNode(child))))
+				this_.priv_ColorFindPropertyReferences_registerPropertyUse_6200(t, child, j2gort.CastPtr[pkg_colors.Color](memberOwnerFn.Apply(j2gort.BoxNode(child))))
 			default:
 				panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(("Unexpected child of " + j2gort.StrVal(n.GetToken()) + ": " + j2gort.StrValString(child.ToStringTree()))))))
 			}
@@ -270,11 +296,11 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_trave
 }
 
 // Java method: ColorFindPropertyReferences.registerPropertyUse(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node site, com.google.javascript.jscomp.colors.Color owner)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_registerPropertyUse_6195(t *NodeTraversal, site pkg_rhino.Node, owner *pkg_colors.Color) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_registerPropertyUse_6200(t *NodeTraversal, site pkg_rhino.Node, owner *pkg_colors.Color) {
 	_ = t
 	_ = site
 	_ = owner
-	var prop *PropertyClustering = j2gort.CastPtr[PropertyClustering](j2gort.MapComputeIfAbsentStr(this_.propIndex, site.GetString(), lambdaSingleton_color_find_property_references_1))
+	var prop *PropertyClustering = this_.GetOrCreateProperty(site.GetString())
 	_ = prop
 	var flatOwner *ColorGraphNode = this_.colorGraphNodeFactory.CreateNode(owner)
 	_ = flatOwner

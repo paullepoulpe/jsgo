@@ -143,15 +143,15 @@ func (this_ *CheckEs6ModuleFileStructure) ShouldTraverse_3(t *NodeTraversal, n p
 		this_.orderedStatements.Clear()
 		return true
 	case int32(116) /* Token.IMPORT */ :
-		this_.priv_CheckEs6ModuleFileStructure_visitImport_6501(t, n)
+		this_.priv_CheckEs6ModuleFileStructure_visitImport_6506(t, n)
 		return false
 	case int32(93) /* Token.EXPR_RESULT */ :
-		return this_.priv_CheckEs6ModuleFileStructure_visitExprResult_6499(t, n, parent)
+		return this_.priv_CheckEs6ModuleFileStructure_visitExprResult_6504(t, n, parent)
 	case int32(84) /* Token.VAR */, int32(111) /* Token.LET */, int32(97) /* Token.CONST */ :
-		return this_.priv_CheckEs6ModuleFileStructure_visitDeclaration_6500(t, n, parent)
+		return this_.priv_CheckEs6ModuleFileStructure_visitDeclaration_6505(t, n, parent)
 	default:
 		if (parent != 0) && parent.IsModuleBody() {
-			this_.priv_CheckEs6ModuleFileStructure_checkOrder_6498(t, n, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_OTHER())
+			this_.priv_CheckEs6ModuleFileStructure_checkOrder_6503(t, n, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_OTHER())
 		}
 		return false
 	}
@@ -159,7 +159,7 @@ func (this_ *CheckEs6ModuleFileStructure) ShouldTraverse_3(t *NodeTraversal, n p
 }
 
 // Java method: CheckEs6ModuleFileStructure.checkOrder(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.lint.CheckEs6ModuleFileStructure.OrderedStatement statement)
-func (this_ *CheckEs6ModuleFileStructure) priv_CheckEs6ModuleFileStructure_checkOrder_6498(t *NodeTraversal, n pkg_rhino.Node, statement CheckEs6ModuleFileStructure_OrderedStatement) {
+func (this_ *CheckEs6ModuleFileStructure) priv_CheckEs6ModuleFileStructure_checkOrder_6503(t *NodeTraversal, n pkg_rhino.Node, statement CheckEs6ModuleFileStructure_OrderedStatement) {
 	_ = t
 	_ = n
 	_ = statement
@@ -172,7 +172,7 @@ func (this_ *CheckEs6ModuleFileStructure) priv_CheckEs6ModuleFileStructure_check
 }
 
 // Java method: CheckEs6ModuleFileStructure.visitExprResult(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node exprResult, com.google.javascript.rhino.Node parent)
-func (this_ *CheckEs6ModuleFileStructure) priv_CheckEs6ModuleFileStructure_visitExprResult_6499(t *NodeTraversal, exprResult pkg_rhino.Node, parent pkg_rhino.Node) bool {
+func (this_ *CheckEs6ModuleFileStructure) priv_CheckEs6ModuleFileStructure_visitExprResult_6504(t *NodeTraversal, exprResult pkg_rhino.Node, parent pkg_rhino.Node) bool {
 	_ = t
 	_ = exprResult
 	_ = parent
@@ -180,19 +180,19 @@ func (this_ *CheckEs6ModuleFileStructure) priv_CheckEs6ModuleFileStructure_visit
 		var call pkg_rhino.Node = exprResult.GetFirstChild()
 		_ = call
 		if StaticGet_CheckEs6ModuleFileStructure_GOOG_DECLAREMODULEID().Matches(call.GetFirstChild()) {
-			this_.priv_CheckEs6ModuleFileStructure_checkOrder_6498(t, call, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_DECLARE_MODULE_ID())
+			this_.priv_CheckEs6ModuleFileStructure_checkOrder_6503(t, call, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_DECLARE_MODULE_ID())
 			return false
 		} else if StaticGet_CheckEs6ModuleFileStructure_GOOG_REQUIRE().Matches(call.GetFirstChild()) {
-			this_.priv_CheckEs6ModuleFileStructure_checkOrder_6498(t, call, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_GOOG_REQUIRE())
+			this_.priv_CheckEs6ModuleFileStructure_checkOrder_6503(t, call, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_GOOG_REQUIRE())
 			return false
 		}
 	}
-	this_.priv_CheckEs6ModuleFileStructure_checkOrder_6498(t, exprResult, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_OTHER())
+	this_.priv_CheckEs6ModuleFileStructure_checkOrder_6503(t, exprResult, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_OTHER())
 	return true
 }
 
 // Java method: CheckEs6ModuleFileStructure.visitDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node declaration, com.google.javascript.rhino.Node parent)
-func (this_ *CheckEs6ModuleFileStructure) priv_CheckEs6ModuleFileStructure_visitDeclaration_6500(t *NodeTraversal, declaration pkg_rhino.Node, parent pkg_rhino.Node) bool {
+func (this_ *CheckEs6ModuleFileStructure) priv_CheckEs6ModuleFileStructure_visitDeclaration_6505(t *NodeTraversal, declaration pkg_rhino.Node, parent pkg_rhino.Node) bool {
 	_ = t
 	_ = declaration
 	_ = parent
@@ -200,19 +200,19 @@ func (this_ *CheckEs6ModuleFileStructure) priv_CheckEs6ModuleFileStructure_visit
 		var call pkg_rhino.Node = declaration.GetFirstFirstChild()
 		_ = call
 		if StaticGet_CheckEs6ModuleFileStructure_GOOG_REQUIRE().Matches(call.GetFirstChild()) {
-			this_.priv_CheckEs6ModuleFileStructure_checkOrder_6498(t, call, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_GOOG_REQUIRE())
+			this_.priv_CheckEs6ModuleFileStructure_checkOrder_6503(t, call, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_GOOG_REQUIRE())
 			return false
 		}
 	}
-	this_.priv_CheckEs6ModuleFileStructure_checkOrder_6498(t, declaration, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_OTHER())
+	this_.priv_CheckEs6ModuleFileStructure_checkOrder_6503(t, declaration, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_OTHER())
 	return true
 }
 
 // Java method: CheckEs6ModuleFileStructure.visitImport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node importNode)
-func (this_ *CheckEs6ModuleFileStructure) priv_CheckEs6ModuleFileStructure_visitImport_6501(t *NodeTraversal, importNode pkg_rhino.Node) {
+func (this_ *CheckEs6ModuleFileStructure) priv_CheckEs6ModuleFileStructure_visitImport_6506(t *NodeTraversal, importNode pkg_rhino.Node) {
 	_ = t
 	_ = importNode
-	this_.priv_CheckEs6ModuleFileStructure_checkOrder_6498(t, importNode, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_IMPORT())
+	this_.priv_CheckEs6ModuleFileStructure_checkOrder_6503(t, importNode, StaticGet_CheckEs6ModuleFileStructure_OrderedStatement_IMPORT())
 }
 
 // Java method: CheckEs6ModuleFileStructure.process(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)

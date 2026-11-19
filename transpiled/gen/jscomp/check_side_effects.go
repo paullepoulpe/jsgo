@@ -123,7 +123,7 @@ func (this_ *CheckSideEffects) Process_2(externs pkg_rhino.Node, root pkg_rhino.
 	NodeTraversal_Traverse(this_.compiler, externs, NewCheckSideEffects_GetNoSideEffectExterns(this_))
 	NodeTraversal_Traverse(this_.compiler, root, this_)
 	if this_.protectSideEffectFreeCode {
-		this_.priv_CheckSideEffects_protectSideEffects_1105()
+		this_.priv_CheckSideEffects_protectSideEffects_1106()
 	}
 }
 
@@ -193,7 +193,7 @@ func (this_ *CheckSideEffects) Visit_3(t *NodeTraversal, n pkg_rhino.Node, paren
 }
 
 // Java method: CheckSideEffects.protectSideEffects()
-func (this_ *CheckSideEffects) priv_CheckSideEffects_protectSideEffects_1105() {
+func (this_ *CheckSideEffects) priv_CheckSideEffects_protectSideEffects_1106() {
 	if len(this_.problemNodes) != 0 {
 		if !(this_.preserveFunctionInjected) {
 			CheckSideEffects_AddExtern(this_.compiler)

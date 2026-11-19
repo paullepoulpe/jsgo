@@ -77,20 +77,20 @@ func ClosureUnawareOptions_Convert(original *CompilerOptions) *CompilerOptions {
 	InitClosureUnawareOptions(&val_1, original)
 	var options *ClosureUnawareOptions = &val_1
 	_ = options
-	return options.priv_ClosureUnawareOptions_toCompilerOptions_1245()
+	return options.priv_ClosureUnawareOptions_toCompilerOptions_1246()
 }
 
 // Java method: ClosureUnawareOptions.toCompilerOptions()
-func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_toCompilerOptions_1245() *CompilerOptions {
-	this_.priv_ClosureUnawareOptions_setTranspilationOptions_1246()
-	this_.priv_ClosureUnawareOptions_setSafeOptimizationAssumptions_1247()
-	this_.priv_ClosureUnawareOptions_copyOutputOptions_1248()
-	this_.priv_ClosureUnawareOptions_copyDebugOptions_1249()
+func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_toCompilerOptions_1246() *CompilerOptions {
+	this_.priv_ClosureUnawareOptions_setTranspilationOptions_1247()
+	this_.priv_ClosureUnawareOptions_setSafeOptimizationAssumptions_1248()
+	this_.priv_ClosureUnawareOptions_copyOutputOptions_1249()
+	this_.priv_ClosureUnawareOptions_copyDebugOptions_1250()
 	return this_.shadowOptions
 }
 
 // Java method: ClosureUnawareOptions.setTranspilationOptions()
-func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_setTranspilationOptions_1246() {
+func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_setTranspilationOptions_1247() {
 	this_.shadowOptions.SetRewritePolyfills(false)
 	switch (this_.original.GetRuntimeLibraryMode()).Ordinal() {
 	case int32(1) /* RuntimeLibraryMode.NO_OP */:
@@ -108,7 +108,7 @@ func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_setTranspilationO
 }
 
 // Java method: ClosureUnawareOptions.setSafeOptimizationAssumptions()
-func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_setSafeOptimizationAssumptions_1247() {
+func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_setSafeOptimizationAssumptions_1248() {
 	StaticGet_CompilationLevel_SIMPLE_OPTIMIZATIONS().SetOptionsForCompilationLevel(this_.shadowOptions)
 	this_.shadowOptions.SetRemoveUnusedVariables(StaticGet_CompilerOptions_Reach_ALL())
 	this_.shadowOptions.SetComputeFunctionSideEffects(false)
@@ -129,7 +129,7 @@ func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_setSafeOptimizati
 }
 
 // Java method: ClosureUnawareOptions.copyOutputOptions()
-func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_copyOutputOptions_1248() {
+func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_copyOutputOptions_1249() {
 	this_.shadowOptions.SetEmitUseStrict(this_.original.ShouldEmitUseStrict())
 	this_.shadowOptions.SetOutputCharset(this_.original.GetOutputCharset())
 	this_.shadowOptions.SetGeneratePseudoNames(this_.original.ShouldGeneratePseudoNames())
@@ -143,7 +143,7 @@ func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_copyOutputOptions
 }
 
 // Java method: ClosureUnawareOptions.copyDebugOptions()
-func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_copyDebugOptions_1249() {
+func (this_ *ClosureUnawareOptions) priv_ClosureUnawareOptions_copyDebugOptions_1250() {
 	this_.shadowOptions.SetTracerMode(this_.original.GetTracerMode())
 	this_.shadowOptions.SetTracerOutput(this_.original.GetTracerOutput())
 	this_.shadowOptions.SetDevMode(this_.original.GetDevMode())

@@ -122,7 +122,7 @@ func InitCheckUnreachableCode(this_ *CheckUnreachableCode, compiler AbstractComp
 func (this_ *CheckUnreachableCode) EnterScopeWithCfg(t *NodeTraversal) {
 	_ = t
 	if NodeUtil_IsValidCfgRoot(t.GetScopeRoot()) {
-		this_.priv_CheckUnreachableCode_initScope_1126(this_.GetControlFlowGraph(this_.compiler))
+		this_.priv_CheckUnreachableCode_initScope_1127(this_.GetControlFlowGraph(this_.compiler))
 	}
 }
 
@@ -142,7 +142,7 @@ func (this_ *CheckUnreachableCode) ShouldTraverse_3(t *NodeTraversal, n pkg_rhin
 				j2gort.CheckState(false)
 			}
 			gNode.SetAnnotation(pkg_graph.StaticGet_GraphReachability_REACHABLE())
-			this_.priv_CheckUnreachableCode_propagateReachability_1127(gNode, false)
+			this_.priv_CheckUnreachableCode_propagateReachability_1128(gNode, false)
 			return false
 		}
 	}
@@ -150,17 +150,17 @@ func (this_ *CheckUnreachableCode) ShouldTraverse_3(t *NodeTraversal, n pkg_rhin
 }
 
 // Java method: CheckUnreachableCode.initScope(com.google.javascript.jscomp.ControlFlowGraph<com.google.javascript.rhino.Node> controlFlowGraph)
-func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_initScope_1126(controlFlowGraph ControlFlowGraph[pkg_rhino.Node]) {
+func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_initScope_1127(controlFlowGraph ControlFlowGraph[pkg_rhino.Node]) {
 	_ = controlFlowGraph
 	controlFlowGraph.ClearNodeAnnotations()
 	var entryNode *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = controlFlowGraph.GetEntryNode()
 	_ = entryNode
 	entryNode.SetAnnotation(pkg_graph.StaticGet_GraphReachability_REACHABLE())
-	this_.priv_CheckUnreachableCode_propagateReachability_1127(entryNode, true)
+	this_.priv_CheckUnreachableCode_propagateReachability_1128(entryNode, true)
 }
 
 // Java method: CheckUnreachableCode.propagateReachability(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<com.google.javascript.rhino.Node,com.google.javascript.jscomp.ControlFlowGraph.Branch> startNode, boolean checkConditional)
-func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_propagateReachability_1127(startNode *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch], checkConditional bool) {
+func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_propagateReachability_1128(startNode *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch], checkConditional bool) {
 	_ = startNode
 	_ = checkConditional
 	var queue []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = this_.workQueue
@@ -198,7 +198,7 @@ func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_propagateReachabili
 						if !(j2gort.IfaceEquals[pkg_graph.Annotation](destNode.GetAnnotation(), pkg_graph.StaticGet_GraphReachability_REACHABLE())) {
 							destNode.SetAnnotation(pkg_graph.StaticGet_GraphReachability_REACHABLE())
 							if tail == int32(len(queue)) {
-								queue = this_.priv_CheckUnreachableCode_growQueue_1128(queue, head, tail)
+								queue = this_.priv_CheckUnreachableCode_growQueue_1129(queue, head, tail)
 								tail = (tail - head)
 								head = int32(0)
 							}
@@ -235,7 +235,7 @@ func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_propagateReachabili
 						if !(j2gort.IfaceEquals[pkg_graph.Annotation](destNode_2.GetAnnotation(), pkg_graph.StaticGet_GraphReachability_REACHABLE())) && CheckUnreachableCode_IsReachable(srcValue, edge.GetValue()) {
 							destNode_2.SetAnnotation(pkg_graph.StaticGet_GraphReachability_REACHABLE())
 							if tail == int32(len(queue)) {
-								queue = this_.priv_CheckUnreachableCode_growQueue_1128(queue, head, tail)
+								queue = this_.priv_CheckUnreachableCode_growQueue_1129(queue, head, tail)
 								tail = (tail - head)
 								head = int32(0)
 							}
@@ -253,7 +253,7 @@ func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_propagateReachabili
 }
 
 // Java method: CheckUnreachableCode.growQueue(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<com.google.javascript.rhino.Node,com.google.javascript.jscomp.ControlFlowGraph.Branch>[] queue, int head, int tail)
-func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_growQueue_1128(queue []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch], head int32, tail int32) []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] {
+func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_growQueue_1129(queue []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch], head int32, tail int32) []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] {
 	_ = queue
 	_ = head
 	_ = tail

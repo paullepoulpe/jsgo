@@ -238,18 +238,18 @@ func (this_ *CheckSuper) ShouldTraverse_3(t *NodeTraversal, n pkg_rhino.Node, pa
 			{
 				var currentContext CheckSuper_Context = j2gort.AsIface[CheckSuper_Context](this_.contextStack.Peek())
 				_ = currentContext
-				var newContext CheckSuper_Context = this_.priv_CheckSuper_getContextForFunctionNode_1106(currentContext, n)
+				var newContext CheckSuper_Context = this_.priv_CheckSuper_getContextForFunctionNode_1107(currentContext, n)
 				_ = newContext
 				if !(newContext == currentContext || ((newContext == nil || newContext.IsJavaNil_()) && (currentContext == nil || currentContext.IsJavaNil_()))) {
 					this_.contextStack.Push(newContext)
 				}
 			}
 		case int32(108) /* Token.MEMBER_FIELD_DEF */ :
-			fieldContext = this_.priv_CheckSuper_createMemberFieldDefContext_1109(n)
+			fieldContext = this_.priv_CheckSuper_createMemberFieldDefContext_1110(n)
 			this_.contextStack.Push(fieldContext)
 		case int32(90) /* Token.BLOCK */ :
 			if NodeUtil_IsClassStaticBlock(n) {
-				var newContext_2 CheckSuper_Context = this_.priv_CheckSuper_createStaticBlockContext_1110(n)
+				var newContext_2 CheckSuper_Context = this_.priv_CheckSuper_createStaticBlockContext_1111(n)
 				_ = newContext_2
 				this_.contextStack.Push(newContext_2)
 			}
@@ -262,7 +262,7 @@ func (this_ *CheckSuper) ShouldTraverse_3(t *NodeTraversal, n pkg_rhino.Node, pa
 }
 
 // Java method: CheckSuper.getContextForFunctionNode(com.google.javascript.jscomp.CheckSuper.Context currentContext, com.google.javascript.rhino.Node fn)
-func (this_ *CheckSuper) priv_CheckSuper_getContextForFunctionNode_1106(currentContext CheckSuper_Context, fn pkg_rhino.Node) CheckSuper_Context {
+func (this_ *CheckSuper) priv_CheckSuper_getContextForFunctionNode_1107(currentContext CheckSuper_Context, fn pkg_rhino.Node) CheckSuper_Context {
 	_ = currentContext
 	_ = fn
 	if NodeUtil_IsMethodDeclaration(fn) {
@@ -289,8 +289,8 @@ func (this_ *CheckSuper) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_
 	_ = currentContext
 	switch n.TokenSwitchOrd_() {
 	case int32(110) /* Token.SUPER */ :
-		if this_.priv_CheckSuper_isSuperConstructorCall_1107(n) {
-		} else if this_.priv_CheckSuper_isSuperPropertyAccess_1108(n) {
+		if this_.priv_CheckSuper_isSuperConstructorCall_1108(n) {
+		} else if this_.priv_CheckSuper_isSuperPropertyAccess_1109(n) {
 			currentContext.VisitSuperPropertyAccess(t, n)
 		} else {
 			t.Report_3(n, StaticGet_CheckSuper_INVALID_SUPER_USAGE(), []string{})
@@ -318,7 +318,7 @@ func (this_ *CheckSuper) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_
 }
 
 // Java method: CheckSuper.isSuperConstructorCall(com.google.javascript.rhino.Node superNode)
-func (this_ *CheckSuper) priv_CheckSuper_isSuperConstructorCall_1107(superNode pkg_rhino.Node) bool {
+func (this_ *CheckSuper) priv_CheckSuper_isSuperConstructorCall_1108(superNode pkg_rhino.Node) bool {
 	_ = superNode
 	if !(superNode.IsSuper()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(superNode))
@@ -329,7 +329,7 @@ func (this_ *CheckSuper) priv_CheckSuper_isSuperConstructorCall_1107(superNode p
 }
 
 // Java method: CheckSuper.isSuperPropertyAccess(com.google.javascript.rhino.Node superNode)
-func (this_ *CheckSuper) priv_CheckSuper_isSuperPropertyAccess_1108(superNode pkg_rhino.Node) bool {
+func (this_ *CheckSuper) priv_CheckSuper_isSuperPropertyAccess_1109(superNode pkg_rhino.Node) bool {
 	_ = superNode
 	if !(superNode.IsSuper()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(superNode))
@@ -340,13 +340,13 @@ func (this_ *CheckSuper) priv_CheckSuper_isSuperPropertyAccess_1108(superNode pk
 }
 
 // Java method: CheckSuper.createMemberFieldDefContext(com.google.javascript.rhino.Node fieldNode)
-func (this_ *CheckSuper) priv_CheckSuper_createMemberFieldDefContext_1109(fieldNode pkg_rhino.Node) CheckSuper_Context {
+func (this_ *CheckSuper) priv_CheckSuper_createMemberFieldDefContext_1110(fieldNode pkg_rhino.Node) CheckSuper_Context {
 	_ = fieldNode
 	return NewCheckSuper_SuperPropertyAccessAllowedContext(fieldNode)
 }
 
 // Java method: CheckSuper.createStaticBlockContext(com.google.javascript.rhino.Node staticBlock)
-func (this_ *CheckSuper) priv_CheckSuper_createStaticBlockContext_1110(staticBlock pkg_rhino.Node) CheckSuper_Context {
+func (this_ *CheckSuper) priv_CheckSuper_createStaticBlockContext_1111(staticBlock pkg_rhino.Node) CheckSuper_Context {
 	_ = staticBlock
 	return NewCheckSuper_SuperPropertyAccessAllowedContext(staticBlock)
 }

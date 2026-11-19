@@ -125,12 +125,12 @@ func (this_ *CrossChunkMethodMotion) Process_2(externRoot pkg_rhino.Node, root p
 	_ = root
 	if this_.chunkGraph.GetChunkCount() > int32(1) {
 		this_.analyzer.Process_2(externRoot, root)
-		this_.priv_CrossChunkMethodMotion_moveMethods_2267(this_.analyzer.GetAllNameInfo())
+		this_.priv_CrossChunkMethodMotion_moveMethods_2270(this_.analyzer.GetAllNameInfo())
 	}
 }
 
 // Java method: CrossChunkMethodMotion.moveMethods(java.util.Collection<com.google.javascript.jscomp.AnalyzePrototypeProperties.NameInfo> allNameInfo)
-func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_moveMethods_2267(allNameInfo j2gort.Ext_java_util_Collection) {
+func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_moveMethods_2270(allNameInfo j2gort.Ext_java_util_Collection) {
 	_ = allNameInfo
 	var hasStubDeclaration bool = this_.idGenerator.HasGeneratedAnyIds()
 	_ = hasStubDeclaration
@@ -164,12 +164,12 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_moveMethods_226
 				var ok_3 bool
 				prototypeProperty, ok_3 = j2gort.TryCast[AnalyzePrototypeProperties_PrototypeProperty](symbol)
 				if ok_3 {
-					this_.priv_CrossChunkMethodMotion_tryToMovePrototypeMethod_2268(nameInfo, deepestCommonChunkRef, prototypeProperty)
+					this_.priv_CrossChunkMethodMotion_tryToMovePrototypeMethod_2271(nameInfo, deepestCommonChunkRef, prototypeProperty)
 				} else {
 					var ok_4 bool
 					classMemberFunction, ok_4 = j2gort.TryCast[*AnalyzePrototypeProperties_ClassMemberFunction](symbol)
 					if ok_4 {
-						this_.priv_CrossChunkMethodMotion_tryToMoveMemberFunction_2274(nameInfo, deepestCommonChunkRef, classMemberFunction)
+						this_.priv_CrossChunkMethodMotion_tryToMoveMemberFunction_2277(nameInfo, deepestCommonChunkRef, classMemberFunction)
 					}
 				}
 			}
@@ -187,7 +187,7 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_moveMethods_226
 }
 
 // Java method: CrossChunkMethodMotion.tryToMovePrototypeMethod(com.google.javascript.jscomp.AnalyzePrototypeProperties.NameInfo nameInfo, com.google.javascript.jscomp.JSChunk deepestCommonChunkRef, com.google.javascript.jscomp.AnalyzePrototypeProperties.PrototypeProperty prop)
-func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_tryToMovePrototypeMethod_2268(nameInfo *AnalyzePrototypeProperties_NameInfo, deepestCommonChunkRef *JSChunk, prop AnalyzePrototypeProperties_PrototypeProperty) {
+func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_tryToMovePrototypeMethod_2271(nameInfo *AnalyzePrototypeProperties_NameInfo, deepestCommonChunkRef *JSChunk, prop AnalyzePrototypeProperties_PrototypeProperty) {
 	_ = nameInfo
 	_ = deepestCommonChunkRef
 	_ = prop
@@ -211,20 +211,20 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_tryToMoveProtot
 		var destParent pkg_rhino.Node = this_.compiler.GetNodeForCodeInsertion(deepestCommonChunkRef)
 		_ = destParent
 		if valueParent.IsMemberFunctionDef() {
-			this_.priv_CrossChunkMethodMotion_movePrototypeObjectLiteralMethodShorthand_2271(nameInfo.name, destParent, value)
+			this_.priv_CrossChunkMethodMotion_movePrototypeObjectLiteralMethodShorthand_2274(nameInfo.name, destParent, value)
 		} else if valueParent.IsStringKey() {
-			this_.priv_CrossChunkMethodMotion_movePrototypeObjectLiteralProperty_2269(nameInfo.name, destParent, value)
+			this_.priv_CrossChunkMethodMotion_movePrototypeObjectLiteralProperty_2272(nameInfo.name, destParent, value)
 		} else {
 			if !(valueParent.IsAssign()) {
 				j2gort.CheckStateMsg(false, j2gort.BoxNode(valueParent))
 			}
-			this_.priv_CrossChunkMethodMotion_movePrototypeDotMethodAssignment_2270(destParent, value)
+			this_.priv_CrossChunkMethodMotion_movePrototypeDotMethodAssignment_2273(destParent, value)
 		}
 	}
 }
 
 // Java method: CrossChunkMethodMotion.movePrototypeObjectLiteralProperty(java.lang.String propName, com.google.javascript.rhino.Node destParent, com.google.javascript.rhino.Node functionNode)
-func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_movePrototypeObjectLiteralProperty_2269(propName string, destParent pkg_rhino.Node, functionNode pkg_rhino.Node) {
+func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_movePrototypeObjectLiteralProperty_2272(propName string, destParent pkg_rhino.Node, functionNode pkg_rhino.Node) {
 	_ = propName
 	_ = destParent
 	_ = functionNode
@@ -264,13 +264,13 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_movePrototypeOb
 	} else {
 		var stubId int32 = this_.idGenerator.NewId()
 		_ = stubId
-		var stubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createStubCall_2272(functionNode, stubId)
+		var stubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createStubCall_2275(functionNode, stubId)
 		_ = stubCall
 		functionNode.ReplaceWith(stubCall)
 		this_.compiler.ReportChangeToEnclosingScope(prototypeObjectLiteral)
 		var ownerDotPrototypeDotPropName_2 pkg_rhino.Node = this_.astFactory.CreateGetProp(ownerDotPrototypeNode.CloneTree_0(), propName, AstFactory_S_Type_1_Node(functionNode))
 		_ = ownerDotPrototypeDotPropName_2
-		var unstubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createUnstubCall_2273(functionNode, stubId)
+		var unstubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createUnstubCall_2276(functionNode, stubId)
 		_ = unstubCall
 		var definitionStatement_2 pkg_rhino.Node = this_.astFactory.CreateAssignStatement(ownerDotPrototypeDotPropName_2, unstubCall).SrcrefTreeIfMissing(stringKey)
 		_ = definitionStatement_2
@@ -280,7 +280,7 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_movePrototypeOb
 }
 
 // Java method: CrossChunkMethodMotion.movePrototypeDotMethodAssignment(com.google.javascript.rhino.Node destParent, com.google.javascript.rhino.Node functionNode)
-func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_movePrototypeDotMethodAssignment_2270(destParent pkg_rhino.Node, functionNode pkg_rhino.Node) {
+func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_movePrototypeDotMethodAssignment_2273(destParent pkg_rhino.Node, functionNode pkg_rhino.Node) {
 	_ = destParent
 	_ = functionNode
 	if !(functionNode.IsFunction()) {
@@ -313,11 +313,11 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_movePrototypeDo
 		_ = newDefinitionStatement
 		var newDefinitionPlaceholder pkg_rhino.Node = newDefinitionStatement.GetOnlyChild().GetLastChild()
 		_ = newDefinitionPlaceholder
-		var stubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createStubCall_2272(functionNode, stubId)
+		var stubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createStubCall_2275(functionNode, stubId)
 		_ = stubCall
 		originalDefinitionPlaceholder.ReplaceWith(stubCall)
 		this_.compiler.ReportChangeToEnclosingScope(definitionStatement)
-		var unstubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createUnstubCall_2273(functionNode, stubId)
+		var unstubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createUnstubCall_2276(functionNode, stubId)
 		_ = unstubCall
 		newDefinitionPlaceholder.ReplaceWith(unstubCall)
 		destParent.AddChildToFront(newDefinitionStatement)
@@ -326,7 +326,7 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_movePrototypeDo
 }
 
 // Java method: CrossChunkMethodMotion.movePrototypeObjectLiteralMethodShorthand(java.lang.String propName, com.google.javascript.rhino.Node destParent, com.google.javascript.rhino.Node functionNode)
-func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_movePrototypeObjectLiteralMethodShorthand_2271(propName string, destParent pkg_rhino.Node, functionNode pkg_rhino.Node) {
+func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_movePrototypeObjectLiteralMethodShorthand_2274(propName string, destParent pkg_rhino.Node, functionNode pkg_rhino.Node) {
 	_ = propName
 	_ = destParent
 	_ = functionNode
@@ -368,13 +368,13 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_movePrototypeOb
 	} else {
 		var stubId int32 = this_.idGenerator.NewId()
 		_ = stubId
-		var stubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createStubCall_2272(functionNode, stubId)
+		var stubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createStubCall_2275(functionNode, stubId)
 		_ = stubCall
 		memberFunctionDef.ReplaceWith(this_.astFactory.CreateStringKey(propName, stubCall))
 		this_.compiler.ReportChangeToEnclosingScope(prototypeObjectLiteral)
 		var ownerDotPrototypeDotPropName_2 pkg_rhino.Node = this_.astFactory.CreateGetProp(ownerDotPrototypeNode.CloneTree_0(), propName, AstFactory_S_Type_1_Node(functionNode))
 		_ = ownerDotPrototypeDotPropName_2
-		var unstubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createUnstubCall_2273(functionNode.Detach(), stubId)
+		var unstubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createUnstubCall_2276(functionNode.Detach(), stubId)
 		_ = unstubCall
 		var definitionStatement_2 pkg_rhino.Node = this_.astFactory.CreateAssignStatement(ownerDotPrototypeDotPropName_2, unstubCall).SrcrefTreeIfMissing(memberFunctionDef)
 		_ = definitionStatement_2
@@ -385,21 +385,21 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_movePrototypeOb
 }
 
 // Java method: CrossChunkMethodMotion.createStubCall(com.google.javascript.rhino.Node originalDefinition, int stubId)
-func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_createStubCall_2272(originalDefinition pkg_rhino.Node, stubId int32) pkg_rhino.Node {
+func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_createStubCall_2275(originalDefinition pkg_rhino.Node, stubId int32) pkg_rhino.Node {
 	_ = originalDefinition
 	_ = stubId
 	return this_.astFactory.CreateCall(this_.astFactory.CreateNameWithUnknownType("JSCompiler_stubMethod"), AstFactory_S_Type_1_Node(originalDefinition), []pkg_rhino.Node{this_.astFactory.CreateNumber(float64(stubId))}).SrcrefTreeIfMissing(originalDefinition)
 }
 
 // Java method: CrossChunkMethodMotion.createUnstubCall(com.google.javascript.rhino.Node functionNode, int stubId)
-func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_createUnstubCall_2273(functionNode pkg_rhino.Node, stubId int32) pkg_rhino.Node {
+func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_createUnstubCall_2276(functionNode pkg_rhino.Node, stubId int32) pkg_rhino.Node {
 	_ = functionNode
 	_ = stubId
 	return this_.astFactory.CreateCall(this_.astFactory.CreateNameWithUnknownType("JSCompiler_unstubMethod"), AstFactory_S_Type_1_Node(functionNode), []pkg_rhino.Node{this_.astFactory.CreateNumber(float64(stubId)), functionNode}).SrcrefTreeIfMissing(functionNode)
 }
 
 // Java method: CrossChunkMethodMotion.tryToMoveMemberFunction(com.google.javascript.jscomp.AnalyzePrototypeProperties.NameInfo nameInfo, com.google.javascript.jscomp.JSChunk deepestCommonChunkRef, com.google.javascript.jscomp.AnalyzePrototypeProperties.ClassMemberFunction classMemberFunction)
-func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_tryToMoveMemberFunction_2274(nameInfo *AnalyzePrototypeProperties_NameInfo, deepestCommonChunkRef *JSChunk, classMemberFunction *AnalyzePrototypeProperties_ClassMemberFunction) {
+func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_tryToMoveMemberFunction_2277(nameInfo *AnalyzePrototypeProperties_NameInfo, deepestCommonChunkRef *JSChunk, classMemberFunction *AnalyzePrototypeProperties_ClassMemberFunction) {
 	_ = nameInfo
 	_ = deepestCommonChunkRef
 	_ = classMemberFunction
@@ -428,15 +428,15 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_tryToMoveMember
 		var classNameNode pkg_rhino.Node = rootVar.GetNameNode()
 		_ = classNameNode
 		if this_.noStubFunctions {
-			this_.priv_CrossChunkMethodMotion_moveClassInstanceMethodWithoutStub_2275(classNameNode, definitionNode, destinationParent)
+			this_.priv_CrossChunkMethodMotion_moveClassInstanceMethodWithoutStub_2278(classNameNode, definitionNode, destinationParent)
 		} else {
-			this_.priv_CrossChunkMethodMotion_moveClassInstanceMethodWithStub_2276(classNameNode, definitionNode, destinationParent)
+			this_.priv_CrossChunkMethodMotion_moveClassInstanceMethodWithStub_2279(classNameNode, definitionNode, destinationParent)
 		}
 	}
 }
 
 // Java method: CrossChunkMethodMotion.moveClassInstanceMethodWithoutStub(com.google.javascript.rhino.Node classNameNode, com.google.javascript.rhino.Node methodDefinition, com.google.javascript.rhino.Node destinationParent)
-func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_moveClassInstanceMethodWithoutStub_2275(classNameNode pkg_rhino.Node, methodDefinition pkg_rhino.Node, destinationParent pkg_rhino.Node) {
+func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_moveClassInstanceMethodWithoutStub_2278(classNameNode pkg_rhino.Node, methodDefinition pkg_rhino.Node, destinationParent pkg_rhino.Node) {
 	_ = classNameNode
 	_ = methodDefinition
 	_ = destinationParent
@@ -472,7 +472,7 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_moveClassInstan
 }
 
 // Java method: CrossChunkMethodMotion.moveClassInstanceMethodWithStub(com.google.javascript.rhino.Node classNameNode, com.google.javascript.rhino.Node methodDefinition, com.google.javascript.rhino.Node destinationParent)
-func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_moveClassInstanceMethodWithStub_2276(classNameNode pkg_rhino.Node, methodDefinition pkg_rhino.Node, destinationParent pkg_rhino.Node) {
+func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_moveClassInstanceMethodWithStub_2279(classNameNode pkg_rhino.Node, methodDefinition pkg_rhino.Node, destinationParent pkg_rhino.Node) {
 	_ = classNameNode
 	_ = methodDefinition
 	_ = destinationParent
@@ -495,7 +495,7 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_moveClassInstan
 	_ = clonedNameNode
 	var classNameDotPrototypeDotPropName pkg_rhino.Node = this_.astFactory.CreateGetProp(this_.astFactory.CreatePrototypeAccess(clonedNameNode), methodDefinition.GetString(), AstFactory_S_Type_1_Node(methodDefinition))
 	_ = classNameDotPrototypeDotPropName
-	var stubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createStubCall_2272(methodDefinition, stubId)
+	var stubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createStubCall_2275(methodDefinition, stubId)
 	_ = stubCall
 	var stubDefinitionStatement pkg_rhino.Node = this_.astFactory.CreateAssignStatement(classNameDotPrototypeDotPropName, stubCall).SrcrefTreeIfMissing(methodDefinition)
 	_ = stubDefinitionStatement
@@ -511,7 +511,7 @@ func (this_ *CrossChunkMethodMotion) priv_CrossChunkMethodMotion_moveClassInstan
 	var functionNode pkg_rhino.Node = j2gort.CheckNotNullNode(methodDefinition.GetOnlyChild())
 	_ = functionNode
 	functionNode.Detach()
-	var unstubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createUnstubCall_2273(functionNode, stubId)
+	var unstubCall pkg_rhino.Node = this_.priv_CrossChunkMethodMotion_createUnstubCall_2276(functionNode, stubId)
 	_ = unstubCall
 	var statementNode pkg_rhino.Node = this_.astFactory.CreateAssignStatement(classNameDotPrototypeDotPropName2, unstubCall).SrcrefTreeIfMissing(methodDefinition)
 	_ = statementNode

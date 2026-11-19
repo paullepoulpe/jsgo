@@ -1319,7 +1319,7 @@ var (
 	boxByteCache_  [256]BoxByte
 	boxShortCache_ [256]BoxShort
 	boxCharCache_  [128]BoxChar
-	boxIntCache_   [1152]BoxInt // [-128..1023]
+	boxIntCache_   [65664]BoxInt // [-128..65535]
 	boxLongCache_  [256]BoxLong
 )
 
@@ -1396,8 +1396,8 @@ func (b *BoxInt) HashCode() int32                { return b.Val }
 func (b *BoxInt) String() string                 { return strconv.FormatInt(int64(b.Val), 10) }
 func (*BoxInt) JavaClassInfo_() (string, string) { return "java.lang.Integer", "Integer" }
 func ValueOfInt(v int32) *BoxInt {
-	if v >= -128 && v < 1024 {
-		return &boxIntCache_[v+128]
+	if u := uint32(v) + 128; u < uint32(len(boxIntCache_)) {
+		return &boxIntCache_[u]
 	}
 	return &BoxInt{Val: v}
 }

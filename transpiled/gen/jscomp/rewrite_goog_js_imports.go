@@ -151,7 +151,7 @@ func InitRewriteGoogJsImports(this_ *RewriteGoogJsImports, compiler AbstractComp
 }
 
 // Java method: RewriteGoogJsImports.changeModules()
-func (this_ *RewriteGoogJsImports) priv_RewriteGoogJsImports_changeModules_4979() {
+func (this_ *RewriteGoogJsImports) priv_RewriteGoogJsImports_changeModules_4986() {
 	var resolvedModules j2gort.Ext_com_google_common_collect_ImmutableMap_Builder = j2gort.Ext_com_google_common_collect_ImmutableMap_S_Builder()
 	_ = resolvedModules
 	var closureModules j2gort.Ext_com_google_common_collect_ImmutableMap_Builder = j2gort.Ext_com_google_common_collect_ImmutableMap_S_Builder()
@@ -177,7 +177,7 @@ func (this_ *RewriteGoogJsImports) priv_RewriteGoogJsImports_changeModules_4979(
 }
 
 // Java method: RewriteGoogJsImports.findGoogImportNode(com.google.javascript.rhino.Node scriptRoot)
-func (this_ *RewriteGoogJsImports) priv_RewriteGoogJsImports_findGoogImportNode_4980(scriptRoot pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *RewriteGoogJsImports) priv_RewriteGoogJsImports_findGoogImportNode_4987(scriptRoot pkg_rhino.Node) pkg_rhino.Node {
 	_ = scriptRoot
 	var valid bool = true
 	_ = valid
@@ -213,10 +213,10 @@ func (this_ *RewriteGoogJsImports) priv_RewriteGoogJsImports_findGoogImportNode_
 }
 
 // Java method: RewriteGoogJsImports.rewriteImports(com.google.javascript.rhino.Node scriptRoot)
-func (this_ *RewriteGoogJsImports) priv_RewriteGoogJsImports_rewriteImports_4981(scriptRoot pkg_rhino.Node) {
+func (this_ *RewriteGoogJsImports) priv_RewriteGoogJsImports_rewriteImports_4988(scriptRoot pkg_rhino.Node) {
 	_ = scriptRoot
 	if Es6RewriteModules_IsEs6ModuleRoot(scriptRoot) {
-		var googImportNode pkg_rhino.Node = this_.priv_RewriteGoogJsImports_findGoogImportNode_4980(scriptRoot)
+		var googImportNode pkg_rhino.Node = this_.priv_RewriteGoogJsImports_findGoogImportNode_4987(scriptRoot)
 		_ = googImportNode
 		NodeTraversal_Traverse(this_.compiler, scriptRoot, NewRewriteGoogJsImports_FindReexports((googImportNode != 0)))
 		var module *Module = this_.moduleMap.GetModule_1_ModuleLoader_ModulePath(this_.compiler.GetInput(scriptRoot.GetInputId()).GetPath())
@@ -230,7 +230,7 @@ func (this_ *RewriteGoogJsImports) priv_RewriteGoogJsImports_rewriteImports_4981
 }
 
 // Java method: RewriteGoogJsImports.findGoogJsScriptNode(com.google.javascript.rhino.Node root)
-func (this_ *RewriteGoogJsImports) priv_RewriteGoogJsImports_findGoogJsScriptNode_4982(root pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *RewriteGoogJsImports) priv_RewriteGoogJsImports_findGoogJsScriptNode_4989(root pkg_rhino.Node) pkg_rhino.Node {
 	_ = root
 	var expectedGoogPath *ModuleLoader_ModulePath = nil
 	_ = expectedGoogPath
@@ -270,10 +270,10 @@ func (this_ *RewriteGoogJsImports) Process_2(externs pkg_rhino.Node, root pkg_rh
 	_ = externs
 	_ = root
 	this_.googModule = nil
-	var googJsScriptNode pkg_rhino.Node = this_.priv_RewriteGoogJsImports_findGoogJsScriptNode_4982(root)
+	var googJsScriptNode pkg_rhino.Node = this_.priv_RewriteGoogJsImports_findGoogJsScriptNode_4989(root)
 	_ = googJsScriptNode
 	if googJsScriptNode == 0 {
-		googJsScriptNode = this_.priv_RewriteGoogJsImports_findGoogJsScriptNode_4982(externs)
+		googJsScriptNode = this_.priv_RewriteGoogJsImports_findGoogJsScriptNode_4989(externs)
 	}
 	if this_.mode == StaticGet_RewriteGoogJsImports_Mode_LINT_AND_REWRITE() {
 		if googJsScriptNode != 0 {
@@ -306,10 +306,10 @@ func (this_ *RewriteGoogJsImports) Process_2(externs pkg_rhino.Node, root pkg_rh
 		var script pkg_rhino.Node = root.GetFirstChild()
 		_ = script
 		for ; script != 0; script = script.GetNext() {
-			this_.priv_RewriteGoogJsImports_rewriteImports_4981(script)
+			this_.priv_RewriteGoogJsImports_rewriteImports_4988(script)
 		}
 	}
-	this_.priv_RewriteGoogJsImports_changeModules_4979()
+	this_.priv_RewriteGoogJsImports_changeModules_4986()
 }
 
 // Java enum: com.google.javascript.jscomp.RewriteGoogJsImports.Mode
@@ -497,7 +497,7 @@ func InitRewriteGoogJsImports_ReferenceReplacer(this_ *RewriteGoogJsImports_Refe
 }
 
 // Java method: ReferenceReplacer.maybeRewriteBadGoogJsImportRef(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node nameNode, com.google.javascript.rhino.Node parent)
-func (this_ *RewriteGoogJsImports_ReferenceReplacer) priv_ReferenceReplacer_maybeRewriteBadGoogJsImportRef_4983(t *NodeTraversal, nameNode pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *RewriteGoogJsImports_ReferenceReplacer) priv_ReferenceReplacer_maybeRewriteBadGoogJsImportRef_4990(t *NodeTraversal, nameNode pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = nameNode
 	_ = parent
@@ -525,7 +525,7 @@ func (this_ *RewriteGoogJsImports_ReferenceReplacer) Visit_3(t *NodeTraversal, n
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(32) /* Token.NAME */ :
-		this_.priv_ReferenceReplacer_maybeRewriteBadGoogJsImportRef_4983(t, n, parent)
+		this_.priv_ReferenceReplacer_maybeRewriteBadGoogJsImportRef_4990(t, n, parent)
 	default:
 	}
 }
@@ -578,7 +578,7 @@ func InitRewriteGoogJsImports_FindReexports(this_ *RewriteGoogJsImports_FindReex
 }
 
 // Java method: FindReexports.checkIfForwardingExport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *RewriteGoogJsImports_FindReexports) priv_FindReexports_checkIfForwardingExport_4984(t *NodeTraversal, export pkg_rhino.Node) {
+func (this_ *RewriteGoogJsImports_FindReexports) priv_FindReexports_checkIfForwardingExport_4991(t *NodeTraversal, export pkg_rhino.Node) {
 	_ = t
 	_ = export
 	if export.HasTwoChildren() && javalang.StringEndsWith(j2gort.CheckNotNullString(export.GetLastChild().GetString()), "/goog.js") {
@@ -587,7 +587,7 @@ func (this_ *RewriteGoogJsImports_FindReexports) priv_FindReexports_checkIfForwa
 }
 
 // Java method: FindReexports.checkIfNameFowardedExport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node nameNode, com.google.javascript.rhino.Node parent)
-func (this_ *RewriteGoogJsImports_FindReexports) priv_FindReexports_checkIfNameFowardedExport_4985(t *NodeTraversal, nameNode pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *RewriteGoogJsImports_FindReexports) priv_FindReexports_checkIfNameFowardedExport_4992(t *NodeTraversal, nameNode pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = nameNode
 	_ = parent
@@ -607,10 +607,10 @@ func (this_ *RewriteGoogJsImports_FindReexports) ShouldTraverse_3(t *NodeTravers
 	case int32(89) /* Token.ROOT */, int32(94) /* Token.SCRIPT */, int32(123) /* Token.MODULE_BODY */, int32(121) /* Token.EXPORT_SPECS */, int32(122) /* Token.EXPORT_SPEC */ :
 		return true
 	case int32(120) /* Token.EXPORT */ :
-		this_.priv_FindReexports_checkIfForwardingExport_4984(t, n)
+		this_.priv_FindReexports_checkIfForwardingExport_4991(t, n)
 		return true
 	case int32(32) /* Token.NAME */ :
-		this_.priv_FindReexports_checkIfNameFowardedExport_4985(t, n, parent)
+		this_.priv_FindReexports_checkIfNameFowardedExport_4992(t, n, parent)
 		return false
 	default:
 		return false
