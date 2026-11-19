@@ -145,7 +145,7 @@ func (this_ *GuardedCallbackBase) ShouldTraverse_3(traversal *NodeTraversal, n p
 		}
 		this_.contextStack.Push(ctx_)
 
-		if ((parent != 0) && StaticGet_GuardedCallback_CAN_HAVE_GUARDS().Contains(j2gort.BoxNullableVal(parent.GetToken()))) && j2gort.MultimapContainsKeyNode(this_.registeredGuards, parent) {
+		if ((parent != 0) && j2gort.ImmSetContainsTypedU8_(StaticGet_GuardedCallback_CAN_HAVE_GUARDS(), uint8(parent.GetToken()))) && j2gort.MultimapContainsKeyNode(this_.registeredGuards, parent) {
 			{
 				cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.MultimapRemoveAllNode(this_.registeredGuards, parent))))
 				for cur_1.HasNext() {
@@ -166,11 +166,11 @@ func (this_ *GuardedCallbackBase) Visit_3(traversal *NodeTraversal, n pkg_rhino.
 	_ = traversal
 	_ = n
 	_ = parent
-	if ((parent != 0) && StaticGet_GuardedCallback_CAN_HAVE_GUARDS().Contains(j2gort.BoxNullableVal(n.GetToken()))) && j2gort.MultimapContainsKeyNode(this_.installedGuards, n) {
+	if ((parent != 0) && j2gort.ImmSetContainsTypedU8_(StaticGet_GuardedCallback_CAN_HAVE_GUARDS(), uint8(n.GetToken()))) && j2gort.MultimapContainsKeyNode(this_.installedGuards, n) {
 		this_.guarded.RemoveAll(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.MultimapRemoveAllNode(this_.installedGuards, n)))
 	}
 	if GuardedCallback_IsAbrupt(n) {
-		this_.priv_GuardedCallback_promoteAbruptReturns_3172(parent)
+		this_.priv_GuardedCallback_promoteAbruptReturns_3173(parent)
 	}
 	this_.self_.VisitGuarded(traversal, n, parent)
 	poppedCtx_ := this_.contextStack.Pop()
@@ -187,7 +187,7 @@ func (this_ *GuardedCallbackBase) Visit_3(traversal *NodeTraversal, n pkg_rhino.
 }
 
 // Java method: GuardedCallback.promoteAbruptReturns(com.google.javascript.rhino.Node parent)
-func (this_ *GuardedCallbackBase) priv_GuardedCallback_promoteAbruptReturns_3172(parent pkg_rhino.Node) {
+func (this_ *GuardedCallbackBase) priv_GuardedCallback_promoteAbruptReturns_3173(parent pkg_rhino.Node) {
 	_ = parent
 	if parent.IsBlock() {
 		parent = parent.GetParent()

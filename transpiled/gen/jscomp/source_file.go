@@ -147,7 +147,7 @@ func (this_ *SourceFile) IsStubSourceFileForAlreadyProvidedInput() bool {
 }
 
 // Java method: SourceFile.setIsStubSourceFileForAlreadyProvidedInput(boolean isStubSourceFileForAlreadyProvidedInput)
-func (this_ *SourceFile) priv_SourceFile_setIsStubSourceFileForAlreadyProvidedInput_5086(isStubSourceFileForAlreadyProvidedInput bool) {
+func (this_ *SourceFile) priv_SourceFile_setIsStubSourceFileForAlreadyProvidedInput_5093(isStubSourceFileForAlreadyProvidedInput bool) {
 	_ = isStubSourceFileForAlreadyProvidedInput
 	this_.isStubSourceFileForAlreadyProvidedInput = isStubSourceFileForAlreadyProvidedInput
 }
@@ -155,7 +155,7 @@ func (this_ *SourceFile) priv_SourceFile_setIsStubSourceFileForAlreadyProvidedIn
 // Java method: SourceFile.getLineOffset(int lineno)
 func (this_ *SourceFile) GetLineOffset(lineno int32) int32 {
 	_ = lineno
-	this_.priv_SourceFile_findLineOffsets_5090()
+	this_.priv_SourceFile_findLineOffsets_5097()
 	if (lineno < int32(1)) || (lineno > int32(len(this_.lineOffsets))) {
 		panic(j2gort.AsIface[javalang.IIllegalArgumentException](j2gort.ConstructShimThrowable("java.lang.IllegalArgumentException", j2gort.BoxString(("Expected line number between 1 and " + j2gort.StrValInt32(int32(len(this_.lineOffsets))) + "\nActual: " + j2gort.StrValInt32(lineno))))))
 	}
@@ -238,7 +238,7 @@ func SourceFile_IsLineTerminator(ch uint16) bool {
 }
 
 // Java method: SourceFile.findLineOffsets()
-func (this_ *SourceFile) priv_SourceFile_findLineOffsets_5090() {
+func (this_ *SourceFile) priv_SourceFile_findLineOffsets_5097() {
 	if this_.lineOffsets != nil {
 		return
 	}
@@ -306,7 +306,7 @@ func (this_ *SourceFile) GetCode() string {
 			unlock_18 := j2gort.LockMonitor(this_)
 			defer unlock_18()
 			if this_.code == j2gort.NullString {
-				this_.priv_SourceFile_setCodeAndDoBookkeeping_5094(this_.loader.LoadUncachedCode())
+				this_.priv_SourceFile_setCodeAndDoBookkeeping_5101(this_.loader.LoadUncachedCode())
 			}
 		}
 	}
@@ -316,7 +316,7 @@ func (this_ *SourceFile) GetCode() string {
 // Java method: SourceFile.setCodeDeprecated(java.lang.String code)
 func (this_ *SourceFile) SetCodeDeprecated(code string) {
 	_ = code
-	this_.priv_SourceFile_setCodeAndDoBookkeeping_5094(code)
+	this_.priv_SourceFile_setCodeAndDoBookkeeping_5101(code)
 }
 
 // Java method: SourceFile.getCodeReader()
@@ -338,7 +338,7 @@ func (this_ *SourceFile) GetCodeReader() j2gort.Ext_java_io_Reader {
 }
 
 // Java method: SourceFile.setCodeAndDoBookkeeping(java.lang.@org.jspecify.annotations.Nullable String sourceCode)
-func (this_ *SourceFile) priv_SourceFile_setCodeAndDoBookkeeping_5094(sourceCode string) {
+func (this_ *SourceFile) priv_SourceFile_setCodeAndDoBookkeeping_5101(sourceCode string) {
 	_ = sourceCode
 	this_.code = j2gort.NullString
 	this_.lineOffsets = nil
@@ -377,7 +377,7 @@ func (this_ *SourceFile) GetOriginalPath() string {
 
 // Java method: SourceFile.clearCachedSource()
 func (this_ *SourceFile) ClearCachedSource() {
-	this_.priv_SourceFile_setCodeAndDoBookkeeping_5094(j2gort.NullString)
+	this_.priv_SourceFile_setCodeAndDoBookkeeping_5101(j2gort.NullString)
 }
 
 // Java method: SourceFile.hasSourceInMemory()
@@ -417,7 +417,7 @@ func (this_ *SourceFile) GetLineOfOffset(offset int32) int32 {
 	if !(offset >= int32(0)) {
 		j2gort.CheckArgumentFmt(false, "offset must be non-negative: %s", j2gort.ValueOfInt(offset))
 	}
-	this_.priv_SourceFile_findLineOffsets_5090()
+	this_.priv_SourceFile_findLineOffsets_5097()
 	var search int32 = j2gort.Ext_java_util_Arrays_BinarySearch_2_slice_int32_int32(this_.lineOffsets, offset)
 	_ = search
 	if search >= int32(0) {
@@ -465,7 +465,7 @@ func (this_ *SourceFile) GetLine(lineNumber int32) string {
 	if didRet_20 {
 		return retVal_21
 	}
-	this_.priv_SourceFile_findLineOffsets_5090()
+	this_.priv_SourceFile_findLineOffsets_5097()
 	if lineNumber > int32(len(this_.lineOffsets)) {
 		return j2gort.NullString
 	}
@@ -521,7 +521,7 @@ func (this_ *SourceFile) GetLines(lineNumber int32, length int32) Region {
 	if didRet_24 {
 		return retVal_25
 	}
-	this_.priv_SourceFile_findLineOffsets_5090()
+	this_.priv_SourceFile_findLineOffsets_5097()
 	if lineNumber > int32(len(this_.lineOffsets)) {
 		return nil
 	}
@@ -1038,13 +1038,13 @@ func (this_ *SourceFile_Builder) WithCharset(charset j2gort.Ext_java_nio_charset
 // Java method: Builder.withPath(java.lang.String path)
 func (this_ *SourceFile_Builder) WithPath_1_string(path string) *SourceFile_Builder {
 	_ = path
-	return this_.priv_Builder_withPathInternal_5121(path, nil)
+	return this_.priv_Builder_withPathInternal_5128(path, nil)
 }
 
 // Java method: Builder.withPath(java.nio.file.Path path)
 func (this_ *SourceFile_Builder) WithPath_1_Ext_java_nio_file_Path(path j2gort.Ext_java_nio_file_Path) *SourceFile_Builder {
 	_ = path
-	return this_.priv_Builder_withPathInternal_5121(path.String(), path)
+	return this_.priv_Builder_withPathInternal_5128(path.String(), path)
 }
 
 // Java method: Builder.withContent(java.lang.String x)
@@ -1131,7 +1131,7 @@ func (this_ *SourceFile_Builder) Build() *SourceFile {
 		InitSourceFile(&val_46, NewSourceFile_CodeLoader_StubSourceFileCodeLoader(), displayPath, this_.kind)
 		var file *SourceFile = &val_46
 		_ = file
-		file.priv_SourceFile_setIsStubSourceFileForAlreadyProvidedInput_5086(true)
+		file.priv_SourceFile_setIsStubSourceFileForAlreadyProvidedInput_5093(true)
 		return file
 	}
 	if this_.lazyContent != nil {
@@ -1149,7 +1149,7 @@ func (this_ *SourceFile_Builder) Build() *SourceFile {
 }
 
 // Java method: Builder.withPathInternal(java.lang.String path, java.nio.file.@org.jspecify.annotations.Nullable Path pathWithFilesystem)
-func (this_ *SourceFile_Builder) priv_Builder_withPathInternal_5121(path string, pathWithFilesystem j2gort.Ext_java_nio_file_Path) *SourceFile_Builder {
+func (this_ *SourceFile_Builder) priv_Builder_withPathInternal_5128(path string, pathWithFilesystem j2gort.Ext_java_nio_file_Path) *SourceFile_Builder {
 	_ = path
 	_ = pathWithFilesystem
 	var bangSlashIndex int32 = j2gort.JStrIndexOf(path, StaticGet_SourceFile_BANG_SLASH())
@@ -1426,7 +1426,7 @@ func (this_ *SourceFile_CodeLoader_OnDisk) LoadUncachedCode() string {
 				}
 			}
 		}()
-		retVal_48 = j2gort.Ext_java_nio_file_Files_ReadString_2(this_.relativePath, this_.priv_OnDisk_getCharset_5125())
+		retVal_48 = j2gort.Ext_java_nio_file_Files_ReadString_2(this_.relativePath, this_.priv_OnDisk_getCharset_5132())
 		didRet_47 = true
 		return
 	}()
@@ -1438,11 +1438,11 @@ func (this_ *SourceFile_CodeLoader_OnDisk) LoadUncachedCode() string {
 
 // Java method: OnDisk.openUncachedReader()
 func (this_ *SourceFile_CodeLoader_OnDisk) OpenUncachedReader() j2gort.Ext_java_io_Reader {
-	return j2gort.AsIface[j2gort.Ext_java_io_Reader](j2gort.Ext_java_nio_file_Files_NewBufferedReader_2(this_.relativePath, this_.priv_OnDisk_getCharset_5125()))
+	return j2gort.AsIface[j2gort.Ext_java_io_Reader](j2gort.Ext_java_nio_file_Files_NewBufferedReader_2(this_.relativePath, this_.priv_OnDisk_getCharset_5132()))
 }
 
 // Java method: OnDisk.getCharset()
-func (this_ *SourceFile_CodeLoader_OnDisk) priv_OnDisk_getCharset_5125() j2gort.Ext_java_nio_charset_Charset {
+func (this_ *SourceFile_CodeLoader_OnDisk) priv_OnDisk_getCharset_5132() j2gort.Ext_java_nio_charset_Charset {
 	return j2gort.Ext_java_nio_charset_Charset_ForName_1(this_.serializableCharset)
 }
 
@@ -1457,7 +1457,7 @@ func (this_ *SourceFile_CodeLoader_OnDisk) ToProtoLocationBuilder(fileName strin
 		}
 		return actualPath
 	}()).SetCharset(func() string {
-		if this_.priv_OnDisk_getCharset_5125().Equals(j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8) {
+		if this_.priv_OnDisk_getCharset_5132().Equals(j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8) {
 			return ""
 		}
 		return this_.serializableCharset
@@ -1526,11 +1526,11 @@ func (this_ *SourceFile_CodeLoader_AtZip) LoadUncachedCode() string {
 
 // Java method: AtZip.openUncachedReader()
 func (this_ *SourceFile_CodeLoader_AtZip) OpenUncachedReader() j2gort.Ext_java_io_Reader {
-	return j2gort.NewExt_java_io_InputStreamReader_2_Ext_java_io_InputStream_Ext_java_nio_charset_Charset(JSCompZipFileCache_GetEntryStream(this_.zipName, this_.entryName), this_.priv_AtZip_getCharset_5126())
+	return j2gort.NewExt_java_io_InputStreamReader_2_Ext_java_io_InputStream_Ext_java_nio_charset_Charset(JSCompZipFileCache_GetEntryStream(this_.zipName, this_.entryName), this_.priv_AtZip_getCharset_5133())
 }
 
 // Java method: AtZip.getCharset()
-func (this_ *SourceFile_CodeLoader_AtZip) priv_AtZip_getCharset_5126() j2gort.Ext_java_nio_charset_Charset {
+func (this_ *SourceFile_CodeLoader_AtZip) priv_AtZip_getCharset_5133() j2gort.Ext_java_nio_charset_Charset {
 	return j2gort.Ext_java_nio_charset_Charset_ForName_1(this_.serializableCharset)
 }
 
@@ -1538,7 +1538,7 @@ func (this_ *SourceFile_CodeLoader_AtZip) priv_AtZip_getCharset_5126() j2gort.Ex
 func (this_ *SourceFile_CodeLoader_AtZip) ToProtoLocationBuilder(fileName string) *j2gort.Ext_com_google_javascript_jscomp_serialization_SourceFileProto_Builder {
 	_ = fileName
 	return j2gort.Ext_com_google_javascript_jscomp_serialization_SourceFileProto_NewBuilder_0().SetFilename(fileName).SetZipEntry_1_Ext_com_google_javascript_jscomp_serialization_SourceFileProto_ZipEntryOnDisk(j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_SourceFileProto_ZipEntryOnDisk](j2gort.Ext_com_google_javascript_jscomp_serialization_SourceFileProto_ZipEntryOnDisk_NewBuilder_0().SetEntryName(this_.entryName).SetZipPath(this_.zipName).SetCharset(func() string {
-		if this_.priv_AtZip_getCharset_5126().Equals(j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8) {
+		if this_.priv_AtZip_getCharset_5133().Equals(j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8) {
 			return ""
 		}
 		return this_.serializableCharset

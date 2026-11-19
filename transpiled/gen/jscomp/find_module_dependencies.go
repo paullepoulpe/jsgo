@@ -143,7 +143,7 @@ func (this_ *FindModuleDependencies) Process(root pkg_rhino.Node) {
 	}
 	NodeTraversal_Traverse(this_.compiler, root, this_)
 	if this_.moduleType == StaticGet_CompilerInput_ModuleType_ES6() {
-		this_.priv_FindModuleDependencies_convertToEs6Module_2862(root, true)
+		this_.priv_FindModuleDependencies_convertToEs6Module_2863(root, true)
 	} else if ((this_.moduleType == StaticGet_CompilerInput_ModuleType_NONE()) && (this_.inputPathByWebpackId != nil)) && this_.inputPathByWebpackId.ContainsValue(j2gort.BoxString(input.GetPath().String())) {
 		this_.moduleType = StaticGet_CompilerInput_ModuleType_IMPORTED_SCRIPT()
 	}
@@ -189,11 +189,11 @@ func (this_ *FindModuleDependencies) Visit_3(t *NodeTraversal, n pkg_rhino.Node,
 		this_.moduleType = StaticGet_CompilerInput_ModuleType_ES6()
 		if n.GetBooleanProp(pkg_rhino.StaticGet_Node_EXPORT_DEFAULT()) {
 		} else if n.HasTwoChildren() {
-			this_.priv_FindModuleDependencies_addEs6ModuleImportToGraph_2860(t, n)
+			this_.priv_FindModuleDependencies_addEs6ModuleImportToGraph_2861(t, n)
 		}
 	} else if this_.supportsEs6Modules && n.IsImport() {
 		this_.moduleType = StaticGet_CompilerInput_ModuleType_ES6()
-		this_.priv_FindModuleDependencies_addEs6ModuleImportToGraph_2860(t, n)
+		this_.priv_FindModuleDependencies_addEs6ModuleImportToGraph_2861(t, n)
 	} else if (this_.supportsEs6Modules && (n.RawToken_() == uint8(124))) && n.GetFirstChild().IsString() {
 		var path string = n.GetFirstChild().GetString()
 		_ = path
@@ -243,10 +243,10 @@ func (this_ *FindModuleDependencies) ExitScope(t *NodeTraversal) {
 }
 
 // Java method: FindModuleDependencies.addEs6ModuleImportToGraph(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *FindModuleDependencies) priv_FindModuleDependencies_addEs6ModuleImportToGraph_2860(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *FindModuleDependencies) priv_FindModuleDependencies_addEs6ModuleImportToGraph_2861(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
-	var moduleName string = this_.priv_FindModuleDependencies_getEs6ModuleNameFromImportNode_2861(t, n)
+	var moduleName string = this_.priv_FindModuleDependencies_getEs6ModuleNameFromImportNode_2862(t, n)
 	_ = moduleName
 	if javalang.StringStartsWith(j2gort.CheckNotNullString(moduleName), "goog.") {
 		t.GetInput().AddOrderedRequire(StaticGet_DependencyInfo_Require_BASE())
@@ -255,7 +255,7 @@ func (this_ *FindModuleDependencies) priv_FindModuleDependencies_addEs6ModuleImp
 }
 
 // Java method: FindModuleDependencies.getEs6ModuleNameFromImportNode(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *FindModuleDependencies) priv_FindModuleDependencies_getEs6ModuleNameFromImportNode_2861(t *NodeTraversal, n pkg_rhino.Node) string {
+func (this_ *FindModuleDependencies) priv_FindModuleDependencies_getEs6ModuleNameFromImportNode_2862(t *NodeTraversal, n pkg_rhino.Node) string {
 	_ = t
 	_ = n
 	var importName string = n.GetLastChild().GetString()
@@ -275,7 +275,7 @@ func (this_ *FindModuleDependencies) priv_FindModuleDependencies_getEs6ModuleNam
 }
 
 // Java method: FindModuleDependencies.convertToEs6Module(com.google.javascript.rhino.Node root, boolean skipGoogProvideModuleCheck)
-func (this_ *FindModuleDependencies) priv_FindModuleDependencies_convertToEs6Module_2862(root pkg_rhino.Node, skipGoogProvideModuleCheck bool) bool {
+func (this_ *FindModuleDependencies) priv_FindModuleDependencies_convertToEs6Module_2863(root pkg_rhino.Node, skipGoogProvideModuleCheck bool) bool {
 	_ = root
 	_ = skipGoogProvideModuleCheck
 	if Es6RewriteModules_IsEs6ModuleRoot(root) {

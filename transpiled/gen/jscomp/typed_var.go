@@ -104,7 +104,7 @@ func InitTypedVar(this_ *TypedVar, inferred bool, name string, nameNode pkg_rhin
 	InitAbstractVar(&this_.AbstractVarBase, name, nameNode, ToIface_AbstractScope(scope), index, input, pkg_rhino.Node(0))
 	this_.initFields_TypedVar()
 	if nameNode != 0 {
-		if !(StaticGet_TypedVar_NAME_NODE_TYPES().Contains(j2gort.BoxNullableVal(nameNode.GetToken()))) {
+		if !(j2gort.ImmSetContainsTypedU8_(StaticGet_TypedVar_NAME_NODE_TYPES(), uint8(nameNode.GetToken()))) {
 			j2gort.CheckArgumentFmt(false, "Invalid name node token %s", j2gort.BoxNullableVal(nameNode.GetToken()))
 		}
 	}

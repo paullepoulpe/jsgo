@@ -203,17 +203,17 @@ func InitJsMessageExtractor_ExtractMessagesVisitor(this_ *JsMessageExtractor_Ext
 // Java method: ExtractMessagesVisitor.processJsMessageDefinition(com.google.javascript.jscomp.JsMessageDefinition definition)
 func (this_ *JsMessageExtractor_ExtractMessagesVisitor) ProcessJsMessageDefinition(definition JsMessageDefinition) {
 	_ = definition
-	this_.priv_ExtractMessagesVisitor_processJsMessage_3659(definition.GetMessage())
+	this_.priv_ExtractMessagesVisitor_processJsMessage_3660(definition.GetMessage())
 }
 
 // Java method: ExtractMessagesVisitor.processIcuTemplateDefinition(com.google.javascript.jscomp.IcuTemplateDefinition definition)
 func (this_ *JsMessageExtractor_ExtractMessagesVisitor) ProcessIcuTemplateDefinition(definition IcuTemplateDefinition) {
 	_ = definition
-	this_.priv_ExtractMessagesVisitor_processJsMessage_3659(definition.GetMessage())
+	this_.priv_ExtractMessagesVisitor_processJsMessage_3660(definition.GetMessage())
 }
 
 // Java method: ExtractMessagesVisitor.processJsMessage(com.google.javascript.jscomp.JsMessage jsMessage)
-func (this_ *JsMessageExtractor_ExtractMessagesVisitor) priv_ExtractMessagesVisitor_processJsMessage_3659(jsMessage *JsMessage) {
+func (this_ *JsMessageExtractor_ExtractMessagesVisitor) priv_ExtractMessagesVisitor_processJsMessage_3660(jsMessage *JsMessage) {
 	_ = jsMessage
 	if this_.outer_.extractExternalMessages || !(jsMessage.IsExternal()) {
 		this_.messages.Add_1(j2gort.PtrToAny(jsMessage))

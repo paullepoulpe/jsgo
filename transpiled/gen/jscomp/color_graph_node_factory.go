@@ -87,12 +87,12 @@ func ColorGraphNodeFactory_CreateFactory(colorRegistry *pkg_colors.ColorRegistry
 // Java method: ColorGraphNodeFactory.createNode(com.google.javascript.jscomp.colors.@org.jspecify.annotations.Nullable Color color)
 func (this_ *ColorGraphNodeFactory) CreateNode(color *pkg_colors.Color) *ColorGraphNode {
 	_ = color
-	var key *pkg_colors.Color = this_.priv_ColorGraphNodeFactory_simplifyColor_6204(color)
+	var key *pkg_colors.Color = this_.priv_ColorGraphNodeFactory_simplifyColor_6212(color)
 	_ = key
 	return func() *ColorGraphNode {
 		bound_1 := this_
 		return j2gort.CustomOrderedMapComputeIfAbsent(this_.typeIndex, key, nil, func(mrp0_ *pkg_colors.Color) *ColorGraphNode {
-			return bound_1.priv_ColorGraphNodeFactory_newColorGraphNode_6203(mrp0_)
+			return bound_1.priv_ColorGraphNodeFactory_newColorGraphNode_6211(mrp0_)
 		})
 	}()
 }
@@ -103,7 +103,7 @@ func (this_ *ColorGraphNodeFactory) GetAllKnownTypes() j2gort.Ext_com_google_com
 }
 
 // Java method: ColorGraphNodeFactory.newColorGraphNode(com.google.javascript.jscomp.colors.Color key)
-func (this_ *ColorGraphNodeFactory) priv_ColorGraphNodeFactory_newColorGraphNode_6203(key *pkg_colors.Color) *ColorGraphNode {
+func (this_ *ColorGraphNodeFactory) priv_ColorGraphNodeFactory_newColorGraphNode_6211(key *pkg_colors.Color) *ColorGraphNode {
 	_ = key
 	var id int32 = this_.typeIndex.Size()
 	_ = id
@@ -111,7 +111,7 @@ func (this_ *ColorGraphNodeFactory) priv_ColorGraphNodeFactory_newColorGraphNode
 }
 
 // Java method: ColorGraphNodeFactory.simplifyColor(com.google.javascript.jscomp.colors.@org.jspecify.annotations.Nullable Color type)
-func (this_ *ColorGraphNodeFactory) priv_ColorGraphNodeFactory_simplifyColor_6204(type_ *pkg_colors.Color) *pkg_colors.Color {
+func (this_ *ColorGraphNodeFactory) priv_ColorGraphNodeFactory_simplifyColor_6212(type_ *pkg_colors.Color) *pkg_colors.Color {
 	_ = type_
 	if type_ == nil {
 		return pkg_colors.StaticGet_StandardColors_UNKNOWN()
@@ -119,12 +119,12 @@ func (this_ *ColorGraphNodeFactory) priv_ColorGraphNodeFactory_simplifyColor_620
 	if type_.IsUnion() {
 		type_ = type_.SubtractNullOrVoid()
 		if !(type_.IsUnion()) {
-			return this_.priv_ColorGraphNodeFactory_simplifyColor_6204(type_)
+			return this_.priv_ColorGraphNodeFactory_simplifyColor_6212(type_)
 		}
 		var unionElems []*pkg_colors.Color = type_.GetUnionElementsArray()
 		_ = unionElems
 		if int32(len(unionElems)) == int32(2) {
-			return pkg_colors.Color_CreateUnion2(this_.priv_ColorGraphNodeFactory_simplifyColor_6204(unionElems[int32(0)]), this_.priv_ColorGraphNodeFactory_simplifyColor_6204(unionElems[int32(1)]))
+			return pkg_colors.Color_CreateUnion2(this_.priv_ColorGraphNodeFactory_simplifyColor_6212(unionElems[int32(0)]), this_.priv_ColorGraphNodeFactory_simplifyColor_6212(unionElems[int32(1)]))
 		}
 		var simplified *j2gort.Ext_java_util_LinkedHashSet = j2gort.NewExt_java_util_LinkedHashSet_1_int32(int32(len(unionElems)))
 		_ = simplified
@@ -134,7 +134,7 @@ func (this_ *ColorGraphNodeFactory) priv_ColorGraphNodeFactory_simplifyColor_620
 			var n int32 = int32(len(unionElems))
 			_ = n
 			for ; i < n; i = i + 1 {
-				simplified.Add_1(j2gort.PtrToAny(this_.priv_ColorGraphNodeFactory_simplifyColor_6204(unionElems[i])))
+				simplified.Add_1(j2gort.PtrToAny(this_.priv_ColorGraphNodeFactory_simplifyColor_6212(unionElems[i])))
 			}
 		}
 		return pkg_colors.Color_CreateUnion_1_Ext_java_util_Set(simplified)

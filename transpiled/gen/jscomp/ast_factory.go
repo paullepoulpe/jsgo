@@ -727,7 +727,7 @@ func (this_ *AstFactory) CreateQNameUsingJSTypeInfo(globalTypedScope *TypedScope
 		j2gort.CheckArgumentMsg(false, j2gort.PtrToAny(globalTypedScope))
 	}
 	this_.priv_AstFactory_assertNotAddingColors_620()
-	var nameParts j2gort.Ext_java_util_List = StaticGet_AstFactory_DOT_SPLITTER().SplitToList(j2gort.BoxString(qname))
+	var nameParts j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(StaticGet_AstFactory_DOT_SPLITTER(), qname)
 	_ = nameParts
 	if !(!(nameParts.IsEmpty())) {
 		j2gort.CheckState(false)
@@ -750,7 +750,7 @@ func (this_ *AstFactory) CreateQNameUsingJSTypeInfo(globalTypedScope *TypedScope
 func (this_ *AstFactory) CreateQName_2_StaticScope_string(scope pkg_rhino.StaticScope, qname string) pkg_rhino.Node {
 	_ = scope
 	_ = qname
-	return this_.CreateQName_2_StaticScope_Ext_java_lang_Iterable(scope, StaticGet_AstFactory_DOT_SPLITTER().Split(j2gort.BoxString(qname)))
+	return this_.CreateQName_2_StaticScope_Ext_java_lang_Iterable(scope, j2gort.SplitterSplitStr(StaticGet_AstFactory_DOT_SPLITTER(), qname))
 }
 
 // Java method: AstFactory.createQName(com.google.javascript.rhino.StaticScope scope, java.lang.Iterable<java.lang.String> names)
@@ -828,7 +828,7 @@ func (this_ *AstFactory) CreateQName_2_StaticScope_RuntimeJsLibManager_JsLibFiel
 	_ = field
 	var qname string = j2gort.AsIface[RuntimeJsLibManager_InjectedJsLibField](field.AssertInjected()).QualifiedName()
 	_ = qname
-	var parts j2gort.Ext_java_util_List = StaticGet_AstFactory_DOT_SPLITTER().SplitToList(j2gort.BoxString(qname))
+	var parts j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(StaticGet_AstFactory_DOT_SPLITTER(), qname)
 	_ = parts
 	var baseName string = j2gort.CheckNotNullString(j2gort.CastString(j2gort.Ext_com_google_common_collect_Iterables_GetFirst(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](parts), nil)))
 	_ = baseName
@@ -853,13 +853,13 @@ func (this_ *AstFactory) CreateQName_2_StaticScope_RuntimeJsLibManager_JsLibFiel
 // Java method: AstFactory.createQNameWithUnknownType(java.lang.String qname)
 func (this_ *AstFactory) CreateQNameWithUnknownType_1_string(qname string) pkg_rhino.Node {
 	_ = qname
-	return this_.priv_AstFactory_createQNameWithUnknownType_674(StaticGet_AstFactory_DOT_SPLITTER().Split(j2gort.BoxString(qname)))
+	return this_.priv_AstFactory_createQNameWithUnknownType_674(j2gort.SplitterSplitStr(StaticGet_AstFactory_DOT_SPLITTER(), qname))
 }
 
 // Java method: AstFactory.createQNameWithUnknownType(com.google.javascript.jscomp.js.RuntimeJsLibManager.JsLibField field)
 func (this_ *AstFactory) CreateQNameWithUnknownType_1_RuntimeJsLibManager_JsLibField(field RuntimeJsLibManager_JsLibField) pkg_rhino.Node {
 	_ = field
-	var parts j2gort.Ext_java_util_List = StaticGet_AstFactory_DOT_SPLITTER().SplitToList(j2gort.BoxString(j2gort.AsIface[RuntimeJsLibManager_InjectedJsLibField](field.AssertInjected()).QualifiedName()))
+	var parts j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(StaticGet_AstFactory_DOT_SPLITTER(), j2gort.AsIface[RuntimeJsLibManager_InjectedJsLibField](field.AssertInjected()).QualifiedName())
 	_ = parts
 	var baseName string = j2gort.CheckNotNullString(j2gort.CastString(j2gort.Ext_com_google_common_collect_Iterables_GetFirst(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](parts), nil)))
 	_ = baseName

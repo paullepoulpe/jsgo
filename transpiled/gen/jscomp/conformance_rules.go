@@ -2256,7 +2256,7 @@ func ConformanceRules_ConformanceUtil_ValidateParameterList(compiler AbstractCom
 // Java static method: ConformanceUtil.getPropertyFromDeclarationName(java.lang.String specName)
 func ConformanceRules_ConformanceUtil_GetPropertyFromDeclarationName(specName string) string {
 	_ = specName
-	var parts j2gort.Ext_java_util_List = StaticGet_ConformanceRules_ON_PROTOTYPE().SplitToList(j2gort.BoxString(specName))
+	var parts j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(StaticGet_ConformanceRules_ON_PROTOTYPE(), specName)
 	_ = parts
 	if !((parts.Size() == int32(1)) || (parts.Size() == int32(2))) {
 		j2gort.CheckState(false)
@@ -2272,7 +2272,7 @@ func ConformanceRules_ConformanceUtil_GetClassFromDeclarationName(specName strin
 	_ = specName
 	var tmp string = specName
 	_ = tmp
-	var parts j2gort.Ext_java_util_List = StaticGet_ConformanceRules_ON_PROTOTYPE().SplitToList(j2gort.BoxString(tmp))
+	var parts j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(StaticGet_ConformanceRules_ON_PROTOTYPE(), tmp)
 	_ = parts
 	if !((parts.Size() == int32(1)) || (parts.Size() == int32(2))) {
 		j2gort.CheckState(false)
@@ -4380,7 +4380,7 @@ func InitConformanceRules_BanCreateDom(this_ *ConformanceRules_BanCreateDom, com
 		for cur_44.HasNext() {
 			value := cur_44.NextStr()
 			_ = value
-			var tagAttr j2gort.Ext_java_util_List = StaticGet_ConformanceRules_ON_DOT().SplitToList(j2gort.BoxString(value))
+			var tagAttr j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(StaticGet_ConformanceRules_ON_DOT(), value)
 			_ = tagAttr
 			if ((tagAttr.Size() != int32(2)) || (j2gort.CheckNotNullString(j2gort.ListGetStr(tagAttr, int32(0))) == "")) || (j2gort.CheckNotNullString(j2gort.ListGetStr(tagAttr, int32(1))) == "") {
 				panic(NewCheckConformance_InvalidRequirementSpec_1("Values must be in the format tagname.attribute."))

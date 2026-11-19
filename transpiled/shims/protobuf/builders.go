@@ -178,10 +178,15 @@ type astNodeAux struct {
 // astNodeData backs standalone/builder AstNode instances (when slab == nil) or
 // serves as the single shared slab descriptor embedded in astNodeSlab (when
 // slab != nil). Pointer fields are packed at the head so Go's GC skips the
-// 40-byte scalar tail.
+// scalar tail. Unpinned single-parent children are linked intrusively via
+// firstChild/lastChild/nextSibling without allocating []*AstNode slices.
 type astNodeData struct {
 	slab                 *astNodeSlab
 	bundle               *astBuilderBundle
+	selfNode             *AstNode
+	firstChild           *astNodeData
+	lastChild            *astNodeData
+	nextSibling          *astNodeData
 	child_               []*AstNode
 	jsdoc_               *OptimizationJsdoc
 	valueBits_           uint64
@@ -192,6 +197,8 @@ type astNodeData struct {
 	type_                int32
 	sourceFile_          int32
 	cachedSize           int32
+	childCount_          uint32
+	linkState_           uint32
 	kind_                uint8
 	flags_               uint8
 }
@@ -209,11 +216,37 @@ func (d *astNodeData) setValueCase(vc AstNode_ValueCase, hasTemplate bool) {
 }
 
 func (d *astNodeData) isZero() bool {
-	return d.slab == nil && len(d.child_) == 0 && d.jsdoc_ == nil &&
+	return d.slab == nil && d.childCount_ == 0 && len(d.child_) == 0 && d.jsdoc_ == nil &&
 		d.valueBits_ == 0 && d.booleanProperties_ == 0 &&
 		d.relativeLine_ == 0 && d.relativeColumn_ == 0 &&
 		d.originalNamePointer_ == 0 && d.type_ == 0 && d.sourceFile_ == 0 &&
 		d.kind_ == 0 && d.flags_ == 0
+}
+
+func pinAstData(d *astNodeData) {
+	if atomic.LoadUint32(&d.linkState_)&astLinkFlagPinned == 0 {
+		atomic.OrUint32(&d.linkState_, astLinkFlagPinned)
+	}
+}
+
+func (d *astNodeData) ensureChildSlice() {
+	if d.child_ != nil {
+		return
+	}
+	n := int(d.childCount_)
+	if n == 0 {
+		d.child_ = make([]*AstNode, 0, 4)
+		return
+	}
+	ch := make([]*AstNode, n, max(n, 4))
+	i := 0
+	for c := d.firstChild; c != nil; c = c.nextSibling {
+		ch[i] = c.selfNode
+		i++
+	}
+	d.child_ = ch
+	d.firstChild = nil
+	d.lastChild = nil
 }
 
 // AstNode is a 16-byte handle pointing either to a shared astNodeSlab (for
@@ -225,28 +258,154 @@ type AstNode struct {
 }
 
 const (
-	astPoolFlagLinked uint8 = 1 << 0
-	astPoolFlagPinned uint8 = 1 << 1
+	astLinkFlagLinked uint32 = 1 << 0
+	astLinkFlagPinned uint32 = 1 << 1
 
+	astBuilderChunkSize         = 256
+	astBuilderMaxFreeBundles    = 262144
 	astBuilderMaxPooledChildren = 4096
 )
 
 type astBuilderBundle struct {
-	node      AstNode
-	data      astNodeData
-	poolFlags uint8
+	node     AstNode
+	data     astNodeData
+	poolNext *astBuilderBundle
 }
 
-var astBuilderPool = sync.Pool{
-	New: func() any {
-		b := &astBuilderBundle{}
-		b.node.d = &b.data
-		b.data.bundle = b
-		return b
-	},
+type astBuilderAllocBatch struct {
+	idx  uint32
+	done uint32
+	ptrs [astBuilderChunkSize]*astBuilderBundle
+}
+
+type astBuilderChunk struct {
+	items [astBuilderChunkSize]astBuilderBundle
+}
+
+type astDataChunk struct {
+	items [astBuilderChunkSize]astNodeData
+}
+
+var (
+	astBuilderBatchPtr   atomic.Pointer[astBuilderAllocBatch]
+	astBuilderPoolMu     sync.Mutex
+	astBuilderCurBatch   *astBuilderAllocBatch
+	astBuilderBatchFree  []*astBuilderAllocBatch
+	astBuilderRetired    []*astBuilderAllocBatch
+	astBuilderFree       []*astBuilderBundle
+
+	astDataChunkMu  sync.Mutex
+	astDataChunkCur *astDataChunk
+	astDataChunkPos int
+)
+
+func allocStandaloneAstData(self *AstNode) *astNodeData {
+	astDataChunkMu.Lock()
+	if astDataChunkCur == nil || astDataChunkPos >= astBuilderChunkSize {
+		astDataChunkCur = &astDataChunk{}
+		astDataChunkPos = 0
+	}
+	nd := &astDataChunkCur.items[astDataChunkPos]
+	astDataChunkPos++
+	astDataChunkMu.Unlock()
+	nd.selfNode = self
+	return nd
+}
+
+//go:noinline
+func newAstNodeBuilderSlow() *AstNode {
+	astBuilderPoolMu.Lock()
+	if batch := astBuilderBatchPtr.Load(); batch != nil {
+		if i := atomic.AddUint32(&batch.idx, 1) - 1; i < astBuilderChunkSize {
+			b := batch.ptrs[i]
+			atomic.AddUint32(&batch.done, 1)
+			astBuilderPoolMu.Unlock()
+			return &b.node
+		}
+	}
+	if old := astBuilderCurBatch; old != nil {
+		astBuilderCurBatch = nil
+		astBuilderBatchPtr.Store(nil)
+		if atomic.LoadUint32(&old.done) == astBuilderChunkSize {
+			clear(old.ptrs[:])
+			if len(astBuilderBatchFree) < 16 {
+				astBuilderBatchFree = append(astBuilderBatchFree, old)
+			}
+		} else {
+			astBuilderRetired = append(astBuilderRetired, old)
+		}
+	}
+	if len(astBuilderRetired) > 0 {
+		w := 0
+		for _, rb := range astBuilderRetired {
+			if atomic.LoadUint32(&rb.done) == astBuilderChunkSize {
+				clear(rb.ptrs[:])
+				if len(astBuilderBatchFree) < 16 {
+					astBuilderBatchFree = append(astBuilderBatchFree, rb)
+				}
+			} else {
+				astBuilderRetired[w] = rb
+				w++
+			}
+		}
+		clear(astBuilderRetired[w:])
+		astBuilderRetired = astBuilderRetired[:w]
+	}
+	var nb *astBuilderAllocBatch
+	if nbf := len(astBuilderBatchFree); nbf > 0 {
+		nb = astBuilderBatchFree[nbf-1]
+		astBuilderBatchFree[nbf-1] = nil
+		astBuilderBatchFree = astBuilderBatchFree[:nbf-1]
+	} else {
+		nb = &astBuilderAllocBatch{idx: astBuilderChunkSize}
+	}
+	nFree := len(astBuilderFree)
+	if nFree >= astBuilderChunkSize {
+		start := nFree - astBuilderChunkSize
+		copy(nb.ptrs[:], astBuilderFree[start:])
+		clear(astBuilderFree[start:])
+		astBuilderFree = astBuilderFree[:start]
+	} else {
+		copied := 0
+		if nFree > 0 {
+			copied = copy(nb.ptrs[:], astBuilderFree)
+			clear(astBuilderFree)
+			astBuilderFree = astBuilderFree[:0]
+		}
+		nc := &astBuilderChunk{}
+		need := astBuilderChunkSize - copied
+		for i := 0; i < need; i++ {
+			b := &nc.items[i]
+			b.node.d = &b.data
+			b.data.bundle = b
+			b.data.selfNode = &b.node
+			nb.ptrs[copied+i] = b
+		}
+		for i := need; i < astBuilderChunkSize; i++ {
+			b := &nc.items[i]
+			b.node.d = &b.data
+			b.data.bundle = b
+			b.data.selfNode = &b.node
+			astBuilderFree = append(astBuilderFree, b)
+		}
+	}
+	ret := nb.ptrs[0]
+	atomic.StoreUint32(&nb.done, 1)
+	atomic.StoreUint32(&nb.idx, 1)
+	astBuilderCurBatch = nb
+	astBuilderBatchPtr.Store(nb)
+	astBuilderPoolMu.Unlock()
+	return &ret.node
 }
 
 func (d *astNodeData) resetBuilderFields() {
+	if d.firstChild != nil {
+		d.firstChild = nil
+		d.lastChild = nil
+	}
+	if d.nextSibling != nil {
+		d.nextSibling = nil
+	}
 	if len(d.child_) > 0 {
 		clear(d.child_)
 		if cap(d.child_) <= astBuilderMaxPooledChildren {
@@ -268,48 +427,89 @@ func (d *astNodeData) resetBuilderFields() {
 	d.type_ = 0
 	d.sourceFile_ = 0
 	d.cachedSize = 0
+	d.childCount_ = 0
 	d.kind_ = 0
 	d.flags_ = 0
+	atomic.StoreUint32(&d.linkState_, 0)
 }
 
-func recycleAstBuilderTree(b *astBuilderBundle) {
-	if b.poolFlags&astPoolFlagPinned != 0 {
+func recycleAstBuilderTree(root *astBuilderBundle) {
+	if atomic.LoadUint32(&root.data.linkState_) != 0 {
 		return
 	}
-	d := &b.data
-	children := d.child_
-	for i, c := range children {
-		children[i] = nil
-		if c != nil {
-			if cd := c.d; cd != nil && cd.bundle != nil && c == &cd.bundle.node && cd.bundle.poolFlags&astPoolFlagPinned == 0 {
-				recycleAstBuilderTree(cd.bundle)
+	root.poolNext = nil
+	workHead := root
+	var freeHead *astBuilderBundle
+	for workHead != nil {
+		b := workHead
+		workHead = b.poolNext
+		b.poolNext = nil
+		d := &b.data
+		for c := d.firstChild; c != nil; {
+			next := c.nextSibling
+			if cb := c.bundle; cb != nil && c == &cb.data && atomic.LoadUint32(&c.linkState_) == astLinkFlagLinked {
+				cb.poolNext = workHead
+				workHead = cb
+			}
+			c = next
+		}
+		d.firstChild = nil
+		d.lastChild = nil
+		d.nextSibling = nil
+		if children := d.child_; children != nil {
+			for i, ch := range children {
+				children[i] = nil
+				if ch != nil {
+					if cd := ch.d; cd != nil && cd.bundle != nil && ch == &cd.bundle.node && atomic.LoadUint32(&cd.linkState_) == astLinkFlagLinked {
+						cd.bundle.poolNext = workHead
+						workHead = cd.bundle
+					}
+				}
+			}
+			if cap(children) > 0 && cap(children) <= astBuilderMaxPooledChildren {
+				d.child_ = children[:0]
+			} else {
+				d.child_ = nil
 			}
 		}
+		if d.jsdoc_ != nil {
+			d.jsdoc_ = nil
+		}
+		d.valueBits_ = 0
+		d.booleanProperties_ = 0
+		d.relativeLine_ = 0
+		d.relativeColumn_ = 0
+		d.originalNamePointer_ = 0
+		d.type_ = 0
+		d.sourceFile_ = 0
+		d.cachedSize = 0
+		d.childCount_ = 0
+		d.kind_ = 0
+		d.flags_ = 0
+		atomic.StoreUint32(&d.linkState_, 0)
+		if b.node.d != d {
+			b.node.d = d
+		}
+		if d.selfNode != &b.node {
+			d.selfNode = &b.node
+		}
+		b.node.idx = 0
+		b.poolNext = freeHead
+		freeHead = b
 	}
-	if cap(children) > 0 && cap(children) <= astBuilderMaxPooledChildren {
-		d.child_ = children[:0]
-	} else if children != nil {
-		d.child_ = nil
+	if freeHead == nil {
+		return
 	}
-	if d.jsdoc_ != nil {
-		d.jsdoc_ = nil
+	astBuilderPoolMu.Lock()
+	for freeHead != nil {
+		b := freeHead
+		freeHead = b.poolNext
+		b.poolNext = nil
+		if len(astBuilderFree) < astBuilderMaxFreeBundles {
+			astBuilderFree = append(astBuilderFree, b)
+		}
 	}
-	d.valueBits_ = 0
-	d.booleanProperties_ = 0
-	d.relativeLine_ = 0
-	d.relativeColumn_ = 0
-	d.originalNamePointer_ = 0
-	d.type_ = 0
-	d.sourceFile_ = 0
-	d.cachedSize = 0
-	d.kind_ = 0
-	d.flags_ = 0
-	if b.node.d != d {
-		b.node.d = d
-	}
-	b.node.idx = 0
-	b.poolFlags = 0
-	astBuilderPool.Put(b)
+	astBuilderPoolMu.Unlock()
 }
 
 const (
@@ -775,12 +975,14 @@ func (s *astNodeSlab) materializeData(idx uint32) *astNodeData {
 type AstNode_Builder = AstNode
 
 func AstNode_NewBuilder() *AstNode_Builder {
-	b := astBuilderPool.Get().(*astBuilderBundle)
-	b.node.d = &b.data
-	b.node.idx = 0
-	b.data.bundle = b
-	b.poolFlags = 0
-	return &b.node
+	if batch := astBuilderBatchPtr.Load(); batch != nil {
+		if i := atomic.AddUint32(&batch.idx, 1) - 1; i < astBuilderChunkSize {
+			b := batch.ptrs[i]
+			atomic.AddUint32(&batch.done, 1)
+			return &b.node
+		}
+	}
+	return newAstNodeBuilderSlow()
 }
 
 func AstNode_ParseFrom(data []byte) (*AstNode, error) {
@@ -827,35 +1029,55 @@ func (m *AstNode) mutData() *astNodeData {
 func (m *AstNode) mutDataSlow() *astNodeData {
 	d := m.d
 	if d == nil {
-		nd := &astNodeData{}
+		nd := allocStandaloneAstData(m)
 		m.d = nd
 		m.idx = 0
 		return nd
 	}
 	if s := d.slab; s != nil {
 		nd := s.materializeData(m.idx)
+		nd.selfNode = m
 		m.d = nd
 		m.idx = 0
 		return nd
 	}
 	// Copy-on-write when mutating a builder/message copy after Build().
-	if d.bundle != nil {
-		d.bundle.poolFlags |= astPoolFlagPinned
-	}
-	cp := *d
-	cp.bundle = nil
-	if len(d.child_) > 0 {
-		ch := make([]*AstNode, len(d.child_))
-		copy(ch, d.child_)
+	pinAstData(d)
+	cp := allocStandaloneAstData(m)
+	cp.jsdoc_ = d.jsdoc_
+	cp.valueBits_ = d.valueBits_
+	cp.booleanProperties_ = d.booleanProperties_
+	cp.relativeLine_ = d.relativeLine_
+	cp.relativeColumn_ = d.relativeColumn_
+	cp.originalNamePointer_ = d.originalNamePointer_
+	cp.type_ = d.type_
+	cp.sourceFile_ = d.sourceFile_
+	cp.kind_ = d.kind_
+	cp.flags_ = d.flags_ &^ astNodeFlagBuilt
+	if d.child_ != nil {
+		if len(d.child_) > 0 {
+			ch := make([]*AstNode, len(d.child_))
+			for i, c := range d.child_ {
+				ch[i] = c
+				if c != nil && c.d != nil && c.d.slab == nil {
+					pinAstData(c.d)
+				}
+			}
+			cp.child_ = ch
+		}
+	} else if d.childCount_ > 0 {
+		ch := make([]*AstNode, d.childCount_)
+		i := 0
+		for c := d.firstChild; c != nil; c = c.nextSibling {
+			pinAstData(c)
+			ch[i] = c.selfNode
+			i++
+		}
 		cp.child_ = ch
-	} else {
-		cp.child_ = nil
 	}
-	cp.flags_ &^= astNodeFlagBuilt
-	cp.cachedSize = 0
-	m.d = &cp
+	m.d = cp
 	m.idx = 0
-	return &cp
+	return cp
 }
 
 func (m *AstNode) GetKind() NodeKind {
@@ -886,10 +1108,31 @@ func (m *AstNode) GetChildList() []*AstNode {
 		}
 		return out
 	}
-	if d.bundle != nil {
-		d.bundle.poolFlags |= astPoolFlagPinned
+	pinAstData(d)
+	if d.child_ != nil {
+		for _, c := range d.child_ {
+			if c != nil && c.d != nil && c.d.slab == nil {
+				pinAstData(c.d)
+			}
+		}
+		return d.child_
 	}
-	return d.child_
+	if d.childCount_ == 0 {
+		return nil
+	}
+	out := make([]*AstNode, d.childCount_)
+	i := 0
+	for c := d.firstChild; c != nil; c = c.nextSibling {
+		pinAstData(c)
+		out[i] = c.selfNode
+		i++
+	}
+	if d.flags_&astNodeFlagBuilt == 0 {
+		d.child_ = out
+		d.firstChild = nil
+		d.lastChild = nil
+	}
+	return out
 }
 
 func (m *AstNode) GetChildCount() int {
@@ -900,17 +1143,46 @@ func (m *AstNode) GetChildCount() int {
 	if s := d.slab; s != nil {
 		return int(s.recs[m.idx].childCount)
 	}
-	return len(d.child_)
+	if d.child_ != nil {
+		return len(d.child_)
+	}
+	return int(d.childCount_)
+}
+
+//go:noinline
+func (d *astNodeData) builderChildAt(i int) *AstNode {
+	pinAstData(d)
+	if d.child_ != nil {
+		c := d.child_[i]
+		if c != nil && c.d != nil && c.d.slab == nil {
+			pinAstData(c.d)
+		}
+		return c
+	}
+	if uint(i) >= uint(d.childCount_) {
+		return d.child_[i]
+	}
+	if d.flags_&astNodeFlagBuilt == 0 {
+		d.ensureChildSlice()
+		c := d.child_[i]
+		if c != nil && c.d != nil && c.d.slab == nil {
+			pinAstData(c.d)
+		}
+		return c
+	}
+	c := d.firstChild
+	for j := 0; j < i; j++ {
+		c = c.nextSibling
+	}
+	pinAstData(c)
+	return c.selfNode
 }
 
 func (m *AstNode) GetChild(i int) *AstNode {
 	if s := m.d.slab; s != nil {
 		return s.childAt(m.idx, i)
 	}
-	if m.d.bundle != nil {
-		m.d.bundle.poolFlags |= astPoolFlagPinned
-	}
-	return m.d.child_[i]
+	return m.d.builderChildAt(i)
 }
 
 func (m *AstNode) GetValueCase() AstNode_ValueCase {
@@ -1126,23 +1398,49 @@ func (m *AstNode) SetKind(v NodeKind) *AstNode {
 }
 
 func (m *AstNode) AddChild(v *AstNode) *AstNode {
-	d := m.mutData()
-	if v != nil {
-		if vd := v.d; vd != nil && vd.bundle != nil {
-			vb := vd.bundle
-			if vd == d || vb.poolFlags&astPoolFlagLinked != 0 || d.bundle == nil || d.bundle.poolFlags&astPoolFlagPinned != 0 {
-				vb.poolFlags |= astPoolFlagPinned
+	if d := m.d; d != nil && d.flags_&astNodeFlagBuilt == 0 && d.child_ == nil && v != nil {
+		if vd := v.d; vd != nil && vd.slab == nil && vd != d && vd.selfNode == v && atomic.CompareAndSwapUint32(&vd.linkState_, 0, astLinkFlagLinked) {
+			vd.nextSibling = nil
+			if d.lastChild == nil {
+				d.firstChild = vd
 			} else {
-				vb.poolFlags |= astPoolFlagLinked
+				d.lastChild.nextSibling = vd
+			}
+			d.lastChild = vd
+			d.childCount_++
+			d.cachedSize = 0
+			return m
+		}
+	}
+	return m.addChildSlow(v)
+}
+
+//go:noinline
+func (m *AstNode) addChildSlow(v *AstNode) *AstNode {
+	d := m.mutData()
+	if d.child_ == nil && v != nil {
+		if vd := v.d; vd != nil && vd.slab == nil && vd != d && vd.selfNode == v && atomic.CompareAndSwapUint32(&vd.linkState_, 0, astLinkFlagLinked) {
+			vd.nextSibling = nil
+			if d.lastChild == nil {
+				d.firstChild = vd
+			} else {
+				d.lastChild.nextSibling = vd
+			}
+			d.lastChild = vd
+			d.childCount_++
+			d.cachedSize = 0
+			return m
+		}
+	}
+	if v != nil {
+		if vd := v.d; vd != nil && vd.slab == nil {
+			if vd == d || d.bundle == nil || atomic.LoadUint32(&d.linkState_)&astLinkFlagPinned != 0 || !atomic.CompareAndSwapUint32(&vd.linkState_, 0, astLinkFlagLinked) {
+				pinAstData(vd)
 			}
 		}
 	}
-	if d.child_ == nil {
-		d.child_ = make([]*AstNode, 1, 4)
-		d.child_[0] = v
-	} else {
-		d.child_ = append(d.child_, v)
-	}
+	d.ensureChildSlice()
+	d.child_ = append(d.child_, v)
 	d.cachedSize = 0
 	return m
 }
@@ -1150,10 +1448,10 @@ func (m *AstNode) AddChild(v *AstNode) *AstNode {
 func (m *AstNode) ResetForPool() {
 	d := m.d
 	if d != nil && d.slab == nil {
-		if d.bundle != nil {
-			d.bundle.poolFlags = 0
-		}
 		d.resetBuilderFields()
+		if d.selfNode != m && (d.bundle == nil || m == &d.bundle.node) {
+			d.selfNode = m
+		}
 		m.idx = 0
 		return
 	}
@@ -1249,9 +1547,12 @@ func (m *AstNode) Build() *AstNode {
 
 func (s *astNodeSlab) recScalarSerializedSize(idx uint32, rec *astNodeRec) int {
 	size := 0
-	kind := NodeKind(rec.kind)
-	if kind != NodeKind_NODE_KIND_UNSPECIFIED {
-		size += 1 + protoVarintLen(uint64(int64(kind.GetNumber())))
+	if k := rec.kind; k != 0 {
+		if k < uint8(NodeKind_UNRECOGNIZED) {
+			size += 3
+		} else {
+			size += 11
+		}
 	}
 	vc := rec.valueCase()
 	switch vc {
@@ -1342,25 +1643,28 @@ func (s *astNodeSlab) recSerializedSize(idx uint32) int {
 	return int(s.cachedSizes[idx])
 }
 
-func (m *AstNode) serializedSize() int {
-	d := m.d
-	if d == nil {
-		return 0
-	}
-	if s := d.slab; s != nil {
-		return s.recSerializedSize(m.idx)
-	}
-	if d.cachedSize > 0 {
-		return int(d.cachedSize - 1)
+func (d *astNodeData) dataSerializedSize() int {
+	if cs := atomic.LoadInt32(&d.cachedSize); cs > 0 {
+		return int(cs - 1)
 	}
 	size := 0
-	kind := NodeKind(d.kind_)
-	if kind != NodeKind_NODE_KIND_UNSPECIFIED {
-		size += 1 + protoVarintLen(uint64(int64(kind.GetNumber())))
+	if k := d.kind_; k != 0 {
+		if k < uint8(NodeKind_UNRECOGNIZED) {
+			size += 3
+		} else {
+			size += 11
+		}
 	}
-	for _, c := range d.child_ {
-		s := c.serializedSize()
-		size += 1 + protoVarintLen(uint64(s)) + s
+	if d.child_ == nil {
+		for c := d.firstChild; c != nil; c = c.nextSibling {
+			s := c.dataSerializedSize()
+			size += 1 + protoVarintLen(uint64(s)) + s
+		}
+	} else {
+		for _, c := range d.child_ {
+			s := c.serializedSize()
+			size += 1 + protoVarintLen(uint64(s)) + s
+		}
 	}
 	vc := d.valueCase()
 	switch vc {
@@ -1397,18 +1701,33 @@ func (m *AstNode) serializedSize() int {
 		size += 2 + protoVarintLen(uint64(uint32(d.sourceFile_)))
 	}
 	if size < math.MaxInt32 {
-		d.cachedSize = int32(size + 1)
+		atomic.StoreInt32(&d.cachedSize, int32(size+1))
 	}
 	return size
 }
 
-func protoPutTagVarint(dst []byte, pos int, tag byte, v uint64) int {
+func (m *AstNode) serializedSize() int {
+	d := m.d
+	if d == nil {
+		return 0
+	}
+	if s := d.slab; s != nil {
+		return s.recSerializedSize(m.idx)
+	}
+	return d.dataSerializedSize()
+}
+
+func putTag1Varint(dst []byte, pos int, tag byte, v uint64) int {
+	if v < 0x80 {
+		_ = dst[pos+1]
+		dst[pos] = tag
+		dst[pos+1] = byte(v)
+		return pos + 2
+	}
 	dst[pos] = tag
-	pos++
-	for v >= 0x80 {
+	for pos++; v >= 0x80; pos++ {
 		dst[pos] = byte(v) | 0x80
 		v >>= 7
-		pos++
 	}
 	dst[pos] = byte(v)
 	return pos + 1
@@ -1426,31 +1745,47 @@ func (s *astNodeSlab) putRecTo(idx uint32, dst []byte, pos int) int {
 		}
 	}
 	rec := &s.recs[idx]
-	kind := NodeKind(rec.kind)
-	if kind != NodeKind_NODE_KIND_UNSPECIFIED {
-		pos = protoPutTagVarint(dst, pos, 0x08, uint64(int64(kind.GetNumber())))
+	if k := rec.kind; k != 0 {
+		if k < uint8(NodeKind_UNRECOGNIZED) {
+			kn := uint32(nodeKind_numbers[k])
+			_ = dst[pos+2]
+			dst[pos] = 0x08
+			dst[pos+1] = byte(kn) | 0x80
+			dst[pos+2] = byte(kn >> 7)
+			pos += 3
+		} else {
+			pos = putTag1Varint(dst, pos, 0x08, math.MaxUint64)
+		}
 	}
 	if rec.childCount > 0 {
 		sub := s.childIdxs[rec.childOff : rec.childOff+rec.childCount]
-		for _, cIdx := range sub {
-			pos = protoPutTagVarint(dst, pos, 0x12, uint64(s.recSerializedSize(cIdx)))
-			pos = s.putRecTo(cIdx, dst, pos)
+		if !s.mutated {
+			sizes := s.cachedSizes
+			for _, cIdx := range sub {
+				pos = putTag1Varint(dst, pos, 0x12, uint64(sizes[cIdx]))
+				pos = s.putRecTo(cIdx, dst, pos)
+			}
+		} else {
+			for _, cIdx := range sub {
+				pos = putTag1Varint(dst, pos, 0x12, uint64(s.recSerializedSize(cIdx)))
+				pos = s.putRecTo(cIdx, dst, pos)
+			}
 		}
 	}
 	vc := rec.valueCase()
 	switch vc {
 	case AstNode_ValueCase_STRING_VALUE_POINTER:
-		pos = protoPutTagVarint(dst, pos, 0x18, uint64(rec.value32))
+		pos = putTag1Varint(dst, pos, 0x18, uint64(rec.value32))
 	case AstNode_ValueCase_DOUBLE_VALUE:
 		dst[pos] = 0x21
 		binary.LittleEndian.PutUint64(dst[pos+1:], s.vals64[rec.value32])
 		pos += 9
 	}
 	if rec.relativeLine != 0 {
-		pos = protoPutTagVarint(dst, pos, 0x28, uint64(uint32((rec.relativeLine<<1)^(rec.relativeLine>>31))))
+		pos = putTag1Varint(dst, pos, 0x28, uint64(uint32((rec.relativeLine<<1)^(rec.relativeLine>>31))))
 	}
 	if rec.relativeColumn != 0 {
-		pos = protoPutTagVarint(dst, pos, 0x30, uint64(uint32((rec.relativeColumn<<1)^(rec.relativeColumn>>31))))
+		pos = putTag1Varint(dst, pos, 0x30, uint64(uint32((rec.relativeColumn<<1)^(rec.relativeColumn>>31))))
 	}
 	var a astNodeAux
 	if rec.auxIdx != 0 {
@@ -1458,7 +1793,7 @@ func (s *astNodeSlab) putRecTo(idx uint32, dst []byte, pos int) int {
 		if a.jsdocIdx != 0 {
 			jsdoc := &s.jsdocs[a.jsdocIdx-1]
 			js := jsdoc.serializedSize()
-			pos = protoPutTagVarint(dst, pos, 0x3A, uint64(js))
+			pos = putTag1Varint(dst, pos, 0x3A, uint64(js))
 			pos = len(jsdoc.appendTo(dst[:pos : pos+js]))
 		}
 	}
@@ -1466,27 +1801,103 @@ func (s *astNodeSlab) putRecTo(idx uint32, dst []byte, pos int) int {
 		tv := s.tsvs[rec.value32]
 		raw, cooked := tv.rawStringPointer_, tv.cookedStringPointer_
 		ts := templateStringSerializedSize(raw, cooked)
-		pos = protoPutTagVarint(dst, pos, 0x42, uint64(ts))
+		pos = putTag1Varint(dst, pos, 0x42, uint64(ts))
 		if raw != 0 {
-			pos = protoPutTagVarint(dst, pos, 0x08, uint64(uint32(raw)))
+			pos = putTag1Varint(dst, pos, 0x08, uint64(uint32(raw)))
 		}
 		if cooked != 0 {
-			pos = protoPutTagVarint(dst, pos, 0x10, uint64(int64(cooked)))
+			pos = putTag1Varint(dst, pos, 0x10, uint64(int64(cooked)))
 		}
 	}
 	if a.originalNamePointer != 0 {
-		pos = protoPutTagVarint(dst, pos, 0x48, uint64(uint32(a.originalNamePointer)))
+		pos = putTag1Varint(dst, pos, 0x48, uint64(uint32(a.originalNamePointer)))
 	}
 	if bp := uint64(rec.boolProps()); bp != 0 {
-		pos = protoPutTagVarint(dst, pos, 0x70, bp)
+		pos = putTag1Varint(dst, pos, 0x70, bp)
 	}
 	if rec.flags&astNodeFlagHasType != 0 {
-		pos = protoPutTagVarint(dst, pos, 0x78, uint64(uint32(rec.type_)))
+		pos = putTag1Varint(dst, pos, 0x78, uint64(uint32(rec.type_)))
 	}
 	if a.sourceFile != 0 {
 		dst[pos] = 0x80
 		dst[pos+1] = 0x01
 		pos += 2 + protoPutVarint(dst[pos+2:], uint64(uint32(a.sourceFile)))
+	}
+	return pos
+}
+
+func (d *astNodeData) putDataTo(dst []byte, pos int) int {
+	if k := d.kind_; k != 0 {
+		if k < uint8(NodeKind_UNRECOGNIZED) {
+			kn := uint32(nodeKind_numbers[k])
+			_ = dst[pos+2]
+			dst[pos] = 0x08
+			dst[pos+1] = byte(kn) | 0x80
+			dst[pos+2] = byte(kn >> 7)
+			pos += 3
+		} else {
+			pos = putTag1Varint(dst, pos, 0x08, math.MaxUint64)
+		}
+	}
+	if d.child_ == nil {
+		for c := d.firstChild; c != nil; c = c.nextSibling {
+			cs := int(atomic.LoadInt32(&c.cachedSize)) - 1
+			if cs < 0 {
+				cs = c.dataSerializedSize()
+			}
+			pos = putTag1Varint(dst, pos, 0x12, uint64(cs))
+			pos = c.putDataTo(dst, pos)
+		}
+	} else {
+		for _, c := range d.child_ {
+			pos = putTag1Varint(dst, pos, 0x12, uint64(c.serializedSize()))
+			pos = c.putTo(dst, pos)
+		}
+	}
+	vc := d.valueCase()
+	switch vc {
+	case AstNode_ValueCase_STRING_VALUE_POINTER:
+		pos = putTag1Varint(dst, pos, 0x18, uint64(uint32(d.valueBits_)))
+	case AstNode_ValueCase_DOUBLE_VALUE:
+		dst[pos] = 0x21
+		binary.LittleEndian.PutUint64(dst[pos+1:], d.valueBits_)
+		pos += 9
+	}
+	if d.relativeLine_ != 0 {
+		pos = putTag1Varint(dst, pos, 0x28, uint64(uint32((d.relativeLine_<<1)^(d.relativeLine_>>31))))
+	}
+	if d.relativeColumn_ != 0 {
+		pos = putTag1Varint(dst, pos, 0x30, uint64(uint32((d.relativeColumn_<<1)^(d.relativeColumn_>>31))))
+	}
+	if d.jsdoc_ != nil {
+		js := d.jsdoc_.serializedSize()
+		pos = putTag1Varint(dst, pos, 0x3A, uint64(js))
+		pos = len(d.jsdoc_.appendTo(dst[:pos : pos+js]))
+	}
+	if vc == AstNode_ValueCase_TEMPLATE_STRING_VALUE && d.flags_&astNodeFlagHasTemplate != 0 {
+		raw, cooked := unpackTemplateStringBits(d.valueBits_)
+		s := templateStringSerializedSize(raw, cooked)
+		pos = putTag1Varint(dst, pos, 0x42, uint64(s))
+		if raw != 0 {
+			pos = putTag1Varint(dst, pos, 0x08, uint64(uint32(raw)))
+		}
+		if cooked != 0 {
+			pos = putTag1Varint(dst, pos, 0x10, uint64(int64(cooked)))
+		}
+	}
+	if d.originalNamePointer_ != 0 {
+		pos = putTag1Varint(dst, pos, 0x48, uint64(uint32(d.originalNamePointer_)))
+	}
+	if d.booleanProperties_ != 0 {
+		pos = putTag1Varint(dst, pos, 0x70, uint64(d.booleanProperties_))
+	}
+	if d.flags_&astNodeFlagHasType != 0 {
+		pos = putTag1Varint(dst, pos, 0x78, uint64(uint32(d.type_)))
+	}
+	if d.sourceFile_ != 0 {
+		dst[pos] = 0x80
+		dst[pos+1] = 0x01
+		pos += 2 + protoPutVarint(dst[pos+2:], uint64(uint32(d.sourceFile_)))
 	}
 	return pos
 }
@@ -1499,60 +1910,7 @@ func (m *AstNode) putTo(dst []byte, pos int) int {
 	if s := d.slab; s != nil {
 		return s.putRecTo(m.idx, dst, pos)
 	}
-	kind := NodeKind(d.kind_)
-	if kind != NodeKind_NODE_KIND_UNSPECIFIED {
-		pos = protoPutTagVarint(dst, pos, 0x08, uint64(int64(kind.GetNumber())))
-	}
-	for _, c := range d.child_ {
-		pos = protoPutTagVarint(dst, pos, 0x12, uint64(c.serializedSize()))
-		pos = c.putTo(dst, pos)
-	}
-	vc := d.valueCase()
-	switch vc {
-	case AstNode_ValueCase_STRING_VALUE_POINTER:
-		pos = protoPutTagVarint(dst, pos, 0x18, uint64(uint32(d.valueBits_)))
-	case AstNode_ValueCase_DOUBLE_VALUE:
-		dst[pos] = 0x21
-		binary.LittleEndian.PutUint64(dst[pos+1:], d.valueBits_)
-		pos += 9
-	}
-	if d.relativeLine_ != 0 {
-		pos = protoPutTagVarint(dst, pos, 0x28, uint64(uint32((d.relativeLine_<<1)^(d.relativeLine_>>31))))
-	}
-	if d.relativeColumn_ != 0 {
-		pos = protoPutTagVarint(dst, pos, 0x30, uint64(uint32((d.relativeColumn_<<1)^(d.relativeColumn_>>31))))
-	}
-	if d.jsdoc_ != nil {
-		js := d.jsdoc_.serializedSize()
-		pos = protoPutTagVarint(dst, pos, 0x3A, uint64(js))
-		pos = len(d.jsdoc_.appendTo(dst[:pos : pos+js]))
-	}
-	if vc == AstNode_ValueCase_TEMPLATE_STRING_VALUE && d.flags_&astNodeFlagHasTemplate != 0 {
-		raw, cooked := unpackTemplateStringBits(d.valueBits_)
-		s := templateStringSerializedSize(raw, cooked)
-		pos = protoPutTagVarint(dst, pos, 0x42, uint64(s))
-		if raw != 0 {
-			pos = protoPutTagVarint(dst, pos, 0x08, uint64(uint32(raw)))
-		}
-		if cooked != 0 {
-			pos = protoPutTagVarint(dst, pos, 0x10, uint64(int64(cooked)))
-		}
-	}
-	if d.originalNamePointer_ != 0 {
-		pos = protoPutTagVarint(dst, pos, 0x48, uint64(uint32(d.originalNamePointer_)))
-	}
-	if d.booleanProperties_ != 0 {
-		pos = protoPutTagVarint(dst, pos, 0x70, uint64(d.booleanProperties_))
-	}
-	if d.flags_&astNodeFlagHasType != 0 {
-		pos = protoPutTagVarint(dst, pos, 0x78, uint64(uint32(d.type_)))
-	}
-	if d.sourceFile_ != 0 {
-		dst[pos] = 0x80
-		dst[pos+1] = 0x01
-		pos += 2 + protoPutVarint(dst[pos+2:], uint64(uint32(d.sourceFile_)))
-	}
-	return pos
+	return d.putDataTo(dst, pos)
 }
 
 func (m *AstNode) appendTo(b []byte) []byte {
@@ -1598,8 +1956,11 @@ func (d *astNodeData) mergeIntoBuilder(r *protoReader, slab *astNodeSlab) {
 		switch tag {
 		case 0:
 			slab.scratch = nil
-			for _, cIdx := range childIdxs {
-				d.child_ = append(d.child_, slab.getHandle(cIdx))
+			if len(childIdxs) > 0 {
+				d.ensureChildSlice()
+				for _, cIdx := range childIdxs {
+					d.child_ = append(d.child_, slab.getHandle(cIdx))
+				}
 			}
 			return
 		case 8:
@@ -1766,8 +2127,8 @@ func (s *astNodeSlab) mergeRec(idx uint32, r *protoReader) {
 
 func (m *AstNode) ToByteArray() []byte {
 	if m != nil {
-		if d := m.d; d != nil && d.bundle != nil {
-			d.bundle.poolFlags |= astPoolFlagPinned
+		if d := m.d; d != nil && d.slab == nil {
+			pinAstData(d)
 		}
 	}
 	return m.appendTo(make([]byte, 0, m.serializedSize()))
@@ -1831,8 +2192,8 @@ func (m *AstNode) ToByteString() ByteString {
 	}
 	if d := m.d; d != nil && d.bundle != nil &&
 		NodeKind(d.kind_) == NodeKind_SOURCE_FILE &&
-		d.bundle.poolFlags&(astPoolFlagLinked|astPoolFlagPinned) == 0 &&
-		m == &d.bundle.node {
+		m == &d.bundle.node &&
+		atomic.LoadUint32(&d.linkState_) == 0 {
 		recycleAstBuilderTree(d.bundle)
 	}
 	if len(raw) == 0 {

@@ -893,7 +893,7 @@ func CommandLineRunner_MatchPaths(pattern string, allJsInputs j2gort.Ext_java_ut
 	} else {
 		separator = j2gort.Ext_java_io_File_F_Separator
 	}
-	var patternParts j2gort.Ext_java_util_List = j2gort.Ext_com_google_common_base_Splitter_On_1_string(j2gort.Ext_java_io_File_F_Separator).SplitToList(j2gort.BoxString(pattern))
+	var patternParts j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(j2gort.Ext_com_google_common_base_Splitter_On_1_string(j2gort.Ext_java_io_File_F_Separator), pattern)
 	_ = patternParts
 	var prefix string = "."
 	_ = prefix
@@ -1554,7 +1554,7 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_splitPipeParts_1416(input j2gor
 		for cur_56.HasNext() {
 			inputSourceMap := cur_56.NextStr()
 			_ = inputSourceMap
-			var parts j2gort.Ext_java_util_List = splitter.SplitToList(j2gort.BoxString(inputSourceMap))
+			var parts j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(splitter, inputSourceMap)
 			_ = parts
 			if parts.Size() != int32(2) {
 				panic(j2gort.NewExt_org_kohsuke_args4j_CmdLineException_2_Ext_org_kohsuke_args4j_CmdLineParser_string(this_.parser, ("Bad value for " + j2gort.StrValString(flagName) + " (duplicate key): " + j2gort.StrVal(input))))
@@ -1567,7 +1567,7 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_splitPipeParts_1416(input j2gor
 
 // Java method: Flags.getPackageJsonEntryNames()
 func (this_ *CommandLineRunner_Flags) GetPackageJsonEntryNames() j2gort.Ext_java_util_List {
-	return j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(44)).SplitToList(j2gort.BoxString(this_.packageJsonEntryNames))
+	return j2gort.SplitterSplitToListStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(44)), this_.packageJsonEntryNames)
 }
 
 func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_kohsuke_args4j_CmdLineParser) {

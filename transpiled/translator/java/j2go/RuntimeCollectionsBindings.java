@@ -1873,7 +1873,7 @@ public final class RuntimeCollectionsBindings {
       }
       case "com.google.common.collect.Lists" -> {
         if (simple.equals("charactersOf") && arity == 1) {
-          out.append("\tCheckNotNull(arg0)\n\tu := javalang.StringToUTF16(arg0)\n\tif len(u) == 0 { return emptyImmutableList_ }\n\tif len(u) == 1 { return newImmList1(ValueOfChar(u[0])) }\n\titems := make([]any, len(u))\n\tfor i, c := range u { items[i] = ValueOfChar(c) }\n\treturn wrapImmutableListOwn(items)\n}\n\n");
+          out.append("\tCheckNotNullString(arg0)\n\tu := javalang.StringToUTF16(arg0)\n\tif len(u) == 0 { return emptyImmutableList_ }\n\tif len(u) == 1 { return newImmList1(ValueOfChar(u[0])) }\n\titems := make([]any, len(u))\n\tfor i, c := range u { items[i] = ValueOfChar(c) }\n\treturn wrapImmutableListOwn(items)\n}\n\n");
           return true;
         }
         if (simple.equals("newArrayList") && arity == 0) {
@@ -2012,7 +2012,7 @@ public final class RuntimeCollectionsBindings {
       }
       case "com.google.common.primitives.Chars" -> {
         if (simple.equals("asList") && arity == 1) {
-          out.append("\tCheckNotNull(arg0)\n\titems := make([]any, len(arg0))\n\tfor i, c := range arg0 { items[i] = ValueOfChar(c) }\n\treturn wrapArrayListOwn(items)\n}\n\n");
+          out.append("\tCheckNotNullSlice(arg0)\n\titems := make([]any, len(arg0))\n\tfor i, c := range arg0 { items[i] = ValueOfChar(c) }\n\treturn wrapArrayListOwn(items)\n}\n\n");
           return true;
         }
         if (simple.equals("toArray") && arity == 1) {
@@ -2102,11 +2102,11 @@ public final class RuntimeCollectionsBindings {
         return true;
       }
       if (simple.equals("toLowerCase") && arity == 1 && p0.equals("string")) {
-        out.append("\treturn strings.ToLower(CheckNotNull(arg0))\n}\n\n");
+        out.append("\treturn strings.ToLower(CheckNotNullString(arg0))\n}\n\n");
         return true;
       }
       if (simple.equals("toUpperCase") && arity == 1 && p0.equals("string")) {
-        out.append("\treturn strings.ToUpper(CheckNotNull(arg0))\n}\n\n");
+        out.append("\treturn strings.ToUpper(CheckNotNullString(arg0))\n}\n\n");
         return true;
       }
       if (simple.equals("equalsIgnoreCase") && arity == 2) {
@@ -2120,7 +2120,7 @@ public final class RuntimeCollectionsBindings {
       switch (simple) {
         case "binarySearch" -> {
           if (arity == 2 && p0.equals("[]int32")) {
-            out.append("\tCheckNotNull(arg0)\n\tlo, hi := 0, len(arg0)-1\n\tfor lo <= hi {\n\t\tmid := int(uint(lo+hi) >> 1)\n\t\tv := arg0[mid]\n\t\tif v < arg1 { lo = mid + 1 } else if v > arg1 { hi = mid - 1 } else { return int32(mid) }\n\t}\n\treturn -int32(lo + 1)\n}\n\n");
+            out.append("\tCheckNotNullSlice(arg0)\n\tlo, hi := 0, len(arg0)-1\n\tfor lo <= hi {\n\t\tmid := int(uint(lo+hi) >> 1)\n\t\tv := arg0[mid]\n\t\tif v < arg1 { lo = mid + 1 } else if v > arg1 { hi = mid - 1 } else { return int32(mid) }\n\t}\n\treturn -int32(lo + 1)\n}\n\n");
             return true;
           }
         }
@@ -2182,29 +2182,29 @@ public final class RuntimeCollectionsBindings {
         }
         case "setAll" -> {
           if (arity == 2 && p0.equals("[]any")) {
-            out.append("\tCheckNotNull(arg0); CheckNotNull(arg1)\n\tfor i := range arg0 { arg0[i] = ToAny(arg1.Apply(int32(i))) }\n}\n\n");
+            out.append("\tCheckNotNullSlice(arg0); CheckNotNull(arg1)\n\tfor i := range arg0 { arg0[i] = ToAny(arg1.Apply(int32(i))) }\n}\n\n");
             return true;
           }
         }
         case "sort" -> {
           if (arity == 1 && p0.equals("[]int32")) {
-            out.append("\tCheckNotNull(arg0)\n\tsort.Slice(arg0, func(i, j int) bool { return arg0[i] < arg0[j] })\n}\n\n");
+            out.append("\tCheckNotNullSlice(arg0)\n\tsort.Slice(arg0, func(i, j int) bool { return arg0[i] < arg0[j] })\n}\n\n");
             return true;
           }
           if (arity == 1 && p0.equals("[]int64")) {
-            out.append("\tCheckNotNull(arg0)\n\tsort.Slice(arg0, func(i, j int) bool { return arg0[i] < arg0[j] })\n}\n\n");
+            out.append("\tCheckNotNullSlice(arg0)\n\tsort.Slice(arg0, func(i, j int) bool { return arg0[i] < arg0[j] })\n}\n\n");
             return true;
           }
           if (arity == 1 && p0.equals("[]int8")) {
-            out.append("\tCheckNotNull(arg0)\n\tsort.Slice(arg0, func(i, j int) bool { return arg0[i] < arg0[j] })\n}\n\n");
+            out.append("\tCheckNotNullSlice(arg0)\n\tsort.Slice(arg0, func(i, j int) bool { return arg0[i] < arg0[j] })\n}\n\n");
             return true;
           }
           if (arity == 1 && p0.equals("[]any")) {
-            out.append("\tCheckNotNull(arg0)\n\tsort.SliceStable(arg0, func(i, j int) bool { return CompareValues(arg0[i], arg0[j]) < 0 })\n}\n\n");
+            out.append("\tCheckNotNullSlice(arg0)\n\tsort.SliceStable(arg0, func(i, j int) bool { return CompareValues(arg0[i], arg0[j]) < 0 })\n}\n\n");
             return true;
           }
           if (arity == 2 && p0.equals("[]any")) {
-            out.append("\tCheckNotNull(arg0)\n\tcmp := comparatorFuncOrNatural(arg1)\n\tsort.SliceStable(arg0, func(i, j int) bool { return cmp(arg0[i], arg0[j]) < 0 })\n}\n\n");
+            out.append("\tCheckNotNullSlice(arg0)\n\tcmp := comparatorFuncOrNatural(arg1)\n\tsort.SliceStable(arg0, func(i, j int) bool { return cmp(arg0[i], arg0[j]) < 0 })\n}\n\n");
             return true;
           }
         }
@@ -3965,7 +3965,7 @@ public final class RuntimeCollectionsBindings {
           if (qn.equals("com.google.common.collect.ImmutableRangeSet")) {
             return "\tpanic(javalang.NewUnsupportedOperationException(\"ImmutableRangeSet.add\"))\n";
           }
-          return "\tCheckNotNull(arg0)\n\trc := arg0.Core_.(*jRangeCore)\n\tif CompareValues(rc.lower, rc.upper) <= 0 {\n\t\trs := this_.getCore().(*jRangeSetCore)\n\t\trs.ranges = append(rs.ranges, rc)\n\t}\n";
+          return "\tCheckNotNullPtr(arg0)\n\trc := arg0.Core_.(*jRangeCore)\n\tif CompareValues(rc.lower, rc.upper) <= 0 {\n\t\trs := this_.getCore().(*jRangeSetCore)\n\t\trs.ranges = append(rs.ranges, rc)\n\t}\n";
         }
         if (m.equals("contains") && arity == 1) {
           return "\tv := CheckNotNull(ToAny(arg0))\n\tfor _, r := range this_.getCore().(*jRangeSetCore).ranges {\n\t\tif CompareValues(v, r.lower) >= 0 && CompareValues(v, r.upper) <= 0 { return true }\n\t}\n\treturn false\n";
@@ -4524,7 +4524,7 @@ public final class RuntimeCollectionsBindings {
         // --- Core Collection Equality, Hash, ToArray, String &Iterators ---
 
         func sliceToArray1(items []any, dst []any) []any {
-        \tCheckNotNull(dst)
+        \tCheckNotNullSlice(dst)
         \tn := len(items)
         \tif len(dst) < n {
         \t\tout := make([]any, n)
@@ -5437,11 +5437,57 @@ public final class RuntimeCollectionsBindings {
         \thasEnumBits bool
         }
 
-        func tryInitImmEnumSingle(_ *Ext_com_google_common_collect_ImmutableSetBase, _ any) {
+        func tryInitImmEnumSingle(obj *Ext_com_google_common_collect_ImmutableSetBase, e0 any) {
+        \tif e0 == nil {
+        \t\treturn
+        \t}
+        \trt0 := reflect.TypeOf(e0)
+        \tif rt0.Kind() == reflect.Uint8 {
+        \t\tu := uint8(reflect.ValueOf(e0).Uint())
+        \t\tif u != 0 {
+        \t\t\ttab := new([256]bool)
+        \t\t\ttab[u] = true
+        \t\t\tobj.u8Tab_ = tab
+        \t\t\tobj.u8Bits_[u>>6] = uint64(1) << (u & 63)
+        \t\t\tobj.u8PtrNil_ = reflect.Zero(reflect.PointerTo(rt0)).Interface()
+        \t\t\tobj.hasU8Bits_ = true
+        \t\t}
+        \t}
         }
 
         func tryInitImmEnumMulti(obj *Ext_com_google_common_collect_ImmutableSetBase, elems []any) bool {
-        \tif len(elems) <= 4 || elems[0] == nil {
+        \tif len(elems) == 0 || elems[0] == nil {
+        \t\treturn false
+        \t}
+        \trt0 := reflect.TypeOf(elems[0])
+        \tif rt0.Kind() == reflect.Uint8 {
+        \t\tu0 := uint8(reflect.ValueOf(elems[0]).Uint())
+        \t\tif u0 == 0 {
+        \t\t\treturn false
+        \t\t}
+        \t\tvar maskBits [4]uint64
+        \t\ttab := new([256]bool)
+        \t\ttab[u0] = true
+        \t\tmaskBits[u0>>6] |= uint64(1) << (u0 & 63)
+        \t\tfor i := 1; i < len(elems); i++ {
+        \t\t\tei := elems[i]
+        \t\t\tif ei == nil || reflect.TypeOf(ei) != rt0 {
+        \t\t\t\treturn false
+        \t\t\t}
+        \t\t\tu := uint8(reflect.ValueOf(ei).Uint())
+        \t\t\tif u == 0 {
+        \t\t\t\treturn false
+        \t\t\t}
+        \t\t\ttab[u] = true
+        \t\t\tmaskBits[u>>6] |= uint64(1) << (u & 63)
+        \t\t}
+        \t\tobj.u8Tab_ = tab
+        \t\tobj.u8Bits_ = maskBits
+        \t\tobj.u8PtrNil_ = reflect.Zero(reflect.PointerTo(rt0)).Interface()
+        \t\tobj.hasU8Bits_ = true
+        \t\treturn true
+        \t}
+        \tif len(elems) <= 4 {
         \t\treturn false
         \t}
         \te0, ok := elems[0].(jEnumOrdAccessor)
@@ -5527,7 +5573,7 @@ public final class RuntimeCollectionsBindings {
         }
 
         func finishImmSetMulti(elems []any, scOwned *JSetCore) *Ext_com_google_common_collect_ImmutableSetBase {
-        \tobj := &Ext_com_google_common_collect_ImmutableSetBase{elems_: elems[:len(elems):len(elems)]}
+        \tobj := &Ext_com_google_common_collect_ImmutableSetBase{elems_: elems[:len(elems):len(elems)], u8Tab_: &emptyU8Tab_}
         \tobj.BindExtSelf_(obj)
         \tif tryInitImmEnumMulti(obj, elems) {
         \t\treturn obj
@@ -5821,7 +5867,7 @@ public final class RuntimeCollectionsBindings {
         }
 
         func (s *Ext_com_google_common_collect_ImmutableSetBase) immSetContainsStr(k string) bool {
-        \tif k == NullString {
+        \tif k == NullString || s.hasU8Bits_ {
         \t\treturn false
         \t}
         \tif s.strs_ != nil {
@@ -5875,7 +5921,7 @@ public final class RuntimeCollectionsBindings {
         }
 
         func (s *Ext_com_google_common_collect_ImmutableSetBase) immSetContainsNode(n uint32) bool {
-        \tif n == 0 || s.strs_ != nil {
+        \tif n == 0 || s.strs_ != nil || s.hasU8Bits_ {
         \t\treturn false
         \t}
         \telems := s.elems_
@@ -6035,7 +6081,38 @@ public final class RuntimeCollectionsBindings {
         \treturn false
         }
 
+        func (b *Ext_com_google_common_collect_ImmutableSetBase) ContainsU8_(u uint8) bool {
+        \tif b != nil && b.u8Tab_ != nil {
+        \t\treturn b.u8Tab_[u]
+        \t}
+        \treturn b.immSetContainsU8Fallback(u)
+        }
+
+        //go:noinline
+        func (b *Ext_com_google_common_collect_ImmutableSetBase) immSetContainsU8Fallback(u uint8) bool {
+        \tif b == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif b.hasU8Bits_ {
+        \t\treturn (b.u8Bits_[u>>6] & (uint64(1) << (u & 63))) != 0
+        \t}
+        \treturn false
+        }
+
         func (s *Ext_com_google_common_collect_ImmutableSetBase) immSetContains(v any) bool {
+        \tif s.hasU8Bits_ {
+        \t\tif s.u8PtrNil_ == nil || v == nil {
+        \t\t\treturn false
+        \t\t}
+        \t\tif ea, ok := v.(jEnumOrdAccessor); ok {
+        \t\t\tu := ea.EnumOrdinal_() + 1
+        \t\t\tif u <= 0 || u >= 256 || (s.u8Bits_[uint(u)>>6]&(uint64(1)<<(uint(u)&63))) == 0 {
+        \t\t\t\treturn false
+        \t\t\t}
+        \t\t\treturn reflect.TypeOf(v) == reflect.TypeOf(s.elems_[0])
+        \t\t}
+        \t\treturn false
+        \t}
         \tif s.strs_ != nil {
         \t\tif len(s.strs_) == 0 || v == nil {
         \t\t\treturn false
@@ -6177,7 +6254,7 @@ public final class RuntimeCollectionsBindings {
         \t\tif isb.Self_ != nil && isb.Self_ != Ext_java_util_AbstractCollection(isb) {
         \t\t\treturn false, false
         \t\t}
-        \t\tif isb.strs_ != nil || len(isb.elems_) == 0 {
+        \t\tif isb.strs_ != nil || isb.hasU8Bits_ || len(isb.elems_) == 0 {
         \t\t\treturn false, true
         \t\t}
         \t\th, nonNull, isIdent := k.FastValHash_()
@@ -6226,8 +6303,13 @@ public final class RuntimeCollectionsBindings {
         \tif other == nil {
         \t\treturn false
         \t}
-        \tif os, ok := other.(*Ext_com_google_common_collect_ImmutableSetBase); ok && os == s {
-        \t\treturn true
+        \tif os, ok := other.(*Ext_com_google_common_collect_ImmutableSetBase); ok && os != nil {
+        \t\tif os == s {
+        \t\t\treturn true
+        \t\t}
+        \t\tif s.hasU8Bits_ && os.hasU8Bits_ {
+        \t\t\treturn s.u8PtrNil_ == os.u8PtrNil_ && s.u8Bits_ == os.u8Bits_
+        \t\t}
         \t}
         \tst, ok := other.(Ext_java_util_Set)
         \tif !ok || st == nil || javalang.IsNil(st) {
@@ -7542,7 +7624,7 @@ public final class RuntimeCollectionsBindings {
         }
 
         func newBackedArrayList(arr []any) Ext_java_util_List {
-        \tCheckNotNull(arr)
+        \tCheckNotNullSlice(arr)
         \tv := &jBackedArrayList{arr: arr}
         \tv.BindExtSelf_(v)
         \treturn v
@@ -10252,7 +10334,7 @@ public final class RuntimeCollectionsBindings {
         }
 
         func enumSetNoneOf(cls *javalang.Class) Ext_java_util_EnumSet {
-        \tCheckNotNull(cls)
+        \tCheckNotNullPtr(cls)
         \tu := LookupEnumConstants(cls)
         \tobj := newEnumSetShell()
         \tobj.inlineEnumSet.universe = u
@@ -10260,7 +10342,7 @@ public final class RuntimeCollectionsBindings {
         }
 
         func enumSetAllOf(cls *javalang.Class) Ext_java_util_EnumSet {
-        \tCheckNotNull(cls)
+        \tCheckNotNullPtr(cls)
         \tu := LookupEnumConstants(cls)
         \tif u == nil {
         \t\tpanic(javalang.NewClassCastException(cls.GetName() + " not an enum"))
@@ -10373,7 +10455,7 @@ public final class RuntimeCollectionsBindings {
         func (em *jEnumMapCore) Size() int32 { return em.size }
 
         func (em *jEnumMapCore) initClass(cls *javalang.Class) {
-        \tCheckNotNull(cls)
+        \tCheckNotNullPtr(cls)
         \tem.universe = LookupEnumConstants(cls)
         }
 
@@ -11757,7 +11839,7 @@ public final class RuntimeCollectionsBindings {
         }
 
         func syncMapCore(m *Ext_java_util_concurrent_ConcurrentHashMap) *jSyncMapCore {
-        \tCheckNotNull(m)
+        \tCheckNotNullPtr(m)
         \tif m.Core_ == nil {
         \t\tm.Core_ = &jSyncMapCore{mc: NewJMapCore(false)}
         \t}
@@ -16245,7 +16327,7 @@ public final class RuntimeCollectionsBindings {
 
         func collectionsShuffle(lst Ext_java_util_List, rnd *Ext_java_util_Random) {
         \tCheckNotNull(lst)
-        \tCheckNotNull(rnd)
+        \tCheckNotNullPtr(rnd)
         \tif rnd.Core_ == nil { rnd.Core_ = javautil.NewRandom() }
         \tr := rnd.Core_.(*javautil.Random)
         \tfor i := lst.Size(); i > 1; i-- {
@@ -17554,6 +17636,19 @@ public final class RuntimeCollectionsBindings {
         \t\t\tif len(ss) == 0 {
         \t\t\t\treturn emptyNonNilSlice[T]()
         \t\t\t}
+        \t\t\tif _, isStr := any((*T)(nil)).(*string); isStr {
+        \t\t\t\tif l, ok3 := src.(*jImmStrList); ok3 && l != nil {
+        \t\t\t\t\treturn any(l.strs[:len(l.strs):len(l.strs)]).([]T)
+        \t\t\t\t}
+        \t\t\t\tout := make([]string, len(ss))
+        \t\t\t\tfor i, str := range ss {
+        \t\t\t\t\tif str == NullString {
+        \t\t\t\t\t\tThrowNPE()
+        \t\t\t\t\t}
+        \t\t\t\t\tout[i] = str
+        \t\t\t\t}
+        \t\t\t\treturn any(out).([]T)
+        \t\t\t}
         \t\t\tout := make([]T, len(ss))
         \t\t\tfor i, str := range ss {
         \t\t\t\tif str == NullString {
@@ -17710,6 +17805,15 @@ public final class RuntimeCollectionsBindings {
         \t}
         \tif ssi, ok := src.(StrSliceIterable); ok {
         \t\tif ss, ok2 := ssi.IterStrSlice_(); ok2 {
+        \t\t\tif dstStr, ok3 := any(&dst).(*[]string); ok3 {
+        \t\t\t\tfor _, str := range ss {
+        \t\t\t\t\tif str == NullString {
+        \t\t\t\t\t\tThrowNPE()
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t\t*dstStr = append(*dstStr, ss...)
+        \t\t\t\treturn dst
+        \t\t\t}
         \t\t\tfor _, str := range ss {
         \t\t\t\tif str == NullString {
         \t\t\t\t\tThrowNPE()
@@ -18522,6 +18626,22 @@ public final class RuntimeCollectionsBindings {
         \t\t\tThrowNPE()
         \t\t}
         \t\treturn []T{unboxJavaElem[T](l.elem[0])}
+        \t}
+        \tif ssi, ok := col.(StrSliceIterable); ok {
+        \t\tif ss, ok2 := ssi.IterStrSlice_(); ok2 {
+        \t\t\tif len(ss) == 0 {
+        \t\t\t\treturn []T{}
+        \t\t\t}
+        \t\t\tout := make([]T, len(ss))
+        \t\t\tif outStr, ok3 := any(&out).(*[]string); ok3 {
+        \t\t\t\tcopy(*outStr, ss)
+        \t\t\t\treturn out
+        \t\t\t}
+        \t\t\tfor i, str := range ss {
+        \t\t\t\tout[i] = unboxJavaElem[T](str)
+        \t\t\t}
+        \t\t\treturn out
+        \t\t}
         \t}
         \tif tv, ok := col.(jTypedViewCursorSource); ok {
         \t\tif n, ok2 := tv.typedViewLen_(); ok2 {
@@ -26010,7 +26130,7 @@ public final class RuntimeCollectionsBindings {
 
         const (
         \tslabSmallChunkSize = 16
-        \tslabChunkSize      = 128
+        \tslabChunkSize      = 256
         \tslabPoolMaxBytes   = 384 << 20
         \tslabSmallPoolMaxB  = 32 << 20
         \tslabGlobalMaxBytes = 1024 << 20

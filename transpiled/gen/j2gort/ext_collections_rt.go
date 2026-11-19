@@ -471,7 +471,7 @@ func ExtDefault_Consumer_AndThen(this_ Ext_java_util_function_Consumer, after Ex
 // --- Core Collection Equality, Hash, ToArray, String &Iterators ---
 
 func sliceToArray1(items []any, dst []any) []any {
-	CheckNotNull(dst)
+	CheckNotNullSlice(dst)
 	n := len(items)
 	if len(dst) < n {
 		out := make([]any, n)
@@ -1384,11 +1384,57 @@ type immSetIdx struct {
 	hasEnumBits bool
 }
 
-func tryInitImmEnumSingle(_ *Ext_com_google_common_collect_ImmutableSetBase, _ any) {
+func tryInitImmEnumSingle(obj *Ext_com_google_common_collect_ImmutableSetBase, e0 any) {
+	if e0 == nil {
+		return
+	}
+	rt0 := reflect.TypeOf(e0)
+	if rt0.Kind() == reflect.Uint8 {
+		u := uint8(reflect.ValueOf(e0).Uint())
+		if u != 0 {
+			tab := new([256]bool)
+			tab[u] = true
+			obj.u8Tab_ = tab
+			obj.u8Bits_[u>>6] = uint64(1) << (u & 63)
+			obj.u8PtrNil_ = reflect.Zero(reflect.PointerTo(rt0)).Interface()
+			obj.hasU8Bits_ = true
+		}
+	}
 }
 
 func tryInitImmEnumMulti(obj *Ext_com_google_common_collect_ImmutableSetBase, elems []any) bool {
-	if len(elems) <= 4 || elems[0] == nil {
+	if len(elems) == 0 || elems[0] == nil {
+		return false
+	}
+	rt0 := reflect.TypeOf(elems[0])
+	if rt0.Kind() == reflect.Uint8 {
+		u0 := uint8(reflect.ValueOf(elems[0]).Uint())
+		if u0 == 0 {
+			return false
+		}
+		var maskBits [4]uint64
+		tab := new([256]bool)
+		tab[u0] = true
+		maskBits[u0>>6] |= uint64(1) << (u0 & 63)
+		for i := 1; i < len(elems); i++ {
+			ei := elems[i]
+			if ei == nil || reflect.TypeOf(ei) != rt0 {
+				return false
+			}
+			u := uint8(reflect.ValueOf(ei).Uint())
+			if u == 0 {
+				return false
+			}
+			tab[u] = true
+			maskBits[u>>6] |= uint64(1) << (u & 63)
+		}
+		obj.u8Tab_ = tab
+		obj.u8Bits_ = maskBits
+		obj.u8PtrNil_ = reflect.Zero(reflect.PointerTo(rt0)).Interface()
+		obj.hasU8Bits_ = true
+		return true
+	}
+	if len(elems) <= 4 {
 		return false
 	}
 	e0, ok := elems[0].(jEnumOrdAccessor)
@@ -1474,7 +1520,7 @@ func isAllFastImmSetElems(elems []any) bool {
 }
 
 func finishImmSetMulti(elems []any, scOwned *JSetCore) *Ext_com_google_common_collect_ImmutableSetBase {
-	obj := &Ext_com_google_common_collect_ImmutableSetBase{elems_: elems[:len(elems):len(elems)]}
+	obj := &Ext_com_google_common_collect_ImmutableSetBase{elems_: elems[:len(elems):len(elems)], u8Tab_: &emptyU8Tab_}
 	obj.BindExtSelf_(obj)
 	if tryInitImmEnumMulti(obj, elems) {
 		return obj
@@ -1768,7 +1814,7 @@ func (s *Ext_com_google_common_collect_ImmutableSetBase) buildIdxSlow() *immSetI
 }
 
 func (s *Ext_com_google_common_collect_ImmutableSetBase) immSetContainsStr(k string) bool {
-	if k == NullString {
+	if k == NullString || s.hasU8Bits_ {
 		return false
 	}
 	if s.strs_ != nil {
@@ -1822,7 +1868,7 @@ func (s *Ext_com_google_common_collect_ImmutableSetBase) immSetContainsStr(k str
 }
 
 func (s *Ext_com_google_common_collect_ImmutableSetBase) immSetContainsNode(n uint32) bool {
-	if n == 0 || s.strs_ != nil {
+	if n == 0 || s.strs_ != nil || s.hasU8Bits_ {
 		return false
 	}
 	elems := s.elems_
@@ -1982,7 +2028,38 @@ func immSmallSetContains(elems []any, v any) bool {
 	return false
 }
 
+func (b *Ext_com_google_common_collect_ImmutableSetBase) ContainsU8_(u uint8) bool {
+	if b != nil && b.u8Tab_ != nil {
+		return b.u8Tab_[u]
+	}
+	return b.immSetContainsU8Fallback(u)
+}
+
+//go:noinline
+func (b *Ext_com_google_common_collect_ImmutableSetBase) immSetContainsU8Fallback(u uint8) bool {
+	if b == nil {
+		ThrowNPE()
+	}
+	if b.hasU8Bits_ {
+		return (b.u8Bits_[u>>6] & (uint64(1) << (u & 63))) != 0
+	}
+	return false
+}
+
 func (s *Ext_com_google_common_collect_ImmutableSetBase) immSetContains(v any) bool {
+	if s.hasU8Bits_ {
+		if s.u8PtrNil_ == nil || v == nil {
+			return false
+		}
+		if ea, ok := v.(jEnumOrdAccessor); ok {
+			u := ea.EnumOrdinal_() + 1
+			if u <= 0 || u >= 256 || (s.u8Bits_[uint(u)>>6]&(uint64(1)<<(uint(u)&63))) == 0 {
+				return false
+			}
+			return reflect.TypeOf(v) == reflect.TypeOf(s.elems_[0])
+		}
+		return false
+	}
 	if s.strs_ != nil {
 		if len(s.strs_) == 0 || v == nil {
 			return false
@@ -2124,7 +2201,7 @@ func fastSetContainsEqVal[K FastEqValKey](s any, k K) (bool, bool) {
 		if isb.Self_ != nil && isb.Self_ != Ext_java_util_AbstractCollection(isb) {
 			return false, false
 		}
-		if isb.strs_ != nil || len(isb.elems_) == 0 {
+		if isb.strs_ != nil || isb.hasU8Bits_ || len(isb.elems_) == 0 {
 			return false, true
 		}
 		h, nonNull, isIdent := k.FastValHash_()
@@ -2173,8 +2250,13 @@ func immSetEquals(s *Ext_com_google_common_collect_ImmutableSetBase, other any) 
 	if other == nil {
 		return false
 	}
-	if os, ok := other.(*Ext_com_google_common_collect_ImmutableSetBase); ok && os == s {
-		return true
+	if os, ok := other.(*Ext_com_google_common_collect_ImmutableSetBase); ok && os != nil {
+		if os == s {
+			return true
+		}
+		if s.hasU8Bits_ && os.hasU8Bits_ {
+			return s.u8PtrNil_ == os.u8PtrNil_ && s.u8Bits_ == os.u8Bits_
+		}
 	}
 	st, ok := other.(Ext_java_util_Set)
 	if !ok || st == nil || javalang.IsNil(st) {
@@ -3484,7 +3566,7 @@ type jBackedArrayList struct {
 }
 
 func newBackedArrayList(arr []any) Ext_java_util_List {
-	CheckNotNull(arr)
+	CheckNotNullSlice(arr)
 	v := &jBackedArrayList{arr: arr}
 	v.BindExtSelf_(v)
 	return v
@@ -6191,7 +6273,7 @@ func (es *jEnumSetCore) Iterator() Ext_java_util_Iterator {
 }
 
 func enumSetNoneOf(cls *javalang.Class) Ext_java_util_EnumSet {
-	CheckNotNull(cls)
+	CheckNotNullPtr(cls)
 	u := LookupEnumConstants(cls)
 	obj := newEnumSetShell()
 	obj.inlineEnumSet.universe = u
@@ -6199,7 +6281,7 @@ func enumSetNoneOf(cls *javalang.Class) Ext_java_util_EnumSet {
 }
 
 func enumSetAllOf(cls *javalang.Class) Ext_java_util_EnumSet {
-	CheckNotNull(cls)
+	CheckNotNullPtr(cls)
 	u := LookupEnumConstants(cls)
 	if u == nil {
 		panic(javalang.NewClassCastException(cls.GetName() + " not an enum"))
@@ -6312,7 +6394,7 @@ type jEnumMapCore struct {
 func (em *jEnumMapCore) Size() int32 { return em.size }
 
 func (em *jEnumMapCore) initClass(cls *javalang.Class) {
-	CheckNotNull(cls)
+	CheckNotNullPtr(cls)
 	em.universe = LookupEnumConstants(cls)
 }
 
@@ -7766,7 +7848,7 @@ type jSyncMapCore struct {
 }
 
 func syncMapCore(m *Ext_java_util_concurrent_ConcurrentHashMap) *jSyncMapCore {
-	CheckNotNull(m)
+	CheckNotNullPtr(m)
 	if m.Core_ == nil {
 		m.Core_ = &jSyncMapCore{mc: NewJMapCore(false)}
 	}
@@ -12794,7 +12876,7 @@ type jRangeSetCore struct {
 
 func collectionsShuffle(lst Ext_java_util_List, rnd *Ext_java_util_Random) {
 	CheckNotNull(lst)
-	CheckNotNull(rnd)
+	CheckNotNullPtr(rnd)
 	if rnd.Core_ == nil {
 		rnd.Core_ = javautil.NewRandom()
 	}
@@ -14159,6 +14241,19 @@ func ImmListCopyToSlice[T any](src any) []T {
 			if len(ss) == 0 {
 				return emptyNonNilSlice[T]()
 			}
+			if _, isStr := any((*T)(nil)).(*string); isStr {
+				if l, ok3 := src.(*jImmStrList); ok3 && l != nil {
+					return any(l.strs[:len(l.strs):len(l.strs)]).([]T)
+				}
+				out := make([]string, len(ss))
+				for i, str := range ss {
+					if str == NullString {
+						ThrowNPE()
+					}
+					out[i] = str
+				}
+				return any(out).([]T)
+			}
 			out := make([]T, len(ss))
 			for i, str := range ss {
 				if str == NullString {
@@ -14315,6 +14410,15 @@ func AppendImmCollection[T any](dst []T, src any) []T {
 	}
 	if ssi, ok := src.(StrSliceIterable); ok {
 		if ss, ok2 := ssi.IterStrSlice_(); ok2 {
+			if dstStr, ok3 := any(&dst).(*[]string); ok3 {
+				for _, str := range ss {
+					if str == NullString {
+						ThrowNPE()
+					}
+				}
+				*dstStr = append(*dstStr, ss...)
+				return dst
+			}
 			for _, str := range ss {
 				if str == NullString {
 					ThrowNPE()
@@ -15127,6 +15231,22 @@ func CopyCollectionToSlice[T any](col any) []T {
 			ThrowNPE()
 		}
 		return []T{unboxJavaElem[T](l.elem[0])}
+	}
+	if ssi, ok := col.(StrSliceIterable); ok {
+		if ss, ok2 := ssi.IterStrSlice_(); ok2 {
+			if len(ss) == 0 {
+				return []T{}
+			}
+			out := make([]T, len(ss))
+			if outStr, ok3 := any(&out).(*[]string); ok3 {
+				copy(*outStr, ss)
+				return out
+			}
+			for i, str := range ss {
+				out[i] = unboxJavaElem[T](str)
+			}
+			return out
+		}
 	}
 	if tv, ok := col.(jTypedViewCursorSource); ok {
 		if n, ok2 := tv.typedViewLen_(); ok2 {
@@ -22591,7 +22711,7 @@ func NodeDequeDescendingIterator[N ~uint32](d *NodeDeque[N]) Ext_java_util_Itera
 
 const (
 	slabSmallChunkSize = 16
-	slabChunkSize      = 128
+	slabChunkSize      = 256
 	slabPoolMaxBytes   = 384 << 20
 	slabSmallPoolMaxB  = 32 << 20
 	slabGlobalMaxBytes = 1024 << 20

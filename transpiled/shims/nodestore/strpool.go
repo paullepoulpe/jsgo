@@ -468,134 +468,179 @@ func InternBytes(b []byte) StringID {
 }
 
 const (
-	joinDot2CacheBits  = 14
-	joinDot2CacheLen   = 1 << joinDot2CacheBits // 16384 buckets = 32,768 2-way entries (128 KiB BSS)
-	joinDot3CacheBits  = 13
-	joinDot3CacheLen   = 1 << joinDot3CacheBits // 8192 buckets = 16,384 2-way entries (64 KiB BSS)
-	joinDot4CacheBits  = 13
-	joinDot4CacheLen   = 1 << joinDot4CacheBits // 8192 buckets = 16,384 2-way entries (64 KiB BSS)
-	joinDotMaxTotalLen = 512
-	joinDotStackBufLen = 512
-	joinDotFastBufLen  = 128
+	joinDotShardBits    = 6
+	joinDotNumShards    = 1 << joinDotShardBits // 64 lazy shards (~1.5 KiB total BSS)
+	joinDotShardMask    = joinDotNumShards - 1
+	joinDot2CacheBits   = 16                    // 65,536 buckets * 4 ways = 262,144 entries
+	joinDot2SlotsPerSh  = 1 << (joinDot2CacheBits - joinDotShardBits)
+	joinDot3CacheBits   = 15                    // 32,768 buckets * 4 ways = 131,072 entries
+	joinDot3SlotsPerSh  = 1 << (joinDot3CacheBits - joinDotShardBits)
+	joinDot4CacheBits   = 16                    // 65,536 buckets * 4 ways = 262,144 entries
+	joinDot4SlotsPerSh  = 1 << (joinDot4CacheBits - joinDotShardBits)
+	joinDotBucketChunk  = 64
+	joinDotMaxChunksSh  = 32
+	joinDotMaxTotalLen  = 512
 )
 
-// joinDot2Bucket is an immutable 48-byte 2-way set-associative cache bucket
-// with only 2 Go pointers (ptrdata = 24). Neither caller slice a nor b is stored,
-// preventing any pinning of large parser input buffers while remaining 100% lock-free.
+func formatJoin2(a, b string) string       { return a + "." + b }
+func formatJoin3(a, b, c string) string    { return a + "." + b + "." + c }
+func formatJoin4(a, b, c, d string) string { return a + "." + b + "." + c + "." + d }
+
+// joinDot2Bucket is an immutable 88-byte 4-way set-associative cache bucket
+// with all 4 string pointers at the head (ptrdata = 56). Neither caller slice
+// a nor b is stored, preventing pinning of large parser input buffers.
 type joinDot2Bucket struct {
-	out0  string
-	out1  string
-	h0    uint32
-	h1    uint32
-	alen0 uint16
-	alen1 uint16
+	out0, out1, out2, out3     string
+	h0, h1, h2, h3             uint32
+	alen0, alen1, alen2, alen3 uint16
 }
 
-// joinDot3Bucket is an immutable 48-byte 2-way set-associative cache bucket
-// with only 2 Go pointers (ptrdata = 24).
+// joinDot3Bucket is an immutable 96-byte 4-way set-associative cache bucket
+// with all 4 string pointers at the head (ptrdata = 56).
 type joinDot3Bucket struct {
-	out0  string
-	out1  string
-	h0    uint32
-	h1    uint32
-	alen0 uint16
-	blen0 uint16
-	alen1 uint16
-	blen1 uint16
+	out0, out1, out2, out3     string
+	h0, h1, h2, h3             uint32
+	alen0, blen0, alen1, blen1 uint16
+	alen2, blen2, alen3, blen3 uint16
 }
 
-// joinDot4Bucket is an immutable 64-byte 2-way set-associative cache bucket
-// with only 2 Go pointers (ptrdata = 24).
+// joinDot4Bucket is an immutable 104-byte 4-way set-associative cache bucket
+// with all 4 string pointers at the head (ptrdata = 56).
 type joinDot4Bucket struct {
-	out0  string
-	out1  string
-	h0    uint32
-	h1    uint32
-	alen0 uint16
-	blen0 uint16
-	clen0 uint16
-	alen1 uint16
-	blen1 uint16
-	clen1 uint16
+	out0, out1, out2, out3                 string
+	h0, h1, h2, h3                         uint32
+	alen0, blen0, clen0, alen1, blen1, clen1 uint16
+	alen2, blen2, clen2, alen3, blen3, clen3 uint16
+}
+
+type joinDot2Shard struct {
+	buckets [joinDot2SlotsPerSh]atomic.Pointer[joinDot2Bucket]
+	seen    [joinDot2SlotsPerSh]atomic.Uint32
+	mu      sync.Mutex
+	cur     *[joinDotBucketChunk]joinDot2Bucket
+	pos     uint8
+	chunks  uint8
+}
+
+type joinDot3Shard struct {
+	buckets [joinDot3SlotsPerSh]atomic.Pointer[joinDot3Bucket]
+	seen    [joinDot3SlotsPerSh]atomic.Uint32
+	mu      sync.Mutex
+	cur     *[joinDotBucketChunk]joinDot3Bucket
+	pos     uint8
+	chunks  uint8
+}
+
+type joinDot4Shard struct {
+	buckets [joinDot4SlotsPerSh]atomic.Pointer[joinDot4Bucket]
+	seen    [joinDot4SlotsPerSh]atomic.Uint32
+	mu      sync.Mutex
+	cur     *[joinDotBucketChunk]joinDot4Bucket
+	pos     uint8
+	chunks  uint8
 }
 
 var (
-	joinDot2Cache [joinDot2CacheLen]atomic.Pointer[joinDot2Bucket]
-	joinDot3Cache [joinDot3CacheLen]atomic.Pointer[joinDot3Bucket]
-	joinDot4Cache [joinDot4CacheLen]atomic.Pointer[joinDot4Bucket]
+	joinDot2Shards [joinDotNumShards]atomic.Pointer[joinDot2Shard]
+	joinDot3Shards [joinDotNumShards]atomic.Pointer[joinDot3Shard]
+	joinDot4Shards [joinDotNumShards]atomic.Pointer[joinDot4Shard]
 )
 
-func formatJoin2(a, b string) string {
-	total := len(a) + len(b) + 1
-	if total <= joinDotFastBufLen {
-		var buf [joinDotFastBufLen]byte
-		i := copy(buf[:], a)
-		buf[i] = '.'
-		copy(buf[i+1:], b)
-		return string(buf[:total])
+func getJoinDot2Shard(shardIdx uint32) *joinDot2Shard {
+	if sh := joinDot2Shards[shardIdx].Load(); sh != nil {
+		return sh
 	}
-	if total <= joinDotStackBufLen {
-		var buf [joinDotStackBufLen]byte
-		i := copy(buf[:], a)
-		buf[i] = '.'
-		copy(buf[i+1:], b)
-		return string(buf[:total])
+	ns := &joinDot2Shard{}
+	if joinDot2Shards[shardIdx].CompareAndSwap(nil, ns) {
+		return ns
 	}
-	return a + "." + b
+	return joinDot2Shards[shardIdx].Load()
 }
 
-func formatJoin3(a, b, c string) string {
-	total := len(a) + len(b) + len(c) + 2
-	if total <= joinDotFastBufLen {
-		var buf [joinDotFastBufLen]byte
-		i := copy(buf[:], a)
-		buf[i] = '.'
-		i += 1 + copy(buf[i+1:], b)
-		buf[i] = '.'
-		copy(buf[i+1:], c)
-		return string(buf[:total])
+func (sh *joinDot2Shard) allocBucket() *joinDot2Bucket {
+	sh.mu.Lock()
+	if sh.cur != nil && int(sh.pos) < joinDotBucketChunk {
+		b := &sh.cur[sh.pos]
+		sh.pos++
+		sh.mu.Unlock()
+		return b
 	}
-	if total <= joinDotStackBufLen {
-		var buf [joinDotStackBufLen]byte
-		i := copy(buf[:], a)
-		buf[i] = '.'
-		i += 1 + copy(buf[i+1:], b)
-		buf[i] = '.'
-		copy(buf[i+1:], c)
-		return string(buf[:total])
+	if sh.chunks < joinDotMaxChunksSh {
+		c := new([joinDotBucketChunk]joinDot2Bucket)
+		sh.cur = c
+		sh.pos = 1
+		sh.chunks++
+		sh.mu.Unlock()
+		return &c[0]
 	}
-	return a + "." + b + "." + c
+	sh.mu.Unlock()
+	return &joinDot2Bucket{}
 }
 
-func formatJoin4(a, b, c, d string) string {
-	total := len(a) + len(b) + len(c) + len(d) + 3
-	if total <= joinDotFastBufLen {
-		var buf [joinDotFastBufLen]byte
-		i := copy(buf[:], a)
-		buf[i] = '.'
-		i += 1 + copy(buf[i+1:], b)
-		buf[i] = '.'
-		i += 1 + copy(buf[i+1:], c)
-		buf[i] = '.'
-		copy(buf[i+1:], d)
-		return string(buf[:total])
+func getJoinDot3Shard(shardIdx uint32) *joinDot3Shard {
+	if sh := joinDot3Shards[shardIdx].Load(); sh != nil {
+		return sh
 	}
-	if total <= joinDotStackBufLen {
-		var buf [joinDotStackBufLen]byte
-		i := copy(buf[:], a)
-		buf[i] = '.'
-		i += 1 + copy(buf[i+1:], b)
-		buf[i] = '.'
-		i += 1 + copy(buf[i+1:], c)
-		buf[i] = '.'
-		copy(buf[i+1:], d)
-		return string(buf[:total])
+	ns := &joinDot3Shard{}
+	if joinDot3Shards[shardIdx].CompareAndSwap(nil, ns) {
+		return ns
 	}
-	return a + "." + b + "." + c + "." + d
+	return joinDot3Shards[shardIdx].Load()
+}
+
+func (sh *joinDot3Shard) allocBucket() *joinDot3Bucket {
+	sh.mu.Lock()
+	if sh.cur != nil && int(sh.pos) < joinDotBucketChunk {
+		b := &sh.cur[sh.pos]
+		sh.pos++
+		sh.mu.Unlock()
+		return b
+	}
+	if sh.chunks < joinDotMaxChunksSh {
+		c := new([joinDotBucketChunk]joinDot3Bucket)
+		sh.cur = c
+		sh.pos = 1
+		sh.chunks++
+		sh.mu.Unlock()
+		return &c[0]
+	}
+	sh.mu.Unlock()
+	return &joinDot3Bucket{}
+}
+
+func getJoinDot4Shard(shardIdx uint32) *joinDot4Shard {
+	if sh := joinDot4Shards[shardIdx].Load(); sh != nil {
+		return sh
+	}
+	ns := &joinDot4Shard{}
+	if joinDot4Shards[shardIdx].CompareAndSwap(nil, ns) {
+		return ns
+	}
+	return joinDot4Shards[shardIdx].Load()
+}
+
+func (sh *joinDot4Shard) allocBucket() *joinDot4Bucket {
+	sh.mu.Lock()
+	if sh.cur != nil && int(sh.pos) < joinDotBucketChunk {
+		b := &sh.cur[sh.pos]
+		sh.pos++
+		sh.mu.Unlock()
+		return b
+	}
+	if sh.chunks < joinDotMaxChunksSh {
+		c := new([joinDotBucketChunk]joinDot4Bucket)
+		sh.cur = c
+		sh.pos = 1
+		sh.chunks++
+		sh.mu.Unlock()
+		return &c[0]
+	}
+	sh.mu.Unlock()
+	return &joinDot4Bucket{}
 }
 
 // JoinDot returns a + "." + b, deduplicating repeated qualified-name joins via
-// a bounded lock-free 2-way set-associative cache without polluting the
+// a bounded lock-free 4-way set-associative cache without polluting the
 // permanent AST string pool.
 func JoinDot(a, b string) string {
 	total := len(a) + len(b) + 1
@@ -604,42 +649,69 @@ func JoinDot(a, b string) string {
 	}
 	h := maphash.String(poolSeed, a)*0x9E3779B97F4A7C15 ^ maphash.String(poolSeed, b)
 	idx := uint32(h >> (64 - joinDot2CacheBits))
+	shardIdx := idx & joinDotShardMask
+	slot := idx >> joinDotShardBits
 	h32 := uint32(h)
-	bkt := joinDot2Cache[idx].Load()
-	if bkt != nil {
-		if bkt.h0 == h32 && len(bkt.out0) == total && int(bkt.alen0) == len(a) {
-			if s := bkt.out0; s[:len(a)] == a && s[len(a)+1:] == b {
-				return s
+	if sh := joinDot2Shards[shardIdx].Load(); sh != nil {
+		if bkt := sh.buckets[slot].Load(); bkt != nil {
+			if bkt.h0 == h32 && len(bkt.out0) == total && int(bkt.alen0) == len(a) {
+				if s := bkt.out0; s[:len(a)] == a && s[len(a)+1:] == b {
+					return s
+				}
 			}
-		}
-		if bkt.h1 == h32 && len(bkt.out1) == total && int(bkt.alen1) == len(a) {
-			if s := bkt.out1; s[:len(a)] == a && s[len(a)+1:] == b {
-				return s
+			if bkt.h1 == h32 && len(bkt.out1) == total && int(bkt.alen1) == len(a) {
+				if s := bkt.out1; s[:len(a)] == a && s[len(a)+1:] == b {
+					return s
+				}
+			}
+			if bkt.h2 == h32 && len(bkt.out2) == total && int(bkt.alen2) == len(a) {
+				if s := bkt.out2; s[:len(a)] == a && s[len(a)+1:] == b {
+					return s
+				}
+			}
+			if bkt.h3 == h32 && len(bkt.out3) == total && int(bkt.alen3) == len(a) {
+				if s := bkt.out3; s[:len(a)] == a && s[len(a)+1:] == b {
+					return s
+				}
 			}
 		}
 	}
-	return joinDot2Miss(a, b, idx, h32, bkt)
+	return joinDot2Miss(a, b, shardIdx, slot, h32)
 }
 
 //go:noinline
-func joinDot2Miss(a, b string, idx, h32 uint32, old *joinDot2Bucket) string {
+func joinDot2Miss(a, b string, shardIdx, slot, h32 uint32) string {
 	out := formatJoin2(a, b)
-	nb := &joinDot2Bucket{
-		out0:  out,
-		h0:    h32,
-		alen0: uint16(len(a)),
+	sh := getJoinDot2Shard(shardIdx)
+	old := sh.buckets[slot].Load()
+	if old != nil && old.out3 != "" {
+		tag := h32 | 1
+		if sh.seen[slot].Load() != tag {
+			sh.seen[slot].Store(tag)
+			return out
+		}
 	}
+	nb := sh.allocBucket()
+	nb.out0 = out
+	nb.h0 = h32
+	nb.alen0 = uint16(len(a))
 	if old != nil {
 		nb.out1 = old.out0
 		nb.h1 = old.h0
 		nb.alen1 = old.alen0
+		nb.out2 = old.out1
+		nb.h2 = old.h1
+		nb.alen2 = old.alen1
+		nb.out3 = old.out2
+		nb.h3 = old.h2
+		nb.alen3 = old.alen2
 	}
-	joinDot2Cache[idx].Store(nb)
+	sh.buckets[slot].Store(nb)
 	return out
 }
 
 // JoinDot3 returns a + "." + b + "." + c, deduplicating repeated 3-part
-// qualified-name joins via a bounded lock-free 2-way set-associative cache
+// qualified-name joins via a bounded lock-free 4-way set-associative cache
 // without polluting the permanent AST string pool.
 func JoinDot3(a, b, c string) string {
 	total := len(a) + len(b) + len(c) + 2
@@ -648,44 +720,73 @@ func JoinDot3(a, b, c string) string {
 	}
 	h := maphash.String(poolSeed, a)*0x9E3779B97F4A7C15 ^ maphash.String(poolSeed, b)*0xBF58476D1CE4E5B9 ^ maphash.String(poolSeed, c)
 	idx := uint32(h >> (64 - joinDot3CacheBits))
+	shardIdx := idx & joinDotShardMask
+	slot := idx >> joinDotShardBits
 	h32 := uint32(h)
-	bkt := joinDot3Cache[idx].Load()
-	if bkt != nil {
-		if bkt.h0 == h32 && len(bkt.out0) == total && int(bkt.alen0) == len(a) && int(bkt.blen0) == len(b) {
-			if s := bkt.out0; s[:len(a)] == a && s[len(a)+1:len(a)+1+len(b)] == b && s[len(a)+len(b)+2:] == c {
-				return s
+	if sh := joinDot3Shards[shardIdx].Load(); sh != nil {
+		if bkt := sh.buckets[slot].Load(); bkt != nil {
+			if bkt.h0 == h32 && len(bkt.out0) == total && int(bkt.alen0) == len(a) && int(bkt.blen0) == len(b) {
+				if s := bkt.out0; s[:len(a)] == a && s[len(a)+1:len(a)+1+len(b)] == b && s[len(a)+len(b)+2:] == c {
+					return s
+				}
 			}
-		}
-		if bkt.h1 == h32 && len(bkt.out1) == total && int(bkt.alen1) == len(a) && int(bkt.blen1) == len(b) {
-			if s := bkt.out1; s[:len(a)] == a && s[len(a)+1:len(a)+1+len(b)] == b && s[len(a)+len(b)+2:] == c {
-				return s
+			if bkt.h1 == h32 && len(bkt.out1) == total && int(bkt.alen1) == len(a) && int(bkt.blen1) == len(b) {
+				if s := bkt.out1; s[:len(a)] == a && s[len(a)+1:len(a)+1+len(b)] == b && s[len(a)+len(b)+2:] == c {
+					return s
+				}
+			}
+			if bkt.h2 == h32 && len(bkt.out2) == total && int(bkt.alen2) == len(a) && int(bkt.blen2) == len(b) {
+				if s := bkt.out2; s[:len(a)] == a && s[len(a)+1:len(a)+1+len(b)] == b && s[len(a)+len(b)+2:] == c {
+					return s
+				}
+			}
+			if bkt.h3 == h32 && len(bkt.out3) == total && int(bkt.alen3) == len(a) && int(bkt.blen3) == len(b) {
+				if s := bkt.out3; s[:len(a)] == a && s[len(a)+1:len(a)+1+len(b)] == b && s[len(a)+len(b)+2:] == c {
+					return s
+				}
 			}
 		}
 	}
-	return joinDot3Miss(a, b, c, idx, h32, bkt)
+	return joinDot3Miss(a, b, c, shardIdx, slot, h32)
 }
 
 //go:noinline
-func joinDot3Miss(a, b, c string, idx, h32 uint32, old *joinDot3Bucket) string {
+func joinDot3Miss(a, b, c string, shardIdx, slot, h32 uint32) string {
 	out := formatJoin3(a, b, c)
-	nb := &joinDot3Bucket{
-		out0:  out,
-		h0:    h32,
-		alen0: uint16(len(a)),
-		blen0: uint16(len(b)),
+	sh := getJoinDot3Shard(shardIdx)
+	old := sh.buckets[slot].Load()
+	if old != nil && old.out3 != "" {
+		tag := h32 | 1
+		if sh.seen[slot].Load() != tag {
+			sh.seen[slot].Store(tag)
+			return out
+		}
 	}
+	nb := sh.allocBucket()
+	nb.out0 = out
+	nb.h0 = h32
+	nb.alen0 = uint16(len(a))
+	nb.blen0 = uint16(len(b))
 	if old != nil {
 		nb.out1 = old.out0
 		nb.h1 = old.h0
 		nb.alen1 = old.alen0
 		nb.blen1 = old.blen0
+		nb.out2 = old.out1
+		nb.h2 = old.h1
+		nb.alen2 = old.alen1
+		nb.blen2 = old.blen1
+		nb.out3 = old.out2
+		nb.h3 = old.h2
+		nb.alen3 = old.alen2
+		nb.blen3 = old.blen2
 	}
-	joinDot3Cache[idx].Store(nb)
+	sh.buckets[slot].Store(nb)
 	return out
 }
 
 // JoinDot4 returns a + "." + b + "." + c + "." + d, deduplicating repeated 4-part
-// qualified-name joins via a bounded lock-free 2-way set-associative cache
+// qualified-name joins via a bounded lock-free 4-way set-associative cache
 // without polluting the permanent AST string pool.
 func JoinDot4(a, b, c, d string) string {
 	total := len(a) + len(b) + len(c) + len(d) + 3
@@ -694,44 +795,79 @@ func JoinDot4(a, b, c, d string) string {
 	}
 	h := maphash.String(poolSeed, a)*0x9E3779B97F4A7C15 ^ maphash.String(poolSeed, b)*0xBF58476D1CE4E5B9 ^ maphash.String(poolSeed, c)*0x94D049BB133111EB ^ maphash.String(poolSeed, d)
 	idx := uint32(h >> (64 - joinDot4CacheBits))
+	shardIdx := idx & joinDotShardMask
+	slot := idx >> joinDotShardBits
 	h32 := uint32(h)
-	bkt := joinDot4Cache[idx].Load()
-	if bkt != nil {
-		if bkt.h0 == h32 && len(bkt.out0) == total && int(bkt.alen0) == len(a) && int(bkt.blen0) == len(b) && int(bkt.clen0) == len(c) {
-			abEnd := len(a) + 1 + len(b)
-			abcEnd := abEnd + 1 + len(c)
-			if s := bkt.out0; s[:len(a)] == a && s[len(a)+1:abEnd] == b && s[abEnd+1:abcEnd] == c && s[abcEnd+1:] == d {
-				return s
+	if sh := joinDot4Shards[shardIdx].Load(); sh != nil {
+		if bkt := sh.buckets[slot].Load(); bkt != nil {
+			if bkt.h0 == h32 && len(bkt.out0) == total && int(bkt.alen0) == len(a) && int(bkt.blen0) == len(b) && int(bkt.clen0) == len(c) {
+				abEnd := len(a) + 1 + len(b)
+				abcEnd := abEnd + 1 + len(c)
+				if s := bkt.out0; s[:len(a)] == a && s[len(a)+1:abEnd] == b && s[abEnd+1:abcEnd] == c && s[abcEnd+1:] == d {
+					return s
+				}
 			}
-		}
-		if bkt.h1 == h32 && len(bkt.out1) == total && int(bkt.alen1) == len(a) && int(bkt.blen1) == len(b) && int(bkt.clen1) == len(c) {
-			abEnd := len(a) + 1 + len(b)
-			abcEnd := abEnd + 1 + len(c)
-			if s := bkt.out1; s[:len(a)] == a && s[len(a)+1:abEnd] == b && s[abEnd+1:abcEnd] == c && s[abcEnd+1:] == d {
-				return s
+			if bkt.h1 == h32 && len(bkt.out1) == total && int(bkt.alen1) == len(a) && int(bkt.blen1) == len(b) && int(bkt.clen1) == len(c) {
+				abEnd := len(a) + 1 + len(b)
+				abcEnd := abEnd + 1 + len(c)
+				if s := bkt.out1; s[:len(a)] == a && s[len(a)+1:abEnd] == b && s[abEnd+1:abcEnd] == c && s[abcEnd+1:] == d {
+					return s
+				}
+			}
+			if bkt.h2 == h32 && len(bkt.out2) == total && int(bkt.alen2) == len(a) && int(bkt.blen2) == len(b) && int(bkt.clen2) == len(c) {
+				abEnd := len(a) + 1 + len(b)
+				abcEnd := abEnd + 1 + len(c)
+				if s := bkt.out2; s[:len(a)] == a && s[len(a)+1:abEnd] == b && s[abEnd+1:abcEnd] == c && s[abcEnd+1:] == d {
+					return s
+				}
+			}
+			if bkt.h3 == h32 && len(bkt.out3) == total && int(bkt.alen3) == len(a) && int(bkt.blen3) == len(b) && int(bkt.clen3) == len(c) {
+				abEnd := len(a) + 1 + len(b)
+				abcEnd := abEnd + 1 + len(c)
+				if s := bkt.out3; s[:len(a)] == a && s[len(a)+1:abEnd] == b && s[abEnd+1:abcEnd] == c && s[abcEnd+1:] == d {
+					return s
+				}
 			}
 		}
 	}
-	return joinDot4Miss(a, b, c, d, idx, h32, bkt)
+	return joinDot4Miss(a, b, c, d, shardIdx, slot, h32)
 }
 
 //go:noinline
-func joinDot4Miss(a, b, c, d string, idx, h32 uint32, old *joinDot4Bucket) string {
+func joinDot4Miss(a, b, c, d string, shardIdx, slot, h32 uint32) string {
 	out := formatJoin4(a, b, c, d)
-	nb := &joinDot4Bucket{
-		out0:  out,
-		h0:    h32,
-		alen0: uint16(len(a)),
-		blen0: uint16(len(b)),
-		clen0: uint16(len(c)),
+	sh := getJoinDot4Shard(shardIdx)
+	old := sh.buckets[slot].Load()
+	if old != nil && old.out3 != "" {
+		tag := h32 | 1
+		if sh.seen[slot].Load() != tag {
+			sh.seen[slot].Store(tag)
+			return out
+		}
 	}
+	nb := sh.allocBucket()
+	nb.out0 = out
+	nb.h0 = h32
+	nb.alen0 = uint16(len(a))
+	nb.blen0 = uint16(len(b))
+	nb.clen0 = uint16(len(c))
 	if old != nil {
 		nb.out1 = old.out0
 		nb.h1 = old.h0
 		nb.alen1 = old.alen0
 		nb.blen1 = old.blen0
 		nb.clen1 = old.clen0
+		nb.out2 = old.out1
+		nb.h2 = old.h1
+		nb.alen2 = old.alen1
+		nb.blen2 = old.blen1
+		nb.clen2 = old.clen1
+		nb.out3 = old.out2
+		nb.h3 = old.h2
+		nb.alen3 = old.alen2
+		nb.blen3 = old.blen2
+		nb.clen3 = old.clen2
 	}
-	joinDot4Cache[idx].Store(nb)
+	sh.buckets[slot].Store(nb)
 	return out
 }

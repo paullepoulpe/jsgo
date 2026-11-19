@@ -258,6 +258,51 @@ func readStringISO88591Streaming(f *os.File, initGrow int) (string, error) {
 	}
 }
 
+// ReadFileDecodedReplace reads path using pooled scratch buffers without allocating
+// a duplicate full-file []byte alongside the decoded replacement string.
+func ReadFileDecodedReplace(path string, cs *Charset) (string, error) {
+	if cs == nil {
+		cs = StandardCharsets_UTF_8
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "", javaio.NewIOException(err.Error())
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return "", javaio.NewIOException(err.Error())
+	}
+	if fi.Mode().IsRegular() {
+		sz := fi.Size()
+		if sz == 0 {
+			_ = f.Close()
+			return "", nil
+		}
+		if sz > 0 && sz <= readStringScratchSize {
+			bufp := readStringScratchPool.Get().(*[readStringScratchSize]byte)
+			n, rerr := io.ReadFull(f, bufp[:sz])
+			_ = f.Close()
+			if rerr != nil && rerr != io.EOF && rerr != io.ErrUnexpectedEOF {
+				readStringScratchPool.Put(bufp)
+				return "", javaio.NewIOException(rerr.Error())
+			}
+			s := cs.Decode(bufp[:n])
+			readStringScratchPool.Put(bufp)
+			return s, nil
+		}
+		if sz > readStringScratchSize && sz <= 1<<30 && cs == StandardCharsets_ISO_8859_1 {
+			return readStringISO88591Streaming(f, int(sz))
+		}
+	}
+	b, err := io.ReadAll(f)
+	_ = f.Close()
+	if err != nil {
+		return "", javaio.NewIOException(err.Error())
+	}
+	return cs.Decode(b), nil
+}
+
 func Files_ReadString(p *Path) (string, error) {
 	return Files_ReadStringCharset(p, StandardCharsets_UTF_8)
 }

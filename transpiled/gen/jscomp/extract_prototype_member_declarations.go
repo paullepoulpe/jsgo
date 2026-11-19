@@ -95,13 +95,13 @@ func (this_ *ExtractPrototypeMemberDeclarations) Process_2(externs pkg_rhino.Nod
 	var extractionInfo *ExtractPrototypeMemberDeclarations_GatherExtractionInfo = NewExtractPrototypeMemberDeclarations_GatherExtractionInfo(this_)
 	_ = extractionInfo
 	NodeTraversal_Traverse(this_.compiler, root, extractionInfo)
-	this_.priv_ExtractPrototypeMemberDeclarations_maybeDoExtraction_2849(extractionInfo)
+	this_.priv_ExtractPrototypeMemberDeclarations_maybeDoExtraction_2850(extractionInfo)
 }
 
 // Java method: ExtractPrototypeMemberDeclarations.maybeDoExtraction(com.google.javascript.jscomp.ExtractPrototypeMemberDeclarations.GatherExtractionInfo info)
-func (this_ *ExtractPrototypeMemberDeclarations) priv_ExtractPrototypeMemberDeclarations_maybeDoExtraction_2849(info *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) {
+func (this_ *ExtractPrototypeMemberDeclarations) priv_ExtractPrototypeMemberDeclarations_maybeDoExtraction_2850(info *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) {
 	_ = info
-	if ((this_.pattern == StaticGet_ExtractPrototypeMemberDeclarations_Pattern_USE_IIFE()) || (this_.pattern == StaticGet_ExtractPrototypeMemberDeclarations_Pattern_USE_GLOBAL_TEMP())) && !(info.priv_GatherExtractionInfo_shouldExtractGlobal_2852()) {
+	if ((this_.pattern == StaticGet_ExtractPrototypeMemberDeclarations_Pattern_USE_IIFE()) || (this_.pattern == StaticGet_ExtractPrototypeMemberDeclarations_Pattern_USE_GLOBAL_TEMP())) && !(info.priv_GatherExtractionInfo_shouldExtractGlobal_2853()) {
 		return
 	}
 	if this_.pattern == StaticGet_ExtractPrototypeMemberDeclarations_Pattern_USE_GLOBAL_TEMP() {
@@ -118,7 +118,7 @@ func (this_ *ExtractPrototypeMemberDeclarations) priv_ExtractPrototypeMemberDecl
 			var alias string = "JSCompiler_prototypeAlias"
 			_ = alias
 			if this_.pattern == StaticGet_ExtractPrototypeMemberDeclarations_Pattern_USE_CHUNK_TEMP() {
-				if info.priv_GatherExtractionInfo_shouldExtractChunk_2853(cur_1.Key()) {
+				if info.priv_GatherExtractionInfo_shouldExtractChunk_2854(cur_1.Key()) {
 					var injectionPoint_2 pkg_rhino.Node = this_.compiler.GetNodeForCodeInsertion(cur_1.Key())
 					_ = injectionPoint_2
 					alias = ("JSCompiler_prototypeAlias" + j2gort.StrValInt32(cur_1.Key().GetIndex()))
@@ -132,7 +132,7 @@ func (this_ *ExtractPrototypeMemberDeclarations) priv_ExtractPrototypeMemberDecl
 			}
 			for _, instance := range cur_1.Value().instances {
 				_ = instance
-				this_.priv_ExtractPrototypeMemberDeclarations_extractInstance_2850(instance, alias)
+				this_.priv_ExtractPrototypeMemberDeclarations_extractInstance_2851(instance, alias)
 			}
 
 		}
@@ -140,7 +140,7 @@ func (this_ *ExtractPrototypeMemberDeclarations) priv_ExtractPrototypeMemberDecl
 }
 
 // Java method: ExtractPrototypeMemberDeclarations.extractInstance(com.google.javascript.jscomp.ExtractPrototypeMemberDeclarations.ExtractionInstance instance, java.lang.String alias)
-func (this_ *ExtractPrototypeMemberDeclarations) priv_ExtractPrototypeMemberDeclarations_extractInstance_2850(instance *ExtractPrototypeMemberDeclarations_ExtractionInstance, alias string) {
+func (this_ *ExtractPrototypeMemberDeclarations) priv_ExtractPrototypeMemberDeclarations_extractInstance_2851(instance *ExtractPrototypeMemberDeclarations_ExtractionInstance, alias string) {
 	_ = instance
 	_ = alias
 	var first *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration = instance.declarations[int32(0)]
@@ -177,13 +177,13 @@ func (this_ *ExtractPrototypeMemberDeclarations) priv_ExtractPrototypeMemberDecl
 	}
 	for _, declar_2 := range instance.declarations {
 		_ = declar_2
-		this_.priv_ExtractPrototypeMemberDeclarations_replacePrototypeMemberDeclaration_2851(declar_2, alias)
+		this_.priv_ExtractPrototypeMemberDeclarations_replacePrototypeMemberDeclaration_2852(declar_2, alias)
 	}
 
 }
 
 // Java method: ExtractPrototypeMemberDeclarations.replacePrototypeMemberDeclaration(com.google.javascript.jscomp.ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration declar, java.lang.String alias)
-func (this_ *ExtractPrototypeMemberDeclarations) priv_ExtractPrototypeMemberDeclarations_replacePrototypeMemberDeclaration_2851(declar *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration, alias string) {
+func (this_ *ExtractPrototypeMemberDeclarations) priv_ExtractPrototypeMemberDeclarations_replacePrototypeMemberDeclaration_2852(declar *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration, alias string) {
 	_ = declar
 	_ = alias
 	var assignment pkg_rhino.Node = declar.node.GetFirstChild()
@@ -474,7 +474,7 @@ func (this_ *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) Visit_3(t 
 }
 
 // Java method: GatherExtractionInfo.shouldExtractGlobal()
-func (this_ *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) priv_GatherExtractionInfo_shouldExtractGlobal_2852() bool {
+func (this_ *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) priv_GatherExtractionInfo_shouldExtractGlobal_2853() bool {
 	var allModulesDelta int32 = int32(0)
 	_ = allModulesDelta
 	{
@@ -491,7 +491,7 @@ func (this_ *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) priv_Gathe
 }
 
 // Java method: GatherExtractionInfo.shouldExtractChunk(com.google.javascript.jscomp.JSChunk chunk)
-func (this_ *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) priv_GatherExtractionInfo_shouldExtractChunk_2853(chunk *JSChunk) bool {
+func (this_ *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) priv_GatherExtractionInfo_shouldExtractChunk_2854(chunk *JSChunk) bool {
 	_ = chunk
 	var instanceInfo *ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo = this_.instancesByChunk.Get(chunk)
 	_ = instanceInfo
@@ -573,7 +573,7 @@ func InitExtractPrototypeMemberDeclarations_ExtractionInstance(this_ *ExtractPro
 			}
 			var prototypeMember *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration = ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration_ExtractDeclaration(cur)
 			_ = prototypeMember
-			if (prototypeMember == nil) || !(head.priv_PrototypeMemberDeclaration_isSameClass_2855(prototypeMember)) {
+			if (prototypeMember == nil) || !(head.priv_PrototypeMemberDeclaration_isSameClass_2856(prototypeMember)) {
 				break
 			}
 			this_.declarations = append(this_.declarations, prototypeMember)
@@ -652,7 +652,7 @@ func InitExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration(this_ *Ex
 }
 
 // Java method: PrototypeMemberDeclaration.isSameClass(com.google.javascript.jscomp.ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration other)
-func (this_ *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) priv_PrototypeMemberDeclaration_isSameClass_2855(other *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) bool {
+func (this_ *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) priv_PrototypeMemberDeclaration_isSameClass_2856(other *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) bool {
 	_ = other
 	return func() bool {
 		sr_16 := this_.qualifiedClassName

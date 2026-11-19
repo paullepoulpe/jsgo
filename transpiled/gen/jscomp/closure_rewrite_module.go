@@ -2424,7 +2424,7 @@ func (this_ *ClosureRewriteModule_ExportDefinition) GetExportPostfix() string {
 // Java method: ExportDefinition.hasInlinableName(java.util.Set<com.google.javascript.jscomp.Var> exportedNames)
 func (this_ *ClosureRewriteModule_ExportDefinition) HasInlinableName(exportedNames j2gort.Ext_java_util_Set) bool {
 	_ = exportedNames
-	if (((this_.nameDecl == nil) || exportedNames.Contains(j2gort.PtrToAny(this_.nameDecl))) || !(StaticGet_ClosureRewriteModule_ExportDefinition_INLINABLE_NAME_PARENTS().Contains(j2gort.BoxNullableVal(this_.nameDecl.GetParentNode().GetToken())))) || NodeUtil_IsFunctionDeclaration(this_.nameDecl.GetParentNode()) {
+	if (((this_.nameDecl == nil) || exportedNames.Contains(j2gort.PtrToAny(this_.nameDecl))) || !(j2gort.ImmSetContainsTypedU8_(StaticGet_ClosureRewriteModule_ExportDefinition_INLINABLE_NAME_PARENTS(), uint8(this_.nameDecl.GetParentNode().GetToken())))) || NodeUtil_IsFunctionDeclaration(this_.nameDecl.GetParentNode()) {
 		return false
 	}
 	var initialValue pkg_rhino.Node = this_.nameDecl.GetInitialValue()

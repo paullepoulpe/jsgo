@@ -1,0 +1,2765 @@
+diff --git a/com/google/javascript/jscomp/DevirtualizeMethods.java b/com/google/javascript/jscomp/DevirtualizeMethods.java
+index caa609f7..dc94677e 100644
+--- a/com/google/javascript/jscomp/DevirtualizeMethods.java
++++ b/com/google/javascript/jscomp/DevirtualizeMethods.java
+@@ -103,36 +103,54 @@ class DevirtualizeMethods implements OptimizeCalls.CallGraphCompilerPass {
+   }
+ 
+   private void processReferenceList(String name, NodeList sites) {
+-    ImmutableListMultimap<Node, Node> functionsBySite = ReferenceMap.getFunctionNodes(sites);
+-    if (functionsBySite.isEmpty()) {
++    NodeList defSites = null;
++    NodeList fns = null;
++    for (int i = 0, count = sites.size(); i < count; i++) {
++      Node s = sites.get(i);
++      int prevCount = fns == null ? 0 : fns.size();
++      fns = ReferenceMap.appendDefinitionFunctionNodes(s, fns);
++      int newCount = fns == null ? 0 : fns.size();
++      if (newCount > prevCount) {
++        if (defSites == null) {
++          defSites = new NodeList();
++        }
++        if (!defSites.contains(s)) {
++          defSites.add(s);
++        }
++      }
++    }
++    if (defSites == null || fns == null || fns.isEmpty()) {
+       return; // We can't devirtualize without a definition.
+     }
+ 
+     // Use the first definition to ensure that all invocations are after the definition
+     // (temporally). It's  possible that if class `A` is defined after class `B` there are calls to
+     // `A::foo` before `B::foo` is defined.
+-    Node canonicalDefinitionSite = Iterables.get(functionsBySite.keySet(), 0);
++    Node canonicalDefinitionSite = defSites.get(0);
+ 
+-    ArrayList<Node> callSites = new ArrayList<>();
++    NodeList callSites = null;
+     for (int i = 0, count = sites.size(); i < count; i++) {
+       Node s = sites.get(i);
+-      if (!functionsBySite.containsKey(s)) {
++      if (!defSites.contains(s)) {
++        if (callSites == null) {
++          callSites = new NodeList();
++        }
+         callSites.add(s);
+       }
+     }
+-    if (callSites.isEmpty()) {
++    if (callSites == null || callSites.isEmpty()) {
+       return; // No need to devirtualize without calls.
+     }
+ 
+     // Check that this method is safe for devirtualization. These are in (estimated) increasing
+     // order of cost.
+-    for (Node s : functionsBySite.keySet()) {
+-      if (!isEligibleDefinitionSite(name, s)) {
++    for (int i = 0, count = defSites.size(); i < count; i++) {
++      if (!isEligibleDefinitionSite(name, defSites.get(i))) {
+         return;
+       }
+     }
+-    for (Node fn : functionsBySite.values()) {
+-      if (!isEligibleDefinitionFunction(fn)) {
++    for (int i = 0, count = fns.size(); i < count; i++) {
++      if (!isEligibleDefinitionFunction(fns.get(i))) {
+         return;
+       }
+     }
+@@ -141,7 +159,7 @@ class DevirtualizeMethods implements OptimizeCalls.CallGraphCompilerPass {
+         return;
+       }
+     }
+-    if (!allDefinitionsEquivalent(functionsBySite.values())) {
++    if (!allDefinitionsEquivalent(fns)) {
+       // Remember that this is only valid because we already checked the scoping of the definitions.
+       return;
+     }
+@@ -388,16 +406,17 @@ class DevirtualizeMethods implements OptimizeCalls.CallGraphCompilerPass {
+   }
+ 
+   /** Given a set of method definitions, verify they are the same. */
+-  private boolean allDefinitionsEquivalent(Collection<Node> definitions) {
+-    if (definitions.isEmpty()) {
++  private boolean allDefinitionsEquivalent(NodeList definitions) {
++    int count = definitions.size();
++    if (count == 0) {
+       return true;
+     }
+ 
+-    Node definition = Iterables.get(definitions, 0);
++    Node definition = definitions.get(0);
+     checkArgument(definition.isFunction(), definition);
+ 
+-    for (Node d : definitions) {
+-      if (!compiler.areNodesEqualForInlining(d, definition)) {
++    for (int i = 1; i < count; i++) {
++      if (!compiler.areNodesEqualForInlining(definitions.get(i), definition)) {
+         return false;
+       }
+     }
+diff --git a/com/google/javascript/jscomp/ExpressionDecomposer.java b/com/google/javascript/jscomp/ExpressionDecomposer.java
+index c9ec1bac..15d1cd7b 100644
+--- a/com/google/javascript/jscomp/ExpressionDecomposer.java
++++ b/com/google/javascript/jscomp/ExpressionDecomposer.java
+@@ -80,8 +80,9 @@ class ExpressionDecomposer {
+   private final AstAnalyzer astAnalyzer;
+   private final AstFactory astFactory;
+   private final Supplier<String> safeNameIdSupplier;
+-  private final ImmutableSet<String> knownConstantFunctions;
+-  private final Scope scope;
++  private ImmutableSet<String> knownConstantFunctions;
++  private java.util.@Nullable LinkedHashSet<String> knownConstantFunctionsSet;
++  private Scope scope;
+   private final boolean enableBrokenIe11LocationAssign;
+   private final @Nullable JSType unknownType;
+ 
+@@ -123,6 +124,8 @@ class ExpressionDecomposer {
+     this.astFactory = compiler.createAstFactory();
+     this.safeNameIdSupplier = safeNameIdSupplier;
+     this.knownConstantFunctions = constFunctionNames;
++    this.knownConstantFunctionsSet =
++        constFunctionNames.isEmpty() ? null : new java.util.LinkedHashSet<>(constFunctionNames);
+     this.scope = scope;
+     this.enableBrokenIe11LocationAssign = enableBrokenIe11LocationAssign;
+     this.unknownType =
+@@ -131,6 +134,16 @@ class ExpressionDecomposer {
+             : null;
+   }
+ 
++  void reset(Scope scope, ImmutableSet<String> constFunctionNames) {
++    this.scope = scope;
++    if (this.knownConstantFunctions != constFunctionNames) {
++      checkNotNull(constFunctionNames);
++      this.knownConstantFunctions = constFunctionNames;
++      this.knownConstantFunctionsSet =
++          constFunctionNames.isEmpty() ? null : new java.util.LinkedHashSet<>(constFunctionNames);
++    }
++  }
++
+   // An arbitrary limit to prevent catch infinite recursion.
+   // Raised from 100->1000 on Jan 22, 2021
+   private static final int MAX_ITERATIONS = 1000;
+@@ -649,7 +662,9 @@ class ExpressionDecomposer {
+   private boolean isConstantNameNode(Node n) {
+     // Non-constant names values may have been changed.
+     return n.isName()
+-        && (NodeUtil.isConstantVar(n, scope) || knownConstantFunctions.contains(n.getString()));
++        && (NodeUtil.isConstantVar(n, scope)
++            || (knownConstantFunctionsSet != null
++                && knownConstantFunctionsSet.contains(n.getString())));
+   }
+ 
+   /**
+@@ -842,12 +857,15 @@ class ExpressionDecomposer {
+   }
+ 
+   private String tempNamePrefix = "JSCompiler_temp";
++  private String tempConstPrefix =
++      "JSCompiler_temp_const" + ContextualRenamer.UNIQUE_ID_SEPARATOR;
+   private String resultNamePrefix = "JSCompiler_inline_result";
+ 
+   /** Allow the temp name to be overridden to make tests more readable. */
+   @VisibleForTesting
+   public void setTempNamePrefix(String prefix) {
+     this.tempNamePrefix = prefix;
++    this.tempConstPrefix = prefix + "_const" + ContextualRenamer.UNIQUE_ID_SEPARATOR;
+   }
+ 
+   /** Create a unique temp name. */
+@@ -868,16 +886,11 @@ class ExpressionDecomposer {
+ 
+   /** Create a constant unique temp name. */
+   private String getTempConstantValueName() {
+-    return tempNamePrefix
+-        + "_const"
+-        + ContextualRenamer.UNIQUE_ID_SEPARATOR
+-        + safeNameIdSupplier.get();
++    return tempConstPrefix + safeNameIdSupplier.get();
+   }
+ 
+   private boolean isTempConstantValueName(Node name) {
+-    return name.isName()
+-        && name.getString()
+-            .startsWith(tempNamePrefix + "_const" + ContextualRenamer.UNIQUE_ID_SEPARATOR);
++    return name.isName() && name.getString().startsWith(tempConstPrefix);
+   }
+ 
+   /**
+diff --git a/com/google/javascript/jscomp/FunctionInjector.java b/com/google/javascript/jscomp/FunctionInjector.java
+index 565e5477..ec53ee79 100644
+--- a/com/google/javascript/jscomp/FunctionInjector.java
++++ b/com/google/javascript/jscomp/FunctionInjector.java
+@@ -557,8 +557,18 @@ class FunctionInjector {
+     return CallSiteType.UNSUPPORTED;
+   }
+ 
++  private @Nullable ExpressionDecomposer reusableDecomposer;
++
+   private ExpressionDecomposer getDecomposer(Scope scope) {
+-    return compiler.createExpressionDecomposer(safeNameIdSupplier, knownConstantFunctions, scope);
++    ExpressionDecomposer decomposer = this.reusableDecomposer;
++    if (decomposer == null) {
++      decomposer =
++          compiler.createExpressionDecomposer(safeNameIdSupplier, knownConstantFunctions, scope);
++      this.reusableDecomposer = decomposer;
++    } else {
++      decomposer.reset(scope, knownConstantFunctions);
++    }
++    return decomposer;
+   }
+ 
+   /**
+diff --git a/com/google/javascript/jscomp/GlobalNamespace.java b/com/google/javascript/jscomp/GlobalNamespace.java
+index 5af32c60..7d5b8d08 100644
+--- a/com/google/javascript/jscomp/GlobalNamespace.java
++++ b/com/google/javascript/jscomp/GlobalNamespace.java
+@@ -1263,10 +1263,13 @@ class GlobalNamespace
+     private final Name parent;
+     private @Nullable String fullName;
+ 
+-    // The children of this name: inline up to 2 children before spilling to `props`.
++    // The children of this name: inline up to 4 children before spilling to `props`.
+     private @Nullable Name prop0 = null;
+     private @Nullable Name prop1 = null;
+-    private @Nullable ArrayList<Name> props = null;
++    private @Nullable Name prop2 = null;
++    private @Nullable Name prop3 = null;
++    private Name @Nullable [] props = null;
++    private int propCount = 0;
+ 
+     /** The declaration of a name. */
+     private @Nullable Ref declaration;
+@@ -1334,53 +1337,79 @@ class GlobalNamespace
+ 
+     Name addProperty(String name, SourceKind sourceKind) {
+       Name node = new Name(name, this, sourceKind);
+-      if (this.props != null) {
+-        this.props.add(node);
+-        return node;
+-      }
+-      if (this.prop0 == null) {
+-        this.prop0 = node;
+-        return node;
+-      }
+-      if (this.prop1 == null) {
+-        this.prop1 = node;
+-        return node;
+-      }
+-      ArrayList<Name> list = new ArrayList<>(4);
+-      list.add(this.prop0);
+-      list.add(this.prop1);
+-      list.add(node);
+-      this.prop0 = null;
+-      this.prop1 = null;
+-      this.props = list;
++      int c = this.propCount;
++      Name[] arr = this.props;
++      if (arr == null) {
++        switch (c) {
++          case 0 -> {
++            this.prop0 = node;
++            this.propCount = 1;
++            return node;
++          }
++          case 1 -> {
++            this.prop1 = node;
++            this.propCount = 2;
++            return node;
++          }
++          case 2 -> {
++            this.prop2 = node;
++            this.propCount = 3;
++            return node;
++          }
++          case 3 -> {
++            this.prop3 = node;
++            this.propCount = 4;
++            return node;
++          }
++          default -> {
++            arr = new Name[8];
++            arr[0] = this.prop0;
++            arr[1] = this.prop1;
++            arr[2] = this.prop2;
++            arr[3] = this.prop3;
++            arr[4] = node;
++            this.prop0 = null;
++            this.prop1 = null;
++            this.prop2 = null;
++            this.prop3 = null;
++            this.props = arr;
++            this.propCount = 5;
++            return node;
++          }
++        }
++      }
++      if (c == arr.length) {
++        arr = java.util.Arrays.copyOf(arr, c * 2);
++        this.props = arr;
++      }
++      arr[c] = node;
++      this.propCount = c + 1;
+       return node;
+     }
+ 
+     boolean hasProps() {
+-      return this.prop0 != null || (this.props != null && !this.props.isEmpty());
++      return this.propCount != 0;
+     }
+ 
+     int getPropCount() {
+-      if (this.props != null) {
+-        return this.props.size();
+-      }
+-      if (this.prop0 == null) {
+-        return 0;
+-      }
+-      return this.prop1 == null ? 1 : 2;
++      return this.propCount;
+     }
+ 
+     Name getPropAt(int index) {
+-      if (this.props != null) {
+-        return this.props.get(index);
+-      }
+-      if (index == 0 && this.prop0 != null) {
+-        return this.prop0;
+-      }
+-      if (index == 1 && this.prop1 != null) {
+-        return this.prop1;
+-      }
+-      throw new IndexOutOfBoundsException(index);
++      if (index < 0 || index >= this.propCount) {
++        throw new IndexOutOfBoundsException(index);
++      }
++      Name[] arr = this.props;
++      if (arr != null) {
++        return arr[index];
++      }
++      return switch (index) {
++        case 0 -> this.prop0;
++        case 1 -> this.prop1;
++        case 2 -> this.prop2;
++        case 3 -> this.prop3;
++        default -> throw new IndexOutOfBoundsException(index);
++      };
+     }
+ 
+     String getBaseName() {
+diff --git a/com/google/javascript/jscomp/InlineAndCollapseProperties.java b/com/google/javascript/jscomp/InlineAndCollapseProperties.java
+index 7e3266bd..2b829f92 100644
+--- a/com/google/javascript/jscomp/InlineAndCollapseProperties.java
++++ b/com/google/javascript/jscomp/InlineAndCollapseProperties.java
+@@ -1323,7 +1323,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+       }
+ 
+       checkNotNull(namespace, "namespace was not initialized").ensureGenerated();
+-      ImmutableSet<Name> escaped = checkNamespaces();
++      LinkedHashSet<Name> escaped = checkNamespaces();
+       for (int i = 0, size = namespace.globalNames.size(); i < size; i++) {
+         Name name = namespace.globalNames.get(i);
+         flattenReferencesToCollapsibleDescendantNames(name, name.getBaseName(), escaped);
+@@ -1391,11 +1391,13 @@ class InlineAndCollapseProperties implements CompilerPass {
+      * Runs through all namespaces (prefixes of classes and enums), and checks if any of them have
+      * been used in an unsafe way.
+      */
+-    private ImmutableSet<Name> checkNamespaces() {
+-      ImmutableSet.Builder<Name> escaped = ImmutableSet.builder();
++    private LinkedHashSet<Name> checkNamespaces() {
++      LinkedHashSet<Name> escaped = new LinkedHashSet<>();
+       LinkedHashSet<String> dynamicallyImportedModuleRefs =
+-          new LinkedHashSet<>(dynamicallyImportedModules);
+-      if (!dynamicallyImportedModules.isEmpty()) {
++          dynamicallyImportedModules.isEmpty()
++              ? null
++              : new LinkedHashSet<>(dynamicallyImportedModules);
++      if (dynamicallyImportedModuleRefs != null) {
+         // When the output chunk type is ES_MODULES, properties of the module namespace
+         // must not be collapsed as they are referenced off the namespace object. The namespace
+         // objects escape via the dynamic import expression.
+@@ -1445,7 +1447,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+       }
+ 
+       for (Name name : namespace.nameMap.values()) {
+-        if (!dynamicallyImportedModuleRefs.isEmpty()
++        if (dynamicallyImportedModuleRefs != null
+             && dynamicallyImportedModuleRefs.contains(name.getFullName())) {
+           escaped.add(name);
+         }
+@@ -1477,7 +1479,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+           }
+         }
+       }
+-      return escaped.build();
++      return escaped;
+     }
+ 
+     /**
+@@ -1510,7 +1512,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+      * @param alias The flattened name for {@code n}
+      */
+     private void flattenReferencesToCollapsibleDescendantNames(
+-        Name n, String alias, Set<Name> escaped) {
++        Name n, String alias, LinkedHashSet<Name> escaped) {
+       if (!n.hasProps()) {
+         return;
+       }
+@@ -1518,33 +1520,49 @@ class InlineAndCollapseProperties implements CompilerPass {
+         logDecisionForName(n, "@nocollapse: will not flatten descendant name references");
+         return;
+       }
+-      if (escaped.contains(n)) {
++      if (!escaped.isEmpty() && escaped.contains(n)) {
+         logDecisionForName(n, "escapes: will not flatten descendant name references");
+         return;
+       }
+ 
++      boolean isLogging = decisionsLog != null && decisionsLog.isLogging();
+       for (int i = 0, size = n.getPropCount(); i < size; i++) {
+         Name p = n.getPropAt(i);
+-        String propAlias = appendPropForAlias(alias, p.getBaseName());
+         final Inlinability inlinability = p.canCollapseOrInline();
+ 
+         boolean isAllowedToCollapse =
+             propertyCollapseLevel != PropertyCollapseLevel.MODULE_EXPORT || p.isModuleExport();
++        String propAlias = null;
+         if (isAllowedToCollapse) {
+           if (inlinability.canCollapse()) {
+             logDecisionForName(p, inlinability, "will flatten references");
++            propAlias = appendPropForAlias(alias, p.getBaseName());
+             flattenReferencesTo(p, propAlias);
+           } else if (p.isCollapsingExplicitlyDenied()) {
+             logDecisionForName(p, "@nocollapse: will not flatten references");
+           } else if (p.isSimpleStubDeclaration()) {
+             logDecisionForName(p, "simple stub declaration: will flatten references");
++            propAlias = appendPropForAlias(alias, p.getBaseName());
+             flattenSimpleStubDeclaration(p, propAlias);
+           } else {
+             logDecisionForName(p, inlinability, "will not flatten references");
+           }
+         }
+ 
+-        flattenReferencesToCollapsibleDescendantNames(p, propAlias, escaped);
++        if (p.hasProps()
++            && !p.isCollapsingExplicitlyDenied()
++            && (escaped.isEmpty() || !escaped.contains(p))) {
++          if (propAlias == null) {
++            propAlias = appendPropForAlias(alias, p.getBaseName());
++          }
++          flattenReferencesToCollapsibleDescendantNames(p, propAlias, escaped);
++        } else if (isLogging && p.hasProps()) {
++          if (p.isCollapsingExplicitlyDenied()) {
++            logDecisionForName(p, "@nocollapse: will not flatten descendant name references");
++          } else if (!escaped.isEmpty() && escaped.contains(p)) {
++            logDecisionForName(p, "escapes: will not flatten descendant name references");
++          }
++        }
+       }
+     }
+ 
+@@ -1847,7 +1865,8 @@ class InlineAndCollapseProperties implements CompilerPass {
+      * @param n A node representing a global name
+      * @param alias The flattened name for {@code n}
+      */
+-    private void collapseDeclarationOfNameAndDescendants(Name n, String alias, Set<Name> escaped) {
++    private void collapseDeclarationOfNameAndDescendants(
++        Name n, String alias, LinkedHashSet<Name> escaped) {
+       final Inlinability childNameInlinability = n.canCollapseOrInlineChildNames();
+       final boolean canCollapseChildNames;
+       if (!childNameInlinability.canCollapse()) {
+@@ -1860,7 +1879,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+                       childNameInlinability));
+         }
+         canCollapseChildNames = false;
+-      } else if (escaped.contains(n)) {
++      } else if (!escaped.isEmpty() && escaped.contains(n)) {
+         logDecisionForName(n, "escapes: will not collapse child names");
+         canCollapseChildNames = false;
+       } else {
+@@ -1876,12 +1895,16 @@ class InlineAndCollapseProperties implements CompilerPass {
+       if (!n.hasProps()) {
+         return;
+       }
+-      if (escaped.contains(n)) {
++      if (!escaped.isEmpty() && escaped.contains(n)) {
+         return;
+       }
+       logDecisionForName(n, "collapsing descendants");
++      boolean isLogging = decisionsLog != null && decisionsLog.isLogging();
+       for (int i = 0, size = n.getPropCount(); i < size; i++) {
+         Name p = n.getPropAt(i);
++        if (!isLogging && !p.hasProps() && !canCollapse(p)) {
++          continue;
++        }
+         collapseDeclarationOfNameAndDescendants(
+             p, appendPropForAlias(alias, p.getBaseName()), escaped);
+       }
+diff --git a/com/google/javascript/jscomp/InlineVariables.java b/com/google/javascript/jscomp/InlineVariables.java
+index 292daf9b..abf4d423 100644
+--- a/com/google/javascript/jscomp/InlineVariables.java
++++ b/com/google/javascript/jscomp/InlineVariables.java
+@@ -978,7 +978,7 @@ class InlineVariables implements CompilerPass {
+     private boolean canMoveModerately(Reference initialization, Reference reference) {
+       // Check if declaration can be inlined without passing
+       // any side-effect causing nodes.
+-      Iterator<Node> it;
++      NodeIterators.LocalVarMotion it;
+       if (NodeUtil.isNameDeclaration(initialization.getParent())) {
+         it =
+             NodeIterators.LocalVarMotion.forVar(
+@@ -1002,7 +1002,7 @@ class InlineVariables implements CompilerPass {
+       Node targetName = reference.getNode();
+       int steps = 0;
+       while (it.hasNext()) {
+-        Node curNode = it.next();
++        Node curNode = it.nextNode();
+         if (curNode == targetName) {
+           return true;
+         }
+diff --git a/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java b/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
+index 31df6bc6..1868f951 100644
+--- a/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
++++ b/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
+@@ -702,7 +702,14 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+     private static final Counter RESERVED_ONE = new Counter(1);
+ 
+     private static final class NameUsage {
++      private static final int LC_CACHE_IDS = 1024;
++      private static final int MEMO_MASK = 2047;
++
+       private final LinkedHashMap<String, Counter> counts = new LinkedHashMap<>();
++      private String @Nullable [][] lcUniqueCache;
++      private String @Nullable [] memoNames;
++      private int @Nullable [] memoIds;
++      private String @Nullable [] memoResults;
+ 
+       boolean contains(String name) {
+         return counts.containsKey(name);
+@@ -727,6 +734,64 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+         return old;
+       }
+ 
++      int addOneIfPresent(String name) {
++        Counter prev = counts.get(name);
++        if (prev == null) {
++          return -1;
++        }
++        if (prev == RESERVED_ONE) {
++          counts.put(name, new Counter(2));
++          return 1;
++        }
++        int old = prev.value;
++        prev.value = old + 1;
++        return old;
++      }
++
++      String getUniqueName(String name, int id) {
++        if (name.length() == 1 && id >= 0 && id < LC_CACHE_IDS) {
++          char c = name.charAt(0);
++          if (c >= 'a' && c <= 'z') {
++            String[][] table = this.lcUniqueCache;
++            if (table == null) {
++              table = new String[26][];
++              this.lcUniqueCache = table;
++            }
++            int idx = c - 'a';
++            String[] row = table[idx];
++            if (row == null) {
++              row = new String[LC_CACHE_IDS];
++              table[idx] = row;
++            }
++            String cached = row[id];
++            if (cached == null) {
++              cached = formatUniqueName(name, id);
++              row[id] = cached;
++            }
++            return cached;
++          }
++        }
++        if (id >= 2) {
++          String[] mNames = this.memoNames;
++          if (mNames == null) {
++            mNames = new String[MEMO_MASK + 1];
++            this.memoNames = mNames;
++            this.memoIds = new int[MEMO_MASK + 1];
++            this.memoResults = new String[MEMO_MASK + 1];
++          }
++          int slot = (name.hashCode() * 31 + id) & MEMO_MASK;
++          if (this.memoIds[slot] == id && name.equals(mNames[slot])) {
++            return this.memoResults[slot];
++          }
++          String res = formatUniqueName(name, id);
++          mNames[slot] = name;
++          this.memoIds[slot] = id;
++          this.memoResults[slot] = res;
++          return res;
++        }
++        return formatUniqueName(name, id);
++      }
++
+       @Override
+       public String toString() {
+         return counts.toString();
+@@ -752,13 +817,13 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+ 
+     // By contrast, this is a different map for each ContextualRenamer because it's just keeping
+     // track of the names used by this renamer when > 4 names are declared in the scope.
+-    private final LinkedHashMap<String, String> declarations = new LinkedHashMap<>();
++    private @Nullable LinkedHashMap<String, String> declarations = null;
+     private final boolean global;
+ 
+     private final Renamer hoistRenamer;
+ 
+     static final String UNIQUE_ID_SEPARATOR = "$jscomp$";
+-    private static final int SUFFIX_CACHE_SIZE = 2048;
++    private static final int SUFFIX_CACHE_SIZE = 16384;
+     private static final String[] UNIQUE_ID_SUFFIXES = new String[SUFFIX_CACHE_SIZE];
+ 
+     static {
+@@ -769,7 +834,8 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+ 
+     @Override
+     public String toString() {
+-      LinkedHashMap<String, String> declView = declarations;
++      LinkedHashMap<String, String> declView =
++          declarations != null ? declarations : new LinkedHashMap<>(0);
+       if (declCount > 0 && declCount <= 4) {
+         declView = new LinkedHashMap<>(declCount);
+         declView.put(declName0, declRep0);
+@@ -889,11 +955,13 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+           this.declCount = 4;
+         }
+         case 4 -> {
+-          this.declarations.put(this.declName0, this.declRep0);
+-          this.declarations.put(this.declName1, this.declRep1);
+-          this.declarations.put(this.declName2, this.declRep2);
+-          this.declarations.put(this.declName3, this.declRep3);
+-          this.declarations.put(name, newName);
++          LinkedHashMap<String, String> map = new LinkedHashMap<>(8);
++          map.put(this.declName0, this.declRep0);
++          map.put(this.declName1, this.declRep1);
++          map.put(this.declName2, this.declRep2);
++          map.put(this.declName3, this.declRep3);
++          map.put(name, newName);
++          this.declarations = map;
+           this.declName0 = null;
+           this.declRep0 = null;
+           this.declName1 = null;
+@@ -937,11 +1005,11 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+                 // We could stop tracking the counts and switch the renamer to use the file hashcode
+                 // based UniqueIdSupplier, but that requires updating several unit tests that run
+                 // normalize.
+-                newName = getUniqueName(name, id);
+-                while (nameUsage.contains(newName)) {
++                newName = nameUsage.getUniqueName(name, id);
++                int nextId;
++                while ((nextId = nameUsage.addOneIfPresent(newName)) >= 0) {
+                   // if the newName also exists at another location, create another
+-                  id = incrementNameCount(newName);
+-                  newName = getUniqueName(name, id);
++                  newName = nameUsage.getUniqueName(name, nextId);
+                 }
+                 reserveName(newName); // reserve this new name so that it's never reused
+               }
+@@ -977,7 +1045,7 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+     }
+ 
+     /** Given a name and the associated id, create a new unique name. */
+-    private static String getUniqueName(String name, int id) {
++    private static String formatUniqueName(String name, int id) {
+       if (id >= 0 && id < SUFFIX_CACHE_SIZE) {
+         return name + UNIQUE_ID_SUFFIXES[id];
+       }
+@@ -1012,9 +1080,15 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+    * @see FunctionInjector
+    */
+   static class InlineRenamer implements Renamer {
+-    private final Map<String, String> declarations = new LinkedHashMap<>();
++    private int declCount;
++    private @Nullable String declName0;
++    private @Nullable String declRep0;
++    private @Nullable String declName1;
++    private @Nullable String declRep1;
++    private @Nullable LinkedHashMap<String, String> declarations = null;
+     private final Supplier<String> uniqueIdSupplier;
+     private final String idPrefix;
++    private final String separatorAndPrefix;
+     private final boolean removeConstness;
+     private final CodingConvention convention;
+ 
+@@ -1033,6 +1107,7 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+       // ContextualRenamer some prefix is needed.
+       checkArgument(!idPrefix.isEmpty());
+       this.idPrefix = idPrefix;
++      this.separatorAndPrefix = ContextualRenamer.UNIQUE_ID_SEPARATOR + idPrefix;
+       this.removeConstness = removeConstness;
+ 
+       if (hoistingTargetScope) {
+@@ -1047,8 +1122,34 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+       checkState(!name.equals(ARGUMENTS));
+       if (hoisted && hoistRenamer != this) {
+         hoistRenamer.addDeclaredName(name, hoisted);
+-      } else if (!declarations.containsKey(name)) {
+-        declarations.put(name, getUniqueName(name));
++        return;
++      }
++      int c = this.declCount;
++      if (c == 0) {
++        this.declName0 = name;
++        this.declRep0 = getUniqueName(name);
++        this.declCount = 1;
++      } else if (c == 1) {
++        if (!name.equals(this.declName0)) {
++          this.declName1 = name;
++          this.declRep1 = getUniqueName(name);
++          this.declCount = 2;
++        }
++      } else if (c == 2) {
++        if (!name.equals(this.declName0) && !name.equals(this.declName1)) {
++          LinkedHashMap<String, String> map = new LinkedHashMap<>(8);
++          map.put(this.declName0, this.declRep0);
++          map.put(this.declName1, this.declRep1);
++          map.put(name, getUniqueName(name));
++          this.declarations = map;
++          this.declName0 = null;
++          this.declRep0 = null;
++          this.declName1 = null;
++          this.declRep1 = null;
++          this.declCount = 3;
++        }
++      } else if (!this.declarations.containsKey(name)) {
++        this.declarations.put(name, getUniqueName(name));
+       }
+     }
+ 
+@@ -1057,8 +1158,9 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+         return name;
+       }
+ 
+-      if (name.contains(ContextualRenamer.UNIQUE_ID_SEPARATOR)) {
+-        name = name.substring(0, name.lastIndexOf(ContextualRenamer.UNIQUE_ID_SEPARATOR));
++      int sepIdx = name.lastIndexOf(ContextualRenamer.UNIQUE_ID_SEPARATOR);
++      if (sepIdx != -1) {
++        name = name.substring(0, sepIdx);
+       }
+ 
+       if (convention.isExported(name)) {
+@@ -1070,12 +1172,22 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+ 
+       // By using the same separator the id will be stripped if it isn't
+       // needed when variable renaming is turned off.
+-      return name + ContextualRenamer.UNIQUE_ID_SEPARATOR + idPrefix + uniqueIdSupplier.get();
++      return name + separatorAndPrefix + uniqueIdSupplier.get();
+     }
+ 
+     @Override
+     public String getReplacementName(String oldName) {
+-      return declarations.get(oldName);
++      int c = this.declCount;
++      if (c == 0) {
++        return null;
++      }
++      if (c <= 2) {
++        if (oldName.equals(this.declName0)) {
++          return this.declRep0;
++        }
++        return c > 1 && oldName.equals(this.declName1) ? this.declRep1 : null;
++      }
++      return this.declarations.get(oldName);
+     }
+ 
+     @Override
+diff --git a/com/google/javascript/jscomp/NodeIterators.java b/com/google/javascript/jscomp/NodeIterators.java
+index 6a9ba830..a98f720f 100644
+--- a/com/google/javascript/jscomp/NodeIterators.java
++++ b/com/google/javascript/jscomp/NodeIterators.java
+@@ -21,10 +21,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
+ 
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.Token;
+-import java.util.ArrayDeque;
+ import java.util.ArrayList;
+-import java.util.Collections;
+-import java.util.Deque;
++import java.util.Arrays;
+ import java.util.Iterator;
+ import java.util.List;
+ import org.jspecify.annotations.Nullable;
+@@ -42,62 +40,143 @@ class NodeIterators {
+    * Traverses the local scope, skipping all function nodes.
+    */
+   static class FunctionlessLocalScope implements Iterator<Node> {
+-    private final Deque<Node> ancestors = new ArrayDeque<>();
++    private Node[] ancestors;
++    private int ancestorCount;
++
++    FunctionlessLocalScope(Node a0, Node a1, Node a2) {
++      this.ancestors = new Node[16];
++      int valid = 0;
++      if (!a0.isFunction()) {
++        valid = 1;
++        if (!a1.isFunction()) {
++          valid = 2;
++          if (!a2.isFunction()) {
++            valid = 3;
++          }
++        }
++      }
++      this.ancestorCount = valid;
++      if (valid == 3) {
++        this.ancestors[0] = a2;
++        this.ancestors[1] = a1;
++        this.ancestors[2] = a0;
++      } else if (valid == 2) {
++        this.ancestors[0] = a1;
++        this.ancestors[1] = a0;
++      } else if (valid == 1) {
++        this.ancestors[0] = a0;
++      }
++    }
++
++    FunctionlessLocalScope(Node a0, Node a1, Node a2, Node a3) {
++      this.ancestors = new Node[16];
++      int valid = 0;
++      if (!a0.isFunction()) {
++        valid = 1;
++        if (!a1.isFunction()) {
++          valid = 2;
++          if (!a2.isFunction()) {
++            valid = 3;
++            if (!a3.isFunction()) {
++              valid = 4;
++            }
++          }
++        }
++      }
++      this.ancestorCount = valid;
++      if (valid == 4) {
++        this.ancestors[0] = a3;
++        this.ancestors[1] = a2;
++        this.ancestors[2] = a1;
++        this.ancestors[3] = a0;
++      } else if (valid == 3) {
++        this.ancestors[0] = a2;
++        this.ancestors[1] = a1;
++        this.ancestors[2] = a0;
++      } else if (valid == 2) {
++        this.ancestors[0] = a1;
++        this.ancestors[1] = a0;
++      } else if (valid == 1) {
++        this.ancestors[0] = a0;
++      }
++    }
+ 
+     /**
+      * @param ancestors The ancestors of the point where iteration will start,
+      *     beginning with the deepest ancestor. The start node will not be
+      *     exposed in the iteration.
+      */
+-    FunctionlessLocalScope(Node ... ancestors) {
++    FunctionlessLocalScope(Node... ancestors) {
+       checkArgument(ancestors.length > 0);
++      int valid = 0;
++      while (valid < ancestors.length && !ancestors[valid].isFunction()) {
++        valid++;
++      }
++      this.ancestors = new Node[Math.max(16, valid)];
++      this.ancestorCount = valid;
++      for (int i = 0; i < valid; i++) {
++        this.ancestors[valid - 1 - i] = ancestors[i];
++      }
++    }
+ 
+-      for (Node n : ancestors) {
+-        if (n.isFunction()) {
+-          break;
+-        }
+-
+-        this.ancestors.addFirst(n);
++    private void pushAncestor(Node n) {
++      int c = this.ancestorCount;
++      Node[] arr = this.ancestors;
++      if (c == arr.length) {
++        arr = Arrays.copyOf(arr, c * 2);
++        this.ancestors = arr;
+       }
++      arr[c] = n;
++      this.ancestorCount = c + 1;
+     }
+ 
+     @Override
+     public boolean hasNext() {
+       // Check if the current node has any nodes after it.
+-      return !(ancestors.size() == 1 && ancestors.peekLast().getNext() == null);
++      int c = this.ancestorCount;
++      return !(c == 1 && this.ancestors[0].getNext() == null);
+     }
+ 
+-    @Override
+-    public Node next() {
+-      Node current = ancestors.removeLast();
+-      if (current.getNext() == null) {
+-        current = ancestors.peekLast();
+-
+-        // If this is a function node, skip it.
+-        if (current.isFunction()) {
+-          return next();
++    public Node nextNode() {
++      while (true) {
++        int topIdx = --this.ancestorCount;
++        Node current = this.ancestors[topIdx];
++        this.ancestors[topIdx] = null;
++        Node nextSibling = current.getNext();
++        if (nextSibling == null) {
++          current = this.ancestors[topIdx - 1];
++          // If this is a function node, skip it.
++          if (current.isFunction()) {
++            continue;
++          }
++          return current;
+         }
+-      } else {
+-        current = current.getNext();
+-        ancestors.addLast(current);
+-
++        current = nextSibling;
++        pushAncestor(current);
+         // If this is a function node, skip it.
+         if (current.isFunction()) {
+-          return next();
++          continue;
+         }
+-
++        boolean hitFunction = false;
+         while (current.hasChildren()) {
+           current = current.getFirstChild();
+-          ancestors.addLast(current);
+-
++          pushAncestor(current);
+           // If this is a function node, skip it.
+           if (current.isFunction()) {
+-            return next();
++            hitFunction = true;
++            break;
+           }
+         }
++        if (hitFunction) {
++          continue;
++        }
++        return current;
+       }
++    }
+ 
+-      return current;
++    @Override
++    public Node next() {
++      return nextNode();
+     }
+ 
+     @Override
+@@ -109,12 +188,13 @@ class NodeIterators {
+      * Gets the node most recently returned by next().
+      */
+     protected Node current() {
+-      return ancestors.peekLast();
++      return this.ancestors[this.ancestorCount - 1];
+     }
+ 
+     /** Gets the parent of the node most recently returned by next(). */
+     protected @Nullable Node currentParent() {
+-      return ancestors.size() >= 2 ? current().getParent() : null;
++      int c = this.ancestorCount;
++      return c >= 2 ? this.ancestors[c - 1].getParent() : null;
+     }
+ 
+     /**
+@@ -122,8 +202,11 @@ class NodeIterators {
+      * Only exposed for testing purposes.
+      */
+     List<Node> currentAncestors() {
+-      List<Node> list = new ArrayList<>(ancestors);
+-      Collections.reverse(list);
++      int c = this.ancestorCount;
++      List<Node> list = new ArrayList<>(c);
++      for (int i = c - 1; i >= 0; i--) {
++        list.add(this.ancestors[i]);
++      }
+       return list;
+     }
+   }
+@@ -204,13 +287,17 @@ class NodeIterators {
+       return lookAhead != null;
+     }
+ 
+-    @Override
+-    public Node next() {
++    public @Nullable Node nextNode() {
+       Node next = lookAhead;
+       advanceLookAhead(false);
+       return next;
+     }
+ 
++    @Override
++    public Node next() {
++      return nextNode();
++    }
++
+     @Override
+     public void remove() {
+       throw new UnsupportedOperationException("Not implemented");
+@@ -236,7 +323,7 @@ class NodeIterators {
+         return;
+       }
+ 
+-      Node nextNode = iterator.next();
++      Node nextNode = iterator.nextNode();
+       Node nextParent = iterator.currentParent();
+       Token type = nextNode.getToken();
+ 
+diff --git a/com/google/javascript/jscomp/NodeUtil.java b/com/google/javascript/jscomp/NodeUtil.java
+index 7c16056b..65ad8e40 100644
+--- a/com/google/javascript/jscomp/NodeUtil.java
++++ b/com/google/javascript/jscomp/NodeUtil.java
+@@ -5974,7 +5974,9 @@ public final class NodeUtil {
+         currentFeatures != null
+             ? currentFeatures.with(feature)
+             : FeatureSet.BARE_MINIMUM.with(feature);
+-    scriptNode.setFeatureSet(newFeatures);
++    if (newFeatures != currentFeatures) {
++      scriptNode.setFeatureSet(newFeatures);
++    }
+     if (feature != Feature.MODULES) {
+       // Except MODULES (which can get reintroduced later in ConvertChunksToEsModules pass),
+       // prohibit passes from reintroducing any feature that already got transpiled.
+@@ -5999,9 +6001,11 @@ public final class NodeUtil {
+   private static void removeFeatureFromScript(Node scriptNode, Feature feature) {
+     FeatureSet currentFeatures = getFeatureSetOfScript(scriptNode);
+     if (currentFeatures != null) {
+-      currentFeatures = currentFeatures.without(feature);
++      FeatureSet updated = currentFeatures.without(feature);
++      if (updated != currentFeatures) {
++        scriptNode.setFeatureSet(updated);
++      }
+     }
+-    scriptNode.setFeatureSet(currentFeatures);
+   }
+ 
+   /**
+@@ -6015,8 +6019,10 @@ public final class NodeUtil {
+   static void removeFeaturesFromScript(Node scriptNode, FeatureSet featureSet) {
+     FeatureSet currentFeatures = getFeatureSetOfScript(scriptNode);
+     if (currentFeatures != null) {
+-      currentFeatures = currentFeatures.without(featureSet);
+-      scriptNode.setFeatureSet(currentFeatures);
++      FeatureSet updated = currentFeatures.without(featureSet);
++      if (updated != currentFeatures) {
++        scriptNode.setFeatureSet(updated);
++      }
+     }
+   }
+ 
+diff --git a/com/google/javascript/jscomp/OptimizeCalls.java b/com/google/javascript/jscomp/OptimizeCalls.java
+index 66eace13..6ea1c197 100644
+--- a/com/google/javascript/jscomp/OptimizeCalls.java
++++ b/com/google/javascript/jscomp/OptimizeCalls.java
+@@ -155,6 +155,8 @@ class OptimizeCalls implements CompilerPass {
+   }
+ 
+   static final class NodeList {
++    static final NodeList EMPTY = new NodeList();
++
+     private @Nullable Node n0;
+     private @Nullable Node n1;
+     private @Nullable Node n2;
+@@ -298,6 +300,32 @@ class OptimizeCalls implements CompilerPass {
+       return this.size == 0;
+     }
+ 
++    boolean contains(Node target) {
++      int s = this.size;
++      if (s == 0) {
++        return false;
++      }
++      Node[] arr = this.nodes;
++      if (arr != null) {
++        for (int i = 0; i < s; i++) {
++          if (arr[i] == target) {
++            return true;
++          }
++        }
++        return false;
++      }
++      if (this.n0 == target) {
++        return true;
++      }
++      if (s > 1 && this.n1 == target) {
++        return true;
++      }
++      if (s > 2 && this.n2 == target) {
++        return true;
++      }
++      return s > 3 && this.n3 == target;
++    }
++
+     Node get(int index) {
+       Node[] arr = this.nodes;
+       if (arr != null) {
+@@ -366,52 +394,62 @@ class OptimizeCalls implements CompilerPass {
+      * @return A mapping from the input {@code definitionSites} to each of their associated
+      *     functions.
+      */
+-    static ImmutableListMultimap<Node, Node> getFunctionNodes(NodeList definitionSites) {
+-      ImmutableListMultimap.Builder<Node, Node> result = ImmutableListMultimap.builder();
++    static NodeList getFunctionNodeList(NodeList definitionSites) {
++      NodeList result = null;
+       for (int i = 0, count = definitionSites.size(); i < count; i++) {
+-        Node def = definitionSites.get(i);
+-        result.putAll(def, definitionFunctionNodesFor(def));
++        result = appendDefinitionFunctionNodes(definitionSites.get(i), result);
+       }
+-      return result.build();
++      return result != null ? result : NodeList.EMPTY;
+     }
+ 
+-    /**
+-     * Collects potential definition FUNCTIONs associated with a method definition site.
+-     *
+-     * @see {@link #getFunctionNodes}
+-     */
+-    static ImmutableList<Node> definitionFunctionNodesFor(Node definitionSite) {
++    static NodeList definitionFunctionNodeListFor(Node definitionSite) {
++      NodeList result = appendDefinitionFunctionNodes(definitionSite, null);
++      return result != null ? result : NodeList.EMPTY;
++    }
++
++    static @Nullable NodeList appendDefinitionFunctionNodes(
++        Node definitionSite, @Nullable NodeList fns) {
+       if (definitionSite.isGetterDef() || definitionSite.isSetterDef()) {
+         // TODO(nickreid): Support getters and setters. Ignore them for now since they aren't
+         // "called".
+-        return ImmutableList.of();
++        return fns;
+       }
+ 
+       // Ignore detached nodes.
+       Node parent = definitionSite.getParent();
+       if (parent == null) {
+-        return ImmutableList.of();
++        return fns;
+       }
+ 
+-      ImmutableList.Builder<Node> fns = ImmutableList.builder();
+       switch (parent.getToken()) {
+         case CLASS -> {
+           if (definitionSite.isFirstChildOf(parent)) {
+             Node constructorFnDef = NodeUtil.getEs6ClassConstructorMemberFunctionDef(parent);
+             if (constructorFnDef != null) {
++              if (fns == null) {
++                fns = new NodeList();
++              }
+               fns.add(constructorFnDef.getOnlyChild());
+             }
+           }
+         }
+-        case FUNCTION -> fns.add(parent);
++        case FUNCTION -> {
++          if (fns == null) {
++            fns = new NodeList();
++          }
++          fns.add(parent);
++        }
+         case CLASS_MEMBERS -> {
+           if (definitionSite.isMemberFunctionDef()) {
++            if (fns == null) {
++              fns = new NodeList();
++            }
+             fns.add(definitionSite.getLastChild());
+           } else {
+             checkArgument(definitionSite.isMemberFieldDef(), definitionSite);
+             Node value = definitionSite.getFirstChild();
+             if (value != null) {
+-              addValueFunctionNodes(fns, value);
++              fns = addValueFunctionNodes(fns, value);
+             }
+           }
+         }
+@@ -419,51 +457,58 @@ class OptimizeCalls implements CompilerPass {
+           checkArgument(
+               definitionSite.isStringKey() || definitionSite.isMemberFunctionDef(), //
+               definitionSite);
+-          addValueFunctionNodes(fns, definitionSite.getLastChild());
++          fns = addValueFunctionNodes(fns, definitionSite.getLastChild());
+         }
+         case ASSIGN -> {
+           // Only a candidate if the assign isn't consumed.
+           Node target = parent.getFirstChild();
+           Node value = parent.getLastChild();
+           if (definitionSite == target) {
+-            addValueFunctionNodes(fns, value);
++            fns = addValueFunctionNodes(fns, value);
+           }
+         }
+         case CONST, LET, VAR -> {
+           if (definitionSite.isName() && definitionSite.hasChildren()) {
+-            addValueFunctionNodes(fns, definitionSite.getFirstChild());
++            fns = addValueFunctionNodes(fns, definitionSite.getFirstChild());
+           }
+         }
+         default -> {}
+       }
+-      return fns.build();
++      return fns;
+     }
+ 
+-    private static void addValueFunctionNodes(ImmutableList.Builder<Node> fns, Node n) {
++    private static @Nullable NodeList addValueFunctionNodes(@Nullable NodeList fns, Node n) {
+       // TODO(johnlenz): add member definitions
+       switch (n.getToken()) {
+         case CLASS -> {
+-          {
+-            Node constructorFnDef = NodeUtil.getEs6ClassConstructorMemberFunctionDef(n);
+-            if (constructorFnDef != null) {
+-              fns.add(constructorFnDef.getOnlyChild());
++          Node constructorFnDef = NodeUtil.getEs6ClassConstructorMemberFunctionDef(n);
++          if (constructorFnDef != null) {
++            if (fns == null) {
++              fns = new NodeList();
+             }
++            fns.add(constructorFnDef.getOnlyChild());
++          }
++        }
++        case FUNCTION -> {
++          if (fns == null) {
++            fns = new NodeList();
+           }
++          fns.add(n);
+         }
+-        case FUNCTION -> fns.add(n);
+         case HOOK -> {
+-          addValueFunctionNodes(fns, n.getSecondChild());
+-          addValueFunctionNodes(fns, n.getLastChild());
++          fns = addValueFunctionNodes(fns, n.getSecondChild());
++          fns = addValueFunctionNodes(fns, n.getLastChild());
+         }
+         case OR, AND, COALESCE -> {
+-          addValueFunctionNodes(fns, n.getFirstChild());
+-          addValueFunctionNodes(fns, n.getLastChild());
++          fns = addValueFunctionNodes(fns, n.getFirstChild());
++          fns = addValueFunctionNodes(fns, n.getLastChild());
+         }
+-        case CAST, COMMA -> addValueFunctionNodes(fns, n.getLastChild());
++        case CAST, COMMA -> fns = addValueFunctionNodes(fns, n.getLastChild());
+         default -> {
+           // do nothing.
+         }
+       }
++      return fns;
+     }
+ 
+     /**
+diff --git a/com/google/javascript/jscomp/OptimizeParameters.java b/com/google/javascript/jscomp/OptimizeParameters.java
+index 3b5a86c7..3c09b2a1 100644
+--- a/com/google/javascript/jscomp/OptimizeParameters.java
++++ b/com/google/javascript/jscomp/OptimizeParameters.java
+@@ -165,7 +165,7 @@ class OptimizeParameters implements CompilerPass, OptimizeCalls.CallGraphCompile
+     void tryEliminateUnusedArgs(NodeList refs) {
+       // An argument is unused if its position is greater than the number of declared parameters
+       // or if it marked as unused.
+-      ImmutableListMultimap<Node, Node> fns = ReferenceMap.getFunctionNodes(refs);
++      NodeList fns = ReferenceMap.getFunctionNodeList(refs);
+       Preconditions.checkState(!fns.isEmpty());
+ 
+       // Examine all function definitions that are ever assigned to the symbol to determine:
+@@ -179,7 +179,8 @@ class OptimizeParameters implements CompilerPass, OptimizeCalls.CallGraphCompile
+       int maxFormalsCount = 0;
+       int lowestUsedRest = Integer.MAX_VALUE;
+       BitSet used = new BitSet();
+-      for (Node fn : fns.values()) {
++      for (int fi = 0, fnCount = fns.size(); fi < fnCount; fi++) {
++        Node fn = fns.get(fi);
+         Node paramList = NodeUtil.getFunctionParameters(fn);
+         int index = -1;
+         for (Node c = paramList.getFirstChild(); c != null; c = c.getNext()) {
+@@ -293,7 +294,8 @@ class OptimizeParameters implements CompilerPass, OptimizeCalls.CallGraphCompile
+         }
+       }
+ 
+-      for (Node fn : fns.values()) {
++      for (int fi = 0, fnCount = fns.size(); fi < fnCount; fi++) {
++        Node fn = fns.get(fi);
+         Node paramList = NodeUtil.getFunctionParameters(fn);
+         Node param = paramList.getFirstChild();
+         removeUnusedFunctionParameters(unremovable, param, 0);
+@@ -504,7 +506,9 @@ class OptimizeParameters implements CompilerPass, OptimizeCalls.CallGraphCompile
+     }
+     if (analysis.hasTaggedTemplateLiterals()) {
+       for (int i = 0, defCount = definitions.size(); i < defCount; i++) {
+-        for (Node functionNode : ReferenceMap.definitionFunctionNodesFor(definitions.get(i))) {
++        NodeList fnList = ReferenceMap.definitionFunctionNodeListFor(definitions.get(i));
++        for (int j = 0, fnCount = fnList.size(); j < fnCount; j++) {
++          Node functionNode = fnList.get(j);
+           final Node firstParam = NodeUtil.getFunctionParameters(functionNode).getFirstChild();
+           if (firstParam != null && !firstParam.isUnusedParameter()) {
+             decisionsLog.log(
+@@ -824,8 +828,9 @@ class OptimizeParameters implements CompilerPass, OptimizeCalls.CallGraphCompile
+       }
+     }
+ 
+-    for (Node fn : ReferenceMap.getFunctionNodes(refs).values()) {
+-      eliminateParamsAfter(fn, maxArgs);
++    NodeList fnList = ReferenceMap.getFunctionNodeList(refs);
++    for (int i = 0, fnCount = fnList.size(); i < fnCount; i++) {
++      eliminateParamsAfter(fnList.get(i), maxArgs);
+     }
+   }
+ 
+@@ -860,7 +865,7 @@ class OptimizeParameters implements CompilerPass, OptimizeCalls.CallGraphCompile
+       return;
+     }
+ 
+-    ImmutableListMultimap<Node, Node> fns = ReferenceMap.getFunctionNodes(refs);
++    NodeList fns = ReferenceMap.getFunctionNodeList(refs);
+     if (fns.size() > 1) {
+       // TODO(johnlenz): support moving simple constants.
+       // This requires cloning the tree and avoiding adding additional calls/definitions that will
+@@ -869,7 +874,8 @@ class OptimizeParameters implements CompilerPass, OptimizeCalls.CallGraphCompile
+     }
+ 
+     // Only one definition is currently supported.
+-    Node fn = Iterables.getOnlyElement(fns.values());
++    checkState(fns.size() == 1);
++    Node fn = fns.get(0);
+ 
+     boolean continueLooking = adjustForConstraints(fn, parameters);
+     if (!continueLooking) {
+diff --git a/com/google/javascript/jscomp/OptimizeReturns.java b/com/google/javascript/jscomp/OptimizeReturns.java
+index ee33e670..ef75371b 100644
+--- a/com/google/javascript/jscomp/OptimizeReturns.java
++++ b/com/google/javascript/jscomp/OptimizeReturns.java
+@@ -89,8 +89,9 @@ class OptimizeReturns implements OptimizeCalls.CallGraphCompilerPass, CompilerPa
+       // Now modify the AST
+       for (int i = 0, size = toOptimize.size(); i < size; i++) {
+         NodeList refs = toOptimize.get(i);
+-        for (Node fn : ReferenceMap.getFunctionNodes(refs).values()) {
+-          rewriteReturns(fn);
++        NodeList fns = ReferenceMap.getFunctionNodeList(refs);
++        for (int j = 0, fnCount = fns.size(); j < fnCount; j++) {
++          rewriteReturns(fns.get(j));
+         }
+       }
+     } finally {
+diff --git a/com/google/javascript/jscomp/TypeCheck.java b/com/google/javascript/jscomp/TypeCheck.java
+index b52c6f6e..fd05e443 100644
+--- a/com/google/javascript/jscomp/TypeCheck.java
++++ b/com/google/javascript/jscomp/TypeCheck.java
+@@ -3213,7 +3213,7 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+           moduleBody.getJSType(),
+           parentObjectType.getPropertyType(moduleName.getComponent()),
+           parentObjectType,
+-          () -> moduleName.getOwner().join(),
++          moduleName.getOwner(),
+           moduleName.getComponent());
+     }
+   }
+diff --git a/com/google/javascript/jscomp/TypeValidator.java b/com/google/javascript/jscomp/TypeValidator.java
+index d140fc7d..0a9bb34e 100644
+--- a/com/google/javascript/jscomp/TypeValidator.java
++++ b/com/google/javascript/jscomp/TypeValidator.java
+@@ -592,15 +592,88 @@ class TypeValidator implements Serializable {
+    */
+   boolean expectCanAssignToPropertyOf(
+       Node n, JSType rightType, JSType leftType, Node owner, String propName) {
+-    Supplier<String> typeNameSupplier;
+-    if (n.isMemberFieldDef()) {
+-      FunctionType classType = n.getGrandparent().getJSType().assertFunctionType();
+-      typeNameSupplier = () -> classType.getInstanceType().toString();
+-    } else {
+-      typeNameSupplier = () -> typeRegistry.getReadableTypeName(owner);
++    if (leftType.isTemplateType()) {
++      TemplateType left = leftType.toMaybeTemplateType();
++      if (rightType.containsReferenceAncestor(left)
++          || rightType.isUnknownType()
++          || left.isUnknownType()) {
++        return true;
++      }
++      String ownerTypeName =
++          n.isMemberFieldDef()
++              ? n.getGrandparent().getJSType().assertFunctionType().getInstanceType().toString()
++              : typeRegistry.getReadableTypeName(owner);
++      registerMismatchAndReport(
++          n,
++          TYPE_MISMATCH_WARNING,
++          "assignment to property " + propName + " of " + ownerTypeName,
++          rightType,
++          leftType,
++          new LinkedHashSet<>(),
++          new LinkedHashSet<>());
++      return false;
++    }
++    if (!leftType.isNoType() && !rightType.isSubtypeOf(leftType)) {
++      JSType ownerType = getJSType(owner);
++      if (ownerType.isFunctionPrototypeType()) {
++        FunctionType ownerFn = ownerType.toObjectType().getOwnerFunction();
++        if (ownerFn.isInterface() && rightType.isFunctionType() && leftType.isFunctionType()) {
++          return true;
++        }
++      }
++      String ownerTypeName =
++          n.isMemberFieldDef()
++              ? n.getGrandparent().getJSType().assertFunctionType().getInstanceType().toString()
++              : typeRegistry.getReadableTypeName(owner);
++      mismatch(
++          n,
++          "assignment to property " + propName + " of " + ownerTypeName,
++          rightType,
++          leftType);
++      return false;
++    }
++    return true;
++  }
++
++  boolean expectCanAssignToPropertyOf(
++      Node n,
++      JSType rightType,
++      JSType leftType,
++      JSType ownerType,
++      com.google.javascript.rhino.QualifiedName ownerName,
++      String propName) {
++    if (leftType.isTemplateType()) {
++      TemplateType left = leftType.toMaybeTemplateType();
++      if (rightType.containsReferenceAncestor(left)
++          || rightType.isUnknownType()
++          || left.isUnknownType()) {
++        return true;
++      }
++      registerMismatchAndReport(
++          n,
++          TYPE_MISMATCH_WARNING,
++          "assignment to property " + propName + " of " + ownerName.join(),
++          rightType,
++          leftType,
++          new LinkedHashSet<>(),
++          new LinkedHashSet<>());
++      return false;
+     }
+-    return expectCanAssignToPropertyOf(
+-        n, rightType, leftType, getJSType(owner), typeNameSupplier, propName);
++    if (!leftType.isNoType() && !rightType.isSubtypeOf(leftType)) {
++      if (ownerType.isFunctionPrototypeType()) {
++        FunctionType ownerFn = ownerType.toObjectType().getOwnerFunction();
++        if (ownerFn.isInterface() && rightType.isFunctionType() && leftType.isFunctionType()) {
++          return true;
++        }
++      }
++      mismatch(
++          n,
++          "assignment to property " + propName + " of " + ownerName.join(),
++          rightType,
++          leftType);
++      return false;
++    }
++    return true;
+   }
+ 
+   /**
+diff --git a/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java b/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java
+index b45a57d9..d1dd400b 100644
+--- a/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java
++++ b/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java
+@@ -294,9 +294,12 @@ public final class DisambiguateProperties implements CompilerPass {
+       }
+       return false;
+     }
+-    ImmutableSet<String> cached = this.largeOwnPropertiesCache.get(color);
++    LinkedHashSet<String> cached = this.largeOwnPropertiesCache.get(color);
+     if (cached == null) {
+-      cached = ImmutableSet.copyOf(ownProps);
++      cached = new LinkedHashSet<>(len * 2);
++      for (int i = 0; i < len; i++) {
++        cached.add(ownProps[i]);
++      }
+       this.largeOwnPropertiesCache.put(color, cached);
+     }
+     return cached.contains(propertyName);
+@@ -335,11 +338,11 @@ public final class DisambiguateProperties implements CompilerPass {
+   }
+ 
+   private final LinkedHashSet<Color> mayHavePropertySeenSet = new LinkedHashSet<>();
+-  private final LinkedIdentityHashMap<Color, ImmutableSet<String>> largeOwnPropertiesCache =
++  private final LinkedIdentityHashMap<Color, LinkedHashSet<String>> largeOwnPropertiesCache =
+       new LinkedIdentityHashMap<>();
+ 
+   private void registerOwnDeclaredProperties(
+-      ColorGraphNode colorGraphNode, Map<String, PropertyClustering> propIndex) {
++      ColorGraphNode colorGraphNode, LinkedHashMap<String, PropertyClustering> propIndex) {
+     checkArgument(!colorGraphNode.getColor().isUnion());
+ 
+     // For each type, get the list of its "own properties" and add them to its clustering. This
+diff --git a/com/google/javascript/jscomp/disambiguate/PropertyClustering.java b/com/google/javascript/jscomp/disambiguate/PropertyClustering.java
+index d380ec1a..9802be80 100644
+--- a/com/google/javascript/jscomp/disambiguate/PropertyClustering.java
++++ b/com/google/javascript/jscomp/disambiguate/PropertyClustering.java
+@@ -68,6 +68,10 @@ final class PropertyClustering {
+     this.useSites.forEach(consumer);
+   }
+ 
++  LinkedHashMap<Node, ColorGraphNode> getUseSites() {
++    return this.useSites;
++  }
++
+   StandardUnionFind<ColorGraphNode> getClusters() {
+     return this.clusters;
+   }
+diff --git a/com/google/javascript/jscomp/disambiguate/UseSiteRenamer.java b/com/google/javascript/jscomp/disambiguate/UseSiteRenamer.java
+index 96cd67b4..da5b2cbf 100644
+--- a/com/google/javascript/jscomp/disambiguate/UseSiteRenamer.java
++++ b/com/google/javascript/jscomp/disambiguate/UseSiteRenamer.java
+@@ -16,28 +16,33 @@
+ 
+ package com.google.javascript.jscomp.disambiguate;
+ 
+-import static com.google.common.collect.ImmutableMap.toImmutableMap;
+-import static java.util.function.Function.identity;
+-
+-import com.google.common.collect.ImmutableMap;
+ import com.google.common.collect.ImmutableSetMultimap;
+ import com.google.errorprone.annotations.CanIgnoreReturnValue;
++import com.google.javascript.jscomp.base.LinkedIdentityHashMap;
++import com.google.javascript.jscomp.graph.StandardUnionFind;
+ import com.google.javascript.rhino.Node;
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
+ import java.util.Map;
+ import java.util.Objects;
+-import java.util.function.Consumer;
++import org.jspecify.annotations.Nullable;
+ 
+ /** Applies renaming to property use sites following cluster computation. */
+ final class UseSiteRenamer {
+ 
++  interface MutationCallback {
++    void accept(Node node);
++  }
++
+   private static final String INVALIDATED_NAME_VALUE = "<INVALIDATED>";
+ 
+-  private final Consumer<Node> mutationCb;
++  private final MutationCallback mutationCb;
+ 
+-  private final ImmutableSetMultimap.Builder<String, String> renamingIndex =
+-      ImmutableSetMultimap.builder();
++  private final LinkedHashMap<String, String[]> recordedNames = new LinkedHashMap<>();
++  private static final String[] INVALIDATED_MARKER = new String[] {INVALIDATED_NAME_VALUE};
++  private static final String[] SINGLE_CLUSTER_MARKER = new String[0];
+ 
+-  UseSiteRenamer(Consumer<Node> mutationCb) {
++  UseSiteRenamer(MutationCallback mutationCb) {
+     this.mutationCb = mutationCb;
+   }
+ 
+@@ -48,32 +53,44 @@ final class UseSiteRenamer {
+    */
+   @CanIgnoreReturnValue
+   RenameUsesResult renameUses(PropertyClustering prop) {
++    String propName = prop.getName();
+     if (prop.isInvalidated()) {
+-      this.renamingIndex.put(prop.getName(), INVALIDATED_NAME_VALUE);
++      this.recordedNames.put(propName, INVALIDATED_MARKER);
+       return RenameUsesResult.INVALIDATED;
+     }
+ 
+-    ImmutableMap<ColorGraphNode, String> clusterNames = createAllClusterNames(prop);
+-
+-    if (clusterNames.size() <= 1) {
++    StandardUnionFind<ColorGraphNode> clusters = prop.getClusters();
++    if (!clusters.hasMultipleRepresentatives()) {
+       /*
+        * Don't bother renaming clusters with a single element. Renaming won't actaully disambiguate
+        * anything in this case, so skip the work.
+        */
+-      this.renamingIndex.put(prop.getName(), prop.getName());
++      this.recordedNames.put(propName, SINGLE_CLUSTER_MARKER);
+       return RenameUsesResult.ONLY_ONE_CLUSTER;
+     }
+ 
+-    this.renamingIndex.putAll(prop.getName(), clusterNames.values());
+-    prop.forEachUseSite(
+-        (Node site, ColorGraphNode owner) -> {
+-          ColorGraphNode flatRep = prop.getClusters().find(owner);
+-          String newName = clusterNames.get(flatRep);
+-          if (!Objects.equals(newName, site.getString())) {
+-            site.setString(newName);
+-            this.mutationCb.accept(site);
+-          }
+-        });
++    ArrayList<ColorGraphNode> reps = clusters.getRepresentativeList();
++    int repCount = reps.size();
++    LinkedIdentityHashMap<ColorGraphNode, String> clusterNames = new LinkedIdentityHashMap<>();
++    String[] namesArr = new String[repCount];
++    ColorGraphNode origRep = prop.getOriginalNameClusterRep();
++    for (int i = 0; i < repCount; i++) {
++      ColorGraphNode rep = reps.get(i);
++      String cName = (rep == origRep) ? propName : ("JSC$" + rep.getIndex() + "_" + propName);
++      clusterNames.put(rep, cName);
++      namesArr[i] = cName;
++    }
++
++    this.recordedNames.put(propName, namesArr);
++    for (Map.Entry<Node, ColorGraphNode> entry : prop.getUseSites().entrySet()) {
++      Node site = entry.getKey();
++      ColorGraphNode flatRep = clusters.find(entry.getValue());
++      String newName = clusterNames.get(flatRep);
++      if (!Objects.equals(newName, site.getString())) {
++        site.setString(newName);
++        this.mutationCb.accept(site);
++      }
++    }
+     return RenameUsesResult.DISAMBIGUATED;
+   }
+ 
+@@ -84,24 +101,18 @@ final class UseSiteRenamer {
+   }
+ 
+   ImmutableSetMultimap<String, String> getRenamingIndex() {
+-    return this.renamingIndex.build();
+-  }
+-
+-  /**
+-   * Creates a unique name for each cluster in {@code prop} and maps it to the cluster
+-   * representative.
+-   */
+-  private static ImmutableMap<ColorGraphNode, String> createAllClusterNames(
+-      PropertyClustering prop) {
+-    return prop.getClusters().allRepresentatives().stream()
+-        .collect(toImmutableMap(identity(), (r) -> createClusterName(prop, r)));
+-  }
+-
+-  private static String createClusterName(PropertyClustering prop, ColorGraphNode rep) {
+-    if (Objects.equals(prop.getOriginalNameClusterRep(), rep)) {
+-      return prop.getName();
++    ImmutableSetMultimap.Builder<String, String> builder = ImmutableSetMultimap.builder();
++    for (Map.Entry<String, String[]> entry : this.recordedNames.entrySet()) {
++      String propName = entry.getKey();
++      String[] vals = entry.getValue();
++      if (vals == SINGLE_CLUSTER_MARKER) {
++        builder.put(propName, propName);
++      } else if (vals != null) {
++        for (int i = 0; i < vals.length; i++) {
++          builder.put(propName, vals[i]);
++        }
++      }
+     }
+-
+-    return "JSC$" + rep.getIndex() + "_" + prop.getName();
++    return builder.build();
+   }
+ }
+diff --git a/com/google/javascript/jscomp/graph/StandardUnionFind.java b/com/google/javascript/jscomp/graph/StandardUnionFind.java
+index 722170f6..78b1707a 100644
+--- a/com/google/javascript/jscomp/graph/StandardUnionFind.java
++++ b/com/google/javascript/jscomp/graph/StandardUnionFind.java
+@@ -47,7 +47,7 @@ import org.jspecify.annotations.Nullable;
+ public class StandardUnionFind<E> implements Serializable, UnionFind<E> {
+ 
+   /** All values with the same root node are in the same equivalence set. */
+-  private final Map<E, Node<E>> elmap = new LinkedHashMap<>();
++  private final LinkedHashMap<E, Node<E>> elmap = new LinkedHashMap<>();
+ 
+   /** Creates an empty UnionFind structure. */
+   public StandardUnionFind() {
+@@ -105,8 +105,9 @@ public class StandardUnionFind<E> implements Serializable, UnionFind<E> {
+ 
+   @Override
+   public E find(@Nullable E e) {
+-    checkArgument(elmap.containsKey(e), "Element does not exist: %s", e);
+-    return findRoot(elmap.get(e)).element;
++    Node<E> node = elmap.get(e);
++    checkArgument(node != null, "Element does not exist: %s", e);
++    return findRoot(node).element;
+   }
+ 
+   @Override
+@@ -141,10 +142,36 @@ public class StandardUnionFind<E> implements Serializable, UnionFind<E> {
+    * <p>This is a "snapshot" view of the representatives at the time the method was called.
+    */
+   public ImmutableSet<E> allRepresentatives() {
+-    return this.elmap.values().stream()
+-        .filter((n) -> n == n.parent)
+-        .map((n) -> n.element)
+-        .collect(toImmutableSet());
++    ImmutableSet.Builder<E> builder = ImmutableSet.builder();
++    for (Node<E> n : this.elmap.values()) {
++      if (n == n.parent) {
++        builder.add(n.element);
++      }
++    }
++    return builder.build();
++  }
++
++  public boolean hasMultipleRepresentatives() {
++    if (this.elmap.size() <= 1) {
++      return false;
++    }
++    int count = 0;
++    for (Node<E> n : this.elmap.values()) {
++      if (n == n.parent && ++count > 1) {
++        return true;
++      }
++    }
++    return false;
++  }
++
++  public java.util.ArrayList<E> getRepresentativeList() {
++    java.util.ArrayList<E> reps = new java.util.ArrayList<>();
++    for (Node<E> n : this.elmap.values()) {
++      if (n == n.parent) {
++        reps.add(n.element);
++      }
++    }
++    return reps;
+   }
+ 
+   /**
+diff --git a/com/google/javascript/jscomp/parsing/parser/FeatureSet.java b/com/google/javascript/jscomp/parsing/parser/FeatureSet.java
+index e89d4a9c..c9f054f2 100644
+--- a/com/google/javascript/jscomp/parsing/parser/FeatureSet.java
++++ b/com/google/javascript/jscomp/parsing/parser/FeatureSet.java
+@@ -493,7 +493,7 @@ public final class FeatureSet implements Serializable {
+   /** Returns a feature set combining all the features from {@code this} and {@code feature}. */
+   public FeatureSet with(Feature feature) {
+     long newBits = this.bits | (1L << feature.ordinal());
+-    return newBits == this.bits ? this : new FeatureSet(newBits);
++    return newBits == this.bits ? this : ofBits(newBits);
+   }
+ 
+   /** Returns a feature set combining all the features from {@code this} and {@code newFeatures}. */
+diff --git a/com/google/javascript/jscomp/serialization/ColorSerializer.java b/com/google/javascript/jscomp/serialization/ColorSerializer.java
+index 8aaafc22..db43b3bd 100644
+--- a/com/google/javascript/jscomp/serialization/ColorSerializer.java
++++ b/com/google/javascript/jscomp/serialization/ColorSerializer.java
+@@ -27,7 +27,6 @@ import java.util.Collection;
+ import java.util.LinkedHashMap;
+ import java.util.Map.Entry;
+ import java.util.function.Function;
+-import java.util.function.Predicate;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -37,14 +36,26 @@ import org.jspecify.annotations.Nullable;
+  * `TypePool`, then call `generateTypePool()` to get the result.
+  */
+ class ColorSerializer {
++  interface StringPoolIndexFn {
++    int apply(String str);
++  }
++
++  interface PropertyFilter {
++    boolean test(String str);
++  }
++
++  interface DisambiguationSupertypesFn {
++    Color[] apply(Color color);
++  }
++
+   private final SerializationOptions serializationMode;
+   /**
+    * Used to find the index at which a `String` will appear in the `StringPoolProto` that will
+    * eventually be serialized with the `TypePool` generated by this `ColorSerializer`.
+    */
+-  private final Function<String, Integer> getStringPoolIndexFn;
++  private final StringPoolIndexFn getStringPoolIndexFn;
+   /** Only property names that pass this predicate will be serialized. */
+-  private final Predicate<String> propertyFilter;
++  private final PropertyFilter propertyFilter;
+ 
+   /**
+    * Stores the `Integer` values assigned to `Color`s as they are added for serialization, so they
+@@ -71,8 +82,8 @@ class ColorSerializer {
+    */
+   ColorSerializer(
+       SerializationOptions serializationMode,
+-      Function<String, Integer> stringPoolIndexFn,
+-      Predicate<String> propertyFilter) {
++      StringPoolIndexFn stringPoolIndexFn,
++      PropertyFilter propertyFilter) {
+     this.serializationMode = serializationMode;
+     this.getStringPoolIndexFn = stringPoolIndexFn;
+     this.propertyFilter = propertyFilter;
+@@ -142,7 +153,7 @@ class ColorSerializer {
+    * @return a new `TypePool` proto
+    */
+   TypePool generateTypePool(
+-      Function<Color, Color[]> getDisambiguationSupertypesFn,
++      DisambiguationSupertypesFn getDisambiguationSupertypesFn,
+       @Nullable Function<Color, ImmutableSet<String>> getMismatchSourceRefsFn) {
+     final TypePool.Builder typePoolBuilder = TypePool.newBuilder();
+     // We use an indexed loop here for 2 reasons.
+diff --git a/com/google/javascript/jscomp/serialization/JSTypeColorIdHasher.java b/com/google/javascript/jscomp/serialization/JSTypeColorIdHasher.java
+index 91756701..d7db91d3 100644
+--- a/com/google/javascript/jscomp/serialization/JSTypeColorIdHasher.java
++++ b/com/google/javascript/jscomp/serialization/JSTypeColorIdHasher.java
+@@ -17,13 +17,9 @@
+ package com.google.javascript.jscomp.serialization;
+ 
+ import static com.google.common.base.Preconditions.checkState;
+-import static com.google.common.collect.ImmutableMap.toImmutableMap;
+-import static java.nio.charset.StandardCharsets.UTF_8;
+ 
+ import com.google.common.collect.ImmutableMap;
+-import com.google.common.hash.HashFunction;
+-import com.google.common.hash.Hasher;
+-import com.google.common.hash.Hashing;
++import com.google.javascript.jscomp.base.LinkedIdentityHashMap;
+ import com.google.javascript.jscomp.colors.ColorId;
+ import com.google.javascript.jscomp.colors.StandardColors;
+ import com.google.javascript.rhino.jstype.FunctionType;
+@@ -31,22 +27,88 @@ import com.google.javascript.rhino.jstype.JSType;
+ import com.google.javascript.rhino.jstype.JSTypeNative;
+ import com.google.javascript.rhino.jstype.JSTypeRegistry;
+ import com.google.javascript.rhino.jstype.ObjectType;
+-import java.util.ArrayList;
+-import java.util.Collections;
++import java.util.Arrays;
+ import java.util.Map;
+ import java.util.Set;
+ import org.jspecify.annotations.Nullable;
+ 
+ final class JSTypeColorIdHasher {
+ 
+-  private final ImmutableMap<ObjectType, ColorId> standardColorObjectIds;
++  private static final long FARM_K0 = 0xc3a5c85c97cb3127L;
++  private static final long FARM_K1 = 0xb492b66fbe98f273L;
++  private static final long FARM_K2 = 0x9ae16a3b2f90404fL;
++
++  private final LinkedIdentityHashMap<ObjectType, ColorId> standardColorObjectIds;
++  private byte[] scratchBytes = new byte[256];
++  private int scratchLen = 0;
+ 
+   JSTypeColorIdHasher(JSTypeRegistry registry) {
+-    this.standardColorObjectIds =
+-        NATIVE_TYPE_TO_ID.entrySet().stream()
+-            .collect(
+-                toImmutableMap(
+-                    (e) -> registry.getNativeObjectType(e.getKey()), Map.Entry::getValue));
++    LinkedIdentityHashMap<ObjectType, ColorId> ids = new LinkedIdentityHashMap<>();
++    for (Map.Entry<JSTypeNative, ColorId> e : NATIVE_TYPE_TO_ID.entrySet()) {
++      ids.put(registry.getNativeObjectType(e.getKey()), e.getValue());
++    }
++    this.standardColorObjectIds = ids;
++  }
++
++  private void ensureCapacity(int additional) {
++    int needed = this.scratchLen + additional;
++    byte[] buf = this.scratchBytes;
++    if (needed > buf.length) {
++      int newCap = buf.length * 2;
++      while (newCap < needed) {
++        newCap *= 2;
++      }
++      this.scratchBytes = Arrays.copyOf(buf, newCap);
++    }
++  }
++
++  private void putInt(int v) {
++    ensureCapacity(4);
++    byte[] buf = this.scratchBytes;
++    int pos = this.scratchLen;
++    buf[pos] = (byte) v;
++    buf[pos + 1] = (byte) (v >>> 8);
++    buf[pos + 2] = (byte) (v >>> 16);
++    buf[pos + 3] = (byte) (v >>> 24);
++    this.scratchLen = pos + 4;
++  }
++
++  private void putUtf8(String s) {
++    int sLen = s.length();
++    if (sLen == 0) {
++      return;
++    }
++    ensureCapacity(sLen * 3);
++    byte[] buf = this.scratchBytes;
++    int pos = this.scratchLen;
++    for (int i = 0; i < sLen; i++) {
++      char c = s.charAt(i);
++      if (c < 0x80) {
++        buf[pos++] = (byte) c;
++      } else if (c < 0x800) {
++        buf[pos++] = (byte) (0xC0 | (c >>> 6));
++        buf[pos++] = (byte) (0x80 | (c & 0x3F));
++      } else if (Character.isSurrogate(c)) {
++        if (Character.isHighSurrogate(c) && i + 1 < sLen) {
++          char low = s.charAt(i + 1);
++          if (Character.isLowSurrogate(low)) {
++            int cp = Character.toCodePoint(c, low);
++            i++;
++            buf[pos++] = (byte) (0xF0 | (cp >>> 18));
++            buf[pos++] = (byte) (0x80 | ((cp >>> 12) & 0x3F));
++            buf[pos++] = (byte) (0x80 | ((cp >>> 6) & 0x3F));
++            buf[pos++] = (byte) (0x80 | (cp & 0x3F));
++            continue;
++          }
++        }
++        buf[pos++] = (byte) '?';
++      } else {
++        buf[pos++] = (byte) (0xE0 | (c >>> 12));
++        buf[pos++] = (byte) (0x80 | ((c >>> 6) & 0x3F));
++        buf[pos++] = (byte) (0x80 | (c & 0x3F));
++      }
++    }
++    this.scratchLen = pos;
+   }
+ 
+   ColorId hashObjectType(ObjectType type) {
+@@ -64,50 +126,51 @@ final class JSTypeColorIdHasher {
+       return boxId;
+     }
+ 
+-    Hasher hasher = FARM_64.newHasher();
++    this.scratchLen = 0;
+ 
+     if (type.isFunctionType()) {
+       FunctionType fnType = type.toMaybeFunctionType();
+       if (fnType.hasInstanceType()) {
+-        hasher.putInt(Marker.HAS_INSTANCE_TYPE);
++        putInt(Marker.HAS_INSTANCE_TYPE);
+       }
+     }
+ 
+     if (type.hasReferenceName()) {
+-      this.putReferenceNameType(hasher, type);
++      this.putReferenceNameType(type);
+     } else {
+       Set<String> ownProps = type.getOwnPropertyNames();
+-      if (ownProps.size() <= 1 || type.isRecordType()) {
++      int propCount = ownProps.size();
++      if (propCount <= 1 || type.isRecordType()) {
+         for (String prop : ownProps) {
+-          putUtf8(hasher, prop);
++          putUtf8(prop);
+         }
+       } else {
+-        ArrayList<String> sortedProps = new ArrayList<>(ownProps);
+-        Collections.sort(sortedProps);
+-        for (int i = 0; i < sortedProps.size(); i++) {
+-          putUtf8(hasher, sortedProps.get(i));
++        String[] sortedProps = ownProps.toArray(new String[propCount]);
++        Arrays.sort(sortedProps);
++        for (int i = 0; i < sortedProps.length; i++) {
++          putUtf8(sortedProps[i]);
+         }
+       }
+     }
+ 
+-    return ColorId.fromUnsigned(hasher.hash().asLong());
++    return ColorId.fromUnsigned(farmHash64(this.scratchBytes, this.scratchLen));
+   }
+ 
+-  private void putReferenceNameType(Hasher hasher, ObjectType type) {
+-    putUtf8(hasher, type.getReferenceName());
++  private void putReferenceNameType(ObjectType type) {
++    putUtf8(type.getReferenceName());
+ 
+     JSType.WithSourceRef sourceRef = sourceRefFor(type);
+     if (sourceRef == null) {
+       // TODO(b/185519307): This is a hack to work around bugs in the typesystem.
+-      hasher.putInt(Marker.UNKNOWN_SOURCEREF);
++      putInt(Marker.UNKNOWN_SOURCEREF);
+       return;
+     }
+ 
+     String moduleId = sourceRef.getGoogModuleId();
+     if (moduleId == null) {
+-      hasher.putInt(Marker.NO_GOOG_MODULE_ID);
++      putInt(Marker.NO_GOOG_MODULE_ID);
+     } else {
+-      putUtf8(hasher, moduleId);
++      putUtf8(moduleId);
+     }
+   }
+ 
+@@ -130,10 +193,195 @@ final class JSTypeColorIdHasher {
+     return null;
+   }
+ 
+-  private static final HashFunction FARM_64 = Hashing.farmHashFingerprint64();
++  private static long load64(byte[] bytes, int offset) {
++    return (bytes[offset] & 0xFFL)
++        | ((bytes[offset + 1] & 0xFFL) << 8)
++        | ((bytes[offset + 2] & 0xFFL) << 16)
++        | ((bytes[offset + 3] & 0xFFL) << 24)
++        | ((bytes[offset + 4] & 0xFFL) << 32)
++        | ((bytes[offset + 5] & 0xFFL) << 40)
++        | ((bytes[offset + 6] & 0xFFL) << 48)
++        | ((bytes[offset + 7] & 0xFFL) << 56);
++  }
+ 
+-  private static void putUtf8(Hasher hasher, String s) {
+-    hasher.putString(s, UTF_8);
++  private static long load32(byte[] bytes, int offset) {
++    return (bytes[offset] & 0xFFL)
++        | ((bytes[offset + 1] & 0xFFL) << 8)
++        | ((bytes[offset + 2] & 0xFFL) << 16)
++        | ((bytes[offset + 3] & 0xFFL) << 24);
++  }
++
++  private static long shiftMix(long val) {
++    return val ^ (val >>> 47);
++  }
++
++  private static long hashLength16(long u, long v, long mul) {
++    long a = (u ^ v) * mul;
++    a ^= (a >>> 47);
++    long b = (v ^ a) * mul;
++    b ^= (b >>> 47);
++    b *= mul;
++    return b;
++  }
++
++  private static long farmHash64(byte[] bytes, int length) {
++    if (length <= 16) {
++      return hashLength0to16(bytes, length);
++    }
++    if (length <= 32) {
++      return hashLength17to32(bytes, length);
++    }
++    if (length <= 64) {
++      return hashLength33To64(bytes, length);
++    }
++    return hashLength65Plus(bytes, length);
++  }
++
++  private static long hashLength0to16(byte[] bytes, int length) {
++    if (length >= 8) {
++      long mul = FARM_K2 + length * 2L;
++      long a = load64(bytes, 0) + FARM_K2;
++      long b = load64(bytes, length - 8);
++      long c = Long.rotateRight(b, 37) * mul + a;
++      long d = (Long.rotateRight(a, 25) + b) * mul;
++      return hashLength16(c, d, mul);
++    }
++    if (length >= 4) {
++      long mul = FARM_K2 + length * 2L;
++      long a = load32(bytes, 0);
++      return hashLength16(length + (a << 3), load32(bytes, length - 4), mul);
++    }
++    if (length > 0) {
++      byte a = bytes[0];
++      byte b = bytes[length >> 1];
++      byte c = bytes[length - 1];
++      int y = (a & 0xFF) + ((b & 0xFF) << 8);
++      int z = length + ((c & 0xFF) << 2);
++      return shiftMix(y * FARM_K2 ^ z * FARM_K0) * FARM_K2;
++    }
++    return FARM_K2;
++  }
++
++  private static long hashLength17to32(byte[] bytes, int length) {
++    long mul = FARM_K2 + length * 2L;
++    long a = load64(bytes, 0) * FARM_K1;
++    long b = load64(bytes, 8);
++    long c = load64(bytes, length - 8) * mul;
++    long d = load64(bytes, length - 16) * FARM_K2;
++    return hashLength16(
++        Long.rotateRight(a + b, 43) + Long.rotateRight(c, 30) + d,
++        a + Long.rotateRight(b + FARM_K2, 18) + c,
++        mul);
++  }
++
++  private static long hashLength33To64(byte[] bytes, int length) {
++    long mul = FARM_K2 + length * 2L;
++    long a = load64(bytes, 0) * FARM_K2;
++    long b = load64(bytes, 8);
++    long c = load64(bytes, length - 8) * mul;
++    long d = load64(bytes, length - 16) * FARM_K2;
++    long y = Long.rotateRight(a + b, 43) + Long.rotateRight(c, 30) + d;
++    long z = hashLength16(y, a + Long.rotateRight(b + FARM_K2, 18) + c, mul);
++    long e = load64(bytes, 16) * mul;
++    long f = load64(bytes, 24);
++    long g = (y + load64(bytes, length - 32)) * mul;
++    long h = (z + load64(bytes, length - 24)) * mul;
++    return hashLength16(
++        Long.rotateRight(e + f, 43) + Long.rotateRight(g, 30) + h,
++        e + Long.rotateRight(f + a, 18) + g,
++        mul);
++  }
++
++  private static long hashLength65Plus(byte[] bytes, int length) {
++    final int seed = 81;
++    long x = seed;
++    long y = seed * FARM_K1 + 113;
++    long z = shiftMix(y * FARM_K2 + 113) * FARM_K2;
++    long v0 = 0L;
++    long v1 = 0L;
++    long w0 = 0L;
++    long w1 = 0L;
++    x = x * FARM_K2 + load64(bytes, 0);
++
++    int offset = 0;
++    int end = ((length - 1) / 64) * 64;
++    int last64offset = end + ((length - 1) & 63) - 63;
++    do {
++      x = Long.rotateRight(x + y + v0 + load64(bytes, offset + 8), 37) * FARM_K1;
++      y = Long.rotateRight(y + v1 + load64(bytes, offset + 48), 42) * FARM_K1;
++      x ^= w1;
++      y += v0 + load64(bytes, offset + 40);
++      z = Long.rotateRight(z + w0, 33) * FARM_K1;
++      {
++        long p1 = load64(bytes, offset);
++        long p2 = load64(bytes, offset + 8);
++        long p3 = load64(bytes, offset + 16);
++        long p4 = load64(bytes, offset + 24);
++        long sa = v1 * FARM_K1 + p1;
++        long sb = Long.rotateRight((x + w0) + sa + p4, 21);
++        long sc = sa;
++        sa += p2 + p3;
++        sb += Long.rotateRight(sa, 44);
++        v0 = sa + p4;
++        v1 = sb + sc;
++      }
++      {
++        long p1 = load64(bytes, offset + 32);
++        long p2 = load64(bytes, offset + 40);
++        long p3 = load64(bytes, offset + 48);
++        long p4 = load64(bytes, offset + 56);
++        long sa = (z + w1) + p1;
++        long sb = Long.rotateRight((y + load64(bytes, offset + 16)) + sa + p4, 21);
++        long sc = sa;
++        sa += p2 + p3;
++        sb += Long.rotateRight(sa, 44);
++        w0 = sa + p4;
++        w1 = sb + sc;
++      }
++      long tmp = x;
++      x = z;
++      z = tmp;
++      offset += 64;
++    } while (offset != end);
++
++    long mul = FARM_K1 + ((z & 0xFF) << 1);
++    offset = last64offset;
++    w0 += (length - 1) & 63;
++    v0 += w0;
++    w0 += v0;
++    x = Long.rotateRight(x + y + v0 + load64(bytes, offset + 8), 37) * mul;
++    y = Long.rotateRight(y + v1 + load64(bytes, offset + 48), 42) * mul;
++    x ^= w1 * 9;
++    y += v0 * 9 + load64(bytes, offset + 40);
++    z = Long.rotateRight(z + w0, 33) * mul;
++    {
++      long p1 = load64(bytes, offset);
++      long p2 = load64(bytes, offset + 8);
++      long p3 = load64(bytes, offset + 16);
++      long p4 = load64(bytes, offset + 24);
++      long sa = v1 * mul + p1;
++      long sb = Long.rotateRight((x + w0) + sa + p4, 21);
++      long sc = sa;
++      sa += p2 + p3;
++      sb += Long.rotateRight(sa, 44);
++      v0 = sa + p4;
++      v1 = sb + sc;
++    }
++    {
++      long p1 = load64(bytes, offset + 32);
++      long p2 = load64(bytes, offset + 40);
++      long p3 = load64(bytes, offset + 48);
++      long p4 = load64(bytes, offset + 56);
++      long sa = (z + w1) + p1;
++      long sb = Long.rotateRight((y + load64(bytes, offset + 16)) + sa + p4, 21);
++      long sc = sa;
++      sa += p2 + p3;
++      sb += Long.rotateRight(sa, 44);
++      w0 = sa + p4;
++      w1 = sb + sc;
++    }
++    return hashLength16(
++        hashLength16(v0, w0, mul) + shiftMix(y) * FARM_K0 + x, hashLength16(v1, w1, mul) + z, mul);
+   }
+ 
+   /**
+diff --git a/com/google/javascript/jscomp/serialization/TypedAstSerializer.java b/com/google/javascript/jscomp/serialization/TypedAstSerializer.java
+index 1c4daa85..d1ad5b71 100644
+--- a/com/google/javascript/jscomp/serialization/TypedAstSerializer.java
++++ b/com/google/javascript/jscomp/serialization/TypedAstSerializer.java
+@@ -800,7 +800,7 @@ final class TypedAstSerializer {
+       SerializationOptions serializationMode,
+       StringPool.Builder stringPoolBuilder) {
+     // Gather all the property names that are actually used in the AST.
+-    final ImmutableSet<String> usedPropertyNames = collectUsedPropertyNames(compiler);
++    final java.util.LinkedHashSet<String> usedPropertyNames = collectUsedPropertyNames(compiler);
+     final ColorSerializer colorSerializer =
+         new ColorSerializer(
+             serializationMode,
+@@ -812,8 +812,9 @@ final class TypedAstSerializer {
+   }
+ 
+   /** Add all unquoted property names appearing in the AST. */
+-  private static ImmutableSet<String> collectUsedPropertyNames(AbstractCompiler compiler) {
+-    final ImmutableSet.Builder<String> propertyNamesBuilder = ImmutableSet.builder();
++  private static java.util.LinkedHashSet<String> collectUsedPropertyNames(
++      AbstractCompiler compiler) {
++    final java.util.LinkedHashSet<String> propertyNames = new java.util.LinkedHashSet<>();
+ 
+     NodeTraversal.traverse(
+         compiler,
+@@ -831,21 +832,21 @@ final class TypedAstSerializer {
+             switch (n.getToken()) {
+               case GETPROP, // "name" from (someObject.name)
+                   OPTCHAIN_GETPROP -> // "name" from (someObject?.name)
+-                  propertyNamesBuilder.add(n.getString());
++                  propertyNames.add(n.getString());
+               case STRING_KEY, // "name" from obj = {name: 0}
+                   MEMBER_FUNCTION_DEF, // "name" from class C { name() {} }
+                   MEMBER_FIELD_DEF, // "name" from class C { name = 0; }
+                   GETTER_DEF, // "name" from class C { get name() {} }
+                   SETTER_DEF -> { // "name" from class C { set name(n) {} }
+                 if (!n.isQuotedStringKey()) {
+-                  propertyNamesBuilder.add(n.getString());
++                  propertyNames.add(n.getString());
+                 }
+               }
+               default -> {}
+             }
+           }
+         });
+-    return propertyNamesBuilder.build();
++    return propertyNames;
+   }
+ 
+   /** Used when the AST has `Color`s rather than `JSType`s */
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+index 23245a91..29a76922 100644
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -310,6 +310,11 @@ public class Node {
+       this.setDouble(number);
+     }
+ 
++    @Override
++    int nodeSubclassKind() {
++      return 1;
++    }
++
+     @Override
+     public boolean isEquivalentTo(
+         Node node,
+@@ -339,6 +344,11 @@ public class Node {
+       setBigInt(bigint);
+     }
+ 
++    @Override
++    int nodeSubclassKind() {
++      return 2;
++    }
++
+     @Override
+     public boolean isEquivalentTo(
+         Node node,
+@@ -379,6 +389,11 @@ public class Node {
+       setStringFromStringPool(stringPool, offset);
+     }
+ 
++    @Override
++    int nodeSubclassKind() {
++      return 3;
++    }
++
+     @Override
+     public boolean isEquivalentTo(
+         Node node,
+@@ -429,6 +444,11 @@ public class Node {
+       this.raw = stringPool.get(rawOffset);
+     }
+ 
++    @Override
++    int nodeSubclassKind() {
++      return 4;
++    }
++
+     @Override
+     public boolean isEquivalentTo(
+         Node node,
+@@ -474,6 +494,9 @@ public class Node {
+ 
+     static PropListItem intItem(byte propType, int intValue, @Nullable PropListItem next) {
+       checkState(intValue != 0);
++      if (intValue == 1 && next == null) {
++        return STATIC_SINGLE_TRUE_ITEMS[propType & 0xFF];
++      }
+       return new PropListItem(propType, intValue, null, next);
+     }
+ 
+@@ -505,6 +528,9 @@ public class Node {
+     }
+ 
+     public PropListItem chain(@Nullable PropListItem next) {
++      if (next == null && objectValue == null && intValue == 1) {
++        return STATIC_SINGLE_TRUE_ITEMS[propType & 0xFF];
++      }
+       return new PropListItem(propType, intValue, objectValue, next);
+     }
+   }
+@@ -573,6 +599,8 @@ public class Node {
+ 
+   private static final Prop[] INLINE_BIT_TO_PROP = new Prop[INLINE_BOOL_COUNT];
+   private static final int[] INLINE_BOOL_MASKS = new int[propValues.length];
++  private static final PropListItem[] STATIC_SINGLE_TRUE_ITEMS =
++      new PropListItem[propValues.length];
+   private static final PropListItem[] STATIC_INLINE_BOOL_ITEMS =
+       new PropListItem[INLINE_BOOL_COUNT];
+   private static final PropListItem[] STATIC_CONST_VAR_ITEMS =
+@@ -584,10 +612,13 @@ public class Node {
+   private static void registerInlineBoolProp(int bit, Prop prop) {
+     INLINE_BIT_TO_PROP[bit] = prop;
+     INLINE_BOOL_MASKS[prop.ordinal()] = 1 << bit;
+-    STATIC_INLINE_BOOL_ITEMS[bit] = PropListItem.intItem((byte) prop.ordinal(), 1, null);
++    STATIC_INLINE_BOOL_ITEMS[bit] = STATIC_SINGLE_TRUE_ITEMS[prop.ordinal()];
+   }
+ 
+   static {
++    for (int i = 0; i < propValues.length; i++) {
++      STATIC_SINGLE_TRUE_ITEMS[i] = new PropListItem((byte) i, 1, null, null);
++    }
+     registerInlineBoolProp(0, Prop.IS_CONSTANT_NAME);
+     registerInlineBoolProp(1, Prop.QUOTED);
+     registerInlineBoolProp(2, Prop.FREE_CALL);
+@@ -1669,6 +1700,12 @@ public class Node {
+         return;
+       }
+     } else {
++      if (value != null) {
++        PropListItem existing = lookupColdProperty(prop);
++        if (existing != null && existing.isObjectItem() && existing.objectValue == value) {
++          return;
++        }
++      }
+       head = rebuildListWithoutProp(head, prop);
+     }
+     if (value != null) {
+@@ -1740,6 +1777,12 @@ public class Node {
+         return;
+       }
+     } else {
++      if (value != 0) {
++        PropListItem existing = lookupColdProperty(prop);
++        if (existing != null && existing.isIntItem() && existing.intValue == value) {
++          return;
++        }
++      }
+       head = rebuildListWithoutProp(head, prop);
+     }
+     if (value != 0) {
+@@ -3193,6 +3236,10 @@ public class Node {
+         sideEffect ? SideEffectComparison.COMPARE : SideEffectComparison.IGNORE);
+   }
+ 
++  int nodeSubclassKind() {
++    return 0;
++  }
++
+   /**
+    * Returns whether this node is equivalent semantically to the provided node.
+    *
+@@ -3210,7 +3257,7 @@ public class Node {
+       SideEffectComparison sideEffectConfig) {
+     if (token != node.token
+         || getChildCount() != node.getChildCount()
+-        || this.getClass() != node.getClass()) {
++        || this.nodeSubclassKind() != node.nodeSubclassKind()) {
+       return false;
+     }
+ 
+@@ -3261,9 +3308,7 @@ public class Node {
+       while (coldPropBits != 0L) {
+         int ord = Long.numberOfTrailingZeros(coldPropBits);
+         coldPropBits &= ~(1L << ord);
+-        Prop prop = propValues[ord];
+-        Function<Node, Object> getter = PROP_MAP_FOR_EQUALITY.get(prop);
+-        if (!Objects.equals(getter.apply(this), getter.apply(node))) {
++        if (!propEqualsForEquivalence(propValues[ord], this, node)) {
+           return false;
+         }
+       }
+@@ -3305,48 +3350,44 @@ public class Node {
+     return true;
+   }
+ 
+-  /**
+-   * Accessors for {@link Node} properties that should also be compared when comparing nodes for
+-   * equality.
+-   *
+-   * <p>We'd prefer to list the props that should be ignored rather than the ones that should be
+-   * checked, but that was too difficult initially. In general these properties are ones that show
+-   * up as keywords / symbols which don't have their own nodes.
+-   *
+-   * <p>Accessor functions are used rather than {@link Prop}s to encode the correct way of reading
+-   * the prop.
+-   */
+-  private static final ImmutableMap<Prop, Function<Node, Object>> PROP_MAP_FOR_EQUALITY =
+-      new ImmutableMap.Builder<Prop, Function<Node, Object>>()
+-          .put(Prop.ARROW_FN, Node::isArrowFunction)
+-          .put(Prop.ASYNC_FN, Node::isAsyncFunction)
+-          .put(Prop.GENERATOR_FN, Node::isGeneratorFunction)
+-          .put(Prop.START_OF_OPT_CHAIN, Node::isOptionalChainStart)
+-          .put(Prop.STATIC_MEMBER, Node::isStaticMember)
+-          .put(Prop.YIELD_ALL, Node::isYieldAll)
+-          .put(Prop.EXPORT_DEFAULT, (n) -> n.getIntProp(Prop.EXPORT_DEFAULT))
+-          .put(Prop.EXPORT_ALL_FROM, (n) -> n.getIntProp(Prop.EXPORT_ALL_FROM))
+-          .put(Prop.INCRDECR, (n) -> n.getIntProp(Prop.INCRDECR))
+-          .put(Prop.QUOTED, (n) -> n.getIntProp(Prop.QUOTED))
+-          .put(Prop.FREE_CALL, (n) -> n.getBooleanProp(Prop.FREE_CALL))
+-          .put(Prop.DIRECT_EVAL, (n) -> n.getBooleanProp(Prop.DIRECT_EVAL))
+-          .put(Prop.COMPUTED_PROP_METHOD, (n) -> n.getBooleanProp(Prop.COMPUTED_PROP_METHOD))
+-          .put(Prop.COMPUTED_PROP_GETTER, (n) -> n.getBooleanProp(Prop.COMPUTED_PROP_GETTER))
+-          .put(Prop.COMPUTED_PROP_SETTER, (n) -> n.getBooleanProp(Prop.COMPUTED_PROP_SETTER))
+-          .buildOrThrow();
+-
+-  /** Used for faster Map.containsKey() lookups in PROP_MAP_FOR_EQUALITY */
+-  private static final EnumSet<Prop> propMapForEqualityKeys =
+-      EnumSet.copyOf(PROP_MAP_FOR_EQUALITY.keySet());
++  private static boolean propEqualsForEquivalence(Prop prop, Node a, Node b) {
++    return switch (prop) {
++      case ARROW_FN -> a.isArrowFunction() == b.isArrowFunction();
++      case ASYNC_FN -> a.isAsyncFunction() == b.isAsyncFunction();
++      case GENERATOR_FN -> a.isGeneratorFunction() == b.isGeneratorFunction();
++      case START_OF_OPT_CHAIN -> a.isOptionalChainStart() == b.isOptionalChainStart();
++      case STATIC_MEMBER -> a.isStaticMember() == b.isStaticMember();
++      case YIELD_ALL -> a.isYieldAll() == b.isYieldAll();
++      case EXPORT_DEFAULT, EXPORT_ALL_FROM, INCRDECR, QUOTED ->
++          a.getIntProp(prop) == b.getIntProp(prop);
++      case FREE_CALL,
++          DIRECT_EVAL,
++          COMPUTED_PROP_METHOD,
++          COMPUTED_PROP_GETTER,
++          COMPUTED_PROP_SETTER ->
++          a.getBooleanProp(prop) == b.getBooleanProp(prop);
++      default -> true;
++    };
++  }
+ 
+   @SuppressWarnings("EnumOrdinal")
+   private static long computePropEqualityOrdinalMask() {
+     checkState(propValues.length <= 64);
+-    long mask = 0L;
+-    for (Prop p : propMapForEqualityKeys) {
+-      mask |= 1L << p.ordinal();
+-    }
+-    return mask;
++    return (1L << Prop.ARROW_FN.ordinal())
++        | (1L << Prop.ASYNC_FN.ordinal())
++        | (1L << Prop.GENERATOR_FN.ordinal())
++        | (1L << Prop.START_OF_OPT_CHAIN.ordinal())
++        | (1L << Prop.STATIC_MEMBER.ordinal())
++        | (1L << Prop.YIELD_ALL.ordinal())
++        | (1L << Prop.EXPORT_DEFAULT.ordinal())
++        | (1L << Prop.EXPORT_ALL_FROM.ordinal())
++        | (1L << Prop.INCRDECR.ordinal())
++        | (1L << Prop.QUOTED.ordinal())
++        | (1L << Prop.FREE_CALL.ordinal())
++        | (1L << Prop.DIRECT_EVAL.ordinal())
++        | (1L << Prop.COMPUTED_PROP_METHOD.ordinal())
++        | (1L << Prop.COMPUTED_PROP_GETTER.ordinal())
++        | (1L << Prop.COMPUTED_PROP_SETTER.ordinal());
+   }
+ 
+   private static final long PROP_EQUALITY_ORDINAL_MASK = computePropEqualityOrdinalMask();
+diff --git a/com/google/javascript/rhino/jstype/FunctionType.java b/com/google/javascript/rhino/jstype/FunctionType.java
+index bf971068..be0d6644 100644
+--- a/com/google/javascript/rhino/jstype/FunctionType.java
++++ b/com/google/javascript/rhino/jstype/FunctionType.java
+@@ -90,6 +90,9 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+   private static final int FN_KIND_INTERFACE = 2;
+   private static final int FN_KIND_NONE = 3;
+   private static final int FN_NO_KIND_SHIFT = 2;
++  private static final int FN_NO_KIND_MASK = 0x3 << FN_NO_KIND_SHIFT;
++  private static final int FN_NO_KIND_NO_OBJECT_BITS = NO_KIND_NO_OBJECT << FN_NO_KIND_SHIFT;
++  private static final int FN_NO_KIND_NO_TYPE_BITS = NO_KIND_NO_TYPE << FN_NO_KIND_SHIFT;
+   private static final byte FN_FLAG_RETURN_INFERRED = 1 << 4;
+   private static final byte FN_FLAG_STRUCTURAL_IFACE = 1 << 5;
+   private static final byte FN_FLAG_ABSTRACT = 1 << 6;
+@@ -159,10 +162,6 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     return (this.fnFlags & 0x3) == FN_KIND_CONSTRUCTOR ? PROP_ACCESS_ANY : PROP_ACCESS_UNSET;
+   }
+ 
+-  private byte getNoTypeKind() {
+-    return (byte) ((this.fnFlags >>> FN_NO_KIND_SHIFT) & 0x3);
+-  }
+-
+   private static int encodeKind(Kind kind) {
+     return switch (kind) {
+       case ORDINARY -> FN_KIND_ORDINARY;
+@@ -309,16 +308,16 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+ 
+   @Override
+   JSTypeClass getTypeClass() {
+-    return switch (getNoTypeKind()) {
+-      case NO_KIND_NO_OBJECT -> JSTypeClass.NO_OBJECT;
+-      case NO_KIND_NO_TYPE -> JSTypeClass.NO;
+-      default -> TYPE_CLASS;
+-    };
++    int m = this.typeKindMask;
++    if ((m & (KIND_NO_OBJECT_TYPE | KIND_NO_TYPE)) != 0) {
++      return (m & KIND_NO_OBJECT_TYPE) != 0 ? JSTypeClass.NO_OBJECT : JSTypeClass.NO;
++    }
++    return JSTypeClass.FUNCTION;
+   }
+ 
+   @Override
+   public @Nullable FunctionType getConstructor() {
+-    if (getNoTypeKind() != NO_KIND_NORMAL) {
++    if ((this.fnFlags & FN_NO_KIND_MASK) != 0) {
+       return null;
+     }
+     // Every function type, including `Function`, is constructed by `(typeof Function)`.
+@@ -327,49 +326,49 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+ 
+   @Override
+   public boolean isNullable() {
+-    return getNoTypeKind() == NO_KIND_NO_TYPE;
++    return (this.fnFlags & FN_NO_KIND_MASK) == FN_NO_KIND_NO_TYPE_BITS;
+   }
+ 
+   @Override
+   public boolean isVoidable() {
+-    return getNoTypeKind() == NO_KIND_NO_TYPE;
++    return (this.fnFlags & FN_NO_KIND_MASK) == FN_NO_KIND_NO_TYPE_BITS;
+   }
+ 
+   @Override
+   public BooleanLiteralSet getPossibleToBooleanOutcomes() {
+-    return getNoTypeKind() == NO_KIND_NO_TYPE
++    return (this.fnFlags & FN_NO_KIND_MASK) == FN_NO_KIND_NO_TYPE_BITS
+         ? BooleanLiteralSet.BOTH
+         : super.getPossibleToBooleanOutcomes();
+   }
+ 
+   @Override
+   public @Nullable ObjectType getImplicitPrototype() {
+-    return getNoTypeKind() != NO_KIND_NORMAL ? null : super.getImplicitPrototype();
++    return (this.fnFlags & FN_NO_KIND_MASK) != 0 ? null : super.getImplicitPrototype();
+   }
+ 
+   @Override
+   public @Nullable String getReferenceName() {
+-    return getNoTypeKind() != NO_KIND_NORMAL ? null : super.getReferenceName();
++    return (this.fnFlags & FN_NO_KIND_MASK) != 0 ? null : super.getReferenceName();
+   }
+ 
+   @Override
+   public boolean matchesNumberContext() {
+-    return getNoTypeKind() != NO_KIND_NORMAL || super.matchesNumberContext();
++    return (this.fnFlags & FN_NO_KIND_MASK) != 0 || super.matchesNumberContext();
+   }
+ 
+   @Override
+   public boolean matchesStringContext() {
+-    return getNoTypeKind() != NO_KIND_NORMAL || super.matchesStringContext();
++    return (this.fnFlags & FN_NO_KIND_MASK) != 0 || super.matchesStringContext();
+   }
+ 
+   @Override
+   public boolean matchesSymbolContext() {
+-    return getNoTypeKind() != NO_KIND_NORMAL || super.matchesSymbolContext();
++    return (this.fnFlags & FN_NO_KIND_MASK) != 0 || super.matchesSymbolContext();
+   }
+ 
+   @Override
+   public void setPropertyJSDocInfo(String propertyName, JSDocInfo info) {
+-    if (getNoTypeKind() != NO_KIND_NORMAL) {
++    if ((this.fnFlags & FN_NO_KIND_MASK) != 0) {
+       checkNotNull(propertyName);
+       return;
+     }
+@@ -378,7 +377,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+ 
+   @Override
+   public void setPropertyJSDocInfo(Property.Key propertyName, JSDocInfo info) {
+-    if (getNoTypeKind() != NO_KIND_NORMAL) {
++    if ((this.fnFlags & FN_NO_KIND_MASK) != 0) {
+       return;
+     }
+     super.setPropertyJSDocInfo(propertyName, info);
+@@ -467,7 +466,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+ 
+   @Override
+   public @Nullable FunctionType toMaybeFunctionType() {
+-    return getNoTypeKind() == NO_KIND_NORMAL ? this : null;
++    return (this.fnFlags & FN_NO_KIND_MASK) == 0 ? this : null;
+   }
+ 
+   @Override
+@@ -967,7 +966,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+ 
+   @Override
+   boolean defineProperty(String name, JSType type, boolean inferred, Node propertyNode) {
+-    if (getNoTypeKind() != NO_KIND_NORMAL) {
++    if ((this.fnFlags & FN_NO_KIND_MASK) != 0) {
+       return true;
+     }
+     if ("prototype".equals(name)) {
+@@ -988,7 +987,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+ 
+   @Override
+   boolean defineProperty(Property.Key name, JSType type, boolean inferred, Node propertyNode) {
+-    if (getNoTypeKind() != NO_KIND_NORMAL) {
++    if ((this.fnFlags & FN_NO_KIND_MASK) != 0) {
+       return true;
+     }
+     if (name.matches("prototype")) {
+@@ -1147,7 +1146,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+ 
+   @Override
+   int recursionUnsafeHashCode() {
+-    if (getNoTypeKind() != NO_KIND_NORMAL) {
++    if ((this.fnFlags & FN_NO_KIND_MASK) != 0) {
+       return System.identityHashCode(this);
+     }
+     Kind kind = getKind();
+@@ -1181,13 +1180,13 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+    */
+   @Override
+   void appendTo(TypeStringBuilder sb) {
+-    byte noKind = getNoTypeKind();
+-    if (noKind == NO_KIND_NO_TYPE) {
+-      sb.append(sb.isForAnnotations() ? "?" : "None");
+-      return;
+-    }
+-    if (noKind == NO_KIND_NO_OBJECT) {
+-      sb.append(sb.isForAnnotations() ? "?" : "NoObject");
++    int noKindBits = this.fnFlags & FN_NO_KIND_MASK;
++    if (noKindBits != 0) {
++      if (noKindBits == FN_NO_KIND_NO_TYPE_BITS) {
++        sb.append(sb.isForAnnotations() ? "?" : "None");
++      } else {
++        sb.append(sb.isForAnnotations() ? "?" : "NoObject");
++      }
+       return;
+     }
+     if (!isPrettyPrint() || identical(this, registry.getNativeType(JSTypeNative.FUNCTION_TYPE))) {
+@@ -1265,18 +1264,18 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+ 
+   @Override
+   public <T> T visit(Visitor<T> visitor) {
+-    return switch (getNoTypeKind()) {
+-      case NO_KIND_NO_TYPE -> visitor.caseNoType(this);
+-      case NO_KIND_NO_OBJECT -> visitor.caseNoObjectType();
++    return switch (this.fnFlags & FN_NO_KIND_MASK) {
++      case FN_NO_KIND_NO_TYPE_BITS -> visitor.caseNoType(this);
++      case FN_NO_KIND_NO_OBJECT_BITS -> visitor.caseNoObjectType();
+       default -> visitor.caseFunctionType(this);
+     };
+   }
+ 
+   @Override
+   <T> T visit(RelationshipVisitor<T> visitor, JSType that) {
+-    return switch (getNoTypeKind()) {
+-      case NO_KIND_NO_TYPE -> visitor.caseNoType(that);
+-      case NO_KIND_NO_OBJECT -> visitor.caseNoObjectType(that);
++    return switch (this.fnFlags & FN_NO_KIND_MASK) {
++      case FN_NO_KIND_NO_TYPE_BITS -> visitor.caseNoType(that);
++      case FN_NO_KIND_NO_OBJECT_BITS -> visitor.caseNoObjectType(that);
+       default -> visitor.caseFunctionType(this, that);
+     };
+   }
+@@ -1365,7 +1364,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+ 
+   @Override
+   JSType resolveInternal(ErrorReporter reporter) {
+-    if (getNoTypeKind() != NO_KIND_NORMAL) {
++    if ((this.fnFlags & FN_NO_KIND_MASK) != 0) {
+       throw new AssertionError();
+     }
+     returnType = safeResolve(returnType, reporter);
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index 6f09b3e6..b0406ab4 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -117,12 +117,14 @@ public abstract class JSType {
+   static final int KIND_INTERFACE = 1 << 23;
+   static final int KIND_ORDINARY_FUNCTION = 1 << 24;
+   static final int KIND_NATIVE_OBJECT = 1 << 25;
++  static final int TYPE_CLASS_SHIFT = 26;
++  private static final JSTypeClass[] TYPE_CLASSES = JSTypeClass.values();
+ 
+   private static final int EMPTY_TYPE_MASK =
+       KIND_NO_TYPE | KIND_NO_OBJECT_TYPE | KIND_NO_RESOLVED_TYPE;
+ 
+   final JSTypeRegistry registry;
+-  final int typeKindMask;
++  int typeKindMask;
+ 
+   JSType(JSTypeRegistry registry) {
+     this(registry, null, 0);
+@@ -135,6 +137,7 @@ public abstract class JSType {
+   JSType(JSTypeRegistry registry, @Nullable TemplateTypeMap templateTypeMap, int typeKindMask) {
+     this.registry = registry;
+     this.typeKindMask = typeKindMask;
++    this.typeKindMask = typeKindMask | (getTypeClass().ordinal() << TYPE_CLASS_SHIFT);
+ 
+     this.templateTypeMap =
+         (templateTypeMap == null) ? registry.getEmptyTemplateTypeMap() : templateTypeMap;
+@@ -142,6 +145,10 @@ public abstract class JSType {
+     registry.getResolver().addUnresolved(this);
+   }
+ 
++  final JSTypeClass fastTypeClass() {
++    return TYPE_CLASSES[this.typeKindMask >> TYPE_CLASS_SHIFT];
++  }
++
+   protected boolean hasKindMaskProxy(int mask) {
+     return false;
+   }
+@@ -1699,7 +1706,7 @@ public abstract class JSType {
+   final void eagerlyResolveToSelf() {
+     checkState(!this.isResolved(), this);
+     this.setCachedResolveResult(this);
+-    this.registry.getResolver().resolveIfClosed(this, this.getTypeClass());
++    this.registry.getResolver().resolveIfClosed(this, this.fastTypeClass());
+   }
+ 
+   /**
+diff --git a/com/google/javascript/rhino/jstype/SubtypeChecker.java b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+index ac23eed6..0f54edfc 100644
+--- a/com/google/javascript/rhino/jstype/SubtypeChecker.java
++++ b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+@@ -298,7 +298,7 @@ final class SubtypeChecker {
+    * this behaviour should be integrated into the main body of subtyping logic.
+    */
+   private boolean isSubtypeDispatching(JSType subtype, JSType supertype) {
+-    return switch (subtype.getTypeClass()) {
++    return switch (subtype.fastTypeClass()) {
+       case ENUM_ELEMENT -> this.isEnumElementSubtype((EnumElementType) subtype, supertype);
+       case ENUM -> this.isEnumSubtype((EnumType) subtype, supertype);
+       case NO_OBJECT, NO -> this.isVariousBottomsSubtype(subtype, supertype);
+diff --git a/com/google/javascript/rhino/jstype/TemplateTypeMap.java b/com/google/javascript/rhino/jstype/TemplateTypeMap.java
+index 49468c8a..c6afea16 100644
+--- a/com/google/javascript/rhino/jstype/TemplateTypeMap.java
++++ b/com/google/javascript/rhino/jstype/TemplateTypeMap.java
+@@ -297,7 +297,7 @@ public final class TemplateTypeMap {
+   }
+ 
+   private static boolean mayContainReplacerTarget(JSType type) {
+-    return switch (type.getTypeClass()) {
++    return switch (type.fastTypeClass()) {
+       case TEMPLATE, TEMPLATIZED, UNION, FUNCTION, PROXY_OBJECT, NO_RESOLVED -> true;
+       default -> false;
+     };
+@@ -402,7 +402,7 @@ public final class TemplateTypeMap {
+       return rawVal;
+     }
+ 
+-    if (rawVal.getTypeClass() == JSTypeClass.TEMPLATE) {
++    if (rawVal.fastTypeClass() == JSTypeClass.TEMPLATE) {
+       TemplateType keyType = getTemplateKeyAt(index);
+       int boundary = nextSubMapStart(index + 1);
+       TemplateType seen0 = null;
+@@ -437,7 +437,7 @@ public final class TemplateTypeMap {
+         if (definitelyUnchangedByTotalReplacer(next, true)) {
+           return next;
+         }
+-        if (next.getTypeClass() != JSTypeClass.TEMPLATE) {
++        if (next.fastTypeClass() != JSTypeClass.TEMPLATE) {
+           break;
+         }
+         if (hop == 0) {

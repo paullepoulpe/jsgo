@@ -219,7 +219,7 @@ func (this_ *PhaseOptimizer) Process_2(externs pkg_rhino.Node, root pkg_rhino.No
 			panic(j2gort.AsIface[javalang.IRuntimeException](j2gort.ConstructShimThrowable("java.lang.RuntimeException", j2gort.NewExt_java_lang_InterruptedException())))
 		}
 		pass.Process_2(externs, root)
-		if this_.priv_PhaseOptimizer_hasHaltingErrors_4331() {
+		if this_.priv_PhaseOptimizer_hasHaltingErrors_4338() {
 			return
 		}
 	}
@@ -227,7 +227,7 @@ func (this_ *PhaseOptimizer) Process_2(externs pkg_rhino.Node, root pkg_rhino.No
 }
 
 // Java method: PhaseOptimizer.maybePrintAstHashcodes(java.lang.String passName, com.google.javascript.rhino.Node root)
-func (this_ *PhaseOptimizer) priv_PhaseOptimizer_maybePrintAstHashcodes_4329(passName string, root pkg_rhino.Node) {
+func (this_ *PhaseOptimizer) priv_PhaseOptimizer_maybePrintAstHashcodes_4336(passName string, root pkg_rhino.Node) {
 	_ = passName
 	_ = root
 	if this_.printAstHashcodes {
@@ -238,7 +238,7 @@ func (this_ *PhaseOptimizer) priv_PhaseOptimizer_maybePrintAstHashcodes_4329(pas
 }
 
 // Java method: PhaseOptimizer.maybeRunValidityCheck(java.lang.String passName, com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
-func (this_ *PhaseOptimizer) priv_PhaseOptimizer_maybeRunValidityCheck_4330(passName string, externs pkg_rhino.Node, root pkg_rhino.Node) {
+func (this_ *PhaseOptimizer) priv_PhaseOptimizer_maybeRunValidityCheck_4337(passName string, externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = passName
 	_ = externs
 	_ = root
@@ -265,7 +265,7 @@ func (this_ *PhaseOptimizer) priv_PhaseOptimizer_maybeRunValidityCheck_4330(pass
 }
 
 // Java method: PhaseOptimizer.hasHaltingErrors()
-func (this_ *PhaseOptimizer) priv_PhaseOptimizer_hasHaltingErrors_4331() bool {
+func (this_ *PhaseOptimizer) priv_PhaseOptimizer_hasHaltingErrors_4338() bool {
 	return this_.compiler.HasHaltingErrors()
 }
 
@@ -476,8 +476,8 @@ func (this_ *PhaseOptimizer_NamedPass) Process_2(externs pkg_rhino.Node, root pk
 		if this_.outer_.tracker != nil {
 			this_.outer_.tracker.RecordPassStop(this_.name, traceRuntime)
 		}
-		this_.outer_.priv_PhaseOptimizer_maybePrintAstHashcodes_4329(this_.name, root)
-		this_.outer_.priv_PhaseOptimizer_maybeRunValidityCheck_4330(this_.name, externs, root)
+		this_.outer_.priv_PhaseOptimizer_maybePrintAstHashcodes_4336(this_.name, root)
+		this_.outer_.priv_PhaseOptimizer_maybeRunValidityCheck_4337(this_.name, externs, root)
 	}()
 }
 
@@ -542,7 +542,7 @@ func (this_ *PhaseOptimizer_ScopedChangeHandler) ReportChange() {
 }
 
 // Java method: ScopedChangeHandler.hasCodeChangedSinceLastCall()
-func (this_ *PhaseOptimizer_ScopedChangeHandler) priv_ScopedChangeHandler_hasCodeChangedSinceLastCall_4334() bool {
+func (this_ *PhaseOptimizer_ScopedChangeHandler) priv_ScopedChangeHandler_hasCodeChangedSinceLastCall_4341() bool {
 	var result bool = (this_.outer_.lastChange > this_.lastCodeChangeQuery)
 	_ = result
 	this_.lastCodeChangeQuery = this_.outer_.changeTracker.GetChangeStamp()
@@ -626,7 +626,7 @@ func (this_ *PhaseOptimizer_Loop) Process_2(externs pkg_rhino.Node, root pkg_rhi
 		j2gort.CheckStateStr(false, "Nested loops are forbidden")
 	}
 	this_.outer_.inLoop = true
-	this_.isCodeRemovalLoop = this_.priv_Loop_isCodeRemovalLoop_4338()
+	this_.isCodeRemovalLoop = this_.priv_Loop_isCodeRemovalLoop_4345()
 	this_.scopeHandler = NewPhaseOptimizer_ScopedChangeHandler(this_.outer_)
 	this_.outer_.changeTracker.AddChangeHandler(ToIface_CodeChangeHandler(this_.scopeHandler))
 	this_.outer_.lastRuns = &j2gort.OrderedMap[*PhaseOptimizer_NamedPass, *j2gort.BoxInt]{}
@@ -673,9 +673,9 @@ func (this_ *PhaseOptimizer_Loop) Process_2(externs pkg_rhino.Node, root pkg_rhi
 					pass_2.Process_2(externs, root)
 					runInPrevIter.Add(pass_2)
 					this_.outer_.lastRuns.Put(pass_2, j2gort.ValueOfInt(this_.outer_.changeTracker.GetChangeStamp()))
-					if this_.outer_.priv_PhaseOptimizer_hasHaltingErrors_4331() {
+					if this_.outer_.priv_PhaseOptimizer_hasHaltingErrors_4338() {
 						return
-					} else if this_.scopeHandler.priv_ScopedChangeHandler_hasCodeChangedSinceLastCall_4334() {
+					} else if this_.scopeHandler.priv_ScopedChangeHandler_hasCodeChangedSinceLastCall_4341() {
 						madeChanges.Add(pass_2)
 						didNotMakeChanges.Clear()
 						lastIterMadeChanges = true
@@ -691,7 +691,7 @@ func (this_ *PhaseOptimizer_Loop) Process_2(externs pkg_rhino.Node, root pkg_rhi
 			previousAstSize = astSize
 			astSize = NodeUtil_CountAstSize(root)
 			if state == StaticGet_PhaseOptimizer_State_RUN_PASSES_NOT_RUN_IN_PREV_ITER() {
-				if lastIterMadeChanges && this_.priv_Loop_isAstSufficientlyChanging_4336(previousAstSize, astSize) {
+				if lastIterMadeChanges && this_.priv_Loop_isAstSufficientlyChanging_4343(previousAstSize, astSize) {
 					state = StaticGet_PhaseOptimizer_State_RUN_PASSES_THAT_CHANGED_STH_IN_PREV_ITER()
 				} else {
 					return
@@ -700,7 +700,7 @@ func (this_ *PhaseOptimizer_Loop) Process_2(externs pkg_rhino.Node, root pkg_rhi
 				if !(state == StaticGet_PhaseOptimizer_State_RUN_PASSES_THAT_CHANGED_STH_IN_PREV_ITER()) {
 					j2gort.CheckState(false)
 				}
-				if !(lastIterMadeChanges) || !(this_.priv_Loop_isAstSufficientlyChanging_4336(previousAstSize, astSize)) {
+				if !(lastIterMadeChanges) || !(this_.priv_Loop_isAstSufficientlyChanging_4343(previousAstSize, astSize)) {
 					state = StaticGet_PhaseOptimizer_State_RUN_PASSES_NOT_RUN_IN_PREV_ITER()
 				}
 			}
@@ -709,7 +709,7 @@ func (this_ *PhaseOptimizer_Loop) Process_2(externs pkg_rhino.Node, root pkg_rhi
 }
 
 // Java method: Loop.isAstSufficientlyChanging(int oldAstSize, int newAstSize)
-func (this_ *PhaseOptimizer_Loop) priv_Loop_isAstSufficientlyChanging_4336(oldAstSize int32, newAstSize int32) bool {
+func (this_ *PhaseOptimizer_Loop) priv_Loop_isAstSufficientlyChanging_4343(oldAstSize int32, newAstSize int32) bool {
 	_ = oldAstSize
 	_ = newAstSize
 	if this_.outer_.useSizeHeuristicToStopOptimizationLoop && this_.isCodeRemovalLoop {
@@ -737,7 +737,7 @@ func (this_ *PhaseOptimizer_Loop) IsPopulated() bool {
 }
 
 // Java method: Loop.isCodeRemovalLoop()
-func (this_ *PhaseOptimizer_Loop) priv_Loop_isCodeRemovalLoop_4338() bool {
+func (this_ *PhaseOptimizer_Loop) priv_Loop_isCodeRemovalLoop_4345() bool {
 	for _, pass := range this_.myPasses {
 		_ = pass
 		if j2gort.SetContainsStr(StaticGet_PhaseOptimizer_CODE_REMOVING_PASSES(), pass.name) {

@@ -103,7 +103,7 @@ func (this_ *OptimizeReturns) Process_3(externs pkg_rhino.Node, root pkg_rhino.N
 				_ = key
 				var refs *OptimizeCalls_NodeList = cur_1.Value()
 				_ = refs
-				if this_.priv_OptimizeReturns_isCandidate_4109(key, refs) {
+				if this_.priv_OptimizeReturns_isCandidate_4116(key, refs) {
 					if this_.decisionsLog.IsLogging() {
 						this_.decisionsLog.Log_2("name %s\tremoving return value", []any{j2gort.BoxString(key)})
 					}
@@ -118,7 +118,7 @@ func (this_ *OptimizeReturns) Process_3(externs pkg_rhino.Node, root pkg_rhino.N
 				_ = key_2
 				var refs_2 *OptimizeCalls_NodeList = cur_2.Value()
 				_ = refs_2
-				if this_.priv_OptimizeReturns_isCandidate_4109(key_2, refs_2) {
+				if this_.priv_OptimizeReturns_isCandidate_4116(key_2, refs_2) {
 					if this_.decisionsLog.IsLogging() {
 						this_.decisionsLog.Log_2("property %s\tremoving return value", []any{j2gort.BoxString(key_2)})
 					}
@@ -134,12 +134,15 @@ func (this_ *OptimizeReturns) Process_3(externs pkg_rhino.Node, root pkg_rhino.N
 			for ; i < size; i = i + 1 {
 				var refs_3 *OptimizeCalls_NodeList = toOptimize[i]
 				_ = refs_3
+				var fns *OptimizeCalls_NodeList = OptimizeCalls_ReferenceMap_GetFunctionNodeList(refs_3)
+				_ = fns
 				{
-					cur_3 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](OptimizeCalls_ReferenceMap_GetFunctionNodes(refs_3).Values())))
-					for cur_3.HasNext() {
-						fn := pkg_rhino.Node(cur_3.NextNode())
-						_ = fn
-						this_.priv_OptimizeReturns_rewriteReturns_4112(fn)
+					var j int32 = int32(0)
+					_ = j
+					var fnCount int32 = fns.Size()
+					_ = fnCount
+					for ; j < fnCount; j = j + 1 {
+						this_.priv_OptimizeReturns_rewriteReturns_4119(fns.Get(j))
 					}
 				}
 			}
@@ -148,7 +151,7 @@ func (this_ *OptimizeReturns) Process_3(externs pkg_rhino.Node, root pkg_rhino.N
 }
 
 // Java method: OptimizeReturns.isCandidate(java.lang.String name, com.google.javascript.jscomp.OptimizeCalls.NodeList refs)
-func (this_ *OptimizeReturns) priv_OptimizeReturns_isCandidate_4109(name string, refs *OptimizeCalls_NodeList) bool {
+func (this_ *OptimizeReturns) priv_OptimizeReturns_isCandidate_4116(name string, refs *OptimizeCalls_NodeList) bool {
 	_ = name
 	_ = refs
 	if !(OptimizeCalls_MayBeOptimizableName(this_.compiler, name)) {
@@ -179,7 +182,7 @@ func (this_ *OptimizeReturns) priv_OptimizeReturns_isCandidate_4109(name string,
 					return false
 				}
 				seenUse = true
-			} else if this_.priv_OptimizeReturns_isCandidateDefinition_4110(n) {
+			} else if this_.priv_OptimizeReturns_isCandidateDefinition_4117(n) {
 				seenCandidateDefiniton = true
 			} else {
 				if !(OptimizeCalls_IsAllowedReference(n)) {
@@ -207,7 +210,7 @@ func (this_ *OptimizeReturns) priv_OptimizeReturns_isCandidate_4109(name string,
 }
 
 // Java method: OptimizeReturns.isCandidateDefinition(com.google.javascript.rhino.Node n)
-func (this_ *OptimizeReturns) priv_OptimizeReturns_isCandidateDefinition_4110(n pkg_rhino.Node) bool {
+func (this_ *OptimizeReturns) priv_OptimizeReturns_isCandidateDefinition_4117(n pkg_rhino.Node) bool {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -221,14 +224,14 @@ func (this_ *OptimizeReturns) priv_OptimizeReturns_isCandidateDefinition_4110(n 
 		if n.HasChildren() && OptimizeReturns_IsCandidateFunction(n.GetFirstChild()) {
 			return true
 		}
-	} else if this_.priv_OptimizeReturns_isClassMemberDefinition_4111(n) {
+	} else if this_.priv_OptimizeReturns_isClassMemberDefinition_4118(n) {
 		return true
 	}
 	return false
 }
 
 // Java method: OptimizeReturns.isClassMemberDefinition(com.google.javascript.rhino.Node n)
-func (this_ *OptimizeReturns) priv_OptimizeReturns_isClassMemberDefinition_4111(n pkg_rhino.Node) bool {
+func (this_ *OptimizeReturns) priv_OptimizeReturns_isClassMemberDefinition_4118(n pkg_rhino.Node) bool {
 	_ = n
 	return (n.IsMemberFunctionDef() && n.GetParent().IsClassMembers())
 }
@@ -252,7 +255,7 @@ func OptimizeReturns_IsCandidateFunction(n pkg_rhino.Node) bool {
 }
 
 // Java method: OptimizeReturns.rewriteReturns(com.google.javascript.rhino.Node fnNode)
-func (this_ *OptimizeReturns) priv_OptimizeReturns_rewriteReturns_4112(fnNode pkg_rhino.Node) {
+func (this_ *OptimizeReturns) priv_OptimizeReturns_rewriteReturns_4119(fnNode pkg_rhino.Node) {
 	_ = fnNode
 	if !(fnNode.IsFunction()) {
 		j2gort.CheckState(false)
@@ -263,7 +266,7 @@ func (this_ *OptimizeReturns) priv_OptimizeReturns_rewriteReturns_4112(fnNode pk
 }
 
 // Java method: OptimizeReturns.isRemovableValue(com.google.javascript.rhino.Node n)
-func (this_ *OptimizeReturns) priv_OptimizeReturns_isRemovableValue_4113(n pkg_rhino.Node) bool {
+func (this_ *OptimizeReturns) priv_OptimizeReturns_isRemovableValue_4120(n pkg_rhino.Node) bool {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(131) /* Token.TEMPLATELIT */, int32(46) /* Token.ARRAYLIT */ :
@@ -271,7 +274,7 @@ func (this_ *OptimizeReturns) priv_OptimizeReturns_isRemovableValue_4113(n pkg_r
 			var child pkg_rhino.Node = n.GetFirstChild()
 			_ = child
 			for ; child != 0; child = child.GetNext() {
-				if (!(child.IsEmpty())) && !(this_.priv_OptimizeReturns_isRemovableValue_4113(child)) {
+				if (!(child.IsEmpty())) && !(this_.priv_OptimizeReturns_isRemovableValue_4120(child)) {
 					return false
 				}
 			}
@@ -280,7 +283,7 @@ func (this_ *OptimizeReturns) priv_OptimizeReturns_isRemovableValue_4113(n pkg_r
 	case int32(42) /* Token.REGEXP */, int32(35) /* Token.STRINGLIT */, int32(33) /* Token.NUMBER */, int32(36) /* Token.NULL */, int32(39) /* Token.TRUE */, int32(38) /* Token.FALSE */, int32(133) /* Token.TEMPLATELIT_STRING */ :
 		return true
 	case int32(132) /* Token.TEMPLATELIT_SUB */, int32(101) /* Token.CAST */, int32(19) /* Token.NOT */, int32(87) /* Token.VOID */, int32(22) /* Token.NEG */ :
-		return this_.priv_OptimizeReturns_isRemovableValue_4113(n.GetFirstChild())
+		return this_.priv_OptimizeReturns_isRemovableValue_4120(n.GetFirstChild())
 	default:
 		return false
 	}
@@ -333,7 +336,7 @@ func (this_ *OptimizeReturns__Anon_68) Visit(n pkg_rhino.Node) {
 	if n.IsReturn() && n.HasOneChild() {
 		var result pkg_rhino.Node = n.GetFirstChild()
 		_ = result
-		var keepValue bool = !(this_.outer_.priv_OptimizeReturns_isRemovableValue_4113(result))
+		var keepValue bool = !(this_.outer_.priv_OptimizeReturns_isRemovableValue_4120(result))
 		_ = keepValue
 		result.Detach()
 		if keepValue {

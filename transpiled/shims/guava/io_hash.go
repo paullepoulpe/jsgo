@@ -192,11 +192,7 @@ func Files_AsCharSource(file *javaio.File, charset *javanio.Charset) *CharSource
 	CheckNotNull(charset)
 	return &CharSource{
 		readFn: func() (string, error) {
-			raw, err := os.ReadFile(file.GetPath())
-			if err != nil {
-				return "", javaio.NewIOException(err.Error())
-			}
-			return charset.Decode(raw), nil
+			return javanio.ReadFileDecodedReplace(file.GetPath(), charset)
 		},
 	}
 }
@@ -333,7 +329,7 @@ func (h *bufferedHasher) PutUnencodedChars(s string) Hasher {
 
 func (h *bufferedHasher) PutString(s string, charset *javanio.Charset) Hasher {
 	CheckNotNull(charset)
-	h.buf = append(h.buf, charset.Encode(s)...)
+	h.buf = charset.AppendEncoded(h.buf, s)
 	return h
 }
 
@@ -370,6 +366,11 @@ func (f simpleHashFunction) HashUnencodedChars(s string) HashCode {
 }
 
 func (f simpleHashFunction) HashString(s string, charset *javanio.Charset) HashCode {
+	CheckNotNull(charset)
+	if len(s) <= 256 {
+		var tmp [256]byte
+		return f.HashBytes(charset.AppendEncoded(tmp[:0], s))
+	}
 	return f.HashBytes(charset.Encode(s))
 }
 

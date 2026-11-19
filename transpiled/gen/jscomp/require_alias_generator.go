@@ -110,7 +110,7 @@ func NewRequireAliasGenerator(namespace string) *RequireAliasGenerator {
 func InitRequireAliasGenerator(this_ *RequireAliasGenerator, namespace string) {
 	_ = namespace
 	this_.initFields_RequireAliasGenerator()
-	this_.parts = j2gort.ImmListToSliceNullable[string](j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_Ext_java_lang_Iterable(StaticGet_RequireAliasGenerator_DOT_SPLITTER().Split(j2gort.BoxString(namespace))).Reverse())
+	this_.parts = j2gort.ImmListToSliceNullable[string](j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_Ext_java_lang_Iterable(j2gort.SplitterSplitStr(StaticGet_RequireAliasGenerator_DOT_SPLITTER(), namespace)).Reverse())
 	this_.capitalize = j2gort.Ext_com_google_common_base_Ascii_IsUpperCase(j2gort.JStrCharAt(this_.parts[int32(0)], int32(0)))
 }
 
@@ -227,13 +227,13 @@ func (this_ *RequireAliasGenerator_NameIterator) ComputeNext() any {
 	var next string = j2gort.NullString
 	_ = next
 	for doFirst_2 := true; doFirst_2 || (j2gort.SetContainsStr(StaticGet_RequireAliasGenerator_SKIPLISTED_ALIASES(), next)); doFirst_2 = false {
-		next = this_.priv_NameIterator_computeNextWithoutFiltering_7883()
+		next = this_.priv_NameIterator_computeNextWithoutFiltering_7901()
 	}
 	return j2gort.BoxString(next)
 }
 
 // Java method: NameIterator.computeNextWithoutFiltering()
-func (this_ *RequireAliasGenerator_NameIterator) priv_NameIterator_computeNextWithoutFiltering_7883() string {
+func (this_ *RequireAliasGenerator_NameIterator) priv_NameIterator_computeNextWithoutFiltering_7901() string {
 	if this_.index >= int32(len(this_.outer_.parts)) {
 		return (j2gort.StrValString(this_.concat) + j2gort.StrValInt32(func() int32 { old_3 := this_.suffix; nw_4 := old_3 + 1; this_.suffix = nw_4; return old_3 }()))
 	}

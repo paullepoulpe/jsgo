@@ -3279,7 +3279,7 @@ public final class RuntimeBindings {
         }
 
         func StringFormat(format string, args ...any) string {
-        \tCheckNotNull(format)
+        \tCheckNotNullString(format)
         \tvar out strings.Builder
         \tout.Grow(len(format) + 16)
         \tseqIdx := 0
@@ -4308,7 +4308,7 @@ public final class RuntimeBindings {
         \tc.resetTo(JStrSub(s, 0, newLen))
         }
         func StringFromInt8Slice(b []int8) string {
-        \tCheckNotNull(b)
+        \tCheckNotNullSlice(b)
         \traw := make([]byte, len(b))
         \tfor i, v := range b {
         \t\traw[i] = byte(v)
@@ -4316,7 +4316,7 @@ public final class RuntimeBindings {
         \treturn string(raw)
         }
         func StringFromInt8Range(b []int8, off, length int32) string {
-        \tCheckNotNull(b)
+        \tCheckNotNullSlice(b)
         \tif off < 0 || length < 0 || int(off)+int(length) > len(b) {
         \t\tpanic(javalang.NewStringIndexOutOfBoundsExceptionForRange(int(off), int(off+length), len(b)))
         \t}
@@ -4350,7 +4350,7 @@ public final class RuntimeBindings {
         \t}
         }
         func ClassPackageName(c *javalang.Class) string {
-        \tCheckNotNull(c)
+        \tCheckNotNullPtr(c)
         \tn := c.GetName()
         \tif idx := strings.LastIndexByte(n, '.'); idx >= 0 {
         \t\treturn n[:idx]
@@ -4358,15 +4358,15 @@ public final class RuntimeBindings {
         \treturn ""
         }
         func ClassResourceExists(c *javalang.Class, path string) bool {
-        \tCheckNotNull(c); CheckNotNull(path)
+        \tCheckNotNullPtr(c); CheckNotNullString(path)
         \treturn shimsres.ResourceExists(ClassPackageName(c), path)
         }
         func ClassResourceBytes(c *javalang.Class, path string) ([]byte, bool) {
-        \tCheckNotNull(c); CheckNotNull(path)
+        \tCheckNotNullPtr(c); CheckNotNullString(path)
         \treturn shimsres.GetResourceBytes(ClassPackageName(c), path)
         }
         func ClassForName(name string) *javalang.Class {
-        \tCheckNotNull(name)
+        \tCheckNotNullString(name)
         \tsimple := name
         \tif idx := strings.LastIndexAny(name, ".$"); idx >= 0 {
         \t\tsimple = name[idx+1:]
@@ -4450,7 +4450,7 @@ public final class RuntimeBindings {
         // --- Math & Numeric Intrinsics ---
 
         func ParseInt(s string, radix int32) int32 {
-        \tCheckNotNull(s)
+        \tCheckNotNullString(s)
         \tv, err := strconv.ParseInt(strings.TrimPrefix(s, "+"), int(radix), 32)
         \tif err != nil {
         \t\tpanic(javalang.NewNumberFormatException(s))
@@ -4459,7 +4459,7 @@ public final class RuntimeBindings {
         }
 
         func ParseLong(s string, radix int32) int64 {
-        \tCheckNotNull(s)
+        \tCheckNotNullString(s)
         \tv, err := strconv.ParseInt(strings.TrimPrefix(s, "+"), int(radix), 64)
         \tif err != nil {
         \t\tpanic(javalang.NewNumberFormatException(s))
@@ -11923,6 +11923,10 @@ public final class RuntimeBindings {
       out.append("\tstrs_ []string `gson:\"-\"`\n");
       out.append("\tsingleStr_ [1]string `gson:\"-\"`\n");
       out.append("\tidx_ ").append(atomicPkg).append(".Pointer[immSetIdx] `gson:\"-\"`\n");
+      out.append("\tu8Bits_ [4]uint64 `gson:\"-\"`\n");
+      out.append("\tu8Tab_ *[256]bool `gson:\"-\"`\n");
+      out.append("\tu8PtrNil_ any `gson:\"-\"`\n");
+      out.append("\thasU8Bits_ bool `gson:\"-\"`\n");
     } else if (qn.equals("com.google.common.collect.ImmutableSortedSet")
         || qn.equals("com.google.common.collect.ImmutableSortedSet.Builder")) {
       out.append("\tsortedCore_ *JMapCore `gson:\"-\"`\n");
@@ -12507,17 +12511,17 @@ public final class RuntimeBindings {
       if (arity == 1) {
         String p0 = goTypeInJ2gort(ctor.getParameters().get(0).asType(), imports);
         if (p0.equals("string")) {
-          out.append("\tobj.Core_ = javamath.NewBigInteger(CheckNotNull(arg0))\n");
+          out.append("\tobj.Core_ = javamath.NewBigInteger(CheckNotNullString(arg0))\n");
           handled = true;
         } else if (p0.equals("[]int8")) {
           out.append(
-              "\tCheckNotNull(arg0)\n\traw := make([]byte, len(arg0))\n\tfor i, v := range arg0 { raw[i] = byte(v) }\n\tobj.Core_ = javamath.NewBigIntegerBytes(raw)\n");
+              "\tCheckNotNullSlice(arg0)\n\traw := make([]byte, len(arg0))\n\tfor i, v := range arg0 { raw[i] = byte(v) }\n\tobj.Core_ = javamath.NewBigIntegerBytes(raw)\n");
           handled = true;
         }
       } else if (arity == 2) {
         String p0 = goTypeInJ2gort(ctor.getParameters().get(0).asType(), imports);
         if (p0.equals("string")) {
-          out.append("\tobj.Core_ = javamath.NewBigIntegerRadix(CheckNotNull(arg0), int(arg1))\n");
+          out.append("\tobj.Core_ = javamath.NewBigIntegerRadix(CheckNotNullString(arg0), int(arg1))\n");
           handled = true;
         }
       }
@@ -12652,7 +12656,7 @@ public final class RuntimeBindings {
         return;
       }
       if (simple.equals("valueOf") && arity == 1) {
-        out.append("\tCheckNotNull(arg0)\n\tfor _, v := range LookupEnumConstantsByName(")
+        out.append("\tCheckNotNullString(arg0)\n\tfor _, v := range LookupEnumConstantsByName(")
             .append(GoNames.goStringLiteral(qn))
             .append(") {\n\t\tif EnumName(v) == arg0 { return v.(")
             .append(retType)
@@ -12868,6 +12872,22 @@ public final class RuntimeBindings {
           out.append("\treturn ValueOfChar(arg0)\n");
           return true;
         }
+        if (simple.equals("isSurrogate") && arity == 1 && p0Type.equals("uint16")) {
+          out.append("\treturn arg0 >= 0xD800 && arg0 <= 0xDFFF\n");
+          return true;
+        }
+        if (simple.equals("isHighSurrogate") && arity == 1 && p0Type.equals("uint16")) {
+          out.append("\treturn arg0 >= 0xD800 && arg0 <= 0xDBFF\n");
+          return true;
+        }
+        if (simple.equals("isLowSurrogate") && arity == 1 && p0Type.equals("uint16")) {
+          out.append("\treturn arg0 >= 0xDC00 && arg0 <= 0xDFFF\n");
+          return true;
+        }
+        if (simple.equals("toCodePoint") && arity == 2) {
+          out.append("\treturn ((int32(arg0) - 0xD800) << 10) + (int32(arg1) - 0xDC00) + 0x10000\n");
+          return true;
+        }
       }
       case "java.lang.Double" -> {
         if (simple.equals("compare") && arity == 2) {
@@ -12899,7 +12919,7 @@ public final class RuntimeBindings {
           return true;
         }
         if (simple.equals("parseDouble") && arity == 1) {
-          out.append("\treturn javalang.DoubleParseDouble(CheckNotNull(arg0))\n");
+          out.append("\treturn javalang.DoubleParseDouble(CheckNotNullString(arg0))\n");
           return true;
         }
         if (simple.equals("toString") && arity == 1) {
@@ -12975,11 +12995,11 @@ public final class RuntimeBindings {
           return true;
         }
         if (simple.equals("parseInt") && arity == 1) {
-          out.append("\treturn javalang.IntegerParseInt(CheckNotNull(arg0))\n");
+          out.append("\treturn javalang.IntegerParseInt(CheckNotNullString(arg0))\n");
           return true;
         }
         if (simple.equals("parseInt") && arity == 2) {
-          out.append("\treturn javalang.IntegerParseIntRadix(CheckNotNull(arg0), int(arg1))\n");
+          out.append("\treturn javalang.IntegerParseIntRadix(CheckNotNullString(arg0), int(arg1))\n");
           return true;
         }
         if (simple.equals("parseInt") && arity == 4) {
@@ -12988,6 +13008,18 @@ public final class RuntimeBindings {
         }
         if (simple.equals("reverse") && arity == 1) {
           out.append("\treturn int32(bits.Reverse32(uint32(arg0)))\n");
+          return true;
+        }
+        if (simple.equals("reverseBytes") && arity == 1) {
+          out.append("\treturn int32(bits.ReverseBytes32(uint32(arg0)))\n");
+          return true;
+        }
+        if (simple.equals("rotateLeft") && arity == 2) {
+          out.append("\treturn int32(bits.RotateLeft32(uint32(arg0), int(arg1)))\n");
+          return true;
+        }
+        if (simple.equals("rotateRight") && arity == 2) {
+          out.append("\treturn int32(bits.RotateLeft32(uint32(arg0), -int(arg1)))\n");
           return true;
         }
         if (simple.equals("toHexString") && arity == 1) {
@@ -13033,15 +13065,31 @@ public final class RuntimeBindings {
           return true;
         }
         if (simple.equals("parseLong") && arity == 1) {
-          out.append("\treturn javalang.LongParseLong(CheckNotNull(arg0))\n");
+          out.append("\treturn javalang.LongParseLong(CheckNotNullString(arg0))\n");
           return true;
         }
         if (simple.equals("parseLong") && arity == 2) {
-          out.append("\treturn javalang.LongParseLongRadix(CheckNotNull(arg0), int(arg1))\n");
+          out.append("\treturn javalang.LongParseLongRadix(CheckNotNullString(arg0), int(arg1))\n");
           return true;
         }
         if (simple.equals("toHexString") && arity == 1) {
           out.append("\treturn javalang.LongToHexString(arg0)\n");
+          return true;
+        }
+        if (simple.equals("reverse") && arity == 1) {
+          out.append("\treturn int64(bits.Reverse64(uint64(arg0)))\n");
+          return true;
+        }
+        if (simple.equals("reverseBytes") && arity == 1) {
+          out.append("\treturn int64(bits.ReverseBytes64(uint64(arg0)))\n");
+          return true;
+        }
+        if (simple.equals("rotateLeft") && arity == 2) {
+          out.append("\treturn int64(bits.RotateLeft64(uint64(arg0), int(arg1)))\n");
+          return true;
+        }
+        if (simple.equals("rotateRight") && arity == 2) {
+          out.append("\treturn int64(bits.RotateLeft64(uint64(arg0), -int(arg1)))\n");
           return true;
         }
         if (simple.equals("toString") && arity == 1) {
@@ -14267,25 +14315,26 @@ public final class RuntimeBindings {
     if (isTe != null && resolver.getReferencedExternalTypes().contains(isTe)) {
       String st = goStructType(isTe, imports);
       String isGo = goTypeInJ2gort(isTe.asType(), imports);
+      out.append("var emptyU8Tab_ [256]bool\n");
       out.append("var emptyImmutableSet_ ").append(isGo).append("\n");
-      out.append("func init() {\n\tobj := &").append(st).append("{elems_: emptyAnySlice_}\n\tobj.BindExtSelf_(obj)\n\temptyImmutableSet_ = obj\n}\n\n");
+      out.append("func init() {\n\tobj := &").append(st).append("{elems_: emptyAnySlice_, u8Tab_: &emptyU8Tab_, hasU8Bits_: true}\n\tobj.BindExtSelf_(obj)\n\temptyImmutableSet_ = obj\n}\n\n");
       out.append("func newImmutableSetShell() *").append(st).append(" {\n");
-      out.append("\tobj := &").append(st).append("{}\n");
+      out.append("\tobj := &").append(st).append("{u8Tab_: &emptyU8Tab_}\n");
       out.append("\tobj.BindExtSelf_(obj)\n");
       out.append("\treturn obj\n}\n\n");
       out.append("func ImmSetOfStr1(s0 string) ").append(isGo).append(" {\n");
       out.append("\tif s0 == NullString { ThrowNPE() }\n");
-      out.append("\tobj := &").append(st).append("{}\n\tobj.BindExtSelf_(obj)\n");
+      out.append("\tobj := &").append(st).append("{u8Tab_: &emptyU8Tab_}\n\tobj.BindExtSelf_(obj)\n");
       out.append("\tobj.singleStr_[0] = s0\n\tobj.strs_ = obj.singleStr_[:1:1]\n\treturn obj\n}\n\n");
       out.append("func ImmSetOfStr2(s0, s1 string) ").append(isGo).append(" {\n");
       out.append("\tif s0 == NullString || s1 == NullString { ThrowNPE() }\n");
       out.append("\tif s0 == s1 { return ImmSetOfStr1(s0) }\n");
-      out.append("\tobj := &").append(st).append("{strs_: []string{s0, s1}}\n\tobj.BindExtSelf_(obj)\n\treturn obj\n}\n\n");
+      out.append("\tobj := &").append(st).append("{strs_: []string{s0, s1}, u8Tab_: &emptyU8Tab_}\n\tobj.BindExtSelf_(obj)\n\treturn obj\n}\n\n");
       out.append("func finishImmStrSetOwn(strs []string, _ *JSetCore) *").append(st).append(" {\n");
-      out.append("\tobj := &").append(st).append("{strs_: strs[:len(strs):len(strs)]}\n\tobj.BindExtSelf_(obj)\n");
+      out.append("\tobj := &").append(st).append("{strs_: strs[:len(strs):len(strs)], u8Tab_: &emptyU8Tab_}\n\tobj.BindExtSelf_(obj)\n");
       out.append("\treturn obj\n}\n\n");
       out.append("func finishImmSetSingleRaw(e0 any) *").append(st).append(" {\n");
-      out.append("\tobj := &").append(st).append("{}\n");
+      out.append("\tobj := &").append(st).append("{u8Tab_: &emptyU8Tab_}\n");
       out.append("\tobj.BindExtSelf_(obj)\n");
       out.append("\tobj.singleArr_[0] = e0\n");
       out.append("\tobj.elems_ = obj.singleArr_[:1:1]\n");
@@ -14896,7 +14945,76 @@ public final class RuntimeBindings {
         .append("\tif s == nil { ThrowNPE() }\n")
         .append("\tif hit, handled := fastSetContainsEqVal(s, k); handled { return hit }\n")
         .append("\tif isJavaNilAny(s) { ThrowNPE() }\n")
-        .append("\treturn s.(Ext_java_util_Collection).").append(colContainsGo).append("(BoxNullableVal(k))\n}\n\n");
+        .append("\treturn s.(Ext_java_util_Collection).").append(colContainsGo).append("(BoxNullableVal(k))\n}\n");
+    if (isTe != null && resolver.getReferencedExternalTypes().contains(isTe)) {
+      String isSt = goStructType(isTe, imports);
+      String isGo = goTypeInJ2gort(isTe.asType(), imports);
+      String issSt = null;
+      TypeElement issTe2 = resolver.elements.getTypeElement("com.google.common.collect.ImmutableSortedSet");
+      if (issTe2 != null && resolver.getReferencedExternalTypes().contains(issTe2)) {
+        issSt = goStructType(issTe2, imports);
+      }
+      out.append("func ImmSetContainsTypedU8_(s ").append(isGo).append(", u uint8) bool {\n")
+          .append("\tif p, ok := s.(*").append(isSt).append("); ok {\n")
+          .append("\t\treturn p.u8Tab_[u]\n")
+          .append("\t}\n")
+          .append("\treturn immSetContainsTypedU8Slow(s, u)\n}\n")
+          .append("//go:noinline\n")
+          .append("func immSetContainsTypedU8Slow(s ").append(isGo).append(", u uint8) bool {\n")
+          .append("\tif s == nil || isJavaNilAny(s) { ThrowNPE() }\n")
+          .append("\tif u == 0 { return false }\n");
+      if (issSt != null) {
+        String reflPkg = imports.std("reflect");
+        out.append("\tif ss, ok := s.(*").append(issSt).append("); ok && ss != nil && ss.sortedCore_ != nil && !ss.sortedCore_.IsNaturalOrder() {\n")
+            .append("\t\tif len(ss.elems_) == 0 { return false }\n")
+            .append("\t\trv := ").append(reflPkg).append(".New(").append(reflPkg).append(".TypeOf(ss.elems_[0])).Elem()\n")
+            .append("\t\trv.SetUint(uint64(u))\n")
+            .append("\t\treturn ss.").append(colContainsGo).append("(rv.Interface())\n")
+            .append("\t}\n");
+      }
+      out.append("\twantOrd := int32(u) - 1\n")
+          .append("\tif si, ok := s.(SliceIterable); ok {\n")
+          .append("\t\tfor _, elem := range si.IterSlice_() {\n")
+          .append("\t\t\tif ea, okE := elem.(jEnumOrdAccessor); okE && ea.EnumOrdinal_() == wantOrd { return true }\n")
+          .append("\t\t}\n")
+          .append("\t\treturn false\n\t}\n")
+          .append("\tit := Iterate(s)\n")
+          .append("\tfor it.HasNext() {\n")
+          .append("\t\tif ea, okE := it.Next().(jEnumOrdAccessor); okE && ea.EnumOrdinal_() == wantOrd { return true }\n")
+          .append("\t}\n")
+          .append("\treturn false\n}\n");
+    }
+    out.append("func SetContainsTypedU8_[E ~uint8](s any, v E) bool {\n");
+    if (isTe != null && resolver.getReferencedExternalTypes().contains(isTe)) {
+      String isSt = goStructType(isTe, imports);
+      out.append("\tif p, ok := s.(*").append(isSt).append("); ok {\n")
+          .append("\t\treturn p.u8Tab_[v]\n")
+          .append("\t}\n");
+    }
+    out.append("\treturn setContainsU8Slow(s, v)\n}\n")
+        .append("func SetContainsU8_[E ~uint8](s any, v E) bool {\n");
+    if (isTe != null && resolver.getReferencedExternalTypes().contains(isTe)) {
+      String isSt = goStructType(isTe, imports);
+      out.append("\tif p, ok := s.(*").append(isSt).append("); ok && p != nil && p.hasU8Bits_ {\n")
+          .append("\t\tu := uint8(v)\n")
+          .append("\t\treturn (p.u8Bits_[u>>6]&(uint64(1)<<(u&63))) != 0 && p.u8PtrNil_ == any((*E)(nil))\n")
+          .append("\t}\n");
+    }
+    String reflPkgU8 = imports.std("reflect");
+    out.append("\treturn setContainsU8Slow(s, v)\n}\n")
+        .append("//go:noinline\n")
+        .append("func setContainsU8Slow(s, v any) bool {\n")
+        .append("\tif s == nil { ThrowNPE() }\n")
+        .append("\tif ep, ok := s.(jFastEnumSetProvider); ok {\n")
+        .append("\t\tif es := ep.fastEnumSet_(); es != nil {\n")
+        .append("\t\t\tea, okE := v.(jEnumOrdAccessor)\n")
+        .append("\t\t\tif !okE || es.size == 0 { return false }\n")
+        .append("\t\t\tord := int(ea.EnumOrdinal_())\n")
+        .append("\t\t\tif ord < 0 || ord >= len(es.universe) || !es.hasBit(ord) { return false }\n")
+        .append("\t\t\treturn ").append(reflPkgU8).append(".TypeOf(v) == ").append(reflPkgU8).append(".TypeOf(es.universe[0])\n")
+        .append("\t\t}\n\t}\n")
+        .append("\tif isJavaNilAny(s) { ThrowNPE() }\n")
+        .append("\treturn s.(Ext_java_util_Collection).").append(colContainsGo).append("(ToAny(v))\n}\n\n");
 
     String tblContainsRowGo = findExtMethodGoName("com.google.common.collect.Table", "containsRow", 1);
     String tblContainsGo = findExtMethodGoName("com.google.common.collect.Table", "contains", 2);
@@ -15101,7 +15219,7 @@ public final class RuntimeBindings {
       out.append("\tobj.BindExtSelf_(obj)\n");
       out.append("\tobj.Core_ = bi\n\treturn obj\n}\n");
       out.append("func (b *").append(st).append(") bi() *javamath.BigInteger {\n");
-      out.append("\tCheckNotNull(b)\n");
+      out.append("\tCheckNotNullPtr(b)\n");
       out.append("\tif v, ok := b.Core_.(*javamath.BigInteger); ok && v != nil { return v }\n");
       out.append("\treturn javamath.BigInteger_ZERO\n}\n\n");
     }
@@ -15628,6 +15746,12 @@ public final class RuntimeBindings {
         .append("\tcase 7:\n\t\treturn ImmListOfStr7(src[0], src[1], src[2], src[3], src[4], src[5], src[6])\n")
         .append("\tcase 8:\n\t\treturn ImmListOfStr8(src[0], src[1], src[2], src[3], src[4], src[5], src[6], src[7])\n")
         .append("\tdefault:\n\t\tcp := make([]string, len(src))\n\t\tfor i, s := range src {\n\t\t\tif s == NullString { ThrowNPE() }\n\t\t\tcp[i] = s\n\t\t}\n\t\treturn &jImmStrList{strs: cp}\n\t}\n}\n")
+        .append("func wrapImmStrSliceOwn(src []string) ").append(ilGo).append(" {\n")
+        .append("\tswitch len(src) {\n\tcase 0:\n\t\treturn emptyImmutableList_\n")
+        .append("\tcase 1:\n\t\treturn ImmListOfStr1(src[0])\n")
+        .append("\tdefault:\n\t\tfor _, s := range src {\n\t\t\tif s == NullString { ThrowNPE() }\n\t\t}\n\t\treturn &jImmStrList{strs: src[:len(src):len(src)]}\n\t}\n}\n")
+        .append("func ImmListFromStrs(src []string) ").append(ilGo).append(" {\n")
+        .append("\tCheckNotNullSlice(src)\n\treturn wrapImmStrSliceCopy(src)\n}\n")
         .append("func wrapImmutableList(items []any) ").append(ilGo).append(" {\n")
         .append("\tswitch len(items) {\n\tcase 0:\n\t\treturn emptyImmutableList_\n")
         .append("\tcase 1:\n\t\tif s0, ok := items[0].(string); ok && s0 != NullString { return &jImmStrList1{strs: [1]string{s0}} }\n\t\treturn &jImmList1{elem: [1]any{ToAny(items[0])}}\n")

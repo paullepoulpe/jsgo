@@ -133,25 +133,28 @@ func StaticSet_FunctionType_EMPTY_CTOR_KEYS(v j2gort.Ext_com_google_common_colle
 	clinit_FunctionType()
 	static_FunctionType_EMPTY_CTOR_KEYS = v
 }
-func StaticGet_FunctionType_NO_KIND_NORMAL() int8           { return int8(0) }
-func StaticGet_FunctionType_NO_KIND_NO_OBJECT() int8        { return int8(1) }
-func StaticGet_FunctionType_NO_KIND_NO_TYPE() int8          { return int8(2) }
-func StaticGet_FunctionType_FN_KIND_ORDINARY() int32        { return int32(0) }
-func StaticGet_FunctionType_FN_KIND_CONSTRUCTOR() int32     { return int32(1) }
-func StaticGet_FunctionType_FN_KIND_INTERFACE() int32       { return int32(2) }
-func StaticGet_FunctionType_FN_KIND_NONE() int32            { return int32(3) }
-func StaticGet_FunctionType_FN_NO_KIND_SHIFT() int32        { return int32(2) }
-func StaticGet_FunctionType_FN_FLAG_RETURN_INFERRED() int8  { return int8(16) }
-func StaticGet_FunctionType_FN_FLAG_STRUCTURAL_IFACE() int8 { return int8(32) }
-func StaticGet_FunctionType_FN_FLAG_ABSTRACT() int8         { return int8(64) }
-func StaticGet_FunctionType_AMBIGUITY_UNKNOWN() int8        { return int8(0) }
-func StaticGet_FunctionType_AMBIGUITY_AMBIGUOUS() int8      { return int8(1) }
-func StaticGet_FunctionType_AMBIGUITY_UNAMBIGUOUS() int8    { return int8(2) }
-func StaticGet_FunctionType_PROP_ACCESS_UNSET() int8        { return int8(0) }
-func StaticGet_FunctionType_PROP_ACCESS_ANY() int8          { return int8(1) }
-func StaticGet_FunctionType_PROP_ACCESS_ANY_EXPLICIT() int8 { return int8(2) }
-func StaticGet_FunctionType_PROP_ACCESS_STRUCT() int8       { return int8(3) }
-func StaticGet_FunctionType_PROP_ACCESS_DICT() int8         { return int8(4) }
+func StaticGet_FunctionType_NO_KIND_NORMAL() int8             { return int8(0) }
+func StaticGet_FunctionType_NO_KIND_NO_OBJECT() int8          { return int8(1) }
+func StaticGet_FunctionType_NO_KIND_NO_TYPE() int8            { return int8(2) }
+func StaticGet_FunctionType_FN_KIND_ORDINARY() int32          { return int32(0) }
+func StaticGet_FunctionType_FN_KIND_CONSTRUCTOR() int32       { return int32(1) }
+func StaticGet_FunctionType_FN_KIND_INTERFACE() int32         { return int32(2) }
+func StaticGet_FunctionType_FN_KIND_NONE() int32              { return int32(3) }
+func StaticGet_FunctionType_FN_NO_KIND_SHIFT() int32          { return int32(2) }
+func StaticGet_FunctionType_FN_NO_KIND_MASK() int32           { return int32(12) }
+func StaticGet_FunctionType_FN_NO_KIND_NO_OBJECT_BITS() int32 { return int32(4) }
+func StaticGet_FunctionType_FN_NO_KIND_NO_TYPE_BITS() int32   { return int32(8) }
+func StaticGet_FunctionType_FN_FLAG_RETURN_INFERRED() int8    { return int8(16) }
+func StaticGet_FunctionType_FN_FLAG_STRUCTURAL_IFACE() int8   { return int8(32) }
+func StaticGet_FunctionType_FN_FLAG_ABSTRACT() int8           { return int8(64) }
+func StaticGet_FunctionType_AMBIGUITY_UNKNOWN() int8          { return int8(0) }
+func StaticGet_FunctionType_AMBIGUITY_AMBIGUOUS() int8        { return int8(1) }
+func StaticGet_FunctionType_AMBIGUITY_UNAMBIGUOUS() int8      { return int8(2) }
+func StaticGet_FunctionType_PROP_ACCESS_UNSET() int8          { return int8(0) }
+func StaticGet_FunctionType_PROP_ACCESS_ANY() int8            { return int8(1) }
+func StaticGet_FunctionType_PROP_ACCESS_ANY_EXPLICIT() int8   { return int8(2) }
+func StaticGet_FunctionType_PROP_ACCESS_STRUCT() int8         { return int8(3) }
+func StaticGet_FunctionType_PROP_ACCESS_DICT() int8           { return int8(4) }
 
 var static_FunctionType_DELEGATE_SUFFIX string
 
@@ -311,7 +314,7 @@ func FunctionType_CreateNoObjectType(registry *JSTypeRegistry) *FunctionType {
 	(&fb_).WithKind(StaticGet_FunctionType_Kind_NONE())
 	(&fb_).WithReturnsOwnInstanceType()
 	(&fb_).ForNativeType()
-	(&fb_).priv_Builder_withNoTypeKind_8956(int8(1))
+	(&fb_).priv_Builder_withNoTypeKind_8974(int8(1))
 	return j2gort.CastPtr[FunctionType]((&fb_).Build())
 }
 
@@ -324,7 +327,7 @@ func FunctionType_CreateNoType(registry *JSTypeRegistry) *FunctionType {
 	(&fb_).WithKind(StaticGet_FunctionType_Kind_NONE())
 	(&fb_).WithReturnsOwnInstanceType()
 	(&fb_).ForNativeType()
-	(&fb_).priv_Builder_withNoTypeKind_8956(int8(2))
+	(&fb_).priv_Builder_withNoTypeKind_8974(int8(2))
 	return j2gort.CastPtr[FunctionType]((&fb_).Build())
 }
 
@@ -334,7 +337,7 @@ func (this_ *FunctionType) HasPrototypeSlot() bool {
 }
 
 // Java method: FunctionType.getPrototypeSlot()
-func (this_ *FunctionType) priv_FunctionType_getPrototypeSlot_8857() *Property {
+func (this_ *FunctionType) priv_FunctionType_getPrototypeSlot_8876() *Property {
 	if this_.GetPrototypeObjectTypeBase().cold != nil {
 		return this_.GetPrototypeObjectTypeBase().cold.prototypeSlot
 	} else {
@@ -343,7 +346,7 @@ func (this_ *FunctionType) priv_FunctionType_getPrototypeSlot_8857() *Property {
 }
 
 // Java method: FunctionType.getPropAccessCode()
-func (this_ *FunctionType) priv_FunctionType_getPropAccessCode_8858() int8 {
+func (this_ *FunctionType) priv_FunctionType_getPropAccessCode_8877() int8 {
 	var c *PrototypeObjectType_ColdData = this_.GetPrototypeObjectTypeBase().cold
 	_ = c
 	if (c != nil) && (int32(c.propAccess) != int32(int8(0))) {
@@ -354,11 +357,6 @@ func (this_ *FunctionType) priv_FunctionType_getPropAccessCode_8858() int8 {
 	} else {
 		return int8(0)
 	}
-}
-
-// Java method: FunctionType.getNoTypeKind()
-func (this_ *FunctionType) priv_FunctionType_getNoTypeKind_8859() int8 {
-	return int8(((javalang.Ushr32(int32(this_.GetJSTypeBase().fnFlags), int(int32(2)))) & int32(3)))
 }
 
 // Java static method: FunctionType.encodeKind(com.google.javascript.rhino.jstype.FunctionType.Kind kind)
@@ -431,20 +429,21 @@ func FunctionType_ComputeFunctionKindMask(builder *FunctionType_Builder) int32 {
 
 // Java method: FunctionType.getTypeClass()
 func (this_ *FunctionType) GetTypeClass() JSTypeClass {
-	switch this_.priv_FunctionType_getNoTypeKind_8859() {
-	case int8(1):
-		return StaticGet_JSTypeClass_NO_OBJECT()
-	case int8(2):
-		return StaticGet_JSTypeClass_NO()
-	default:
-		return StaticGet_FunctionType_TYPE_CLASS()
+	var m int32 = this_.GetJSTypeBase().typeKindMask
+	_ = m
+	if (m & (int32(4) | int32(2))) != int32(0) {
+		if (m & int32(4)) != int32(0) {
+			return StaticGet_JSTypeClass_NO_OBJECT()
+		} else {
+			return StaticGet_JSTypeClass_NO()
+		}
 	}
-	panic("unreachable switch expression")
+	return StaticGet_JSTypeClass_FUNCTION()
 }
 
 // Java method: FunctionType.getConstructor()
 func (this_ *FunctionType) GetConstructor() *FunctionType {
-	if int32(this_.priv_FunctionType_getNoTypeKind_8859()) != int32(int8(0)) {
+	if (int32(this_.GetJSTypeBase().fnFlags) & int32(12)) != int32(0) {
 		return nil
 	}
 	return j2gort.CheckNotNullPtr(this_.GetJSTypeBase().registry.GetNativeFunctionType(StaticGet_JSTypeNative_FUNCTION_FUNCTION_TYPE()))
@@ -452,17 +451,17 @@ func (this_ *FunctionType) GetConstructor() *FunctionType {
 
 // Java method: FunctionType.isNullable()
 func (this_ *FunctionType) IsNullable() bool {
-	return (int32(this_.priv_FunctionType_getNoTypeKind_8859()) == int32(int8(2)))
+	return ((int32(this_.GetJSTypeBase().fnFlags) & int32(12)) == int32(8))
 }
 
 // Java method: FunctionType.isVoidable()
 func (this_ *FunctionType) IsVoidable() bool {
-	return (int32(this_.priv_FunctionType_getNoTypeKind_8859()) == int32(int8(2)))
+	return ((int32(this_.GetJSTypeBase().fnFlags) & int32(12)) == int32(8))
 }
 
 // Java method: FunctionType.getPossibleToBooleanOutcomes()
 func (this_ *FunctionType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
-	if int32(this_.priv_FunctionType_getNoTypeKind_8859()) == int32(int8(2)) {
+	if (int32(this_.GetJSTypeBase().fnFlags) & int32(12)) == int32(8) {
 		return StaticGet_BooleanLiteralSet_BOTH()
 	} else {
 		return this_.PrototypeObjectTypeBase.GetPossibleToBooleanOutcomes()
@@ -471,7 +470,7 @@ func (this_ *FunctionType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 
 // Java method: FunctionType.getImplicitPrototype()
 func (this_ *FunctionType) GetImplicitPrototype() ObjectType {
-	if int32(this_.priv_FunctionType_getNoTypeKind_8859()) != int32(int8(0)) {
+	if (int32(this_.GetJSTypeBase().fnFlags) & int32(12)) != int32(0) {
 		return nil
 	} else {
 		return this_.PrototypeObjectTypeBase.GetImplicitPrototype()
@@ -480,7 +479,7 @@ func (this_ *FunctionType) GetImplicitPrototype() ObjectType {
 
 // Java method: FunctionType.getReferenceName()
 func (this_ *FunctionType) GetReferenceName() string {
-	if int32(this_.priv_FunctionType_getNoTypeKind_8859()) != int32(int8(0)) {
+	if (int32(this_.GetJSTypeBase().fnFlags) & int32(12)) != int32(0) {
 		return j2gort.NullString
 	} else {
 		return this_.PrototypeObjectTypeBase.GetReferenceName()
@@ -489,24 +488,24 @@ func (this_ *FunctionType) GetReferenceName() string {
 
 // Java method: FunctionType.matchesNumberContext()
 func (this_ *FunctionType) MatchesNumberContext() bool {
-	return ((int32(this_.priv_FunctionType_getNoTypeKind_8859()) != int32(int8(0))) || this_.PrototypeObjectTypeBase.MatchesNumberContext())
+	return (((int32(this_.GetJSTypeBase().fnFlags) & int32(12)) != int32(0)) || this_.PrototypeObjectTypeBase.MatchesNumberContext())
 }
 
 // Java method: FunctionType.matchesStringContext()
 func (this_ *FunctionType) MatchesStringContext() bool {
-	return ((int32(this_.priv_FunctionType_getNoTypeKind_8859()) != int32(int8(0))) || this_.PrototypeObjectTypeBase.MatchesStringContext())
+	return (((int32(this_.GetJSTypeBase().fnFlags) & int32(12)) != int32(0)) || this_.PrototypeObjectTypeBase.MatchesStringContext())
 }
 
 // Java method: FunctionType.matchesSymbolContext()
 func (this_ *FunctionType) MatchesSymbolContext() bool {
-	return ((int32(this_.priv_FunctionType_getNoTypeKind_8859()) != int32(int8(0))) || this_.PrototypeObjectTypeBase.MatchesSymbolContext())
+	return (((int32(this_.GetJSTypeBase().fnFlags) & int32(12)) != int32(0)) || this_.PrototypeObjectTypeBase.MatchesSymbolContext())
 }
 
 // Java method: FunctionType.setPropertyJSDocInfo(java.lang.String propertyName, com.google.javascript.rhino.JSDocInfo info)
 func (this_ *FunctionType) SetPropertyJSDocInfo_2_string_JSDocInfo(propertyName string, info *JSDocInfo) {
 	_ = propertyName
 	_ = info
-	if int32(this_.priv_FunctionType_getNoTypeKind_8859()) != int32(int8(0)) {
+	if (int32(this_.GetJSTypeBase().fnFlags) & int32(12)) != int32(0) {
 		j2gort.CheckNotNullString(propertyName)
 		return
 	}
@@ -517,7 +516,7 @@ func (this_ *FunctionType) SetPropertyJSDocInfo_2_string_JSDocInfo(propertyName 
 func (this_ *FunctionType) SetPropertyJSDocInfo_2_Property_Key_JSDocInfo(propertyName Property_Key, info *JSDocInfo) {
 	_ = propertyName
 	_ = info
-	if int32(this_.priv_FunctionType_getNoTypeKind_8859()) != int32(int8(0)) {
+	if (int32(this_.GetJSTypeBase().fnFlags) & int32(12)) != int32(0) {
 		return
 	}
 	this_.PrototypeObjectTypeBase.SetPropertyJSDocInfo_2_Property_Key_JSDocInfo(propertyName, info)
@@ -545,7 +544,7 @@ func (this_ *FunctionType) GetKind() FunctionType_Kind {
 
 // Java method: FunctionType.makesStructs()
 func (this_ *FunctionType) MakesStructs() bool {
-	var access int8 = this_.priv_FunctionType_getPropAccessCode_8858()
+	var access int8 = this_.priv_FunctionType_getPropAccessCode_8877()
 	_ = access
 	if !(this_.HasInstanceType()) || (int32(access) == int32(int8(0))) {
 		return false
@@ -574,7 +573,7 @@ func (this_ *FunctionType) MakesStructs() bool {
 
 // Java method: FunctionType.makesDicts()
 func (this_ *FunctionType) MakesDicts() bool {
-	var access int8 = this_.priv_FunctionType_getPropAccessCode_8858()
+	var access int8 = this_.priv_FunctionType_getPropAccessCode_8877()
 	_ = access
 	if !(this_.IsConstructor()) || (int32(access) == int32(int8(0))) {
 		return false
@@ -627,7 +626,7 @@ func (this_ *FunctionType) SetExplicitUnrestricted() {
 
 // Java method: FunctionType.toMaybeFunctionType()
 func (this_ *FunctionType) ToMaybeFunctionType() *FunctionType {
-	if int32(this_.priv_FunctionType_getNoTypeKind_8859()) == int32(int8(0)) {
+	if (int32(this_.GetJSTypeBase().fnFlags) & int32(12)) == int32(0) {
 		return this_
 	} else {
 		return nil
@@ -760,7 +759,7 @@ func (this_ *FunctionType) GetSlot_1_Property_Key(name Property_Key) *Property {
 	_ = name
 	if name.Matches("prototype") {
 		this_.GetPrototype()
-		return this_.priv_FunctionType_getPrototypeSlot_8857()
+		return this_.priv_FunctionType_getPrototypeSlot_8876()
 	} else {
 		return this_.PrototypeObjectTypeBase.GetSlot_1_Property_Key(name)
 	}
@@ -768,7 +767,7 @@ func (this_ *FunctionType) GetSlot_1_Property_Key(name Property_Key) *Property {
 
 // Java method: FunctionType.getOwnPropertyNames()
 func (this_ *FunctionType) GetOwnPropertyNames() j2gort.Ext_java_util_Set {
-	if this_.priv_FunctionType_getPrototypeSlot_8857() == nil {
+	if this_.priv_FunctionType_getPrototypeSlot_8876() == nil {
 		return this_.PrototypeObjectTypeBase.GetOwnPropertyNames()
 	} else {
 		var names j2gort.Ext_com_google_common_collect_ImmutableSet_Builder = j2gort.Ext_com_google_common_collect_ImmutableSet_S_Builder()
@@ -786,17 +785,17 @@ func (this_ *FunctionType) GetPrototypeProperty() ObjectType {
 
 // Java method: FunctionType.getPrototype()
 func (this_ *FunctionType) GetPrototype() ObjectType {
-	var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8857()
+	var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8876()
 	_ = slot
 	if slot == nil {
 		var refName string = this_.GetReferenceName()
 		_ = refName
 		if refName == j2gort.NullString {
-			this_.priv_FunctionType_setPrototypeNoCheck_8886(this_.GetJSTypeBase().registry.GetNativeObjectType(StaticGet_JSTypeNative_UNKNOWN_TYPE()), Node(0))
+			this_.priv_FunctionType_setPrototypeNoCheck_8904(this_.GetJSTypeBase().registry.GetNativeObjectType(StaticGet_JSTypeNative_UNKNOWN_TYPE()), Node(0))
 		} else {
 			this_.SetPrototype(j2gort.AsIface[PrototypeObjectType](j2gort.AsIface[PrototypeObjectType_Builder](PrototypeObjectType_S_Builder(this_.GetJSTypeBase().registry).SetName((j2gort.StrValString(this_.GetReferenceName()) + ".prototype"))).SetImplicitPrototype(this_.GetJSTypeBase().registry.GetNativeObjectType(StaticGet_JSTypeNative_OBJECT_TYPE())).SetNative(this_.IsNativeObjectType()).Build()), Node(0))
 		}
-		slot = this_.priv_FunctionType_getPrototypeSlot_8857()
+		slot = this_.priv_FunctionType_getPrototypeSlot_8876()
 	}
 	return j2gort.AsIface[ObjectType](slot.GetType())
 }
@@ -804,11 +803,11 @@ func (this_ *FunctionType) GetPrototype() ObjectType {
 // Java method: FunctionType.setPrototypeBasedOn(com.google.javascript.rhino.jstype.ObjectType baseType)
 func (this_ *FunctionType) SetPrototypeBasedOn_1(baseType ObjectType) {
 	_ = baseType
-	this_.priv_FunctionType_setPrototypeBasedOn_8884(baseType, Node(0))
+	this_.priv_FunctionType_setPrototypeBasedOn_8902(baseType, Node(0))
 }
 
 // Java method: FunctionType.setPrototypeBasedOn(com.google.javascript.rhino.jstype.ObjectType baseType, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node propertyNode)
-func (this_ *FunctionType) priv_FunctionType_setPrototypeBasedOn_8884(baseType ObjectType, propertyNode Node) {
+func (this_ *FunctionType) priv_FunctionType_setPrototypeBasedOn_8902(baseType ObjectType, propertyNode Node) {
 	_ = baseType
 	_ = propertyNode
 	if this_.IsNativeObjectType() {
@@ -825,7 +824,7 @@ func (this_ *FunctionType) priv_FunctionType_setPrototypeBasedOn_8884(baseType O
 		this_.MaybeLoosenTypecheckingDueToForwardReferencedSupertype(j2gort.AsIface[JSType](baseType))
 	}
 	if (baseType.HasReferenceName() || this_.IsNativeObjectType()) || baseType.IsFunctionPrototypeType() {
-		if ((this_.priv_FunctionType_getPrototypeSlot_8857() != nil) && this_.HasInstanceType()) && baseType.Equals(this_.GetInstanceType()) {
+		if ((this_.priv_FunctionType_getPrototypeSlot_8876() != nil) && this_.HasInstanceType()) && baseType.Equals(this_.GetInstanceType()) {
 			return
 		}
 		baseType = j2gort.AsIface[PrototypeObjectType](j2gort.AsIface[PrototypeObjectType_Builder](PrototypeObjectType_S_Builder(this_.GetJSTypeBase().registry).SetName((j2gort.StrValString(this_.GetReferenceName()) + ".prototype"))).SetImplicitPrototype(baseType).Build())
@@ -843,14 +842,14 @@ func (this_ *FunctionType) SetPrototype(prototype ObjectType, propertyNode Node)
 	if this_.IsConstructor() && j2gort.IfaceEquals[ObjectType](prototype, this_.GetInstanceType()) {
 		return false
 	}
-	return this_.priv_FunctionType_setPrototypeNoCheck_8886(prototype, propertyNode)
+	return this_.priv_FunctionType_setPrototypeNoCheck_8904(prototype, propertyNode)
 }
 
 // Java method: FunctionType.setPrototypeNoCheck(com.google.javascript.rhino.jstype.ObjectType prototype, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node propertyNode)
-func (this_ *FunctionType) priv_FunctionType_setPrototypeNoCheck_8886(prototype ObjectType, propertyNode Node) bool {
+func (this_ *FunctionType) priv_FunctionType_setPrototypeNoCheck_8904(prototype ObjectType, propertyNode Node) bool {
 	_ = prototype
 	_ = propertyNode
-	var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8857()
+	var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8876()
 	_ = slot
 	var oldPrototype ObjectType
 	_ = oldPrototype
@@ -907,7 +906,7 @@ func (this_ *FunctionType) GetAllImplementedInterfaces() j2gort.Ext_java_lang_It
 		var i int32 = int32(0)
 		_ = i
 		for ; i < n; i = i + 1 {
-			interfaces = this_.priv_FunctionType_addRelatedInterfaces_8888(implemented[i], interfaces)
+			interfaces = this_.priv_FunctionType_addRelatedInterfaces_8906(implemented[i], interfaces)
 		}
 	}
 	if interfaces != nil {
@@ -918,7 +917,7 @@ func (this_ *FunctionType) GetAllImplementedInterfaces() j2gort.Ext_java_lang_It
 }
 
 // Java method: FunctionType.addRelatedInterfaces(com.google.javascript.rhino.jstype.ObjectType instance, java.util.@org.jspecify.annotations.Nullable Set<com.google.javascript.rhino.jstype.ObjectType> set)
-func (this_ *FunctionType) priv_FunctionType_addRelatedInterfaces_8888(instance ObjectType, set j2gort.Ext_java_util_Set) j2gort.Ext_java_util_Set {
+func (this_ *FunctionType) priv_FunctionType_addRelatedInterfaces_8906(instance ObjectType, set j2gort.Ext_java_util_Set) j2gort.Ext_java_util_Set {
 	_ = instance
 	_ = set
 	var constructor *FunctionType = instance.GetConstructor()
@@ -940,7 +939,7 @@ func (this_ *FunctionType) priv_FunctionType_addRelatedInterfaces_8888(instance 
 					rawElem_12 := cur_11.Next()
 					interfaceType := j2gort.AsIface[ObjectType](rawElem_12)
 					_ = interfaceType
-					set = this_.priv_FunctionType_addRelatedInterfaces_8888(interfaceType, set)
+					set = this_.priv_FunctionType_addRelatedInterfaces_8906(interfaceType, set)
 				}
 			}
 		}
@@ -1101,7 +1100,7 @@ func (this_ *FunctionType) GetPropertyType_1_Property_Key(name Property_Key) JST
 		var isBind bool = name.Matches("bind")
 		_ = isBind
 		if isCall || isBind {
-			this_.DefineDeclaredProperty_3_Property_Key_JSType_Node(name, ToIface_JSType(this_.priv_FunctionType_getCallOrBindSignature_8898(isCall)), this_.GetJSTypeBase().subSourceNode)
+			this_.DefineDeclaredProperty_3_Property_Key_JSType_Node(name, ToIface_JSType(this_.priv_FunctionType_getCallOrBindSignature_8916(isCall)), this_.GetJSTypeBase().subSourceNode)
 		} else if name.Matches("apply") {
 			var val_19 FunctionParamBuilder
 			InitFunctionParamBuilder_2(&val_19, this_.GetJSTypeBase().registry, int32(2))
@@ -1171,7 +1170,7 @@ func (this_ *FunctionType) GetBindReturnType(argsToBind int32) *FunctionType {
 }
 
 // Java method: FunctionType.getCallOrBindSignature(boolean isCall)
-func (this_ *FunctionType) priv_FunctionType_getCallOrBindSignature_8898(isCall bool) *FunctionType {
+func (this_ *FunctionType) priv_FunctionType_getCallOrBindSignature_8916(isCall bool) *FunctionType {
 	_ = isCall
 	var isBind bool = !(isCall)
 	_ = isBind
@@ -1253,19 +1252,19 @@ func (this_ *FunctionType) DefineProperty_4_string_JSType_bool_Node(name string,
 	_ = type_
 	_ = inferred
 	_ = propertyNode
-	if int32(this_.priv_FunctionType_getNoTypeKind_8859()) != int32(int8(0)) {
+	if (int32(this_.GetJSTypeBase().fnFlags) & int32(12)) != int32(0) {
 		return true
 	}
 	if "prototype" == name {
 		var objType ObjectType = type_.ToObjectType()
 		_ = objType
 		if objType != nil && !objType.IsJavaNil_() {
-			var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8857()
+			var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8876()
 			_ = slot
 			if (slot != nil) && objType.Equals(slot.GetType()) {
 				return true
 			}
-			this_.priv_FunctionType_setPrototypeBasedOn_8884(objType, propertyNode)
+			this_.priv_FunctionType_setPrototypeBasedOn_8902(objType, propertyNode)
 			return true
 		} else {
 			return false
@@ -1280,19 +1279,19 @@ func (this_ *FunctionType) DefineProperty_4_Property_Key_JSType_bool_Node(name P
 	_ = type_
 	_ = inferred
 	_ = propertyNode
-	if int32(this_.priv_FunctionType_getNoTypeKind_8859()) != int32(int8(0)) {
+	if (int32(this_.GetJSTypeBase().fnFlags) & int32(12)) != int32(0) {
 		return true
 	}
 	if name.Matches("prototype") {
 		var objType ObjectType = type_.ToObjectType()
 		_ = objType
 		if objType != nil && !objType.IsJavaNil_() {
-			var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8857()
+			var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8876()
 			_ = slot
 			if (slot != nil) && objType.Equals(slot.GetType()) {
 				return true
 			}
-			this_.priv_FunctionType_setPrototypeBasedOn_8884(objType, propertyNode)
+			this_.priv_FunctionType_setPrototypeBasedOn_8902(objType, propertyNode)
 			return true
 		} else {
 			return false
@@ -1309,7 +1308,7 @@ func (this_ *FunctionType) SupAndInfHelper(that *FunctionType, leastSuper bool) 
 	if this_.Equals(j2gort.PtrToAny(that)) {
 		return this_
 	}
-	if ((this_.IsOrdinaryFunction() && that.IsOrdinaryFunction()) && !(this_.priv_FunctionType_hasUnknownParamsOrReturn_8900())) && !(that.priv_FunctionType_hasUnknownParamsOrReturn_8900()) {
+	if ((this_.IsOrdinaryFunction() && that.IsOrdinaryFunction()) && !(this_.priv_FunctionType_hasUnknownParamsOrReturn_8918())) && !(that.priv_FunctionType_hasUnknownParamsOrReturn_8918()) {
 		var isSubtypeOfThat bool = this_.IsSubtype_1(ToIface_JSType(that))
 		_ = isSubtypeOfThat
 		var isSubtypeOfThis bool = that.IsSubtype_1(this_)
@@ -1327,7 +1326,7 @@ func (this_ *FunctionType) SupAndInfHelper(that *FunctionType, leastSuper bool) 
 				return that
 			}
 		}
-		var merged *FunctionType = this_.priv_FunctionType_tryMergeFunctionPiecewise_8901(that, leastSuper)
+		var merged *FunctionType = this_.priv_FunctionType_tryMergeFunctionPiecewise_8919(that, leastSuper)
 		_ = merged
 		if merged != nil {
 			return merged
@@ -1360,7 +1359,7 @@ func (this_ *FunctionType) SupAndInfHelper(that *FunctionType, leastSuper bool) 
 }
 
 // Java method: FunctionType.hasUnknownParamsOrReturn()
-func (this_ *FunctionType) priv_FunctionType_hasUnknownParamsOrReturn_8900() bool {
+func (this_ *FunctionType) priv_FunctionType_hasUnknownParamsOrReturn_8918() bool {
 	var params []FunctionType_Parameter = this_.parameters
 	_ = params
 	{
@@ -1378,7 +1377,7 @@ func (this_ *FunctionType) priv_FunctionType_hasUnknownParamsOrReturn_8900() boo
 }
 
 // Java method: FunctionType.tryMergeFunctionPiecewise(com.google.javascript.rhino.jstype.FunctionType other, boolean leastSuper)
-func (this_ *FunctionType) priv_FunctionType_tryMergeFunctionPiecewise_8901(other *FunctionType, leastSuper bool) *FunctionType {
+func (this_ *FunctionType) priv_FunctionType_tryMergeFunctionPiecewise_8919(other *FunctionType, leastSuper bool) *FunctionType {
 	_ = other
 	_ = leastSuper
 	var newParamsNode []FunctionType_Parameter = nil
@@ -1434,7 +1433,7 @@ func (this_ *FunctionType) GetSuperClassConstructor() *FunctionType {
 
 // Java method: FunctionType.recursionUnsafeHashCode()
 func (this_ *FunctionType) RecursionUnsafeHashCode() int32 {
-	if int32(this_.priv_FunctionType_getNoTypeKind_8859()) != int32(int8(0)) {
+	if (int32(this_.GetJSTypeBase().fnFlags) & int32(12)) != int32(0) {
 		return j2gort.IdentityHash(this_)
 	}
 	var kind FunctionType_Kind = this_.GetKind()
@@ -1489,24 +1488,24 @@ func (this_ *FunctionType) HasEqualCallType(that *FunctionType) bool {
 // Java method: FunctionType.appendTo(com.google.javascript.rhino.jstype.TypeStringBuilder sb)
 func (this_ *FunctionType) AppendTo(sb *TypeStringBuilder) {
 	_ = sb
-	var noKind int8 = this_.priv_FunctionType_getNoTypeKind_8859()
-	_ = noKind
-	if int32(noKind) == int32(int8(2)) {
-		sb.Append_1_string(func() string {
-			if sb.IsForAnnotations() {
-				return "?"
-			}
-			return "None"
-		}())
-		return
-	}
-	if int32(noKind) == int32(int8(1)) {
-		sb.Append_1_string(func() string {
-			if sb.IsForAnnotations() {
-				return "?"
-			}
-			return "NoObject"
-		}())
+	var noKindBits int32 = (int32(this_.GetJSTypeBase().fnFlags) & int32(12))
+	_ = noKindBits
+	if noKindBits != int32(0) {
+		if noKindBits == int32(8) {
+			sb.Append_1_string(func() string {
+				if sb.IsForAnnotations() {
+					return "?"
+				}
+				return "None"
+			}())
+		} else {
+			sb.Append_1_string(func() string {
+				if sb.IsForAnnotations() {
+					return "?"
+				}
+				return "NoObject"
+			}())
+		}
 		return
 	}
 	if !(this_.IsPrettyPrint()) || j2gort.IfaceEquals[JSType](this_, this_.GetJSTypeBase().registry.GetNativeType(StaticGet_JSTypeNative_FUNCTION_TYPE())) {
@@ -1544,14 +1543,14 @@ func (this_ *FunctionType) AppendTo(sb *TypeStringBuilder) {
 		}
 		var p FunctionType_Parameter = params[int32(0)]
 		_ = p
-		this_.priv_FunctionType_appendArgString_8904(sb, p)
+		this_.priv_FunctionType_appendArgString_8922(sb, p)
 		{
 			var i int32 = int32(1)
 			_ = i
 			for ; i < paramNum; i = i + 1 {
 				p = params[i]
 				sb.Append_1_string(", ")
-				this_.priv_FunctionType_appendArgString_8904(sb, p)
+				this_.priv_FunctionType_appendArgString_8922(sb, p)
 			}
 		}
 	}
@@ -1561,27 +1560,27 @@ func (this_ *FunctionType) AppendTo(sb *TypeStringBuilder) {
 }
 
 // Java method: FunctionType.appendArgString(com.google.javascript.rhino.jstype.TypeStringBuilder sb, com.google.javascript.rhino.jstype.FunctionType.Parameter p)
-func (this_ *FunctionType) priv_FunctionType_appendArgString_8904(sb *TypeStringBuilder, p FunctionType_Parameter) {
+func (this_ *FunctionType) priv_FunctionType_appendArgString_8922(sb *TypeStringBuilder, p FunctionType_Parameter) {
 	_ = sb
 	_ = p
 	if p.IsVariadic() {
-		this_.priv_FunctionType_appendVarArgsString_8905(sb, p.GetJSType())
+		this_.priv_FunctionType_appendVarArgsString_8923(sb, p.GetJSType())
 	} else if p.IsOptional() {
-		this_.priv_FunctionType_appendOptionalArgString_8906(sb, p.GetJSType())
+		this_.priv_FunctionType_appendOptionalArgString_8924(sb, p.GetJSType())
 	} else {
 		sb.AppendNonNull(p.GetJSType())
 	}
 }
 
 // Java method: FunctionType.appendVarArgsString(com.google.javascript.rhino.jstype.TypeStringBuilder sb, com.google.javascript.rhino.jstype.JSType paramType)
-func (this_ *FunctionType) priv_FunctionType_appendVarArgsString_8905(sb *TypeStringBuilder, paramType JSType) {
+func (this_ *FunctionType) priv_FunctionType_appendVarArgsString_8923(sb *TypeStringBuilder, paramType JSType) {
 	_ = sb
 	_ = paramType
 	sb.Append_1_string("...").AppendNonNull(paramType)
 }
 
 // Java method: FunctionType.appendOptionalArgString(com.google.javascript.rhino.jstype.TypeStringBuilder sb, com.google.javascript.rhino.jstype.JSType paramType)
-func (this_ *FunctionType) priv_FunctionType_appendOptionalArgString_8906(sb *TypeStringBuilder, paramType JSType) {
+func (this_ *FunctionType) priv_FunctionType_appendOptionalArgString_8924(sb *TypeStringBuilder, paramType JSType) {
 	_ = sb
 	_ = paramType
 	if paramType.IsUnionType() {
@@ -1593,10 +1592,10 @@ func (this_ *FunctionType) priv_FunctionType_appendOptionalArgString_8906(sb *Ty
 // Java method: FunctionType.visit(com.google.javascript.rhino.jstype.Visitor<T> visitor)
 func (this_ *FunctionType) Visit_1(visitor Visitor) any {
 	_ = visitor
-	switch this_.priv_FunctionType_getNoTypeKind_8859() {
-	case int8(2):
+	switch int32(this_.GetJSTypeBase().fnFlags) & int32(12) {
+	case int32(8):
 		return visitor.CaseNoType(this_)
-	case int8(1):
+	case int32(4):
 		return visitor.CaseNoObjectType()
 	default:
 		return visitor.CaseFunctionType(this_)
@@ -1608,10 +1607,10 @@ func (this_ *FunctionType) Visit_1(visitor Visitor) any {
 func (this_ *FunctionType) Visit_2(visitor RelationshipVisitor, that JSType) any {
 	_ = visitor
 	_ = that
-	switch this_.priv_FunctionType_getNoTypeKind_8859() {
-	case int8(2):
+	switch int32(this_.GetJSTypeBase().fnFlags) & int32(12) {
+	case int32(8):
 		return visitor.CaseNoType(that)
-	case int8(1):
+	case int32(4):
 		return visitor.CaseNoObjectType(that)
 	default:
 		return visitor.CaseFunctionType(this_, that)
@@ -1658,7 +1657,7 @@ func (this_ *FunctionType) GetGoogModuleId() string {
 // Java method: FunctionType.setSource(com.google.javascript.rhino.Node source)
 func (this_ *FunctionType) SetSource(source Node) {
 	_ = source
-	var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8857()
+	var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8876()
 	_ = slot
 	if slot != nil {
 		if (source == 0) || (slot.GetNode() == 0) {
@@ -1678,7 +1677,7 @@ func (this_ *FunctionType) ClearCachedValues() {
 		if this_.HasInstanceType() {
 			this_.GetInstanceType().ClearCachedValues()
 		}
-		var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8857()
+		var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8876()
 		_ = slot
 		if slot != nil {
 			(j2gort.AsIface[ObjectType](slot.GetType())).ClearCachedValues()
@@ -1688,13 +1687,13 @@ func (this_ *FunctionType) ClearCachedValues() {
 
 // Java method: FunctionType.hasCachedValues()
 func (this_ *FunctionType) HasCachedValues() bool {
-	return ((this_.priv_FunctionType_getPrototypeSlot_8857() != nil) || this_.PrototypeObjectTypeBase.HasCachedValues())
+	return ((this_.priv_FunctionType_getPrototypeSlot_8876() != nil) || this_.PrototypeObjectTypeBase.HasCachedValues())
 }
 
 // Java method: FunctionType.resolveInternal(com.google.javascript.rhino.ErrorReporter reporter)
 func (this_ *FunctionType) ResolveInternal(reporter ErrorReporter) JSType {
 	_ = reporter
-	if int32(this_.priv_FunctionType_getNoTypeKind_8859()) != int32(int8(0)) {
+	if (int32(this_.GetJSTypeBase().fnFlags) & int32(12)) != int32(0) {
 		panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError")))
 	}
 	this_.returnType = JSType_SafeResolve(this_.returnType, reporter)
@@ -1709,7 +1708,7 @@ func (this_ *FunctionType) ResolveInternal(reporter ErrorReporter) JSType {
 			params[i].GetJSType().Resolve(reporter)
 		}
 	}
-	var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8857()
+	var slot *Property = this_.priv_FunctionType_getPrototypeSlot_8876()
 	_ = slot
 	if slot != nil {
 		slot.SetType(JSType_SafeResolve(slot.GetType(), reporter))
@@ -1730,7 +1729,7 @@ func (this_ *FunctionType) ResolveInternal(reporter ErrorReporter) JSType {
 	_ = c
 	if c != nil {
 		if !(c.implementedInterfaces.IsEmpty()) {
-			var resolvedImplemented j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_FunctionType_resolveTypeListHelper_8913(c.implementedInterfaces, reporter)
+			var resolvedImplemented j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_FunctionType_resolveTypeListHelper_8931(c.implementedInterfaces, reporter)
 			_ = resolvedImplemented
 			if resolvedImplemented != nil {
 				{
@@ -1740,7 +1739,7 @@ func (this_ *FunctionType) ResolveInternal(reporter ErrorReporter) JSType {
 			}
 		}
 		if !(c.extendedInterfaces.IsEmpty()) {
-			var resolvedExtended j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_FunctionType_resolveTypeListHelper_8913(c.extendedInterfaces, reporter)
+			var resolvedExtended j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_FunctionType_resolveTypeListHelper_8931(c.extendedInterfaces, reporter)
 			_ = resolvedExtended
 			if resolvedExtended != nil {
 				{
@@ -1754,7 +1753,7 @@ func (this_ *FunctionType) ResolveInternal(reporter ErrorReporter) JSType {
 }
 
 // Java method: FunctionType.resolveTypeListHelper(com.google.common.collect.ImmutableList<com.google.javascript.rhino.jstype.ObjectType> list, com.google.javascript.rhino.ErrorReporter reporter)
-func (this_ *FunctionType) priv_FunctionType_resolveTypeListHelper_8913(list j2gort.Ext_com_google_common_collect_ImmutableList, reporter ErrorReporter) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *FunctionType) priv_FunctionType_resolveTypeListHelper_8931(list j2gort.Ext_com_google_common_collect_ImmutableList, reporter ErrorReporter) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = list
 	_ = reporter
 	var changed bool = false
@@ -1794,11 +1793,11 @@ func (this_ *FunctionType) priv_FunctionType_resolveTypeListHelper_8913(list j2g
 
 // Java method: FunctionType.hasAnyTemplateTypesInternal()
 func (this_ *FunctionType) HasAnyTemplateTypesInternal() bool {
-	return ((((this_.GetTemplateParamCount() > int32(0)) || this_.typeOfThis.HasAnyTemplateTypes()) || this_.returnType.HasAnyTemplateTypes()) || this_.priv_FunctionType_hasTemplatedParameterType_8915())
+	return ((((this_.GetTemplateParamCount() > int32(0)) || this_.typeOfThis.HasAnyTemplateTypes()) || this_.returnType.HasAnyTemplateTypes()) || this_.priv_FunctionType_hasTemplatedParameterType_8933())
 }
 
 // Java method: FunctionType.hasTemplatedParameterType()
-func (this_ *FunctionType) priv_FunctionType_hasTemplatedParameterType_8915() bool {
+func (this_ *FunctionType) priv_FunctionType_hasTemplatedParameterType_8933() bool {
 	var params []FunctionType_Parameter = this_.parameters
 	_ = params
 	{
@@ -1903,11 +1902,11 @@ func FunctionType_UpdatePropertyTypeMap(type_ *FunctionType, propTypeMap j2gort.
 
 // Java method: FunctionType.checkExtendsLoop()
 func (this_ *FunctionType) CheckExtendsLoop_0() j2gort.Ext_java_util_List {
-	return this_.priv_FunctionType_checkExtendsLoop_8922(j2gort.NewExt_java_util_LinkedHashSet(), j2gort.NewExt_java_util_ArrayList())
+	return this_.priv_FunctionType_checkExtendsLoop_8940(j2gort.NewExt_java_util_LinkedHashSet(), j2gort.NewExt_java_util_ArrayList())
 }
 
 // Java method: FunctionType.checkExtendsLoop(java.util.Set<com.google.javascript.rhino.jstype.FunctionType> cache, java.util.List<com.google.javascript.rhino.jstype.FunctionType> path)
-func (this_ *FunctionType) priv_FunctionType_checkExtendsLoop_8922(cache j2gort.Ext_java_util_Set, path j2gort.Ext_java_util_List) j2gort.Ext_java_util_List {
+func (this_ *FunctionType) priv_FunctionType_checkExtendsLoop_8940(cache j2gort.Ext_java_util_Set, path j2gort.Ext_java_util_List) j2gort.Ext_java_util_List {
 	_ = cache
 	_ = path
 	var iterable []ObjectType = j2gort.ImmListToSliceNullable[ObjectType](this_.GetExtendedInterfaces())
@@ -1932,7 +1931,7 @@ func (this_ *FunctionType) priv_FunctionType_checkExtendsLoop_8922(cache j2gort.
 				}
 				cache.Add_1(j2gort.PtrToAny(superConstructor))
 				path.Add_1(j2gort.PtrToAny(superConstructor))
-				var result j2gort.Ext_java_util_List = superConstructor.priv_FunctionType_checkExtendsLoop_8922(cache, path)
+				var result j2gort.Ext_java_util_List = superConstructor.priv_FunctionType_checkExtendsLoop_8940(cache, path)
 				_ = result
 				if result != nil {
 					return result
@@ -1982,7 +1981,7 @@ func (this_ *FunctionType) ForgetParameterAndReturnTypes() *FunctionType {
 	(&fb_).WithSourceNode(this_.GetJSTypeBase().subSourceNode)
 	(&fb_).WithTypeOfThis(j2gort.AsIface[JSType](this_.GetInstanceType()))
 	(&fb_).WithKind(this_.GetKind())
-	(&fb_).priv_Builder_withCanonicalRepresentation_8957(this_)
+	(&fb_).priv_Builder_withCanonicalRepresentation_8975(this_)
 	var result *FunctionType = j2gort.CastPtr[FunctionType]((&fb_).Build())
 	_ = result
 	result.SetPrototypeBasedOn_1(this_.GetInstanceType())
@@ -2016,7 +2015,7 @@ func (this_ *FunctionType) IsAmbiguousConstructor() bool {
 		ambiguity = int8(0)
 	}
 	if int32(ambiguity) == int32(int8(0)) {
-		ambiguity = this_.priv_FunctionType_calculateConstructorAmbiguityCode_8927()
+		ambiguity = this_.priv_FunctionType_calculateConstructorAmbiguityCode_8945()
 		{
 			r_50 := this_.EnsureCold()
 			r_50.constructorAmbiguity = ambiguity
@@ -2026,7 +2025,7 @@ func (this_ *FunctionType) IsAmbiguousConstructor() bool {
 }
 
 // Java method: FunctionType.calculateConstructorAmbiguityCode()
-func (this_ *FunctionType) priv_FunctionType_calculateConstructorAmbiguityCode_8927() int8 {
+func (this_ *FunctionType) priv_FunctionType_calculateConstructorAmbiguityCode_8945() int8 {
 	if this_.IsUnknownType() {
 		return int8(1)
 	} else if this_.IsNativeObjectType() {
@@ -2040,7 +2039,7 @@ func (this_ *FunctionType) priv_FunctionType_calculateConstructorAmbiguityCode_8
 			return int8(1)
 		} else if this_.GetJSTypeBase().subSourceNode != 0 {
 			return int8(2)
-		} else if this_.priv_FunctionType_isDelegateProxy_8928() {
+		} else if this_.priv_FunctionType_isDelegateProxy_8946() {
 			return int8(2)
 		} else {
 			return int8(1)
@@ -2049,7 +2048,7 @@ func (this_ *FunctionType) priv_FunctionType_calculateConstructorAmbiguityCode_8
 }
 
 // Java method: FunctionType.isDelegateProxy()
-func (this_ *FunctionType) priv_FunctionType_isDelegateProxy_8928() bool {
+func (this_ *FunctionType) priv_FunctionType_isDelegateProxy_8946() bool {
 	return (this_.HasReferenceName() && javalang.StringEndsWith(j2gort.CheckNotNullString(this_.GetReferenceName()), j2gort.CheckNotNullString(StaticGet_FunctionType_DELEGATE_SUFFIX())))
 }
 
@@ -2086,7 +2085,7 @@ func (this_ *FunctionType) InitBuilder_(builder *FunctionType_Builder) {
 	builder.className = this_.GetReferenceName()
 	builder.nativeType = this_.IsNativeObjectType()
 	builder.templateTypeMap = this_.GetTemplateTypeMap()
-	builder.priv_Builder_withCanonicalRepresentation_8957(this_.GetCanonicalRepresentation())
+	builder.priv_Builder_withCanonicalRepresentation_8975(this_.GetCanonicalRepresentation())
 	builder.SetIsKnownAmbiguous(((this_.GetPrototypeObjectTypeBase().cold != nil) && (int32(this_.GetPrototypeObjectTypeBase().cold.constructorAmbiguity) == int32(int8(1)))))
 	builder.WithClosurePrimitiveId(this_.GetClosurePrimitive())
 	builder.WithIsAbstract(this_.IsAbstract())
@@ -2614,14 +2613,14 @@ func (this_ *FunctionType_Builder) WithClosurePrimitiveId(id ClosurePrimitive) *
 }
 
 // Java method: Builder.withNoTypeKind(byte noTypeKind)
-func (this_ *FunctionType_Builder) priv_Builder_withNoTypeKind_8956(noTypeKind int8) *FunctionType_Builder {
+func (this_ *FunctionType_Builder) priv_Builder_withNoTypeKind_8974(noTypeKind int8) *FunctionType_Builder {
 	_ = noTypeKind
 	this_.noTypeKind = noTypeKind
 	return this_
 }
 
 // Java method: Builder.withCanonicalRepresentation(com.google.javascript.rhino.jstype.FunctionType representation)
-func (this_ *FunctionType_Builder) priv_Builder_withCanonicalRepresentation_8957(representation *FunctionType) *FunctionType_Builder {
+func (this_ *FunctionType_Builder) priv_Builder_withCanonicalRepresentation_8975(representation *FunctionType) *FunctionType_Builder {
 	_ = representation
 	this_.canonicalRepresentation = representation
 	return this_

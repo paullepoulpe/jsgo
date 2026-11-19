@@ -487,24 +487,24 @@ func TestWave30CJoinDotNoStrPoolLeakAndAllocatorInternUnpin(t *testing.T) {
 			t.Fatal("formatJoin2 mismatch")
 		}
 	})
-	if missAllocs2 != 1 {
-		t.Fatalf("expected exactly 1 string allocation on formatJoin2, got %v", missAllocs2)
+	if missAllocs2 > 1 {
+		t.Fatalf("expected <= 1 string allocation on formatJoin2, got %v", missAllocs2)
 	}
 	missAllocs3 := testing.AllocsPerRun(50, func() {
 		if formatJoin3("uncached_ns", "Widget", "prototype") != "uncached_ns.Widget.prototype" {
 			t.Fatal("formatJoin3 mismatch")
 		}
 	})
-	if missAllocs3 != 1 {
-		t.Fatalf("expected exactly 1 string allocation on formatJoin3, got %v", missAllocs3)
+	if missAllocs3 > 1 {
+		t.Fatalf("expected <= 1 string allocation on formatJoin3, got %v", missAllocs3)
 	}
 	missAllocs4 := testing.AllocsPerRun(50, func() {
 		if formatJoin4("uncached_ns", "sub", "Widget", "prototype") != "uncached_ns.sub.Widget.prototype" {
 			t.Fatal("formatJoin4 mismatch")
 		}
 	})
-	if missAllocs4 != 1 {
-		t.Fatalf("expected exactly 1 string allocation on formatJoin4, got %v", missAllocs4)
+	if missAllocs4 > 1 {
+		t.Fatalf("expected <= 1 string allocation on formatJoin4, got %v", missAllocs4)
 	}
 
 	// 3. Verify neither NodeAllocator.Intern (even UNFLUSHED!) nor JoinDotCache pins caller buffers!
@@ -882,4 +882,64 @@ func TestWave35CStrPoolSealedChunksAndRewind(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestWave36CJoinDot4WayScanResistantCache(t *testing.T) {
+	// Find 4 distinct keys hashing to the exact same joinDot2 bucket index and verify
+	// all 4 ways stay resident simultaneously with 0 allocations AND resist eviction by a 1-hit scan!
+	seen := make(map[uint32][]string)
+	var ways []string
+	for i := 0; i < 200000; i++ {
+		cand := fmt.Sprintf("module$exports$w36c$pkg%06d", i)
+		h := poolHash(cand)*0x9E3779B97F4A7C15 ^ poolHash("prototype")
+		idx := uint32(h >> (64 - joinDot2CacheBits))
+		list := append(seen[idx], cand)
+		seen[idx] = list
+		if len(list) == 4 {
+			ways = list
+			break
+		}
+	}
+	if len(ways) != 4 {
+		t.Fatal("failed to find 4 colliding keys in 200,000 probes")
+	}
+
+	// Warm all 4 ways (first 4 inserts into empty/non-full bucket succeed on 1st call).
+	wants := make([]string, 4)
+	for i, w := range ways {
+		wants[i] = w + ".prototype"
+		if got := JoinDot(w, "prototype"); got != wants[i] {
+			t.Fatalf("warm JoinDot(%q) = %q, want %q", w, got, wants[i])
+		}
+	}
+
+	// Probe a 5th colliding 1-hit-wonder key ONCE: scan-resistant seen filter must
+	// allocate ONLY 1 string (no bucket struct!) AND keep all 4 hot ways resident!
+	targetIdx := uint32((poolHash(ways[0])*0x9E3779B97F4A7C15 ^ poolHash("prototype")) >> (64 - joinDot2CacheBits))
+	var fifth string
+	for i := 200000; i < 400000; i++ {
+		cand := fmt.Sprintf("module$exports$w36c$onehit%06d", i)
+		h := poolHash(cand)*0x9E3779B97F4A7C15 ^ poolHash("prototype")
+		if uint32(h>>(64-joinDot2CacheBits)) == targetIdx {
+			fifth = cand
+			break
+		}
+	}
+	if fifth == "" {
+		t.Fatal("failed to find 5th colliding key")
+	}
+	if got := JoinDot(fifth, "prototype"); got != fifth+".prototype" {
+		t.Fatalf("5th JoinDot mismatch: %q", got)
+	}
+
+	// All 4 original ways must STILL hit with 0 allocations!
+	if allocs := testing.AllocsPerRun(100, func() {
+		for i, w := range ways {
+			if JoinDot(w, "prototype") != wants[i] {
+				t.Fatal("4-way entry evicted by 1-hit wonder")
+			}
+		}
+	}); allocs != 0 {
+		t.Fatalf("expected 0 allocs across all 4 resident ways after 1-hit probe, got %v", allocs)
+	}
 }

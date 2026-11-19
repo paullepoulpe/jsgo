@@ -112,10 +112,10 @@ func (this_ *InvocationTemplateTypeMatcher) RunMatch() {
 		if obj.IsSuper() {
 			typeOfThisProvidedByTheCall = this_.localThisType
 		} else {
-			typeOfThisProvidedByTheCall = this_.priv_InvocationTemplateTypeMatcher_getTypeOrUnknown_3440(obj)
+			typeOfThisProvidedByTheCall = this_.priv_InvocationTemplateTypeMatcher_getTypeOrUnknown_3441(obj)
 		}
 		typeOfThisProvidedByTheCall = typeOfThisProvidedByTheCall.RestrictByNotNullOrUndefined()
-		this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(typeOfThisRequiredByTheFunction, typeOfThisProvidedByTheCall)
+		this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(typeOfThisRequiredByTheFunction, typeOfThisProvidedByTheCall)
 	}
 	var calleeParameters []pkg_rhino.FunctionType_Parameter = this_.calleeType.GetParameterArray()
 	_ = calleeParameters
@@ -123,10 +123,10 @@ func (this_ *InvocationTemplateTypeMatcher) RunMatch() {
 		if int32(len(calleeParameters)) == int32(0) {
 			return
 		}
-		this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(calleeParameters[int32(0)].GetJSType(), this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_I_TEMPLATE_ARRAY_TYPE()))
-		this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesFromNodes_3436(calleeParameters, int32(1), true)
+		this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(calleeParameters[int32(0)].GetJSType(), this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_I_TEMPLATE_ARRAY_TYPE()))
+		this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesFromNodes_3437(calleeParameters, int32(1), true)
 	} else if this_.invocation.HasMoreThanOneChild() {
-		this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesFromNodes_3436(calleeParameters, int32(0), false)
+		this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesFromNodes_3437(calleeParameters, int32(0), false)
 	}
 }
 
@@ -146,15 +146,15 @@ func (this_ *InvocationTemplateTypeMatcher) LookupMatched(key *pkg_rhino.Templat
 // Java method: InvocationTemplateTypeMatcher.match()
 func (this_ *InvocationTemplateTypeMatcher) Match() j2gort.Ext_com_google_common_collect_ImmutableMap {
 	this_.RunMatch()
-	return this_.priv_InvocationTemplateTypeMatcher_copyMatchedTypes_3439()
+	return this_.priv_InvocationTemplateTypeMatcher_copyMatchedTypes_3440()
 }
 
 // Java method: InvocationTemplateTypeMatcher.matchTemplateTypesRecursive(com.google.javascript.rhino.jstype.JSType paramType, com.google.javascript.rhino.jstype.JSType argType)
-func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(paramType pkg_rhino.JSType, argType pkg_rhino.JSType) {
+func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(paramType pkg_rhino.JSType, argType pkg_rhino.JSType) {
 	_ = paramType
 	_ = argType
 	if paramType.IsTemplateType() {
-		this_.priv_InvocationTemplateTypeMatcher_recordTemplateMatch_3438(paramType.ToMaybeTemplateType(), argType)
+		this_.priv_InvocationTemplateTypeMatcher_recordTemplateMatch_3439(paramType.ToMaybeTemplateType(), argType)
 		return
 	}
 	if paramType.IsUnionType() {
@@ -166,7 +166,7 @@ func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_m
 			var len_ int32 = union.GetAlternatesCount()
 			_ = len_
 			for ; i < len_; i = i + 1 {
-				this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(union.GetAlternateAt(i), argType)
+				this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(union.GetAlternateAt(i), argType)
 			}
 		}
 		return
@@ -179,7 +179,7 @@ func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_m
 			var len__2 int32 = union_2.GetAlternatesCount()
 			_ = len__2
 			for ; i_2 < len__2; i_2 = i_2 + 1 {
-				this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(paramType, union_2.GetAlternateAt(i_2))
+				this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(paramType, union_2.GetAlternateAt(i_2))
 			}
 		}
 		return
@@ -190,9 +190,9 @@ func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_m
 		var argFunctionType *pkg_rhino.FunctionType = argType.RestrictByNotNullOrUndefined().CollapseUnion().ToMaybeFunctionType()
 		_ = argFunctionType
 		if (argFunctionType != nil) && argFunctionType.IsSubtype_1(paramType) {
-			this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(paramFunctionType.GetTypeOfThis(), argFunctionType.GetTypeOfThis())
-			this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(paramFunctionType.GetReturnType(), argFunctionType.GetReturnType())
-			this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesFromParameters_3437(paramFunctionType.GetParameterArray(), argFunctionType.GetParameterArray())
+			this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(paramFunctionType.GetTypeOfThis(), argFunctionType.GetTypeOfThis())
+			this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(paramFunctionType.GetReturnType(), argFunctionType.GetReturnType())
+			this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesFromParameters_3438(paramFunctionType.GetParameterArray(), argFunctionType.GetParameterArray())
 		}
 	} else if paramType.IsRecordType() && !(paramType.IsNominalType()) {
 		if this_.seenTypes == nil {
@@ -212,7 +212,7 @@ func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_m
 						name := cur_1.NextStr()
 						_ = name
 						if paramRecordType.HasOwnProperty_1_string(name) && argObjectType.HasProperty_1_string(name) {
-							this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(paramRecordType.GetPropertyType_1_string(name), argObjectType.GetPropertyType_1_string(name))
+							this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(paramRecordType.GetPropertyType_1_string(name), argObjectType.GetPropertyType_1_string(name))
 						}
 					}
 				}
@@ -241,14 +241,14 @@ func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_m
 			for ; index < paramMapSize; index = index + 1 {
 				var key *pkg_rhino.TemplateType = paramTypeMap.GetTemplateKeyAt(index)
 				_ = key
-				this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(paramTypeMap.GetResolvedTemplateType(key), argTypeMap.GetResolvedTemplateType(key))
+				this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(paramTypeMap.GetResolvedTemplateType(key), argTypeMap.GetResolvedTemplateType(key))
 			}
 		}
 	}
 }
 
 // Java method: InvocationTemplateTypeMatcher.matchTemplateTypesFromNodes(com.google.javascript.rhino.jstype.FunctionType.Parameter[] declParams, int declStartIdx, boolean isTaggedTemplate)
-func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_matchTemplateTypesFromNodes_3436(declParams []pkg_rhino.FunctionType_Parameter, declStartIdx int32, isTaggedTemplate bool) {
+func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_matchTemplateTypesFromNodes_3437(declParams []pkg_rhino.FunctionType_Parameter, declStartIdx int32, isTaggedTemplate bool) {
 	_ = declParams
 	_ = declStartIdx
 	_ = isTaggedTemplate
@@ -266,20 +266,20 @@ func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_m
 		argCursor = NodeUtil_NextInvocationArgCursor(argCursor, isTaggedTemplate)
 		var declParamType pkg_rhino.JSType = declParam.GetJSType()
 		_ = declParamType
-		this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(declParamType, this_.priv_InvocationTemplateTypeMatcher_getTypeOrUnknown_3440(arg))
+		this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(declParamType, this_.priv_InvocationTemplateTypeMatcher_getTypeOrUnknown_3441(arg))
 		if declParam.IsVariadic() {
 			for argCursor != 0 {
 				var restArg pkg_rhino.Node = NodeUtil_InvocationArgFromCursor(argCursor, isTaggedTemplate)
 				_ = restArg
 				argCursor = NodeUtil_NextInvocationArgCursor(argCursor, isTaggedTemplate)
-				this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(declParamType, this_.priv_InvocationTemplateTypeMatcher_getTypeOrUnknown_3440(restArg))
+				this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(declParamType, this_.priv_InvocationTemplateTypeMatcher_getTypeOrUnknown_3441(restArg))
 			}
 		}
 	}
 }
 
 // Java method: InvocationTemplateTypeMatcher.matchTemplateTypesFromParameters(com.google.javascript.rhino.jstype.FunctionType.Parameter[] declParams, com.google.javascript.rhino.jstype.FunctionType.Parameter[] callParams)
-func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_matchTemplateTypesFromParameters_3437(declParams []pkg_rhino.FunctionType_Parameter, callParams []pkg_rhino.FunctionType_Parameter) {
+func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_matchTemplateTypesFromParameters_3438(declParams []pkg_rhino.FunctionType_Parameter, callParams []pkg_rhino.FunctionType_Parameter) {
 	_ = declParams
 	_ = callParams
 	var declLen int32 = int32(len(declParams))
@@ -295,17 +295,17 @@ func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_m
 		_ = declParam
 		var declParamType pkg_rhino.JSType = declParam.GetJSType()
 		_ = declParamType
-		this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(declParamType, callParams[func() int32 { old_6 := callIdx; nw_7 := old_6 + 1; callIdx = nw_7; return old_6 }()].GetJSType())
+		this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(declParamType, callParams[func() int32 { old_6 := callIdx; nw_7 := old_6 + 1; callIdx = nw_7; return old_6 }()].GetJSType())
 		if declParam.IsVariadic() {
 			for callIdx < callLen {
-				this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3435(declParamType, callParams[func() int32 { old_8 := callIdx; nw_9 := old_8 + 1; callIdx = nw_9; return old_8 }()].GetJSType())
+				this_.priv_InvocationTemplateTypeMatcher_matchTemplateTypesRecursive_3436(declParamType, callParams[func() int32 { old_8 := callIdx; nw_9 := old_8 + 1; callIdx = nw_9; return old_8 }()].GetJSType())
 			}
 		}
 	}
 }
 
 // Java method: InvocationTemplateTypeMatcher.recordTemplateMatch(com.google.javascript.rhino.jstype.TemplateType template, com.google.javascript.rhino.jstype.JSType match)
-func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_recordTemplateMatch_3438(template *pkg_rhino.TemplateType, match pkg_rhino.JSType) {
+func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_recordTemplateMatch_3439(template *pkg_rhino.TemplateType, match pkg_rhino.JSType) {
 	_ = template
 	_ = match
 	if match.IsUnknownType() {
@@ -334,7 +334,7 @@ func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_r
 }
 
 // Java method: InvocationTemplateTypeMatcher.copyMatchedTypes()
-func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_copyMatchedTypes_3439() j2gort.Ext_com_google_common_collect_ImmutableMap {
+func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_copyMatchedTypes_3440() j2gort.Ext_com_google_common_collect_ImmutableMap {
 	if this_.matchedTypes != nil {
 		var builder j2gort.Ext_com_google_common_collect_ImmutableMap_Builder = j2gort.Ext_com_google_common_collect_ImmutableMap_S_Builder()
 		_ = builder
@@ -351,7 +351,7 @@ func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_c
 }
 
 // Java method: InvocationTemplateTypeMatcher.getTypeOrUnknown(com.google.javascript.rhino.Node n)
-func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_getTypeOrUnknown_3440(n pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *InvocationTemplateTypeMatcher) priv_InvocationTemplateTypeMatcher_getTypeOrUnknown_3441(n pkg_rhino.Node) pkg_rhino.JSType {
 	_ = n
 	var type_ pkg_rhino.JSType = n.GetJSType()
 	_ = type_

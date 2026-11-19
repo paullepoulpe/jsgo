@@ -2564,7 +2564,7 @@ func NodeUtil_CreatesScope(n pkg_rhino.Node) bool {
 // Java static method: NodeUtil.isValidCfgRoot(com.google.javascript.rhino.Node n)
 func NodeUtil_IsValidCfgRoot(n pkg_rhino.Node) bool {
 	_ = n
-	return (StaticGet_NodeUtil_DEFINITE_CFG_ROOTS().Contains(j2gort.BoxNullableVal(n.GetToken())) || NodeUtil_IsClassStaticBlock(n))
+	return (j2gort.ImmSetContainsTypedU8_(StaticGet_NodeUtil_DEFINITE_CFG_ROOTS(), uint8(n.GetToken())) || NodeUtil_IsClassStaticBlock(n))
 }
 
 // Java static method: NodeUtil.isStatement(com.google.javascript.rhino.Node n)
@@ -2576,7 +2576,7 @@ func NodeUtil_IsStatement(n pkg_rhino.Node) bool {
 // Java static method: NodeUtil.isStatementParent(com.google.javascript.rhino.Node parent)
 func NodeUtil_IsStatementParent(parent pkg_rhino.Node) bool {
 	_ = parent
-	return StaticGet_NodeUtil_IS_STATEMENT_PARENT().Contains(j2gort.BoxNullableVal(parent.GetToken()))
+	return j2gort.ImmSetContainsTypedU8_(StaticGet_NodeUtil_IS_STATEMENT_PARENT(), uint8(parent.GetToken()))
 }
 
 // Java static method: NodeUtil.isDeclarationParent(com.google.javascript.rhino.Node parent)
@@ -3937,7 +3937,7 @@ func NodeUtil_IsValidQualifiedName_2_FeatureSet_string(mode *pkg_parser.FeatureS
 	if javalang.StringEndsWith(j2gort.CheckNotNullString(name), ".") || javalang.StringStartsWith(j2gort.CheckNotNullString(name), ".") {
 		return false
 	}
-	var parts j2gort.Ext_java_util_List = j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(46)).SplitToList(j2gort.BoxString(name))
+	var parts j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(46)), name)
 	_ = parts
 	{
 		cur_31 := j2gort.NewIterCursor(j2gort.CheckNotNull(parts))
@@ -6041,7 +6041,9 @@ func NodeUtil_AddFeatureToScript(scriptNode pkg_rhino.Node, feature *pkg_parser.
 	} else {
 		newFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature(feature)
 	}
-	scriptNode.SetFeatureSet(j2gort.PtrToAny(newFeatures))
+	if newFeatures != currentFeatures {
+		scriptNode.SetFeatureSet(j2gort.PtrToAny(newFeatures))
+	}
 	if feature != pkg_parser.StaticGet_FeatureSet_Feature_MODULES() {
 		if !(compiler.GetAllowableFeatures().Contains_1_FeatureSet_Feature(feature)) {
 			j2gort.CheckStateFmt(false, "Cannot add feature: %s. It is not supported in the output language, and either 1) its corresponding transpilation pass has already run or 2) transpilation of this feature is unsupported entirely", j2gort.PtrToAny(feature))
@@ -6058,9 +6060,12 @@ func NodeUtil_RemoveFeatureFromScript(scriptNode pkg_rhino.Node, feature *pkg_pa
 	var currentFeatures *pkg_parser.FeatureSet = NodeUtil_GetFeatureSetOfScript(scriptNode)
 	_ = currentFeatures
 	if currentFeatures != nil {
-		currentFeatures = currentFeatures.Without_2(feature, []*pkg_parser.FeatureSet_Feature{})
+		var updated *pkg_parser.FeatureSet = currentFeatures.Without_2(feature, []*pkg_parser.FeatureSet_Feature{})
+		_ = updated
+		if updated != currentFeatures {
+			scriptNode.SetFeatureSet(j2gort.PtrToAny(updated))
+		}
 	}
-	scriptNode.SetFeatureSet(j2gort.PtrToAny(currentFeatures))
 }
 
 // Java static method: NodeUtil.removeFeaturesFromScript(com.google.javascript.rhino.Node scriptNode, com.google.javascript.jscomp.parsing.parser.FeatureSet featureSet)
@@ -6070,8 +6075,11 @@ func NodeUtil_RemoveFeaturesFromScript(scriptNode pkg_rhino.Node, featureSet *pk
 	var currentFeatures *pkg_parser.FeatureSet = NodeUtil_GetFeatureSetOfScript(scriptNode)
 	_ = currentFeatures
 	if currentFeatures != nil {
-		currentFeatures = currentFeatures.Without_1(featureSet)
-		scriptNode.SetFeatureSet(j2gort.PtrToAny(currentFeatures))
+		var updated *pkg_parser.FeatureSet = currentFeatures.Without_1(featureSet)
+		_ = updated
+		if updated != currentFeatures {
+			scriptNode.SetFeatureSet(j2gort.PtrToAny(updated))
+		}
 	}
 }
 
@@ -6856,12 +6864,12 @@ func (this_ *NodeUtil_PreOrderIterator) ComputeNext() any {
 	}
 	var returnValue pkg_rhino.Node = this_.current
 	_ = returnValue
-	this_.current = this_.priv_PreOrderIterator_calculateNextNode_4006(returnValue)
+	this_.current = this_.priv_PreOrderIterator_calculateNextNode_4012(returnValue)
 	return j2gort.BoxNode(returnValue)
 }
 
 // Java method: PreOrderIterator.calculateNextNode(com.google.javascript.rhino.Node currentNode)
-func (this_ *NodeUtil_PreOrderIterator) priv_PreOrderIterator_calculateNextNode_4006(currentNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *NodeUtil_PreOrderIterator) priv_PreOrderIterator_calculateNextNode_4012(currentNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = currentNode
 	j2gort.CheckNotNullNode(currentNode)
 	if j2gort.PredTestNode(this_.traverseNodePredicate, uint32(currentNode)) {

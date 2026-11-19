@@ -461,3 +461,51 @@ func TestWave30CStreamingSingleAllocAndBoundaryMalformedUTF8(t *testing.T) {
 		t.Fatalf("Large96KB Files_ReadString double-allocated %d B/op (want <= 115,000 B/op for 96,800 B file)", res.AllocedBytesPerOp())
 	}
 }
+
+func TestWave36CPureASCIIAppendEncodeAndDecodeDedup(t *testing.T) {
+	// 1. AppendEncoded must allocate 0 objects for UTF-8, US-ASCII, and ISO-8859-1 on ASCII strings.
+	dst := make([]byte, 0, 256)
+	encAllocs := testing.AllocsPerRun(100, func() {
+		b := dst[:0]
+		b = javanio.StandardCharsets_UTF_8.AppendEncoded(b, "goog.ui.Component.prototype.render")
+		b = javanio.StandardCharsets_US_ASCII.AppendEncoded(b, ".getElement")
+		b = javanio.StandardCharsets_ISO_8859_1.AppendEncoded(b, "()")
+		if string(b) != "goog.ui.Component.prototype.render.getElement()" {
+			t.Fatalf("AppendEncoded mismatch: %q", string(b))
+		}
+	})
+	if encAllocs != 0 {
+		t.Fatalf("expected 0 allocs for AppendEncoded, got %v", encAllocs)
+	}
+
+	// 2. Repeated Decode / DecodeStrict on <= 64B ASCII slices must hit dedup cache with 0 allocs.
+	ident := []byte("module$exports$google$protobuf$Message")
+	_ = javanio.StandardCharsets_UTF_8.Decode(ident) // 1st seen
+	_ = javanio.StandardCharsets_UTF_8.Decode(ident) // 2nd admits
+	decAllocs := testing.AllocsPerRun(100, func() {
+		s1 := javanio.StandardCharsets_UTF_8.Decode(ident)
+		s2, err := javanio.StandardCharsets_UTF_8.DecodeStrict(ident)
+		s3 := javanio.StandardCharsets_UTF_8.Decode([]byte("x"))
+		s4 := javanio.StandardCharsets_UTF_8.Decode(nil)
+		if err != nil || s1 != "module$exports$google$protobuf$Message" || s2 != s1 || s3 != "x" || s4 != "" {
+			t.Fatal("Decode/DecodeStrict dedup mismatch")
+		}
+	})
+	if decAllocs != 0 {
+		t.Fatalf("expected 0 allocs on warm Decode/DecodeStrict short ASCII hits, got %v", decAllocs)
+	}
+
+	// 3. Lone surrogate replacement in AppendEncoded must match Encode byte-for-byte.
+	loneSurrogate := "A\xed\xa0\x80B\xed\xb0\x80C"
+	for _, cs := range []*javanio.Charset{
+		javanio.StandardCharsets_UTF_8,
+		javanio.StandardCharsets_US_ASCII,
+		javanio.StandardCharsets_ISO_8859_1,
+	} {
+		want := cs.Encode(loneSurrogate)
+		got := cs.AppendEncoded([]byte("prefix:"), loneSurrogate)
+		if string(got) != "prefix:"+string(want) {
+			t.Fatalf("%s AppendEncoded surrogate mismatch: got %q, want %q", cs.Name(), got, "prefix:"+string(want))
+		}
+	}
+}

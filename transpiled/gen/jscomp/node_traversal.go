@@ -192,33 +192,33 @@ func NodeTraversal_S_Builder() *NodeTraversal_Builder {
 }
 
 // Java method: NodeTraversal.throwUnexpectedException(java.lang.Throwable unexpectedException)
-func (this_ *NodeTraversal) priv_NodeTraversal_throwUnexpectedException_3931(unexpectedException javalang.Throwable) {
+func (this_ *NodeTraversal) priv_NodeTraversal_throwUnexpectedException_3937(unexpectedException javalang.Throwable) {
 	_ = unexpectedException
 	var message string = j2gort.ThrowableGetMessage(unexpectedException)
 	_ = message
 	if this_.currentScript != 0 {
-		message = (j2gort.StrValString(j2gort.ThrowableGetMessage(unexpectedException)) + "\n" + j2gort.StrValString(this_.priv_NodeTraversal_formatNodeContext_3932("Node", this_.currentNode)) + j2gort.StrValString(func() string {
+		message = (j2gort.StrValString(j2gort.ThrowableGetMessage(unexpectedException)) + "\n" + j2gort.StrValString(this_.priv_NodeTraversal_formatNodeContext_3938("Node", this_.currentNode)) + j2gort.StrValString(func() string {
 			if this_.currentNode == 0 {
 				return ""
 			}
-			return this_.priv_NodeTraversal_formatNodeContext_3932("Parent", this_.currentNode.GetParent())
+			return this_.priv_NodeTraversal_formatNodeContext_3938("Parent", this_.currentNode.GetParent())
 		}()))
 	}
 	this_.compiler.ThrowInternalError(message, unexpectedException)
 }
 
 // Java method: NodeTraversal.formatNodeContext(java.lang.String label, com.google.javascript.rhino.Node n)
-func (this_ *NodeTraversal) priv_NodeTraversal_formatNodeContext_3932(label string, n pkg_rhino.Node) string {
+func (this_ *NodeTraversal) priv_NodeTraversal_formatNodeContext_3938(label string, n pkg_rhino.Node) string {
 	_ = label
 	_ = n
 	if n == 0 {
 		return ("  " + j2gort.StrValString(label) + ": NULL")
 	}
-	return ("  " + j2gort.StrValString(label) + "(" + j2gort.StrValString(n.ToString_3(false, false, false)) + "): " + j2gort.StrValString(this_.priv_NodeTraversal_formatNodePosition_3935(n)))
+	return ("  " + j2gort.StrValString(label) + "(" + j2gort.StrValString(n.ToString_3(false, false, false)) + "): " + j2gort.StrValString(this_.priv_NodeTraversal_formatNodePosition_3941(n)))
 }
 
 // Java method: NodeTraversal.traverse(com.google.javascript.rhino.Node root)
-func (this_ *NodeTraversal) priv_NodeTraversal_traverse_3933(root pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_traverse_3939(root pkg_rhino.Node) {
 	_ = root
 	func() {
 		defer func() {
@@ -228,17 +228,17 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverse_3933(root pkg_rhino.Node
 				if j2gort.InstanceOf[javalang.IError](jex_3) || j2gort.InstanceOf[javalang.IException](jex_3) {
 					unexpectedException := jex_3
 					_ = unexpectedException
-					this_.priv_NodeTraversal_throwUnexpectedException_3931(unexpectedException)
+					this_.priv_NodeTraversal_throwUnexpectedException_3937(unexpectedException)
 				} else {
 					panic(rec_2)
 				}
 			}
 		}()
-		this_.priv_NodeTraversal_initTraversal_3987(root)
+		this_.priv_NodeTraversal_initTraversal_3993(root)
 		this_.currentNode = root
-		this_.priv_NodeTraversal_pushScope_3957(root)
-		this_.priv_NodeTraversal_traverseBranch_3949(root, pkg_rhino.Node(0))
-		this_.priv_NodeTraversal_popScope_3960()
+		this_.priv_NodeTraversal_pushScope_3963(root)
+		this_.priv_NodeTraversal_traverseBranch_3955(root, pkg_rhino.Node(0))
+		this_.priv_NodeTraversal_popScope_3966()
 	}()
 }
 
@@ -246,11 +246,11 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverse_3933(root pkg_rhino.Node
 func NodeTraversal_Traverse(compiler AbstractCompiler, root pkg_rhino.Node, cb NodeTraversal_Callback) {
 	t_ := acquireNodeTraversal_(compiler, cb, nil, false)
 	defer releaseNodeTraversal_(t_)
-	t_.priv_NodeTraversal_traverse_3933(root)
+	t_.priv_NodeTraversal_traverse_3939(root)
 }
 
 // Java method: NodeTraversal.traverseRoots(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
-func (this_ *NodeTraversal) priv_NodeTraversal_traverseRoots_3934(externs pkg_rhino.Node, root pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_traverseRoots_3940(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
 	func() {
@@ -261,7 +261,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseRoots_3934(externs pkg_rh
 				if j2gort.InstanceOf[javalang.IError](jex_5) || j2gort.InstanceOf[javalang.IException](jex_5) {
 					unexpectedException := jex_5
 					_ = unexpectedException
-					this_.priv_NodeTraversal_throwUnexpectedException_3931(unexpectedException)
+					this_.priv_NodeTraversal_throwUnexpectedException_3937(unexpectedException)
 				} else {
 					panic(rec_4)
 				}
@@ -270,15 +270,15 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseRoots_3934(externs pkg_rh
 		var scopeRoot pkg_rhino.Node = externs.GetParent()
 		_ = scopeRoot
 		j2gort.CheckNotNullNode(scopeRoot)
-		this_.priv_NodeTraversal_initTraversal_3987(scopeRoot)
+		this_.priv_NodeTraversal_initTraversal_3993(scopeRoot)
 		this_.currentNode = scopeRoot
-		this_.priv_NodeTraversal_pushScope_3957(scopeRoot)
-		this_.priv_NodeTraversal_traverseBranch_3949(externs, scopeRoot)
+		this_.priv_NodeTraversal_pushScope_3963(scopeRoot)
+		this_.priv_NodeTraversal_traverseBranch_3955(externs, scopeRoot)
 		if !(root.GetParent() == scopeRoot) {
 			j2gort.CheckState(false)
 		}
-		this_.priv_NodeTraversal_traverseBranch_3949(root, scopeRoot)
-		this_.priv_NodeTraversal_popScope_3960()
+		this_.priv_NodeTraversal_traverseBranch_3955(root, scopeRoot)
+		this_.priv_NodeTraversal_popScope_3966()
 	}()
 }
 
@@ -286,13 +286,13 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseRoots_3934(externs pkg_rh
 func NodeTraversal_TraverseRoots(compiler AbstractCompiler, cb NodeTraversal_Callback, externs pkg_rhino.Node, root pkg_rhino.Node) {
 	t_ := acquireNodeTraversal_(compiler, cb, nil, false)
 	defer releaseNodeTraversal_(t_)
-	t_.priv_NodeTraversal_traverseRoots_3934(externs, root)
+	t_.priv_NodeTraversal_traverseRoots_3940(externs, root)
 }
 
 // Java method: NodeTraversal.formatNodePosition(com.google.javascript.rhino.Node n)
-func (this_ *NodeTraversal) priv_NodeTraversal_formatNodePosition_3935(n pkg_rhino.Node) string {
+func (this_ *NodeTraversal) priv_NodeTraversal_formatNodePosition_3941(n pkg_rhino.Node) string {
 	_ = n
-	var sourceFileName string = this_.priv_NodeTraversal_getBestSourceFileName_3992(n)
+	var sourceFileName string = this_.priv_NodeTraversal_getBestSourceFileName_3998(n)
 	_ = sourceFileName
 	if sourceFileName == j2gort.NullString {
 		return ("[source unknown]" + "\n")
@@ -310,7 +310,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_formatNodePosition_3935(n pkg_rhi
 }
 
 // Java method: NodeTraversal.traverseWithScope(com.google.javascript.rhino.Node root, com.google.javascript.jscomp.AbstractScope<?,?> s)
-func (this_ *NodeTraversal) priv_NodeTraversal_traverseWithScope_3936(root pkg_rhino.Node, s AbstractScope) {
+func (this_ *NodeTraversal) priv_NodeTraversal_traverseWithScope_3942(root pkg_rhino.Node, s AbstractScope) {
 	_ = root
 	_ = s
 	if !(s.IsGlobal() || s.IsModuleScope()) {
@@ -324,26 +324,26 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseWithScope_3936(root pkg_r
 				if j2gort.InstanceOf[javalang.IError](jex_7) || j2gort.InstanceOf[javalang.IException](jex_7) {
 					unexpectedException := jex_7
 					_ = unexpectedException
-					this_.priv_NodeTraversal_throwUnexpectedException_3931(unexpectedException)
+					this_.priv_NodeTraversal_throwUnexpectedException_3937(unexpectedException)
 				} else {
 					panic(rec_6)
 				}
 			}
 		}()
-		this_.priv_NodeTraversal_initTraversal_3987(root)
+		this_.priv_NodeTraversal_initTraversal_3993(root)
 		this_.currentNode = root
-		this_.priv_NodeTraversal_pushScope_3958(s)
-		this_.priv_NodeTraversal_traverseBranch_3949(root, pkg_rhino.Node(0))
-		this_.priv_NodeTraversal_popScope_3960()
+		this_.priv_NodeTraversal_pushScope_3964(s)
+		this_.priv_NodeTraversal_traverseBranch_3955(root, pkg_rhino.Node(0))
+		this_.priv_NodeTraversal_popScope_3966()
 	}()
 }
 
 // Java method: NodeTraversal.traverseAtScope(com.google.javascript.jscomp.AbstractScope<?,?> s)
-func (this_ *NodeTraversal) priv_NodeTraversal_traverseAtScope_3937(s AbstractScope) {
+func (this_ *NodeTraversal) priv_NodeTraversal_traverseAtScope_3943(s AbstractScope) {
 	_ = s
 	var n pkg_rhino.Node = s.GetRootNode_0()
 	_ = n
-	this_.priv_NodeTraversal_initTraversal_3987(n)
+	this_.priv_NodeTraversal_initTraversal_3993(n)
 	this_.currentNode = n
 	var parentScopes j2gort.Deque[AbstractScope]
 	_ = parentScopes
@@ -354,12 +354,12 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseAtScope_3937(s AbstractSc
 		temp = j2gort.AsIface[AbstractScope](temp.GetParent())
 	}
 	for !(parentScopes.IsEmpty()) {
-		this_.priv_NodeTraversal_pushScope_3959(parentScopes.Pop(), true)
+		this_.priv_NodeTraversal_pushScope_3965(parentScopes.Pop(), true)
 	}
 	switch n.TokenSwitchOrd_() {
 	case int32(73) /* Token.FUNCTION */ :
 		if this_.callback.ShouldTraverse_3(this_, n, pkg_rhino.Node(0)) {
-			this_.priv_NodeTraversal_pushScope_3958(s)
+			this_.priv_NodeTraversal_pushScope_3964(s)
 			var fnName pkg_rhino.Node = n.GetFirstChild()
 			_ = fnName
 			var args pkg_rhino.Node = fnName.GetNext()
@@ -367,68 +367,68 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseAtScope_3937(s AbstractSc
 			var body pkg_rhino.Node = args.GetNext()
 			_ = body
 			if !(NodeUtil_IsFunctionDeclaration(n)) {
-				this_.priv_NodeTraversal_traverseBranch_3949(fnName, n)
+				this_.priv_NodeTraversal_traverseBranch_3955(fnName, n)
 			}
-			this_.priv_NodeTraversal_traverseBranch_3949(args, n)
-			this_.priv_NodeTraversal_traverseBranch_3949(body, n)
-			this_.priv_NodeTraversal_popScope_3960()
+			this_.priv_NodeTraversal_traverseBranch_3955(args, n)
+			this_.priv_NodeTraversal_traverseBranch_3955(body, n)
+			this_.priv_NodeTraversal_popScope_3966()
 			this_.callback.Visit_3(this_, n, pkg_rhino.Node(0))
 		}
 	case int32(105) /* Token.CLASS */ :
 		if this_.callback.ShouldTraverse_3(this_, n, pkg_rhino.Node(0)) {
-			this_.priv_NodeTraversal_pushScope_3958(s)
+			this_.priv_NodeTraversal_pushScope_3964(s)
 			var className pkg_rhino.Node = n.GetFirstChild()
 			_ = className
 			var body_2 pkg_rhino.Node = n.GetLastChild()
 			_ = body_2
 			if NodeUtil_IsClassExpression(n) {
-				this_.priv_NodeTraversal_traverseBranch_3949(className, n)
+				this_.priv_NodeTraversal_traverseBranch_3955(className, n)
 			}
-			this_.priv_NodeTraversal_traverseBranch_3949(body_2, n)
-			this_.priv_NodeTraversal_popScope_3960()
+			this_.priv_NodeTraversal_traverseBranch_3955(body_2, n)
+			this_.priv_NodeTraversal_popScope_3966()
 			this_.callback.Visit_3(this_, n, pkg_rhino.Node(0))
 		}
 	case int32(90) /* Token.BLOCK */, int32(91) /* Token.SWITCH_BODY */ :
 		if this_.callback.ShouldTraverse_3(this_, n, pkg_rhino.Node(0)) {
-			this_.priv_NodeTraversal_pushScope_3958(s)
-			this_.priv_NodeTraversal_traverseChildren_3954(n)
-			this_.priv_NodeTraversal_popScope_3960()
+			this_.priv_NodeTraversal_pushScope_3964(s)
+			this_.priv_NodeTraversal_traverseChildren_3960(n)
+			this_.priv_NodeTraversal_popScope_3966()
 			this_.callback.Visit_3(this_, n, pkg_rhino.Node(0))
 		}
 	case int32(108) /* Token.MEMBER_FIELD_DEF */ :
-		this_.priv_NodeTraversal_pushScope_3958(s)
+		this_.priv_NodeTraversal_pushScope_3964(s)
 		if this_.callback.ShouldTraverse_3(this_, n, pkg_rhino.Node(0)) {
-			this_.priv_NodeTraversal_traverseChildren_3954(n)
+			this_.priv_NodeTraversal_traverseChildren_3960(n)
 			this_.callback.Visit_3(this_, n, pkg_rhino.Node(0))
 		}
-		this_.priv_NodeTraversal_popScope_3960()
+		this_.priv_NodeTraversal_popScope_3966()
 	case int32(109) /* Token.COMPUTED_FIELD_DEF */ :
-		this_.priv_NodeTraversal_pushScope_3958(s)
+		this_.priv_NodeTraversal_pushScope_3964(s)
 		if this_.callback.ShouldTraverse_3(this_, n, pkg_rhino.Node(0)) {
-			this_.priv_NodeTraversal_traverseBranch_3949(n.GetLastChild(), n)
+			this_.priv_NodeTraversal_traverseBranch_3955(n.GetLastChild(), n)
 			this_.callback.Visit_3(this_, n, pkg_rhino.Node(0))
 		}
-		this_.priv_NodeTraversal_popScope_3960()
+		this_.priv_NodeTraversal_popScope_3966()
 	case int32(81) /* Token.FOR_IN */, int32(112) /* Token.FOR_OF */, int32(113) /* Token.FOR_AWAIT_OF */, int32(80) /* Token.FOR */ :
 		if this_.callback.ShouldTraverse_3(this_, n, pkg_rhino.Node(0)) {
-			this_.priv_NodeTraversal_pushScope_3958(s)
+			this_.priv_NodeTraversal_pushScope_3964(s)
 			var forAssignmentParam pkg_rhino.Node = n.GetFirstChild()
 			_ = forAssignmentParam
 			var forIterableParam pkg_rhino.Node = forAssignmentParam.GetNext()
 			_ = forIterableParam
 			var forBodyScope pkg_rhino.Node = forIterableParam.GetNext()
 			_ = forBodyScope
-			this_.priv_NodeTraversal_traverseBranch_3949(forAssignmentParam, n)
-			this_.priv_NodeTraversal_traverseBranch_3949(forIterableParam, n)
-			this_.priv_NodeTraversal_traverseBranch_3949(forBodyScope, n)
-			this_.priv_NodeTraversal_popScope_3960()
+			this_.priv_NodeTraversal_traverseBranch_3955(forAssignmentParam, n)
+			this_.priv_NodeTraversal_traverseBranch_3955(forIterableParam, n)
+			this_.priv_NodeTraversal_traverseBranch_3955(forBodyScope, n)
+			this_.priv_NodeTraversal_popScope_3966()
 			this_.callback.Visit_3(this_, n, pkg_rhino.Node(0))
 		}
 	default:
 		if !(s.IsGlobal() || s.IsModuleScope()) {
 			j2gort.CheckStateFmt(false, "Expected global or module scope. Got: (%s)", s)
 		}
-		this_.priv_NodeTraversal_traverseWithScope_3936(n, s)
+		this_.priv_NodeTraversal_traverseWithScope_3942(n, s)
 	}
 }
 
@@ -436,7 +436,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseAtScope_3937(s AbstractSc
 func NodeTraversal_TraverseAtScope(compiler AbstractCompiler, cb NodeTraversal_Callback, scope AbstractScope) {
 	t_ := acquireNodeTraversal_(compiler, cb, nil, false)
 	defer releaseNodeTraversal_(t_)
-	t_.priv_NodeTraversal_traverseAtScope_3937(scope)
+	t_.priv_NodeTraversal_traverseAtScope_3943(scope)
 }
 
 // Java static method: NodeTraversal.traverseScopeRoots(com.google.javascript.jscomp.AbstractCompiler compiler, java.util.List<com.google.javascript.rhino.Node> scopeNodes, com.google.javascript.jscomp.NodeTraversal.Callback cb, boolean traverseNested)
@@ -472,7 +472,7 @@ func NodeTraversal_TraverseScopeRoots(compiler AbstractCompiler, scopeNodes j2go
 }
 
 // Java method: NodeTraversal.traverseScopeRoot(com.google.javascript.rhino.Node scopeRoot)
-func (this_ *NodeTraversal) priv_NodeTraversal_traverseScopeRoot_3938(scopeRoot pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_traverseScopeRoot_3944(scopeRoot pkg_rhino.Node) {
 	_ = scopeRoot
 	func() {
 		defer func() {
@@ -482,16 +482,16 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseScopeRoot_3938(scopeRoot 
 				if j2gort.InstanceOf[javalang.IError](jex_12) || j2gort.InstanceOf[javalang.IException](jex_12) {
 					unexpectedException := jex_12
 					_ = unexpectedException
-					this_.priv_NodeTraversal_throwUnexpectedException_3931(unexpectedException)
+					this_.priv_NodeTraversal_throwUnexpectedException_3937(unexpectedException)
 				} else {
 					panic(rec_11)
 				}
 			}
 		}()
-		this_.priv_NodeTraversal_initTraversal_3987(scopeRoot)
+		this_.priv_NodeTraversal_initTraversal_3993(scopeRoot)
 		this_.currentNode = scopeRoot
-		this_.priv_NodeTraversal_initScopeRoots_3988(scopeRoot.GetParent())
-		this_.priv_NodeTraversal_traverseBranch_3949(scopeRoot, scopeRoot.GetParent())
+		this_.priv_NodeTraversal_initScopeRoots_3994(scopeRoot.GetParent())
+		this_.priv_NodeTraversal_traverseBranch_3955(scopeRoot, scopeRoot.GetParent())
 	}()
 }
 
@@ -539,58 +539,58 @@ func (this_ *NodeTraversal) GetCurrentNode() pkg_rhino.Node {
 }
 
 // Java method: NodeTraversal.handleScript(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *NodeTraversal) priv_NodeTraversal_handleScript_3944(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_handleScript_3950(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	if Platform_IsThreadInterrupted() {
 		panic(j2gort.AsIface[javalang.IRuntimeException](j2gort.ConstructShimThrowable("java.lang.RuntimeException", j2gort.NewExt_java_lang_InterruptedException())))
 	}
-	this_.priv_NodeTraversal_setChangeScope_3985(n)
+	this_.priv_NodeTraversal_setChangeScope_3991(n)
 	this_.currentNode = n
 	this_.currentScript = n
-	this_.priv_NodeTraversal_clearScriptState_3990()
+	this_.priv_NodeTraversal_clearScriptState_3996()
 	if this_.callback.ShouldTraverse_3(this_, n, parent) {
-		this_.priv_NodeTraversal_traverseChildren_3954(n)
+		this_.priv_NodeTraversal_traverseChildren_3960(n)
 		this_.currentNode = n
 		this_.callback.Visit_3(this_, n, parent)
 	}
-	this_.priv_NodeTraversal_setChangeScope_3985(pkg_rhino.Node(0))
+	this_.priv_NodeTraversal_setChangeScope_3991(pkg_rhino.Node(0))
 }
 
 // Java method: NodeTraversal.handleFunction(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *NodeTraversal) priv_NodeTraversal_handleFunction_3945(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_handleFunction_3951(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	var changeScope pkg_rhino.Node = this_.currentChangeScope
 	_ = changeScope
-	this_.priv_NodeTraversal_setChangeScope_3985(n)
+	this_.priv_NodeTraversal_setChangeScope_3991(n)
 	this_.currentNode = n
 	if this_.callback.ShouldTraverse_3(this_, n, parent) {
-		this_.priv_NodeTraversal_traverseFunction_3950(n, parent)
+		this_.priv_NodeTraversal_traverseFunction_3956(n, parent)
 		this_.currentNode = n
 		this_.callback.Visit_3(this_, n, parent)
 	}
-	this_.priv_NodeTraversal_setChangeScope_3985(changeScope)
+	this_.priv_NodeTraversal_setChangeScope_3991(changeScope)
 }
 
 // Java method: NodeTraversal.handleModule(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *NodeTraversal) priv_NodeTraversal_handleModule_3946(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_handleModule_3952(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	this_.currentHoistScopeRoot = n
-	this_.priv_NodeTraversal_pushScope_3957(n)
+	this_.priv_NodeTraversal_pushScope_3963(n)
 	this_.currentNode = n
 	if this_.callback.ShouldTraverse_3(this_, n, parent) {
-		this_.priv_NodeTraversal_traverseChildren_3954(n)
+		this_.priv_NodeTraversal_traverseChildren_3960(n)
 		this_.currentNode = n
 		this_.callback.Visit_3(this_, n, parent)
 	}
-	this_.priv_NodeTraversal_popScope_3960()
+	this_.priv_NodeTraversal_popScope_3966()
 	this_.currentHoistScopeRoot = pkg_rhino.Node(0)
 }
 
 // Java method: NodeTraversal.handleDestructuringOrDefaultValue(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *NodeTraversal) priv_NodeTraversal_handleDestructuringOrDefaultValue_3947(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_handleDestructuringOrDefaultValue_3953(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	this_.currentNode = n
@@ -603,16 +603,16 @@ func (this_ *NodeTraversal) priv_NodeTraversal_handleDestructuringOrDefaultValue
 			if !(second.GetNext() == 0) {
 				j2gort.CheckStateMsg(false, j2gort.BoxNode(second))
 			}
-			this_.priv_NodeTraversal_traverseBranch_3949(second, n)
+			this_.priv_NodeTraversal_traverseBranch_3955(second, n)
 		}
-		this_.priv_NodeTraversal_traverseBranch_3949(first, n)
+		this_.priv_NodeTraversal_traverseBranch_3955(first, n)
 		this_.currentNode = n
 		this_.callback.Visit_3(this_, n, parent)
 	}
 }
 
 // Java method: NodeTraversal.createsBlockScope(com.google.javascript.rhino.Node n)
-func (this_ *NodeTraversal) priv_NodeTraversal_createsBlockScope_3948(n pkg_rhino.Node) bool {
+func (this_ *NodeTraversal) priv_NodeTraversal_createsBlockScope_3954(n pkg_rhino.Node) bool {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(90) /* Token.BLOCK */ :
@@ -631,7 +631,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_createsBlockScope_3948(n pkg_rhin
 }
 
 // Java method: NodeTraversal.traverseBranch(com.google.javascript.rhino.Node n, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node parent)
-func (this_ *NodeTraversal) priv_NodeTraversal_traverseBranch_3949(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_traverseBranch_3955(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	_, _, tok_ := n.FirstNextTok_()
@@ -641,23 +641,23 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseBranch_3949(n pkg_rhino.N
 
 	switch int32(tok_) {
 	case int32(94) /* Token.SCRIPT */ :
-		this_.priv_NodeTraversal_handleScript_3944(n, parent)
+		this_.priv_NodeTraversal_handleScript_3950(n, parent)
 		return
 	case int32(73) /* Token.FUNCTION */ :
-		this_.priv_NodeTraversal_handleFunction_3945(n, parent)
+		this_.priv_NodeTraversal_handleFunction_3951(n, parent)
 		return
 	case int32(123) /* Token.MODULE_BODY */ :
-		this_.priv_NodeTraversal_handleModule_3946(n, parent)
+		this_.priv_NodeTraversal_handleModule_3952(n, parent)
 		return
 	case int32(105) /* Token.CLASS */ :
-		this_.priv_NodeTraversal_handleClass_3951(n, parent)
+		this_.priv_NodeTraversal_handleClass_3957(n, parent)
 		return
 	case int32(106) /* Token.CLASS_MEMBERS */ :
-		this_.priv_NodeTraversal_handleClassMembers_3952(n, parent)
+		this_.priv_NodeTraversal_handleClassMembers_3958(n, parent)
 		return
 	case int32(134) /* Token.DEFAULT_VALUE */, int32(104) /* Token.DESTRUCTURING_LHS */ :
 		if this_.obeyDestructuringAndDefaultValueExecutionOrder {
-			this_.priv_NodeTraversal_handleDestructuringOrDefaultValue_3947(n, parent)
+			this_.priv_NodeTraversal_handleDestructuringOrDefaultValue_3953(n, parent)
 			return
 		}
 	default:
@@ -672,14 +672,14 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseBranch_3949(n pkg_rhino.N
 	}
 	var createsBlockScope bool
 	if nodeTraversalBlockScopeTok_[tok_] {
-		createsBlockScope = this_.priv_NodeTraversal_createsBlockScope_3948(n)
+		createsBlockScope = this_.priv_NodeTraversal_createsBlockScope_3954(n)
 	}
 
 	_ = createsBlockScope
 	var previousHoistScopeRoot pkg_rhino.Node = this_.currentHoistScopeRoot
 	_ = previousHoistScopeRoot
 	if createsBlockScope {
-		this_.priv_NodeTraversal_pushScope_3957(n)
+		this_.priv_NodeTraversal_pushScope_3963(n)
 		if NodeUtil_IsClassStaticBlock(n) {
 			this_.currentHoistScopeRoot = n
 		}
@@ -731,7 +731,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseBranch_3949(n pkg_rhino.N
 					_, gnx_, _ := curBlk_.FirstNextTok(nodestore.Node(gc_))
 					gNext_ = pkg_rhino.Node(gnx_)
 				}
-				this_.priv_NodeTraversal_traverseBranch_3949(gc_, child_)
+				this_.priv_NodeTraversal_traverseBranch_3955(gc_, child_)
 				gc_ = gNext_
 			}
 			this_.currentNode = child_
@@ -741,12 +741,12 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseBranch_3949(n pkg_rhino.N
 			child_ = next_
 			continue
 		}
-		this_.priv_NodeTraversal_traverseBranch_3949(child_, n)
+		this_.priv_NodeTraversal_traverseBranch_3955(child_, n)
 		child_ = next_
 	}
 
 	if createsBlockScope {
-		this_.priv_NodeTraversal_popScope_3960()
+		this_.priv_NodeTraversal_popScope_3966()
 		this_.currentHoistScopeRoot = previousHoistScopeRoot
 	}
 	this_.currentNode = n
@@ -758,7 +758,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseBranch_3949(n pkg_rhino.N
 }
 
 // Java method: NodeTraversal.traverseFunction(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *NodeTraversal) priv_NodeTraversal_traverseFunction_3950(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_traverseFunction_3956(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	var fnName pkg_rhino.Node = n.GetFirstChild()
@@ -766,7 +766,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseFunction_3950(n pkg_rhino
 	var isFunctionDeclaration bool = ((parent != 0) && NodeUtil_IsFunctionDeclaration(n))
 	_ = isFunctionDeclaration
 	if isFunctionDeclaration {
-		this_.priv_NodeTraversal_traverseBranch_3949(fnName, n)
+		this_.priv_NodeTraversal_traverseBranch_3955(fnName, n)
 	}
 	this_.currentNode = n
 	var previousHoistScopeRoot pkg_rhino.Node = this_.currentHoistScopeRoot
@@ -775,23 +775,23 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseFunction_3950(n pkg_rhino
 	var previousFunction pkg_rhino.Node = this_.currentFunction
 	_ = previousFunction
 	this_.currentFunction = n
-	this_.priv_NodeTraversal_pushScope_3957(n)
+	this_.priv_NodeTraversal_pushScope_3963(n)
 	if !(isFunctionDeclaration) {
-		this_.priv_NodeTraversal_traverseBranch_3949(fnName, n)
+		this_.priv_NodeTraversal_traverseBranch_3955(fnName, n)
 	}
 	var args pkg_rhino.Node = fnName.GetNext()
 	_ = args
 	var body pkg_rhino.Node = args.GetNext()
 	_ = body
-	this_.priv_NodeTraversal_traverseBranch_3949(args, n)
-	this_.priv_NodeTraversal_traverseBranch_3949(body, n)
-	this_.priv_NodeTraversal_popScope_3960()
+	this_.priv_NodeTraversal_traverseBranch_3955(args, n)
+	this_.priv_NodeTraversal_traverseBranch_3955(body, n)
+	this_.priv_NodeTraversal_popScope_3966()
 	this_.currentFunction = previousFunction
 	this_.currentHoistScopeRoot = previousHoistScopeRoot
 }
 
 // Java method: NodeTraversal.handleClass(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *NodeTraversal) priv_NodeTraversal_handleClass_3951(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_handleClass_3957(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	this_.currentNode = n
@@ -806,23 +806,23 @@ func (this_ *NodeTraversal) priv_NodeTraversal_handleClass_3951(n pkg_rhino.Node
 	_ = body
 	var isClassExpression bool = NodeUtil_IsClassExpression(n)
 	_ = isClassExpression
-	this_.priv_NodeTraversal_traverseBranch_3949(extendsClause, n)
+	this_.priv_NodeTraversal_traverseBranch_3955(extendsClause, n)
 	if !(isClassExpression) {
-		this_.priv_NodeTraversal_traverseBranch_3949(className, n)
+		this_.priv_NodeTraversal_traverseBranch_3955(className, n)
 	}
 	this_.currentNode = n
-	this_.priv_NodeTraversal_pushScope_3957(n)
+	this_.priv_NodeTraversal_pushScope_3963(n)
 	if isClassExpression {
-		this_.priv_NodeTraversal_traverseBranch_3949(className, n)
+		this_.priv_NodeTraversal_traverseBranch_3955(className, n)
 	}
-	this_.priv_NodeTraversal_traverseBranch_3949(body, n)
-	this_.priv_NodeTraversal_popScope_3960()
+	this_.priv_NodeTraversal_traverseBranch_3955(body, n)
+	this_.priv_NodeTraversal_popScope_3966()
 	this_.currentNode = n
 	this_.callback.Visit_3(this_, n, parent)
 }
 
 // Java method: NodeTraversal.handleClassMembers(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *NodeTraversal) priv_NodeTraversal_handleClassMembers_3952(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_handleClassMembers_3958(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	this_.currentNode = n
@@ -836,7 +836,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_handleClassMembers_3952(n pkg_rhi
 			var next pkg_rhino.Node = child.GetNext()
 			_ = next
 			if child.IsComputedProp() || child.IsComputedFieldDef() {
-				this_.priv_NodeTraversal_traverseBranch_3949(child.GetFirstChild(), child)
+				this_.priv_NodeTraversal_traverseBranch_3955(child.GetFirstChild(), child)
 			}
 			child = next
 		}
@@ -851,7 +851,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_handleClassMembers_3952(n pkg_rhi
 			case int32(129) /* Token.COMPUTED_PROP */ :
 				this_.currentNode = n
 				if this_.callback.ShouldTraverse_3(this_, child_2, n) {
-					this_.priv_NodeTraversal_traverseBranch_3949(child_2.GetLastChild(), child_2)
+					this_.priv_NodeTraversal_traverseBranch_3955(child_2.GetLastChild(), child_2)
 					this_.currentNode = n
 					this_.callback.Visit_3(this_, child_2, n)
 				}
@@ -860,20 +860,20 @@ func (this_ *NodeTraversal) priv_NodeTraversal_handleClassMembers_3952(n pkg_rhi
 				var previousHoistScopeRoot pkg_rhino.Node = this_.currentHoistScopeRoot
 				_ = previousHoistScopeRoot
 				this_.currentHoistScopeRoot = n
-				this_.priv_NodeTraversal_pushScope_3957(child_2)
+				this_.priv_NodeTraversal_pushScope_3963(child_2)
 				if this_.callback.ShouldTraverse_3(this_, child_2, n) {
 					if child_2.HasTwoChildren() {
-						this_.priv_NodeTraversal_traverseBranch_3949(child_2.GetLastChild(), child_2)
+						this_.priv_NodeTraversal_traverseBranch_3955(child_2.GetLastChild(), child_2)
 					}
 					this_.currentNode = n
 					this_.callback.Visit_3(this_, child_2, n)
 				}
-				this_.priv_NodeTraversal_popScope_3960()
+				this_.priv_NodeTraversal_popScope_3966()
 				this_.currentHoistScopeRoot = previousHoistScopeRoot
 			case int32(108) /* Token.MEMBER_FIELD_DEF */ :
-				this_.priv_NodeTraversal_handleMemberFieldDef_3953(n, child_2)
+				this_.priv_NodeTraversal_handleMemberFieldDef_3959(n, child_2)
 			case int32(90) /* Token.BLOCK */, int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(172) /* Token.MEMBER_VARIABLE_DEF */, int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */ :
-				this_.priv_NodeTraversal_traverseBranch_3949(child_2, n)
+				this_.priv_NodeTraversal_traverseBranch_3955(child_2, n)
 			default:
 				panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Invalid class member: "+j2gort.StrVal(child_2.GetToken()))))
 			}
@@ -885,20 +885,20 @@ func (this_ *NodeTraversal) priv_NodeTraversal_handleClassMembers_3952(n pkg_rhi
 }
 
 // Java method: NodeTraversal.handleMemberFieldDef(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node child)
-func (this_ *NodeTraversal) priv_NodeTraversal_handleMemberFieldDef_3953(n pkg_rhino.Node, child pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_handleMemberFieldDef_3959(n pkg_rhino.Node, child pkg_rhino.Node) {
 	_ = n
 	_ = child
 	var previousHoistScopeRoot pkg_rhino.Node = this_.currentHoistScopeRoot
 	_ = previousHoistScopeRoot
 	this_.currentHoistScopeRoot = n
-	this_.priv_NodeTraversal_pushScope_3957(child)
-	this_.priv_NodeTraversal_traverseBranch_3949(child, n)
-	this_.priv_NodeTraversal_popScope_3960()
+	this_.priv_NodeTraversal_pushScope_3963(child)
+	this_.priv_NodeTraversal_traverseBranch_3955(child, n)
+	this_.priv_NodeTraversal_popScope_3966()
 	this_.currentHoistScopeRoot = previousHoistScopeRoot
 }
 
 // Java method: NodeTraversal.traverseChildren(com.google.javascript.rhino.Node n)
-func (this_ *NodeTraversal) priv_NodeTraversal_traverseChildren_3954(n pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_traverseChildren_3960(n pkg_rhino.Node) {
 	_ = n
 	var curBlkIdx_ uint32 = 0xFFFFFFFF
 	var curBlk_ *nodestore.NodeBlock
@@ -947,7 +947,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseChildren_3954(n pkg_rhino
 					_, gnx_, _ := curBlk_.FirstNextTok(nodestore.Node(gc_))
 					gNext_ = pkg_rhino.Node(gnx_)
 				}
-				this_.priv_NodeTraversal_traverseBranch_3949(gc_, child_)
+				this_.priv_NodeTraversal_traverseBranch_3955(gc_, child_)
 				gc_ = gNext_
 			}
 			this_.currentNode = child_
@@ -957,7 +957,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseChildren_3954(n pkg_rhino
 			child_ = next_
 			continue
 		}
-		this_.priv_NodeTraversal_traverseBranch_3949(child_, n)
+		this_.priv_NodeTraversal_traverseBranch_3955(child_, n)
 		child_ = next_
 	}
 
@@ -969,7 +969,7 @@ func (this_ *NodeTraversal) GetEnclosingFunction() pkg_rhino.Node {
 }
 
 // Java method: NodeTraversal.ensureScopeCapacity()
-func (this_ *NodeTraversal) priv_NodeTraversal_ensureScopeCapacity_3956() {
+func (this_ *NodeTraversal) priv_NodeTraversal_ensureScopeCapacity_3962() {
 	if this_.scopeDepth == int32(len(this_.scopeNodes)) {
 		if this_.scopeDepth == 0 {
 			this_.scopeNodes = this_.scopeNodesBuf_[:12]
@@ -987,11 +987,11 @@ func (this_ *NodeTraversal) priv_NodeTraversal_ensureScopeCapacity_3956() {
 }
 
 // Java method: NodeTraversal.pushScope(com.google.javascript.rhino.Node node)
-func (this_ *NodeTraversal) priv_NodeTraversal_pushScope_3957(node pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_pushScope_3963(node pkg_rhino.Node) {
 	_ = node
 	j2gort.CheckNotNullNode(this_.currentNode)
 	j2gort.CheckNotNullNode(node)
-	this_.priv_NodeTraversal_ensureScopeCapacity_3956()
+	this_.priv_NodeTraversal_ensureScopeCapacity_3962()
 	{
 		a_19 := this_.scopeNodes
 		i_20 := this_.scopeDepth
@@ -1009,17 +1009,17 @@ func (this_ *NodeTraversal) priv_NodeTraversal_pushScope_3957(node pkg_rhino.Nod
 }
 
 // Java method: NodeTraversal.pushScope(com.google.javascript.jscomp.AbstractScope<?,?> s)
-func (this_ *NodeTraversal) priv_NodeTraversal_pushScope_3958(s AbstractScope) {
+func (this_ *NodeTraversal) priv_NodeTraversal_pushScope_3964(s AbstractScope) {
 	_ = s
-	this_.priv_NodeTraversal_pushScope_3959(s, false)
+	this_.priv_NodeTraversal_pushScope_3965(s, false)
 }
 
 // Java method: NodeTraversal.pushScope(com.google.javascript.jscomp.AbstractScope<?,?> s, boolean quietly)
-func (this_ *NodeTraversal) priv_NodeTraversal_pushScope_3959(s AbstractScope, quietly bool) {
+func (this_ *NodeTraversal) priv_NodeTraversal_pushScope_3965(s AbstractScope, quietly bool) {
 	_ = s
 	_ = quietly
 	j2gort.CheckNotNullNode(this_.currentNode)
-	this_.priv_NodeTraversal_ensureScopeCapacity_3956()
+	this_.priv_NodeTraversal_ensureScopeCapacity_3962()
 	{
 		a_23 := this_.scopeNodes
 		i_24 := this_.scopeDepth
@@ -1037,12 +1037,12 @@ func (this_ *NodeTraversal) priv_NodeTraversal_pushScope_3959(s AbstractScope, q
 }
 
 // Java method: NodeTraversal.popScope()
-func (this_ *NodeTraversal) priv_NodeTraversal_popScope_3960() {
-	this_.priv_NodeTraversal_popScope_3961(false)
+func (this_ *NodeTraversal) priv_NodeTraversal_popScope_3966() {
+	this_.priv_NodeTraversal_popScope_3967(false)
 }
 
 // Java method: NodeTraversal.popScope(boolean quietly)
-func (this_ *NodeTraversal) priv_NodeTraversal_popScope_3961(quietly bool) {
+func (this_ *NodeTraversal) priv_NodeTraversal_popScope_3967(quietly bool) {
 	_ = quietly
 	if !(quietly) && (this_.scopeCallback != nil && !this_.scopeCallback.IsJavaNil_()) {
 		this_.scopeCallback.ExitScope(this_)
@@ -1089,11 +1089,11 @@ func (this_ *NodeTraversal) GetTypedScope() *TypedScope {
 
 // Java method: NodeTraversal.getAbstractScope()
 func (this_ *NodeTraversal) GetAbstractScope_0() AbstractScope {
-	return this_.priv_NodeTraversal_getAbstractScope_3967((this_.scopeDepth - int32(1)))
+	return this_.priv_NodeTraversal_getAbstractScope_3973((this_.scopeDepth - int32(1)))
 }
 
 // Java method: NodeTraversal.getAbstractScope(int rootDepth)
-func (this_ *NodeTraversal) priv_NodeTraversal_getAbstractScope_3967(rootDepth int32) AbstractScope {
+func (this_ *NodeTraversal) priv_NodeTraversal_getAbstractScope_3973(rootDepth int32) AbstractScope {
 	_ = rootDepth
 	var s AbstractScope = this_.scopeObjs[rootDepth]
 	_ = s
@@ -1103,7 +1103,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_getAbstractScope_3967(rootDepth i
 	var parentScope AbstractScope
 	_ = parentScope
 	if rootDepth > int32(0) {
-		parentScope = this_.priv_NodeTraversal_getAbstractScope_3967((rootDepth - int32(1)))
+		parentScope = this_.priv_NodeTraversal_getAbstractScope_3973((rootDepth - int32(1)))
 	} else {
 		parentScope = nil
 	}
@@ -1145,7 +1145,7 @@ func (this_ *NodeTraversal) GetClosestContainerScope() AbstractScope {
 		_ = i
 		for ; i >= int32(0); i = i - 1 {
 			if !(NodeUtil_CreatesBlockScope(this_.scopeNodes[i])) {
-				return this_.priv_NodeTraversal_getAbstractScope_3967(i)
+				return this_.priv_NodeTraversal_getAbstractScope_3973(i)
 			}
 		}
 	}
@@ -1159,7 +1159,7 @@ func (this_ *NodeTraversal) GetClosestHoistScope() AbstractScope {
 		_ = i
 		for ; i >= int32(0); i = i - 1 {
 			if NodeTraversal_IsHoistScopeRootNode(this_.scopeNodes[i]) {
-				return this_.priv_NodeTraversal_getAbstractScope_3967(i)
+				return this_.priv_NodeTraversal_getAbstractScope_3973(i)
 			}
 		}
 	}
@@ -1298,13 +1298,13 @@ func (this_ *NodeTraversal) GetCurrentScript() pkg_rhino.Node {
 }
 
 // Java method: NodeTraversal.setChangeScope(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node n)
-func (this_ *NodeTraversal) priv_NodeTraversal_setChangeScope_3985(n pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_setChangeScope_3991(n pkg_rhino.Node) {
 	_ = n
 	this_.currentChangeScope = n
 }
 
 // Java method: NodeTraversal.getEnclosingScript(com.google.javascript.rhino.Node n)
-func (this_ *NodeTraversal) priv_NodeTraversal_getEnclosingScript_3986(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *NodeTraversal) priv_NodeTraversal_getEnclosingScript_3992(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	for (n != 0) && !(n.IsScript()) {
 		n = n.GetParent()
@@ -1313,7 +1313,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_getEnclosingScript_3986(n pkg_rhi
 }
 
 // Java method: NodeTraversal.initTraversal(com.google.javascript.rhino.Node traversalRoot)
-func (this_ *NodeTraversal) priv_NodeTraversal_initTraversal_3987(traversalRoot pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_initTraversal_3993(traversalRoot pkg_rhino.Node) {
 	_ = traversalRoot
 	if Platform_IsThreadInterrupted() {
 		panic(j2gort.AsIface[javalang.IRuntimeException](j2gort.ConstructShimThrowable("java.lang.RuntimeException", j2gort.NewExt_java_lang_InterruptedException())))
@@ -1328,7 +1328,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_initTraversal_3987(traversalRoot 
 		return traversalRoot
 	}())
 	_ = changeScope
-	this_.priv_NodeTraversal_setChangeScope_3985(changeScope)
+	this_.priv_NodeTraversal_setChangeScope_3991(changeScope)
 	var enclosingFunction pkg_rhino.Node
 	_ = enclosingFunction
 	if hoistScopeRoot != 0 {
@@ -1337,19 +1337,19 @@ func (this_ *NodeTraversal) priv_NodeTraversal_initTraversal_3987(traversalRoot 
 		enclosingFunction = pkg_rhino.Node(0)
 	}
 	this_.currentFunction = enclosingFunction
-	var script pkg_rhino.Node = this_.priv_NodeTraversal_getEnclosingScript_3986(changeScope)
+	var script pkg_rhino.Node = this_.priv_NodeTraversal_getEnclosingScript_3992(changeScope)
 	_ = script
 	this_.currentScript = script
-	this_.priv_NodeTraversal_clearScriptState_3990()
+	this_.priv_NodeTraversal_clearScriptState_3996()
 }
 
 // Java method: NodeTraversal.initScopeRoots(com.google.javascript.rhino.Node n)
-func (this_ *NodeTraversal) priv_NodeTraversal_initScopeRoots_3988(n pkg_rhino.Node) {
+func (this_ *NodeTraversal) priv_NodeTraversal_initScopeRoots_3994(n pkg_rhino.Node) {
 	_ = n
 	var queuedScopeRoots j2gort.Deque[pkg_rhino.Node]
 	_ = queuedScopeRoots
 	for n != 0 {
-		if this_.priv_NodeTraversal_isScopeRoot_3989(n) {
+		if this_.priv_NodeTraversal_isScopeRoot_3995(n) {
 			queuedScopeRoots.AddFirst(j2gort.CheckNotNullNode(n))
 		}
 		n = n.GetParent()
@@ -1359,13 +1359,13 @@ func (this_ *NodeTraversal) priv_NodeTraversal_initScopeRoots_3988(n pkg_rhino.N
 		for cur_33.HasNext() {
 			queuedScopeRoot := cur_33.Next()
 			_ = queuedScopeRoot
-			this_.priv_NodeTraversal_pushScope_3957(queuedScopeRoot)
+			this_.priv_NodeTraversal_pushScope_3963(queuedScopeRoot)
 		}
 	}
 }
 
 // Java method: NodeTraversal.isScopeRoot(com.google.javascript.rhino.Node n)
-func (this_ *NodeTraversal) priv_NodeTraversal_isScopeRoot_3989(n pkg_rhino.Node) bool {
+func (this_ *NodeTraversal) priv_NodeTraversal_isScopeRoot_3995(n pkg_rhino.Node) bool {
 	_ = n
 	if n.IsRoot() && (n.GetParent() == 0) {
 		return true
@@ -1378,7 +1378,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_isScopeRoot_3989(n pkg_rhino.Node
 }
 
 // Java method: NodeTraversal.clearScriptState()
-func (this_ *NodeTraversal) priv_NodeTraversal_clearScriptState_3990() {
+func (this_ *NodeTraversal) priv_NodeTraversal_clearScriptState_3996() {
 	this_.inputId = nil
 	this_.sourceName = j2gort.NullString
 	this_.compilerInput = nil
@@ -1393,7 +1393,7 @@ func (this_ *NodeTraversal) GetInputId() *pkg_rhino.InputId {
 }
 
 // Java method: NodeTraversal.getBestSourceFileName(com.google.javascript.rhino.Node n)
-func (this_ *NodeTraversal) priv_NodeTraversal_getBestSourceFileName_3992(n pkg_rhino.Node) string {
+func (this_ *NodeTraversal) priv_NodeTraversal_getBestSourceFileName_3998(n pkg_rhino.Node) string {
 	_ = n
 	if n == 0 {
 		return this_.GetSourceName()
@@ -2450,28 +2450,28 @@ func (this_ *NodeTraversal_Builder) Build() *NodeTraversal {
 func (this_ *NodeTraversal_Builder) Traverse(root pkg_rhino.Node) {
 	t_ := acquireNodeTraversal_(this_.compiler, this_.callback, this_.scopeCreator, this_.obeyDestructuringAndDefaultValueExecutionOrder)
 	defer releaseNodeTraversal_(t_)
-	t_.priv_NodeTraversal_traverse_3933(root)
+	t_.priv_NodeTraversal_traverse_3939(root)
 }
 
 // Java method: Builder.traverseAtScope(com.google.javascript.jscomp.AbstractScope<?,?> scope)
 func (this_ *NodeTraversal_Builder) TraverseAtScope(scope AbstractScope) {
 	t_ := acquireNodeTraversal_(this_.compiler, this_.callback, this_.scopeCreator, this_.obeyDestructuringAndDefaultValueExecutionOrder)
 	defer releaseNodeTraversal_(t_)
-	t_.priv_NodeTraversal_traverseAtScope_3937(scope)
+	t_.priv_NodeTraversal_traverseAtScope_3943(scope)
 }
 
 // Java method: Builder.traverseRoots(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
 func (this_ *NodeTraversal_Builder) TraverseRoots(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	t_ := acquireNodeTraversal_(this_.compiler, this_.callback, this_.scopeCreator, this_.obeyDestructuringAndDefaultValueExecutionOrder)
 	defer releaseNodeTraversal_(t_)
-	t_.priv_NodeTraversal_traverseRoots_3934(externs, root)
+	t_.priv_NodeTraversal_traverseRoots_3940(externs, root)
 }
 
 // Java method: Builder.traverseWithScope(com.google.javascript.rhino.Node root, com.google.javascript.jscomp.AbstractScope<?,?> s)
 func (this_ *NodeTraversal_Builder) TraverseWithScope(root pkg_rhino.Node, s AbstractScope) {
 	t_ := acquireNodeTraversal_(this_.compiler, this_.callback, this_.scopeCreator, this_.obeyDestructuringAndDefaultValueExecutionOrder)
 	defer releaseNodeTraversal_(t_)
-	t_.priv_NodeTraversal_traverseWithScope_3936(root, s)
+	t_.priv_NodeTraversal_traverseWithScope_3942(root, s)
 }
 
 // Java class: TraverseScopeRootsCallback
@@ -2731,7 +2731,7 @@ func traverseScopeRootPooled_(compiler AbstractCompiler, callback NodeTraversal_
 		t_.canReleaseScopes_ = true
 	}
 	defer releaseNodeTraversal_(t_)
-	t_.priv_NodeTraversal_traverseScopeRoot_3938(scopeRoot)
+	t_.priv_NodeTraversal_traverseScopeRoot_3944(scopeRoot)
 }
 
 var nodeTraversalBlockScopeTok_ = [256]bool{80: true, 81: true, 90: true, 91: true, 105: true, 112: true, 113: true}

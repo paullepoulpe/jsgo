@@ -70,8 +70,9 @@ func InitNodeIterators(this_ *NodeIterators) {
 
 // Java class: com.google.javascript.jscomp.NodeIterators.FunctionlessLocalScope
 type NodeIterators_FunctionlessLocalScope struct {
-	ancestors j2gort.Ext_java_util_Deque `gson:"ancestors"`
-	idHash_   atomic.Int32
+	ancestors     []pkg_rhino.Node `gson:"ancestors"`
+	ancestorCount int32            `gson:"ancestorCount"`
+	idHash_       atomic.Int32
 }
 
 func (this_ *NodeIterators_FunctionlessLocalScope) BindSelf_(s any) {
@@ -100,61 +101,276 @@ func (*NodeIterators_FunctionlessLocalScope) Implements_j2gort_Ext_java_util_Ite
 
 func (this_ *NodeIterators_FunctionlessLocalScope) initFields_NodeIterators_FunctionlessLocalScope() {
 	_ = this_
-	this_.ancestors = j2gort.NewExt_java_util_ArrayDeque()
 }
 
-// Java constructor: FunctionlessLocalScope(com.google.javascript.rhino.Node[] ancestors)
-func NewNodeIterators_FunctionlessLocalScope(ancestors []pkg_rhino.Node) *NodeIterators_FunctionlessLocalScope {
+// Java constructor: FunctionlessLocalScope(com.google.javascript.rhino.Node a0, com.google.javascript.rhino.Node a1, com.google.javascript.rhino.Node a2)
+func NewNodeIterators_FunctionlessLocalScope_3(a0 pkg_rhino.Node, a1 pkg_rhino.Node, a2 pkg_rhino.Node) *NodeIterators_FunctionlessLocalScope {
 	this_ := &NodeIterators_FunctionlessLocalScope{}
-	InitNodeIterators_FunctionlessLocalScope(this_, ancestors)
+	InitNodeIterators_FunctionlessLocalScope_3(this_, a0, a1, a2)
 	return this_
 }
 
-func InitNodeIterators_FunctionlessLocalScope(this_ *NodeIterators_FunctionlessLocalScope, ancestors []pkg_rhino.Node) {
+func InitNodeIterators_FunctionlessLocalScope_3(this_ *NodeIterators_FunctionlessLocalScope, a0 pkg_rhino.Node, a1 pkg_rhino.Node, a2 pkg_rhino.Node) {
+	_ = a0
+	_ = a1
+	_ = a2
+	this_.initFields_NodeIterators_FunctionlessLocalScope()
+	this_.ancestors = make([]pkg_rhino.Node, int32(16))
+	var valid int32 = int32(0)
+	_ = valid
+	if !(a0.IsFunction()) {
+		valid = int32(1)
+		if !(a1.IsFunction()) {
+			valid = int32(2)
+			if !(a2.IsFunction()) {
+				valid = int32(3)
+			}
+		}
+	}
+	this_.ancestorCount = valid
+	if valid == int32(3) {
+		{
+			a_1 := this_.ancestors
+			i_2 := int32(0)
+			a_1[i_2] = a2
+		}
+		{
+			a_3 := this_.ancestors
+			i_4 := int32(1)
+			a_3[i_4] = a1
+		}
+		{
+			a_5 := this_.ancestors
+			i_6 := int32(2)
+			a_5[i_6] = a0
+		}
+	} else if valid == int32(2) {
+		{
+			a_7 := this_.ancestors
+			i_8 := int32(0)
+			a_7[i_8] = a1
+		}
+		{
+			a_9 := this_.ancestors
+			i_10 := int32(1)
+			a_9[i_10] = a0
+		}
+	} else if valid == int32(1) {
+		{
+			a_11 := this_.ancestors
+			i_12 := int32(0)
+			a_11[i_12] = a0
+		}
+	}
+}
+
+// Java constructor: FunctionlessLocalScope(com.google.javascript.rhino.Node a0, com.google.javascript.rhino.Node a1, com.google.javascript.rhino.Node a2, com.google.javascript.rhino.Node a3)
+func NewNodeIterators_FunctionlessLocalScope_4(a0 pkg_rhino.Node, a1 pkg_rhino.Node, a2 pkg_rhino.Node, a3 pkg_rhino.Node) *NodeIterators_FunctionlessLocalScope {
+	this_ := &NodeIterators_FunctionlessLocalScope{}
+	InitNodeIterators_FunctionlessLocalScope_4(this_, a0, a1, a2, a3)
+	return this_
+}
+
+func InitNodeIterators_FunctionlessLocalScope_4(this_ *NodeIterators_FunctionlessLocalScope, a0 pkg_rhino.Node, a1 pkg_rhino.Node, a2 pkg_rhino.Node, a3 pkg_rhino.Node) {
+	_ = a0
+	_ = a1
+	_ = a2
+	_ = a3
+	this_.initFields_NodeIterators_FunctionlessLocalScope()
+	this_.ancestors = make([]pkg_rhino.Node, int32(16))
+	var valid int32 = int32(0)
+	_ = valid
+	if !(a0.IsFunction()) {
+		valid = int32(1)
+		if !(a1.IsFunction()) {
+			valid = int32(2)
+			if !(a2.IsFunction()) {
+				valid = int32(3)
+				if !(a3.IsFunction()) {
+					valid = int32(4)
+				}
+			}
+		}
+	}
+	this_.ancestorCount = valid
+	if valid == int32(4) {
+		{
+			a_13 := this_.ancestors
+			i_14 := int32(0)
+			a_13[i_14] = a3
+		}
+		{
+			a_15 := this_.ancestors
+			i_16 := int32(1)
+			a_15[i_16] = a2
+		}
+		{
+			a_17 := this_.ancestors
+			i_18 := int32(2)
+			a_17[i_18] = a1
+		}
+		{
+			a_19 := this_.ancestors
+			i_20 := int32(3)
+			a_19[i_20] = a0
+		}
+	} else if valid == int32(3) {
+		{
+			a_21 := this_.ancestors
+			i_22 := int32(0)
+			a_21[i_22] = a2
+		}
+		{
+			a_23 := this_.ancestors
+			i_24 := int32(1)
+			a_23[i_24] = a1
+		}
+		{
+			a_25 := this_.ancestors
+			i_26 := int32(2)
+			a_25[i_26] = a0
+		}
+	} else if valid == int32(2) {
+		{
+			a_27 := this_.ancestors
+			i_28 := int32(0)
+			a_27[i_28] = a1
+		}
+		{
+			a_29 := this_.ancestors
+			i_30 := int32(1)
+			a_29[i_30] = a0
+		}
+	} else if valid == int32(1) {
+		{
+			a_31 := this_.ancestors
+			i_32 := int32(0)
+			a_31[i_32] = a0
+		}
+	}
+}
+
+// Java constructor: FunctionlessLocalScope(com.google.javascript.rhino.Node[] ancestors)
+func NewNodeIterators_FunctionlessLocalScope_1(ancestors []pkg_rhino.Node) *NodeIterators_FunctionlessLocalScope {
+	this_ := &NodeIterators_FunctionlessLocalScope{}
+	InitNodeIterators_FunctionlessLocalScope_1(this_, ancestors)
+	return this_
+}
+
+func InitNodeIterators_FunctionlessLocalScope_1(this_ *NodeIterators_FunctionlessLocalScope, ancestors []pkg_rhino.Node) {
 	_ = ancestors
 	this_.initFields_NodeIterators_FunctionlessLocalScope()
 	if !(int32(len(ancestors)) > int32(0)) {
 		j2gort.CheckArgument(false)
 	}
-	for _, el_1 := range j2gort.CheckNotNullSlice(ancestors) {
-		n := el_1
-		_ = n
-		if n.IsFunction() {
-			break
-		}
-		this_.ancestors.AddFirst(j2gort.BoxNode(n))
+	var valid int32 = int32(0)
+	_ = valid
+	for (valid < int32(len(ancestors))) && !(ancestors[valid].IsFunction()) {
+		valid = valid + 1
 	}
+	this_.ancestors = make([]pkg_rhino.Node, max(int32(16), valid))
+	this_.ancestorCount = valid
+	{
+		var i int32 = int32(0)
+		_ = i
+		for ; i < valid; i = i + 1 {
+			{
+				a_33 := this_.ancestors
+				i_34 := ((valid - int32(1)) - i)
+				a_33[i_34] = ancestors[i]
+			}
+		}
+	}
+}
+
+// Java method: FunctionlessLocalScope.pushAncestor(com.google.javascript.rhino.Node n)
+func (this_ *NodeIterators_FunctionlessLocalScope) priv_FunctionlessLocalScope_pushAncestor_3927(n pkg_rhino.Node) {
+	_ = n
+	var c int32 = this_.ancestorCount
+	_ = c
+	var arr []pkg_rhino.Node = this_.ancestors
+	_ = arr
+	if c == int32(len(arr)) {
+		arr = func() []pkg_rhino.Node {
+			arrSrc_35 := arr
+			arrLen_36 := (c * int32(2))
+			j2gort.CheckNotNullSlice(arrSrc_35)
+			if arrLen_36 < 0 {
+				panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+			}
+			arrOut_37 := make([]pkg_rhino.Node, arrLen_36)
+			copy(arrOut_37, arrSrc_35)
+			return arrOut_37
+		}()
+		this_.ancestors = arr
+	}
+	{
+		a_38 := arr
+		i_39 := c
+		a_38[i_39] = n
+	}
+	this_.ancestorCount = (c + int32(1))
 }
 
 // Java method: FunctionlessLocalScope.hasNext()
 func (this_ *NodeIterators_FunctionlessLocalScope) HasNext() bool {
-	return !((this_.ancestors.Size() == int32(1)) && (pkg_rhino.Node(j2gort.DequePeekLastNode(this_.ancestors)).GetNext() == 0))
+	var c int32 = this_.ancestorCount
+	_ = c
+	return !((c == int32(1)) && (this_.ancestors[int32(0)].GetNext() == 0))
+}
+
+// Java method: FunctionlessLocalScope.nextNode()
+func (this_ *NodeIterators_FunctionlessLocalScope) NextNode() pkg_rhino.Node {
+	for {
+		var topIdx int32 = func() int32 {
+			old_40 := this_.ancestorCount
+			nw_41 := old_40 - 1
+			this_.ancestorCount = nw_41
+			return nw_41
+		}()
+		_ = topIdx
+		var current pkg_rhino.Node = this_.ancestors[topIdx]
+		_ = current
+		{
+			a_42 := this_.ancestors
+			i_43 := topIdx
+			a_42[i_43] = pkg_rhino.Node(0)
+		}
+		var nextSibling pkg_rhino.Node = current.GetNext()
+		_ = nextSibling
+		if nextSibling == 0 {
+			current = this_.ancestors[(topIdx - int32(1))]
+			if current.IsFunction() {
+				continue
+			}
+			return current
+		}
+		current = nextSibling
+		this_.priv_FunctionlessLocalScope_pushAncestor_3927(current)
+		if current.IsFunction() {
+			continue
+		}
+		var hitFunction bool = false
+		_ = hitFunction
+		for current.HasChildren() {
+			current = current.GetFirstChild()
+			this_.priv_FunctionlessLocalScope_pushAncestor_3927(current)
+			if current.IsFunction() {
+				hitFunction = true
+				break
+			}
+		}
+		if hitFunction {
+			continue
+		}
+		return current
+	}
+	panic("unreachable")
 }
 
 // Java method: FunctionlessLocalScope.next()
 func (this_ *NodeIterators_FunctionlessLocalScope) Next() any {
-	var current pkg_rhino.Node = pkg_rhino.Node(j2gort.DequeRemoveLastNode(this_.ancestors))
-	_ = current
-	if current.GetNext() == 0 {
-		current = pkg_rhino.Node(j2gort.DequePeekLastNode(this_.ancestors))
-		if current.IsFunction() {
-			return j2gort.BoxNode(j2gort.CastNode[pkg_rhino.Node](this_.Next()))
-		}
-	} else {
-		current = current.GetNext()
-		j2gort.DequeAddLastNode(this_.ancestors, uint32(current))
-		if current.IsFunction() {
-			return j2gort.BoxNode(j2gort.CastNode[pkg_rhino.Node](this_.Next()))
-		}
-		for current.HasChildren() {
-			current = current.GetFirstChild()
-			j2gort.DequeAddLastNode(this_.ancestors, uint32(current))
-			if current.IsFunction() {
-				return j2gort.BoxNode(j2gort.CastNode[pkg_rhino.Node](this_.Next()))
-			}
-		}
-	}
-	return j2gort.BoxNode(current)
+	return j2gort.BoxNode(this_.NextNode())
 }
 
 // Java method: FunctionlessLocalScope.remove()
@@ -164,13 +380,15 @@ func (this_ *NodeIterators_FunctionlessLocalScope) Remove() {
 
 // Java method: FunctionlessLocalScope.current()
 func (this_ *NodeIterators_FunctionlessLocalScope) Current() pkg_rhino.Node {
-	return pkg_rhino.Node(j2gort.DequePeekLastNode(this_.ancestors))
+	return this_.ancestors[(this_.ancestorCount - int32(1))]
 }
 
 // Java method: FunctionlessLocalScope.currentParent()
 func (this_ *NodeIterators_FunctionlessLocalScope) CurrentParent() pkg_rhino.Node {
-	if this_.ancestors.Size() >= int32(2) {
-		return this_.Current().GetParent()
+	var c int32 = this_.ancestorCount
+	_ = c
+	if c >= int32(2) {
+		return this_.ancestors[(c - int32(1))].GetParent()
 	} else {
 		return pkg_rhino.Node(0)
 	}
@@ -178,10 +396,18 @@ func (this_ *NodeIterators_FunctionlessLocalScope) CurrentParent() pkg_rhino.Nod
 
 // Java method: FunctionlessLocalScope.currentAncestors()
 func (this_ *NodeIterators_FunctionlessLocalScope) CurrentAncestors() j2gort.Ext_java_util_List {
-	var list j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.ancestors))
+	var c int32 = this_.ancestorCount
+	_ = c
+	var list []pkg_rhino.Node = j2gort.MakeNonNilSlice[pkg_rhino.Node](c)
 	_ = list
-	j2gort.Ext_java_util_Collections_Reverse(list)
-	return list
+	{
+		var i int32 = (c - int32(1))
+		_ = i
+		for ; i >= int32(0); i = i - 1 {
+			list = append(list, this_.ancestors[i])
+		}
+	}
+	return j2gort.WrapTypedArrayList(list)
 }
 
 // Java class: com.google.javascript.jscomp.NodeIterators.LocalVarMotion
@@ -244,7 +470,7 @@ func InitNodeIterators_LocalVarMotion(this_ *NodeIterators_LocalVarMotion, compi
 	this_.varName = nameNode.GetString()
 	this_.valueHasSideEffects = ((valueNode != 0) && compiler.GetAstAnalyzer().MayHaveSideEffects(valueNode))
 	this_.iterator = iterator
-	this_.priv_LocalVarMotion_advanceLookAhead_3930(true)
+	this_.priv_LocalVarMotion_advanceLookAhead_3936(true)
 }
 
 // Java static method: LocalVarMotion.forVar(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.rhino.Node name, com.google.javascript.rhino.Node var, com.google.javascript.rhino.Node block)
@@ -259,7 +485,7 @@ func NodeIterators_LocalVarMotion_ForVar(compiler AbstractCompiler, name pkg_rhi
 	if !(NodeUtil_IsStatement(var_)) {
 		j2gort.CheckArgument(false)
 	}
-	return NewNodeIterators_LocalVarMotion(compiler, name, NewNodeIterators_FunctionlessLocalScope([]pkg_rhino.Node{name, var_, block}))
+	return NewNodeIterators_LocalVarMotion(compiler, name, NewNodeIterators_FunctionlessLocalScope_3(name, var_, block))
 }
 
 // Java static method: LocalVarMotion.forAssign(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.rhino.Node name, com.google.javascript.rhino.Node assign, com.google.javascript.rhino.Node expr, com.google.javascript.rhino.Node block)
@@ -275,7 +501,7 @@ func NodeIterators_LocalVarMotion_ForAssign(compiler AbstractCompiler, name pkg_
 	if !(expr.IsExprResult()) {
 		j2gort.CheckArgument(false)
 	}
-	return NewNodeIterators_LocalVarMotion(compiler, name, NewNodeIterators_FunctionlessLocalScope([]pkg_rhino.Node{assign, expr, block}))
+	return NewNodeIterators_LocalVarMotion(compiler, name, NewNodeIterators_FunctionlessLocalScope_3(assign, expr, block))
 }
 
 // Java method: LocalVarMotion.hasNext()
@@ -283,12 +509,17 @@ func (this_ *NodeIterators_LocalVarMotion) HasNext() bool {
 	return (this_.lookAhead != 0)
 }
 
-// Java method: LocalVarMotion.next()
-func (this_ *NodeIterators_LocalVarMotion) Next() any {
+// Java method: LocalVarMotion.nextNode()
+func (this_ *NodeIterators_LocalVarMotion) NextNode() pkg_rhino.Node {
 	var next pkg_rhino.Node = this_.lookAhead
 	_ = next
-	this_.priv_LocalVarMotion_advanceLookAhead_3930(false)
-	return j2gort.BoxNode(next)
+	this_.priv_LocalVarMotion_advanceLookAhead_3936(false)
+	return next
+}
+
+// Java method: LocalVarMotion.next()
+func (this_ *NodeIterators_LocalVarMotion) Next() any {
+	return j2gort.BoxNode(this_.NextNode())
 }
 
 // Java method: LocalVarMotion.remove()
@@ -297,7 +528,7 @@ func (this_ *NodeIterators_LocalVarMotion) Remove() {
 }
 
 // Java method: LocalVarMotion.advanceLookAhead(boolean atStart)
-func (this_ *NodeIterators_LocalVarMotion) priv_LocalVarMotion_advanceLookAhead_3930(atStart bool) {
+func (this_ *NodeIterators_LocalVarMotion) priv_LocalVarMotion_advanceLookAhead_3936(atStart bool) {
 	_ = atStart
 	if !(atStart) {
 		if this_.lookAhead == 0 {
@@ -306,9 +537,9 @@ func (this_ *NodeIterators_LocalVarMotion) priv_LocalVarMotion_advanceLookAhead_
 		var curNode pkg_rhino.Node = this_.iterator.Current()
 		_ = curNode
 		if curNode.IsName() && func() bool {
-			sr_2 := this_.varName
-			se_3 := curNode.GetString()
-			return j2gort.CheckNotNullString(sr_2) == se_3
+			sr_44 := this_.varName
+			se_45 := curNode.GetString()
+			return j2gort.CheckNotNullString(sr_44) == se_45
 		}() {
 			this_.lookAhead = pkg_rhino.Node(0)
 			return
@@ -318,7 +549,7 @@ func (this_ *NodeIterators_LocalVarMotion) priv_LocalVarMotion_advanceLookAhead_
 		this_.lookAhead = pkg_rhino.Node(0)
 		return
 	}
-	var nextNode pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](this_.iterator.Next())
+	var nextNode pkg_rhino.Node = this_.iterator.NextNode()
 	_ = nextNode
 	var nextParent pkg_rhino.Node = this_.iterator.CurrentParent()
 	_ = nextParent
@@ -328,9 +559,9 @@ func (this_ *NodeIterators_LocalVarMotion) priv_LocalVarMotion_advanceLookAhead_
 		var readsState bool = false
 		_ = readsState
 		if (nextNode.IsName() && !(func() bool {
-			sr_4 := this_.varName
-			se_5 := nextNode.GetString()
-			return j2gort.CheckNotNullString(sr_4) == se_5
+			sr_46 := this_.varName
+			se_47 := nextNode.GetString()
+			return j2gort.CheckNotNullString(sr_46) == se_47
 		}())) || (((nextNode.IsGetProp() || nextNode.IsGetElem()) || nextNode.IsOptChainGetProp()) || nextNode.IsOptChainGetElem()) {
 			if (nextParent == 0) || !(NodeUtil_IsNameDeclOrSimpleAssignLhs(nextNode, nextParent)) {
 				readsState = true

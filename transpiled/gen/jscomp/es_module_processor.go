@@ -200,22 +200,22 @@ func (this_ *EsModuleProcessor) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pare
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(120) /* Token.EXPORT */ :
-		this_.priv_EsModuleProcessor_visitExport_6666(t, n)
+		this_.priv_EsModuleProcessor_visitExport_6678(t, n)
 	case int32(116) /* Token.IMPORT */ :
-		this_.priv_EsModuleProcessor_visitImport_6670(t, n)
+		this_.priv_EsModuleProcessor_visitImport_6682(t, n)
 	default:
 	}
 }
 
 // Java method: EsModuleProcessor.visitExportAllFrom(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportAllFrom_6659(t *NodeTraversal, export pkg_rhino.Node) {
+func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportAllFrom_6671(t *NodeTraversal, export pkg_rhino.Node) {
 	_ = t
 	_ = export
 	this_.currentModuleBuilder.Add_1_Export(Export_S_Builder().ExportName(j2gort.NullString).ModuleRequest(export.GetSecondChild().GetString()).ImportName("*").LocalName(j2gort.NullString).ModulePath(t.GetInput().GetPath()).ExportNode(export).ModuleMetadata(this_.metadata).Build())
 }
 
 // Java method: EsModuleProcessor.visitExportDefault(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportDefault_6660(t *NodeTraversal, export pkg_rhino.Node) {
+func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportDefault_6672(t *NodeTraversal, export pkg_rhino.Node) {
 	_ = t
 	_ = export
 	var child pkg_rhino.Node = export.GetFirstChild()
@@ -235,7 +235,7 @@ func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportDefault_6660(t
 }
 
 // Java method: EsModuleProcessor.visitExportFrom(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportFrom_6661(t *NodeTraversal, export pkg_rhino.Node) {
+func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportFrom_6673(t *NodeTraversal, export pkg_rhino.Node) {
 	_ = t
 	_ = export
 	{
@@ -254,7 +254,7 @@ func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportFrom_6661(t *N
 }
 
 // Java method: EsModuleProcessor.visitExportSpecs(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportSpecs_6662(t *NodeTraversal, export pkg_rhino.Node) {
+func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportSpecs_6674(t *NodeTraversal, export pkg_rhino.Node) {
 	_ = t
 	_ = export
 	{
@@ -273,19 +273,19 @@ func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportSpecs_6662(t *
 }
 
 // Java method: EsModuleProcessor.visitExportNameDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export, com.google.javascript.rhino.Node declaration)
-func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportNameDeclaration_6663(t *NodeTraversal, export pkg_rhino.Node, declaration pkg_rhino.Node) {
+func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportNameDeclaration_6675(t *NodeTraversal, export pkg_rhino.Node, declaration pkg_rhino.Node) {
 	_ = t
 	_ = export
 	_ = declaration
 	NodeUtil_VisitLhsNodesInNode(declaration, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_1 any) {
 		lhs := j2gort.CastNode[pkg_rhino.Node](lp_1)
 		_ = lhs
-		this_.priv_EsModuleProcessor_addExportNameDeclaration_6664(t, lhs, export)
+		this_.priv_EsModuleProcessor_addExportNameDeclaration_6676(t, lhs, export)
 	}))
 }
 
 // Java method: EsModuleProcessor.addExportNameDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node lhs, com.google.javascript.rhino.Node export)
-func (this_ *EsModuleProcessor) priv_EsModuleProcessor_addExportNameDeclaration_6664(t *NodeTraversal, lhs pkg_rhino.Node, export pkg_rhino.Node) {
+func (this_ *EsModuleProcessor) priv_EsModuleProcessor_addExportNameDeclaration_6676(t *NodeTraversal, lhs pkg_rhino.Node, export pkg_rhino.Node) {
 	_ = t
 	_ = lhs
 	_ = export
@@ -300,7 +300,7 @@ func (this_ *EsModuleProcessor) priv_EsModuleProcessor_addExportNameDeclaration_
 }
 
 // Java method: EsModuleProcessor.visitExportFunctionOrClass(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export, com.google.javascript.rhino.Node declaration)
-func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportFunctionOrClass_6665(t *NodeTraversal, export pkg_rhino.Node, declaration pkg_rhino.Node) {
+func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportFunctionOrClass_6677(t *NodeTraversal, export pkg_rhino.Node, declaration pkg_rhino.Node) {
 	_ = t
 	_ = export
 	_ = declaration
@@ -317,30 +317,30 @@ func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExportFunctionOrClas
 }
 
 // Java method: EsModuleProcessor.visitExport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExport_6666(t *NodeTraversal, export pkg_rhino.Node) {
+func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitExport_6678(t *NodeTraversal, export pkg_rhino.Node) {
 	_ = t
 	_ = export
 	if export.GetBooleanProp(pkg_rhino.StaticGet_Node_EXPORT_ALL_FROM()) {
-		this_.priv_EsModuleProcessor_visitExportAllFrom_6659(t, export)
+		this_.priv_EsModuleProcessor_visitExportAllFrom_6671(t, export)
 	} else if export.GetBooleanProp(pkg_rhino.StaticGet_Node_EXPORT_DEFAULT()) {
-		this_.priv_EsModuleProcessor_visitExportDefault_6660(t, export)
+		this_.priv_EsModuleProcessor_visitExportDefault_6672(t, export)
 	} else if export.HasTwoChildren() {
-		this_.priv_EsModuleProcessor_visitExportFrom_6661(t, export)
+		this_.priv_EsModuleProcessor_visitExportFrom_6673(t, export)
 	} else if export.GetFirstChild().IsExportSpecs() {
-		this_.priv_EsModuleProcessor_visitExportSpecs_6662(t, export)
+		this_.priv_EsModuleProcessor_visitExportSpecs_6674(t, export)
 	} else {
 		var declaration pkg_rhino.Node = export.GetFirstChild()
 		_ = declaration
 		if NodeUtil_IsNameDeclaration(declaration) {
-			this_.priv_EsModuleProcessor_visitExportNameDeclaration_6663(t, export, declaration)
+			this_.priv_EsModuleProcessor_visitExportNameDeclaration_6675(t, export, declaration)
 		} else {
-			this_.priv_EsModuleProcessor_visitExportFunctionOrClass_6665(t, export, declaration)
+			this_.priv_EsModuleProcessor_visitExportFunctionOrClass_6677(t, export, declaration)
 		}
 	}
 }
 
 // Java method: EsModuleProcessor.visitImportDefault(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node importNode, java.lang.String moduleRequest)
-func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitImportDefault_6667(t *NodeTraversal, importNode pkg_rhino.Node, moduleRequest string) {
+func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitImportDefault_6679(t *NodeTraversal, importNode pkg_rhino.Node, moduleRequest string) {
 	_ = t
 	_ = importNode
 	_ = moduleRequest
@@ -348,7 +348,7 @@ func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitImportDefault_6667(t
 }
 
 // Java method: EsModuleProcessor.visitImportSpecs(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node importNode, java.lang.String moduleRequest)
-func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitImportSpecs_6668(t *NodeTraversal, importNode pkg_rhino.Node, moduleRequest string) {
+func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitImportSpecs_6680(t *NodeTraversal, importNode pkg_rhino.Node, moduleRequest string) {
 	_ = t
 	_ = importNode
 	_ = moduleRequest
@@ -366,7 +366,7 @@ func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitImportSpecs_6668(t *
 }
 
 // Java method: EsModuleProcessor.visitImportStar(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node importNode, java.lang.String moduleRequest)
-func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitImportStar_6669(t *NodeTraversal, importNode pkg_rhino.Node, moduleRequest string) {
+func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitImportStar_6681(t *NodeTraversal, importNode pkg_rhino.Node, moduleRequest string) {
 	_ = t
 	_ = importNode
 	_ = moduleRequest
@@ -374,18 +374,18 @@ func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitImportStar_6669(t *N
 }
 
 // Java method: EsModuleProcessor.visitImport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node importNode)
-func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitImport_6670(t *NodeTraversal, importNode pkg_rhino.Node) {
+func (this_ *EsModuleProcessor) priv_EsModuleProcessor_visitImport_6682(t *NodeTraversal, importNode pkg_rhino.Node) {
 	_ = t
 	_ = importNode
 	var moduleRequest string = importNode.GetLastChild().GetString()
 	_ = moduleRequest
 	if importNode.GetFirstChild().IsName() {
-		this_.priv_EsModuleProcessor_visitImportDefault_6667(t, importNode, moduleRequest)
+		this_.priv_EsModuleProcessor_visitImportDefault_6679(t, importNode, moduleRequest)
 	}
 	if importNode.GetSecondChild().IsImportSpecs() {
-		this_.priv_EsModuleProcessor_visitImportSpecs_6668(t, importNode, moduleRequest)
+		this_.priv_EsModuleProcessor_visitImportSpecs_6680(t, importNode, moduleRequest)
 	} else if importNode.GetSecondChild().IsImportStar() {
-		this_.priv_EsModuleProcessor_visitImportStar_6669(t, importNode, moduleRequest)
+		this_.priv_EsModuleProcessor_visitImportStar_6681(t, importNode, moduleRequest)
 	}
 }
 
@@ -760,7 +760,7 @@ func (this_ *EsModuleProcessor_UnresolvedEsModule) ResolveImport_4(moduleRequest
 	if this_.resolvedImports.ContainsKey(name) {
 		return this_.resolvedImports.Get(name)
 	}
-	var b *ResolveExportResult = this_.priv_UnresolvedEsModule_resolveImportImpl_6677(moduleRequestResolver, name, resolveSet, exportStarSet)
+	var b *ResolveExportResult = this_.priv_UnresolvedEsModule_resolveImportImpl_6689(moduleRequestResolver, name, resolveSet, exportStarSet)
 	_ = b
 	this_.resolvedImports.Put(name, b)
 	return b
@@ -774,7 +774,7 @@ func (this_ *EsModuleProcessor_UnresolvedEsModule) ResolveImport_2(moduleRequest
 }
 
 // Java method: UnresolvedEsModule.resolveImportImpl(com.google.javascript.jscomp.modules.ModuleRequestResolver moduleRequestResolver, java.lang.String name, java.util.Set<com.google.javascript.jscomp.modules.ExportTrace> resolveSet, java.util.Set<com.google.javascript.jscomp.modules.UnresolvedModule> exportStarSet)
-func (this_ *EsModuleProcessor_UnresolvedEsModule) priv_UnresolvedEsModule_resolveImportImpl_6677(moduleRequestResolver ModuleRequestResolver, name string, resolveSet j2gort.Ext_java_util_Set, exportStarSet j2gort.Ext_java_util_Set) *ResolveExportResult {
+func (this_ *EsModuleProcessor_UnresolvedEsModule) priv_UnresolvedEsModule_resolveImportImpl_6689(moduleRequestResolver ModuleRequestResolver, name string, resolveSet j2gort.Ext_java_util_Set, exportStarSet j2gort.Ext_java_util_Set) *ResolveExportResult {
 	_ = moduleRequestResolver
 	_ = name
 	_ = resolveSet
@@ -920,7 +920,7 @@ func (this_ *EsModuleProcessor_UnresolvedEsModule) GetAllResolvedExports(moduleR
 }
 
 // Java method: UnresolvedEsModule.resolveExport(com.google.javascript.jscomp.modules.ModuleRequestResolver moduleRequestResolver, java.lang.String exportName, java.util.Set<com.google.javascript.jscomp.modules.ExportTrace> resolveSet, java.util.Set<com.google.javascript.jscomp.modules.UnresolvedModule> exportStarSet)
-func (this_ *EsModuleProcessor_UnresolvedEsModule) priv_UnresolvedEsModule_resolveExport_6679(moduleRequestResolver ModuleRequestResolver, exportName string, resolveSet j2gort.Ext_java_util_Set, exportStarSet j2gort.Ext_java_util_Set) *ResolveExportResult {
+func (this_ *EsModuleProcessor_UnresolvedEsModule) priv_UnresolvedEsModule_resolveExport_6691(moduleRequestResolver ModuleRequestResolver, exportName string, resolveSet j2gort.Ext_java_util_Set, exportStarSet j2gort.Ext_java_util_Set) *ResolveExportResult {
 	_ = moduleRequestResolver
 	_ = exportName
 	_ = resolveSet
@@ -1049,7 +1049,7 @@ func (this_ *EsModuleProcessor_UnresolvedEsModule) ResolveExport_5(moduleRequest
 	if this_.resolvedExports.ContainsKey(exportName) {
 		return this_.resolvedExports.Get(exportName)
 	}
-	var b *ResolveExportResult = this_.priv_UnresolvedEsModule_resolveExport_6679(moduleRequestResolver, exportName, resolveSet, exportStarSet)
+	var b *ResolveExportResult = this_.priv_UnresolvedEsModule_resolveExport_6691(moduleRequestResolver, exportName, resolveSet, exportStarSet)
 	_ = b
 	this_.resolvedExports.Put(exportName, b)
 	return b

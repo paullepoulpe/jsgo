@@ -536,7 +536,7 @@ public final class RuntimeProtobufBindings {
       }
       if (simple.equals("newBuilder") && arity == 1) {
         String bStruct = retType.startsWith("*") ? retType.substring(1) : retType;
-        out.append("\tCheckNotNull(arg0)\n");
+        out.append("\tCheckNotNullPtr(arg0)\n");
         if (hasToBuilderMethod(msgGo)) {
           out.append("\traw := arg0.p_").append(msgGo).append("().ToBuilder()\n");
           out.append("\tb := &").append(bStruct).append("{Raw_: raw}\n");
@@ -634,7 +634,7 @@ public final class RuntimeProtobufBindings {
       if (simple.equals("newInstance") && arity == 1) {
         String p0 = rb.goTypeInJ2gort(m.getParameters().get(0).asType(), imports);
         if (p0.equals("[]int8")) {
-          out.append("\tCheckNotNull(arg0)\n");
+          out.append("\tCheckNotNullSlice(arg0)\n");
           out.append("\treturn wrapCodedInputStream(protobuf.CodedInputStream_NewInstanceBytes(int8SliceToBytes(arg0)))\n}\n\n");
           return true;
         }
@@ -692,7 +692,7 @@ public final class RuntimeProtobufBindings {
     String enumGo = PROTO_ENUM_TYPES.get(qn);
     if (enumGo != null) {
       if (m.equals("getNumber") && arity == 0) {
-        return "\tCheckNotNull(this_)\n\treturn protobuf." + enumGo + "(this_.Ordinal()).GetNumber()\n";
+        return "\tCheckNotNullPtr(this_)\n\treturn protobuf." + enumGo + "(this_.Ordinal()).GetNumber()\n";
       }
       if (m.equals("equals") && arity == 1) {
         return "\treturn any(this_) == arg0\n";
@@ -724,11 +724,11 @@ public final class RuntimeProtobufBindings {
           return "\tthis_.Core_.(*protobuf.ByteString_Output).WriteByteInt(int(arg0))\n";
         }
         if (p0.equals("[]int8")) {
-          return "\t_, _ = this_.Core_.(*protobuf.ByteString_Output).Write(int8SliceToBytes(CheckNotNull(arg0)))\n";
+          return "\t_, _ = this_.Core_.(*protobuf.ByteString_Output).Write(int8SliceToBytes(CheckNotNullSlice(arg0)))\n";
         }
       }
       if (m.equals("write") && arity == 3) {
-        return "\traw := int8SliceToBytes(CheckNotNull(arg0))\n\t_, _ = this_.Core_.(*protobuf.ByteString_Output).Write(raw[arg1 : arg1+arg2])\n";
+        return "\traw := int8SliceToBytes(CheckNotNullSlice(arg0))\n\t_, _ = this_.Core_.(*protobuf.ByteString_Output).Write(raw[arg1 : arg1+arg2])\n";
       }
       if (m.equals("size") && arity == 0) {
         return "\treturn int32(this_.Core_.(*protobuf.ByteString_Output).Size())\n";
@@ -1145,7 +1145,7 @@ public final class RuntimeProtobufBindings {
             if (qn.equals("com.google.javascript.jscomp.serialization.AstNode.Builder")
                 && m.equals("addChild")) {
               if (p0Qn.equals("com.google.javascript.jscomp.serialization.AstNode")) {
-                return "\tCheckNotNull(arg0)\n"
+                return "\tCheckNotNullPtr(arg0)\n"
                     + "\tif cb, ok := arg0.Core_.(*" + bldExtStruct + "); ok && cb.fromPool_ {\n"
                     + "\t\tif cb.linked_ || cb == this_ || !this_.fromPool_ || this_.pinned_ || this_.Raw_ != &this_.inlineRaw {\n"
                     + "\t\t\tcb.pinned_ = true\n"
@@ -1158,7 +1158,7 @@ public final class RuntimeProtobufBindings {
                     + "\t" + pMutExpr + ".AddChild(arg0.buildRaw_AstNode())\n\treturn this_\n";
               }
               if (p0Qn.equals("com.google.javascript.jscomp.serialization.AstNode.Builder")) {
-                return "\tCheckNotNull(arg0)\n"
+                return "\tCheckNotNullPtr(arg0)\n"
                     + "\trawChild := arg0.buildRaw_AstNode()\n"
                     + "\tif arg0.fromPool_ {\n"
                     + "\t\tif arg0.linked_ || arg0 == this_ || !this_.fromPool_ || this_.pinned_ || this_.Raw_ != &this_.inlineRaw || rawChild != &arg0.inlineRaw {\n"
@@ -1172,7 +1172,7 @@ public final class RuntimeProtobufBindings {
                     + "\t" + pMutExpr + ".AddChild(rawChild)\n\treturn this_\n";
               }
             }
-            return "\tCheckNotNull(arg0)\n\t"
+            return "\tCheckNotNullPtr(arg0)\n\t"
                 + pMutExpr
                 + "."
                 + goMethod
@@ -1194,7 +1194,7 @@ public final class RuntimeProtobufBindings {
       if (!cached) {
         return "\treturn newProtoStringList(" + pExpr + "." + goMethod + "())\n";
       }
-      return "\tCheckNotNull(this_)\n"
+      return "\tCheckNotNullPtr(this_)\n"
           + "\tif p := this_.cache_" + goMethod + ".Load(); p != nil { return p }\n"
           + "\traw := " + pExpr + "." + goMethod + "()\n"
           + "\tif len(raw) == 0 {\n"
@@ -1211,7 +1211,7 @@ public final class RuntimeProtobufBindings {
       if (!cached) {
         return "\treturn wrapProtoInt32List(" + pExpr + "." + goMethod + "())\n";
       }
-      return "\tCheckNotNull(this_)\n"
+      return "\tCheckNotNullPtr(this_)\n"
           + "\tif p := this_.cache_" + goMethod + ".Load(); p != nil { return p }\n"
           + "\traw := " + pExpr + "." + goMethod + "()\n"
           + "\tif len(raw) == 0 {\n"
@@ -1231,7 +1231,7 @@ public final class RuntimeProtobufBindings {
       if (!cached) {
         return "\traw := " + pExpr + ".GetAllowableFeaturesList()\n" + buildItems + "\treturn newProtoList(items)\n";
       }
-      return "\tCheckNotNull(this_)\n"
+      return "\tCheckNotNullPtr(this_)\n"
           + "\tif p := this_.cache_" + goMethod + ".Load(); p != nil { return p }\n"
           + "\traw := " + pExpr + ".GetAllowableFeaturesList()\n"
           + "\tif len(raw) == 0 {\n"
@@ -1250,7 +1250,7 @@ public final class RuntimeProtobufBindings {
       if (!cached) {
         return "\traw := " + pExpr + ".GetKindList()\n" + buildItems + "\treturn newProtoList(items)\n";
       }
-      return "\tCheckNotNull(this_)\n"
+      return "\tCheckNotNullPtr(this_)\n"
           + "\tif p := this_.cache_" + goMethod + ".Load(); p != nil { return p }\n"
           + "\traw := " + pExpr + ".GetKindList()\n"
           + "\tif len(raw) == 0 {\n"
@@ -1500,7 +1500,7 @@ public final class RuntimeProtobufBindings {
         }
 
         func (c *Ext_com_google_protobuf_CodedInputStreamBase) cis() *protobuf.CodedInputStream {
-        \tCheckNotNull(c)
+        \tCheckNotNullPtr(c)
         \treturn c.Core_.(*protobuf.CodedInputStream)
         }
 

@@ -125,7 +125,7 @@ func InitControlFlowGraph[N comparable](this_ *ControlFlowGraphBase[N], entry N,
 
 // Java method: ControlFlowGraph.resetCfgForPool()
 func (this_ *ControlFlowGraphBase[N]) ResetCfgForPool() bool {
-	this_.slab_LinearFlowState.Reset()
+	this_.slab_LinearFlowState.Release()
 	this_.implicitReturn = nil
 	this_.entry = nil
 	return this_.ResetForReuse(true, false)

@@ -183,11 +183,11 @@ func (this_ *JsFileRegexParser) ParseFile(filePath string, closureRelativePath s
 	_ = filePath
 	_ = closureRelativePath
 	_ = fileContents
-	return this_.priv_JsFileRegexParser_parseReader_6092(filePath, closureRelativePath, j2gort.NewExt_java_io_StringReader(fileContents))
+	return this_.priv_JsFileRegexParser_parseReader_6100(filePath, closureRelativePath, j2gort.NewExt_java_io_StringReader(fileContents))
 }
 
 // Java method: JsFileRegexParser.parseReader(java.lang.String filePath, java.lang.String closureRelativePath, java.io.Reader fileContents)
-func (this_ *JsFileRegexParser) priv_JsFileRegexParser_parseReader_6092(filePath string, closureRelativePath string, fileContents j2gort.Ext_java_io_Reader) DependencyInfo {
+func (this_ *JsFileRegexParser) priv_JsFileRegexParser_parseReader_6100(filePath string, closureRelativePath string, fileContents j2gort.Ext_java_io_Reader) DependencyInfo {
 	_ = filePath
 	_ = closureRelativePath
 	_ = fileContents
@@ -226,7 +226,7 @@ func (this_ *JsFileRegexParser) priv_JsFileRegexParser_parseReader_6092(filePath
 }
 
 // Java method: JsFileRegexParser.setModuleType(com.google.javascript.jscomp.deps.JsFileRegexParser.ModuleType type)
-func (this_ *JsFileRegexParser) priv_JsFileRegexParser_setModuleType_6093(type_ JsFileRegexParser_ModuleType) bool {
+func (this_ *JsFileRegexParser) priv_JsFileRegexParser_setModuleType_6101(type_ JsFileRegexParser_ModuleType) bool {
 	_ = type_
 	var provide bool = ((type_ == StaticGet_JsFileRegexParser_ModuleType_GOOG_PROVIDE()) || (this_.moduleType == StaticGet_JsFileRegexParser_ModuleType_GOOG_PROVIDE()))
 	_ = provide
@@ -269,7 +269,7 @@ func (this_ *JsFileRegexParser) ParseJsDocCommentLine(line string) bool {
 }
 
 // Java method: JsFileRegexParser.applyGoogMatcher(java.lang.String line)
-func (this_ *JsFileRegexParser) priv_JsFileRegexParser_applyGoogMatcher_6094(line string) bool {
+func (this_ *JsFileRegexParser) priv_JsFileRegexParser_applyGoogMatcher_6102(line string) bool {
 	_ = line
 	var lineHasProvidesOrRequires bool = false
 	_ = lineHasProvidesOrRequires
@@ -295,10 +295,10 @@ func (this_ *JsFileRegexParser) priv_JsFileRegexParser_applyGoogMatcher_6094(lin
 		var isRequire bool = ((int32(firstChar) == int32(uint16(114))) || (int32(firstChar) == int32(uint16(102))))
 		_ = isRequire
 		if isModule && !(this_.seenLoadModule) {
-			providesNamespace = this_.priv_JsFileRegexParser_setModuleType_6093(StaticGet_JsFileRegexParser_ModuleType_GOOG_MODULE())
+			providesNamespace = this_.priv_JsFileRegexParser_setModuleType_6101(StaticGet_JsFileRegexParser_ModuleType_GOOG_MODULE())
 		}
 		if isProvide {
-			providesNamespace = this_.priv_JsFileRegexParser_setModuleType_6093(StaticGet_JsFileRegexParser_ModuleType_GOOG_PROVIDE())
+			providesNamespace = this_.priv_JsFileRegexParser_setModuleType_6101(StaticGet_JsFileRegexParser_ModuleType_GOOG_PROVIDE())
 		}
 		if providesNamespace || isRequire {
 			var arg string = this_.ParseJsString(this_.googMatcher.Group_1_string("args"))
@@ -330,10 +330,10 @@ func (this_ *JsFileRegexParser) ParseLine(line string) bool {
 	var lineHasProvidesOrRequiresWords bool = ((((((j2gort.JStrIndexOf(line, "provide") >= 0) || (j2gort.JStrIndexOf(line, "require") >= 0)) || (j2gort.JStrIndexOf(line, "forwardDeclare") >= 0)) || (j2gort.JStrIndexOf(line, "module") >= 0)) || (j2gort.JStrIndexOf(line, "addDependency") >= 0)) || (j2gort.JStrIndexOf(line, "declareModuleId") >= 0))
 	_ = lineHasProvidesOrRequiresWords
 	if !(j2gort.CheckNotNullString(this_.googMatcherBuffer) == "") {
-		lineHasProvidesOrRequires = this_.priv_JsFileRegexParser_applyGoogMatcher_6094((j2gort.StrValString(this_.googMatcherBuffer) + j2gort.StrValString(line)))
+		lineHasProvidesOrRequires = this_.priv_JsFileRegexParser_applyGoogMatcher_6102((j2gort.StrValString(this_.googMatcherBuffer) + j2gort.StrValString(line)))
 	}
 	if !(lineHasProvidesOrRequires) && lineHasProvidesOrRequiresWords {
-		lineHasProvidesOrRequires = this_.priv_JsFileRegexParser_applyGoogMatcher_6094(line)
+		lineHasProvidesOrRequires = this_.priv_JsFileRegexParser_applyGoogMatcher_6102(line)
 	}
 	if !(lineHasProvidesOrRequires) && lineHasProvidesOrRequiresWords {
 		this_.googMatcherBuffer = line
@@ -343,7 +343,7 @@ func (this_ *JsFileRegexParser) ParseLine(line string) bool {
 	if javalang.StringStartsWith(j2gort.CheckNotNullString(line), "import") || javalang.StringStartsWith(j2gort.CheckNotNullString(line), "export") {
 		this_.es6Matcher.Reset_1(j2gort.BoxString(line))
 		for this_.es6Matcher.Find_0() {
-			this_.priv_JsFileRegexParser_setModuleType_6093(StaticGet_JsFileRegexParser_ModuleType_ES6_MODULE())
+			this_.priv_JsFileRegexParser_setModuleType_6101(StaticGet_JsFileRegexParser_ModuleType_ES6_MODULE())
 			lineHasProvidesOrRequires = true
 			var arg string = this_.es6Matcher.Group_1_int32(int32(1))
 			_ = arg
@@ -361,7 +361,7 @@ func (this_ *JsFileRegexParser) ParseLine(line string) bool {
 			}
 		}
 		if (this_.moduleType != StaticGet_JsFileRegexParser_ModuleType_ES6_MODULE()) && StaticGet_JsFileRegexParser_ES6_EXPORT_PATTERN().Matcher(j2gort.BoxString(line)).LookingAt() {
-			this_.priv_JsFileRegexParser_setModuleType_6093(StaticGet_JsFileRegexParser_ModuleType_ES6_MODULE())
+			this_.priv_JsFileRegexParser_setModuleType_6101(StaticGet_JsFileRegexParser_ModuleType_ES6_MODULE())
 		}
 	}
 	return ((((((!(this_.GetJsFileLineParserBase().shortcutMode) || lineHasProvidesOrRequires) || !(j2gort.CheckNotNullString(this_.googMatcherBuffer) == "")) || j2gort.Ext_com_google_common_base_CharMatcher_S_Whitespace().MatchesAllOf(j2gort.BoxString(line))) || !(j2gort.JStrIndexOf(line, ";") >= 0)) || (j2gort.JStrIndexOf(line, "goog.setTestOnly") >= 0)) || (j2gort.JStrIndexOf(line, "goog.module.declareLegacyNamespace") >= 0))

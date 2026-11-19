@@ -31,7 +31,7 @@ var lambdaSingleton_runtime_js_lib_manager_1 j2gort.Ext_java_util_function_Predi
 
 func init() {
 	lambdaSingleton_runtime_js_lib_manager_1 = j2gort.NewLambda_Ext_java_util_function_Predicate(func(mrp0_ any) bool {
-		return j2gort.CastPtr[RuntimeJsLibManager_InternalField](mrp0_).priv_InternalField_isInjected_6468()
+		return j2gort.CastPtr[RuntimeJsLibManager_InternalField](mrp0_).priv_InternalField_isInjected_6480()
 	})
 }
 
@@ -136,12 +136,12 @@ func (this_ *RuntimeJsLibManager) GetExternedFields() j2gort.Ext_com_google_comm
 }
 
 // Java method: RuntimeJsLibManager.createField(java.lang.String fieldName)
-func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_createField_6458(fieldName string) *RuntimeJsLibManager_InternalField {
+func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_createField_6470(fieldName string) *RuntimeJsLibManager_InternalField {
 	_ = fieldName
 	if !(!(j2gort.CheckNotNullString(fieldName) == "")) {
 		j2gort.CheckArgumentStr(false, fieldName)
 	}
-	var parts j2gort.Ext_java_util_List = j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(46)).SplitToList(j2gort.BoxString(fieldName))
+	var parts j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(46)), fieldName)
 	_ = parts
 	if !(parts.Size() >= int32(2)) {
 		j2gort.CheckArgumentFmt(false, "Field name must start with $jscomp., found %s", j2gort.BoxString(fieldName))
@@ -167,16 +167,16 @@ func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_createField_6458(fiel
 // Java method: RuntimeJsLibManager.getJsLibField(java.lang.String fieldName)
 func (this_ *RuntimeJsLibManager) GetJsLibField(fieldName string) RuntimeJsLibManager_JsLibField {
 	_ = fieldName
-	return ToIface_RuntimeJsLibManager_JsLibField(this_.priv_RuntimeJsLibManager_getJsLibFieldInternal_6460(fieldName))
+	return ToIface_RuntimeJsLibManager_JsLibField(this_.priv_RuntimeJsLibManager_getJsLibFieldInternal_6472(fieldName))
 }
 
 // Java method: RuntimeJsLibManager.getJsLibFieldInternal(java.lang.String fieldName)
-func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_getJsLibFieldInternal_6460(fieldName string) *RuntimeJsLibManager_InternalField {
+func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_getJsLibFieldInternal_6472(fieldName string) *RuntimeJsLibManager_InternalField {
 	_ = fieldName
 	return func() *RuntimeJsLibManager_InternalField {
 		bound_1 := this_
 		return j2gort.OrderedMapComputeIfAbsent(&this_.internedFields, fieldName, nil, func(mrp0_ string) *RuntimeJsLibManager_InternalField {
-			return bound_1.priv_RuntimeJsLibManager_createField_6458(mrp0_)
+			return bound_1.priv_RuntimeJsLibManager_createField_6470(mrp0_)
 		})
 	}()
 
@@ -185,12 +185,12 @@ func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_getJsLibFieldInternal
 // Java method: RuntimeJsLibManager.injectLibForField(java.lang.String fieldName)
 func (this_ *RuntimeJsLibManager) InjectLibForField(fieldName string) {
 	_ = fieldName
-	var field *RuntimeJsLibManager_InternalField = this_.priv_RuntimeJsLibManager_getJsLibFieldInternal_6460(fieldName)
+	var field *RuntimeJsLibManager_InternalField = this_.priv_RuntimeJsLibManager_getJsLibFieldInternal_6472(fieldName)
 	_ = field
-	if field.priv_InternalField_isInjected_6468() {
+	if field.priv_InternalField_isInjected_6480() {
 		return
 	}
-	field.priv_InternalField_markInjected_6469()
+	field.priv_InternalField_markInjected_6481()
 	if this_.mode == StaticGet_RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES() {
 		var externRoot pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](this_.nodeForCodeInsertion.Get())
 		_ = externRoot
@@ -227,12 +227,12 @@ func (this_ *RuntimeJsLibManager) EnsureLibraryInjected(resourceName string, for
 	_ = path
 	var ast pkg_rhino.Node = this_.resourceProvider.Parse(resourceName, path)
 	_ = ast
-	this_.priv_RuntimeJsLibManager_injectLibraryDependencies_6464(ast, force)
-	return this_.priv_RuntimeJsLibManager_injectLibrary_6463(ast)
+	this_.priv_RuntimeJsLibManager_injectLibraryDependencies_6476(ast, force)
+	return this_.priv_RuntimeJsLibManager_injectLibrary_6475(ast)
 }
 
 // Java method: RuntimeJsLibManager.injectLibrary(com.google.javascript.rhino.Node ast)
-func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_injectLibrary_6463(ast pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_injectLibrary_6475(ast pkg_rhino.Node) pkg_rhino.Node {
 	_ = ast
 	if !(ast.HasChildren()) {
 		return this_.lastInjectedLibrary
@@ -261,7 +261,7 @@ func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_injectLibrary_6463(as
 }
 
 // Java method: RuntimeJsLibManager.injectLibraryDependencies(com.google.javascript.rhino.Node ast, boolean force)
-func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_injectLibraryDependencies_6464(ast pkg_rhino.Node, force bool) {
+func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_injectLibraryDependencies_6476(ast pkg_rhino.Node, force bool) {
 	_ = ast
 	_ = force
 	{
@@ -270,7 +270,7 @@ func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_injectLibraryDependen
 		for ; ((node != 0) && node.IsExprResult()) && node.GetFirstChild().IsStringLit(); node = ast.GetFirstChild() {
 			var directive string = node.GetFirstChild().GetString()
 			_ = directive
-			var words j2gort.Ext_java_util_List = j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(32)).Limit(int32(2)).SplitToList(j2gort.BoxString(directive))
+			var words j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(32)).Limit(int32(2)), directive)
 			_ = words
 			switch j2gort.CheckNotNullString(j2gort.ListGetStr(words, int32(0))) {
 			case "use":
@@ -539,11 +539,11 @@ func RuntimeJsLibManager_FieldsTable_LoadFields() j2gort.Ext_com_google_common_c
 	var allFields j2gort.Ext_com_google_common_collect_ImmutableMap_Builder = j2gort.Ext_com_google_common_collect_ImmutableMap_S_Builder()
 	_ = allFields
 	{
-		cur_2 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(10)).OmitEmptyStrings().Split(j2gort.BoxString(transpilationLibsTxt))))
+		cur_2 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.SplitterSplitStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(10)).OmitEmptyStrings(), transpilationLibsTxt)))
 		for cur_2.HasNext() {
 			line := cur_2.NextStr()
 			_ = line
-			var tokens j2gort.Ext_java_util_List = j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(44)).Limit(int32(2)).SplitToList(j2gort.BoxString(line))
+			var tokens j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(44)).Limit(int32(2)), line)
 			_ = tokens
 			if !(tokens.Size() == int32(2)) {
 				j2gort.CheckStateMsg(false, tokens)
@@ -624,12 +624,12 @@ func InitRuntimeJsLibManager_InternalField(this_ *RuntimeJsLibManager_InternalFi
 }
 
 // Java method: InternalField.isInjected()
-func (this_ *RuntimeJsLibManager_InternalField) priv_InternalField_isInjected_6468() bool {
+func (this_ *RuntimeJsLibManager_InternalField) priv_InternalField_isInjected_6480() bool {
 	return this_.injected
 }
 
 // Java method: InternalField.markInjected()
-func (this_ *RuntimeJsLibManager_InternalField) priv_InternalField_markInjected_6469() {
+func (this_ *RuntimeJsLibManager_InternalField) priv_InternalField_markInjected_6481() {
 	this_.injected = true
 }
 

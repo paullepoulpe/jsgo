@@ -286,7 +286,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_common_base_CaseFormat) To(arg0 *Ext_com_google_common_base_CaseFormat, arg1 string) string {
-	return guavaCaseFormatConvert(this_.Name_, CheckNotNull(arg0).Name_, CheckNotNull(arg1))
+	return guavaCaseFormatConvert(this_.Name_, CheckNotNullPtr(arg0).Name_, CheckNotNullString(arg1))
 }
 
 // External subclassable class com.google.common.base.CharMatcher
@@ -470,7 +470,7 @@ func (b *Ext_com_google_common_base_Joiner) mc() *JMapCore {
 	return b.Core_.(*JMapCore)
 }
 func (this_ *Ext_com_google_common_base_Joiner) AppendTo_2_Ext_java_lang_StringBuilder_Ext_java_lang_Iterable(arg0 *Ext_java_lang_StringBuilder, arg1 Ext_java_lang_Iterable) *Ext_java_lang_StringBuilder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	arg0.sbCore().appendString(guavaJoinerJoinIter(this_, CheckNotNull(arg1)))
 	return arg0
 }
@@ -478,7 +478,7 @@ func (this_ *Ext_com_google_common_base_Joiner) Join_1_Ext_java_lang_Iterable(ar
 	return guavaJoinerJoinIter(this_, CheckNotNull(arg0))
 }
 func (this_ *Ext_com_google_common_base_Joiner) Join_1_slice_any(arg0 []any) string {
-	return guavaJoinerJoinSlice(this_, CheckNotNull(arg0))
+	return guavaJoinerJoinSlice(this_, CheckNotNullSlice(arg0))
 }
 func (this_ *Ext_com_google_common_base_Joiner) Join_3(arg0 any, arg1 any, arg2 []any) string {
 	return guavaJoinerJoinVarargs(this_, arg0, arg1, arg2)
@@ -556,15 +556,15 @@ func (this_ *Ext_com_google_common_base_MoreObjects_ToStringHelper) OmitNullValu
 	return this_
 }
 func (this_ *Ext_com_google_common_base_MoreObjects_ToStringHelper) Add_2_string_any(arg0 string, arg1 any) *Ext_com_google_common_base_MoreObjects_ToStringHelper {
-	this_.toStringHelperAdd(CheckNotNull(arg0), arg1)
+	this_.toStringHelperAdd(CheckNotNullString(arg0), arg1)
 	return this_
 }
 func (this_ *Ext_com_google_common_base_MoreObjects_ToStringHelper) Add_2_string_bool(arg0 string, arg1 bool) *Ext_com_google_common_base_MoreObjects_ToStringHelper {
-	this_.toStringHelperAdd(CheckNotNull(arg0), arg1)
+	this_.toStringHelperAdd(CheckNotNullString(arg0), arg1)
 	return this_
 }
 func (this_ *Ext_com_google_common_base_MoreObjects_ToStringHelper) Add_2_string_int32(arg0 string, arg1 int32) *Ext_com_google_common_base_MoreObjects_ToStringHelper {
-	this_.toStringHelperAdd(CheckNotNull(arg0), arg1)
+	this_.toStringHelperAdd(CheckNotNullString(arg0), arg1)
 	return this_
 }
 func (this_ *Ext_com_google_common_base_MoreObjects_ToStringHelper) String() string {
@@ -1298,9 +1298,6 @@ func (this_ *Ext_com_google_common_collect_AbstractListMultimapBase) Put(arg0 an
 func (this_ *Ext_com_google_common_collect_AbstractListMultimapBase) AsMap() any {
 	return multimapOp_asMap_0(this_.getCore().(*jMultimapCore))
 }
-func (this_ *Ext_com_google_common_collect_AbstractListMultimapBase) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
-}
 func (this_ *Ext_com_google_common_collect_AbstractListMultimapBase) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
 }
@@ -1459,9 +1456,6 @@ func (b *Ext_com_google_common_collect_AbstractMapBasedMultimapBase) GetExt_com_
 func (b *Ext_com_google_common_collect_AbstractMapBasedMultimapBase) Implements_j2gort_Ext_com_google_common_collect_AbstractMultimap() {
 }
 func (b *Ext_com_google_common_collect_AbstractMapBasedMultimapBase) Implements_j2gort_Ext_com_google_common_collect_Multimap() {
-}
-func (this_ *Ext_com_google_common_collect_AbstractMapBasedMultimapBase) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
 }
 func (this_ *Ext_com_google_common_collect_AbstractMapBasedMultimapBase) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
@@ -1842,9 +1836,6 @@ func (this_ *Ext_com_google_common_collect_AbstractMultimapBase) Values() any {
 func (this_ *Ext_com_google_common_collect_AbstractMultimapBase) AsMap() any {
 	return multimapOp_asMap_0(this_.getCore().(*jMultimapCore))
 }
-func (this_ *Ext_com_google_common_collect_AbstractMultimapBase) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
-}
 func (this_ *Ext_com_google_common_collect_AbstractMultimapBase) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
 }
@@ -2180,7 +2171,7 @@ func (this_ *Ext_com_google_common_collect_AbstractRangeSetBase) IsEmpty() bool 
 	return len(this_.getCore().(*jRangeSetCore).ranges) == 0
 }
 func (this_ *Ext_com_google_common_collect_AbstractRangeSetBase) Add(arg0 *Ext_com_google_common_collect_Range) {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	rc := arg0.Core_.(*jRangeCore)
 	if CompareValues(rc.lower, rc.upper) <= 0 {
 		rs := this_.getCore().(*jRangeSetCore)
@@ -2248,9 +2239,6 @@ func (this_ *Ext_com_google_common_collect_AbstractSetMultimapBase) AsMap() any 
 }
 func (this_ *Ext_com_google_common_collect_AbstractSetMultimapBase) Put(arg0 any, arg1 any) bool {
 	return multimapOp_put_2(this_.getCore().(*jMultimapCore), arg0, arg1)
-}
-func (this_ *Ext_com_google_common_collect_AbstractSetMultimapBase) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
 }
 func (this_ *Ext_com_google_common_collect_AbstractSetMultimapBase) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
@@ -2440,9 +2428,6 @@ func (this_ *Ext_com_google_common_collect_AbstractSortedKeySortedSetMultimapBas
 }
 func (this_ *Ext_com_google_common_collect_AbstractSortedKeySortedSetMultimapBase) Put(arg0 any, arg1 any) bool {
 	return multimapOp_put_2(this_.getCore().(*jMultimapCore), arg0, arg1)
-}
-func (this_ *Ext_com_google_common_collect_AbstractSortedKeySortedSetMultimapBase) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
 }
 func (this_ *Ext_com_google_common_collect_AbstractSortedKeySortedSetMultimapBase) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
@@ -2793,9 +2778,6 @@ func (this_ *Ext_com_google_common_collect_AbstractSortedSetMultimapBase) Values
 func (this_ *Ext_com_google_common_collect_AbstractSortedSetMultimapBase) Put(arg0 any, arg1 any) bool {
 	return multimapOp_put_2(this_.getCore().(*jMultimapCore), arg0, arg1)
 }
-func (this_ *Ext_com_google_common_collect_AbstractSortedSetMultimapBase) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
-}
 func (this_ *Ext_com_google_common_collect_AbstractSortedSetMultimapBase) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
 }
@@ -3035,9 +3017,6 @@ func (this_ *Ext_com_google_common_collect_ArrayListMultimap) Put(arg0 any, arg1
 func (this_ *Ext_com_google_common_collect_ArrayListMultimap) AsMap() any {
 	return multimapOp_asMap_0(this_.getCore().(*jMultimapCore))
 }
-func (this_ *Ext_com_google_common_collect_ArrayListMultimap) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
-}
 func (this_ *Ext_com_google_common_collect_ArrayListMultimap) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
 }
@@ -3216,9 +3195,6 @@ func (this_ *Ext_com_google_common_collect_ArrayListMultimapGwtSerializationDepe
 }
 func (this_ *Ext_com_google_common_collect_ArrayListMultimapGwtSerializationDependenciesBase) AsMap() any {
 	return multimapOp_asMap_0(this_.getCore().(*jMultimapCore))
-}
-func (this_ *Ext_com_google_common_collect_ArrayListMultimapGwtSerializationDependenciesBase) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
 }
 func (this_ *Ext_com_google_common_collect_ArrayListMultimapGwtSerializationDependenciesBase) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
@@ -3403,9 +3379,6 @@ func (this_ *Ext_com_google_common_collect_BaseImmutableMultimapBase) Values() a
 }
 func (this_ *Ext_com_google_common_collect_BaseImmutableMultimapBase) AsMap() any {
 	return multimapOp_asMap_0(this_.getCore().(*jMultimapCore))
-}
-func (this_ *Ext_com_google_common_collect_BaseImmutableMultimapBase) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
 }
 func (this_ *Ext_com_google_common_collect_BaseImmutableMultimapBase) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
@@ -3914,9 +3887,6 @@ func (this_ *Ext_com_google_common_collect_HashMultimap) AsMap() any {
 func (this_ *Ext_com_google_common_collect_HashMultimap) Put(arg0 any, arg1 any) bool {
 	return multimapOp_put_2(this_.getCore().(*jMultimapCore), arg0, arg1)
 }
-func (this_ *Ext_com_google_common_collect_HashMultimap) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
-}
 func (this_ *Ext_com_google_common_collect_HashMultimap) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
 }
@@ -4095,9 +4065,6 @@ func (this_ *Ext_com_google_common_collect_HashMultimapGwtSerializationDependenc
 }
 func (this_ *Ext_com_google_common_collect_HashMultimapGwtSerializationDependenciesBase) Put(arg0 any, arg1 any) bool {
 	return multimapOp_put_2(this_.getCore().(*jMultimapCore), arg0, arg1)
-}
-func (this_ *Ext_com_google_common_collect_HashMultimapGwtSerializationDependenciesBase) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
 }
 func (this_ *Ext_com_google_common_collect_HashMultimapGwtSerializationDependenciesBase) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
@@ -5148,9 +5115,6 @@ func (this_ *Ext_com_google_common_collect_ImmutableListMultimap) Remove(arg0 an
 func (this_ *Ext_com_google_common_collect_ImmutableListMultimap) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
 }
-func (this_ *Ext_com_google_common_collect_ImmutableListMultimap) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
-}
 func (this_ *Ext_com_google_common_collect_ImmutableListMultimap) KeySet() any {
 	return multimapOp_keySet_0(this_.getCore().(*jMultimapCore))
 }
@@ -5712,9 +5676,6 @@ func (this_ *Ext_com_google_common_collect_ImmutableMultimapBase) Remove(arg0 an
 }
 func (this_ *Ext_com_google_common_collect_ImmutableMultimapBase) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
-}
-func (this_ *Ext_com_google_common_collect_ImmutableMultimapBase) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
 }
 func (this_ *Ext_com_google_common_collect_ImmutableMultimapBase) KeySet() any {
 	return multimapOp_keySet_0(this_.getCore().(*jMultimapCore))
@@ -6328,6 +6289,10 @@ type Ext_com_google_common_collect_ImmutableSetBase struct {
 	strs_                                                 []string                  `gson:"-"`
 	singleStr_                                            [1]string                 `gson:"-"`
 	idx_                                                  atomic.Pointer[immSetIdx] `gson:"-"`
+	u8Bits_                                               [4]uint64                 `gson:"-"`
+	u8Tab_                                                *[256]bool                `gson:"-"`
+	u8PtrNil_                                             any                       `gson:"-"`
+	hasU8Bits_                                            bool                      `gson:"-"`
 }
 
 func (b *Ext_com_google_common_collect_ImmutableSetBase) IsJavaNil_() bool { return b == nil }
@@ -6822,9 +6787,6 @@ func (this_ *Ext_com_google_common_collect_ImmutableSetMultimap) Remove(arg0 any
 }
 func (this_ *Ext_com_google_common_collect_ImmutableSetMultimap) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
-}
-func (this_ *Ext_com_google_common_collect_ImmutableSetMultimap) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
 }
 func (this_ *Ext_com_google_common_collect_ImmutableSetMultimap) KeySet() any {
 	return multimapOp_keySet_0(this_.getCore().(*jMultimapCore))
@@ -7677,9 +7639,6 @@ func (this_ *Ext_com_google_common_collect_LinkedHashMultimap) AsMap() any {
 func (this_ *Ext_com_google_common_collect_LinkedHashMultimap) Put(arg0 any, arg1 any) bool {
 	return multimapOp_put_2(this_.getCore().(*jMultimapCore), arg0, arg1)
 }
-func (this_ *Ext_com_google_common_collect_LinkedHashMultimap) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
-}
 func (this_ *Ext_com_google_common_collect_LinkedHashMultimap) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
 }
@@ -7849,9 +7808,6 @@ func (this_ *Ext_com_google_common_collect_LinkedHashMultimapGwtSerializationDep
 }
 func (this_ *Ext_com_google_common_collect_LinkedHashMultimapGwtSerializationDependenciesBase) Put(arg0 any, arg1 any) bool {
 	return multimapOp_put_2(this_.getCore().(*jMultimapCore), arg0, arg1)
-}
-func (this_ *Ext_com_google_common_collect_LinkedHashMultimapGwtSerializationDependenciesBase) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
 }
 func (this_ *Ext_com_google_common_collect_LinkedHashMultimapGwtSerializationDependenciesBase) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
@@ -8128,9 +8084,6 @@ func (b *Ext_com_google_common_collect_LinkedListMultimap) Implements_j2gort_Ext
 func (b *Ext_com_google_common_collect_LinkedListMultimap) Implements_j2gort_Ext_com_google_common_collect_ListMultimap() {
 }
 func (b *Ext_com_google_common_collect_LinkedListMultimap) Implements_j2gort_Ext_com_google_common_collect_Multimap() {
-}
-func (this_ *Ext_com_google_common_collect_LinkedListMultimap) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
 }
 func (this_ *Ext_com_google_common_collect_LinkedListMultimap) IsEmpty() bool {
 	return multimapOp_isEmpty_0(this_.getCore().(*jMultimapCore))
@@ -8459,7 +8412,6 @@ func (this_ *Ext_com_google_common_collect_Maps_IteratorBasedAbstractMapBase) Me
 // External interface com.google.common.collect.Multimap
 type Ext_com_google_common_collect_Multimap interface {
 	Implements_j2gort_Ext_com_google_common_collect_Multimap()
-	Size() int32
 	IsEmpty() bool
 	ContainsKey(any) bool
 	ContainsEntry(any, any) bool
@@ -9571,9 +9523,6 @@ func (this_ *Ext_com_google_common_collect_TreeMultimap) Values() any {
 func (this_ *Ext_com_google_common_collect_TreeMultimap) Put(arg0 any, arg1 any) bool {
 	return multimapOp_put_2(this_.getCore().(*jMultimapCore), arg0, arg1)
 }
-func (this_ *Ext_com_google_common_collect_TreeMultimap) Size() int32 {
-	return multimapOp_size_0(this_.getCore().(*jMultimapCore))
-}
 func (this_ *Ext_com_google_common_collect_TreeMultimap) ContainsKey(arg0 any) bool {
 	return multimapOp_containsKey_1(this_.getCore().(*jMultimapCore), arg0)
 }
@@ -9847,7 +9796,7 @@ func (b *Ext_com_google_common_collect_TreeRangeSet) Implements_j2gort_Ext_com_g
 func (b *Ext_com_google_common_collect_TreeRangeSet) Implements_j2gort_Ext_com_google_common_collect_RangeSet() {
 }
 func (this_ *Ext_com_google_common_collect_TreeRangeSet) Add(arg0 *Ext_com_google_common_collect_Range) {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	rc := arg0.Core_.(*jRangeCore)
 	if CompareValues(rc.lower, rc.upper) <= 0 {
 		rs := this_.getCore().(*jRangeSetCore)
@@ -10059,7 +10008,7 @@ func (this_ *Ext_com_google_common_escape_EscaperBase) Escape_1_string(arg0 stri
 	if this_.Self_ != nil && !RefEquals(this_.Self_, this_) {
 		return this_.Self_.Escape_1_string(arg0)
 	}
-	return escapePercentCore(this_.Core_, CheckNotNull(arg0))
+	return escapePercentCore(this_.Core_, CheckNotNullString(arg0))
 }
 func (this_ *Ext_com_google_common_escape_EscaperBase) AsFunction() Ext_com_google_common_base_Function {
 	self := Ext_com_google_common_escape_Escaper(this_)
@@ -10115,7 +10064,7 @@ func (this_ *Ext_com_google_common_escape_UnicodeEscaperBase) Escape_1_string(ar
 	if this_.Self_ != nil && !RefEquals(this_.Self_, this_) {
 		return this_.Self_.Escape_1_string(arg0)
 	}
-	return escapePercentCore(this_.Core_, CheckNotNull(arg0))
+	return escapePercentCore(this_.Core_, CheckNotNullString(arg0))
 }
 func (this_ *Ext_com_google_common_escape_UnicodeEscaperBase) AsFunction() Ext_com_google_common_base_Function {
 	self := Ext_com_google_common_escape_Escaper(this_)
@@ -10272,7 +10221,6 @@ type Ext_com_google_common_hash_PrimitiveSink interface {
 	PutInt(int32) any
 	PutLong(int64) any
 	PutUnencodedChars(any) any
-	PutString(any, Ext_java_nio_charset_Charset) any
 }
 
 func ToIface_Ext_com_google_common_hash_PrimitiveSink[T interface {
@@ -10349,7 +10297,7 @@ func (b *Ext_com_google_common_io_BaseEncodingBase) GetExt_com_google_common_io_
 	return b
 }
 func (this_ *Ext_com_google_common_io_BaseEncodingBase) Encode_1(arg0 []int8) string {
-	return base64Encode(CheckNotNull(arg0))
+	return base64Encode(CheckNotNullSlice(arg0))
 }
 func (this_ *Ext_com_google_common_io_BaseEncodingBase) Decode(arg0 any) []int8 {
 	return base64Decode(StrVal(CheckNotNull(arg0)))
@@ -10632,7 +10580,7 @@ func (b *Ext_com_google_common_net_PercentEscaper) Implements_j2gort_Ext_com_goo
 func (b *Ext_com_google_common_net_PercentEscaper) Implements_j2gort_Ext_com_google_common_escape_Escaper() {
 }
 func (this_ *Ext_com_google_common_net_PercentEscaper) Escape_1_string(arg0 string) string {
-	return escapePercentCore(this_.Core_, CheckNotNull(arg0))
+	return escapePercentCore(this_.Core_, CheckNotNullString(arg0))
 }
 func (this_ *Ext_com_google_common_net_PercentEscaper) AsFunction() Ext_com_google_common_base_Function {
 	return newEscaperFunction(this_)
@@ -11138,7 +11086,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_debugging_sourcemap_proto_Mapping_OriginalMapping_Precision) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.Mapping_OriginalMapping_Precision(this_.Ordinal()).GetNumber()
 }
 
@@ -11939,16 +11887,16 @@ func init() {
 }
 func (b *Ext_com_google_gson_JsonObject) Implements_j2gort_Ext_com_google_gson_JsonElement() {}
 func (this_ *Ext_com_google_gson_JsonObject) Add(arg0 string, arg1 Ext_com_google_gson_JsonElement) {
-	gsonJsonObjectAdd(this_, CheckNotNull(arg0), arg1)
+	gsonJsonObjectAdd(this_, CheckNotNullString(arg0), arg1)
 }
 func (this_ *Ext_com_google_gson_JsonObject) EntrySet() Ext_java_util_Set {
 	return gsonJsonObjectEntrySet(this_)
 }
 func (this_ *Ext_com_google_gson_JsonObject) Has(arg0 string) bool {
-	return unwrapJsonObject(this_).Has(CheckNotNull(arg0))
+	return unwrapJsonObject(this_).Has(CheckNotNullString(arg0))
 }
 func (this_ *Ext_com_google_gson_JsonObject) Get(arg0 string) Ext_com_google_gson_JsonElement {
-	return wrapJsonElement(unwrapJsonObject(this_).Get(CheckNotNull(arg0)))
+	return wrapJsonElement(unwrapJsonObject(this_).Get(CheckNotNullString(arg0)))
 }
 func (this_ *Ext_com_google_gson_JsonObject) IsJsonPrimitive() bool {
 	return unwrapJsonElement(this_).IsJsonPrimitive()
@@ -12442,7 +12390,7 @@ func (this_ *Ext_com_google_gson_stream_JsonWriter) EndObject() *Ext_com_google_
 	return this_
 }
 func (this_ *Ext_com_google_gson_stream_JsonWriter) Name(arg0 string) *Ext_com_google_gson_stream_JsonWriter {
-	gsonWriter(this_).Name(CheckNotNull(arg0))
+	gsonWriter(this_).Name(CheckNotNullString(arg0))
 	return this_
 }
 func (this_ *Ext_com_google_gson_stream_JsonWriter) Value_1_string(arg0 string) *Ext_com_google_gson_stream_JsonWriter {
@@ -12797,7 +12745,7 @@ func (this_ *Ext_com_google_javascript_jscomp_AccessorSummaryProto_Builder) GetA
 	return newProtoList(items)
 }
 func (this_ *Ext_com_google_javascript_jscomp_AccessorSummaryProto_Builder) AddAccessors_1_Ext_com_google_javascript_jscomp_AccessorSummaryEntryProto(arg0 *Ext_com_google_javascript_jscomp_AccessorSummaryEntryProto) *Ext_com_google_javascript_jscomp_AccessorSummaryProto_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_AccessorSummaryProto().AddAccessors(arg0.buildRaw_AccessorSummaryEntryProto())
 	return this_
 }
@@ -12866,7 +12814,7 @@ func (this_ *Ext_com_google_javascript_jscomp_ChunkProto) GetName() string {
 	return this_.p_ChunkProto().GetName()
 }
 func (this_ *Ext_com_google_javascript_jscomp_ChunkProto) GetDependenciesList() Ext_java_util_List {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetDependenciesList.Load(); p != nil {
 		return p
 	}
@@ -12882,7 +12830,7 @@ func (this_ *Ext_com_google_javascript_jscomp_ChunkProto) GetDependenciesList() 
 	return this_.cache_GetDependenciesList.Load()
 }
 func (this_ *Ext_com_google_javascript_jscomp_ChunkProto) GetInputIdsList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetInputIdsList.Load(); p != nil {
 		return p
 	}
@@ -13178,7 +13126,7 @@ func (this_ *Ext_com_google_javascript_jscomp_ConformanceConfig_Builder) GetRequ
 	return newProtoList(items)
 }
 func (this_ *Ext_com_google_javascript_jscomp_ConformanceConfig_Builder) AddRequirement_1_Ext_com_google_javascript_jscomp_Requirement(arg0 *Ext_com_google_javascript_jscomp_Requirement) *Ext_com_google_javascript_jscomp_ConformanceConfig_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_ConformanceConfig().AddRequirement(arg0.buildRaw_Requirement())
 	return this_
 }
@@ -13231,7 +13179,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior(this_.Ordinal()).GetNumber()
 }
 
@@ -13291,7 +13239,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_FeatureProto) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.FeatureProto(this_.Ordinal()).GetNumber()
 }
 
@@ -13337,7 +13285,7 @@ func (b *Ext_com_google_javascript_jscomp_JSCompilerStateProto) Implements_j2gor
 func (b *Ext_com_google_javascript_jscomp_JSCompilerStateProto) Implements_j2gort_Ext_com_google_protobuf_MessageLite() {
 }
 func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto) GetAllowableFeaturesList() Ext_java_util_List {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetAllowableFeaturesList.Load(); p != nil {
 		return p
 	}
@@ -13405,7 +13353,7 @@ func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto) GetUniqueIdS
 	return this_.cache_GetUniqueIdSupplierList.Load()
 }
 func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto) GetExportedNamesList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetExportedNamesList.Load(); p != nil {
 		return p
 	}
@@ -13424,7 +13372,7 @@ func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto) GetHasCssNam
 	return this_.p_JSCompilerStateProto().GetHasCssNames()
 }
 func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto) GetCssNamesList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetCssNamesList.Load(); p != nil {
 		return p
 	}
@@ -13455,7 +13403,7 @@ func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto) GetRunJ2ClPa
 	return this_.p_JSCompilerStateProto().GetRunJ2ClPasses()
 }
 func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto) GetExternsList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetExternsList.Load(); p != nil {
 		return p
 	}
@@ -13471,7 +13419,7 @@ func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto) GetExternsLi
 	return this_.cache_GetExternsList.Load()
 }
 func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto) GetInjectedLibrariesList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetInjectedLibrariesList.Load(); p != nil {
 		return p
 	}
@@ -13711,7 +13659,7 @@ func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto_Builder) GetC
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto_Builder) AddChunks_1_Ext_com_google_javascript_jscomp_ChunkProto(arg0 *Ext_com_google_javascript_jscomp_ChunkProto) *Ext_com_google_javascript_jscomp_JSCompilerStateProto_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_JSCompilerStateProto().AddChunks(arg0.buildRaw_ChunkProto())
 	return this_
 }
@@ -13827,7 +13775,7 @@ func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto_Builder) GetA
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_JSCompilerStateProto_Builder) SetAccessorSummary_1_Ext_com_google_javascript_jscomp_AccessorSummaryProto(arg0 *Ext_com_google_javascript_jscomp_AccessorSummaryProto) *Ext_com_google_javascript_jscomp_JSCompilerStateProto_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_JSCompilerStateProto().SetAccessorSummary(arg0.buildRaw_AccessorSummaryProto())
 	return this_
 }
@@ -13964,7 +13912,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_LifeCycleStageProto) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.LifeCycleStageProto(this_.Ordinal()).GetNumber()
 }
 
@@ -14001,7 +13949,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_PropertyAccessKindProto) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.PropertyAccessKindProto(this_.Ordinal()).GetNumber()
 }
 
@@ -14057,7 +14005,7 @@ func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetErrorMessage() str
 	return this_.p_Requirement().GetErrorMessage()
 }
 func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetWhitelistList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetWhitelistList.Load(); p != nil {
 		return p
 	}
@@ -14076,7 +14024,7 @@ func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetWhitelistCount() i
 	return int32(this_.p_Requirement().GetWhitelistCount())
 }
 func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetWhitelistRegexpList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetWhitelistRegexpList.Load(); p != nil {
 		return p
 	}
@@ -14095,7 +14043,7 @@ func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetWhitelistRegexpCou
 	return int32(this_.p_Requirement().GetWhitelistRegexpCount())
 }
 func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetAllowlistList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetAllowlistList.Load(); p != nil {
 		return p
 	}
@@ -14114,7 +14062,7 @@ func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetAllowlistCount() i
 	return int32(this_.p_Requirement().GetAllowlistCount())
 }
 func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetAllowlistRegexpList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetAllowlistRegexpList.Load(); p != nil {
 		return p
 	}
@@ -14181,7 +14129,7 @@ func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetAllowlistEntryList
 	return this_.cache_GetAllowlistEntryList.Load()
 }
 func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetOnlyApplyToList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetOnlyApplyToList.Load(); p != nil {
 		return p
 	}
@@ -14200,7 +14148,7 @@ func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetOnlyApplyToCount()
 	return int32(this_.p_Requirement().GetOnlyApplyToCount())
 }
 func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetOnlyApplyToRegexpList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetOnlyApplyToRegexpList.Load(); p != nil {
 		return p
 	}
@@ -14223,7 +14171,7 @@ func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetType() *Ext_com_go
 	return lookupProtoEnum_Requirement_Type(int32(v))
 }
 func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetValueList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetValueList.Load(); p != nil {
 		return p
 	}
@@ -14274,7 +14222,7 @@ func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetSeverity() *Ext_co
 	return lookupProtoEnum_Requirement_Severity(int32(v))
 }
 func (this_ *Ext_com_google_javascript_jscomp_Requirement) GetConfigFileList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetConfigFileList.Load(); p != nil {
 		return p
 	}
@@ -14605,7 +14553,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_Requirement_Severity) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.Requirement_Severity(this_.Ordinal()).GetNumber()
 }
 
@@ -14642,7 +14590,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_Requirement_Type) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.Requirement_Type(this_.Ordinal()).GetNumber()
 }
 
@@ -14683,7 +14631,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_Requirement_TypeMatchingStrategy) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.Requirement_TypeMatchingStrategy(this_.Ordinal()).GetNumber()
 }
 
@@ -14772,7 +14720,7 @@ func (b *Ext_com_google_javascript_jscomp_RequirementScopeEntry) Implements_j2go
 func (b *Ext_com_google_javascript_jscomp_RequirementScopeEntry) Implements_j2gort_Ext_com_google_protobuf_MessageLite() {
 }
 func (this_ *Ext_com_google_javascript_jscomp_RequirementScopeEntry) GetPrefixList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetPrefixList.Load(); p != nil {
 		return p
 	}
@@ -14788,7 +14736,7 @@ func (this_ *Ext_com_google_javascript_jscomp_RequirementScopeEntry) GetPrefixLi
 	return this_.cache_GetPrefixList.Load()
 }
 func (this_ *Ext_com_google_javascript_jscomp_RequirementScopeEntry) GetRegexpList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetRegexpList.Load(); p != nil {
 		return p
 	}
@@ -15633,7 +15581,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPoint_Type) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.InstrumentationPoint_Type(this_.Ordinal()).GetNumber()
 }
 
@@ -15817,7 +15765,7 @@ func (this_ *Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_Ins
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPointStats_Builder) SetPoint_1_Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPoint(arg0 *Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPoint) *Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPointStats_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_InstrumentationPointStats().SetPoint(arg0.buildRaw_InstrumentationPoint())
 	return this_
 }
@@ -15879,7 +15827,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPointStats_Presence) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.InstrumentationPointStats_Presence(this_.Ordinal()).GetNumber()
 }
 
@@ -16330,7 +16278,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_AstNode_Builder) Get
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_AstNode_Builder) AddChild_1_Ext_com_google_javascript_jscomp_serialization_AstNode(arg0 *Ext_com_google_javascript_jscomp_serialization_AstNode) *Ext_com_google_javascript_jscomp_serialization_AstNode_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	if cb, ok := arg0.Core_.(*Ext_com_google_javascript_jscomp_serialization_AstNode_Builder); ok && cb.fromPool_ {
 		if cb.linked_ || cb == this_ || !this_.fromPool_ || this_.pinned_ || this_.Raw_ != &this_.inlineRaw {
 			cb.pinned_ = true
@@ -16367,7 +16315,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_AstNode_Builder) Get
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_AstNode_Builder) SetTemplateStringValue_1_Ext_com_google_javascript_jscomp_serialization_TemplateStringValue(arg0 *Ext_com_google_javascript_jscomp_serialization_TemplateStringValue) *Ext_com_google_javascript_jscomp_serialization_AstNode_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_AstNode().SetTemplateStringValue(arg0.buildRaw_TemplateStringValue())
 	return this_
 }
@@ -16398,7 +16346,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_AstNode_Builder) Get
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_AstNode_Builder) SetJsdoc_1_Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc(arg0 *Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc) *Ext_com_google_javascript_jscomp_serialization_AstNode_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_AstNode().SetJsdoc(arg0.buildRaw_OptimizationJsdoc())
 	return this_
 }
@@ -16511,7 +16459,7 @@ func (b *Ext_com_google_javascript_jscomp_serialization_ExternsSummary) Implemen
 func (b *Ext_com_google_javascript_jscomp_serialization_ExternsSummary) Implements_j2gort_Ext_com_google_protobuf_MessageLite() {
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_ExternsSummary) GetPropNamePtrList() Ext_java_util_List {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetPropNamePtrList.Load(); p != nil {
 		return p
 	}
@@ -16673,7 +16621,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_serialization_JsdocTag) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.JsdocTag(this_.Ordinal()).GetNumber()
 }
 
@@ -16882,7 +16830,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_serialization_NodeKind) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.NodeKind(this_.Ordinal()).GetNumber()
 }
 
@@ -16921,7 +16869,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_serialization_NodeProperty) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.NodeProperty(this_.Ordinal()).GetNumber()
 }
 
@@ -16972,7 +16920,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto) Get
 	return this_.p_ObjectTypeProto().GetPropertiesKeepOriginalName()
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto) GetInstanceTypeList() Ext_java_util_List {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetInstanceTypeList.Load(); p != nil {
 		return p
 	}
@@ -16991,7 +16939,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto) Get
 	return int32(len(this_.p_ObjectTypeProto().GetInstanceTypeList()))
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto) GetPrototypeList() Ext_java_util_List {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetPrototypeList.Load(); p != nil {
 		return p
 	}
@@ -17241,7 +17189,7 @@ func (b *Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc) Imple
 func (b *Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc) Implements_j2gort_Ext_com_google_protobuf_MessageLite() {
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc) GetKindList() Ext_java_util_List {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetKindList.Load(); p != nil {
 		return p
 	}
@@ -17838,7 +17786,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_SourceFileProto_Buil
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_SourceFileProto_Builder) SetFileOnDisk_1_Ext_com_google_javascript_jscomp_serialization_SourceFileProto_FileOnDisk_Builder(arg0 *Ext_com_google_javascript_jscomp_serialization_SourceFileProto_FileOnDisk_Builder) *Ext_com_google_javascript_jscomp_serialization_SourceFileProto_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_SourceFileProto().SetFileOnDisk(arg0.buildRaw_SourceFileProto_FileOnDisk())
 	return this_
 }
@@ -17852,7 +17800,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_SourceFileProto_Buil
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_SourceFileProto_Builder) SetZipEntry_1_Ext_com_google_javascript_jscomp_serialization_SourceFileProto_ZipEntryOnDisk(arg0 *Ext_com_google_javascript_jscomp_serialization_SourceFileProto_ZipEntryOnDisk) *Ext_com_google_javascript_jscomp_serialization_SourceFileProto_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_SourceFileProto().SetZipEntry(arg0.buildRaw_SourceFileProto_ZipEntryOnDisk())
 	return this_
 }
@@ -18096,7 +18044,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_serialization_SourceFileProto_LoaderCase) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.SourceFileProto_LoaderCase(this_.Ordinal()).GetNumber()
 }
 
@@ -18137,7 +18085,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_serialization_SourceFileProto_SourceKind) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.SourceFileProto_SourceKind(this_.Ordinal()).GetNumber()
 }
 
@@ -19052,7 +19000,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypePool_Builder) Ge
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypePool_Builder) AddType_1_Ext_com_google_javascript_jscomp_serialization_TypeProto(arg0 *Ext_com_google_javascript_jscomp_serialization_TypeProto) *Ext_com_google_javascript_jscomp_serialization_TypePool_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_TypePool().AddType(arg0.buildRaw_TypeProto())
 	return this_
 }
@@ -19070,7 +19018,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypePool_Builder) Ge
 	return newProtoList(items)
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypePool_Builder) AddDisambiguationEdges_1_Ext_com_google_javascript_jscomp_serialization_SubtypingEdge_Builder(arg0 *Ext_com_google_javascript_jscomp_serialization_SubtypingEdge_Builder) *Ext_com_google_javascript_jscomp_serialization_TypePool_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_TypePool().AddDisambiguationEdges(arg0.buildRaw_SubtypingEdge())
 	return this_
 }
@@ -19314,7 +19262,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypePool_DebugInfo_M
 	return this_.p_TypePool_DebugInfo_Mismatch().GetSourceRef()
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypePool_DebugInfo_Mismatch) GetInvolvedColorList() Ext_java_util_List {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetInvolvedColorList.Load(); p != nil {
 		return p
 	}
@@ -19685,7 +19633,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypeProto_Builder) G
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypeProto_Builder) SetObject_1_Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto(arg0 *Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto) *Ext_com_google_javascript_jscomp_serialization_TypeProto_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_TypeProto().SetObject(arg0.buildRaw_ObjectTypeProto())
 	return this_
 }
@@ -19711,7 +19659,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypeProto_Builder) G
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypeProto_Builder) SetUnion_1_Ext_com_google_javascript_jscomp_serialization_UnionTypeProto(arg0 *Ext_com_google_javascript_jscomp_serialization_UnionTypeProto) *Ext_com_google_javascript_jscomp_serialization_TypeProto_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_TypeProto().SetUnion(arg0.buildRaw_UnionTypeProto())
 	return this_
 }
@@ -19765,7 +19713,7 @@ func init() {
 }
 
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypeProto_KindCase) GetNumber() int32 {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	return protobuf.TypeProto_KindCase(this_.Ordinal()).GetNumber()
 }
 
@@ -19967,7 +19915,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst) GetExterns
 	return this_.cache_GetExternsSummary.Load()
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst) GetRuntimeLibraryToInjectList() any {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetRuntimeLibraryToInjectList.Load(); p != nil {
 		return p
 	}
@@ -20072,7 +20020,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder) Ge
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder) SetTypePool_1_Ext_com_google_javascript_jscomp_serialization_TypePool(arg0 *Ext_com_google_javascript_jscomp_serialization_TypePool) *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_TypedAst().SetTypePool(arg0.buildRaw_TypePool())
 	return this_
 }
@@ -20086,7 +20034,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder) Ge
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder) SetStringPool_1_Ext_com_google_javascript_jscomp_serialization_StringPoolProto(arg0 *Ext_com_google_javascript_jscomp_serialization_StringPoolProto) *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_TypedAst().SetStringPool(arg0.buildRaw_StringPoolProto())
 	return this_
 }
@@ -20104,7 +20052,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder) Ge
 	return newProtoList(items)
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder) AddExternAst_1_Ext_com_google_javascript_jscomp_serialization_LazyAst(arg0 *Ext_com_google_javascript_jscomp_serialization_LazyAst) *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_TypedAst().AddExternAst(arg0.buildRaw_LazyAst())
 	return this_
 }
@@ -20122,7 +20070,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder) Ge
 	return newProtoList(items)
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder) AddCodeAst_1_Ext_com_google_javascript_jscomp_serialization_LazyAst(arg0 *Ext_com_google_javascript_jscomp_serialization_LazyAst) *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_TypedAst().AddCodeAst(arg0.buildRaw_LazyAst())
 	return this_
 }
@@ -20136,7 +20084,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder) Ge
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder) SetSourceFilePool_1_Ext_com_google_javascript_jscomp_serialization_SourceFilePool(arg0 *Ext_com_google_javascript_jscomp_serialization_SourceFilePool) *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_TypedAst().SetSourceFilePool(arg0.buildRaw_SourceFilePool())
 	return this_
 }
@@ -20150,7 +20098,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder) Ge
 	return out
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder) SetExternsSummary_1_Ext_com_google_javascript_jscomp_serialization_ExternsSummary_Builder(arg0 *Ext_com_google_javascript_jscomp_serialization_ExternsSummary_Builder) *Ext_com_google_javascript_jscomp_serialization_TypedAst_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_TypedAst().SetExternsSummary(arg0.buildRaw_ExternsSummary())
 	return this_
 }
@@ -20281,7 +20229,7 @@ func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_List_Builde
 	return this_.buildMsg_TypedAst_List()
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_TypedAst_List_Builder) AddTypedAsts_1_Ext_com_google_javascript_jscomp_serialization_TypedAst(arg0 *Ext_com_google_javascript_jscomp_serialization_TypedAst) *Ext_com_google_javascript_jscomp_serialization_TypedAst_List_Builder {
-	CheckNotNull(arg0)
+	CheckNotNullPtr(arg0)
 	this_.pMut_TypedAst_List().AddTypedAsts(arg0.buildRaw_TypedAst())
 	return this_
 }
@@ -20377,7 +20325,7 @@ func (b *Ext_com_google_javascript_jscomp_serialization_UnionTypeProto) Implemen
 func (b *Ext_com_google_javascript_jscomp_serialization_UnionTypeProto) Implements_j2gort_Ext_com_google_protobuf_MessageLite() {
 }
 func (this_ *Ext_com_google_javascript_jscomp_serialization_UnionTypeProto) GetUnionMemberList() Ext_java_util_List {
-	CheckNotNull(this_)
+	CheckNotNullPtr(this_)
 	if p := this_.cache_GetUnionMemberList.Load(); p != nil {
 		return p
 	}
@@ -20870,7 +20818,7 @@ func (this_ *Ext_com_google_protobuf_ByteString_Output) ToByteString() Ext_com_g
 	return wrapByteString(this_.Core_.(*protobuf.ByteString_Output).ToByteString())
 }
 func (this_ *Ext_com_google_protobuf_ByteString_Output) Write_1_slice_int8(arg0 []int8) {
-	_, _ = this_.Core_.(*protobuf.ByteString_Output).Write(int8SliceToBytes(CheckNotNull(arg0)))
+	_, _ = this_.Core_.(*protobuf.ByteString_Output).Write(int8SliceToBytes(CheckNotNullSlice(arg0)))
 }
 func (this_ *Ext_com_google_protobuf_ByteString_Output) Flush() {
 }
@@ -21891,7 +21839,7 @@ func (this_ *Ext_java_io_BufferedOutputStream) Flush() {
 	extOutputStreamFlush(this_.Core_)
 }
 func (this_ *Ext_java_io_BufferedOutputStream) Write_1_slice_int8(arg0 []int8) {
-	extOutputStreamWriteSlice(this_.Core_, CheckNotNull(arg0))
+	extOutputStreamWriteSlice(this_.Core_, CheckNotNullSlice(arg0))
 }
 func (this_ *Ext_java_io_BufferedOutputStream) Close_0() {
 	extOutputStreamClose(this_.Core_)
@@ -21956,7 +21904,7 @@ func (this_ *Ext_java_io_BufferedWriter) Close_0() {
 	extWriterClose(this_.Core_)
 }
 func (this_ *Ext_java_io_BufferedWriter) Write_1_string(arg0 string) {
-	extWriterWriteString(this_.Core_, CheckNotNull(arg0))
+	extWriterWriteString(this_.Core_, CheckNotNullString(arg0))
 }
 func (this_ *Ext_java_io_BufferedWriter) Append_1_any(arg0 any) any {
 	extWriterWriteString(this_.Core_, StrVal(arg0))
@@ -22028,7 +21976,7 @@ func (this_ *Ext_java_io_ByteArrayOutputStream) ToString_1_Ext_java_nio_charset_
 	return cs.Decode(this_.Core_.(*javaio.ByteArrayOutputStream).ToByteArray())
 }
 func (this_ *Ext_java_io_ByteArrayOutputStream) Write_1_slice_int8(arg0 []int8) {
-	_, _ = this_.Core_.(*javaio.ByteArrayOutputStream).Write(int8ToBytes(CheckNotNull(arg0)))
+	_, _ = this_.Core_.(*javaio.ByteArrayOutputStream).Write(int8ToBytes(CheckNotNullSlice(arg0)))
 }
 func (this_ *Ext_java_io_ByteArrayOutputStream) Flush() {
 }
@@ -22149,7 +22097,7 @@ func (this_ *Ext_java_io_File) Mkdirs() bool {
 	return unwrapFile(this_).Mkdirs()
 }
 func (this_ *Ext_java_io_File) CompareTo(arg0 any) int32 {
-	return int32(unwrapFile(this_).CompareTo(CheckNotNull(unwrapFile(Cast[*Ext_java_io_File](arg0)))))
+	return int32(unwrapFile(this_).CompareTo(CheckNotNullPtr(unwrapFile(Cast[*Ext_java_io_File](arg0)))))
 }
 func (this_ *Ext_java_io_File) String() string {
 	return unwrapFile(this_).String()
@@ -22200,7 +22148,7 @@ func (this_ *Ext_java_io_FileOutputStream) Write_1_int32(arg0 int32) {
 	extOutputStreamWriteByte(this_.Core_, byte(arg0))
 }
 func (this_ *Ext_java_io_FileOutputStream) Write_1_slice_int8(arg0 []int8) {
-	extOutputStreamWriteSlice(this_.Core_, CheckNotNull(arg0))
+	extOutputStreamWriteSlice(this_.Core_, CheckNotNullSlice(arg0))
 }
 func (this_ *Ext_java_io_FileOutputStream) Close_0() {
 	extOutputStreamClose(this_.Core_)
@@ -22302,7 +22250,7 @@ func (this_ *Ext_java_io_FilterOutputStreamBase) Write_1_int32(arg0 int32) {
 	extOutputStreamWriteByte(this_.Core_, byte(arg0))
 }
 func (this_ *Ext_java_io_FilterOutputStreamBase) Write_1_slice_int8(arg0 []int8) {
-	extOutputStreamWriteSlice(this_.Core_, CheckNotNull(arg0))
+	extOutputStreamWriteSlice(this_.Core_, CheckNotNullSlice(arg0))
 }
 func (this_ *Ext_java_io_FilterOutputStreamBase) Flush() {
 	extOutputStreamFlush(this_.Core_)
@@ -22559,7 +22507,7 @@ func (this_ *Ext_java_io_OutputStreamBase) Write_1_int32(arg0 int32) {
 	extOutputStreamWriteByte(this_.Core_, byte(arg0))
 }
 func (this_ *Ext_java_io_OutputStreamBase) Write_1_slice_int8(arg0 []int8) {
-	extOutputStreamWriteSlice(this_.Core_, CheckNotNull(arg0))
+	extOutputStreamWriteSlice(this_.Core_, CheckNotNullSlice(arg0))
 }
 func (this_ *Ext_java_io_OutputStreamBase) Flush() {
 	extOutputStreamFlush(this_.Core_)
@@ -22607,7 +22555,7 @@ func (this_ *Ext_java_io_OutputStreamWriter) Append_1_any(arg0 any) any {
 	return this_
 }
 func (this_ *Ext_java_io_OutputStreamWriter) Write_1_string(arg0 string) {
-	extWriterWriteString(this_.Core_, CheckNotNull(arg0))
+	extWriterWriteString(this_.Core_, CheckNotNullString(arg0))
 }
 func (this_ *Ext_java_io_OutputStreamWriter) Append_1_uint16(arg0 uint16) any {
 	extWriterWriteString(this_.Core_, javalang.StringFromChar(arg0))
@@ -22657,11 +22605,11 @@ func (this_ *Ext_java_io_PrintStream) Println_1_any(arg0 any) {
 	unwrapPrintStream(this_).Println(StrVal(arg0))
 }
 func (this_ *Ext_java_io_PrintStream) Printf_2(arg0 string, arg1 []any) *Ext_java_io_PrintStream {
-	unwrapPrintStream(this_).Print(StringFormat(CheckNotNull(arg0), arg1...))
+	unwrapPrintStream(this_).Print(StringFormat(CheckNotNullString(arg0), arg1...))
 	return this_
 }
 func (this_ *Ext_java_io_PrintStream) Format_2(arg0 string, arg1 []any) *Ext_java_io_PrintStream {
-	unwrapPrintStream(this_).Print(StringFormat(CheckNotNull(arg0), arg1...))
+	unwrapPrintStream(this_).Print(StringFormat(CheckNotNullString(arg0), arg1...))
 	return this_
 }
 func (this_ *Ext_java_io_PrintStream) Append_1_any(arg0 any) any {
@@ -22678,7 +22626,7 @@ func (this_ *Ext_java_io_PrintStream) Append_1_uint16(arg0 uint16) any {
 	return this_
 }
 func (this_ *Ext_java_io_PrintStream) Write_1_slice_int8(arg0 []int8) {
-	_, _ = unwrapPrintStream(this_).Write(int8ToBytes(CheckNotNull(arg0)))
+	_, _ = unwrapPrintStream(this_).Write(int8ToBytes(CheckNotNullSlice(arg0)))
 }
 
 type Ext_java_io_PrintWriter struct {
@@ -22705,7 +22653,7 @@ func (this_ *Ext_java_io_PrintWriter) Write_1_int32(arg0 int32) {
 	extWriterWriteString(this_.Core_, javalang.StringFromChar(uint16(arg0)))
 }
 func (this_ *Ext_java_io_PrintWriter) Write_1_string(arg0 string) {
-	extWriterWriteString(this_.Core_, CheckNotNull(arg0))
+	extWriterWriteString(this_.Core_, CheckNotNullString(arg0))
 }
 func (this_ *Ext_java_io_PrintWriter) Append_1_any(arg0 any) any {
 	extWriterWriteString(this_.Core_, StrVal(arg0))
@@ -22842,7 +22790,7 @@ func (this_ *Ext_java_io_StringWriter) Write_1_int32(arg0 int32) {
 	extWriterWriteString(this_.Core_, javalang.StringFromChar(uint16(arg0)))
 }
 func (this_ *Ext_java_io_StringWriter) Write_1_string(arg0 string) {
-	extWriterWriteString(this_.Core_, CheckNotNull(arg0))
+	extWriterWriteString(this_.Core_, CheckNotNullString(arg0))
 }
 func (this_ *Ext_java_io_StringWriter) Append_1_any(arg0 any) any {
 	extWriterWriteString(this_.Core_, StrVal(arg0))
@@ -22932,7 +22880,7 @@ func (this_ *Ext_java_io_WriterBase) Write_1_int32(arg0 int32) {
 	extWriterWriteString(this_.Core_, javalang.StringFromChar(uint16(arg0)))
 }
 func (this_ *Ext_java_io_WriterBase) Write_1_string(arg0 string) {
-	extWriterWriteString(this_.Core_, CheckNotNull(arg0))
+	extWriterWriteString(this_.Core_, CheckNotNullString(arg0))
 }
 func (this_ *Ext_java_io_WriterBase) Append_1_any(arg0 any) any {
 	extWriterWriteString(this_.Core_, StrVal(arg0))
@@ -22972,7 +22920,7 @@ type Ext_java_lang_AbstractStringBuilder interface {
 	SetLength(int32)
 	CharAt(int32) uint16
 	SetCharAt(int32, uint16)
-	Append_1_any_9796(any) any
+	Append_1_any_9815(any) any
 	Append_1_string(string) any
 	Append_1_slice_uint16([]uint16) any
 	Append_1_int32(int32) any
@@ -23055,7 +23003,7 @@ func (this_ *Ext_java_lang_AbstractStringBuilderBase) CharAt(arg0 int32) uint16 
 func (this_ *Ext_java_lang_AbstractStringBuilderBase) SetCharAt(arg0 int32, arg1 uint16) {
 	this_.sbCore().setCharAt(arg0, arg1)
 }
-func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9796(arg0 any) any {
+func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9815(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	if this_.Self_ != nil {
 		return this_.Self_
@@ -23793,7 +23741,7 @@ func init() {
 }
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_AbstractStringBuilder() {}
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_Appendable()            {}
-func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9796(arg0 any) any {
+func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9815(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	return this_
 }
@@ -24710,7 +24658,7 @@ func (this_ *Ext_java_net_URI) Equals(arg0 any) bool {
 	return ok && o != nil && this_.Core_.(*javanio.URI).Equals(o.Core_.(*javanio.URI))
 }
 func (this_ *Ext_java_net_URI) CompareTo(arg0 any) int32 {
-	o := CheckNotNull(Cast[*Ext_java_net_URI](arg0))
+	o := CheckNotNullPtr(Cast[*Ext_java_net_URI](arg0))
 	return JStrCompareTo(this_.Core_.(*javanio.URI).String(), o.Core_.(*javanio.URI).String())
 }
 func (this_ *Ext_java_net_URI) String() string {
@@ -25168,10 +25116,10 @@ func (b *Ext_java_nio_file_FileSystemBase) Implements_j2gort_Ext_java_lang_AutoC
 func (this_ *Ext_java_nio_file_FileSystemBase) Close_0() {
 }
 func (this_ *Ext_java_nio_file_FileSystemBase) GetPath(arg0 string, arg1 []string) Ext_java_nio_file_Path {
-	return newExtPath(CheckNotNull(arg0), arg1)
+	return newExtPath(CheckNotNullString(arg0), arg1)
 }
 func (this_ *Ext_java_nio_file_FileSystemBase) GetPathMatcher(arg0 string) Ext_java_nio_file_PathMatcher {
-	return newExtPathMatcher(CheckNotNull(arg0))
+	return newExtPathMatcher(CheckNotNullString(arg0))
 }
 
 type Ext_java_nio_file_FileSystems struct {
@@ -25613,7 +25561,7 @@ func (this_ *Ext_java_nio_file_attribute_FileTime) Equals(arg0 any) bool {
 	return ok && o != nil && this_.Core_.(*javanio.FileTime).Equals(o.Core_.(*javanio.FileTime))
 }
 func (this_ *Ext_java_nio_file_attribute_FileTime) CompareTo(arg0 any) int32 {
-	o := CheckNotNull(Cast[*Ext_java_nio_file_attribute_FileTime](arg0))
+	o := CheckNotNullPtr(Cast[*Ext_java_nio_file_attribute_FileTime](arg0))
 	return int32(this_.Core_.(*javanio.FileTime).CompareTo(o.Core_.(*javanio.FileTime)))
 }
 
@@ -29190,7 +29138,7 @@ func (b *Ext_java_util_ResourceBundleBase) GetExt_java_util_ResourceBundleBase()
 	return b
 }
 func (this_ *Ext_java_util_ResourceBundleBase) GetString(arg0 string) string {
-	return this_.Core_.(*shimsres.ResourceBundle).GetString(CheckNotNull(arg0))
+	return this_.Core_.(*shimsres.ResourceBundle).GetString(CheckNotNullString(arg0))
 }
 
 // External interface java.util.SequencedCollection
@@ -31073,7 +31021,7 @@ func (this_ *Ext_java_util_regex_Matcher) Group_1_int32(arg0 int32) string {
 	return s
 }
 func (this_ *Ext_java_util_regex_Matcher) Group_1_string(arg0 string) string {
-	s, ok := this_.Core_.(*javaregex.Matcher).GroupNamed(CheckNotNull(arg0))
+	s, ok := this_.Core_.(*javaregex.Matcher).GroupNamed(CheckNotNullString(arg0))
 	if !ok {
 		return NullString
 	}
@@ -31089,10 +31037,10 @@ func (this_ *Ext_java_util_regex_Matcher) LookingAt() bool {
 	return this_.Core_.(*javaregex.Matcher).LookingAt()
 }
 func (this_ *Ext_java_util_regex_Matcher) ReplaceAll_1_string(arg0 string) string {
-	return this_.Core_.(*javaregex.Matcher).ReplaceAll(CheckNotNull(arg0))
+	return this_.Core_.(*javaregex.Matcher).ReplaceAll(CheckNotNullString(arg0))
 }
 func (this_ *Ext_java_util_regex_Matcher) ReplaceFirst_1_string(arg0 string) string {
-	return this_.Core_.(*javaregex.Matcher).ReplaceFirst(CheckNotNull(arg0))
+	return this_.Core_.(*javaregex.Matcher).ReplaceFirst(CheckNotNullString(arg0))
 }
 func (this_ *Ext_java_util_regex_Matcher) Region(arg0 int32, arg1 int32) *Ext_java_util_regex_Matcher {
 	this_.Core_.(*javaregex.Matcher).Region(int(arg0), int(arg1))
@@ -31462,7 +31410,7 @@ func (this_ *Ext_java_util_zip_DeflaterOutputStreamBase) Flush() {
 	extOutputStreamFlush(this_.Core_)
 }
 func (this_ *Ext_java_util_zip_DeflaterOutputStreamBase) Write_1_slice_int8(arg0 []int8) {
-	extOutputStreamWriteSlice(this_.Core_, CheckNotNull(arg0))
+	extOutputStreamWriteSlice(this_.Core_, CheckNotNullSlice(arg0))
 }
 
 type Ext_java_util_zip_GZIPInputStream struct {
@@ -31550,7 +31498,7 @@ func (this_ *Ext_java_util_zip_GZIPOutputStreamBase) Flush() {
 	extOutputStreamFlush(this_.Core_)
 }
 func (this_ *Ext_java_util_zip_GZIPOutputStreamBase) Write_1_slice_int8(arg0 []int8) {
-	extOutputStreamWriteSlice(this_.Core_, CheckNotNull(arg0))
+	extOutputStreamWriteSlice(this_.Core_, CheckNotNullSlice(arg0))
 }
 
 // External subclassable class java.util.zip.InflaterInputStream
@@ -31699,14 +31647,14 @@ func (b *Ext_java_util_zip_ZipFile) Implements_j2gort_Ext_java_util_zip_ZipConst
 func (b *Ext_java_util_zip_ZipFile) Implements_j2gort_Ext_java_io_Closeable()          {}
 func (b *Ext_java_util_zip_ZipFile) Implements_j2gort_Ext_java_lang_AutoCloseable()    {}
 func (this_ *Ext_java_util_zip_ZipFile) GetEntry(arg0 string) *Ext_java_util_zip_ZipEntry {
-	e := this_.Core_.(*javazip.ZipFile).GetEntry(CheckNotNull(arg0))
+	e := this_.Core_.(*javazip.ZipFile).GetEntry(CheckNotNullString(arg0))
 	if e == nil {
 		return nil
 	}
 	return &Ext_java_util_zip_ZipEntry{Core_: e}
 }
 func (this_ *Ext_java_util_zip_ZipFile) GetInputStream(arg0 *Ext_java_util_zip_ZipEntry) Ext_java_io_InputStream {
-	in, err := this_.Core_.(*javazip.ZipFile).GetInputStream(CheckNotNull(arg0).Core_.(*javazip.ZipEntry))
+	in, err := this_.Core_.(*javazip.ZipFile).GetInputStream(CheckNotNullPtr(arg0).Core_.(*javazip.ZipEntry))
 	ioErr(err)
 	return wrapInputStream(in)
 }
@@ -32186,7 +32134,7 @@ func (this_ *Ext_org_kohsuke_args4j_CmdLineParser) ParseArgument_1_Ext_java_util
 	args4jParseTokens(this_, toks)
 }
 func (this_ *Ext_org_kohsuke_args4j_CmdLineParser) ParseArgument_1_slice_string(arg0 []string) {
-	args4jParseTokens(this_, CheckNotNull(arg0))
+	args4jParseTokens(this_, CheckNotNullSlice(arg0))
 }
 func (this_ *Ext_org_kohsuke_args4j_CmdLineParser) SetUsageWidth(arg0 int32) {
 	this_.args4jCore().usageWidth = int(arg0)
@@ -32889,7 +32837,7 @@ func Ext_com_google_common_base_Ascii_IsUpperCase(arg0 uint16) bool {
 }
 
 func Ext_com_google_common_base_Ascii_ToLowerCase_1_string(arg0 string) string {
-	return strings.ToLower(CheckNotNull(arg0))
+	return strings.ToLower(CheckNotNullString(arg0))
 }
 
 func Ext_com_google_common_base_Ascii_ToLowerCase_1_uint16(arg0 uint16) uint16 {
@@ -32907,7 +32855,7 @@ func Ext_com_google_common_base_Ascii_ToUpperCase_1_uint16(arg0 uint16) uint16 {
 }
 
 func Ext_com_google_common_base_Ascii_ToUpperCase_1_string(arg0 string) string {
-	return strings.ToUpper(CheckNotNull(arg0))
+	return strings.ToUpper(CheckNotNullString(arg0))
 }
 
 func Ext_com_google_common_base_CharMatcher_S_AnyOf(arg0 any) Ext_com_google_common_base_CharMatcher {
@@ -32939,7 +32887,7 @@ func Ext_com_google_common_base_Functions_Identity() Ext_com_google_common_base_
 }
 
 func Ext_com_google_common_base_Joiner_On_1_string(arg0 string) *Ext_com_google_common_base_Joiner {
-	return newGuavaJoiner(CheckNotNull(arg0))
+	return newGuavaJoiner(CheckNotNullString(arg0))
 }
 
 func Ext_com_google_common_base_Joiner_On_1_uint16(arg0 uint16) *Ext_com_google_common_base_Joiner {
@@ -32958,7 +32906,7 @@ func Ext_com_google_common_base_MoreObjects_S_ToStringHelper_1_any(arg0 any) *Ex
 }
 
 func Ext_com_google_common_base_MoreObjects_S_ToStringHelper_1_Class(arg0 *javalang.Class) *Ext_com_google_common_base_MoreObjects_ToStringHelper {
-	return newToStringHelper(CheckNotNull(arg0).GetSimpleName())
+	return newToStringHelper(CheckNotNullPtr(arg0).GetSimpleName())
 }
 
 func Ext_com_google_common_base_Optional_Absent() Ext_com_google_common_base_Optional {
@@ -33098,7 +33046,7 @@ func Ext_com_google_common_base_Splitter_On_1_uint16(arg0 uint16) *Ext_com_googl
 }
 
 func Ext_com_google_common_base_Splitter_On_1_string(arg0 string) *Ext_com_google_common_base_Splitter {
-	return newGuavaSplitterStr(CheckNotNull(arg0))
+	return newGuavaSplitterStr(CheckNotNullString(arg0))
 }
 
 func Ext_com_google_common_base_Strings_EmptyToNull(arg0 string) string {
@@ -33127,7 +33075,7 @@ func Ext_com_google_common_base_Strings_NullToEmpty(arg0 string) string {
 }
 
 func Ext_com_google_common_base_Strings_PadStart(arg0 string, arg1 int32, arg2 uint16) string {
-	return guavaPadStart(CheckNotNull(arg0), arg1, arg2)
+	return guavaPadStart(CheckNotNullString(arg0), arg1, arg2)
 }
 
 func Ext_com_google_common_base_Suppliers_Memoize(arg0 Ext_com_google_common_base_Supplier) Ext_com_google_common_base_Supplier {
@@ -33822,7 +33770,7 @@ func Ext_com_google_common_collect_LinkedListMultimap_Create_0() *Ext_com_google
 }
 
 func Ext_com_google_common_collect_Lists_CharactersOf_1_string(arg0 string) Ext_com_google_common_collect_ImmutableList {
-	CheckNotNull(arg0)
+	CheckNotNullString(arg0)
 	u := javalang.StringToUTF16(arg0)
 	if len(u) == 0 {
 		return emptyImmutableList_
@@ -34012,34 +33960,34 @@ func Ext_com_google_common_io_CharStreams_ToString(arg0 Ext_java_lang_Readable) 
 }
 
 func Ext_com_google_common_io_Files_AsCharSink(arg0 *Ext_java_io_File, arg1 Ext_java_nio_charset_Charset, arg2 []*Ext_com_google_common_io_FileWriteMode) Ext_com_google_common_io_CharSink {
-	return newGuavaFileCharSink(CheckNotNull(arg0), arg1, arg2)
+	return newGuavaFileCharSink(CheckNotNullPtr(arg0), arg1, arg2)
 }
 
 func Ext_com_google_common_io_Files_AsCharSource(arg0 *Ext_java_io_File, arg1 Ext_java_nio_charset_Charset) Ext_com_google_common_io_CharSource {
-	return newGuavaFileCharSource(CheckNotNull(arg0), arg1)
+	return newGuavaFileCharSource(CheckNotNullPtr(arg0), arg1)
 }
 
 func Ext_com_google_common_io_Files_NewReader(arg0 *Ext_java_io_File, arg1 Ext_java_nio_charset_Charset) *Ext_java_io_BufferedReader {
-	return newGuavaFileBufferedReader(CheckNotNull(arg0), arg1)
+	return newGuavaFileBufferedReader(CheckNotNullPtr(arg0), arg1)
 }
 
 func Ext_com_google_common_io_Files_ToByteArray(arg0 *Ext_java_io_File) []int8 {
-	return guavaFileToByteArray(CheckNotNull(arg0))
+	return guavaFileToByteArray(CheckNotNullPtr(arg0))
 }
 
 func Ext_com_google_common_io_Files_Write_2(arg0 []int8, arg1 *Ext_java_io_File) {
-	guavaFileWriteBytes(CheckNotNull(arg0), CheckNotNull(arg1))
+	guavaFileWriteBytes(CheckNotNullSlice(arg0), CheckNotNullPtr(arg1))
 }
 
 func NewExt_com_google_common_net_PercentEscaper(arg0 string, arg1 bool) *Ext_com_google_common_net_PercentEscaper {
 	obj := &Ext_com_google_common_net_PercentEscaper{}
 	obj.BindExtSelf_(obj)
-	obj.Core_ = newPercentEscaper(CheckNotNull(arg0), arg1)
+	obj.Core_ = newPercentEscaper(CheckNotNullString(arg0), arg1)
 	return obj
 }
 
 func Ext_com_google_common_primitives_Chars_AsList(arg0 []uint16) Ext_java_util_List {
-	CheckNotNull(arg0)
+	CheckNotNullSlice(arg0)
 	items := make([]any, len(arg0))
 	for i, c := range arg0 {
 		items[i] = ValueOfChar(c)
@@ -34172,7 +34120,7 @@ func Ext_com_google_javascript_jscomp_ConformanceConfig_NewBuilder_0() *Ext_com_
 }
 
 func Ext_com_google_javascript_jscomp_FeatureProto_ValueOf_1_string(arg0 string) *Ext_com_google_javascript_jscomp_FeatureProto {
-	CheckNotNull(arg0)
+	CheckNotNullString(arg0)
 	for _, v := range LookupEnumConstantsByName("com.google.javascript.jscomp.FeatureProto") {
 		if EnumName(v) == arg0 {
 			return v.(*Ext_com_google_javascript_jscomp_FeatureProto)
@@ -34229,7 +34177,7 @@ func Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_Instrumenta
 }
 
 func Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPoint_Type_ValueOf_1_string(arg0 string) *Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPoint_Type {
-	CheckNotNull(arg0)
+	CheckNotNullString(arg0)
 	for _, v := range LookupEnumConstantsByName("com.google.javascript.jscomp.instrumentation.reporter.proto.InstrumentationPoint.Type") {
 		if EnumName(v) == arg0 {
 			return v.(*Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPoint_Type)
@@ -34524,7 +34472,7 @@ func NewExt_java_io_ByteArrayOutputStream() *Ext_java_io_ByteArrayOutputStream {
 func NewExt_java_io_File_1_string(arg0 string) *Ext_java_io_File {
 	obj := &Ext_java_io_File{}
 	obj.BindExtSelf_(obj)
-	obj.Core_ = javaio.NewFile(CheckNotNull(arg0))
+	obj.Core_ = javaio.NewFile(CheckNotNullString(arg0))
 	return obj
 }
 
@@ -34532,14 +34480,14 @@ func NewExt_java_io_File_2_Ext_java_io_File_string(arg0 *Ext_java_io_File, arg1 
 	obj := &Ext_java_io_File{}
 	obj.BindExtSelf_(obj)
 	obj_f := unwrapFile(arg0)
-	obj.Core_ = javaio.NewFileWithParent(obj_f, CheckNotNull(arg1))
+	obj.Core_ = javaio.NewFileWithParent(obj_f, CheckNotNullString(arg1))
 	return obj
 }
 
 func NewExt_java_io_FileInputStream_1_string(arg0 string) *Ext_java_io_FileInputStream {
 	obj := &Ext_java_io_FileInputStream{}
 	obj.BindExtSelf_(obj)
-	fis, err := javaio.NewFileInputStream(CheckNotNull(arg0))
+	fis, err := javaio.NewFileInputStream(CheckNotNullString(arg0))
 	ioErr(err)
 	obj.Core_ = fis
 	return obj
@@ -34548,7 +34496,7 @@ func NewExt_java_io_FileInputStream_1_string(arg0 string) *Ext_java_io_FileInput
 func NewExt_java_io_FileOutputStream_1_string(arg0 string) *Ext_java_io_FileOutputStream {
 	obj := &Ext_java_io_FileOutputStream{}
 	obj.BindExtSelf_(obj)
-	fos, err := javaio.NewFileOutputStream(CheckNotNull(arg0))
+	fos, err := javaio.NewFileOutputStream(CheckNotNullString(arg0))
 	ioErr(err)
 	obj.Core_ = fos
 	return obj
@@ -34603,7 +34551,7 @@ func NewExt_java_io_OutputStreamWriter_2_Ext_java_io_OutputStream_Ext_java_nio_c
 func NewExt_java_io_PrintStream_1_string(arg0 string) *Ext_java_io_PrintStream {
 	obj := &Ext_java_io_PrintStream{}
 	obj.BindExtSelf_(obj)
-	fos, err := javaio.NewFileOutputStream(CheckNotNull(arg0))
+	fos, err := javaio.NewFileOutputStream(CheckNotNullString(arg0))
 	ioErr(err)
 	obj.Core_ = javaio.NewPrintStream(fos)
 	return obj
@@ -34612,7 +34560,7 @@ func NewExt_java_io_PrintStream_1_string(arg0 string) *Ext_java_io_PrintStream {
 func NewExt_java_io_PrintStream_1_Ext_java_io_File(arg0 *Ext_java_io_File) *Ext_java_io_PrintStream {
 	obj := &Ext_java_io_PrintStream{}
 	obj.BindExtSelf_(obj)
-	fos, err := javaio.NewFileOutputStreamFromFile(CheckNotNull(unwrapFile(arg0)))
+	fos, err := javaio.NewFileOutputStreamFromFile(CheckNotNullPtr(unwrapFile(arg0)))
 	ioErr(err)
 	obj.Core_ = javaio.NewPrintStream(fos)
 	return obj
@@ -34629,7 +34577,7 @@ func NewExt_java_io_PrintStream_1_Ext_java_io_OutputStream(arg0 Ext_java_io_Outp
 func NewExt_java_io_StringReader(arg0 string) *Ext_java_io_StringReader {
 	obj := &Ext_java_io_StringReader{}
 	obj.BindExtSelf_(obj)
-	obj.Core_ = javaio.NewStringReader(CheckNotNull(arg0))
+	obj.Core_ = javaio.NewStringReader(CheckNotNullString(arg0))
 	return obj
 }
 
@@ -34664,6 +34612,10 @@ func BoxChar_IsDigit_1_uint16(arg0 uint16) bool {
 	return javalang.CharacterIsDigit(arg0)
 }
 
+func BoxChar_IsHighSurrogate(arg0 uint16) bool {
+	return arg0 >= 0xD800 && arg0 <= 0xDBFF
+}
+
 func BoxChar_IsIdentifierIgnorable_1_uint16(arg0 uint16) bool {
 	return javalang.CharacterIsIdentifierIgnorable(arg0)
 }
@@ -34684,8 +34636,16 @@ func BoxChar_IsLetterOrDigit_1_uint16(arg0 uint16) bool {
 	return javalang.CharacterIsLetterOrDigit(arg0)
 }
 
+func BoxChar_IsLowSurrogate(arg0 uint16) bool {
+	return arg0 >= 0xDC00 && arg0 <= 0xDFFF
+}
+
 func BoxChar_IsSupplementaryCodePoint(arg0 int32) bool {
 	return javalang.CharacterIsSupplementaryCodePoint(int(arg0))
+}
+
+func BoxChar_IsSurrogate(arg0 uint16) bool {
+	return arg0 >= 0xD800 && arg0 <= 0xDFFF
 }
 
 func BoxChar_IsUpperCase_1_uint16(arg0 uint16) bool {
@@ -34698,6 +34658,10 @@ func BoxChar_IsWhitespace_1_int32(arg0 int32) bool {
 
 func BoxChar_ToChars_1(arg0 int32) []uint16 {
 	return javalang.CharacterToChars(int(arg0))
+}
+
+func BoxChar_ToCodePoint(arg0 uint16, arg1 uint16) int32 {
+	return ((int32(arg0) - 0xD800) << 10) + (int32(arg1) - 0xDC00) + 0x10000
 }
 
 func BoxChar_ToString_1_uint16(arg0 uint16) string {
@@ -34740,7 +34704,7 @@ func BoxDouble_LongBitsToDouble(arg0 int64) float64 {
 }
 
 func BoxDouble_ParseDouble(arg0 string) float64 {
-	return javalang.DoubleParseDouble(CheckNotNull(arg0))
+	return javalang.DoubleParseDouble(CheckNotNullString(arg0))
 }
 
 func BoxDouble_ToString(arg0 float64) string {
@@ -34793,11 +34757,11 @@ func BoxInt_NumberOfTrailingZeros(arg0 int32) int32 {
 }
 
 func BoxInt_ParseInt_1(arg0 string) int32 {
-	return javalang.IntegerParseInt(CheckNotNull(arg0))
+	return javalang.IntegerParseInt(CheckNotNullString(arg0))
 }
 
 func BoxInt_ParseInt_2(arg0 string, arg1 int32) int32 {
-	return javalang.IntegerParseIntRadix(CheckNotNull(arg0), int(arg1))
+	return javalang.IntegerParseIntRadix(CheckNotNullString(arg0), int(arg1))
 }
 
 func BoxInt_ParseInt_4(arg0 any, arg1 int32, arg2 int32, arg3 int32) int32 {
@@ -34853,11 +34817,15 @@ func BoxLong_NumberOfTrailingZeros(arg0 int64) int32 {
 }
 
 func BoxLong_ParseLong_1(arg0 string) int64 {
-	return javalang.LongParseLong(CheckNotNull(arg0))
+	return javalang.LongParseLong(CheckNotNullString(arg0))
 }
 
 func BoxLong_ParseLong_2(arg0 string, arg1 int32) int64 {
-	return javalang.LongParseLongRadix(CheckNotNull(arg0), int(arg1))
+	return javalang.LongParseLongRadix(CheckNotNullString(arg0), int(arg1))
+}
+
+func BoxLong_RotateRight(arg0 int64, arg1 int32) int64 {
+	return int64(bits.RotateLeft64(uint64(arg0), -int(arg1)))
 }
 
 func BoxLong_ToHexString(arg0 int64) string {
@@ -35002,12 +34970,12 @@ func Ext_java_lang_Runtime_GetRuntime() *Ext_java_lang_Runtime {
 }
 
 func Ext_java_lang_String_Format_2(arg0 string, arg1 []any) string {
-	return StringFormat(CheckNotNull(arg0), arg1...)
+	return StringFormat(CheckNotNullString(arg0), arg1...)
 }
 
 func Ext_java_lang_String_Join_2_any_slice_any(arg0 any, arg1 []any) string {
 	delim := StrVal(CheckNotNull(arg0))
-	CheckNotNull(arg1)
+	CheckNotNullSlice(arg1)
 	parts := make([]string, len(arg1))
 	for i, x := range arg1 {
 		parts[i] = StrVal(x)
@@ -35046,7 +35014,7 @@ func Ext_java_lang_String_ValueOf_1_uint16(arg0 uint16) string {
 }
 
 func Ext_java_lang_String_ValueOf_3(arg0 []uint16, arg1 int32, arg2 int32) string {
-	CheckNotNull(arg0)
+	CheckNotNullSlice(arg0)
 	if arg1 < 0 || arg2 < 0 || int(arg1)+int(arg2) > len(arg0) {
 		panic(javalang.NewStringIndexOutOfBoundsExceptionForRange(int(arg1), int(arg1+arg2), len(arg0)))
 	}
@@ -35089,7 +35057,7 @@ func Ext_java_lang_System_Exit(arg0 int32) {
 }
 
 func Ext_java_lang_System_GetProperty_2(arg0 string, arg1 string) string {
-	return javaSystemGetProperty(CheckNotNull(arg0), arg1)
+	return javaSystemGetProperty(CheckNotNullString(arg0), arg1)
 }
 
 func Ext_java_lang_System_IdentityHashCode(arg0 any) int32 {
@@ -35144,14 +35112,14 @@ func NewExt_java_lang_management_MemoryUsage(arg0 int64, arg1 int64, arg2 int64,
 func NewExt_java_math_BigInteger_1_string(arg0 string) *Ext_java_math_BigInteger {
 	obj := &Ext_java_math_BigInteger{}
 	obj.BindExtSelf_(obj)
-	obj.Core_ = javamath.NewBigInteger(CheckNotNull(arg0))
+	obj.Core_ = javamath.NewBigInteger(CheckNotNullString(arg0))
 	return obj
 }
 
 func NewExt_java_math_BigInteger_1_slice_int8(arg0 []int8) *Ext_java_math_BigInteger {
 	obj := &Ext_java_math_BigInteger{}
 	obj.BindExtSelf_(obj)
-	CheckNotNull(arg0)
+	CheckNotNullSlice(arg0)
 	raw := make([]byte, len(arg0))
 	for i, v := range arg0 {
 		raw[i] = byte(v)
@@ -35163,7 +35131,7 @@ func NewExt_java_math_BigInteger_1_slice_int8(arg0 []int8) *Ext_java_math_BigInt
 func NewExt_java_math_BigInteger_2_string_int32(arg0 string, arg1 int32) *Ext_java_math_BigInteger {
 	obj := &Ext_java_math_BigInteger{}
 	obj.BindExtSelf_(obj)
-	obj.Core_ = javamath.NewBigIntegerRadix(CheckNotNull(arg0), int(arg1))
+	obj.Core_ = javamath.NewBigIntegerRadix(CheckNotNullString(arg0), int(arg1))
 	return obj
 }
 
@@ -35174,16 +35142,16 @@ func Ext_java_math_BigInteger_ValueOf(arg0 int64) *Ext_java_math_BigInteger {
 func NewExt_java_net_URI_1(arg0 string) *Ext_java_net_URI {
 	obj := &Ext_java_net_URI{}
 	obj.BindExtSelf_(obj)
-	obj.Core_ = newJavaURI(CheckNotNull(arg0))
+	obj.Core_ = newJavaURI(CheckNotNullString(arg0))
 	return obj
 }
 
 func Ext_java_nio_charset_Charset_ForName_1(arg0 string) Ext_java_nio_charset_Charset {
-	return charsetForName(CheckNotNull(arg0))
+	return charsetForName(CheckNotNullString(arg0))
 }
 
 func Ext_java_nio_charset_Charset_IsSupported(arg0 string) bool {
-	return charsetIsSupported(CheckNotNull(arg0))
+	return charsetIsSupported(CheckNotNullString(arg0))
 }
 
 func Ext_java_nio_file_FileSystems_GetDefault() Ext_java_nio_file_FileSystem {
@@ -35219,7 +35187,7 @@ func Ext_java_nio_file_Files_WalkFileTree_4(arg0 Ext_java_nio_file_Path, arg1 Ex
 }
 
 func Ext_java_nio_file_Path_Of_2(arg0 string, arg1 []string) Ext_java_nio_file_Path {
-	return newExtPath(CheckNotNull(arg0), arg1)
+	return newExtPath(CheckNotNullString(arg0), arg1)
 }
 
 func NewExt_java_nio_file_SimpleFileVisitor() Ext_java_nio_file_SimpleFileVisitor {
@@ -35232,7 +35200,7 @@ func InitExt_java_nio_file_SimpleFileVisitor(this_ *Ext_java_nio_file_SimpleFile
 }
 
 func Ext_java_text_MessageFormat_Format(arg0 string, arg1 []any) string {
-	return javaMessageFormat(CheckNotNull(arg0), arg1)
+	return javaMessageFormat(CheckNotNullString(arg0), arg1)
 }
 
 func NewExt_java_text_ParseException(arg0 string, arg1 int32) Ext_java_text_ParseException {
@@ -35337,7 +35305,7 @@ func Ext_java_util_Arrays_AsList(arg0 []any) Ext_java_util_List {
 }
 
 func Ext_java_util_Arrays_BinarySearch_2_slice_int32_int32(arg0 []int32, arg1 int32) int32 {
-	CheckNotNull(arg0)
+	CheckNotNullSlice(arg0)
 	lo, hi := 0, len(arg0)-1
 	for lo <= hi {
 		mid := int(uint(lo+hi) >> 1)
@@ -35473,7 +35441,7 @@ func Ext_java_util_Arrays_HashCode_1_slice_any(arg0 []any) int32 {
 }
 
 func Ext_java_util_Arrays_SetAll_2_slice_any_Ext_java_util_function_IntFunction(arg0 []any, arg1 Ext_java_util_function_IntFunction) {
-	CheckNotNull(arg0)
+	CheckNotNullSlice(arg0)
 	CheckNotNull(arg1)
 	for i := range arg0 {
 		arg0[i] = ToAny(arg1.Apply(int32(i)))
@@ -35481,27 +35449,27 @@ func Ext_java_util_Arrays_SetAll_2_slice_any_Ext_java_util_function_IntFunction(
 }
 
 func Ext_java_util_Arrays_Sort_1_slice_any(arg0 []any) {
-	CheckNotNull(arg0)
+	CheckNotNullSlice(arg0)
 	sort.SliceStable(arg0, func(i, j int) bool { return CompareValues(arg0[i], arg0[j]) < 0 })
 }
 
 func Ext_java_util_Arrays_Sort_1_slice_int64(arg0 []int64) {
-	CheckNotNull(arg0)
+	CheckNotNullSlice(arg0)
 	sort.Slice(arg0, func(i, j int) bool { return arg0[i] < arg0[j] })
 }
 
 func Ext_java_util_Arrays_Sort_1_slice_int32(arg0 []int32) {
-	CheckNotNull(arg0)
+	CheckNotNullSlice(arg0)
 	sort.Slice(arg0, func(i, j int) bool { return arg0[i] < arg0[j] })
 }
 
 func Ext_java_util_Arrays_Sort_1_slice_int8(arg0 []int8) {
-	CheckNotNull(arg0)
+	CheckNotNullSlice(arg0)
 	sort.Slice(arg0, func(i, j int) bool { return arg0[i] < arg0[j] })
 }
 
 func Ext_java_util_Arrays_Sort_2(arg0 []any, arg1 Ext_java_util_Comparator) {
-	CheckNotNull(arg0)
+	CheckNotNullSlice(arg0)
 	cmp := comparatorFuncOrNatural(arg1)
 	sort.SliceStable(arg0, func(i, j int) bool { return cmp(arg0[i], arg0[j]) < 0 })
 }
@@ -35695,10 +35663,6 @@ func Ext_java_util_EnumSet_AllOf(arg0 *javalang.Class) Ext_java_util_EnumSet {
 	return enumSetAllOf(arg0)
 }
 
-func Ext_java_util_EnumSet_CopyOf_1_Ext_java_util_Collection(arg0 Ext_java_util_Collection) Ext_java_util_EnumSet {
-	return enumSetCopyOf(arg0)
-}
-
 func Ext_java_util_EnumSet_NoneOf(arg0 *javalang.Class) Ext_java_util_EnumSet {
 	return enumSetNoneOf(arg0)
 }
@@ -35850,13 +35814,13 @@ func Ext_java_util_Optional_Of(arg0 any) *Ext_java_util_Optional {
 }
 
 func Ext_java_util_ResourceBundle_GetBundle_1(arg0 string) Ext_java_util_ResourceBundle {
-	return wrapResourceBundle(CheckNotNull(arg0))
+	return wrapResourceBundle(CheckNotNullString(arg0))
 }
 
 func NewExt_java_util_StringTokenizer_2(arg0 string, arg1 string) *Ext_java_util_StringTokenizer {
 	obj := &Ext_java_util_StringTokenizer{}
 	obj.BindExtSelf_(obj)
-	obj.Core_ = newStringTokenizer(CheckNotNull(arg0), CheckNotNull(arg1))
+	obj.Core_ = newStringTokenizer(CheckNotNullString(arg0), CheckNotNullString(arg1))
 	return obj
 }
 
@@ -35940,23 +35904,23 @@ func Ext_java_util_function_Predicate_IsEqual(arg0 any) Ext_java_util_function_P
 }
 
 func Ext_java_util_logging_Level_Parse(arg0 string) *Ext_java_util_logging_Level {
-	return &Ext_java_util_logging_Level{Core_: CheckNotNull(arg0)}
+	return &Ext_java_util_logging_Level{Core_: CheckNotNullString(arg0)}
 }
 
 func Ext_java_util_logging_Logger_GetLogger_1(arg0 string) *Ext_java_util_logging_Logger {
-	return getJavaLogger(CheckNotNull(arg0))
+	return getJavaLogger(CheckNotNullString(arg0))
 }
 
 func Ext_java_util_regex_Pattern_Compile_1(arg0 string) *Ext_java_util_regex_Pattern {
-	return wrapPatternCompile(CheckNotNull(arg0), 0)
+	return wrapPatternCompile(CheckNotNullString(arg0), 0)
 }
 
 func Ext_java_util_regex_Pattern_Compile_2(arg0 string, arg1 int32) *Ext_java_util_regex_Pattern {
-	return wrapPatternCompile(CheckNotNull(arg0), int(arg1))
+	return wrapPatternCompile(CheckNotNullString(arg0), int(arg1))
 }
 
 func Ext_java_util_regex_Pattern_Quote(arg0 string) string {
-	return javaregex.Pattern_Quote(CheckNotNull(arg0))
+	return javaregex.Pattern_Quote(CheckNotNullString(arg0))
 }
 
 func Ext_java_util_stream_Collectors_GroupingBy_1(arg0 Ext_java_util_function_Function) Ext_java_util_stream_Collector {
@@ -41338,6 +41302,25 @@ func wrapImmStrSliceCopy(src []string) Ext_com_google_common_collect_ImmutableLi
 		return &jImmStrList{strs: cp}
 	}
 }
+func wrapImmStrSliceOwn(src []string) Ext_com_google_common_collect_ImmutableList {
+	switch len(src) {
+	case 0:
+		return emptyImmutableList_
+	case 1:
+		return ImmListOfStr1(src[0])
+	default:
+		for _, s := range src {
+			if s == NullString {
+				ThrowNPE()
+			}
+		}
+		return &jImmStrList{strs: src[:len(src):len(src)]}
+	}
+}
+func ImmListFromStrs(src []string) Ext_com_google_common_collect_ImmutableList {
+	CheckNotNullSlice(src)
+	return wrapImmStrSliceCopy(src)
+}
 func wrapImmutableList(items []any) Ext_com_google_common_collect_ImmutableList {
 	switch len(items) {
 	case 0:
@@ -41639,16 +41622,17 @@ func init() {
 	emptyImmSetMultimap_ = obj
 }
 
+var emptyU8Tab_ [256]bool
 var emptyImmutableSet_ Ext_com_google_common_collect_ImmutableSet
 
 func init() {
-	obj := &Ext_com_google_common_collect_ImmutableSetBase{elems_: emptyAnySlice_}
+	obj := &Ext_com_google_common_collect_ImmutableSetBase{elems_: emptyAnySlice_, u8Tab_: &emptyU8Tab_, hasU8Bits_: true}
 	obj.BindExtSelf_(obj)
 	emptyImmutableSet_ = obj
 }
 
 func newImmutableSetShell() *Ext_com_google_common_collect_ImmutableSetBase {
-	obj := &Ext_com_google_common_collect_ImmutableSetBase{}
+	obj := &Ext_com_google_common_collect_ImmutableSetBase{u8Tab_: &emptyU8Tab_}
 	obj.BindExtSelf_(obj)
 	return obj
 }
@@ -41657,7 +41641,7 @@ func ImmSetOfStr1(s0 string) Ext_com_google_common_collect_ImmutableSet {
 	if s0 == NullString {
 		ThrowNPE()
 	}
-	obj := &Ext_com_google_common_collect_ImmutableSetBase{}
+	obj := &Ext_com_google_common_collect_ImmutableSetBase{u8Tab_: &emptyU8Tab_}
 	obj.BindExtSelf_(obj)
 	obj.singleStr_[0] = s0
 	obj.strs_ = obj.singleStr_[:1:1]
@@ -41671,19 +41655,19 @@ func ImmSetOfStr2(s0, s1 string) Ext_com_google_common_collect_ImmutableSet {
 	if s0 == s1 {
 		return ImmSetOfStr1(s0)
 	}
-	obj := &Ext_com_google_common_collect_ImmutableSetBase{strs_: []string{s0, s1}}
+	obj := &Ext_com_google_common_collect_ImmutableSetBase{strs_: []string{s0, s1}, u8Tab_: &emptyU8Tab_}
 	obj.BindExtSelf_(obj)
 	return obj
 }
 
 func finishImmStrSetOwn(strs []string, _ *JSetCore) *Ext_com_google_common_collect_ImmutableSetBase {
-	obj := &Ext_com_google_common_collect_ImmutableSetBase{strs_: strs[:len(strs):len(strs)]}
+	obj := &Ext_com_google_common_collect_ImmutableSetBase{strs_: strs[:len(strs):len(strs)], u8Tab_: &emptyU8Tab_}
 	obj.BindExtSelf_(obj)
 	return obj
 }
 
 func finishImmSetSingleRaw(e0 any) *Ext_com_google_common_collect_ImmutableSetBase {
-	obj := &Ext_com_google_common_collect_ImmutableSetBase{}
+	obj := &Ext_com_google_common_collect_ImmutableSetBase{u8Tab_: &emptyU8Tab_}
 	obj.BindExtSelf_(obj)
 	obj.singleArr_[0] = e0
 	obj.elems_ = obj.singleArr_[:1:1]
@@ -42779,6 +42763,83 @@ func SetContainsEqVal[K FastEqValKey](s any, k K) bool {
 	}
 	return s.(Ext_java_util_Collection).Contains(BoxNullableVal(k))
 }
+func ImmSetContainsTypedU8_(s Ext_com_google_common_collect_ImmutableSet, u uint8) bool {
+	if p, ok := s.(*Ext_com_google_common_collect_ImmutableSetBase); ok {
+		return p.u8Tab_[u]
+	}
+	return immSetContainsTypedU8Slow(s, u)
+}
+
+//go:noinline
+func immSetContainsTypedU8Slow(s Ext_com_google_common_collect_ImmutableSet, u uint8) bool {
+	if s == nil || isJavaNilAny(s) {
+		ThrowNPE()
+	}
+	if u == 0 {
+		return false
+	}
+	if ss, ok := s.(*Ext_com_google_common_collect_ImmutableSortedSetBase); ok && ss != nil && ss.sortedCore_ != nil && !ss.sortedCore_.IsNaturalOrder() {
+		if len(ss.elems_) == 0 {
+			return false
+		}
+		rv := reflect.New(reflect.TypeOf(ss.elems_[0])).Elem()
+		rv.SetUint(uint64(u))
+		return ss.Contains(rv.Interface())
+	}
+	wantOrd := int32(u) - 1
+	if si, ok := s.(SliceIterable); ok {
+		for _, elem := range si.IterSlice_() {
+			if ea, okE := elem.(jEnumOrdAccessor); okE && ea.EnumOrdinal_() == wantOrd {
+				return true
+			}
+		}
+		return false
+	}
+	it := Iterate(s)
+	for it.HasNext() {
+		if ea, okE := it.Next().(jEnumOrdAccessor); okE && ea.EnumOrdinal_() == wantOrd {
+			return true
+		}
+	}
+	return false
+}
+func SetContainsTypedU8_[E ~uint8](s any, v E) bool {
+	if p, ok := s.(*Ext_com_google_common_collect_ImmutableSetBase); ok {
+		return p.u8Tab_[v]
+	}
+	return setContainsU8Slow(s, v)
+}
+func SetContainsU8_[E ~uint8](s any, v E) bool {
+	if p, ok := s.(*Ext_com_google_common_collect_ImmutableSetBase); ok && p != nil && p.hasU8Bits_ {
+		u := uint8(v)
+		return (p.u8Bits_[u>>6]&(uint64(1)<<(u&63))) != 0 && p.u8PtrNil_ == any((*E)(nil))
+	}
+	return setContainsU8Slow(s, v)
+}
+
+//go:noinline
+func setContainsU8Slow(s, v any) bool {
+	if s == nil {
+		ThrowNPE()
+	}
+	if ep, ok := s.(jFastEnumSetProvider); ok {
+		if es := ep.fastEnumSet_(); es != nil {
+			ea, okE := v.(jEnumOrdAccessor)
+			if !okE || es.size == 0 {
+				return false
+			}
+			ord := int(ea.EnumOrdinal_())
+			if ord < 0 || ord >= len(es.universe) || !es.hasBit(ord) {
+				return false
+			}
+			return reflect.TypeOf(v) == reflect.TypeOf(es.universe[0])
+		}
+	}
+	if isJavaNilAny(s) {
+		ThrowNPE()
+	}
+	return s.(Ext_java_util_Collection).Contains(ToAny(v))
+}
 
 func TableContainsRowColorId[R RawColorIdKey](tbl any, r R) bool {
 	if tbl == nil {
@@ -43192,7 +43253,7 @@ func wrapBigInteger(bi *javamath.BigInteger) *Ext_java_math_BigInteger {
 	return obj
 }
 func (b *Ext_java_math_BigInteger) bi() *javamath.BigInteger {
-	CheckNotNull(b)
+	CheckNotNullPtr(b)
 	if v, ok := b.Core_.(*javamath.BigInteger); ok && v != nil {
 		return v
 	}

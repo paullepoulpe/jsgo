@@ -84,14 +84,14 @@ func (this_ SourcePosition) GetOffset() int32 {
 
 // Java method: SourcePosition.toString()
 func (this_ SourcePosition) String() string {
-	return j2gort.Ext_java_lang_String_Format_2("%s(%d, %d)", []any{j2gort.BoxString(this_.priv_SourcePosition_shortSourceName_7613()), j2gort.ValueOfInt((this_.line + int32(1))), j2gort.ValueOfInt((this_.column + int32(1)))})
+	return j2gort.Ext_java_lang_String_Format_2("%s(%d, %d)", []any{j2gort.BoxString(this_.priv_SourcePosition_shortSourceName_7625()), j2gort.ValueOfInt((this_.line + int32(1))), j2gort.ValueOfInt((this_.column + int32(1)))})
 }
 
 // Java method: SourcePosition.shortSourceName()
-func (this_ SourcePosition) priv_SourcePosition_shortSourceName_7613() string {
+func (this_ SourcePosition) priv_SourcePosition_shortSourceName_7625() string {
 	if ((this_.source == nil)) {
 		return ""
 	}
-	return j2gort.CastString(j2gort.Ext_com_google_common_collect_Iterables_GetLast_1(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(47)).Split(j2gort.BoxString(this_.source.name))))
+	return j2gort.CastString(j2gort.Ext_com_google_common_collect_Iterables_GetLast_1(j2gort.SplitterSplitStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(47)), this_.source.name)))
 }
 

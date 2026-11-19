@@ -8,7 +8,6 @@ package protobuf
 
 import (
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
-	"github.com/paullepoulpe/jsgo/transpiled/shims/javanio"
 )
 
 // NodeKind is the protobuf enum jscomp.NodeKind.
@@ -798,8 +797,7 @@ func (m *LazyAst) serializedSize() int {
 		size += 1 + protoVarintLen(uint64(uint32(m.sourceFile_)))
 	}
 	if m.sourceMappingUrl_ != "" {
-		b := javanio.StandardCharsets_UTF_8.Encode(m.sourceMappingUrl_)
-		size += 1 + protoVarintLen(uint64(len(b))) + len(b)
+		size += protoStringSize(1, m.sourceMappingUrl_)
 	}
 	if size < 1<<31-1 {
 		m.cachedSize = int32(size + 1)

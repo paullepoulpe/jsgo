@@ -150,11 +150,11 @@ func (this_ *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) Visit_3
 	_ = t
 	_ = n
 	_ = parent
-	this_.priv_UnwrapConcealedClosureUnawareCode_tryUnwrapClosureUnawareShadowedCode_3840(n)
+	this_.priv_UnwrapConcealedClosureUnawareCode_tryUnwrapClosureUnawareShadowedCode_3843(n)
 }
 
 // Java method: UnwrapConcealedClosureUnawareCode.tryUnwrapClosureUnawareShadowedCode(com.google.javascript.rhino.Node n)
-func (this_ *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) priv_UnwrapConcealedClosureUnawareCode_tryUnwrapClosureUnawareShadowedCode_3840(n pkg_rhino.Node) {
+func (this_ *ManageClosureUnawareCode_UnwrapConcealedClosureUnawareCode) priv_UnwrapConcealedClosureUnawareCode_tryUnwrapClosureUnawareShadowedCode_3843(n pkg_rhino.Node) {
 	_ = n
 	var shadowAstRoot pkg_rhino.Node = n.GetClosureUnawareShadow()
 	_ = shadowAstRoot

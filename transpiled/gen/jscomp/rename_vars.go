@@ -209,23 +209,23 @@ func (this_ *RenameVars) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) 
 	_ = varsByFrequency
 	varsByFrequency.AddAll_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.assignments.LiveValues()))
 	if this_.prevUsedRenameMap != nil {
-		this_.priv_RenameVars_reusePreviouslyUsedVariableMap_4796(varsByFrequency)
+		this_.priv_RenameVars_reusePreviouslyUsedVariableMap_4803(varsByFrequency)
 	}
-	this_.priv_RenameVars_assignNames_4797(varsByFrequency)
+	this_.priv_RenameVars_assignNames_4804(varsByFrequency)
 	for _, n := range this_.globalNameNodes {
 		_ = n
-		this_.priv_RenameVars_setNameAndReport_4792(n, this_.priv_RenameVars_getNewGlobalName_4793(n))
+		this_.priv_RenameVars_setNameAndReport_4799(n, this_.priv_RenameVars_getNewGlobalName_4800(n))
 	}
 
 	for _, n_2 := range this_.localNameNodes {
 		_ = n_2
-		this_.priv_RenameVars_setNameAndReport_4792(n_2, this_.priv_RenameVars_getNewLocalName_4794(n_2))
+		this_.priv_RenameVars_setNameAndReport_4799(n_2, this_.priv_RenameVars_getNewLocalName_4801(n_2))
 	}
 
 }
 
 // Java method: RenameVars.setNameAndReport(com.google.javascript.rhino.Node n, java.lang.@org.jspecify.annotations.Nullable String newName)
-func (this_ *RenameVars) priv_RenameVars_setNameAndReport_4792(n pkg_rhino.Node, newName string) {
+func (this_ *RenameVars) priv_RenameVars_setNameAndReport_4799(n pkg_rhino.Node, newName string) {
 	_ = n
 	_ = newName
 	if (newName != j2gort.NullString) && !(func() bool { sr_4 := newName; se_5 := n.GetString(); return j2gort.CheckNotNullString(sr_4) == se_5 }()) {
@@ -251,7 +251,7 @@ func (this_ *RenameVars) priv_RenameVars_setNameAndReport_4792(n pkg_rhino.Node,
 }
 
 // Java method: RenameVars.getNewGlobalName(com.google.javascript.rhino.Node n)
-func (this_ *RenameVars) priv_RenameVars_getNewGlobalName_4793(n pkg_rhino.Node) string {
+func (this_ *RenameVars) priv_RenameVars_getNewGlobalName_4800(n pkg_rhino.Node) string {
 	_ = n
 	var oldName string = n.GetString()
 	_ = oldName
@@ -268,7 +268,7 @@ func (this_ *RenameVars) priv_RenameVars_getNewGlobalName_4793(n pkg_rhino.Node)
 }
 
 // Java method: RenameVars.getNewLocalName(com.google.javascript.rhino.Node n)
-func (this_ *RenameVars) priv_RenameVars_getNewLocalName_4794(n pkg_rhino.Node) string {
+func (this_ *RenameVars) priv_RenameVars_getNewLocalName_4801(n pkg_rhino.Node) string {
 	_ = n
 	var oldTempName string = n.GetString()
 	_ = oldTempName
@@ -284,13 +284,13 @@ func (this_ *RenameVars) priv_RenameVars_getNewLocalName_4794(n pkg_rhino.Node) 
 }
 
 // Java method: RenameVars.recordPseudoName(com.google.javascript.rhino.Node n)
-func (this_ *RenameVars) priv_RenameVars_recordPseudoName_4795(n pkg_rhino.Node) {
+func (this_ *RenameVars) priv_RenameVars_recordPseudoName_4802(n pkg_rhino.Node) {
 	_ = n
 	this_.pseudoNameMap.Put(n, "$"+j2gort.StrValString(n.GetString())+"$$")
 }
 
 // Java method: RenameVars.reusePreviouslyUsedVariableMap(java.util.SortedSet<com.google.javascript.jscomp.RenameVars.Assignment> varsToRename)
-func (this_ *RenameVars) priv_RenameVars_reusePreviouslyUsedVariableMap_4796(varsToRename j2gort.Ext_java_util_SortedSet) {
+func (this_ *RenameVars) priv_RenameVars_reusePreviouslyUsedVariableMap_4803(varsToRename j2gort.Ext_java_util_SortedSet) {
 	_ = varsToRename
 	j2gort.CheckNotNull(this_.prevUsedRenameMap.GetNewNameToOriginalNameMap())
 	{
@@ -306,14 +306,14 @@ func (this_ *RenameVars) priv_RenameVars_reusePreviouslyUsedVariableMap_4796(var
 			}
 			if a.isLocal || (!(j2gort.SetContainsStr(this_.externNames, a.oldName)) && javalang.StringStartsWith(j2gort.CheckNotNullString(prevNewName), j2gort.CheckNotNullString(this_.prefix))) {
 				j2gort.SetAddStr(this_.reservedNames, prevNewName)
-				this_.priv_RenameVars_finalizeNameAssignment_4798(a, prevNewName)
+				this_.priv_RenameVars_finalizeNameAssignment_4805(a, prevNewName)
 			}
 		}
 	}
 }
 
 // Java method: RenameVars.assignNames(java.util.SortedSet<com.google.javascript.jscomp.RenameVars.Assignment> varsToRename)
-func (this_ *RenameVars) priv_RenameVars_assignNames_4797(varsToRename j2gort.Ext_java_util_SortedSet) {
+func (this_ *RenameVars) priv_RenameVars_assignNames_4804(varsToRename j2gort.Ext_java_util_SortedSet) {
 	_ = varsToRename
 	this_.nameGenerator.Reset_3(this_.reservedNames, this_.prefix, this_.reservedCharacters)
 	var globalNameGenerator NameGenerator = this_.nameGenerator
@@ -345,7 +345,7 @@ func (this_ *RenameVars) priv_RenameVars_assignNames_4797(varsToRename j2gort.Ex
 			_ = newName
 			if a.isLocal {
 				newName = localNameGenerator.GenerateNextName()
-				this_.priv_RenameVars_finalizeNameAssignment_4798(a, newName)
+				this_.priv_RenameVars_finalizeNameAssignment_4805(a, newName)
 			} else {
 				newName = globalNameGenerator.GenerateNextName()
 				pendingAssignments = append(pendingAssignments, a)
@@ -377,7 +377,7 @@ func (this_ *RenameVars) priv_RenameVars_assignNames_4797(varsToRename j2gort.Ex
 					rawElem_13 := cur_12.Next()
 					a_2 := j2gort.CastPtr[RenameVars_Assignment](rawElem_13)
 					_ = a_2
-					this_.priv_RenameVars_finalizeNameAssignment_4798(a_2, generatedNamesForAssignments[i])
+					this_.priv_RenameVars_finalizeNameAssignment_4805(a_2, generatedNamesForAssignments[i])
 					i = i + 1
 				}
 			}
@@ -386,7 +386,7 @@ func (this_ *RenameVars) priv_RenameVars_assignNames_4797(varsToRename j2gort.Ex
 }
 
 // Java method: RenameVars.finalizeNameAssignment(com.google.javascript.jscomp.RenameVars.Assignment a, java.lang.String newName)
-func (this_ *RenameVars) priv_RenameVars_finalizeNameAssignment_4798(a *RenameVars_Assignment, newName string) {
+func (this_ *RenameVars) priv_RenameVars_finalizeNameAssignment_4805(a *RenameVars_Assignment, newName string) {
 	_ = a
 	_ = newName
 	a.SetNewName(newName)
@@ -399,14 +399,14 @@ func (this_ *RenameVars) GetVariableMap() *VariableMap {
 }
 
 // Java method: RenameVars.okToRenameVar(java.lang.String name, boolean isLocal)
-func (this_ *RenameVars) priv_RenameVars_okToRenameVar_4800(name string, isLocal bool) bool {
+func (this_ *RenameVars) priv_RenameVars_okToRenameVar_4807(name string, isLocal bool) bool {
 	_ = name
 	_ = isLocal
 	return !(this_.compiler.GetCodingConvention().IsExported_2(name, isLocal))
 }
 
 // Java method: RenameVars.getLocalVarIndex(com.google.javascript.jscomp.Var v)
-func (this_ *RenameVars) priv_RenameVars_getLocalVarIndex_4801(v *Var) int32 {
+func (this_ *RenameVars) priv_RenameVars_getLocalVarIndex_4808(v *Var) int32 {
 	_ = v
 	var num int32 = v.GetIndex()
 	_ = num
@@ -424,7 +424,7 @@ func (this_ *RenameVars) priv_RenameVars_getLocalVarIndex_4801(v *Var) int32 {
 		} else {
 			num = (num + j2gort.AsIface[j2gort.Ext_java_util_List](this_.localBleedingFunctionsPerScope.Get(j2gort.PtrToAny(s))).Size())
 		}
-		if this_.priv_RenameVars_shouldTemporarilyRenameLocalsInScope_4802(s) {
+		if this_.priv_RenameVars_shouldTemporarilyRenameLocalsInScope_4809(s) {
 			num = (num + s.GetVarCount())
 		}
 		s = j2gort.CastPtr[Scope](s.GetParent())
@@ -433,7 +433,7 @@ func (this_ *RenameVars) priv_RenameVars_getLocalVarIndex_4801(v *Var) int32 {
 }
 
 // Java method: RenameVars.shouldTemporarilyRenameLocalsInScope(com.google.javascript.jscomp.Scope s)
-func (this_ *RenameVars) priv_RenameVars_shouldTemporarilyRenameLocalsInScope_4802(s *Scope) bool {
+func (this_ *RenameVars) priv_RenameVars_shouldTemporarilyRenameLocalsInScope_4809(s *Scope) bool {
 	_ = s
 	return (!(this_.preferStableNames) || (s.GetVarCount() <= int32(1000)))
 }
@@ -563,7 +563,7 @@ func InitRenameVars_ProcessVars(this_ *RenameVars_ProcessVars) {
 // Java method: ProcessVars.enterScope(com.google.javascript.jscomp.NodeTraversal t)
 func (this_ *RenameVars_ProcessVars) EnterScope(t *NodeTraversal) {
 	_ = t
-	if t.InGlobalHoistScope() || !(this_.outer_.priv_RenameVars_shouldTemporarilyRenameLocalsInScope_4802(t.GetScope())) {
+	if t.InGlobalHoistScope() || !(this_.outer_.priv_RenameVars_shouldTemporarilyRenameLocalsInScope_4809(t.GetScope())) {
 		return
 	}
 	var scope *Scope = t.GetScope()
@@ -616,7 +616,7 @@ func (this_ *RenameVars_ProcessVars) Visit_3(t *NodeTraversal, n pkg_rhino.Node,
 		j2gort.SetAddStr(this_.outer_.reservedNames, name)
 		return
 	}
-	if !(this_.outer_.priv_RenameVars_okToRenameVar_4800(name, local)) {
+	if !(this_.outer_.priv_RenameVars_okToRenameVar_4807(name, local)) {
 		if local {
 			var newName string = MakeDeclaredNamesUnique_ContextualRenameInverter_GetOriginalName(name)
 			_ = newName
@@ -627,10 +627,10 @@ func (this_ *RenameVars_ProcessVars) Visit_3(t *NodeTraversal, n pkg_rhino.Node,
 		return
 	}
 	if this_.outer_.pseudoNameMap != nil {
-		this_.outer_.priv_RenameVars_recordPseudoName_4795(n)
+		this_.outer_.priv_RenameVars_recordPseudoName_4802(n)
 	}
-	if local && this_.outer_.priv_RenameVars_shouldTemporarilyRenameLocalsInScope_4802(j2gort.CastPtr[Scope](var_.GetScope())) {
-		var tempName string = ("L " + j2gort.StrValInt32(this_.outer_.priv_RenameVars_getLocalVarIndex_4801(var_)))
+	if local && this_.outer_.priv_RenameVars_shouldTemporarilyRenameLocalsInScope_4809(j2gort.CastPtr[Scope](var_.GetScope())) {
+		var tempName string = ("L " + j2gort.StrValInt32(this_.outer_.priv_RenameVars_getLocalVarIndex_4808(var_)))
 		_ = tempName
 		this_.IncCount(tempName)
 		this_.outer_.localNameNodes = append(this_.outer_.localNameNodes, n)

@@ -199,7 +199,7 @@ func ParserRunner_InitResourceConfig() {
 func ParserRunner_ExtractList(configProp string) j2gort.Ext_com_google_common_collect_ImmutableSet {
 	clinit_ParserRunner()
 	_ = configProp
-	return j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_Ext_java_lang_Iterable(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(44)).TrimResults_0().Split(j2gort.BoxString(configProp)))
+	return j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_Ext_java_lang_Iterable(j2gort.SplitterSplitStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(44)).TrimResults_0(), configProp))
 }
 
 // Java static method: ParserRunner.parse(com.google.javascript.rhino.StaticSourceFile sourceFile, java.lang.String sourceString, com.google.javascript.jscomp.parsing.Config config, com.google.javascript.rhino.ErrorReporter errorReporter)

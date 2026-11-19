@@ -117,7 +117,7 @@ func ReportDecoder_ParseMapping(mappingFileContent string) j2gort.Ext_java_util_
 	_ = mappingFileContent
 	var mapping j2gort.Ext_java_util_Map = j2gort.NewExt_java_util_LinkedHashMap()
 	_ = mapping
-	var linesOfFile j2gort.Ext_java_util_List = j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(10)).OmitEmptyStrings().SplitToList(j2gort.BoxString(mappingFileContent))
+	var linesOfFile j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(10)).OmitEmptyStrings(), mappingFileContent)
 	_ = linesOfFile
 	if !(linesOfFile.Size() >= int32(3)) {
 		j2gort.CheckStateFmt(false, "Malformed report %s", linesOfFile)

@@ -241,7 +241,7 @@ func (this_ *AllowlistWarningsGuard) FormatWarning_2(error_ *JSError, withMetaDa
 	if withMetaData {
 		sb.AppendInt(error_.GetLineNumber())
 	}
-	var lines j2gort.Ext_java_util_List = StaticGet_AllowlistWarningsGuard_LINE_SPLITTER().SplitToList(j2gort.BoxString(error_.Description()))
+	var lines j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(StaticGet_AllowlistWarningsGuard_LINE_SPLITTER(), error_.Description())
 	_ = lines
 	sb.AppendStr("  ").AppendStr(j2gort.ListGetStr(lines, int32(0)))
 	if withMetaData {
@@ -391,7 +391,7 @@ func (this_ *AllowlistWarningsGuard_AllowlistBuilder) AppendAllowlist(out *j2gor
 		out.Append_1_any("# When you fix any of these warnings, run " + j2gort.StrValString(this_.generatorTarget) + " task.\n")
 	}
 	if this_.headerNote != j2gort.NullString {
-		out.Append_1_any("#" + j2gort.StrValString(j2gort.Ext_com_google_common_base_Joiner_On_1_string("\n# ").Join_1_Ext_java_lang_Iterable(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(10)).Split(j2gort.BoxString(this_.headerNote)))) + "\n")
+		out.Append_1_any("#" + j2gort.StrValString(j2gort.Ext_com_google_common_base_Joiner_On_1_string("\n# ").Join_1_Ext_java_lang_Iterable(j2gort.SplitterSplitStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(10)), this_.headerNote))) + "\n")
 	}
 	var warningsByType *SimpleMultimap[*DiagnosticType, string] = SimpleMultimap_Create_0[*DiagnosticType, string]()
 	_ = warningsByType
@@ -413,7 +413,7 @@ func (this_ *AllowlistWarningsGuard_AllowlistBuilder) AppendAllowlist(out *j2gor
 		if StaticGet_DiagnosticGroups_DEPRECATED().Matches_1_DiagnosticType(type_) {
 			continue
 		}
-		j2gort.CastPtr[j2gort.Ext_java_io_PrintStream](j2gort.CastPtr[j2gort.Ext_java_io_PrintStream](j2gort.CastPtr[j2gort.Ext_java_io_PrintStream](out.Append_1_any("\n# Warning ")).Append_1_any(j2gort.BoxString(type_.key))).Append_1_any(": ")).Println_1_string(j2gort.CastString(j2gort.AsIface[j2gort.Ext_java_util_Iterator](StaticGet_AllowlistWarningsGuard_LINE_SPLITTER().Split(j2gort.BoxString(type_.format)).Iterator()).Next()))
+		j2gort.CastPtr[j2gort.Ext_java_io_PrintStream](j2gort.CastPtr[j2gort.Ext_java_io_PrintStream](j2gort.CastPtr[j2gort.Ext_java_io_PrintStream](out.Append_1_any("\n# Warning ")).Append_1_any(j2gort.BoxString(type_.key))).Append_1_any(": ")).Println_1_string(j2gort.CastString(j2gort.AsIface[j2gort.Ext_java_util_Iterator](j2gort.SplitterSplitStr(StaticGet_AllowlistWarningsGuard_LINE_SPLITTER(), type_.format).Iterator()).Next()))
 		{
 			cur_10 := j2gort.NewIterCursor(j2gort.NewExt_java_util_TreeSet_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](warningsByType.Get_1_any(j2gort.PtrToAny(type_)))))
 			for cur_10.HasNext() {

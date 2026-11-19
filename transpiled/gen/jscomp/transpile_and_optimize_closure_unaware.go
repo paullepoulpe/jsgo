@@ -100,20 +100,20 @@ func (this_ *TranspileAndOptimizeClosureUnaware) Process_2(externs pkg_rhino.Nod
 	if collector.shadowAsts.IsEmpty() {
 		return
 	}
-	this_.priv_TranspileAndOptimizeClosureUnaware_setScriptFeaturesets_5362(j2gort.AsIface[j2gort.Ext_java_util_Collection](collector.shadowAsts.Values()))
+	this_.priv_TranspileAndOptimizeClosureUnaware_setScriptFeaturesets_5369(j2gort.AsIface[j2gort.Ext_java_util_Collection](collector.shadowAsts.Values()))
 	var shadowOptions *CompilerOptions = ClosureUnawareOptions_Convert(this_.original.GetOptions())
 	_ = shadowOptions
-	var shadowPassConfig *TranspileAndOptimizeClosureUnaware_RuntimeLibInjectionPassConfig = NewTranspileAndOptimizeClosureUnaware_RuntimeLibInjectionPassConfig(shadowOptions, this_.priv_TranspileAndOptimizeClosureUnaware_createInjectRuntimeLibrariesPass_5363(j2gort.AsIface[j2gort.Ext_java_util_Collection](collector.shadowAsts.Values())))
+	var shadowPassConfig *TranspileAndOptimizeClosureUnaware_RuntimeLibInjectionPassConfig = NewTranspileAndOptimizeClosureUnaware_RuntimeLibInjectionPassConfig(shadowOptions, this_.priv_TranspileAndOptimizeClosureUnaware_createInjectRuntimeLibrariesPass_5370(j2gort.AsIface[j2gort.Ext_java_util_Collection](collector.shadowAsts.Values())))
 	_ = shadowPassConfig
 	var shadowCompiler *NestedCompilerRunner = NestedCompilerRunner_Create(this_.original, shadowOptions, this_.mode, shadowPassConfig)
 	_ = shadowCompiler
-	this_.priv_TranspileAndOptimizeClosureUnaware_initShadowInputs_5360(shadowCompiler, collector.shadowAsts)
+	this_.priv_TranspileAndOptimizeClosureUnaware_initShadowInputs_5367(shadowCompiler, collector.shadowAsts)
 	shadowCompiler.Compile()
-	this_.priv_TranspileAndOptimizeClosureUnaware_reattachShadowNodes_5361(collector.shadowAsts)
+	this_.priv_TranspileAndOptimizeClosureUnaware_reattachShadowNodes_5368(collector.shadowAsts)
 }
 
 // Java method: TranspileAndOptimizeClosureUnaware.initShadowInputs(com.google.javascript.jscomp.NestedCompilerRunner shadowCompiler, com.google.common.collect.LinkedHashMultimap<com.google.javascript.jscomp.SourceFile,com.google.javascript.jscomp.TranspileAndOptimizeClosureUnaware.ShadowAst> perFileInputs)
-func (this_ *TranspileAndOptimizeClosureUnaware) priv_TranspileAndOptimizeClosureUnaware_initShadowInputs_5360(shadowCompiler *NestedCompilerRunner, perFileInputs *j2gort.Ext_com_google_common_collect_LinkedHashMultimap) {
+func (this_ *TranspileAndOptimizeClosureUnaware) priv_TranspileAndOptimizeClosureUnaware_initShadowInputs_5367(shadowCompiler *NestedCompilerRunner, perFileInputs *j2gort.Ext_com_google_common_collect_LinkedHashMultimap) {
 	_ = shadowCompiler
 	_ = perFileInputs
 	{
@@ -140,7 +140,7 @@ func (this_ *TranspileAndOptimizeClosureUnaware) priv_TranspileAndOptimizeClosur
 }
 
 // Java method: TranspileAndOptimizeClosureUnaware.reattachShadowNodes(com.google.common.collect.LinkedHashMultimap<com.google.javascript.jscomp.SourceFile,com.google.javascript.jscomp.TranspileAndOptimizeClosureUnaware.ShadowAst> inputs)
-func (this_ *TranspileAndOptimizeClosureUnaware) priv_TranspileAndOptimizeClosureUnaware_reattachShadowNodes_5361(inputs *j2gort.Ext_com_google_common_collect_LinkedHashMultimap) {
+func (this_ *TranspileAndOptimizeClosureUnaware) priv_TranspileAndOptimizeClosureUnaware_reattachShadowNodes_5368(inputs *j2gort.Ext_com_google_common_collect_LinkedHashMultimap) {
 	_ = inputs
 	{
 		cur_8 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Collection](inputs.Values())))
@@ -161,7 +161,7 @@ func (this_ *TranspileAndOptimizeClosureUnaware) priv_TranspileAndOptimizeClosur
 }
 
 // Java method: TranspileAndOptimizeClosureUnaware.setScriptFeaturesets(java.util.Collection<com.google.javascript.jscomp.TranspileAndOptimizeClosureUnaware.ShadowAst> inputs)
-func (this_ *TranspileAndOptimizeClosureUnaware) priv_TranspileAndOptimizeClosureUnaware_setScriptFeaturesets_5362(inputs j2gort.Ext_java_util_Collection) {
+func (this_ *TranspileAndOptimizeClosureUnaware) priv_TranspileAndOptimizeClosureUnaware_setScriptFeaturesets_5369(inputs j2gort.Ext_java_util_Collection) {
 	_ = inputs
 	{
 		cur_10 := j2gort.NewIterCursor(j2gort.CheckNotNull(inputs))
@@ -180,7 +180,7 @@ func (this_ *TranspileAndOptimizeClosureUnaware) priv_TranspileAndOptimizeClosur
 }
 
 // Java method: TranspileAndOptimizeClosureUnaware.createInjectRuntimeLibrariesPass(java.util.Collection<com.google.javascript.jscomp.TranspileAndOptimizeClosureUnaware.ShadowAst> shadowAsts)
-func (this_ *TranspileAndOptimizeClosureUnaware) priv_TranspileAndOptimizeClosureUnaware_createInjectRuntimeLibrariesPass_5363(shadowAsts j2gort.Ext_java_util_Collection) PassFactory {
+func (this_ *TranspileAndOptimizeClosureUnaware) priv_TranspileAndOptimizeClosureUnaware_createInjectRuntimeLibrariesPass_5370(shadowAsts j2gort.Ext_java_util_Collection) PassFactory {
 	_ = shadowAsts
 	var callSites *j2gort.Ext_com_google_common_collect_ImmutableList_Builder = (&j2gort.Ext_com_google_common_collect_ImmutableList_Builder{})
 	_ = callSites

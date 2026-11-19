@@ -22,16 +22,14 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Norris Boyd
- *   Roger Lawrence
- *   Mike McCabe
+ *   Bob Jervis
+ *   Google Inc.
  *
  * This Go translation is distributed under the MPL 1.1 only, as the
  * original's dual licence allows; the other licence it offers is not
  * used.
  *
  * ***** END LICENSE BLOCK ***** */
-
 // Port of com/google/javascript/rhino/jstype/NoType.java (generated mechanically by j2go).
 
 package rhino

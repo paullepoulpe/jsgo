@@ -2651,7 +2651,7 @@ func StringEquals(s string, other any) bool {
 }
 
 func StringFormat(format string, args ...any) string {
-	CheckNotNull(format)
+	CheckNotNullString(format)
 	var out strings.Builder
 	out.Grow(len(format) + 16)
 	seqIdx := 0
@@ -3689,7 +3689,7 @@ func (c *jStringBuilderCore) setLength(newLen int32) {
 	c.resetTo(JStrSub(s, 0, newLen))
 }
 func StringFromInt8Slice(b []int8) string {
-	CheckNotNull(b)
+	CheckNotNullSlice(b)
 	raw := make([]byte, len(b))
 	for i, v := range b {
 		raw[i] = byte(v)
@@ -3697,7 +3697,7 @@ func StringFromInt8Slice(b []int8) string {
 	return string(raw)
 }
 func StringFromInt8Range(b []int8, off, length int32) string {
-	CheckNotNull(b)
+	CheckNotNullSlice(b)
 	if off < 0 || length < 0 || int(off)+int(length) > len(b) {
 		panic(javalang.NewStringIndexOutOfBoundsExceptionForRange(int(off), int(off+length), len(b)))
 	}
@@ -3731,7 +3731,7 @@ func Arraycopy(src any, srcPos int32, dest any, destPos int32, length int32) {
 	}
 }
 func ClassPackageName(c *javalang.Class) string {
-	CheckNotNull(c)
+	CheckNotNullPtr(c)
 	n := c.GetName()
 	if idx := strings.LastIndexByte(n, '.'); idx >= 0 {
 		return n[:idx]
@@ -3739,17 +3739,17 @@ func ClassPackageName(c *javalang.Class) string {
 	return ""
 }
 func ClassResourceExists(c *javalang.Class, path string) bool {
-	CheckNotNull(c)
-	CheckNotNull(path)
+	CheckNotNullPtr(c)
+	CheckNotNullString(path)
 	return shimsres.ResourceExists(ClassPackageName(c), path)
 }
 func ClassResourceBytes(c *javalang.Class, path string) ([]byte, bool) {
-	CheckNotNull(c)
-	CheckNotNull(path)
+	CheckNotNullPtr(c)
+	CheckNotNullString(path)
 	return shimsres.GetResourceBytes(ClassPackageName(c), path)
 }
 func ClassForName(name string) *javalang.Class {
-	CheckNotNull(name)
+	CheckNotNullString(name)
 	simple := name
 	if idx := strings.LastIndexAny(name, ".$"); idx >= 0 {
 		simple = name[idx+1:]
@@ -3849,7 +3849,7 @@ func CompareValues(a, b any) int32 {
 // --- Math & Numeric Intrinsics ---
 
 func ParseInt(s string, radix int32) int32 {
-	CheckNotNull(s)
+	CheckNotNullString(s)
 	v, err := strconv.ParseInt(strings.TrimPrefix(s, "+"), int(radix), 32)
 	if err != nil {
 		panic(javalang.NewNumberFormatException(s))
@@ -3858,7 +3858,7 @@ func ParseInt(s string, radix int32) int32 {
 }
 
 func ParseLong(s string, radix int32) int64 {
-	CheckNotNull(s)
+	CheckNotNullString(s)
 	v, err := strconv.ParseInt(strings.TrimPrefix(s, "+"), int(radix), 64)
 	if err != nil {
 		panic(javalang.NewNumberFormatException(s))

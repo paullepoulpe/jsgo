@@ -186,7 +186,7 @@ func Reference_IsDeclarationHelper(node pkg_rhino.Node) bool {
 	if (parent.IsArrowFunction()) {
 		return (node == parent.GetFirstChild())
 	}
-	return StaticGet_Reference_DECLARATION_PARENTS().Contains(j2gort.BoxNullableVal(parent.GetToken()))
+	return j2gort.ImmSetContainsTypedU8_(StaticGet_Reference_DECLARATION_PARENTS(), uint8(parent.GetToken()))
 }
 
 // Java method: Reference.isVarDeclaration()

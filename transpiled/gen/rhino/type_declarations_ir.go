@@ -113,7 +113,7 @@ func TypeDeclarationsIR_UndefinedType() Node {
 // Java static method: TypeDeclarationsIR.namedType(java.lang.String typeName)
 func TypeDeclarationsIR_NamedType_1_string(typeName string) Node {
 	_ = typeName
-	return TypeDeclarationsIR_NamedType_1_Ext_java_lang_Iterable(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(46)).Split(j2gort.BoxString(typeName)))
+	return TypeDeclarationsIR_NamedType_1_Ext_java_lang_Iterable(j2gort.SplitterSplitStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(46)), typeName))
 }
 
 // Java static method: TypeDeclarationsIR.namedType(java.lang.Iterable<java.lang.String> segments)

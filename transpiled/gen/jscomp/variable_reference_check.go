@@ -268,7 +268,7 @@ func (this_ *VariableReferenceCheck) Process_2(externs pkg_rhino.Node, root pkg_
 }
 
 // Java method: VariableReferenceCheck.lookForHoistedFunction(com.google.javascript.jscomp.ReferenceCollection references)
-func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_lookForHoistedFunction_5844(references *ReferenceCollection) *Reference {
+func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_lookForHoistedFunction_5852(references *ReferenceCollection) *Reference {
 	_ = references
 	{
 		var i int32 = int32(0)
@@ -288,17 +288,17 @@ func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_lookForHoistedF
 }
 
 // Java method: VariableReferenceCheck.checkBlocklessDeclaration(com.google.javascript.jscomp.Var v, com.google.javascript.jscomp.Reference reference, com.google.javascript.rhino.Node referenceNode)
-func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_checkBlocklessDeclaration_5845(v *Var, reference *Reference, referenceNode pkg_rhino.Node) {
+func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_checkBlocklessDeclaration_5853(v *Var, reference *Reference, referenceNode pkg_rhino.Node) {
 	_ = v
 	_ = reference
 	_ = referenceNode
-	if (!(reference.IsVarDeclaration()) && reference.GetGrandparent().IsAddedBlock()) && StaticGet_VariableReferenceCheck_BLOCKLESS_DECLARATION_FORBIDDEN_STATEMENTS().Contains(j2gort.BoxNullableVal(reference.GetGrandparent().GetParent().GetToken())) {
+	if (!(reference.IsVarDeclaration()) && reference.GetGrandparent().IsAddedBlock()) && j2gort.ImmSetContainsTypedU8_(StaticGet_VariableReferenceCheck_BLOCKLESS_DECLARATION_FORBIDDEN_STATEMENTS(), uint8(reference.GetGrandparent().GetParent().GetToken())) {
 		this_.compiler.Report_1(JSError_Make_3(referenceNode, StaticGet_VariableReferenceCheck_DECLARATION_NOT_DIRECTLY_IN_BLOCK(), []string{v.GetName()}))
 	}
 }
 
 // Java method: VariableReferenceCheck.checkRedeclaration(com.google.javascript.jscomp.Var v, com.google.javascript.jscomp.Reference reference, com.google.javascript.rhino.Node referenceNode, com.google.javascript.jscomp.Reference hoistedFn, com.google.javascript.jscomp.BasicBlock basicBlock)
-func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_checkRedeclaration_5846(v *Var, reference *Reference, referenceNode pkg_rhino.Node, hoistedFn *Reference, basicBlock *BasicBlock) bool {
+func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_checkRedeclaration_5854(v *Var, reference *Reference, referenceNode pkg_rhino.Node, hoistedFn *Reference, basicBlock *BasicBlock) bool {
 	_ = v
 	_ = reference
 	_ = referenceNode
@@ -310,7 +310,7 @@ func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_checkRedeclarat
 	_ = isVarNodeSameAsReferenceNode
 	var shadowCatchVar bool = (v.GetParentNode().IsCatch() && !(isVarNodeSameAsReferenceNode))
 	_ = shadowCatchVar
-	if this_.priv_VariableReferenceCheck_isRedeclaration_5847(basicBlock) && !(VarCheck_HasDuplicateDeclarationSuppression(this_.compiler, referenceNode, v.GetNameNode())) {
+	if this_.priv_VariableReferenceCheck_isRedeclaration_5855(basicBlock) && !(VarCheck_HasDuplicateDeclarationSuppression(this_.compiler, referenceNode, v.GetNameNode())) {
 		var diagnosticType *DiagnosticType = nil
 		_ = diagnosticType
 		var warningNode pkg_rhino.Node = referenceNode
@@ -348,7 +348,7 @@ func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_checkRedeclarat
 }
 
 // Java method: VariableReferenceCheck.isRedeclaration(com.google.javascript.jscomp.BasicBlock newDeclaration)
-func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_isRedeclaration_5847(newDeclaration *BasicBlock) bool {
+func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_isRedeclaration_5855(newDeclaration *BasicBlock) bool {
 	_ = newDeclaration
 	{
 		cur_4 := this_.blocksWithDeclarations.Iter()
@@ -377,7 +377,7 @@ func VariableReferenceCheck_LocationOf(n pkg_rhino.Node) string {
 }
 
 // Java method: VariableReferenceCheck.checkEarlyReference(com.google.javascript.jscomp.Var v, com.google.javascript.jscomp.Reference reference, com.google.javascript.rhino.Node referenceNode)
-func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_checkEarlyReference_5848(v *Var, reference *Reference, referenceNode pkg_rhino.Node) bool {
+func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_checkEarlyReference_5856(v *Var, reference *Reference, referenceNode pkg_rhino.Node) bool {
 	_ = v
 	_ = reference
 	_ = referenceNode
@@ -421,7 +421,7 @@ func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_checkEarlyRefer
 }
 
 // Java method: VariableReferenceCheck.checkForUnusedLocalVar(com.google.javascript.jscomp.Var v, com.google.javascript.jscomp.Reference unusedAssignment)
-func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_checkForUnusedLocalVar_5849(v *Var, unusedAssignment *Reference) {
+func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_checkForUnusedLocalVar_5857(v *Var, unusedAssignment *Reference) {
 	_ = v
 	_ = unusedAssignment
 	if !(v.IsLocal()) {
@@ -547,22 +547,22 @@ func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) AfterExitScope(t 
 			_ = referenceCollection
 			if referenceCollection != nil {
 				if scope.GetRootNode_0().IsFunction() && v_2.IsDefaultParam() {
-					this_.priv_ReferenceCheckingBehavior_checkDefaultParam_5850(v_2, scope, this_.varsInFunctionBody)
+					this_.priv_ReferenceCheckingBehavior_checkDefaultParam_5858(v_2, scope, this_.varsInFunctionBody)
 				}
 				if scope.GetRootNode_0().IsFunction() {
-					this_.priv_ReferenceCheckingBehavior_checkShadowParam_5851(v_2, scope, referenceCollection)
+					this_.priv_ReferenceCheckingBehavior_checkShadowParam_5859(v_2, scope, referenceCollection)
 				}
-				this_.priv_ReferenceCheckingBehavior_checkVar_5853(v_2, referenceCollection)
+				this_.priv_ReferenceCheckingBehavior_checkVar_5861(v_2, referenceCollection)
 			}
 		}
 	}
 	if scope.HasOwnImplicitSlot(StaticGet_AbstractScope_ImplicitVar_EXPORTS()) {
-		this_.priv_ReferenceCheckingBehavior_checkGoogModuleExports_5852(j2gort.CastPtr[Var](scope.MakeImplicitVar(StaticGet_AbstractScope_ImplicitVar_EXPORTS())), referenceMap)
+		this_.priv_ReferenceCheckingBehavior_checkGoogModuleExports_5860(j2gort.CastPtr[Var](scope.MakeImplicitVar(StaticGet_AbstractScope_ImplicitVar_EXPORTS())), referenceMap)
 	}
 }
 
 // Java method: ReferenceCheckingBehavior.checkDefaultParam(com.google.javascript.jscomp.Var param, com.google.javascript.jscomp.Scope scope, java.util.Set<java.lang.String> varsInFunctionBody)
-func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceCheckingBehavior_checkDefaultParam_5850(param *Var, scope *Scope, varsInFunctionBody j2gort.Ext_java_util_Set) {
+func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceCheckingBehavior_checkDefaultParam_5858(param *Var, scope *Scope, varsInFunctionBody j2gort.Ext_java_util_Set) {
 	_ = param
 	_ = scope
 	_ = varsInFunctionBody
@@ -570,7 +570,7 @@ func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceChe
 }
 
 // Java method: ReferenceCheckingBehavior.checkShadowParam(com.google.javascript.jscomp.Var v, com.google.javascript.jscomp.Scope functionScope, com.google.javascript.jscomp.ReferenceCollection references)
-func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceCheckingBehavior_checkShadowParam_5851(v *Var, functionScope *Scope, references *ReferenceCollection) {
+func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceCheckingBehavior_checkShadowParam_5859(v *Var, functionScope *Scope, references *ReferenceCollection) {
 	_ = v
 	_ = functionScope
 	_ = references
@@ -594,7 +594,7 @@ func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceChe
 }
 
 // Java method: ReferenceCheckingBehavior.checkGoogModuleExports(com.google.javascript.jscomp.Var exportsVar, com.google.javascript.jscomp.ReferenceMap referenceMap)
-func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceCheckingBehavior_checkGoogModuleExports_5852(exportsVar *Var, referenceMap ReferenceMap) {
+func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceCheckingBehavior_checkGoogModuleExports_5860(exportsVar *Var, referenceMap ReferenceMap) {
 	_ = exportsVar
 	_ = referenceMap
 	var references *ReferenceCollection = j2gort.CastPtr[ReferenceCollection](referenceMap.GetReferences(j2gort.PtrToAny(exportsVar)))
@@ -613,13 +613,13 @@ func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceChe
 			if reference.IsLvalue() {
 				break
 			}
-			this_.outer_.priv_VariableReferenceCheck_checkEarlyReference_5848(exportsVar, reference, reference.GetNode())
+			this_.outer_.priv_VariableReferenceCheck_checkEarlyReference_5856(exportsVar, reference, reference.GetNode())
 		}
 	}
 }
 
 // Java method: ReferenceCheckingBehavior.checkVar(com.google.javascript.jscomp.Var v, com.google.javascript.jscomp.ReferenceCollection references)
-func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceCheckingBehavior_checkVar_5853(v *Var, references *ReferenceCollection) {
+func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceCheckingBehavior_checkVar_5861(v *Var, references *ReferenceCollection) {
 	_ = v
 	_ = references
 	this_.outer_.blocksWithDeclarations.Clear()
@@ -631,7 +631,7 @@ func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceChe
 	_ = isRead
 	var unusedAssignment *Reference = nil
 	_ = unusedAssignment
-	var hoistedFn *Reference = this_.outer_.priv_VariableReferenceCheck_lookForHoistedFunction_5844(references)
+	var hoistedFn *Reference = this_.outer_.priv_VariableReferenceCheck_lookForHoistedFunction_5852(references)
 	_ = hoistedFn
 	if hoistedFn != nil {
 		hasSeenDeclaration = true
@@ -657,15 +657,15 @@ func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceChe
 			_ = isAssignment
 			if isDeclaration {
 				hasSeenDeclaration = true
-				hasErrors = this_.outer_.priv_VariableReferenceCheck_checkRedeclaration_5846(v, reference, referenceNode, hoistedFn, basicBlock)
+				hasErrors = this_.outer_.priv_VariableReferenceCheck_checkRedeclaration_5854(v, reference, referenceNode, hoistedFn, basicBlock)
 				this_.outer_.blocksWithDeclarations.Add(basicBlock)
-				this_.outer_.priv_VariableReferenceCheck_checkBlocklessDeclaration_5845(v, reference, referenceNode)
+				this_.outer_.priv_VariableReferenceCheck_checkBlocklessDeclaration_5853(v, reference, referenceNode)
 				if reference.GetGrandparent().IsExport() {
 					isRead = true
 				}
 			} else {
 				if !(hasSeenDeclaration) {
-					hasErrors = this_.outer_.priv_VariableReferenceCheck_checkEarlyReference_5848(v, reference, referenceNode)
+					hasErrors = this_.outer_.priv_VariableReferenceCheck_checkEarlyReference_5856(v, reference, referenceNode)
 				}
 				if (!(hasErrors) && v.IsConst()) && reference.IsLvalue() {
 					this_.outer_.compiler.Report_1(JSError_Make_3(referenceNode, StaticGet_VariableReferenceCheck_REASSIGNED_CONSTANT(), []string{v.GetName()}))
@@ -695,7 +695,7 @@ func (this_ *VariableReferenceCheck_ReferenceCheckingBehavior) priv_ReferenceChe
 		}
 	}
 	if ((this_.outer_.checkUnusedLocals && (unusedAssignment != nil)) && !(isRead)) && !(hasErrors) {
-		this_.outer_.priv_VariableReferenceCheck_checkForUnusedLocalVar_5849(v, unusedAssignment)
+		this_.outer_.priv_VariableReferenceCheck_checkForUnusedLocalVar_5857(v, unusedAssignment)
 	}
 }
 

@@ -30,9 +30,10 @@ import (
 // Java class: com.google.javascript.jscomp.DeadAssignmentsElimination
 type DeadAssignmentsElimination struct {
 	NodeTraversal_AbstractCfgCallbackBase
-	compiler      AbstractCompiler                                             `gson:"compiler"`
-	liveness      *LiveVariablesAnalysis                                       `gson:"liveness"`
-	functionStack j2gort.Deque[*DeadAssignmentsElimination_BailoutInformation] `gson:"functionStack"`
+	compiler                AbstractCompiler                                             `gson:"compiler"`
+	liveness                *LiveVariablesAnalysis                                       `gson:"liveness"`
+	functionStack           j2gort.Deque[*DeadAssignmentsElimination_BailoutInformation] `gson:"functionStack"`
+	slab_BailoutInformation j2gort.PooledSlab[DeadAssignmentsElimination_BailoutInformation]
 }
 
 func (this_ *DeadAssignmentsElimination) BindSelf_(s any) {
@@ -84,6 +85,7 @@ func InitDeadAssignmentsElimination(this_ *DeadAssignmentsElimination, compiler 
 func (this_ *DeadAssignmentsElimination) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
+	defer this_.ReleaseSlabs_()
 	j2gort.CheckNotNullNode(externs)
 	j2gort.CheckNotNullNode(root)
 	if !(this_.compiler.GetLifeCycleStage().IsNormalized()) {
@@ -117,7 +119,7 @@ func (this_ *DeadAssignmentsElimination) Visit_3(t *NodeTraversal, n pkg_rhino.N
 func (this_ *DeadAssignmentsElimination) EnterScopeWithCfg(t *NodeTraversal) {
 	_ = t
 	if t.InFunctionBlockScope() {
-		this_.functionStack.AddFirst(NewDeadAssignmentsElimination_BailoutInformation())
+		this_.functionStack.AddFirst(allocPooled_DeadAssignmentsElimination_BailoutInformation(&this_.slab_BailoutInformation))
 	}
 }
 
@@ -127,10 +129,15 @@ func (this_ *DeadAssignmentsElimination) ExitScopeWithCfg(t *NodeTraversal) {
 	if t.InFunctionBlockScope() {
 		this_.priv_DeadAssignmentsElimination_eliminateDeadAssignments_2331(t)
 		this_.functionStack.RemoveFirst()
+		if this_.
+
+			// Java method: DeadAssignmentsElimination.eliminateDeadAssignments(com.google.javascript.jscomp.NodeTraversal t)
+			functionStack.IsEmpty() {
+			this_.slab_BailoutInformation.Reset()
+		}
 	}
 }
 
-// Java method: DeadAssignmentsElimination.eliminateDeadAssignments(com.google.javascript.jscomp.NodeTraversal t)
 func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_eliminateDeadAssignments_2331(t *NodeTraversal) {
 	_ = t
 	if !(t.InFunctionBlockScope()) {
@@ -541,6 +548,11 @@ func NewDeadAssignmentsElimination_BailoutInformation() *DeadAssignmentsEliminat
 	InitDeadAssignmentsElimination_BailoutInformation(this_)
 	return this_
 }
+func allocPooled_DeadAssignmentsElimination_BailoutInformation(slab_ *j2gort.PooledSlab[DeadAssignmentsElimination_BailoutInformation]) *DeadAssignmentsElimination_BailoutInformation {
+	this_ := slab_.Alloc()
+	InitDeadAssignmentsElimination_BailoutInformation(this_)
+	return this_
+}
 
 func InitDeadAssignmentsElimination_BailoutInformation(this_ *DeadAssignmentsElimination_BailoutInformation) {
 	this_.initFields_DeadAssignmentsElimination_BailoutInformation()
@@ -658,6 +670,12 @@ func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.DeadAssignmentsElimination.VariableLiveness", "com.google.javascript.jscomp.DeadAssignmentsElimination$VariableLiveness", func(v_ any) bool {
 		return j2gort.InstanceOf[DeadAssignmentsElimination_VariableLiveness](v_)
 	})
+}
+func (this_ *DeadAssignmentsElimination) ReleaseSlabs_() {
+	if this_ == nil {
+		return
+	}
+	this_.slab_BailoutInformation.Release()
 }
 func (*DeadAssignmentsElimination) AlwaysShouldTraverse_()      {}
 func (*DeadAssignmentsElimination) CanReleaseSyntacticScopes_() {}

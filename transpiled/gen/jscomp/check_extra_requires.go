@@ -148,12 +148,12 @@ func InitCheckExtraRequires(this_ *CheckExtraRequires, compiler AbstractCompiler
 func (this_ *CheckExtraRequires) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	this_.priv_CheckExtraRequires_reset_6495()
+	this_.priv_CheckExtraRequires_reset_6507()
 	NodeTraversal_Traverse(this_.compiler, root, this_)
 }
 
 // Java method: CheckExtraRequires.extractNamespace(com.google.javascript.rhino.Node call, java.lang.String[] primitiveNames)
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_extractNamespace_6492(call pkg_rhino.Node, primitiveNames []string) string {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_extractNamespace_6504(call pkg_rhino.Node, primitiveNames []string) string {
 	_ = call
 	_ = primitiveNames
 	var callee pkg_rhino.Node = call.GetFirstChild()
@@ -176,15 +176,15 @@ func (this_ *CheckExtraRequires) priv_CheckExtraRequires_extractNamespace_6492(c
 }
 
 // Java method: CheckExtraRequires.extractNamespaceIfRequire(com.google.javascript.rhino.Node call)
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_extractNamespaceIfRequire_6493(call pkg_rhino.Node) string {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_extractNamespaceIfRequire_6505(call pkg_rhino.Node) string {
 	_ = call
-	return this_.priv_CheckExtraRequires_extractNamespace_6492(call, []string{"goog.require", "goog.requireType"})
+	return this_.priv_CheckExtraRequires_extractNamespace_6504(call, []string{"goog.require", "goog.requireType"})
 }
 
 // Java method: CheckExtraRequires.extractNamespaceIfForwardDeclare(com.google.javascript.rhino.Node call)
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_extractNamespaceIfForwardDeclare_6494(call pkg_rhino.Node) string {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_extractNamespaceIfForwardDeclare_6506(call pkg_rhino.Node) string {
 	_ = call
-	return this_.priv_CheckExtraRequires_extractNamespace_6492(call, []string{"goog.forwardDeclare"})
+	return this_.priv_CheckExtraRequires_extractNamespace_6504(call, []string{"goog.forwardDeclare"})
 }
 
 // Java method: CheckExtraRequires.visit(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
@@ -192,35 +192,35 @@ func (this_ *CheckExtraRequires) Visit_3(t *NodeTraversal, n pkg_rhino.Node, par
 	_ = t
 	_ = n
 	_ = parent
-	this_.priv_CheckExtraRequires_maybeAddJsDocUsages_6505(n)
+	this_.priv_CheckExtraRequires_maybeAddJsDocUsages_6517(n)
 	switch n.TokenSwitchOrd_() {
 	case int32(32) /* Token.NAME */ :
 		if (!(NodeUtil_IsLValue(n)) && !(parent.IsGetProp())) && !(parent.IsImportSpec()) {
-			this_.priv_CheckExtraRequires_visitQualifiedName_6504(n)
+			this_.priv_CheckExtraRequires_visitQualifiedName_6516(n)
 		}
 	case int32(26) /* Token.GETPROP */ :
 		if !(parent.IsGetProp()) && n.IsQualifiedName() {
-			this_.priv_CheckExtraRequires_visitQualifiedName_6504(n)
+			this_.priv_CheckExtraRequires_visitQualifiedName_6516(n)
 		}
 	case int32(28) /* Token.CALL */ :
-		this_.priv_CheckExtraRequires_visitCallNode_6502(n, parent)
+		this_.priv_CheckExtraRequires_visitCallNode_6514(n, parent)
 	case int32(94) /* Token.SCRIPT */ :
-		this_.priv_CheckExtraRequires_visitScriptNode_6496()
-		this_.priv_CheckExtraRequires_reset_6495()
+		this_.priv_CheckExtraRequires_visitScriptNode_6508()
+		this_.priv_CheckExtraRequires_reset_6507()
 	case int32(116) /* Token.IMPORT */ :
-		this_.priv_CheckExtraRequires_visitImportNode_6499(n)
+		this_.priv_CheckExtraRequires_visitImportNode_6511(n)
 	default:
 	}
 }
 
 // Java method: CheckExtraRequires.reset()
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_reset_6495() {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_reset_6507() {
 	this_.usages.Clear()
 	this_.requires.Clear()
 }
 
 // Java method: CheckExtraRequires.visitScriptNode()
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitScriptNode_6496() {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitScriptNode_6508() {
 	{
 		cur_2 := this_.requires.IterEntries()
 		for cur_2.NextEntry() {
@@ -229,14 +229,14 @@ func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitScriptNode_6496() 
 			var call pkg_rhino.Node = cur_2.Value()
 			_ = call
 			if !(this_.usages.Contains(require)) && ((this_.requiresToRemove == nil) || j2gort.SetContainsStr(this_.requiresToRemove, require)) {
-				this_.priv_CheckExtraRequires_reportExtraRequireWarning_6497(call, require)
+				this_.priv_CheckExtraRequires_reportExtraRequireWarning_6509(call, require)
 			}
 		}
 	}
 }
 
 // Java method: CheckExtraRequires.reportExtraRequireWarning(com.google.javascript.rhino.Node call, java.lang.String require)
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_reportExtraRequireWarning_6497(call pkg_rhino.Node, require string) {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_reportExtraRequireWarning_6509(call pkg_rhino.Node, require string) {
 	_ = call
 	_ = require
 	if j2gort.SetContainsStr(StaticGet_CheckExtraRequires_DEFAULT_EXTRA_NAMESPACES(), require) {
@@ -251,19 +251,19 @@ func (this_ *CheckExtraRequires) priv_CheckExtraRequires_reportExtraRequireWarni
 }
 
 // Java method: CheckExtraRequires.visitRequire(java.lang.String localName, com.google.javascript.rhino.Node node)
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitRequire_6498(localName string, node pkg_rhino.Node) {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitRequire_6510(localName string, node pkg_rhino.Node) {
 	_ = localName
 	_ = node
 	this_.requires.PutIfAbsent(localName, node)
 }
 
 // Java method: CheckExtraRequires.visitImportNode(com.google.javascript.rhino.Node importNode)
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitImportNode_6499(importNode pkg_rhino.Node) {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitImportNode_6511(importNode pkg_rhino.Node) {
 	_ = importNode
 	var defaultImport pkg_rhino.Node = importNode.GetFirstChild()
 	_ = defaultImport
 	if defaultImport.IsName() {
-		this_.priv_CheckExtraRequires_visitRequire_6498(defaultImport.GetString(), importNode)
+		this_.priv_CheckExtraRequires_visitRequire_6510(defaultImport.GetString(), importNode)
 	}
 	var namedImports pkg_rhino.Node = defaultImport.GetNext()
 	_ = namedImports
@@ -272,27 +272,27 @@ func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitImportNode_6499(im
 			var importSpec pkg_rhino.Node = namedImports.GetFirstChild()
 			_ = importSpec
 			for ; importSpec != 0; importSpec = importSpec.GetNext() {
-				this_.priv_CheckExtraRequires_visitRequire_6498(importSpec.GetLastChild().GetString(), importNode)
+				this_.priv_CheckExtraRequires_visitRequire_6510(importSpec.GetLastChild().GetString(), importNode)
 			}
 		}
 	}
 }
 
 // Java method: CheckExtraRequires.visitForwardDeclare(java.lang.String namespace, com.google.javascript.rhino.Node forwardDeclareCall, com.google.javascript.rhino.Node parent)
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitForwardDeclare_6500(namespace string, forwardDeclareCall pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitForwardDeclare_6512(namespace string, forwardDeclareCall pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = namespace
 	_ = forwardDeclareCall
 	_ = parent
-	this_.priv_CheckExtraRequires_visitGoogRequire_6501(namespace, forwardDeclareCall, parent)
+	this_.priv_CheckExtraRequires_visitGoogRequire_6513(namespace, forwardDeclareCall, parent)
 }
 
 // Java method: CheckExtraRequires.visitGoogRequire(java.lang.String namespace, com.google.javascript.rhino.Node googRequireCall, com.google.javascript.rhino.Node parent)
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitGoogRequire_6501(namespace string, googRequireCall pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitGoogRequire_6513(namespace string, googRequireCall pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = namespace
 	_ = googRequireCall
 	_ = parent
 	if parent.IsName() {
-		this_.priv_CheckExtraRequires_visitRequire_6498(parent.GetString(), googRequireCall)
+		this_.priv_CheckExtraRequires_visitRequire_6510(parent.GetString(), googRequireCall)
 	} else if parent.IsDestructuringLhs() && parent.GetFirstChild().IsObjectPattern() {
 		if parent.GetFirstChild().HasChildren() {
 			{
@@ -304,31 +304,31 @@ func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitGoogRequire_6501(n
 					if !(importName.IsName()) {
 						continue
 					}
-					this_.priv_CheckExtraRequires_visitRequire_6498(importName.GetString(), importName)
+					this_.priv_CheckExtraRequires_visitRequire_6510(importName.GetString(), importName)
 				}
 			}
 		} else {
-			this_.priv_CheckExtraRequires_visitRequire_6498(namespace, googRequireCall)
+			this_.priv_CheckExtraRequires_visitRequire_6510(namespace, googRequireCall)
 		}
 	} else {
-		this_.priv_CheckExtraRequires_visitRequire_6498(namespace, googRequireCall)
+		this_.priv_CheckExtraRequires_visitRequire_6510(namespace, googRequireCall)
 	}
 }
 
 // Java method: CheckExtraRequires.visitCallNode(com.google.javascript.rhino.Node call, com.google.javascript.rhino.Node parent)
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitCallNode_6502(call pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitCallNode_6514(call pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = call
 	_ = parent
-	var required string = this_.priv_CheckExtraRequires_extractNamespaceIfRequire_6493(call)
+	var required string = this_.priv_CheckExtraRequires_extractNamespaceIfRequire_6505(call)
 	_ = required
 	if required != j2gort.NullString {
-		this_.priv_CheckExtraRequires_visitGoogRequire_6501(required, call, parent)
+		this_.priv_CheckExtraRequires_visitGoogRequire_6513(required, call, parent)
 		return
 	}
-	var declare string = this_.priv_CheckExtraRequires_extractNamespaceIfForwardDeclare_6494(call)
+	var declare string = this_.priv_CheckExtraRequires_extractNamespaceIfForwardDeclare_6506(call)
 	_ = declare
 	if declare != j2gort.NullString {
-		this_.priv_CheckExtraRequires_visitForwardDeclare_6500(declare, call, parent)
+		this_.priv_CheckExtraRequires_visitForwardDeclare_6512(declare, call, parent)
 		return
 	}
 	var callee pkg_rhino.Node = call.GetFirstChild()
@@ -339,7 +339,7 @@ func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitCallNode_6502(call
 }
 
 // Java method: CheckExtraRequires.addUsagesOfAllPrefixes(com.google.javascript.rhino.QualifiedName qualifiedName)
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_addUsagesOfAllPrefixes_6503(qualifiedName pkg_rhino.QualifiedName) {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_addUsagesOfAllPrefixes_6515(qualifiedName pkg_rhino.QualifiedName) {
 	_ = qualifiedName
 	this_.usages.Add(qualifiedName.Join_0())
 	for !(qualifiedName.IsSimple()) {
@@ -349,16 +349,16 @@ func (this_ *CheckExtraRequires) priv_CheckExtraRequires_addUsagesOfAllPrefixes_
 }
 
 // Java method: CheckExtraRequires.visitQualifiedName(com.google.javascript.rhino.Node n)
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitQualifiedName_6504(n pkg_rhino.Node) {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_visitQualifiedName_6516(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsQualifiedName()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(n))
 	}
-	this_.priv_CheckExtraRequires_addUsagesOfAllPrefixes_6503(n.GetQualifiedNameObject())
+	this_.priv_CheckExtraRequires_addUsagesOfAllPrefixes_6515(n.GetQualifiedNameObject())
 }
 
 // Java method: CheckExtraRequires.maybeAddJsDocUsages(com.google.javascript.rhino.Node n)
-func (this_ *CheckExtraRequires) priv_CheckExtraRequires_maybeAddJsDocUsages_6505(n pkg_rhino.Node) {
+func (this_ *CheckExtraRequires) priv_CheckExtraRequires_maybeAddJsDocUsages_6517(n pkg_rhino.Node) {
 	_ = n
 	var info *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 	_ = info
@@ -368,7 +368,7 @@ func (this_ *CheckExtraRequires) priv_CheckExtraRequires_maybeAddJsDocUsages_650
 	info.GetTypeExpressions().Stream().FlatMap(lambdaSingleton_check_extra_requires_2).Map(lambdaSingleton_check_extra_requires_1).ForEach(func() j2gort.Ext_java_util_function_Consumer {
 		bound_3 := this_
 		return j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) {
-			bound_3.priv_CheckExtraRequires_addUsagesOfAllPrefixes_6503(j2gort.AsIface[pkg_rhino.QualifiedName](mrp0_))
+			bound_3.priv_CheckExtraRequires_addUsagesOfAllPrefixes_6515(j2gort.AsIface[pkg_rhino.QualifiedName](mrp0_))
 		})
 	}())
 }

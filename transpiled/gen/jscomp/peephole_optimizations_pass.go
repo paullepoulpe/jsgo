@@ -135,7 +135,7 @@ func (this_ *PeepholeOptimizationsPass) SetRetraverseOnChange(retraverse bool) {
 func (this_ *PeepholeOptimizationsPass) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	this_.priv_PeepholeOptimizationsPass_beginTraversal_4206()
+	this_.priv_PeepholeOptimizationsPass_beginTraversal_4213()
 	{
 		var changedScopeNodes j2gort.Ext_java_util_List = this_.compiler.GetChangeTracker().GetChangedScopeNodesForPass(this_.passName)
 		_ = changedScopeNodes
@@ -150,11 +150,11 @@ func (this_ *PeepholeOptimizationsPass) Process_2(externs pkg_rhino.Node, root p
 			}
 		}
 	}
-	this_.priv_PeepholeOptimizationsPass_endTraversal_4207()
+	this_.priv_PeepholeOptimizationsPass_endTraversal_4214()
 }
 
 // Java method: PeepholeOptimizationsPass.beginTraversal()
-func (this_ *PeepholeOptimizationsPass) priv_PeepholeOptimizationsPass_beginTraversal_4206() {
+func (this_ *PeepholeOptimizationsPass) priv_PeepholeOptimizationsPass_beginTraversal_4213() {
 	for _, el_10 := range j2gort.CheckNotNullSlice(this_.peepholeOptimizations) {
 		optimization := el_10
 		_ = optimization
@@ -163,7 +163,7 @@ func (this_ *PeepholeOptimizationsPass) priv_PeepholeOptimizationsPass_beginTrav
 }
 
 // Java method: PeepholeOptimizationsPass.endTraversal()
-func (this_ *PeepholeOptimizationsPass) priv_PeepholeOptimizationsPass_endTraversal_4207() {
+func (this_ *PeepholeOptimizationsPass) priv_PeepholeOptimizationsPass_endTraversal_4214() {
 	for _, el_11 := range j2gort.CheckNotNullSlice(this_.peepholeOptimizations) {
 		optimization := el_11
 		_ = optimization
@@ -249,11 +249,11 @@ func (this_ *PeepholeOptimizationsPass_PeepCallback) EnterScope(t *NodeTraversal
 // Java method: PeepCallback.exitScope(com.google.javascript.jscomp.NodeTraversal t)
 func (this_ *PeepholeOptimizationsPass_PeepCallback) ExitScope(t *NodeTraversal) {
 	_ = t
-	this_.priv_PeepCallback_updateFeatures_4208(t)
+	this_.priv_PeepCallback_updateFeatures_4215(t)
 }
 
 // Java method: PeepCallback.updateFeatures(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *PeepholeOptimizationsPass_PeepCallback) priv_PeepCallback_updateFeatures_4208(t *NodeTraversal) {
+func (this_ *PeepholeOptimizationsPass_PeepCallback) priv_PeepCallback_updateFeatures_4215(t *NodeTraversal) {
 	_ = t
 	for _, el_13 := range j2gort.CheckNotNullSlice(this_.outer_.peepholeOptimizations) {
 		optim := el_13

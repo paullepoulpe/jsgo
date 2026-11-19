@@ -310,13 +310,13 @@ func (this_ *StringPool_Builder) Put(string_ string) int32 {
 		a_13[i_14] = (id + int32(1))
 	}
 	if (this_.size * int32(4)) >= (int32(len(table)) * int32(3)) {
-		this_.priv_Builder_rehash_7734((int32(len(table)) * int32(2)))
+		this_.priv_Builder_rehash_7752((int32(len(table)) * int32(2)))
 	}
 	return id
 }
 
 // Java method: Builder.rehash(int newCap)
-func (this_ *StringPool_Builder) priv_Builder_rehash_7734(newCap int32) {
+func (this_ *StringPool_Builder) priv_Builder_rehash_7752(newCap int32) {
 	_ = newCap
 	var newTable []int32 = make([]int32, newCap)
 	_ = newTable

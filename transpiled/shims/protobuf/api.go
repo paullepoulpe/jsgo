@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javaio"
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
@@ -85,8 +86,24 @@ func ByteString_FromBytesUnsafeWrap(b []byte) ByteString {
 }
 
 func ByteString_CopyFromUtf8(s string) ByteString {
-	if len(s) == 0 {
+	n := len(s)
+	if n == 0 {
 		return ByteString_EMPTY
+	}
+	if n == 1 && s[0] < 0x80 {
+		c := s[0]
+		return ByteString{data: byteString1Bytes[c : int(c)+1 : int(c)+1]}
+	}
+	if javalang.IsASCII(s) || utf8.ValidString(s) {
+		if n <= 256 {
+			dst := allocWireBytes(n)
+			dst = dst[:n:n]
+			copy(dst, s)
+			return ByteString{data: dst}
+		}
+		cp := make([]byte, n)
+		copy(cp, s)
+		return ByteString{data: cp}
 	}
 	return ByteString{data: javanio.StandardCharsets_UTF_8.Encode(s)}
 }

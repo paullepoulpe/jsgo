@@ -40,10 +40,23 @@ func (p *J2gortPeepholePass) Description() string {
 	return "Eliminate redundant j2gort Cast/AsIface/Box/StrVal/CheckNotNull*/StringEquals wrappers"
 }
 
+type peepholeExports struct {
+	hasCheckNotNullString bool
+	hasCheckNotNullPtr    bool
+	hasCheckNotNullSlice  bool
+	hasCheckNotNullNode   bool
+}
+
 // Apply runs j2gort_peephole across target files in ctx.
 func (p *J2gortPeepholePass) Apply(ctx *PassContext) (int, error) {
 	if isJ2gortPkg(ctx.Pkg) {
 		return 0, nil
+	}
+	exports := peepholeExports{
+		hasCheckNotNullString: j2gortHasExport(ctx, "CheckNotNullString"),
+		hasCheckNotNullPtr:    j2gortHasExport(ctx, "CheckNotNullPtr"),
+		hasCheckNotNullSlice:  j2gortHasExport(ctx, "CheckNotNullSlice"),
+		hasCheckNotNullNode:   j2gortHasExport(ctx, "CheckNotNullNode"),
 	}
 	total := 0
 	for _, file := range ctx.Files {
@@ -69,7 +82,7 @@ func (p *J2gortPeepholePass) Apply(ctx *PassContext) (int, error) {
 		if computedSafeParams {
 			fileSafeParams = safeBitSetParams
 		}
-		n := p.applyFile(file, ctx.Pkg, ctx.Info, fileSafeParams)
+		n := p.applyFile(file, ctx.Pkg, ctx.Info, fileSafeParams, exports)
 		if n > 0 {
 			ctx.MarkFileModified(file)
 			total += n
@@ -94,7 +107,7 @@ func (p *J2gortPeepholePass) Apply(ctx *PassContext) (int, error) {
 	return total, nil
 }
 
-func (p *J2gortPeepholePass) applyFile(file *ast.File, pkg *types.Package, info *types.Info, safeBitSetParams map[bitSetParamKey]bool) int {
+func (p *J2gortPeepholePass) applyFile(file *ast.File, pkg *types.Package, info *types.Info, safeBitSetParams map[bitSetParamKey]bool, exports peepholeExports) int {
 	parents, postOrder := buildParentMap(file)
 	facts := collectPeepholeFileFacts(file, info, parents)
 	count := 0
@@ -181,7 +194,7 @@ func (p *J2gortPeepholePass) applyFile(file *ast.File, pkg *types.Package, info 
 			}
 		}
 
-		if repl, ok := p.simplifySingleArgCall(fnName, call, inner, parent, parents, pkg, facts, info); ok && applyReplacement(parent, call, repl) {
+		if repl, ok := p.simplifySingleArgCall(fnName, fnObj, call, inner, parent, parents, pkg, facts, exports, info); ok && applyReplacement(parent, call, repl) {
 			count++
 		}
 	}
@@ -198,12 +211,14 @@ func (p *J2gortPeepholePass) applyFile(file *ast.File, pkg *types.Package, info 
 
 func (p *J2gortPeepholePass) simplifySingleArgCall(
 	fnName string,
+	fnObj *types.Func,
 	call *ast.CallExpr,
 	inner ast.Expr,
 	parent ast.Node,
 	parents map[ast.Node]ast.Node,
 	pkg *types.Package,
 	facts *peepholeFileFacts,
+	exports peepholeExports,
 	info *types.Info,
 ) (ast.Expr, bool) {
 	callType := info.Types[call].Type
@@ -332,16 +347,24 @@ func (p *J2gortPeepholePass) simplifySingleArgCall(
 				}
 			}
 		}
-		if types.Identical(callType, types.Typ[types.String]) {
-			if hasExactOrDefaultStringType(inner, info) && isGuaranteedNonNullString(inner, info) {
+		_, isExprStmt := parent.(*ast.ExprStmt)
+		if !isExprStmt || isValidExprStmtTarget(inner) {
+			if types.Identical(callType, types.Typ[types.String]) {
+				if hasExactOrDefaultStringType(inner, info) && isGuaranteedNonNullString(inner, info) {
+					return inner, true
+				}
+			} else if isNamedUint32NodeType(callType) {
+				if hasExactIntrinsicType(inner, callType, info) && isGuaranteedNonZeroNode(inner, facts, info) {
+					return inner, true
+				}
+			} else if hasExactIntrinsicType(inner, callType, info) && isGuaranteedNonNilForCheckNotNull(inner, facts, info) {
 				return inner, true
 			}
-		} else if isNamedUint32NodeType(callType) {
-			if hasExactIntrinsicType(inner, callType, info) && isGuaranteedNonZeroNode(inner, facts, info) {
-				return inner, true
+		}
+		if fnName == "CheckNotNull" {
+			if spec, ok := specializeCheckNotNullCall(call, inner, callType, fnObj, isExprStmt, exports, info); ok {
+				return spec, true
 			}
-		} else if hasExactIntrinsicType(inner, callType, info) && isGuaranteedNonNilForCheckNotNull(inner, facts, info) {
-			return inner, true
 		}
 
 	case "BoxString":
@@ -909,6 +932,190 @@ func isNamedUint32NodeType(t types.Type) bool {
 	}
 	b, ok := named.Underlying().(*types.Basic)
 	return ok && b.Kind() == types.Uint32
+}
+
+func isNamedRhinoNodeType(t types.Type) bool {
+	if t == nil {
+		return false
+	}
+	named, ok := types.Unalias(t).(*types.Named)
+	if !ok || named.Obj() == nil || named.Obj().Name() != "Node" {
+		return false
+	}
+	b, ok := named.Underlying().(*types.Basic)
+	return ok && b.Kind() == types.Uint32
+}
+
+func lookupJ2gortSiblingFunc(fnObj *types.Func, name string) *types.Func {
+	if fnObj == nil || fnObj.Pkg() == nil || fnObj.Pkg().Scope() == nil {
+		return nil
+	}
+	f, _ := fnObj.Pkg().Scope().Lookup(name).(*types.Func)
+	return f
+}
+
+func extractExplicitSingleTypeArg(fun ast.Expr) ast.Expr {
+	switch ix := stripParens(fun).(type) {
+	case *ast.IndexExpr:
+		return ix.Index
+	case *ast.IndexListExpr:
+		if len(ix.Indices) == 1 {
+			return ix.Indices[0]
+		}
+	}
+	return nil
+}
+
+func buildSpecializedJ2gortCall(
+	call *ast.CallExpr,
+	targetName string,
+	targetObj *types.Func,
+	explicitTypeArg ast.Expr,
+	arg ast.Expr,
+	retType types.Type,
+	info *types.Info,
+) (*ast.CallExpr, bool) {
+	baseFun := stripParens(call.Fun)
+	switch ix := baseFun.(type) {
+	case *ast.IndexExpr:
+		baseFun = stripParens(ix.X)
+	case *ast.IndexListExpr:
+		baseFun = stripParens(ix.X)
+	}
+
+	var newFun ast.Expr
+	var newSelIdent *ast.Ident
+	switch fn := baseFun.(type) {
+	case *ast.SelectorExpr:
+		pkgIdent, ok := stripParens(fn.X).(*ast.Ident)
+		if !ok {
+			return nil, false
+		}
+		pkgCopy := &ast.Ident{NamePos: pkgIdent.NamePos, Name: pkgIdent.Name}
+		if info != nil {
+			if u, hasU := info.Uses[pkgIdent]; hasU {
+				info.Uses[pkgCopy] = u
+			}
+		}
+		newSelIdent = &ast.Ident{NamePos: fn.Sel.NamePos, Name: targetName}
+		newFun = &ast.SelectorExpr{X: pkgCopy, Sel: newSelIdent}
+	case *ast.Ident:
+		newSelIdent = &ast.Ident{NamePos: fn.NamePos, Name: targetName}
+		newFun = newSelIdent
+	default:
+		return nil, false
+	}
+
+	if explicitTypeArg != nil && (targetObj == nil || !isNonGenericFunc(targetObj)) {
+		newFun = &ast.IndexExpr{
+			X:      newFun,
+			Lbrack: explicitTypeArg.Pos(),
+			Index:  explicitTypeArg,
+			Rbrack: explicitTypeArg.End(),
+		}
+	}
+
+	newCall := &ast.CallExpr{
+		Fun:    newFun,
+		Lparen: call.Lparen,
+		Args:   []ast.Expr{arg},
+		Rparen: call.Rparen,
+	}
+	if info != nil {
+		if targetObj != nil && newSelIdent != nil {
+			info.Uses[newSelIdent] = targetObj
+		}
+		info.Types[newCall] = types.TypeAndValue{Type: retType}
+	}
+	return newCall, true
+}
+
+func specializeCheckNotNullCall(
+	call *ast.CallExpr,
+	inner ast.Expr,
+	callType types.Type,
+	fnObj *types.Func,
+	isExprStmt bool,
+	exports peepholeExports,
+	info *types.Info,
+) (*ast.CallExpr, bool) {
+	if call == nil || inner == nil || callType == nil || info == nil {
+		return nil, false
+	}
+	innerTV, ok := info.Types[inner]
+	if !ok || innerTV.IsType() || innerTV.IsBuiltin() {
+		return nil, false
+	}
+
+	hasHelper := func(name string, exportFlag bool) (*types.Func, bool) {
+		targetObj := lookupJ2gortSiblingFunc(fnObj, name)
+		return targetObj, exportFlag || targetObj != nil
+	}
+	retMatches := func(retT types.Type) bool {
+		return isExprStmt || types.Identical(retT, callType)
+	}
+
+	// Untyped nil with explicit pointer or slice type argument: CheckNotNull[*U](nil) / CheckNotNull[[]U](nil).
+	if innerTV.IsNil() {
+		tArg := extractExplicitSingleTypeArg(call.Fun)
+		if tArg == nil {
+			return nil, false
+		}
+		switch ut := types.Unalias(callType).(type) {
+		case *types.Pointer:
+			if st, okS := stripParens(tArg).(*ast.StarExpr); okS {
+				if targetObj, avail := hasHelper("CheckNotNullPtr", exports.hasCheckNotNullPtr); avail && (targetObj == nil || !isNonGenericFunc(targetObj)) {
+					return buildSpecializedJ2gortCall(call, "CheckNotNullPtr", targetObj, st.X, inner, ut, info)
+				}
+			}
+		case *types.Slice:
+			if at, okA := stripParens(tArg).(*ast.ArrayType); okA && at.Len == nil {
+				if targetObj, avail := hasHelper("CheckNotNullSlice", exports.hasCheckNotNullSlice); avail && (targetObj == nil || !isNonGenericFunc(targetObj)) {
+					return buildSpecializedJ2gortCall(call, "CheckNotNullSlice", targetObj, at.Elt, inner, ut, info)
+				}
+			}
+		}
+		return nil, false
+	}
+
+	if innerTV.Type == nil {
+		return nil, false
+	}
+
+	// 1. string -> CheckNotNullString(x)
+	if hasExactOrDefaultStringType(inner, info) && retMatches(types.Typ[types.String]) {
+		if targetObj, avail := hasHelper("CheckNotNullString", exports.hasCheckNotNullString); avail {
+			return buildSpecializedJ2gortCall(call, "CheckNotNullString", targetObj, nil, inner, types.Typ[types.String], info)
+		}
+	}
+
+	// 2. *U (unnamed/alias pointer type, not a defined named pointer type) -> CheckNotNullPtr(x)
+	if _, isPtr := types.Unalias(innerTV.Type).(*types.Pointer); isPtr && !isInvalidOrUntyped(innerTV.Type) && retMatches(innerTV.Type) {
+		if targetObj, avail := hasHelper("CheckNotNullPtr", exports.hasCheckNotNullPtr); avail {
+			return buildSpecializedJ2gortCall(call, "CheckNotNullPtr", targetObj, nil, inner, innerTV.Type, info)
+		}
+	}
+
+	// 3. []U (unnamed/alias slice type, not a defined named slice type) -> CheckNotNullSlice(x)
+	if _, isSlice := types.Unalias(innerTV.Type).(*types.Slice); isSlice && !isInvalidOrUntyped(innerTV.Type) && retMatches(innerTV.Type) {
+		if targetObj, avail := hasHelper("CheckNotNullSlice", exports.hasCheckNotNullSlice); avail {
+			return buildSpecializedJ2gortCall(call, "CheckNotNullSlice", targetObj, nil, inner, innerTV.Type, info)
+		}
+	}
+
+	// 4. rhino.Node (named uint32 type Node where 0 is null) -> CheckNotNullNode(x)
+	if isNamedRhinoNodeType(innerTV.Type) && retMatches(innerTV.Type) {
+		if targetObj, avail := hasHelper("CheckNotNullNode", exports.hasCheckNotNullNode); avail {
+			if hasExactIntrinsicType(inner, innerTV.Type, info) {
+				return buildSpecializedJ2gortCall(call, "CheckNotNullNode", targetObj, nil, inner, innerTV.Type, info)
+			}
+			if tArg := extractExplicitSingleTypeArg(call.Fun); tArg != nil {
+				return buildSpecializedJ2gortCall(call, "CheckNotNullNode", targetObj, tArg, inner, innerTV.Type, info)
+			}
+		}
+	}
+
+	return nil, false
 }
 
 func isToIfaceCall(call *ast.CallExpr, info *types.Info) (types.Type, bool) {

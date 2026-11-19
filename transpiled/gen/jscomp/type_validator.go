@@ -317,7 +317,7 @@ func (this_ *TypeValidator) ExpectObject(n pkg_rhino.Node, type_ pkg_rhino.JSTyp
 	_ = type_
 	_ = msg
 	if !(type_.MatchesObjectContext()) {
-		this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE())
+		this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE())
 		return false
 	}
 	return true
@@ -329,7 +329,7 @@ func (this_ *TypeValidator) ExpectActualObject(n pkg_rhino.Node, type_ pkg_rhino
 	_ = type_
 	_ = msg
 	if !(type_.IsObject()) {
-		this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE())
+		this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE())
 	}
 }
 
@@ -338,10 +338,10 @@ func (this_ *TypeValidator) ExpectAnyObject(n pkg_rhino.Node, type_ pkg_rhino.JS
 	_ = n
 	_ = type_
 	_ = msg
-	var anyObjectType pkg_rhino.JSType = this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_NO_OBJECT_TYPE())
+	var anyObjectType pkg_rhino.JSType = this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_NO_OBJECT_TYPE())
 	_ = anyObjectType
 	if !(anyObjectType.IsSubtypeOf_1(type_)) && !(type_.IsEmptyType()) {
-		this_.priv_TypeValidator_mismatch_5653(n, msg, type_, anyObjectType)
+		this_.priv_TypeValidator_mismatch_5661(n, msg, type_, anyObjectType)
 	}
 }
 
@@ -366,8 +366,8 @@ func (this_ *TypeValidator) ExpectAutoboxesToIterable(n pkg_rhino.Node, type_ pk
 				} else {
 					alt = alt
 				}
-				if !(alt.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_ITERABLE_TYPE()))) {
-					this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_ITERABLE_TYPE())
+				if !(alt.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_ITERABLE_TYPE()))) {
+					this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_ITERABLE_TYPE())
 					return false
 				}
 			}
@@ -380,8 +380,8 @@ func (this_ *TypeValidator) ExpectAutoboxesToIterable(n pkg_rhino.Node, type_ pk
 		} else {
 			autoboxedType = type_
 		}
-		if !(autoboxedType.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_ITERABLE_TYPE()))) {
-			this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_ITERABLE_TYPE())
+		if !(autoboxedType.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_ITERABLE_TYPE()))) {
+			this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_ITERABLE_TYPE())
 			return false
 		}
 	}
@@ -398,7 +398,7 @@ func (this_ *TypeValidator) ExpectAutoboxesToIterableOrAsyncIterable(n pkg_rhino
 	if maybeBoxed.IsMatch() {
 		return j2gort.Ext_java_util_Optional_Of(maybeBoxed.GetTemplatedType())
 	}
-	this_.priv_TypeValidator_mismatch_5653(n, msg, type_, this_.iterableOrAsyncIterable)
+	this_.priv_TypeValidator_mismatch_5661(n, msg, type_, this_.iterableOrAsyncIterable)
 	return j2gort.Ext_java_util_Optional_Empty()
 }
 
@@ -407,8 +407,8 @@ func (this_ *TypeValidator) ExpectGeneratorSupertype(n pkg_rhino.Node, type_ pkg
 	_ = n
 	_ = type_
 	_ = msg
-	if !(this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_GENERATOR_TYPE()).IsSubtypeOf_1(type_)) {
-		this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_GENERATOR_TYPE())
+	if !(this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_GENERATOR_TYPE()).IsSubtypeOf_1(type_)) {
+		this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_GENERATOR_TYPE())
 	}
 }
 
@@ -417,8 +417,8 @@ func (this_ *TypeValidator) ExpectAsyncGeneratorSupertype(n pkg_rhino.Node, type
 	_ = n
 	_ = type_
 	_ = msg
-	if !(this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_ASYNC_GENERATOR_TYPE()).IsSubtypeOf_1(type_)) {
-		this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_ASYNC_GENERATOR_TYPE())
+	if !(this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_ASYNC_GENERATOR_TYPE()).IsSubtypeOf_1(type_)) {
+		this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_ASYNC_GENERATOR_TYPE())
 	}
 }
 
@@ -431,7 +431,7 @@ func (this_ *TypeValidator) ExpectValidAsyncReturnType(n pkg_rhino.Node, type_ p
 	}
 	var err *JSError = JSError_Make_3(n, StaticGet_TypeValidator_INVALID_ASYNC_RETURN_TYPE(), []string{type_.String()})
 	_ = err
-	this_.priv_TypeValidator_registerMismatchAndReport_5655(type_, this_.promiseOfUnknownType, err)
+	this_.priv_TypeValidator_registerMismatchAndReport_5663(type_, this_.promiseOfUnknownType, err)
 }
 
 // Java method: TypeValidator.expectITemplateArraySupertype(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.JSType type, java.lang.String msg)
@@ -439,8 +439,8 @@ func (this_ *TypeValidator) ExpectITemplateArraySupertype(n pkg_rhino.Node, type
 	_ = n
 	_ = type_
 	_ = msg
-	if !(this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_I_TEMPLATE_ARRAY_TYPE()).IsSubtypeOf_1(type_)) {
-		this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_I_TEMPLATE_ARRAY_TYPE())
+	if !(this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_I_TEMPLATE_ARRAY_TYPE()).IsSubtypeOf_1(type_)) {
+		this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_I_TEMPLATE_ARRAY_TYPE())
 	}
 }
 
@@ -450,7 +450,7 @@ func (this_ *TypeValidator) ExpectString(n pkg_rhino.Node, type_ pkg_rhino.JSTyp
 	_ = type_
 	_ = msg
 	if !(type_.MatchesStringContext()) {
-		this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
+		this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
 	}
 }
 
@@ -460,7 +460,7 @@ func (this_ *TypeValidator) ExpectNumber(n pkg_rhino.Node, type_ pkg_rhino.JSTyp
 	_ = type_
 	_ = msg
 	if !(type_.MatchesNumberContext()) {
-		this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
+		this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
 	} else {
 		this_.ExpectNumberStrict(n, type_, msg)
 	}
@@ -471,8 +471,8 @@ func (this_ *TypeValidator) ExpectNumberStrict(n pkg_rhino.Node, type_ pkg_rhino
 	_ = n
 	_ = type_
 	_ = msg
-	if !(type_.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()))) {
-		this_.priv_TypeValidator_registerMismatchAndReport_5654(n, StaticGet_TypeValidator_INVALID_OPERAND_TYPE(), msg, type_, this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()), nil, nil)
+	if !(type_.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()))) {
+		this_.priv_TypeValidator_registerMismatchAndReport_5662(n, StaticGet_TypeValidator_INVALID_OPERAND_TYPE(), msg, type_, this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()), nil, nil)
 	}
 }
 
@@ -483,7 +483,7 @@ func (this_ *TypeValidator) ExpectMatchingTypesStrict(n pkg_rhino.Node, left pkg
 	_ = right
 	_ = msg
 	if !(left.IsSubtypeOf_1(right)) && !(right.IsSubtypeOf_1(left)) {
-		this_.priv_TypeValidator_registerMismatchAndReport_5654(n, StaticGet_TypeValidator_INVALID_OPERAND_TYPE(), msg, right, left, nil, nil)
+		this_.priv_TypeValidator_registerMismatchAndReport_5662(n, StaticGet_TypeValidator_INVALID_OPERAND_TYPE(), msg, right, left, nil, nil)
 	}
 }
 
@@ -493,7 +493,7 @@ func (this_ *TypeValidator) ExpectBitwiseable(n pkg_rhino.Node, type_ pkg_rhino.
 	_ = type_
 	_ = msg
 	if !(type_.MatchesNumberContext()) && !(type_.IsSubtypeOf_1(this_.allBitwisableValueTypes)) {
-		this_.priv_TypeValidator_mismatch_5653(n, msg, type_, this_.allBitwisableValueTypes)
+		this_.priv_TypeValidator_mismatch_5661(n, msg, type_, this_.allBitwisableValueTypes)
 	} else {
 		this_.ExpectNumberStrict(n, type_, msg)
 	}
@@ -505,7 +505,7 @@ func (this_ *TypeValidator) ExpectNumberOrSymbol(n pkg_rhino.Node, type_ pkg_rhi
 	_ = type_
 	_ = msg
 	if !(type_.MatchesNumberContext()) && !(type_.MatchesSymbolContext()) {
-		this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_NUMBER_SYMBOL())
+		this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_NUMBER_SYMBOL())
 	}
 }
 
@@ -515,7 +515,7 @@ func (this_ *TypeValidator) ExpectStringOrSymbol(n pkg_rhino.Node, type_ pkg_rhi
 	_ = type_
 	_ = msg
 	if !(type_.MatchesStringContext()) && !(type_.MatchesSymbolContext()) {
-		this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_STRING_SYMBOL())
+		this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_STRING_SYMBOL())
 	}
 }
 
@@ -524,11 +524,11 @@ func (this_ *TypeValidator) ExpectUnknownOrComparable(n pkg_rhino.Node, type_ pk
 	_ = n
 	_ = type_
 	_ = msg
-	if !(type_.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER_STRING()))) && !(type_.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER_STRING_OBJECT()))) {
+	if !(type_.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER_STRING()))) && !(type_.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER_STRING_OBJECT()))) {
 		if type_.MatchesNumberContext() || type_.MatchesStringContext() {
-			this_.priv_TypeValidator_registerMismatchAndReport_5654(n, StaticGet_TypeValidator_INVALID_OPERAND_TYPE(), msg, type_, this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER_STRING()), nil, nil)
+			this_.priv_TypeValidator_registerMismatchAndReport_5662(n, StaticGet_TypeValidator_INVALID_OPERAND_TYPE(), msg, type_, this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER_STRING()), nil, nil)
 		} else {
-			this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER_STRING())
+			this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER_STRING())
 		}
 	}
 }
@@ -539,7 +539,7 @@ func (this_ *TypeValidator) ExpectStringOrNumberOrSymbol(n pkg_rhino.Node, type_
 	_ = type_
 	_ = msg
 	if (!(type_.MatchesNumberContext()) && !(type_.MatchesStringContext())) && !(type_.MatchesSymbolContext()) {
-		this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_NUMBER_STRING_SYMBOL())
+		this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_NUMBER_STRING_SYMBOL())
 	} else {
 		this_.ExpectStringOrNumberOrSymbolStrict(n, type_, msg)
 	}
@@ -550,8 +550,8 @@ func (this_ *TypeValidator) ExpectStringOrNumberOrSymbolStrict(n pkg_rhino.Node,
 	_ = n
 	_ = type_
 	_ = msg
-	if !(type_.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_NUMBER_STRING_SYMBOL()))) {
-		this_.priv_TypeValidator_registerMismatchAndReport_5654(n, StaticGet_TypeValidator_INVALID_OPERAND_TYPE(), msg, type_, this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_NUMBER_STRING_SYMBOL()), nil, nil)
+	if !(type_.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_NUMBER_STRING_SYMBOL()))) {
+		this_.priv_TypeValidator_registerMismatchAndReport_5662(n, StaticGet_TypeValidator_INVALID_OPERAND_TYPE(), msg, type_, this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_NUMBER_STRING_SYMBOL()), nil, nil)
 	}
 }
 
@@ -560,11 +560,11 @@ func (this_ *TypeValidator) ExpectBigIntOrNumber(n pkg_rhino.Node, type_ pkg_rhi
 	_ = n
 	_ = type_
 	_ = msg
-	if !(type_.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER()))) && !(type_.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER_OBJECT()))) {
+	if !(type_.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER()))) && !(type_.IsSubtypeOf_1(this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER_OBJECT()))) {
 		if type_.MatchesNumberContext() {
-			this_.priv_TypeValidator_registerMismatchAndReport_5654(n, StaticGet_TypeValidator_INVALID_OPERAND_TYPE(), msg, type_, this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER()), nil, nil)
+			this_.priv_TypeValidator_registerMismatchAndReport_5662(n, StaticGet_TypeValidator_INVALID_OPERAND_TYPE(), msg, type_, this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER()), nil, nil)
 		} else {
-			this_.priv_TypeValidator_mismatch_5652(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER())
+			this_.priv_TypeValidator_mismatch_5660(n, msg, type_, pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER())
 		}
 	}
 }
@@ -580,7 +580,7 @@ func (this_ *TypeValidator) ExpectNotNullOrUndefined(t *NodeTraversal, n pkg_rhi
 		if (n.IsGetProp() && !(t.InGlobalScope())) && type_.IsNullType() {
 			return true
 		}
-		this_.priv_TypeValidator_mismatch_5653(n, msg, type_, expectedType)
+		this_.priv_TypeValidator_mismatch_5661(n, msg, type_, expectedType)
 		return false
 	}
 	return true
@@ -614,7 +614,7 @@ func (this_ *TypeValidator) ExpectSwitchMatchesCase(n pkg_rhino.Node, switchType
 	_ = switchType
 	_ = caseType
 	if !(switchType.CanTestForShallowEqualityWith(caseType)) {
-		this_.priv_TypeValidator_mismatch_5653(n.GetFirstChild(), "case expression doesn't match switch", caseType, switchType)
+		this_.priv_TypeValidator_mismatch_5661(n.GetFirstChild(), "case expression doesn't match switch", caseType, switchType)
 	}
 }
 
@@ -653,7 +653,7 @@ func (this_ *TypeValidator) ExpectIndexMatch(n pkg_rhino.Node, objType pkg_rhino
 	} else if objType.MatchesObjectContext() {
 		this_.ExpectStringOrSymbol(indexNode, indexType, "property access")
 	} else {
-		this_.priv_TypeValidator_mismatch_5653(n, "only arrays or objects can be accessed", objType, this_.typeRegistry.CreateUnionType_1_JSTypeNative([]pkg_rhino.JSTypeNative{pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE(), pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE()}))
+		this_.priv_TypeValidator_mismatch_5661(n, "only arrays or objects can be accessed", objType, this_.typeRegistry.CreateUnionType_1_JSTypeNative([]pkg_rhino.JSTypeNative{pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE(), pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE()}))
 	}
 }
 
@@ -664,24 +664,78 @@ func (this_ *TypeValidator) ExpectCanAssignToPropertyOf_5(n pkg_rhino.Node, righ
 	_ = leftType
 	_ = owner
 	_ = propName
-	var typeNameSupplier j2gort.Ext_com_google_common_base_Supplier = nil
-	_ = typeNameSupplier
-	if n.IsMemberFieldDef() {
-		var classType *pkg_rhino.FunctionType = n.GetGrandparent().GetJSType().AssertFunctionType()
-		_ = classType
-		typeNameSupplier = j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any {
-			return j2gort.BoxString(classType.GetInstanceType().String())
-		})
-	} else {
-		typeNameSupplier = j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any {
-			return j2gort.BoxString(this_.typeRegistry.GetReadableTypeName(owner))
-		})
+	if leftType.IsTemplateType() {
+		var left *pkg_rhino.TemplateType = leftType.ToMaybeTemplateType()
+		_ = left
+		if (rightType.ContainsReferenceAncestor(pkg_rhino.ToIface_JSType(left)) || rightType.IsUnknownType()) || left.IsUnknownType() {
+			return true
+		}
+		var ownerTypeName string
+		_ = ownerTypeName
+		if n.IsMemberFieldDef() {
+			ownerTypeName = n.GetGrandparent().GetJSType().AssertFunctionType().GetInstanceType().String()
+		} else {
+			ownerTypeName = this_.typeRegistry.GetReadableTypeName(owner)
+		}
+		this_.priv_TypeValidator_registerMismatchAndReport_5662(n, StaticGet_TypeValidator_TYPE_MISMATCH_WARNING(), ("assignment to property " + j2gort.StrValString(propName) + " of " + j2gort.StrValString(ownerTypeName)), rightType, leftType, j2gort.NewExt_java_util_LinkedHashSet(), j2gort.NewExt_java_util_LinkedHashSet())
+		return false
 	}
-	return this_.ExpectCanAssignToPropertyOf_6(n, rightType, leftType, this_.priv_TypeValidator_getJSType_5656(owner), typeNameSupplier, propName)
+	if !(leftType.IsNoType()) && !(rightType.IsSubtypeOf_1(leftType)) {
+		var ownerType pkg_rhino.JSType = this_.priv_TypeValidator_getJSType_5664(owner)
+		_ = ownerType
+		if ownerType.IsFunctionPrototypeType() {
+			var ownerFn *pkg_rhino.FunctionType = ownerType.ToObjectType().GetOwnerFunction()
+			_ = ownerFn
+			if (ownerFn.IsInterface() && rightType.IsFunctionType()) && leftType.IsFunctionType() {
+				return true
+			}
+		}
+		var ownerTypeName_2 string
+		_ = ownerTypeName_2
+		if n.IsMemberFieldDef() {
+			ownerTypeName_2 = n.GetGrandparent().GetJSType().AssertFunctionType().GetInstanceType().String()
+		} else {
+			ownerTypeName_2 = this_.typeRegistry.GetReadableTypeName(owner)
+		}
+		this_.priv_TypeValidator_mismatch_5661(n, ("assignment to property " + j2gort.StrValString(propName) + " of " + j2gort.StrValString(ownerTypeName_2)), rightType, leftType)
+		return false
+	}
+	return true
+}
+
+// Java method: TypeValidator.expectCanAssignToPropertyOf(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.JSType rightType, com.google.javascript.rhino.jstype.JSType leftType, com.google.javascript.rhino.jstype.JSType ownerType, com.google.javascript.rhino.QualifiedName ownerName, java.lang.String propName)
+func (this_ *TypeValidator) ExpectCanAssignToPropertyOf_6_Node_JSType_JSType_JSType_QualifiedName_string(n pkg_rhino.Node, rightType pkg_rhino.JSType, leftType pkg_rhino.JSType, ownerType pkg_rhino.JSType, ownerName pkg_rhino.QualifiedName, propName string) bool {
+	_ = n
+	_ = rightType
+	_ = leftType
+	_ = ownerType
+	_ = ownerName
+	_ = propName
+	if leftType.IsTemplateType() {
+		var left *pkg_rhino.TemplateType = leftType.ToMaybeTemplateType()
+		_ = left
+		if (rightType.ContainsReferenceAncestor(pkg_rhino.ToIface_JSType(left)) || rightType.IsUnknownType()) || left.IsUnknownType() {
+			return true
+		}
+		this_.priv_TypeValidator_registerMismatchAndReport_5662(n, StaticGet_TypeValidator_TYPE_MISMATCH_WARNING(), ("assignment to property " + j2gort.StrValString(propName) + " of " + j2gort.StrValString(ownerName.Join_0())), rightType, leftType, j2gort.NewExt_java_util_LinkedHashSet(), j2gort.NewExt_java_util_LinkedHashSet())
+		return false
+	}
+	if !(leftType.IsNoType()) && !(rightType.IsSubtypeOf_1(leftType)) {
+		if ownerType.IsFunctionPrototypeType() {
+			var ownerFn *pkg_rhino.FunctionType = ownerType.ToObjectType().GetOwnerFunction()
+			_ = ownerFn
+			if (ownerFn.IsInterface() && rightType.IsFunctionType()) && leftType.IsFunctionType() {
+				return true
+			}
+		}
+		this_.priv_TypeValidator_mismatch_5661(n, ("assignment to property " + j2gort.StrValString(propName) + " of " + j2gort.StrValString(ownerName.Join_0())), rightType, leftType)
+		return false
+	}
+	return true
 }
 
 // Java method: TypeValidator.expectCanAssignToPropertyOf(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.JSType rightType, com.google.javascript.rhino.jstype.JSType leftType, com.google.javascript.rhino.jstype.JSType ownerType, com.google.common.base.Supplier<java.lang.String> typeNameSupplier, java.lang.String propName)
-func (this_ *TypeValidator) ExpectCanAssignToPropertyOf_6(n pkg_rhino.Node, rightType pkg_rhino.JSType, leftType pkg_rhino.JSType, ownerType pkg_rhino.JSType, typeNameSupplier j2gort.Ext_com_google_common_base_Supplier, propName string) bool {
+func (this_ *TypeValidator) ExpectCanAssignToPropertyOf_6_Node_JSType_JSType_JSType_Ext_com_google_common_base_Supplier_string(n pkg_rhino.Node, rightType pkg_rhino.JSType, leftType pkg_rhino.JSType, ownerType pkg_rhino.JSType, typeNameSupplier j2gort.Ext_com_google_common_base_Supplier, propName string) bool {
 	_ = n
 	_ = rightType
 	_ = leftType
@@ -694,7 +748,7 @@ func (this_ *TypeValidator) ExpectCanAssignToPropertyOf_6(n pkg_rhino.Node, righ
 		if (rightType.ContainsReferenceAncestor(pkg_rhino.ToIface_JSType(left)) || rightType.IsUnknownType()) || left.IsUnknownType() {
 			return true
 		} else {
-			this_.priv_TypeValidator_registerMismatchAndReport_5654(n, StaticGet_TypeValidator_TYPE_MISMATCH_WARNING(), ("assignment to property " + j2gort.StrValString(propName) + " of " + j2gort.StrValString(j2gort.CastString(typeNameSupplier.Get()))), rightType, leftType, j2gort.NewExt_java_util_LinkedHashSet(), j2gort.NewExt_java_util_LinkedHashSet())
+			this_.priv_TypeValidator_registerMismatchAndReport_5662(n, StaticGet_TypeValidator_TYPE_MISMATCH_WARNING(), ("assignment to property " + j2gort.StrValString(propName) + " of " + j2gort.StrValString(j2gort.CastString(typeNameSupplier.Get()))), rightType, leftType, j2gort.NewExt_java_util_LinkedHashSet(), j2gort.NewExt_java_util_LinkedHashSet())
 			return false
 		}
 	}
@@ -706,7 +760,7 @@ func (this_ *TypeValidator) ExpectCanAssignToPropertyOf_6(n pkg_rhino.Node, righ
 				return true
 			}
 		}
-		this_.priv_TypeValidator_mismatch_5653(n, ("assignment to property " + j2gort.StrValString(propName) + " of " + j2gort.StrValString(j2gort.CastString(typeNameSupplier.Get()))), rightType, leftType)
+		this_.priv_TypeValidator_mismatch_5661(n, ("assignment to property " + j2gort.StrValString(propName) + " of " + j2gort.StrValString(j2gort.CastString(typeNameSupplier.Get()))), rightType, leftType)
 		return false
 	}
 	return true
@@ -724,12 +778,12 @@ func (this_ *TypeValidator) ExpectCanAssignTo(n pkg_rhino.Node, rightType pkg_rh
 		if (rightType.ContainsReferenceAncestor(pkg_rhino.ToIface_JSType(left)) || rightType.IsUnknownType()) || left.IsUnknownType() {
 			return true
 		} else {
-			this_.priv_TypeValidator_registerMismatchAndReport_5654(n, StaticGet_TypeValidator_TYPE_MISMATCH_WARNING(), msg, rightType, leftType, j2gort.NewExt_java_util_LinkedHashSet(), j2gort.NewExt_java_util_LinkedHashSet())
+			this_.priv_TypeValidator_registerMismatchAndReport_5662(n, StaticGet_TypeValidator_TYPE_MISMATCH_WARNING(), msg, rightType, leftType, j2gort.NewExt_java_util_LinkedHashSet(), j2gort.NewExt_java_util_LinkedHashSet())
 			return false
 		}
 	}
 	if !(rightType.IsSubtypeOf_1(leftType)) {
-		this_.priv_TypeValidator_mismatch_5653(n, msg, rightType, leftType)
+		this_.priv_TypeValidator_mismatch_5661(n, msg, rightType, leftType)
 		return false
 	}
 	return true
@@ -743,7 +797,7 @@ func (this_ *TypeValidator) ExpectArgumentMatchesParameter(n pkg_rhino.Node, arg
 	_ = callNode
 	_ = ordinal
 	if !(argType.IsSubtypeOf_1(paramType)) {
-		this_.priv_TypeValidator_mismatch_5653(n, ("actual parameter " + j2gort.StrValInt32(ordinal) + " of " + j2gort.StrValString(this_.typeRegistry.GetReadableTypeNameNoDeref(callNode.GetFirstChild())) + " does not match formal parameter"), argType, paramType)
+		this_.priv_TypeValidator_mismatch_5661(n, ("actual parameter " + j2gort.StrValInt32(ordinal) + " of " + j2gort.StrValString(this_.typeRegistry.GetReadableTypeNameNoDeref(callNode.GetFirstChild())) + " does not match formal parameter"), argType, paramType)
 	}
 }
 
@@ -767,10 +821,10 @@ func (this_ *TypeValidator) ExpectSuperType(n pkg_rhino.Node, superObject pkg_rh
 		declaredSuper = declaredSuper.ToMaybeTemplatizedType().GetReferencedType()
 	}
 	if ((declaredSuper != nil && !declaredSuper.IsJavaNil_()) && !(j2gort.InstanceOf[*pkg_rhino.UnknownType](superObject))) && !(declaredSuper.Equals(superObject)) {
-		if declaredSuper.Equals(this_.priv_TypeValidator_getNativeType_5657(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE())) {
-			this_.priv_TypeValidator_registerMismatchAndReport_5655(j2gort.AsIface[pkg_rhino.JSType](superObject), j2gort.AsIface[pkg_rhino.JSType](declaredSuper), JSError_Make_3(n, StaticGet_TypeValidator_MISSING_EXTENDS_TAG_WARNING(), []string{subObject.String()}))
+		if declaredSuper.Equals(this_.priv_TypeValidator_getNativeType_5665(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE())) {
+			this_.priv_TypeValidator_registerMismatchAndReport_5663(j2gort.AsIface[pkg_rhino.JSType](superObject), j2gort.AsIface[pkg_rhino.JSType](declaredSuper), JSError_Make_3(n, StaticGet_TypeValidator_MISSING_EXTENDS_TAG_WARNING(), []string{subObject.String()}))
 		} else {
-			this_.priv_TypeValidator_mismatch_5653(n, "mismatch in declaration of superclass type", j2gort.AsIface[pkg_rhino.JSType](superObject), j2gort.AsIface[pkg_rhino.JSType](declaredSuper))
+			this_.priv_TypeValidator_mismatch_5661(n, "mismatch in declaration of superclass type", j2gort.AsIface[pkg_rhino.JSType](superObject), j2gort.AsIface[pkg_rhino.JSType](declaredSuper))
 		}
 		if !(subCtor.HasCachedValues()) {
 			subCtor.SetPrototypeBasedOn_1(superObject)
@@ -798,7 +852,7 @@ func (this_ *TypeValidator) ExpectExtends(n pkg_rhino.Node, subCtor *pkg_rhino.F
 			var registeredSuperInstance pkg_rhino.ObjectType = registeredSuperCtor.GetInstanceType()
 			_ = registeredSuperInstance
 			if !(astSuperInstance.Equals(registeredSuperInstance)) {
-				this_.priv_TypeValidator_mismatch_5653(n, "mismatch in declaration of superclass type", j2gort.AsIface[pkg_rhino.JSType](astSuperInstance), j2gort.AsIface[pkg_rhino.JSType](registeredSuperInstance))
+				this_.priv_TypeValidator_mismatch_5661(n, "mismatch in declaration of superclass type", j2gort.AsIface[pkg_rhino.JSType](astSuperInstance), j2gort.AsIface[pkg_rhino.JSType](registeredSuperInstance))
 			}
 		}
 	} else if subCtor.IsInterface() {
@@ -825,7 +879,7 @@ func (this_ *TypeValidator) ExpectCanCast(n pkg_rhino.Node, targetType pkg_rhino
 	_ = targetType
 	_ = sourceType
 	if !(sourceType.CanCastTo(targetType)) {
-		this_.priv_TypeValidator_registerMismatchAndReport_5655(sourceType, targetType, JSError_Make_3(n, StaticGet_TypeValidator_INVALID_CAST(), []string{sourceType.String(), targetType.String()}))
+		this_.priv_TypeValidator_registerMismatchAndReport_5663(sourceType, targetType, JSError_Make_3(n, StaticGet_TypeValidator_INVALID_CAST(), []string{sourceType.String(), targetType.String()}))
 	} else if !(sourceType.IsSubtypeOf_1(targetType)) {
 		this_.mismatches.RegisterMismatch(n, sourceType, targetType)
 	}
@@ -890,7 +944,7 @@ func (this_ *TypeValidator) ExpectAllInterfaceProperties(n pkg_rhino.Node, type_
 			rawElem_2 := cur_1.Next()
 			implemented := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_2)
 			_ = implemented
-			this_.priv_TypeValidator_expectInterfaceProperties_5647(n, instance, implemented)
+			this_.priv_TypeValidator_expectInterfaceProperties_5655(n, instance, implemented)
 		}
 	}
 	{
@@ -899,13 +953,13 @@ func (this_ *TypeValidator) ExpectAllInterfaceProperties(n pkg_rhino.Node, type_
 			rawElem_4 := cur_3.Next()
 			extended := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_4)
 			_ = extended
-			this_.priv_TypeValidator_expectInterfaceProperties_5647(n, instance, extended)
+			this_.priv_TypeValidator_expectInterfaceProperties_5655(n, instance, extended)
 		}
 	}
 }
 
 // Java method: TypeValidator.expectInterfaceProperties(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.ObjectType instance, com.google.javascript.rhino.jstype.ObjectType ancestorInterface)
-func (this_ *TypeValidator) priv_TypeValidator_expectInterfaceProperties_5647(n pkg_rhino.Node, instance pkg_rhino.ObjectType, ancestorInterface pkg_rhino.ObjectType) {
+func (this_ *TypeValidator) priv_TypeValidator_expectInterfaceProperties_5655(n pkg_rhino.Node, instance pkg_rhino.ObjectType, ancestorInterface pkg_rhino.ObjectType) {
 	_ = n
 	_ = instance
 	_ = ancestorInterface
@@ -915,7 +969,7 @@ func (this_ *TypeValidator) priv_TypeValidator_expectInterfaceProperties_5647(n 
 			rawElem_6 := cur_5.Next()
 			prop := j2gort.AsIface[pkg_rhino.Property_Key](rawElem_6)
 			_ = prop
-			this_.priv_TypeValidator_expectInterfaceProperty_5648(n, instance, ancestorInterface, prop)
+			this_.priv_TypeValidator_expectInterfaceProperty_5656(n, instance, ancestorInterface, prop)
 		}
 	}
 	if !(j2gort.IfaceEquals[pkg_rhino.ObjectType](ancestorInterface.GetImplicitPrototype(), nil)) {
@@ -925,14 +979,14 @@ func (this_ *TypeValidator) priv_TypeValidator_expectInterfaceProperties_5647(n 
 				rawElem_8 := cur_7.Next()
 				prop_2 := j2gort.AsIface[pkg_rhino.Property_Key](rawElem_8)
 				_ = prop_2
-				this_.priv_TypeValidator_expectInterfaceProperty_5648(n, instance, ancestorInterface, prop_2)
+				this_.priv_TypeValidator_expectInterfaceProperty_5656(n, instance, ancestorInterface, prop_2)
 			}
 		}
 	}
 }
 
 // Java method: TypeValidator.expectInterfaceProperty(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.ObjectType instance, com.google.javascript.rhino.jstype.ObjectType implementedInterface, com.google.javascript.rhino.jstype.Property.Key propName)
-func (this_ *TypeValidator) priv_TypeValidator_expectInterfaceProperty_5648(n pkg_rhino.Node, instance pkg_rhino.ObjectType, implementedInterface pkg_rhino.ObjectType, propName pkg_rhino.Property_Key) {
+func (this_ *TypeValidator) priv_TypeValidator_expectInterfaceProperty_5656(n pkg_rhino.Node, instance pkg_rhino.ObjectType, implementedInterface pkg_rhino.ObjectType, propName pkg_rhino.Property_Key) {
 	_ = n
 	_ = instance
 	_ = implementedInterface
@@ -946,7 +1000,7 @@ func (this_ *TypeValidator) priv_TypeValidator_expectInterfaceProperty_5648(n pk
 		if implementedInterface.GetPropertyType_1_Property_Key(propName).IsVoidable() {
 			return
 		}
-		this_.priv_TypeValidator_registerMismatchAndReport_5655(j2gort.AsIface[pkg_rhino.JSType](instance), j2gort.AsIface[pkg_rhino.JSType](implementedInterface), JSError_Make_3(n, StaticGet_TypeValidator_INTERFACE_METHOD_NOT_IMPLEMENTED(), []string{propName.HumanReadableName(), implementedInterface.GetReferenceName(), instance.String()}))
+		this_.priv_TypeValidator_registerMismatchAndReport_5663(j2gort.AsIface[pkg_rhino.JSType](instance), j2gort.AsIface[pkg_rhino.JSType](implementedInterface), JSError_Make_3(n, StaticGet_TypeValidator_INTERFACE_METHOD_NOT_IMPLEMENTED(), []string{propName.HumanReadableName(), implementedInterface.GetReferenceName(), instance.String()}))
 	} else {
 		var local bool = propSlot.GetOwnerInstanceType().Equals(instance)
 		_ = local
@@ -995,7 +1049,7 @@ func (this_ *TypeValidator) CheckPropertyType_5_Node_JSType_ObjectType_string_JS
 		return StaticGet_TypeValidator_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH()
 	}(), []string{propertyName, parent.GetReferenceName(), required.String(), found.String(), instance.String()})
 	_ = err
-	this_.priv_TypeValidator_registerMismatchAndReport_5655(found, required, err)
+	this_.priv_TypeValidator_registerMismatchAndReport_5663(found, required, err)
 }
 
 // Java method: TypeValidator.checkPropertyType(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.JSType instance, com.google.javascript.rhino.jstype.ObjectType parent, com.google.javascript.rhino.jstype.Property.Key propertyName, com.google.javascript.rhino.jstype.JSType found)
@@ -1022,7 +1076,7 @@ func (this_ *TypeValidator) CheckPropertyType_5_Node_JSType_ObjectType_Property_
 		return StaticGet_TypeValidator_HIDDEN_SUPERCLASS_PROPERTY_MISMATCH()
 	}(), []string{propertyName.HumanReadableName(), parent.GetReferenceName(), required.String(), found.String(), instance.String()})
 	_ = err
-	this_.priv_TypeValidator_registerMismatchAndReport_5655(found, required, err)
+	this_.priv_TypeValidator_registerMismatchAndReport_5663(found, required, err)
 }
 
 // Java method: TypeValidator.expectAbstractMethodsImplemented(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.FunctionType ctorType)
@@ -1069,23 +1123,23 @@ func (this_ *TypeValidator) ExpectAbstractMethodsImplemented(n pkg_rhino.Node, c
 			var abstractMethod *pkg_rhino.FunctionType = instance.FindPropertyType_1_Property_Key(method).ToMaybeFunctionType()
 			_ = abstractMethod
 			if (abstractMethod == nil) || abstractMethod.IsAbstract() {
-				this_.priv_TypeValidator_registerMismatchAndReport_5655(j2gort.AsIface[pkg_rhino.JSType](instance), j2gort.AsIface[pkg_rhino.JSType](superType_2), JSError_Make_3(n, StaticGet_TypeValidator_ABSTRACT_METHOD_NOT_IMPLEMENTED(), []string{method.HumanReadableName(), superType_2.String(), instance.String()}))
+				this_.priv_TypeValidator_registerMismatchAndReport_5663(j2gort.AsIface[pkg_rhino.JSType](instance), j2gort.AsIface[pkg_rhino.JSType](superType_2), JSError_Make_3(n, StaticGet_TypeValidator_ABSTRACT_METHOD_NOT_IMPLEMENTED(), []string{method.HumanReadableName(), superType_2.String(), instance.String()}))
 			}
 		}
 	}
 }
 
 // Java method: TypeValidator.mismatch(com.google.javascript.rhino.Node n, java.lang.String msg, com.google.javascript.rhino.jstype.JSType found, com.google.javascript.rhino.jstype.JSTypeNative required)
-func (this_ *TypeValidator) priv_TypeValidator_mismatch_5652(n pkg_rhino.Node, msg string, found pkg_rhino.JSType, required pkg_rhino.JSTypeNative) {
+func (this_ *TypeValidator) priv_TypeValidator_mismatch_5660(n pkg_rhino.Node, msg string, found pkg_rhino.JSType, required pkg_rhino.JSTypeNative) {
 	_ = n
 	_ = msg
 	_ = found
 	_ = required
-	this_.priv_TypeValidator_mismatch_5653(n, msg, found, this_.priv_TypeValidator_getNativeType_5657(required))
+	this_.priv_TypeValidator_mismatch_5661(n, msg, found, this_.priv_TypeValidator_getNativeType_5665(required))
 }
 
 // Java method: TypeValidator.mismatch(com.google.javascript.rhino.Node n, java.lang.String msg, com.google.javascript.rhino.jstype.JSType found, com.google.javascript.rhino.jstype.JSType required)
-func (this_ *TypeValidator) priv_TypeValidator_mismatch_5653(n pkg_rhino.Node, msg string, found pkg_rhino.JSType, required pkg_rhino.JSType) {
+func (this_ *TypeValidator) priv_TypeValidator_mismatch_5661(n pkg_rhino.Node, msg string, found pkg_rhino.JSType, required pkg_rhino.JSType) {
 	_ = n
 	_ = msg
 	_ = found
@@ -1136,12 +1190,12 @@ func (this_ *TypeValidator) priv_TypeValidator_mismatch_5653(n pkg_rhino.Node, m
 				}
 			}
 		}
-		this_.priv_TypeValidator_registerMismatchAndReport_5654(n, StaticGet_TypeValidator_TYPE_MISMATCH_WARNING(), msg, found, required, missing, mismatch)
+		this_.priv_TypeValidator_registerMismatchAndReport_5662(n, StaticGet_TypeValidator_TYPE_MISMATCH_WARNING(), msg, found, required, missing, mismatch)
 	}
 }
 
 // Java method: TypeValidator.registerMismatchAndReport(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.DiagnosticType diagnostic, java.lang.String msg, com.google.javascript.rhino.jstype.JSType found, com.google.javascript.rhino.jstype.JSType required, java.util.@org.jspecify.annotations.Nullable Set<java.lang.String> missing, java.util.@org.jspecify.annotations.Nullable Set<java.lang.String> mismatch)
-func (this_ *TypeValidator) priv_TypeValidator_registerMismatchAndReport_5654(n pkg_rhino.Node, diagnostic *DiagnosticType, msg string, found pkg_rhino.JSType, required pkg_rhino.JSType, missing j2gort.Ext_java_util_Set, mismatch j2gort.Ext_java_util_Set) {
+func (this_ *TypeValidator) priv_TypeValidator_registerMismatchAndReport_5662(n pkg_rhino.Node, diagnostic *DiagnosticType, msg string, found pkg_rhino.JSType, required pkg_rhino.JSType, missing j2gort.Ext_java_util_Set, mismatch j2gort.Ext_java_util_Set) {
 	_ = n
 	_ = diagnostic
 	_ = msg
@@ -1153,11 +1207,11 @@ func (this_ *TypeValidator) priv_TypeValidator_registerMismatchAndReport_5654(n 
 	_ = foundRequiredFormatted
 	var err *JSError = JSError_Make_3(n, diagnostic, []string{foundRequiredFormatted})
 	_ = err
-	this_.priv_TypeValidator_registerMismatchAndReport_5655(found, required, err)
+	this_.priv_TypeValidator_registerMismatchAndReport_5663(found, required, err)
 }
 
 // Java method: TypeValidator.registerMismatchAndReport(com.google.javascript.rhino.jstype.JSType found, com.google.javascript.rhino.jstype.JSType required, com.google.javascript.jscomp.JSError error)
-func (this_ *TypeValidator) priv_TypeValidator_registerMismatchAndReport_5655(found pkg_rhino.JSType, required pkg_rhino.JSType, error_ *JSError) {
+func (this_ *TypeValidator) priv_TypeValidator_registerMismatchAndReport_5663(found pkg_rhino.JSType, required pkg_rhino.JSType, error_ *JSError) {
 	_ = found
 	_ = required
 	_ = error_
@@ -1214,13 +1268,13 @@ func TypeValidator_FormatFoundRequired(description string, found pkg_rhino.JSTyp
 }
 
 // Java method: TypeValidator.getJSType(com.google.javascript.rhino.Node n)
-func (this_ *TypeValidator) priv_TypeValidator_getJSType_5656(n pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *TypeValidator) priv_TypeValidator_getJSType_5664(n pkg_rhino.Node) pkg_rhino.JSType {
 	_ = n
 	return j2gort.CheckNotNullIface(n.GetJSType())
 }
 
 // Java method: TypeValidator.getNativeType(com.google.javascript.rhino.jstype.JSTypeNative typeId)
-func (this_ *TypeValidator) priv_TypeValidator_getNativeType_5657(typeId pkg_rhino.JSTypeNative) pkg_rhino.JSType {
+func (this_ *TypeValidator) priv_TypeValidator_getNativeType_5665(typeId pkg_rhino.JSTypeNative) pkg_rhino.JSType {
 	_ = typeId
 	return this_.typeRegistry.GetNativeType(typeId)
 }
@@ -1403,7 +1457,7 @@ func (this_ *TypeValidator_WellFormedTemplatizedTypeVerifier) CaseTemplatizedTyp
 				var templateType *pkg_rhino.TemplateType = referencedTemplates.GetTemplateKeyAt(i)
 				_ = templateType
 				if !(assignedType.IsSubtype_1(templateType.GetBound())) {
-					this_.outer_.priv_TypeValidator_registerMismatchAndReport_5655(assignedType, templateType.GetBound(), JSError_Make_3(this_.node, StaticGet_RhinoErrorReporter_BOUNDED_GENERIC_TYPE_ERROR(), []string{assignedType.String(), templateType.GetReferenceName(), templateType.GetBound().String()}))
+					this_.outer_.priv_TypeValidator_registerMismatchAndReport_5663(assignedType, templateType.GetBound(), JSError_Make_3(this_.node, StaticGet_RhinoErrorReporter_BOUNDED_GENERIC_TYPE_ERROR(), []string{assignedType.String(), templateType.GetReferenceName(), templateType.GetBound().String()}))
 					return j2gort.ValueOfBoolean(false)
 				}
 			}

@@ -429,13 +429,13 @@ func (this_ *AstValidator) priv_AstValidator_validatePseudoExpression_757(n pkg_
 	_ = allowedTokensSet
 	switch n.TokenSwitchOrd_() {
 	case int32(88) /* Token.EMPTY */ :
-		if !(allowedTokensSet.Contains(j2gort.BoxNullableVal(pkg_rhino.StaticGet_Token_EMPTY()))) {
+		if !(j2gort.ImmSetContainsTypedU8_(allowedTokensSet, uint8(pkg_rhino.StaticGet_Token_EMPTY()))) {
 			j2gort.CheckArgumentFmt(false, "Unexpected pseudoexpression %s", j2gort.BoxNode(n))
 		}
 		this_.priv_AstValidator_validateProperties_895(n)
 		this_.priv_AstValidator_validateChildless_849(n)
 	case int32(127) /* Token.ITER_SPREAD */ :
-		if !(allowedTokensSet.Contains(j2gort.BoxNullableVal(pkg_rhino.StaticGet_Token_ITER_SPREAD()))) {
+		if !(j2gort.ImmSetContainsTypedU8_(allowedTokensSet, uint8(pkg_rhino.StaticGet_Token_ITER_SPREAD()))) {
 			j2gort.CheckArgumentFmt(false, "Unexpected pseudoexpression %s", j2gort.BoxNode(n))
 		}
 		this_.priv_AstValidator_validateProperties_895(n)

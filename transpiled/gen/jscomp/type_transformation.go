@@ -267,31 +267,31 @@ func InitTypeTransformation(this_ *TypeTransformation, compiler AbstractCompiler
 }
 
 // Java method: TypeTransformation.isTypeVar(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformation) priv_TypeTransformation_isTypeVar_5559(n pkg_rhino.Node) bool {
+func (this_ *TypeTransformation) priv_TypeTransformation_isTypeVar_5566(n pkg_rhino.Node) bool {
 	_ = n
 	return n.IsName()
 }
 
 // Java method: TypeTransformation.isTypeName(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformation) priv_TypeTransformation_isTypeName_5560(n pkg_rhino.Node) bool {
+func (this_ *TypeTransformation) priv_TypeTransformation_isTypeName_5567(n pkg_rhino.Node) bool {
 	_ = n
 	return n.IsStringLit()
 }
 
 // Java method: TypeTransformation.isBooleanOperation(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformation) priv_TypeTransformation_isBooleanOperation_5561(n pkg_rhino.Node) bool {
+func (this_ *TypeTransformation) priv_TypeTransformation_isBooleanOperation_5568(n pkg_rhino.Node) bool {
 	_ = n
 	return ((n.IsAnd() || n.IsOr()) || n.IsNot())
 }
 
 // Java method: TypeTransformation.nameToKeyword(java.lang.String s)
-func (this_ *TypeTransformation) priv_TypeTransformation_nameToKeyword_5562(s string) *pkg_parsing.TypeTransformationParser_Keywords {
+func (this_ *TypeTransformation) priv_TypeTransformation_nameToKeyword_5569(s string) *pkg_parsing.TypeTransformationParser_Keywords {
 	_ = s
 	return pkg_parsing.TypeTransformationParser_Keywords_ValueOf(j2gort.Ext_com_google_common_base_Ascii_ToUpperCase_1_string(s))
 }
 
 // Java method: TypeTransformation.getType(java.lang.String typeName)
-func (this_ *TypeTransformation) priv_TypeTransformation_getType_5563(typeName string) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_getType_5570(typeName string) pkg_rhino.JSType {
 	_ = typeName
 	var type_ pkg_rhino.JSType = this_.registry.GetType_2(j2gort.AsIface[pkg_rhino.StaticScope](this_.typeEnv), typeName)
 	_ = type_
@@ -328,39 +328,39 @@ func (this_ *TypeTransformation) priv_TypeTransformation_getType_5563(typeName s
 }
 
 // Java method: TypeTransformation.getUnknownType()
-func (this_ *TypeTransformation) priv_TypeTransformation_getUnknownType_5564() pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_getUnknownType_5571() pkg_rhino.JSType {
 	return j2gort.AsIface[pkg_rhino.JSType](this_.registry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()))
 }
 
 // Java method: TypeTransformation.getNoType()
-func (this_ *TypeTransformation) priv_TypeTransformation_getNoType_5565() pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_getNoType_5572() pkg_rhino.JSType {
 	return j2gort.AsIface[pkg_rhino.JSType](this_.registry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE()))
 }
 
 // Java method: TypeTransformation.getAllType()
-func (this_ *TypeTransformation) priv_TypeTransformation_getAllType_5566() pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_getAllType_5573() pkg_rhino.JSType {
 	return this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ALL_TYPE())
 }
 
 // Java method: TypeTransformation.getObjectType()
-func (this_ *TypeTransformation) priv_TypeTransformation_getObjectType_5567() pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_getObjectType_5574() pkg_rhino.JSType {
 	return this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE())
 }
 
 // Java method: TypeTransformation.createUnionType(com.google.javascript.rhino.jstype.JSType[] variants)
-func (this_ *TypeTransformation) priv_TypeTransformation_createUnionType_5568(variants []pkg_rhino.JSType) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_createUnionType_5575(variants []pkg_rhino.JSType) pkg_rhino.JSType {
 	_ = variants
 	return this_.registry.CreateUnionType_1_JSType(variants)
 }
 
 // Java method: TypeTransformation.createRecordType(com.google.common.collect.ImmutableMap<java.lang.String,com.google.javascript.rhino.jstype.JSType> props)
-func (this_ *TypeTransformation) priv_TypeTransformation_createRecordType_5569(props j2gort.Ext_com_google_common_collect_ImmutableMap) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_createRecordType_5576(props j2gort.Ext_com_google_common_collect_ImmutableMap) pkg_rhino.JSType {
 	_ = props
 	return this_.registry.CreateRecordType(j2gort.AsIface[j2gort.Ext_java_util_Map](props))
 }
 
 // Java method: TypeTransformation.reportWarning(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.DiagnosticType msg, java.lang.String[] param)
-func (this_ *TypeTransformation) priv_TypeTransformation_reportWarning_5570(n pkg_rhino.Node, msg *DiagnosticType, param []string) {
+func (this_ *TypeTransformation) priv_TypeTransformation_reportWarning_5577(n pkg_rhino.Node, msg *DiagnosticType, param []string) {
 	_ = n
 	_ = msg
 	_ = param
@@ -368,7 +368,7 @@ func (this_ *TypeTransformation) priv_TypeTransformation_reportWarning_5570(n pk
 }
 
 // Java method: TypeTransformation.addNewEntry(com.google.common.collect.ImmutableMap<java.lang.String,T> map, java.lang.String name, T type)
-func (this_ *TypeTransformation) priv_TypeTransformation_addNewEntry_5571(map_ j2gort.Ext_com_google_common_collect_ImmutableMap, name string, type_ any) j2gort.Ext_com_google_common_collect_ImmutableMap {
+func (this_ *TypeTransformation) priv_TypeTransformation_addNewEntry_5578(map_ j2gort.Ext_com_google_common_collect_ImmutableMap, name string, type_ any) j2gort.Ext_com_google_common_collect_ImmutableMap {
 	_ = map_
 	_ = name
 	_ = type_
@@ -376,7 +376,7 @@ func (this_ *TypeTransformation) priv_TypeTransformation_addNewEntry_5571(map_ j
 }
 
 // Java method: TypeTransformation.getFunctionParameter(com.google.javascript.rhino.Node n, int i)
-func (this_ *TypeTransformation) priv_TypeTransformation_getFunctionParameter_5572(n pkg_rhino.Node, i int32) string {
+func (this_ *TypeTransformation) priv_TypeTransformation_getFunctionParameter_5579(n pkg_rhino.Node, i int32) string {
 	_ = n
 	_ = i
 	if !(n.IsFunction()) {
@@ -386,7 +386,7 @@ func (this_ *TypeTransformation) priv_TypeTransformation_getFunctionParameter_55
 }
 
 // Java method: TypeTransformation.getCallName(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformation) priv_TypeTransformation_getCallName_5573(n pkg_rhino.Node) string {
+func (this_ *TypeTransformation) priv_TypeTransformation_getCallName_5580(n pkg_rhino.Node) string {
 	_ = n
 	if !(n.IsCall()) {
 		j2gort.CheckArgumentFmt(false, "Expected a call node, found %s", j2gort.BoxNode(n))
@@ -395,7 +395,7 @@ func (this_ *TypeTransformation) priv_TypeTransformation_getCallName_5573(n pkg_
 }
 
 // Java method: TypeTransformation.getCallArgument(com.google.javascript.rhino.Node n, int i)
-func (this_ *TypeTransformation) priv_TypeTransformation_getCallArgument_5574(n pkg_rhino.Node, i int32) pkg_rhino.Node {
+func (this_ *TypeTransformation) priv_TypeTransformation_getCallArgument_5581(n pkg_rhino.Node, i int32) pkg_rhino.Node {
 	_ = n
 	_ = i
 	if !(n.IsCall()) {
@@ -405,7 +405,7 @@ func (this_ *TypeTransformation) priv_TypeTransformation_getCallArgument_5574(n 
 }
 
 // Java method: TypeTransformation.getCallParamCount(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformation) priv_TypeTransformation_getCallParamCount_5575(n pkg_rhino.Node) int32 {
+func (this_ *TypeTransformation) priv_TypeTransformation_getCallParamCount_5582(n pkg_rhino.Node) int32 {
 	_ = n
 	if !(n.IsCall()) {
 		j2gort.CheckArgumentFmt(false, "Expected a call node, found %s", j2gort.BoxNode(n))
@@ -414,7 +414,7 @@ func (this_ *TypeTransformation) priv_TypeTransformation_getCallParamCount_5575(
 }
 
 // Java method: TypeTransformation.getCallParams(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformation) priv_TypeTransformation_getCallParams_5576(n pkg_rhino.Node) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *TypeTransformation) priv_TypeTransformation_getCallParams_5583(n pkg_rhino.Node) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = n
 	if !(n.IsCall()) {
 		j2gort.CheckArgumentFmt(false, "Expected a call node, found %s", j2gort.BoxNode(n))
@@ -424,15 +424,15 @@ func (this_ *TypeTransformation) priv_TypeTransformation_getCallParams_5576(n pk
 	{
 		var i int32 = int32(0)
 		_ = i
-		for ; i < this_.priv_TypeTransformation_getCallParamCount_5575(n); i = i + 1 {
-			builder = append(builder, j2gort.CheckNotNullElem(this_.priv_TypeTransformation_getCallArgument_5574(n, i)))
+		for ; i < this_.priv_TypeTransformation_getCallParamCount_5582(n); i = i + 1 {
+			builder = append(builder, j2gort.CheckNotNullElem(this_.priv_TypeTransformation_getCallArgument_5581(n, i)))
 		}
 	}
 	return j2gort.ImmListFromTypedSlice(builder)
 }
 
 // Java method: TypeTransformation.getComputedPropValue(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformation) priv_TypeTransformation_getComputedPropValue_5577(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *TypeTransformation) priv_TypeTransformation_getComputedPropValue_5584(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsComputedProp()) {
 		j2gort.CheckArgumentFmt(false, "Expected a computed property node, found %s", j2gort.BoxNode(n))
@@ -441,7 +441,7 @@ func (this_ *TypeTransformation) priv_TypeTransformation_getComputedPropValue_55
 }
 
 // Java method: TypeTransformation.getComputedPropName(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformation) priv_TypeTransformation_getComputedPropName_5578(n pkg_rhino.Node) string {
+func (this_ *TypeTransformation) priv_TypeTransformation_getComputedPropName_5585(n pkg_rhino.Node) string {
 	_ = n
 	if !(n.IsComputedProp()) {
 		j2gort.CheckArgumentFmt(false, "Expected a computed property node, found %s", j2gort.BoxNode(n))
@@ -461,34 +461,34 @@ func (this_ *TypeTransformation) Eval_3(ttlAst pkg_rhino.Node, typeVars j2gort.E
 	_ = ttlAst
 	_ = typeVars
 	_ = nameVars
-	var result pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5581(ttlAst, NewTypeTransformation_NameResolver(typeVars, nameVars))
+	var result pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5588(ttlAst, NewTypeTransformation_NameResolver(typeVars, nameVars))
 	_ = result
 	if result.IsEmptyType() {
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	} else {
 		return result
 	}
 }
 
 // Java method: TypeTransformation.evalInternal(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalInternal_5581(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalInternal_5588(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	if this_.priv_TypeTransformation_isTypeName_5560(ttlAst) {
-		return this_.priv_TypeTransformation_evalTypeName_5584(ttlAst)
+	if this_.priv_TypeTransformation_isTypeName_5567(ttlAst) {
+		return this_.priv_TypeTransformation_evalTypeName_5591(ttlAst)
 	}
-	if this_.priv_TypeTransformation_isTypeVar_5559(ttlAst) {
-		return this_.priv_TypeTransformation_evalTypeVar_5586(ttlAst, nameResolver)
+	if this_.priv_TypeTransformation_isTypeVar_5566(ttlAst) {
+		return this_.priv_TypeTransformation_evalTypeVar_5593(ttlAst, nameResolver)
 	}
-	var name string = this_.priv_TypeTransformation_getCallName_5573(ttlAst)
+	var name string = this_.priv_TypeTransformation_getCallName_5580(ttlAst)
 	_ = name
-	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5562(name)
+	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5569(name)
 	_ = keyword
 	switch (keyword.FieldGet_kind()).Ordinal() {
 	case int32(0) /* OperationKind.TYPE_CONSTRUCTOR */ :
-		return this_.priv_TypeTransformation_evalTypeExpression_5583(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalTypeExpression_5590(ttlAst, nameResolver)
 	case int32(1) /* OperationKind.OPERATION */ :
-		return this_.priv_TypeTransformation_evalOperationExpression_5582(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalOperationExpression_5589(ttlAst, nameResolver)
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Could not evaluate the type transformation expression")))
 	}
@@ -496,28 +496,28 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalInternal_5581(ttlAs
 }
 
 // Java method: TypeTransformation.evalOperationExpression(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalOperationExpression_5582(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalOperationExpression_5589(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var name string = this_.priv_TypeTransformation_getCallName_5573(ttlAst)
+	var name string = this_.priv_TypeTransformation_getCallName_5580(ttlAst)
 	_ = name
-	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5562(name)
+	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5569(name)
 	_ = keyword
 	switch j2gort.CheckNotNullPtr(keyword).Ordinal() {
 	case int32(1) /* Keywords.COND */ :
-		return this_.priv_TypeTransformation_evalConditional_5596(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalConditional_5603(ttlAst, nameResolver)
 	case int32(9) /* Keywords.MAPUNION */ :
-		return this_.priv_TypeTransformation_evalMapunion_5597(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalMapunion_5604(ttlAst, nameResolver)
 	case int32(10) /* Keywords.MAPRECORD */ :
-		return this_.priv_TypeTransformation_evalMaprecord_5605(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalMaprecord_5612(ttlAst, nameResolver)
 	case int32(21) /* Keywords.TYPEOFVAR */ :
-		return this_.priv_TypeTransformation_evalTypeOfVar_5606(ttlAst)
+		return this_.priv_TypeTransformation_evalTypeOfVar_5613(ttlAst)
 	case int32(8) /* Keywords.INSTANCEOF */ :
-		return this_.priv_TypeTransformation_evalInstanceOf_5607(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalInstanceOf_5614(ttlAst, nameResolver)
 	case int32(12) /* Keywords.PRINTTYPE */ :
-		return this_.priv_TypeTransformation_evalPrintType_5609(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalPrintType_5616(ttlAst, nameResolver)
 	case int32(13) /* Keywords.PROPTYPE */ :
-		return this_.priv_TypeTransformation_evalPropType_5610(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalPropType_5617(ttlAst, nameResolver)
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Invalid type transformation operation")))
 	}
@@ -525,32 +525,32 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalOperationExpression
 }
 
 // Java method: TypeTransformation.evalTypeExpression(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeExpression_5583(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeExpression_5590(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var name string = this_.priv_TypeTransformation_getCallName_5573(ttlAst)
+	var name string = this_.priv_TypeTransformation_getCallName_5580(ttlAst)
 	_ = name
-	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5562(name)
+	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5569(name)
 	_ = keyword
 	switch j2gort.CheckNotNullPtr(keyword).Ordinal() {
 	case int32(19) /* Keywords.TYPE */ :
-		return this_.priv_TypeTransformation_evalTemplatizedType_5585(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalTemplatizedType_5592(ttlAst, nameResolver)
 	case int32(22) /* Keywords.UNION */ :
-		return this_.priv_TypeTransformation_evalUnionType_5587(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalUnionType_5594(ttlAst, nameResolver)
 	case int32(11) /* Keywords.NONE */ :
-		return this_.priv_TypeTransformation_getNoType_5565()
+		return this_.priv_TypeTransformation_getNoType_5572()
 	case int32(0) /* Keywords.ALL */ :
-		return this_.priv_TypeTransformation_getAllType_5566()
+		return this_.priv_TypeTransformation_getAllType_5573()
 	case int32(23) /* Keywords.UNKNOWN */ :
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	case int32(14) /* Keywords.RAWTYPEOF */ :
-		return this_.priv_TypeTransformation_evalRawTypeOf_5598(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalRawTypeOf_5605(ttlAst, nameResolver)
 	case int32(18) /* Keywords.TEMPLATETYPEOF */ :
-		return this_.priv_TypeTransformation_evalTemplateTypeOf_5599(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalTemplateTypeOf_5606(ttlAst, nameResolver)
 	case int32(17) /* Keywords.RECORD */ :
-		return this_.priv_TypeTransformation_evalRecordType_5602(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalRecordType_5609(ttlAst, nameResolver)
 	case int32(20) /* Keywords.TYPEEXPR */ :
-		return this_.priv_TypeTransformation_evalNativeTypeExpr_5608(ttlAst)
+		return this_.priv_TypeTransformation_evalNativeTypeExpr_5615(ttlAst)
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Invalid type expression")))
 	}
@@ -558,30 +558,30 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeExpression_5583
 }
 
 // Java method: TypeTransformation.evalTypeName(com.google.javascript.rhino.Node ttlAst)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeName_5584(ttlAst pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeName_5591(ttlAst pkg_rhino.Node) pkg_rhino.JSType {
 	_ = ttlAst
 	var typeName string = ttlAst.GetString()
 	_ = typeName
-	var resultingType pkg_rhino.JSType = this_.priv_TypeTransformation_getType_5563(typeName)
+	var resultingType pkg_rhino.JSType = this_.priv_TypeTransformation_getType_5570(typeName)
 	_ = resultingType
 	if resultingType == nil || resultingType.IsJavaNil_() {
-		this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_UNKNOWN_TYPENAME(), []string{typeName})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_UNKNOWN_TYPENAME(), []string{typeName})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
 	return resultingType
 }
 
 // Java method: TypeTransformation.evalTemplatizedType(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalTemplatizedType_5585(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalTemplatizedType_5592(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5576(ttlAst))
+	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5583(ttlAst))
 	_ = params
-	var firstParam pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5581(params[int32(0)], nameResolver)
+	var firstParam pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5588(params[int32(0)], nameResolver)
 	_ = firstParam
 	if !(firstParam.IsRawTypeOfTemplatizedType()) {
-		this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_BASETYPE_INVALID(), []string{firstParam.String()})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_BASETYPE_INVALID(), []string{firstParam.String()})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
 	var templatizedTypes []pkg_rhino.JSType = make([]pkg_rhino.JSType, (int32(len(params)) - int32(1)))
 	_ = templatizedTypes
@@ -596,7 +596,7 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalTemplatizedType_558
 		}
 		j2gort.Ext_java_util_Arrays_SetAll_2_slice_any_Ext_java_util_function_IntFunction(arrBox_2, j2gort.NewLambda_Ext_java_util_function_IntFunction(func(i int32) any {
 			_ = i
-			return this_.priv_TypeTransformation_evalInternal_5581(params[(i+int32(1))], nameResolver)
+			return this_.priv_TypeTransformation_evalInternal_5588(params[(i+int32(1))], nameResolver)
 		}))
 		for i_, el_3 := range arrBox_2 {
 			arrMut_1[i_] = j2gort.AsIface[pkg_rhino.JSType](el_3)
@@ -608,7 +608,7 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalTemplatizedType_558
 }
 
 // Java method: TypeTransformation.evalTypeVar(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeVar_5586(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeVar_5593(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
 	var typeVar string = ttlAst.GetString()
@@ -616,17 +616,17 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeVar_5586(ttlAst
 	var resultingType pkg_rhino.JSType = j2gort.AsIface[pkg_rhino.JSType](j2gort.MapGetStr(nameResolver.typeVars, typeVar))
 	_ = resultingType
 	if resultingType == nil || resultingType.IsJavaNil_() {
-		this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_UNKNOWN_TYPEVAR(), []string{typeVar})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_UNKNOWN_TYPEVAR(), []string{typeVar})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
 	return resultingType
 }
 
 // Java method: TypeTransformation.evalUnionType(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalUnionType_5587(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalUnionType_5594(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5576(ttlAst))
+	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5583(ttlAst))
 	_ = params
 	var paramCount int32 = int32(len(params))
 	_ = paramCount
@@ -639,18 +639,18 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalUnionType_5587(ttlA
 			{
 				a_4 := basicTypes
 				i_5 := i
-				a_4[i_5] = this_.priv_TypeTransformation_evalInternal_5581(params[i], nameResolver)
+				a_4[i_5] = this_.priv_TypeTransformation_evalInternal_5588(params[i], nameResolver)
 			}
 		}
 	}
-	return this_.priv_TypeTransformation_createUnionType_5568(basicTypes)
+	return this_.priv_TypeTransformation_createUnionType_5575(basicTypes)
 }
 
 // Java method: TypeTransformation.evalTypeParams(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeParams_5588(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) []pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeParams_5595(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) []pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5576(ttlAst))
+	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5583(ttlAst))
 	_ = params
 	var paramCount int32 = int32(len(params))
 	_ = paramCount
@@ -663,7 +663,7 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeParams_5588(ttl
 			{
 				a_6 := result
 				i_7 := i
-				a_6[i_7] = this_.priv_TypeTransformation_evalInternal_5581(params[i], nameResolver)
+				a_6[i_7] = this_.priv_TypeTransformation_evalInternal_5588(params[i], nameResolver)
 			}
 		}
 	}
@@ -671,12 +671,12 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeParams_5588(ttl
 }
 
 // Java method: TypeTransformation.evalString(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalString_5589(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) string {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalString_5596(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) string {
 	_ = ttlAst
 	_ = nameResolver
 	if ttlAst.IsName() {
 		if !(j2gort.MapContainsKeyStr(nameResolver.nameVars, ttlAst.GetString())) {
-			this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_UNKNOWN_STRVAR(), []string{ttlAst.GetString()})
+			this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_UNKNOWN_STRVAR(), []string{ttlAst.GetString()})
 			return ""
 		}
 		return j2gort.CastString(j2gort.MapGetStr(nameResolver.nameVars, ttlAst.GetString()))
@@ -685,10 +685,10 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalString_5589(ttlAst 
 }
 
 // Java method: TypeTransformation.evalStringParams(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalStringParams_5590(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) []string {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalStringParams_5597(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) []string {
 	_ = ttlAst
 	_ = nameResolver
-	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5576(ttlAst))
+	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5583(ttlAst))
 	_ = params
 	var paramCount int32 = int32(len(params))
 	_ = paramCount
@@ -701,7 +701,7 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalStringParams_5590(t
 			{
 				a_8 := result
 				i_9 := i
-				a_8[i_9] = this_.priv_TypeTransformation_evalString_5589(params[i], nameResolver)
+				a_8[i_9] = this_.priv_TypeTransformation_evalString_5596(params[i], nameResolver)
 			}
 		}
 	}
@@ -709,14 +709,14 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalStringParams_5590(t
 }
 
 // Java method: TypeTransformation.evalTypePredicate(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalTypePredicate_5591(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) bool {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalTypePredicate_5598(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) bool {
 	_ = ttlAst
 	_ = nameResolver
-	var params []pkg_rhino.JSType = this_.priv_TypeTransformation_evalTypeParams_5588(ttlAst, nameResolver)
+	var params []pkg_rhino.JSType = this_.priv_TypeTransformation_evalTypeParams_5595(ttlAst, nameResolver)
 	_ = params
-	var name string = this_.priv_TypeTransformation_getCallName_5573(ttlAst)
+	var name string = this_.priv_TypeTransformation_getCallName_5580(ttlAst)
 	_ = name
-	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5562(name)
+	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5569(name)
 	_ = keyword
 	var type_ pkg_rhino.JSType = params[int32(0)]
 	_ = type_
@@ -740,10 +740,10 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalTypePredicate_5591(
 }
 
 // Java method: TypeTransformation.evalStringPredicate(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalStringPredicate_5592(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) bool {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalStringPredicate_5599(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) bool {
 	_ = ttlAst
 	_ = nameResolver
-	var params []string = this_.priv_TypeTransformation_evalStringParams_5590(ttlAst, nameResolver)
+	var params []string = this_.priv_TypeTransformation_evalStringParams_5597(ttlAst, nameResolver)
 	_ = params
 	{
 		var i int32 = int32(0)
@@ -754,9 +754,9 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalStringPredicate_559
 			}
 		}
 	}
-	var name string = this_.priv_TypeTransformation_getCallName_5573(ttlAst)
+	var name string = this_.priv_TypeTransformation_getCallName_5580(ttlAst)
 	_ = name
-	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5562(name)
+	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5569(name)
 	_ = keyword
 	switch j2gort.CheckNotNullPtr(keyword).Ordinal() {
 	case int32(16) /* Keywords.STREQ */ :
@@ -772,16 +772,16 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalStringPredicate_559
 }
 
 // Java method: TypeTransformation.evalTypevarPredicate(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalTypevarPredicate_5593(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) bool {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalTypevarPredicate_5600(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) bool {
 	_ = ttlAst
 	_ = nameResolver
-	var name string = this_.priv_TypeTransformation_getCallName_5573(ttlAst)
+	var name string = this_.priv_TypeTransformation_getCallName_5580(ttlAst)
 	_ = name
-	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5562(name)
+	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5569(name)
 	_ = keyword
 	switch j2gort.CheckNotNullPtr(keyword).Ordinal() {
 	case int32(4) /* Keywords.ISDEFINED */ :
-		return j2gort.MapContainsKeyStr(nameResolver.typeVars, this_.priv_TypeTransformation_getCallArgument_5574(ttlAst, int32(0)).GetString())
+		return j2gort.MapContainsKeyStr(nameResolver.typeVars, this_.priv_TypeTransformation_getCallArgument_5581(ttlAst, int32(0)).GetString())
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Invalid typevar predicate in the type transformation")))
 	}
@@ -789,41 +789,41 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalTypevarPredicate_55
 }
 
 // Java method: TypeTransformation.evalBooleanOperation(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalBooleanOperation_5594(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) bool {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalBooleanOperation_5601(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) bool {
 	_ = ttlAst
 	_ = nameResolver
-	var param0 bool = this_.priv_TypeTransformation_evalBoolean_5595(ttlAst.GetFirstChild(), nameResolver)
+	var param0 bool = this_.priv_TypeTransformation_evalBoolean_5602(ttlAst.GetFirstChild(), nameResolver)
 	_ = param0
 	if ttlAst.IsNot() {
 		return !(param0)
 	}
 	if ttlAst.IsAnd() {
-		return (param0 && this_.priv_TypeTransformation_evalBoolean_5595(ttlAst.GetLastChild(), nameResolver))
+		return (param0 && this_.priv_TypeTransformation_evalBoolean_5602(ttlAst.GetLastChild(), nameResolver))
 	}
 	if ttlAst.IsOr() {
-		return (param0 || this_.priv_TypeTransformation_evalBoolean_5595(ttlAst.GetLastChild(), nameResolver))
+		return (param0 || this_.priv_TypeTransformation_evalBoolean_5602(ttlAst.GetLastChild(), nameResolver))
 	}
 	panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Invalid boolean predicate in the type transformation")))
 }
 
 // Java method: TypeTransformation.evalBoolean(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalBoolean_5595(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) bool {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalBoolean_5602(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) bool {
 	_ = ttlAst
 	_ = nameResolver
-	if this_.priv_TypeTransformation_isBooleanOperation_5561(ttlAst) {
-		return this_.priv_TypeTransformation_evalBooleanOperation_5594(ttlAst, nameResolver)
+	if this_.priv_TypeTransformation_isBooleanOperation_5568(ttlAst) {
+		return this_.priv_TypeTransformation_evalBooleanOperation_5601(ttlAst, nameResolver)
 	}
-	var name string = this_.priv_TypeTransformation_getCallName_5573(ttlAst)
+	var name string = this_.priv_TypeTransformation_getCallName_5580(ttlAst)
 	_ = name
-	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5562(name)
+	var keyword *pkg_parsing.TypeTransformationParser_Keywords = this_.priv_TypeTransformation_nameToKeyword_5569(name)
 	_ = keyword
 	switch (keyword.FieldGet_kind()).Ordinal() {
 	case int32(2) /* OperationKind.STRING_PREDICATE */ :
-		return this_.priv_TypeTransformation_evalStringPredicate_5592(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalStringPredicate_5599(ttlAst, nameResolver)
 	case int32(3) /* OperationKind.TYPE_PREDICATE */ :
-		return this_.priv_TypeTransformation_evalTypePredicate_5591(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalTypePredicate_5598(ttlAst, nameResolver)
 	case int32(4) /* OperationKind.TYPEVAR_PREDICATE */ :
-		return this_.priv_TypeTransformation_evalTypevarPredicate_5593(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalTypevarPredicate_5600(ttlAst, nameResolver)
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Invalid boolean predicate in the type transformation")))
 	}
@@ -831,44 +831,44 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalBoolean_5595(ttlAst
 }
 
 // Java method: TypeTransformation.evalConditional(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalConditional_5596(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalConditional_5603(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5576(ttlAst))
+	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5583(ttlAst))
 	_ = params
-	if this_.priv_TypeTransformation_evalBoolean_5595(params[int32(0)], nameResolver) {
-		return this_.priv_TypeTransformation_evalInternal_5581(params[int32(1)], nameResolver)
+	if this_.priv_TypeTransformation_evalBoolean_5602(params[int32(0)], nameResolver) {
+		return this_.priv_TypeTransformation_evalInternal_5588(params[int32(1)], nameResolver)
 	} else {
-		return this_.priv_TypeTransformation_evalInternal_5581(params[int32(2)], nameResolver)
+		return this_.priv_TypeTransformation_evalInternal_5588(params[int32(2)], nameResolver)
 	}
 }
 
 // Java method: TypeTransformation.evalMapunion(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalMapunion_5597(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalMapunion_5604(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5576(ttlAst))
+	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5583(ttlAst))
 	_ = params
 	var unionParam pkg_rhino.Node = params[int32(0)]
 	_ = unionParam
 	var mapFunction pkg_rhino.Node = params[int32(1)]
 	_ = mapFunction
-	var paramName string = this_.priv_TypeTransformation_getFunctionParameter_5572(mapFunction, int32(0))
+	var paramName string = this_.priv_TypeTransformation_getFunctionParameter_5579(mapFunction, int32(0))
 	_ = paramName
 	if j2gort.MapContainsKeyStr(nameResolver.typeVars, paramName) {
-		this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_DUPLICATE_VARIABLE(), []string{paramName})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_DUPLICATE_VARIABLE(), []string{paramName})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
 	var mapFunctionBody pkg_rhino.Node = NodeUtil_GetFunctionBody(mapFunction)
 	_ = mapFunctionBody
-	var unionType pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5581(unionParam, nameResolver)
+	var unionType pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5588(unionParam, nameResolver)
 	_ = unionType
 	if !(unionType.IsUnionType()) {
 		var val_12 TypeTransformation_NameResolver
-		InitTypeTransformation_NameResolver(&val_12, this_.priv_TypeTransformation_addNewEntry_5571(nameResolver.typeVars, paramName, unionType), nameResolver.nameVars)
+		InitTypeTransformation_NameResolver(&val_12, this_.priv_TypeTransformation_addNewEntry_5578(nameResolver.typeVars, paramName, unionType), nameResolver.nameVars)
 		var newNameResolver *TypeTransformation_NameResolver = &val_12
 		_ = newNameResolver
-		return this_.priv_TypeTransformation_evalInternal_5581(mapFunctionBody, newNameResolver)
+		return this_.priv_TypeTransformation_evalInternal_5588(mapFunctionBody, newNameResolver)
 	}
 	var unionElms []pkg_rhino.JSType = j2gort.ImmListCopyToSlice[pkg_rhino.JSType](unionType.GetUnionMembers())
 	_ = unionElms
@@ -883,59 +883,59 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalMapunion_5597(ttlAs
 		for _, elm := range unionElms {
 
 			_ = elm
-			var newNameResolver_2 *TypeTransformation_NameResolver = NewTypeTransformation_NameResolver(this_.priv_TypeTransformation_addNewEntry_5571(nameResolver.typeVars, paramName, elm), nameResolver.nameVars)
+			var newNameResolver_2 *TypeTransformation_NameResolver = NewTypeTransformation_NameResolver(this_.priv_TypeTransformation_addNewEntry_5578(nameResolver.typeVars, paramName, elm), nameResolver.nameVars)
 			_ = newNameResolver_2
 			{
 				a_15 := newUnionElms
 				i_16 := i
-				a_15[i_16] = this_.priv_TypeTransformation_evalInternal_5581(mapFunctionBody, newNameResolver_2)
+				a_15[i_16] = this_.priv_TypeTransformation_evalInternal_5588(mapFunctionBody, newNameResolver_2)
 			}
 			i = i + 1
 		}
 	}
-	return this_.priv_TypeTransformation_createUnionType_5568(newUnionElms)
+	return this_.priv_TypeTransformation_createUnionType_5575(newUnionElms)
 }
 
 // Java method: TypeTransformation.evalRawTypeOf(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalRawTypeOf_5598(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalRawTypeOf_5605(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5576(ttlAst))
+	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5583(ttlAst))
 	_ = params
-	var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5581(params[int32(0)], nameResolver)
+	var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5588(params[int32(0)], nameResolver)
 	_ = type_
 	if !(type_.IsTemplatizedType()) {
-		this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_TEMPTYPE_INVALID(), []string{"rawTypeOf", type_.String()})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_TEMPTYPE_INVALID(), []string{"rawTypeOf", type_.String()})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
 	return j2gort.AsIface[pkg_rhino.JSType](type_.ToMaybeObjectType().GetRawType())
 }
 
 // Java method: TypeTransformation.evalTemplateTypeOf(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalTemplateTypeOf_5599(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalTemplateTypeOf_5606(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5576(ttlAst))
+	var params []pkg_rhino.Node = j2gort.ImmListToNodeSliceNullable[pkg_rhino.Node](this_.priv_TypeTransformation_getCallParams_5583(ttlAst))
 	_ = params
-	var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5581(params[int32(0)], nameResolver)
+	var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5588(params[int32(0)], nameResolver)
 	_ = type_
 	if !(type_.IsTemplatizedType()) {
-		this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_TEMPTYPE_INVALID(), []string{"templateTypeOf", type_.String()})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_TEMPTYPE_INVALID(), []string{"templateTypeOf", type_.String()})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
 	var index int32 = javalang.D2I(params[int32(1)].GetDouble())
 	_ = index
 	var templateTypes []pkg_rhino.JSType = j2gort.ImmListToSliceNullable[pkg_rhino.JSType](type_.ToMaybeObjectType().GetTemplateTypes())
 	_ = templateTypes
 	if index >= int32(len(templateTypes)) {
-		this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_INDEX_OUTOFBOUNDS(), []string{strconv.FormatInt(int64(int32(len(templateTypes))), 10), strconv.FormatInt(int64(index), 10)})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_INDEX_OUTOFBOUNDS(), []string{strconv.FormatInt(int64(int32(len(templateTypes))), 10), strconv.FormatInt(int64(index), 10)})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
 	return templateTypes[index]
 }
 
 // Java method: TypeTransformation.evalRecord(com.google.javascript.rhino.Node record, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalRecord_5600(record pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalRecord_5607(record pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = record
 	_ = nameResolver
 	var props j2gort.Ext_java_util_Map = j2gort.NewExt_java_util_LinkedHashMap()
@@ -945,23 +945,23 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalRecord_5600(record 
 		_ = propNode
 		for ; propNode != 0; propNode = propNode.GetNext() {
 			if propNode.IsComputedProp() {
-				var compPropName string = this_.priv_TypeTransformation_getComputedPropName_5578(propNode)
+				var compPropName string = this_.priv_TypeTransformation_getComputedPropName_5585(propNode)
 				_ = compPropName
 				if !(j2gort.MapContainsKeyStr(nameResolver.nameVars, compPropName)) {
-					this_.priv_TypeTransformation_reportWarning_5570(record, StaticGet_TypeTransformation_UNKNOWN_NAMEVAR(), []string{compPropName})
-					return this_.priv_TypeTransformation_getUnknownType_5564()
+					this_.priv_TypeTransformation_reportWarning_5577(record, StaticGet_TypeTransformation_UNKNOWN_NAMEVAR(), []string{compPropName})
+					return this_.priv_TypeTransformation_getUnknownType_5571()
 				}
-				var propValue pkg_rhino.Node = this_.priv_TypeTransformation_getComputedPropValue_5577(propNode)
+				var propValue pkg_rhino.Node = this_.priv_TypeTransformation_getComputedPropValue_5584(propNode)
 				_ = propValue
 				var resolvedName string = j2gort.CastString(j2gort.MapGetStr(nameResolver.nameVars, compPropName))
 				_ = resolvedName
-				var resultingType pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5581(propValue, nameResolver)
+				var resultingType pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5588(propValue, nameResolver)
 				_ = resultingType
 				j2gort.MapPutStr(props, resolvedName, resultingType)
 			} else {
 				var propName string = propNode.GetString()
 				_ = propName
-				var resultingType_2 pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5581(propNode.GetFirstChild(), nameResolver)
+				var resultingType_2 pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5588(propNode.GetFirstChild(), nameResolver)
 				_ = resultingType_2
 				j2gort.MapPutStr(props, propName, resultingType_2)
 			}
@@ -971,20 +971,20 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalRecord_5600(record 
 }
 
 // Java method: TypeTransformation.evalRecordParam(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalRecordParam_5601(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalRecordParam_5608(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
 	if ttlAst.IsObjectLit() {
-		return this_.priv_TypeTransformation_evalRecord_5600(ttlAst, nameResolver)
+		return this_.priv_TypeTransformation_evalRecord_5607(ttlAst, nameResolver)
 	}
-	return this_.priv_TypeTransformation_evalInternal_5581(ttlAst, nameResolver)
+	return this_.priv_TypeTransformation_evalInternal_5588(ttlAst, nameResolver)
 }
 
 // Java method: TypeTransformation.evalRecordType(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalRecordType_5602(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalRecordType_5609(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var paramCount int32 = this_.priv_TypeTransformation_getCallParamCount_5575(ttlAst)
+	var paramCount int32 = this_.priv_TypeTransformation_getCallParamCount_5582(ttlAst)
 	_ = paramCount
 	var recTypesBuilder []pkg_rhino.ObjectType = []pkg_rhino.ObjectType{}
 	_ = recTypesBuilder
@@ -992,26 +992,26 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalRecordType_5602(ttl
 		var i int32 = int32(0)
 		_ = i
 		for ; i < paramCount; i = i + 1 {
-			var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalRecordParam_5601(this_.priv_TypeTransformation_getCallArgument_5574(ttlAst, i), nameResolver)
+			var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalRecordParam_5608(this_.priv_TypeTransformation_getCallArgument_5581(ttlAst, i), nameResolver)
 			_ = type_
 			var objType pkg_rhino.ObjectType = type_.ToMaybeObjectType()
 			_ = objType
 			if (objType == nil || objType.IsJavaNil_()) || objType.IsUnknownType() {
-				this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_RECPARAM_INVALID(), []string{type_.String()})
-				return this_.priv_TypeTransformation_getUnknownType_5564()
+				this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_RECPARAM_INVALID(), []string{type_.String()})
+				return this_.priv_TypeTransformation_getUnknownType_5571()
 			}
 			var recType pkg_rhino.JSType = this_.registry.BuildRecordTypeFromObject(objType)
 			_ = recType
-			if !(recType.Equals(this_.priv_TypeTransformation_getObjectType_5567())) {
+			if !(recType.Equals(this_.priv_TypeTransformation_getObjectType_5574())) {
 				recTypesBuilder = append(recTypesBuilder, j2gort.CheckNotNullElem(recType.ToMaybeObjectType()))
 			}
 		}
 	}
-	return this_.priv_TypeTransformation_joinRecordTypes_5604(j2gort.ImmListFromTypedSlice(recTypesBuilder))
+	return this_.priv_TypeTransformation_joinRecordTypes_5611(j2gort.ImmListFromTypedSlice(recTypesBuilder))
 }
 
 // Java method: TypeTransformation.putNewPropInPropertyMap(java.util.Map<java.lang.String,com.google.javascript.rhino.jstype.JSType> props, java.lang.String newPropName, com.google.javascript.rhino.jstype.JSType newPropValue)
-func (this_ *TypeTransformation) priv_TypeTransformation_putNewPropInPropertyMap_5603(props *j2gort.OrderedMap[string, pkg_rhino.JSType], newPropName string, newPropValue pkg_rhino.JSType) {
+func (this_ *TypeTransformation) priv_TypeTransformation_putNewPropInPropertyMap_5610(props *j2gort.OrderedMap[string, pkg_rhino.JSType], newPropName string, newPropValue pkg_rhino.JSType) {
 	_ = props
 	_ = newPropName
 	_ = newPropValue
@@ -1019,11 +1019,11 @@ func (this_ *TypeTransformation) priv_TypeTransformation_putNewPropInPropertyMap
 		props.Put(newPropName, newPropValue)
 		return
 	}
-	props.Put(newPropName, this_.priv_TypeTransformation_joinRecordTypes_5604(j2gort.Ext_com_google_common_collect_ImmutableList_Of_2(j2gort.AsIface[pkg_rhino.ObjectType](props.Get(newPropName)), j2gort.AsIface[pkg_rhino.ObjectType](newPropValue))))
+	props.Put(newPropName, this_.priv_TypeTransformation_joinRecordTypes_5611(j2gort.Ext_com_google_common_collect_ImmutableList_Of_2(j2gort.AsIface[pkg_rhino.ObjectType](props.Get(newPropName)), j2gort.AsIface[pkg_rhino.ObjectType](newPropValue))))
 }
 
 // Java method: TypeTransformation.joinRecordTypes(com.google.common.collect.ImmutableList<com.google.javascript.rhino.jstype.ObjectType> recTypes)
-func (this_ *TypeTransformation) priv_TypeTransformation_joinRecordTypes_5604(recTypes j2gort.Ext_com_google_common_collect_ImmutableList) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_joinRecordTypes_5611(recTypes j2gort.Ext_com_google_common_collect_ImmutableList) pkg_rhino.JSType {
 	_ = recTypes
 	var props j2gort.OrderedMap[string, pkg_rhino.JSType] = j2gort.NewOrderedMap[string, pkg_rhino.JSType]()
 	_ = props
@@ -1040,44 +1040,44 @@ func (this_ *TypeTransformation) priv_TypeTransformation_joinRecordTypes_5604(re
 					_ = newPropName
 					var newPropValue pkg_rhino.JSType = recType.GetPropertyType_1_string(newPropName)
 					_ = newPropValue
-					this_.priv_TypeTransformation_putNewPropInPropertyMap_5603(&props, newPropName, newPropValue)
+					this_.priv_TypeTransformation_putNewPropInPropertyMap_5610(&props, newPropName, newPropValue)
 				}
 			}
 		}
 	}
-	return this_.priv_TypeTransformation_createRecordType_5569(props.ToImmutableMap())
+	return this_.priv_TypeTransformation_createRecordType_5576(props.ToImmutableMap())
 }
 
 // Java method: TypeTransformation.evalMaprecord(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalMaprecord_5605(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalMaprecord_5612(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
 	var recordNode pkg_rhino.Node = ttlAst.GetSecondChild()
 	_ = recordNode
 	var mapFunction pkg_rhino.Node = ttlAst.GetChildAtIndex(int32(2))
 	_ = mapFunction
-	var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5581(recordNode, nameResolver)
+	var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5588(recordNode, nameResolver)
 	_ = type_
-	if type_.Equals(this_.priv_TypeTransformation_getObjectType_5567()) {
-		return this_.priv_TypeTransformation_getObjectType_5567()
+	if type_.Equals(this_.priv_TypeTransformation_getObjectType_5574()) {
+		return this_.priv_TypeTransformation_getObjectType_5574()
 	}
 	if !(type_.IsRecordType()) {
-		this_.priv_TypeTransformation_reportWarning_5570(recordNode, StaticGet_TypeTransformation_RECTYPE_INVALID(), []string{type_.String()})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(recordNode, StaticGet_TypeTransformation_RECTYPE_INVALID(), []string{type_.String()})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
 	var objtype pkg_rhino.ObjectType = type_.ToMaybeObjectType()
 	_ = objtype
-	var paramKey string = this_.priv_TypeTransformation_getFunctionParameter_5572(mapFunction, int32(0))
+	var paramKey string = this_.priv_TypeTransformation_getFunctionParameter_5579(mapFunction, int32(0))
 	_ = paramKey
-	var paramValue string = this_.priv_TypeTransformation_getFunctionParameter_5572(mapFunction, int32(1))
+	var paramValue string = this_.priv_TypeTransformation_getFunctionParameter_5579(mapFunction, int32(1))
 	_ = paramValue
 	if j2gort.MapContainsKeyStr(nameResolver.nameVars, paramKey) {
-		this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_DUPLICATE_VARIABLE(), []string{paramKey})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_DUPLICATE_VARIABLE(), []string{paramKey})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
 	if j2gort.MapContainsKeyStr(nameResolver.typeVars, paramValue) {
-		this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_DUPLICATE_VARIABLE(), []string{paramValue})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_DUPLICATE_VARIABLE(), []string{paramValue})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
 	var mapFnBody pkg_rhino.Node = NodeUtil_GetFunctionBody(mapFunction)
 	_ = mapFnBody
@@ -1090,19 +1090,19 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalMaprecord_5605(ttlA
 			_ = propName
 			var propValue pkg_rhino.JSType = objtype.GetPropertyType_1_string(propName)
 			_ = propValue
-			var newNameResolver *TypeTransformation_NameResolver = NewTypeTransformation_NameResolver(this_.priv_TypeTransformation_addNewEntry_5571(nameResolver.typeVars, paramValue, propValue), this_.priv_TypeTransformation_addNewEntry_5571(nameResolver.nameVars, paramKey, j2gort.BoxString(propName)))
+			var newNameResolver *TypeTransformation_NameResolver = NewTypeTransformation_NameResolver(this_.priv_TypeTransformation_addNewEntry_5578(nameResolver.typeVars, paramValue, propValue), this_.priv_TypeTransformation_addNewEntry_5578(nameResolver.nameVars, paramKey, j2gort.BoxString(propName)))
 			_ = newNameResolver
-			var body pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5581(mapFnBody, newNameResolver)
+			var body pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5588(mapFnBody, newNameResolver)
 			_ = body
 			if body.IsUnknownType() {
-				return this_.priv_TypeTransformation_getUnknownType_5564()
+				return this_.priv_TypeTransformation_getUnknownType_5571()
 			}
-			if body.IsEmptyType() || body.Equals(this_.priv_TypeTransformation_getObjectType_5567()) {
+			if body.IsEmptyType() || body.Equals(this_.priv_TypeTransformation_getObjectType_5574()) {
 				continue
 			}
 			if !(body.IsRecordType()) {
-				this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_MAPRECORD_BODY_INVALID(), []string{body.String()})
-				return this_.priv_TypeTransformation_getUnknownType_5564()
+				this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_MAPRECORD_BODY_INVALID(), []string{body.String()})
+				return this_.priv_TypeTransformation_getUnknownType_5571()
 			}
 			var bodyAsObj pkg_rhino.ObjectType = body.ToMaybeObjectType()
 			_ = bodyAsObj
@@ -1113,18 +1113,18 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalMaprecord_5605(ttlA
 					_ = newPropName
 					var newPropValue pkg_rhino.JSType = bodyAsObj.GetPropertyType_1_string(newPropName)
 					_ = newPropValue
-					this_.priv_TypeTransformation_putNewPropInPropertyMap_5603(&newProps, newPropName, newPropValue)
+					this_.priv_TypeTransformation_putNewPropInPropertyMap_5610(&newProps, newPropName, newPropValue)
 				}
 			}
 		}
 	}
-	return this_.priv_TypeTransformation_createRecordType_5569(newProps.ToImmutableMap())
+	return this_.priv_TypeTransformation_createRecordType_5576(newProps.ToImmutableMap())
 }
 
 // Java method: TypeTransformation.evalTypeOfVar(com.google.javascript.rhino.Node ttlAst)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeOfVar_5606(ttlAst pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeOfVar_5613(ttlAst pkg_rhino.Node) pkg_rhino.JSType {
 	_ = ttlAst
-	var name string = this_.priv_TypeTransformation_getCallArgument_5574(ttlAst, int32(0)).GetString()
+	var name string = this_.priv_TypeTransformation_getCallArgument_5581(ttlAst, int32(0)).GetString()
 	_ = name
 	var slot pkg_rhino.StaticTypedSlot = j2gort.AsIface[pkg_rhino.StaticTypedSlot](this_.typeEnv.GetSlot(name))
 	_ = slot
@@ -1136,60 +1136,60 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalTypeOfVar_5606(ttlA
 		type_ = nil
 	}
 	if type_ == nil || type_.IsJavaNil_() {
-		this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_VAR_UNDEFINED(), []string{name})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_VAR_UNDEFINED(), []string{name})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
 	return type_
 }
 
 // Java method: TypeTransformation.evalInstanceOf(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalInstanceOf_5607(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalInstanceOf_5614(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5581(this_.priv_TypeTransformation_getCallArgument_5574(ttlAst, int32(0)), nameResolver)
+	var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5588(this_.priv_TypeTransformation_getCallArgument_5581(ttlAst, int32(0)), nameResolver)
 	_ = type_
 	if type_.IsUnknownType() || !(type_.IsConstructor()) {
-		this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_INVALID_CTOR(), []string{type_.GetDisplayName()})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_INVALID_CTOR(), []string{type_.GetDisplayName()})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
 	return j2gort.AsIface[pkg_rhino.JSType](type_.ToMaybeFunctionType().GetInstanceType())
 }
 
 // Java method: TypeTransformation.evalNativeTypeExpr(com.google.javascript.rhino.Node ttlAst)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalNativeTypeExpr_5608(ttlAst pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalNativeTypeExpr_5615(ttlAst pkg_rhino.Node) pkg_rhino.JSType {
 	_ = ttlAst
-	var expr pkg_rhino.JSTypeExpression = pkg_rhino.NewJSTypeExpression(this_.priv_TypeTransformation_getCallArgument_5574(ttlAst, int32(0)).CloneTree_0(), "<TypeTransformation.java>")
+	var expr pkg_rhino.JSTypeExpression = pkg_rhino.NewJSTypeExpression(this_.priv_TypeTransformation_getCallArgument_5581(ttlAst, int32(0)).CloneTree_0(), "<TypeTransformation.java>")
 	_ = expr
 	return this_.registry.EvaluateTypeExpression(expr, this_.typeEnv)
 }
 
 // Java method: TypeTransformation.evalPrintType(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalPrintType_5609(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalPrintType_5616(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5581(this_.priv_TypeTransformation_getCallArgument_5574(ttlAst, int32(1)), nameResolver)
+	var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5588(this_.priv_TypeTransformation_getCallArgument_5581(ttlAst, int32(1)), nameResolver)
 	_ = type_
-	var msg string = (j2gort.StrValString(this_.priv_TypeTransformation_getCallArgument_5574(ttlAst, int32(0)).GetString()) + j2gort.StrVal(type_))
+	var msg string = (j2gort.StrValString(this_.priv_TypeTransformation_getCallArgument_5581(ttlAst, int32(0)).GetString()) + j2gort.StrVal(type_))
 	_ = msg
 	j2gort.Ext_java_lang_System_F_Out.Println_1_string(msg)
 	return type_
 }
 
 // Java method: TypeTransformation.evalPropType(com.google.javascript.rhino.Node ttlAst, com.google.javascript.jscomp.TypeTransformation.NameResolver nameResolver)
-func (this_ *TypeTransformation) priv_TypeTransformation_evalPropType_5610(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
+func (this_ *TypeTransformation) priv_TypeTransformation_evalPropType_5617(ttlAst pkg_rhino.Node, nameResolver *TypeTransformation_NameResolver) pkg_rhino.JSType {
 	_ = ttlAst
 	_ = nameResolver
-	var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5581(this_.priv_TypeTransformation_getCallArgument_5574(ttlAst, int32(1)), nameResolver)
+	var type_ pkg_rhino.JSType = this_.priv_TypeTransformation_evalInternal_5588(this_.priv_TypeTransformation_getCallArgument_5581(ttlAst, int32(1)), nameResolver)
 	_ = type_
 	var objType pkg_rhino.ObjectType = type_.ToMaybeObjectType()
 	_ = objType
 	if objType == nil || objType.IsJavaNil_() {
-		this_.priv_TypeTransformation_reportWarning_5570(ttlAst, StaticGet_TypeTransformation_PROPTYPE_INVALID(), []string{type_.String()})
-		return this_.priv_TypeTransformation_getUnknownType_5564()
+		this_.priv_TypeTransformation_reportWarning_5577(ttlAst, StaticGet_TypeTransformation_PROPTYPE_INVALID(), []string{type_.String()})
+		return this_.priv_TypeTransformation_getUnknownType_5571()
 	}
-	var propType pkg_rhino.JSType = objType.GetPropertyType_1_string(this_.priv_TypeTransformation_getCallArgument_5574(ttlAst, int32(0)).GetString())
+	var propType pkg_rhino.JSType = objType.GetPropertyType_1_string(this_.priv_TypeTransformation_getCallArgument_5581(ttlAst, int32(0)).GetString())
 	_ = propType
-	return j2gort.AsIface[pkg_rhino.JSType](j2gort.Ext_com_google_common_base_MoreObjects_FirstNonNull(propType, this_.priv_TypeTransformation_getUnknownType_5564()))
+	return j2gort.AsIface[pkg_rhino.JSType](j2gort.Ext_com_google_common_base_MoreObjects_FirstNonNull(propType, this_.priv_TypeTransformation_getUnknownType_5571()))
 }
 
 // Java class: com.google.javascript.jscomp.TypeTransformation.NameResolver

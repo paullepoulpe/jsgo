@@ -185,7 +185,7 @@ func InitGlobalNamespace_4(this_ *GlobalNamespace, decisionsLog pkg_diagnostic.L
 }
 
 // Java method: GlobalNamespace.getModuleName(com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata metadata, java.lang.String name)
-func (this_ *GlobalNamespace) priv_GlobalNamespace_getModuleName_3039(metadata ModuleMetadataMap_ModuleMetadata, name string) *GlobalNamespace_Name {
+func (this_ *GlobalNamespace) priv_GlobalNamespace_getModuleName_3040(metadata ModuleMetadataMap_ModuleMetadata, name string) *GlobalNamespace_Name {
 	_ = metadata
 	_ = name
 	var map_ *GlobalNamespace_ModuleNameMap = this_.nameMapByModule.Get(metadata)
@@ -198,7 +198,7 @@ func (this_ *GlobalNamespace) priv_GlobalNamespace_getModuleName_3039(metadata M
 }
 
 // Java method: GlobalNamespace.putModuleName(com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata metadata, java.lang.String name, com.google.javascript.jscomp.GlobalNamespace.Name node)
-func (this_ *GlobalNamespace) priv_GlobalNamespace_putModuleName_3040(metadata ModuleMetadataMap_ModuleMetadata, name string, node *GlobalNamespace_Name) {
+func (this_ *GlobalNamespace) priv_GlobalNamespace_putModuleName_3041(metadata ModuleMetadataMap_ModuleMetadata, name string, node *GlobalNamespace_Name) {
 	_ = metadata
 	_ = name
 	_ = node
@@ -228,14 +228,14 @@ func (this_ *GlobalNamespace) GetRootNode_0() pkg_rhino.Node {
 }
 
 // Java method: GlobalNamespace.getRootNode(java.lang.String name, com.google.javascript.jscomp.Scope s)
-func (this_ *GlobalNamespace) priv_GlobalNamespace_getRootNode_3043(name string, s *Scope) pkg_rhino.Node {
+func (this_ *GlobalNamespace) priv_GlobalNamespace_getRootNode_3044(name string, s *Scope) pkg_rhino.Node {
 	_ = name
 	_ = s
-	return this_.priv_GlobalNamespace_getRootNodeForTopVar_3044(GlobalNamespace_GetTopVarName(name), s)
+	return this_.priv_GlobalNamespace_getRootNodeForTopVar_3045(GlobalNamespace_GetTopVarName(name), s)
 }
 
 // Java method: GlobalNamespace.getRootNodeForTopVar(java.lang.String topVarName, com.google.javascript.jscomp.Scope s)
-func (this_ *GlobalNamespace) priv_GlobalNamespace_getRootNodeForTopVar_3044(topVarName string, s *Scope) pkg_rhino.Node {
+func (this_ *GlobalNamespace) priv_GlobalNamespace_getRootNodeForTopVar_3045(topVarName string, s *Scope) pkg_rhino.Node {
 	_ = topVarName
 	_ = s
 	var v *Var = s.LookupVar(topVarName)
@@ -243,7 +243,7 @@ func (this_ *GlobalNamespace) priv_GlobalNamespace_getRootNodeForTopVar_3044(top
 	if v == nil {
 		var providedName *GlobalNamespace_Name = this_.nameMap.Get(topVarName)
 		_ = providedName
-		if (providedName != nil) && providedName.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_IS_PROVIDED()) {
+		if (providedName != nil) && providedName.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_IS_PROVIDED()) {
 			return this_.globalRoot
 		} else {
 			return pkg_rhino.Node(0)
@@ -298,7 +298,7 @@ func (this_ *GlobalNamespace) GetAllSymbols() any {
 // Java method: GlobalNamespace.ensureGenerated()
 func (this_ *GlobalNamespace) EnsureGenerated() {
 	if !(this_.generated) {
-		this_.priv_GlobalNamespace_process_3052()
+		this_.priv_GlobalNamespace_process_3053()
 	}
 }
 
@@ -323,13 +323,13 @@ func (this_ *GlobalNamespace) ScanNewNodes(newNodes j2gort.Ext_java_util_Set) {
 			if !(info.Node().IsQualifiedName()) && !(NodeUtil_MayBeObjectLitKey(info.Node())) {
 				continue
 			}
-			this_.priv_GlobalNamespace_scanFromNode_3051(builder, info.Scope(), info.Node(), info.Chunk())
+			this_.priv_GlobalNamespace_scanFromNode_3052(builder, info.Scope(), info.Node(), info.Chunk())
 		}
 	}
 }
 
 // Java method: GlobalNamespace.scanFromNode(com.google.javascript.jscomp.GlobalNamespace.BuildGlobalNamespace builder, com.google.javascript.jscomp.Scope scope, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.JSChunk chunk)
-func (this_ *GlobalNamespace) priv_GlobalNamespace_scanFromNode_3051(builder *GlobalNamespace_BuildGlobalNamespace, scope *Scope, n pkg_rhino.Node, chunk *JSChunk) {
+func (this_ *GlobalNamespace) priv_GlobalNamespace_scanFromNode_3052(builder *GlobalNamespace_BuildGlobalNamespace, scope *Scope, n pkg_rhino.Node, chunk *JSChunk) {
 	_ = builder
 	_ = scope
 	_ = n
@@ -337,7 +337,7 @@ func (this_ *GlobalNamespace) priv_GlobalNamespace_scanFromNode_3051(builder *Gl
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
 	if (n.IsName() || n.IsGetProp()) && parent.IsGetProp() {
-		this_.priv_GlobalNamespace_scanFromNode_3051(builder, scope, n.GetParent(), chunk)
+		this_.priv_GlobalNamespace_scanFromNode_3052(builder, scope, n.GetParent(), chunk)
 	} else if (n.GetPrevious() != 0) && n.GetPrevious().IsObjectPattern() {
 		var pattern pkg_rhino.Node = n.GetPrevious()
 		_ = pattern
@@ -346,16 +346,16 @@ func (this_ *GlobalNamespace) priv_GlobalNamespace_scanFromNode_3051(builder *Gl
 			_ = key
 			for ; key != 0; key = key.GetNext() {
 				if key.IsStringKey() {
-					this_.priv_GlobalNamespace_scanFromNode_3051(builder, scope, key, chunk)
+					this_.priv_GlobalNamespace_scanFromNode_3052(builder, scope, key, chunk)
 				}
 			}
 		}
 	}
-	builder.priv_BuildGlobalNamespace_collect_3062(scope, chunk, n)
+	builder.priv_BuildGlobalNamespace_collect_3063(scope, chunk, n)
 }
 
 // Java method: GlobalNamespace.process()
-func (this_ *GlobalNamespace) priv_GlobalNamespace_process_3052() {
+func (this_ *GlobalNamespace) priv_GlobalNamespace_process_3053() {
 	InitSyntacticScopeCreator_1(&this_.scopeCreator_, this_.compiler)
 
 	var traversal *NodeTraversal_Builder = NodeTraversal_S_Builder().SetCompiler(this_.compiler).SetCallback_1_NodeTraversal_Callback(NewGlobalNamespace_BuildGlobalNamespace(this_)).SetScopeCreator(&this_.scopeCreator_)
@@ -387,11 +387,11 @@ func (this_ *GlobalNamespace) GetNameFromModule(moduleMetadata ModuleMetadataMap
 	j2gort.CheckNotNullIface(moduleMetadata)
 	j2gort.CheckNotNullString(name)
 	this_.EnsureGenerated()
-	return this_.priv_GlobalNamespace_getModuleName_3039(moduleMetadata, name)
+	return this_.priv_GlobalNamespace_getModuleName_3040(moduleMetadata, name)
 }
 
 // Java method: GlobalNamespace.declarationHasFollowingObjectSpreadSibling(com.google.javascript.rhino.Node declaration)
-func (this_ *GlobalNamespace) priv_GlobalNamespace_declarationHasFollowingObjectSpreadSibling_3054(declaration pkg_rhino.Node) bool {
+func (this_ *GlobalNamespace) priv_GlobalNamespace_declarationHasFollowingObjectSpreadSibling_3055(declaration pkg_rhino.Node) bool {
 	_ = declaration
 	if !(declaration.GetParent().IsObjectLit()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(declaration))
@@ -423,7 +423,7 @@ func (this_ *GlobalNamespace) CreateNameForTesting(name string) *GlobalNamespace
 }
 
 // Java method: GlobalNamespace.getOutermostObjectLit(com.google.javascript.rhino.Node objLitKey)
-func (this_ *GlobalNamespace) priv_GlobalNamespace_getOutermostObjectLit_3056(objLitKey pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *GlobalNamespace) priv_GlobalNamespace_getOutermostObjectLit_3057(objLitKey pkg_rhino.Node) pkg_rhino.Node {
 	_ = objLitKey
 	var outermostObjectLit pkg_rhino.Node = objLitKey.GetParent()
 	_ = outermostObjectLit
@@ -887,17 +887,17 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) ShouldTraverse_3(t *NodeTrave
 		this_.outer_.sourceKind = StaticGet_GlobalNamespace_SourceKind_CODE()
 	}
 	if n.IsModuleBody() || NodeUtil_IsBundledGoogModuleScopeRoot(n) {
-		this_.priv_BuildGlobalNamespace_setupModuleMetadata_3061(n)
+		this_.priv_BuildGlobalNamespace_setupModuleMetadata_3062(n)
 	} else if n.IsScript() || NodeUtil_IsBundledGoogModuleCall(n) {
 		this_.curModuleRoot = pkg_rhino.Node(0)
 		this_.curMetadata = nil
 	}
-	this_.priv_BuildGlobalNamespace_collect_3062(t.GetScope(), t.GetChunk(), n)
+	this_.priv_BuildGlobalNamespace_collect_3063(t.GetScope(), t.GetChunk(), n)
 	return true
 }
 
 // Java method: BuildGlobalNamespace.setupModuleMetadata(com.google.javascript.rhino.Node moduleRoot)
-func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_setupModuleMetadata_3061(moduleRoot pkg_rhino.Node) {
+func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_setupModuleMetadata_3062(moduleRoot pkg_rhino.Node) {
 	_ = moduleRoot
 	var moduleMap *ModuleMap = this_.outer_.compiler.GetModuleMap()
 	_ = moduleMap
@@ -940,7 +940,7 @@ func GlobalNamespace_BuildGlobalNamespace_GetTopVarNameFromQualifiedNode(n pkg_r
 }
 
 // Java method: BuildGlobalNamespace.collect(com.google.javascript.jscomp.Scope scope, com.google.javascript.jscomp.JSChunk chunk, com.google.javascript.rhino.Node n)
-func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_collect_3062(scope *Scope, chunk *JSChunk, n pkg_rhino.Node) {
+func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_collect_3063(scope *Scope, chunk *JSChunk, n pkg_rhino.Node) {
 	_ = scope
 	_ = chunk
 	_ = n
@@ -971,7 +971,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_col
 	case int32(100) /* Token.STRING_KEY */ :
 		name = j2gort.NullString
 		if parent.IsObjectLit() {
-			var analysis *GlobalNamespace_ObjLitStringKeyAnalysis = this_.priv_BuildGlobalNamespace_createObjLitStringKeyAnalysis_3063(n)
+			var analysis *GlobalNamespace_ObjLitStringKeyAnalysis = this_.priv_BuildGlobalNamespace_createObjLitStringKeyAnalysis_3064(n)
 			_ = analysis
 			name = analysis.NameString()
 			type_ = analysis.NameType()
@@ -1029,12 +1029,12 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_col
 				}
 			case int32(127) /* Token.ITER_SPREAD */, int32(128) /* Token.OBJECT_SPREAD */ :
 			case int32(28) /* Token.CALL */, int32(31) /* Token.OPTCHAIN_CALL */ :
-				if n.IsFirstChildOf(parent) && this_.priv_BuildGlobalNamespace_isObjectHasOwnPropertyCall_3075(parent) {
+				if n.IsFirstChildOf(parent) && this_.priv_BuildGlobalNamespace_isObjectHasOwnPropertyCall_3076(parent) {
 					var qname string = n.GetFirstChild().GetQualifiedName()
 					_ = qname
 					var globalName *GlobalNamespace_Name = this_.GetOrCreateName(qname, this_.curMetadata)
 					_ = globalName
-					globalName.priv_Name_setBooleanProperty_3106(StaticGet_GlobalNamespace_NameProp_IS_USED_HAS_OWN_PROPERTY())
+					globalName.priv_Name_setBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_IS_USED_HAS_OWN_PROPERTY())
 				}
 			default:
 				if NodeUtil_IsAssignmentOp(parent) && (parent.GetFirstChild() == n) {
@@ -1048,14 +1048,14 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_col
 		if topVarName == j2gort.NullString {
 			return
 		}
-		root = this_.outer_.priv_GlobalNamespace_getRootNodeForTopVar_3044(topVarName, scope)
-		if !(this_.priv_BuildGlobalNamespace_isTopLevelScopeRoot_3065(root)) {
+		root = this_.outer_.priv_GlobalNamespace_getRootNodeForTopVar_3045(topVarName, scope)
+		if !(this_.priv_BuildGlobalNamespace_isTopLevelScopeRoot_3066(root)) {
 			return
 		}
 		name = n.GetQualifiedName()
 	case int32(28) /* Token.CALL */ :
 		if (parent.IsExprResult() && StaticGet_GlobalNamespace_GOOG_PROVIDE().Matches(n.GetFirstChild())) && n.GetSecondChild().IsStringLit() {
-			this_.priv_BuildGlobalNamespace_createNamesFromProvide_3064(n.GetSecondChild().GetString())
+			this_.priv_BuildGlobalNamespace_createNamesFromProvide_3065(n.GetSecondChild().GetString())
 			return
 		}
 		return
@@ -1066,8 +1066,8 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_col
 		return
 	}
 	if root == 0 {
-		root = this_.outer_.priv_GlobalNamespace_getRootNode_3043(name, scope)
-		if !(this_.priv_BuildGlobalNamespace_isTopLevelScopeRoot_3065(root)) {
+		root = this_.outer_.priv_GlobalNamespace_getRootNode_3044(name, scope)
+		if !(this_.priv_BuildGlobalNamespace_isTopLevelScopeRoot_3066(root)) {
 			return
 		}
 	}
@@ -1092,7 +1092,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_col
 }
 
 // Java method: BuildGlobalNamespace.createObjLitStringKeyAnalysis(com.google.javascript.rhino.Node stringKeyNode)
-func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_createObjLitStringKeyAnalysis_3063(stringKeyNode pkg_rhino.Node) *GlobalNamespace_ObjLitStringKeyAnalysis {
+func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_createObjLitStringKeyAnalysis_3064(stringKeyNode pkg_rhino.Node) *GlobalNamespace_ObjLitStringKeyAnalysis {
 	_ = stringKeyNode
 	var nameString string = NodeUtil_GetBestLValueName(stringKeyNode)
 	_ = nameString
@@ -1122,7 +1122,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_cre
 }
 
 // Java method: BuildGlobalNamespace.createNamesFromProvide(java.lang.String namespace)
-func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_createNamesFromProvide_3064(namespace string) {
+func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_createNamesFromProvide_3065(namespace string) {
 	_ = namespace
 	var name *GlobalNamespace_Name = nil
 	_ = name
@@ -1141,15 +1141,15 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_cre
 			j2gort.CheckState(false)
 		}
 		name = this_.GetOrCreateName(subNamespace, nil)
-		name.priv_Name_setBooleanProperty_3106(StaticGet_GlobalNamespace_NameProp_IS_PROVIDED())
+		name.priv_Name_setBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_IS_PROVIDED())
 	}
 	var newName *GlobalNamespace_Name = this_.GetOrCreateName(namespace, nil)
 	_ = newName
-	newName.priv_Name_setBooleanProperty_3106(StaticGet_GlobalNamespace_NameProp_IS_PROVIDED())
+	newName.priv_Name_setBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_IS_PROVIDED())
 }
 
 // Java method: BuildGlobalNamespace.isTopLevelScopeRoot(com.google.javascript.rhino.Node root)
-func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_isTopLevelScopeRoot_3065(root pkg_rhino.Node) bool {
+func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_isTopLevelScopeRoot_3066(root pkg_rhino.Node) bool {
 	_ = root
 	if root == 0 {
 		return false
@@ -1225,23 +1225,23 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) HandleSetFromGlobal(chunk *JS
 	var nameObj *GlobalNamespace_Name = this_.GetOrCreateName(name, metadata)
 	_ = nameObj
 	if !(nameObj.IsGetOrSetDefinition()) {
-		nameObj.priv_Name_setNameType_3150(type_)
+		nameObj.priv_Name_setNameType_3151(type_)
 	}
 	if n.GetBooleanProp(pkg_rhino.StaticGet_Node_MODULE_EXPORT()) {
-		nameObj.priv_Name_setBooleanProperty_3106(StaticGet_GlobalNamespace_NameProp_IS_MODULE_PROP())
+		nameObj.priv_Name_setBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_IS_MODULE_PROP())
 	}
 	if this_.IsNestedAssign(n.GetParent()) {
 		var refType GlobalNamespace_Ref_Type = StaticGet_GlobalNamespace_Ref_Type_GET_AND_SET_FROM_GLOBAL()
 		_ = refType
-		this_.priv_BuildGlobalNamespace_addOrConfirmRef_3073(nameObj, n, refType, scope, chunk)
+		this_.priv_BuildGlobalNamespace_addOrConfirmRef_3074(nameObj, n, refType, scope, chunk)
 	} else {
-		this_.priv_BuildGlobalNamespace_addOrConfirmRef_3073(nameObj, n, StaticGet_GlobalNamespace_Ref_Type_SET_FROM_GLOBAL(), scope, chunk)
-		nameObj.priv_Name_setDeclaredTypeKind_3149(this_.priv_BuildGlobalNamespace_getDeclaredTypeKind_3069(n))
+		this_.priv_BuildGlobalNamespace_addOrConfirmRef_3074(nameObj, n, StaticGet_GlobalNamespace_Ref_Type_SET_FROM_GLOBAL(), scope, chunk)
+		nameObj.priv_Name_setDeclaredTypeKind_3150(this_.priv_BuildGlobalNamespace_getDeclaredTypeKind_3070(n))
 	}
 }
 
 // Java method: BuildGlobalNamespace.getDeclaredTypeKind(com.google.javascript.rhino.Node n)
-func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_getDeclaredTypeKind_3069(n pkg_rhino.Node) *GlobalNamespace_NameProp {
+func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_getDeclaredTypeKind_3070(n pkg_rhino.Node) *GlobalNamespace_NameProp {
 	_ = n
 	var valueNode pkg_rhino.Node = NodeUtil_GetRValueOfLValue(n)
 	_ = valueNode
@@ -1282,12 +1282,12 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) HandleSetFromLocal(chunk *JSC
 	var nameObj *GlobalNamespace_Name = this_.GetOrCreateName(name, metadata)
 	_ = nameObj
 	if n.GetBooleanProp(pkg_rhino.StaticGet_Node_MODULE_EXPORT()) {
-		nameObj.priv_Name_setBooleanProperty_3106(StaticGet_GlobalNamespace_NameProp_IS_MODULE_PROP())
+		nameObj.priv_Name_setBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_IS_MODULE_PROP())
 	}
 	if this_.IsNestedAssign(n.GetParent()) {
-		this_.priv_BuildGlobalNamespace_addOrConfirmRef_3073(nameObj, n, StaticGet_GlobalNamespace_Ref_Type_GET_AND_SET_FROM_LOCAL(), scope, chunk)
+		this_.priv_BuildGlobalNamespace_addOrConfirmRef_3074(nameObj, n, StaticGet_GlobalNamespace_Ref_Type_GET_AND_SET_FROM_LOCAL(), scope, chunk)
 	} else {
-		this_.priv_BuildGlobalNamespace_addOrConfirmRef_3073(nameObj, n, StaticGet_GlobalNamespace_Ref_Type_SET_FROM_LOCAL(), scope, chunk)
+		this_.priv_BuildGlobalNamespace_addOrConfirmRef_3074(nameObj, n, StaticGet_GlobalNamespace_Ref_Type_SET_FROM_LOCAL(), scope, chunk)
 	}
 }
 
@@ -1301,13 +1301,13 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) HandleGet(chunk *JSChunk, sco
 	if this_.MaybeHandlePrototypePrefix(chunk, scope, n, name, metadata) {
 		return
 	}
-	var type_ GlobalNamespace_Ref_Type = this_.priv_BuildGlobalNamespace_determineRefTypeForGet_3072(n, n, name)
+	var type_ GlobalNamespace_Ref_Type = this_.priv_BuildGlobalNamespace_determineRefTypeForGet_3073(n, n, name)
 	_ = type_
-	this_.priv_BuildGlobalNamespace_addOrConfirmRef_3073(this_.GetOrCreateName(name, metadata), n, type_, scope, chunk)
+	this_.priv_BuildGlobalNamespace_addOrConfirmRef_3074(this_.GetOrCreateName(name, metadata), n, type_, scope, chunk)
 }
 
 // Java method: BuildGlobalNamespace.determineRefTypeForGet(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node referenceNode, java.lang.String name)
-func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_determineRefTypeForGet_3072(n pkg_rhino.Node, referenceNode pkg_rhino.Node, name string) GlobalNamespace_Ref_Type {
+func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_determineRefTypeForGet_3073(n pkg_rhino.Node, referenceNode pkg_rhino.Node, name string) GlobalNamespace_Ref_Type {
 	_ = n
 	_ = referenceNode
 	_ = name
@@ -1324,7 +1324,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_det
 		case int32(31) /* Token.OPTCHAIN_CALL */, int32(28) /* Token.CALL */ :
 			if n == parent.GetFirstChild() {
 				type_ = StaticGet_GlobalNamespace_Ref_Type_CALL_GET()
-			} else if this_.priv_BuildGlobalNamespace_isClassDefiningCall_3074(parent) {
+			} else if this_.priv_BuildGlobalNamespace_isClassDefiningCall_3075(parent) {
 				type_ = StaticGet_GlobalNamespace_Ref_Type_DIRECT_GET()
 			} else {
 				type_ = StaticGet_GlobalNamespace_Ref_Type_ALIASING_GET()
@@ -1336,7 +1336,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_det
 				type_ = StaticGet_GlobalNamespace_Ref_Type_ALIASING_GET()
 			}
 		case int32(101) /* Token.CAST */, int32(68) /* Token.OR */, int32(69) /* Token.AND */, int32(70) /* Token.COALESCE */ :
-			type_ = this_.priv_BuildGlobalNamespace_determineRefTypeForGet_3072(parent, referenceNode, name)
+			type_ = this_.priv_BuildGlobalNamespace_determineRefTypeForGet_3073(parent, referenceNode, name)
 		case int32(32) /* Token.NAME */ :
 			if (n != referenceNode) && func() bool { sr_6 := name; se_7 := parent.GetString(); return j2gort.CheckNotNullString(sr_6) == se_7 }() {
 				type_ = StaticGet_GlobalNamespace_Ref_Type_DIRECT_GET()
@@ -1345,7 +1345,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_det
 			}
 		case int32(50) /* Token.COMMA */, int32(67) /* Token.HOOK */ :
 			if n != parent.GetFirstChild() {
-				type_ = this_.priv_BuildGlobalNamespace_determineRefTypeForGet_3072(parent, referenceNode, name)
+				type_ = this_.priv_BuildGlobalNamespace_determineRefTypeForGet_3073(parent, referenceNode, name)
 			} else {
 				type_ = StaticGet_GlobalNamespace_Ref_Type_DIRECT_GET()
 			}
@@ -1383,7 +1383,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_det
 }
 
 // Java method: BuildGlobalNamespace.addOrConfirmRef(com.google.javascript.jscomp.GlobalNamespace.Name nameObj, com.google.javascript.rhino.Node node, com.google.javascript.jscomp.GlobalNamespace.Ref.Type refType, com.google.javascript.jscomp.Scope scope, com.google.javascript.jscomp.JSChunk chunk)
-func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_addOrConfirmRef_3073(nameObj *GlobalNamespace_Name, node pkg_rhino.Node, refType GlobalNamespace_Ref_Type, scope *Scope, chunk *JSChunk) {
+func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_addOrConfirmRef_3074(nameObj *GlobalNamespace_Name, node pkg_rhino.Node, refType GlobalNamespace_Ref_Type, scope *Scope, chunk *JSChunk) {
 	_ = nameObj
 	_ = node
 	_ = refType
@@ -1392,7 +1392,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_add
 	var existingRef *GlobalNamespace_Ref = nameObj.GetRefForNode(node)
 	_ = existingRef
 	if existingRef == nil {
-		nameObj.priv_Name_addRef_3108(chunk, scope, node, refType)
+		nameObj.priv_Name_addRef_3109(chunk, scope, node, refType)
 	} else {
 		var existingRefType GlobalNamespace_Ref_Type = existingRef.type_
 		_ = existingRefType
@@ -1403,7 +1403,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_add
 }
 
 // Java method: BuildGlobalNamespace.isClassDefiningCall(com.google.javascript.rhino.Node callNode)
-func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_isClassDefiningCall_3074(callNode pkg_rhino.Node) bool {
+func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_isClassDefiningCall_3075(callNode pkg_rhino.Node) bool {
 	_ = callNode
 	var convention CodingConvention = this_.outer_.compiler.GetCodingConvention()
 	_ = convention
@@ -1418,7 +1418,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_isC
 }
 
 // Java method: BuildGlobalNamespace.isObjectHasOwnPropertyCall(com.google.javascript.rhino.Node callNode)
-func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_isObjectHasOwnPropertyCall_3075(callNode pkg_rhino.Node) bool {
+func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_isObjectHasOwnPropertyCall_3076(callNode pkg_rhino.Node) bool {
 	_ = callNode
 	if !(callNode.IsCall() || callNode.IsOptChainCall()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(callNode))
@@ -1476,7 +1476,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) MaybeHandlePrototypePrefix(ch
 			n = n.GetFirstChild()
 		}
 	}
-	this_.priv_BuildGlobalNamespace_addOrConfirmRef_3073(this_.GetOrCreateName(prefix, metadata), n, StaticGet_GlobalNamespace_Ref_Type_PROTOTYPE_GET(), scope, chunk)
+	this_.priv_BuildGlobalNamespace_addOrConfirmRef_3074(this_.GetOrCreateName(prefix, metadata), n, StaticGet_GlobalNamespace_Ref_Type_PROTOTYPE_GET(), scope, chunk)
 	return true
 }
 
@@ -1495,7 +1495,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) GetOrCreateName(name string, 
 	if metadata == nil || metadata.IsJavaNil_() {
 		node = this_.outer_.nameMap.Get(name)
 	} else {
-		node = this_.outer_.priv_GlobalNamespace_getModuleName_3039(metadata, name)
+		node = this_.outer_.priv_GlobalNamespace_getModuleName_3040(metadata, name)
 	}
 	if node == nil {
 		var i int32 = j2gort.JStrLastIndexOfCp(name, int32(uint16(46)))
@@ -1509,7 +1509,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) GetOrCreateName(name string, 
 			if metadata == nil || metadata.IsJavaNil_() {
 				this_.outer_.nameMap.Put(name, node)
 			} else {
-				this_.outer_.priv_GlobalNamespace_putModuleName_3040(metadata, name, node)
+				this_.outer_.priv_GlobalNamespace_putModuleName_3041(metadata, name, node)
 			}
 		} else {
 			node = NewGlobalNamespace_Name(this_.outer_, name, nil, this_.outer_.sourceKind)
@@ -1517,7 +1517,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) GetOrCreateName(name string, 
 				this_.outer_.globalNames = append(this_.outer_.globalNames, node)
 				this_.outer_.nameMap.Put(name, node)
 			} else {
-				this_.outer_.priv_GlobalNamespace_putModuleName_3040(metadata, name, node)
+				this_.outer_.priv_GlobalNamespace_putModuleName_3041(metadata, name, node)
 			}
 		}
 	}
@@ -1714,6 +1714,8 @@ type GlobalNamespace_Name struct {
 	fullName                                        string                                                   `gson:"fullName"`
 	prop0                                           *GlobalNamespace_Name                                    `gson:"prop0"`
 	prop1                                           *GlobalNamespace_Name                                    `gson:"prop1"`
+	prop2                                           *GlobalNamespace_Name                                    `gson:"prop2"`
+	prop3                                           *GlobalNamespace_Name                                    `gson:"prop3"`
 	props                                           []*GlobalNamespace_Name                                  `gson:"props"`
 	declaration                                     *GlobalNamespace_Ref                                     `gson:"declaration"`
 	initialization                                  *GlobalNamespace_Ref                                     `gson:"initialization"`
@@ -1724,6 +1726,7 @@ type GlobalNamespace_Name struct {
 	refsForNodeMap                                  *j2gort.OrderedMap[pkg_rhino.Node, *GlobalNamespace_Ref] `gson:"refsForNodeMap"`
 	firstDeclarationJSDocInfo                       *pkg_rhino.JSDocInfo                                     `gson:"firstDeclarationJSDocInfo"`
 	firstQnameDeclarationWithoutAssignmentJsDocInfo *pkg_rhino.JSDocInfo                                     `gson:"firstQnameDeclarationWithoutAssignmentJsDocInfo"`
+	propCount                                       int32                                                    `gson:"propCount"`
 	globalSets                                      int32                                                    `gson:"globalSets"`
 	localSets                                       int32                                                    `gson:"localSets"`
 	localSetsWithNoCollapse                         int32                                                    `gson:"localSetsWithNoCollapse"`
@@ -1790,8 +1793,8 @@ func InitGlobalNamespace_Name(this_ *GlobalNamespace_Name, name string, parent *
 	} else {
 		this_.fullName = j2gort.NullString
 	}
-	this_.priv_Name_setBooleanProperty_3106(StaticGet_GlobalNamespace_NameProp_NOT_A_TYPE())
-	this_.priv_Name_setBooleanProperty_3106(StaticGet_GlobalNamespace_NameProp_OTHER_OBJECT())
+	this_.priv_Name_setBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_NOT_A_TYPE())
+	this_.priv_Name_setBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_OTHER_OBJECT())
 	{
 		var iifeCond_1 bool
 		{
@@ -1804,7 +1807,7 @@ func InitGlobalNamespace_Name(this_ *GlobalNamespace_Name, name string, parent *
 			iifeCond_1 = re_8 == ae_9
 		}
 		if iifeCond_1 {
-			this_.priv_Name_setBooleanProperty_3106(StaticGet_GlobalNamespace_NameProp_IS_EXTERN())
+			this_.priv_Name_setBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_IS_EXTERN())
 		}
 	}
 }
@@ -1818,62 +1821,121 @@ func (this_ *GlobalNamespace_Name) AddProperty(name string, sourceKind GlobalNam
 	InitGlobalNamespace_Name(&val_10, name, this_, sourceKind)
 	var node *GlobalNamespace_Name = &val_10
 	_ = node
-	if this_.props != nil {
-		this_.props = append(this_.props, node)
-		return node
+	var c int32 = this_.propCount
+	_ = c
+	var arr []*GlobalNamespace_Name = this_.props
+	_ = arr
+	if arr == nil {
+		switch c {
+		case int32(0):
+			this_.prop0 = node
+			this_.propCount = int32(1)
+			return node
+		case int32(1):
+			this_.prop1 = node
+			this_.propCount = int32(2)
+			return node
+		case int32(2):
+			this_.prop2 = node
+			this_.propCount = int32(3)
+			return node
+		case int32(3):
+			this_.prop3 = node
+			this_.propCount = int32(4)
+			return node
+		default:
+			arr = make([]*GlobalNamespace_Name, int32(8))
+			{
+				a_11 := arr
+				i_12 := int32(0)
+				a_11[i_12] = this_.prop0
+			}
+			{
+				a_13 := arr
+				i_14 := int32(1)
+				a_13[i_14] = this_.prop1
+			}
+			{
+				a_15 := arr
+				i_16 := int32(2)
+				a_15[i_16] = this_.prop2
+			}
+			{
+				a_17 := arr
+				i_18 := int32(3)
+				a_17[i_18] = this_.prop3
+			}
+			{
+				a_19 := arr
+				i_20 := int32(4)
+				a_19[i_20] = node
+			}
+			this_.prop0 = nil
+			this_.prop1 = nil
+			this_.prop2 = nil
+			this_.prop3 = nil
+			this_.props = arr
+			this_.propCount = int32(5)
+			return node
+		}
 	}
-	if this_.prop0 == nil {
-		this_.prop0 = node
-		return node
+	if c == int32(len(arr)) {
+		arr = func() []*GlobalNamespace_Name {
+			arrSrc_21 := arr
+			arrLen_22 := (c * int32(2))
+			j2gort.CheckNotNullSlice(arrSrc_21)
+			if arrLen_22 < 0 {
+				panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+			}
+			arrOut_23 := make([]*GlobalNamespace_Name, arrLen_22)
+			copy(arrOut_23, arrSrc_21)
+			return arrOut_23
+		}()
+		this_.props = arr
 	}
-	if this_.prop1 == nil {
-		this_.prop1 = node
-		return node
+	{
+		a_24 := arr
+		i_25 := c
+		a_24[i_25] = node
 	}
-	var list []*GlobalNamespace_Name = make([]*GlobalNamespace_Name, 0, int32(4))
-	_ = list
-	list = append(list, this_.prop0)
-	list = append(list, this_.prop1)
-	list = append(list, node)
-	this_.prop0 = nil
-	this_.prop1 = nil
-	this_.props = list
+	this_.propCount = (c + int32(1))
 	return node
 }
 
 // Java method: Name.hasProps()
 func (this_ *GlobalNamespace_Name) HasProps() bool {
-	return ((this_.prop0 != nil) || ((this_.props != nil) && len(this_.props) != 0))
+	return (this_.propCount != int32(0))
 }
 
 // Java method: Name.getPropCount()
 func (this_ *GlobalNamespace_Name) GetPropCount() int32 {
-	if this_.props != nil {
-		return int32(len(this_.props))
-	}
-	if this_.prop0 == nil {
-		return int32(0)
-	}
-	if this_.prop1 == nil {
-		return int32(1)
-	} else {
-		return int32(2)
-	}
+	return this_.propCount
 }
 
 // Java method: Name.getPropAt(int index)
 func (this_ *GlobalNamespace_Name) GetPropAt(index int32) *GlobalNamespace_Name {
 	_ = index
-	if this_.props != nil {
-		return this_.props[index]
+	if (index < int32(0)) || (index >= this_.propCount) {
+		panic(j2gort.AsIface[javalang.IIndexOutOfBoundsException](j2gort.ConstructShimThrowable("java.lang.IndexOutOfBoundsException", j2gort.ValueOfInt(index))))
 	}
-	if (index == int32(0)) && (this_.prop0 != nil) {
+	var arr []*GlobalNamespace_Name = this_.props
+	_ = arr
+	if arr != nil {
+		return arr[index]
+	}
+	switch index {
+	case int32(0):
 		return this_.prop0
-	}
-	if (index == int32(1)) && (this_.prop1 != nil) {
+	case int32(1):
 		return this_.prop1
+	case int32(2):
+		return this_.prop2
+	case int32(3):
+		return this_.prop3
+	default:
+		panic(j2gort.AsIface[javalang.IIndexOutOfBoundsException](j2gort.ConstructShimThrowable("java.lang.IndexOutOfBoundsException", j2gort.ValueOfInt(index))))
 	}
-	panic(j2gort.AsIface[javalang.IIndexOutOfBoundsException](j2gort.ConstructShimThrowable("java.lang.IndexOutOfBoundsException", j2gort.ValueOfInt(index))))
+	panic("unreachable switch expression")
 }
 
 // Java method: Name.getBaseName()
@@ -1883,7 +1945,7 @@ func (this_ *GlobalNamespace_Name) GetBaseName() string {
 
 // Java method: Name.inExterns()
 func (this_ *GlobalNamespace_Name) InExterns() bool {
-	return this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_IS_EXTERN())
+	return this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_IS_EXTERN())
 }
 
 // Java method: Name.subclassingGetCount()
@@ -1913,7 +1975,7 @@ func (this_ *GlobalNamespace_Name) GetFullName() string {
 
 // Java method: Name.usesHasOwnProperty()
 func (this_ *GlobalNamespace_Name) UsesHasOwnProperty() bool {
-	return this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_IS_USED_HAS_OWN_PROPERTY())
+	return this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_IS_USED_HAS_OWN_PROPERTY())
 }
 
 // Java method: Name.getDeclaration()
@@ -1928,17 +1990,17 @@ func (this_ *GlobalNamespace_Name) GetInitialization() *GlobalNamespace_Ref {
 
 // Java method: Name.isFunction()
 func (this_ *GlobalNamespace_Name) IsFunction() bool {
-	return this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_FUNCTION())
+	return this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_FUNCTION())
 }
 
 // Java method: Name.isClass()
 func (this_ *GlobalNamespace_Name) IsClass() bool {
-	return this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_CLASS())
+	return this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_CLASS())
 }
 
 // Java method: Name.isObjectLiteral()
 func (this_ *GlobalNamespace_Name) IsObjectLiteral() bool {
-	return this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_OBJECTLIT())
+	return this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_OBJECTLIT())
 }
 
 // Java method: Name.getAliasingGets()
@@ -2006,10 +2068,10 @@ func (this_ *GlobalNamespace_Name) GetDeepestCommonAncestorChunk(chunkGraph *JSC
 	}
 	if this_.refsForNodeMap != nil {
 		{
-			cur_11 := this_.refsForNodeMap.IterValues()
-			for cur_11.HasNext() {
+			cur_26 := this_.refsForNodeMap.IterValues()
+			for cur_26.HasNext() {
 
-				r := cur_11.
+				r := cur_26.
 					Next()
 				_ = r
 				commonAncestor = chunkGraph.GetDeepestCommonDependencyInclusive_2(r.GetChunk(), commonAncestor)
@@ -2025,32 +2087,32 @@ func (this_ *GlobalNamespace_Name) GetScope() any {
 }
 
 // Java method: Name.setBooleanProperty(com.google.javascript.jscomp.GlobalNamespace.NameProp property)
-func (this_ *GlobalNamespace_Name) priv_Name_setBooleanProperty_3106(property *GlobalNamespace_NameProp) {
+func (this_ *GlobalNamespace_Name) priv_Name_setBooleanProperty_3107(property *GlobalNamespace_NameProp) {
 	_ = property
 	this_.propertyBitSet = (this_.propertyBitSet | property.bit)
 }
 
 // Java method: Name.getBooleanProperty(com.google.javascript.jscomp.GlobalNamespace.NameProp property)
-func (this_ *GlobalNamespace_Name) priv_Name_getBooleanProperty_3107(property *GlobalNamespace_NameProp) bool {
+func (this_ *GlobalNamespace_Name) priv_Name_getBooleanProperty_3108(property *GlobalNamespace_NameProp) bool {
 	_ = property
 	return ((this_.propertyBitSet & property.bit) != int32(0))
 }
 
 // Java method: Name.addRef(com.google.javascript.jscomp.JSChunk chunk, com.google.javascript.jscomp.Scope scope, com.google.javascript.rhino.Node node, com.google.javascript.jscomp.GlobalNamespace.Ref.Type type)
-func (this_ *GlobalNamespace_Name) priv_Name_addRef_3108(chunk *JSChunk, scope *Scope, node pkg_rhino.Node, type_ GlobalNamespace_Ref_Type) {
+func (this_ *GlobalNamespace_Name) priv_Name_addRef_3109(chunk *JSChunk, scope *Scope, node pkg_rhino.Node, type_ GlobalNamespace_Ref_Type) {
 	_ = chunk
 	_ = scope
 	_ = node
 	_ = type_
-	this_.priv_Name_checkNoExistingRefsForNode_3109(node)
-	var ref *GlobalNamespace_Ref = this_.priv_Name_createNewRef_3110(chunk, scope, node, type_)
+	this_.priv_Name_checkNoExistingRefsForNode_3110(node)
+	var ref *GlobalNamespace_Ref = this_.priv_Name_createNewRef_3111(chunk, scope, node, type_)
 	_ = ref
-	this_.priv_Name_putRef_3111(node, ref)
-	this_.priv_Name_updateStateForAddedRef_3115(ref)
+	this_.priv_Name_putRef_3112(node, ref)
+	this_.priv_Name_updateStateForAddedRef_3116(ref)
 }
 
 // Java method: Name.checkNoExistingRefsForNode(com.google.javascript.rhino.Node node)
-func (this_ *GlobalNamespace_Name) priv_Name_checkNoExistingRefsForNode_3109(node pkg_rhino.Node) {
+func (this_ *GlobalNamespace_Name) priv_Name_checkNoExistingRefsForNode_3110(node pkg_rhino.Node) {
 	_ = node
 	if this_.ref0 != nil {
 		if !(this_.ref0.node != node) {
@@ -2083,7 +2145,7 @@ func (this_ *GlobalNamespace_Name) priv_Name_checkNoExistingRefsForNode_3109(nod
 }
 
 // Java method: Name.createNewRef(com.google.javascript.jscomp.JSChunk chunk, com.google.javascript.jscomp.Scope scope, com.google.javascript.rhino.Node node, com.google.javascript.jscomp.GlobalNamespace.Ref.Type type)
-func (this_ *GlobalNamespace_Name) priv_Name_createNewRef_3110(chunk *JSChunk, scope *Scope, node pkg_rhino.Node, type_ GlobalNamespace_Ref_Type) *GlobalNamespace_Ref {
+func (this_ *GlobalNamespace_Name) priv_Name_createNewRef_3111(chunk *JSChunk, scope *Scope, node pkg_rhino.Node, type_ GlobalNamespace_Ref_Type) *GlobalNamespace_Ref {
 	_ = chunk
 	_ = scope
 	_ = node
@@ -2092,7 +2154,7 @@ func (this_ *GlobalNamespace_Name) priv_Name_createNewRef_3110(chunk *JSChunk, s
 }
 
 // Java method: Name.putRef(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.GlobalNamespace.Ref ref)
-func (this_ *GlobalNamespace_Name) priv_Name_putRef_3111(node pkg_rhino.Node, ref *GlobalNamespace_Ref) {
+func (this_ *GlobalNamespace_Name) priv_Name_putRef_3112(node pkg_rhino.Node, ref *GlobalNamespace_Ref) {
 	_ = node
 	_ = ref
 	if this_.refsForNodeMap != nil {
@@ -2153,7 +2215,7 @@ func (this_ *GlobalNamespace_Name) priv_Name_putRef_3111(node pkg_rhino.Node, re
 }
 
 // Java method: Name.findInlineRefForNode(com.google.javascript.rhino.Node node)
-func (this_ *GlobalNamespace_Name) priv_Name_findInlineRefForNode_3112(node pkg_rhino.Node) *GlobalNamespace_Ref {
+func (this_ *GlobalNamespace_Name) priv_Name_findInlineRefForNode_3113(node pkg_rhino.Node) *GlobalNamespace_Ref {
 	_ = node
 	if this_.ref0 != nil {
 		if this_.ref0.node == node {
@@ -2180,11 +2242,11 @@ func (this_ *GlobalNamespace_Name) priv_Name_findInlineRefForNode_3112(node pkg_
 func (this_ *GlobalNamespace_Name) AddSingleRefForTesting(node pkg_rhino.Node, type_ GlobalNamespace_Ref_Type) *GlobalNamespace_Ref {
 	_ = node
 	_ = type_
-	val_13 := allocPooled_GlobalNamespace_Ref(this_.outer_, nil, nil, node, type_)
-	var ref *GlobalNamespace_Ref = val_13
+	val_28 := allocPooled_GlobalNamespace_Ref(this_.outer_, nil, nil, node, type_)
+	var ref *GlobalNamespace_Ref = val_28
 	_ = ref
-	this_.priv_Name_putRef_3111(node, ref)
-	this_.priv_Name_updateStateForAddedRef_3115(ref)
+	this_.priv_Name_putRef_3112(node, ref)
+	this_.priv_Name_updateStateForAddedRef_3116(ref)
 	return ref
 }
 
@@ -2193,11 +2255,11 @@ func (this_ *GlobalNamespace_Name) AddAliasingGetClonedFromDeclaration(newRefNod
 	_ = newRefNode
 	var declRef *GlobalNamespace_Ref = j2gort.CheckNotNullPtr(this_.declaration)
 	_ = declRef
-	this_.priv_Name_addRef_3108(declRef.chunk, declRef.scope, newRefNode, StaticGet_GlobalNamespace_Ref_Type_ALIASING_GET())
+	this_.priv_Name_addRef_3109(declRef.chunk, declRef.scope, newRefNode, StaticGet_GlobalNamespace_Ref_Type_ALIASING_GET())
 }
 
 // Java method: Name.updateStateForAddedRef(com.google.javascript.jscomp.GlobalNamespace.Ref ref)
-func (this_ *GlobalNamespace_Name) priv_Name_updateStateForAddedRef_3115(ref *GlobalNamespace_Ref) {
+func (this_ *GlobalNamespace_Name) priv_Name_updateStateForAddedRef_3116(ref *GlobalNamespace_Ref) {
 	_ = ref
 	switch (ref.type_).Ordinal() {
 	case int32(2) /* Type.GET_AND_SET_FROM_GLOBAL */, int32(0) /* Type.SET_FROM_GLOBAL */ :
@@ -2208,19 +2270,19 @@ func (this_ *GlobalNamespace_Name) priv_Name_updateStateForAddedRef_3115(ref *Gl
 			this_.initialization = ref
 		}
 		if this_.firstDeclarationJSDocInfo == nil {
-			this_.firstDeclarationJSDocInfo = this_.priv_Name_getDocInfoForDeclaration_3157(ref)
+			this_.firstDeclarationJSDocInfo = this_.priv_Name_getDocInfoForDeclaration_3158(ref)
 		}
 		this_.globalSets = this_.globalSets + 1
 		{
 			var iifeCond_1 bool
 			{
 
-				re_14 := ref.type_
-				ae_15 := StaticGet_GlobalNamespace_Ref_Type_GET_AND_SET_FROM_GLOBAL()
-				if re_14 == 0 {
+				re_29 := ref.type_
+				ae_30 := StaticGet_GlobalNamespace_Ref_Type_GET_AND_SET_FROM_GLOBAL()
+				if re_29 == 0 {
 					j2gort.ThrowNPE()
 				}
-				iifeCond_1 = re_14 == ae_15
+				iifeCond_1 = re_29 == ae_30
 			}
 			if iifeCond_1 {
 				this_.aliasingGets = this_.aliasingGets + 1
@@ -2243,12 +2305,12 @@ func (this_ *GlobalNamespace_Name) priv_Name_updateStateForAddedRef_3115(ref *Gl
 			var iifeCond_1 bool
 			{
 
-				re_16 := ref.type_
-				ae_17 := StaticGet_GlobalNamespace_Ref_Type_GET_AND_SET_FROM_LOCAL()
-				if re_16 == 0 {
+				re_31 := ref.type_
+				ae_32 := StaticGet_GlobalNamespace_Ref_Type_GET_AND_SET_FROM_LOCAL()
+				if re_31 == 0 {
 					j2gort.ThrowNPE()
 				}
-				iifeCond_1 = re_16 == ae_17
+				iifeCond_1 = re_31 == ae_32
 			}
 			if iifeCond_1 {
 				this_.aliasingGets = this_.aliasingGets + 1
@@ -2289,8 +2351,8 @@ func (this_ *GlobalNamespace_Name) UpdateRefNode(ref *GlobalNamespace_Ref, newNo
 		j2gort.CheckStateFmt(false, "Ref's node is already null: %s", j2gort.PtrToAny(ref))
 	}
 	{
-		r_18 := ref
-		r_18.node = newNode
+		r_33 := ref
+		r_33.node = newNode
 	}
 	if this_.refsForNodeMap != nil {
 		this_.refsForNodeMap.Remove(oldNode)
@@ -2327,12 +2389,12 @@ func (this_ *GlobalNamespace_Name) UpdateRefNode(ref *GlobalNamespace_Ref, newNo
 			this_.ref3 = nil
 		}
 		if newNode != 0 {
-			var existingRefForNewNode_2 *GlobalNamespace_Ref = this_.priv_Name_findInlineRefForNode_3112(newNode)
+			var existingRefForNewNode_2 *GlobalNamespace_Ref = this_.priv_Name_findInlineRefForNode_3113(newNode)
 			_ = existingRefForNewNode_2
 			if !(existingRefForNewNode_2 == nil) {
 				j2gort.CheckArgumentFmt(false, "refs already exist: %s", j2gort.PtrToAny(existingRefForNewNode_2))
 			}
-			this_.priv_Name_putRef_3111(newNode, ref)
+			this_.priv_Name_putRef_3112(newNode, ref)
 		}
 	}
 }
@@ -2370,7 +2432,7 @@ func (this_ *GlobalNamespace_Name) RemoveRef(ref *GlobalNamespace_Ref) {
 		if refNode_2 == 0 {
 			existing_2 = nil
 		} else {
-			existing_2 = this_.priv_Name_findInlineRefForNode_3112(refNode_2)
+			existing_2 = this_.priv_Name_findInlineRefForNode_3113(refNode_2)
 		}
 		if !(existing_2 != nil) {
 			j2gort.CheckStateFmt(false, "removeRef(%s): unknown ref", j2gort.PtrToAny(ref))
@@ -2394,20 +2456,20 @@ func (this_ *GlobalNamespace_Name) RemoveRef(ref *GlobalNamespace_Ref) {
 			this_.ref3 = nil
 		}
 	}
-	this_.priv_Name_removeRefAndUpdateState_3118(ref)
+	this_.priv_Name_removeRefAndUpdateState_3119(ref)
 }
 
 // Java method: Name.removeRefAndUpdateState(com.google.javascript.jscomp.GlobalNamespace.Ref ref)
-func (this_ *GlobalNamespace_Name) priv_Name_removeRefAndUpdateState_3118(ref *GlobalNamespace_Ref) {
+func (this_ *GlobalNamespace_Name) priv_Name_removeRefAndUpdateState_3119(ref *GlobalNamespace_Ref) {
 	_ = ref
 	if ref == this_.declaration {
 		this_.declaration = nil
 		if this_.refsForNodeMap != nil {
 			{
-				cur_19 := this_.refsForNodeMap.IterValues()
-				for cur_19.HasNext() {
+				cur_34 := this_.refsForNodeMap.IterValues()
+				for cur_34.HasNext() {
 
-					maybeNewDecl := cur_19.
+					maybeNewDecl := cur_34.
 						Next()
 					_ = maybeNewDecl
 					if maybeNewDecl.type_ == StaticGet_GlobalNamespace_Ref_Type_SET_FROM_GLOBAL() {
@@ -2455,12 +2517,12 @@ func (this_ *GlobalNamespace_Name) priv_Name_removeRefAndUpdateState_3118(ref *G
 			var iifeCond_1 bool
 			{
 
-				re_21 := ref.type_
-				ae_22 := StaticGet_GlobalNamespace_Ref_Type_GET_AND_SET_FROM_LOCAL()
-				if re_21 == 0 {
+				re_36 := ref.type_
+				ae_37 := StaticGet_GlobalNamespace_Ref_Type_GET_AND_SET_FROM_LOCAL()
+				if re_36 == 0 {
 					j2gort.ThrowNPE()
 				}
-				iifeCond_1 = re_21 == ae_22
+				iifeCond_1 = re_36 == ae_37
 			}
 			if iifeCond_1 {
 				this_.aliasingGets = this_.aliasingGets - 1
@@ -2526,10 +2588,10 @@ func (this_ *GlobalNamespace_Name) GetOnlyRef() *GlobalNamespace_Ref {
 	}
 	if size == int32(1) {
 		{
-			cur_23 := this_.refsForNodeMap.IterValues()
-			for cur_23.HasNext() {
+			cur_38 := this_.refsForNodeMap.IterValues()
+			for cur_38.HasNext() {
 
-				ref := cur_23.
+				ref := cur_38.
 					Next()
 				_ = ref
 				return ref
@@ -2566,7 +2628,7 @@ func (this_ *GlobalNamespace_Name) GetRefForNode(node pkg_rhino.Node) *GlobalNam
 	if this_.refsForNodeMap != nil {
 		return this_.refsForNodeMap.Get(node)
 	}
-	return this_.priv_Name_findInlineRefForNode_3112(node)
+	return this_.priv_Name_findInlineRefForNode_3113(node)
 }
 
 // Java method: Name.getFirstRef()
@@ -2576,10 +2638,10 @@ func (this_ *GlobalNamespace_Name) GetFirstRef() *GlobalNamespace_Ref {
 	}
 	if this_.refsForNodeMap != nil {
 		{
-			cur_25 := this_.refsForNodeMap.IterValues()
-			for cur_25.HasNext() {
+			cur_40 := this_.refsForNodeMap.IterValues()
+			for cur_40.HasNext() {
 
-				ref := cur_25.
+				ref := cur_40.
 					Next()
 				_ = ref
 				return ref
@@ -2633,7 +2695,7 @@ func (this_ *GlobalNamespace_Name) IsCollapsingExplicitlyDenied() bool {
 
 // Java method: Name.calculateInlinability()
 func (this_ *GlobalNamespace_Name) CalculateInlinability() GlobalNamespace_Inlinability {
-	if (this_.InExterns() || !(this_.priv_Name_hasOneRealGlobalSet_3133())) || (this_.localSets != int32(0)) {
+	if (this_.InExterns() || !(this_.priv_Name_hasOneRealGlobalSet_3134())) || (this_.localSets != int32(0)) {
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
 	var inlinability GlobalNamespace_Inlinability = this_.CanCollapseOrInline()
@@ -2649,34 +2711,34 @@ func (this_ *GlobalNamespace_Name) CalculateInlinability() GlobalNamespace_Inlin
 		initialChunk = j2gort.CastPtr[GlobalNamespace_Ref](this_.GetDeclaration()).GetChunk()
 	}
 	if this_.ref0 != nil {
-		inlinability = this_.priv_Name_checkRefInlinability_3132(this_.ref0, initialChunk, inlinability)
+		inlinability = this_.priv_Name_checkRefInlinability_3133(this_.ref0, initialChunk, inlinability)
 		if inlinability == StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE() {
 			return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 		}
 		if this_.ref1 != nil {
-			inlinability = this_.priv_Name_checkRefInlinability_3132(this_.ref1, initialChunk, inlinability)
+			inlinability = this_.priv_Name_checkRefInlinability_3133(this_.ref1, initialChunk, inlinability)
 			if inlinability == StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE() {
 				return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 			}
 			if this_.ref2 != nil {
-				inlinability = this_.priv_Name_checkRefInlinability_3132(this_.ref2, initialChunk, inlinability)
+				inlinability = this_.priv_Name_checkRefInlinability_3133(this_.ref2, initialChunk, inlinability)
 				if inlinability == StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE() {
 					return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 				}
 				if this_.ref3 != nil {
-					inlinability = this_.priv_Name_checkRefInlinability_3132(this_.ref3, initialChunk, inlinability)
+					inlinability = this_.priv_Name_checkRefInlinability_3133(this_.ref3, initialChunk, inlinability)
 				}
 			}
 		}
 	} else if this_.refsForNodeMap != nil {
 		{
-			cur_27 := this_.refsForNodeMap.IterValues()
-			for cur_27.HasNext() {
+			cur_42 := this_.refsForNodeMap.IterValues()
+			for cur_42.HasNext() {
 
-				ref := cur_27.
+				ref := cur_42.
 					Next()
 				_ = ref
-				inlinability = this_.priv_Name_checkRefInlinability_3132(ref, initialChunk, inlinability)
+				inlinability = this_.priv_Name_checkRefInlinability_3133(ref, initialChunk, inlinability)
 				if inlinability == StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE() {
 					return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 				}
@@ -2687,7 +2749,7 @@ func (this_ *GlobalNamespace_Name) CalculateInlinability() GlobalNamespace_Inlin
 }
 
 // Java method: Name.checkRefInlinability(com.google.javascript.jscomp.GlobalNamespace.Ref ref, com.google.javascript.jscomp.JSChunk initialChunk, com.google.javascript.jscomp.GlobalNamespace.Inlinability inlinability)
-func (this_ *GlobalNamespace_Name) priv_Name_checkRefInlinability_3132(ref *GlobalNamespace_Ref, initialChunk *JSChunk, inlinability GlobalNamespace_Inlinability) GlobalNamespace_Inlinability {
+func (this_ *GlobalNamespace_Name) priv_Name_checkRefInlinability_3133(ref *GlobalNamespace_Ref, initialChunk *JSChunk, inlinability GlobalNamespace_Inlinability) GlobalNamespace_Inlinability {
 	_ = ref
 	_ = initialChunk
 	_ = inlinability
@@ -2713,7 +2775,7 @@ func (this_ *GlobalNamespace_Name) priv_Name_checkRefInlinability_3132(ref *Glob
 }
 
 // Java method: Name.hasOneRealGlobalSet()
-func (this_ *GlobalNamespace_Name) priv_Name_hasOneRealGlobalSet_3133() bool {
+func (this_ *GlobalNamespace_Name) priv_Name_hasOneRealGlobalSet_3134() bool {
 	return ((this_.globalSets == int32(1)) || ((this_.globalSets == int32(2)) && this_.declaration.IsUninitializedDeclaration()))
 }
 
@@ -2725,45 +2787,45 @@ func (this_ *GlobalNamespace_Name) CanCollapse() bool {
 // Java method: Name.canCollapseOrInline()
 func (this_ *GlobalNamespace_Name) CanCollapseOrInline() GlobalNamespace_Inlinability {
 	if this_.InExterns() {
-		this_.priv_Name_logDecision_3136(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "declared in externs")
+		this_.priv_Name_logDecision_3137(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "declared in externs")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
 	if this_.IsGetOrSetDefinition() {
-		this_.priv_Name_logDecision_3136(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "getter / setter")
+		this_.priv_Name_logDecision_3137(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "getter / setter")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
 	if this_.IsCollapsingExplicitlyDenied() {
-		this_.priv_Name_logDecision_3136(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "@nocollapse")
+		this_.priv_Name_logDecision_3137(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "@nocollapse")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
 	if this_.ReferencesSuperOrInnerClassName() {
-		this_.priv_Name_logDecision_3136(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "references super or inner class name")
+		this_.priv_Name_logDecision_3137(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "references super or inner class name")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
 	if this_.IsToStringValueOfInObjectLiteral() {
-		this_.priv_Name_logDecision_3136(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "references explicit definition of toString/valueOf functions used implicitly in the JS language")
+		this_.priv_Name_logDecision_3137(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "references explicit definition of toString/valueOf functions used implicitly in the JS language")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
 	if this_.deleteProps > int32(0) {
-		this_.priv_Name_logDecision_3136(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "delete operator is used on this property")
+		this_.priv_Name_logDecision_3137(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "delete operator is used on this property")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
 	if j2gort.CastPtr[GlobalNamespace_Ref](this_.GetDeclaration()) != nil {
 		var declaration pkg_rhino.Node = j2gort.CastPtr[GlobalNamespace_Ref](this_.GetDeclaration()).GetNode()
 		_ = declaration
 		if declaration.GetParent().IsObjectLit() {
-			if this_.outer_.priv_GlobalNamespace_declarationHasFollowingObjectSpreadSibling_3054(declaration) {
-				this_.priv_Name_logDecision_3136(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "obj lit property followed by spread")
+			if this_.outer_.priv_GlobalNamespace_declarationHasFollowingObjectSpreadSibling_3055(declaration) {
+				this_.priv_Name_logDecision_3137(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "obj lit property followed by spread")
 				return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 			}
 			{
-				var child pkg_rhino.Node = this_.outer_.priv_GlobalNamespace_getOutermostObjectLit_3056(declaration)
+				var child pkg_rhino.Node = this_.outer_.priv_GlobalNamespace_getOutermostObjectLit_3057(declaration)
 				_ = child
 				var p pkg_rhino.Node = child.GetParent()
 				_ = p
 				for ; ((p != 0) && (p.GetParent() != 0)) && !(NodeUtil_IsStatement(p)); func() { child = p; p = p.GetParent() }() {
 					if ((p.IsOr() && (p.GetFirstChild() != child)) || (p.IsHook() && (p.GetFirstChild() != child))) || (p.IsAnd() && (p.GetFirstChild() != child)) {
-						this_.priv_Name_logDecision_3136(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "conditional definition")
+						this_.priv_Name_logDecision_3137(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "conditional definition")
 						return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 					}
 				}
@@ -2782,38 +2844,38 @@ func (this_ *GlobalNamespace_Name) CanCollapseOrInline() GlobalNamespace_Inlinab
 	switch (parentInlinability).Ordinal() {
 	case int32(0) /* Inlinability.INLINE_COMPLETELY */ :
 		if isUnchangedThroughFullName {
-			this_.priv_Name_logDecision_3136(StaticGet_GlobalNamespace_Inlinability_INLINE_COMPLETELY(), "parent inlineable: unchanged through full name")
+			this_.priv_Name_logDecision_3137(StaticGet_GlobalNamespace_Inlinability_INLINE_COMPLETELY(), "parent inlineable: unchanged through full name")
 			return StaticGet_GlobalNamespace_Inlinability_INLINE_COMPLETELY()
 		} else {
-			var unsafeInlinablility GlobalNamespace_Inlinability = this_.priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3137()
+			var unsafeInlinablility GlobalNamespace_Inlinability = this_.priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3138()
 			_ = unsafeInlinablility
-			this_.priv_Name_logDecision_3136(unsafeInlinablility, "parent inlineable: changed through full name")
+			this_.priv_Name_logDecision_3137(unsafeInlinablility, "parent inlineable: changed through full name")
 			return unsafeInlinablility
 		}
 	case int32(1) /* Inlinability.INLINE_BUT_KEEP_DECLARATION */, int32(2) /* Inlinability.INLINE_UNLESS_INVALID_CROSS_CHUNK_DEPENDENCY */ :
 		if this_.IsDeclaredType() {
-			var unsafeInlinability GlobalNamespace_Inlinability = this_.priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3137()
+			var unsafeInlinability GlobalNamespace_Inlinability = this_.priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3138()
 			_ = unsafeInlinability
-			this_.priv_Name_logDecision_3136(unsafeInlinability, "parent unsafely inlineable & is declared type")
+			this_.priv_Name_logDecision_3137(unsafeInlinability, "parent unsafely inlineable & is declared type")
 			return unsafeInlinability
 		} else if isUnchangedThroughFullName {
-			this_.priv_Name_logDecision_3136(parentInlinability, "parent unsafely inlineable & unchanged through full name")
+			this_.priv_Name_logDecision_3137(parentInlinability, "parent unsafely inlineable & unchanged through full name")
 			return parentInlinability
 		} else {
-			this_.priv_Name_logDecision_3136(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "parent unsafely inlineable & changed through full name")
+			this_.priv_Name_logDecision_3137(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "parent unsafely inlineable & changed through full name")
 			return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 		}
 	case int32(3) /* Inlinability.DO_NOT_INLINE */ :
-		var unsafeInlinability_2 GlobalNamespace_Inlinability = this_.priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3137()
+		var unsafeInlinability_2 GlobalNamespace_Inlinability = this_.priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3138()
 		_ = unsafeInlinability_2
-		this_.priv_Name_logDecision_3136(unsafeInlinability_2, "parent cannot be inlined")
+		this_.priv_Name_logDecision_3137(unsafeInlinability_2, "parent cannot be inlined")
 		return unsafeInlinability_2
 	}
 	panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "unknown enum value "+j2gort.StrVal(parentInlinability))))
 }
 
 // Java method: Name.logDecision(com.google.javascript.jscomp.GlobalNamespace.Inlinability inlinability, java.lang.String reason)
-func (this_ *GlobalNamespace_Name) priv_Name_logDecision_3136(inlinability GlobalNamespace_Inlinability, reason string) {
+func (this_ *GlobalNamespace_Name) priv_Name_logDecision_3137(inlinability GlobalNamespace_Inlinability, reason string) {
 	_ = inlinability
 	_ = reason
 	if (this_.outer_.decisionsLog != nil && !this_.outer_.decisionsLog.IsJavaNil_()) && this_.outer_.decisionsLog.IsLogging() {
@@ -2822,14 +2884,14 @@ func (this_ *GlobalNamespace_Name) priv_Name_logDecision_3136(inlinability Globa
 }
 
 // Java method: Name.getUnsafeInlinabilityBasedOnDeclaredType()
-func (this_ *GlobalNamespace_Name) priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3137() GlobalNamespace_Inlinability {
-	if this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_CONSTRUCTOR_TYPE()) {
+func (this_ *GlobalNamespace_Name) priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3138() GlobalNamespace_Inlinability {
+	if this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_CONSTRUCTOR_TYPE()) {
 		return StaticGet_GlobalNamespace_Inlinability_INLINE_BUT_KEEP_DECLARATION()
-	} else if this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_INTERFACE_TYPE()) {
+	} else if this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_INTERFACE_TYPE()) {
 		return StaticGet_GlobalNamespace_Inlinability_INLINE_BUT_KEEP_DECLARATION()
-	} else if this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_ENUM_TYPE()) {
+	} else if this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_ENUM_TYPE()) {
 		return StaticGet_GlobalNamespace_Inlinability_INLINE_BUT_KEEP_DECLARATION()
-	} else if this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_NOT_A_TYPE()) {
+	} else if this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_NOT_A_TYPE()) {
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
 	panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("name missing declaredType value: %s", []any{this_})))))
@@ -2868,7 +2930,7 @@ func (this_ *GlobalNamespace_Name) ReferencesSuperOrInnerClassName() bool {
 }
 
 // Java method: Name.isSetInLoop()
-func (this_ *GlobalNamespace_Name) priv_Name_isSetInLoop_3139() bool {
+func (this_ *GlobalNamespace_Name) priv_Name_isSetInLoop_3140() bool {
 	var ref *GlobalNamespace_Ref = j2gort.CastPtr[GlobalNamespace_Ref](this_.GetDeclaration())
 	_ = ref
 	if ref != nil {
@@ -2883,7 +2945,7 @@ func (this_ *GlobalNamespace_Name) priv_Name_isSetInLoop_3139() bool {
 
 // Java method: Name.isGetOrSetDefinition()
 func (this_ *GlobalNamespace_Name) IsGetOrSetDefinition() bool {
-	return this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_GET_SET())
+	return this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_GET_SET())
 }
 
 // Java method: Name.canCollapseUnannotatedChildNames()
@@ -2902,29 +2964,29 @@ func (this_ *GlobalNamespace_Name) IsToStringValueOfInObjectLiteral() bool {
 
 // Java method: Name.canCollapseOrInlineChildNames()
 func (this_ *GlobalNamespace_Name) CanCollapseOrInlineChildNames() GlobalNamespace_Inlinability {
-	if this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_OTHER_OBJECT()) {
-		this_.priv_Name_logChildNamesDecision_3144(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "NameProp.OTHER_OBJECT")
+	if this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_OTHER_OBJECT()) {
+		this_.priv_Name_logChildNamesDecision_3145(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "NameProp.OTHER_OBJECT")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	} else if this_.IsGetOrSetDefinition() {
-		this_.priv_Name_logChildNamesDecision_3144(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "getter/setter")
+		this_.priv_Name_logChildNamesDecision_3145(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "getter/setter")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	} else if this_.globalSets != int32(1) {
 		if (this_.outer_.decisionsLog != nil && !this_.outer_.decisionsLog.IsJavaNil_()) && this_.outer_.decisionsLog.IsLogging() {
-			this_.priv_Name_logChildNamesDecision_3145(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
+			this_.priv_Name_logChildNamesDecision_3146(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 				return j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("set %d times globally", []any{j2gort.ValueOfInt(this_.globalSets)}))
 			}))
 		}
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	} else if this_.localSets != int32(0) {
 		if (this_.outer_.decisionsLog != nil && !this_.outer_.decisionsLog.IsJavaNil_()) && this_.outer_.decisionsLog.IsLogging() {
-			this_.priv_Name_logChildNamesDecision_3145(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
+			this_.priv_Name_logChildNamesDecision_3146(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 				return j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("set %d times locally", []any{j2gort.ValueOfInt(this_.localSets)}))
 			}))
 		}
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	} else if this_.deleteProps != int32(0) {
 		if (this_.outer_.decisionsLog != nil && !this_.outer_.decisionsLog.IsJavaNil_()) && this_.outer_.decisionsLog.IsLogging() {
-			this_.priv_Name_logChildNamesDecision_3145(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
+			this_.priv_Name_logChildNamesDecision_3146(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 				return j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("properties are deleted %d times", []any{j2gort.ValueOfInt(this_.deleteProps)}))
 			}))
 		}
@@ -2932,59 +2994,59 @@ func (this_ *GlobalNamespace_Name) CanCollapseOrInlineChildNames() GlobalNamespa
 	}
 	j2gort.CheckNotNullPtr(this_.declaration)
 	if this_.declaration.IsTwin() {
-		this_.priv_Name_logChildNamesDecision_3144(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "twinned declaration")
+		this_.priv_Name_logChildNamesDecision_3145(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "twinned declaration")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
 	if this_.IsCollapsingExplicitlyDenied() {
-		this_.priv_Name_logChildNamesDecision_3144(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "@nocollapse")
+		this_.priv_Name_logChildNamesDecision_3145(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "@nocollapse")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
-	if this_.priv_Name_isSetInLoop_3139() {
-		this_.priv_Name_logChildNamesDecision_3144(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "set in a loop")
+	if this_.priv_Name_isSetInLoop_3140() {
+		this_.priv_Name_logChildNamesDecision_3145(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "set in a loop")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
 	if this_.UsesHasOwnProperty() {
-		this_.priv_Name_logChildNamesDecision_3144(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "hasOwnProperty() call exists")
+		this_.priv_Name_logChildNamesDecision_3145(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "hasOwnProperty() call exists")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
-	if this_.priv_Name_valueImplicitlySupportsAliasing_3146() {
-		this_.priv_Name_logChildNamesDecision_3144(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "value implicitly supports aliasing")
+	if this_.priv_Name_valueImplicitlySupportsAliasing_3147() {
+		this_.priv_Name_logChildNamesDecision_3145(StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE(), "value implicitly supports aliasing")
 		return StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE()
 	}
 	if (this_.parent != nil) && this_.parent.ShouldKeepKeys() {
-		var unsafeInlinability GlobalNamespace_Inlinability = this_.priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3137()
+		var unsafeInlinability GlobalNamespace_Inlinability = this_.priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3138()
 		_ = unsafeInlinability
-		this_.priv_Name_logChildNamesDecision_3144(unsafeInlinability, "parent.shouldKeepKeys()")
+		this_.priv_Name_logChildNamesDecision_3145(unsafeInlinability, "parent.shouldKeepKeys()")
 		return unsafeInlinability
 	}
 	if this_.aliasingGets > int32(0) {
-		var unsafeInlinability_2 GlobalNamespace_Inlinability = this_.priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3137()
+		var unsafeInlinability_2 GlobalNamespace_Inlinability = this_.priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3138()
 		_ = unsafeInlinability_2
 		if (this_.outer_.decisionsLog != nil && !this_.outer_.decisionsLog.IsJavaNil_()) && this_.outer_.decisionsLog.IsLogging() {
-			this_.priv_Name_logChildNamesDecision_3145(unsafeInlinability_2, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
+			this_.priv_Name_logChildNamesDecision_3146(unsafeInlinability_2, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 				return j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("%d aliasing gets exist", []any{j2gort.ValueOfInt(this_.aliasingGets)}))
 			}))
 		}
 		return unsafeInlinability_2
 	}
 	if this_.parent == nil {
-		this_.priv_Name_logChildNamesDecision_3144(StaticGet_GlobalNamespace_Inlinability_INLINE_COMPLETELY(), "no reason not to inline")
+		this_.priv_Name_logChildNamesDecision_3145(StaticGet_GlobalNamespace_Inlinability_INLINE_COMPLETELY(), "no reason not to inline")
 		return StaticGet_GlobalNamespace_Inlinability_INLINE_COMPLETELY()
 	}
 	var parentInlinability GlobalNamespace_Inlinability = this_.parent.CanCollapseOrInlineChildNames()
 	_ = parentInlinability
 	if parentInlinability == StaticGet_GlobalNamespace_Inlinability_DO_NOT_INLINE() {
-		var unsafeInlinability_3 GlobalNamespace_Inlinability = this_.priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3137()
+		var unsafeInlinability_3 GlobalNamespace_Inlinability = this_.priv_Name_getUnsafeInlinabilityBasedOnDeclaredType_3138()
 		_ = unsafeInlinability_3
-		this_.priv_Name_logChildNamesDecision_3144(unsafeInlinability_3, "parent is not inlineable")
+		this_.priv_Name_logChildNamesDecision_3145(unsafeInlinability_3, "parent is not inlineable")
 		return unsafeInlinability_3
 	}
-	this_.priv_Name_logChildNamesDecision_3144(parentInlinability, "inherited from parent")
+	this_.priv_Name_logChildNamesDecision_3145(parentInlinability, "inherited from parent")
 	return parentInlinability
 }
 
 // Java method: Name.logChildNamesDecision(com.google.javascript.jscomp.GlobalNamespace.Inlinability inlinability, java.lang.String reason)
-func (this_ *GlobalNamespace_Name) priv_Name_logChildNamesDecision_3144(inlinability GlobalNamespace_Inlinability, reason string) {
+func (this_ *GlobalNamespace_Name) priv_Name_logChildNamesDecision_3145(inlinability GlobalNamespace_Inlinability, reason string) {
 	_ = inlinability
 	_ = reason
 	if (this_.outer_.decisionsLog != nil && !this_.outer_.decisionsLog.IsJavaNil_()) && this_.outer_.decisionsLog.IsLogging() {
@@ -2993,7 +3055,7 @@ func (this_ *GlobalNamespace_Name) priv_Name_logChildNamesDecision_3144(inlinabi
 }
 
 // Java method: Name.logChildNamesDecision(com.google.javascript.jscomp.GlobalNamespace.Inlinability inlinability, java.util.function.Supplier<java.lang.String> reasonSupplier)
-func (this_ *GlobalNamespace_Name) priv_Name_logChildNamesDecision_3145(inlinability GlobalNamespace_Inlinability, reasonSupplier j2gort.Ext_java_util_function_Supplier) {
+func (this_ *GlobalNamespace_Name) priv_Name_logChildNamesDecision_3146(inlinability GlobalNamespace_Inlinability, reasonSupplier j2gort.Ext_java_util_function_Supplier) {
 	_ = inlinability
 	_ = reasonSupplier
 	if (this_.outer_.decisionsLog != nil && !this_.outer_.decisionsLog.IsJavaNil_()) && this_.outer_.decisionsLog.IsLogging() {
@@ -3004,14 +3066,14 @@ func (this_ *GlobalNamespace_Name) priv_Name_logChildNamesDecision_3145(inlinabi
 }
 
 // Java method: Name.valueImplicitlySupportsAliasing()
-func (this_ *GlobalNamespace_Name) priv_Name_valueImplicitlySupportsAliasing_3146() bool {
+func (this_ *GlobalNamespace_Name) priv_Name_valueImplicitlySupportsAliasing_3147() bool {
 	if !(this_.outer_.enableImplicitlyAliasedValues) {
 		return false
 	}
-	if this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_CLASS()) {
+	if this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_CLASS()) {
 		return true
 	}
-	if this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_FUNCTION()) {
+	if this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_FUNCTION()) {
 		var jsdoc *pkg_rhino.JSDocInfo = this_.GetJSDocInfo()
 		_ = jsdoc
 		return ((jsdoc != nil) && jsdoc.IsConstructorOrInterface())
@@ -3030,7 +3092,7 @@ func (this_ *GlobalNamespace_Name) NeedsToBeStubbed() bool {
 }
 
 // Java method: Name.setDeclaredTypeKind(com.google.javascript.jscomp.GlobalNamespace.NameProp declaredType)
-func (this_ *GlobalNamespace_Name) priv_Name_setDeclaredTypeKind_3149(declaredType *GlobalNamespace_NameProp) {
+func (this_ *GlobalNamespace_Name) priv_Name_setDeclaredTypeKind_3150(declaredType *GlobalNamespace_NameProp) {
 	_ = declaredType
 	if !((declaredType.bit & StaticGet_GlobalNamespace_NameProp_DECLARED_TYPE_KIND_MASK()) != int32(0)) {
 		j2gort.CheckArgumentFmt(false, "Unexpected NameProp for declaredType %s", j2gort.PtrToAny(declaredType))
@@ -3041,14 +3103,14 @@ func (this_ *GlobalNamespace_Name) priv_Name_setDeclaredTypeKind_3149(declaredTy
 			var ancestor *GlobalNamespace_Name = this_.parent
 			_ = ancestor
 			for ; ancestor != nil; ancestor = ancestor.parent {
-				ancestor.priv_Name_setBooleanProperty_3106(StaticGet_GlobalNamespace_NameProp_IS_DECLARED())
+				ancestor.priv_Name_setBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_IS_DECLARED())
 			}
 		}
 	}
 }
 
 // Java method: Name.setNameType(com.google.javascript.jscomp.GlobalNamespace.NameProp type)
-func (this_ *GlobalNamespace_Name) priv_Name_setNameType_3150(type_ *GlobalNamespace_NameProp) {
+func (this_ *GlobalNamespace_Name) priv_Name_setNameType_3151(type_ *GlobalNamespace_NameProp) {
 	_ = type_
 	if !((type_.bit & StaticGet_GlobalNamespace_NameProp_NAME_KIND_MASK()) != int32(0)) {
 		j2gort.CheckArgumentFmt(false, "Unexpected NameProp for nameType %s", j2gort.PtrToAny(type_))
@@ -3061,17 +3123,17 @@ func (this_ *GlobalNamespace_Name) IsDeclaredType() bool {
 	if !((this_.propertyBitSet & StaticGet_GlobalNamespace_NameProp_DECLARED_TYPE_KIND_MASK()) != int32(0)) {
 		j2gort.CheckStateMsg(false, j2gort.ValueOfInt(this_.propertyBitSet))
 	}
-	return !(this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_NOT_A_TYPE()))
+	return !(this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_NOT_A_TYPE()))
 }
 
 // Java method: Name.isConstructor()
 func (this_ *GlobalNamespace_Name) IsConstructor() bool {
-	return this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_CONSTRUCTOR_TYPE())
+	return this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_CONSTRUCTOR_TYPE())
 }
 
 // Java method: Name.isNamespaceObjectLit()
 func (this_ *GlobalNamespace_Name) IsNamespaceObjectLit() bool {
-	return (this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_IS_DECLARED()) && this_.IsObjectLiteral())
+	return (this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_IS_DECLARED()) && this_.IsObjectLiteral())
 }
 
 // Java method: Name.isSimpleName()
@@ -3089,7 +3151,7 @@ func (this_ *GlobalNamespace_Name) GetTypeDebugString() string {
 		return "OBJECTLIT"
 	} else if this_.IsGetOrSetDefinition() {
 		return "GET_SET"
-	} else if this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_OTHER_OBJECT()) {
+	} else if this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_OTHER_OBJECT()) {
 		return "OTHER"
 	}
 	panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", "Missing NameProp for name kind in "+j2gort.StrValInt32(this_.propertyBitSet))))
@@ -3110,7 +3172,7 @@ func (this_ *GlobalNamespace_Name) GetJSDocInfo() *pkg_rhino.JSDocInfo {
 }
 
 // Java method: Name.getDocInfoForDeclaration(com.google.javascript.jscomp.GlobalNamespace.Ref ref)
-func (this_ *GlobalNamespace_Name) priv_Name_getDocInfoForDeclaration_3157(ref *GlobalNamespace_Ref) *pkg_rhino.JSDocInfo {
+func (this_ *GlobalNamespace_Name) priv_Name_getDocInfoForDeclaration_3158(ref *GlobalNamespace_Ref) *pkg_rhino.JSDocInfo {
 	_ = ref
 	if ref.node != 0 {
 		var refParent pkg_rhino.Node = ref.node.GetParent()
@@ -3137,7 +3199,7 @@ func (this_ *GlobalNamespace_Name) priv_Name_getDocInfoForDeclaration_3157(ref *
 
 // Java method: Name.isModuleExport()
 func (this_ *GlobalNamespace_Name) IsModuleExport() bool {
-	return this_.priv_Name_getBooleanProperty_3107(StaticGet_GlobalNamespace_NameProp_IS_MODULE_PROP())
+	return this_.priv_Name_getBooleanProperty_3108(StaticGet_GlobalNamespace_NameProp_IS_MODULE_PROP())
 }
 
 // Java class: com.google.javascript.jscomp.GlobalNamespace.Ref
@@ -3761,17 +3823,17 @@ func (this_ *GlobalNamespace_ObjLitStringKeyAnalysis) Equals(other_ any) bool {
 func (this_ *GlobalNamespace_ObjLitStringKeyAnalysis) HashCode() int32 {
 	var h_ int32 = 0
 	{
-		hs_29 := this_.nameString
+		hs_44 := this_.nameString
 		h_ = 31 * h_
-		if hs_29 != j2gort.NullString {
-			h_ += javalang.StringHashCode(hs_29)
+		if hs_44 != j2gort.NullString {
+			h_ += javalang.StringHashCode(hs_44)
 		}
 	}
 	{
-		hp_30 := this_.nameType
+		hp_45 := this_.nameType
 		h_ = 31 * h_
-		if hp_30 != nil {
-			h_ += hp_30.HashCode()
+		if hp_45 != nil {
+			h_ += hp_45.HashCode()
 		}
 	}
 	return h_

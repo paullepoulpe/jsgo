@@ -809,7 +809,7 @@ func (this_ *ObjectTypeBase) GetPropertyType_1_string(propertyName string) JSTyp
 	var ok_9 bool
 	templatized, ok_9 = j2gort.TryCast[*TemplatizedType](this_.self_ObjectType_())
 	if ok_9 {
-		var result JSType = this_.priv_ObjectType_getPropertyTypeFromSlot_9283(this_.GetSlot_1_string(propertyName))
+		var result JSType = this_.priv_ObjectType_getPropertyTypeFromSlot_9302(this_.GetSlot_1_string(propertyName))
 		_ = result
 		if result == nil || result.IsJavaNil_() {
 			return nil
@@ -828,7 +828,7 @@ func (this_ *ObjectTypeBase) GetPropertyType_1_string(propertyName string) JSTyp
 			return this_.self_ObjectType_().GetPropertyType_1_Property_Key(ToIface_Property_Key(StaticGet_ObjectType_APPLY_KEY()))
 		}
 	}
-	return this_.priv_ObjectType_getPropertyTypeFromSlot_9283(this_.GetSlot_1_string(propertyName))
+	return this_.priv_ObjectType_getPropertyTypeFromSlot_9302(this_.GetSlot_1_string(propertyName))
 }
 
 // Java method: ObjectType.getPropertyType(com.google.javascript.rhino.jstype.Property.Key propertyName)
@@ -836,11 +836,11 @@ func (this_ *ObjectTypeBase) GetPropertyType_1_Property_Key(propertyName Propert
 	_ = propertyName
 	var slot *Property = this_.self_ObjectType_().GetSlot_1_Property_Key(propertyName)
 	_ = slot
-	return this_.priv_ObjectType_getPropertyTypeFromSlot_9283(slot)
+	return this_.priv_ObjectType_getPropertyTypeFromSlot_9302(slot)
 }
 
 // Java method: ObjectType.getPropertyTypeFromSlot(com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable Property slot)
-func (this_ *ObjectTypeBase) priv_ObjectType_getPropertyTypeFromSlot_9283(slot *Property) JSType {
+func (this_ *ObjectTypeBase) priv_ObjectType_getPropertyTypeFromSlot_9302(slot *Property) JSType {
 	_ = slot
 	if slot == nil {
 		if this_.IsNoResolvedType() || this_.IsCheckedUnknownType() {

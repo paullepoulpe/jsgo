@@ -250,7 +250,7 @@ func InitVarCheck_2(this_ *VarCheck, compiler AbstractCompiler, validityCheck bo
 }
 
 // Java method: VarCheck.createScopeCreator()
-func (this_ *VarCheck) priv_VarCheck_createScopeCreator_5831() *SyntacticScopeCreator {
+func (this_ *VarCheck) priv_VarCheck_createScopeCreator_5839() *SyntacticScopeCreator {
 	if this_.validityCheck {
 		return NewSyntacticScopeCreator_1(this_.compiler)
 	} else {
@@ -263,7 +263,7 @@ func (this_ *VarCheck) priv_VarCheck_createScopeCreator_5831() *SyntacticScopeCr
 func (this_ *VarCheck) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	var scopeCreator ScopeCreator = ToIface_ScopeCreator(this_.priv_VarCheck_createScopeCreator_5831())
+	var scopeCreator ScopeCreator = ToIface_ScopeCreator(this_.priv_VarCheck_createScopeCreator_5839())
 	_ = scopeCreator
 	if r_, ok_ := any(scopeCreator).(interface{ ReleaseSlabs_() }); ok_ {
 		defer r_.ReleaseSlabs_()
@@ -295,7 +295,7 @@ func (this_ *VarCheck) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 			varName := cur_1.
 				Next()
 			_ = varName
-			this_.priv_VarCheck_createSynthesizedExternVar_5834(varName, false)
+			this_.priv_VarCheck_createSynthesizedExternVar_5842(varName, false)
 		}
 	}
 	if this_.dupHandler != nil {
@@ -317,12 +317,12 @@ func (this_ *VarCheck) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rh
 	_ = n
 	_ = parent
 	if n.IsName() {
-		this_.priv_VarCheck_checkName_5832(t, n, parent)
+		this_.priv_VarCheck_checkName_5840(t, n, parent)
 	}
 }
 
 // Java method: VarCheck.checkName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *VarCheck) priv_VarCheck_checkName_5832(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *VarCheck) priv_VarCheck_checkName_5840(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = n
 	_ = parent
@@ -345,7 +345,7 @@ func (this_ *VarCheck) priv_VarCheck_checkName_5832(t *NodeTraversal, n pkg_rhin
 		if NodeUtil_IsNonlocalModuleExportName(n) {
 			return
 		}
-		this_.priv_VarCheck_handleUndeclaredVariableRef_5833(t, n)
+		this_.priv_VarCheck_handleUndeclaredVariableRef_5841(t, n)
 		j2gort.CastPtr[Scope](scope.GetGlobalScope()).Declare(varName, n, this_.compiler.GetSynthesizedExternsInput())
 		return
 	}
@@ -364,7 +364,7 @@ func (this_ *VarCheck) priv_VarCheck_checkName_5832(t *NodeTraversal, n pkg_rhin
 		}
 		return re_4 == ae_5
 	}() {
-		this_.priv_VarCheck_handleUndeclaredVariableRef_5833(t, n)
+		this_.priv_VarCheck_handleUndeclaredVariableRef_5841(t, n)
 		return
 	}
 	var currInput *CompilerInput = t.GetInput()
@@ -382,7 +382,7 @@ func (this_ *VarCheck) priv_VarCheck_checkName_5832(t *NodeTraversal, n pkg_rhin
 	_ = chunkGraph
 	if ((!(this_.validityCheck) && (varChunk != currChunk)) && (varChunk != nil)) && (currChunk != nil) {
 		if varChunk.IsWeak() {
-			this_.priv_VarCheck_handleUndeclaredVariableRef_5833(t, n)
+			this_.priv_VarCheck_handleUndeclaredVariableRef_5841(t, n)
 		}
 		if chunkGraph.DependsOn(currChunk, varChunk) {
 		} else {
@@ -412,7 +412,7 @@ func VarCheck_StrengthOf(n pkg_rhino.Node) pkg_rhino.StaticSourceFile_SourceKind
 }
 
 // Java method: VarCheck.handleUndeclaredVariableRef(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *VarCheck) priv_VarCheck_handleUndeclaredVariableRef_5833(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *VarCheck) priv_VarCheck_handleUndeclaredVariableRef_5841(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if !(n.IsName()) {
@@ -438,7 +438,7 @@ func (this_ *VarCheck) priv_VarCheck_handleUndeclaredVariableRef_5833(t *NodeTra
 	if this_.validityCheck {
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Unexpected variable "+j2gort.StrValString(varName))))
 	} else if !(this_.undefinedNamesFromExterns.Contains(varName)) {
-		this_.priv_VarCheck_createSynthesizedExternVar_5834(varName, true)
+		this_.priv_VarCheck_createSynthesizedExternVar_5842(varName, true)
 	}
 }
 
@@ -469,7 +469,7 @@ func (this_ *VarCheck) ExitScope(t *NodeTraversal) {
 }
 
 // Java method: VarCheck.createSynthesizedExternVar(java.lang.String varName, boolean isFromUndefinedCodeRef)
-func (this_ *VarCheck) priv_VarCheck_createSynthesizedExternVar_5834(varName string, isFromUndefinedCodeRef bool) {
+func (this_ *VarCheck) priv_VarCheck_createSynthesizedExternVar_5842(varName string, isFromUndefinedCodeRef bool) {
 	_ = varName
 	_ = isFromUndefinedCodeRef
 	var nameNode pkg_rhino.Node = pkg_rhino.IR_Name(varName)
@@ -514,7 +514,7 @@ func VarCheck_ReportVarMultiplyDeclared(compiler AbstractCompiler, current pkg_r
 }
 
 // Java method: VarCheck.reportBlockScopedMultipleDeclaration(com.google.javascript.rhino.Node current, java.lang.String name, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node original)
-func (this_ *VarCheck) priv_VarCheck_reportBlockScopedMultipleDeclaration_5835(current pkg_rhino.Node, name string, original pkg_rhino.Node) {
+func (this_ *VarCheck) priv_VarCheck_reportBlockScopedMultipleDeclaration_5843(current pkg_rhino.Node, name string, original pkg_rhino.Node) {
 	_ = current
 	_ = name
 	_ = original
@@ -721,18 +721,18 @@ func (this_ *VarCheck_RedeclarationCheckHandler) OnRedeclaration(s *Scope, name 
 	}
 	switch parent.TokenSwitchOrd_() {
 	case int32(105) /* Token.CLASS */, int32(97) /* Token.CONST */, int32(111) /* Token.LET */ :
-		this_.outer_.priv_VarCheck_reportBlockScopedMultipleDeclaration_5835(n, name, origNode)
+		this_.outer_.priv_VarCheck_reportBlockScopedMultipleDeclaration_5843(n, name, origNode)
 		return
 	default:
 	}
 	if origParent != 0 {
 		switch origParent.TokenSwitchOrd_() {
 		case int32(105) /* Token.CLASS */, int32(97) /* Token.CONST */, int32(111) /* Token.LET */ :
-			this_.outer_.priv_VarCheck_reportBlockScopedMultipleDeclaration_5835(n, name, origNode)
+			this_.outer_.priv_VarCheck_reportBlockScopedMultipleDeclaration_5843(n, name, origNode)
 			return
 		case int32(73) /* Token.FUNCTION */ :
 			if !(s.IsGlobal()) && parent.IsFunction() {
-				this_.outer_.priv_VarCheck_reportBlockScopedMultipleDeclaration_5835(n, name, origNode)
+				this_.outer_.priv_VarCheck_reportBlockScopedMultipleDeclaration_5843(n, name, origNode)
 				return
 			}
 		default:

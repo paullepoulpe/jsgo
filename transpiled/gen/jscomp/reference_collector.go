@@ -214,7 +214,7 @@ func (this_ *ReferenceCollector) ProcessScope(scope *Scope) {
 	_ = shouldAddToBlockStack
 	this_.narrowScope = scope
 	if shouldAddToBlockStack {
-		this_.priv_ReferenceCollector_pushNewBlock_4647(scope.GetRootNode_0())
+		this_.priv_ReferenceCollector_pushNewBlock_4654(scope.GetRootNode_0())
 	}
 	{
 		clinit_NodeTraversal()
@@ -233,13 +233,13 @@ func (this_ *ReferenceCollector) ProcessScope(scope *Scope) {
 		(&ntb_).TraverseAtScope(ToIface_AbstractScope(scope))
 	}
 	if shouldAddToBlockStack {
-		this_.priv_ReferenceCollector_popLastBlock_4648(scope.GetRootNode_0())
+		this_.priv_ReferenceCollector_popLastBlock_4655(scope.GetRootNode_0())
 	}
 	this_.narrowScope = nil
 }
 
 // Java method: ReferenceCollector.createTraversalBuilder()
-func (this_ *ReferenceCollector) priv_ReferenceCollector_createTraversalBuilder_4645() *NodeTraversal_Builder {
+func (this_ *ReferenceCollector) priv_ReferenceCollector_createTraversalBuilder_4652() *NodeTraversal_Builder {
 	return NodeTraversal_S_Builder().SetCompiler(this_.compiler).SetCallback_1_NodeTraversal_Callback(ToIface_NodeTraversal_Callback(this_.callback)).SetScopeCreator(this_.scopeCreator).SetObeyDestructuringAndDefaultValueExecutionOrder(true)
 }
 
@@ -263,7 +263,7 @@ func (this_ *ReferenceCollector) GetReferences(arg_2 any) any {
 }
 
 // Java method: ReferenceCollector.maybeJumpToHoistedFunction(com.google.javascript.jscomp.Var var, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *ReferenceCollector) priv_ReferenceCollector_maybeJumpToHoistedFunction_4646(var_ *Var, t *NodeTraversal) {
+func (this_ *ReferenceCollector) priv_ReferenceCollector_maybeJumpToHoistedFunction_4653(var_ *Var, t *NodeTraversal) {
 	_ = var_
 	_ = t
 	var fnNode pkg_rhino.Node = var_.GetParentNode()
@@ -292,7 +292,7 @@ func (this_ *ReferenceCollector) priv_ReferenceCollector_maybeJumpToHoistedFunct
 			}
 		}
 	}
-	this_.priv_ReferenceCollector_addReference_4649(var_, fnNode.GetFirstChild(), t)
+	this_.priv_ReferenceCollector_addReference_4656(var_, fnNode.GetFirstChild(), t)
 	{
 		clinit_NodeTraversal()
 		var ntb_ NodeTraversal_Builder
@@ -321,13 +321,13 @@ func ReferenceCollector_IsNonLocalModuleSpecifierName(n pkg_rhino.Node, parent p
 }
 
 // Java method: ReferenceCollector.pushNewBlock(com.google.javascript.rhino.Node root)
-func (this_ *ReferenceCollector) priv_ReferenceCollector_pushNewBlock_4647(root pkg_rhino.Node) {
+func (this_ *ReferenceCollector) priv_ReferenceCollector_pushNewBlock_4654(root pkg_rhino.Node) {
 	_ = root
 	this_.blockStack.AddLast(allocPooled_BasicBlock(&this_.slab_BasicBlock, this_.blockStack.PeekLast(), root))
 }
 
 // Java method: ReferenceCollector.popLastBlock(com.google.javascript.rhino.Node root)
-func (this_ *ReferenceCollector) priv_ReferenceCollector_popLastBlock_4648(root pkg_rhino.Node) {
+func (this_ *ReferenceCollector) priv_ReferenceCollector_popLastBlock_4655(root pkg_rhino.Node) {
 	_ = root
 	var last *BasicBlock = this_.blockStack.RemoveLast()
 	_ = last
@@ -354,7 +354,7 @@ func ReferenceCollector_IsBlockBoundary(n pkg_rhino.Node, parent pkg_rhino.Node)
 }
 
 // Java method: ReferenceCollector.addReference(com.google.javascript.jscomp.Var v, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *ReferenceCollector) priv_ReferenceCollector_addReference_4649(v *Var, n pkg_rhino.Node, t *NodeTraversal) *Reference {
+func (this_ *ReferenceCollector) priv_ReferenceCollector_addReference_4656(v *Var, n pkg_rhino.Node, t *NodeTraversal) *Reference {
 	_ = v
 	_ = n
 	_ = t
@@ -439,7 +439,7 @@ func (this_ *ReferenceCollector_CollectorCallback) ShouldTraverse_3(nodeTraversa
 	}
 	this_.outer_.behavior.BeforeTraverseNode(nodeTraversal, n, parent)
 	if ReferenceCollector_IsBlockBoundary(n, parent) {
-		this_.outer_.priv_ReferenceCollector_pushNewBlock_4647(n)
+		this_.outer_.priv_ReferenceCollector_pushNewBlock_4654(n)
 	}
 	return true
 }
@@ -448,7 +448,7 @@ func (this_ *ReferenceCollector_CollectorCallback) ShouldTraverse_3(nodeTraversa
 func (this_ *ReferenceCollector_CollectorCallback) EnterScope(t *NodeTraversal) {
 	_ = t
 	if t.IsHoistScope() {
-		this_.outer_.priv_ReferenceCollector_pushNewBlock_4647(t.GetScopeRoot())
+		this_.outer_.priv_ReferenceCollector_pushNewBlock_4654(t.GetScopeRoot())
 	}
 }
 
@@ -456,7 +456,7 @@ func (this_ *ReferenceCollector_CollectorCallback) EnterScope(t *NodeTraversal) 
 func (this_ *ReferenceCollector_CollectorCallback) ExitScope(t *NodeTraversal) {
 	_ = t
 	if t.IsHoistScope() {
-		this_.outer_.priv_ReferenceCollector_popLastBlock_4648(t.GetScopeRoot())
+		this_.outer_.priv_ReferenceCollector_popLastBlock_4655(t.GetScopeRoot())
 	}
 	this_.outer_.behavior.AfterExitScope(t, ToIface_ReferenceMap(this_.outer_))
 }
@@ -472,15 +472,15 @@ func (this_ *ReferenceCollector_CollectorCallback) Visit_3(t *NodeTraversal, n p
 		var v *Var = t.GetScope().LookupVar(n.GetString())
 		_ = v
 		if v != nil {
-			addedReference = this_.outer_.priv_ReferenceCollector_addReference_4649(v, n, t)
+			addedReference = this_.outer_.priv_ReferenceCollector_addReference_4656(v, n, t)
 			if this_.outer_.collectHoistedFunctionsInReferenceOrder {
-				this_.outer_.priv_ReferenceCollector_maybeJumpToHoistedFunction_4646(v, t)
+				this_.outer_.priv_ReferenceCollector_maybeJumpToHoistedFunction_4653(v, t)
 			}
 		}
 	}
 	this_.outer_.behavior.AfterVisitNode(t, n, parent, addedReference)
 	if ReferenceCollector_IsBlockBoundary(n, parent) {
-		this_.outer_.priv_ReferenceCollector_popLastBlock_4648(n)
+		this_.outer_.priv_ReferenceCollector_popLastBlock_4655(n)
 	}
 }
 

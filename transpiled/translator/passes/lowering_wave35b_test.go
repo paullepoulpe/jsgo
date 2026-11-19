@@ -1124,6 +1124,7 @@ func (this_ *PhaseOptimizer_NamedPass) Process_2(externs, root pkg_rhino.Node) {
 	for _, want := range []string{
 		"defer j2gort.PurgeAllRuntimePools()",
 		"slab_LinearFlowState",
+		"this_.slab_LinearFlowState.Release()",
 		"allocPooled_DataFlowAnalysis_LinearFlowState",
 		"slab_LiveVariableLattice",
 		"slab_LiveVariableJoinOp",
@@ -1419,7 +1420,7 @@ func TestWave35B_RealGenRhinoParserParsingJscompCopyIdempotencyAndRace(t *testin
 	cfgCode := normWS(readCopy("jscomp/control_flow_graph.go"))
 	dfaCode := normWS(readCopy("jscomp/data_flow_analysis.go"))
 	if !strings.Contains(cfgCode, "slab_LinearFlowState j2gort.PooledSlab[DataFlowAnalysis_LinearFlowState]") ||
-		!strings.Contains(cfgCode, "this_.slab_LinearFlowState.Reset()") ||
+		!strings.Contains(cfgCode, "this_.slab_LinearFlowState.Release()") ||
 		!strings.Contains(dfaCode, "allocPooled_DataFlowAnalysis_LinearFlowState(&cfgBase_.slab_LinearFlowState") {
 		t.Fatalf("expected DataFlowAnalysis_LinearFlowState PooledSlab lowering in real jscomp")
 	}

@@ -152,35 +152,35 @@ public final class RuntimeIoNioXmlGsonBindings {
     switch (qn) {
       case "java.io.File" -> {
         if (n == 1 && p0.equals("string")) {
-          out.append("\tobj.Core_ = javaio.NewFile(CheckNotNull(arg0))\n");
+          out.append("\tobj.Core_ = javaio.NewFile(CheckNotNullString(arg0))\n");
           return true;
         }
         if (n == 2 && p0.contains("Ext_java_io_File")) {
-          out.append("\tobj_f := unwrapFile(arg0)\n\tobj.Core_ = javaio.NewFileWithParent(obj_f, CheckNotNull(arg1))\n");
+          out.append("\tobj_f := unwrapFile(arg0)\n\tobj.Core_ = javaio.NewFileWithParent(obj_f, CheckNotNullString(arg1))\n");
           return true;
         }
         if (n == 2 && p0.equals("string")) {
-          out.append("\tif arg0 == NullString { obj.Core_ = javaio.NewFile(CheckNotNull(arg1)) } else { obj.Core_ = javaio.NewFileParentString(arg0, CheckNotNull(arg1)) }\n");
+          out.append("\tif arg0 == NullString { obj.Core_ = javaio.NewFile(CheckNotNullString(arg1)) } else { obj.Core_ = javaio.NewFileParentString(arg0, CheckNotNullString(arg1)) }\n");
           return true;
         }
       }
       case "java.io.FileInputStream" -> {
         if (n == 1 && p0.equals("string")) {
-          out.append("\tfis, err := javaio.NewFileInputStream(CheckNotNull(arg0))\n\tioErr(err)\n\tobj.Core_ = fis\n");
+          out.append("\tfis, err := javaio.NewFileInputStream(CheckNotNullString(arg0))\n\tioErr(err)\n\tobj.Core_ = fis\n");
           return true;
         }
         if (n == 1 && p0.contains("Ext_java_io_File")) {
-          out.append("\tfis, err := javaio.NewFileInputStreamFromFile(CheckNotNull(unwrapFile(arg0)))\n\tioErr(err)\n\tobj.Core_ = fis\n");
+          out.append("\tfis, err := javaio.NewFileInputStreamFromFile(CheckNotNullPtr(unwrapFile(arg0)))\n\tioErr(err)\n\tobj.Core_ = fis\n");
           return true;
         }
       }
       case "java.io.FileOutputStream" -> {
         if (n == 1 && p0.equals("string")) {
-          out.append("\tfos, err := javaio.NewFileOutputStream(CheckNotNull(arg0))\n\tioErr(err)\n\tobj.Core_ = fos\n");
+          out.append("\tfos, err := javaio.NewFileOutputStream(CheckNotNullString(arg0))\n\tioErr(err)\n\tobj.Core_ = fos\n");
           return true;
         }
         if (n == 1 && p0.contains("Ext_java_io_File")) {
-          out.append("\tfos, err := javaio.NewFileOutputStreamFromFile(CheckNotNull(unwrapFile(arg0)))\n\tioErr(err)\n\tobj.Core_ = fos\n");
+          out.append("\tfos, err := javaio.NewFileOutputStreamFromFile(CheckNotNullPtr(unwrapFile(arg0)))\n\tioErr(err)\n\tobj.Core_ = fos\n");
           return true;
         }
       }
@@ -214,7 +214,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         if (n == 2) {
           String p1 = rb.goTypeInJ2gort(ctor.getParameters().get(1).asType(), imports);
           if (p1.equals("string")) {
-            out.append("\tCheckNotNull(arg0)\n\tobj.Core_ = newInputStreamReaderCharsetName(arg0, CheckNotNull(arg1))\n");
+            out.append("\tCheckNotNull(arg0)\n\tobj.Core_ = newInputStreamReaderCharsetName(arg0, CheckNotNullString(arg1))\n");
             return true;
           }
           out.append("\tCheckNotNull(arg0)\n\tobj.Core_ = newInputStreamReaderCharset(arg0, arg1)\n");
@@ -233,7 +233,7 @@ public final class RuntimeIoNioXmlGsonBindings {
             return true;
           }
           if (p1.equals("string")) {
-            out.append("\tCheckNotNull(arg0)\n\tobj.Core_ = newOutputStreamWriterCharsetName(arg0, CheckNotNull(arg1))\n");
+            out.append("\tCheckNotNull(arg0)\n\tobj.Core_ = newOutputStreamWriterCharsetName(arg0, CheckNotNullString(arg1))\n");
             return true;
           }
           out.append("\tCheckNotNull(arg0)\n\tobj.Core_ = newOutputStreamWriterCharset(arg0, arg1)\n");
@@ -254,7 +254,7 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "java.io.StringReader" -> {
         if (n == 1) {
-          out.append("\tobj.Core_ = javaio.NewStringReader(CheckNotNull(arg0))\n");
+          out.append("\tobj.Core_ = javaio.NewStringReader(CheckNotNullString(arg0))\n");
           return true;
         }
       }
@@ -274,11 +274,11 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "java.io.PrintStream" -> {
         if (n >= 1 && p0.equals("string")) {
-          out.append("\tfos, err := javaio.NewFileOutputStream(CheckNotNull(arg0))\n\tioErr(err)\n\tobj.Core_ = javaio.NewPrintStream(fos)\n");
+          out.append("\tfos, err := javaio.NewFileOutputStream(CheckNotNullString(arg0))\n\tioErr(err)\n\tobj.Core_ = javaio.NewPrintStream(fos)\n");
           return true;
         }
         if (n >= 1 && p0.contains("Ext_java_io_File")) {
-          out.append("\tfos, err := javaio.NewFileOutputStreamFromFile(CheckNotNull(unwrapFile(arg0)))\n\tioErr(err)\n\tobj.Core_ = javaio.NewPrintStream(fos)\n");
+          out.append("\tfos, err := javaio.NewFileOutputStreamFromFile(CheckNotNullPtr(unwrapFile(arg0)))\n\tioErr(err)\n\tobj.Core_ = javaio.NewPrintStream(fos)\n");
           return true;
         }
         if (n >= 1 && p0.contains("OutputStream")) {
@@ -304,7 +304,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           return true;
         }
         if (n >= 1 && p0.equals("string")) {
-          out.append("\tobj.Core_ = newZipFileFromName(CheckNotNull(arg0))\n");
+          out.append("\tobj.Core_ = newZipFileFromName(CheckNotNullString(arg0))\n");
           return true;
         }
       }
@@ -320,7 +320,7 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "java.net.URI" -> {
         if (n == 1 && p0.equals("string")) {
-          out.append("\tobj.Core_ = newJavaURI(CheckNotNull(arg0))\n");
+          out.append("\tobj.Core_ = newJavaURI(CheckNotNullString(arg0))\n");
           return true;
         }
       }
@@ -332,7 +332,7 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "com.google.common.net.PercentEscaper" -> {
         if (n == 2) {
-          out.append("\tobj.Core_ = newPercentEscaper(CheckNotNull(arg0), arg1)\n");
+          out.append("\tobj.Core_ = newPercentEscaper(CheckNotNullString(arg0), arg1)\n");
           return true;
         }
       }
@@ -426,11 +426,11 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "java.util.StringTokenizer" -> {
         if (n == 2) {
-          out.append("\tobj.Core_ = newStringTokenizer(CheckNotNull(arg0), CheckNotNull(arg1))\n");
+          out.append("\tobj.Core_ = newStringTokenizer(CheckNotNullString(arg0), CheckNotNullString(arg1))\n");
           return true;
         }
         if (n == 1) {
-          out.append("\tobj.Core_ = newStringTokenizer(CheckNotNull(arg0), \" \\t\\n\\r\\f\")\n");
+          out.append("\tobj.Core_ = newStringTokenizer(CheckNotNullString(arg0), \" \\t\\n\\r\\f\")\n");
           return true;
         }
       }
@@ -544,11 +544,11 @@ public final class RuntimeIoNioXmlGsonBindings {
           return true;
         }
         if (simple.equals("toLowerCase") && arity == 1 && p0.equals("string")) {
-          out.append("\treturn javalang.StringToLowerCaseASCII(CheckNotNull(arg0))\n");
+          out.append("\treturn javalang.StringToLowerCaseASCII(CheckNotNullString(arg0))\n");
           return true;
         }
         if (simple.equals("toUpperCase") && arity == 1 && p0.equals("string")) {
-          out.append("\treturn javalang.StringToUpperCaseASCII(CheckNotNull(arg0))\n");
+          out.append("\treturn javalang.StringToUpperCaseASCII(CheckNotNullString(arg0))\n");
           return true;
         }
       }
@@ -617,7 +617,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           if (p0.equals("uint16")) {
             out.append("\treturn newGuavaJoiner(javalang.StringFromChar(arg0))\n");
           } else {
-            out.append("\treturn newGuavaJoiner(CheckNotNull(arg0))\n");
+            out.append("\treturn newGuavaJoiner(CheckNotNullString(arg0))\n");
           }
           return true;
         }
@@ -627,7 +627,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           if (p0.equals("uint16")) {
             out.append("\treturn newGuavaSplitterChar(arg0)\n");
           } else {
-            out.append("\treturn newGuavaSplitterStr(CheckNotNull(arg0))\n");
+            out.append("\treturn newGuavaSplitterStr(CheckNotNullString(arg0))\n");
           }
           return true;
         }
@@ -639,7 +639,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         }
         if (simple.equals("toStringHelper") && arity == 1) {
           if (p0.contains("Class")) {
-            out.append("\treturn newToStringHelper(CheckNotNull(arg0).GetSimpleName())\n");
+            out.append("\treturn newToStringHelper(CheckNotNullPtr(arg0).GetSimpleName())\n");
           } else {
             out.append("\treturn newToStringHelper(GetObjectClass(arg0).GetSimpleName())\n");
           }
@@ -708,7 +708,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           return true;
         }
         if (simple.equals("padStart") && arity == 3) {
-          out.append("\treturn guavaPadStart(CheckNotNull(arg0), arg1, arg2)\n");
+          out.append("\treturn guavaPadStart(CheckNotNullString(arg0), arg1, arg2)\n");
           return true;
         }
       }
@@ -762,29 +762,29 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "com.google.common.io.Files" -> {
         if (simple.equals("asCharSink") && arity == 3) {
-          out.append("\treturn newGuavaFileCharSink(CheckNotNull(arg0), arg1, arg2)\n");
+          out.append("\treturn newGuavaFileCharSink(CheckNotNullPtr(arg0), arg1, arg2)\n");
           return true;
         }
         if (simple.equals("asCharSource") && arity == 2) {
-          out.append("\treturn newGuavaFileCharSource(CheckNotNull(arg0), arg1)\n");
+          out.append("\treturn newGuavaFileCharSource(CheckNotNullPtr(arg0), arg1)\n");
           return true;
         }
         if (simple.equals("newReader") && arity == 2) {
-          out.append("\treturn newGuavaFileBufferedReader(CheckNotNull(arg0), arg1)\n");
+          out.append("\treturn newGuavaFileBufferedReader(CheckNotNullPtr(arg0), arg1)\n");
           return true;
         }
         if (simple.equals("toByteArray") && arity == 1) {
-          out.append("\treturn guavaFileToByteArray(CheckNotNull(arg0))\n");
+          out.append("\treturn guavaFileToByteArray(CheckNotNullPtr(arg0))\n");
           return true;
         }
         if (simple.equals("write") && arity == 2) {
-          out.append("\tguavaFileWriteBytes(CheckNotNull(arg0), CheckNotNull(arg1))\n");
+          out.append("\tguavaFileWriteBytes(CheckNotNullSlice(arg0), CheckNotNullPtr(arg1))\n");
           return true;
         }
       }
       case "com.google.common.primitives.Chars" -> {
         if (simple.equals("asList") && arity == 1) {
-          out.append("\tCheckNotNull(arg0)\n\titems := make([]any, len(arg0))\n\tfor i, c := range arg0 { items[i] = ValueOfChar(c) }\n\treturn wrapArrayList(items)\n");
+          out.append("\tCheckNotNullSlice(arg0)\n\titems := make([]any, len(arg0))\n\tfor i, c := range arg0 { items[i] = ValueOfChar(c) }\n\treturn wrapArrayList(items)\n");
           return true;
         }
         if (simple.equals("toArray") && arity == 1) {
@@ -800,16 +800,16 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "java.lang.String" -> {
         if (simple.equals("format") && arity == 2) {
-          out.append("\treturn StringFormat(CheckNotNull(arg0), arg1...)\n");
+          out.append("\treturn StringFormat(CheckNotNullString(arg0), arg1...)\n");
           return true;
         }
         if (simple.equals("format") && arity == 3) {
-          out.append("\t_ = arg0\n\treturn StringFormat(CheckNotNull(arg1), arg2...)\n");
+          out.append("\t_ = arg0\n\treturn StringFormat(CheckNotNullString(arg1), arg2...)\n");
           return true;
         }
         if (simple.equals("join") && arity == 2) {
           if (rb.goTypeInJ2gort(m.getParameters().get(1).asType(), imports).startsWith("[]")) {
-            out.append("\tdelim := StrVal(CheckNotNull(arg0))\n\tCheckNotNull(arg1)\n\tparts := make([]string, len(arg1))\n\tfor i, x := range arg1 { parts[i] = StrVal(x) }\n\treturn strings.Join(parts, delim)\n");
+            out.append("\tdelim := StrVal(CheckNotNull(arg0))\n\tCheckNotNullSlice(arg1)\n\tparts := make([]string, len(arg1))\n\tfor i, x := range arg1 { parts[i] = StrVal(x) }\n\treturn strings.Join(parts, delim)\n");
           } else {
             out.append("\tdelim := StrVal(CheckNotNull(arg0))\n\tCheckNotNull(arg1)\n\tvar parts []string\n\tfor it := Iterate(arg1); it.HasNext(); { parts = append(parts, StrVal(it.Next())) }\n\treturn strings.Join(parts, delim)\n");
           }
@@ -842,7 +842,7 @@ public final class RuntimeIoNioXmlGsonBindings {
               return true;
             }
             case "[]uint16" -> {
-              out.append("\treturn javalang.StringFromUTF16(CheckNotNull(arg0))\n");
+              out.append("\treturn javalang.StringFromUTF16(CheckNotNullSlice(arg0))\n");
               return true;
             }
             default -> {
@@ -852,7 +852,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           }
         }
         if (simple.equals("valueOf") && arity == 3) {
-          out.append("\tCheckNotNull(arg0)\n\tif arg1 < 0 || arg2 < 0 || int(arg1)+int(arg2) > len(arg0) {\n\t\tpanic(javalang.NewStringIndexOutOfBoundsExceptionForRange(int(arg1), int(arg1+arg2), len(arg0)))\n\t}\n\treturn javalang.StringFromUTF16(arg0[arg1 : arg1+arg2])\n");
+          out.append("\tCheckNotNullSlice(arg0)\n\tif arg1 < 0 || arg2 < 0 || int(arg1)+int(arg2) > len(arg0) {\n\t\tpanic(javalang.NewStringIndexOutOfBoundsExceptionForRange(int(arg1), int(arg1+arg2), len(arg0)))\n\t}\n\treturn javalang.StringFromUTF16(arg0[arg1 : arg1+arg2])\n");
           return true;
         }
       }
@@ -866,15 +866,15 @@ public final class RuntimeIoNioXmlGsonBindings {
           return true;
         }
         if (simple.equals("getProperty") && arity == 1) {
-          out.append("\treturn javaSystemGetProperty(CheckNotNull(arg0), NullString)\n");
+          out.append("\treturn javaSystemGetProperty(CheckNotNullString(arg0), NullString)\n");
           return true;
         }
         if (simple.equals("getProperty") && arity == 2) {
-          out.append("\treturn javaSystemGetProperty(CheckNotNull(arg0), arg1)\n");
+          out.append("\treturn javaSystemGetProperty(CheckNotNullString(arg0), arg1)\n");
           return true;
         }
         if (simple.equals("getenv") && arity == 1) {
-          out.append("\treturn javaSystemGetenv(CheckNotNull(arg0))\n");
+          out.append("\treturn javaSystemGetenv(CheckNotNullString(arg0))\n");
           return true;
         }
       }
@@ -908,11 +908,11 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "java.nio.charset.Charset" -> {
         if (simple.equals("forName") && arity == 1) {
-          out.append("\treturn charsetForName(CheckNotNull(arg0))\n");
+          out.append("\treturn charsetForName(CheckNotNullString(arg0))\n");
           return true;
         }
         if (simple.equals("isSupported") && arity == 1) {
-          out.append("\treturn charsetIsSupported(CheckNotNull(arg0))\n");
+          out.append("\treturn charsetIsSupported(CheckNotNullString(arg0))\n");
           return true;
         }
         if (simple.equals("defaultCharset") && arity == 0) {
@@ -928,11 +928,11 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "java.nio.file.Path", "java.nio.file.Paths" -> {
         if ((simple.equals("of") || simple.equals("get")) && arity == 2 && p0.equals("string")) {
-          out.append("\treturn newExtPath(CheckNotNull(arg0), arg1)\n");
+          out.append("\treturn newExtPath(CheckNotNullString(arg0), arg1)\n");
           return true;
         }
         if ((simple.equals("of") || simple.equals("get")) && arity == 1 && p0.equals("string")) {
-          out.append("\treturn newExtPath(CheckNotNull(arg0), nil)\n");
+          out.append("\treturn newExtPath(CheckNotNullString(arg0), nil)\n");
           return true;
         }
       }
@@ -972,7 +972,7 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "java.text.MessageFormat" -> {
         if (simple.equals("format") && arity == 2) {
-          out.append("\treturn javaMessageFormat(CheckNotNull(arg0), arg1)\n");
+          out.append("\treturn javaMessageFormat(CheckNotNullString(arg0), arg1)\n");
           return true;
         }
       }
@@ -1000,43 +1000,43 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "java.util.ResourceBundle" -> {
         if (simple.equals("getBundle") && arity >= 1) {
-          out.append("\treturn wrapResourceBundle(CheckNotNull(arg0))\n");
+          out.append("\treturn wrapResourceBundle(CheckNotNullString(arg0))\n");
           return true;
         }
       }
       case "java.util.logging.Level" -> {
         if (simple.equals("parse") && arity == 1) {
-          out.append("\treturn &Ext_java_util_logging_Level{Core_: CheckNotNull(arg0)}\n");
+          out.append("\treturn &Ext_java_util_logging_Level{Core_: CheckNotNullString(arg0)}\n");
           return true;
         }
       }
       case "java.util.logging.Logger" -> {
         if (simple.equals("getLogger") && arity == 1) {
-          out.append("\treturn getJavaLogger(CheckNotNull(arg0))\n");
+          out.append("\treturn getJavaLogger(CheckNotNullString(arg0))\n");
           return true;
         }
       }
       case "java.util.regex.Pattern" -> {
         if (simple.equals("compile") && arity == 1) {
-          out.append("\treturn wrapPatternCompile(CheckNotNull(arg0), 0)\n");
+          out.append("\treturn wrapPatternCompile(CheckNotNullString(arg0), 0)\n");
           return true;
         }
         if (simple.equals("compile") && arity == 2) {
-          out.append("\treturn wrapPatternCompile(CheckNotNull(arg0), int(arg1))\n");
+          out.append("\treturn wrapPatternCompile(CheckNotNullString(arg0), int(arg1))\n");
           return true;
         }
         if (simple.equals("quote") && arity == 1) {
-          out.append("\treturn javaregex.Pattern_Quote(CheckNotNull(arg0))\n");
+          out.append("\treturn javaregex.Pattern_Quote(CheckNotNullString(arg0))\n");
           return true;
         }
         if (simple.equals("matches") && arity == 2) {
-          out.append("\treturn javaregex.Pattern_Matches(CheckNotNull(arg0), StrVal(CheckNotNull(arg1)))\n");
+          out.append("\treturn javaregex.Pattern_Matches(CheckNotNullString(arg0), StrVal(CheckNotNull(arg1)))\n");
           return true;
         }
       }
       case "java.util.regex.Matcher" -> {
         if (simple.equals("quoteReplacement") && arity == 1) {
-          out.append("\treturn javaregex.Matcher_QuoteReplacement(CheckNotNull(arg0))\n");
+          out.append("\treturn javaregex.Matcher_QuoteReplacement(CheckNotNullString(arg0))\n");
           return true;
         }
       }
@@ -1223,7 +1223,7 @@ public final class RuntimeIoNioXmlGsonBindings {
     switch (qn) {
       case "com.google.common.base.CaseFormat" -> {
         if (m.equals("to") && arity == 2) {
-          return "\treturn guavaCaseFormatConvert(this_.Name_, CheckNotNull(arg0).Name_, CheckNotNull(arg1))\n";
+          return "\treturn guavaCaseFormatConvert(this_.Name_, CheckNotNullPtr(arg0).Name_, CheckNotNullString(arg1))\n";
         }
       }
       case "com.google.common.base.StandardSystemProperty" -> {
@@ -1242,11 +1242,11 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "com.google.common.base.Joiner" -> {
         if (m.equals("appendTo") && arity == 2) {
-          return "\tCheckNotNull(arg0)\n\targ0.sbCore().appendString(guavaJoinerJoinIter(this_, CheckNotNull(arg1)))\n\treturn arg0\n";
+          return "\tCheckNotNullPtr(arg0)\n\targ0.sbCore().appendString(guavaJoinerJoinIter(this_, CheckNotNull(arg1)))\n\treturn arg0\n";
         }
         if (m.equals("join") && arity == 1) {
           if (p0.startsWith("[]")) {
-            return "\treturn guavaJoinerJoinSlice(this_, CheckNotNull(arg0))\n";
+            return "\treturn guavaJoinerJoinSlice(this_, CheckNotNullSlice(arg0))\n";
           }
           return "\treturn guavaJoinerJoinIter(this_, CheckNotNull(arg0))\n";
         }
@@ -1259,7 +1259,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           return "\tthis_.toStringHelperOmitNulls()\n\treturn this_\n";
         }
         if (m.equals("add") && arity == 2) {
-          return "\tthis_.toStringHelperAdd(CheckNotNull(arg0), arg1)\n\treturn this_\n";
+          return "\tthis_.toStringHelperAdd(CheckNotNullString(arg0), arg1)\n\treturn this_\n";
         }
         if (m.equals("toString") && arity == 0) {
           return "\treturn this_.toStringHelperBuild()\n";
@@ -1306,7 +1306,7 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "com.google.common.escape.Escaper", "com.google.common.escape.UnicodeEscaper" -> {
         if (m.equals("escape") && arity == 1) {
-          return "\tif this_.Self_ != nil && !RefEquals(this_.Self_, this_) { return this_.Self_.Escape_1_string(arg0) }\n\treturn escapePercentCore(this_.Core_, CheckNotNull(arg0))\n";
+          return "\tif this_.Self_ != nil && !RefEquals(this_.Self_, this_) { return this_.Self_.Escape_1_string(arg0) }\n\treturn escapePercentCore(this_.Core_, CheckNotNullString(arg0))\n";
         }
         if (m.equals("asFunction") && arity == 0) {
           return "\tself := Ext_com_google_common_escape_Escaper(this_)\n\tif this_.Self_ != nil { self = this_.Self_ }\n\treturn newEscaperFunction(self)\n";
@@ -1314,7 +1314,7 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "com.google.common.net.PercentEscaper" -> {
         if (m.equals("escape") && arity == 1) {
-          return "\treturn escapePercentCore(this_.Core_, CheckNotNull(arg0))\n";
+          return "\treturn escapePercentCore(this_.Core_, CheckNotNullString(arg0))\n";
         }
         if (m.equals("asFunction") && arity == 0) {
           return "\treturn newEscaperFunction(this_)\n";
@@ -1325,7 +1325,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         if (m.equals("asLong") && arity == 0) return "\treturn hashCodeAsLong(this_.Core_)\n";
       }
       case "com.google.common.io.BaseEncoding" -> {
-        if (m.equals("encode") && arity == 1) return "\treturn base64Encode(CheckNotNull(arg0))\n";
+        if (m.equals("encode") && arity == 1) return "\treturn base64Encode(CheckNotNullSlice(arg0))\n";
         if (m.equals("decode") && arity == 1) return "\treturn base64Decode(StrVal(CheckNotNull(arg0)))\n";
       }
       case "com.google.common.io.CharSink" -> {
@@ -1400,7 +1400,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         if (m.equals("endArray") && arity == 0) return "\tgsonWriter(this_).EndArray()\n\treturn this_\n";
         if (m.equals("beginObject") && arity == 0) return "\tgsonWriter(this_).BeginObject()\n\treturn this_\n";
         if (m.equals("endObject") && arity == 0) return "\tgsonWriter(this_).EndObject()\n\treturn this_\n";
-        if (m.equals("name") && arity == 1) return "\tgsonWriter(this_).Name(CheckNotNull(arg0))\n\treturn this_\n";
+        if (m.equals("name") && arity == 1) return "\tgsonWriter(this_).Name(CheckNotNullString(arg0))\n\treturn this_\n";
         if (m.equals("value") && arity == 1 && p0.equals("string")) {
           return "\tif arg0 == NullString { gsonWriter(this_).NullValue() } else { gsonWriter(this_).ValueString(arg0) }\n\treturn this_\n";
         }
@@ -1434,7 +1434,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           return "\tfiles := unwrapFile(this_).ListFiles()\n\tif files == nil { return nil }\n\tout := make([]*Ext_java_io_File, len(files))\n\tfor i, f := range files { out[i] = wrapFile(f) }\n\treturn out\n";
         }
         if (m.equals("compareTo") && arity == 1) {
-          return "\treturn int32(unwrapFile(this_).CompareTo(CheckNotNull(unwrapFile(Cast[*Ext_java_io_File](arg0)))))\n";
+          return "\treturn int32(unwrapFile(this_).CompareTo(CheckNotNullPtr(unwrapFile(Cast[*Ext_java_io_File](arg0)))))\n";
         }
         if (m.equals("equals") && arity == 1) {
           return "\to, ok := arg0.(*Ext_java_io_File)\n\treturn ok && o != nil && unwrapFile(this_).Equals(unwrapFile(o))\n";
@@ -1470,7 +1470,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           return "\textOutputStreamWriteByte(this_.Core_, byte(arg0))\n";
         }
         if (m.equals("write") && arity == 1 && p0.equals("[]int8")) {
-          return "\textOutputStreamWriteSlice(this_.Core_, CheckNotNull(arg0))\n";
+          return "\textOutputStreamWriteSlice(this_.Core_, CheckNotNullSlice(arg0))\n";
         }
         if (m.equals("flush") && arity == 0) {
           return "\textOutputStreamFlush(this_.Core_)\n";
@@ -1487,7 +1487,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           return "\t_ = this_.Core_.(*javaio.ByteArrayOutputStream).WriteByte(byte(arg0))\n";
         }
         if (m.equals("write") && arity == 1 && p0.equals("[]int8")) {
-          return "\t_, _ = this_.Core_.(*javaio.ByteArrayOutputStream).Write(int8ToBytes(CheckNotNull(arg0)))\n";
+          return "\t_, _ = this_.Core_.(*javaio.ByteArrayOutputStream).Write(int8ToBytes(CheckNotNullSlice(arg0)))\n";
         }
         if (m.equals("toByteArray") && arity == 0) {
           return "\treturn bytesToInt8(this_.Core_.(*javaio.ByteArrayOutputStream).ToByteArray())\n";
@@ -1511,7 +1511,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           return "\t_, _ = unwrapPrintStream(this_).Write([]byte{byte(arg0)})\n";
         }
         if (m.equals("write") && arity == 1 && p0.equals("[]int8")) {
-          return "\t_, _ = unwrapPrintStream(this_).Write(int8ToBytes(CheckNotNull(arg0)))\n";
+          return "\t_, _ = unwrapPrintStream(this_).Write(int8ToBytes(CheckNotNullSlice(arg0)))\n";
         }
         if (m.equals("print") && arity == 1) {
           return "\tunwrapPrintStream(this_).Print(StrVal(arg0))\n";
@@ -1523,10 +1523,10 @@ public final class RuntimeIoNioXmlGsonBindings {
           return "\tunwrapPrintStream(this_).Println(StrVal(arg0))\n";
         }
         if ((m.equals("printf") || m.equals("format")) && arity == 2) {
-          return "\tunwrapPrintStream(this_).Print(StringFormat(CheckNotNull(arg0), arg1...))\n\treturn this_\n";
+          return "\tunwrapPrintStream(this_).Print(StringFormat(CheckNotNullString(arg0), arg1...))\n\treturn this_\n";
         }
         if ((m.equals("printf") || m.equals("format")) && arity == 3) {
-          return "\t_ = arg0\n\tunwrapPrintStream(this_).Print(StringFormat(CheckNotNull(arg1), arg2...))\n\treturn this_\n";
+          return "\t_ = arg0\n\tunwrapPrintStream(this_).Print(StringFormat(CheckNotNullString(arg1), arg2...))\n\treturn this_\n";
         }
         if (m.equals("append") && arity == 1 && p0.equals("uint16")) {
           return "\tunwrapPrintStream(this_).Print(javalang.StringFromChar(arg0))\n\treturn this_\n";
@@ -1565,7 +1565,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           return "\textWriterWriteString(this_.Core_, javalang.StringFromChar(uint16(arg0)))\n";
         }
         if (m.equals("write") && arity == 1 && p0.equals("string")) {
-          return "\textWriterWriteString(this_.Core_, CheckNotNull(arg0))\n";
+          return "\textWriterWriteString(this_.Core_, CheckNotNullString(arg0))\n";
         }
         if (m.equals("append") && arity == 1 && p0.equals("uint16")) {
           return "\textWriterWriteString(this_.Core_, javalang.StringFromChar(arg0))\n" + retReceiver;
@@ -1596,7 +1596,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           return "\textOutputStreamWriteByte(this_.Core_, byte(arg0))\n";
         }
         if (m.equals("write") && arity == 1 && p0.equals("[]int8")) {
-          return "\textOutputStreamWriteSlice(this_.Core_, CheckNotNull(arg0))\n";
+          return "\textOutputStreamWriteSlice(this_.Core_, CheckNotNullSlice(arg0))\n";
         }
         if (m.equals("flush") && arity == 0) {
           return "\textOutputStreamFlush(this_.Core_)\n";
@@ -1616,10 +1616,10 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "java.util.zip.ZipFile" -> {
         if (m.equals("getEntry") && arity == 1) {
-          return "\te := this_.Core_.(*javazip.ZipFile).GetEntry(CheckNotNull(arg0))\n\tif e == nil { return nil }\n\treturn &Ext_java_util_zip_ZipEntry{Core_: e}\n";
+          return "\te := this_.Core_.(*javazip.ZipFile).GetEntry(CheckNotNullString(arg0))\n\tif e == nil { return nil }\n\treturn &Ext_java_util_zip_ZipEntry{Core_: e}\n";
         }
         if (m.equals("getInputStream") && arity == 1) {
-          return "\tin, err := this_.Core_.(*javazip.ZipFile).GetInputStream(CheckNotNull(arg0).Core_.(*javazip.ZipEntry))\n\tioErr(err)\n\treturn wrapInputStream(in)\n";
+          return "\tin, err := this_.Core_.(*javazip.ZipFile).GetInputStream(CheckNotNullPtr(arg0).Core_.(*javazip.ZipEntry))\n\tioErr(err)\n\treturn wrapInputStream(in)\n";
         }
         if (m.equals("close") && arity == 0) {
           return "\tioErr(this_.Core_.(*javazip.ZipFile).Close())\n";
@@ -1645,7 +1645,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           return "\to, ok := arg0.(*Ext_java_net_URI)\n\treturn ok && o != nil && this_.Core_.(*javanio.URI).Equals(o.Core_.(*javanio.URI))\n";
         }
         if (m.equals("compareTo") && arity == 1) {
-          return "\to := CheckNotNull(Cast[*Ext_java_net_URI](arg0))\n\treturn JStrCompareTo(this_.Core_.(*javanio.URI).String(), o.Core_.(*javanio.URI).String())\n";
+          return "\to := CheckNotNullPtr(Cast[*Ext_java_net_URI](arg0))\n\treturn JStrCompareTo(this_.Core_.(*javanio.URI).String(), o.Core_.(*javanio.URI).String())\n";
         }
         if (m.equals("hashCode") && arity == 0) return "\treturn this_.Core_.(*javanio.URI).HashCode()\n";
         if (m.equals("toString") && arity == 0) return "\treturn this_.Core_.(*javanio.URI).String()\n";
@@ -1675,8 +1675,8 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "java.nio.file.FileSystem" -> {
         if (m.equals("close") && arity == 0) return "";
-        if (m.equals("getPath") && arity == 2) return "\treturn newExtPath(CheckNotNull(arg0), arg1)\n";
-        if (m.equals("getPathMatcher") && arity == 1) return "\treturn newExtPathMatcher(CheckNotNull(arg0))\n";
+        if (m.equals("getPath") && arity == 2) return "\treturn newExtPath(CheckNotNullString(arg0), arg1)\n";
+        if (m.equals("getPathMatcher") && arity == 1) return "\treturn newExtPathMatcher(CheckNotNullString(arg0))\n";
       }
       case "java.nio.file.SimpleFileVisitor" -> {
         if (m.equals("visitFile") && arity == 2) {
@@ -1691,7 +1691,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           return "\to, ok := arg0.(*Ext_java_nio_file_attribute_FileTime)\n\treturn ok && o != nil && this_.Core_.(*javanio.FileTime).Equals(o.Core_.(*javanio.FileTime))\n";
         }
         if (m.equals("compareTo") && arity == 1) {
-          return "\to := CheckNotNull(Cast[*Ext_java_nio_file_attribute_FileTime](arg0))\n\treturn int32(this_.Core_.(*javanio.FileTime).CompareTo(o.Core_.(*javanio.FileTime)))\n";
+          return "\to := CheckNotNullPtr(Cast[*Ext_java_nio_file_attribute_FileTime](arg0))\n\treturn int32(this_.Core_.(*javanio.FileTime).CompareTo(o.Core_.(*javanio.FileTime)))\n";
         }
         if (m.equals("hashCode") && arity == 0) return "\treturn this_.Core_.(*javanio.FileTime).HashCode()\n";
         if (m.equals("toString") && arity == 0) return "\treturn this_.Core_.(*javanio.FileTime).String()\n";
@@ -1718,7 +1718,7 @@ public final class RuntimeIoNioXmlGsonBindings {
       }
       case "java.util.ResourceBundle" -> {
         if (m.equals("getString") && arity == 1) {
-          return "\treturn this_.Core_.(*shimsres.ResourceBundle).GetString(CheckNotNull(arg0))\n";
+          return "\treturn this_.Core_.(*shimsres.ResourceBundle).GetString(CheckNotNullString(arg0))\n";
         }
       }
       case "java.util.StringTokenizer" -> {
@@ -1771,14 +1771,14 @@ public final class RuntimeIoNioXmlGsonBindings {
           return "\ts, ok := this_.Core_.(*javaregex.Matcher).Group(int(arg0))\n\tif !ok { return NullString }\n\treturn s\n";
         }
         if (m.equals("group") && arity == 1 && p0.equals("string")) {
-          return "\ts, ok := this_.Core_.(*javaregex.Matcher).GroupNamed(CheckNotNull(arg0))\n\tif !ok { return NullString }\n\treturn s\n";
+          return "\ts, ok := this_.Core_.(*javaregex.Matcher).GroupNamed(CheckNotNullString(arg0))\n\tif !ok { return NullString }\n\treturn s\n";
         }
         if (m.equals("matches") && arity == 0) return "\treturn this_.Core_.(*javaregex.Matcher).Matches()\n";
         if (m.equals("find") && arity == 0) return "\treturn this_.Core_.(*javaregex.Matcher).Find()\n";
         if (m.equals("find") && arity == 1) return "\treturn this_.Core_.(*javaregex.Matcher).FindFrom(int(arg0))\n";
         if (m.equals("lookingAt") && arity == 0) return "\treturn this_.Core_.(*javaregex.Matcher).LookingAt()\n";
-        if (m.equals("replaceAll") && arity == 1) return "\treturn this_.Core_.(*javaregex.Matcher).ReplaceAll(CheckNotNull(arg0))\n";
-        if (m.equals("replaceFirst") && arity == 1) return "\treturn this_.Core_.(*javaregex.Matcher).ReplaceFirst(CheckNotNull(arg0))\n";
+        if (m.equals("replaceAll") && arity == 1 && p0.equals("string")) return "\treturn this_.Core_.(*javaregex.Matcher).ReplaceAll(CheckNotNullString(arg0))\n";
+        if (m.equals("replaceFirst") && arity == 1 && p0.equals("string")) return "\treturn this_.Core_.(*javaregex.Matcher).ReplaceFirst(CheckNotNullString(arg0))\n";
         if (m.equals("region") && arity == 2) {
           return "\tthis_.Core_.(*javaregex.Matcher).Region(int(arg0), int(arg1))\n\treturn this_\n";
         }
@@ -1807,7 +1807,7 @@ public final class RuntimeIoNioXmlGsonBindings {
           return "\tthis_.args4jCore().usageWidth = int(arg0)\n";
         }
         if (m.equals("parseArgument") && arity == 1 && p0.equals("[]string")) {
-          return "\targs4jParseTokens(this_, CheckNotNull(arg0))\n";
+          return "\targs4jParseTokens(this_, CheckNotNullSlice(arg0))\n";
         }
         if (m.equals("parseArgument") && arity == 1) {
           return "\tvar toks []string\n\tfor it := Iterate(CheckNotNull(arg0)); it.HasNext(); { toks = append(toks, CastString(it.Next())) }\n\targs4jParseTokens(this_, toks)\n";
@@ -1872,9 +1872,9 @@ public final class RuntimeIoNioXmlGsonBindings {
       if (m.equals("forEach") && arity == 1) return "\tgsonJsonArrayForEach(this_, CheckNotNull(arg0))\n";
     }
     if (qn.equals("com.google.gson.JsonObject")) {
-      if (m.equals("add") && arity == 2) return "\tgsonJsonObjectAdd(this_, CheckNotNull(arg0), arg1)\n";
-      if (m.equals("has") && arity == 1) return "\treturn unwrapJsonObject(this_).Has(CheckNotNull(arg0))\n";
-      if (m.equals("get") && arity == 1) return "\treturn wrapJsonElement(unwrapJsonObject(this_).Get(CheckNotNull(arg0)))\n";
+      if (m.equals("add") && arity == 2) return "\tgsonJsonObjectAdd(this_, CheckNotNullString(arg0), arg1)\n";
+      if (m.equals("has") && arity == 1) return "\treturn unwrapJsonObject(this_).Has(CheckNotNullString(arg0))\n";
+      if (m.equals("get") && arity == 1) return "\treturn wrapJsonElement(unwrapJsonObject(this_).Get(CheckNotNullString(arg0)))\n";
       if (m.equals("entrySet") && arity == 0) return "\treturn gsonJsonObjectEntrySet(this_)\n";
     }
     if (qn.equals("com.google.gson.JsonPrimitive")) {
@@ -1999,7 +1999,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         }
 
         func unwrapPrintStream(p *Ext_java_io_PrintStream) *javaio.PrintStream {
-        \tCheckNotNull(p)
+        \tCheckNotNullPtr(p)
         \tif ps, ok := p.Core_.(*javaio.PrintStream); ok && ps != nil {
         \t\treturn ps
         \t}
@@ -2410,7 +2410,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         }
 
         func newZipFileFromFile(f *Ext_java_io_File) *javazip.ZipFile {
-        \tzf, err := javazip.NewZipFileFromFile(CheckNotNull(unwrapFile(f)))
+        \tzf, err := javazip.NewZipFileFromFile(CheckNotNullPtr(unwrapFile(f)))
         \tioErr(err)
         \treturn zf
         }
@@ -2538,7 +2538,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         }
 
         func unwrapCodingAction(a *Ext_java_nio_charset_CodingErrorAction) javanio.CodingErrorAction {
-        \tCheckNotNull(a)
+        \tCheckNotNullPtr(a)
         \tif act, ok := a.Core_.(javanio.CodingErrorAction); ok {
         \t\treturn act
         \t}
@@ -2577,7 +2577,7 @@ public final class RuntimeIoNioXmlGsonBindings {
 
         func newExtPath(first string, more []string) Ext_java_nio_file_Path {
         \tfor _, m := range more {
-        \t\tCheckNotNull(m)
+        \t\tCheckNotNullString(m)
         \t}
         \tvar p *javanio.Path
         \tfunc() {
@@ -2604,10 +2604,10 @@ public final class RuntimeIoNioXmlGsonBindings {
         \treturn wrapPath(jp.p.Resolve(unwrapPath(other)))
         }
         func (jp *jNioPath) Resolve_1_string(other string) Ext_java_nio_file_Path {
-        \treturn wrapPath(jp.p.ResolveString(CheckNotNull(other)))
+        \treturn wrapPath(jp.p.ResolveString(CheckNotNullString(other)))
         }
         func (jp *jNioPath) ResolveSibling_1_string(other string) Ext_java_nio_file_Path {
-        \treturn wrapPath(jp.p.ResolveSiblingString(CheckNotNull(other)))
+        \treturn wrapPath(jp.p.ResolveSiblingString(CheckNotNullString(other)))
         }
         func (jp *jNioPath) Relativize(other Ext_java_nio_file_Path) Ext_java_nio_file_Path {
         \treturn wrapPath(jp.p.Relativize(unwrapPath(other)))
@@ -2962,6 +2962,14 @@ public final class RuntimeIoNioXmlGsonBindings {
         }
 
         func guavaJoinerJoinIter(j *Ext_com_google_common_base_Joiner, iter Ext_java_lang_Iterable) string {
+        \tif ssi, ok := any(iter).(StrSliceIterable); ok {
+        \t\tif ss, ok2 := ssi.IterStrSlice_(); ok2 {
+        \t\t\tfor _, s := range ss {
+        \t\t\t\tCheckNotNullString(s)
+        \t\t\t}
+        \t\t\treturn j.Core_.(*guava.Joiner).JoinStrings(ss)
+        \t\t}
+        \t}
         \tvar parts []string
         \tfor it := Iterate(iter); it.HasNext(); {
         \t\tv := it.Next()
@@ -3021,17 +3029,23 @@ public final class RuntimeIoNioXmlGsonBindings {
         \treturn out
         }
 
+        func SplitterSplitToListStr(s *Ext_com_google_common_base_Splitter, seq string) Ext_java_util_List {
+        \tCheckNotNullPtr(s)
+        \tCheckNotNullString(seq)
+        \tparts := s.Core_.(*guava.Splitter).SplitToList(seq)
+        \treturn wrapImmStrSliceOwn(parts)
+        }
+
+        func SplitterSplitStr(s *Ext_com_google_common_base_Splitter, seq string) Ext_java_lang_Iterable {
+        \treturn SplitterSplitToListStr(s, seq)
+        }
+
         func splitterSplitToList(s *Ext_com_google_common_base_Splitter, seq any) Ext_java_util_List {
-        \tparts := s.Core_.(*guava.Splitter).SplitToList(StrVal(seq))
-        \titems := make([]any, len(parts))
-        \tfor i, p := range parts {
-        \t\titems[i] = BoxString(p)
-        \t}
-        \treturn wrapImmutableList(items)
+        \treturn SplitterSplitToListStr(s, StrVal(seq))
         }
 
         func splitterSplit(s *Ext_com_google_common_base_Splitter, seq any) Ext_java_lang_Iterable {
-        \treturn splitterSplitToList(s, seq)
+        \treturn SplitterSplitToListStr(s, StrVal(seq))
         }
 
         type jToStringHelperData struct {
@@ -3459,7 +3473,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         }
 
         func gsonBuilderRegisterHierarchyAdapter(gb *Ext_com_google_gson_GsonBuilder, baseClass *javalang.Class, adapter any) {
-        \tCheckNotNull(baseClass)
+        \tCheckNotNullPtr(baseClass)
         \tta := AsIface[Ext_com_google_gson_TypeAdapter](CheckNotNull(adapter))
         \tgb.Core_.(*jGsonBuilderCore).b.RegisterTypeHierarchyAdapter(
         \t\tfunc(v any) bool { return CheckTypePredicate(baseClass, v) },
@@ -3474,7 +3488,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         }
 
         func unwrapGson(g *Ext_com_google_gson_Gson) *gson.Gson {
-        \tCheckNotNull(g)
+        \tCheckNotNullPtr(g)
         \tif gs, ok := g.Core_.(*gson.Gson); ok && gs != nil {
         \t\treturn gs
         \t}
@@ -3492,7 +3506,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         }
 
         func gsonToJsonWriter(g *Ext_com_google_gson_Gson, v any, w *Ext_com_google_gson_stream_JsonWriter) {
-        \tjw := gsonWriter(CheckNotNull(w))
+        \tjw := gsonWriter(CheckNotNullPtr(w))
         \tif v == nil || javalang.IsNil(v) {
         \t\tjw.NullValue()
         \t\treturn
@@ -3523,7 +3537,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         \tif jsonStr == NullString {
         \t\treturn nil
         \t}
-        \tCheckNotNull(cls)
+        \tCheckNotNullPtr(cls)
         \tgs := unwrapGson(g)
         \treturn wrapGsonPanic(func() any {
         \t\tswitch cls.GetName() {
@@ -3592,7 +3606,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         func newGsonJsonObject() *gson.JsonObject { return gson.NewJsonObject() }
         func newGsonJsonPrimitive(v any) *gson.JsonPrimitive {
         \tif s, ok := v.(string); ok {
-        \t\treturn gson.NewJsonPrimitiveString(CheckNotNull(s))
+        \t\treturn gson.NewJsonPrimitiveString(CheckNotNullString(s))
         \t}
         \tif b, ok := v.(bool); ok {
         \t\treturn gson.NewJsonPrimitiveBoolean(b)
@@ -3617,17 +3631,17 @@ public final class RuntimeIoNioXmlGsonBindings {
         }
 
         func unwrapJsonArray(ja *Ext_com_google_gson_JsonArray) *gson.JsonArray {
-        \tCheckNotNull(ja)
+        \tCheckNotNullPtr(ja)
         \treturn ja.Core_.(*gson.JsonArray)
         }
 
         func unwrapJsonObject(jo *Ext_com_google_gson_JsonObject) *gson.JsonObject {
-        \tCheckNotNull(jo)
+        \tCheckNotNullPtr(jo)
         \treturn jo.Core_.(*gson.JsonObject)
         }
 
         func unwrapJsonPrimitive(jp *Ext_com_google_gson_JsonPrimitive) *gson.JsonPrimitive {
-        \tCheckNotNull(jp)
+        \tCheckNotNullPtr(jp)
         \treturn jp.Core_.(*gson.JsonPrimitive)
         }
 
@@ -3728,12 +3742,12 @@ public final class RuntimeIoNioXmlGsonBindings {
         }
 
         func gsonReader(r *Ext_com_google_gson_stream_JsonReader) *gson.JsonReader {
-        \tCheckNotNull(r)
+        \tCheckNotNullPtr(r)
         \treturn r.Core_.(*gson.JsonReader)
         }
 
         func gsonWriter(w *Ext_com_google_gson_stream_JsonWriter) *gson.JsonWriter {
-        \tCheckNotNull(w)
+        \tCheckNotNullPtr(w)
         \treturn w.Core_.(*gson.JsonWriter)
         }
 
@@ -3918,7 +3932,7 @@ public final class RuntimeIoNioXmlGsonBindings {
         }
 
         func (xr *jSaxXMLReader) Parse_1_Ext_org_xml_sax_InputSource(src *Ext_org_xml_sax_InputSource) {
-        \tCheckNotNull(src)
+        \tCheckNotNullPtr(src)
         \tvar raw []byte
         \tswitch c := src.Core_.(type) {
         \tcase Ext_java_io_InputStream:

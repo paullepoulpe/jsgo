@@ -109,7 +109,7 @@ func InitMinimizedCondition(this_ *MinimizedCondition, p *MinimizedCondition_Mea
 	_ = n
 	this_.initFields_MinimizedCondition()
 	this_.positive = p
-	this_.negative = n.priv_MeasuredNode_change_3873()
+	this_.negative = n.priv_MeasuredNode_change_3876()
 }
 func initMinimizedConditionWithSlab_(slab_ *j2gort.PooledSlab[MinimizedCondition_MeasuredNode], this_ *MinimizedCondition, p *MinimizedCondition_MeasuredNode, n *MinimizedCondition_MeasuredNode) {
 	_ = p
@@ -170,7 +170,7 @@ func (this_ *MinimizedCondition) GetMinimized(style MinimizedCondition_Minimizat
 	if ((style == StaticGet_MinimizedCondition_MinimizationStyle_PREFER_UNNEGATED()) || this_.positive.node.IsNot()) || (this_.positive.length <= this_.negative.length) {
 		return this_.positive
 	} else {
-		return this_.negative.priv_MeasuredNode_addNot_3872()
+		return this_.negative.priv_MeasuredNode_addNot_3875()
 	}
 }
 func (this_ *MinimizedCondition) getMinimizedWithSlab_(slab_ *j2gort.PooledSlab[MinimizedCondition_MeasuredNode], style MinimizedCondition_MinimizationStyle) *MinimizedCondition_MeasuredNode {
@@ -234,7 +234,7 @@ func MinimizedCondition_ComputeMinimizedCondition(n pkg_rhino.Node) *MinimizedCo
 		_ = subtree
 		var positive *MinimizedCondition_MeasuredNode = MinimizedCondition_PickBest(MinimizedCondition_MeasuredNode_AddNode_2(n, subtree.positive), subtree.negative)
 		_ = positive
-		var negative *MinimizedCondition_MeasuredNode = MinimizedCondition_PickBest(subtree.negative.priv_MeasuredNode_negate_3870(), subtree.positive)
+		var negative *MinimizedCondition_MeasuredNode = MinimizedCondition_PickBest(subtree.negative.priv_MeasuredNode_negate_3873(), subtree.positive)
 		_ = negative
 		return NewMinimizedCondition(positive, negative)
 	case int32(69) /* Token.AND */, int32(68) /* Token.OR */ :
@@ -253,9 +253,9 @@ func MinimizedCondition_ComputeMinimizedCondition(n pkg_rhino.Node) *MinimizedCo
 		_ = posTree
 		var compTree *MinimizedCondition_MeasuredNode = MinimizedCondition_MeasuredNode_AddNode_3(complementNode, leftSubtree.negative, rightSubtree.negative)
 		_ = compTree
-		var positive_2 *MinimizedCondition_MeasuredNode = MinimizedCondition_PickBest(posTree, compTree.priv_MeasuredNode_negate_3870())
+		var positive_2 *MinimizedCondition_MeasuredNode = MinimizedCondition_PickBest(posTree, compTree.priv_MeasuredNode_negate_3873())
 		_ = positive_2
-		var negative_2 *MinimizedCondition_MeasuredNode = MinimizedCondition_PickBest(posTree.priv_MeasuredNode_negate_3870(), compTree.priv_MeasuredNode_change_3873())
+		var negative_2 *MinimizedCondition_MeasuredNode = MinimizedCondition_PickBest(posTree.priv_MeasuredNode_negate_3873(), compTree.priv_MeasuredNode_change_3876())
 		_ = negative_2
 		return NewMinimizedCondition(positive_2, negative_2)
 	case int32(67) /* Token.HOOK */ :
@@ -291,7 +291,7 @@ func MinimizedCondition_ComputeMinimizedCondition(n pkg_rhino.Node) *MinimizedCo
 	default:
 		var pos *MinimizedCondition_MeasuredNode = MinimizedCondition_MeasuredNode_ForNode(n)
 		_ = pos
-		var neg *MinimizedCondition_MeasuredNode = pos.priv_MeasuredNode_negate_3870()
+		var neg *MinimizedCondition_MeasuredNode = pos.priv_MeasuredNode_negate_3873()
 		_ = neg
 		return NewMinimizedCondition(pos, neg)
 	}
@@ -598,7 +598,7 @@ func (this_ *MinimizedCondition_MeasuredNode) WithoutNot() *MinimizedCondition_M
 	} else {
 		first = MinimizedCondition_MeasuredNode_ForNode(this_.node.GetFirstChild())
 	}
-	return first.priv_MeasuredNode_change_3873()
+	return first.priv_MeasuredNode_change_3876()
 }
 func (this_ *MinimizedCondition_MeasuredNode) withoutNotWithSlab_(slab_ *j2gort.PooledSlab[MinimizedCondition_MeasuredNode]) *MinimizedCondition_MeasuredNode {
 	if !(this_.IsNot()) {
@@ -615,20 +615,20 @@ func (this_ *MinimizedCondition_MeasuredNode) withoutNotWithSlab_(slab_ *j2gort.
 }
 
 // Java method: MeasuredNode.negate()
-func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_negate_3870() *MinimizedCondition_MeasuredNode {
+func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_negate_3873() *MinimizedCondition_MeasuredNode {
 	switch this_.node.TokenSwitchOrd_() {
 	case int32(4) /* Token.EQ */ :
-		return this_.priv_MeasuredNode_updateToken_3871(pkg_rhino.StaticGet_Token_NE())
+		return this_.priv_MeasuredNode_updateToken_3874(pkg_rhino.StaticGet_Token_NE())
 	case int32(5) /* Token.NE */ :
-		return this_.priv_MeasuredNode_updateToken_3871(pkg_rhino.StaticGet_Token_EQ())
+		return this_.priv_MeasuredNode_updateToken_3874(pkg_rhino.StaticGet_Token_EQ())
 	case int32(40) /* Token.SHEQ */ :
-		return this_.priv_MeasuredNode_updateToken_3871(pkg_rhino.StaticGet_Token_SHNE())
+		return this_.priv_MeasuredNode_updateToken_3874(pkg_rhino.StaticGet_Token_SHNE())
 	case int32(41) /* Token.SHNE */ :
-		return this_.priv_MeasuredNode_updateToken_3871(pkg_rhino.StaticGet_Token_SHEQ())
+		return this_.priv_MeasuredNode_updateToken_3874(pkg_rhino.StaticGet_Token_SHEQ())
 	case int32(19) /* Token.NOT */ :
 		return this_.WithoutNot()
 	default:
-		return this_.priv_MeasuredNode_addNot_3872()
+		return this_.priv_MeasuredNode_addNot_3875()
 	}
 	panic("unreachable switch expression")
 }
@@ -651,7 +651,7 @@ func (this_ *MinimizedCondition_MeasuredNode) negateWithSlab_(slab_ *j2gort.Pool
 }
 
 // Java method: MeasuredNode.updateToken(com.google.javascript.rhino.Token token)
-func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_updateToken_3871(token pkg_rhino.Token) *MinimizedCondition_MeasuredNode {
+func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_updateToken_3874(token pkg_rhino.Token) *MinimizedCondition_MeasuredNode {
 	_ = token
 	var newNode pkg_rhino.Node = pkg_rhino.NewNode_1(token).Srcref(this_.node)
 	_ = newNode
@@ -691,7 +691,7 @@ func (this_ *MinimizedCondition_MeasuredNode) updateTokenWithSlab_(slab_ *j2gort
 }
 
 // Java method: MeasuredNode.addNot()
-func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_addNot_3872() *MinimizedCondition_MeasuredNode {
+func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_addNot_3875() *MinimizedCondition_MeasuredNode {
 	var cost int32 = (this_.length + int32(1))
 	_ = cost
 	if this_.IsLowerPrecedenceThan(StaticGet_MinimizedCondition_MeasuredNode_NOT_PRECEDENCE()) {
@@ -709,7 +709,7 @@ func (this_ *MinimizedCondition_MeasuredNode) addNotWithSlab_(slab_ *j2gort.Pool
 }
 
 // Java method: MeasuredNode.change()
-func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_change_3873() *MinimizedCondition_MeasuredNode {
+func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_change_3876() *MinimizedCondition_MeasuredNode {
 	if this_.IsChanged() {
 		return this_
 	} else {
@@ -885,14 +885,14 @@ func (this_ *MinimizedCondition_MeasuredNode) ApplyTo(original pkg_rhino.Node) p
 	var replacement pkg_rhino.Node = this_.BuildReplacement()
 	_ = replacement
 	if original != replacement {
-		this_.priv_MeasuredNode_safeDetach_3877(replacement)
+		this_.priv_MeasuredNode_safeDetach_3880(replacement)
 		original.ReplaceWith(replacement)
 	}
 	return replacement
 }
 
 // Java method: MeasuredNode.safeDetach(com.google.javascript.rhino.Node n)
-func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_safeDetach_3877(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_safeDetach_3880(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if n.HasParent() {
 		return n.Detach()
@@ -906,13 +906,13 @@ func (this_ *MinimizedCondition_MeasuredNode) BuildReplacement() pkg_rhino.Node 
 	if this_.childCount >= int32(0) {
 		this_.node.DetachChildren()
 		if this_.childCount >= int32(1) {
-			this_.node.AddChildToBack(this_.priv_MeasuredNode_safeDetach_3877(this_.c0.BuildReplacement()))
+			this_.node.AddChildToBack(this_.priv_MeasuredNode_safeDetach_3880(this_.c0.BuildReplacement()))
 		}
 		if this_.childCount >= int32(2) {
-			this_.node.AddChildToBack(this_.priv_MeasuredNode_safeDetach_3877(this_.c1.BuildReplacement()))
+			this_.node.AddChildToBack(this_.priv_MeasuredNode_safeDetach_3880(this_.c1.BuildReplacement()))
 		}
 		if this_.childCount >= int32(3) {
-			this_.node.AddChildToBack(this_.priv_MeasuredNode_safeDetach_3877(this_.c2.BuildReplacement()))
+			this_.node.AddChildToBack(this_.priv_MeasuredNode_safeDetach_3880(this_.c2.BuildReplacement()))
 		}
 	}
 	return this_.node

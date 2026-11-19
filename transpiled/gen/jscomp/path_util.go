@@ -121,7 +121,7 @@ func PathUtil_CollapseDots(path string) string {
 	var dstFragments []string = []string{}
 	_ = dstFragments
 	{
-		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(47)).Split(j2gort.BoxString(path))))
+		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.SplitterSplitStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(47)), path)))
 		for cur_1.HasNext() {
 			fragment := cur_1.NextStr()
 			_ = fragment

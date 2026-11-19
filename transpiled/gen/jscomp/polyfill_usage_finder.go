@@ -185,7 +185,7 @@ func (this_ *PolyfillUsageFinder) TraverseOnlyGuarded(root pkg_rhino.Node, polyf
 }
 
 // Java method: PolyfillUsageFinder.maybeCreateStaticPolyfillUsageForGetPropChain(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node getPropNode)
-func (this_ *PolyfillUsageFinder) priv_PolyfillUsageFinder_maybeCreateStaticPolyfillUsageForGetPropChain_4342(traversal *NodeTraversal, getPropNode pkg_rhino.Node) *PolyfillUsageFinder_PolyfillUsage {
+func (this_ *PolyfillUsageFinder) priv_PolyfillUsageFinder_maybeCreateStaticPolyfillUsageForGetPropChain_4349(traversal *NodeTraversal, getPropNode pkg_rhino.Node) *PolyfillUsageFinder_PolyfillUsage {
 	_ = traversal
 	_ = getPropNode
 	if !(getPropNode.IsGetProp() || getPropNode.IsOptChainGetProp()) {
@@ -227,7 +227,7 @@ func (this_ *PolyfillUsageFinder) priv_PolyfillUsageFinder_maybeCreateStaticPoly
 		var polyfill_2 *PolyfillUsageFinder_Polyfill = j2gort.CastPtr[PolyfillUsageFinder_Polyfill](j2gort.MapGetStr(this_.polyfills.statics, fullName))
 		_ = polyfill_2
 		if polyfill_2 != nil {
-			if this_.priv_PolyfillUsageFinder_isPolyfillVisibleInScope_4343(traversal, rootName) {
+			if this_.priv_PolyfillUsageFinder_isPolyfillVisibleInScope_4350(traversal, rootName) {
 				return PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill_2, getPropNode, polyfill_2.nativeSymbol)
 			}
 		}
@@ -236,7 +236,7 @@ func (this_ *PolyfillUsageFinder) priv_PolyfillUsageFinder_maybeCreateStaticPoly
 }
 
 // Java method: PolyfillUsageFinder.isPolyfillVisibleInScope(com.google.javascript.jscomp.NodeTraversal t, java.lang.String globalName)
-func (this_ *PolyfillUsageFinder) priv_PolyfillUsageFinder_isPolyfillVisibleInScope_4343(t *NodeTraversal, globalName string) bool {
+func (this_ *PolyfillUsageFinder) priv_PolyfillUsageFinder_isPolyfillVisibleInScope_4350(t *NodeTraversal, globalName string) bool {
 	_ = t
 	_ = globalName
 	return ((this_.compiler.GetLifeCycleStage() == StaticGet_AbstractCompiler_LifeCycleStage_NORMALIZED()) || (j2gort.CastPtr[Var](t.GetScope().GetVar(globalName)) == nil))
@@ -332,11 +332,11 @@ func (this_ *PolyfillUsageFinder) IsDisjointFromIterator_1(receiver *pkg_colors.
 	if receiver.IsInvalidating() && !(j2gort.SetContainsEqVal(StaticGet_PolyfillUsageFinder_STANDARD_COLLECTION_IDS(), receiver.GetId())) {
 		return false
 	}
-	return (!(this_.priv_PolyfillUsageFinder_hasInSupertypesList_4346(receiver, iteratorColor)) && !(this_.priv_PolyfillUsageFinder_hasInSupertypesList_4346(iteratorColor, receiver)))
+	return (!(this_.priv_PolyfillUsageFinder_hasInSupertypesList_4353(receiver, iteratorColor)) && !(this_.priv_PolyfillUsageFinder_hasInSupertypesList_4353(iteratorColor, receiver)))
 }
 
 // Java method: PolyfillUsageFinder.hasInSupertypesList(com.google.javascript.jscomp.colors.Color subCtor, com.google.javascript.jscomp.colors.Color superCtor)
-func (this_ *PolyfillUsageFinder) priv_PolyfillUsageFinder_hasInSupertypesList_4346(subCtor *pkg_colors.Color, superCtor *pkg_colors.Color) bool {
+func (this_ *PolyfillUsageFinder) priv_PolyfillUsageFinder_hasInSupertypesList_4353(subCtor *pkg_colors.Color, superCtor *pkg_colors.Color) bool {
 	_ = subCtor
 	_ = superCtor
 	if !(this_.hasInSupertypesListSeenSet.Add(subCtor)) {
@@ -368,12 +368,12 @@ func (this_ *PolyfillUsageFinder) priv_PolyfillUsageFinder_hasInSupertypesList_4
 						var m int32 = int32(len(alts))
 						_ = m
 						for ; j < m; j = j + 1 {
-							if this_.priv_PolyfillUsageFinder_hasInSupertypesList_4346(alts[j], superCtor) {
+							if this_.priv_PolyfillUsageFinder_hasInSupertypesList_4353(alts[j], superCtor) {
 								return true
 							}
 						}
 					}
-				} else if this_.priv_PolyfillUsageFinder_hasInSupertypesList_4346(immediateSupertype, superCtor) {
+				} else if this_.priv_PolyfillUsageFinder_hasInSupertypesList_4353(immediateSupertype, superCtor) {
 					return true
 				}
 			}
@@ -615,11 +615,11 @@ func PolyfillUsageFinder_Polyfills_FromTable(table string) *PolyfillUsageFinder_
 	var byNativeVersion j2gort.Ext_com_google_common_collect_ImmutableMultimap_Builder = j2gort.Ext_com_google_common_collect_ImmutableMultimap_S_Builder()
 	_ = byNativeVersion
 	{
-		cur_5 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(10)).OmitEmptyStrings().Split(j2gort.BoxString(table))))
+		cur_5 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.SplitterSplitStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(10)).OmitEmptyStrings(), table)))
 		for cur_5.HasNext() {
 			line := cur_5.NextStr()
 			_ = line
-			var tokens j2gort.Ext_java_util_List = j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(32)).OmitEmptyStrings().SplitToList(j2gort.BoxString(javalang.StringTrim(j2gort.CheckNotNullString(line))))
+			var tokens j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(32)).OmitEmptyStrings(), javalang.StringTrim(j2gort.CheckNotNullString(line)))
 			_ = tokens
 			if (tokens.Size() == int32(1)) && (j2gort.CheckNotNullString(j2gort.ListGetStr(tokens, int32(0))) == "") {
 				continue
@@ -993,15 +993,15 @@ func (this_ *PolyfillUsageFinder_Traverser) VisitGuarded(traversal *NodeTraversa
 	_ = parent
 	switch node.TokenSwitchOrd_() {
 	case int32(32) /* Token.NAME */ :
-		this_.priv_Traverser_visitName_4353(traversal, node)
+		this_.priv_Traverser_visitName_4360(traversal, node)
 	case int32(26) /* Token.GETPROP */, int32(29) /* Token.OPTCHAIN_GETPROP */ :
-		this_.priv_Traverser_visitGetPropChain_4354(traversal, node)
+		this_.priv_Traverser_visitGetPropChain_4361(traversal, node)
 	default:
 	}
 }
 
 // Java method: Traverser.visitName(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node nameNode)
-func (this_ *PolyfillUsageFinder_Traverser) priv_Traverser_visitName_4353(traversal *NodeTraversal, nameNode pkg_rhino.Node) {
+func (this_ *PolyfillUsageFinder_Traverser) priv_Traverser_visitName_4360(traversal *NodeTraversal, nameNode pkg_rhino.Node) {
 	_ = traversal
 	_ = nameNode
 	var name string = nameNode.GetString()
@@ -1011,16 +1011,16 @@ func (this_ *PolyfillUsageFinder_Traverser) priv_Traverser_visitName_4353(traver
 	if polyfill == nil {
 		return
 	}
-	if this_.outer_.priv_PolyfillUsageFinder_isPolyfillVisibleInScope_4343(traversal, name) && this_.includeGuardedUsages.ShouldInclude(this_.IsGuarded(j2gort.BoxString(name))) {
+	if this_.outer_.priv_PolyfillUsageFinder_isPolyfillVisibleInScope_4350(traversal, name) && this_.includeGuardedUsages.ShouldInclude(this_.IsGuarded(j2gort.BoxString(name))) {
 		this_.polyfillConsumer.Accept(j2gort.PtrToAny(PolyfillUsageFinder_PolyfillUsage_CreateNonExplicit(polyfill, nameNode, name)))
 	}
 }
 
 // Java method: Traverser.visitGetPropChain(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node getPropNode)
-func (this_ *PolyfillUsageFinder_Traverser) priv_Traverser_visitGetPropChain_4354(traversal *NodeTraversal, getPropNode pkg_rhino.Node) {
+func (this_ *PolyfillUsageFinder_Traverser) priv_Traverser_visitGetPropChain_4361(traversal *NodeTraversal, getPropNode pkg_rhino.Node) {
 	_ = traversal
 	_ = getPropNode
-	var staticPolyfillUsage *PolyfillUsageFinder_PolyfillUsage = this_.outer_.priv_PolyfillUsageFinder_maybeCreateStaticPolyfillUsageForGetPropChain_4342(traversal, getPropNode)
+	var staticPolyfillUsage *PolyfillUsageFinder_PolyfillUsage = this_.outer_.priv_PolyfillUsageFinder_maybeCreateStaticPolyfillUsageForGetPropChain_4349(traversal, getPropNode)
 	_ = staticPolyfillUsage
 	if staticPolyfillUsage != nil {
 		if this_.includeGuardedUsages.ShouldInclude(this_.IsGuarded(j2gort.BoxString(staticPolyfillUsage.Name()))) {

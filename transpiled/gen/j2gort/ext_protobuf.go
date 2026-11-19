@@ -138,7 +138,7 @@ func wrapCodedInputStream(c *protobuf.CodedInputStream) Ext_com_google_protobuf_
 }
 
 func (c *Ext_com_google_protobuf_CodedInputStreamBase) cis() *protobuf.CodedInputStream {
-	CheckNotNull(c)
+	CheckNotNullPtr(c)
 	return c.Core_.(*protobuf.CodedInputStream)
 }
 

@@ -79,7 +79,7 @@ func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) Visit_3(t *NodeTraversa
 			this_.compiler.Report_1(JSError_Make_3(n, StaticGet_PolymerPassErrors_POLYMER_UNQUALIFIED_BEHAVIOR(), []string{}))
 			return
 		}
-		this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_traverseBehaviorsAndProtectKeys_4400(n)
+		this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_traverseBehaviorsAndProtectKeys_4407(n)
 		var newDocs *pkg_rhino.JSDocInfo_Builder = pkg_rhino.JSDocInfo_Builder_MaybeCopyFrom(n.GetJSDocInfo())
 		_ = newDocs
 		newDocs.RecordNoCollapse()
@@ -89,12 +89,12 @@ func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) Visit_3(t *NodeTraversa
 		if NodeUtil_IsNameDeclaration(n) {
 			behaviorValue = n.GetFirstFirstChild()
 		}
-		this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_suppressBehavior_4401(behaviorValue, n)
+		this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_suppressBehavior_4408(behaviorValue, n)
 	}
 }
 
 // Java method: PolymerPassSuppressBehaviorsAndProtectKeys.traverseBehaviorsAndProtectKeys(com.google.javascript.rhino.Node n)
-func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppressBehaviorsAndProtectKeys_traverseBehaviorsAndProtectKeys_4400(n pkg_rhino.Node) {
+func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppressBehaviorsAndProtectKeys_traverseBehaviorsAndProtectKeys_4407(n pkg_rhino.Node) {
 	_ = n
 	if n.IsObjectLit() {
 		PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(n, this_.compiler)
@@ -104,13 +104,13 @@ func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppres
 		var child pkg_rhino.Node = n.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_traverseBehaviorsAndProtectKeys_4400(child)
+			this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_traverseBehaviorsAndProtectKeys_4407(child)
 		}
 	}
 }
 
 // Java method: PolymerPassSuppressBehaviorsAndProtectKeys.suppressBehavior(com.google.javascript.rhino.Node behaviorValue, com.google.javascript.rhino.Node reportNode)
-func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppressBehaviorsAndProtectKeys_suppressBehavior_4401(behaviorValue pkg_rhino.Node, reportNode pkg_rhino.Node) {
+func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppressBehaviorsAndProtectKeys_suppressBehavior_4408(behaviorValue pkg_rhino.Node, reportNode pkg_rhino.Node) {
 	_ = behaviorValue
 	_ = reportNode
 	if behaviorValue == 0 {
@@ -122,12 +122,12 @@ func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppres
 			var child pkg_rhino.Node = behaviorValue.GetFirstChild()
 			_ = child
 			for ; child != 0; child = child.GetNext() {
-				this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_suppressBehavior_4401(child, behaviorValue)
+				this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_suppressBehavior_4408(child, behaviorValue)
 			}
 		}
 	} else if behaviorValue.IsObjectLit() {
-		this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_stripPropertyTypes_4402(behaviorValue)
-		this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_addBehaviorSuppressions_4404(behaviorValue)
+		this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_stripPropertyTypes_4409(behaviorValue)
+		this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_addBehaviorSuppressions_4411(behaviorValue)
 	}
 }
 
@@ -138,7 +138,7 @@ func PolymerPassSuppressBehaviorsAndProtectKeys_IsBehavior(value pkg_rhino.Node)
 }
 
 // Java method: PolymerPassSuppressBehaviorsAndProtectKeys.stripPropertyTypes(com.google.javascript.rhino.Node behaviorValue)
-func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppressBehaviorsAndProtectKeys_stripPropertyTypes_4402(behaviorValue pkg_rhino.Node) {
+func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppressBehaviorsAndProtectKeys_stripPropertyTypes_4409(behaviorValue pkg_rhino.Node) {
 	_ = behaviorValue
 	var properties []*PolymerPass_MemberDefinition = j2gort.ImmListToSliceNullable[*PolymerPass_MemberDefinition](PolymerPassStaticUtils_ExtractProperties(behaviorValue, StaticGet_PolymerClassDefinition_DefinitionType_ObjectLiteral(), this_.compiler, pkg_rhino.Node(0)))
 	_ = properties
@@ -153,7 +153,7 @@ func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppres
 }
 
 // Java method: PolymerPassSuppressBehaviorsAndProtectKeys.suppressDefaultValues(com.google.javascript.rhino.Node behaviorValue)
-func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppressBehaviorsAndProtectKeys_suppressDefaultValues_4403(behaviorValue pkg_rhino.Node) {
+func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppressBehaviorsAndProtectKeys_suppressDefaultValues_4410(behaviorValue pkg_rhino.Node) {
 	_ = behaviorValue
 	{
 		cur_3 := j2gort.NewIterCursor(j2gort.CheckNotNull(PolymerPassStaticUtils_ExtractProperties(behaviorValue, StaticGet_PolymerClassDefinition_DefinitionType_ObjectLiteral(), this_.compiler, pkg_rhino.Node(0))))
@@ -171,28 +171,28 @@ func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppres
 			}
 			var defaultValueKey pkg_rhino.Node = defaultValue.GetParent()
 			_ = defaultValueKey
-			this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_addSuppressionJsDocAnnotations_4405(defaultValueKey)
+			this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_addSuppressionJsDocAnnotations_4412(defaultValueKey)
 		}
 	}
 }
 
 // Java method: PolymerPassSuppressBehaviorsAndProtectKeys.addBehaviorSuppressions(com.google.javascript.rhino.Node behaviorValue)
-func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppressBehaviorsAndProtectKeys_addBehaviorSuppressions_4404(behaviorValue pkg_rhino.Node) {
+func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppressBehaviorsAndProtectKeys_addBehaviorSuppressions_4411(behaviorValue pkg_rhino.Node) {
 	_ = behaviorValue
 	{
 		var keyNode pkg_rhino.Node = behaviorValue.GetFirstChild()
 		_ = keyNode
 		for ; keyNode != 0; keyNode = keyNode.GetNext() {
 			if keyNode.GetFirstChild().IsFunction() {
-				this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_addSuppressionJsDocAnnotations_4405(keyNode)
+				this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_addSuppressionJsDocAnnotations_4412(keyNode)
 			}
 		}
 	}
-	this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_suppressDefaultValues_4403(behaviorValue)
+	this_.priv_PolymerPassSuppressBehaviorsAndProtectKeys_suppressDefaultValues_4410(behaviorValue)
 }
 
 // Java method: PolymerPassSuppressBehaviorsAndProtectKeys.addSuppressionJsDocAnnotations(com.google.javascript.rhino.Node node)
-func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppressBehaviorsAndProtectKeys_addSuppressionJsDocAnnotations_4405(node pkg_rhino.Node) {
+func (this_ *PolymerPassSuppressBehaviorsAndProtectKeys) priv_PolymerPassSuppressBehaviorsAndProtectKeys_addSuppressionJsDocAnnotations_4412(node pkg_rhino.Node) {
 	_ = node
 	var suppressDoc *pkg_rhino.JSDocInfo_Builder = pkg_rhino.JSDocInfo_Builder_MaybeCopyFrom(node.GetJSDocInfo())
 	_ = suppressDoc

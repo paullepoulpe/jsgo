@@ -88,13 +88,13 @@ func (this_ *InferJSDocInfo) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent 
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(32) /* Token.NAME */ :
-		this_.priv_InferJSDocInfo_inferJSDocForName_3197(n, parent)
+		this_.priv_InferJSDocInfo_inferJSDocForName_3198(n, parent)
 		return
 	case int32(100) /* Token.STRING_KEY */, int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */, int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(108) /* Token.MEMBER_FIELD_DEF */, int32(129) /* Token.COMPUTED_PROP */, int32(109) /* Token.COMPUTED_FIELD_DEF */ :
-		this_.priv_InferJSDocInfo_inferJSDocForObjectKeyOrClassField_3198(n, parent)
+		this_.priv_InferJSDocInfo_inferJSDocForObjectKeyOrClassField_3199(n, parent)
 		return
 	case int32(26) /* Token.GETPROP */ :
-		this_.priv_InferJSDocInfo_inferJSDocForProperty_3199(n, parent)
+		this_.priv_InferJSDocInfo_inferJSDocForProperty_3200(n, parent)
 		return
 	default:
 		return
@@ -102,7 +102,7 @@ func (this_ *InferJSDocInfo) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent 
 }
 
 // Java method: InferJSDocInfo.inferJSDocForName(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForName_3197(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForName_3198(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	if parent == 0 {
@@ -158,7 +158,7 @@ func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForName_3197(n pkg_rh
 }
 
 // Java method: InferJSDocInfo.inferJSDocForObjectKeyOrClassField(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForObjectKeyOrClassField_3198(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForObjectKeyOrClassField_3199(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	var typeDoc *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
@@ -208,7 +208,7 @@ func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForObjectKeyOrClassFi
 }
 
 // Java method: InferJSDocInfo.inferJSDocForProperty(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForProperty_3199(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *InferJSDocInfo) priv_InferJSDocInfo_inferJSDocForProperty_3200(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	var typeDoc *pkg_rhino.JSDocInfo = nil

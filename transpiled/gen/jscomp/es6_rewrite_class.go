@@ -111,7 +111,7 @@ func clinitSlow_Es6RewriteClass() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_Es6RewriteClass, &clinitDone_Es6RewriteClass)
-	static_Es6RewriteClass_features = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7169([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_CLASSES(), pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER(), pkg_parser.StaticGet_FeatureSet_Feature_NEW_TARGET(), pkg_parser.StaticGet_FeatureSet_Feature_SUPER()})
+	static_Es6RewriteClass_features = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7181([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_CLASSES(), pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER(), pkg_parser.StaticGet_FeatureSet_Feature_NEW_TARGET(), pkg_parser.StaticGet_FeatureSet_Feature_SUPER()})
 	static_Es6RewriteClass_CONSTRUCTOR_PRIMITIVE_RETURN = DiagnosticType_Error("JSC_CONSTRUCTOR_PRIMITIVE_RETURN", "Class constructors may only return an object or undefined")
 }
 

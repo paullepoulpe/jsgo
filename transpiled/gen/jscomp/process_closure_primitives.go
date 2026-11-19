@@ -386,9 +386,9 @@ func (this_ *ProcessClosurePrimitives) Visit_3(t *NodeTraversal, n pkg_rhino.Nod
 	switch n.TokenSwitchOrd_() {
 	case int32(28) /* Token.CALL */ :
 		{
-			this_.priv_ProcessClosurePrimitives_checkGoogFunctions_4417(t, n)
-			this_.priv_ProcessClosurePrimitives_maybeProcessClassBaseCall_4421(n)
-			this_.priv_ProcessClosurePrimitives_checkPropertyRenameCall_4429(n)
+			this_.priv_ProcessClosurePrimitives_checkGoogFunctions_4424(t, n)
+			this_.priv_ProcessClosurePrimitives_maybeProcessClassBaseCall_4428(n)
+			this_.priv_ProcessClosurePrimitives_checkPropertyRenameCall_4436(n)
 		}
 	case int32(73) /* Token.FUNCTION */, int32(105) /* Token.CLASS */ :
 		if !(t.InGlobalHoistScope()) || n.IsFromExterns() {
@@ -430,19 +430,19 @@ func (this_ *ProcessClosurePrimitives) Visit_3(t *NodeTraversal, n pkg_rhino.Nod
 		var lhs string = target.GetQualifiedName()
 		_ = lhs
 		if lhs != j2gort.NullString {
-			this_.priv_ProcessClosurePrimitives_checkPossibleGoogProvideInit_4416(lhs, info, n)
+			this_.priv_ProcessClosurePrimitives_checkPossibleGoogProvideInit_4423(lhs, info, n)
 		}
 	case int32(84) /* Token.VAR */, int32(97) /* Token.CONST */, int32(111) /* Token.LET */ :
 		if !(n.GetFirstChild().IsName()) {
 			break
 		}
-		this_.priv_ProcessClosurePrimitives_checkPossibleGoogProvideInit_4416(n.GetFirstChild().GetString(), n.GetJSDocInfo(), n)
+		this_.priv_ProcessClosurePrimitives_checkPossibleGoogProvideInit_4423(n.GetFirstChild().GetString(), n.GetJSDocInfo(), n)
 	default:
 	}
 }
 
 // Java method: ProcessClosurePrimitives.checkPossibleGoogProvideInit(java.lang.String namespace, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo info, com.google.javascript.rhino.Node definition)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_checkPossibleGoogProvideInit_4416(namespace string, info *pkg_rhino.JSDocInfo, definition pkg_rhino.Node) {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_checkPossibleGoogProvideInit_4423(namespace string, info *pkg_rhino.JSDocInfo, definition pkg_rhino.Node) {
 	_ = namespace
 	_ = info
 	_ = definition
@@ -470,7 +470,7 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_checkPossib
 }
 
 // Java method: ProcessClosurePrimitives.checkGoogFunctions(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_checkGoogFunctions_4417(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_checkGoogFunctions_4424(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var callee pkg_rhino.Node = call.GetFirstChild()
@@ -491,26 +491,26 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_checkGoogFu
 	_ = methodName
 	switch j2gort.CheckNotNullString(methodName) {
 	case "inherits":
-		this_.priv_ProcessClosurePrimitives_processInheritsCall_4424(call)
+		this_.priv_ProcessClosurePrimitives_processInheritsCall_4431(call)
 	case "addDependency":
-		if this_.priv_ProcessClosurePrimitives_validateUnaliasablePrimitiveCall_4419(t, call, methodName) {
-			this_.priv_ProcessClosurePrimitives_processAddDependency_4427(call)
+		if this_.priv_ProcessClosurePrimitives_validateUnaliasablePrimitiveCall_4426(t, call, methodName) {
+			this_.priv_ProcessClosurePrimitives_processAddDependency_4434(call)
 		}
 	case "setCssNameMapping":
 		var unused CssRenamingMap = ProcessClosurePrimitives_ProcessSetCssNameMapping(this_.compiler, call, call.GetParent())
 		_ = unused
 	case "forwardDeclare":
-		if this_.priv_ProcessClosurePrimitives_validatePrimitiveCallWithMessage_4420(t, call, methodName, StaticGet_ProcessClosurePrimitives_CLOSURE_CALL_CANNOT_BE_ALIASED_OUTSIDE_MODULE_ERROR()) {
-			this_.priv_ProcessClosurePrimitives_processForwardDeclare_4428(call)
+		if this_.priv_ProcessClosurePrimitives_validatePrimitiveCallWithMessage_4427(t, call, methodName, StaticGet_ProcessClosurePrimitives_CLOSURE_CALL_CANNOT_BE_ALIASED_OUTSIDE_MODULE_ERROR()) {
+			this_.priv_ProcessClosurePrimitives_processForwardDeclare_4435(call)
 		}
 	case "weakUsage":
-		this_.priv_ProcessClosurePrimitives_validateWeakUsageCall_4418(call)
+		this_.priv_ProcessClosurePrimitives_validateWeakUsageCall_4425(call)
 	default:
 	}
 }
 
 // Java method: ProcessClosurePrimitives.validateWeakUsageCall(com.google.javascript.rhino.Node call)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_validateWeakUsageCall_4418(call pkg_rhino.Node) {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_validateWeakUsageCall_4425(call pkg_rhino.Node) {
 	_ = call
 	var childCount int32 = call.GetChildCount()
 	_ = childCount
@@ -527,15 +527,15 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_validateWea
 }
 
 // Java method: ProcessClosurePrimitives.validateUnaliasablePrimitiveCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, java.lang.String methodName)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_validateUnaliasablePrimitiveCall_4419(t *NodeTraversal, n pkg_rhino.Node, methodName string) bool {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_validateUnaliasablePrimitiveCall_4426(t *NodeTraversal, n pkg_rhino.Node, methodName string) bool {
 	_ = t
 	_ = n
 	_ = methodName
-	return this_.priv_ProcessClosurePrimitives_validatePrimitiveCallWithMessage_4420(t, n, methodName, StaticGet_ProcessClosurePrimitives_CLOSURE_CALL_CANNOT_BE_ALIASED_ERROR())
+	return this_.priv_ProcessClosurePrimitives_validatePrimitiveCallWithMessage_4427(t, n, methodName, StaticGet_ProcessClosurePrimitives_CLOSURE_CALL_CANNOT_BE_ALIASED_ERROR())
 }
 
 // Java method: ProcessClosurePrimitives.validatePrimitiveCallWithMessage(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, java.lang.String methodName, com.google.javascript.jscomp.DiagnosticType invalidAliasingError)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_validatePrimitiveCallWithMessage_4420(t *NodeTraversal, n pkg_rhino.Node, methodName string, invalidAliasingError *DiagnosticType) bool {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_validatePrimitiveCallWithMessage_4427(t *NodeTraversal, n pkg_rhino.Node, methodName string, invalidAliasingError *DiagnosticType) bool {
 	_ = t
 	_ = n
 	_ = methodName
@@ -554,7 +554,7 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_validatePri
 }
 
 // Java method: ProcessClosurePrimitives.maybeProcessClassBaseCall(com.google.javascript.rhino.Node n)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_maybeProcessClassBaseCall_4421(n pkg_rhino.Node) {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_maybeProcessClassBaseCall_4428(n pkg_rhino.Node) {
 	_ = n
 	var callTarget pkg_rhino.Node = n.GetFirstChild()
 	_ = callTarget
@@ -572,12 +572,12 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_maybeProces
 	_ = enclosingFnNameNode
 	if (enclosingFnNameNode == 0) || !(enclosingFnNameNode.IsUnscopedQualifiedName()) {
 		if this_.knownClosureSubclasses.Contains(baseContainer) {
-			this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4425(n, baseContainer, "Could not find enclosing method.")
+			this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4432(n, baseContainer, "Could not find enclosing method.")
 		} else if ProcessClosurePrimitives_BaseUsedInClass(n) {
 			var clazz pkg_rhino.Node = NodeUtil_GetEnclosingClass(n)
 			_ = clazz
 			if (clazz.GetFirstChild().IsName() && (j2gort.CheckNotNullString(clazz.GetFirstChild().GetString()) == baseContainer)) || (clazz.GetSecondChild().IsName() && (j2gort.CheckNotNullString(clazz.GetSecondChild().GetString()) == baseContainer)) {
-				this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4425(n, clazz.GetFirstChild().GetString(), "base method is not allowed in ES6 class. Use super instead.")
+				this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4432(n, clazz.GetFirstChild().GetString(), "base method is not allowed in ES6 class. Use super instead.")
 			}
 		}
 		return
@@ -587,27 +587,27 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_maybeProces
 		_ = clazz_2
 		var name string = NodeUtil_GetBestLValueName(clazz_2)
 		_ = name
-		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4425(n, name, "base method is not allowed in ES6 class. Use super instead.")
+		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4432(n, name, "base method is not allowed in ES6 class. Use super instead.")
 		return
 	}
 	var enclosingQname string = enclosingFnNameNode.GetQualifiedName()
 	_ = enclosingQname
 	if !(j2gort.JStrIndexOf(enclosingQname, ".prototype.") >= 0) {
-		this_.priv_ProcessClosurePrimitives_rewriteBaseCallInConstructor_4422(enclosingQname, baseContainer, n, enclosingFnNameNode)
+		this_.priv_ProcessClosurePrimitives_rewriteBaseCallInConstructor_4429(enclosingQname, baseContainer, n, enclosingFnNameNode)
 	} else {
-		this_.priv_ProcessClosurePrimitives_rewriteBaseCallInMethod_4423(enclosingQname, baseContainer, n, enclosingFnNameNode)
+		this_.priv_ProcessClosurePrimitives_rewriteBaseCallInMethod_4430(enclosingQname, baseContainer, n, enclosingFnNameNode)
 	}
 }
 
 // Java method: ProcessClosurePrimitives.rewriteBaseCallInConstructor(java.lang.String enclosingQname, java.lang.String baseContainer, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node enclosingFnNameNode)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_rewriteBaseCallInConstructor_4422(enclosingQname string, baseContainer string, n pkg_rhino.Node, enclosingFnNameNode pkg_rhino.Node) {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_rewriteBaseCallInConstructor_4429(enclosingQname string, baseContainer string, n pkg_rhino.Node, enclosingFnNameNode pkg_rhino.Node) {
 	_ = enclosingQname
 	_ = baseContainer
 	_ = n
 	_ = enclosingFnNameNode
 	if !(j2gort.CheckNotNullString(enclosingQname) == baseContainer) {
 		if this_.knownClosureSubclasses.Contains(baseContainer) {
-			this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4425(n, baseContainer, ("Must be used within " + j2gort.StrValString(baseContainer) + " methods"))
+			this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4432(n, baseContainer, ("Must be used within " + j2gort.StrValString(baseContainer) + " methods"))
 		}
 		return
 	}
@@ -628,13 +628,13 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_rewriteBase
 	var thisArg pkg_rhino.Node = callee.GetNext()
 	_ = thisArg
 	if (thisArg == 0) || !(thisArg.IsThis()) {
-		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4425(n, baseContainer, "First argument must be 'this'.")
+		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4432(n, baseContainer, "First argument must be 'this'.")
 		return
 	}
 	var methodNameNode pkg_rhino.Node = thisArg.GetNext()
 	_ = methodNameNode
 	if ((methodNameNode == 0) || !(methodNameNode.IsStringLit())) || !(j2gort.CheckNotNullString(methodNameNode.GetString()) == "constructor") {
-		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4425(n, baseContainer, "Second argument must be 'constructor'.")
+		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4432(n, baseContainer, "Second argument must be 'constructor'.")
 		return
 	}
 	callee.ReplaceWith(NodeUtil_NewQName_4_AbstractCompiler_string_Node_string(this_.compiler, (j2gort.StrValString(baseClassNode.GetQualifiedName()) + ".call"), callee, (j2gort.StrValString(enclosingQname) + ".base")))
@@ -643,19 +643,19 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_rewriteBase
 }
 
 // Java method: ProcessClosurePrimitives.rewriteBaseCallInMethod(java.lang.String enclosingQname, java.lang.String baseContainer, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node enclosingFnNameNode)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_rewriteBaseCallInMethod_4423(enclosingQname string, baseContainer string, n pkg_rhino.Node, enclosingFnNameNode pkg_rhino.Node) {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_rewriteBaseCallInMethod_4430(enclosingQname string, baseContainer string, n pkg_rhino.Node, enclosingFnNameNode pkg_rhino.Node) {
 	_ = enclosingQname
 	_ = baseContainer
 	_ = n
 	_ = enclosingFnNameNode
 	if !(this_.knownClosureSubclasses.Contains(baseContainer)) {
-		this_.priv_ProcessClosurePrimitives_reportPossibleBadBaseMethodUse_4426(n, baseContainer, ("base used outside a known Closure subclass, in: " + j2gort.StrValString(baseContainer) + "\nIf " + j2gort.StrValString(baseContainer) + " is actually a Closure subclass, the compiler is unable to statically determine this. This can happen when calling .base off of some import or other alias of the original Closure subclass, such as from a goog.require in another file. Instead of using .base, rewrite this call as ParentClass.prototype.method.call(this)"))
+		this_.priv_ProcessClosurePrimitives_reportPossibleBadBaseMethodUse_4433(n, baseContainer, ("base used outside a known Closure subclass, in: " + j2gort.StrValString(baseContainer) + "\nIf " + j2gort.StrValString(baseContainer) + " is actually a Closure subclass, the compiler is unable to statically determine this. This can happen when calling .base off of some import or other alias of the original Closure subclass, such as from a goog.require in another file. Instead of using .base, rewrite this call as ParentClass.prototype.method.call(this)"))
 		return
 	}
 	var misuseOfBase bool = !(enclosingFnNameNode.GetFirstFirstChild().MatchesQualifiedName_1_string(baseContainer))
 	_ = misuseOfBase
 	if misuseOfBase {
-		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4425(n, baseContainer, ("Must be used within " + j2gort.StrValString(baseContainer) + " methods"))
+		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4432(n, baseContainer, ("Must be used within " + j2gort.StrValString(baseContainer) + " methods"))
 		return
 	}
 	var callee pkg_rhino.Node = n.GetFirstChild()
@@ -663,13 +663,13 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_rewriteBase
 	var thisArg pkg_rhino.Node = callee.GetNext()
 	_ = thisArg
 	if (thisArg == 0) || !(thisArg.IsThis()) {
-		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4425(n, baseContainer, "First argument must be 'this'.")
+		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4432(n, baseContainer, "First argument must be 'this'.")
 		return
 	}
 	var methodNameNode pkg_rhino.Node = thisArg.GetNext()
 	_ = methodNameNode
 	if (methodNameNode == 0) || !(methodNameNode.IsStringLit()) {
-		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4425(n, baseContainer, "Second argument must name a method.")
+		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4432(n, baseContainer, "Second argument must name a method.")
 		return
 	}
 	var methodName string = methodNameNode.GetString()
@@ -677,7 +677,7 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_rewriteBase
 	var ending string = (".prototype." + j2gort.StrValString(methodName))
 	_ = ending
 	if (enclosingQname == j2gort.NullString) || !(javalang.StringEndsWith(j2gort.CheckNotNullString(enclosingQname), j2gort.CheckNotNullString(ending))) {
-		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4425(n, baseContainer, ("Enclosing method does not match " + j2gort.StrValString(methodName)))
+		this_.priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4432(n, baseContainer, ("Enclosing method does not match " + j2gort.StrValString(methodName)))
 		return
 	}
 	var className pkg_rhino.Node = enclosingFnNameNode.GetFirstFirstChild()
@@ -709,7 +709,7 @@ func ProcessClosurePrimitives_FindGoogInheritsCall(ctorDeclarationNode pkg_rhino
 }
 
 // Java method: ProcessClosurePrimitives.processInheritsCall(com.google.javascript.rhino.Node n)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_processInheritsCall_4424(n pkg_rhino.Node) {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_processInheritsCall_4431(n pkg_rhino.Node) {
 	_ = n
 	if n.HasXChildren(int32(3)) {
 		var subClass pkg_rhino.Node = n.GetSecondChild()
@@ -752,7 +752,7 @@ func ProcessClosurePrimitives_BaseUsedInClass(n pkg_rhino.Node) bool {
 }
 
 // Java method: ProcessClosurePrimitives.reportBadBaseMethodUse(com.google.javascript.rhino.Node n, java.lang.String className, java.lang.String extraMessage)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4425(n pkg_rhino.Node, className string, extraMessage string) {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_reportBadBaseMethodUse_4432(n pkg_rhino.Node, className string, extraMessage string) {
 	_ = n
 	_ = className
 	_ = extraMessage
@@ -760,7 +760,7 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_reportBadBa
 }
 
 // Java method: ProcessClosurePrimitives.reportPossibleBadBaseMethodUse(com.google.javascript.rhino.Node n, java.lang.String className, java.lang.String extraMessage)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_reportPossibleBadBaseMethodUse_4426(n pkg_rhino.Node, className string, extraMessage string) {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_reportPossibleBadBaseMethodUse_4433(n pkg_rhino.Node, className string, extraMessage string) {
 	_ = n
 	_ = className
 	_ = extraMessage
@@ -875,7 +875,7 @@ func ProcessClosurePrimitives_ProcessSetCssNameMapping(compiler AbstractCompiler
 }
 
 // Java method: ProcessClosurePrimitives.processAddDependency(com.google.javascript.rhino.Node n)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_processAddDependency_4427(n pkg_rhino.Node) {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_processAddDependency_4434(n pkg_rhino.Node) {
 	_ = n
 	var emptyNode pkg_rhino.Node = pkg_rhino.IR_Number(float64(int32(0)))
 	_ = emptyNode
@@ -884,7 +884,7 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_processAddD
 }
 
 // Java method: ProcessClosurePrimitives.processForwardDeclare(com.google.javascript.rhino.Node n)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_processForwardDeclare_4428(n pkg_rhino.Node) {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_processForwardDeclare_4435(n pkg_rhino.Node) {
 	_ = n
 	if !(n.GetParent().IsExprResult()) {
 		return
@@ -943,7 +943,7 @@ func ProcessClosurePrimitives_VerifySetCssNameMapping(compiler AbstractCompiler,
 }
 
 // Java method: ProcessClosurePrimitives.checkPropertyRenameCall(com.google.javascript.rhino.Node call)
-func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_checkPropertyRenameCall_4429(call pkg_rhino.Node) {
+func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_checkPropertyRenameCall_4436(call pkg_rhino.Node) {
 	_ = call
 	var callee pkg_rhino.Node = call.GetFirstChild()
 	_ = callee

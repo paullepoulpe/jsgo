@@ -96,6 +96,12 @@ func (this_ *PropertyClustering) ForEachUseSite(consumer j2gort.Ext_java_util_fu
 	this_.useSites.ForEachBiConsumer(consumer)
 }
 
+// Java method: PropertyClustering.getUseSites()
+func (this_ *PropertyClustering) GetUseSites() *j2gort.OrderedMap[pkg_rhino.Node, *ColorGraphNode] {
+	return &this_.useSites
+
+}
+
 // Java method: PropertyClustering.getClusters()
 func (this_ *PropertyClustering) GetClusters() *pkg_graph.StandardUnionFind[*ColorGraphNode] {
 	return this_.clusters

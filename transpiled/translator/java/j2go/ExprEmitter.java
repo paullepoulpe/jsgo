@@ -4387,6 +4387,27 @@ public final class ExprEmitter {
       return emitPreconditionsIntrinsic(mi, path, ee, ctx);
     }
 
+    if (!isStatic
+        && qn.equals("com.google.common.base.Splitter")
+        && arity == 1
+        && ee.getParameters().size() == 1
+        && (m.equals("split") || m.equals("splitToList"))
+        && recvPath != null) {
+      TreePath arg0Path = new TreePath(path, args.get(0));
+      if (resolver.isStringType(resolver.safeErasure(typeOf(arg0Path)))
+          && resolver.goType(typeOf(recvPath), ctx.imports)
+              .endsWith("Ext_com_google_common_base_Splitter")) {
+        String recvExpr = emitPath(recvPath, ctx);
+        String seqGo = emit(args.get(0), path, ctx);
+        return rt
+            + (m.equals("splitToList") ? "SplitterSplitToListStr(" : "SplitterSplitStr(")
+            + recvExpr
+            + ", "
+            + seqGo
+            + ")";
+      }
+    }
+
     // 7. java.lang.Math & StrictMath
     if ((qn.equals("java.lang.Math") || qn.equals("java.lang.StrictMath")) && isStatic) {
       String mathCall = emitMathIntrinsic(mi, path, ee, ctx);
@@ -4902,6 +4923,48 @@ public final class ExprEmitter {
     return false;
   }
 
+  private boolean hasExactCollectionElemType(TypeMirror recvFullTm, TypeMirror wantElemEr) {
+    if (!(recvFullTm instanceof DeclaredType rdt)
+        || resolver.isActiveTypeVariable(rdt)
+        || rdt.getTypeArguments().size() != 1) {
+      return false;
+    }
+    TypeMirror ta0 = rdt.getTypeArguments().get(0);
+    if (ta0 instanceof WildcardType wt && wt.getExtendsBound() != null) {
+      ta0 = wt.getExtendsBound();
+    }
+    return !resolver.isActiveTypeVariable(ta0)
+        && resolver.types.isSameType(resolver.safeErasure(ta0), wantElemEr);
+  }
+
+  private boolean isSafeSetContainsU8Target(TypeElement owner, TreePath recvPath) {
+    if (isSubtypeOfQualified(owner, "com.google.common.collect.ImmutableSet")
+        || isSubtypeOfQualified(owner, "java.util.EnumSet")) {
+      return true;
+    }
+    if (recvPath == null || !isSubtypeOfQualified(owner, "java.util.Collection")) {
+      return false;
+    }
+    TypeMirror recvEr = resolver.safeErasure(typeOf(recvPath));
+    if (recvEr instanceof DeclaredType rdt && rdt.asElement() instanceof TypeElement rte) {
+      if (isSubtypeOfQualified(rte, "com.google.common.collect.ImmutableSet")
+          || isSubtypeOfQualified(rte, "java.util.EnumSet")) {
+        return true;
+      }
+      if (isSubtypeOfQualified(rte, "com.google.common.collect.ImmutableList")
+          || isSubtypeOfQualified(rte, "java.util.List")) {
+        return false;
+      }
+    }
+    TreePath stripped = unwrapParens(recvPath);
+    Element el = resolver.trees.getElement(stripped);
+    if (el instanceof VariableElement ve) {
+      return ve.getModifiers().contains(Modifier.STATIC)
+          || ve.getKind() == ElementKind.PARAMETER;
+    }
+    return false;
+  }
+
   private static boolean isDirectExprStmt(TreePath path) {
     TreePath cur = path.getParentPath();
     while (cur != null && cur.getLeaf() instanceof ParenthesizedTree) {
@@ -5121,6 +5184,29 @@ public final class ExprEmitter {
         String kGo = emitPath(arg0Path, ctx);
         return rt + "SetContainsEqVal(" + recvExpr + ", " + kGo + ")";
       }
+    }
+
+    if (resolver.isValueEnumType(arg0Tm)
+        && !resolver.isActiveTypeVariable(typeOf(arg0Path))
+        && m.equals("contains")
+        && arity == 1
+        && ee.getParameters().size() == 1
+        && ee.getReturnType().getKind() == TypeKind.BOOLEAN
+        && isSafeSetContainsU8Target(owner, recvPath)) {
+      String recvExpr =
+          recvPath != null ? emitPath(recvPath, ctx) : resolveImplicitThisValue(owner, ctx);
+      String kGo = emitPath(arg0Path, ctx);
+      TypeMirror recvFullTm = recvPath != null ? typeOf(recvPath) : owner.asType();
+      if (hasExactCollectionElemType(recvFullTm, arg0Tm)) {
+        if (recvPath != null
+            && recvFullTm instanceof DeclaredType rdt
+            && rdt.asElement() instanceof TypeElement rte
+            && rte.getQualifiedName().contentEquals("com.google.common.collect.ImmutableSet")) {
+          return rt + "ImmSetContainsTypedU8_(" + recvExpr + ", uint8(" + kGo + "))";
+        }
+        return rt + "SetContainsTypedU8_(" + recvExpr + ", " + kGo + ")";
+      }
+      return rt + "SetContainsU8_(" + recvExpr + ", " + kGo + ")";
     }
 
     if (m.equals("computeIfAbsent")
@@ -5760,7 +5846,7 @@ public final class ExprEmitter {
             + checkNotNullStringExpr(args.get(0), emit(args.get(0), path, ctx), ctx)
             + ") >= 0)";
       }
-      return "(" + rt + "JStrIndexOf(" + recv + ", " + rt + "StrVal(" + rt + "CheckNotNull(" + emit(args.get(0), path, ctx) + "))) >= 0)";
+      return "(" + rt + "JStrIndexOf(" + recv + ", " + rt + "StrVal(" + emitCheckNotNull(args.get(0), emit(args.get(0), path, ctx), arg0Tm, ctx) + ")) >= 0)";
     }
     if (m.equals("equals") && arity == 1) {
       TreePath arg0Path = new TreePath(path, args.get(0));
@@ -5828,11 +5914,11 @@ public final class ExprEmitter {
       String s0 =
           resolver.isStringType(a0Tm)
               ? checkNotNullStringExpr(args.get(0), emit(args.get(0), path, ctx), ctx)
-              : (rt + "StrVal(" + rt + "CheckNotNull(" + emit(args.get(0), path, ctx) + "))");
+              : (rt + "StrVal(" + emitCheckNotNull(args.get(0), emit(args.get(0), path, ctx), a0Tm, ctx) + ")");
       String s1 =
           resolver.isStringType(a1Tm)
               ? checkNotNullStringExpr(args.get(1), emit(args.get(1), path, ctx), ctx)
-              : (rt + "StrVal(" + rt + "CheckNotNull(" + emit(args.get(1), path, ctx) + "))");
+              : (rt + "StrVal(" + emitCheckNotNull(args.get(1), emit(args.get(1), path, ctx), a1Tm, ctx) + ")");
       return jl + "StringReplace(" + recv + ", " + s0 + ", " + s1 + ")";
     }
     if (m.equals("toLowerCase") && arity <= 1) {
@@ -5962,7 +6048,7 @@ public final class ExprEmitter {
             + checkNotNullStringExpr(args.get(0), emit(args.get(0), path, ctx), ctx)
             + ")";
       }
-      return "(" + checkNotNullStringExpr(recvTree, recv, ctx) + " == " + rt + "StrVal(" + rt + "CheckNotNull(" + emit(args.get(0), path, ctx) + ")))";
+      return "(" + checkNotNullStringExpr(recvTree, recv, ctx) + " == " + rt + "StrVal(" + emitCheckNotNull(args.get(0), emit(args.get(0), path, ctx), arg0Tm, ctx) + "))";
     }
     return null;
   }
@@ -8596,6 +8682,21 @@ public final class ExprEmitter {
               || isSubtypeOfQualified(owner, "com.google.common.collect.ImmutableCollection"))) {
         return rt + "SetContainsNode(" + recvExpr + ", " + rawParams.get(startIdx) + ")";
       }
+    }
+    if (arity == 1
+        && ee.getParameters().size() == 1
+        && ee.getReturnType().getKind() == TypeKind.BOOLEAN
+        && !ee.getModifiers().contains(Modifier.PRIVATE)
+        && resolver.isValueEnumType(rawParamTypes.get(startIdx))
+        && !resolver.isActiveTypeVariable(rawParamTypes.get(startIdx))
+        && m.equals("contains")
+        && (isSubtypeOfQualified(owner, "com.google.common.collect.ImmutableSet")
+            || isSubtypeOfQualified(owner, "java.util.EnumSet"))) {
+      TypeMirror argEr = resolver.safeErasure(rawParamTypes.get(startIdx));
+      if (hasExactCollectionElemType(recvTm, argEr)) {
+        return rt + "SetContainsTypedU8_(" + recvExpr + ", " + rawParams.get(startIdx) + ")";
+      }
+      return rt + "SetContainsU8_(" + recvExpr + ", " + rawParams.get(startIdx) + ")";
     }
 
     TypeResolver.MethodSig tSig = resolver.getInstanceMethodSig(ee);

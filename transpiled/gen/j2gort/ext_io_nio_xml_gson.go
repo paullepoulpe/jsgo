@@ -96,7 +96,7 @@ func wrapPrintStream(ps *javaio.PrintStream) *Ext_java_io_PrintStream {
 }
 
 func unwrapPrintStream(p *Ext_java_io_PrintStream) *javaio.PrintStream {
-	CheckNotNull(p)
+	CheckNotNullPtr(p)
 	if ps, ok := p.Core_.(*javaio.PrintStream); ok && ps != nil {
 		return ps
 	}
@@ -507,7 +507,7 @@ func gzipOutputStreamFinish(core any) {
 }
 
 func newZipFileFromFile(f *Ext_java_io_File) *javazip.ZipFile {
-	zf, err := javazip.NewZipFileFromFile(CheckNotNull(unwrapFile(f)))
+	zf, err := javazip.NewZipFileFromFile(CheckNotNullPtr(unwrapFile(f)))
 	ioErr(err)
 	return zf
 }
@@ -635,7 +635,7 @@ func newCodingErrorAction(name string) *Ext_java_nio_charset_CodingErrorAction {
 }
 
 func unwrapCodingAction(a *Ext_java_nio_charset_CodingErrorAction) javanio.CodingErrorAction {
-	CheckNotNull(a)
+	CheckNotNullPtr(a)
 	if act, ok := a.Core_.(javanio.CodingErrorAction); ok {
 		return act
 	}
@@ -674,7 +674,7 @@ func unwrapPath(ep Ext_java_nio_file_Path) *javanio.Path {
 
 func newExtPath(first string, more []string) Ext_java_nio_file_Path {
 	for _, m := range more {
-		CheckNotNull(m)
+		CheckNotNullString(m)
 	}
 	var p *javanio.Path
 	func() {
@@ -701,10 +701,10 @@ func (jp *jNioPath) Resolve_1_Ext_java_nio_file_Path(other Ext_java_nio_file_Pat
 	return wrapPath(jp.p.Resolve(unwrapPath(other)))
 }
 func (jp *jNioPath) Resolve_1_string(other string) Ext_java_nio_file_Path {
-	return wrapPath(jp.p.ResolveString(CheckNotNull(other)))
+	return wrapPath(jp.p.ResolveString(CheckNotNullString(other)))
 }
 func (jp *jNioPath) ResolveSibling_1_string(other string) Ext_java_nio_file_Path {
-	return wrapPath(jp.p.ResolveSiblingString(CheckNotNull(other)))
+	return wrapPath(jp.p.ResolveSiblingString(CheckNotNullString(other)))
 }
 func (jp *jNioPath) Relativize(other Ext_java_nio_file_Path) Ext_java_nio_file_Path {
 	return wrapPath(jp.p.Relativize(unwrapPath(other)))
@@ -1059,6 +1059,14 @@ func newGuavaJoiner(sep string) *Ext_com_google_common_base_Joiner {
 }
 
 func guavaJoinerJoinIter(j *Ext_com_google_common_base_Joiner, iter Ext_java_lang_Iterable) string {
+	if ssi, ok := any(iter).(StrSliceIterable); ok {
+		if ss, ok2 := ssi.IterStrSlice_(); ok2 {
+			for _, s := range ss {
+				CheckNotNullString(s)
+			}
+			return j.Core_.(*guava.Joiner).JoinStrings(ss)
+		}
+	}
 	var parts []string
 	for it := Iterate(iter); it.HasNext(); {
 		v := it.Next()
@@ -1118,17 +1126,23 @@ func splitterLimit(s *Ext_com_google_common_base_Splitter, lim int32) *Ext_com_g
 	return out
 }
 
+func SplitterSplitToListStr(s *Ext_com_google_common_base_Splitter, seq string) Ext_java_util_List {
+	CheckNotNullPtr(s)
+	CheckNotNullString(seq)
+	parts := s.Core_.(*guava.Splitter).SplitToList(seq)
+	return wrapImmStrSliceOwn(parts)
+}
+
+func SplitterSplitStr(s *Ext_com_google_common_base_Splitter, seq string) Ext_java_lang_Iterable {
+	return SplitterSplitToListStr(s, seq)
+}
+
 func splitterSplitToList(s *Ext_com_google_common_base_Splitter, seq any) Ext_java_util_List {
-	parts := s.Core_.(*guava.Splitter).SplitToList(StrVal(seq))
-	items := make([]any, len(parts))
-	for i, p := range parts {
-		items[i] = BoxString(p)
-	}
-	return wrapImmutableList(items)
+	return SplitterSplitToListStr(s, StrVal(seq))
 }
 
 func splitterSplit(s *Ext_com_google_common_base_Splitter, seq any) Ext_java_lang_Iterable {
-	return splitterSplitToList(s, seq)
+	return SplitterSplitToListStr(s, StrVal(seq))
 }
 
 type jToStringHelperData struct {
@@ -1551,7 +1565,7 @@ func gsonBuilderDisableHtml(gb *Ext_com_google_gson_GsonBuilder) {
 }
 
 func gsonBuilderRegisterHierarchyAdapter(gb *Ext_com_google_gson_GsonBuilder, baseClass *javalang.Class, adapter any) {
-	CheckNotNull(baseClass)
+	CheckNotNullPtr(baseClass)
 	ta := AsIface[Ext_com_google_gson_TypeAdapter](CheckNotNull(adapter))
 	gb.Core_.(*jGsonBuilderCore).b.RegisterTypeHierarchyAdapter(
 		func(v any) bool { return CheckTypePredicate(baseClass, v) },
@@ -1566,7 +1580,7 @@ func gsonBuilderCreate(gb *Ext_com_google_gson_GsonBuilder) *Ext_com_google_gson
 }
 
 func unwrapGson(g *Ext_com_google_gson_Gson) *gson.Gson {
-	CheckNotNull(g)
+	CheckNotNullPtr(g)
 	if gs, ok := g.Core_.(*gson.Gson); ok && gs != nil {
 		return gs
 	}
@@ -1584,7 +1598,7 @@ func gsonToJson(g *Ext_com_google_gson_Gson, v any) string {
 }
 
 func gsonToJsonWriter(g *Ext_com_google_gson_Gson, v any, w *Ext_com_google_gson_stream_JsonWriter) {
-	jw := gsonWriter(CheckNotNull(w))
+	jw := gsonWriter(CheckNotNullPtr(w))
 	if v == nil || javalang.IsNil(v) {
 		jw.NullValue()
 		return
@@ -1615,7 +1629,7 @@ func gsonFromJsonClass(g *Ext_com_google_gson_Gson, jsonStr string, cls *javalan
 	if jsonStr == NullString {
 		return nil
 	}
-	CheckNotNull(cls)
+	CheckNotNullPtr(cls)
 	gs := unwrapGson(g)
 	return wrapGsonPanic(func() any {
 		switch cls.GetName() {
@@ -1684,7 +1698,7 @@ func newGsonJsonArray() *gson.JsonArray   { return gson.NewJsonArray() }
 func newGsonJsonObject() *gson.JsonObject { return gson.NewJsonObject() }
 func newGsonJsonPrimitive(v any) *gson.JsonPrimitive {
 	if s, ok := v.(string); ok {
-		return gson.NewJsonPrimitiveString(CheckNotNull(s))
+		return gson.NewJsonPrimitiveString(CheckNotNullString(s))
 	}
 	if b, ok := v.(bool); ok {
 		return gson.NewJsonPrimitiveBoolean(b)
@@ -1709,17 +1723,17 @@ func unwrapJsonElement(je Ext_com_google_gson_JsonElement) gson.JsonElement {
 }
 
 func unwrapJsonArray(ja *Ext_com_google_gson_JsonArray) *gson.JsonArray {
-	CheckNotNull(ja)
+	CheckNotNullPtr(ja)
 	return ja.Core_.(*gson.JsonArray)
 }
 
 func unwrapJsonObject(jo *Ext_com_google_gson_JsonObject) *gson.JsonObject {
-	CheckNotNull(jo)
+	CheckNotNullPtr(jo)
 	return jo.Core_.(*gson.JsonObject)
 }
 
 func unwrapJsonPrimitive(jp *Ext_com_google_gson_JsonPrimitive) *gson.JsonPrimitive {
-	CheckNotNull(jp)
+	CheckNotNullPtr(jp)
 	return jp.Core_.(*gson.JsonPrimitive)
 }
 
@@ -1820,12 +1834,12 @@ func newGsonJsonWriter(w Ext_java_io_Writer) *gson.JsonWriter {
 }
 
 func gsonReader(r *Ext_com_google_gson_stream_JsonReader) *gson.JsonReader {
-	CheckNotNull(r)
+	CheckNotNullPtr(r)
 	return r.Core_.(*gson.JsonReader)
 }
 
 func gsonWriter(w *Ext_com_google_gson_stream_JsonWriter) *gson.JsonWriter {
-	CheckNotNull(w)
+	CheckNotNullPtr(w)
 	return w.Core_.(*gson.JsonWriter)
 }
 
@@ -2010,7 +2024,7 @@ func throwSAXException(msg string) {
 }
 
 func (xr *jSaxXMLReader) Parse_1_Ext_org_xml_sax_InputSource(src *Ext_org_xml_sax_InputSource) {
-	CheckNotNull(src)
+	CheckNotNullPtr(src)
 	var raw []byte
 	switch c := src.Core_.(type) {
 	case Ext_java_io_InputStream:

@@ -118,7 +118,7 @@ func (this_ *SourceMap) AddMapping_3(node pkg_rhino.Node, outputStartPosition *p
 			}
 		}
 	}
-	sourceFileName = this_.priv_SourceMap_fixupSourceLocation_5133(sourceFileName)
+	sourceFileName = this_.priv_SourceMap_fixupSourceLocation_5140(sourceFileName)
 	var lineBaseOffset int32 = int32(1)
 	_ = lineBaseOffset
 	this_.generator.AddMapping(sourceFileName, originalName, pkg_sourcemap.NewFilePosition((lineNo-lineBaseOffset), charNo), outputStartPosition, outputEndPosition)
@@ -128,7 +128,7 @@ func (this_ *SourceMap) AddMapping_3(node pkg_rhino.Node, outputStartPosition *p
 func (this_ *SourceMap) AddSourceFile(name string, code string) {
 	_ = name
 	_ = code
-	this_.generator.AddSourcesContent(this_.priv_SourceMap_fixupSourceLocation_5133(name), code)
+	this_.generator.AddSourcesContent(this_.priv_SourceMap_fixupSourceLocation_5140(name), code)
 }
 
 // Java static method: SourceMap.getOriginalName(com.google.javascript.rhino.Node node)
@@ -151,7 +151,7 @@ func SourceMap_GetOriginalName(node pkg_rhino.Node) string {
 }
 
 // Java method: SourceMap.fixupSourceLocation(java.lang.String sourceFile)
-func (this_ *SourceMap) priv_SourceMap_fixupSourceLocation_5133(sourceFile string) string {
+func (this_ *SourceMap) priv_SourceMap_fixupSourceLocation_5140(sourceFile string) string {
 	_ = sourceFile
 	if this_.prefixMappings.IsEmpty() {
 		return sourceFile
@@ -184,7 +184,7 @@ func (this_ *SourceMap) priv_SourceMap_fixupSourceLocation_5133(sourceFile strin
 func (this_ *SourceMap) AppendTo(out j2gort.Ext_java_lang_Appendable, name string) {
 	_ = out
 	_ = name
-	this_.generator.AppendTo(out, this_.priv_SourceMap_fixupSourceLocation_5133(name))
+	this_.generator.AppendTo(out, this_.priv_SourceMap_fixupSourceLocation_5140(name))
 }
 
 // Java method: SourceMap.reset()

@@ -375,7 +375,7 @@ func (this_ *AbstractVarBase) priv_AbstractVar_declarationTypeImpl_529() pkg_rhi
 		var current pkg_rhino.Node = this_.nameNode
 		_ = current
 		for ; current != 0; current = current.GetParent() {
-			if StaticGet_AbstractVar_DECLARATION_TYPES().Contains(j2gort.BoxNullableVal(current.GetToken())) {
+			if j2gort.ImmSetContainsTypedU8_(StaticGet_AbstractVar_DECLARATION_TYPES(), uint8(current.GetToken())) {
 				return current.GetToken()
 			}
 		}

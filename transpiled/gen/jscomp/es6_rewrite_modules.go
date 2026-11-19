@@ -1231,7 +1231,7 @@ func (this_ *Es6RewriteModules_RenameGlobalVars) priv_RenameGlobalVars_fixTypeNo
 			if dot < int32(0) {
 				propChain = j2gort.Ext_java_util_List_Of_0()
 			} else {
-				propChain = StaticGet_Es6RewriteModules_DOT_SPLITTER().SplitToList(j2gort.BoxString(j2gort.JStrSubFrom(name, (dot + int32(1)))))
+				propChain = j2gort.SplitterSplitToListStr(StaticGet_Es6RewriteModules_DOT_SPLITTER(), j2gort.JStrSubFrom(name, (dot+int32(1))))
 			}
 			var globalName string = ModuleRenaming_GetGlobalNameForJsDoc(this_.outer_.moduleMap, binding, propChain)
 			_ = globalName

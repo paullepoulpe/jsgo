@@ -160,11 +160,13 @@ const (
 	strCacheWays            = 4
 	strMetaBlockUnits       = 64
 
-	unpinDedupMaxLen      = 96
-	unpinDedupBuckets     = 16384
-	unpinDedupBucketMask  = unpinDedupBuckets - 1
-	shortASCIICacheSlots  = 512
-	shortASCIICacheMask   = shortASCIICacheSlots - 1
+	unpinDedupMaxLen     = 96
+	unpinDedupBuckets    = 16384
+	unpinDedupBucketMask = unpinDedupBuckets - 1
+	shortASCIIShards     = 64
+	shortASCIIShardMask  = shortASCIIShards - 1
+	shortASCIISets       = 16 // 64 * 16 * 4 = 4,096 in-place entries (0 heap allocs)
+	shortASCIISetMask    = shortASCIISets - 1
 
 	cpASCIIRunFlag uint32 = 1 << 31
 	cpOffsetMask   uint32 = (1 << 31) - 1
@@ -253,8 +255,13 @@ type strMetaShard struct {
 	slots [strCacheWays]atomic.Pointer[strMeta]
 }
 
-type shortASCIIBucket struct {
+type shortASCIISet struct {
 	s0, s1, s2, s3 string
+}
+
+type shortASCIIShard struct {
+	mu   sync.RWMutex
+	sets [shortASCIISets]shortASCIISet
 }
 
 var (
@@ -263,8 +270,7 @@ var (
 	hotStrMeta0     atomic.Pointer[strMeta]
 	hotStrMeta1     atomic.Pointer[strMeta]
 
-	shortASCIICache [shortASCIICacheSlots]atomic.Pointer[shortASCIIBucket]
-	shortASCIISeen  [shortASCIICacheSlots]atomic.Uint64
+	shortASCIICache [shortASCIIShards]shortASCIIShard
 )
 
 func init() {
@@ -319,6 +325,32 @@ func isASCIIUpTo64(s string) bool {
 	return ((wHead | wTail) & asciiHighMask64) == 0
 }
 
+// isASCIIUpTo128 reports whether s (with len(s) <= 128) is pure ASCII using
+// overlapping 64-byte head/tail loads with zero loops and zero allocations.
+func isASCIIUpTo128(s string) bool {
+	n := len(s)
+	if n <= 64 {
+		return isASCIIUpTo64(s)
+	}
+	wHead := binary.LittleEndian.Uint64([]byte(s[:8])) |
+		binary.LittleEndian.Uint64([]byte(s[8:16])) |
+		binary.LittleEndian.Uint64([]byte(s[16:24])) |
+		binary.LittleEndian.Uint64([]byte(s[24:32])) |
+		binary.LittleEndian.Uint64([]byte(s[32:40])) |
+		binary.LittleEndian.Uint64([]byte(s[40:48])) |
+		binary.LittleEndian.Uint64([]byte(s[48:56])) |
+		binary.LittleEndian.Uint64([]byte(s[56:64]))
+	wTail := binary.LittleEndian.Uint64([]byte(s[n-64:n-56])) |
+		binary.LittleEndian.Uint64([]byte(s[n-56:n-48])) |
+		binary.LittleEndian.Uint64([]byte(s[n-48:n-40])) |
+		binary.LittleEndian.Uint64([]byte(s[n-40:n-32])) |
+		binary.LittleEndian.Uint64([]byte(s[n-32:n-24])) |
+		binary.LittleEndian.Uint64([]byte(s[n-24:n-16])) |
+		binary.LittleEndian.Uint64([]byte(s[n-16:n-8])) |
+		binary.LittleEndian.Uint64([]byte(s[n-8:]))
+	return ((wHead | wTail) & asciiHighMask64) == 0
+}
+
 // shortASCIIHash computes a fast 64-bit fingerprint for s with len(s) > 64.
 func shortASCIIHash(s string) uint64 {
 	n := len(s)
@@ -331,42 +363,54 @@ func shortASCIIHash(s string) uint64 {
 }
 
 func checkShortASCII(s string) bool {
-	b := shortASCIICache[shortASCIIHash(s)&shortASCIICacheMask].Load()
-	return b != nil && (b.s0 == s || b.s1 == s || b.s2 == s || b.s3 == s)
+	if len(s) <= 128 {
+		return isASCIIUpTo128(s)
+	}
+	h := shortASCIIHash(s)
+	sh := &shortASCIICache[h&shortASCIIShardMask]
+	setIdx := (h >> 6) & shortASCIISetMask
+	sh.mu.RLock()
+	st := &sh.sets[setIdx]
+	hit := st.s0 == s || st.s1 == s || st.s2 == s || st.s3 == s
+	sh.mu.RUnlock()
+	return hit
 }
 
 // isShortASCII reports whether s (with 64 < len(s) < strCacheMinASCIILen) is pure ASCII,
-// using a lock-free 4-way set-associative atomic.Pointer cache so O(N) character loops
-// (e.g. JsDocTokenStream and Wtf8.encodeToWtf8) hit O(1) string-header equality with
-// zero mutexes, zero atomic RMWs, and zero allocations on hits (and zero allocations
-// on single-probe strings via shortASCIISeen).
+// using register loads up to 128 bytes and a 64-shard in-place 4-way value cache above
+// 128 bytes with zero heap allocations on both hits and misses.
 func isShortASCII(s string) bool {
+	if len(s) <= 128 {
+		return isASCIIUpTo128(s)
+	}
 	h := shortASCIIHash(s)
-	idx := h & shortASCIICacheMask
-	b := shortASCIICache[idx].Load()
-	if b != nil && (b.s0 == s || b.s1 == s || b.s2 == s || b.s3 == s) {
+	sh := &shortASCIICache[h&shortASCIIShardMask]
+	setIdx := (h >> 6) & shortASCIISetMask
+	sh.mu.RLock()
+	st := &sh.sets[setIdx]
+	hit := st.s0 == s || st.s1 == s || st.s2 == s || st.s3 == s
+	sh.mu.RUnlock()
+	if hit {
 		return true
 	}
-	return isShortASCIIMiss(s, h, idx, b)
+	return isShortASCIIMiss(s, sh, setIdx)
 }
 
 //go:noinline
-func isShortASCIIMiss(s string, h, idx uint64, prev *shortASCIIBucket) bool {
+func isShortASCIIMiss(s string, sh *shortASCIIShard, setIdx uint64) bool {
 	if asciiPrefixLenRaw(s) != len(s) {
 		return false
 	}
-	tag := h | 1
-	if shortASCIISeen[idx].Load() != tag {
-		shortASCIISeen[idx].Store(tag)
-		return true
+	if sh.mu.TryLock() {
+		st := &sh.sets[setIdx]
+		if st.s0 != s && st.s1 != s && st.s2 != s && st.s3 != s {
+			st.s3 = st.s2
+			st.s2 = st.s1
+			st.s1 = st.s0
+			st.s0 = s
+		}
+		sh.mu.Unlock()
 	}
-	nb := &shortASCIIBucket{s0: s}
-	if prev != nil {
-		nb.s1 = prev.s0
-		nb.s2 = prev.s1
-		nb.s3 = prev.s2
-	}
-	shortASCIICache[idx].Store(nb)
 	return true
 }
 
@@ -878,17 +922,14 @@ func ASCIIPrefixLen(s string) int {
 // IsASCII reports whether s contains only ASCII characters.
 func IsASCII(s string) bool {
 	n := len(s)
-	if n <= 64 {
-		return isASCIIUpTo64(s)
+	if n <= 128 {
+		return isASCIIUpTo128(s)
 	}
 	if s[0] >= 0x80 {
 		return false
 	}
 	if n < strCacheMinASCIILen {
-		if checkShortASCII(s) {
-			return true
-		}
-		return asciiPrefixLenRaw(s) == n
+		return isShortASCII(s)
 	}
 	if m := hotStrMeta0.Load(); m.s == s {
 		return m.asciiLen == n
@@ -944,12 +985,12 @@ func stringLengthSlow(s string) int {
 		return m.utf16Len
 	}
 	n := len(s)
-	if n <= 64 {
-		if isASCIIUpTo64(s) {
+	if n <= 128 {
+		if isASCIIUpTo128(s) {
 			return n
 		}
 	} else if n < strCacheMinASCIILen {
-		if checkShortASCII(s) {
+		if isShortASCII(s) {
 			return n
 		}
 	}
@@ -997,15 +1038,16 @@ func StringCharAt(s string, index int) uint16 {
 				if isASCIIUpTo32(s[:index+1]) {
 					return uint16(s[index])
 				}
-			} else if len(s) <= 64 {
+			} else if index < 64 {
 				if isASCIIUpTo64(s[:index+1]) {
 					return uint16(s[index])
 				}
-			} else {
-				b := shortASCIICache[shortASCIIHash(s)&shortASCIICacheMask].Load()
-				if (b != nil && (b.s0 == s || b.s1 == s || b.s2 == s || b.s3 == s)) || isShortASCII(s) {
+			} else if index < 128 {
+				if isASCIIUpTo128(s[:index+1]) {
 					return uint16(s[index])
 				}
+			} else if isShortASCII(s) {
+				return uint16(s[index])
 			}
 		}
 	}
@@ -1071,15 +1113,16 @@ func StringCodePointAt(s string, index int) int32 {
 				if isASCIIUpTo32(s[:index+1]) {
 					return int32(s[index])
 				}
-			} else if len(s) <= 64 {
+			} else if index < 64 {
 				if isASCIIUpTo64(s[:index+1]) {
 					return int32(s[index])
 				}
-			} else {
-				b := shortASCIICache[shortASCIIHash(s)&shortASCIICacheMask].Load()
-				if (b != nil && (b.s0 == s || b.s1 == s || b.s2 == s || b.s3 == s)) || isShortASCII(s) {
+			} else if index < 128 {
+				if isASCIIUpTo128(s[:index+1]) {
 					return int32(s[index])
 				}
+			} else if isShortASCII(s) {
+				return int32(s[index])
 			}
 		}
 	}

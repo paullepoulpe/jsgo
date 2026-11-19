@@ -100,15 +100,10 @@ func (this_ *DevirtualizeMethods) Process_3(externs pkg_rhino.Node, root pkg_rhi
 func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_processReferenceList_2415(name string, sites *OptimizeCalls_NodeList) {
 	_ = name
 	_ = sites
-	var functionsBySite *j2gort.Ext_com_google_common_collect_ImmutableListMultimap = OptimizeCalls_ReferenceMap_GetFunctionNodes(sites)
-	_ = functionsBySite
-	if functionsBySite.IsEmpty() {
-		return
-	}
-	var canonicalDefinitionSite pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](j2gort.Ext_com_google_common_collect_Iterables_Get_2(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](functionsBySite.KeySet()), int32(0)))
-	_ = canonicalDefinitionSite
-	var callSites []pkg_rhino.Node = []pkg_rhino.Node{}
-	_ = callSites
+	var defSites *OptimizeCalls_NodeList = nil
+	_ = defSites
+	var fns *OptimizeCalls_NodeList = nil
+	_ = fns
 	{
 		var i int32 = int32(0)
 		_ = i
@@ -117,46 +112,91 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_processReferenceList_
 		for ; i < count; i = i + 1 {
 			var s pkg_rhino.Node = sites.Get(i)
 			_ = s
-			if !(j2gort.MultimapContainsKeyNode(functionsBySite, s)) {
-				callSites = append(callSites, s)
+			var prevCount int32
+			_ = prevCount
+			if fns == nil {
+				prevCount = int32(0)
+			} else {
+				prevCount = fns.Size()
+			}
+			fns = OptimizeCalls_ReferenceMap_AppendDefinitionFunctionNodes(s, fns)
+			var newCount int32
+			_ = newCount
+			if fns == nil {
+				newCount = int32(0)
+			} else {
+				newCount = fns.Size()
+			}
+			if newCount > prevCount {
+				if defSites == nil {
+					defSites = NewOptimizeCalls_NodeList()
+				}
+				if !(defSites.Contains(s)) {
+					defSites.Add(s)
+				}
 			}
 		}
 	}
-	if len(callSites) == 0 {
+	if ((defSites == nil) || (fns == nil)) || fns.IsEmpty() {
 		return
 	}
-	{
-		cur_2 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](functionsBySite.KeySet())))
-		for cur_2.HasNext() {
-			s_2 := pkg_rhino.Node(cur_2.NextNode())
-			_ = s_2
-			if !(this_.priv_DevirtualizeMethods_isEligibleDefinitionSite_2418(name, s_2)) {
-				return
-			}
-		}
-	}
-	{
-		cur_3 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](functionsBySite.Values())))
-		for cur_3.HasNext() {
-			fn := pkg_rhino.Node(cur_3.NextNode())
-			_ = fn
-			if !(this_.priv_DevirtualizeMethods_isEligibleDefinitionFunction_2419(fn)) {
-				return
-			}
-		}
-	}
+	var canonicalDefinitionSite pkg_rhino.Node = defSites.Get(int32(0))
+	_ = canonicalDefinitionSite
+	var callSites *OptimizeCalls_NodeList = nil
+	_ = callSites
 	{
 		var i_2 int32 = int32(0)
 		_ = i_2
-		var count_2 int32 = int32(len(callSites))
+		var count_2 int32 = sites.Size()
 		_ = count_2
 		for ; i_2 < count_2; i_2 = i_2 + 1 {
-			if !(this_.priv_DevirtualizeMethods_isEligibleCallSite_2420(callSites[i_2], canonicalDefinitionSite)) {
+			var s_2 pkg_rhino.Node = sites.Get(i_2)
+			_ = s_2
+			if !(defSites.Contains(s_2)) {
+				if callSites == nil {
+					callSites = NewOptimizeCalls_NodeList()
+				}
+				callSites.Add(s_2)
+			}
+		}
+	}
+	if (callSites == nil) || callSites.IsEmpty() {
+		return
+	}
+	{
+		var i_3 int32 = int32(0)
+		_ = i_3
+		var count_3 int32 = defSites.Size()
+		_ = count_3
+		for ; i_3 < count_3; i_3 = i_3 + 1 {
+			if !(this_.priv_DevirtualizeMethods_isEligibleDefinitionSite_2418(name, defSites.Get(i_3))) {
 				return
 			}
 		}
 	}
-	if !(this_.priv_DevirtualizeMethods_allDefinitionsEquivalent_2421(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](functionsBySite.Values()))) {
+	{
+		var i_4 int32 = int32(0)
+		_ = i_4
+		var count_4 int32 = fns.Size()
+		_ = count_4
+		for ; i_4 < count_4; i_4 = i_4 + 1 {
+			if !(this_.priv_DevirtualizeMethods_isEligibleDefinitionFunction_2419(fns.Get(i_4))) {
+				return
+			}
+		}
+	}
+	{
+		var i_5 int32 = int32(0)
+		_ = i_5
+		var count_5 int32 = callSites.Size()
+		_ = count_5
+		for ; i_5 < count_5; i_5 = i_5 + 1 {
+			if !(this_.priv_DevirtualizeMethods_isEligibleCallSite_2420(callSites.Get(i_5), canonicalDefinitionSite)) {
+				return
+			}
+		}
+	}
+	if !(this_.priv_DevirtualizeMethods_allDefinitionsEquivalent_2421(fns)) {
 		return
 	}
 	var devirtualizedName string = DevirtualizeMethods_RewrittenMethodNameOf(name)
@@ -166,12 +206,12 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_processReferenceList_
 	var isConstantName bool = ((bestJSDoc != nil) && bestJSDoc.IsConstant())
 	_ = isConstantName
 	{
-		var i_3 int32 = int32(0)
-		_ = i_3
-		var count_3 int32 = int32(len(callSites))
-		_ = count_3
-		for ; i_3 < count_3; i_3 = i_3 + 1 {
-			this_.priv_DevirtualizeMethods_rewriteCall_2422(callSites[i_3], devirtualizedName, isConstantName)
+		var i_6 int32 = int32(0)
+		_ = i_6
+		var count_6 int32 = callSites.Size()
+		_ = count_6
+		for ; i_6 < count_6; i_6 = i_6 + 1 {
+			this_.priv_DevirtualizeMethods_rewriteCall_2422(callSites.Get(i_6), devirtualizedName, isConstantName)
 		}
 	}
 	this_.priv_DevirtualizeMethods_rewriteDefinition_2423(canonicalDefinitionSite, devirtualizedName, isConstantName)
@@ -329,23 +369,24 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isEligibleCallSite_24
 	return true
 }
 
-// Java method: DevirtualizeMethods.allDefinitionsEquivalent(java.util.Collection<com.google.javascript.rhino.Node> definitions)
-func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_allDefinitionsEquivalent_2421(definitions j2gort.Ext_java_util_Collection) bool {
+// Java method: DevirtualizeMethods.allDefinitionsEquivalent(com.google.javascript.jscomp.OptimizeCalls.NodeList definitions)
+func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_allDefinitionsEquivalent_2421(definitions *OptimizeCalls_NodeList) bool {
 	_ = definitions
-	if definitions.IsEmpty() {
+	var count int32 = definitions.Size()
+	_ = count
+	if count == int32(0) {
 		return true
 	}
-	var definition pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](j2gort.Ext_com_google_common_collect_Iterables_Get_2(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](definitions), int32(0)))
+	var definition pkg_rhino.Node = definitions.Get(int32(0))
 	_ = definition
 	if !(definition.IsFunction()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(definition))
 	}
 	{
-		cur_4 := j2gort.NewIterCursor(j2gort.CheckNotNull(definitions))
-		for cur_4.HasNext() {
-			d := pkg_rhino.Node(cur_4.NextNode())
-			_ = d
-			if !(this_.compiler.AreNodesEqualForInlining(d, definition)) {
+		var i int32 = int32(1)
+		_ = i
+		for ; i < count; i = i + 1 {
+			if !(this_.compiler.AreNodesEqualForInlining(definitions.Get(i), definition)) {
 				return false
 			}
 		}

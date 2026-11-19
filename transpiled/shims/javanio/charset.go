@@ -4,8 +4,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math/bits"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode/utf8"
 
 	"golang.org/x/text/encoding"
@@ -101,43 +103,248 @@ func (c *Charset) HashCode() int32 {
 	return javalang.StringHashCode(javalang.StringToLowerCaseASCII(c.name))
 }
 
+var emptyEncodedBytes = []byte{}
+
+const (
+	decodeDedupMaxLen        = 64
+	decodeDedupSeenLen       = 16384
+	decodeDedupSeenMask      = decodeDedupSeenLen - 1
+	decodeDedupNumShards     = 64
+	decodeDedupShardMask     = decodeDedupNumShards - 1
+	decodeDedupSetsPerShard  = 256 // 64 * 256 * 2 = 32,768 in-place entries (0 bucket allocs)
+	decodeDedupSetMask       = decodeDedupSetsPerShard - 1
+)
+
+type decodeDedupShard struct {
+	mu   sync.RWMutex
+	sets [decodeDedupSetsPerShard][2]string
+}
+
+var (
+	decodeDedupSeen   [decodeDedupSeenLen]atomic.Uint32
+	decodeDedupShards [decodeDedupNumShards]decodeDedupShard
+)
+
+func hashASCIIBytesUpTo64(b []byte) uint64 {
+	n := len(b)
+	if n >= 8 {
+		mid := (n - 8) >> 1
+		h := uint64(n)*0x9e3779b97f4a7c15 ^
+			binary.LittleEndian.Uint64(b[:8]) ^
+			(binary.LittleEndian.Uint64(b[mid:mid+8]) * 0xbf58476d1ce4e5b9) ^
+			(binary.LittleEndian.Uint64(b[n-8:]) * 0x94d049bb133111eb)
+		return h ^ (h >> 29)
+	}
+	if n >= 4 {
+		h := uint64(n)*0x9e3779b97f4a7c15 ^
+			(uint64(binary.LittleEndian.Uint32(b[:4])) * 0xbf58476d1ce4e5b9) ^
+			(uint64(binary.LittleEndian.Uint32(b[n-4:])) * 0x94d049bb133111eb)
+		return h ^ (h >> 29)
+	}
+	h := (uint64(b[0]) | uint64(b[n>>1])<<8 | uint64(b[n-1])<<16 | uint64(n)<<24) * 0x9e3779b97f4a7c15
+	return h ^ (h >> 29)
+}
+
+func decodeShortASCIIDedup(b []byte) string {
+	h := hashASCIIBytesUpTo64(b)
+	seenIdx := h & decodeDedupSeenMask
+	tag := uint32(h>>32) | 1
+	if decodeDedupSeen[seenIdx].Load() != tag {
+		decodeDedupSeen[seenIdx].Store(tag)
+		return string(b)
+	}
+	sh := &decodeDedupShards[h&decodeDedupShardMask]
+	slot := (h >> 6) & decodeDedupSetMask
+	sh.mu.RLock()
+	s0, s1 := sh.sets[slot][0], sh.sets[slot][1]
+	sh.mu.RUnlock()
+	if s0 == string(b) {
+		return s0
+	}
+	if s1 == string(b) {
+		return s1
+	}
+	out := string(b)
+	if sh.mu.TryLock() {
+		sh.sets[slot][1] = sh.sets[slot][0]
+		sh.sets[slot][0] = out
+		sh.mu.Unlock()
+	}
+	return out
+}
+
 func (c *Charset) Encode(s string) []byte {
+	switch c {
+	case StandardCharsets_UTF_8:
+		if len(s) == 0 {
+			return emptyEncodedBytes[:0:0]
+		}
+		if javalang.IsASCII(s) || utf8.ValidString(s) {
+			return []byte(s)
+		}
+		return appendUTF8NonCanonical(make([]byte, 0, len(s)), s)
+	case StandardCharsets_US_ASCII:
+		if len(s) == 0 {
+			return emptyEncodedBytes[:0:0]
+		}
+		if javalang.IsASCII(s) {
+			return []byte(s)
+		}
+		return appendASCIINonPure(make([]byte, 0, len(s)), s)
+	case StandardCharsets_ISO_8859_1:
+		if len(s) == 0 {
+			return emptyEncodedBytes[:0:0]
+		}
+		if javalang.IsASCII(s) {
+			return []byte(s)
+		}
+		return appendISO88591NonPure(make([]byte, 0, len(s)), s)
+	}
 	return c.impl().encode(s)
 }
 
-func (c *Charset) Decode(b []byte) string {
+// AppendEncoded appends the charset-encoded bytes of s directly to dst without
+// allocating an intermediate []byte on the common UTF-8 / ASCII / Latin-1 paths.
+func (c *Charset) AppendEncoded(dst []byte, s string) []byte {
+	if len(s) == 0 {
+		return dst
+	}
 	switch c {
 	case StandardCharsets_UTF_8:
+		if javalang.IsASCII(s) || utf8.ValidString(s) {
+			return append(dst, s...)
+		}
+		return appendUTF8NonCanonical(dst, s)
+	case StandardCharsets_US_ASCII:
+		if javalang.IsASCII(s) {
+			return append(dst, s...)
+		}
+		return appendASCIINonPure(dst, s)
+	case StandardCharsets_ISO_8859_1:
+		if javalang.IsASCII(s) {
+			return append(dst, s...)
+		}
+		return appendISO88591NonPure(dst, s)
+	}
+	return append(dst, c.impl().encode(s)...)
+}
+
+//go:noinline
+func (c *Charset) decodeReplaceSlow(b []byte) string {
+	switch c {
+	case StandardCharsets_UTF_8:
+		return utf8Ops{}.decodeReplace(b)
+	case StandardCharsets_US_ASCII:
+		return asciiOps{}.decodeReplace(b)
+	case StandardCharsets_ISO_8859_1:
+		return decodeISO88591NonASCII(b)
+	case StandardCharsets_UTF_16:
+		return utf16Ops{bigEndian: true, marked: true}.decodeReplace(b)
+	case StandardCharsets_UTF_16BE:
+		return utf16Ops{bigEndian: true, marked: false}.decodeReplace(b)
+	case StandardCharsets_UTF_16LE:
+		return utf16Ops{bigEndian: false, marked: false}.decodeReplace(b)
+	}
+	cp := make([]byte, len(b))
+	copy(cp, b)
+	return c.impl().decodeReplace(cp)
+}
+
+//go:noinline
+func (c *Charset) decodeStrictSlow(b []byte) (string, error) {
+	switch c {
+	case StandardCharsets_UTF_16:
+		return utf16Ops{bigEndian: true, marked: true}.decode(b)
+	case StandardCharsets_UTF_16BE:
+		return utf16Ops{bigEndian: true, marked: false}.decode(b)
+	case StandardCharsets_UTF_16LE:
+		return utf16Ops{bigEndian: false, marked: false}.decode(b)
+	}
+	cp := make([]byte, len(b))
+	copy(cp, b)
+	return c.impl().decode(cp)
+}
+
+func (c *Charset) Decode(b []byte) string {
+	n := len(b)
+	switch c {
+	case StandardCharsets_UTF_8:
+		if n == 0 {
+			return ""
+		}
+		if n == 1 && b[0] < 0x80 {
+			return javalang.StringFromChar(uint16(b[0]))
+		}
+		if n <= decodeDedupMaxLen && isBytesASCIIUpTo64(b) {
+			return decodeShortASCIIDedup(b)
+		}
 		if _, err := validateUTF8Chunk(b, true); err == nil {
 			return string(b)
 		}
 	case StandardCharsets_US_ASCII, StandardCharsets_ISO_8859_1:
+		if n == 0 {
+			return ""
+		}
+		if n == 1 && b[0] < 0x80 {
+			return javalang.StringFromChar(uint16(b[0]))
+		}
+		if n <= decodeDedupMaxLen && isBytesASCIIUpTo64(b) {
+			return decodeShortASCIIDedup(b)
+		}
 		if isBytesASCII(b) {
 			return string(b)
 		}
 	}
-	return c.impl().decodeReplace(b)
+	return c.decodeReplaceSlow(b)
 }
 
 func (c *Charset) DecodeStrict(b []byte) (string, error) {
+	n := len(b)
 	switch c {
 	case StandardCharsets_UTF_8:
+		if n == 0 {
+			return "", nil
+		}
+		if n == 1 && b[0] < 0x80 {
+			return javalang.StringFromChar(uint16(b[0])), nil
+		}
+		if n <= decodeDedupMaxLen && isBytesASCIIUpTo64(b) {
+			return decodeShortASCIIDedup(b), nil
+		}
 		if _, err := validateUTF8Chunk(b, true); err != nil {
 			return "", err
 		}
 		return string(b), nil
 	case StandardCharsets_US_ASCII:
+		if n == 0 {
+			return "", nil
+		}
+		if n == 1 && b[0] < 0x80 {
+			return javalang.StringFromChar(uint16(b[0])), nil
+		}
+		if n <= decodeDedupMaxLen && isBytesASCIIUpTo64(b) {
+			return decodeShortASCIIDedup(b), nil
+		}
 		if isBytesASCII(b) {
 			return string(b), nil
 		}
 		return "", &MalformedInputException{InputLength: 1}
 	case StandardCharsets_ISO_8859_1:
+		if n == 0 {
+			return "", nil
+		}
+		if n == 1 && b[0] < 0x80 {
+			return javalang.StringFromChar(uint16(b[0])), nil
+		}
+		if n <= decodeDedupMaxLen && isBytesASCIIUpTo64(b) {
+			return decodeShortASCIIDedup(b), nil
+		}
 		if isBytesASCII(b) {
 			return string(b), nil
 		}
 		return decodeISO88591NonASCII(b), nil
 	}
-	return c.impl().decode(b)
+	return c.decodeStrictSlow(b)
 }
 
 func (c *Charset) CanEncodeChar(ch uint16) bool {
@@ -250,6 +457,22 @@ func (w *charsetWriter) Write(s string) {
 	if len(s) == 0 {
 		return
 	}
+	if sw, ok := w.out.(io.StringWriter); ok {
+		if (w.cs == StandardCharsets_UTF_8 && (javalang.IsASCII(s) || utf8.ValidString(s))) ||
+			((w.cs == StandardCharsets_US_ASCII || w.cs == StandardCharsets_ISO_8859_1) && javalang.IsASCII(s)) {
+			if _, err := sw.WriteString(s); err != nil {
+				panic(javaio.NewIOException(err.Error()))
+			}
+			return
+		}
+	}
+	if len(s) <= 512 {
+		var tmp [512]byte
+		if _, err := w.out.Write(w.cs.AppendEncoded(tmp[:0], s)); err != nil {
+			panic(javaio.NewIOException(err.Error()))
+		}
+		return
+	}
 	if _, err := w.out.Write(w.cs.Encode(s)); err != nil {
 		panic(javaio.NewIOException(err.Error()))
 	}
@@ -311,12 +534,8 @@ func (r *errReader) Close() error { return nil }
 
 type utf8Ops struct{}
 
-func (utf8Ops) encode(s string) []byte {
-	if utf8.ValidString(s) {
-		return []byte(s)
-	}
+func appendUTF8NonCanonical(dst []byte, s string) []byte {
 	units := javalang.StringToUTF16(s)
-	dst := make([]byte, 0, len(s))
 	for i := 0; i < len(units); i++ {
 		c := units[i]
 		switch {
@@ -337,16 +556,65 @@ func (utf8Ops) encode(s string) []byte {
 	return dst
 }
 
+func (utf8Ops) encode(s string) []byte {
+	if len(s) == 0 {
+		return emptyEncodedBytes[:0:0]
+	}
+	if javalang.IsASCII(s) || utf8.ValidString(s) {
+		return []byte(s)
+	}
+	return appendUTF8NonCanonical(make([]byte, 0, len(s)), s)
+}
+
+func isBytesASCIIUpTo64(b []byte) bool {
+	n := len(b)
+	if n > 32 {
+		wHead := binary.LittleEndian.Uint64(b[:8]) |
+			binary.LittleEndian.Uint64(b[8:16]) |
+			binary.LittleEndian.Uint64(b[16:24]) |
+			binary.LittleEndian.Uint64(b[24:32])
+		wTail := binary.LittleEndian.Uint64(b[n-32:n-24]) |
+			binary.LittleEndian.Uint64(b[n-24:n-16]) |
+			binary.LittleEndian.Uint64(b[n-16:n-8]) |
+			binary.LittleEndian.Uint64(b[n-8:])
+		return ((wHead | wTail) & 0x8080808080808080) == 0
+	}
+	if n >= 16 {
+		w := binary.LittleEndian.Uint64(b[:8]) |
+			binary.LittleEndian.Uint64(b[8:16]) |
+			binary.LittleEndian.Uint64(b[n-16:n-8]) |
+			binary.LittleEndian.Uint64(b[n-8:])
+		return (w & 0x8080808080808080) == 0
+	}
+	if n >= 8 {
+		w := binary.LittleEndian.Uint64(b[:8]) | binary.LittleEndian.Uint64(b[n-8:])
+		return (w & 0x8080808080808080) == 0
+	}
+	if n >= 4 {
+		w := binary.LittleEndian.Uint32(b[:4]) | binary.LittleEndian.Uint32(b[n-4:])
+		return (w & 0x80808080) == 0
+	}
+	if n > 0 {
+		return (b[0] | b[n>>1] | b[n-1]) < 0x80
+	}
+	return true
+}
+
 func isBytesASCII(b []byte) bool {
-	for len(b) >= 16 {
+	if len(b) <= 64 {
+		return isBytesASCIIUpTo64(b)
+	}
+	for len(b) >= 32 {
 		w0 := binary.LittleEndian.Uint64(b)
 		w1 := binary.LittleEndian.Uint64(b[8:])
-		if (w0|w1)&0x8080808080808080 != 0 {
+		w2 := binary.LittleEndian.Uint64(b[16:])
+		w3 := binary.LittleEndian.Uint64(b[24:])
+		if (w0|w1|w2|w3)&0x8080808080808080 != 0 {
 			return false
 		}
-		b = b[16:]
+		b = b[32:]
 	}
-	if len(b) >= 8 {
+	for len(b) >= 8 {
 		if binary.LittleEndian.Uint64(b)&0x8080808080808080 != 0 {
 			return false
 		}
@@ -361,21 +629,10 @@ func isBytesASCII(b []byte) bool {
 }
 
 func isStringASCII(s string) bool {
-	for len(s) >= 8 {
-		if (s[0] | s[1] | s[2] | s[3] | s[4] | s[5] | s[6] | s[7]) >= 0x80 {
-			return false
-		}
-		s = s[8:]
-	}
-	for i := 0; i < len(s); i++ {
-		if s[i] >= 0x80 {
-			return false
-		}
-	}
-	return true
+	return javalang.IsASCII(s)
 }
 
-// validateUTF8Chunk validates b in-place using 8-byte uint64 ASCII word skips
+// validateUTF8Chunk validates b in-place using 32-byte uint64 ASCII word skips
 // and utf8.DecodeRune on non-ASCII bytes. When !atEOF and b ends with a valid
 // incomplete 1..3-byte prefix of a multi-byte UTF-8 rune, it returns the prefix
 // length before that trailing sequence so streaming callers can carry those
@@ -384,18 +641,34 @@ func validateUTF8Chunk(b []byte, atEOF bool) (int, error) {
 	i := 0
 	n := len(b)
 	for i < n {
-		for i+16 <= n {
+		for i+32 <= n {
 			w0 := binary.LittleEndian.Uint64(b[i:])
 			w1 := binary.LittleEndian.Uint64(b[i+8:])
-			if (w0|w1)&0x8080808080808080 != 0 {
-				if w0&0x8080808080808080 == 0 {
-					i += 8
+			w2 := binary.LittleEndian.Uint64(b[i+16:])
+			w3 := binary.LittleEndian.Uint64(b[i+24:])
+			if (w0|w1|w2|w3)&0x8080808080808080 != 0 {
+				if m := w0 & 0x8080808080808080; m != 0 {
+					i += bits.TrailingZeros64(m) >> 3
+					goto checkNonASCII
 				}
-				break
+				if m := w1 & 0x8080808080808080; m != 0 {
+					i += 8 + (bits.TrailingZeros64(m) >> 3)
+					goto checkNonASCII
+				}
+				if m := w2 & 0x8080808080808080; m != 0 {
+					i += 16 + (bits.TrailingZeros64(m) >> 3)
+					goto checkNonASCII
+				}
+				i += 24 + (bits.TrailingZeros64(w3&0x8080808080808080) >> 3)
+				goto checkNonASCII
 			}
-			i += 16
+			i += 32
 		}
-		for i+8 <= n && binary.LittleEndian.Uint64(b[i:])&0x8080808080808080 == 0 {
+		for i+8 <= n {
+			if m := binary.LittleEndian.Uint64(b[i:]) & 0x8080808080808080; m != 0 {
+				i += bits.TrailingZeros64(m) >> 3
+				goto checkNonASCII
+			}
 			i += 8
 		}
 		for i < n && b[i] < 0x80 {
@@ -404,6 +677,7 @@ func validateUTF8Chunk(b []byte, atEOF bool) (int, error) {
 		if i >= n {
 			break
 		}
+	checkNonASCII:
 		if !atEOF && n-i < utf8.UTFMax && !utf8.FullRune(b[i:]) {
 			return i, nil
 		}
@@ -547,12 +821,8 @@ func (utf8Ops) canEncodeChar(uint16) bool { return true }
 
 type asciiOps struct{}
 
-func (asciiOps) encode(s string) []byte {
-	if javalang.IsASCII(s) {
-		return []byte(s)
-	}
+func appendASCIINonPure(out []byte, s string) []byte {
 	units := javalang.StringToUTF16(s)
-	out := make([]byte, 0, len(units))
 	for i := 0; i < len(units); i++ {
 		c := units[i]
 		if c < 0x80 {
@@ -565,6 +835,13 @@ func (asciiOps) encode(s string) []byte {
 		}
 	}
 	return out
+}
+
+func (asciiOps) encode(s string) []byte {
+	if javalang.IsASCII(s) {
+		return []byte(s)
+	}
+	return appendASCIINonPure(make([]byte, 0, len(s)), s)
 }
 
 func (asciiOps) decode(b []byte) (string, error) {
@@ -594,12 +871,8 @@ func (asciiOps) canEncodeChar(ch uint16) bool { return ch < 0x80 }
 
 type iso88591Ops struct{}
 
-func (iso88591Ops) encode(s string) []byte {
-	if javalang.IsASCII(s) {
-		return []byte(s)
-	}
+func appendISO88591NonPure(out []byte, s string) []byte {
 	units := javalang.StringToUTF16(s)
-	out := make([]byte, 0, len(units))
 	for i := 0; i < len(units); i++ {
 		c := units[i]
 		if c <= 0xFF {
@@ -612,6 +885,13 @@ func (iso88591Ops) encode(s string) []byte {
 		}
 	}
 	return out
+}
+
+func (iso88591Ops) encode(s string) []byte {
+	if javalang.IsASCII(s) {
+		return []byte(s)
+	}
+	return appendISO88591NonPure(make([]byte, 0, len(s)), s)
 }
 
 func (iso88591Ops) decode(b []byte) (string, error) {

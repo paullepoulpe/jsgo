@@ -95,14 +95,14 @@ func (this_ *PassListBuilder) MaybeAdd(factory PassFactory) {
 func (this_ *PassListBuilder) AddBefore(factory PassFactory, passName string) {
 	_ = factory
 	_ = passName
-	this_.passes.Add_2(this_.priv_PassListBuilder_findIndexByName_4138(passName), factory)
+	this_.passes.Add_2(this_.priv_PassListBuilder_findIndexByName_4145(passName), factory)
 }
 
 // Java method: PassListBuilder.addAfter(com.google.javascript.jscomp.PassFactory factory, java.lang.String passName)
 func (this_ *PassListBuilder) AddAfter(factory PassFactory, passName string) {
 	_ = factory
 	_ = passName
-	this_.passes.Add_2((this_.priv_PassListBuilder_findIndexByName_4138(passName) + int32(1)), factory)
+	this_.passes.Add_2((this_.priv_PassListBuilder_findIndexByName_4145(passName) + int32(1)), factory)
 }
 
 // Java method: PassListBuilder.addAllUpTo(com.google.javascript.jscomp.PassListBuilder other, java.lang.String passName)
@@ -168,7 +168,7 @@ func (this_ *PassListBuilder) RemoveByName(name string) {
 }
 
 // Java method: PassListBuilder.findIndexByName(java.lang.String name)
-func (this_ *PassListBuilder) priv_PassListBuilder_findIndexByName_4138(name string) int32 {
+func (this_ *PassListBuilder) priv_PassListBuilder_findIndexByName_4145(name string) int32 {
 	_ = name
 	{
 		var i int32 = int32(0)

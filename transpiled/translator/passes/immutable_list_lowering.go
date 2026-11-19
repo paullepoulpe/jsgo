@@ -5,8 +5,11 @@
 package passes
 
 import (
+	"bytes"
 	"cmp"
 	"go/ast"
+	"go/parser"
+	"go/printer"
 	"go/token"
 	"go/types"
 	"slices"
@@ -30,19 +33,44 @@ func (p *ImmutableListLoweringPass) Apply(ctx *PassContext) (int, error) {
 	if isJ2gortPkg(ctx.Pkg) || len(ctx.Files) == 0 {
 		return 0, nil
 	}
-	if !j2gortHasExport(ctx, "ImmListFromTypedSlice") {
-		return 0, nil
-	}
 	parentsByFile := make(map[*ast.File]map[ast.Node]ast.Node, len(ctx.Files))
 	for _, f := range ctx.Files {
 		parentsByFile[f], _ = buildParentMap(f)
 	}
 
-	eligible, getters := analyzeImmCandidates(ctx, parentsByFile)
-	if len(eligible) == 0 {
-		return 0, nil
+	total := 0
+	var loweredVars map[*types.Var]bool
+	var loweredGetterFns map[*types.Func]bool
+	if j2gortHasExport(ctx, "ImmListFromTypedSlice") {
+		eligible, getters := analyzeImmCandidates(ctx, parentsByFile)
+		if len(eligible) > 0 {
+			loweredVars = make(map[*types.Var]bool, len(eligible))
+			for _, cand := range eligible {
+				if cand.v != nil {
+					loweredVars[cand.v] = true
+				}
+			}
+			loweredGetterFns = make(map[*types.Func]bool, len(getters))
+			for _, g := range getters {
+				if g.fnObj != nil && !g.isExternal {
+					loweredGetterFns[g.fnObj] = true
+				}
+			}
+			total += applyImmRewrites(ctx, eligible, getters, parentsByFile)
+			for _, f := range ctx.Files {
+				if ctx.ShouldTransform(f) {
+					parentsByFile[f], _ = buildParentMap(f)
+				}
+			}
+		}
 	}
-	return applyImmRewrites(ctx, eligible, getters, parentsByFile), nil
+
+	iterStrSites, err := rewriteImmListIterStrLoops(ctx, loweredVars, loweredGetterFns, parentsByFile)
+	if err != nil {
+		return total, err
+	}
+	total += iterStrSites
+	return total, nil
 }
 
 type immInitKind uint8
@@ -391,7 +419,7 @@ func analyzeImmCandidates(
 		parents := parentsByFile[file]
 		addImmLocal := func(id *ast.Ident, initExpr ast.Expr, span ast.Node, opK immOpKind) {
 			v := varFromObj(info.Defs[id])
-			if id.Name == "_" || v == nil || v.IsField() || !isExactImmutableListType(v.Type()) {
+			if id.Name == "_" || strings.HasPrefix(id.Name, "immStrList_") || v == nil || v.IsField() || !isExactImmutableListType(v.Type()) {
 				return
 			}
 			cand := &immCandidate{
@@ -3547,4 +3575,930 @@ func varAssignedInNode(root ast.Node, target *types.Var, info *types.Info) bool 
 		return true
 	})
 	return assigned
+}
+
+type immIterStrLoopKind uint8
+
+const (
+	immIterStrCursor immIterStrLoopKind = iota
+	immIterStrRangeSlice
+	immIterStrIterator
+)
+
+type immIterStrMatch struct {
+	kind           immIterStrLoopKind
+	startIdx       int
+	endIdx         int // exclusive index in blk.List
+	listExpr       ast.Expr
+	listType       types.Type
+	elemName       string
+	bodyStmts      []ast.Stmt
+	cursorHasNextS bool
+	rawVar         *types.Var
+	unboxRhs       ast.Expr // for RangeSlice / Iterator fallback
+	itVar          *types.Var
+	itHeadStmts    []ast.Stmt // for Iterator fallback
+}
+
+func rewriteImmListIterStrLoops(
+	ctx *PassContext,
+	loweredVars map[*types.Var]bool,
+	loweredGetterFns map[*types.Func]bool,
+	parentsByFile map[*ast.File]map[ast.Node]ast.Node,
+) (int, error) {
+	if ctx == nil || ctx.Info == nil {
+		return 0, nil
+	}
+	info := ctx.Info
+	varUseCounts := make(map[*types.Var]int, len(info.Uses))
+	// order-independent: commutative per-variable use count accumulation
+	for _, obj := range info.Uses {
+		if v := varFromObj(obj); v != nil {
+			varUseCounts[v]++
+		}
+	}
+
+	hasCheckNotNullIface := j2gortHasExport(ctx, "CheckNotNullIface")
+	hasCheckNotNullPtr := j2gortHasExport(ctx, "CheckNotNullPtr")
+	hasCheckNotNull := j2gortHasExport(ctx, "CheckNotNull")
+	hasCastString := j2gortHasExport(ctx, "CastString")
+
+	total := 0
+	for _, file := range ctx.Files {
+		if !ctx.ShouldTransform(file) {
+			continue
+		}
+		parents, postOrder := buildParentMap(file)
+		parentsByFile[file] = parents
+
+		usedNames := make(map[string]bool)
+		ast.Inspect(file, func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok && id.Name != "" && id.Name != "_" {
+				usedNames[id.Name] = true
+			}
+			return true
+		})
+		allocIdent := func(base string) string {
+			if !usedNames[base] {
+				usedNames[base] = true
+				return base
+			}
+			for n := 2; ; n++ {
+				cand := base + strconv.Itoa(n)
+				if !usedNames[cand] {
+					usedNames[cand] = true
+					return cand
+				}
+			}
+		}
+
+		fileChanged := false
+		for _, node := range postOrder {
+			blk, ok := node.(*ast.BlockStmt)
+			if !ok || len(blk.List) == 0 || isDirectIterStrSliceElse(blk, parents) {
+				continue
+			}
+
+			for i := 0; i < len(blk.List); i++ {
+				m, okM := matchImmListIterStrLoopAt(blk, i, loweredVars, loweredGetterFns, parents, info, varUseCounts)
+				if !okM || stmtsContainLabelOrGoto(m.bodyStmts) {
+					continue
+				}
+
+				needJ2Qual := false
+				nonNil := isImmRecvNonNil(m.listExpr, parents, info)
+				chkHelper := ""
+				if !nonNil {
+					if isNonEmptyInterfaceType(m.listType) && hasZeroArgBoolMethod(m.listType, ctx.Pkg, "IsJavaNil_") && hasCheckNotNullIface {
+						chkHelper = "CheckNotNullIface"
+						needJ2Qual = true
+					} else if _, isP := types.Unalias(m.listType).(*types.Pointer); isP && hasCheckNotNullPtr {
+						chkHelper = "CheckNotNullPtr"
+						needJ2Qual = true
+					} else if hasCheckNotNull {
+						chkHelper = "CheckNotNull"
+						needJ2Qual = true
+					}
+				}
+				if m.kind == immIterStrCursor {
+					needJ2Qual = true
+					if !m.cursorHasNextS && !hasCastString {
+						continue
+					}
+				}
+
+				var j2Qual string
+				if needJ2Qual {
+					var okQ bool
+					j2Qual, okQ = ensureJ2gortImportInFile(file, ctx)
+					if !okQ {
+						continue
+					}
+				}
+
+				fastBody, err := cloneStmtListFresh(ctx.Fset, m.bodyStmts)
+				if err != nil {
+					return total, err
+				}
+				slowBody, err := cloneStmtListFresh(ctx.Fset, m.bodyStmts)
+				if err != nil {
+					return total, err
+				}
+				clonedListExpr, err := cloneExprFresh(ctx.Fset, m.listExpr)
+				if err != nil {
+					return total, err
+				}
+
+				listVarName := allocIdent("immStrList_")
+				strsVarName := allocIdent("strs_")
+				okVarName := allocIdent("ok_")
+
+				var initRhs ast.Expr = clonedListExpr
+				if chkHelper != "" {
+					initRhs = &ast.CallExpr{
+						Fun: &ast.SelectorExpr{
+							X:   &ast.Ident{Name: j2Qual},
+							Sel: &ast.Ident{Name: chkHelper},
+						},
+						Args: []ast.Expr{clonedListExpr},
+					}
+				}
+				listInitStmt := &ast.AssignStmt{
+					Lhs: []ast.Expr{&ast.Ident{Name: listVarName}},
+					Tok: token.DEFINE,
+					Rhs: []ast.Expr{initRhs},
+				}
+
+				rangeValName := m.elemName
+				if topLevelRedeclaresIdent(fastBody, m.elemName) {
+					rangeValName = allocIdent("elemStr_")
+					rebind := &ast.AssignStmt{
+						Lhs: []ast.Expr{&ast.Ident{Name: m.elemName}},
+						Tok: token.DEFINE,
+						Rhs: []ast.Expr{&ast.Ident{Name: rangeValName}},
+					}
+					fastBody = append([]ast.Stmt{rebind}, fastBody...)
+				}
+				fastRange := &ast.RangeStmt{
+					Key:   &ast.Ident{Name: "_"},
+					Value: &ast.Ident{Name: rangeValName},
+					Tok:   token.DEFINE,
+					X:     &ast.Ident{Name: strsVarName},
+					Body:  &ast.BlockStmt{List: fastBody},
+				}
+
+				var elseStmts []ast.Stmt
+				switch m.kind {
+				case immIterStrCursor:
+					curVarName := allocIdent("cur_")
+					curInit := &ast.AssignStmt{
+						Lhs: []ast.Expr{&ast.Ident{Name: curVarName}},
+						Tok: token.DEFINE,
+						Rhs: []ast.Expr{
+							&ast.CallExpr{
+								Fun: &ast.SelectorExpr{
+									X:   &ast.Ident{Name: j2Qual},
+									Sel: &ast.Ident{Name: "NewIterCursor"},
+								},
+								Args: []ast.Expr{
+									&ast.CallExpr{
+										Fun:  &ast.Ident{Name: "any"},
+										Args: []ast.Expr{&ast.Ident{Name: listVarName}},
+									},
+								},
+							},
+						},
+					}
+					var headStmts []ast.Stmt
+					if m.cursorHasNextS {
+						headStmts = []ast.Stmt{
+							&ast.AssignStmt{
+								Lhs: []ast.Expr{&ast.Ident{Name: m.elemName}},
+								Tok: token.DEFINE,
+								Rhs: []ast.Expr{
+									&ast.CallExpr{
+										Fun: &ast.SelectorExpr{
+											X:   &ast.Ident{Name: curVarName},
+											Sel: &ast.Ident{Name: "NextStr"},
+										},
+									},
+								},
+							},
+						}
+					} else {
+						rawName := allocIdent("raw_")
+						headStmts = []ast.Stmt{
+							&ast.AssignStmt{
+								Lhs: []ast.Expr{&ast.Ident{Name: rawName}},
+								Tok: token.DEFINE,
+								Rhs: []ast.Expr{
+									&ast.CallExpr{
+										Fun: &ast.SelectorExpr{
+											X:   &ast.Ident{Name: curVarName},
+											Sel: &ast.Ident{Name: "Next"},
+										},
+									},
+								},
+							},
+							&ast.AssignStmt{
+								Lhs: []ast.Expr{&ast.Ident{Name: m.elemName}},
+								Tok: token.DEFINE,
+								Rhs: []ast.Expr{
+									&ast.CallExpr{
+										Fun: &ast.SelectorExpr{
+											X:   &ast.Ident{Name: j2Qual},
+											Sel: &ast.Ident{Name: "CastString"},
+										},
+										Args: []ast.Expr{&ast.Ident{Name: rawName}},
+									},
+								},
+							},
+						}
+					}
+					slowFor := &ast.ForStmt{
+						Cond: &ast.CallExpr{
+							Fun: &ast.SelectorExpr{
+								X:   &ast.Ident{Name: curVarName},
+								Sel: &ast.Ident{Name: "HasNext"},
+							},
+						},
+						Body: &ast.BlockStmt{List: append(headStmts, slowBody...)},
+					}
+					elseStmts = []ast.Stmt{curInit, slowFor}
+
+				case immIterStrRangeSlice:
+					rawName := allocIdent("raw_")
+					unboxClone, err := cloneExprReplacingVarIdent(ctx.Fset, m.unboxRhs, m.rawVar, rawName, info)
+					if err != nil {
+						return total, err
+					}
+					unboxStmt := &ast.AssignStmt{
+						Lhs: []ast.Expr{&ast.Ident{Name: m.elemName}},
+						Tok: token.DEFINE,
+						Rhs: []ast.Expr{unboxClone},
+					}
+					slowRange := &ast.RangeStmt{
+						Key:   &ast.Ident{Name: "_"},
+						Value: &ast.Ident{Name: rawName},
+						Tok:   token.DEFINE,
+						X: &ast.CallExpr{
+							Fun: &ast.SelectorExpr{
+								X:   &ast.Ident{Name: listVarName},
+								Sel: &ast.Ident{Name: "IterSlice_"},
+							},
+						},
+						Body: &ast.BlockStmt{List: append([]ast.Stmt{unboxStmt}, slowBody...)},
+					}
+					elseStmts = []ast.Stmt{slowRange}
+
+				case immIterStrIterator:
+					itName := allocIdent("it_")
+					headClones, err := cloneStmtsReplacingVarIdent(ctx.Fset, m.itHeadStmts, m.itVar, itName, info)
+					if err != nil {
+						return total, err
+					}
+					itInit := &ast.AssignStmt{
+						Lhs: []ast.Expr{&ast.Ident{Name: itName}},
+						Tok: token.DEFINE,
+						Rhs: []ast.Expr{
+							&ast.CallExpr{
+								Fun: &ast.SelectorExpr{
+									X:   &ast.Ident{Name: listVarName},
+									Sel: &ast.Ident{Name: "Iterator"},
+								},
+							},
+						},
+					}
+					slowFor := &ast.ForStmt{
+						Cond: &ast.CallExpr{
+							Fun: &ast.SelectorExpr{
+								X:   &ast.Ident{Name: itName},
+								Sel: &ast.Ident{Name: "HasNext"},
+							},
+						},
+						Body: &ast.BlockStmt{List: append(headClones, slowBody...)},
+					}
+					elseStmts = []ast.Stmt{itInit, slowFor}
+				}
+
+				ifStmt := &ast.IfStmt{
+					Init: &ast.AssignStmt{
+						Lhs: []ast.Expr{&ast.Ident{Name: strsVarName}, &ast.Ident{Name: okVarName}},
+						Tok: token.DEFINE,
+						Rhs: []ast.Expr{
+							&ast.CallExpr{
+								Fun: &ast.SelectorExpr{
+									X:   &ast.Ident{Name: listVarName},
+									Sel: &ast.Ident{Name: "IterStrSlice_"},
+								},
+							},
+						},
+					},
+					Cond: &ast.Ident{Name: okVarName},
+					Body: &ast.BlockStmt{List: []ast.Stmt{fastRange}},
+					Else: &ast.BlockStmt{List: elseStmts},
+				}
+
+				repl := []ast.Stmt{listInitStmt, ifStmt}
+				blk.List = slices.Replace(blk.List, m.startIdx, m.endIdx, repl...)
+				i = m.startIdx + len(repl) - 1
+				fileChanged = true
+				total++
+			}
+		}
+
+		if fileChanged {
+			ctx.MarkFileModified(file)
+			parentsByFile[file], _ = buildParentMap(file)
+		}
+	}
+
+	return total, nil
+}
+
+func hasImmListIterStrSlice(t types.Type) bool {
+	if t == nil {
+		return false
+	}
+	ut := types.Unalias(t)
+	if pt, isP := ut.(*types.Pointer); isP {
+		ut = types.Unalias(pt.Elem())
+	}
+	named, ok := ut.(*types.Named)
+	if !ok || named.Obj() == nil || !isJ2gortPkg(named.Obj().Pkg()) {
+		return false
+	}
+	switch named.Obj().Name() {
+	case "Ext_com_google_common_collect_ImmutableList",
+		"Ext_com_google_common_collect_ImmutableListBase":
+	default:
+		return false
+	}
+	sel := types.NewMethodSet(t).Lookup(nil, "IterStrSlice_")
+	if sel == nil {
+		return false
+	}
+	sig, ok := sel.Type().(*types.Signature)
+	if !ok || sig.Params().Len() != 0 || sig.Results().Len() != 2 {
+		return false
+	}
+	sl, okS := types.Unalias(sig.Results().At(0).Type()).(*types.Slice)
+	b1, okB := types.Unalias(sig.Results().At(1).Type()).(*types.Basic)
+	if !okS || !okB || b1.Kind() != types.Bool {
+		return false
+	}
+	elemB, okE := types.Unalias(sl.Elem()).(*types.Basic)
+	return okE && elemB.Kind() == types.String
+}
+
+func unwrapToImmListIterStrExpr(
+	expr ast.Expr,
+	loweredVars map[*types.Var]bool,
+	loweredGetterFns map[*types.Func]bool,
+	info *types.Info,
+) (ast.Expr, types.Type, bool) {
+	if expr == nil || info == nil {
+		return nil, nil, false
+	}
+	cur := stripParens(expr)
+	for {
+		curT := info.Types[cur].Type
+		if hasImmListIterStrSlice(curT) {
+			// Peel redundant CheckNotNull* if inner expr also has IterStrSlice_.
+			if call, okC := cur.(*ast.CallExpr); okC && len(call.Args) == 1 && !call.Ellipsis.IsValid() {
+				if fnName, _, _, isJ2 := isJ2gortCall(call, info); isJ2 && isCheckNotNullFuncName(fnName) {
+					inner := stripParens(call.Args[0])
+					if hasImmListIterStrSlice(info.Types[inner].Type) {
+						cur = inner
+						continue
+					}
+				}
+			}
+			// Reject lowered candidate variables/fields or lowered getters or ImmListFromSlice wrappers.
+			switch x := cur.(type) {
+			case *ast.Ident:
+				if loweredVars[varFromObj(info.Uses[x])] {
+					return nil, nil, false
+				}
+			case *ast.SelectorExpr:
+				if loweredVars[varFromObj(info.Uses[x.Sel])] {
+					return nil, nil, false
+				}
+			case *ast.CallExpr:
+				if fn, _ := calleeFunc(x, info); fn != nil && loweredGetterFns[fn] {
+					return nil, nil, false
+				}
+				if _, _, isFromSlice := matchImmListFromSliceCall(x, info); isFromSlice {
+					return nil, nil, false
+				}
+			}
+			return cur, curT, true
+		}
+
+		call, okC := cur.(*ast.CallExpr)
+		if !okC || len(call.Args) != 1 || call.Ellipsis.IsValid() {
+			return nil, nil, false
+		}
+		if _, isTI := isToIfaceCall(call, info); isTI {
+			cur = stripParens(call.Args[0])
+			continue
+		}
+		fnName, _, _, isJ2 := isJ2gortCall(call, info)
+		if !isJ2 {
+			return nil, nil, false
+		}
+		switch fnName {
+		case "CheckNotNull", "CheckNotNullIface", "CheckNotNullPtr",
+			"AsIface", "Cast", "UncheckedCast", "ToAny", "PtrToAny":
+			cur = stripParens(call.Args[0])
+			continue
+		}
+		return nil, nil, false
+	}
+}
+
+func matchImmListIterStrLoopAt(
+	blk *ast.BlockStmt,
+	idx int,
+	loweredVars map[*types.Var]bool,
+	loweredGetterFns map[*types.Func]bool,
+	parents map[ast.Node]ast.Node,
+	info *types.Info,
+	varUseCounts map[*types.Var]int,
+) (immIterStrMatch, bool) {
+	var zero immIterStrMatch
+	if idx < 0 || idx >= len(blk.List) {
+		return zero, false
+	}
+
+	// Form 2: `for _, raw := range <list>.IterSlice_() { ... }`
+	if rs, isRS := blk.List[idx].(*ast.RangeStmt); isRS {
+		if _, isLbl := parents[rs].(*ast.LabeledStmt); isLbl {
+			return zero, false
+		}
+		if rs.Tok != token.DEFINE || rs.Value == nil || rs.Body == nil || len(rs.Body.List) == 0 {
+			return zero, false
+		}
+		if rs.Key != nil {
+			if kId, ok := stripParens(rs.Key).(*ast.Ident); !ok || kId.Name != "_" {
+				return zero, false
+			}
+		}
+		rawId, ok := stripParens(rs.Value).(*ast.Ident)
+		if !ok || rawId.Name == "_" {
+			return zero, false
+		}
+		rawVar := varFromObj(info.Defs[rawId])
+		if rawVar == nil {
+			return zero, false
+		}
+		callX, ok := stripParens(rs.X).(*ast.CallExpr)
+		if !ok || len(callX.Args) != 0 || callX.Ellipsis.IsValid() {
+			return zero, false
+		}
+		selX, ok := stripParens(callX.Fun).(*ast.SelectorExpr)
+		if !ok || selX.Sel == nil || selX.Sel.Name != "IterSlice_" {
+			return zero, false
+		}
+		listExpr, listType, okL := unwrapToImmListIterStrExpr(selX.X, loweredVars, loweredGetterFns, info)
+		if !okL {
+			return zero, false
+		}
+		elemName, unboxRhs, restBody, okB := extractRawStringElemHead(rs.Body.List, rawVar, parents, info, varUseCounts)
+		if !okB {
+			return zero, false
+		}
+		return immIterStrMatch{
+			kind:      immIterStrRangeSlice,
+			startIdx:  idx,
+			endIdx:    idx + 1,
+			listExpr:  listExpr,
+			listType:  listType,
+			elemName:  elemName,
+			bodyStmts: restBody,
+			rawVar:    rawVar,
+			unboxRhs:  unboxRhs,
+		}, true
+	}
+
+	// Form 1b / 3b: `for cur := ...; cur.HasNext(); { ... }`
+	if fs, isFS := blk.List[idx].(*ast.ForStmt); isFS && fs.Init != nil {
+		if _, isLbl := parents[fs].(*ast.LabeledStmt); isLbl {
+			return zero, false
+		}
+		initAs, okA := fs.Init.(*ast.AssignStmt)
+		if !okA {
+			return zero, false
+		}
+		return matchCursorOrIteratorFor(idx, idx+1, initAs, 0, fs, loweredVars, loweredGetterFns, parents, info, varUseCounts)
+	}
+
+	// Form 1a / 3a: `cur := ...; [optional _ = cur;] for cur.HasNext() { ... }`
+	initAs, okA := blk.List[idx].(*ast.AssignStmt)
+	if !okA || initAs.Tok != token.DEFINE || len(initAs.Lhs) != 1 || len(initAs.Rhs) != 1 {
+		return zero, false
+	}
+	curId, okI := stripParens(initAs.Lhs[0]).(*ast.Ident)
+	if !okI || curId.Name == "_" {
+		return zero, false
+	}
+	curVar := varFromObj(info.Defs[curId])
+	if curVar == nil {
+		return zero, false
+	}
+	nextIdx := idx + 1
+	blankUses := 0
+	for nextIdx < len(blk.List) && isBlankDiscardOfVar(blk.List[nextIdx], curVar, info) {
+		blankUses++
+		nextIdx++
+	}
+	if nextIdx >= len(blk.List) {
+		return zero, false
+	}
+	fs, isFS := blk.List[nextIdx].(*ast.ForStmt)
+	if !isFS || fs.Init != nil {
+		return zero, false
+	}
+	if _, isLbl := parents[fs].(*ast.LabeledStmt); isLbl {
+		return zero, false
+	}
+	return matchCursorOrIteratorFor(idx, nextIdx+1, initAs, blankUses, fs, loweredVars, loweredGetterFns, parents, info, varUseCounts)
+}
+
+func matchCursorOrIteratorFor(
+	startIdx, endIdx int,
+	initAs *ast.AssignStmt,
+	extraBlankUses int,
+	fs *ast.ForStmt,
+	loweredVars map[*types.Var]bool,
+	loweredGetterFns map[*types.Func]bool,
+	parents map[ast.Node]ast.Node,
+	info *types.Info,
+	varUseCounts map[*types.Var]int,
+) (immIterStrMatch, bool) {
+	var zero immIterStrMatch
+	if initAs.Tok != token.DEFINE || len(initAs.Lhs) != 1 || len(initAs.Rhs) != 1 ||
+		fs.Post != nil || fs.Cond == nil || fs.Body == nil || len(fs.Body.List) == 0 {
+		return zero, false
+	}
+	itId, ok := stripParens(initAs.Lhs[0]).(*ast.Ident)
+	if !ok || itId.Name == "_" {
+		return zero, false
+	}
+	itVar := varFromObj(info.Defs[itId])
+	if itVar == nil || varUseCounts[itVar] != 2+extraBlankUses {
+		return zero, false
+	}
+	rhsCall, ok := stripParens(initAs.Rhs[0]).(*ast.CallExpr)
+	if !ok || rhsCall.Ellipsis.IsValid() {
+		return zero, false
+	}
+
+	// Case 1: `j2gort.NewIterCursor(arg)`
+	if fnName, _, _, isJ2 := isJ2gortCall(rhsCall, info); isJ2 && fnName == "NewIterCursor" && len(rhsCall.Args) == 1 {
+		if !isCursorMethodCall(fs.Cond, itVar, "HasNext", info) {
+			return zero, false
+		}
+		listExpr, listType, okL := unwrapToImmListIterStrExpr(rhsCall.Args[0], loweredVars, loweredGetterFns, info)
+		if !okL {
+			return zero, false
+		}
+		s0, okS := fs.Body.List[0].(*ast.AssignStmt)
+		if !okS || s0.Tok != token.DEFINE || len(s0.Lhs) != 1 || len(s0.Rhs) != 1 {
+			return zero, false
+		}
+		lhs0, okId := stripParens(s0.Lhs[0]).(*ast.Ident)
+		if !okId || lhs0.Name == "_" || info.Defs[lhs0] == nil {
+			return zero, false
+		}
+		cursorT := info.Types[rhsCall].Type
+		hasNextStr := cursorT != nil && (types.NewMethodSet(cursorT).Lookup(nil, "NextStr") != nil ||
+			types.NewMethodSet(types.NewPointer(cursorT)).Lookup(nil, "NextStr") != nil)
+
+		rhs0 := stripParens(s0.Rhs[0])
+		if isCursorMethodCall(rhs0, itVar, "NextStr", info) {
+			return immIterStrMatch{
+				kind:           immIterStrCursor,
+				startIdx:       startIdx,
+				endIdx:         endIdx,
+				listExpr:       listExpr,
+				listType:       listType,
+				elemName:       lhs0.Name,
+				bodyStmts:      fs.Body.List[1:],
+				cursorHasNextS: true,
+			}, true
+		}
+		if isCursorMethodCall(rhs0, itVar, "Next", info) {
+			rawVar := varFromObj(info.Defs[lhs0])
+			elemName, _, restBody, okB := extractRawStringElemHead(fs.Body.List[1:], rawVar, parents, info, varUseCounts)
+			if !okB {
+				return zero, false
+			}
+			return immIterStrMatch{
+				kind:           immIterStrCursor,
+				startIdx:       startIdx,
+				endIdx:         endIdx,
+				listExpr:       listExpr,
+				listType:       listType,
+				elemName:       elemName,
+				bodyStmts:      restBody,
+				cursorHasNextS: hasNextStr,
+			}, true
+		}
+		return zero, false
+	}
+
+	// Case 3: `<list>.Iterator()`
+	if len(rhsCall.Args) == 0 {
+		sel, okSel := stripParens(rhsCall.Fun).(*ast.SelectorExpr)
+		if !okSel || sel.Sel == nil || sel.Sel.Name != "Iterator" {
+			return zero, false
+		}
+		if !isZeroArgMethodOnVar(fs.Cond, itVar, "HasNext", info) {
+			return zero, false
+		}
+		listExpr, listType, okL := unwrapToImmListIterStrExpr(sel.X, loweredVars, loweredGetterFns, info)
+		if !okL {
+			return zero, false
+		}
+		s0, okS := fs.Body.List[0].(*ast.AssignStmt)
+		if !okS || s0.Tok != token.DEFINE || len(s0.Lhs) != 1 || len(s0.Rhs) != 1 {
+			return zero, false
+		}
+		lhs0, okId := stripParens(s0.Lhs[0]).(*ast.Ident)
+		if !okId || lhs0.Name == "_" || info.Defs[lhs0] == nil {
+			return zero, false
+		}
+		rhs0 := stripParens(s0.Rhs[0])
+		if isZeroArgMethodOnVar(rhs0, itVar, "Next", info) {
+			rawVar := varFromObj(info.Defs[lhs0])
+			elemName, _, restBody, okB := extractRawStringElemHead(fs.Body.List[1:], rawVar, parents, info, varUseCounts)
+			if !okB {
+				return zero, false
+			}
+			headEnd := len(fs.Body.List) - len(restBody)
+			return immIterStrMatch{
+				kind:        immIterStrIterator,
+				startIdx:    startIdx,
+				endIdx:      endIdx,
+				listExpr:    listExpr,
+				listType:    listType,
+				elemName:    elemName,
+				bodyStmts:   restBody,
+				itVar:       itVar,
+				itHeadStmts: fs.Body.List[:headEnd],
+			}, true
+		}
+		if types.Identical(info.Types[rhs0].Type, types.Typ[types.String]) && exprUnboxesDirectNextOnVar(rhs0, itVar, info) {
+			return immIterStrMatch{
+				kind:        immIterStrIterator,
+				startIdx:    startIdx,
+				endIdx:      endIdx,
+				listExpr:    listExpr,
+				listType:    listType,
+				elemName:    lhs0.Name,
+				bodyStmts:   fs.Body.List[1:],
+				itVar:       itVar,
+				itHeadStmts: fs.Body.List[:1],
+			}, true
+		}
+	}
+
+	return zero, false
+}
+
+func extractRawStringElemHead(
+	stmts []ast.Stmt,
+	rawVar *types.Var,
+	parents map[ast.Node]ast.Node,
+	info *types.Info,
+	varUseCounts map[*types.Var]int,
+) (string, ast.Expr, []ast.Stmt, bool) {
+	if rawVar == nil || len(stmts) == 0 {
+		return "", nil, nil, false
+	}
+	pos := 0
+	blankUses := 0
+	for pos < len(stmts) && isBlankDiscardOfVar(stmts[pos], rawVar, info) {
+		blankUses++
+		pos++
+	}
+	if pos >= len(stmts) || varUseCounts[rawVar] != 1+blankUses {
+		return "", nil, nil, false
+	}
+	elemId, elemT, okU := matchSingleImmDefineUnbox(stmts[pos], rawVar, parents, info)
+	if !okU || elemId == nil || !types.Identical(elemT, types.Typ[types.String]) {
+		return "", nil, nil, false
+	}
+	as := stmts[pos].(*ast.AssignStmt)
+	return elemId.Name, as.Rhs[0], stmts[pos+1:], true
+}
+
+func isBlankDiscardOfVar(stmt ast.Stmt, v *types.Var, info *types.Info) bool {
+	as, ok := stmt.(*ast.AssignStmt)
+	if !ok || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+		return false
+	}
+	lhsId, okL := stripParens(as.Lhs[0]).(*ast.Ident)
+	rhsId, okR := stripParens(as.Rhs[0]).(*ast.Ident)
+	return okL && okR && lhsId.Name == "_" && varFromObj(info.Uses[rhsId]) == v
+}
+
+func isZeroArgMethodOnVar(expr ast.Expr, v *types.Var, methodName string, info *types.Info) bool {
+	call, ok := stripParens(expr).(*ast.CallExpr)
+	if !ok || len(call.Args) != 0 || call.Ellipsis.IsValid() {
+		return false
+	}
+	sel, ok := stripParens(call.Fun).(*ast.SelectorExpr)
+	if !ok || sel.Sel == nil || sel.Sel.Name != methodName {
+		return false
+	}
+	rx := stripParens(sel.X)
+	if c, isC := rx.(*ast.CallExpr); isC && len(c.Args) == 1 && !c.Ellipsis.IsValid() {
+		if fnName, _, _, isJ2 := isJ2gortCall(c, info); isJ2 && isCheckNotNullFuncName(fnName) {
+			rx = stripParens(c.Args[0])
+		}
+	}
+	id, ok := rx.(*ast.Ident)
+	return ok && varFromObj(info.Uses[id]) == v
+}
+
+func exprUnboxesDirectNextOnVar(expr ast.Expr, itVar *types.Var, info *types.Info) bool {
+	e := stripParens(expr)
+	switch x := e.(type) {
+	case *ast.TypeAssertExpr:
+		return x.Type != nil && isZeroArgMethodOnVar(x.X, itVar, "Next", info)
+	case *ast.CallExpr:
+		if len(x.Args) != 1 || x.Ellipsis.IsValid() {
+			return false
+		}
+		fnName, _, _, isJ2 := isJ2gortCall(x, info)
+		if !isJ2 {
+			return false
+		}
+		switch fnName {
+		case "CastString", "StrVal", "Cast", "UncheckedCast":
+			return isZeroArgMethodOnVar(x.Args[0], itVar, "Next", info)
+		}
+	}
+	return false
+}
+
+func isDirectIterStrSliceElse(blk *ast.BlockStmt, parents map[ast.Node]ast.Node) bool {
+	if blk == nil || parents == nil {
+		return false
+	}
+	ifStmt, ok := parents[blk].(*ast.IfStmt)
+	if !ok || ifStmt.Else != blk || ifStmt.Init == nil {
+		return false
+	}
+	as, ok := ifStmt.Init.(*ast.AssignStmt)
+	if !ok || len(as.Rhs) != 1 {
+		return false
+	}
+	call, ok := stripParens(as.Rhs[0]).(*ast.CallExpr)
+	if !ok || len(call.Args) != 0 {
+		return false
+	}
+	sel, ok := stripParens(call.Fun).(*ast.SelectorExpr)
+	return ok && sel.Sel != nil && sel.Sel.Name == "IterStrSlice_"
+}
+
+func stmtsContainLabelOrGoto(stmts []ast.Stmt) bool {
+	found := false
+	nestedIterStrCount := 0
+	for _, st := range stmts {
+		ast.Inspect(st, func(n ast.Node) bool {
+			if found || n == nil {
+				return false
+			}
+			if _, isFL := n.(*ast.FuncLit); isFL {
+				return false
+			}
+			switch s := n.(type) {
+			case *ast.LabeledStmt:
+				found = true
+				return false
+			case *ast.BranchStmt:
+				if s.Tok == token.GOTO || s.Label != nil {
+					found = true
+					return false
+				}
+			case *ast.SelectorExpr:
+				if s.Sel != nil && s.Sel.Name == "IterStrSlice_" {
+					nestedIterStrCount++
+					if nestedIterStrCount >= 2 {
+						found = true
+						return false
+					}
+				}
+			}
+			return true
+		})
+		if found {
+			return true
+		}
+	}
+	return false
+}
+
+func topLevelRedeclaresIdent(stmts []ast.Stmt, name string) bool {
+	for _, st := range stmts {
+		as, ok := st.(*ast.AssignStmt)
+		if !ok || as.Tok != token.DEFINE {
+			continue
+		}
+		for _, lhs := range as.Lhs {
+			if id, ok := stripParens(lhs).(*ast.Ident); ok && id.Name == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func cloneStmtListFresh(fset *token.FileSet, stmts []ast.Stmt) ([]ast.Stmt, error) {
+	if len(stmts) == 0 {
+		return nil, nil
+	}
+	var buf bytes.Buffer
+	buf.WriteString("package p\nfunc f() {\n")
+	tmpFset := fset
+	if tmpFset == nil {
+		tmpFset = token.NewFileSet()
+	}
+	for _, st := range stmts {
+		if err := (&printer.Config{}).Fprint(&buf, tmpFset, st); err != nil {
+			return nil, err
+		}
+		buf.WriteByte('\n')
+	}
+	buf.WriteString("}\n")
+	pf, err := parser.ParseFile(token.NewFileSet(), "", buf.Bytes(), 0)
+	if err != nil {
+		return nil, err
+	}
+	return pf.Decls[0].(*ast.FuncDecl).Body.List, nil
+}
+
+func cloneExprFresh(fset *token.FileSet, expr ast.Expr) (ast.Expr, error) {
+	var buf bytes.Buffer
+	tmpFset := fset
+	if tmpFset == nil {
+		tmpFset = token.NewFileSet()
+	}
+	if err := (&printer.Config{}).Fprint(&buf, tmpFset, expr); err != nil {
+		return nil, err
+	}
+	return parser.ParseExpr(buf.String())
+}
+
+func cloneExprReplacingVarIdent(
+	fset *token.FileSet,
+	expr ast.Expr,
+	targetVar *types.Var,
+	newName string,
+	info *types.Info,
+) (ast.Expr, error) {
+	var targets []*ast.Ident
+	var origNames []string
+	ast.Inspect(expr, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && varFromObj(info.Uses[id]) == targetVar {
+			targets = append(targets, id)
+			origNames = append(origNames, id.Name)
+			id.Name = newName
+		}
+		return true
+	})
+	cloned, err := cloneExprFresh(fset, expr)
+	for i, id := range targets {
+		id.Name = origNames[i]
+	}
+	return cloned, err
+}
+
+func cloneStmtsReplacingVarIdent(
+	fset *token.FileSet,
+	stmts []ast.Stmt,
+	targetVar *types.Var,
+	newName string,
+	info *types.Info,
+) ([]ast.Stmt, error) {
+	var targets []*ast.Ident
+	var origNames []string
+	for _, st := range stmts {
+		ast.Inspect(st, func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok && varFromObj(info.Uses[id]) == targetVar {
+				targets = append(targets, id)
+				origNames = append(origNames, id.Name)
+				id.Name = newName
+			}
+			return true
+		})
+	}
+	cloned, err := cloneStmtListFresh(fset, stmts)
+	for i, id := range targets {
+		id.Name = origNames[i]
+	}
+	return cloned, err
 }

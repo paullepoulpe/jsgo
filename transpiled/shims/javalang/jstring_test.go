@@ -782,3 +782,34 @@ func BenchmarkWave34CJString(b *testing.B) {
 		_ = sink
 	})
 }
+
+func TestWave36CZeroAllocColdShortASCIIScan(t *testing.T) {
+	// Generate 6,000 distinct 70..320B ASCII strings (exceeding the 4,096-entry cache capacity
+	// so thousands of misses & evictions occur!) and verify ZERO heap allocations on misses!
+	pool := make([]string, 6000)
+	for i := range pool {
+		pool[i] = fmt.Sprintf("module$exports$google3$javascript$closure$w36c$Service_%05d$Method_", i) + strings.Repeat("x", (i*7)%240)
+	}
+	idx := 0
+	allocs := testing.AllocsPerRun(200, func() {
+		// Scan 30 strings per iteration across 200 iterations = 6,000 cold/evicting strings!
+		var sum int
+		for k := 0; k < 30; k++ {
+			s := pool[idx%len(pool)]
+			idx++
+			n := StringLength(s)
+			if !IsASCII(s) || n != len(s) {
+				t.Fatal("IsASCII / StringLength mismatch")
+			}
+			for j := 0; j < n; j += 17 {
+				sum += int(StringCharAt(s, j)) + int(StringCodePointAt(s, j))
+			}
+		}
+		if sum == 0 {
+			t.Fatal("unexpected zero sum")
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("expected 0 heap allocations on cold/evicting >64B ASCII misses, got %v", allocs)
+	}
+}

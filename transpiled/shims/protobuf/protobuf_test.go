@@ -1687,3 +1687,110 @@ func TestWave35CAstNodePutTagVarintBoundaries(t *testing.T) {
 		}
 	}
 }
+
+func TestWave36CIntrusiveAstBuilderArenaCOWAndConcurrentSafety(t *testing.T) {
+	// 1. Standalone inline AstNode (simulating j2gort inlineRaw lifecycle with ResetForPool)
+	// must build & serialize without allocating []*AstNode child slices.
+	var inlineNodes [32]protobuf.AstNode
+	buildInlineTree := func(seed int32) protobuf.ByteString {
+		root := &inlineNodes[0]
+		root.SetKind(protobuf.NodeKind_SOURCE_FILE).SetSourceFile(1)
+		idx := 1
+		for b := int32(0); b < 5; b++ {
+			blk := &inlineNodes[idx]
+			idx++
+			blk.SetKind(protobuf.NodeKind_BLOCK).SetRelativeLine(b + 1).SetRelativeColumn(2)
+			for c := int32(0); c < 5; c++ {
+				leaf := &inlineNodes[idx]
+				idx++
+				leaf.SetKind(protobuf.NodeKind_IDENTIFIER).
+					SetStringValuePointer(seed + b*10 + c).
+					SetBooleanProperties(int64(c + 1)).
+					SetType(c + 2)
+				blk.AddChild(leaf.Build())
+			}
+			root.AddChild(blk.Build())
+		}
+		bs := root.Build().ToByteString()
+		for i := 0; i < idx; i++ {
+			inlineNodes[i].ResetForPool()
+		}
+		return bs
+	}
+	refBS := buildInlineTree(100)
+	_ = buildInlineTree(200)
+	inlineAllocs := testing.AllocsPerRun(50, func() {
+		got := buildInlineTree(100)
+		if !bytes.Equal(got.BytesView(), refBS.BytesView()) {
+			t.Fatal("inline AstNode ResetForPool wire mismatch")
+		}
+	})
+	if inlineAllocs > 1 {
+		t.Fatalf("expected <= 1 allocs for intrusive inlineRaw AstNode tree, got %.2f", inlineAllocs)
+	}
+
+	// 2. Verify UNRECOGNIZED kind, COW after Build(), GetChild/GetChildList on intrusive built node,
+	// shared child added twice to the same parent, and mergeIntoBuilder preserving prior intrusive children.
+	shared := protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_TRUE).SetRelativeColumn(4).Build()
+	unrec := protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_UNRECOGNIZED).Build()
+	parentB := protobuf.AstNode_NewBuilder().
+		SetKind(protobuf.NodeKind_ARRAY_LITERAL).
+		AddChild(shared).
+		AddChild(unrec)
+	built1 := parentB.Build()
+
+	// Concurrent reads (GetChild, GetChildList, ToByteArray) on intrusive built node + concurrent AddChild of shared node.
+	var wg sync.WaitGroup
+	for g := 0; g < 8; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 40; i++ {
+				if built1.GetChildCount() != 2 || built1.GetChild(0).GetKind() != protobuf.NodeKind_TRUE ||
+					built1.GetChild(1).GetKind() != protobuf.NodeKind_UNRECOGNIZED {
+					t.Errorf("concurrent GetChild mismatch")
+					return
+				}
+				if list := built1.GetChildList(); len(list) != 2 {
+					t.Errorf("concurrent GetChildList len = %d", len(list))
+					return
+				}
+				other := protobuf.AstNode_NewBuilder().
+					SetKind(protobuf.NodeKind_SOURCE_FILE).
+					AddChild(shared).
+					AddChild(protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_NULL).Build()).
+					Build()
+				bs := other.ToByteString()
+				if bs.IsEmpty() {
+					t.Errorf("unexpected empty ByteString")
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	// COW mutation on built1 via copy must not alter built1's child count or wire bytes.
+	wireBeforeCOW := built1.ToByteArray()
+	cowCopy := *built1
+	cowCopy.AddChild(shared)
+	if built1.GetChildCount() != 2 || cowCopy.GetChildCount() != 3 {
+		t.Fatalf("COW child count mismatch: orig=%d copy=%d", built1.GetChildCount(), cowCopy.GetChildCount())
+	}
+	if !bytes.Equal(built1.ToByteArray(), wireBeforeCOW) {
+		t.Fatal("COW mutated original built AstNode wire bytes")
+	}
+
+	// ByteString_CopyFromUtf8 zero-alloc wire-slab fast path for short ASCII strings.
+	utf8Allocs := testing.AllocsPerRun(50, func() {
+		b0 := protobuf.ByteString_CopyFromUtf8("")
+		b1 := protobuf.ByteString_CopyFromUtf8("x")
+		b2 := protobuf.ByteString_CopyFromUtf8("goog.module.exports.MyService")
+		if b0.Size() != 0 || b1.ToStringUtf8() != "x" || b2.ToStringUtf8() != "goog.module.exports.MyService" {
+			t.Fatal("ByteString_CopyFromUtf8 roundtrip mismatch")
+		}
+	})
+	if utf8Allocs > 1 {
+		t.Fatalf("expected <= 1 allocs for ByteString_CopyFromUtf8 wire-slab fast path, got %.2f", utf8Allocs)
+	}
+}

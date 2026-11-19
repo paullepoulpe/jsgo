@@ -20,6 +20,8 @@ package jscomp
 import (
 	"sync/atomic"
 
+	pkg_base "github.com/paullepoulpe/jsgo/transpiled/gen/base"
+	pkg_graph "github.com/paullepoulpe/jsgo/transpiled/gen/graph"
 	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
 	pkg_rhino "github.com/paullepoulpe/jsgo/transpiled/gen/rhino"
 	"github.com/paullepoulpe/jsgo/transpiled/shims/gson"
@@ -28,8 +30,8 @@ import (
 
 // Java class: com.google.javascript.jscomp.disambiguate.UseSiteRenamer
 type UseSiteRenamer struct {
-	mutationCb    j2gort.Ext_java_util_function_Consumer                             `gson:"mutationCb"`
-	renamingIndex *j2gort.Ext_com_google_common_collect_ImmutableSetMultimap_Builder `gson:"renamingIndex"`
+	mutationCb    UseSiteRenamer_MutationCallback     `gson:"mutationCb"`
+	recordedNames j2gort.OrderedMap[string, []string] `gson:"recordedNames"`
 	idHash_       atomic.Int32
 }
 
@@ -57,19 +59,62 @@ func init() {
 }
 
 func StaticGet_UseSiteRenamer_INVALIDATED_NAME_VALUE() string { return "<INVALIDATED>" }
-func (this_ *UseSiteRenamer) initFields_UseSiteRenamer() {
-	_ = this_
-	this_.renamingIndex = j2gort.Ext_com_google_common_collect_ImmutableSetMultimap_S_Builder()
+
+var static_UseSiteRenamer_INVALIDATED_MARKER []string
+
+func StaticGet_UseSiteRenamer_INVALIDATED_MARKER() []string {
+	clinit_UseSiteRenamer()
+	return static_UseSiteRenamer_INVALIDATED_MARKER
+}
+func StaticSet_UseSiteRenamer_INVALIDATED_MARKER(v []string) {
+	clinit_UseSiteRenamer()
+	static_UseSiteRenamer_INVALIDATED_MARKER = v
 }
 
-// Java constructor: UseSiteRenamer(java.util.function.Consumer<com.google.javascript.rhino.Node> mutationCb)
-func NewUseSiteRenamer(mutationCb j2gort.Ext_java_util_function_Consumer) *UseSiteRenamer {
+var static_UseSiteRenamer_SINGLE_CLUSTER_MARKER []string
+
+func StaticGet_UseSiteRenamer_SINGLE_CLUSTER_MARKER() []string {
+	clinit_UseSiteRenamer()
+	return static_UseSiteRenamer_SINGLE_CLUSTER_MARKER
+}
+func StaticSet_UseSiteRenamer_SINGLE_CLUSTER_MARKER(v []string) {
+	clinit_UseSiteRenamer()
+	static_UseSiteRenamer_SINGLE_CLUSTER_MARKER = v
+}
+
+var clinitDone_UseSiteRenamer uint32
+var clinitState_UseSiteRenamer j2gort.ClinitState
+
+func clinit_UseSiteRenamer() {
+	if atomic.LoadUint32(&clinitDone_UseSiteRenamer) != 0 {
+		return
+	}
+	clinitSlow_UseSiteRenamer()
+}
+
+func clinitSlow_UseSiteRenamer() {
+	if !j2gort.EnterClinit(&clinitState_UseSiteRenamer, &clinitDone_UseSiteRenamer) {
+		return
+	}
+	defer j2gort.ExitClinit(&clinitState_UseSiteRenamer, &clinitDone_UseSiteRenamer)
+	static_UseSiteRenamer_INVALIDATED_MARKER = []string{"<INVALIDATED>"}
+	static_UseSiteRenamer_SINGLE_CLUSTER_MARKER = j2gort.NewStringArray(int32(0))
+}
+
+func (this_ *UseSiteRenamer) initFields_UseSiteRenamer() {
+	_ = this_
+	this_.recordedNames = j2gort.NewOrderedMap[string, []string]()
+}
+
+// Java constructor: UseSiteRenamer(com.google.javascript.jscomp.disambiguate.UseSiteRenamer.MutationCallback mutationCb)
+func NewUseSiteRenamer(mutationCb UseSiteRenamer_MutationCallback) *UseSiteRenamer {
+	clinit_UseSiteRenamer()
 	this_ := &UseSiteRenamer{}
 	InitUseSiteRenamer(this_, mutationCb)
 	return this_
 }
 
-func InitUseSiteRenamer(this_ *UseSiteRenamer, mutationCb j2gort.Ext_java_util_function_Consumer) {
+func InitUseSiteRenamer(this_ *UseSiteRenamer, mutationCb UseSiteRenamer_MutationCallback) {
 	_ = mutationCb
 	this_.initFields_UseSiteRenamer()
 	this_.mutationCb = mutationCb
@@ -78,57 +123,134 @@ func InitUseSiteRenamer(this_ *UseSiteRenamer, mutationCb j2gort.Ext_java_util_f
 // Java method: UseSiteRenamer.renameUses(com.google.javascript.jscomp.disambiguate.PropertyClustering prop)
 func (this_ *UseSiteRenamer) RenameUses(prop *PropertyClustering) UseSiteRenamer_RenameUsesResult {
 	_ = prop
+	var propName string = prop.GetName()
+	_ = propName
 	if prop.IsInvalidated() {
-		j2gort.MultimapBuilderPutStr(this_.renamingIndex, prop.GetName(), "<INVALIDATED>")
+		this_.recordedNames.Put(propName, StaticGet_UseSiteRenamer_INVALIDATED_MARKER())
 		return StaticGet_UseSiteRenamer_RenameUsesResult_INVALIDATED()
 	}
-	var clusterNames j2gort.Ext_com_google_common_collect_ImmutableMap = UseSiteRenamer_CreateAllClusterNames(prop)
-	_ = clusterNames
-	if clusterNames.Size() <= int32(1) {
-		j2gort.MultimapBuilderPutStr(this_.renamingIndex, prop.GetName(), j2gort.BoxString(prop.GetName()))
+	var clusters *pkg_graph.StandardUnionFind[*ColorGraphNode] = prop.GetClusters()
+	_ = clusters
+	if !(clusters.HasMultipleRepresentatives()) {
+		this_.recordedNames.Put(propName, StaticGet_UseSiteRenamer_SINGLE_CLUSTER_MARKER())
 		return StaticGet_UseSiteRenamer_RenameUsesResult_ONLY_ONE_CLUSTER()
 	}
-	this_.renamingIndex.PutAll_2_any_Ext_java_lang_Iterable(j2gort.BoxString(prop.GetName()), j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](clusterNames.Values()))
-	prop.ForEachUseSite(j2gort.NewLambda_Ext_java_util_function_BiConsumer(func(lp_1 any, lp_2 any) {
-		site := j2gort.CastNode[pkg_rhino.Node](lp_1)
-		_ = site
-		owner := j2gort.CastPtr[ColorGraphNode](lp_2)
-		_ = owner
-		var flatRep *ColorGraphNode = prop.GetClusters().Find(owner)
-		_ = flatRep
-		var newName string = j2gort.CastString(clusterNames.Get(j2gort.PtrToAny(flatRep)))
-		_ = newName
-		if !(newName == site.GetString()) {
-			site.SetString(newName)
-			this_.mutationCb.Accept(j2gort.BoxNode(site))
+	var reps j2gort.Ext_java_util_ArrayList = clusters.GetRepresentativeList()
+	_ = reps
+	var repCount int32 = reps.Size()
+	_ = repCount
+	var clusterNames *pkg_base.LinkedIdentityHashMap[*ColorGraphNode, string] = pkg_base.NewLinkedIdentityHashMap[*ColorGraphNode, string]()
+	_ = clusterNames
+	var namesArr []string = j2gort.NewStringArray(repCount)
+	_ = namesArr
+	var origRep *ColorGraphNode = prop.GetOriginalNameClusterRep()
+	_ = origRep
+	{
+		var i int32 = int32(0)
+		_ = i
+		for ; i < repCount; i = i + 1 {
+			var rep *ColorGraphNode = j2gort.CastPtr[ColorGraphNode](reps.Get(i))
+			_ = rep
+			var cName string
+			_ = cName
+			if rep == origRep {
+				cName = propName
+			} else {
+				cName = ("JSC$" + j2gort.StrValInt32(rep.GetIndex()) + "_" + j2gort.StrValString(propName))
+			}
+			clusterNames.Put(rep, cName)
+			{
+				a_1 := namesArr
+				i_2 := i
+				a_1[i_2] = cName
+			}
 		}
-	}))
+	}
+	this_.recordedNames.Put(propName, namesArr)
+	{
+		cur_3 := prop.GetUseSites().IterEntries()
+		for cur_3.NextEntry() {
+			var site pkg_rhino.Node = cur_3.Key()
+			_ = site
+			var flatRep *ColorGraphNode = clusters.Find(cur_3.Value())
+			_ = flatRep
+			var newName string = clusterNames.Get(flatRep)
+			_ = newName
+			if !(newName == site.GetString()) {
+				site.SetString(newName)
+				this_.mutationCb.Accept(site)
+			}
+		}
+	}
 	return StaticGet_UseSiteRenamer_RenameUsesResult_DISAMBIGUATED()
 }
 
 // Java method: UseSiteRenamer.getRenamingIndex()
 func (this_ *UseSiteRenamer) GetRenamingIndex() *j2gort.Ext_com_google_common_collect_ImmutableSetMultimap {
-	return j2gort.CastPtr[j2gort.Ext_com_google_common_collect_ImmutableSetMultimap](this_.renamingIndex.Build())
-}
-
-// Java static method: UseSiteRenamer.createAllClusterNames(com.google.javascript.jscomp.disambiguate.PropertyClustering prop)
-func UseSiteRenamer_CreateAllClusterNames(prop *PropertyClustering) j2gort.Ext_com_google_common_collect_ImmutableMap {
-	_ = prop
-	return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](prop.GetClusters().AllRepresentatives().Stream().Collect_1(j2gort.Ext_com_google_common_collect_ImmutableMap_ToImmutableMap_2(j2gort.Ext_java_util_function_Function_Identity(), j2gort.NewLambda_Ext_java_util_function_Function(func(lp_3 any) any {
-		r := j2gort.CastPtr[ColorGraphNode](lp_3)
-		_ = r
-		return j2gort.BoxString(UseSiteRenamer_CreateClusterName(prop, r))
-	}))))
-}
-
-// Java static method: UseSiteRenamer.createClusterName(com.google.javascript.jscomp.disambiguate.PropertyClustering prop, com.google.javascript.jscomp.disambiguate.ColorGraphNode rep)
-func UseSiteRenamer_CreateClusterName(prop *PropertyClustering, rep *ColorGraphNode) string {
-	_ = prop
-	_ = rep
-	if prop.GetOriginalNameClusterRep() == rep {
-		return prop.GetName()
+	var builder *j2gort.Ext_com_google_common_collect_ImmutableSetMultimap_Builder = j2gort.Ext_com_google_common_collect_ImmutableSetMultimap_S_Builder()
+	_ = builder
+	{
+		cur_4 := this_.recordedNames.IterEntries()
+		for cur_4.NextEntry() {
+			var propName string = cur_4.Key()
+			_ = propName
+			var vals []string = cur_4.Value()
+			_ = vals
+			if j2gort.SliceRefEquals(vals, StaticGet_UseSiteRenamer_SINGLE_CLUSTER_MARKER()) {
+				j2gort.MultimapBuilderPutStr(builder, propName, j2gort.BoxString(propName))
+			} else if vals != nil {
+				{
+					var i int32 = int32(0)
+					_ = i
+					for ; i < int32(len(vals)); i = i + 1 {
+						j2gort.MultimapBuilderPutStr(builder, propName, j2gort.BoxString(vals[i]))
+					}
+				}
+			}
+		}
 	}
-	return ("JSC$" + j2gort.StrValInt32(rep.GetIndex()) + "_" + j2gort.StrValString(prop.GetName()))
+	return j2gort.CastPtr[j2gort.Ext_com_google_common_collect_ImmutableSetMultimap](builder.Build())
+}
+
+// Java interface: com.google.javascript.jscomp.disambiguate.UseSiteRenamer.MutationCallback
+type UseSiteRenamer_MutationCallback interface {
+	Implements_jscomp_UseSiteRenamer_MutationCallback()
+	IsJavaNil_() bool
+	Accept(pkg_rhino.Node)
+}
+
+func ToIface_UseSiteRenamer_MutationCallback[T interface {
+	UseSiteRenamer_MutationCallback
+	comparable
+}](v T) UseSiteRenamer_MutationCallback {
+	var z T
+	if v == z {
+		return nil
+	}
+	return v
+}
+
+func init() {
+	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.disambiguate.UseSiteRenamer.MutationCallback", "com.google.javascript.jscomp.disambiguate.UseSiteRenamer$MutationCallback", func(v_ any) bool {
+		return j2gort.InstanceOf[UseSiteRenamer_MutationCallback](v_)
+	})
+}
+
+type lambda_UseSiteRenamer_MutationCallback struct {
+	fn func(pkg_rhino.Node)
+}
+
+func (l *lambda_UseSiteRenamer_MutationCallback) IsJavaNil_() bool { return l == nil }
+func NewLambda_UseSiteRenamer_MutationCallback(fn func(pkg_rhino.Node)) UseSiteRenamer_MutationCallback {
+	if fn == nil {
+		return nil
+	}
+	return &lambda_UseSiteRenamer_MutationCallback{fn: fn}
+}
+
+func (*lambda_UseSiteRenamer_MutationCallback) Implements_jscomp_UseSiteRenamer_MutationCallback() {}
+func (l *lambda_UseSiteRenamer_MutationCallback) Accept(p0_ pkg_rhino.Node) {
+	l.fn(p0_)
 }
 
 // Java enum: com.google.javascript.jscomp.disambiguate.UseSiteRenamer.RenameUsesResult

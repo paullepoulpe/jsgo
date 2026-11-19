@@ -132,7 +132,7 @@ func (this_ *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 	}
 	var functionScopeRoot pkg_rhino.Node = t.GetScopeRoot().GetParent()
 	_ = functionScopeRoot
-	if !(this_.priv_FlowSensitiveInlineVariables_isCandidateFunction_2864(functionScopeRoot)) {
+	if !(this_.priv_FlowSensitiveInlineVariables_isCandidateFunction_2865(functionScopeRoot)) {
 		return
 	}
 	if int32(100) < t.GetScope().GetVarCount() {
@@ -171,8 +171,8 @@ func (this_ *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 			_ = c
 			var candidateVar *Var = j2gort.CheckNotNullPtr(j2gort.CastPtr[Var](j2gort.MapGetStr(allVarsInFn, c.varName)))
 			_ = candidateVar
-			if c.priv_Candidate_canInline_2868(j2gort.CastPtr[Scope](candidateVar.GetScope())) {
-				c.priv_Candidate_inlineVariable_2870()
+			if c.priv_Candidate_canInline_2869(j2gort.CastPtr[Scope](candidateVar.GetScope())) {
+				c.priv_Candidate_inlineVariable_2871()
 				this_.candidates.Remove_1_any(j2gort.PtrToAny(c))
 				if !(c.defMetadata.IsEmptyDepends()) {
 					var cVar *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(c.varName))
@@ -197,7 +197,7 @@ func (this_ *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 }
 
 // Java method: FlowSensitiveInlineVariables.isCandidateFunction(com.google.javascript.rhino.Node fn)
-func (this_ *FlowSensitiveInlineVariables) priv_FlowSensitiveInlineVariables_isCandidateFunction_2864(fn pkg_rhino.Node) bool {
+func (this_ *FlowSensitiveInlineVariables) priv_FlowSensitiveInlineVariables_isCandidateFunction_2865(fn pkg_rhino.Node) bool {
 	_ = fn
 	var fnBody pkg_rhino.Node = fn.GetLastChild()
 	_ = fnBody
@@ -674,18 +674,18 @@ func InitFlowSensitiveInlineVariables_Candidate(this_ *FlowSensitiveInlineVariab
 }
 
 // Java method: Candidate.getDefCfgNode()
-func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_getDefCfgNode_2867() pkg_rhino.Node {
+func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_getDefCfgNode_2868() pkg_rhino.Node {
 	return this_.defMetadata.node
 }
 
 // Java method: Candidate.canInline(com.google.javascript.jscomp.Scope scope)
-func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_canInline_2868(scope *Scope) bool {
+func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_canInline_2869(scope *Scope) bool {
 	_ = scope
-	if this_.priv_Candidate_getDefCfgNode_2867().IsFunction() {
+	if this_.priv_Candidate_getDefCfgNode_2868().IsFunction() {
 		return false
 	}
-	this_.priv_Candidate_getDefinition_2871(this_.priv_Candidate_getDefCfgNode_2867())
-	this_.priv_Candidate_getNumUseInUseCfgNode_2872(this_.useCfgNode)
+	this_.priv_Candidate_getDefinition_2872(this_.priv_Candidate_getDefCfgNode_2868())
+	this_.priv_Candidate_getNumUseInUseCfgNode_2873(this_.useCfgNode)
 	if this_.def == 0 {
 		return false
 	}
@@ -705,7 +705,7 @@ func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_canInline_28
 	InitFlowSensitiveInlineVariables_SideEffectPredicate_1(&val_2, namesToCheck)
 	var sideEffectPredicateWithNames *FlowSensitiveInlineVariables_SideEffectPredicate = &val_2
 	_ = sideEffectPredicateWithNames
-	if FlowSensitiveInlineVariables_CheckPostExpressions(this_.def, this_.priv_Candidate_getDefCfgNode_2867(), sideEffectPredicateWithNames) {
+	if FlowSensitiveInlineVariables_CheckPostExpressions(this_.def, this_.priv_Candidate_getDefCfgNode_2868(), sideEffectPredicateWithNames) {
 		return false
 	}
 	if FlowSensitiveInlineVariables_CheckPreExpressions(this_.use, this_.useCfgNode, sideEffectPredicateWithNames) {
@@ -720,14 +720,14 @@ func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_canInline_28
 	if NodeUtil_IsWithinLoop(this_.use) {
 		return false
 	}
-	if !(this_.outer_.reachingUses.HasSingleUse(this_.varName, this_.priv_Candidate_getDefCfgNode_2867())) {
+	if !(this_.outer_.reachingUses.HasSingleUse(this_.varName, this_.priv_Candidate_getDefCfgNode_2868())) {
 		return false
 	}
-	if !(this_.priv_Candidate_isRhsSafeToInline_2873(scope)) {
+	if !(this_.priv_Candidate_isRhsSafeToInline_2874(scope)) {
 		return false
 	}
-	if NodeUtil_IsStatementBlock(this_.priv_Candidate_getDefCfgNode_2867().GetParent()) && (this_.priv_Candidate_getDefCfgNode_2867().GetNext() != this_.useCfgNode) {
-		var pathCheck *pkg_graph.CheckPathsBetweenNodes[pkg_rhino.Node, ControlFlowGraph_Branch] = pkg_graph.NewCheckPathsBetweenNodes_6[pkg_rhino.Node, ControlFlowGraph_Branch](j2gort.AsIface[pkg_graph.DiGraph[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.outer_.cfg), pkg_graph.ToIface_DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch](j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.outer_.cfg.GetNode(this_.priv_Candidate_getDefCfgNode_2867()))), pkg_graph.ToIface_DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch](j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.outer_.cfg.GetNode(this_.useCfgNode))), j2gort.ToIface_Ext_com_google_common_base_Predicate(this_.outer_.sideEffectPredicate), j2gort.Ext_com_google_common_base_Predicates_AlwaysTrue(), false)
+	if NodeUtil_IsStatementBlock(this_.priv_Candidate_getDefCfgNode_2868().GetParent()) && (this_.priv_Candidate_getDefCfgNode_2868().GetNext() != this_.useCfgNode) {
+		var pathCheck *pkg_graph.CheckPathsBetweenNodes[pkg_rhino.Node, ControlFlowGraph_Branch] = pkg_graph.NewCheckPathsBetweenNodes_6[pkg_rhino.Node, ControlFlowGraph_Branch](j2gort.AsIface[pkg_graph.DiGraph[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.outer_.cfg), pkg_graph.ToIface_DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch](j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.outer_.cfg.GetNode(this_.priv_Candidate_getDefCfgNode_2868()))), pkg_graph.ToIface_DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch](j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.outer_.cfg.GetNode(this_.useCfgNode))), j2gort.ToIface_Ext_com_google_common_base_Predicate(this_.outer_.sideEffectPredicate), j2gort.Ext_com_google_common_base_Predicates_AlwaysTrue(), false)
 		_ = pathCheck
 		if pathCheck.SomePathsSatisfyPredicate() {
 			return false
@@ -751,7 +751,7 @@ func (this_ *FlowSensitiveInlineVariables_Candidate) HasExactlyOne(iterable j2go
 }
 
 // Java method: Candidate.inlineVariable()
-func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_inlineVariable_2870() {
+func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_inlineVariable_2871() {
 	var defParent pkg_rhino.Node = this_.def.GetParent()
 	_ = defParent
 	var useParent pkg_rhino.Node = this_.use.GetParent()
@@ -786,7 +786,7 @@ func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_inlineVariab
 }
 
 // Java method: Candidate.getDefinition(com.google.javascript.rhino.Node n)
-func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_getDefinition_2871(n pkg_rhino.Node) {
+func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_getDefinition_2872(n pkg_rhino.Node) {
 	_ = n
 	var gatherCb ControlFlowGraph_AbstractCfgNodeTraversalCallback = NewFlowSensitiveInlineVariables__Anon_43(this_)
 	_ = gatherCb
@@ -794,7 +794,7 @@ func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_getDefinitio
 }
 
 // Java method: Candidate.getNumUseInUseCfgNode(com.google.javascript.rhino.Node cfgNode)
-func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_getNumUseInUseCfgNode_2872(cfgNode pkg_rhino.Node) {
+func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_getNumUseInUseCfgNode_2873(cfgNode pkg_rhino.Node) {
 	_ = cfgNode
 	this_.numUsesWithinCfgNode = int32(0)
 	var gatherCb ControlFlowGraph_AbstractCfgNodeTraversalCallback = NewFlowSensitiveInlineVariables__Anon_44(this_, cfgNode)
@@ -803,7 +803,7 @@ func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_getNumUseInU
 }
 
 // Java method: Candidate.isRhsSafeToInline(com.google.javascript.jscomp.Scope usageScope)
-func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_isRhsSafeToInline_2873(usageScope *Scope) bool {
+func (this_ *FlowSensitiveInlineVariables_Candidate) priv_Candidate_isRhsSafeToInline_2874(usageScope *Scope) bool {
 	_ = usageScope
 	if NodeUtil_Has(this_.def.GetLastChild(), lambdaSingleton_flow_sensitive_inline_variables_1, lambdaSingleton_flow_sensitive_inline_variables_2) {
 		return false
@@ -956,7 +956,7 @@ func (this_ *FlowSensitiveInlineVariables__Anon_44) Visit_3(t *NodeTraversal, n 
 		se_11 := this_.outer_.varName
 		return j2gort.CheckNotNullString(sr_10) == se_11
 	}() {
-		if (parent.IsAssign() && (parent.GetFirstChild() == n)) && this_.priv_ident__isAssignChain_2874(parent, this_.cap_0_cfgNode) {
+		if (parent.IsAssign() && (parent.GetFirstChild() == n)) && this_.priv_ident__isAssignChain_2875(parent, this_.cap_0_cfgNode) {
 			return
 		} else {
 			this_.outer_.numUsesWithinCfgNode = this_.outer_.numUsesWithinCfgNode + 1
@@ -965,7 +965,7 @@ func (this_ *FlowSensitiveInlineVariables__Anon_44) Visit_3(t *NodeTraversal, n 
 }
 
 // Java method: .isAssignChain(com.google.javascript.rhino.Node child, com.google.javascript.rhino.Node ancestor)
-func (this_ *FlowSensitiveInlineVariables__Anon_44) priv_ident__isAssignChain_2874(child pkg_rhino.Node, ancestor pkg_rhino.Node) bool {
+func (this_ *FlowSensitiveInlineVariables__Anon_44) priv_ident__isAssignChain_2875(child pkg_rhino.Node, ancestor pkg_rhino.Node) bool {
 	_ = child
 	_ = ancestor
 	{
