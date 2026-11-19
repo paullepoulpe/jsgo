@@ -1,5 +1,8 @@
 .cache/
 .claude/
+.agents/
 bin/
+transpiled/bin/
+transpiled/*.jar
 __pycache__/
 .memgate/

@@ -1,0 +1,24 @@
+{
+  "id": "tier3_x01_typecheck_and_advanced",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "Type checking driving ADVANCED property renaming",
+  "description": "Verifies type declarations guide property disambiguation and renaming under ADVANCED optimizations",
+  "args": [
+    "--compilation_level",
+    "ADVANCED",
+    "--jscomp_warning=checkTypes",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @constructor */ function Point(x, y) { /** @type {number} */ this.x = x; /** @type {number} */ this.y = y; }\nPoint.prototype.getX = function() { return this.x; };\nwindow['res'] = new Point(10, 20).getX();\n"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "window.res=(new function(){this.x=10;this.y=20}).x;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

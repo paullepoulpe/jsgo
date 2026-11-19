@@ -1,0 +1,25 @@
+{
+  "id": "tier1_c05_transpile_only",
+  "tier": 1,
+  "feature": "compilation_level",
+  "name": "Transpile only mode",
+  "description": "Verifies TRANSPILE_ONLY downlevels modern syntax without optimization",
+  "args": [
+    "--compilation_level",
+    "TRANSPILE_ONLY",
+    "--language_out",
+    "ECMASCRIPT5",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "const add = (a, b) => a + b; class Calculator { calc() { return add(2, 3); } } window['c'] = new Calculator();"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var add=function(a,b){return a+b};var Calculator=function(){};Calculator.prototype.calc=function(){return add(2,3)};window[\"c\"]=new Calculator;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

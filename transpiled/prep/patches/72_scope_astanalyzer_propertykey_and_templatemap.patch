@@ -1,0 +1,2039 @@
+diff --git a/com/google/javascript/jscomp/AstValidator.java b/com/google/javascript/jscomp/AstValidator.java
+index 34c2f576..1b02d10c 100644
+--- a/com/google/javascript/jscomp/AstValidator.java
++++ b/com/google/javascript/jscomp/AstValidator.java
+@@ -2155,7 +2155,9 @@ public final class AstValidator implements CompilerPass {
+   }
+ 
+   private void validateProperties(Node n) {
+-    n.validateProperties(errorMessage -> violation(errorMessage, n));
++    if (n.hasPropertyViolations()) {
++      n.validateProperties(errorMessage -> violation(errorMessage, n));
++    }
+   }
+ 
+   private void validateRequiredInlinings(Node n) {
+diff --git a/com/google/javascript/jscomp/Compiler.java b/com/google/javascript/jscomp/Compiler.java
+index bb2931db..007bfd24 100644
+--- a/com/google/javascript/jscomp/Compiler.java
++++ b/com/google/javascript/jscomp/Compiler.java
+@@ -285,6 +285,10 @@ public class Compiler extends AbstractCompiler implements ErrorHandler, SourceFi
+ 
+   private @Nullable ImmutableSet<String> externProperties = null;
+   private @Nullable AccessorSummary accessorSummary = null;
++  private transient @Nullable AstAnalyzer cachedAstAnalyzer;
++  private transient int cachedAstAnalyzerMask = -1;
++  private transient @Nullable JSTypeRegistry cachedAstAnalyzerRegistry;
++  private transient @Nullable AccessorSummary cachedAstAnalyzerSummary;
+ 
+   private static final Joiner pathJoiner = Joiner.on(Platform.getFileSeperator());
+ 
+@@ -1459,14 +1463,37 @@ public class Compiler extends AbstractCompiler implements ErrorHandler, SourceFi
+   @Override
+   public AstAnalyzer getAstAnalyzer() {
+     CompilerOptions options = getOptions();
++    boolean useTypes = options.shouldUseTypesForLocalOptimization();
++    boolean pureGetters = options.getAssumeGettersArePure();
++    boolean regexpRefs = this.hasRegExpGlobalReferences();
++    boolean pureBuiltins = options.getAssumePropertiesAreStaticallyAnalyzable();
++    int mask =
++        (useTypes ? 1 : 0)
++            | (pureGetters ? 2 : 0)
++            | (regexpRefs ? 4 : 0)
++            | (pureBuiltins ? 8 : 0);
++    JSTypeRegistry reg = this.typeRegistry;
++    AccessorSummary summary = getAccessorSummary();
++    AstAnalyzer cached = this.cachedAstAnalyzer;
++    if (cached != null
++        && this.cachedAstAnalyzerMask == mask
++        && this.cachedAstAnalyzerRegistry == reg
++        && this.cachedAstAnalyzerSummary == summary) {
++      return cached;
++    }
+     var analysisSettings =
+         AstAnalyzer.Options.builder()
+-            .setUseTypesForLocalOptimization(options.shouldUseTypesForLocalOptimization())
+-            .setAssumeGettersArePure(options.getAssumeGettersArePure())
+-            .setHasRegexpGlobalReferences(this.hasRegExpGlobalReferences())
+-            .setAssumeKnownBuiltinsArePure(options.getAssumePropertiesAreStaticallyAnalyzable())
++            .setUseTypesForLocalOptimization(useTypes)
++            .setAssumeGettersArePure(pureGetters)
++            .setHasRegexpGlobalReferences(regexpRefs)
++            .setAssumeKnownBuiltinsArePure(pureBuiltins)
+             .build();
+-    return new AstAnalyzer(analysisSettings, typeRegistry, getAccessorSummary());
++    AstAnalyzer analyzer = new AstAnalyzer(analysisSettings, reg, summary);
++    this.cachedAstAnalyzer = analyzer;
++    this.cachedAstAnalyzerMask = mask;
++    this.cachedAstAnalyzerRegistry = reg;
++    this.cachedAstAnalyzerSummary = summary;
++    return analyzer;
+   }
+ 
+   @Override
+diff --git a/com/google/javascript/jscomp/FunctionTypeBuilder.java b/com/google/javascript/jscomp/FunctionTypeBuilder.java
+index 3bfb9291..d37e3199 100644
+--- a/com/google/javascript/jscomp/FunctionTypeBuilder.java
++++ b/com/google/javascript/jscomp/FunctionTypeBuilder.java
+@@ -49,7 +49,6 @@ import com.google.javascript.rhino.jstype.StaticTypedScope;
+ import com.google.javascript.rhino.jstype.TemplateType;
+ import java.util.ArrayList;
+ import java.util.Collections;
+-import java.util.Iterator;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+@@ -324,14 +323,16 @@ final class FunctionTypeBuilder {
+       // We're overriding with a function literal. Apply type information
+       // to each parameter of the literal.
+       FunctionParamBuilder paramBuilder = new FunctionParamBuilder(typeRegistry);
+-      Iterator<Parameter> oldParams = oldType.getParameters().iterator();
++      ImmutableList<Parameter> oldParams = oldType.getParameters();
++      int oldParamsLen = oldParams.size();
++      int oldParamsIdx = 0;
+       boolean warnedAboutArgList = false;
+       boolean oldParamsListHitOptArgs = false;
+       for (Node currentParam = paramsParent.getFirstChild();
+           currentParam != null;
+           currentParam = currentParam.getNext()) {
+-        if (oldParams.hasNext()) {
+-          Parameter oldParam = oldParams.next();
++        if (oldParamsIdx < oldParamsLen) {
++          Parameter oldParam = oldParams.get(oldParamsIdx++);
+ 
+           oldParamsListHitOptArgs =
+               oldParamsListHitOptArgs || oldParam.isVariadic() || oldParam.isOptional();
+@@ -366,8 +367,8 @@ final class FunctionTypeBuilder {
+ 
+       // Clone any remaining params that aren't in the function literal,
+       // but make them optional.
+-      while (oldParams.hasNext()) {
+-        paramBuilder.newOptionalParameterFrom(oldParams.next());
++      while (oldParamsIdx < oldParamsLen) {
++        paramBuilder.newOptionalParameterFrom(oldParams.get(oldParamsIdx++));
+       }
+ 
+       parameters = paramBuilder.build();
+@@ -631,14 +632,10 @@ final class FunctionTypeBuilder {
+     }
+ 
+     // arguments
+-    final Iterator<Parameter> oldParameters;
+-    Parameter oldParameterType = null;
+-    if (parameters != null) {
+-      oldParameters = parameters.iterator();
+-      oldParameterType = oldParameters.hasNext() ? oldParameters.next() : null;
+-    } else {
+-      oldParameters = Collections.emptyIterator();
+-    }
++    final ImmutableList<Parameter> oldParameters = parameters;
++    final int oldParamLen = oldParameters != null ? oldParameters.size() : 0;
++    int oldParamIdx = 0;
++    Parameter oldParameterType = oldParamIdx < oldParamLen ? oldParameters.get(oldParamIdx++) : null;
+ 
+     FunctionParamBuilder builder = new FunctionParamBuilder(typeRegistry);
+     boolean warnedAboutArgList = false;
+@@ -700,14 +697,14 @@ final class FunctionTypeBuilder {
+       warnedAboutArgList |=
+           addParameter(builder, parameterType, warnedAboutArgList, isOptionalParam, isVarArgs);
+ 
+-      oldParameterType = oldParameters.hasNext() ? oldParameters.next() : null;
++      oldParameterType = oldParamIdx < oldParamLen ? oldParameters.get(oldParamIdx++) : null;
+       paramIndex++;
+     }
+     // Copy over any old parameters that aren't in the param list.
+     if (!isVarArgs) {
+       while (oldParameterType != null && !isVarArgs) {
+         builder.newParameterFrom(oldParameterType);
+-        oldParameterType = oldParameters.hasNext() ? oldParameters.next() : null;
++        oldParameterType = oldParamIdx < oldParamLen ? oldParameters.get(oldParamIdx++) : null;
+       }
+     }
+ 
+diff --git a/com/google/javascript/jscomp/InferJSDocInfo.java b/com/google/javascript/jscomp/InferJSDocInfo.java
+index cb3a7e45..c5df46d6 100644
+--- a/com/google/javascript/jscomp/InferJSDocInfo.java
++++ b/com/google/javascript/jscomp/InferJSDocInfo.java
+@@ -210,18 +210,20 @@ class InferJSDocInfo extends AbstractPostOrderCallback implements CompilerPass {
+       return;
+     }
+ 
+-    Property.Key propName;
+     if (n.isComputedFieldDef() || n.isComputedProp()) {
+       JSType keyType = n.getFirstChild().getJSType();
+       if (keyType == null || !keyType.isKnownSymbolValueType()) {
+         return;
+       }
+-      propName = new Property.SymbolKey(keyType.toMaybeKnownSymbolType());
++      Property.Key propName = new Property.SymbolKey(keyType.toMaybeKnownSymbolType());
++      if (owningType.hasOwnProperty(propName) && owningType.getPropertyJSDocInfo(propName) == null) {
++        owningType.setPropertyJSDocInfo(propName, typeDoc);
++      }
+     } else {
+-      propName = new Property.StringKey(n.getString());
+-    }
+-    if (owningType.hasOwnProperty(propName) && owningType.getPropertyJSDocInfo(propName) == null) {
+-      owningType.setPropertyJSDocInfo(propName, typeDoc);
++      String propName = n.getString();
++      if (owningType.hasOwnProperty(propName) && owningType.getPropertyJSDocInfo(propName) == null) {
++        owningType.setPropertyJSDocInfo(propName, typeDoc);
++      }
+     }
+ 
+     // NOTE(lharker): it seems surprising that this doesn't also call
+diff --git a/com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java b/com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java
+index 46fbfb27..86926c03 100644
+--- a/com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java
++++ b/com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java
+@@ -22,7 +22,6 @@ import static com.google.javascript.rhino.jstype.JSTypeNative.UNKNOWN_TYPE;
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableMap;
+ import com.google.common.collect.ImmutableSortedSet;
+-import com.google.common.collect.Iterables;
+ import com.google.javascript.jscomp.base.LinkedIdentityHashMap;
+ import com.google.javascript.jscomp.base.LinkedIdentityHashSet;
+ import com.google.javascript.rhino.Node;
+@@ -35,7 +34,6 @@ import com.google.javascript.rhino.jstype.TemplateType;
+ import com.google.javascript.rhino.jstype.TemplateTypeMap;
+ import com.google.javascript.rhino.jstype.TemplatizedType;
+ import com.google.javascript.rhino.jstype.UnionType;
+-import java.util.Iterator;
+ 
+ /**
+  * Determines the types that fill any template parameters at a function invocation.
+@@ -94,9 +92,9 @@ final class InvocationTemplateTypeMatcher {
+           typeOfThisRequiredByTheFunction, typeOfThisProvidedByTheCall);
+     }
+ 
++    ImmutableList<Parameter> calleeParameters = this.calleeType.getParameters();
+     if (this.invocation.isTaggedTemplateLit()) {
+-      Iterator<Parameter> calleeParameters = this.calleeType.getParameters().iterator();
+-      if (!calleeParameters.hasNext()) {
++      if (calleeParameters.isEmpty()) {
+         // TypeCheck will warn if there are too few function parameters
+         return this.copyMatchedTypes();
+       }
+@@ -104,15 +102,12 @@ final class InvocationTemplateTypeMatcher {
+       // The first argument to the tag function is an array of strings (typed as ITemplateArray)
+       // but not an actual AST node
+       this.matchTemplateTypesRecursive(
+-          calleeParameters.next().getJSType(), this.registry.getNativeType(I_TEMPLATE_ARRAY_TYPE));
++          calleeParameters.get(0).getJSType(), this.registry.getNativeType(I_TEMPLATE_ARRAY_TYPE));
+ 
+       // Resolve the remaining template types from the template literal substitutions.
+-      this.matchTemplateTypesFromNodes(
+-          Iterables.skip(this.calleeType.getParameters(), 1),
+-          NodeUtil.getInvocationArgsAsIterable(this.invocation));
++      this.matchTemplateTypesFromNodes(calleeParameters, 1, /* isTaggedTemplate= */ true);
+     } else if (this.invocation.hasMoreThanOneChild()) {
+-      this.matchTemplateTypesFromNodes(
+-          this.calleeType.getParameters(), NodeUtil.getInvocationArgsAsIterable(this.invocation));
++      this.matchTemplateTypesFromNodes(calleeParameters, 0, /* isTaggedTemplate= */ false);
+     }
+ 
+     return this.copyMatchedTypes();
+@@ -129,15 +124,15 @@ final class InvocationTemplateTypeMatcher {
+     // Unpack unions.
+     if (paramType.isUnionType()) {
+       // example: @param {Array.<T>|NodeList|Arguments|{length:number}}
+-      UnionType unionType = paramType.toMaybeUnionType();
+-      for (JSType alternate : unionType.getAlternates()) {
+-        this.matchTemplateTypesRecursive(alternate, argType);
++      ImmutableList<JSType> alts = paramType.toMaybeUnionType().getAlternates();
++      for (int i = 0, len = alts.size(); i < len; i++) {
++        this.matchTemplateTypesRecursive(alts.get(i), argType);
+       }
+       return;
+     } else if (argType.isUnionType()) {
+-      UnionType unionType = argType.toMaybeUnionType();
+-      for (JSType alternate : unionType.getAlternates()) {
+-        this.matchTemplateTypesRecursive(paramType, alternate);
++      ImmutableList<JSType> alts = argType.toMaybeUnionType().getAlternates();
++      for (int i = 0, len = alts.size(); i < len; i++) {
++        this.matchTemplateTypesRecursive(paramType, alts.get(i));
+       }
+       return;
+     }
+@@ -155,8 +150,7 @@ final class InvocationTemplateTypeMatcher {
+             paramFunctionType.getReturnType(), argFunctionType.getReturnType());
+         // infer from parameter types of the function type
+         this.matchTemplateTypesFromParameters(
+-            paramFunctionType.getParameters().iterator(),
+-            argFunctionType.getParameters().iterator());
++            paramFunctionType.getParameters(), argFunctionType.getParameters());
+       }
+     } else if (paramType.isRecordType() && !paramType.isNominalType()) {
+       // example: @param {{foo:T}}
+@@ -201,35 +195,41 @@ final class InvocationTemplateTypeMatcher {
+   }
+ 
+   private void matchTemplateTypesFromNodes(
+-      Iterable<Parameter> declParams, Iterable<Node> callParams) {
+-    this.matchTemplateTypesFromNodes(declParams.iterator(), callParams.iterator());
+-  }
+-
+-  private void matchTemplateTypesFromNodes(
+-      Iterator<Parameter> declParams, Iterator<Node> callParams) {
+-    while (declParams.hasNext() && callParams.hasNext()) {
+-      Parameter declParam = declParams.next();
+-      this.matchTemplateTypesRecursive(
+-          declParam.getJSType(), this.getTypeOrUnknown(callParams.next()));
++      ImmutableList<Parameter> declParams, int declStartIdx, boolean isTaggedTemplate) {
++    int declLen = declParams.size();
++    int declIdx = declStartIdx;
++    Node argCursor = NodeUtil.firstInvocationArgCursor(this.invocation, isTaggedTemplate);
++    while (declIdx < declLen && argCursor != null) {
++      Parameter declParam = declParams.get(declIdx++);
++      Node arg = NodeUtil.invocationArgFromCursor(argCursor, isTaggedTemplate);
++      argCursor = NodeUtil.nextInvocationArgCursor(argCursor, isTaggedTemplate);
++      JSType declParamType = declParam.getJSType();
++      this.matchTemplateTypesRecursive(declParamType, this.getTypeOrUnknown(arg));
+ 
+       if (declParam.isVariadic()) {
+-        while (callParams.hasNext()) {
+-          this.matchTemplateTypesRecursive(
+-              declParam.getJSType(), this.getTypeOrUnknown(callParams.next()));
++        while (argCursor != null) {
++          Node restArg = NodeUtil.invocationArgFromCursor(argCursor, isTaggedTemplate);
++          argCursor = NodeUtil.nextInvocationArgCursor(argCursor, isTaggedTemplate);
++          this.matchTemplateTypesRecursive(declParamType, this.getTypeOrUnknown(restArg));
+         }
+       }
+     }
+   }
+ 
+   private void matchTemplateTypesFromParameters(
+-      Iterator<Parameter> declParams, Iterator<Parameter> callParams) {
+-    while (declParams.hasNext() && callParams.hasNext()) {
+-      Parameter declParam = declParams.next();
+-      this.matchTemplateTypesRecursive(declParam.getJSType(), callParams.next().getJSType());
++      ImmutableList<Parameter> declParams, ImmutableList<Parameter> callParams) {
++    int declLen = declParams.size();
++    int callLen = callParams.size();
++    int declIdx = 0;
++    int callIdx = 0;
++    while (declIdx < declLen && callIdx < callLen) {
++      Parameter declParam = declParams.get(declIdx++);
++      JSType declParamType = declParam.getJSType();
++      this.matchTemplateTypesRecursive(declParamType, callParams.get(callIdx++).getJSType());
+ 
+       if (declParam.isVariadic()) {
+-        while (callParams.hasNext()) {
+-          this.matchTemplateTypesRecursive(declParam.getJSType(), callParams.next().getJSType());
++        while (callIdx < callLen) {
++          this.matchTemplateTypesRecursive(declParamType, callParams.get(callIdx++).getJSType());
+         }
+       }
+     }
+diff --git a/com/google/javascript/jscomp/NodeUtil.java b/com/google/javascript/jscomp/NodeUtil.java
+index 482e7cf0..00c8ca1d 100644
+--- a/com/google/javascript/jscomp/NodeUtil.java
++++ b/com/google/javascript/jscomp/NodeUtil.java
+@@ -5657,21 +5657,30 @@ public final class NodeUtil {
+     return new ArrayList<>(uniqueScopeNodes);
+   }
+ 
+-  static Iterable<Node> getInvocationArgsAsIterable(Node invocation) {
+-    if (invocation.isTaggedTemplateLit()) {
+-      return new TemplateArgsIterable(invocation.getLastChild());
++  static @Nullable Node firstInvocationArgCursor(Node invocation, boolean isTaggedTemplate) {
++    if (isTaggedTemplate) {
++      Node templateLit = invocation.getLastChild();
++      checkState(templateLit.isTemplateLit());
++      return advanceToTemplateLitSub(templateLit.getFirstChild());
+     }
+-
+     checkState(isCallOrNew(invocation), invocation);
+-    if (invocation.hasOneChild()) {
+-      return ImmutableList.of();
+-    }
++    return invocation.getSecondChild();
++  }
++
++  static Node invocationArgFromCursor(Node cursor, boolean isTaggedTemplate) {
++    return isTaggedTemplate ? cursor.getFirstChild() : cursor;
++  }
+ 
+-    ImmutableList.Builder<Node> list = ImmutableList.builder();
+-    for (Node arg = invocation.getSecondChild(); arg != null; arg = arg.getNext()) {
+-      list.add(arg);
++  static @Nullable Node nextInvocationArgCursor(Node cursor, boolean isTaggedTemplate) {
++    Node next = cursor.getNext();
++    return isTaggedTemplate ? advanceToTemplateLitSub(next) : next;
++  }
++
++  private static @Nullable Node advanceToTemplateLitSub(@Nullable Node child) {
++    while (child != null && !child.isTemplateLitSub()) {
++      child = child.getNext();
+     }
+-    return list.build();
++    return child;
+   }
+ 
+   /**
+@@ -5680,44 +5689,17 @@ public final class NodeUtil {
+    */
+   static int getInvocationArgsCount(Node invocation) {
+     if (invocation.isTaggedTemplateLit()) {
+-      Iterable<Node> args = new TemplateArgsIterable(invocation.getLastChild());
+-      return Iterables.size(args) + 1;
+-    } else {
+-      return invocation.getChildCount() - 1;
+-    }
+-  }
+-
+-  /**
+-   * Represents an iterable of the children of templatelit_sub nodes of a template lit node This
+-   * iterable will skip over the String children of the template lit node.
+-   */
+-  private static final class TemplateArgsIterable implements Iterable<Node> {
+-    private final Node templateLit;
+-
+-    TemplateArgsIterable(Node templateLit) {
++      Node templateLit = invocation.getLastChild();
+       checkState(templateLit.isTemplateLit());
+-      this.templateLit = templateLit;
+-    }
+-
+-    @Override
+-    public Iterator<Node> iterator() {
+-      return new AbstractIterator<Node>() {
+-        private @Nullable Node nextChild = templateLit.getFirstChild();
+-
+-        @Override
+-        protected Node computeNext() {
+-          while (nextChild != null && !nextChild.isTemplateLitSub()) {
+-            nextChild = nextChild.getNext();
+-          }
+-          if (nextChild == null) {
+-            return endOfData();
+-          } else {
+-            Node result = nextChild.getFirstChild();
+-            nextChild = nextChild.getNext();
+-            return result;
+-          }
++      int count = 1;
++      for (Node child = templateLit.getFirstChild(); child != null; child = child.getNext()) {
++        if (child.isTemplateLitSub()) {
++          count++;
+         }
+-      };
++      }
++      return count;
++    } else {
++      return invocation.getChildCount() - 1;
+     }
+   }
+ 
+diff --git a/com/google/javascript/jscomp/PerformanceTracker.java b/com/google/javascript/jscomp/PerformanceTracker.java
+index 09f4228a..645877f4 100644
+--- a/com/google/javascript/jscomp/PerformanceTracker.java
++++ b/com/google/javascript/jscomp/PerformanceTracker.java
+@@ -25,7 +25,6 @@ import static java.util.Comparator.comparingLong;
+ 
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.collect.ImmutableMap;
+-import com.google.common.collect.ImmutableMultiset;
+ import com.google.javascript.jscomp.CompilerOptions.TracerMode;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.Token;
+@@ -91,10 +90,12 @@ public final class PerformanceTracker {
+ 
+   private final Deque<Stats> currentPass = new ArrayDeque<>();
+ 
++  private static final Token[] TOKEN_VALUES = Token.values();
++
+   /** Cumulative stats for each compiler pass. */
+   private ImmutableMap<String, Stats> passSummary;
+ 
+-  private ImmutableMultiset<Token> astManifest;
++  private int[] astManifest;
+ 
+   /** Stats a single run of a compiler pass. */
+   private final List<Stats> log = new ArrayList<>();
+@@ -350,9 +351,17 @@ public final class PerformanceTracker {
+       return;
+     }
+ 
+-    ImmutableMultiset.Builder<Token> builder = ImmutableMultiset.builder();
+-    NodeUtil.visitPreOrder(this.jsRoot, (n) -> builder.add(n.getToken()));
+-    this.astManifest = builder.build();
++    int[] counts = new int[TOKEN_VALUES.length];
++    countAstTokens(this.jsRoot, counts);
++    this.astManifest = counts;
++  }
++
++  @SuppressWarnings("EnumOrdinal")
++  private static void countAstTokens(Node n, int[] counts) {
++    counts[n.getToken().ordinal()]++;
++    for (Node c = n.getFirstChild(); c != null; c = c.getNext()) {
++      countAstTokens(c, counts);
++    }
+   }
+ 
+   private String pruningAnalysisSummary = "not executed";
+@@ -494,10 +503,17 @@ public final class PerformanceTracker {
+               "", //
+               "Input AST Manifest:",
+               "token,count"));
+-      this.astManifest.entrySet().stream()
+-          .map((e) -> String.format("%s,%d", e.getElement(), e.getCount()))
+-          .sorted()
+-          .forEach(output::println);
++      List<String> manifestLines = new ArrayList<>();
++      for (int i = 0; i < TOKEN_VALUES.length; i++) {
++        int count = this.astManifest[i];
++        if (count > 0) {
++          manifestLines.add(TOKEN_VALUES[i] + "," + count);
++        }
++      }
++      manifestLines.sort(null);
++      for (int i = 0, len = manifestLines.size(); i < len; i++) {
++        output.println(manifestLines.get(i));
++      }
+     }
+ 
+     output.println();
+diff --git a/com/google/javascript/jscomp/SyntacticScopeCreator.java b/com/google/javascript/jscomp/SyntacticScopeCreator.java
+index 45a1e4fa..caa54598 100644
+--- a/com/google/javascript/jscomp/SyntacticScopeCreator.java
++++ b/com/google/javascript/jscomp/SyntacticScopeCreator.java
+@@ -16,6 +16,7 @@
+ 
+ package com.google.javascript.jscomp;
+ 
++import static com.google.common.base.Preconditions.checkArgument;
+ import static com.google.common.base.Preconditions.checkState;
+ 
+ import com.google.javascript.rhino.InputId;
+@@ -187,12 +188,54 @@ public final class SyntacticScopeCreator implements ScopeCreator {
+     }
+ 
+     private void declareLHS(Scope s, Node n) {
+-      if (n.hasOneChild() && n.getFirstChild().isName()) {
++      Node first = n.getFirstChild();
++      if (first != null && first.getNext() == null && first.isName()) {
+         // NAME is most common and trivial case.  This code is hot so it is worth special casing.
+         // to avoid extra GC and cpu cycles.
+-        declareVar(s, n.getFirstChild());
+-      } else {
+-        NodeUtil.visitLhsNodesInNode(n, (lhs) -> declareVar(s, lhs));
++        declareVar(s, first);
++        return;
++      }
++      checkArgument(
++          NodeUtil.isNameDeclaration(n)
++              || n.isParamList()
++              || NodeUtil.isAssignmentOp(n)
++              || n.isCatch()
++              || n.isDestructuringLhs()
++              || n.isDefaultValue()
++              || n.isImport()
++              || NodeUtil.isEnhancedFor(n),
++          n);
++      declareLhsHelper(s, n);
++    }
++
++    private void declareLhsHelper(Scope s, Node n) {
++      switch (n.getToken()) {
++        case IMPORT -> {
++          declareLhsHelper(s, n.getFirstChild());
++          declareLhsHelper(s, n.getSecondChild());
++        }
++        case VAR, CONST, LET, OBJECT_PATTERN, ARRAY_PATTERN, PARAM_LIST, IMPORT_SPECS -> {
++          for (Node child = n.getFirstChild(); child != null; child = child.getNext()) {
++            if (child.isName()) {
++              declareVar(s, child);
++            } else {
++              declareLhsHelper(s, child);
++            }
++          }
++        }
++        case DESTRUCTURING_LHS, DEFAULT_VALUE, CATCH, ITER_REST, OBJECT_REST, CAST ->
++            declareLhsHelper(s, n.getFirstChild());
++        case IMPORT_SPEC, COMPUTED_PROP, STRING_KEY -> declareLhsHelper(s, n.getLastChild());
++        case NAME, IMPORT_STAR, GETPROP, GETELEM -> declareVar(s, n);
++        case EMPTY -> {}
++        case FOR_IN, FOR_OF, FOR_AWAIT_OF -> declareLhsHelper(s, n.getFirstChild());
++        default -> {
++          if (NodeUtil.isAssignmentOp(n)) {
++            declareLhsHelper(s, n.getFirstChild());
++          } else {
++            throw new IllegalStateException("Invalid node in lhs: " + n);
++          }
++        }
+       }
+     }
+ 
+diff --git a/com/google/javascript/jscomp/TypeCheck.java b/com/google/javascript/jscomp/TypeCheck.java
+index fc7de317..f8537047 100644
+--- a/com/google/javascript/jscomp/TypeCheck.java
++++ b/com/google/javascript/jscomp/TypeCheck.java
+@@ -66,12 +66,10 @@ import com.google.javascript.rhino.jstype.NamedType;
+ import com.google.javascript.rhino.jstype.ObjectType;
+ import com.google.javascript.rhino.jstype.Property;
+ import com.google.javascript.rhino.jstype.Property.OwnedProperty;
+-import com.google.javascript.rhino.jstype.Property.StringKey;
+ import com.google.javascript.rhino.jstype.TemplateType;
+ import com.google.javascript.rhino.jstype.TemplateTypeMap;
+ import com.google.javascript.rhino.jstype.TemplatizedType;
+ import com.google.javascript.rhino.jstype.UnionType;
+-import java.util.Iterator;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+@@ -1210,10 +1208,10 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+       // and 'property' is declared on it.
+       // object.property = ...;
+       ObjectType objectCastType = ObjectType.cast(objectJsType.restrictByNotNullOrUndefined());
+-      JSType expectedPropertyType = getPropertyTypeIfDeclared(objectCastType, new StringKey(pname));
++      JSType expectedPropertyType = getPropertyTypeIfDeclared(objectCastType, pname);
+ 
+       checkPropertyInheritanceOnAssignment(
+-          nodeToWarn, object, new StringKey(pname), info, expectedPropertyType);
++          nodeToWarn, object, pname, info, expectedPropertyType);
+ 
+       // If we successfully found a non-unknown declared type, validate the assignment and don't do
+       // any further checks.
+@@ -1295,6 +1293,29 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     }
+   }
+ 
++  private void checkPropertyInheritanceOnAssignment(
++      Node assign, Node object, String property, JSDocInfo info, JSType propertyType) {
++    if (object.isGetProp() && object.getString().equals("prototype")) {
++      Node preObject = object.getFirstChild();
++      @Nullable FunctionType ctorType = getJSType(preObject).toMaybeFunctionType();
++      if (ctorType == null || !ctorType.hasInstanceType()) {
++        return;
++      }
++
++      checkDeclaredPropertyAgainstNominalInheritance(
++          assign, ctorType, property, info, propertyType);
++      checkAbstractMethodInConcreteClass(assign, ctorType, info);
++    } else {
++      @Nullable FunctionType ctorType = getJSType(object).toMaybeFunctionType();
++      if (ctorType == null || !ctorType.hasInstanceType()) {
++        return;
++      }
++
++      checkDeclaredPropertyAgainstPrototypalInheritance(
++          assign, ctorType, property, info, propertyType);
++    }
++  }
++
+   private void checkPropertyInheritanceOnAssignment(
+       Node assign, Node object, Property.Key property, JSDocInfo info, JSType propertyType) {
+     // Inheritance checks for prototype properties.
+@@ -1346,6 +1367,36 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     }
+   }
+ 
++  private void checkPropertyInheritanceOnPrototypeLitKey(
++      Node key, String propertyName, ObjectType type) {
++    checkPropertyInheritance(key, propertyName, type.getOwnerFunction(), type);
++  }
++
++  private void checkPropertyInheritanceOnClassMember(
++      Node key, String propertyName, FunctionType ctorType) {
++    if (key.isStaticMember()) {
++      checkDeclaredPropertyAgainstPrototypalInheritance(
++          key, ctorType, propertyName, key.getJSDocInfo(), ctorType.getPropertyType(propertyName));
++    } else {
++      checkPropertyInheritance(key, propertyName, ctorType, ctorType.getInstanceType());
++    }
++  }
++
++  private void checkPropertyInheritance(
++      Node key, String propertyName, FunctionType ctorType, ObjectType type) {
++    if (ctorType == null || !ctorType.hasInstanceType()) {
++      return;
++    }
++
++    checkDeclaredPropertyAgainstNominalInheritance(
++        key.getFirstChild(),
++        ctorType,
++        propertyName,
++        key.getJSDocInfo(),
++        type.getPropertyType(propertyName));
++    checkAbstractMethodInConcreteClass(key, ctorType, key.getJSDocInfo());
++  }
++
+   private void checkPropertyInheritanceOnPrototypeLitKey(
+       Node key, Property.Key propertyName, ObjectType type) {
+     // Inheritance checks for prototype objlit properties.
+@@ -1526,12 +1577,12 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     }
+ 
+     // Validate inheritance for classes and object literals used as prototypes
+-    Property.Key propertyKey = new StringKey(propertyName);
++    checkNotNull(propertyName);
+     if (owner.isClass()) {
+       FunctionType classConstructorType = owner.getJSType().assertFunctionType();
+-      checkPropertyInheritanceOnClassMember(key, propertyKey, classConstructorType);
++      checkPropertyInheritanceOnClassMember(key, propertyName, classConstructorType);
+     } else if (ownerType.toMaybeObjectType() != null) {
+-      checkPropertyInheritanceOnPrototypeLitKey(key, propertyKey, ownerType.toMaybeObjectType());
++      checkPropertyInheritanceOnPrototypeLitKey(key, propertyName, ownerType.toMaybeObjectType());
+     }
+   }
+ 
+@@ -1563,6 +1614,126 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+    *       receiverType}.
+    * </ul>
+    */
++  private void checkDeclaredPropertyAgainstNominalInheritance(
++      Node n,
++      FunctionType ctorType,
++      String propertyName,
++      @Nullable JSDocInfo info,
++      JSType propertyType) {
++    if ("__proto__".equals(propertyName) || "constructor".equals(propertyName)) {
++      return;
++    }
++
++    if (ctorType.isInterface()) {
++      return;
++    }
++
++    if (hasUnknownOrEmptySupertype(ctorType)) {
++      return;
++    }
++
++    boolean foundProperty = false;
++
++    FunctionType superCtor = ctorType.getSuperClassConstructor();
++    if (superCtor != null) {
++      OwnedProperty propSlot = superCtor.getInstanceType().findClosestDefinition(propertyName);
++      boolean superClassHasProperty = propSlot != null && !propSlot.isOwnedByInterface();
++      foundProperty |= superClassHasProperty;
++
++      if (superClassHasProperty) {
++        ObjectType superClass = propSlot.getOwnerInstanceType();
++        boolean superClassHasDeclaredProperty = !propSlot.getValue().isTypeInferred();
++        if (superClassHasDeclaredProperty) {
++          if (isDeclaredLocally(ctorType, propertyName) && !declaresOverride(info)) {
++            compiler.report(
++                JSError.make(
++                    n, HIDDEN_SUPERCLASS_PROPERTY, propertyName, superClass.getReferenceName()));
++          }
++          validator.checkPropertyType(
++              n, ctorType.getTypeOfThis(), superClass, propertyName, propertyType);
++        }
++      }
++    }
++
++    for (ObjectType implementedInterface : ctorType.getAllImplementedInterfaces()) {
++      if (implementedInterface.isUnknownType() || implementedInterface.isEmptyType()) {
++        continue;
++      }
++      checkState(implementedInterface.isInstanceType(), implementedInterface);
++      OwnedProperty propSlot = implementedInterface.findClosestDefinition(propertyName);
++      boolean interfaceHasProperty = propSlot != null;
++      foundProperty |= interfaceHasProperty;
++
++      if (interfaceHasProperty && !declaresOverride(info)) {
++        compiler.report(
++            JSError.make(
++                n,
++                HIDDEN_INTERFACE_PROPERTY,
++                propertyName,
++                propSlot.getOwnerInstanceType().getReferenceName()));
++      }
++    }
++
++    if (!foundProperty && declaresOverride(info)) {
++      compiler.report(
++          JSError.make(
++              n, UNKNOWN_OVERRIDE, propertyName, ctorType.getInstanceType().getReferenceName()));
++    }
++  }
++
++  private static boolean isDeclaredLocally(FunctionType ctorType, String propertyName) {
++    checkState(ctorType.isConstructor());
++    return ctorType.getPrototype().hasOwnProperty(propertyName)
++        || ctorType.getInstanceType().hasOwnProperty(propertyName);
++  }
++
++  private void checkDeclaredPropertyAgainstPrototypalInheritance(
++      Node n,
++      ObjectType receiverType,
++      String propertyName,
++      @Nullable JSDocInfo info,
++      JSType propertyType) {
++    boolean declaredOverride = declaresOverride(info);
++    @Nullable ObjectType supertypeWithProperty = null;
++    for (ObjectType type = receiverType.getImplicitPrototype();
++        type != null;
++        type = type.getImplicitPrototype()) {
++      if (type.hasOwnProperty(propertyName)) {
++        supertypeWithProperty = type;
++        break;
++      }
++    }
++
++    if (supertypeWithProperty == null) {
++      if (declaredOverride && !receiverType.loosenTypecheckingDueToForwardReferencedSupertype()) {
++        compiler.report(
++            JSError.make(
++                n, UNKNOWN_PROTOTYPAL_OVERRIDE, propertyName, receiverType.toString()));
++      }
++    } else {
++      if (!declaredOverride) {
++        compiler.report(
++            JSError.make(
++                n,
++                HIDDEN_PROTOTYPAL_SUPERTYPE_PROPERTY,
++                propertyName,
++                supertypeWithProperty.toString()));
++      }
++
++      JSType overriddenPropertyType = supertypeWithProperty.getPropertyType(propertyName);
++      if (!propertyType.isSubtypeOf(overriddenPropertyType)) {
++        compiler.report(
++            JSError.make(
++                n,
++                HIDDEN_PROTOTYPAL_SUPERTYPE_PROPERTY_MISMATCH,
++                propertyName,
++                supertypeWithProperty.toString(),
++                overriddenPropertyType.toString(),
++                propertyType.toString()));
++      }
++    }
++  }
++
+   private void checkDeclaredPropertyAgainstNominalInheritance(
+       Node n,
+       FunctionType ctorType,
+@@ -2654,35 +2825,31 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+ 
+   /** Visits the parameters of a CALL or a NEW node. */
+   private void visitArgumentList(Node call, FunctionType functionType) {
+-    Iterator<Parameter> parameters = functionType.getParameters().iterator();
+-    Iterator<Node> arguments = NodeUtil.getInvocationArgsAsIterable(call).iterator();
+-    checkArgumentsMatchParameters(call, functionType, arguments, parameters, 0);
++    checkArgumentsMatchParameters(call, functionType, 0);
+   }
+ 
+   /**
+-   * Checks that a list of arguments match a list of formal parameters
++   * Checks that a list of arguments match a list of formal parameters.
+    *
+-   * <p>If given a TAGGED_TEMPLATE_LIT, the given Iterator should only contain the parameters
+-   * corresponding to the actual template lit sub arguments, skipping over the first parameter.
+-   *
+-   * @param firstParameterIndex The index of the first parameter in the given Iterator in the
+-   *     function type's parameter list.
++   * @param firstParameterIndex The index of the first parameter to check in the function type's
++   *     parameter list (1 for TAGGED_TEMPLATE_LIT, 0 otherwise).
+    */
+   private void checkArgumentsMatchParameters(
+-      Node call,
+-      FunctionType functionType,
+-      Iterator<Node> arguments,
+-      Iterator<Parameter> parameters,
+-      int firstParameterIndex) {
++      Node call, FunctionType functionType, int firstParameterIndex) {
++    ImmutableList<Parameter> parameters = functionType.getParameters();
++    int paramLen = parameters.size();
++    int paramIdx = firstParameterIndex;
++    boolean isTaggedTemplate = call.isTaggedTemplateLit();
++    Node argCursor = NodeUtil.firstInvocationArgCursor(call, isTaggedTemplate);
+ 
+     int spreadArgumentCount = 0;
+     int normalArgumentCount = firstParameterIndex;
+     boolean checkArgumentTypeAgainstParameter = true;
+     Parameter parameter = null;
+-    Node argument = null;
+-    while (arguments.hasNext()) {
++    while (argCursor != null) {
+       // get the next argument
+-      argument = arguments.next();
++      Node argument = NodeUtil.invocationArgFromCursor(argCursor, isTaggedTemplate);
++      argCursor = NodeUtil.nextInvocationArgCursor(argCursor, isTaggedTemplate);
+ 
+       // Count normal & spread arguments.
+       if (argument.isSpread()) {
+@@ -2697,8 +2864,8 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+ 
+       // Get the next parameter, if we're still matching parameters and arguments.
+       if (checkArgumentTypeAgainstParameter) {
+-        if (parameters.hasNext()) {
+-          parameter = parameters.next();
++        if (paramIdx < paramLen) {
++          parameter = parameters.get(paramIdx++);
+         } else if (parameter != null && parameter.isVariadic()) {
+           // use varargs for all remaining parameters
+         } else {
+@@ -2907,14 +3074,14 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     }
+ 
+     FunctionType tagFnType = tagType.toMaybeFunctionType();
+-    Iterator<Parameter> parameters = tagFnType.getParameters().iterator();
++    ImmutableList<Parameter> parameters = tagFnType.getParameters();
+ 
+     // The tag function gets an array of all the template lit substitutions as its first argument,
+     // but there's no actual AST node representing that array so we typecheck it separately from
+     // the other tag arguments.
+ 
+     // Validate that the tag function takes at least one parameter
+-    if (!parameters.hasNext()) {
++    if (parameters.isEmpty()) {
+       report(
+           n,
+           WRONG_ARGUMENT_COUNT,
+@@ -2926,7 +3093,7 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     }
+ 
+     // Validate that the first parameter is a supertype of ITemplateArray
+-    Parameter firstParameter = parameters.next();
++    Parameter firstParameter = parameters.get(0);
+     JSType parameterType = firstParameter.getJSType().restrictByNotNullOrUndefined();
+     if (parameterType != null) {
+       validator.expectITemplateArraySupertype(
+@@ -2934,8 +3101,7 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     }
+ 
+     // Validate the remaining parameters (the template literal substitutions)
+-    checkArgumentsMatchParameters(
+-        n, tagFnType, NodeUtil.getInvocationArgsAsIterable(n).iterator(), parameters, 1);
++    checkArgumentsMatchParameters(n, tagFnType, 1);
+   }
+ 
+   /**
+@@ -3119,6 +3285,17 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+   /**
+    * Returns the type of the property with the given name if declared. Otherwise returns unknown.
+    */
++  private JSType getPropertyTypeIfDeclared(
++      @Nullable ObjectType objectType, String propertyName) {
++    checkNotNull(propertyName);
++    if (objectType != null
++        && objectType.hasProperty(propertyName)
++        && !objectType.isPropertyTypeInferred(propertyName)) {
++      return objectType.getPropertyType(propertyName);
++    }
++    return getNativeType(UNKNOWN_TYPE);
++  }
++
+   private JSType getPropertyTypeIfDeclared(
+       @Nullable ObjectType objectType, Property.Key propertyName) {
+     if (objectType != null
+@@ -3330,9 +3507,10 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     }
+     if (type.isOrdinaryFunction()) {
+       FunctionType function = type.toMaybeFunctionType();
+-      for (Parameter parameter : function.getParameters()) {
++      ImmutableList<Parameter> params = function.getParameters();
++      for (int i = 0, len = params.size(); i < len; i++) {
+         JSType result =
+-            findObjectWithNonStringifiableKey(parameter.getJSType(), alreadyCheckedTypes);
++            findObjectWithNonStringifiableKey(params.get(i).getJSType(), alreadyCheckedTypes);
+         if (result != null) {
+           return result;
+         }
+diff --git a/com/google/javascript/jscomp/TypeInference.java b/com/google/javascript/jscomp/TypeInference.java
+index bda7a35e..4fe3e104 100644
+--- a/com/google/javascript/jscomp/TypeInference.java
++++ b/com/google/javascript/jscomp/TypeInference.java
+@@ -69,7 +69,6 @@ import com.google.javascript.rhino.jstype.TemplateTypeReplacer;
+ import com.google.javascript.rhino.jstype.UnionType;
+ import java.util.ArrayDeque;
+ import java.util.Collection;
+-import java.util.Iterator;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.Map;
+@@ -212,8 +211,9 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+     }
+ 
+     FunctionType functionType = JSType.toMaybeFunctionType(functionNode.getJSType());
+-    Iterator<Parameter> parameterTypes = functionType.getParameters().iterator();
+-    Parameter parameter = parameterTypes.hasNext() ? parameterTypes.next() : null;
++    ImmutableList<Parameter> parameterTypes = functionType.getParameters();
++    int paramLen = parameterTypes.size();
++    int paramIdx = 0;
+ 
+     // This really iterates over three different things at once:
+     //   - the actual AST parameter nodes (which may be REST, DEFAULT_VALUE, etc.)
+@@ -235,6 +235,7 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+       // existing type on the param node as the default, and then transform it according to the
+       // declaration syntax.
+       JSType inferredType = getJSType(astParam);
++      Parameter parameter = paramIdx < paramLen ? parameterTypes.get(paramIdx++) : null;
+ 
+       if (iifeArgumentNode != null) {
+         if (iifeArgumentNode.getJSType() != null) {
+@@ -279,7 +280,6 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+             updateNamedParameter(astParam, defaultValue != null, inferredType, entryFlowScope);
+       }
+ 
+-      parameter = parameterTypes.hasNext() ? parameterTypes.next() : null;
+       iifeArgumentNode = iifeArgumentNode != null ? iifeArgumentNode.getNext() : null;
+     }
+ 
+@@ -2082,27 +2082,28 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+    */
+   private void updateTypeOfArguments(Node n, FunctionType fnType) {
+     checkState(NodeUtil.isInvocation(n), n);
+-    Iterator<Parameter> parameters = fnType.getParameters().iterator();
+-    if (n.isTaggedTemplateLit()) {
++    ImmutableList<Parameter> parameters = fnType.getParameters();
++    int paramLen = parameters.size();
++    int paramIdx = 0;
++    boolean isTaggedTemplate = n.isTaggedTemplateLit();
++    if (isTaggedTemplate) {
+       // Skip the first parameter because it corresponds to a constructed array of the template lit
+       // subs, not an actual AST node, so there's nothing to update.
+-      if (!parameters.hasNext()) {
++      if (paramLen == 0) {
+         // TypeCheck will warn if there is no first parameter. Just bail out here.
+         return;
+       }
+-      parameters.next();
++      paramIdx = 1;
+     }
+-    Iterator<Node> arguments = NodeUtil.getInvocationArgsAsIterable(n).iterator();
+-
+-    Parameter iParameter;
+-    Node iArgument;
++    Node argCursor = NodeUtil.firstInvocationArgCursor(n, isTaggedTemplate);
+ 
+     // Note: if there are too many or too few arguments, TypeCheck will warn.
+-    while (parameters.hasNext() && arguments.hasNext()) {
+-      iArgument = arguments.next();
++    while (paramIdx < paramLen && argCursor != null) {
++      Node iArgument = NodeUtil.invocationArgFromCursor(argCursor, isTaggedTemplate);
++      argCursor = NodeUtil.nextInvocationArgCursor(argCursor, isTaggedTemplate);
+       JSType iArgumentType = getJSType(iArgument);
+ 
+-      iParameter = parameters.next();
++      Parameter iParameter = parameters.get(paramIdx++);
+       JSType iParameterType = iParameter.getJSType() != null ? iParameter.getJSType() : unknownType;
+ 
+       inferPropertyTypesToMatchConstraint(iArgumentType, iParameterType);
+@@ -2115,7 +2116,9 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+       FunctionType restrictedParameter = null;
+       if (iParameterType.isUnionType()) {
+         UnionType union = iParameterType.toMaybeUnionType();
+-        for (JSType alternative : union.getAlternates()) {
++        ImmutableList<JSType> alts = union.getAlternates();
++        for (int i = 0, altLen = alts.size(); i < altLen; i++) {
++          JSType alternative = alts.get(i);
+           if (alternative.isFunctionType()) {
+             // There is only one function type per union.
+             restrictedParameter = alternative.toMaybeFunctionType();
+diff --git a/com/google/javascript/jscomp/TypeValidator.java b/com/google/javascript/jscomp/TypeValidator.java
+index 869037a6..325ca806 100644
+--- a/com/google/javascript/jscomp/TypeValidator.java
++++ b/com/google/javascript/jscomp/TypeValidator.java
+@@ -1001,6 +1001,33 @@ class TypeValidator implements Serializable {
+     }
+   }
+ 
++  void checkPropertyType(
++      Node n, JSType instance, ObjectType parent, String propertyName, JSType found) {
++    JSType required = parent.getPropertyType(propertyName);
++    TemplateTypeMap typeMap = instance.getTemplateTypeMap();
++    if (!typeMap.isEmpty() && required.hasAnyTemplateTypes()) {
++      required = required.visit(TemplateTypeReplacer.forPartialReplacement(typeRegistry, typeMap));
++    }
++
++    if (found.isSubtypeOf(required, this.subtypingMode)) {
++      return;
++    }
++
++    // Implemented, but not correctly typed
++    JSError err =
++        JSError.make(
++            n,
++            parent.getConstructor().isInterface()
++                ? HIDDEN_INTERFACE_PROPERTY_MISMATCH
++                : HIDDEN_SUPERCLASS_PROPERTY_MISMATCH,
++            propertyName,
++            parent.getReferenceName(),
++            required.toString(),
++            found.toString(),
++            instance.toString());
++    registerMismatchAndReport(found, required, err);
++  }
++
+   /**
+    * Check the property is correctly typed (i.e. subtype of the parent property's type declaration).
+    */
+@@ -1263,8 +1290,9 @@ class TypeValidator implements Serializable {
+ 
+     @Override
+     public Boolean caseFunctionType(FunctionType type) {
+-      for (FunctionType.Parameter param : type.getParameters()) {
+-        if (!param.getJSType().visit(this)) {
++      ImmutableList<FunctionType.Parameter> params = type.getParameters();
++      for (int i = 0, len = params.size(); i < len; i++) {
++        if (!params.get(i).getJSType().visit(this)) {
+           return false;
+         }
+       }
+diff --git a/com/google/javascript/jscomp/TypedScopeCreator.java b/com/google/javascript/jscomp/TypedScopeCreator.java
+index e1347970..6e58d9c1 100644
+--- a/com/google/javascript/jscomp/TypedScopeCreator.java
++++ b/com/google/javascript/jscomp/TypedScopeCreator.java
+@@ -92,14 +92,12 @@ import com.google.javascript.rhino.jstype.JSTypeRegistry;
+ import com.google.javascript.rhino.jstype.KnownSymbolType;
+ import com.google.javascript.rhino.jstype.ObjectType;
+ import com.google.javascript.rhino.jstype.Property;
+-import com.google.javascript.rhino.jstype.Property.StringKey;
+ import com.google.javascript.rhino.jstype.StaticTypedScope;
+ import com.google.javascript.rhino.jstype.TemplateType;
+ import com.google.javascript.rhino.jstype.TemplateTypeMap;
+ import com.google.javascript.rhino.jstype.TemplateTypeReplacer;
+ import java.util.ArrayList;
+ import java.util.Collection;
+-import java.util.Iterator;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+@@ -947,7 +945,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+             declarePropertyIfNamespaceType(
+                 parentType.toMaybeObjectType(),
+                 exportsVar.getNameNode(),
+-                new StringKey(moduleNamespace.substring(lastDot + 1)),
++                moduleNamespace.substring(lastDot + 1),
+                 exportsVar.getType(),
+                 exportsVar.getNameNode(),
+                 typeDoc);
+@@ -1128,21 +1126,22 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+           // we don't have all the type information of the spread object.
+           continue;
+         }
+-        final Property.Key memberName;
++        final KnownSymbolType memberSymbol;
++        final String rawKeyName;
+         final Node value;
+         final String qualifiedName;
+         if (keyNode.isComputedProp()) {
+-          KnownSymbolType symbol = extractKnownSymbolKey(currentScope, keyNode.getFirstChild());
+-          if (symbol == null) {
++          memberSymbol = extractKnownSymbolKey(currentScope, keyNode.getFirstChild());
++          if (memberSymbol == null) {
+             continue;
+           }
++          rawKeyName = null;
+           qualifiedName = null;
+-          memberName = new Property.SymbolKey(symbol);
+           value = keyNode.getSecondChild();
+         } else {
++          memberSymbol = null;
+           value = keyNode.getFirstChild();
+-          String rawKeyName = NodeUtil.getObjectOrClassLitKeyName(keyNode);
+-          memberName = new StringKey(rawKeyName);
++          rawKeyName = checkNotNull(NodeUtil.getObjectOrClassLitKeyName(keyNode));
+           if (NodeUtil.mayBeObjectLitKey(keyNode)) {
+             if (!ownerNameComputed) {
+               ownerName = NodeUtil.getBestLValueName(NodeUtil.getBestLValue(objLit));
+@@ -1179,7 +1178,12 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+ 
+         if (keyType != null && objLitType != null && declareOnOwner) {
+           // Declare this property on its object literal.
+-          objLitType.defineDeclaredProperty(memberName, keyType, keyNode);
++          if (memberSymbol != null) {
++            objLitType.defineDeclaredProperty(
++                new Property.SymbolKey(memberSymbol), keyType, keyNode);
++          } else {
++            objLitType.defineDeclaredProperty(rawKeyName, keyType, keyNode);
++          }
+         }
+       }
+     }
+@@ -2970,7 +2974,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+         ObjectType ownerType = getObjectSlot(ownerName);
+         if (ownerType != null) {
+           declarePropertyIfNamespaceType(
+-              ownerType, ownerNode, new StringKey(propName), valueType, n, /* jsdocInfo= */ null);
++              ownerType, ownerNode, propName, valueType, n, /* jsdocInfo= */ null);
+         }
+ 
+         // this is a memory optimization: we don't need to declare .prototype props in the scope.
+@@ -3253,6 +3257,30 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       typeRegistry.overwriteDeclaredType(currentScope, typedef, realType);
+     }
+ 
++    void declarePropertyIfNamespaceType(
++        ObjectType ownerType,
++        Node ownerNode,
++        String propName,
++        JSType valueType,
++        Node declarationNode,
++        @Nullable JSDocInfo jsdocInfo) {
++      checkNotNull(propName);
++      // Only declare this as an official property if it has not been
++      // declared yet.
++      if (ownerType.hasOwnProperty(propName) && !ownerType.isPropertyTypeInferred(propName)) {
++        return;
++      }
++      boolean isNonNativeExtern =
++          getCompilerInput() != null
++              && getCompilerInput().isExtern()
++              && !ownerType.isNativeObjectType();
++      if (isNonNativeExtern || !ownerType.isInstanceType() || ownerNode.isThis()) {
++        // If the property is undeclared or inferred, declare it now.
++        ownerType.defineDeclaredProperty(propName, valueType, declarationNode);
++        ownerType.setPropertyJSDocInfo(propName, jsdocInfo);
++      }
++    }
++
+     void declarePropertyIfNamespaceType(
+         ObjectType ownerType,
+         Node ownerNode,
+@@ -3444,8 +3472,9 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+ 
+       FunctionType functionType = JSType.toMaybeFunctionType(functionNode.getJSType());
+       if (functionType != null) {
+-        Iterator<Parameter> jsdocParameters = functionType.getParameters().iterator();
+-        Parameter jsDocParameter = jsdocParameters.hasNext() ? jsdocParameters.next() : null;
++        ImmutableList<Parameter> jsdocParameters = functionType.getParameters();
++        int jsdocParamLen = jsdocParameters.size();
++        int jsdocParamIdx = 0;
+ 
+         for (Node astParameter = astParameters.getFirstChild();
+             astParameter != null;
+@@ -3455,11 +3484,11 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+             // many items are in the iterable.
+             iifeArgumentNode = null;
+           }
+-          JSType declaredType = jsDocParameter == null ? unknownType : jsDocParameter.getJSType();
++          JSType declaredType =
++              jsdocParamIdx < jsdocParamLen
++                  ? jsdocParameters.get(jsdocParamIdx++).getJSType()
++                  : unknownType;
+           declareNamesInPositionalParameter(astParameter, declaredType, iifeArgumentNode);
+-          if (jsDocParameter != null) {
+-            jsDocParameter = jsdocParameters.hasNext() ? jsdocParameters.next() : null;
+-          }
+           if (iifeArgumentNode != null) {
+             iifeArgumentNode = iifeArgumentNode.getNext();
+           }
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+index 8c9c2756..23245a91 100644
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -1201,6 +1201,118 @@ public class Node {
+     return this;
+   }
+ 
++  /**
++   * Fast zero-allocation check for whether {@link #validateProperties(Consumer)} would report any
++   * violations on this node.
++   */
++  @SuppressWarnings("EnumOrdinal") // performance tuning
++  public boolean hasPropertyViolations() {
++    int flags = this.propFlags;
++    PropListItem head = this.propListHead;
++    if (token == Token.ROOT) {
++      return this.sourceFile != null
++          || this.jsDocInfo != null
++          || this.typeBeforeCast != null
++          || flags != 0
++          || this.changeTime != 0
++          || head != null;
++    }
++
++    int inlineFlags = flags & VALIDATED_INLINE_PROPS_MASK;
++    if (inlineFlags == 0 && head == null) {
++      return false;
++    }
++
++    if (head != null && inlineFlags != 0) {
++      for (PropListItem x = head; x != null; x = x.next) {
++        inlineFlags &= ~INLINE_BOOL_MASKS[x.propType];
++      }
++    }
++    if (inlineFlags != 0) {
++      if ((inlineFlags & PROP_FLAG_IS_PARENTHESIZED) != 0 && !IR.mayBeExpression(this)) {
++        return true;
++      }
++      if ((inlineFlags & PROP_FLAG_ARROW_FN) != 0 && !isFunction()) {
++        return true;
++      }
++      if ((inlineFlags & PROP_FLAG_ASYNC_FN) != 0 && !isFunction()) {
++        return true;
++      }
++      if ((inlineFlags & PROP_FLAG_SYNTHETIC) != 0 && !isBlock()) {
++        return true;
++      }
++      if ((inlineFlags & PROP_FLAG_COLOR_FROM_CAST) != 0 && getColor() == null) {
++        return true;
++      }
++      if ((inlineFlags & PROP_FLAG_START_OF_OPT_CHAIN) != 0
++          && !(isOptChainCall() || isOptChainGetElem() || isOptChainGetProp())) {
++        return true;
++      }
++      if ((inlineFlags & CONST_VAR_BITS_MASK) != 0 && !(isName() || isImportStar())) {
++        return true;
++      }
++    }
++
++    for (PropListItem propListItem = head;
++        propListItem != null;
++        propListItem = propListItem.next) {
++      final Prop prop = propValues[propListItem.propType];
++      checkState(prop.ordinal() == propListItem.propType, "ordinal doesn't match: %s", prop);
++      switch (prop) {
++        case IS_PARENTHESIZED -> {
++          if (!IR.mayBeExpression(this)) {
++            return true;
++          }
++        }
++        case ARROW_FN -> {
++          if (!isFunction()) {
++            return true;
++          }
++        }
++        case ASYNC_FN -> {
++          if (!isFunction()) {
++            return true;
++          }
++        }
++        case SYNTHETIC -> {
++          if (!isBlock()) {
++            return true;
++          }
++        }
++        case COLOR_FROM_CAST -> {
++          if (getColor() == null) {
++            return true;
++          }
++        }
++        case START_OF_OPT_CHAIN -> {
++          if (!(isOptChainCall() || isOptChainGetElem() || isOptChainGetProp())) {
++            return true;
++          }
++        }
++        case CONSTANT_VAR_FLAGS -> {
++          if (!(isName() || isImportStar())) {
++            return true;
++          }
++        }
++        case SYNTHESIZED_UNFULFILLED_NAME_DECLARATION -> {
++          if (!isVar()) {
++            return true;
++          }
++        }
++        case CLOSURE_UNAWARE_SHADOW -> {
++          PropListItem shadowProp = lookupProperty(Prop.CLOSURE_UNAWARE_SHADOW);
++          if (shadowProp == null
++              || !shadowProp.isObjectItem()
++              || !(shadowProp.getObjectValue() instanceof Node)) {
++            return true;
++          }
++        }
++        default -> {}
++      }
++    }
++    return false;
++  }
++
+   /**
+    * Checks for invalid or missing properties and feeds error messages for any violations to the
+    * given `Consumer`.
+@@ -1895,11 +2007,13 @@ public class Node {
+     }
+ 
+     // Make sure the deserialized properties are valid.
+-    validateProperties(
+-        // NOTE: errorMessage will never be null, but just passing `false` to `checkState()`
+-        // triggers warning messages from some code analysis tools.
+-        errorMessage ->
+-            checkState(errorMessage == null, "deserialize error: %s: %s", errorMessage, this));
++    if (hasPropertyViolations()) {
++      validateProperties(
++          // NOTE: errorMessage will never be null, but just passing `false` to `checkState()`
++          // triggers warning messages from some code analysis tools.
++          errorMessage ->
++              checkState(errorMessage == null, "deserialize error: %s: %s", errorMessage, this));
++    }
+   }
+ 
+   /** Sets the syntactical type specified on this node. */
+diff --git a/com/google/javascript/rhino/jstype/EnumElementType.java b/com/google/javascript/rhino/jstype/EnumElementType.java
+index 8789c176..f01e83f9 100644
+--- a/com/google/javascript/rhino/jstype/EnumElementType.java
++++ b/com/google/javascript/rhino/jstype/EnumElementType.java
+@@ -91,6 +91,11 @@ public final class EnumElementType extends ObjectType {
+     return primitiveType.getPropertyKind(propertyName, autobox);
+   }
+ 
++  @Override
++  public HasPropertyKind getPropertyKind(String propertyName, boolean autobox) {
++    return primitiveType.getPropertyKind(propertyName, autobox);
++  }
++
+   @Override
+   public PropertyMap getPropertyMap() {
+     return primitiveObjectType == null
+@@ -192,6 +197,13 @@ public final class EnumElementType extends ObjectType {
+     return visitor.caseEnumElementType(this, that);
+   }
+ 
++  @Override
++  boolean defineProperty(
++      String propertyName, JSType type, boolean inferred, Node propertyNode) {
++    // nothing
++    return true;
++  }
++
+   @Override
+   boolean defineProperty(
+       Property.Key propertyName, JSType type, boolean inferred, Node propertyNode) {
+@@ -209,6 +221,11 @@ public final class EnumElementType extends ObjectType {
+     return primitiveType.findPropertyType(propertyName);
+   }
+ 
++  @Override
++  protected JSType findPropertyTypeWithoutConsideringTemplateTypes(String propertyName) {
++    return primitiveType.findPropertyType(propertyName);
++  }
++
+   @Override
+   public @Nullable FunctionType getConstructor() {
+     // TODO(b/147236174): This should always return null.
+diff --git a/com/google/javascript/rhino/jstype/FunctionType.java b/com/google/javascript/rhino/jstype/FunctionType.java
+index da95ac22..69bc65dc 100644
+--- a/com/google/javascript/rhino/jstype/FunctionType.java
++++ b/com/google/javascript/rhino/jstype/FunctionType.java
+@@ -340,6 +340,15 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     return this.noTypeKind != NO_KIND_NORMAL || super.matchesSymbolContext();
+   }
+ 
++  @Override
++  public void setPropertyJSDocInfo(String propertyName, JSDocInfo info) {
++    if (this.noTypeKind != NO_KIND_NORMAL) {
++      checkNotNull(propertyName);
++      return;
++    }
++    super.setPropertyJSDocInfo(propertyName, info);
++  }
++
+   @Override
+   public void setPropertyJSDocInfo(Property.Key propertyName, JSDocInfo info) {
+     if (this.noTypeKind != NO_KIND_NORMAL) {
+@@ -886,6 +895,27 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     return builder.build();
+   }
+ 
++  @Override
++  boolean defineProperty(String name, JSType type, boolean inferred, Node propertyNode) {
++    if (this.noTypeKind != NO_KIND_NORMAL) {
++      return true;
++    }
++    if ("prototype".equals(name)) {
++      ObjectType objType = type.toObjectType();
++      if (objType != null) {
++        Property slot = getPrototypeSlot();
++        if (slot != null && objType.equals(slot.getType())) {
++          return true;
++        }
++        setPrototypeBasedOn(objType, propertyNode);
++        return true;
++      } else {
++        return false;
++      }
++    }
++    return super.defineProperty(name, type, inferred, propertyNode);
++  }
++
+   @Override
+   boolean defineProperty(Property.Key name, JSType type, boolean inferred, Node propertyNode) {
+     if (this.noTypeKind != NO_KIND_NORMAL) {
+@@ -1465,15 +1495,17 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     // NOTE(aravindpg): This code is essentially lifted from TypeCheck::visitParameterList,
+     // but what small differences there are make it very painful to refactor out the shared code.
+     Iterator<? extends JSType> arguments = argumentTypes.iterator();
+-    Iterator<Parameter> parameters = this.getParameters().iterator();
++    ImmutableList<Parameter> parameters = this.getParameters();
++    int paramLen = parameters.size();
++    int paramIdx = 0;
+     Parameter parameter = null;
+     JSType argument = null;
+     while (arguments.hasNext()
+-        && (parameters.hasNext() || (parameter != null && parameter.isVariadic()))) {
++        && (paramIdx < paramLen || (parameter != null && parameter.isVariadic()))) {
+       // If there are no parameters left in the list, then the while loop
+       // above implies that this must be a var_args function.
+-      if (parameters.hasNext()) {
+-        parameter = parameters.next();
++      if (paramIdx < paramLen) {
++        parameter = parameters.get(paramIdx++);
+       }
+       argument = arguments.next();
+ 
+diff --git a/com/google/javascript/rhino/jstype/InstanceObjectType.java b/com/google/javascript/rhino/jstype/InstanceObjectType.java
+index 41761ae3..1a5fbded 100644
+--- a/com/google/javascript/rhino/jstype/InstanceObjectType.java
++++ b/com/google/javascript/rhino/jstype/InstanceObjectType.java
+@@ -112,6 +112,15 @@ final class InstanceObjectType extends PrototypeObjectType {
+     return constructor;
+   }
+ 
++  @Override
++  boolean defineProperty(String name, JSType type, boolean inferred, Node propertyNode) {
++    ObjectType proto = getImplicitPrototype();
++    if (proto != null && proto.hasOwnDeclaredProperty(name)) {
++      return false;
++    }
++    return super.defineProperty(name, type, inferred, propertyNode);
++  }
++
+   @Override
+   boolean defineProperty(Property.Key name, JSType type, boolean inferred, Node propertyNode) {
+     ObjectType proto = getImplicitPrototype();
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index 4f1d66b8..814ecb5f 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -175,8 +175,9 @@ public abstract class JSType {
+    * @param pname The property name.
+    * @param autobox Whether to check for the presents on an autoboxed type
+    */
+-  public final HasPropertyKind getPropertyKind(String pname, boolean autobox) {
+-    return getPropertyKind(new Property.StringKey(pname), autobox);
++  public HasPropertyKind getPropertyKind(String pname, boolean autobox) {
++    checkNotNull(pname);
++    return HasPropertyKind.ABSENT;
+   }
+ 
+   /**
+@@ -185,7 +186,7 @@ public abstract class JSType {
+    * @param pname The property name.
+    */
+   public final HasPropertyKind getPropertyKind(String pname) {
+-    return getPropertyKind(new Property.StringKey(pname));
++    return getPropertyKind(pname, true);
+   }
+ 
+   /**
+@@ -194,7 +195,7 @@ public abstract class JSType {
+    * @param pname The property name.
+    */
+   public final boolean hasProperty(String pname) {
+-    return hasProperty(new Property.StringKey(pname));
++    return !getPropertyKind(pname, false).equals(HasPropertyKind.ABSENT);
+   }
+ 
+   public final boolean hasProperty(Property.Key pname) {
+@@ -861,7 +862,28 @@ public abstract class JSType {
+    *     type is not found.
+    */
+   public final @Nullable JSType findPropertyType(String propertyName) {
+-    return findPropertyType(new Property.StringKey(propertyName));
++    checkNotNull(propertyName);
++    @Nullable JSType propertyType = findPropertyTypeWithoutConsideringTemplateTypes(propertyName);
++    if (propertyType == null) {
++      return null;
++    }
++
++    if (getTemplateTypeMap().isEmpty() || !propertyType.hasAnyTemplateTypes()) {
++      return propertyType;
++    }
++
++    TemplateTypeMap typeMap = getTemplateTypeMap();
++    TemplateTypeReplacer replacer = TemplateTypeReplacer.forPartialReplacement(registry, typeMap);
++    return propertyType.visit(replacer);
++  }
++
++  @ForOverride
++  protected @Nullable JSType findPropertyTypeWithoutConsideringTemplateTypes(String propertyName) {
++    ObjectType autoboxObjType = ObjectType.cast(autoboxesTo());
++    if (autoboxObjType != null) {
++      return autoboxObjType.findPropertyType(propertyName);
++    }
++    return null;
+   }
+ 
+   /**
+diff --git a/com/google/javascript/rhino/jstype/NamedType.java b/com/google/javascript/rhino/jstype/NamedType.java
+index 84d80aa5..6e0fefbe 100644
+--- a/com/google/javascript/rhino/jstype/NamedType.java
++++ b/com/google/javascript/rhino/jstype/NamedType.java
+@@ -172,6 +172,22 @@ public final class NamedType extends ProxyObjectType {
+     return templateTypes;
+   }
+ 
++  @Override
++  boolean defineProperty(
++      String propertyName, JSType type, boolean inferred, Node propertyNode) {
++    if (!isResolved()) {
++      if (propertyContinuations == null) {
++        propertyContinuations = new ArrayList<>();
++      }
++      propertyContinuations.add(
++          new PropertyContinuation(
++              new Property.StringKey(propertyName), type, inferred, propertyNode));
++      return true;
++    } else {
++      return super.defineProperty(propertyName, type, inferred, propertyNode);
++    }
++  }
++
+   @Override
+   boolean defineProperty(
+       Property.Key propertyName, JSType type, boolean inferred, Node propertyNode) {
+diff --git a/com/google/javascript/rhino/jstype/NoResolvedType.java b/com/google/javascript/rhino/jstype/NoResolvedType.java
+index f15f1f8d..031a2f2e 100644
+--- a/com/google/javascript/rhino/jstype/NoResolvedType.java
++++ b/com/google/javascript/rhino/jstype/NoResolvedType.java
+@@ -136,6 +136,13 @@ public final class NoResolvedType extends ObjectType {
+     return System.identityHashCode(this);
+   }
+ 
++  @Override
++  public boolean defineProperty(
++      String propertyName, JSType type, boolean inferred, Node propertyNode) {
++    // nothing, all properties are defined
++    return true;
++  }
++
+   @Override
+   public boolean defineProperty(
+       Property.Key propertyName, JSType type, boolean inferred, Node propertyNode) {
+diff --git a/com/google/javascript/rhino/jstype/ObjectType.java b/com/google/javascript/rhino/jstype/ObjectType.java
+index 9d846f1c..11bcbcc1 100644
+--- a/com/google/javascript/rhino/jstype/ObjectType.java
++++ b/com/google/javascript/rhino/jstype/ObjectType.java
+@@ -118,6 +118,9 @@ public abstract class ObjectType extends JSType {
+   }
+ 
+   private static final Property.StringKey PROTOTYPE_KEY = new Property.StringKey("prototype");
++  private static final Property.StringKey CALL_KEY = new Property.StringKey("call");
++  private static final Property.StringKey BIND_KEY = new Property.StringKey("bind");
++  private static final Property.StringKey APPLY_KEY = new Property.StringKey("apply");
+ 
+   /**
+    * Default getSlot implementation. This gets overridden by FunctionType for lazily-resolved
+@@ -386,9 +389,13 @@ public abstract class ObjectType extends JSType {
+    * @param propertyNode the node corresponding to the declaration of property
+    *        which might later be accessed using {@code getPropertyNode}.
+    */
+-  public final boolean defineDeclaredProperty(String propertyName,
+-      JSType type, Node propertyNode) {
+-    return defineDeclaredProperty(new Property.StringKey(propertyName), type, propertyNode);
++  @CanIgnoreReturnValue
++  public final boolean defineDeclaredProperty(
++      String propertyName, JSType type, Node propertyNode) {
++    checkNotNull(propertyName);
++    boolean result = defineProperty(propertyName, type, /* inferred= */ false, propertyNode);
++    registry.registerPropertyOnType(propertyName, this);
++    return result;
+   }
+ 
+   /**
+@@ -499,30 +506,9 @@ public abstract class ObjectType extends JSType {
+    * @return True if the property was registered successfully, false if this conflicts with a
+    *     previous property type declaration.
+    */
+-  final boolean defineProperty(
+-      String propertyName, JSType type, boolean inferred, Node propertyNode) {
+-    if (this instanceof InstanceObjectType inst) {
+-      ObjectType proto = inst.getImplicitPrototype();
+-      if ((proto != null && proto.hasOwnDeclaredProperty(propertyName))
+-          || inst.hasOwnDeclaredProperty(propertyName)) {
+-        return false;
+-      }
+-      Property newProp = new Property(propertyName, type, inferred, propertyNode);
+-      inst.ensurePropertyMap().putProperty(propertyName, newProp);
+-      return true;
+-    }
+-    if (this instanceof PrototypeObjectType proto
+-        && !(this instanceof FunctionType)
+-        && !(this instanceof RecordType)) {
+-      if (proto.hasOwnDeclaredProperty(propertyName)) {
+-        return false;
+-      }
+-      Property newProp = new Property(propertyName, type, inferred, propertyNode);
+-      proto.ensurePropertyMap().putProperty(propertyName, newProp);
+-      return true;
+-    }
+-    return defineProperty(new Property.StringKey(propertyName), type, inferred, propertyNode);
+-  }
++  @CanIgnoreReturnValue
++  abstract boolean defineProperty(
++      String propertyName, JSType type, boolean inferred, Node propertyNode);
+ 
+   /**
+    * Defines a property.
+@@ -621,8 +607,9 @@ public abstract class ObjectType extends JSType {
+    * @param info {@code JSDocInfo} for the property definition. May be {@code null}.
+    */
+   @SuppressWarnings("IdentifierName") // for compatibility with former 3p code
+-  public final void setPropertyJSDocInfo(String propertyName, JSDocInfo info) {
+-    setPropertyJSDocInfo(new Property.StringKey(propertyName), info);
++  public void setPropertyJSDocInfo(String propertyName, JSDocInfo info) {
++    checkNotNull(propertyName);
++    // by default, do nothing
+   }
+ 
+   /**
+@@ -636,8 +623,9 @@ public abstract class ObjectType extends JSType {
+   }
+ 
+   /** Sets the node where the property was defined. */
+-  public final void setPropertyNode(String propertyName, Node defSite) {
+-    setPropertyNode(new Property.StringKey(propertyName), defSite);
++  public void setPropertyNode(String propertyName, Node defSite) {
++    checkNotNull(propertyName);
++    // by default, do nothing
+   }
+ 
+   /** Sets the node where the property was defined. */
+@@ -651,6 +639,11 @@ public abstract class ObjectType extends JSType {
+     return hasProperty(propertyName) ? getPropertyType(propertyName) : null;
+   }
+ 
++  @Override
++  protected @Nullable JSType findPropertyTypeWithoutConsideringTemplateTypes(String propertyName) {
++    return hasProperty(propertyName) ? getPropertyType(propertyName) : null;
++  }
++
+   /**
+    * Gets the property type of the property whose name is given. If the underlying object does not
+    * have this property, the Unknown type is returned to indicate that no information is available
+@@ -661,12 +654,20 @@ public abstract class ObjectType extends JSType {
+    * @return the property's type or {@link UnknownType}. This method never returns {@code null}.
+    */
+   public final JSType getPropertyType(String propertyName) {
+-    if (this instanceof TemplatizedType
+-        || (this instanceof FunctionType
+-            && ("call".equals(propertyName)
+-                || "bind".equals(propertyName)
+-                || "apply".equals(propertyName)))) {
+-      return getPropertyType(new Property.StringKey(propertyName));
++    if (this instanceof TemplatizedType templatized) {
++      JSType result = getPropertyTypeFromSlot(getSlot(propertyName));
++      return result == null ? null : result.visit(templatized.replacer);
++    }
++    if (this instanceof FunctionType) {
++      if ("call".equals(propertyName)) {
++        return getPropertyType(CALL_KEY);
++      }
++      if ("bind".equals(propertyName)) {
++        return getPropertyType(BIND_KEY);
++      }
++      if ("apply".equals(propertyName)) {
++        return getPropertyType(APPLY_KEY);
++      }
+     }
+     return getPropertyTypeFromSlot(getSlot(propertyName));
+   }
+@@ -703,6 +704,13 @@ public abstract class ObjectType extends JSType {
+     return HasPropertyKind.of(isEmptyType() || isUnknownType() || getSlot(propertyName) != null);
+   }
+ 
++  @Override
++  public HasPropertyKind getPropertyKind(String propertyName, boolean autobox) {
++    checkNotNull(propertyName);
++    // Unknown types have all properties.
++    return HasPropertyKind.of(isEmptyType() || isUnknownType() || getSlot(propertyName) != null);
++  }
++
+   /**
+    * Checks whether the property whose name is given is present directly on
+    * the object.  Returns false even if it is declared on a supertype.
+diff --git a/com/google/javascript/rhino/jstype/PrototypeObjectType.java b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+index fe2e4f97..3accd9f2 100644
+--- a/com/google/javascript/rhino/jstype/PrototypeObjectType.java
++++ b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+@@ -216,6 +216,16 @@ public class PrototypeObjectType extends ObjectType {
+     return ensurePropertyMap();
+   }
+ 
++  @Override
++  boolean defineProperty(String name, JSType type, boolean inferred, Node propertyNode) {
++    if (hasOwnDeclaredProperty(name)) {
++      return false;
++    }
++    Property newProp = new Property(name, type, inferred, propertyNode);
++    ensurePropertyMap().putProperty(name, newProp);
++    return true;
++  }
++
+   @Override
+   boolean defineProperty(Property.Key name, JSType type, boolean inferred, Node propertyNode) {
+     if (hasOwnDeclaredProperty(name)) {
+@@ -226,6 +236,20 @@ public class PrototypeObjectType extends ObjectType {
+     return true;
+   }
+ 
++  @Override
++  public void setPropertyJSDocInfo(String propertyName, JSDocInfo info) {
++    checkNotNull(propertyName);
++    if (info != null) {
++      if (properties == null || properties.getOwnProperty(propertyName) == null) {
++        defineInferredProperty(propertyName, getPropertyType(propertyName), null);
++      }
++      Property property = properties != null ? properties.getOwnProperty(propertyName) : null;
++      if (property != null) {
++        property.setJSDocInfo(info);
++      }
++    }
++  }
++
+   @Override
+   public void setPropertyJSDocInfo(Property.Key propertyName, JSDocInfo info) {
+     if (info != null) {
+@@ -246,6 +270,17 @@ public class PrototypeObjectType extends ObjectType {
+     }
+   }
+ 
++  @Override
++  public void setPropertyNode(String propertyName, Node defSite) {
++    checkNotNull(propertyName);
++    if (properties != null) {
++      Property property = properties.getOwnProperty(propertyName);
++      if (property != null) {
++        property.setNode(defSite);
++      }
++    }
++  }
++
+   @Override
+   public void setPropertyNode(Property.Key propertyName, Node defSite) {
+     if (properties != null) {
+diff --git a/com/google/javascript/rhino/jstype/ProxyObjectType.java b/com/google/javascript/rhino/jstype/ProxyObjectType.java
+index f64e10b6..d5deaaef 100644
+--- a/com/google/javascript/rhino/jstype/ProxyObjectType.java
++++ b/com/google/javascript/rhino/jstype/ProxyObjectType.java
+@@ -84,6 +84,11 @@ public class ProxyObjectType extends ObjectType {
+     return referencedType.getPropertyKind(propertyName, autobox);
+   }
+ 
++  @Override
++  public final HasPropertyKind getPropertyKind(String propertyName, boolean autobox) {
++    return referencedType.getPropertyKind(propertyName, autobox);
++  }
++
+   @Override
+   final PropertyMap getPropertyMap() {
+     return referencedObjType == null
+@@ -304,6 +309,13 @@ public class ProxyObjectType extends ObjectType {
+     return referencedObjType == null ? null : referencedObjType.getImplicitPrototype();
+   }
+ 
++  @Override
++  boolean defineProperty(
++      String propertyName, JSType type, boolean inferred, Node propertyNode) {
++    return referencedObjType == null
++        || referencedObjType.defineProperty(propertyName, type, inferred, propertyNode);
++  }
++
+   @Override
+   boolean defineProperty(
+       Property.Key propertyName, JSType type, boolean inferred, Node propertyNode) {
+@@ -316,6 +328,11 @@ public class ProxyObjectType extends ObjectType {
+     return referencedType.findPropertyType(propertyName);
+   }
+ 
++  @Override
++  protected JSType findPropertyTypeWithoutConsideringTemplateTypes(String propertyName) {
++    return referencedType.findPropertyType(propertyName);
++  }
++
+   @Override
+   public final JSDocInfo getJSDocInfo() {
+     return referencedType.getJSDocInfo();
+@@ -328,6 +345,15 @@ public class ProxyObjectType extends ObjectType {
+     }
+   }
+ 
++  @Override
++  public final void setPropertyJSDocInfo(String propertyName, JSDocInfo info) {
++    if (referencedObjType != null) {
++      referencedObjType.setPropertyJSDocInfo(propertyName, info);
++    } else {
++      checkNotNull(propertyName);
++    }
++  }
++
+   @Override
+   public final void setPropertyJSDocInfo(Property.Key propertyName, JSDocInfo info) {
+     if (referencedObjType != null) {
+diff --git a/com/google/javascript/rhino/jstype/RecordType.java b/com/google/javascript/rhino/jstype/RecordType.java
+index fc4bcc4f..bdf85cdc 100644
+--- a/com/google/javascript/rhino/jstype/RecordType.java
++++ b/com/google/javascript/rhino/jstype/RecordType.java
+@@ -113,6 +113,16 @@ public final class RecordType extends PrototypeObjectType {
+     return registry.getNativeObjectType(JSTypeNative.OBJECT_TYPE);
+   }
+ 
++  @Override
++  boolean defineProperty(
++      String propertyName, JSType type, boolean inferred, Node propertyNode) {
++    if (isFrozen) {
++      return false;
++    }
++
++    return super.defineProperty(propertyName, type, inferred, propertyNode);
++  }
++
+   @Override
+   boolean defineProperty(
+       Property.Key propertyName, JSType type, boolean inferred, Node propertyNode) {
+diff --git a/com/google/javascript/rhino/jstype/SubtypeChecker.java b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+index b211dc33..51200ec2 100644
+--- a/com/google/javascript/rhino/jstype/SubtypeChecker.java
++++ b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+@@ -504,8 +504,7 @@ final class SubtypeChecker {
+         supertype.isRecordType() ? supertype.getOwnPropertyNames() : keys.stringKeys();
+ 
+     for (String property : props) {
+-      if (!checkPropertyPresence(
+-          new Property.StringKey(property), subtype, supertype, optionality)) {
++      if (!checkPropertyPresence(property, subtype, supertype, optionality)) {
+         return false;
+       }
+     }
+@@ -522,6 +521,24 @@ final class SubtypeChecker {
+     return true;
+   }
+ 
++  private boolean checkPropertyPresence(
++      String propertyName,
++      ObjectType subtype,
++      ObjectType supertype,
++      PropertyOptionality optionality) {
++
++    JSType supertypeProp = supertype.getPropertyType(propertyName);
++    if (subtype.hasProperty(propertyName)) {
++      JSType subtypeProp = subtype.getPropertyType(propertyName);
++      if (!this.isSubtypeCaching(subtypeProp, supertypeProp)) {
++        return false;
++      }
++    } else if (!optionality.isOptional(supertypeProp)) {
++      return false;
++    }
++    return true;
++  }
++
+   private boolean checkPropertyPresence(
+       Property.Key propertyKey,
+       ObjectType subtype,
+diff --git a/com/google/javascript/rhino/jstype/TemplatizedType.java b/com/google/javascript/rhino/jstype/TemplatizedType.java
+index 9f308bed..33fc25ed 100644
+--- a/com/google/javascript/rhino/jstype/TemplatizedType.java
++++ b/com/google/javascript/rhino/jstype/TemplatizedType.java
+@@ -61,7 +61,7 @@ public final class TemplatizedType extends ProxyObjectType {
+   /** Whether all type parameter values for this specialization are `?`. */
+   private final boolean isSpecializedOnlyWithUnknown;
+ 
+-  private final TemplateTypeReplacer replacer;
++  final TemplateTypeReplacer replacer;
+ 
+   TemplatizedType(
+       JSTypeRegistry registry, ObjectType objectType,
+diff --git a/com/google/javascript/rhino/jstype/UnionType.java b/com/google/javascript/rhino/jstype/UnionType.java
+index 135d8625..bb631842 100644
+--- a/com/google/javascript/rhino/jstype/UnionType.java
++++ b/com/google/javascript/rhino/jstype/UnionType.java
+@@ -294,6 +294,32 @@ public final class UnionType extends JSType {
+     return false;
+   }
+ 
++  @Override
++  protected JSType findPropertyTypeWithoutConsideringTemplateTypes(String propertyName) {
++    JSType propertyType = null;
++
++    for (int i = 0, n = alternates.size(); i < n; i++) {
++      JSType alternate = alternates.get(i);
++      // Filter out the null/undefined type.
++      if (alternate.isNullType() || alternate.isVoidType()) {
++        continue;
++      }
++
++      JSType altPropertyType = alternate.findPropertyType(propertyName);
++      if (altPropertyType == null) {
++        continue;
++      }
++
++      if (propertyType == null) {
++        propertyType = altPropertyType;
++      } else {
++        propertyType = propertyType.getLeastSupertype(altPropertyType);
++      }
++    }
++
++    return propertyType;
++  }
++
+   @Override
+   protected JSType findPropertyTypeWithoutConsideringTemplateTypes(Property.Key propertyName) {
+     JSType propertyType = null;
+@@ -517,6 +543,33 @@ public final class UnionType extends JSType {
+     }
+   }
+ 
++  @Override
++  public HasPropertyKind getPropertyKind(String pname, boolean autobox) {
++    checkNotNull(pname);
++    boolean found = false;
++    boolean always = true;
++    for (int i = 0, n = alternates.size(); i < n; i++) {
++      JSType alternate = alternates.get(i);
++      if (alternate.isNullType() || alternate.isVoidType()) {
++        continue;
++      }
++      switch (alternate.getPropertyKind(pname, autobox)) {
++        case KNOWN_PRESENT -> found = true;
++        case ABSENT -> always = false;
++        case MAYBE_PRESENT -> {
++          found = true;
++          always = false;
++        }
++      }
++      if (found && !always) {
++        break;
++      }
++    }
++    return found
++        ? (always ? HasPropertyKind.KNOWN_PRESENT : HasPropertyKind.MAYBE_PRESENT)
++        : HasPropertyKind.ABSENT;
++  }
++
+   @Override
+   public HasPropertyKind getPropertyKind(Property.Key pname, boolean autobox) {
+     boolean found = false;
+diff --git a/com/google/javascript/rhino/jstype/UnknownType.java b/com/google/javascript/rhino/jstype/UnknownType.java
+index d8e784a2..d780f155 100644
+--- a/com/google/javascript/rhino/jstype/UnknownType.java
++++ b/com/google/javascript/rhino/jstype/UnknownType.java
+@@ -124,6 +124,13 @@ public final class UnknownType extends ObjectType {
+     sb.append(getReferenceName());
+   }
+ 
++  @Override
++  boolean defineProperty(
++      String propertyName, JSType type, boolean inferred, Node propertyNode) {
++    // nothing to define
++    return true;
++  }
++
+   @Override
+   boolean defineProperty(
+       Property.Key propertyName, JSType type, boolean inferred, Node propertyNode) {
+diff --git a/com/google/javascript/rhino/jstype/ValueType.java b/com/google/javascript/rhino/jstype/ValueType.java
+index 79b39ce7..99a3ca2d 100644
+--- a/com/google/javascript/rhino/jstype/ValueType.java
++++ b/com/google/javascript/rhino/jstype/ValueType.java
+@@ -82,6 +82,15 @@ abstract class ValueType extends JSType {
+     }
+   }
+ 
++  @Override
++  public HasPropertyKind getPropertyKind(String propertyName, boolean autobox) {
++    if (autobox && isBoxableScalar()) {
++      return autoboxesTo().getPropertyKind(propertyName, autobox);
++    } else {
++      return super.getPropertyKind(propertyName, autobox);
++    }
++  }
++
+   @Override
+   final int recursionUnsafeHashCode() {
+     // Subclasses of this type are unique within a JSTypeRegistry.

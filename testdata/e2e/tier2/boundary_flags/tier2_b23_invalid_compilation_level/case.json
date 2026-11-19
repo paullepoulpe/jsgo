@@ -1,0 +1,23 @@
+{
+  "id": "tier2_b23_invalid_compilation_level",
+  "tier": 2,
+  "feature": "boundary_flags",
+  "name": "Invalid compilation level argument",
+  "description": "Reports error when invalid compilation level is passed",
+  "args": [
+    "--compilation_level",
+    "INVALID_COMPILATION_LEVEL_NAME",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var x = 1;"
+  },
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "Bad value for --compilation_level: INVALID_COMPILATION_LEVEL_NAME\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

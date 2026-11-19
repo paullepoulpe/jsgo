@@ -1,0 +1,23 @@
+{
+  "id": "tier1_d02_str_define",
+  "tier": 1,
+  "feature": "defines",
+  "name": "String compile-time define",
+  "description": "Overrides string @define constant via -D flag",
+  "args": [
+    "-D",
+    "BUILD_ENV='production'",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @define {string} */ var BUILD_ENV = 'development'; window['env'] = BUILD_ENV;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var BUILD_ENV=\"production\";window.env=BUILD_ENV;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

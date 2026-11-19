@@ -140,8 +140,73 @@ type job struct {
 	args []string
 }
 
+func repoRoot() string {
+	dir, err := os.Getwd()
+	if err == nil {
+		for {
+			if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+				return dir
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+	return "."
+}
+
+func defaultCacheDir() string {
+	if env := os.Getenv("JSGO_CACHE"); env != "" {
+		return env
+	}
+	root := repoRoot()
+	candidate := filepath.Join(root, ".cache")
+	if st, err := os.Stat(candidate); err == nil && st.IsDir() {
+		return candidate
+	}
+	return "/home/user/jsgo/.cache"
+}
+
 func main() {
 	flag.Parse()
+
+	// Auto-detect and fix default cache paths when running in other checkouts
+	cache := defaultCacheDir()
+	if cache != "/home/user/jsgo/.cache" {
+		if strings.HasPrefix(*javaBld, "/home/user/jsgo/.cache") {
+			*javaBld = filepath.Join(cache, "clie2e-build")
+			if _, err := os.Stat(*javaBld); err != nil {
+				*javaBld = filepath.Join(cache, "oracle-build")
+			}
+		}
+		if strings.HasPrefix(*jar, "/home/user/jsgo/.cache") {
+			*jar = filepath.Join(cache, pin.MustLoad().Jar)
+		}
+		if strings.HasPrefix(*corpus, "/home/user/jsgo/.cache") {
+			*corpus = filepath.Join(cache, "corpus")
+		}
+		if strings.HasPrefix(*list, "/home/user/jsgo/.cache") {
+			*list = filepath.Join(cache, "corpus-files.txt")
+		}
+		if *cacheDir == "/home/user/jsgo/.cache" {
+			*cacheDir = cache
+		}
+	}
+
+	// Auto-ensure Java in PATH if OpenJDK 27 is installed
+	if _, err := os.Stat("/opt/homebrew/opt/openjdk/bin/java"); err == nil {
+		p := os.Getenv("PATH")
+		if !strings.Contains(p, "/opt/homebrew/opt/openjdk/bin") {
+			os.Setenv("PATH", "/opt/homebrew/opt/openjdk/bin:"+p)
+		}
+	}
+
+	if *tierFlag != "" || *suite == "tiers" || *suite == "e2e" {
+		os.Exit(runTiers())
+	}
+
 	switch *suite {
 	case "fixtures":
 		os.Exit(runFixtures())
@@ -151,6 +216,8 @@ func main() {
 		os.Exit(runSweep())
 	case "projects":
 		os.Exit(runProjects())
+	case "tiers", "e2e":
+		os.Exit(runTiers())
 	}
 	fmt.Fprintln(os.Stderr, "unknown -suite", *suite)
 	os.Exit(2)
@@ -179,8 +246,18 @@ func buildJsgo(dir string) string {
 		abs, _ := filepath.Abs(*jsgoBin)
 		return abs
 	}
+	if envBin := os.Getenv("JSGO_BIN"); envBin != "" {
+		abs, _ := filepath.Abs(envBin)
+		return abs
+	}
+	root := repoRoot()
+	target := filepath.Join(root, "cmd", "jsgo")
+	if _, err := os.Stat(filepath.Join(root, "transpiled", "cmd", "jsgo")); err == nil {
+		target = filepath.Join(root, "transpiled", "cmd", "jsgo")
+	}
 	bin := filepath.Join(dir, "jsgo")
-	cmd := exec.Command("go", "build", "-o", bin, "./cmd/jsgo")
+	cmd := exec.Command("go", "build", "-o", bin, target)
+	cmd.Dir = root
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "building jsgo:", err)
@@ -328,6 +405,13 @@ func runFixtures() int {
 	}
 	wg.Wait()
 	report(t, []string{"oracle", "oracle-strict"})
+	totalDiff := 0
+	for _, c := range t {
+		totalDiff += c.diff
+	}
+	if totalDiff > 0 {
+		return 1
+	}
 	return 0
 }
 
@@ -452,6 +536,13 @@ func runMatrix() int {
 		}
 	}
 	report(t, order)
+	totalDiff := 0
+	for _, c := range t {
+		totalDiff += c.diff
+	}
+	if totalDiff > 0 {
+		return 1
+	}
 	return 0
 }
 

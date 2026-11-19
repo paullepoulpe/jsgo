@@ -1,0 +1,32 @@
+{
+  "id": "tier3_x05_chunking_with_wrappers",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "Multi-chunk compilation with chunk wrappers",
+  "description": "Verifies chunk output wrappers combined with multi-chunk code generation",
+  "args": [
+    "--chunk",
+    "root:1",
+    "--js",
+    "root.js",
+    "--chunk",
+    "app:1:root",
+    "--js",
+    "app.js",
+    "--chunk_output_word_spec",
+    "%s.js",
+    "--chunk_output_wrapper",
+    "/*module_wrap*/(function(){%output%})();"
+  ],
+  "stdin": "",
+  "files": {
+    "root.js": "var RootService = { id: 'root' };",
+    "app.js": "var AppInstance = { service: RootService };"
+  },
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

@@ -1,0 +1,957 @@
+diff --git a/com/google/javascript/jscomp/ControlFlowAnalysis.java b/com/google/javascript/jscomp/ControlFlowAnalysis.java
+--- a/com/google/javascript/jscomp/ControlFlowAnalysis.java
++++ b/com/google/javascript/jscomp/ControlFlowAnalysis.java
+@@ -16,7 +16,6 @@
+ 
+ package com.google.javascript.jscomp;
+ 
+-import static com.google.common.base.Preconditions.checkNotNull;
+ import static com.google.common.base.Preconditions.checkState;
+ 
+ import com.google.common.base.Preconditions;
+@@ -24,15 +23,13 @@
+ import com.google.common.collect.SetMultimap;
+ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+ import com.google.javascript.jscomp.ControlFlowGraph.Branch;
+-import com.google.javascript.jscomp.base.LinkedIdentityHashMap;
+ import com.google.javascript.jscomp.graph.DiGraph.DiGraphNode;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.Token;
+ import java.util.ArrayDeque;
++import java.util.Arrays;
+ import java.util.Comparator;
+ import java.util.Deque;
+-import java.util.List;
+-import java.util.PriorityQueue;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -66,15 +63,11 @@
+ 
+   private ControlFlowGraph<Node> cfg;
+ 
+-  private @Nullable LinkedIdentityHashMap<Node, Integer> astPosition;
+-
+-  // We order CFG nodes by by looking at the AST positions.
+-  // CFG nodes that come first lexically should be visited first, because
+-  // they will often be executed first in the source program.
+-  private final Comparator<DiGraphNode<Node, Branch>> priorityComparator =
+-      Comparator.comparingInt(
+-          digraphNode ->
+-              checkNotNull(astPosition.get(digraphNode.getValue()), digraphNode.getValue()));
++  private Node @Nullable [] astPosKeys;
++  private int @Nullable [] astPosValues;
++  private int astPosSize;
++  private int nullAstPos = -1;
++  private DiGraphNode<Node, Branch> @Nullable [] workHeap;
+ 
+   private int astPositionCounter;
+   private int priorityCounter;
+@@ -123,7 +116,14 @@
+    *   foo() -> bar()
+    *   bar() -> END
+    */
+-  private final SetMultimap<Node, Node> finallyMap = LinkedHashMultimap.create();
++  private @Nullable SetMultimap<Node, Node> finallyMap;
++
++  private void putFinallyEdge(Node from, @Nullable Node to) {
++    if (this.finallyMap == null) {
++      this.finallyMap = LinkedHashMultimap.create();
++    }
++    this.finallyMap.put(from, to);
++  }
+ 
+   /**
+    * Constructor. Should only be called from within the {@link Builder}
+@@ -192,11 +192,106 @@
+     return cfg;
+   }
+ 
++  private static int mixNodeHash(int h) {
++    h *= 0x9e3779b9;
++    return h ^ (h >>> 16);
++  }
++
++  private void putAstPosition(@Nullable Node n, int pos) {
++    if (n == null) {
++      this.nullAstPos = pos;
++      return;
++    }
++    Node[] keys = this.astPosKeys;
++    if (keys == null) {
++      keys = new Node[32];
++      this.astPosKeys = keys;
++      this.astPosValues = new int[32];
++    } else if (this.astPosSize * 4 >= keys.length * 3) {
++      rehashAstPositions(keys.length * 2);
++      keys = this.astPosKeys;
++    }
++    int mask = keys.length - 1;
++    int slot = mixNodeHash(n.hashCode()) & mask;
++    while (true) {
++      Node existing = keys[slot];
++      if (existing == null) {
++        keys[slot] = n;
++        this.astPosValues[slot] = pos;
++        this.astPosSize++;
++        return;
++      }
++      if (existing == n) {
++        this.astPosValues[slot] = pos;
++        return;
++      }
++      slot = (slot + 1) & mask;
++    }
++  }
++
++  private void rehashAstPositions(int newCap) {
++    Node[] oldKeys = this.astPosKeys;
++    int[] oldValues = this.astPosValues;
++    Node[] newKeys = new Node[newCap];
++    int[] newValues = new int[newCap];
++    int mask = newCap - 1;
++    for (int i = 0, len = oldKeys.length; i < len; i++) {
++      Node k = oldKeys[i];
++      if (k != null) {
++        int slot = mixNodeHash(k.hashCode()) & mask;
++        while (newKeys[slot] != null) {
++          slot = (slot + 1) & mask;
++        }
++        newKeys[slot] = k;
++        newValues[slot] = oldValues[i];
++      }
++    }
++    this.astPosKeys = newKeys;
++    this.astPosValues = newValues;
++  }
++
++  private int getAstPosition(@Nullable Node n) {
++    if (n == null) {
++      if (this.nullAstPos >= 0) {
++        return this.nullAstPos;
++      }
++      throw new NullPointerException("null");
++    }
++    Node[] keys = this.astPosKeys;
++    if (keys != null) {
++      int mask = keys.length - 1;
++      int slot = mixNodeHash(n.hashCode()) & mask;
++      while (true) {
++        Node existing = keys[slot];
++        if (existing == null) {
++          break;
++        }
++        if (existing == n) {
++          return this.astPosValues[slot];
++        }
++        slot = (slot + 1) & mask;
++      }
++    }
++    throw new NullPointerException(String.valueOf(n));
++  }
++
++  private int resolveAstPosition(DiGraphNode<Node, Branch> dNode) {
++    int pos = dNode.getAstPosition();
++    if (pos < 0) {
++      pos = getAstPosition(dNode.getValue());
++      dNode.setAstPosition(pos);
++    }
++    return pos;
++  }
++
+   private void computeCfg(Node root) {
+     Preconditions.checkArgument(
+         NodeUtil.isValidCfgRoot(root), "Unexpected control flow graph root %s", root);
+     this.root = root;
+-    astPosition = new LinkedIdentityHashMap<>();
++    astPosKeys = null;
++    astPosValues = null;
++    astPosSize = 0;
++    nullAstPos = -1;
+     astPositionCounter = 0;
+     cfg = new AstControlFlowGraph(computeFallThrough(root), edgeAnnotations);
+ 
+@@ -204,7 +299,7 @@
+     NodeTraversal.traverse(compiler, root, this);
+ 
+     // Insert an implicit return last.
+-    astPosition.put(null, ++astPositionCounter);
++    putAstPosition(null, ++astPositionCounter);
+ 
+     // Now, generate the priority of nodes by doing a depth-first
+     // search on the CFG.
+@@ -224,7 +319,10 @@
+     }
+ 
+     // Free our large table now that it is no longer needed
+-    astPosition = null;
++    astPosKeys = null;
++    astPosValues = null;
++    astPosSize = 0;
++    workHeap = null;
+ 
+     // At this point, all reachable nodes have been given a priority, but
+     // unreachable nodes have not been given a priority. Put them last.
+@@ -241,21 +339,77 @@
+   }
+ 
+   /** Given an entry node, find all the nodes reachable from that node and prioritize them. */
++  @SuppressWarnings("unchecked")
+   private void prioritizeFromEntryNode(DiGraphNode<Node, Branch> entry) {
+-    PriorityQueue<DiGraphNode<Node, Branch>> worklist = new PriorityQueue<>(10, priorityComparator);
+-    worklist.add(entry);
+-
+-    while (!worklist.isEmpty()) {
+-      DiGraphNode<Node, Branch> current = worklist.remove();
++    DiGraphNode<Node, Branch>[] heap = this.workHeap;
++    if (heap == null) {
++      heap = (DiGraphNode<Node, Branch>[]) new DiGraphNode<?, ?>[16];
++      this.workHeap = heap;
++    }
++    heap[0] = entry;
++    int heapSize = 1;
++
++    while (heapSize > 0) {
++      DiGraphNode<Node, Branch> current = heap[0];
++      int n = --heapSize;
++      DiGraphNode<Node, Branch> x = heap[n];
++      heap[n] = null;
++      if (n > 0) {
++        int half = n >>> 1;
++        int k = 0;
++        int xPos = resolveAstPosition(x);
++        while (k < half) {
++          int child = (k << 1) + 1;
++          DiGraphNode<Node, Branch> c = heap[child];
++          int right = child + 1;
++          int cPos = resolveAstPosition(c);
++          if (right < n) {
++            DiGraphNode<Node, Branch> r = heap[right];
++            int rPos = resolveAstPosition(r);
++            if (cPos > rPos) {
++              child = right;
++              c = r;
++              cPos = rPos;
++            }
++          }
++          if (xPos <= cPos) {
++            break;
++          }
++          heap[k] = c;
++          k = child;
++        }
++        heap[k] = x;
++      }
++
+       if (current.hasPriority()) {
+         continue;
+       }
+ 
+       current.setPriority(++priorityCounter);
+ 
+-      List<? extends DiGraphNode<Node, Branch>> successors = cfg.getDirectedSuccNodes(current);
+-      for (int i = 0, size = successors.size(); i < size; i++) {
+-        worklist.add(successors.get(i));
++      for (int i = 0, outCount = current.getOutEdgeCount(); i < outCount; i++) {
++        DiGraphNode<Node, Branch> succ = current.getOutEdgeAt(i).getDestination();
++        if (heapSize == heap.length) {
++          heap = Arrays.copyOf(heap, heap.length * 2);
++          this.workHeap = heap;
++        }
++        if (heapSize == 0) {
++          heap[0] = succ;
++          heapSize = 1;
++        } else {
++          int k = heapSize++;
++          int succPos = resolveAstPosition(succ);
++          while (k > 0) {
++            int parent = (k - 1) >>> 1;
++            DiGraphNode<Node, Branch> e = heap[parent];
++            if (succPos >= resolveAstPosition(e)) {
++              break;
++            }
++            heap[k] = e;
++            k = parent;
++          }
++          heap[k] = succ;
++        }
+       }
+     }
+   }
+@@ -266,7 +420,7 @@
+       // Any AST node that will later have a corresponding CFG node must be in astPosition.
+       // To avoid having astPosition grow too large, we exclude AST nodes that are not traversed
+       // further, as they usually are not put in the CFG.
+-      astPosition.put(n, astPositionCounter++);
++      putAstPosition(n, astPositionCounter++);
+       return true;
+     }
+     return false;
+@@ -317,7 +471,7 @@
+           if (!shouldTraverseForChild) {
+             // The control-flow graph contains edges from a FOR node to all its children, even
+             // though only the body is actually traversed. So put the other children in astPosition.
+-            astPosition.put(n, astPositionCounter++);
++            putAstPosition(n, astPositionCounter++);
+           }
+           return shouldTraverseForChild;
+         }
+@@ -633,7 +787,7 @@
+         if (lastJump == node) {
+           createEdge(lastJump, Branch.UNCOND, computeFallThrough(cur.getLastChild()));
+         } else {
+-          finallyMap.put(lastJump, computeFallThrough(cur.getLastChild()));
++          putFinallyEdge(lastJump, computeFallThrough(cur.getLastChild()));
+         }
+         lastJump = cur;
+       }
+@@ -651,7 +805,7 @@
+     if (lastJump == node) {
+       createEdge(lastJump, Branch.UNCOND, computeFollowNode(cur, this));
+     } else {
+-      finallyMap.put(lastJump, computeFollowNode(cur, this));
++      putFinallyEdge(lastJump, computeFollowNode(cur, this));
+     }
+   }
+ 
+@@ -670,7 +824,7 @@
+         if (lastJump == node) {
+           createEdge(lastJump, Branch.UNCOND, cur.getLastChild());
+         } else {
+-          finallyMap.put(lastJump, computeFallThrough(cur.getLastChild()));
++          putFinallyEdge(lastJump, computeFallThrough(cur.getLastChild()));
+         }
+         lastJump = cur;
+       }
+@@ -686,7 +840,7 @@
+     if (lastJump == node) {
+       createEdge(node, Branch.UNCOND, iter);
+     } else {
+-      finallyMap.put(lastJump, iter);
++      putFinallyEdge(lastJump, iter);
+     }
+   }
+ 
+@@ -700,7 +854,7 @@
+         if (lastJump == null) {
+           createEdge(node, Branch.UNCOND, curHandler.getLastChild());
+         } else {
+-          finallyMap.put(lastJump, computeFallThrough(curHandler.getLastChild()));
++          putFinallyEdge(lastJump, computeFallThrough(curHandler.getLastChild()));
+         }
+         lastJump = curHandler;
+       }
+@@ -713,7 +867,7 @@
+     if (lastJump == null) {
+       createEdge(node, Branch.UNCOND, null);
+     } else {
+-      finallyMap.put(lastJump, null);
++      putFinallyEdge(lastJump, null);
+     }
+   }
+ 
+@@ -808,7 +962,7 @@
+           }
+           // If we are coming out of the FINALLY block...
+         } else if (parent.getLastChild() == node) {
+-          if (cfa != null) {
++          if (cfa != null && cfa.finallyMap != null) {
+             for (Node finallyNode : cfa.finallyMap.get(parent)) {
+               cfa.createEdge(fromNode, Branch.ON_EX, finallyNode);
+             }
+@@ -899,14 +1053,14 @@
+         if (lastJump == cfgNode) {
+           createEdge(cfgNode, Branch.ON_EX, handler.getLastChild());
+         } else {
+-          finallyMap.put(lastJump, handler.getLastChild());
++          putFinallyEdge(lastJump, handler.getLastChild());
+         }
+       } else { // Has a catch.
+         if (lastJump == cfgNode) {
+           createEdge(cfgNode, Branch.ON_EX, catchBlock);
+           return;
+         } else {
+-          finallyMap.put(lastJump, catchBlock);
++          putFinallyEdge(lastJump, catchBlock);
+         }
+       }
+       lastJump = handler;
+@@ -1040,6 +1194,12 @@
+    */
+   private static final class AstControlFlowGraph extends ControlFlowGraph<Node> {
+ 
++    private static final Comparator<DiGraphNode<Node, Branch>> FORWARD_COMPARATOR =
++        (a, b) -> Integer.compare(a.getPriority(), b.getPriority());
++
++    private static final Comparator<DiGraphNode<Node, Branch>> BACKWARD_COMPARATOR =
++        (a, b) -> Integer.compare(b.getPriority(), a.getPriority());
++
+     /**
+      * Constructs this graph.
+      *
+@@ -1058,10 +1218,7 @@
+      */
+     @Override
+     public Comparator<DiGraphNode<Node, Branch>> getOptionalNodeComparator(boolean isForward) {
+-      return isForward
+-          ? Comparator.comparingInt((DiGraphNode<Node, Branch> dNode) -> dNode.getPriority())
+-          : Comparator.comparingInt((DiGraphNode<Node, Branch> dNode) -> dNode.getPriority())
+-              .reversed();
++      return isForward ? FORWARD_COMPARATOR : BACKWARD_COMPARATOR;
+     }
+   }
+ }
+diff --git a/com/google/javascript/jscomp/JSChunkGraph.java b/com/google/javascript/jscomp/JSChunkGraph.java
+--- a/com/google/javascript/jscomp/JSChunkGraph.java
++++ b/com/google/javascript/jscomp/JSChunkGraph.java
+@@ -521,20 +521,28 @@
+ 
+     SortedDependencies<CompilerInput> sorter = new SortedDependencies<>(originalInputs);
+ 
+-    Set<CompilerInput> entryPointInputs =
++    LinkedHashSet<CompilerInput> entryPointInputs =
+         createEntryPointInputs(compiler, dependencyOptions, getAllInputs(), sorter);
+ 
+     // Build a map of symbols to their source file(s). While having multiple source files is invalid
+     // we leave that up to typechecking so that we avoid arbitrarily picking a file.
+-    LinkedHashMap<String, Set<CompilerInput>> inputsByProvide = new LinkedHashMap<>();
++    LinkedHashMap<String, LinkedHashSet<CompilerInput>> inputsByProvide = new LinkedHashMap<>();
+     for (CompilerInput input : originalInputs) {
+       for (String provide : input.getKnownProvides()) {
+-        inputsByProvide.computeIfAbsent(provide, (String k) -> new LinkedHashSet<>());
+-        inputsByProvide.get(provide).add(input);
++        LinkedHashSet<CompilerInput> set = inputsByProvide.get(provide);
++        if (set == null) {
++          set = new LinkedHashSet<>();
++          inputsByProvide.put(provide, set);
++        }
++        set.add(input);
+       }
+       String chunkName = input.getPath().toModuleName();
+-      inputsByProvide.computeIfAbsent(chunkName, (String k) -> new LinkedHashSet<>());
+-      inputsByProvide.get(chunkName).add(input);
++      LinkedHashSet<CompilerInput> chunkSet = inputsByProvide.get(chunkName);
++      if (chunkSet == null) {
++        chunkSet = new LinkedHashSet<>();
++        inputsByProvide.put(chunkName, chunkSet);
++      }
++      chunkSet.add(input);
+     }
+ 
+     // Dynamically imported files must be added to the chunk graph, but
+@@ -542,8 +550,11 @@
+     // We add them as entry points to ensure they get included.
+     for (CompilerInput input : originalInputs) {
+       for (String require : input.getDynamicRequires()) {
+-        if (inputsByProvide.containsKey(require)) {
+-          entryPointInputs.addAll(inputsByProvide.get(require));
++        LinkedHashSet<CompilerInput> provided = inputsByProvide.get(require);
++        if (provided != null) {
++          for (CompilerInput p : provided) {
++            entryPointInputs.add(p);
++          }
+         }
+       }
+     }
+@@ -551,8 +562,11 @@
+     // For goog.requireDynamic() imported files.
+     for (CompilerInput input : originalInputs) {
+       for (String require : input.getRequireDynamicImports()) {
+-        if (inputsByProvide.containsKey(require)) {
+-          entryPointInputs.addAll(inputsByProvide.get(require));
++        LinkedHashSet<CompilerInput> provided = inputsByProvide.get(require);
++        if (provided != null) {
++          for (CompilerInput p : provided) {
++            entryPointInputs.add(p);
++          }
+         }
+       }
+     }
+@@ -577,7 +591,7 @@
+     // Figure out which sources *must* be in each chunk, or in one
+     // of that chunk's dependencies.
+     List<CompilerInput> orderedInputs = new ArrayList<>();
+-    Set<CompilerInput> reachedInputs = new LinkedHashSet<>();
++    LinkedHashSet<CompilerInput> reachedInputs = new LinkedHashSet<>();
+ 
+     for (JSChunk chunk : chunks) {
+       List<CompilerInput> transitiveClosure;
+@@ -587,7 +601,7 @@
+       if (dependencyOptions.shouldSort() && dependencyOptions.shouldPrune()) {
+         transitiveClosure = new ArrayList<>();
+         // We need the ful set of dependencies for each chunk, so start with the full input set
+-        Set<CompilerInput> inputsNotYetReached = new LinkedHashSet<>(originalInputs);
++        LinkedHashSet<CompilerInput> inputsNotYetReached = new LinkedHashSet<>(originalInputs);
+         for (CompilerInput entryPoint : entryPointInputsPerChunk.get(chunk)) {
+           transitiveClosure.addAll(
+               getDepthFirstDependenciesOf(entryPoint, inputsNotYetReached, inputsByProvide));
+@@ -670,16 +684,17 @@
+    */
+   private List<CompilerInput> getDepthFirstDependenciesOf(
+       CompilerInput rootInput,
+-      Set<CompilerInput> unreachedInputs,
+-      Map<String, Set<CompilerInput>> inputsByProvide) {
++      LinkedHashSet<CompilerInput> unreachedInputs,
++      LinkedHashMap<String, LinkedHashSet<CompilerInput>> inputsByProvide) {
+     List<CompilerInput> orderedInputs = new ArrayList<>();
+     if (!unreachedInputs.remove(rootInput)) {
+       return orderedInputs;
+     }
+ 
+     for (String importedNamespace : rootInput.getRequiredSymbols()) {
+-      if (inputsByProvide.containsKey(importedNamespace)) {
+-        for (CompilerInput input : inputsByProvide.get(importedNamespace)) {
++      LinkedHashSet<CompilerInput> providers = inputsByProvide.get(importedNamespace);
++      if (providers != null) {
++        for (CompilerInput input : providers) {
+           if (unreachedInputs.contains(input)) {
+             orderedInputs.addAll(
+                 getDepthFirstDependenciesOf(input, unreachedInputs, inputsByProvide));
+@@ -692,13 +707,13 @@
+     return orderedInputs;
+   }
+ 
+-  private Set<CompilerInput> createEntryPointInputs(
++  private LinkedHashSet<CompilerInput> createEntryPointInputs(
+       AbstractCompiler compiler,
+       DependencyOptions dependencyOptions,
+       Iterable<CompilerInput> inputs,
+       SortedDependencies<CompilerInput> sorter)
+       throws MissingChunkException, MissingProvideException {
+-    Set<CompilerInput> entryPointInputs = new LinkedHashSet<>();
++    LinkedHashSet<CompilerInput> entryPointInputs = new LinkedHashSet<>();
+     Map<String, JSChunk> chunksByName = getChunksByName();
+     if (dependencyOptions.shouldPrune()) {
+       // Some files implicitly depend on base.js without actually requiring anything.
+@@ -752,7 +767,9 @@
+         }
+       }
+     } else {
+-      Iterables.addAll(entryPointInputs, inputs);
++      for (CompilerInput input : inputs) {
++        entryPointInputs.add(input);
++      }
+     }
+     return entryPointInputs;
+   }
+diff --git a/com/google/javascript/jscomp/deps/SortedDependencies.java b/com/google/javascript/jscomp/deps/SortedDependencies.java
+--- a/com/google/javascript/jscomp/deps/SortedDependencies.java
++++ b/com/google/javascript/jscomp/deps/SortedDependencies.java
+@@ -17,17 +17,13 @@
+ package com.google.javascript.jscomp.deps;
+ 
+ import com.google.common.collect.ImmutableList;
+-import com.google.common.collect.Iterables;
+-import com.google.common.collect.LinkedHashMultimap;
+-import com.google.common.collect.SetMultimap;
+ import java.util.ArrayDeque;
+ import java.util.ArrayList;
++import java.util.Arrays;
+ import java.util.Collections;
+-import java.util.Deque;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+-import java.util.Set;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -47,18 +43,68 @@
+   private final ArrayList<InputT> userOrderedInputs = new ArrayList<>();
+   private final ArrayList<InputT> importOrderedInputs = new ArrayList<>();
+   private @Nullable List<InputT> sortedListView;
+-  private final Set<InputT> completedInputs = new LinkedHashSet<>();
+   private final LinkedHashMap<String, InputT> nonExportingInputs = new LinkedHashMap<>();
+   private final LinkedHashMap<String, InputT> exportingInputBySymbolName = new LinkedHashMap<>();
+-  // Maps an input A to the inputs it depends on, ie, inputs that provide stuff that A requires.
+-  private final SetMultimap<InputT, InputT> importedInputByImportingInput =
+-      LinkedHashMultimap.create();
++  private Object[] uniqueInputs;
++  private int[] inputHashes;
++  private int[] inputTable;
++  private int uniqueInputCount;
++  private int[] userInputIds;
++  private int[] importInputIds;
+ 
+   public SortedDependencies(List<InputT> userOrderedInputs) {
+     for (int i = 0, size = userOrderedInputs.size(); i < size; i++) {
+       this.userOrderedInputs.add(userOrderedInputs.get(i));
+     }
+     processInputs();
++  }
++
++  private static int mixHash(int h) {
++    h *= 0x9e3779b9;
++    return h ^ (h >>> 16);
++  }
++
++  private int registerOrGetInputId(InputT input) {
++    int h = input.hashCode();
++    int mask = this.inputTable.length - 1;
++    int slot = mixHash(h) & mask;
++    while (true) {
++      int entry = this.inputTable[slot];
++      if (entry == 0) {
++        int id = this.uniqueInputCount++;
++        this.uniqueInputs[id] = input;
++        this.inputHashes[id] = h;
++        this.inputTable[slot] = id + 1;
++        return id;
++      }
++      int id = entry - 1;
++      Object existing = this.uniqueInputs[id];
++      if (existing == input || (this.inputHashes[id] == h && input.equals(existing))) {
++        return id;
++      }
++      slot = (slot + 1) & mask;
++    }
++  }
++
++  private int findInputId(InputT input) {
++    if (this.uniqueInputCount == 0 || input == null) {
++      return -1;
++    }
++    int h = input.hashCode();
++    int mask = this.inputTable.length - 1;
++    int slot = mixHash(h) & mask;
++    while (true) {
++      int entry = this.inputTable[slot];
++      if (entry == 0) {
++        return -1;
++      }
++      int id = entry - 1;
++      Object existing = this.uniqueInputs[id];
++      if (existing == input || (this.inputHashes[id] == h && input.equals(existing))) {
++        return id;
++      }
++      slot = (slot + 1) & mask;
++    }
+   }
+ 
+   /**
+@@ -70,11 +116,26 @@
+    *     original order they were passed to the compiler.
+    */
+   public ImmutableList<InputT> getStrongDependenciesOf(List<InputT> rootInputs, boolean sorted) {
+-    Set<InputT> includedInputs = new LinkedHashSet<>();
+-    Deque<InputT> worklist = new ArrayDeque<>(rootInputs);
++    if (rootInputs.isEmpty() || this.uniqueInputCount == 0) {
++      return ImmutableList.of();
++    }
++    boolean[] includedById = new boolean[this.uniqueInputCount];
++    LinkedHashSet<InputT> extraIncluded = null;
++    ArrayDeque<InputT> worklist = new ArrayDeque<>(rootInputs);
+     while (!worklist.isEmpty()) {
+       InputT input = worklist.pop();
+-      if (includedInputs.add(input)) {
++      int id = findInputId(input);
++      boolean added;
++      if (id >= 0) {
++        added = !includedById[id];
++        includedById[id] = true;
++      } else {
++        if (extraIncluded == null) {
++          extraIncluded = new LinkedHashSet<>();
++        }
++        added = extraIncluded.add(input);
++      }
++      if (added) {
+         for (String symbolName : input.getRequiredSymbols()) {
+           InputT importedSymbolName = exportingInputBySymbolName.get(symbolName);
+           if (importedSymbolName != null) {
+@@ -87,16 +148,14 @@
+     ImmutableList.Builder<InputT> builder = ImmutableList.builder();
+     if (sorted) {
+       for (int i = 0, size = importOrderedInputs.size(); i < size; i++) {
+-        InputT input = importOrderedInputs.get(i);
+-        if (includedInputs.contains(input)) {
+-          builder.add(input);
++        if (includedById[importInputIds[i]]) {
++          builder.add(importOrderedInputs.get(i));
+         }
+       }
+     } else {
+       for (int i = 0, size = userOrderedInputs.size(); i < size; i++) {
+-        InputT input = userOrderedInputs.get(i);
+-        if (includedInputs.contains(input)) {
+-          builder.add(input);
++        if (includedById[userInputIds[i]]) {
++          builder.add(userOrderedInputs.get(i));
+         }
+       }
+     }
+@@ -144,41 +203,61 @@
+    * <p>Root inputs will never be in the returned list as they are all considered strong.
+    */
+   public ImmutableList<InputT> getSortedWeakDependenciesOf(List<InputT> rootInputs) {
+-    Set<InputT> strongInputs = new LinkedHashSet<>(getSortedStrongDependenciesOf(rootInputs));
+-    Set<InputT> weakInputs = new LinkedHashSet<>();
+-    Deque<InputT> worklist = new ArrayDeque<>(strongInputs);
++    ImmutableList<InputT> strongList = getSortedStrongDependenciesOf(rootInputs);
++    if (strongList.isEmpty() || this.uniqueInputCount == 0) {
++      return ImmutableList.of();
++    }
++    boolean[] strongById = new boolean[this.uniqueInputCount];
++    boolean[] weakById = new boolean[this.uniqueInputCount];
++    ArrayDeque<InputT> worklist = new ArrayDeque<>(strongList.size());
++    for (int i = 0, size = strongList.size(); i < size; i++) {
++      InputT strongInput = strongList.get(i);
++      int sId = findInputId(strongInput);
++      if (!strongById[sId]) {
++        strongById[sId] = true;
++        worklist.add(strongInput);
++      }
++    }
++
+     while (!worklist.isEmpty()) {
+       InputT input = worklist.pop();
+-      boolean isStrong = strongInputs.contains(input);
+-
+-      Iterable<String> edges =
+-          isStrong
+-              ? input.getTypeRequires()
+-              : Iterables.concat(input.getRequiredSymbols(), input.getTypeRequires());
+-
+-      if (!isStrong && !weakInputs.add(input)) {
+-        continue;
+-      }
+-
+-      for (String symbolName : edges) {
+-        InputT importedSymbolName = exportingInputBySymbolName.get(symbolName);
+-        if (importedSymbolName != null
+-            && !strongInputs.contains(importedSymbolName)
+-            && !weakInputs.contains(importedSymbolName)) {
+-          worklist.add(importedSymbolName);
+-        }
+-      }
++      int id = findInputId(input);
++      boolean isStrong = strongById[id];
++
++      if (!isStrong) {
++        if (weakById[id]) {
++          continue;
++        }
++        weakById[id] = true;
++        enqueueWeakEdges(input.getRequiredSymbols(), strongById, weakById, worklist);
++      }
++      enqueueWeakEdges(input.getTypeRequires(), strongById, weakById, worklist);
+     }
+ 
+     ImmutableList.Builder<InputT> builder = ImmutableList.builder();
+     for (int i = 0, size = importOrderedInputs.size(); i < size; i++) {
+-      InputT input = importOrderedInputs.get(i);
+-      if (weakInputs.contains(input)) {
+-        builder.add(input);
++      if (weakById[importInputIds[i]]) {
++        builder.add(importOrderedInputs.get(i));
+       }
+     }
+ 
+     return builder.build();
++  }
++
++  private void enqueueWeakEdges(
++      Iterable<String> symbols,
++      boolean[] strongById,
++      boolean[] weakById,
++      ArrayDeque<InputT> worklist) {
++    for (String symbolName : symbols) {
++      InputT importedSymbolName = exportingInputBySymbolName.get(symbolName);
++      if (importedSymbolName != null) {
++        int impId = findInputId(importedSymbolName);
++        if (!strongById[impId] && !weakById[impId]) {
++          worklist.add(importedSymbolName);
++        }
++      }
++    }
+   }
+ 
+   public List<InputT> getSortedList() {
+@@ -203,27 +282,60 @@
+     return nonExportingInputs.get(ModuleNames.fileToModuleName(symbol));
+   }
+ 
+-  private void orderInput(InputT input) {
+-    if (completedInputs.contains(input)) {
++  private void orderInput(
++      InputT input,
++      int id,
++      boolean[] completedById,
++      ArrayList<InputT>[] importedById,
++      int[][] importedIdsById,
++      int[] importedCounts) {
++    if (completedById[id]) {
+       return;
+     }
+ 
+-    completedInputs.add(input);
+-    for (InputT importedInput : importedInputByImportingInput.get(input)) {
+-      orderInput(importedInput);
++    completedById[id] = true;
++    int depCount = importedCounts[id];
++    if (depCount > 0) {
++      ArrayList<InputT> deps = importedById[id];
++      int[] depIds = importedIdsById[id];
++      for (int i = 0; i < depCount; i++) {
++        orderInput(
++            deps.get(i), depIds[i], completedById, importedById, importedIdsById, importedCounts);
++      }
+     }
+ 
+     // Emit an input after its imports have been emitted.
+     importOrderedInputs.add(input);
+   }
+ 
++  @SuppressWarnings("unchecked")
+   private void processInputs() {
++    int inputCount = userOrderedInputs.size();
++    if (inputCount == 0) {
++      this.uniqueInputs = new Object[0];
++      this.inputHashes = new int[0];
++      this.inputTable = new int[0];
++      this.uniqueInputCount = 0;
++      this.userInputIds = new int[0];
++      this.importInputIds = new int[0];
++      return;
++    }
++
++    int tableCap = 16;
++    while ((long) tableCap * 3 < (long) inputCount * 4) {
++      tableCap <<= 1;
++    }
++    this.uniqueInputs = new Object[inputCount];
++    this.inputHashes = new int[inputCount];
++    this.inputTable = new int[tableCap];
++    this.userInputIds = new int[inputCount];
++
+     // Index.
+-    int inputCount = userOrderedInputs.size();
+     for (int i = 0; i < inputCount; i++) {
+       InputT userOrderedInput = userOrderedInputs.get(i);
++      this.userInputIds[i] = registerOrGetInputId(userOrderedInput);
+       ImmutableList<String> provides = userOrderedInput.getProvides();
+-      String firstProvide = Iterables.getFirst(provides, null);
++      String firstProvide = provides.isEmpty() ? null : provides.get(0);
+       if (firstProvide == null
+           // "module$" indicates the provide is generated from the path. If this is the only thing
+           // the module provides and it is not an ES6 module then it is just a script and doesn't
+@@ -239,27 +351,67 @@
+         exportingInputBySymbolName.put(providedSymbolName, userOrderedInput);
+       }
+     }
++
++    ArrayList<InputT>[] importedById =
++        (ArrayList<InputT>[]) new ArrayList<?>[this.uniqueInputCount];
++    int[][] importedIdsById = new int[this.uniqueInputCount][];
++    int[] importedCounts = new int[this.uniqueInputCount];
++
+     for (int i = 0; i < inputCount; i++) {
+       InputT userOrderedInput = userOrderedInputs.get(i);
++      int srcId = this.userInputIds[i];
+       for (String symbolName : userOrderedInput.getRequiredSymbols()) {
+         InputT importedInput = exportingInputBySymbolName.get(symbolName);
+         if (importedInput != null) {
+-          importedInputByImportingInput.put(userOrderedInput, importedInput);
++          int dstId = findInputId(importedInput);
++          int count = importedCounts[srcId];
++          int[] dstIds = importedIdsById[srcId];
++          boolean alreadyPresent = false;
++          if (dstIds == null) {
++            dstIds = new int[4];
++            importedIdsById[srcId] = dstIds;
++            importedById[srcId] = new ArrayList<>(4);
++          } else {
++            for (int k = 0; k < count; k++) {
++              if (dstIds[k] == dstId) {
++                alreadyPresent = true;
++                break;
++              }
++            }
++          }
++          if (!alreadyPresent) {
++            if (count == dstIds.length) {
++              dstIds = Arrays.copyOf(dstIds, count * 2);
++              importedIdsById[srcId] = dstIds;
++            }
++            dstIds[count] = dstId;
++            importedById[srcId].add(importedInput);
++            importedCounts[srcId] = count + 1;
++          }
+         }
+       }
+     }
+ 
+     // Order.
+     // For each input, traverse in user-provided order.
++    boolean[] completedById = new boolean[this.uniqueInputCount];
+     for (int i = 0; i < inputCount; i++) {
+       // Traverse the graph starting from this input and record any
+       // newly-reached inputs.
+-      orderInput(userOrderedInputs.get(i));
+-    }
+-
+-    // Free temporary indexes.
+-    completedInputs.clear();
+-    importedInputByImportingInput.clear();
++      orderInput(
++          userOrderedInputs.get(i),
++          this.userInputIds[i],
++          completedById,
++          importedById,
++          importedIdsById,
++          importedCounts);
++    }
++
++    int importCount = importOrderedInputs.size();
++    this.importInputIds = new int[importCount];
++    for (int i = 0; i < importCount; i++) {
++      this.importInputIds[i] = findInputId(importOrderedInputs.get(i));
++    }
+   }
+ 
+   public static class MissingProvideException extends Exception {
+diff --git a/com/google/javascript/jscomp/graph/DiGraph.java b/com/google/javascript/jscomp/graph/DiGraph.java
+--- a/com/google/javascript/jscomp/graph/DiGraph.java
++++ b/com/google/javascript/jscomp/graph/DiGraph.java
+@@ -138,6 +138,12 @@
+ 
+     /** Sets a node priority, must be non-negative. */
+     void setPriority(int priority);
++
++    default int getAstPosition() {
++      return -1;
++    }
++
++    default void setAstPosition(int astPosition) {}
+   }
+ 
+   /**
+diff --git a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+--- a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+@@ -450,6 +450,8 @@
+ 
+     private int priority = -1;
+ 
++    private int astPosition = -1;
++
+     private final boolean useAnnotation;
+ 
+     /**
+@@ -657,6 +659,16 @@
+       checkArgument(priority >= 0, "priorities must be non-negative");
+       this.priority = priority;
+     }
++
++    @Override
++    public int getAstPosition() {
++      return this.astPosition;
++    }
++
++    @Override
++    public void setAstPosition(int astPosition) {
++      this.astPosition = astPosition;
++    }
+   }
+ 
+   /** A directed graph edge that stores the source and destination nodes at each edge. */

@@ -1,0 +1,23 @@
+{
+  "id": "tier1_f03_single_quotes",
+  "tier": 1,
+  "feature": "formatting_output",
+  "name": "Single quotes formatting",
+  "description": "Verifies SINGLE_QUOTES formatting emits string literals with single quotes",
+  "args": [
+    "--formatting",
+    "SINGLE_QUOTES",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var greeting = \"hello closure world\";"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var greeting='hello closure world';\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

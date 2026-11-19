@@ -1,0 +1,27 @@
+{
+  "id": "tier4_r08_esm_preact",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "Preact ES module build scenario",
+  "description": "Compiles Preact component pattern module using ES_NEXT to ES5 transpilation",
+  "args": [
+    "--language_in",
+    "ECMASCRIPT_NEXT",
+    "--language_out",
+    "ECMASCRIPT5",
+    "--compilation_level",
+    "SIMPLE",
+    "--js",
+    "preact_component.js"
+  ],
+  "stdin": "",
+  "files": {
+    "preact_component.js": "function h(tag, props, ...children) { return { tag, props, children }; }\nconst Component = (props) => h('div', { class: 'btn' }, props.label);\nwindow['render'] = Component({ label: 'Click' });\n"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var $jscomp=$jscomp||{};$jscomp.scope={};$jscomp.getRestArguments=function(){for(var a=Number(this),c=[],b=a;b<arguments.length;b++)c[b-a]=arguments[b];return c};function h(a,c){var b=$jscomp.getRestArguments.apply(2,arguments);return{tag:a,props:c,children:b}}var Component=function(a){return h(\"div\",{class:\"btn\"},a.label)};window.render=Component({label:\"Click\"});\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

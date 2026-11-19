@@ -1,0 +1,25 @@
+{
+  "id": "tier1_l03_no_transpile",
+  "tier": 1,
+  "feature": "language_in_out",
+  "name": "No transpile language mode",
+  "description": "Verifies NO_TRANSPILE output preserves modern ES syntax",
+  "args": [
+    "--language_in",
+    "ECMASCRIPT_NEXT",
+    "--language_out",
+    "NO_TRANSPILE",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "const square = (x) => x ** 2; const val = obj?.prop ?? 'default';"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "const square=a=>a**2,val=obj?.prop??\"default\";\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

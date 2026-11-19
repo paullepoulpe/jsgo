@@ -1,0 +1,1276 @@
+diff --git a/com/google/javascript/jscomp/AbstractScope.java b/com/google/javascript/jscomp/AbstractScope.java
+index f226b21c..61bcf3b1 100644
+--- a/com/google/javascript/jscomp/AbstractScope.java
++++ b/com/google/javascript/jscomp/AbstractScope.java
+@@ -20,12 +20,10 @@ import static com.google.common.base.Preconditions.checkArgument;
+ import static com.google.common.base.Preconditions.checkNotNull;
+ import static com.google.common.base.Preconditions.checkState;
+ 
+-import com.google.common.collect.ImmutableList;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.StaticScope;
+ import java.io.Serializable;
+ import java.util.ArrayList;
+-import java.util.Collections;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import org.jspecify.annotations.Nullable;
+@@ -62,11 +60,6 @@ import org.jspecify.annotations.Nullable;
+  */
+ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends AbstractVar<S, V>>
+     implements StaticScope, Serializable {
+-  private @Nullable V var0 = null;
+-  private @Nullable V var1 = null;
+-  private @Nullable V var2 = null;
+-  private @Nullable V var3 = null;
+-  private @Nullable LinkedHashMap<String, V> vars = null;
+   private @Nullable Object implicitVars = null;
+   private final Node rootNode;
+ 
+@@ -132,30 +125,9 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+ 
+   abstract V makeImplicitVar(ImplicitVar type);
+ 
+-  private @Nullable V getOwnDeclaredVar(String name) {
+-    if (vars != null) {
+-      return vars.get(name);
+-    }
+-    if (var0 != null) {
+-      if (var0.getName().equals(name)) {
+-        return var0;
+-      }
+-      if (var1 != null) {
+-        if (var1.getName().equals(name)) {
+-          return var1;
+-        }
+-        if (var2 != null) {
+-          if (var2.getName().equals(name)) {
+-            return var2;
+-          }
+-          if (var3 != null && var3.getName().equals(name)) {
+-            return var3;
+-          }
+-        }
+-      }
+-    }
+-    return null;
+-  }
++  abstract @Nullable V getOwnDeclaredVar(String name);
++
++  abstract void putOwnDeclaredVar(String name, V var);
+ 
+   /**
+    * Undeclares a variable, to be used when the compiler optimizes out a variable and removes it
+@@ -169,98 +141,16 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+   }
+ 
+   /** Without any safety checks */
+-  final void undeclareInteral(V var) {
+-    // Assume that vars must contain var, and thus not be empty
+-    if (vars != null) {
+-      vars.remove(var.getName());
+-      return;
+-    }
+-    String name = var.getName();
+-    if (var0 != null) {
+-      if (var0.getName().equals(name)) {
+-        var0 = var1;
+-        var1 = var2;
+-        var2 = var3;
+-        var3 = null;
+-      } else if (var1 != null) {
+-        if (var1.getName().equals(name)) {
+-          var1 = var2;
+-          var2 = var3;
+-          var3 = null;
+-        } else if (var2 != null) {
+-          if (var2.getName().equals(name)) {
+-            var2 = var3;
+-            var3 = null;
+-          } else if (var3 != null && var3.getName().equals(name)) {
+-            var3 = null;
+-          }
+-        }
+-      }
+-    }
+-  }
++  abstract void undeclareInteral(V var);
+ 
+   final void declareInternal(String name, V var) {
+     checkState(hasOwnSlot(name) || canDeclare(name), "Illegal shadow: %s", var.getNode());
+     checkArgument(name.equals(var.getName()));
+-
+-    if (vars != null) {
+-      vars.put(name, var);
+-      return;
+-    }
+-    if (var0 == null) {
+-      var0 = var;
+-      return;
+-    }
+-    if (var0.getName().equals(name)) {
+-      var0 = var;
+-      return;
+-    }
+-    if (var1 == null) {
+-      var1 = var;
+-      return;
+-    }
+-    if (var1.getName().equals(name)) {
+-      var1 = var;
+-      return;
+-    }
+-    if (var2 == null) {
+-      var2 = var;
+-      return;
+-    }
+-    if (var2.getName().equals(name)) {
+-      var2 = var;
+-      return;
+-    }
+-    if (var3 == null) {
+-      var3 = var;
+-      return;
+-    }
+-    if (var3.getName().equals(name)) {
+-      var3 = var;
+-      return;
+-    }
+-    vars = new LinkedHashMap<>(8);
+-    vars.put(var0.getName(), var0);
+-    vars.put(var1.getName(), var1);
+-    vars.put(var2.getName(), var2);
+-    vars.put(var3.getName(), var3);
+-    vars.put(name, var);
+-    var0 = null;
+-    var1 = null;
+-    var2 = null;
+-    var3 = null;
+-  }
+-
+-  final void clearVarsInternal() {
+-    var0 = null;
+-    var1 = null;
+-    var2 = null;
+-    var3 = null;
+-    if (vars != null && !vars.isEmpty()) {
+-      vars.clear();
+-    }
++    putOwnDeclaredVar(name, var);
+   }
+ 
++  abstract void clearVarsInternal();
++
+   /** Returns true iff this scope implies a slot with the given name. */
+   protected boolean hasOwnImplicitSlot(@Nullable ImplicitVar name) {
+     return name != null && name.isMadeByScope(this);
+@@ -309,7 +199,7 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+   }
+ 
+   @SuppressWarnings("unchecked")
+-  private final @Nullable V getOwnImplicitSlot(@Nullable ImplicitVar name) {
++  final @Nullable V getOwnImplicitSlot(@Nullable ImplicitVar name) {
+     if (!hasOwnImplicitSlot(name)) {
+       return null;
+     }
+@@ -429,24 +319,9 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+    * Return an iterable over all of the variables declared in this scope (except the special
+    * 'arguments' variable).
+    */
+-  public final Iterable<V> getVarIterable() {
+-    if (vars != null) {
+-      return vars.values();
+-    }
+-    if (var0 == null) {
+-      return Collections.emptyList();
+-    }
+-    if (var1 == null) {
+-      return Collections.singletonList(var0);
+-    }
+-    if (var2 == null) {
+-      return ImmutableList.of(var0, var1);
+-    }
+-    if (var3 == null) {
+-      return ImmutableList.of(var0, var1, var2);
+-    }
+-    return ImmutableList.of(var0, var1, var2, var3);
+-  }
++  public abstract Iterable<V> getVarIterable();
++
++  abstract void putOwnVarsIfAbsent(LinkedHashMap<String, V> dst);
+ 
+   /**
+    * Return an iterable over all of the variables accessible to this scope (i.e. the variables in
+@@ -465,88 +340,20 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+     AbstractScope<S, V> s = this;
+ 
+     while (s != null) {
+-      if (s.vars != null) {
+-        for (V v : s.vars.values()) {
+-          accessibleVars.putIfAbsent(v.getName(), v);
+-        }
+-      } else if (s.var0 != null) {
+-        accessibleVars.putIfAbsent(s.var0.getName(), s.var0);
+-        if (s.var1 != null) {
+-          accessibleVars.putIfAbsent(s.var1.getName(), s.var1);
+-          if (s.var2 != null) {
+-            accessibleVars.putIfAbsent(s.var2.getName(), s.var2);
+-            if (s.var3 != null) {
+-              accessibleVars.putIfAbsent(s.var3.getName(), s.var3);
+-            }
+-          }
+-        }
+-      }
++      s.putOwnVarsIfAbsent(accessibleVars);
+       s = s.getParent();
+     }
+     return accessibleVars.values();
+   }
+ 
+-  public final Iterable<V> getAllSymbols() {
+-    if (vars != null) {
+-      return Collections.unmodifiableCollection(vars.values());
+-    }
+-    return getVarIterable();
+-  }
++  public abstract Iterable<V> getAllSymbols();
+ 
+-  final void addVarsTo(ArrayList<V> dst) {
+-    if (vars != null) {
+-      for (V v : vars.values()) {
+-        dst.add(v);
+-      }
+-    } else if (var0 != null) {
+-      dst.add(var0);
+-      if (var1 != null) {
+-        dst.add(var1);
+-        if (var2 != null) {
+-          dst.add(var2);
+-          if (var3 != null) {
+-            dst.add(var3);
+-          }
+-        }
+-      }
+-    }
+-  }
++  abstract void addVarsTo(ArrayList<V> dst);
+ 
+-  final void addVarNamesTo(LinkedHashSet<String> dst) {
+-    if (vars != null) {
+-      for (String name : vars.keySet()) {
+-        dst.add(name);
+-      }
+-    } else if (var0 != null) {
+-      dst.add(var0.getName());
+-      if (var1 != null) {
+-        dst.add(var1.getName());
+-        if (var2 != null) {
+-          dst.add(var2.getName());
+-          if (var3 != null) {
+-            dst.add(var3.getName());
+-          }
+-        }
+-      }
+-    }
+-  }
++  abstract void addVarNamesTo(LinkedHashSet<String> dst);
+ 
+   /** Returns number of variables in this scope (excluding the special 'arguments' variable) */
+-  public final int getVarCount() {
+-    if (vars != null) {
+-      return vars.size();
+-    }
+-    if (var0 == null) {
+-      return 0;
+-    }
+-    if (var1 == null) {
+-      return 1;
+-    }
+-    if (var2 == null) {
+-      return 2;
+-    }
+-    return var3 == null ? 3 : 4;
+-  }
++  public abstract int getVarCount();
+ 
+   /** Returns whether this is the global scope. */
+   public final boolean isGlobal() {
+diff --git a/com/google/javascript/jscomp/LinkedFlowScope.java b/com/google/javascript/jscomp/LinkedFlowScope.java
+index 4527df9b..8d17a6f1 100644
+--- a/com/google/javascript/jscomp/LinkedFlowScope.java
++++ b/com/google/javascript/jscomp/LinkedFlowScope.java
+@@ -46,6 +46,8 @@ class LinkedFlowScope implements FlowScope {
+   // The TypedScope for the block that this flow scope is defined for.
+   private final TypedScope syntacticScope;
+ 
++  private final boolean hasQualifiedOverlaySlots;
++
+   /**
+    * Creates a flow scope without a direct parent. This can happen in three cases: (1) the "bottom"
+    * scope for a CFG root, (2) a direct child of a parent at the maximum depth, or (3) a joined
+@@ -55,11 +57,13 @@ class LinkedFlowScope implements FlowScope {
+       CompilerInputProvider inputProvider,
+       HamtPMap<TypedScope, OverlayScope> scopes,
+       TypedScope syntacticScope,
+-      TypedScope functionScope) {
++      TypedScope functionScope,
++      boolean hasQualifiedOverlaySlots) {
+     this.inputProvider = inputProvider;
+     this.scopes = scopes;
+     this.syntacticScope = syntacticScope;
+     this.functionScope = functionScope;
++    this.hasQualifiedOverlaySlots = hasQualifiedOverlaySlots;
+   }
+ 
+   /**
+@@ -99,7 +103,7 @@ class LinkedFlowScope implements FlowScope {
+   /** Creates an entry lattice for the flow. */
+   public static LinkedFlowScope createEntryLattice(
+       CompilerInputProvider inputProvider, TypedScope scope) {
+-    return new LinkedFlowScope(inputProvider, EMPTY_SCOPES, scope, scope);
++    return new LinkedFlowScope(inputProvider, EMPTY_SCOPES, scope, scope, false);
+   }
+ 
+   @Override
+@@ -109,9 +113,15 @@ class LinkedFlowScope implements FlowScope {
+     // Aggressively remove empty scopes to maintain a reasonable equivalence.
+     HamtPMap<TypedScope, OverlayScope> newScopes =
+         !newScope.slots.isEmpty() ? scopes.plus(scope.scope, newScope) : scopes.minus(scope.scope);
+-    return newScopes != scopes
+-        ? new LinkedFlowScope(inputProvider, newScopes, syntacticScope, functionScope)
+-        : this;
++    if (newScopes == scopes) {
++      return this;
++    }
++    boolean nextHasQualified =
++        !newScopes.isEmpty()
++            && (this.hasQualifiedOverlaySlots
++                || (!newScope.slots.isEmpty() && symbol.indexOf('.') >= 0));
++    return new LinkedFlowScope(
++        inputProvider, newScopes, syntacticScope, functionScope, nextHasQualified);
+   }
+ 
+   @Override
+@@ -192,6 +202,21 @@ class LinkedFlowScope implements FlowScope {
+     return scope != null ? scope.getSlot(name) : var;
+   }
+ 
++  boolean mayHaveQualifiedSlotForRoot(String rootName) {
++    if (this.hasQualifiedOverlaySlots || this.syntacticScope.hasQualifiedOwnVars()) {
++      return true;
++    }
++    if (this.syntacticScope.getParent() == null) {
++      return false;
++    }
++    TypedScope rootScope = this.syntacticScope.findScopeForRootName(rootName);
++    if (rootScope != null) {
++      return rootScope.hasQualifiedOwnVars();
++    }
++    return this.functionScope.hasQualifiedOwnVars()
++        || this.syntacticScope.getGlobalScope().hasQualifiedOwnVars();
++  }
++
+   private static String getRootOfQualifiedName(String name) {
+     int index = name.indexOf('.');
+     return index < 0 ? name : name.substring(0, index);
+@@ -234,9 +259,16 @@ class LinkedFlowScope implements FlowScope {
+   @Override
+   public FlowScope withSyntacticScope(StaticTypedScope scope) {
+     TypedScope typedScope = (TypedScope) scope;
+-    return scope != syntacticScope
+-        ? new LinkedFlowScope(inputProvider, trimScopes(typedScope), typedScope, functionScope)
+-        : this;
++    if (scope == syntacticScope) {
++      return this;
++    }
++    HamtPMap<TypedScope, OverlayScope> trimmed = trimScopes(typedScope);
++    return new LinkedFlowScope(
++        inputProvider,
++        trimmed,
++        typedScope,
++        functionScope,
++        !trimmed.isEmpty() && this.hasQualifiedOverlaySlots);
+   }
+ 
+   @Override
+@@ -291,14 +323,18 @@ class LinkedFlowScope implements FlowScope {
+       // interesting consequence of the current approach is that we may end up
+       // adding irrelevant block-local variables to the joined scope unnecessarily.
+       TypedScope common = getCommonParentDeclarationScope(this.result, linkedInput);
++      HamtPMap<TypedScope, OverlayScope> joined = join(this.result, linkedInput, common);
+       this.result =
+           new LinkedFlowScope(
+               inputProvider,
+-              join(this.result, linkedInput, common),
++              joined,
+               common,
+               this.result.flowsFromBottom()
+                   ? linkedInput.functionScope
+-                  : this.result.functionScope);
++                  : this.result.functionScope,
++              !joined.isEmpty()
++                  && (this.result.hasQualifiedOverlaySlots
++                      || linkedInput.hasQualifiedOverlaySlots));
+     }
+ 
+     @Override
+diff --git a/com/google/javascript/jscomp/Scope.java b/com/google/javascript/jscomp/Scope.java
+index 4426d86f..d89fc966 100644
+--- a/com/google/javascript/jscomp/Scope.java
++++ b/com/google/javascript/jscomp/Scope.java
+@@ -19,7 +19,12 @@ package com.google.javascript.jscomp;
+ import static com.google.common.base.Preconditions.checkArgument;
+ import static com.google.common.base.Preconditions.checkState;
+ 
++import com.google.common.collect.ImmutableList;
+ import com.google.javascript.rhino.Node;
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.LinkedHashMap;
++import java.util.LinkedHashSet;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -33,6 +38,13 @@ public final class Scope extends AbstractScope<Scope, Var> {
+ 
+   private final @Nullable Scope parent;
+   private final int depth;
++  private @Nullable Var var0;
++  private @Nullable Var var1;
++  private @Nullable Var var2;
++  private @Nullable Var var3;
++  private @Nullable Var var4;
++  private @Nullable Var var5;
++  private @Nullable LinkedHashMap<String, Var> vars;
+ 
+   static Scope createGlobalScope(Node rootNode) {
+     return new Scope(rootNode);
+@@ -125,4 +137,299 @@ public final class Scope extends AbstractScope<Scope, Var> {
+         /* input= */ null,
+         /* implicitGoogNamespaceDefinition= */ null);
+   }
++
++  @Override
++  @Nullable Var getOwnDeclaredVar(String name) {
++    if (vars != null) {
++      return vars.get(name);
++    }
++    if (var0 != null) {
++      if (var0.getName().equals(name)) {
++        return var0;
++      }
++      if (var1 != null) {
++        if (var1.getName().equals(name)) {
++          return var1;
++        }
++        if (var2 != null) {
++          if (var2.getName().equals(name)) {
++            return var2;
++          }
++          if (var3 != null) {
++            if (var3.getName().equals(name)) {
++              return var3;
++            }
++            if (var4 != null) {
++              if (var4.getName().equals(name)) {
++                return var4;
++              }
++              if (var5 != null && var5.getName().equals(name)) {
++                return var5;
++              }
++            }
++          }
++        }
++      }
++    }
++    return null;
++  }
++
++  @Override
++  void putOwnDeclaredVar(String name, Var var) {
++    if (vars != null) {
++      vars.put(name, var);
++      return;
++    }
++    if (var0 == null || var0.getName().equals(name)) {
++      var0 = var;
++      return;
++    }
++    if (var1 == null || var1.getName().equals(name)) {
++      var1 = var;
++      return;
++    }
++    if (var2 == null || var2.getName().equals(name)) {
++      var2 = var;
++      return;
++    }
++    if (var3 == null || var3.getName().equals(name)) {
++      var3 = var;
++      return;
++    }
++    if (var4 == null || var4.getName().equals(name)) {
++      var4 = var;
++      return;
++    }
++    if (var5 == null || var5.getName().equals(name)) {
++      var5 = var;
++      return;
++    }
++    vars = new LinkedHashMap<>(16);
++    vars.put(var0.getName(), var0);
++    vars.put(var1.getName(), var1);
++    vars.put(var2.getName(), var2);
++    vars.put(var3.getName(), var3);
++    vars.put(var4.getName(), var4);
++    vars.put(var5.getName(), var5);
++    vars.put(name, var);
++    var0 = null;
++    var1 = null;
++    var2 = null;
++    var3 = null;
++    var4 = null;
++    var5 = null;
++  }
++
++  @Override
++  void undeclareInteral(Var var) {
++    if (vars != null) {
++      vars.remove(var.getName());
++      return;
++    }
++    String name = var.getName();
++    if (var0 != null) {
++      if (var0.getName().equals(name)) {
++        var0 = var1;
++        var1 = var2;
++        var2 = var3;
++        var3 = var4;
++        var4 = var5;
++        var5 = null;
++      } else if (var1 != null) {
++        if (var1.getName().equals(name)) {
++          var1 = var2;
++          var2 = var3;
++          var3 = var4;
++          var4 = var5;
++          var5 = null;
++        } else if (var2 != null) {
++          if (var2.getName().equals(name)) {
++            var2 = var3;
++            var3 = var4;
++            var4 = var5;
++            var5 = null;
++          } else if (var3 != null) {
++            if (var3.getName().equals(name)) {
++              var3 = var4;
++              var4 = var5;
++              var5 = null;
++            } else if (var4 != null) {
++              if (var4.getName().equals(name)) {
++                var4 = var5;
++                var5 = null;
++              } else if (var5 != null && var5.getName().equals(name)) {
++                var5 = null;
++              }
++            }
++          }
++        }
++      }
++    }
++  }
++
++  @Override
++  void clearVarsInternal() {
++    var0 = null;
++    var1 = null;
++    var2 = null;
++    var3 = null;
++    var4 = null;
++    var5 = null;
++    if (vars != null && !vars.isEmpty()) {
++      vars.clear();
++    }
++  }
++
++  @Override
++  public @Nullable Var getVar(String name) {
++    ImplicitVar implicit = ImplicitVar.of(name);
++    for (Scope scope = this; scope != null; scope = scope.parent) {
++      Var var = scope.getOwnDeclaredVar(name);
++      if (var != null) {
++        return var;
++      }
++      if (implicit != null) {
++        var = scope.getOwnImplicitSlot(implicit);
++        if (var != null) {
++          return var;
++        }
++      }
++    }
++    return null;
++  }
++
++  @Override
++  public Iterable<Var> getVarIterable() {
++    if (vars != null) {
++      return vars.values();
++    }
++    if (var0 == null) {
++      return Collections.emptyList();
++    }
++    if (var1 == null) {
++      return Collections.singletonList(var0);
++    }
++    if (var2 == null) {
++      return ImmutableList.of(var0, var1);
++    }
++    if (var3 == null) {
++      return ImmutableList.of(var0, var1, var2);
++    }
++    if (var4 == null) {
++      return ImmutableList.of(var0, var1, var2, var3);
++    }
++    if (var5 == null) {
++      return ImmutableList.of(var0, var1, var2, var3, var4);
++    }
++    return ImmutableList.of(var0, var1, var2, var3, var4, var5);
++  }
++
++  @Override
++  void putOwnVarsIfAbsent(LinkedHashMap<String, Var> dst) {
++    if (vars != null) {
++      for (Var v : vars.values()) {
++        dst.putIfAbsent(v.getName(), v);
++      }
++    } else if (var0 != null) {
++      dst.putIfAbsent(var0.getName(), var0);
++      if (var1 != null) {
++        dst.putIfAbsent(var1.getName(), var1);
++        if (var2 != null) {
++          dst.putIfAbsent(var2.getName(), var2);
++          if (var3 != null) {
++            dst.putIfAbsent(var3.getName(), var3);
++            if (var4 != null) {
++              dst.putIfAbsent(var4.getName(), var4);
++              if (var5 != null) {
++                dst.putIfAbsent(var5.getName(), var5);
++              }
++            }
++          }
++        }
++      }
++    }
++  }
++
++  @Override
++  public Iterable<Var> getAllSymbols() {
++    if (vars != null) {
++      return Collections.unmodifiableCollection(vars.values());
++    }
++    return getVarIterable();
++  }
++
++  @Override
++  void addVarsTo(ArrayList<Var> dst) {
++    if (vars != null) {
++      for (Var v : vars.values()) {
++        dst.add(v);
++      }
++    } else if (var0 != null) {
++      dst.add(var0);
++      if (var1 != null) {
++        dst.add(var1);
++        if (var2 != null) {
++          dst.add(var2);
++          if (var3 != null) {
++            dst.add(var3);
++            if (var4 != null) {
++              dst.add(var4);
++              if (var5 != null) {
++                dst.add(var5);
++              }
++            }
++          }
++        }
++      }
++    }
++  }
++
++  @Override
++  void addVarNamesTo(LinkedHashSet<String> dst) {
++    if (vars != null) {
++      for (String name : vars.keySet()) {
++        dst.add(name);
++      }
++    } else if (var0 != null) {
++      dst.add(var0.getName());
++      if (var1 != null) {
++        dst.add(var1.getName());
++        if (var2 != null) {
++          dst.add(var2.getName());
++          if (var3 != null) {
++            dst.add(var3.getName());
++            if (var4 != null) {
++              dst.add(var4.getName());
++              if (var5 != null) {
++                dst.add(var5.getName());
++              }
++            }
++          }
++        }
++      }
++    }
++  }
++
++  @Override
++  public int getVarCount() {
++    if (vars != null) {
++      return vars.size();
++    }
++    if (var0 == null) {
++      return 0;
++    }
++    if (var1 == null) {
++      return 1;
++    }
++    if (var2 == null) {
++      return 2;
++    }
++    if (var3 == null) {
++      return 3;
++    }
++    if (var4 == null) {
++      return 4;
++    }
++    return var5 == null ? 5 : 6;
++  }
+ }
+diff --git a/com/google/javascript/jscomp/TypeInference.java b/com/google/javascript/jscomp/TypeInference.java
+index 0180b136..1733a1f2 100644
+--- a/com/google/javascript/jscomp/TypeInference.java
++++ b/com/google/javascript/jscomp/TypeInference.java
+@@ -2514,6 +2514,29 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+     return scope;
+   }
+ 
++  private static @Nullable String getGetPropRootName(Node n) {
++    if (!n.isGetProp()) {
++      return null;
++    }
++    Node cur = n.getFirstChild();
++    while (cur.isGetProp()) {
++      cur = cur.getFirstChild();
++    }
++    return switch (cur.getToken()) {
++      case NAME -> {
++        String name = cur.getString();
++        if (name.isEmpty()) {
++          yield null;
++        }
++        int dot = name.indexOf('.');
++        yield dot < 0 ? name : name.substring(0, dot);
++      }
++      case THIS -> "this";
++      case SUPER -> "super";
++      default -> null;
++    };
++  }
++
+   private JSType getPropertyType(JSType objType, String propName, Node n, FlowScope scope) {
+     // We often have a couple of different types to choose from for the
+     // property. Ordered by accuracy, we have
+@@ -2525,8 +2548,19 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+     boolean isLocallyInferred = false;
+ 
+     // Scopes sometimes contain inferred type info about qualified names.
+-    String qualifiedName = n.getQualifiedName();
+-    StaticTypedSlot var = qualifiedName != null ? scope.getSlot(qualifiedName) : null;
++    String rootName = getGetPropRootName(n);
++    String qualifiedName = null;
++    boolean qualifiedNameComputed = false;
++    StaticTypedSlot var = null;
++    if (rootName != null) {
++      if (!(scope instanceof LinkedFlowScope lfs) || lfs.mayHaveQualifiedSlotForRoot(rootName)) {
++        qualifiedName = n.getQualifiedName();
++        qualifiedNameComputed = true;
++        if (qualifiedName != null) {
++          var = scope.getSlot(qualifiedName);
++        }
++      }
++    }
+     if (var != null) {
+       JSType varType = var.getType();
+       if (varType != null) {
+@@ -2545,12 +2579,17 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+       }
+     }
+ 
+-    if ((propertyType == null || propertyType.isUnknownType()) && qualifiedName != null) {
+-      // If we find this node in the registry, then we can infer its type.
+-      ObjectType regType =
+-          ObjectType.cast(registry.getType(scope.getDeclarationScope(), qualifiedName));
+-      if (regType != null) {
+-        propertyType = regType.getConstructor();
++    if ((propertyType == null || propertyType.isUnknownType()) && rootName != null) {
++      if (!qualifiedNameComputed) {
++        qualifiedName = n.getQualifiedName();
++      }
++      if (qualifiedName != null) {
++        // If we find this node in the registry, then we can infer its type.
++        ObjectType regType =
++            ObjectType.cast(registry.getType(scope.getDeclarationScope(), qualifiedName));
++        if (regType != null) {
++          propertyType = regType.getConstructor();
++        }
+       }
+     }
+ 
+diff --git a/com/google/javascript/jscomp/TypedScope.java b/com/google/javascript/jscomp/TypedScope.java
+index e72d5442..9609528d 100644
+--- a/com/google/javascript/jscomp/TypedScope.java
++++ b/com/google/javascript/jscomp/TypedScope.java
+@@ -28,6 +28,8 @@ import com.google.javascript.rhino.jstype.JSType;
+ import com.google.javascript.rhino.jstype.ObjectType;
+ import com.google.javascript.rhino.jstype.StaticTypedScope;
+ import java.util.ArrayList;
++import java.util.Collections;
++import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.Set;
+ import org.jspecify.annotations.Nullable;
+@@ -64,6 +66,15 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+   // Will shrink over time. Cleared to null once empty.
+   private @Nullable LinkedHashSet<String> reservedNames;
+ 
++  private @Nullable TypedVar var0;
++  private @Nullable TypedVar var1;
++  private @Nullable TypedVar var2;
++  private @Nullable TypedVar var3;
++  private @Nullable TypedVar var4;
++  private @Nullable TypedVar var5;
++  private @Nullable LinkedHashMap<String, TypedVar> vars;
++  private boolean hasQualifiedOwnVars;
++
+   // Scope.java contains an arguments field.
+   // We haven't added it here because it's unused by the passes that need typed scopes.
+ 
+@@ -190,9 +201,293 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     }
+     TypedVar var = new TypedVar(inferred, name, nameNode, type, this, getVarCount(), input);
+     declareInternal(name, var);
++    if (name.indexOf('.') >= 0) {
++      this.hasQualifiedOwnVars = true;
++    }
+     return var;
+   }
+ 
++  boolean hasQualifiedOwnVars() {
++    return this.hasQualifiedOwnVars;
++  }
++
++  @Override
++  @Nullable TypedVar getOwnDeclaredVar(String name) {
++    if (vars != null) {
++      return vars.get(name);
++    }
++    if (var0 != null) {
++      if (var0.getName().equals(name)) {
++        return var0;
++      }
++      if (var1 != null) {
++        if (var1.getName().equals(name)) {
++          return var1;
++        }
++        if (var2 != null) {
++          if (var2.getName().equals(name)) {
++            return var2;
++          }
++          if (var3 != null) {
++            if (var3.getName().equals(name)) {
++              return var3;
++            }
++            if (var4 != null) {
++              if (var4.getName().equals(name)) {
++                return var4;
++              }
++              if (var5 != null && var5.getName().equals(name)) {
++                return var5;
++              }
++            }
++          }
++        }
++      }
++    }
++    return null;
++  }
++
++  @Override
++  void putOwnDeclaredVar(String name, TypedVar var) {
++    if (vars != null) {
++      vars.put(name, var);
++      return;
++    }
++    if (var0 == null || var0.getName().equals(name)) {
++      var0 = var;
++      return;
++    }
++    if (var1 == null || var1.getName().equals(name)) {
++      var1 = var;
++      return;
++    }
++    if (var2 == null || var2.getName().equals(name)) {
++      var2 = var;
++      return;
++    }
++    if (var3 == null || var3.getName().equals(name)) {
++      var3 = var;
++      return;
++    }
++    if (var4 == null || var4.getName().equals(name)) {
++      var4 = var;
++      return;
++    }
++    if (var5 == null || var5.getName().equals(name)) {
++      var5 = var;
++      return;
++    }
++    vars = new LinkedHashMap<>(16);
++    vars.put(var0.getName(), var0);
++    vars.put(var1.getName(), var1);
++    vars.put(var2.getName(), var2);
++    vars.put(var3.getName(), var3);
++    vars.put(var4.getName(), var4);
++    vars.put(var5.getName(), var5);
++    vars.put(name, var);
++    var0 = null;
++    var1 = null;
++    var2 = null;
++    var3 = null;
++    var4 = null;
++    var5 = null;
++  }
++
++  @Override
++  void undeclareInteral(TypedVar var) {
++    if (vars != null) {
++      vars.remove(var.getName());
++      return;
++    }
++    String name = var.getName();
++    if (var0 != null) {
++      if (var0.getName().equals(name)) {
++        var0 = var1;
++        var1 = var2;
++        var2 = var3;
++        var3 = var4;
++        var4 = var5;
++        var5 = null;
++      } else if (var1 != null) {
++        if (var1.getName().equals(name)) {
++          var1 = var2;
++          var2 = var3;
++          var3 = var4;
++          var4 = var5;
++          var5 = null;
++        } else if (var2 != null) {
++          if (var2.getName().equals(name)) {
++            var2 = var3;
++            var3 = var4;
++            var4 = var5;
++            var5 = null;
++          } else if (var3 != null) {
++            if (var3.getName().equals(name)) {
++              var3 = var4;
++              var4 = var5;
++              var5 = null;
++            } else if (var4 != null) {
++              if (var4.getName().equals(name)) {
++                var4 = var5;
++                var5 = null;
++              } else if (var5 != null && var5.getName().equals(name)) {
++                var5 = null;
++              }
++            }
++          }
++        }
++      }
++    }
++  }
++
++  @Override
++  void clearVarsInternal() {
++    var0 = null;
++    var1 = null;
++    var2 = null;
++    var3 = null;
++    var4 = null;
++    var5 = null;
++    if (vars != null && !vars.isEmpty()) {
++      vars.clear();
++    }
++  }
++
++  @Override
++  public Iterable<TypedVar> getVarIterable() {
++    if (vars != null) {
++      return vars.values();
++    }
++    if (var0 == null) {
++      return Collections.emptyList();
++    }
++    if (var1 == null) {
++      return Collections.singletonList(var0);
++    }
++    if (var2 == null) {
++      return ImmutableList.of(var0, var1);
++    }
++    if (var3 == null) {
++      return ImmutableList.of(var0, var1, var2);
++    }
++    if (var4 == null) {
++      return ImmutableList.of(var0, var1, var2, var3);
++    }
++    if (var5 == null) {
++      return ImmutableList.of(var0, var1, var2, var3, var4);
++    }
++    return ImmutableList.of(var0, var1, var2, var3, var4, var5);
++  }
++
++  @Override
++  void putOwnVarsIfAbsent(LinkedHashMap<String, TypedVar> dst) {
++    if (vars != null) {
++      for (TypedVar v : vars.values()) {
++        dst.putIfAbsent(v.getName(), v);
++      }
++    } else if (var0 != null) {
++      dst.putIfAbsent(var0.getName(), var0);
++      if (var1 != null) {
++        dst.putIfAbsent(var1.getName(), var1);
++        if (var2 != null) {
++          dst.putIfAbsent(var2.getName(), var2);
++          if (var3 != null) {
++            dst.putIfAbsent(var3.getName(), var3);
++            if (var4 != null) {
++              dst.putIfAbsent(var4.getName(), var4);
++              if (var5 != null) {
++                dst.putIfAbsent(var5.getName(), var5);
++              }
++            }
++          }
++        }
++      }
++    }
++  }
++
++  @Override
++  public Iterable<TypedVar> getAllSymbols() {
++    if (vars != null) {
++      return Collections.unmodifiableCollection(vars.values());
++    }
++    return getVarIterable();
++  }
++
++  @Override
++  void addVarsTo(ArrayList<TypedVar> dst) {
++    if (vars != null) {
++      for (TypedVar v : vars.values()) {
++        dst.add(v);
++      }
++    } else if (var0 != null) {
++      dst.add(var0);
++      if (var1 != null) {
++        dst.add(var1);
++        if (var2 != null) {
++          dst.add(var2);
++          if (var3 != null) {
++            dst.add(var3);
++            if (var4 != null) {
++              dst.add(var4);
++              if (var5 != null) {
++                dst.add(var5);
++              }
++            }
++          }
++        }
++      }
++    }
++  }
++
++  @Override
++  void addVarNamesTo(LinkedHashSet<String> dst) {
++    if (vars != null) {
++      for (String name : vars.keySet()) {
++        dst.add(name);
++      }
++    } else if (var0 != null) {
++      dst.add(var0.getName());
++      if (var1 != null) {
++        dst.add(var1.getName());
++        if (var2 != null) {
++          dst.add(var2.getName());
++          if (var3 != null) {
++            dst.add(var3.getName());
++            if (var4 != null) {
++              dst.add(var4.getName());
++              if (var5 != null) {
++                dst.add(var5.getName());
++              }
++            }
++          }
++        }
++      }
++    }
++  }
++
++  @Override
++  public int getVarCount() {
++    if (vars != null) {
++      return vars.size();
++    }
++    if (var0 == null) {
++      return 0;
++    }
++    if (var1 == null) {
++      return 1;
++    }
++    if (var2 == null) {
++      return 2;
++    }
++    if (var3 == null) {
++      return 3;
++    }
++    if (var4 == null) {
++      return 4;
++    }
++    return var5 == null ? 5 : 6;
++  }
++
+   @Override
+   @Nullable TypedVar makeImplicitVar(ImplicitVar var) {
+     if (this.isGlobal()) {
+@@ -257,21 +552,48 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+    * hoisted.
+    */
+   public Iterable<TypedVar> getDeclarativelyUnboundVarsWithoutTypes() {
+-    if (getVarCount() == 0) {
+-      return ImmutableList.of();
+-    }
+     ArrayList<TypedVar> result = null;
+-    for (TypedVar var : getVarIterable()) {
+-      if (isDeclarativelyUnboundVarWithoutType(var)) {
+-        if (result == null) {
+-          result = new ArrayList<>();
++    if (vars != null) {
++      for (TypedVar var : vars.values()) {
++        if (isDeclarativelyUnboundVarWithoutType(var)) {
++          if (result == null) {
++            result = new ArrayList<>();
++          }
++          result.add(var);
++        }
++      }
++    } else if (var0 != null) {
++      result = addIfDeclarativelyUnboundWithoutType(var0, result);
++      if (var1 != null) {
++        result = addIfDeclarativelyUnboundWithoutType(var1, result);
++        if (var2 != null) {
++          result = addIfDeclarativelyUnboundWithoutType(var2, result);
++          if (var3 != null) {
++            result = addIfDeclarativelyUnboundWithoutType(var3, result);
++            if (var4 != null) {
++              result = addIfDeclarativelyUnboundWithoutType(var4, result);
++              if (var5 != null) {
++                result = addIfDeclarativelyUnboundWithoutType(var5, result);
++              }
++            }
++          }
+         }
+-        result.add(var);
+       }
+     }
+     return result != null ? result : ImmutableList.of();
+   }
+ 
++  private @Nullable ArrayList<TypedVar> addIfDeclarativelyUnboundWithoutType(
++      TypedVar var, @Nullable ArrayList<TypedVar> result) {
++    if (isDeclarativelyUnboundVarWithoutType(var)) {
++      if (result == null) {
++        result = new ArrayList<>();
++      }
++      result.add(var);
++    }
++    return result;
++  }
++
+   private boolean isDeclarativelyUnboundVarWithoutType(TypedVar var) {
+     return var.getParentNode() != null
+         && var.getType() == null
+@@ -298,29 +620,62 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+    * function scope contains "a". When looking up "a.b" in the function scope, AbstractScope::getVar
+    * returns "a.b". This method returns null because the global "a" is shadowed.
+    */
++  private @Nullable TypedVar findRootVar(String name) {
++    ImplicitVar implicit = ImplicitVar.of(name);
++    for (TypedScope scope = this; scope != null; scope = scope.parent) {
++      TypedVar var = scope.getOwnDeclaredVar(name);
++      if (var != null) {
++        return var;
++      }
++      if (implicit != null) {
++        var = scope.getOwnImplicitSlot(implicit);
++        if (var != null) {
++          return var;
++        }
++      }
++    }
++    return null;
++  }
++
++  @Nullable TypedScope findScopeForRootName(String name) {
++    ImplicitVar implicit = ImplicitVar.of(name);
++    for (TypedScope scope = this; scope != null; scope = scope.parent) {
++      if (scope.getOwnDeclaredVar(name) != null) {
++        return scope;
++      }
++      if (implicit != null && !scope.isGlobal() && scope.hasOwnImplicitSlot(implicit)) {
++        return scope;
++      }
++    }
++    return null;
++  }
++
+   @Override
+   public final @Nullable TypedVar getVar(String name) {
+-    TypedVar ownSlot = getOwnSlot(name);
++    int dot = name.indexOf('.');
++    TypedVar ownSlot =
++        (dot >= 0 && !this.hasQualifiedOwnVars) ? null : getOwnSlot(name);
+     if (ownSlot != null) {
+       // Micro-optimization: variables declared directly in this scope cannot have been shadowed.
+       return ownSlot;
+-    } else if (this.getParent() == null) {
++    } else if (this.parent == null) {
+       return null;
+     }
+     // Find the root name and its slot.
+-    int dot = name.indexOf('.');
+     String rootName = dot < 0 ? name : name.substring(0, dot);
+-    TypedVar rootVar = super.getVar(rootName); // Use the superclass method to skip string checks.
++    TypedVar rootVar = findRootVar(rootName);
+ 
+     if (dot < 0) {
+       return rootVar;
+     } else if (rootVar == null) {
+       // Default to the global scope because externs may have qualified names with undeclared roots.
+-      return this.getParent().getGlobalScope().getOwnSlot(name);
++      TypedScope global = this.parent.getGlobalScope();
++      return global.hasQualifiedOwnVars ? global.getOwnDeclaredVar(name) : null;
+     } else {
+       // Qualified names 'a.b.c' are declared in the same scope as 'a', never a child scope, which
+       // is why calling `getOwnSlot` is sufficient.
+-      return rootVar.getScope().getOwnSlot(name);
++      TypedScope rootScope = rootVar.getScope();
++      return rootScope.hasQualifiedOwnVars ? rootScope.getOwnDeclaredVar(name) : null;
+     }
+   }
+ 

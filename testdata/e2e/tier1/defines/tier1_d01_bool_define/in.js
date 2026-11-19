@@ -1,0 +1,1 @@
+/** @define {boolean} */ var DEBUG_FLAG = true; if (DEBUG_FLAG) { console.log('debug active'); }

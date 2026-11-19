@@ -1,0 +1,35 @@
+{
+  "id": "tier1_k02_three_chunks_diamond",
+  "tier": 1,
+  "feature": "chunking",
+  "name": "Three chunks diamond graph",
+  "description": "Verifies 3-chunk graph with shared root and independent leaf chunks",
+  "args": [
+    "--chunk",
+    "root:1",
+    "--js",
+    "root.js",
+    "--chunk",
+    "left:1:root",
+    "--js",
+    "left.js",
+    "--chunk",
+    "right:1:root",
+    "--js",
+    "right.js",
+    "--chunk_output_word_spec",
+    "%s.out.js"
+  ],
+  "stdin": "",
+  "files": {
+    "root.js": "var rootConfig = { app: 'test' };",
+    "left.js": "var leftMod = rootConfig.app + '_left';",
+    "right.js": "var rightMod = rootConfig.app + '_right';"
+  },
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

@@ -1,0 +1,447 @@
+diff --git a/com/google/javascript/rhino/JSDocInfo.java b/com/google/javascript/rhino/JSDocInfo.java
+index 5447672a..4b648b2a 100644
+--- a/com/google/javascript/rhino/JSDocInfo.java
++++ b/com/google/javascript/rhino/JSDocInfo.java
+@@ -62,8 +62,6 @@ import java.util.List;
+ import java.util.Map;
+ import java.util.Objects;
+ import java.util.Set;
+-import java.util.TreeMap;
+-import java.util.function.Supplier;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -388,42 +386,72 @@ public class JSDocInfo implements Serializable {
+   private final @Nullable Object propertyValues;
+ 
+   @SuppressWarnings("unchecked")
+-  private JSDocInfo(long bits, TreeMap<Property<?>, Object> props) {
+-    long keys = 0;
+-    List<Object> values = new ArrayList<>();
+-    for (Map.Entry<Property<?>, Object> entry : props.entrySet()) {
+-      Property<Object> prop = (Property<Object>) entry.getKey();
+-      Object value = entry.getValue();
++  private JSDocInfo(
++      long bits,
++      long propKeys,
++      @Nullable Object singlePropValue,
++      Object @Nullable [] propValues) {
++    this.propertyBits = bits;
++    if (propKeys == 0L) {
++      this.propertyKeysBitset = 0L;
++      this.propertyValues = null;
++      return;
++    }
++    if (propValues == null) {
++      int bit = Long.numberOfTrailingZeros(propKeys);
++      Property<Object> prop = (Property<Object>) Property.values[bit];
++      if (!prop.isDefault(singlePropValue)) {
++        checkState(!(singlePropValue instanceof Object[]) && (singlePropValue != null));
++        this.propertyKeysBitset = propKeys;
++        this.propertyValues = singlePropValue;
++      } else {
++        this.propertyKeysBitset = 0L;
++        this.propertyValues = null;
++      }
++      return;
++    }
++    long keys = 0L;
++    int count = 0;
++    Object firstVal = null;
++    long rem = propKeys;
++    while (rem != 0L) {
++      int bit = Long.numberOfTrailingZeros(rem);
++      rem &= ~(1L << bit);
++      Property<Object> prop = (Property<Object>) Property.values[bit];
++      Object value = propValues[bit];
+       if (!prop.isDefault(value)) {
+-        keys |= prop.mask;
+-
+         // Ensure that another codepath did not inadvertently retrieve a reference to the array
+         // or a `null` value.
+         checkState(!(value instanceof Object[]) && (value != null));
+-        values.add(value);
++        keys |= prop.mask;
++        if (count == 0) {
++          firstVal = value;
++        }
++        count++;
+       }
+     }
+-    this.propertyBits = bits;
+     this.propertyKeysBitset = keys;
+-    this.propertyValues = packPropertyValues(values);
++    if (count == 0) {
++      this.propertyValues = null;
++    } else if (count == 1) {
++      this.propertyValues = firstVal;
++    } else {
++      Object[] arr = new Object[count];
++      long k = keys;
++      int idx = 0;
++      while (k != 0L) {
++        int bit = Long.numberOfTrailingZeros(k);
++        k &= ~(1L << bit);
++        arr[idx++] = propValues[bit];
++      }
++      this.propertyValues = arr;
++    }
+   }
+ 
+   private boolean checkBit(Bit bit) {
+     return (propertyBits & bit.mask) != 0;
+   }
+ 
+-  private TreeMap<Property<?>, Object> asMap() {
+-    TreeMap<Property<?>, Object> map = new TreeMap<>();
+-    long bits = propertyKeysBitset;
+-    int index = 0;
+-    while (bits > 0) {
+-      int low = Long.numberOfTrailingZeros(bits);
+-      bits &= ~(1L << low);
+-      map.put(Property.values[low], getPropertyValueByIndex(index++));
+-    }
+-    return map;
+-  }
+-
+   /**
+    * Visibility categories. The {@link Visibility#ordinal()} can be used as a numerical indicator of
+    * privacy, where 0 is the most private. This means that the {@link Visibility#compareTo} method
+@@ -669,11 +697,36 @@ public class JSDocInfo implements Serializable {
+     Builder builder = new Builder();
+     // inline type isn't copied...?
+     builder.bits = propertyBits & ~Bit.INLINE_TYPE.mask;
+-    builder.props = asMap();
+     builder.populated = true;
+-    for (Map.Entry<Property<?>, Object> entry : builder.props.entrySet()) {
+-      entry.setValue(((Property<Object>) entry.getKey()).clone(entry.getValue(), transform));
++    long keys = propertyKeysBitset;
++    if (keys == 0L) {
++      return builder;
++    }
++    if ((keys & (keys - 1L)) == 0L) {
++      int low = Long.numberOfTrailingZeros(keys);
++      Property<Object> prop = (Property<Object>) Property.values[low];
++      Object cloned = prop.clone(getPropertyValueByIndex(0), transform);
++      if (cloned != null) {
++        builder.propKeys = keys;
++        builder.singlePropValue = cloned;
++      }
++      return builder;
+     }
++    Object[] vals = new Object[Property.bitCounter];
++    long actualKeys = 0L;
++    int index = 0;
++    while (keys != 0L) {
++      int low = Long.numberOfTrailingZeros(keys);
++      keys &= ~(1L << low);
++      Property<Object> prop = (Property<Object>) Property.values[low];
++      Object cloned = prop.clone(getPropertyValueByIndex(index++), transform);
++      if (cloned != null) {
++        vals[low] = cloned;
++        actualKeys |= (1L << low);
++      }
++    }
++    builder.propKeys = actualKeys;
++    builder.propValues = vals;
+     return builder;
+   }
+ 
+@@ -1625,17 +1678,15 @@ public class JSDocInfo implements Serializable {
+     return propertyValues;
+   }
+ 
+-  private static @Nullable Object packPropertyValues(List<Object> values) {
+-    return values.isEmpty() ? null : (values.size() == 1 ? values.get(0) : values.toArray());
+-  }
+-
+   /**
+    * A builder for {@link JSDocInfo} objects. This builder is required because JSDocInfo instances
+    * have immutable structure. It provides early incompatibility detection among properties stored
+    * on the {@code JSDocInfo} object being created.
+    */
+   public static class Builder {
+-    TreeMap<Property<?>, Object> props = new TreeMap<>();
++    long propKeys = 0L;
++    @Nullable Object singlePropValue;
++    Object @Nullable [] propValues;
+     long bits = 0L;
+ 
+     // whether the current JSDocInfo has valuable information
+@@ -1741,7 +1792,7 @@ public class JSDocInfo implements Serializable {
+ 
+     /** Returns whether this builder recorded a description. */
+     public boolean isDescriptionRecorded() {
+-      return props.get(DESCRIPTION) != null;
++      return getProp(DESCRIPTION) != null;
+     }
+ 
+     /** Returns whether the {@code @noinline} annotation is present on this {@link JSDocInfo}. */
+@@ -1784,7 +1835,7 @@ public class JSDocInfo implements Serializable {
+      */
+     public @Nullable JSDocInfo build(boolean always) {
+       if (populated || always) {
+-        JSDocInfo info = new JSDocInfo(bits, props);
++        JSDocInfo info = new JSDocInfo(bits, propKeys, singlePropValue, propValues);
+         populated = false;
+         return info;
+       }
+@@ -1801,7 +1852,17 @@ public class JSDocInfo implements Serializable {
+     public JSDocInfo buildAndReset() {
+       JSDocInfo info = build();
+       bits &= Bit.INCLUDE_DOCUMENTATION.mask; // only keep this one flag
+-      props.clear();
++      if (propValues != null) {
++        long rem = propKeys;
++        while (rem != 0L) {
++          int bit = Long.numberOfTrailingZeros(rem);
++          rem &= ~(1L << bit);
++          propValues[bit] = null;
++        }
++      } else {
++        singlePropValue = null;
++      }
++      propKeys = 0L;
+       populated = false;
+       return info;
+     }
+@@ -1958,7 +2019,7 @@ public class JSDocInfo implements Serializable {
+       }
+       Map<String, Node> transformations = getProp(TYPE_TRANSFORMATIONS);
+       if ((transformations != null && transformations.containsKey(name))
+-          || props.containsKey(TYPEDEF_TYPE)) {
++          || (propKeys & TYPEDEF_TYPE.mask) != 0L) {
+         return false;
+       }
+       return populatePropEntry(TEMPLATE_TYPE_NAMES, RhinoStringPool.addOrGet(name), bound);
+@@ -1989,7 +2050,7 @@ public class JSDocInfo implements Serializable {
+       // the throws annotation is preserved, but if it appears after the singleton tag,
+       // it gets dropped.
+       if (!hasAnySingletonTypeTags()) {
+-        List<String> throwsAnnotations = getPropWithDefault(THROWS_ANNOTATIONS, ArrayList::new);
++        List<String> throwsAnnotations = getOrCreateStringList(THROWS_ANNOTATIONS);
+         if (shouldParseDocumentation()) {
+           throwsAnnotations.add(annotation);
+         } else if (throwsAnnotations.isEmpty()) {
+@@ -2005,7 +2066,7 @@ public class JSDocInfo implements Serializable {
+     public boolean recordAuthor(String author) {
+       populated = true;
+       if (shouldParseDocumentation()) {
+-        getPropWithDefault(AUTHORS, ArrayList::new).add(author);
++        getOrCreateStringList(AUTHORS).add(author);
+       }
+       // NOTE: this could be removed, since it's always true.
+       return true;
+@@ -2015,7 +2076,7 @@ public class JSDocInfo implements Serializable {
+     public boolean recordReference(String reference) {
+       populated = true;
+       if (shouldParseDocumentation()) {
+-        getPropWithDefault(SEES, ArrayList::new).add(reference);
++        getOrCreateStringList(SEES).add(reference);
+       }
+       // NOTE: this could be removed, since it's always true.
+       return true;
+@@ -2088,18 +2149,20 @@ public class JSDocInfo implements Serializable {
+ 
+     public void recordSuppressions(ImmutableSet<String> suppressions, String description) {
+       populated = true;
+-      ImmutableMap.Builder<ImmutableSet<String>, String> mapBuilder = ImmutableMap.builder();
+       ImmutableMap<ImmutableSet<String>, String> current = getProp(SUPPRESSIONS);
+-      if (current != null) {
+-        if (current.containsKey(suppressions)) {
+-          // Exact @suppress warning exists already. Return without recording.
+-          return;
+-        }
+-        mapBuilder.putAll(current);
++      if (current == null) {
++        setProp(SUPPRESSIONS, ImmutableMap.of(internSet(suppressions), description));
++        return;
++      }
++      if (current.containsKey(suppressions)) {
++        // Exact @suppress warning exists already. Return without recording.
++        return;
+       }
++      ImmutableMap.Builder<ImmutableSet<String>, String> mapBuilder =
++          ImmutableMap.builderWithExpectedSize(current.size() + 1);
++      mapBuilder.putAll(current);
+       mapBuilder.put(internSet(suppressions), description);
+-      ImmutableMap<ImmutableSet<String>, String> suppressionsMap = mapBuilder.buildOrThrow();
+-      setProp(SUPPRESSIONS, suppressionsMap);
++      setProp(SUPPRESSIONS, mapBuilder.buildOrThrow());
+     }
+ 
+     /**
+@@ -2278,7 +2341,7 @@ public class JSDocInfo implements Serializable {
+     /** Records a tsType giving context for .d.ts generation */
+     public void recordTsType(String tsType) {
+       populated = true;
+-      getPropWithDefault(TS_TYPES, ArrayList::new).add(tsType);
++      getOrCreateStringList(TS_TYPES).add(tsType);
+     }
+ 
+     /**
+@@ -2337,7 +2400,7 @@ public class JSDocInfo implements Serializable {
+ 
+     /** Returns whether this builder recorded a modded namespace. */
+     public boolean isModsRecorded() {
+-      return props.get(MODS) != null;
++      return getProp(MODS) != null;
+     }
+ 
+     /**
+@@ -2710,14 +2773,20 @@ public class JSDocInfo implements Serializable {
+     }
+ 
+     private boolean addUnique(Property<ArrayList<JSTypeExpression>> prop, JSTypeExpression elem) {
+-      ArrayList<JSTypeExpression> list = getPropWithDefault(prop, ArrayList::new);
+-      if (list.stream().anyMatch(elem::isEquivalentTo)) {
+-        return false;
++      ArrayList<JSTypeExpression> list = getProp(prop);
++      if (list == null) {
++        list = new ArrayList<>();
++        setProp(prop, list);
+       } else {
+-        list.add(elem);
+-        populated = true;
+-        return true;
++        for (int i = 0; i < list.size(); i++) {
++          if (elem.isEquivalentTo(list.get(i))) {
++            return false;
++          }
++        }
+       }
++      list.add(elem);
++      populated = true;
++      return true;
+     }
+ 
+     /** Records that we're lending to another name. */
+@@ -2848,8 +2917,7 @@ public class JSDocInfo implements Serializable {
+      */
+     @CanIgnoreReturnValue
+     public boolean removeClosureUnawareCode() {
+-      var existing = props.remove(CLOSURE_UNAWARE_CONFIG_VALUE);
+-      return existing != null;
++      return removeProp(CLOSURE_UNAWARE_CONFIG_VALUE) != null;
+     }
+ 
+     /** Records that this JSDoc was annotated with the {@code @usedViaDotConstructor} annotation. */
+@@ -2861,9 +2929,9 @@ public class JSDocInfo implements Serializable {
+     // The main difference is that this force-sets the type, while recordType backs off.
+     // This is useful for (e.g.) copyFromWithNewType.
+     Builder setType(JSTypeExpression type) {
+-      props.remove(RETURN_TYPE);
+-      props.remove(ENUM_PARAMETER_TYPE);
+-      props.remove(TYPEDEF_TYPE);
++      removeProp(RETURN_TYPE);
++      removeProp(ENUM_PARAMETER_TYPE);
++      removeProp(TYPEDEF_TYPE);
+       setProp(TYPE, type);
+       return this;
+     }
+@@ -2915,25 +2983,70 @@ public class JSDocInfo implements Serializable {
+       return (bits & (Bit.CONSTRUCTOR.mask | Bit.INTERFACE.mask)) != 0;
+     }
+ 
+-    private <T> void setProp(Property<T> prop, T value) {
+-      props.put(prop, value);
++    private <T> void setProp(Property<T> prop, @Nullable T value) {
++      if (value == null) {
++        removeProp(prop);
++        return;
++      }
++      if (propValues != null) {
++        propValues[prop.bit] = value;
++        propKeys |= prop.mask;
++        return;
++      }
++      if (propKeys == 0L || propKeys == prop.mask) {
++        propKeys = prop.mask;
++        singlePropValue = value;
++        return;
++      }
++      Object[] vals = new Object[Property.bitCounter];
++      vals[Long.numberOfTrailingZeros(propKeys)] = singlePropValue;
++      singlePropValue = null;
++      vals[prop.bit] = value;
++      propValues = vals;
++      propKeys |= prop.mask;
+     }
+ 
+     @SuppressWarnings("unchecked")
+     private <T> @Nullable T getProp(Property<T> prop) {
+-      return (T) props.get(prop);
++      if ((propKeys & prop.mask) == 0L) {
++        return null;
++      }
++      return (T) (propValues != null ? propValues[prop.bit] : singlePropValue);
+     }
+ 
+-    private <T> T getPropWithDefault(Property<T> prop, Supplier<T> supplier) {
+-      T value = getProp(prop);
+-      if (value == null) {
+-        setProp(prop, value = supplier.get());
++    @SuppressWarnings("unchecked")
++    private <T> @Nullable T removeProp(Property<T> prop) {
++      if ((propKeys & prop.mask) == 0L) {
++        return null;
++      }
++      T old;
++      if (propValues != null) {
++        old = (T) propValues[prop.bit];
++        propValues[prop.bit] = null;
++      } else {
++        old = (T) singlePropValue;
++        singlePropValue = null;
++      }
++      propKeys &= ~prop.mask;
++      return old;
++    }
++
++    private List<String> getOrCreateStringList(Property<List<String>> prop) {
++      List<String> list = getProp(prop);
++      if (list == null) {
++        list = new ArrayList<>();
++        setProp(prop, list);
+       }
+-      return value;
++      return list;
+     }
+ 
+     private <K, V> boolean putPropEntry(Property<LinkedHashMap<K, V>> prop, K key, V value) {
+-      return getPropWithDefault(prop, LinkedHashMap::new).putIfAbsent(key, value) == null;
++      LinkedHashMap<K, V> map = getProp(prop);
++      if (map == null) {
++        map = new LinkedHashMap<>();
++        setProp(prop, map);
++      }
++      return map.putIfAbsent(key, value) == null;
+     }
+ 
+     private <K, V> boolean populatePropEntry(Property<LinkedHashMap<K, V>> prop, K key, V value) {
+@@ -2942,7 +3055,11 @@ public class JSDocInfo implements Serializable {
+ 
+     private <T> boolean populateProp(Property<T> prop, T value) {
+       populated = true;
+-      return props.putIfAbsent(prop, value) == null;
++      if ((propKeys & prop.mask) != 0L) {
++        return false;
++      }
++      setProp(prop, value);
++      return true;
+     }
+ 
+     private boolean checkBit(Bit bit) {
+@@ -2967,6 +3084,12 @@ public class JSDocInfo implements Serializable {
+   }
+ 
+   private static ImmutableSet<String> internSet(Set<String> strings) {
++    if (strings.isEmpty()) {
++      return ImmutableSet.of();
++    }
++    if (strings.size() == 1) {
++      return ImmutableSet.of(RhinoStringPool.addOrGet(Iterables.getOnlyElement(strings)));
++    }
+     ImmutableSet.Builder<String> interned = ImmutableSet.builderWithExpectedSize(strings.size());
+     for (String s : strings) {
+       interned.add(RhinoStringPool.addOrGet(s));

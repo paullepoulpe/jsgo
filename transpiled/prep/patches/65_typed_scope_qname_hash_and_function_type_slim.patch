@@ -1,0 +1,855 @@
+diff --git a/com/google/javascript/jscomp/InferJSDocInfo.java b/com/google/javascript/jscomp/InferJSDocInfo.java
+--- a/com/google/javascript/jscomp/InferJSDocInfo.java
++++ b/com/google/javascript/jscomp/InferJSDocInfo.java
+@@ -179,7 +179,7 @@
+ 
+     ObjectType objType = dereferenced(inferredType);
+     if (shouldAttachJSDocToNominalTypeOrShape(objType, aliasedType)) {
+-      attachJSDocInfoToNominalTypeOrShape(objType, typeDoc, n.getString());
++      attachJSDocInfoToNominalTypeOrShape(objType, typeDoc, n);
+     }
+   }
+ 
+@@ -265,7 +265,7 @@
+ 
+     ObjectType propType = dereferenced(lhsType.getPropertyType(propName));
+     if (shouldAttachJSDocToNominalTypeOrShape(propType, aliasedType)) {
+-      attachJSDocInfoToNominalTypeOrShape(propType, typeDoc, n.getQualifiedName());
++      attachJSDocInfoToNominalTypeOrShape(propType, typeDoc, n);
+     }
+   }
+ 
+@@ -296,10 +296,10 @@
+ 
+   /** Handle cases #1 and #3 in the class doc. */
+   private static void attachJSDocInfoToNominalTypeOrShape(
+-      ObjectType objType, JSDocInfo docInfo, @Nullable String qName) {
++      ObjectType objType, JSDocInfo docInfo, Node nameNode) {
+ 
+     if (objType.isConstructor() || objType.isInterface()) {
+-      if (!isReferenceNameOf(objType, qName)) {
++      if (!isReferenceNameOf(objType, nameNode)) {
+         return;
+       }
+ 
+@@ -310,7 +310,7 @@
+       // Then: typeOf(MyEnum).referenceName() == "enum{MyEnum}"
+       // Then: typeOf(MyEnum.FOO).referenceName() == "MyEnum"
+       ObjectType elementType = objType.toMaybeEnumType().getElementsType();
+-      if (!isReferenceNameOf(elementType, qName)) {
++      if (!isReferenceNameOf(elementType, nameNode)) {
+         return;
+       }
+ 
+@@ -323,8 +323,22 @@
+     }
+   }
+ 
+-  private static boolean isReferenceNameOf(ObjectType type, String name) {
+-    return type.hasReferenceName() && type.getReferenceName().equals(name);
++  private static boolean isReferenceNameOf(ObjectType type, Node nameNode) {
++    if (!type.hasReferenceName()) {
++      return false;
++    }
++    String refName = type.getReferenceName();
++    if (refName == null) {
++      return false;
++    }
++    if (nameNode.isName()) {
++      return refName.equals(nameNode.getString());
++    }
++    int h = nameNode.hashQualifiedName();
++    if (h == 0 || h != Node.hashQualifiedNameString(refName)) {
++      return false;
++    }
++    return refName.equals(nameNode.getQualifiedName());
+   }
+ }
+ 
+diff --git a/com/google/javascript/jscomp/LinkedFlowScope.java b/com/google/javascript/jscomp/LinkedFlowScope.java
+--- a/com/google/javascript/jscomp/LinkedFlowScope.java
++++ b/com/google/javascript/jscomp/LinkedFlowScope.java
+@@ -220,6 +220,22 @@
+       return rootScope.hasQualifiedOwnVarWithRoot(rootName);
+     }
+     return this.syntacticScope.getGlobalScope().hasQualifiedOwnVarWithRoot(rootName);
++  }
++
++  boolean mayHaveQualifiedSlotForNode(Node n) {
++    if (this.hasQualifiedOverlaySlots) {
++      return true;
++    }
++    if (!n.isGetProp()) {
++      return n.isQualifiedName();
++    }
++    int h = n.hashQualifiedName();
++    if (h == 0) {
++      return false;
++    }
++    return this.syntacticScope.mayHaveQualifiedVarWithHash(h)
++        || (this.functionScope != this.syntacticScope
++            && this.functionScope.mayHaveQualifiedVarWithHash(h));
+   }
+ 
+   private static String getRootOfQualifiedName(String name) {
+diff --git a/com/google/javascript/jscomp/TypeInference.java b/com/google/javascript/jscomp/TypeInference.java
+--- a/com/google/javascript/jscomp/TypeInference.java
++++ b/com/google/javascript/jscomp/TypeInference.java
+@@ -1278,19 +1278,22 @@
+     String rootName = getGetPropRootName(getprop);
+     if (rootName != null) {
+       TypedScope declScope = (TypedScope) scope.getDeclarationScope();
+-      if (declScope.mayHaveQualifiedVarForRoot(rootName) && getprop.isQualifiedName()) {
++      if (declScope.mayHaveQualifiedVarForRoot(rootName)
++          && declScope.mayHaveQualifiedVarForNode(getprop)) {
+         String propName = getprop.getString();
+         String qName = getprop.getQualifiedName();
+-        TypedVar var = declScope.getVar(qName);
+-        if (var != null && !var.isTypeInferred()) {
+-          // Handle normal declarations that could not be addressed earlier.
+-          if (propName.equals("prototype")
+-              ||
+-              // Handle prototype declarations that could not be addressed earlier.
+-              (!objectType.hasOwnProperty(propName)
+-                  && (!objectType.isInstanceType()
+-                      || (var.isExtern() && !objectType.isNativeObjectType())))) {
+-            return defineDeclaredProperty(objectType, propName, var.getType(), getprop);
++        if (qName != null) {
++          TypedVar var = declScope.getVar(qName);
++          if (var != null && !var.isTypeInferred()) {
++            // Handle normal declarations that could not be addressed earlier.
++            if (propName.equals("prototype")
++                ||
++                // Handle prototype declarations that could not be addressed earlier.
++                (!objectType.hasOwnProperty(propName)
++                    && (!objectType.isInstanceType()
++                        || (var.isExtern() && !objectType.isNativeObjectType())))) {
++              return defineDeclaredProperty(objectType, propName, var.getType(), getprop);
++            }
+           }
+         }
+       }
+@@ -2557,7 +2560,8 @@
+     boolean qualifiedNameComputed = false;
+     StaticTypedSlot var = null;
+     if (rootName != null) {
+-      if (!(scope instanceof LinkedFlowScope lfs) || lfs.mayHaveQualifiedSlotForRoot(rootName)) {
++      if (!(scope instanceof LinkedFlowScope lfs)
++          || (lfs.mayHaveQualifiedSlotForRoot(rootName) && lfs.mayHaveQualifiedSlotForNode(n))) {
+         qualifiedName = n.getQualifiedName();
+         qualifiedNameComputed = true;
+         if (qualifiedName != null) {
+diff --git a/com/google/javascript/jscomp/TypedScope.java b/com/google/javascript/jscomp/TypedScope.java
+--- a/com/google/javascript/jscomp/TypedScope.java
++++ b/com/google/javascript/jscomp/TypedScope.java
+@@ -75,6 +75,8 @@
+   private @Nullable TypedVar var5;
+   private @Nullable LinkedHashMap<String, TypedVar> vars;
+   private @Nullable HashSet<String> qualifiedRootNames;
++  private int @Nullable [] qualifiedVarHashes;
++  private int qualifiedVarHashCount;
+ 
+   // Scope.java contains an arguments field.
+   // We haven't added it here because it's unused by the passes that need typed scopes.
+@@ -208,10 +210,87 @@
+         this.qualifiedRootNames = new HashSet<>(4);
+       }
+       this.qualifiedRootNames.add(name.substring(0, dot));
++      addQualifiedVarHash(Node.hashQualifiedNameString(name));
+     }
+     return var;
+   }
+ 
++  private void addQualifiedVarHash(int h) {
++    if (h == 0) {
++      return;
++    }
++    int[] table = this.qualifiedVarHashes;
++    if (table == null) {
++      table = new int[8];
++      this.qualifiedVarHashes = table;
++    } else if (this.qualifiedVarHashCount * 4 >= table.length * 3) {
++      int[] next = new int[table.length * 2];
++      int nextMask = next.length - 1;
++      for (int i = 0, len = table.length; i < len; i++) {
++        int existing = table[i];
++        if (existing != 0) {
++          int s = existing & nextMask;
++          while (next[s] != 0) {
++            s = (s + 1) & nextMask;
++          }
++          next[s] = existing;
++        }
++      }
++      table = next;
++      this.qualifiedVarHashes = table;
++    }
++    int mask = table.length - 1;
++    int slot = h & mask;
++    while (true) {
++      int existing = table[slot];
++      if (existing == 0) {
++        table[slot] = h;
++        this.qualifiedVarHashCount++;
++        return;
++      }
++      if (existing == h) {
++        return;
++      }
++      slot = (slot + 1) & mask;
++    }
++  }
++
++  boolean containsQualifiedVarHash(int h) {
++    int[] table = this.qualifiedVarHashes;
++    if (table == null || h == 0) {
++      return false;
++    }
++    int mask = table.length - 1;
++    int slot = h & mask;
++    while (true) {
++      int existing = table[slot];
++      if (existing == 0) {
++        return false;
++      }
++      if (existing == h) {
++        return true;
++      }
++      slot = (slot + 1) & mask;
++    }
++  }
++
++  boolean mayHaveQualifiedVarWithHash(int h) {
++    for (TypedScope s = this; s != null; s = s.parent) {
++      if (s.containsQualifiedVarHash(h)) {
++        return true;
++      }
++    }
++    return false;
++  }
++
++  public boolean mayHaveQualifiedVarForNode(Node n) {
++    if (!n.isGetProp()) {
++      return n.isQualifiedName();
++    }
++    int h = n.hashQualifiedName();
++    return h != 0 && mayHaveQualifiedVarWithHash(h);
++  }
++
+   boolean hasQualifiedOwnVars() {
+     return this.qualifiedRootNames != null;
+   }
+@@ -372,6 +451,8 @@
+     var4 = null;
+     var5 = null;
+     qualifiedRootNames = null;
++    qualifiedVarHashes = null;
++    qualifiedVarHashCount = 0;
+     if (vars != null && !vars.isEmpty()) {
+       vars.clear();
+     }
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -3474,7 +3474,85 @@
+       // These are explicitly *not* qualified name components.
+       default:
+         return false;
++    }
++  }
++
++  private static final int[] POW31 = initPow31();
++
++  private static int[] initPow31() {
++    int[] table = new int[64];
++    int p = 1;
++    for (int i = 0; i < 64; i++) {
++      table[i] = p;
++      p *= 31;
++    }
++    return table;
++  }
++
++  private static int pow31(int n) {
++    if (n < 64) {
++      return POW31[n];
++    }
++    int result = 1;
++    int base = 31;
++    int exp = n;
++    while (exp > 0) {
++      if ((exp & 1) != 0) {
++        result *= base;
++      }
++      base *= base;
++      exp >>>= 1;
++    }
++    return result;
++  }
++
++  private static int mixQualifiedHash(int h) {
++    h ^= h >>> 16;
++    h *= 0x85ebca6b;
++    h ^= h >>> 13;
++    h *= 0xc2b2ae35;
++    h ^= h >>> 16;
++    return h == 0 ? 1 : h;
++  }
++
++  public static int hashQualifiedNameString(@Nullable String s) {
++    if (s == null || s.isEmpty()) {
++      return 0;
++    }
++    return mixQualifiedHash(s.hashCode());
++  }
++
++  /**
++   * Computes the exact same non-zero 32-bit hash as {@code
++   * hashQualifiedNameString(getQualifiedName())} without allocating any intermediate strings, or
++   * returns {@code 0} if {@code !isQualifiedName()}.
++   */
++  public final int hashQualifiedName() {
++    int suffixHash = 0;
++    int suffixPow = 1;
++    Node cur = this;
++    while (cur.token == Token.GETPROP) {
++      String prop = cur.getString();
++      int p = pow31(prop.length());
++      suffixHash += (46 * p + prop.hashCode()) * suffixPow;
++      suffixPow *= 31 * p;
++      cur = cur.first;
++      if (cur == null) {
++        return 0;
++      }
+     }
++    return switch (cur.token) {
++      case NAME -> {
++        String root = cur.getString();
++        if (root.isEmpty()) {
++          yield 0;
++        }
++        yield mixQualifiedHash(root.hashCode() * suffixPow + suffixHash);
++      }
++      case THIS -> mixQualifiedHash(3559070 * suffixPow + suffixHash);
++      case SUPER -> mixQualifiedHash(109801339 * suffixPow + suffixHash);
++      default -> 0;
++    };
+   }
+ 
+   /**
+diff --git a/com/google/javascript/rhino/jstype/FunctionType.java b/com/google/javascript/rhino/jstype/FunctionType.java
+--- a/com/google/javascript/rhino/jstype/FunctionType.java
++++ b/com/google/javascript/rhino/jstype/FunctionType.java
+@@ -99,38 +99,32 @@
+     IS_UNAMBIGUOUS_CONSTRUCTOR,
+   }
+ 
+-  private ConstructorAmbiguity constructorAmbiguity;
++  private static final class ClassOrInterfaceExtra {
++    ConstructorAmbiguity constructorAmbiguity = ConstructorAmbiguity.UNKNOWN;
++    @Nullable Property prototypeSlot;
++    @Nullable PropAccess propAccess;
++    @Nullable String googModuleId;
++    ImmutableList<ObjectType> implementedInterfaces = ImmutableList.of();
++    ImmutableList<ObjectType> extendedInterfaces = ImmutableList.of();
++    @Nullable ClosurePrimitive closurePrimitive;
++    @Nullable FunctionType canonicalRepresentation;
++  }
+ 
+   /** {@code [[Call]]} signature fields (inlined from former ArrowType). */
+   private final ImmutableList<Parameter> parameterList;
+ 
+   private JSType returnType;
+-  private final boolean returnTypeInferred;
+ 
+-  /**
+-   * The {@code prototype} property. This field is lazily initialized by {@code #getPrototype()}.
+-   * The most important reason for lazily initializing this field is that there are cycles in the
+-   * native types graph, so some prototypes must temporarily be {@code null} during the construction
+-   * of the graph.
+-   *
+-   * <p>If non-null, the type must be a PrototypeObjectType.
+-   */
+-  private Property prototypeSlot;
++  /** The type of {@code this} in the scope of this function. */
++  private JSType typeOfThis;
+ 
+   /** Whether a function is a constructor, an interface, or just an ordinary function. */
+   private final Kind kind;
+ 
+-  /** Whether the instances are structs, dicts, or unrestricted. */
+-  private PropAccess propAccess;
+-
+-  /** The type of {@code this} in the scope of this function. */
+-  private JSType typeOfThis;
+-
+   /** The function node which this type represents. It may be {@code null}. */
+   private Node source;
+ 
+-  /** The ID of the goog.module in which this function was declared. */
+-  private final @Nullable String googModuleId;
++  private final boolean returnTypeInferred;
+ 
+   /** if this is an interface, indicate whether or not it supports structural interface matching */
+   private boolean isStructuralInterface;
+@@ -141,23 +135,28 @@
+    */
+   private final boolean isAbstract;
+ 
+-  /**
+-   * The interfaces directly implemented by this function (for constructors) It is only relevant for
+-   * constructors. May not be {@code null}.
+-   */
+-  private ImmutableList<ObjectType> implementedInterfaces = ImmutableList.of();
++  private @Nullable ClassOrInterfaceExtra extra;
+ 
+-  /**
+-   * The interfaces directly extended by this function (for interfaces) It is only relevant for
+-   * constructors. May not be {@code null}.
+-   */
+-  private ImmutableList<ObjectType> extendedInterfaces = ImmutableList.of();
++  private ClassOrInterfaceExtra ensureExtra() {
++    ClassOrInterfaceExtra e = this.extra;
++    if (e == null) {
++      e = new ClassOrInterfaceExtra();
++      this.extra = e;
++    }
++    return e;
++  }
+ 
+-  /** The primitive id associated with this FunctionType, or null if none. */
+-  private final ClosurePrimitive closurePrimitive;
++  private @Nullable Property getPrototypeSlot() {
++    return this.extra != null ? this.extra.prototypeSlot : null;
++  }
+ 
+-  /** If non-null, the original canonical variant of this function; only used for constructors. */
+-  private final FunctionType canonicalRepresentation;
++  private @Nullable PropAccess getPropAccess() {
++    ClassOrInterfaceExtra e = this.extra;
++    if (e != null && e.propAccess != null) {
++      return e.propAccess;
++    }
++    return this.kind == Kind.CONSTRUCTOR ? PropAccess.ANY : null;
++  }
+ 
+   /**
+    * Creates an instance for a function that might be a constructor.
+@@ -171,12 +170,13 @@
+     Node source = builder.sourceNode;
+     checkArgument(source == null || source.isFunction() || source.isClass());
+     this.source = source;
+-    this.googModuleId = builder.googModuleId;
+     this.kind = builder.kind;
+-    this.constructorAmbiguity =
+-        builder.isKnownAmbiguous
+-            ? ConstructorAmbiguity.IS_AMBIGUOUS_CONSTRUCTOR
+-            : ConstructorAmbiguity.UNKNOWN;
++    if (builder.googModuleId != null) {
++      ensureExtra().googModuleId = builder.googModuleId;
++    }
++    if (builder.isKnownAmbiguous) {
++      ensureExtra().constructorAmbiguity = ConstructorAmbiguity.IS_AMBIGUOUS_CONSTRUCTOR;
++    }
+ 
+     this.parameterList =
+         builder.parameters == null
+@@ -220,18 +220,18 @@
+               : this.typeOfThis;
+     }
+ 
+-    if (this.kind == Kind.CONSTRUCTOR) {
+-      this.propAccess = PropAccess.ANY;
++    if (builder.primitiveId != null) {
++      ensureExtra().closurePrimitive = builder.primitiveId;
+     }
+-
+-    this.closurePrimitive = builder.primitiveId;
+     this.isStructuralInterface = false;
+     this.isAbstract = builder.isAbstract;
+     FunctionType canonicalRepresentation = builder.canonicalRepresentation;
+     checkArgument(
+         canonicalRepresentation == null || kind == Kind.CONSTRUCTOR,
+         "Only constructors should have canonical representations");
+-    this.canonicalRepresentation = canonicalRepresentation;
++    if (canonicalRepresentation != null) {
++      ensureExtra().canonicalRepresentation = canonicalRepresentation;
++    }
+ 
+     if (builder.setPrototypeBasedOn != null) {
+       this.setPrototypeBasedOn(builder.setPrototypeBasedOn);
+@@ -281,10 +281,11 @@
+    * annotation, if B's constructor is not explicitly annotated.
+    */
+   public final boolean makesStructs() {
+-    if (!hasInstanceType() || this.propAccess == null) {
++    PropAccess access = getPropAccess();
++    if (!hasInstanceType() || access == null) {
+       return false;
+     }
+-    return switch (this.propAccess) {
++    return switch (access) {
+       case STRUCT -> true;
+       case DICT -> false;
+       case ANY_EXPLICIT ->
+@@ -306,10 +307,11 @@
+    * annotation, if B's constructor is not explicitly annotated.
+    */
+   public final boolean makesDicts() {
+-    if (!isConstructor() || this.propAccess == null) {
++    PropAccess access = getPropAccess();
++    if (!isConstructor() || access == null) {
+       return false;
+     }
+-    return switch (this.propAccess) {
++    return switch (access) {
+       case DICT -> true;
+       case STRUCT -> false;
+       case ANY_EXPLICIT ->
+@@ -327,15 +329,15 @@
+   }
+ 
+   public final void setStruct() {
+-    propAccess = PropAccess.STRUCT;
++    ensureExtra().propAccess = PropAccess.STRUCT;
+   }
+ 
+   public final void setDict() {
+-    propAccess = PropAccess.DICT;
++    ensureExtra().propAccess = PropAccess.DICT;
+   }
+ 
+   public final void setExplicitUnrestricted() {
+-    propAccess = PropAccess.ANY_EXPLICIT;
++    ensureExtra().propAccess = PropAccess.ANY_EXPLICIT;
+   }
+ 
+   @Override
+@@ -349,7 +351,7 @@
+   }
+ 
+   public final boolean hasImplementedInterfaces() {
+-    if (!implementedInterfaces.isEmpty()) {
++    if (!getOwnImplementedInterfaces().isEmpty()) {
+       return true;
+     }
+     FunctionType superCtor = isConstructor() ? getSuperClassConstructor() : null;
+@@ -408,7 +410,7 @@
+     if (name.matches("prototype")) {
+       // Lazy initialization of the prototype field.
+       getPrototype();
+-      return prototypeSlot;
++      return getPrototypeSlot();
+     } else {
+       return super.getSlot(name);
+     }
+@@ -420,7 +422,7 @@
+    */
+   @Override
+   public final Set<String> getOwnPropertyNames() {
+-    if (prototypeSlot == null) {
++    if (getPrototypeSlot() == null) {
+       return super.getOwnPropertyNames();
+     } else {
+       ImmutableSet.Builder<String> names = ImmutableSet.builder();
+@@ -440,7 +442,8 @@
+    */
+   public final ObjectType getPrototype() {
+     // lazy initialization of the prototype field
+-    if (prototypeSlot == null) {
++    Property slot = getPrototypeSlot();
++    if (slot == null) {
+       String refName = getReferenceName();
+       if (refName == null) {
+         // Someone is trying to access the prototype of a structural function.
+@@ -456,8 +459,9 @@
+                 .build(),
+             null);
+       }
++      slot = getPrototypeSlot();
+     }
+-    return (ObjectType) prototypeSlot.getType();
++    return (ObjectType) slot.getType();
+   }
+ 
+   /**
+@@ -499,7 +503,7 @@
+     //
+     // In the second case, we just use the anonymous object as the prototype.
+     if (baseType.hasReferenceName() || isNativeObjectType() || baseType.isFunctionPrototypeType()) {
+-      if (prototypeSlot != null && hasInstanceType() && baseType.equals(getInstanceType())) {
++      if (getPrototypeSlot() != null && hasInstanceType() && baseType.equals(getInstanceType())) {
+         // Bail out for cases like Foo.prototype = new Foo();
+         return;
+       }
+@@ -530,10 +534,11 @@
+ 
+   /** Set the prototype without doing any sanity checks. */
+   private boolean setPrototypeNoCheck(ObjectType prototype, @Nullable Node propertyNode) {
+-    ObjectType oldPrototype = prototypeSlot == null ? null : (ObjectType) prototypeSlot.getType();
++    Property slot = getPrototypeSlot();
++    ObjectType oldPrototype = slot == null ? null : (ObjectType) slot.getType();
+     boolean replacedPrototype = oldPrototype != null;
+ 
+-    this.prototypeSlot =
++    ensureExtra().prototypeSlot =
+         new Property("prototype", prototype, true, propertyNode == null ? source : propertyNode);
+     prototype.setOwnerFunction(this);
+ 
+@@ -595,14 +600,15 @@
+ 
+   /** Returns interfaces implemented directly by a class or its superclass. */
+   public final ImmutableList<ObjectType> getImplementedInterfaces() {
++    ImmutableList<ObjectType> ownImplemented = getOwnImplementedInterfaces();
+     FunctionType superCtor = isConstructor() ? getSuperClassConstructor() : null;
+     if (superCtor == null) {
+-      return implementedInterfaces;
++      return ownImplemented;
+     }
+     ImmutableList.Builder<ObjectType> builder = ImmutableList.builder();
+-    builder.addAll(implementedInterfaces);
++    builder.addAll(ownImplemented);
+     while (superCtor != null) {
+-      builder.addAll(superCtor.implementedInterfaces);
++      builder.addAll(superCtor.getOwnImplementedInterfaces());
+       superCtor = superCtor.getSuperClassConstructor();
+     }
+     return builder.build();
+@@ -610,13 +616,16 @@
+ 
+   /** Returns interfaces directly implemented by the class. */
+   public final ImmutableList<ObjectType> getOwnImplementedInterfaces() {
+-    return implementedInterfaces;
++    return this.extra != null ? this.extra.implementedInterfaces : ImmutableList.of();
+   }
+ 
+   public final void setImplementedInterfaces(List<ObjectType> implementedInterfaces) {
+     checkState(isConstructor());
+ 
+-    this.implementedInterfaces = ImmutableList.copyOf(implementedInterfaces);
++    ImmutableList<ObjectType> copy = ImmutableList.copyOf(implementedInterfaces);
++    if (!copy.isEmpty() || this.extra != null) {
++      ensureExtra().implementedInterfaces = copy;
++    }
+     for (ObjectType type : implementedInterfaces) {
+       typeOfThis.mergeSupertypeTemplateTypes(type);
+     }
+@@ -624,18 +633,21 @@
+ 
+   /** Returns interfaces directly extended by an interface */
+   public final ImmutableList<ObjectType> getExtendedInterfaces() {
+-    return extendedInterfaces;
++    return this.extra != null ? this.extra.extendedInterfaces : ImmutableList.of();
+   }
+ 
+   /** Returns the number of interfaces directly extended by an interface */
+   public final int getExtendedInterfacesCount() {
+-    return extendedInterfaces.size();
++    return this.extra != null ? this.extra.extendedInterfaces.size() : 0;
+   }
+ 
+   public final void setExtendedInterfaces(List<ObjectType> extendedInterfaces) {
+     checkState(isInterface());
+ 
+-    this.extendedInterfaces = ImmutableList.copyOf(extendedInterfaces);
++    ImmutableList<ObjectType> copy = ImmutableList.copyOf(extendedInterfaces);
++    if (!copy.isEmpty() || this.extra != null) {
++      ensureExtra().extendedInterfaces = copy;
++    }
+     for (ObjectType extendedInterface : extendedInterfaces) {
+       typeOfThis.mergeSupertypeTemplateTypes(extendedInterface);
+     }
+@@ -753,7 +765,8 @@
+     if (name.matches("prototype")) {
+       ObjectType objType = type.toObjectType();
+       if (objType != null) {
+-        if (prototypeSlot != null && objType.equals(prototypeSlot.getType())) {
++        Property slot = getPrototypeSlot();
++        if (slot != null && objType.equals(slot.getType())) {
+           return true;
+         }
+         setPrototypeBasedOn(objType, propertyNode);
+@@ -1049,23 +1062,24 @@
+ 
+   @Override
+   public @Nullable String getGoogModuleId() {
+-    return this.googModuleId;
++    return this.extra != null ? this.extra.googModuleId : null;
+   }
+ 
+   /** Sets the source node. */
+   public final void setSource(Node source) {
+-    if (prototypeSlot != null) {
++    Property slot = getPrototypeSlot();
++    if (slot != null) {
+       // NOTE(bashir): On one hand when source is null we want to drop any
+       // references to old nodes retained in prototypeSlot. On the other hand
+       // we cannot simply drop prototypeSlot, so we retain all information
+       // except the propertyNode for which we use an approximation! These
+       // details mostly matter in hot-swap passes.
+-      if (source == null || prototypeSlot.getNode() == null) {
+-        prototypeSlot =
++      if (source == null || slot.getNode() == null) {
++        ensureExtra().prototypeSlot =
+             new Property(
+-                prototypeSlot.getName(),
+-                prototypeSlot.getType(),
+-                prototypeSlot.isTypeInferred(),
++                slot.getName(),
++                slot.getType(),
++                slot.isTypeInferred(),
+                 source);
+       }
+     }
+@@ -1084,15 +1098,16 @@
+         getInstanceType().clearCachedValues();
+       }
+ 
+-      if (prototypeSlot != null) {
+-        ((ObjectType) prototypeSlot.getType()).clearCachedValues();
++      Property slot = getPrototypeSlot();
++      if (slot != null) {
++        ((ObjectType) slot.getType()).clearCachedValues();
+       }
+     }
+   }
+ 
+   @Override
+   public final boolean hasCachedValues() {
+-    return prototypeSlot != null || super.hasCachedValues();
++    return getPrototypeSlot() != null || super.hasCachedValues();
+   }
+ 
+   @Override
+@@ -1101,8 +1116,9 @@
+     for (int i = 0, size = parameterList.size(); i < size; i++) {
+       parameterList.get(i).getJSType().resolve(reporter);
+     }
+-    if (prototypeSlot != null) {
+-      prototypeSlot.setType(safeResolve(prototypeSlot.getType(), reporter));
++    Property slot = getPrototypeSlot();
++    if (slot != null) {
++      slot.setType(safeResolve(slot.getType(), reporter));
+     }
+ 
+     // Warning about typeOfThis if it doesn't resolve to an ObjectType
+@@ -1121,16 +1137,23 @@
+       }
+     }
+ 
+-    ImmutableList<ObjectType> resolvedImplemented =
+-        resolveTypeListHelper(implementedInterfaces, reporter);
+-    if (resolvedImplemented != null) {
+-      implementedInterfaces = resolvedImplemented;
+-    }
++    ClassOrInterfaceExtra e = this.extra;
++    if (e != null) {
++      if (!e.implementedInterfaces.isEmpty()) {
++        ImmutableList<ObjectType> resolvedImplemented =
++            resolveTypeListHelper(e.implementedInterfaces, reporter);
++        if (resolvedImplemented != null) {
++          e.implementedInterfaces = resolvedImplemented;
++        }
++      }
+ 
+-    ImmutableList<ObjectType> resolvedExtended =
+-        resolveTypeListHelper(extendedInterfaces, reporter);
+-    if (resolvedExtended != null) {
+-      extendedInterfaces = resolvedExtended;
++      if (!e.extendedInterfaces.isEmpty()) {
++        ImmutableList<ObjectType> resolvedExtended =
++            resolveTypeListHelper(e.extendedInterfaces, reporter);
++        if (resolvedExtended != null) {
++          e.extendedInterfaces = resolvedExtended;
++        }
++      }
+     }
+ 
+     return super.resolveInternal(reporter);
+@@ -1351,10 +1374,13 @@
+    * if it extends such an ambiguous constructor
+    */
+   public final boolean isAmbiguousConstructor() {
+-    if (this.constructorAmbiguity == ConstructorAmbiguity.UNKNOWN) {
+-      constructorAmbiguity = calculateConstructorAmbiguity();
++    ConstructorAmbiguity ambiguity =
++        this.extra != null ? this.extra.constructorAmbiguity : ConstructorAmbiguity.UNKNOWN;
++    if (ambiguity == ConstructorAmbiguity.UNKNOWN) {
++      ambiguity = calculateConstructorAmbiguity();
++      ensureExtra().constructorAmbiguity = ambiguity;
+     }
+-    return constructorAmbiguity == ConstructorAmbiguity.IS_AMBIGUOUS_CONSTRUCTOR;
++    return ambiguity == ConstructorAmbiguity.IS_AMBIGUOUS_CONSTRUCTOR;
+   }
+ 
+   private ConstructorAmbiguity calculateConstructorAmbiguity() {
+@@ -1410,7 +1436,7 @@
+ 
+   /** Returns the {@code @closurePrimitive} identifier associated with this function */
+   public final ClosurePrimitive getClosurePrimitive() {
+-    return this.closurePrimitive;
++    return this.extra != null ? this.extra.closurePrimitive : null;
+   }
+ 
+   public static Builder builder(JSTypeRegistry registry) {
+@@ -1427,7 +1453,9 @@
+             .setTemplateTypeMap(this.getTemplateTypeMap())
+             .withCanonicalRepresentation(this.getCanonicalRepresentation())
+             .setIsKnownAmbiguous(
+-                this.constructorAmbiguity == ConstructorAmbiguity.IS_AMBIGUOUS_CONSTRUCTOR)
++                this.extra != null
++                    && this.extra.constructorAmbiguity
++                        == ConstructorAmbiguity.IS_AMBIGUOUS_CONSTRUCTOR)
+             .withClosurePrimitiveId(this.getClosurePrimitive())
+             .withIsAbstract(this.isAbstract())
+             .withKind(this.getKind())
+@@ -1649,7 +1677,7 @@
+   }
+ 
+   public final FunctionType getCanonicalRepresentation() {
+-    return canonicalRepresentation;
++    return this.extra != null ? this.extra.canonicalRepresentation : null;
+   }
+ 
+   /**
+diff --git a/com/google/javascript/rhino/jstype/ObjectType.java b/com/google/javascript/rhino/jstype/ObjectType.java
+--- a/com/google/javascript/rhino/jstype/ObjectType.java
++++ b/com/google/javascript/rhino/jstype/ObjectType.java
+@@ -81,8 +81,8 @@
+  *
+  */
+ public abstract class ObjectType extends JSType {
+-  private boolean visited;
+   private @Nullable JSDocInfo docInfo = null;
++  private boolean visited;
+   private boolean unknown = true;
+ 
+   ObjectType(JSTypeRegistry registry) {
+diff --git a/com/google/javascript/rhino/jstype/PrototypeObjectType.java b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+--- a/com/google/javascript/rhino/jstype/PrototypeObjectType.java
++++ b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+@@ -75,9 +75,12 @@
+ 
+   private final String className;
+   private final int templateParamCount;
+-  private @Nullable PropertyMap properties = null;
+   private final boolean nativeType;
+   private final boolean anonymousType;
++  // Whether the toString representation of this should be pretty-printed,
++  // by printing all properties.
++  private boolean prettyPrint = false;
++  private @Nullable PropertyMap properties = null;
+ 
+   // NOTE(nicksantos): The implicit prototype can change over time.
+   // Modeling this is a bear. Always call getImplicitPrototype(), because
+@@ -89,10 +92,6 @@
+   // to do this for multiple functions, then we'll have to create a new one.
+   private @Nullable FunctionType ownerFunction = null;
+ 
+-  // Whether the toString representation of this should be pretty-printed,
+-  // by printing all properties.
+-  private boolean prettyPrint = false;
+-
+   private static final int MAX_PRETTY_PRINTED_PROPERTIES = 10;
+ 
+   /**

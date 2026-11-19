@@ -1,0 +1,58 @@
+diff --git aa/com/google/javascript/jscomp/DevirtualizeMethods.java bb/com/google/javascript/jscomp/DevirtualizeMethods.java
+index 1a9d4195..ea65650d 100644
+--- aa/com/google/javascript/jscomp/DevirtualizeMethods.java
++++ bb/com/google/javascript/jscomp/DevirtualizeMethods.java
+@@ -115,11 +115,12 @@ class DevirtualizeMethods implements OptimizeCalls.CallGraphCompilerPass {
+     // `A::foo` before `B::foo` is defined.
+     Node canonicalDefinitionSite = Iterables.get(functionsBySite.keySet(), 0);
+ 
+-    ImmutableList<Node> callSites =
+-        sites.stream()
+-            // If a site has no associated functions, it must be a call site.
+-            .filter((s) -> !functionsBySite.containsKey(s))
+-            .collect(toImmutableList());
++    List<Node> callSites = new ArrayList<>();
++    for (Node s : sites) {
++      if (!functionsBySite.containsKey(s)) {
++        callSites.add(s);
++      }
++    }
+     if (callSites.isEmpty()) {
+       return; // No need to devirtualize without calls.
+     }
+diff --git aa/com/google/javascript/jscomp/SortingErrorManager.java bb/com/google/javascript/jscomp/SortingErrorManager.java
+index 4896ed28..4617f687 100644
+--- aa/com/google/javascript/jscomp/SortingErrorManager.java
++++ bb/com/google/javascript/jscomp/SortingErrorManager.java
+@@ -16,11 +16,11 @@
+ 
+ package com.google.javascript.jscomp;
+ 
+-import static com.google.common.collect.ImmutableList.toImmutableList;
+-
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableSet;
++import java.util.ArrayList;
+ import java.util.Comparator;
++import java.util.List;
+ import java.util.Objects;
+ import java.util.Set;
+ import java.util.TreeSet;
+@@ -102,10 +102,13 @@ public class SortingErrorManager implements ErrorManager {
+   }
+ 
+   private ImmutableList<JSError> filterToListOf(CheckLevel level) {
+-    return messages.stream()
+-        .filter((e) -> e.level == level)
+-        .map((e) -> e.error)
+-        .collect(toImmutableList());
++    List<JSError> list = new ArrayList<>();
++    for (ErrorWithLevel e : messages) {
++      if (e.level == level) {
++        list.add(e.error);
++      }
++    }
++    return ImmutableList.copyOf(list);
+   }
+ 
+   // TODO(b/114762232): It should be invalid to report errors during the execution of this method;

@@ -1,0 +1,23 @@
+{
+  "id": "tier1_t04_interface_compliance",
+  "tier": 1,
+  "feature": "type_checking",
+  "name": "Interface record type check",
+  "description": "Verifies structural conformance to declared record interface",
+  "args": [
+    "--checks_only",
+    "--jscomp_error=checkTypes",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @record */ function Named() { /** @type {string} */ this.name; } /** @type {Named} */ var obj = { name: 123 };"
+  },
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "in.js:1:100: ERROR - [JSC_TYPE_MISMATCH] initializing variable\nfound   : {name: number}\nrequired: (Named|null)\nmissing : []\nmismatch: [name]\n  1| /** @record */ function Named() { /** @type {string} */ this.name; } /** @type {Named} */ var obj = { name: 123 };\n                                                                                                         ^^^^^^^^^^^^^\n\n1 error(s), 0 warning(s), 100.0% typed\n",
+    "output_files": {}
+  }
+}

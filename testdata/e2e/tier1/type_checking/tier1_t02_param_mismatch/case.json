@@ -1,0 +1,23 @@
+{
+  "id": "tier1_t02_param_mismatch",
+  "tier": 1,
+  "feature": "type_checking",
+  "name": "Function argument type mismatch",
+  "description": "Detects type mismatch when passing string argument to number parameter",
+  "args": [
+    "--checks_only",
+    "--jscomp_error=checkTypes",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @param {number} x */ function square(x) { return x * x; } square('bad');"
+  },
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "in.js:1:69: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of square does not match formal parameter\nfound   : string\nrequired: number\n  1| /** @param {number} x */ function square(x) { return x * x; } square('bad');\n                                                                          ^^^^^\n\n1 error(s), 0 warning(s), 100.0% typed\n",
+    "output_files": {}
+  }
+}

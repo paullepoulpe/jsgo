@@ -1,0 +1,23 @@
+{
+  "id": "tier2_b12_lone_high_surrogate",
+  "tier": 2,
+  "feature": "boundary_unicode",
+  "name": "Lone high surrogate in string literal",
+  "description": "Handles lone high surrogate code unit without panic or WTF-8 corruption",
+  "args": [
+    "--compilation_level",
+    "WHITESPACE_ONLY",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var loneHigh = '\\uD800'; window['s'] = loneHigh;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var loneHigh=\"\\ud800\";window[\"s\"]=loneHigh;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

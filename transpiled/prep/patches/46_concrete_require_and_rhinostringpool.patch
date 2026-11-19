@@ -1,0 +1,464 @@
+diff --git a/com/google/javascript/jscomp/deps/AutoValue_DependencyInfo_Require.java b/com/google/javascript/jscomp/deps/AutoValue_DependencyInfo_Require.java
+--- a/com/google/javascript/jscomp/deps/AutoValue_DependencyInfo_Require.java
++++ b/com/google/javascript/jscomp/deps/AutoValue_DependencyInfo_Require.java
+@@ -1,137 +1,6 @@
+ package com.google.javascript.jscomp.deps;
+ 
+-import javax.annotation.processing.Generated;
+-
+-@Generated("com.google.auto.value.processor.AutoValueProcessor")
+-final class AutoValue_DependencyInfo_Require extends DependencyInfo.Require {
+-
+-  private final String symbol;
+-
+-  private final String rawText;
+-
+-  private final DependencyInfo.Require.Type type;
+-
+-  private AutoValue_DependencyInfo_Require(
+-      String symbol,
+-      String rawText,
+-      DependencyInfo.Require.Type type) {
+-    this.symbol = symbol;
+-    this.rawText = rawText;
+-    this.type = type;
+-  }
+-
+-  @Override
+-  public String getSymbol() {
+-    return symbol;
+-  }
+-
+-  @Override
+-  public String getRawText() {
+-    return rawText;
+-  }
+-
+-  @Override
+-  public DependencyInfo.Require.Type getType() {
+-    return type;
+-  }
+-
+-  @Override
+-  public String toString() {
+-    return "Require{"
+-        + "symbol=" + symbol + ", "
+-        + "rawText=" + rawText + ", "
+-        + "type=" + type
+-        + "}";
+-  }
+-
+-  @Override
+-  public boolean equals(Object o) {
+-    if (o == this) {
+-      return true;
+-    }
+-    if (o instanceof DependencyInfo.Require) {
+-      DependencyInfo.Require that = (DependencyInfo.Require) o;
+-      return this.symbol.equals(that.getSymbol())
+-          && this.rawText.equals(that.getRawText())
+-          && this.type.equals(that.getType());
+-    }
+-    return false;
+-  }
+-
+-  @Override
+-  public int hashCode() {
+-    int h$ = 1;
+-    h$ *= 1000003;
+-    h$ ^= symbol.hashCode();
+-    h$ *= 1000003;
+-    h$ ^= rawText.hashCode();
+-    h$ *= 1000003;
+-    h$ ^= type.hashCode();
+-    return h$;
+-  }
+-
+-  @Override
+-  protected DependencyInfo.Require.Builder toBuilder() {
+-    return new Builder(this);
+-  }
+-
+-  static final class Builder extends DependencyInfo.Require.Builder {
+-    private String symbol;
+-    private String rawText;
+-    private DependencyInfo.Require.Type type;
+-    Builder() {
+-    }
+-    private Builder(DependencyInfo.Require source) {
+-      this.symbol = source.getSymbol();
+-      this.rawText = source.getRawText();
+-      this.type = source.getType();
+-    }
+-    @Override
+-    public DependencyInfo.Require.Builder setSymbol(String symbol) {
+-      if (symbol == null) {
+-        throw new NullPointerException("Null symbol");
+-      }
+-      this.symbol = symbol;
+-      return this;
+-    }
+-    @Override
+-    public DependencyInfo.Require.Builder setRawText(String rawText) {
+-      if (rawText == null) {
+-        throw new NullPointerException("Null rawText");
+-      }
+-      this.rawText = rawText;
+-      return this;
+-    }
+-    @Override
+-    public DependencyInfo.Require.Builder setType(DependencyInfo.Require.Type type) {
+-      if (type == null) {
+-        throw new NullPointerException("Null type");
+-      }
+-      this.type = type;
+-      return this;
+-    }
+-    @Override
+-    public DependencyInfo.Require build() {
+-      if (this.symbol == null
+-          || this.rawText == null
+-          || this.type == null) {
+-        StringBuilder missing = new StringBuilder();
+-        if (this.symbol == null) {
+-          missing.append(" symbol");
+-        }
+-        if (this.rawText == null) {
+-          missing.append(" rawText");
+-        }
+-        if (this.type == null) {
+-          missing.append(" type");
+-        }
+-        throw new IllegalStateException("Missing required properties:" + missing);
+-      }
+-      return new AutoValue_DependencyInfo_Require(
+-          this.symbol,
+-          this.rawText,
+-          this.type);
+-    }
+-  }
+-
++/** Unused placeholder after making DependencyInfo.Require a concrete final class. */
++final class AutoValue_DependencyInfo_Require {
++  private AutoValue_DependencyInfo_Require() {}
+ }
+diff --git a/com/google/javascript/jscomp/deps/DependencyInfo.java b/com/google/javascript/jscomp/deps/DependencyInfo.java
+--- a/com/google/javascript/jscomp/deps/DependencyInfo.java
++++ b/com/google/javascript/jscomp/deps/DependencyInfo.java
+@@ -16,10 +16,6 @@
+ 
+ package com.google.javascript.jscomp.deps;
+ 
+-import static com.google.common.collect.ImmutableList.toImmutableList;
+-import static com.google.common.collect.Streams.stream;
+-
+-import com.google.auto.value.AutoValue;
+ import com.google.common.base.Joiner;
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableMap;
+@@ -36,9 +32,8 @@
+ public interface DependencyInfo {
+ 
+   /** A dependency link between two files, e.g. goog.require('namespace'), import 'file'; */
+-  @AutoValue
+   @Immutable
+-  abstract class Require {
++  final class Require {
+     public static final Require BASE = googRequireSymbol("goog");
+ 
+     public enum Type {
+@@ -54,67 +49,105 @@
+       COMPILER_CHUNK
+     }
+ 
++    private final String symbol;
++    private final String rawText;
++    private final Type type;
++
++    private Require(String symbol, String rawText, Type type) {
++      if (symbol == null) {
++        throw new NullPointerException("Null symbol");
++      }
++      if (rawText == null) {
++        throw new NullPointerException("Null rawText");
++      }
++      if (type == null) {
++        throw new NullPointerException("Null type");
++      }
++      this.symbol = symbol;
++      this.rawText = rawText;
++      this.type = type;
++    }
++
+     public static ImmutableList<String> asSymbolList(Iterable<Require> requires) {
+-      return stream(requires).map(Require::getSymbol).collect(toImmutableList());
++      ImmutableList.Builder<String> builder = ImmutableList.builder();
++      for (Require require : requires) {
++        builder.add(require.symbol);
++      }
++      return builder.build();
+     }
+ 
+     public static Require googRequireSymbol(String symbol) {
+-      return builder()
+-          .setRawText(symbol)
+-          .setSymbol(symbol)
+-          .setType(Type.GOOG_REQUIRE_SYMBOL)
+-          .build();
++      return new Require(symbol, symbol, Type.GOOG_REQUIRE_SYMBOL);
+     }
+ 
+     public static Require es6Import(String symbol, String rawPath) {
+-      return builder().setRawText(rawPath).setSymbol(symbol).setType(Type.ES6_IMPORT).build();
++      return new Require(symbol, rawPath, Type.ES6_IMPORT);
+     }
+ 
+     public static Require commonJs(String symbol, String rawPath) {
+-      return builder().setRawText(rawPath).setSymbol(symbol).setType(Type.COMMON_JS).build();
++      return new Require(symbol, rawPath, Type.COMMON_JS);
+     }
+ 
+     public static Require compilerChunk(String symbol) {
+-      return builder().setRawText(symbol).setSymbol(symbol).setType(Type.COMPILER_CHUNK).build();
++      return new Require(symbol, symbol, Type.COMPILER_CHUNK);
+     }
+ 
+     public static Require parsedFromDeps(String symbol) {
+-      return builder().setRawText(symbol).setSymbol(symbol).setType(Type.PARSED_FROM_DEPS).build();
++      return new Require(symbol, symbol, Type.PARSED_FROM_DEPS);
+     }
+ 
+-    private static Builder builder() {
+-      return new AutoValue_DependencyInfo_Require.Builder();
+-    }
+-
+-    protected abstract Builder toBuilder();
+-
+     public Require withSymbol(String symbol) {
+-      return toBuilder().setSymbol(symbol).build();
++      return new Require(symbol, this.rawText, this.type);
+     }
+ 
+     /**
+      * @return symbol the symbol provided by another {@link DependencyInfo}'s {@link
+      *     DependencyInfo#getProvides()}
+      */
+-    public abstract String getSymbol();
++    public String getSymbol() {
++      return symbol;
++    }
+ 
+     /**
+      * @return the raw text of the import string as it appears in the file. Used mostly for error
+      *     reporting.
+      */
+-    public abstract String getRawText();
++    public String getRawText() {
++      return rawText;
++    }
+ 
+-    public abstract Type getType();
++    public Type getType() {
++      return type;
++    }
+ 
+-    @AutoValue.Builder
+-    abstract static class Builder {
+-      public abstract Builder setType(Type value);
++    @Override
++    public String toString() {
++      return "Require{symbol=" + symbol + ", rawText=" + rawText + ", type=" + type + "}";
++    }
+ 
+-      public abstract Builder setRawText(String rawText);
++    @Override
++    public boolean equals(Object o) {
++      if (o == this) {
++        return true;
++      }
++      if (o instanceof Require that) {
++        return this.symbol.equals(that.symbol)
++            && this.rawText.equals(that.rawText)
++            && this.type == that.type;
++      }
++      return false;
++    }
+ 
+-      public abstract Builder setSymbol(String value);
+-
+-      public abstract Require build();
++    @Override
++    public int hashCode() {
++      int h = 1;
++      h *= 1000003;
++      h ^= symbol.hashCode();
++      h *= 1000003;
++      h ^= rawText.hashCode();
++      h *= 1000003;
++      h ^= type.hashCode();
++      return h;
+     }
+   }
+ 
+diff --git a/com/google/javascript/jscomp/serialization/StringPool.java b/com/google/javascript/jscomp/serialization/StringPool.java
+--- a/com/google/javascript/jscomp/serialization/StringPool.java
++++ b/com/google/javascript/jscomp/serialization/StringPool.java
+@@ -74,7 +74,9 @@
+ 
+   public StringPoolProto toProto() {
+     StringPoolProto.Builder builder = StringPoolProto.newBuilder().setMaxLength(this.maxLength);
+-    this.pool.stream().skip(1).map(Wtf8::encodeToWtf8).forEachOrdered(builder::addStrings);
++    for (int i = 1, n = this.pool.size(); i < n; i++) {
++      builder.addStrings(Wtf8.encodeToWtf8(this.pool.get(i)));
++    }
+     return builder.build();
+   }
+ 
+diff --git a/com/google/javascript/rhino/RhinoStringPool.java b/com/google/javascript/rhino/RhinoStringPool.java
+--- a/com/google/javascript/rhino/RhinoStringPool.java
++++ b/com/google/javascript/rhino/RhinoStringPool.java
+@@ -38,124 +38,51 @@
+ 
+ package com.google.javascript.rhino;
+ 
++import static com.google.common.base.Preconditions.checkNotNull;
+ import static com.google.javascript.jscomp.base.JSCompObjects.identical;
+ 
+-import com.google.common.annotations.VisibleForTesting;
+-import com.google.common.collect.Interner;
+-import com.google.common.collect.Interners;
+ import java.util.ArrayList;
+ import java.util.List;
+-import java.util.concurrent.atomic.AtomicIntegerArray;
+-import java.util.stream.Stream;
++import org.jspecify.annotations.Nullable;
+ 
+ /**
+- * An interning pool for strings used by the Rhino package.
++ * String validation and equality helpers for Rhino AST nodes and qualified names.
+  *
+- * <p>As of 2021-03-16 and again as of 2024-12-09, this custom pool is measurably more performant
+- * than `String::intern`.
++ * <p>In Go, {@code nodestore} interns {@code Node} strings into {@code uint32} IDs and Go {@code
++ * ==} on {@code string} is value equality natively, so an extra weak-interner pass here is avoided.
+  */
+ public final class RhinoStringPool {
+ 
+-  /**
+-   * The threadsafe datastructure that backs this pool.
+-   *
+-   * <p>We use weak-refs, rather than strong-refs, to prevent a memory leak in server-like
+-   * applications.
+-   */
+-  private static final Interner<String> INTERNER = Interners.newWeakInterner();
+-
+-  /**
+-   * Check if two strings are the same according to interning.
+-   *
+-   * <p>The caller is responsible for ensuring that strings passed to this method are actually
+-   * interned. This method mainly exists to highlight where equality checks depend on interning for
+-   * correctness.
+-   *
+-   * <p>Ideally we could use something like a branded-type, for interned strings, to verify correct
+-   * usage. However, Java doesn't support type-brands, and using like wrapper objects would
+-   * undermine performance. This also needs to be ergonomic enough that callers don't resort to
+-   * using `==` directly.
+-   */
+-  public static boolean uncheckedEquals(String a, String b) {
+-    return identical(a, b);
++  /** Check if two strings are equal (fast reference check followed by value check). */
++  public static boolean uncheckedEquals(@Nullable String a, @Nullable String b) {
++    return identical(a, b) || (a != null && a.equals(b));
+   }
+ 
+   public static String addOrGet(String s) {
+-    return INTERNER.intern(s);
++    return checkNotNull(s);
+   }
+ 
+   private RhinoStringPool() {}
+ 
+-  /**
+-   * A list of strings that is lazily interned into a RhinoStringPool as they are accessed.
+-   *
+-   * <p>The only reason to use this class is for performance optimizations - the {@link
+-   * LazyInternedStringList#newStringNode} method skips re-interning the string. This is a
+-   * performance win if creating a lot of string nodes with the same string.
+-   */
++  /** Backed by a flat non-null string list for deserialized string pools. */
+   public static final class LazyInternedStringList {
+     private final ArrayList<String> pool;
+ 
+-    private final WriteOnlyBitset isInterned;
++    public LazyInternedStringList(List<String> src) {
++      int n = src.size();
++      ArrayList<String> copy = new ArrayList<>(n);
++      for (int i = 0; i < n; i++) {
++        copy.add(checkNotNull(src.get(i)));
++      }
++      this.pool = copy;
++    }
+ 
+-    public LazyInternedStringList(List<String> pool) {
+-      this.pool = new ArrayList<>(pool);
+-      this.isInterned = new WriteOnlyBitset(pool.size());
++    public int size() {
++      return this.pool.size();
+     }
+ 
+-    // if Java supported type-brands we would want to use one here to indicate that the returned
+-    // string is always interned but that's not possible without an expensive wrapper type - see
+-    // also the comment on uncheckedEquals().
+     public String get(int offset) {
+-      if (!this.isInterned.get(offset)) {
+-        String uninterned = this.pool.get(offset);
+-        String interned = RhinoStringPool.addOrGet(uninterned);
+-        this.pool.set(offset, interned);
+-        this.isInterned.set(offset); // must happen after this.pool.set() to avoid a race condition
+-        return interned;
+-      }
+       return this.pool.get(offset);
+     }
+-
+-    public Stream<String> stream() {
+-      return this.pool.stream();
+-    }
+   }
+-
+-  /**
+-   * Bitset implementation that only supports setting bits from false => true, not vice versa, and
+-   * is not resizable once created.
+-   *
+-   * <p>This class was originally copied from the JDK BitSet implementation, but has been heavily
+-   * modified to be thread-safe and remove unnecessary functionality.
+-   */
+-  @VisibleForTesting
+-  static final class WriteOnlyBitset {
+-    /*
+-     * BitSets are packed into arrays of "words."  Currently a word is
+-     * an int, which consists of 32 bits, requiring 5 address bits. The choice of word size comes
+-     * from the convenience of using AtomicIntegerArray.
+-     */
+-    private static final int ADDRESS_BITS_PER_WORD = 5;
+-    private final AtomicIntegerArray bits;
+-
+-    WriteOnlyBitset(int size) {
+-      this.bits = new AtomicIntegerArray(wordIndex(size - 1) + 1);
+-    }
+-
+-    void set(int offset) {
+-      int wordIndex = wordIndex(offset);
+-      this.bits.updateAndGet(wordIndex, (prevValue) -> prevValue | (1 << offset));
+-    }
+-
+-    boolean get(int offset) {
+-      int wordIndex = wordIndex(offset);
+-      return ((bits.get(wordIndex) & (1 << offset)) != 0);
+-    }
+-
+-    /** Given a bit index, return word index containing it. */
+-    private static int wordIndex(int bitIndex) {
+-      return bitIndex >> ADDRESS_BITS_PER_WORD;
+-    }
+-  }
+ }

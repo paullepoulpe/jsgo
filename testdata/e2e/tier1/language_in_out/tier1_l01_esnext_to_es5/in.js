@@ -1,0 +1,1 @@
+const name = 'world'; const msg = `hello ${name}`; const fn = () => msg; class Foo { bar() { return fn(); } }

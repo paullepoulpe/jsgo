@@ -1,0 +1,21 @@
+{
+  "id": "tier2_b01_empty_file",
+  "tier": 2,
+  "feature": "boundary_empty",
+  "name": "Zero byte input file",
+  "description": "Compiles completely empty 0-byte input file cleanly",
+  "args": [
+    "--js",
+    "empty.js"
+  ],
+  "stdin": "",
+  "files": {
+    "empty.js": ""
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

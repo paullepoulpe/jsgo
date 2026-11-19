@@ -1,0 +1,27 @@
+{
+  "id": "tier4_r12_cjs_lodash",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "CommonJS Lodash utility scenario",
+  "description": "CommonJS module exporting clamp and chunk utilities",
+  "args": [
+    "--process_common_js_modules",
+    "--compilation_level",
+    "SIMPLE",
+    "--js",
+    "clamp.js",
+    "--js",
+    "main.js"
+  ],
+  "stdin": "",
+  "files": {
+    "clamp.js": "module.exports = function clamp(val, min, max) { return Math.min(Math.max(val, min), max); };",
+    "main.js": "var clamp = require('./clamp.js'); window['res'] = clamp(15, 0, 10);"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var module$clamp={default:function(a,b,c){return Math.min(Math.max(a,b),c)}};var clamp=module$clamp.default;window.res=(0,module$clamp.default)(15,0,10);\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

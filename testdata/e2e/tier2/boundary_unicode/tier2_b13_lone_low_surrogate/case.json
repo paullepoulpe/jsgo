@@ -1,0 +1,23 @@
+{
+  "id": "tier2_b13_lone_low_surrogate",
+  "tier": 2,
+  "feature": "boundary_unicode",
+  "name": "Lone low surrogate in string literal",
+  "description": "Handles lone low surrogate code unit without panic or WTF-8 corruption",
+  "args": [
+    "--compilation_level",
+    "WHITESPACE_ONLY",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var loneLow = '\\uDC00'; window['s'] = loneLow;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var loneLow=\"\\udc00\";window[\"s\"]=loneLow;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "tier2_b08_reserved_word_strict",
+  "tier": 2,
+  "feature": "boundary_syntax",
+  "name": "Reserved keyword identifier in strict mode",
+  "description": "Fails compilation when using reserved keyword as variable name in strict mode",
+  "args": [
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "'use strict'; var let = 100;"
+  },
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "in.js:1:18: ERROR - [JSC_PARSE_ERROR] Parse error. 'identifier' expected\n  1| 'use strict'; var let = 100;\n                       ^\n\n1 error(s), 0 warning(s)\n",
+    "output_files": {}
+  }
+}

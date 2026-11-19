@@ -1,0 +1,1 @@
+var result = window?.config?.settings?.getVal?.();

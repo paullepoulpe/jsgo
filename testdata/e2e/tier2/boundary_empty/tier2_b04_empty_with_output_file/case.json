@@ -1,0 +1,25 @@
+{
+  "id": "tier2_b04_empty_with_output_file",
+  "tier": 2,
+  "feature": "boundary_empty",
+  "name": "Empty input with output file",
+  "description": "Compiles 0-byte input file and verifies 0-byte output file is written",
+  "args": [
+    "--js_output_file",
+    "out.js",
+    "--js",
+    "empty.js"
+  ],
+  "stdin": "",
+  "files": {
+    "empty.js": ""
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": "",
+    "output_files": {
+      "out.js": "\n"
+    }
+  }
+}

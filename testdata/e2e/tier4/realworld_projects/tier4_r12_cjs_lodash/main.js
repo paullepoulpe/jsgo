@@ -1,0 +1,1 @@
+var clamp = require('./clamp.js'); window['res'] = clamp(15, 0, 10);

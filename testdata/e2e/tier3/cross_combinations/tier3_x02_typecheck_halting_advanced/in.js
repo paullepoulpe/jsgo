@@ -1,0 +1,1 @@
+/** @type {number} */ var invalidNum = 'string'; function calc(n) { return n * 2; } window['res'] = calc(invalidNum);

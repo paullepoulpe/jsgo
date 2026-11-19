@@ -1,0 +1,1 @@
+var uiWidget = { core: coreAPI };

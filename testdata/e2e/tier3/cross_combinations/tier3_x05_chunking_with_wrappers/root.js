@@ -1,0 +1,1 @@
+var RootService = { id: 'root' };

@@ -1,0 +1,2337 @@
+diff --git a/com/google/javascript/jscomp/CoalesceVariableNames.java b/com/google/javascript/jscomp/CoalesceVariableNames.java
+index 1a26f35..1da692e 100644
+--- a/com/google/javascript/jscomp/CoalesceVariableNames.java
++++ b/com/google/javascript/jscomp/CoalesceVariableNames.java
+@@ -99,7 +99,7 @@ class CoalesceVariableNames extends NodeTraversal.AbstractCfgCallback implements
+     liveAnalyses = new ArrayDeque<>();
+     this.usePseudoNames = usePseudoNames;
+     this.astFactory = compiler.createAstFactory();
+-    this.scopeCreator = new MemoizedScopeCreator(new SyntacticScopeCreator(compiler));
++    this.scopeCreator = new MemoizedScopeCreator(new SyntacticScopeCreator(compiler), 256);
+   }
+ 
+   @Override
+diff --git a/com/google/javascript/jscomp/Compiler.java b/com/google/javascript/jscomp/Compiler.java
+index f1f1437..bb2931d 100644
+--- a/com/google/javascript/jscomp/Compiler.java
++++ b/com/google/javascript/jscomp/Compiler.java
+@@ -46,7 +46,6 @@ import com.google.javascript.jscomp.CompilerInput.ModuleType;
+ import com.google.javascript.jscomp.CompilerOptions.DevMode;
+ import com.google.javascript.jscomp.CompilerOptions.InstrumentOption;
+ import com.google.javascript.jscomp.CompilerOptions.SegmentOfCompilationToRun;
+-import com.google.javascript.jscomp.ExpressionDecomposer.Workaround;
+ import com.google.javascript.jscomp.JSChunkGraph.ChunkDependenceException;
+ import com.google.javascript.jscomp.JSChunkGraph.DependencyManagementResult;
+ import com.google.javascript.jscomp.JSChunkGraph.MissingChunkException;
+@@ -110,7 +109,6 @@ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.Collection;
+ import java.util.Collections;
+-import java.util.EnumSet;
+ import java.util.Iterator;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+@@ -1486,12 +1484,14 @@ public class Compiler extends AbstractCompiler implements ErrorHandler, SourceFi
+       Scope scope) {
+     // If the output is ES5, then it may end up running on IE11, so enable a workaround
+     // for one of its bugs.
+-    final EnumSet<Workaround> enabledWorkarounds =
+-        FeatureSet.ES5.contains(getOptions().getOutputFeatureSet())
+-            ? EnumSet.of(Workaround.BROKEN_IE11_LOCATION_ASSIGN)
+-            : EnumSet.noneOf(Workaround.class);
++    boolean enableBrokenIe11LocationAssign =
++        FeatureSet.ES5.contains(getOptions().getOutputFeatureSet());
+     return new ExpressionDecomposer(
+-        this, uniqueNameIdSupplier, knownConstantFunctions, scope, enabledWorkarounds);
++        this,
++        uniqueNameIdSupplier,
++        knownConstantFunctions,
++        scope,
++        enableBrokenIe11LocationAssign);
+   }
+ 
+   @Override
+diff --git a/com/google/javascript/jscomp/ExpressionDecomposer.java b/com/google/javascript/jscomp/ExpressionDecomposer.java
+index ee723ce..c9ec1ba 100644
+--- a/com/google/javascript/jscomp/ExpressionDecomposer.java
++++ b/com/google/javascript/jscomp/ExpressionDecomposer.java
+@@ -82,7 +82,7 @@ class ExpressionDecomposer {
+   private final Supplier<String> safeNameIdSupplier;
+   private final ImmutableSet<String> knownConstantFunctions;
+   private final Scope scope;
+-  private final EnumSet<Workaround> enabledWorkarounds;
++  private final boolean enableBrokenIe11LocationAssign;
+   private final @Nullable JSType unknownType;
+ 
+   /**
+@@ -101,6 +101,20 @@ class ExpressionDecomposer {
+       ImmutableSet<String> constFunctionNames,
+       Scope scope,
+       EnumSet<Workaround> enabledWorkarounds) {
++    this(
++        compiler,
++        safeNameIdSupplier,
++        constFunctionNames,
++        scope,
++        enabledWorkarounds.contains(Workaround.BROKEN_IE11_LOCATION_ASSIGN));
++  }
++
++  ExpressionDecomposer(
++      AbstractCompiler compiler,
++      Supplier<String> safeNameIdSupplier,
++      ImmutableSet<String> constFunctionNames,
++      Scope scope,
++      boolean enableBrokenIe11LocationAssign) {
+     checkNotNull(compiler);
+     checkNotNull(safeNameIdSupplier);
+     checkNotNull(constFunctionNames);
+@@ -110,7 +124,7 @@ class ExpressionDecomposer {
+     this.safeNameIdSupplier = safeNameIdSupplier;
+     this.knownConstantFunctions = constFunctionNames;
+     this.scope = scope;
+-    this.enabledWorkarounds = enabledWorkarounds;
++    this.enableBrokenIe11LocationAssign = enableBrokenIe11LocationAssign;
+     this.unknownType =
+         compiler.hasTypeCheckingRun() && !compiler.hasOptimizationColors()
+             ? compiler.getTypeRegistry().getNativeType(JSTypeNative.UNKNOWN_TYPE)
+@@ -1242,7 +1256,7 @@ class ExpressionDecomposer {
+         }
+       }
+ 
+-      if (enabledWorkarounds.contains(Workaround.BROKEN_IE11_LOCATION_ASSIGN)
++      if (enableBrokenIe11LocationAssign
+           && WINDOW_LOCATION_ASSIGN.matches(tree)) {
+         // IE11 throws an exception if we decompose a call to `window.location.assign`
+         // e.g.
+diff --git a/com/google/javascript/jscomp/GlobalNamespace.java b/com/google/javascript/jscomp/GlobalNamespace.java
+index 7240920..14eae56 100644
+--- a/com/google/javascript/jscomp/GlobalNamespace.java
++++ b/com/google/javascript/jscomp/GlobalNamespace.java
+@@ -22,6 +22,7 @@ import static com.google.common.base.Preconditions.checkState;
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.base.Joiner;
+ import com.google.common.base.MoreObjects;
++import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableSet;
+ import com.google.javascript.jscomp.CodingConvention.SubclassRelationship;
+ import com.google.javascript.jscomp.diagnostic.LogFile;
+@@ -1271,10 +1272,12 @@ class GlobalNamespace
+     private @Nullable Ref initialization;
+ 
+     /**
+-     * Keep track of which Nodes are Refs for this Name: either a single Ref (`singleRef`) or a
+-     * multi-entry `LinkedHashMap<Node, Ref>` (`refsForNodeMap`).
++     * Keep track of which Nodes are Refs for this Name: up to two inline Refs (`ref0`, `ref1`)
++     * before spilling to a `LinkedHashMap<Node, Ref>` (`refsForNodeMap`).
+      */
+-    private @Nullable Ref singleRef = null;
++    private @Nullable Ref ref0 = null;
++
++    private @Nullable Ref ref1 = null;
+ 
+     private @Nullable LinkedHashMap<Node, Ref> refsForNodeMap = null;
+ 
+@@ -1295,6 +1298,8 @@ class GlobalNamespace
+      */
+     private int propertyBitSet = 0;
+ 
++    private boolean multiRefMode = false;
++
+     // Will be set to the JSDocInfo associated with the first SET_FROM_GLOBAL reference added
+     // that has JSDocInfo.
+     // e.g.
+@@ -1419,9 +1424,14 @@ class GlobalNamespace
+      */
+     JSChunk getDeepestCommonAncestorChunk(JSChunkGraph chunkGraph) {
+       JSChunk commonAncestor = getDeclaration().getChunk();
+-      if (this.singleRef != null) {
+-        return chunkGraph.getDeepestCommonDependencyInclusive(
+-            this.singleRef.getChunk(), commonAncestor);
++      if (this.ref0 != null) {
++        commonAncestor =
++            chunkGraph.getDeepestCommonDependencyInclusive(this.ref0.getChunk(), commonAncestor);
++        if (this.ref1 != null) {
++          commonAncestor =
++              chunkGraph.getDeepestCommonDependencyInclusive(this.ref1.getChunk(), commonAncestor);
++        }
++        return commonAncestor;
+       }
+       if (this.refsForNodeMap != null) {
+         for (Ref r : this.refsForNodeMap.values()) {
+@@ -1453,8 +1463,11 @@ class GlobalNamespace
+     }
+ 
+     private void checkNoExistingRefsForNode(Node node) {
+-      if (this.singleRef != null) {
+-        checkState(this.singleRef.node != node, "Ref already exists for node: %s", this.singleRef);
++      if (this.ref0 != null) {
++        checkState(this.ref0.node != node, "Ref already exists for node: %s", this.ref0);
++        if (this.ref1 != null) {
++          checkState(this.ref1.node != node, "Ref already exists for node: %s", this.ref1);
++        }
+         return;
+       }
+       if (this.refsForNodeMap != null) {
+@@ -1476,15 +1489,32 @@ class GlobalNamespace
+         this.refsForNodeMap.put(node, ref);
+         return;
+       }
+-      if (this.singleRef == null) {
+-        this.singleRef = ref;
++      if (this.ref0 == null) {
++        this.ref0 = ref;
++        return;
++      }
++      if (this.ref0.node == node) {
++        this.ref0 = ref;
++        return;
++      }
++      this.multiRefMode = true;
++      if (this.ref1 == null) {
++        this.ref1 = ref;
+         return;
+       }
+-      Ref existingRef = this.singleRef;
+-      this.singleRef = null;
+-      this.refsForNodeMap = new LinkedHashMap<>();
+-      this.refsForNodeMap.put(existingRef.node, existingRef);
+-      this.refsForNodeMap.put(node, ref);
++      if (this.ref1.node == node) {
++        this.ref1 = ref;
++        return;
++      }
++      Ref r0 = this.ref0;
++      Ref r1 = this.ref1;
++      this.ref0 = null;
++      this.ref1 = null;
++      // Spill directly to field so native_map_lowering specializes refsForNodeMap.
++      this.refsForNodeMap = new LinkedHashMap<>(8);
++      this.refsForNodeMap.put(r0.node, r0);
++      this.refsForNodeMap.put(r1.node, r1);
++      this.refsForNodeMap.put(node, ref);
+     }
+ 
+     Ref addSingleRefForTesting(Node node, Ref.Type type) {
+@@ -1596,14 +1626,7 @@ class GlobalNamespace
+       checkState(oldNode != null, "Ref's node is already null: %s", ref);
+       ref.node = newNode;
+ 
+-      if (this.refsForNodeMap == null) {
+-        if (this.singleRef == null) {
+-          this.singleRef = ref;
+-        } else {
+-          // No update needed, since singleRef is a singleton.
+-          checkState(this.singleRef == ref);
+-        }
+-      } else {
++      if (this.refsForNodeMap != null) {
+         this.refsForNodeMap.remove(oldNode);
+         if (newNode != null) {
+           Ref existingRefForNewNode = this.refsForNodeMap.get(newNode);
+@@ -1611,6 +1634,33 @@ class GlobalNamespace
+               existingRefForNewNode == null, "refs already exist: %s", existingRefForNewNode);
+           this.refsForNodeMap.put(newNode, ref);
+         }
++      } else if (!this.multiRefMode) {
++        if (this.ref0 == null) {
++          this.ref0 = ref;
++        } else {
++          // No update needed, since ref0 is a singleton.
++          checkState(this.ref0 == ref);
++        }
++      } else {
++        if (this.ref0 == ref || (this.ref0 != null && this.ref0.node == oldNode)) {
++          this.ref0 = this.ref1;
++          this.ref1 = null;
++        } else if (this.ref1 == ref || (this.ref1 != null && this.ref1.node == oldNode)) {
++          this.ref1 = null;
++        }
++        if (newNode != null) {
++          Ref existingRefForNewNode =
++              (this.ref0 != null && this.ref0.node == newNode)
++                  ? this.ref0
++                  : ((this.ref1 != null && this.ref1.node == newNode) ? this.ref1 : null);
++          checkArgument(
++              existingRefForNewNode == null, "refs already exist: %s", existingRefForNewNode);
++          if (this.ref0 == null) {
++            this.ref0 = ref;
++          } else {
++            this.ref1 = ref;
++          }
++        }
+       }
+     }
+ 
+@@ -1621,13 +1671,7 @@ class GlobalNamespace
+      * get and the set.
+      */
+     void removeRef(Ref ref) {
+-      if (this.singleRef != null) {
+-        checkState(this.singleRef == ref, "removeRef(%s): unknown ref", ref);
+-        this.singleRef = null;
+-      } else {
+-        if (this.refsForNodeMap == null) {
+-          throw new NullPointerException("removeRef(" + ref + "): unknown ref");
+-        }
++      if (this.refsForNodeMap != null) {
+         checkState(
+             this.refsForNodeMap.containsKey(ref.getNode()), "removeRef(%s): unknown ref", ref);
+         Node refNode = ref.getNode();
+@@ -1640,6 +1684,32 @@ class GlobalNamespace
+               ref);
+           this.refsForNodeMap.remove(refNode);
+         }
++      } else if (!this.multiRefMode) {
++        if (this.ref0 == null) {
++          throw new NullPointerException("removeRef(" + ref + "): unknown ref");
++        }
++        checkState(this.ref0 == ref, "removeRef(%s): unknown ref", ref);
++        this.ref0 = null;
++      } else {
++        Node refNode = ref.getNode();
++        Ref existing =
++            refNode == null
++                ? null
++                : ((this.ref0 != null && this.ref0.node == refNode)
++                    ? this.ref0
++                    : ((this.ref1 != null && this.ref1.node == refNode) ? this.ref1 : null));
++        checkState(existing != null, "removeRef(%s): unknown ref", ref);
++        checkState(
++            existing == ref,
++            "Unexpected Refs for Node: %s: when removing Ref: %s",
++            existing,
++            ref);
++        if (existing == this.ref0) {
++          this.ref0 = this.ref1;
++          this.ref1 = null;
++        } else {
++          this.ref1 = null;
++        }
+       }
+       removeRefAndUpdateState(ref);
+     }
+@@ -1648,17 +1718,19 @@ class GlobalNamespace
+     private void removeRefAndUpdateState(Ref ref) {
+       if (ref == declaration) {
+         declaration = null;
+-        if (this.singleRef != null) {
+-          if (this.singleRef.type == Ref.Type.SET_FROM_GLOBAL) {
+-            declaration = this.singleRef;
+-          }
+-        } else if (this.refsForNodeMap != null) {
++        if (this.refsForNodeMap != null) {
+           for (Ref maybeNewDecl : this.refsForNodeMap.values()) {
+             if (maybeNewDecl.type == Ref.Type.SET_FROM_GLOBAL) {
+               declaration = maybeNewDecl;
+               break;
+             }
+           }
++        } else if (this.ref0 != null) {
++          if (this.ref0.type == Ref.Type.SET_FROM_GLOBAL) {
++            declaration = this.ref0;
++          } else if (this.ref1 != null && this.ref1.type == Ref.Type.SET_FROM_GLOBAL) {
++            declaration = this.ref1;
++          }
+         }
+       }
+ 
+@@ -1703,10 +1775,10 @@ class GlobalNamespace
+       if (this.refsForNodeMap != null) {
+         return this.refsForNodeMap.values();
+       }
+-      if (this.singleRef != null) {
+-        return ImmutableSet.of(this.singleRef);
++      if (this.ref0 != null) {
++        return this.ref1 != null ? ImmutableList.of(this.ref0, this.ref1) : ImmutableList.of(this.ref0);
+       }
+-      return ImmutableSet.of();
++      return ImmutableList.of();
+     }
+ 
+     /**
+@@ -1717,26 +1789,34 @@ class GlobalNamespace
+     @VisibleForTesting
+     @Nullable Ref getRefForNode(Node node) {
+       checkNotNull(node);
+-      if (this.singleRef != null) {
+-        return this.singleRef.getNode() == node ? this.singleRef : null;
+-      }
+       if (this.refsForNodeMap != null) {
+         return this.refsForNodeMap.get(node);
+       }
++      if (this.ref0 != null) {
++        if (this.ref0.getNode() == node) {
++          return this.ref0;
++        }
++        if (this.ref1 != null && this.ref1.getNode() == node) {
++          return this.ref1;
++        }
++      }
+       return null;
+     }
+ 
+     Ref getFirstRef() {
+-      if (this.singleRef != null) {
+-        return this.singleRef;
++      if (this.ref0 != null) {
++        return this.ref0;
+       }
+-      if (this.refsForNodeMap == null) {
+-        throw new NullPointerException("no first Ref to get");
++      if (this.refsForNodeMap != null) {
++        for (Ref ref : this.refsForNodeMap.values()) {
++          return ref;
++        }
++        throw new NoSuchElementException();
+       }
+-      for (Ref ref : this.refsForNodeMap.values()) {
+-        return ref;
++      if (this.multiRefMode) {
++        throw new NoSuchElementException();
+       }
+-      throw new NoSuchElementException();
++      throw new NullPointerException("no first Ref to get");
+     }
+ 
+     boolean canEliminate() {
+@@ -1755,7 +1835,7 @@ class GlobalNamespace
+     }
+ 
+     boolean isSimpleStubDeclaration() {
+-      if (this.singleRef != null
++      if ((this.ref0 != null && this.ref1 == null)
+           || (this.refsForNodeMap != null && this.refsForNodeMap.size() == 1)) {
+         Ref ref = getFirstRef();
+         if (ref.node.getParent().isExprResult()) {
+@@ -1808,8 +1888,14 @@ class GlobalNamespace
+               : getDeclaration().getChunk();
+ 
+       // Only allow inlining of simple references.
+-      if (this.singleRef != null) {
+-        inlinability = checkRefInlinability(this.singleRef, initialChunk, inlinability);
++      if (this.ref0 != null) {
++        inlinability = checkRefInlinability(this.ref0, initialChunk, inlinability);
++        if (inlinability == Inlinability.DO_NOT_INLINE) {
++          return Inlinability.DO_NOT_INLINE;
++        }
++        if (this.ref1 != null) {
++          inlinability = checkRefInlinability(this.ref1, initialChunk, inlinability);
++        }
+       } else if (this.refsForNodeMap != null) {
+         for (Ref ref : this.refsForNodeMap.values()) {
+           inlinability = checkRefInlinability(ref, initialChunk, inlinability);
+diff --git a/com/google/javascript/jscomp/InlineFunctions.java b/com/google/javascript/jscomp/InlineFunctions.java
+index bd832da..f43df61 100644
+--- a/com/google/javascript/jscomp/InlineFunctions.java
++++ b/com/google/javascript/jscomp/InlineFunctions.java
+@@ -907,7 +907,7 @@ class InlineFunctions implements CompilerPass {
+   }
+ 
+   /** Use to track the decisions that have been made about a function. */
+-  private static class FunctionState {
++  private static final class FunctionState {
+     private @Nullable Function fn = null;
+     private @Nullable Node safeFnNode = null;
+     private boolean inline = true;
+@@ -915,6 +915,8 @@ class InlineFunctions implements CompilerPass {
+     private boolean inlineDirectly = false;
+     private boolean referencesThis = false;
+     private boolean hasInnerClosures = false;
++    private @Nullable Reference ref0 = null;
++    private @Nullable Reference ref1 = null;
+     private @Nullable LinkedHashMap<Node, Reference> references = null;
+     private @Nullable JSChunk chunk = null;
+     private @Nullable Set<String> namesToAlias = null;
+@@ -947,35 +949,43 @@ class InlineFunctions implements CompilerPass {
+     }
+ 
+     void removeBlockInliningReferences() {
+-      if (references == null) {
+-        return;
+-      }
+-      ArrayList<Node> toRemove = null;
+-      for (Entry<Node, Reference> entry : references.entrySet()) {
+-        if (entry.getValue().mode == InliningMode.BLOCK) {
+-          if (toRemove == null) {
+-            toRemove = new ArrayList<>();
++      if (references != null) {
++        ArrayList<Node> toRemove = null;
++        for (Entry<Node, Reference> entry : references.entrySet()) {
++          if (entry.getValue().mode == InliningMode.BLOCK) {
++            if (toRemove == null) {
++              toRemove = new ArrayList<>();
++            }
++            toRemove.add(entry.getKey());
+           }
+-          toRemove.add(entry.getKey());
+         }
+-      }
+-      if (toRemove != null) {
+-        for (int i = 0, size = toRemove.size(); i < size; i++) {
+-          references.remove(toRemove.get(i));
++        if (toRemove != null) {
++          for (int i = 0, size = toRemove.size(); i < size; i++) {
++            references.remove(toRemove.get(i));
++          }
+         }
++        return;
++      }
++      if (ref1 != null && ref1.mode == InliningMode.BLOCK) {
++        ref1 = null;
++      }
++      if (ref0 != null && ref0.mode == InliningMode.BLOCK) {
++        ref0 = ref1;
++        ref1 = null;
+       }
+     }
+ 
+     boolean hasBlockInliningReferences() {
+-      if (references == null) {
+-        return false;
+-      }
+-      for (Reference r : references.values()) {
+-        if (r.mode == InliningMode.BLOCK) {
+-          return true;
++      if (references != null) {
++        for (Reference r : references.values()) {
++          if (r.mode == InliningMode.BLOCK) {
++            return true;
++          }
+         }
++        return false;
+       }
+-      return false;
++      return (ref0 != null && ref0.mode == InliningMode.BLOCK)
++          || (ref1 != null && ref1.mode == InliningMode.BLOCK);
+     }
+ 
+     Function getFn() {
+@@ -1039,6 +1049,8 @@ class InlineFunctions implements CompilerPass {
+       this.inline = false;
+ 
+       // No need to keep references to function that can't be inlined.
++      ref0 = null;
++      ref1 = null;
+       references = null;
+       // Don't remove functions that we aren't inlining.
+       remove = false;
+@@ -1085,28 +1097,54 @@ class InlineFunctions implements CompilerPass {
+     }
+ 
+     boolean hasReferences() {
+-      return (references != null && !references.isEmpty());
++      return ref0 != null || (references != null && !references.isEmpty());
+     }
+ 
+     void addReference(Reference ref) {
+-      if (references == null) {
+-        references = new LinkedHashMap<>();
++      if (references != null) {
++        references.put(ref.callNode, ref);
++        return;
+       }
+-      references.put(ref.callNode, ref);
++      if (ref0 == null || ref0.callNode == ref.callNode) {
++        ref0 = ref;
++        return;
++      }
++      if (ref1 == null || ref1.callNode == ref.callNode) {
++        ref1 = ref;
++        return;
++      }
++      Reference r0 = ref0, r1 = ref1;
++      ref0 = null;
++      ref1 = null;
++      references = new LinkedHashMap<>(8);
++      references.put(r0.callNode, r0);
++      references.put(r1.callNode, r1);
++      references.put(ref.callNode, ref);
+     }
+ 
+     Collection<Reference> getReferences() {
+-      if (references == null) {
++      if (references != null) {
++        return references.values();
++      }
++      if (ref0 == null) {
+         return ImmutableList.of();
+       }
+-      return references.values();
++      return ref1 != null ? ImmutableList.of(ref0, ref1) : ImmutableList.of(ref0);
+     }
+ 
+     Reference getReference(Node n) {
+-      if (references == null) {
+-        return null;
++      if (references != null) {
++        return references.get(n);
++      }
++      if (ref0 != null) {
++        if (ref0.callNode == n) {
++          return ref0;
++        }
++        if (ref1 != null && ref1.callNode == n) {
++          return ref1;
++        }
+       }
+-      return references.get(n);
++      return null;
+     }
+ 
+     ImmutableSet<String> getNamesToAlias() {
+diff --git a/com/google/javascript/jscomp/MemoizedScopeCreator.java b/com/google/javascript/jscomp/MemoizedScopeCreator.java
+index 7c38f3c..c5909d9 100644
+--- a/com/google/javascript/jscomp/MemoizedScopeCreator.java
++++ b/com/google/javascript/jscomp/MemoizedScopeCreator.java
+@@ -34,13 +34,18 @@ import java.util.Map;
+  */
+ class MemoizedScopeCreator implements ScopeCreator {
+ 
+-  private final Map<Node, AbstractScope<?, ?>> scopesByScopeRoot = new LinkedHashMap<>();
++  private final Map<Node, AbstractScope<?, ?>> scopesByScopeRoot;
+   private final ScopeCreator delegate;
+ 
+   /**
+    * @param delegate The real source of Scope objects.
+    */
+   MemoizedScopeCreator(ScopeCreator delegate) {
++    this(delegate, 16);
++  }
++
++  MemoizedScopeCreator(ScopeCreator delegate, int expectedScopes) {
++    this.scopesByScopeRoot = new LinkedHashMap<>(expectedScopes);
+     this.delegate = delegate;
+   }
+ 
+diff --git a/com/google/javascript/jscomp/NodeTraversal.java b/com/google/javascript/jscomp/NodeTraversal.java
+index 7965b17..d4371a6 100644
+--- a/com/google/javascript/jscomp/NodeTraversal.java
++++ b/com/google/javascript/jscomp/NodeTraversal.java
+@@ -780,7 +780,8 @@ public class NodeTraversal {
+ 
+     TraverseScopeRootsCallback scb = new TraverseScopeRootsCallback();
+     MemoizedScopeCreator scopeCreator =
+-        new MemoizedScopeCreator(new SyntacticScopeCreator(compiler));
++        new MemoizedScopeCreator(
++            new SyntacticScopeCreator(compiler), Math.max(8, scopeNodes.size() * 2));
+ 
+     for (final Node scopeNode : scopeNodes) {
+       scb.scopeNode = scopeNode;
+diff --git a/com/google/javascript/jscomp/ReferenceCollection.java b/com/google/javascript/jscomp/ReferenceCollection.java
+index ce75070..2dafec4 100644
+--- a/com/google/javascript/jscomp/ReferenceCollection.java
++++ b/com/google/javascript/jscomp/ReferenceCollection.java
+@@ -35,34 +35,47 @@ public final class ReferenceCollection implements Iterable<Reference>, Serializa
+ 
+   private @Nullable Reference ref0;
+   private @Nullable Reference ref1;
++  private @Nullable Reference ref2;
++  private @Nullable Reference ref3;
+   private @Nullable ArrayList<Reference> rest;
+ 
+-  private static final class PairIterator implements Iterator<Reference> {
+-    private final Reference first;
+-    private final Reference second;
++  private static final class InlineIterator implements Iterator<Reference> {
++    private final Reference r0;
++    private final @Nullable Reference r1;
++    private final @Nullable Reference r2;
++    private final @Nullable Reference r3;
++    private final int size;
+     private int index;
+ 
+-    PairIterator(Reference first, Reference second) {
+-      this.first = first;
+-      this.second = second;
++    InlineIterator(
++        Reference r0,
++        @Nullable Reference r1,
++        @Nullable Reference r2,
++        @Nullable Reference r3,
++        int size) {
++      this.r0 = r0;
++      this.r1 = r1;
++      this.r2 = r2;
++      this.r3 = r3;
++      this.size = size;
+     }
+ 
+     @Override
+     public boolean hasNext() {
+-      return index < 2;
++      return index < size;
+     }
+ 
+     @Override
+     public Reference next() {
+-      if (index == 0) {
+-        index = 1;
+-        return first;
++      if (index >= size) {
++        throw new NoSuchElementException();
+       }
+-      if (index == 1) {
+-        index = 2;
+-        return second;
+-      }
+-      throw new NoSuchElementException();
++      return switch (index++) {
++        case 0 -> r0;
++        case 1 -> r1;
++        case 2 -> r2;
++        default -> r3;
++      };
+     }
+   }
+ 
+@@ -71,13 +84,11 @@ public final class ReferenceCollection implements Iterable<Reference>, Serializa
+     if (rest != null) {
+       return rest.iterator();
+     }
+-    if (ref0 == null) {
++    int n = size();
++    if (n == 0) {
+       return Collections.emptyIterator();
+     }
+-    if (ref1 == null) {
+-      return Collections.singletonList(ref0).iterator();
+-    }
+-    return new PairIterator(ref0, ref1);
++    return new InlineIterator(ref0, ref1, ref2, ref3, n);
+   }
+ 
+   int size() {
+@@ -87,7 +98,13 @@ public final class ReferenceCollection implements Iterable<Reference>, Serializa
+     if (ref0 == null) {
+       return 0;
+     }
+-    return ref1 == null ? 1 : 2;
++    if (ref1 == null) {
++      return 1;
++    }
++    if (ref2 == null) {
++      return 2;
++    }
++    return ref3 == null ? 3 : 4;
+   }
+ 
+   boolean isEmpty() {
+@@ -98,11 +115,16 @@ public final class ReferenceCollection implements Iterable<Reference>, Serializa
+     if (rest != null) {
+       return rest.get(index);
+     }
+-    if (index == 0 && ref0 != null) {
+-      return ref0;
+-    }
+-    if (index == 1 && ref1 != null) {
+-      return ref1;
++    Reference r =
++        switch (index) {
++          case 0 -> ref0;
++          case 1 -> ref1;
++          case 2 -> ref2;
++          case 3 -> ref3;
++          default -> null;
++        };
++    if (r != null) {
++      return r;
+     }
+     throw new IndexOutOfBoundsException(index);
+   }
+@@ -114,14 +136,22 @@ public final class ReferenceCollection implements Iterable<Reference>, Serializa
+       ref0 = reference;
+     } else if (ref1 == null) {
+       ref1 = reference;
++    } else if (ref2 == null) {
++      ref2 = reference;
++    } else if (ref3 == null) {
++      ref3 = reference;
+     } else {
+-      ArrayList<Reference> list = new ArrayList<>(4);
++      ArrayList<Reference> list = new ArrayList<>(8);
+       list.add(ref0);
+       list.add(ref1);
++      list.add(ref2);
++      list.add(ref3);
+       list.add(reference);
+       rest = list;
+       ref0 = null;
+       ref1 = null;
++      ref2 = null;
++      ref3 = null;
+     }
+   }
+ 
+@@ -360,15 +390,19 @@ public final class ReferenceCollection implements Iterable<Reference>, Serializa
+     Object refsView;
+     if (rest != null) {
+       refsView = rest;
+-    } else if (ref0 == null) {
+-      refsView = Collections.emptyList();
+-    } else if (ref1 == null) {
+-      refsView = Collections.singletonList(ref0);
+     } else {
+-      ArrayList<Reference> list = new ArrayList<>(2);
+-      list.add(ref0);
+-      list.add(ref1);
+-      refsView = list;
++      int n = size();
++      if (n == 0) {
++        refsView = Collections.emptyList();
++      } else if (n == 1) {
++        refsView = Collections.singletonList(ref0);
++      } else {
++        ArrayList<Reference> list = new ArrayList<>(n);
++        for (int i = 0; i < n; i++) {
++          list.add(get(i));
++        }
++        refsView = list;
++      }
+     }
+     return toStringHelper(this)
+         .add("initRef", getInitializingReference())
+diff --git a/com/google/javascript/jscomp/TypedScopeCreator.java b/com/google/javascript/jscomp/TypedScopeCreator.java
+index dfe45ff..a67e54a 100644
+--- a/com/google/javascript/jscomp/TypedScopeCreator.java
++++ b/com/google/javascript/jscomp/TypedScopeCreator.java
+@@ -554,7 +554,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     // Gather global information used in typed scope creation. Use a memoized scope creator because
+     // scope-building takes a nontrivial amount of time.
+     MemoizedScopeCreator scopeCreator =
+-        new MemoizedScopeCreator(new SyntacticScopeCreator(compiler));
++        new MemoizedScopeCreator(new SyntacticScopeCreator(compiler), 2048);
+ 
+     NodeTraversal.builder()
+         .setCompiler(compiler)
+diff --git a/com/google/javascript/jscomp/parsing/IRFactory.java b/com/google/javascript/jscomp/parsing/IRFactory.java
+index 8bec04c..490de37 100644
+--- a/com/google/javascript/jscomp/parsing/IRFactory.java
++++ b/com/google/javascript/jscomp/parsing/IRFactory.java
+@@ -206,6 +206,7 @@ class IRFactory {
+   private final Config config;
+   private final ErrorReporter errorReporter;
+   private final TransformDispatcher transformDispatcher;
++  private @Nullable JsDocTokenStream reusableJsDocStream;
+ 
+   private static final ImmutableSet<String> ES5_RESERVED_KEYWORDS =
+       ImmutableSet.of(
+@@ -1285,10 +1286,17 @@ class IRFactory {
+ 
+     // The JsDocInfoParser expects the comment without the initial '/**'.
+     int numOpeningChars = 3;
++    String body = comment.substring(numOpeningChars);
++    JsDocTokenStream stream = this.reusableJsDocStream;
++    if (stream == null) {
++      stream = new JsDocTokenStream(body, lineno, charno + numOpeningChars);
++    } else {
++      this.reusableJsDocStream = null;
++      stream.reset(body, lineno, charno + numOpeningChars);
++    }
+     JsDocInfoParser jsdocParser =
+         new JsDocInfoParser(
+-            new JsDocTokenStream(
+-                comment.substring(numOpeningChars), lineno, charno + numOpeningChars),
++            stream,
+             comment,
+             position,
+             templateNode,
+@@ -1296,10 +1304,15 @@ class IRFactory {
+             jsDocSourceKind,
+             errorReporter);
+     jsdocParser.setFileOverviewJSDocInfo(this.firstFileoverview);
+-    if (node.type == Comment.Type.IMPORTANT && node.value.length() > 0) {
+-      jsdocParser.parseImportantComment();
+-    } else {
+-      jsdocParser.parse();
++    try {
++      if (node.type == Comment.Type.IMPORTANT && node.value.length() > 0) {
++        jsdocParser.parseImportantComment();
++      } else {
++        jsdocParser.parse();
++      }
++    } finally {
++      stream.clearSource();
++      this.reusableJsDocStream = stream;
+     }
+ 
+     return jsdocParser;
+@@ -1313,17 +1326,29 @@ class IRFactory {
+ 
+     // The JsDocInfoParser expects the comment without the initial '/**'.
+     int numOpeningChars = 3;
++    String body = comment.substring(numOpeningChars);
++    JsDocTokenStream stream = this.reusableJsDocStream;
++    if (stream == null) {
++      stream = new JsDocTokenStream(body, lineno, charno + numOpeningChars);
++    } else {
++      this.reusableJsDocStream = null;
++      stream.reset(body, lineno, charno + numOpeningChars);
++    }
+     JsDocInfoParser parser =
+         new JsDocInfoParser(
+-            new JsDocTokenStream(
+-                comment.substring(numOpeningChars), lineno, charno + numOpeningChars),
++            stream,
+             comment,
+             node.location.start.offset,
+             templateNode,
+             config,
+             jsDocSourceKind,
+             errorReporter);
+-    return parser.parseInlineTypeDoc();
++    try {
++      return parser.parseInlineTypeDoc();
++    } finally {
++      stream.clearSource();
++      this.reusableJsDocStream = stream;
++    }
+   }
+ 
+   // Set the length on the node if we're in IDE mode.
+diff --git a/com/google/javascript/jscomp/parsing/JsDocTokenStream.java b/com/google/javascript/jscomp/parsing/JsDocTokenStream.java
+index a42db90..7dc2e40 100644
+--- a/com/google/javascript/jscomp/parsing/JsDocTokenStream.java
++++ b/com/google/javascript/jscomp/parsing/JsDocTokenStream.java
+@@ -25,7 +25,7 @@ import com.google.javascript.rhino.TokenUtil;
+  *
+  * <p>It is heavily based on Rhino's TokenStream.
+  */
+-public class JsDocTokenStream {
++public final class JsDocTokenStream {
+   /*
+    * For chars - because we need something out-of-range
+    * to check.  (And checking EOF by exception is annoying.)
+@@ -33,6 +33,8 @@ public class JsDocTokenStream {
+    */
+   private static final int EOF_CHAR = -1;
+ 
++  private static final char[] EMPTY_CHAR_ARRAY = new char[0];
++
+   public JsDocTokenStream(String sourceString) {
+     this(sourceString, 0);
+   }
+@@ -42,8 +44,18 @@ public class JsDocTokenStream {
+   }
+ 
+   JsDocTokenStream(String sourceString, int lineno, int initCharno) {
++    reset(sourceString, lineno, initCharno);
++  }
++
++  void reset(String sourceString, int lineno, int initCharno) {
+     checkNotNull(sourceString);
++    this.string = "";
++    this.stringBufferTop = 0;
++    this.ungetCursor = 0;
++    this.lineStart = 0;
++    this.lineEndChar = -1;
+     this.lineno = lineno;
++    this.charno = -1;
+     this.sourceString = sourceString;
+     this.sourceEnd = sourceString.length();
+     this.sourceCursor = this.cursor = 0;
+@@ -51,6 +63,12 @@ public class JsDocTokenStream {
+     this.initCharno = initCharno;
+   }
+ 
++  void clearSource() {
++    this.sourceString = "";
++    this.sourceEnd = 0;
++    this.string = "";
++  }
++
+   /**
+    * Tokenizes JSDoc comments.
+    */
+@@ -150,7 +168,7 @@ public class JsDocTokenStream {
+               }
+             }
+             // we may backtrack across line boundary
+-            ungetBuffer[ungetCursor++] = c;
++            pushUnget(c);
+             c = '.';
+           }
+           // fall through
+@@ -239,18 +257,47 @@ public class JsDocTokenStream {
+   private void addToString(int c) {
+     int n = stringBufferTop;
+     if (n == stringBuffer.length) {
+-        char[] tmp = new char[stringBuffer.length * 2];
++      int newCap = n == 0 ? 64 : n * 2;
++      char[] tmp = new char[newCap];
++      if (n > 0) {
+         System.arraycopy(stringBuffer, 0, tmp, 0, n);
+-        stringBuffer = tmp;
++      }
++      stringBuffer = tmp;
+     }
+     stringBuffer[n] = (char) c;
+     stringBufferTop = n + 1;
+   }
+ 
++  private void pushUnget(int c) {
++    switch (ungetCursor++) {
++      case 0 -> unget0 = c;
++      case 1 -> unget1 = c;
++      case 2 -> unget2 = c;
++      default -> throw new ArrayIndexOutOfBoundsException(ungetCursor - 1);
++    }
++  }
++
++  private int popUnget() {
++    return switch (--ungetCursor) {
++      case 0 -> unget0;
++      case 1 -> unget1;
++      case 2 -> unget2;
++      default -> throw new ArrayIndexOutOfBoundsException(ungetCursor);
++    };
++  }
++
++  private int lastUnget() {
++    return switch (ungetCursor - 1) {
++      case 0 -> unget0;
++      case 1 -> unget1;
++      default -> unget2;
++    };
++  }
++
+   void ungetChar(int c) {
+     // can not unread past across line boundary
+-    assert(!(ungetCursor != 0 && ungetBuffer[ungetCursor - 1] == '\n'));
+-    ungetBuffer[ungetCursor++] = c;
++    assert (!(ungetCursor != 0 && lastUnget() == '\n'));
++    pushUnget(c);
+     cursor--;
+   }
+ 
+@@ -312,14 +359,14 @@ public class JsDocTokenStream {
+     return c;
+   }
+ 
+-  protected int getChar() {
++  int getChar() {
+     if (ungetCursor != 0) {
+       cursor++;
+-      --ungetCursor;
++      int c = popUnget();
+       if (charno == -1) {
+         charno = getLineOffset();
+       }
+-      return ungetBuffer[ungetCursor];
++      return c;
+     }
+ 
+     for (;;) {
+@@ -370,11 +417,11 @@ public class JsDocTokenStream {
+   private int getCharIgnoreLineEnd() {
+     if (ungetCursor != 0) {
+       cursor++;
+-      --ungetCursor;
++      int c = popUnget();
+       if (charno == -1) {
+         charno = getLineOffset();
+       }
+-      return ungetBuffer[ungetCursor];
++      return c;
+     }
+ 
+     for (;;) {
+@@ -422,7 +469,7 @@ public class JsDocTokenStream {
+   }
+ 
+   private void ungetCharIgnoreLineEnd(int c) {
+-    ungetBuffer[ungetCursor++] = c;
++    pushUnget(c);
+     cursor--;
+   }
+ 
+@@ -441,22 +488,24 @@ public class JsDocTokenStream {
+   // code.
+   private String string = "";
+ 
+-  private char[] stringBuffer = new char[128];
++  private char[] stringBuffer = EMPTY_CHAR_ARRAY;
+   private int stringBufferTop;
+ 
+   // Room to backtrace from to < on failed match of the last - in <!--
+-  private final int[] ungetBuffer = new int[3];
++  private int unget0;
++  private int unget1;
++  private int unget2;
+   private int ungetCursor;
+ 
+   private int lineStart = 0;
+   private int lineEndChar = -1;
+   private int lineno;
+   private int charno = -1;
+-  private final int initCharno;
+-  private final int initLineno;
++  private int initCharno;
++  private int initLineno;
+ 
+-  private final String sourceString;
+-  private final int sourceEnd;
++  private String sourceString;
++  private int sourceEnd;
+ 
+   // sourceCursor is an index into a small buffer that keeps a
+   // sliding window of the source stream.
+diff --git a/com/google/javascript/jscomp/parsing/parser/FeatureSet.java b/com/google/javascript/jscomp/parsing/parser/FeatureSet.java
+index 07b1c47..e89d4a9 100644
+--- a/com/google/javascript/jscomp/parsing/parser/FeatureSet.java
++++ b/com/google/javascript/jscomp/parsing/parser/FeatureSet.java
+@@ -23,6 +23,7 @@ import com.google.errorprone.annotations.InlineMe;
+ import java.io.Serializable;
+ import java.util.EnumSet;
+ import java.util.Set;
++import org.jspecify.annotations.Nullable;
+ 
+ /**
+  * Represents various aspects of language version and support.
+@@ -38,55 +39,66 @@ import java.util.Set;
+  */
+ @Immutable
+ public final class FeatureSet implements Serializable {
+-  private final ImmutableSet<Feature> features;
++  private static final Feature[] FEATURE_VALUES = Feature.values();
++
++  static {
++    if (FEATURE_VALUES.length > 64) {
++      throw new AssertionError("FeatureSet bitmask overflow: " + FEATURE_VALUES.length);
++    }
++  }
++
++  private static final long TYPESCRIPT_BITS = LangVersion.TYPESCRIPT.featureBits();
++
++  private final long bits;
++  private transient @Nullable ImmutableSet<Feature> lazyFeatures;
+ 
+   /** The bare minimum set of features. */
+-  public static final FeatureSet BARE_MINIMUM = new FeatureSet(emptyEnumSet());
++  public static final FeatureSet BARE_MINIMUM = new FeatureSet(0L);
+ 
+   /** Features from ES3. */
+-  public static final FeatureSet ES3 = BARE_MINIMUM.with(LangVersion.ES3.features());
++  public static final FeatureSet ES3 = BARE_MINIMUM.withBits(LangVersion.ES3.featureBits());
+ 
+   /** Features from ES5 only. */
+-  public static final FeatureSet ES5 = ES3.with(LangVersion.ES5.features());
++  public static final FeatureSet ES5 = ES3.withBits(LangVersion.ES5.featureBits());
+ 
+   /** All ES2015 features, including modules. */
+-  public static final FeatureSet ES2015_MODULES = ES5.with(LangVersion.ES2015.features());
++  public static final FeatureSet ES2015_MODULES = ES5.withBits(LangVersion.ES2015.featureBits());
+ 
+   /** The full set of ES2015 features, not including modules. */
+   public static final FeatureSet ES2015 = ES2015_MODULES.without(Feature.MODULES);
+ 
+   public static final FeatureSet ES2016_MODULES =
+-      ES2015_MODULES.with(LangVersion.ES2016.features());
++      ES2015_MODULES.withBits(LangVersion.ES2016.featureBits());
+ 
+   public static final FeatureSet ES2016 = ES2016_MODULES.without(Feature.MODULES);
+ 
+   public static final FeatureSet ES2017_MODULES =
+-      ES2016_MODULES.with(LangVersion.ES2017.features());
++      ES2016_MODULES.withBits(LangVersion.ES2017.featureBits());
+ 
+   public static final FeatureSet ES2017 = ES2017_MODULES.without(Feature.MODULES);
+ 
+   public static final FeatureSet ES2018_MODULES =
+-      ES2017_MODULES.with(LangVersion.ES2018.features());
++      ES2017_MODULES.withBits(LangVersion.ES2018.featureBits());
+ 
+   public static final FeatureSet ES2018 = ES2018_MODULES.without(Feature.MODULES);
+ 
+   public static final FeatureSet ES2019_MODULES =
+-      ES2018_MODULES.with(LangVersion.ES2019.features());
++      ES2018_MODULES.withBits(LangVersion.ES2019.featureBits());
+ 
+   public static final FeatureSet ES2019 = ES2019_MODULES.without(Feature.MODULES);
+ 
+   public static final FeatureSet ES2020_MODULES =
+-      ES2019_MODULES.with(LangVersion.ES2020.features());
++      ES2019_MODULES.withBits(LangVersion.ES2020.featureBits());
+ 
+   public static final FeatureSet ES2020 = ES2020_MODULES.without(Feature.MODULES);
+ 
+   public static final FeatureSet ES2021_MODULES =
+-      ES2020_MODULES.with(LangVersion.ES2021.features());
++      ES2020_MODULES.withBits(LangVersion.ES2021.featureBits());
+ 
+   public static final FeatureSet ES2021 = ES2021_MODULES.without(Feature.MODULES);
+ 
+   public static final FeatureSet ES2022_MODULES =
+-      ES2021_MODULES.with(LangVersion.ES2022.features());
++      ES2021_MODULES.withBits(LangVersion.ES2022.featureBits());
+ 
+   public static final FeatureSet ES2022 = ES2022_MODULES.without(Feature.MODULES);
+ 
+@@ -94,14 +106,15 @@ public final class FeatureSet implements Serializable {
+   // be updated to include it.
+ 
+   // Set of all fully supported features, even those part of language versions not fully supported
+-  public static final FeatureSet ES_NEXT = ES2022_MODULES.with(LangVersion.ES_NEXT.features());
++  public static final FeatureSet ES_NEXT = ES2022_MODULES.withBits(LangVersion.ES_NEXT.featureBits());
+ 
+   // Set of features fully supported in checks, even those not fully supported in optimizations
+-  public static final FeatureSet ES_UNSTABLE = ES_NEXT.with(LangVersion.ES_UNSTABLE.features());
++  public static final FeatureSet ES_UNSTABLE =
++      ES_NEXT.withBits(LangVersion.ES_UNSTABLE.featureBits());
+ 
+   // Set of all features that can be parsed, even those not yet fully supported in checks.
+   public static final FeatureSet ES_UNSUPPORTED =
+-      ES_UNSTABLE.with(LangVersion.ES_UNSUPPORTED.features());
++      ES_UNSTABLE.withBits(LangVersion.ES_UNSUPPORTED.featureBits());
+ 
+   // NOTE: The BROWSER_20XX FeatureSets are the set of features supported by major browsers as of
+   // January 1st of the given year. So, typically, take the year of the BFSY, subtract 1 to get
+@@ -178,7 +191,7 @@ public final class FeatureSet implements Serializable {
+   // implemented the new flags.
+   public static final FeatureSet BROWSER_2026 = ES2022_MODULES;
+ 
+-  public static final FeatureSet ALL = ES_UNSUPPORTED.with(LangVersion.TYPESCRIPT.features());
++  public static final FeatureSet ALL = ES_UNSUPPORTED.withBits(TYPESCRIPT_BITS);
+ 
+   private enum LangVersion {
+     ES3,
+@@ -197,14 +210,14 @@ public final class FeatureSet implements Serializable {
+     TYPESCRIPT,
+     ;
+ 
+-    private EnumSet<Feature> features() {
+-      EnumSet<Feature> set = EnumSet.noneOf(Feature.class);
+-      for (Feature feature : EnumSet.allOf(Feature.class)) {
++    private long featureBits() {
++      long mask = 0L;
++      for (Feature feature : FEATURE_VALUES) {
+         if (feature.version == this) {
+-          set.add(feature);
++          mask |= 1L << feature.ordinal();
+         }
+       }
+-      return set;
++      return mask;
+     }
+   }
+ 
+@@ -355,9 +368,17 @@ public final class FeatureSet implements Serializable {
+     }
+   }
+ 
+-  private FeatureSet(EnumSet<Feature> features) {
+-    // ImmutableSet will only use an EnumSet if the set starts as an EnumSet.
+-    this.features = ImmutableSet.copyOf(features);
++  private FeatureSet(long bits) {
++    this.bits = bits;
++  }
++
++  private static FeatureSet ofBits(long bits) {
++    return bits == 0L ? BARE_MINIMUM : new FeatureSet(bits);
++  }
++
++  private FeatureSet withBits(long extraBits) {
++    long newBits = this.bits | extraBits;
++    return newBits == this.bits ? this : ofBits(newBits);
+   }
+ 
+   /**
+@@ -422,118 +443,123 @@ public final class FeatureSet implements Serializable {
+   }
+ 
+   public FeatureSet without(Feature featureToRemove, Feature... moreFeaturesToRemove) {
+-    return new FeatureSet(difference(features, EnumSet.of(featureToRemove, moreFeaturesToRemove)));
++    long mask = 1L << featureToRemove.ordinal();
++    for (Feature f : moreFeaturesToRemove) {
++      mask |= 1L << f.ordinal();
++    }
++    long newBits = this.bits & ~mask;
++    return newBits == this.bits ? this : ofBits(newBits);
+   }
+ 
+   public FeatureSet without(FeatureSet other) {
+-    return new FeatureSet(difference(features, other.features));
++    long newBits = this.bits & ~other.bits;
++    return newBits == this.bits ? this : ofBits(newBits);
+   }
+ 
+   public FeatureSet withoutTypes() {
+-    return new FeatureSet(difference(features, LangVersion.TYPESCRIPT.features()));
++    long newBits = this.bits & ~TYPESCRIPT_BITS;
++    return newBits == this.bits ? this : ofBits(newBits);
+   }
+ 
+   /**
+    * Returns a new {@link FeatureSet} including all features of both {@code this} and {@code other}.
+    */
+   public FeatureSet union(FeatureSet other) {
+-    return new FeatureSet(union(features, other.features));
++    long newBits = this.bits | other.bits;
++    if (newBits == this.bits) {
++      return this;
++    }
++    if (newBits == other.bits) {
++      return other;
++    }
++    return ofBits(newBits);
+   }
+ 
+   /** Does this {@link FeatureSet} contain at least one of the features of {@code other}? */
+   public boolean containsAtLeastOneOf(FeatureSet other) {
+-    for (Feature otherFeature : other.features) {
+-      if (this.features.contains(otherFeature)) {
+-        return true;
+-      }
+-    }
+-    return false;
++    return (this.bits & other.bits) != 0L;
+   }
+ 
+   /** Does this {@link FeatureSet} contain all of the features of {@code other}? */
+   public boolean contains(FeatureSet other) {
+-    return this.features.containsAll(other.features);
++    return (this.bits & other.bits) == other.bits;
+   }
+ 
+   /** Does this {@link FeatureSet} contain the given feature? */
+   public boolean contains(Feature feature) {
+-    return this.features.containsAll(EnumSet.of(feature));
+-  }
+-
+-  private static EnumSet<Feature> emptyEnumSet() {
+-    return EnumSet.noneOf(Feature.class);
+-  }
+-
+-  private static EnumSet<Feature> enumSetOf(Set<Feature> set) {
+-    return set.isEmpty() ? emptyEnumSet() : EnumSet.copyOf(set);
+-  }
+-
+-  private static EnumSet<Feature> add(Set<Feature> features, Feature feature) {
+-    EnumSet<Feature> result = enumSetOf(features);
+-    result.add(feature);
+-    return result;
+-  }
+-
+-  private static EnumSet<Feature> union(Set<Feature> features, Set<Feature> newFeatures) {
+-    EnumSet<Feature> result = enumSetOf(features);
+-    result.addAll(newFeatures);
+-    return result;
+-  }
+-
+-  private static EnumSet<Feature> difference(Set<Feature> features, Set<Feature> removedFeatures) {
+-    EnumSet<Feature> result = enumSetOf(features);
+-    result.removeAll(removedFeatures);
+-    return result;
++    return (this.bits & (1L << feature.ordinal())) != 0L;
+   }
+ 
+   /** Returns a feature set combining all the features from {@code this} and {@code feature}. */
+   public FeatureSet with(Feature feature) {
+-    if (features.contains(feature)) {
+-      return this;
+-    }
+-    return new FeatureSet(add(features, feature));
++    long newBits = this.bits | (1L << feature.ordinal());
++    return newBits == this.bits ? this : new FeatureSet(newBits);
+   }
+ 
+   /** Returns a feature set combining all the features from {@code this} and {@code newFeatures}. */
+   @VisibleForTesting
+   public FeatureSet with(Feature... newFeatures) {
+-    return new FeatureSet(union(features, ImmutableSet.copyOf(newFeatures)));
++    long newBits = this.bits;
++    for (Feature f : newFeatures) {
++      newBits |= 1L << f.ordinal();
++    }
++    return newBits == this.bits ? this : ofBits(newBits);
+   }
+ 
+   /** Returns a feature set combining all the features from {@code this} and {@code newFeatures}. */
+   @VisibleForTesting
+   public FeatureSet with(Set<Feature> newFeatures) {
+-    return new FeatureSet(union(features, newFeatures));
++    long newBits = this.bits;
++    for (Feature f : newFeatures) {
++      newBits |= 1L << f.ordinal();
++    }
++    return newBits == this.bits ? this : ofBits(newBits);
+   }
+ 
+   /** Returns a feature set combining all the features from {@code this} and {@code newFeatures}. */
+   @VisibleForTesting
+   public FeatureSet with(FeatureSet newFeatures) {
+-    return new FeatureSet(union(features, newFeatures.features));
++    return union(newFeatures);
+   }
+ 
+   /** Does this {@link FeatureSet} include {@code feature}? */
+   public boolean has(Feature feature) {
+-    return features.contains(feature);
++    return feature != null && (this.bits & (1L << feature.ordinal())) != 0L;
+   }
+ 
+   public ImmutableSet<Feature> getFeatures() {
+-    return features;
++    ImmutableSet<Feature> f = this.lazyFeatures;
++    if (f == null) {
++      if (this.bits == 0L) {
++        f = ImmutableSet.of();
++      } else {
++        EnumSet<Feature> set = EnumSet.noneOf(Feature.class);
++        long rem = this.bits;
++        while (rem != 0L) {
++          int idx = Long.numberOfTrailingZeros(rem);
++          set.add(FEATURE_VALUES[idx]);
++          rem &= rem - 1L;
++        }
++        f = ImmutableSet.copyOf(set);
++      }
++      this.lazyFeatures = f;
++    }
++    return f;
+   }
+ 
+   @Override
+   public boolean equals(Object other) {
+-    return other instanceof FeatureSet featureSet && featureSet.features.equals(features);
++    return other instanceof FeatureSet featureSet && featureSet.bits == this.bits;
+   }
+ 
+   @Override
+   public int hashCode() {
+-    return features.hashCode();
++    return getFeatures().hashCode();
+   }
+ 
+   @Override
+   public String toString() {
+-    return features.toString();
++    return getFeatures().toString();
+   }
+ 
+   /** Parses known strings into feature sets. */
+diff --git a/com/google/javascript/jscomp/type/ChainableReverseAbstractInterpreter.java b/com/google/javascript/jscomp/type/ChainableReverseAbstractInterpreter.java
+index 95269f5..7e586c9 100644
+--- a/com/google/javascript/jscomp/type/ChainableReverseAbstractInterpreter.java
++++ b/com/google/javascript/jscomp/type/ChainableReverseAbstractInterpreter.java
+@@ -42,7 +42,6 @@ import com.google.javascript.rhino.jstype.JSType;
+ import com.google.javascript.rhino.jstype.JSTypeNative;
+ import com.google.javascript.rhino.jstype.JSTypeRegistry;
+ import com.google.javascript.rhino.jstype.NamedType;
+-import com.google.javascript.rhino.jstype.NoType;
+ import com.google.javascript.rhino.jstype.ObjectType;
+ import com.google.javascript.rhino.jstype.ProxyObjectType;
+ import com.google.javascript.rhino.jstype.StaticTypedSlot;
+@@ -224,7 +223,7 @@ public abstract class ChainableReverseAbstractInterpreter
+     }
+ 
+     @Override
+-    public JSType caseNoType(NoType type) {
++    public JSType caseNoType(FunctionType type) {
+       return type;
+     }
+ 
+diff --git a/com/google/javascript/rhino/JSDocInfo.java b/com/google/javascript/rhino/JSDocInfo.java
+index 21c8143..ef9797d 100644
+--- a/com/google/javascript/rhino/JSDocInfo.java
++++ b/com/google/javascript/rhino/JSDocInfo.java
+@@ -703,12 +703,9 @@ public final class JSDocInfo implements Serializable {
+   private final Object @Nullable [] propertyValuesRest;
+ 
+   @SuppressWarnings("unchecked")
+-  private JSDocInfo(
+-      long bits,
+-      long propKeys,
+-      @Nullable Object singlePropValue,
+-      Object @Nullable [] propValues) {
+-    this.propertyBits = bits;
++  private JSDocInfo(Builder builder) {
++    this.propertyBits = builder.bits;
++    long propKeys = builder.propKeys;
+     if (propKeys == 0L) {
+       this.propertyKeysBitset = 0L;
+       this.propertyValue0 = null;
+@@ -716,19 +713,43 @@ public final class JSDocInfo implements Serializable {
+       this.propertyValuesRest = null;
+       return;
+     }
++    Object[] propValues = builder.propValues;
+     if (propValues == null) {
+-      int bit = Long.numberOfTrailingZeros(propKeys);
+-      Property<Object> prop = (Property<Object>) Property.values[bit];
+-      if (!prop.isDefault(singlePropValue)) {
+-        checkState(!(singlePropValue instanceof Object[]) && (singlePropValue != null));
+-        this.propertyKeysBitset = propKeys;
+-        this.propertyValue0 = singlePropValue;
++      long keys = 0L;
++      int count = 0;
++      Object kept0 = null;
++      Object kept1 = null;
++      Object kept2 = null;
++      Object kept3 = null;
++      long rem = propKeys;
++      int inlineIdx = 0;
++      while (rem != 0L) {
++        int bit = Long.numberOfTrailingZeros(rem);
++        rem &= rem - 1L;
++        Property<Object> prop = (Property<Object>) Property.values[bit];
++        Object value = builder.getInlineValAt(inlineIdx++);
++        if (!prop.isDefault(value)) {
++          checkState(!(value instanceof Object[]) && (value != null));
++          keys |= prop.mask;
++          switch (count) {
++            case 0 -> kept0 = value;
++            case 1 -> kept1 = value;
++            case 2 -> kept2 = value;
++            default -> kept3 = value;
++          }
++          count++;
++        }
++      }
++      this.propertyKeysBitset = keys;
++      this.propertyValue0 = kept0;
++      this.propertyValue1 = kept1;
++      if (count <= 2) {
++        this.propertyValuesRest = null;
++      } else if (count == 3) {
++        this.propertyValuesRest = new Object[] {kept2};
+       } else {
+-        this.propertyKeysBitset = 0L;
+-        this.propertyValue0 = null;
++        this.propertyValuesRest = new Object[] {kept2, kept3};
+       }
+-      this.propertyValue1 = null;
+-      this.propertyValuesRest = null;
+       return;
+     }
+     long keys = 0L;
+@@ -1038,14 +1059,21 @@ public final class JSDocInfo implements Serializable {
+     if (keys == 0L) {
+       return builder;
+     }
+-    if ((keys & (keys - 1L)) == 0L) {
+-      int low = Long.numberOfTrailingZeros(keys);
+-      Property<Object> prop = (Property<Object>) Property.values[low];
+-      Object cloned = prop.clone(getPropertyValueByIndex(0), transform);
+-      if (cloned != null) {
+-        builder.propKeys = keys;
+-        builder.singlePropValue = cloned;
++    if (Long.bitCount(keys) <= 4) {
++      long actualKeys = 0L;
++      int srcIndex = 0;
++      int dstIndex = 0;
++      while (keys != 0L) {
++        int low = Long.numberOfTrailingZeros(keys);
++        keys &= keys - 1L;
++        Property<Object> prop = (Property<Object>) Property.values[low];
++        Object cloned = prop.clone(getPropertyValueByIndex(srcIndex++), transform);
++        if (cloned != null) {
++          builder.setInlineValAt(dstIndex++, cloned);
++          actualKeys |= (1L << low);
++        }
+       }
++      builder.propKeys = actualKeys;
+       return builder;
+     }
+     Object[] vals = new Object[Property.bitCounter];
+@@ -2020,7 +2048,10 @@ public final class JSDocInfo implements Serializable {
+    */
+   public static class Builder {
+     long propKeys = 0L;
+-    @Nullable Object singlePropValue;
++    @Nullable Object propVal0;
++    @Nullable Object propVal1;
++    @Nullable Object propVal2;
++    @Nullable Object propVal3;
+     Object @Nullable [] propValues;
+     long bits = 0L;
+ 
+@@ -2170,7 +2201,7 @@ public final class JSDocInfo implements Serializable {
+      */
+     public @Nullable JSDocInfo build(boolean always) {
+       if (populated || always) {
+-        JSDocInfo info = new JSDocInfo(bits, propKeys, singlePropValue, propValues);
++        JSDocInfo info = new JSDocInfo(this);
+         populated = false;
+         return info;
+       }
+@@ -2195,7 +2226,10 @@ public final class JSDocInfo implements Serializable {
+           propValues[bit] = null;
+         }
+       } else {
+-        singlePropValue = null;
++        propVal0 = null;
++        propVal1 = null;
++        propVal2 = null;
++        propVal3 = null;
+       }
+       propKeys = 0L;
+       populated = false;
+@@ -3318,6 +3352,24 @@ public final class JSDocInfo implements Serializable {
+       return (bits & (Bit.CONSTRUCTOR.mask | Bit.INTERFACE.mask)) != 0;
+     }
+ 
++    @Nullable Object getInlineValAt(int idx) {
++      return switch (idx) {
++        case 0 -> propVal0;
++        case 1 -> propVal1;
++        case 2 -> propVal2;
++        default -> propVal3;
++      };
++    }
++
++    void setInlineValAt(int idx, @Nullable Object v) {
++      switch (idx) {
++        case 0 -> propVal0 = v;
++        case 1 -> propVal1 = v;
++        case 2 -> propVal2 = v;
++        default -> propVal3 = v;
++      }
++    }
++
+     private <T> void setProp(Property<T> prop, @Nullable T value) {
+       if (value == null) {
+         removeProp(prop);
+@@ -3328,14 +3380,31 @@ public final class JSDocInfo implements Serializable {
+         propKeys |= prop.mask;
+         return;
+       }
+-      if (propKeys == 0L || propKeys == prop.mask) {
+-        propKeys = prop.mask;
+-        singlePropValue = value;
++      int idx = Long.bitCount(propKeys & (prop.mask - 1L));
++      if ((propKeys & prop.mask) != 0L) {
++        setInlineValAt(idx, value);
++        return;
++      }
++      int count = Long.bitCount(propKeys);
++      if (count < 4) {
++        for (int i = count; i > idx; i--) {
++          setInlineValAt(i, getInlineValAt(i - 1));
++        }
++        setInlineValAt(idx, value);
++        propKeys |= prop.mask;
+         return;
+       }
+       Object[] vals = new Object[Property.bitCounter];
+-      vals[Long.numberOfTrailingZeros(propKeys)] = singlePropValue;
+-      singlePropValue = null;
++      long rem = propKeys;
++      for (int i = 0; i < 4; i++) {
++        int b = Long.numberOfTrailingZeros(rem);
++        rem &= rem - 1L;
++        vals[b] = getInlineValAt(i);
++      }
++      propVal0 = null;
++      propVal1 = null;
++      propVal2 = null;
++      propVal3 = null;
+       vals[prop.bit] = value;
+       propValues = vals;
+       propKeys |= prop.mask;
+@@ -3346,7 +3415,10 @@ public final class JSDocInfo implements Serializable {
+       if ((propKeys & prop.mask) == 0L) {
+         return null;
+       }
+-      return (T) (propValues != null ? propValues[prop.bit] : singlePropValue);
++      if (propValues != null) {
++        return (T) propValues[prop.bit];
++      }
++      return (T) getInlineValAt(Long.bitCount(propKeys & (prop.mask - 1L)));
+     }
+ 
+     @SuppressWarnings("unchecked")
+@@ -3359,8 +3431,13 @@ public final class JSDocInfo implements Serializable {
+         old = (T) propValues[prop.bit];
+         propValues[prop.bit] = null;
+       } else {
+-        old = (T) singlePropValue;
+-        singlePropValue = null;
++        int idx = Long.bitCount(propKeys & (prop.mask - 1L));
++        int count = Long.bitCount(propKeys);
++        old = (T) getInlineValAt(idx);
++        for (int i = idx; i < count - 1; i++) {
++          setInlineValAt(i, getInlineValAt(i + 1));
++        }
++        setInlineValAt(count - 1, null);
+       }
+       propKeys &= ~prop.mask;
+       return old;
+diff --git a/com/google/javascript/rhino/jstype/FunctionType.java b/com/google/javascript/rhino/jstype/FunctionType.java
+index 19526ed..eaddc87 100644
+--- a/com/google/javascript/rhino/jstype/FunctionType.java
++++ b/com/google/javascript/rhino/jstype/FunctionType.java
+@@ -49,6 +49,7 @@ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableSet;
+ import com.google.javascript.rhino.ClosurePrimitive;
+ import com.google.javascript.rhino.ErrorReporter;
++import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.jstype.EqualityChecker.EqMethod;
+ import java.util.ArrayList;
+@@ -70,10 +71,14 @@ import org.jspecify.annotations.Nullable;
+  * containing the parsed argument list (annotated with JSDOC_TYPE_PROP's for the compile-time type
+  * of each argument.
+  */
+-public class FunctionType extends PrototypeObjectType implements JSType.WithSourceRef {
++public final class FunctionType extends PrototypeObjectType implements JSType.WithSourceRef {
+ 
+   private static final JSTypeClass TYPE_CLASS = JSTypeClass.FUNCTION;
+ 
++  private static final byte NO_KIND_NORMAL = 0;
++  private static final byte NO_KIND_NO_OBJECT = 1;
++  private static final byte NO_KIND_NO_TYPE = 2;
++
+   enum Kind {
+     ORDINARY,
+     CONSTRUCTOR,
+@@ -135,8 +140,28 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+    */
+   private final boolean isAbstract;
+ 
++  private final byte noTypeKind;
++
+   private @Nullable ClassOrInterfaceExtra extra;
+ 
++  static FunctionType createNoObjectType(JSTypeRegistry registry) {
++    return builder(registry)
++        .withKind(Kind.NONE)
++        .withReturnsOwnInstanceType()
++        .forNativeType()
++        .withNoTypeKind(NO_KIND_NO_OBJECT)
++        .build();
++  }
++
++  static FunctionType createNoType(JSTypeRegistry registry) {
++    return builder(registry)
++        .withKind(Kind.NONE)
++        .withReturnsOwnInstanceType()
++        .forNativeType()
++        .withNoTypeKind(NO_KIND_NO_TYPE)
++        .build();
++  }
++
+   private ClassOrInterfaceExtra ensureExtra() {
+     ClassOrInterfaceExtra e = this.extra;
+     if (e == null) {
+@@ -165,6 +190,7 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+    */
+   FunctionType(Builder builder) {
+     super(builder);
++    this.noTypeKind = builder.noTypeKind;
+     setPrettyPrint(true);
+ 
+     Node source = builder.sourceNode;
+@@ -237,20 +263,91 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+       this.setPrototypeBasedOn(builder.setPrototypeBasedOn);
+     }
+ 
+-    this.registry.getResolver().resolveIfClosed(this, TYPE_CLASS);
++    if (this.noTypeKind != NO_KIND_NORMAL) {
++      this.eagerlyResolveToSelf();
++    } else {
++      this.registry.getResolver().resolveIfClosed(this, TYPE_CLASS);
++    }
+   }
+ 
+   @Override
+   JSTypeClass getTypeClass() {
+-    return TYPE_CLASS;
++    return switch (this.noTypeKind) {
++      case NO_KIND_NO_OBJECT -> JSTypeClass.NO_OBJECT;
++      case NO_KIND_NO_TYPE -> JSTypeClass.NO;
++      default -> TYPE_CLASS;
++    };
+   }
+ 
+   @Override
+-  public FunctionType getConstructor() {
++  public @Nullable FunctionType getConstructor() {
++    if (this.noTypeKind != NO_KIND_NORMAL) {
++      return null;
++    }
+     // Every function type, including `Function`, is constructed by `(typeof Function)`.
+     return checkNotNull(this.registry.getNativeFunctionType(JSTypeNative.FUNCTION_FUNCTION_TYPE));
+   }
+ 
++  @Override
++  public boolean isNoObjectType() {
++    return this.noTypeKind == NO_KIND_NO_OBJECT;
++  }
++
++  @Override
++  public boolean isNoType() {
++    return this.noTypeKind == NO_KIND_NO_TYPE;
++  }
++
++  @Override
++  public boolean isNullable() {
++    return this.noTypeKind == NO_KIND_NO_TYPE;
++  }
++
++  @Override
++  public boolean isVoidable() {
++    return this.noTypeKind == NO_KIND_NO_TYPE;
++  }
++
++  @Override
++  public BooleanLiteralSet getPossibleToBooleanOutcomes() {
++    return this.noTypeKind == NO_KIND_NO_TYPE
++        ? BooleanLiteralSet.BOTH
++        : super.getPossibleToBooleanOutcomes();
++  }
++
++  @Override
++  public @Nullable ObjectType getImplicitPrototype() {
++    return this.noTypeKind != NO_KIND_NORMAL ? null : super.getImplicitPrototype();
++  }
++
++  @Override
++  public @Nullable String getReferenceName() {
++    return this.noTypeKind != NO_KIND_NORMAL ? null : super.getReferenceName();
++  }
++
++  @Override
++  public boolean matchesNumberContext() {
++    return this.noTypeKind != NO_KIND_NORMAL || super.matchesNumberContext();
++  }
++
++  @Override
++  public boolean matchesStringContext() {
++    return this.noTypeKind != NO_KIND_NORMAL || super.matchesStringContext();
++  }
++
++  @Override
++  public boolean matchesSymbolContext() {
++    return this.noTypeKind != NO_KIND_NORMAL || super.matchesSymbolContext();
++  }
++
++  @Override
++  public void setPropertyJSDocInfo(Property.Key propertyName, JSDocInfo info) {
++    if (this.noTypeKind != NO_KIND_NORMAL) {
++      return;
++    }
++    super.setPropertyJSDocInfo(propertyName, info);
++  }
++
+   @Override
+   public final boolean isInstanceType() {
+     // Only `Function` is both a function type and the intance type of a nominal constructor.
+@@ -341,8 +438,8 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+   }
+ 
+   @Override
+-  public FunctionType toMaybeFunctionType() {
+-    return this;
++  public @Nullable FunctionType toMaybeFunctionType() {
++    return this.noTypeKind == NO_KIND_NORMAL ? this : null;
+   }
+ 
+   @Override
+@@ -762,6 +859,9 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+ 
+   @Override
+   boolean defineProperty(Property.Key name, JSType type, boolean inferred, Node propertyNode) {
++    if (this.noTypeKind != NO_KIND_NORMAL) {
++      return true;
++    }
+     if (name.matches("prototype")) {
+       ObjectType objType = type.toObjectType();
+       if (objType != null) {
+@@ -917,6 +1017,9 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+ 
+   @Override
+   int recursionUnsafeHashCode() {
++    if (this.noTypeKind != NO_KIND_NORMAL) {
++      return System.identityHashCode(this);
++    }
+     int hc = kind.hashCode();
+     return switch (kind) {
+       // constructors use identity semantics
+@@ -946,6 +1049,14 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+    */
+   @Override
+   void appendTo(TypeStringBuilder sb) {
++    if (this.noTypeKind == NO_KIND_NO_TYPE) {
++      sb.append(sb.isForAnnotations() ? "?" : "None");
++      return;
++    }
++    if (this.noTypeKind == NO_KIND_NO_OBJECT) {
++      sb.append(sb.isForAnnotations() ? "?" : "NoObject");
++      return;
++    }
+     if (!isPrettyPrint() || identical(this, registry.getNativeType(JSTypeNative.FUNCTION_TYPE))) {
+       sb.append(sb.isForAnnotations() ? "!Function" : "Function");
+       return;
+@@ -1020,12 +1131,20 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+ 
+   @Override
+   public <T> T visit(Visitor<T> visitor) {
+-    return visitor.caseFunctionType(this);
++    return switch (this.noTypeKind) {
++      case NO_KIND_NO_TYPE -> visitor.caseNoType(this);
++      case NO_KIND_NO_OBJECT -> visitor.caseNoObjectType();
++      default -> visitor.caseFunctionType(this);
++    };
+   }
+ 
+   @Override
+   <T> T visit(RelationshipVisitor<T> visitor, JSType that) {
+-    return visitor.caseFunctionType(this, that);
++    return switch (this.noTypeKind) {
++      case NO_KIND_NO_TYPE -> visitor.caseNoType(that);
++      case NO_KIND_NO_OBJECT -> visitor.caseNoObjectType(that);
++      default -> visitor.caseFunctionType(this, that);
++    };
+   }
+ 
+   /**
+@@ -1112,6 +1231,9 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+ 
+   @Override
+   JSType resolveInternal(ErrorReporter reporter) {
++    if (this.noTypeKind != NO_KIND_NORMAL) {
++      throw new AssertionError();
++    }
+     returnType = safeResolve(returnType, reporter);
+     for (int i = 0, size = parameterList.size(); i < size; i++) {
+       parameterList.get(i).getJSType().resolve(reporter);
+@@ -1487,6 +1609,7 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+     private boolean isKnownAmbiguous = false;
+     private boolean returnTypeIsInferred;
+     private boolean returnsOwnInstanceType;
++    private byte noTypeKind = NO_KIND_NORMAL;
+     private @Nullable ClosurePrimitive primitiveId = null;
+     private @Nullable FunctionType canonicalRepresentation = null;
+ 
+@@ -1633,6 +1756,11 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+       return this;
+     }
+ 
++    private Builder withNoTypeKind(byte noTypeKind) {
++      this.noTypeKind = noTypeKind;
++      return this;
++    }
++
+     /** Sets the canonical representation of a constructor, if any */
+     private Builder withCanonicalRepresentation(FunctionType representation) {
+       this.canonicalRepresentation = representation;
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index 3bf3d69..4f1d66b 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -81,8 +81,8 @@ public abstract class JSType {
+   private boolean hashCodeInProgress = false;
+ 
+   private boolean inTemplatedCheckVisit = false;
+-  // Use "Boolean" as a 3-state value where not set is `null`.
+-  private @Nullable Boolean templateCheckResult = null;
++  // 3-state value: 0 = unset, 1 = false, 2 = true.
++  private byte templateCheckResult = 0;
+   private static final CanCastToVisitor CAN_CAST_TO_VISITOR = new CanCastToVisitor();
+ 
+   final JSTypeRegistry registry;
+@@ -548,8 +548,8 @@ public abstract class JSType {
+ 
+   public boolean hasAnyTemplateTypes() {
+     // If the result has been cached use that.
+-    if (this.templateCheckResult != null) {
+-      return templateCheckResult;
++    if (this.templateCheckResult != 0) {
++      return this.templateCheckResult == 2;
+     }
+ 
+     if (this.inTemplatedCheckVisit) {
+@@ -563,7 +563,7 @@ public abstract class JSType {
+ 
+     // Cache the result if the type has been resolved.
+     if (this.isResolved()) {
+-      templateCheckResult = result;
++      this.templateCheckResult = result ? (byte) 2 : (byte) 1;
+     }
+     return result;
+   }
+diff --git a/com/google/javascript/rhino/jstype/JSTypeRegistry.java b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+index 4b4f380..c79d64d 100644
+--- a/com/google/javascript/rhino/jstype/JSTypeRegistry.java
++++ b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+@@ -590,10 +590,10 @@ public final class JSTypeRegistry {
+     registerNativeType(JSTypeNative.I_OBJECT_TYPE, iObjectType);
+ 
+     // Bottom Types
+-    NoType noType = new NoType(this);
++    FunctionType noType = FunctionType.createNoType(this);
+     registerNativeType(JSTypeNative.NO_TYPE, noType);
+ 
+-    NoObjectType noObjectType = new NoObjectType(this);
++    FunctionType noObjectType = FunctionType.createNoObjectType(this);
+     registerNativeType(JSTypeNative.NO_OBJECT_TYPE, noObjectType);
+ 
+     // TODO(b/142881197): start using unused iterator (and related type) template params
+diff --git a/com/google/javascript/rhino/jstype/NoObjectType.java b/com/google/javascript/rhino/jstype/NoObjectType.java
+index 884bf3a..6bc6e4c 100644
+--- a/com/google/javascript/rhino/jstype/NoObjectType.java
++++ b/com/google/javascript/rhino/jstype/NoObjectType.java
+@@ -42,119 +42,8 @@
+  * ***** END LICENSE BLOCK ***** */
+ 
+ package com.google.javascript.rhino.jstype;
+ 
+-import com.google.javascript.rhino.ErrorReporter;
+-import com.google.javascript.rhino.JSDocInfo;
+-import com.google.javascript.rhino.Node;
+-import org.jspecify.annotations.Nullable;
+-
+-/**
+- * The bottom Object type, representing the subclass of all objects.
+- *
+- * <p>Although JavaScript programmers can't explicitly denote the bottom Object type, it comes up in
+- * static analysis. For example, if we have: <code>
+- * var x = function() {};
+- * if (x instanceof Array) {
+- *   f(x);
+- * }
+- * </code> We need to be able to assign {@code x} a type within the {@code f(x)} call. It has no
+- * possible type, but {@code x} would not be legal if f expected a string. So we assign it the
+- * {@code NoObjectType}.
+- *
+- * @see <a href="http://en.wikipedia.org/wiki/Bottom_type">Bottom types</a>
+- */
+-public class NoObjectType extends FunctionType {
+-  NoObjectType(JSTypeRegistry registry) {
+-    super(
+-        FunctionType.builder(registry)
+-            .withKind(FunctionType.Kind.NONE)
+-            .withReturnsOwnInstanceType()
+-            .forNativeType());
+-    this.eagerlyResolveToSelf();
+-  }
+-
+-  @Override
+-  JSTypeClass getTypeClass() {
+-    return JSTypeClass.NO_OBJECT;
+-  }
+-
+-  @Override
+-  public final @Nullable FunctionType toMaybeFunctionType() {
+-    return null;
+-  }
+-
+-  @Override
+-  public boolean isNoObjectType() {
+-    return true;
+-  }
+-
+-  @Override
+-  public final @Nullable ObjectType getImplicitPrototype() {
+-    return null;
+-  }
+-
+-  @Override
+-  public String getReferenceName() {
+-    return null;
+-  }
+-  @Override
+-  public final boolean matchesNumberContext() {
+-    return true;
+-  }
+-
+-  @Override
+-  public final boolean matchesObjectContext() {
+-    return true;
+-  }
+-
+-  @Override
+-  public final boolean matchesStringContext() {
+-    return true;
+-  }
+-
+-  @Override
+-  public final boolean matchesSymbolContext() {
+-    return true;
+-  }
+-
+-  @Override
+-  int recursionUnsafeHashCode() {
+-    return System.identityHashCode(this);
+-  }
+-
+-  @Override
+-  final boolean defineProperty(
+-      Property.Key propertyName, JSType type, boolean inferred, Node propertyNode) {
+-    // nothing, all properties are defined
+-    return true;
+-  }
+-
+-  @Override
+-  public final void setPropertyJSDocInfo(Property.Key propertyName, JSDocInfo info) {
+-    // Do nothing, specific properties do not have JSDocInfo.
+-  }
+-
+-  @Override
+-  public <T> T visit(Visitor<T> visitor) {
+-    return visitor.caseNoObjectType();
+-  }
+-
+-  @Override <T> T visit(RelationshipVisitor<T> visitor, JSType that) {
+-    return visitor.caseNoObjectType(that);
+-  }
+-
+-  @Override
+-  void appendTo(TypeStringBuilder sb) {
+-    sb.append(sb.isForAnnotations() ? "?" : "NoObject");
+-  }
+-
+-  @Override
+-  public final @Nullable FunctionType getConstructor() {
+-    return null;
+-  }
+-
+-  @Override
+-  final JSType resolveInternal(ErrorReporter reporter) {
+-    throw new AssertionError();
+-  }
++/** Unused placeholder after folding NoObjectType into FunctionType. */
++final class NoObjectType {
++  private NoObjectType() {}
+ }
+diff --git a/com/google/javascript/rhino/jstype/NoType.java b/com/google/javascript/rhino/jstype/NoType.java
+index 6e48037..a10fa97 100644
+--- a/com/google/javascript/rhino/jstype/NoType.java
++++ b/com/google/javascript/rhino/jstype/NoType.java
+@@ -42,73 +42,8 @@
+  * ***** END LICENSE BLOCK ***** */
+ 
+ package com.google.javascript.rhino.jstype;
+ 
+-
+-
+-/**
+- * Bottom type, representing the subclass of any value or object.
+- *
+- * Although JavaScript programmers can't explicitly denote the bottom type,
+- * it comes up in static analysis. For example, if we have:
+- * <code>
+- * var x = null;
+- * if (x) {
+- *   f(x);
+- * }
+- * </code>
+- * We need to be able to assign {@code x} a type within the {@code f(x)}
+- * call. Since it has no possible type, we assign {@code x} the NoType,
+- * so that {@code f(x)} is legal no matter what the type of {@code f}'s
+- * first argument is.
+- *
+- * @see <a href="http://en.wikipedia.org/wiki/Bottom_type">Bottom types</a>
+- */
+-public class NoType extends NoObjectType {
+-  NoType(JSTypeRegistry registry) {
+-    super(registry);
+-  }
+-
+-  @Override
+-  JSTypeClass getTypeClass() {
+-    return JSTypeClass.NO;
+-  }
+-
+-  @Override
+-  public final boolean isNoObjectType() {
+-    return false;
+-  }
+-
+-  @Override
+-  public boolean isNoType() {
+-    return true;
+-  }
+-
+-  @Override
+-  public final boolean isNullable() {
+-    return true;
+-  }
+-
+-  @Override
+-  public final boolean isVoidable() {
+-    return true;
+-  }
+-
+-  @Override
+-  public final BooleanLiteralSet getPossibleToBooleanOutcomes() {
+-    return BooleanLiteralSet.BOTH;
+-  }
+-
+-  @Override
+-  public final <T> T visit(Visitor<T> visitor) {
+-    return visitor.caseNoType(this);
+-  }
+-
+-  @Override final <T> T visit(RelationshipVisitor<T> visitor, JSType that) {
+-    return visitor.caseNoType(that);
+-  }
+-
+-  @Override
+-  void appendTo(TypeStringBuilder sb) {
+-    sb.append(sb.isForAnnotations() ? "?" : "None");
+-  }
++/** Unused placeholder after folding NoType into FunctionType. */
++final class NoType {
++  private NoType() {}
+ }
+diff --git a/com/google/javascript/rhino/jstype/PrototypeObjectType.java b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+index def7acb..30e7dc2 100644
+--- a/com/google/javascript/rhino/jstype/PrototypeObjectType.java
++++ b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+@@ -73,8 +73,13 @@ import org.jspecify.annotations.Nullable;
+ public class PrototypeObjectType extends ObjectType {
+   private static final JSTypeClass TYPE_CLASS = JSTypeClass.PROTOTYPE_OBJECT;
+ 
+-  private final String className;
+-  private final int templateParamCount;
++  private static final class NamingExtra {
++    @Nullable String className;
++    @Nullable FunctionType ownerFunction;
++    int templateParamCount;
++  }
++
++  private @Nullable NamingExtra namingExtra;
+   private final boolean nativeType;
+   private final boolean anonymousType;
+   // Whether the toString representation of this should be pretty-printed,
+@@ -87,11 +92,6 @@ public class PrototypeObjectType extends ObjectType {
+   // some subclasses override this to do special resolution handling.
+   private ObjectType implicitPrototypeFallback;
+ 
+-  // If this is a function prototype, then this is the owner.
+-  // A PrototypeObjectType can only be the prototype of one function. If we try
+-  // to do this for multiple functions, then we'll have to create a new one.
+-  private @Nullable FunctionType ownerFunction = null;
+-
+   private static final int MAX_PRETTY_PRINTED_PROPERTIES = 10;
+ 
+   /**
+@@ -101,8 +101,14 @@ public class PrototypeObjectType extends ObjectType {
+   PrototypeObjectType(Builder<?> builder) {
+     super(builder.registry, builder.templateTypeMap);
+ 
+-    this.className = builder.className;
+-    this.templateParamCount = builder.templateParamCount;
++    String className = builder.className;
++    int templateParamCount = builder.templateParamCount;
++    if (className != null || templateParamCount != 0) {
++      NamingExtra extra = new NamingExtra();
++      extra.className = className;
++      extra.templateParamCount = templateParamCount;
++      this.namingExtra = extra;
++    }
+     this.nativeType = builder.nativeType;
+     this.anonymousType = builder.anonymousType;
+ 
+@@ -113,11 +119,11 @@ public class PrototypeObjectType extends ObjectType {
+     }
+ 
+     if (this.anonymousType) {
+-      checkState(this.className == null);
++      checkState(className == null);
+     }
+     checkNotNull(this.templateTypeMap);
+     // Also guarantees `templateParamCount >= 0`.
+-    checkState(this.templateTypeMap.size() >= this.templateParamCount);
++    checkState(this.templateTypeMap.size() >= templateParamCount);
+ 
+     registry.getResolver().resolveIfClosed(this, TYPE_CLASS);
+   }
+@@ -449,15 +455,20 @@ public class PrototypeObjectType extends ObjectType {
+ 
+   @Override
+   public final int getTemplateParamCount() {
+-    return this.templateParamCount;
++    NamingExtra extra = this.namingExtra;
++    return extra != null ? extra.templateParamCount : 0;
+   }
+ 
+   @Override
+   public @Nullable String getReferenceName() {
+-    if (className != null) {
+-      return className;
+-    } else if (ownerFunction != null) {
+-      return ownerFunction.getReferenceName() + ".prototype";
++    NamingExtra extra = this.namingExtra;
++    if (extra == null) {
++      return null;
++    }
++    if (extra.className != null) {
++      return extra.className;
++    } else if (extra.ownerFunction != null) {
++      return extra.ownerFunction.getReferenceName() + ".prototype";
+     } else {
+       return null;
+     }
+@@ -475,13 +486,24 @@ public class PrototypeObjectType extends ObjectType {
+ 
+   @Override
+   void setOwnerFunction(FunctionType type) {
+-    checkState(ownerFunction == null || type == null);
+-    ownerFunction = type;
++    NamingExtra extra = this.namingExtra;
++    FunctionType currentOwner = extra != null ? extra.ownerFunction : null;
++    checkState(currentOwner == null || type == null);
++    if (type != null) {
++      if (extra == null) {
++        extra = new NamingExtra();
++        this.namingExtra = extra;
++      }
++      extra.ownerFunction = type;
++    } else if (extra != null) {
++      extra.ownerFunction = null;
++    }
+   }
+ 
+   @Override
+   public FunctionType getOwnerFunction() {
+-    return ownerFunction;
++    NamingExtra extra = this.namingExtra;
++    return extra != null ? extra.ownerFunction : null;
+   }
+ 
+   @Override
+@@ -558,6 +580,7 @@ public class PrototypeObjectType extends ObjectType {
+   int recursionUnsafeHashCode() {
+     if (isStructuralType()) {
+       int propsHash = properties != null ? properties.hashCode() : 0;
++      String className = namingExtra != null ? namingExtra.className : null;
+       return 31 * (31 + Objects.hashCode(className)) + propsHash;
+     } else {
+       return System.identityHashCode(this);
+diff --git a/com/google/javascript/rhino/jstype/TemplateTypeReplacer.java b/com/google/javascript/rhino/jstype/TemplateTypeReplacer.java
+index ab389c3..4356b0c 100644
+--- a/com/google/javascript/rhino/jstype/TemplateTypeReplacer.java
++++ b/com/google/javascript/rhino/jstype/TemplateTypeReplacer.java
+@@ -143,7 +143,7 @@ public final class TemplateTypeReplacer implements Visitor<JSType> {
+   }
+ 
+   @Override
+-  public JSType caseNoType(NoType type) {
++  public JSType caseNoType(FunctionType type) {
+     return type;
+   }
+ 
+diff --git a/com/google/javascript/rhino/jstype/Visitor.java b/com/google/javascript/rhino/jstype/Visitor.java
+index 4fa7c0c..04f6476 100644
+--- a/com/google/javascript/rhino/jstype/Visitor.java
++++ b/com/google/javascript/rhino/jstype/Visitor.java
+@@ -51,7 +51,7 @@ public interface Visitor<T> {
+   /**
+    * Bottom type's case.
+    */
+-  T caseNoType(NoType type);
++  T caseNoType(FunctionType type);
+ 
+   /**
+    * Enum element type's case.
+@@ -158,7 +158,7 @@ public interface Visitor<T> {
+     protected abstract T caseDefault(@Nullable JSType type);
+ 
+     @Override
+-    public T caseNoType(NoType type) {
++    public T caseNoType(FunctionType type) {
+       return this.caseDefault(type);
+     }
+ 

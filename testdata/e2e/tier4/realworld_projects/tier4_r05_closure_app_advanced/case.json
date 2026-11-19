@@ -1,0 +1,26 @@
+{
+  "id": "tier4_r05_closure_app_advanced",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "Closure Library application ADVANCED compile",
+  "description": "Closure Library application under ADVANCED optimizations with namespace collapsing",
+  "args": [
+    "--compilation_level",
+    "ADVANCED",
+    "--js",
+    "base.js",
+    "--js",
+    "app.js"
+  ],
+  "stdin": "",
+  "files": {
+    "base.js": "var goog = goog || {}; goog.provide = function(ns) {}; goog.require = function(ns) {};",
+    "app.js": "goog.provide('my.calc'); /** @constructor */ my.calc.Calculator = function() {}; my.calc.Calculator.prototype.add = function(a, b) { return a + b; }; window['calc'] = new my.calc.Calculator().add(10, 20);"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "function a(){}a.prototype.add=function(b,c){return b+c};window.calc=(new a).add(10,20);\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

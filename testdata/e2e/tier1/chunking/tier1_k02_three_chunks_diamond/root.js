@@ -1,0 +1,1 @@
+var rootConfig = { app: 'test' };

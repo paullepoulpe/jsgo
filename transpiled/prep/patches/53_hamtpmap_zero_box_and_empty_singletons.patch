@@ -1,0 +1,326 @@
+diff --git a/com/google/javascript/jscomp/LinkedFlowScope.java b/com/google/javascript/jscomp/LinkedFlowScope.java
+index 559e176..4527df9 100644
+--- a/com/google/javascript/jscomp/LinkedFlowScope.java
++++ b/com/google/javascript/jscomp/LinkedFlowScope.java
+@@ -24,7 +24,6 @@ import com.google.javascript.jscomp.type.FlowScope;
+ import com.google.javascript.rhino.HamtPMap;
+ import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.Node;
+-import com.google.javascript.rhino.PMap;
+ import com.google.javascript.rhino.jstype.JSType;
+ import com.google.javascript.rhino.jstype.StaticTypedRef;
+ import com.google.javascript.rhino.jstype.StaticTypedScope;
+@@ -40,7 +39,7 @@ class LinkedFlowScope implements FlowScope {
+   private final CompilerInputProvider inputProvider;
+ 
+   // Map from TypedScope to OverlayScope.
+-  private final PMap<TypedScope, OverlayScope> scopes;
++  private final HamtPMap<TypedScope, OverlayScope> scopes;
+ 
+   private final TypedScope functionScope;
+ 
+@@ -54,7 +53,7 @@ class LinkedFlowScope implements FlowScope {
+    */
+   private LinkedFlowScope(
+       CompilerInputProvider inputProvider,
+-      PMap<TypedScope, OverlayScope> scopes,
++      HamtPMap<TypedScope, OverlayScope> scopes,
+       TypedScope syntacticScope,
+       TypedScope functionScope) {
+     this.inputProvider = inputProvider;
+@@ -69,12 +68,12 @@ class LinkedFlowScope implements FlowScope {
+    * this point (since they're no longer in scope), and trimming them eagerly allows us to ignore
+    * these irrelevant types when checking equality and joining.
+    */
+-  private PMap<TypedScope, OverlayScope> trimScopes(TypedScope scope) {
++  private HamtPMap<TypedScope, OverlayScope> trimScopes(TypedScope scope) {
+     TypedScope thisScope = syntacticScope;
+     TypedScope thatScope = scope;
+     int thisDepth = thisScope.getDepth();
+     int thatDepth = thatScope.getDepth();
+-    PMap<TypedScope, OverlayScope> result = scopes;
++    HamtPMap<TypedScope, OverlayScope> result = scopes;
+     while (thatDepth > thisDepth) {
+       thatScope = thatScope.getParent();
+       thatDepth--;
+@@ -100,8 +99,7 @@ class LinkedFlowScope implements FlowScope {
+   /** Creates an entry lattice for the flow. */
+   public static LinkedFlowScope createEntryLattice(
+       CompilerInputProvider inputProvider, TypedScope scope) {
+-    return new LinkedFlowScope(
+-        inputProvider, HamtPMap.<TypedScope, OverlayScope>empty(), scope, scope);
++    return new LinkedFlowScope(inputProvider, EMPTY_SCOPES, scope, scope);
+   }
+ 
+   @Override
+@@ -109,7 +107,7 @@ class LinkedFlowScope implements FlowScope {
+     OverlayScope scope = getOverlayScopeForName(symbol, true);
+     OverlayScope newScope = scope.infer(symbol, type);
+     // Aggressively remove empty scopes to maintain a reasonable equivalence.
+-    PMap<TypedScope, OverlayScope> newScopes =
++    HamtPMap<TypedScope, OverlayScope> newScopes =
+         !newScope.slots.isEmpty() ? scopes.plus(scope.scope, newScope) : scopes.minus(scope.scope);
+     return newScopes != scopes
+         ? new LinkedFlowScope(inputProvider, newScopes, syntacticScope, functionScope)
+@@ -356,15 +354,15 @@ class LinkedFlowScope implements FlowScope {
+     throw new UnsupportedOperationException();
+   }
+ 
+-  private static PMap<TypedScope, OverlayScope> join(
++  private static HamtPMap<TypedScope, OverlayScope> join(
+       LinkedFlowScope linkedA, LinkedFlowScope linkedB, TypedScope commonParent) {
+     return linkedA
+         .trimScopes(commonParent)
+         .reconcile(
+             linkedB.trimScopes(commonParent),
+             (scopeKey, scopeA, scopeB) -> {
+-              PMap<String, OverlaySlot> slotsA = scopeA != null ? scopeA.slots : EMPTY_SLOTS;
+-              PMap<String, OverlaySlot> slotsB = scopeB != null ? scopeB.slots : EMPTY_SLOTS;
++              HamtPMap<String, OverlaySlot> slotsA = scopeA != null ? scopeA.slots : EMPTY_SLOTS;
++              HamtPMap<String, OverlaySlot> slotsB = scopeB != null ? scopeB.slots : EMPTY_SLOTS;
+               // TODO(sdh): Simplify this logic: we want the best non-bottom scope we can get,
+               // for the purpose of (a) passing to the joined OverlayScope constructor, and
+               // (b) joining types only present in one scope.
+@@ -433,14 +431,14 @@ class LinkedFlowScope implements FlowScope {
+ 
+   private static class OverlayScope {
+     final TypedScope scope;
+-    final PMap<String, OverlaySlot> slots;
++    final HamtPMap<String, OverlaySlot> slots;
+ 
+     OverlayScope(TypedScope scope) {
+       this.scope = checkNotNull(scope);
+       this.slots = EMPTY_SLOTS;
+     }
+ 
+-    OverlayScope(TypedScope scope, PMap<String, OverlaySlot> slots) {
++    OverlayScope(TypedScope scope, HamtPMap<String, OverlaySlot> slots) {
+       this.scope = checkNotNull(scope);
+       this.slots = slots;
+     }
+@@ -501,5 +499,6 @@ class LinkedFlowScope implements FlowScope {
+     }
+   }
+ 
+-  private static final PMap<String, OverlaySlot> EMPTY_SLOTS = HamtPMap.empty();
++  private static final HamtPMap<TypedScope, OverlayScope> EMPTY_SCOPES = HamtPMap.empty();
++  private static final HamtPMap<String, OverlaySlot> EMPTY_SLOTS = HamtPMap.empty();
+ }
+diff --git a/com/google/javascript/jscomp/MaybeReachingVariableUse.java b/com/google/javascript/jscomp/MaybeReachingVariableUse.java
+index 8d547e7..b8740a0 100644
+--- a/com/google/javascript/jscomp/MaybeReachingVariableUse.java
++++ b/com/google/javascript/jscomp/MaybeReachingVariableUse.java
+@@ -27,7 +27,6 @@ import com.google.javascript.jscomp.graph.GraphNode;
+ import com.google.javascript.jscomp.graph.LatticeElement;
+ import com.google.javascript.rhino.HamtPMap;
+ import com.google.javascript.rhino.Node;
+-import com.google.javascript.rhino.PMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Set;
+@@ -104,8 +103,11 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+    * <p>At N_3, reads of A in {N_4, N_5} are said to be upward exposed.
+    */
+   static final class ReachingUses implements LatticeElement {
++    private static final HamtPMap<Var, HamtPMap<Node, Node>> EMPTY_MAY_USE = HamtPMap.empty();
++    private static final HamtPMap<Node, Node> EMPTY_NODE_MAP = HamtPMap.empty();
++
+     // Maps variables to all their uses that are upward exposed at the current cfgNode.
+-    private PMap<Var, PMap<Node, Node>> mayUsePMap = HamtPMap.empty();
++    private HamtPMap<Var, HamtPMap<Node, Node>> mayUsePMap = EMPTY_MAY_USE;
+ 
+     public ReachingUses() {}
+ 
+@@ -119,7 +121,7 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+     }
+ 
+     public Iterable<Node> get(Var v) {
+-      PMap<Node, Node> uses = this.mayUsePMap.get(v);
++      HamtPMap<Node, Node> uses = this.mayUsePMap.get(v);
+       return uses != null ? uses.keys() : ImmutableList.of();
+     }
+ 
+@@ -128,11 +130,11 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+     }
+ 
+     public void put(Var v, Node n) {
+-      var values = mayUsePMap.get(v);
++      HamtPMap<Node, Node> values = mayUsePMap.get(v);
+       if (values == null) {
+-        values = HamtPMap.empty();
++        values = EMPTY_NODE_MAP;
+       }
+-      var newValues = values.plus(n, n);
++      HamtPMap<Node, Node> newValues = values.plus(n, n);
+       if (newValues != values) {
+         mayUsePMap = mayUsePMap.plus(v, newValues);
+       }
+@@ -142,7 +144,7 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+       mayUsePMap =
+           mayUsePMap.reconcile(
+               other.mayUsePMap,
+-              (Var var, PMap<Node, Node> thisVal, PMap<Node, Node> thatVal) -> {
++              (Var var, HamtPMap<Node, Node> thisVal, HamtPMap<Node, Node> thatVal) -> {
+                 if (thisVal == null) {
+                   return thatVal;
+                 }
+@@ -160,7 +162,7 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+           && reachingUses.mayUsePMap.equivalent(this.mayUsePMap, ReachingUses::equalMaps);
+     }
+ 
+-    private static boolean equalMaps(PMap<Node, Node> map1, PMap<Node, Node> map2) {
++    private static boolean equalMaps(HamtPMap<Node, Node> map1, HamtPMap<Node, Node> map2) {
+       return map1 == map2 || map1.equivalent(map2, ReachingUses::equalNodes);
+     }
+ 
+diff --git a/com/google/javascript/rhino/HamtPMap.java b/com/google/javascript/rhino/HamtPMap.java
+index 61752a0..7eb5d8f 100644
+--- a/com/google/javascript/rhino/HamtPMap.java
++++ b/com/google/javascript/rhino/HamtPMap.java
+@@ -39,7 +39,6 @@
+ package com.google.javascript.rhino;
+ 
+ import static com.google.common.base.Preconditions.checkNotNull;
+-import static com.google.common.base.Preconditions.checkState;
+ 
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.errorprone.annotations.CheckReturnValue;
+@@ -120,20 +119,6 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+     this.present = present;
+     this.mask = mask;
+     this.children = children;
+-
+-    this.checkInvariants();
+-  }
+-
+-  private void checkInvariants() {
+-    if (this.mask == 0) {
+-      checkState(this.children == null);
+-      return;
+-    }
+-    checkNotNull(this.children);
+-    checkState(Integer.bitCount(this.mask) == this.children.length);
+-    for (HamtPMap<K, V> child : this.children) {
+-      checkNotNull(child);
+-    }
+   }
+ 
+   /** Returns an empty map. */
+@@ -313,11 +298,14 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+   @Override
+   @CheckReturnValue
+   public HamtPMap<K, V> reconcile(PMap<K, V> that, Reconciler<K, V> joiner) {
++    if (this.isEmpty() && that.isEmpty()) {
++      return this;
++    }
+     HamtPMap<K, V> result =
+         reconcile(
+             !this.isEmpty() ? this : null,
+             !that.isEmpty() ? (HamtPMap<K, V>) that : null,
+-            (k, v1, v2) -> checkNotNull(joiner.merge(k, v1, v2)));
++            joiner);
+     return result != null ? result : empty();
+   }
+ 
+@@ -327,7 +315,7 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+     if (t1 == t2) {
+       return t1;
+     } else if (t1 == null) {
+-      V newValue = joiner.merge(t2.key, null, t2.value);
++      V newValue = checkNotNull(joiner.merge(t2.key, null, t2.value));
+       int childMask = t2.mask;
+       HamtPMap<K, V>[] newChildren = null;
+       if (t2.children != null) {
+@@ -347,11 +335,9 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+         }
+         newChildren = trimChildren(copied, outIdx);
+       }
+-      return newValue != null
+-          ? new HamtPMap<>(t2.key, t2.hash, newValue, true, childMask, newChildren)
+-          : deleteRoot(childMask, newChildren);
++      return new HamtPMap<>(t2.key, t2.hash, newValue, true, childMask, newChildren);
+     } else if (t2 == null) {
+-      V newValue = joiner.merge(t1.key, t1.value, null);
++      V newValue = checkNotNull(joiner.merge(t1.key, t1.value, null));
+       int childMask = t1.mask;
+       HamtPMap<K, V>[] newChildren = null;
+       if (t1.children != null) {
+@@ -371,9 +357,7 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+         }
+         newChildren = trimChildren(copied, outIdx);
+       }
+-      return newValue != null
+-          ? new HamtPMap<>(t1.key, t1.hash, newValue, true, childMask, newChildren)
+-          : deleteRoot(childMask, newChildren);
++      return new HamtPMap<>(t1.key, t1.hash, newValue, true, childMask, newChildren);
+     }
+ 
+     // Try as hard as possible to return input trees exactly.
+@@ -403,13 +387,13 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+ 
+     V newValue;
+     if (!t1.present) {
+-      newValue = joiner.merge(t2.key, null, t2.value);
++      newValue = checkNotNull(joiner.merge(t2.key, null, t2.value));
+     } else if (!t2.present) {
+-      newValue = joiner.merge(t1.key, t1.value, null);
++      newValue = checkNotNull(joiner.merge(t1.key, t1.value, null));
+     } else if (t1.value.equals(t2.value)) {
+       newValue = t1.value;
+     } else {
+-      newValue = joiner.merge(t1.key, t1.value, t2.value);
++      newValue = checkNotNull(joiner.merge(t1.key, t1.value, t2.value));
+     }
+     int newMask = t1.mask | t2.mask;
+     sameChildrenAs1 &= (newMask == t1.mask);
+@@ -441,8 +425,6 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+       return t1;
+     } else if (sameChildrenAs2 && t2.present && t2.value.equals(newValue)) {
+       return t2;
+-    } else if (newValue == null) {
+-      return deleteRoot(newMask, newChildren);
+     }
+     return new HamtPMap<>(key, hash, newValue, true, newMask, newChildren);
+   }
+@@ -535,7 +517,7 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+    * a canonical structure where the key with the smallest hash is always at the root of the
+    * tree.
+    */
+-  private static int hash(Object key) {
++  private static <K> int hash(K key) {
+     return Integer.reverse(key.hashCode());
+   }
+ 
+diff --git a/com/google/javascript/rhino/jstype/JSTypeRegistry.java b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+index 539f815..d2ecb4b 100644
+--- a/com/google/javascript/rhino/jstype/JSTypeRegistry.java
++++ b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+@@ -68,7 +68,6 @@ import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.JSTypeExpression;
+ import com.google.javascript.rhino.Msg;
+ import com.google.javascript.rhino.Node;
+-import com.google.javascript.rhino.PMap;
+ import com.google.javascript.rhino.QualifiedName;
+ import com.google.javascript.rhino.StaticScope;
+ import com.google.javascript.rhino.StaticSlot;
+@@ -2491,15 +2490,17 @@ public final class JSTypeRegistry {
+    * (and may never be) any real scope to attach the types to.
+    */
+   private static class SyntheticTemplateScope implements StaticTypedScope {
++    private static final HamtPMap<String, TemplateType> EMPTY_TEMPLATE_TYPES = HamtPMap.empty();
++
+     final StaticTypedScope delegate;
+-    final PMap<String, TemplateType> types;
++    final HamtPMap<String, TemplateType> types;
+ 
+     SyntheticTemplateScope(StaticTypedScope delegate, Iterable<TemplateType> templates) {
+       this.delegate = delegate;
+-      PMap<String, TemplateType> types =
++      HamtPMap<String, TemplateType> types =
+           delegate instanceof SyntheticTemplateScope syntheticTemplateScope
+               ? syntheticTemplateScope.types
+-              : HamtPMap.<String, TemplateType>empty();
++              : EMPTY_TEMPLATE_TYPES;
+       for (TemplateType key : templates) {
+         types = types.plus(key.getReferenceName(), key);
+       }

@@ -1,0 +1,145 @@
+diff --git a/com/google/javascript/rhino/JSDocInfo.java b/com/google/javascript/rhino/JSDocInfo.java
+--- a/com/google/javascript/rhino/JSDocInfo.java
++++ b/com/google/javascript/rhino/JSDocInfo.java
+@@ -74,7 +74,7 @@
+  * <p>Constructing {@link JSDocInfo} objects is simplified by {@link JSDocInfo.Builder} which
+  * provides early incompatibility detection.
+  */
+-public class JSDocInfo implements Serializable {
++public final class JSDocInfo implements Serializable {
+   private static final long serialVersionUID = 1L;
+ 
+   private static class Property<T> implements Comparable<Property<Object>> {
+@@ -378,12 +378,12 @@
+   private final long propertyKeysBitset;
+ 
+   /**
+-   * This value will be `null` if there is no property, a literal value if there is only one, or an
+-   * `Object[]` if there are multiple.
+-   *
+-   * <p>This is meant to elide eager allocation of single-valued or empty lists.
+-   */
+-  private final @Nullable Object propertyValues;
++   * Inline slots for the first two property values (eliding array and interface-box allocation for
++   * 0-, 1-, and 2-property JSDocInfo instances) plus a typed overflow array for indices >= 2.
++   */
++  private final @Nullable Object propertyValue0;
++  private final @Nullable Object propertyValue1;
++  private final Object @Nullable [] propertyValuesRest;
+ 
+   @SuppressWarnings("unchecked")
+   private JSDocInfo(
+@@ -394,7 +394,9 @@
+     this.propertyBits = bits;
+     if (propKeys == 0L) {
+       this.propertyKeysBitset = 0L;
+-      this.propertyValues = null;
++      this.propertyValue0 = null;
++      this.propertyValue1 = null;
++      this.propertyValuesRest = null;
+       return;
+     }
+     if (propValues == null) {
+@@ -403,16 +405,19 @@
+       if (!prop.isDefault(singlePropValue)) {
+         checkState(!(singlePropValue instanceof Object[]) && (singlePropValue != null));
+         this.propertyKeysBitset = propKeys;
+-        this.propertyValues = singlePropValue;
++        this.propertyValue0 = singlePropValue;
+       } else {
+         this.propertyKeysBitset = 0L;
+-        this.propertyValues = null;
+-      }
++        this.propertyValue0 = null;
++      }
++      this.propertyValue1 = null;
++      this.propertyValuesRest = null;
+       return;
+     }
+     long keys = 0L;
+     int count = 0;
+-    Object firstVal = null;
++    Object v0 = null;
++    Object v1 = null;
+     long rem = propKeys;
+     while (rem != 0L) {
+       int bit = Long.numberOfTrailingZeros(rem);
+@@ -425,26 +430,40 @@
+         checkState(!(value instanceof Object[]) && (value != null));
+         keys |= prop.mask;
+         if (count == 0) {
+-          firstVal = value;
++          v0 = value;
++        } else if (count == 1) {
++          v1 = value;
+         }
+         count++;
+       }
+     }
+     this.propertyKeysBitset = keys;
+     if (count == 0) {
+-      this.propertyValues = null;
++      this.propertyValue0 = null;
++      this.propertyValue1 = null;
++      this.propertyValuesRest = null;
+     } else if (count == 1) {
+-      this.propertyValues = firstVal;
++      this.propertyValue0 = v0;
++      this.propertyValue1 = null;
++      this.propertyValuesRest = null;
++    } else if (count == 2) {
++      this.propertyValue0 = v0;
++      this.propertyValue1 = v1;
++      this.propertyValuesRest = null;
+     } else {
+-      Object[] arr = new Object[count];
++      this.propertyValue0 = v0;
++      this.propertyValue1 = v1;
++      Object[] arr = new Object[count - 2];
+       long k = keys;
++      k &= (k - 1L);
++      k &= (k - 1L);
+       int idx = 0;
+       while (k != 0L) {
+         int bit = Long.numberOfTrailingZeros(k);
+-        k &= ~(1L << bit);
++        k &= (k - 1L);
+         arr[idx++] = propValues[bit];
+       }
+-      this.propertyValues = arr;
++      this.propertyValuesRest = arr;
+     }
+   }
+ 
+@@ -1663,19 +1682,22 @@
+   }
+ 
+   protected Object getPropertyValueByIndex(int index) {
+-    if (propertyValues == null) {
++    if (propertyValue0 == null) {
+       throw new IllegalArgumentException("no property value");
+     }
+-
+-    if (propertyValues instanceof Object[] array) {
+-      return array[index];
+-    }
+-
+-    if (index != 0) {
++    if (index == 0) {
++      return propertyValue0;
++    }
++    if (index == 1) {
++      if (propertyValue1 != null) {
++        return propertyValue1;
++      }
+       throw new ArrayIndexOutOfBoundsException(index);
+     }
+-
+-    return propertyValues;
++    if (index >= 2 && propertyValuesRest != null) {
++      return propertyValuesRest[index - 2];
++    }
++    throw new ArrayIndexOutOfBoundsException(index);
+   }
+ 
+   /**

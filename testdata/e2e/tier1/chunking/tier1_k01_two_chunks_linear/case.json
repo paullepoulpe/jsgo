@@ -1,0 +1,30 @@
+{
+  "id": "tier1_k01_two_chunks_linear",
+  "tier": 1,
+  "feature": "chunking",
+  "name": "Two chunks linear dependency",
+  "description": "Verifies 2-chunk linear graph compiling base and dependent feature chunk",
+  "args": [
+    "--chunk",
+    "base:1",
+    "--js",
+    "base.js",
+    "--chunk",
+    "feat:1:base",
+    "--js",
+    "feat.js",
+    "--chunk_output_word_spec",
+    "%s.out.js"
+  ],
+  "stdin": "",
+  "files": {
+    "base.js": "var baseVal = 100;",
+    "feat.js": "var featVal = baseVal + 50;"
+  },
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

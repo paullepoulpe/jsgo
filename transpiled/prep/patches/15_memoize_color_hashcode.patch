@@ -1,0 +1,53 @@
+diff --git a/com/google/javascript/jscomp/colors/$AutoValue_Color.java b/com/google/javascript/jscomp/colors/$AutoValue_Color.java
+index 8dfb575..da62258 100644
+--- a/com/google/javascript/jscomp/colors/$AutoValue_Color.java
++++ b/com/google/javascript/jscomp/colors/$AutoValue_Color.java
+@@ -27,6 +27,8 @@ abstract class $AutoValue_Color extends Color {
+ 
+   private final ImmutableSet<Color> unionElements;
+ 
++  private final transient int hashCode;
++
+   $AutoValue_Color(
+       ColorId id,
+       ImmutableSet<Color> prototypes,
+@@ -63,6 +65,18 @@ abstract class $AutoValue_Color extends Color {
+       throw new NullPointerException("Null unionElements");
+     }
+     this.unionElements = unionElements;
++    this.hashCode =
++        computeHashCode(
++            id,
++            prototypes,
++            instanceColors,
++            invalidating,
++            propertiesKeepOriginalName,
++            constructor,
++            ownProperties,
++            boxId,
++            closureAssert,
++            unionElements);
+   }
+ 
+   @Override
+@@ -154,6 +168,20 @@ abstract class $AutoValue_Color extends Color {
+ 
+   @Override
+   public int hashCode() {
++    return this.hashCode;
++  }
++
++  private static int computeHashCode(
++      ColorId id,
++      ImmutableSet<Color> prototypes,
++      ImmutableSet<Color> instanceColors,
++      boolean invalidating,
++      boolean propertiesKeepOriginalName,
++      boolean constructor,
++      ImmutableSet<String> ownProperties,
++      @Nullable ColorId boxId,
++      boolean closureAssert,
++      ImmutableSet<Color> unionElements) {
+     int h$ = 1;
+     h$ *= 1000003;
+     h$ ^= id.hashCode();

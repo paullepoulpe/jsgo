@@ -1,0 +1,78 @@
+diff --git a/com/google/javascript/jscomp/parsing/IRFactory.java b/com/google/javascript/jscomp/parsing/IRFactory.java
+--- a/com/google/javascript/jscomp/parsing/IRFactory.java
++++ b/com/google/javascript/jscomp/parsing/IRFactory.java
+@@ -884,8 +884,12 @@
+    */
+   private @Nullable NonJSDocComment parseNonJSDocCommentAt(SourcePosition pos, boolean isInline) {
+     boolean withinClosureUnawareCodeRange = withinClosureUnawareCodeRange(pos.line, pos.column);
++    if (!hasAnyPendingCommentBefore(pos, withinClosureUnawareCodeRange)) {
++      return null;
++    }
+ 
+-    StringBuilder result = new StringBuilder();
++    boolean includeAllComments = config.jsDocParsingMode() == JsDocParsing.INCLUDE_ALL_COMMENTS;
++    StringBuilder result = null;
+     Comment firstComment = null;
+     Comment lastComment = null;
+ 
+@@ -916,14 +920,19 @@
+         firstComment = currentComment;
+       }
+ 
+-      if (lastComment != null) {
+-        for (int blankCount = currentComment.location.start.line - lastComment.location.end.line;
+-            blankCount > 0;
+-            blankCount--) {
+-          result.append("\n");
++      if (includeAllComments) {
++        if (result == null) {
++          result = new StringBuilder();
+         }
++        if (lastComment != null) {
++          for (int blankCount = currentComment.location.start.line - lastComment.location.end.line;
++              blankCount > 0;
++              blankCount--) {
++            result.append("\n");
++          }
++        }
++        result.append(currentComment.value);
+       }
+-      result.append(currentComment.value);
+ 
+       lastComment = currentComment;
+       if (commentFromJsdocTracker) {
+@@ -934,12 +943,8 @@
+       }
+     }
+ 
+-    if (firstComment == null) {
++    if (firstComment == null || !includeAllComments) {
+       return null; // We didn't find any relevant comments.
+-    }
+-
+-    if (config.jsDocParsingMode() != JsDocParsing.INCLUDE_ALL_COMMENTS) {
+-      return null;
+     }
+ 
+     NonJSDocComment nonJSDocComment =
+@@ -968,7 +973,6 @@
+       return null;
+     }
+ 
+-    StringBuilder result = new StringBuilder();
+     Comment comment = this.nonJsdocTracker.current();
+ 
+     // Disregard comments that don't start on the same line
+@@ -990,11 +994,10 @@
+       return null;
+     }
+     // TODO(user): handle multiple trailing comments like /* c1 */ /* c2 */ // c3
+-    result.append(comment.value);
+     this.nonJsdocTracker.advance();
+ 
+     NonJSDocComment nonJSDocComment =
+-        new NonJSDocComment(comment.location.start, comment.location.end, result.toString());
++        new NonJSDocComment(comment.location.start, comment.location.end, comment.value);
+     nonJSDocComment.setEndsAsLineComment(comment.type == Comment.Type.LINE);
+     return nonJSDocComment;
+   }

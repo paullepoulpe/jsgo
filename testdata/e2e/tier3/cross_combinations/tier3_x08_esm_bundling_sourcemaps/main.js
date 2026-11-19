@@ -1,0 +1,1 @@
+import { add } from './math.js'; window['res'] = add(3, 4);

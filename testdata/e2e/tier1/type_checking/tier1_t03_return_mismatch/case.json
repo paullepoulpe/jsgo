@@ -1,0 +1,23 @@
+{
+  "id": "tier1_t03_return_mismatch",
+  "tier": 1,
+  "feature": "type_checking",
+  "name": "Function return type mismatch",
+  "description": "Detects return type mismatch when function returns string instead of number",
+  "args": [
+    "--checks_only",
+    "--jscomp_error=checkTypes",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @return {number} */ function getCount() { return 'not_number'; }"
+  },
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "in.js:1:53: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type\nfound   : string\nrequired: number\n  1| /** @return {number} */ function getCount() { return 'not_number'; }\n                                                          ^^^^^^^^^^^^\n\n1 error(s), 0 warning(s), 100.0% typed\n",
+    "output_files": {}
+  }
+}

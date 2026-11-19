@@ -1,0 +1,1 @@
+exports.render = function(data) { return 'Name: ' + data.name; };

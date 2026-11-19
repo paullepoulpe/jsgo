@@ -1,0 +1,23 @@
+{
+  "id": "tier1_w01_quiet",
+  "tier": 1,
+  "feature": "warning_levels",
+  "name": "Quiet warning level",
+  "description": "Verifies QUIET warning level suppresses non-fatal warning messages",
+  "args": [
+    "--warning_level",
+    "QUIET",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var x = 1;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var x=1;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

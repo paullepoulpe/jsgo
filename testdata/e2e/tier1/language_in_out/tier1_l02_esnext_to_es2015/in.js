@@ -1,0 +1,1 @@
+const base = { a: 1 }; const copy = { ...base, b: 2 }; const val = 2 ** 3;

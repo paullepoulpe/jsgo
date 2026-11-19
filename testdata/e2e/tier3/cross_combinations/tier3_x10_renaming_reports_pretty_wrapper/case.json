@@ -1,0 +1,34 @@
+{
+  "id": "tier3_x10_renaming_reports_pretty_wrapper",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "Renaming reports with pretty print and output wrapper",
+  "description": "Generates variable and property renaming reports alongside pretty-printed wrapped output",
+  "args": [
+    "--compilation_level",
+    "ADVANCED",
+    "--variable_renaming_report",
+    "vars.txt",
+    "--property_renaming_report",
+    "props.txt",
+    "--formatting",
+    "PRETTY_PRINT",
+    "--output_wrapper",
+    "(function(){%output%})();",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "function State(initial) { this.currentVal = initial; } State.prototype.update = function(v) { this.currentVal += v; }; window['s'] = new State(10);"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "(function(){function a() {\n}\na.prototype.update = function() {\n};\nwindow.s = new a();\n})();\n",
+    "stderr": "in.js:1:26: WARNING - [JSC_USED_GLOBAL_THIS] dangerous use of the global this object\n  1| function State(initial) { this.currentVal = initial; } State.prototype.update = function(v) { this.currentVal += v; }; window['s'] = new State(10);\n                               ^^^^\n\nin.js:1:133: WARNING - [JSC_NOT_A_CONSTRUCTOR] cannot instantiate non-constructor, found type: function(?): undefined\n  1| function State(initial) { this.currentVal = initial; } State.prototype.update = function(v) { this.currentVal += v; }; window['s'] = new State(10);\n                                                                                                                                          ^^^^^^^^^^^^^\n\n0 error(s), 2 warning(s), 53.3% typed\n",
+    "output_files": {
+      "props.txt": "",
+      "vars.txt": "State:a\n"
+    }
+  }
+}

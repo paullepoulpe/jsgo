@@ -1,0 +1,13 @@
+diff --git a/com/google/javascript/jscomp/NodeUtil.java b/com/google/javascript/jscomp/NodeUtil.java
+index 98709ca..6c36c15 100644
+--- a/com/google/javascript/jscomp/NodeUtil.java
++++ b/com/google/javascript/jscomp/NodeUtil.java
+@@ -4001,7 +4001,7 @@ public final class NodeUtil {
+    */
+   static Iterable<Node> getObjectDefinedPropertiesKeys(Node definePropertiesCall) {
+     checkArgument(NodeUtil.isObjectDefinePropertiesDefinition(definePropertiesCall));
+-    List<Node> properties = new ArrayList<>();
++    List<Node> properties = new ArrayList<Node>();
+     Node objectLiteral = definePropertiesCall.getLastChild();
+     for (Node key = objectLiteral.getFirstChild(); key != null; key = key.getNext()) {
+       if (!key.isStringKey()) {

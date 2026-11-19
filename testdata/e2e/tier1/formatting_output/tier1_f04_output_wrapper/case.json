@@ -1,0 +1,23 @@
+{
+  "id": "tier1_f04_output_wrapper",
+  "tier": 1,
+  "feature": "formatting_output",
+  "name": "Output wrapper option",
+  "description": "Verifies --output_wrapper wraps compiled JavaScript with custom wrapper",
+  "args": [
+    "--output_wrapper",
+    "(function(){%output%})();",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var isolated = 99; window['val'] = isolated;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "(function(){var isolated=99;window.val=isolated;})();\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

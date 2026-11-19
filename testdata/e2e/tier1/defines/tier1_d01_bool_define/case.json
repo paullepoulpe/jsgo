@@ -1,0 +1,22 @@
+{
+  "id": "tier1_d01_bool_define",
+  "tier": 1,
+  "feature": "defines",
+  "name": "Boolean compile-time define",
+  "description": "Overrides boolean @define constant via --define flag",
+  "args": [
+    "--define=DEBUG_FLAG=false",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @define {boolean} */ var DEBUG_FLAG = true; if (DEBUG_FLAG) { console.log('debug active'); }"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var DEBUG_FLAG=!1;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

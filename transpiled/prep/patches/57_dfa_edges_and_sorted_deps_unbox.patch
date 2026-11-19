@@ -1,0 +1,315 @@
+diff --git a/com/google/javascript/jscomp/DataFlowAnalysis.java b/com/google/javascript/jscomp/DataFlowAnalysis.java
+index 26c8e21..c438f9c 100644
+--- a/com/google/javascript/jscomp/DataFlowAnalysis.java
++++ b/com/google/javascript/jscomp/DataFlowAnalysis.java
+@@ -30,7 +30,6 @@ import com.google.javascript.rhino.Node;
+ import java.util.ArrayDeque;
+ import java.util.Comparator;
+ import java.util.LinkedHashSet;
+-import java.util.List;
+ import java.util.Map;
+ import java.util.PriorityQueue;
+ import java.util.Queue;
+@@ -223,12 +222,20 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+       if (flow(curNode)) {
+         // If there is a change in the current node, we want to grab the list
+         // of nodes that this node affects.
+-        List<? extends DiGraphNode<N, Branch>> nextNodes =
+-            isForward() ? cfg.getDirectedSuccNodes(curNode) : cfg.getDirectedPredNodes(curNode);
+-
+-        for (DiGraphNode<N, Branch> nextNode : nextNodes) {
+-          if (nextNode != cfg.getImplicitReturn()) {
+-            this.workQueue.add(nextNode);
++        DiGraphNode<N, Branch> implicitReturn = cfg.getImplicitReturn();
++        if (isForward()) {
++          for (int i = 0, count = curNode.getOutEdgeCount(); i < count; i++) {
++            DiGraphNode<N, Branch> nextNode = curNode.getOutEdgeAt(i).getDestination();
++            if (nextNode != implicitReturn) {
++              this.workQueue.add(nextNode);
++            }
++          }
++        } else {
++          for (int i = 0, count = curNode.getInEdgeCount(); i < count; i++) {
++            DiGraphNode<N, Branch> nextNode = curNode.getInEdgeAt(i).getSource();
++            if (nextNode != implicitReturn) {
++              this.workQueue.add(nextNode);
++            }
+           }
+         }
+       }
+@@ -266,8 +273,10 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+       }
+     }
+     if (this.isBranched()) {
+-      for (DiGraphEdge<N, Branch> edge : cfg.getEdges()) {
+-        edge.setAnnotation(this.createInitialEstimateLattice());
++      for (DiGraphNode<N, Branch> node : cfg.getNodes()) {
++        for (int i = 0, outCount = node.getOutEdgeCount(); i < outCount; i++) {
++          node.getOutEdgeAt(i).setAnnotation(this.createInitialEstimateLattice());
++        }
+       }
+     }
+   }
+@@ -286,11 +295,13 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+ 
+       if (this.isBranched()) {
+         FlowBrancher<L> brancher = this.createFlowBrancher(node.getValue(), state.getOut());
+-        for (DiGraphEdge<N, Branch> outEdge : node.getOutEdges()) {
++        for (int i = 0, outCount = node.getOutEdgeCount(); i < outCount; i++) {
++          DiGraphEdge<N, Branch> outEdge = node.getOutEdgeAt(i);
+           L outBranchBefore = outEdge.getAnnotation();
+-          outEdge.setAnnotation(brancher.branchFlow(outEdge.getValue()));
++          L outBranchAfter = brancher.branchFlow(outEdge.getValue());
++          outEdge.setAnnotation(outBranchAfter);
+           if (!changed) {
+-            changed = !outBranchBefore.equals(outEdge.getAnnotation());
++            changed = !outBranchBefore.equals(outBranchAfter);
+           }
+         }
+       }
+@@ -311,30 +322,36 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+    */
+   private void joinInputs(DiGraphNode<N, Branch> node) {
+     LinearFlowState<L> state = node.getAnnotation();
+-    if (this.isForward() && cfg.getEntry() == node) {
++    boolean forward = this.isForward();
++    if (forward && cfg.getEntry() == node) {
+       state.setIn(createEntryLattice());
+       return;
+     }
+ 
+-    List<? extends DiGraphEdge<N, Branch>> inEdges =
+-        this.isForward() ? node.getInEdges() : node.getOutEdges();
+-
++    int edgeCount = forward ? node.getInEdgeCount() : node.getOutEdgeCount();
+     final L result;
+-    switch (inEdges.size()) {
++    switch (edgeCount) {
+       case 0 -> {
+         return;
+       }
+-      case 1 -> result = this.getInputFromEdge(inEdges.get(0));
++      case 1 ->
++          result = this.getInputFromEdge(forward ? node.getInEdgeAt(0) : node.getOutEdgeAt(0));
+       default -> {
+         FlowJoiner<L> joiner = this.createFlowJoiner();
+-        for (DiGraphEdge<N, Branch> inEdge : inEdges) {
+-          joiner.joinFlow(this.getInputFromEdge(inEdge));
++        if (forward) {
++          for (int i = 0; i < edgeCount; i++) {
++            joiner.joinFlow(this.getInputFromEdge(node.getInEdgeAt(i)));
++          }
++        } else {
++          for (int i = 0; i < edgeCount; i++) {
++            joiner.joinFlow(this.getInputFromEdge(node.getOutEdgeAt(i)));
++          }
+         }
+         result = joiner.finish();
+       }
+     }
+ 
+-    if (this.isForward()) {
++    if (forward) {
+       state.setIn(result);
+     } else {
+       state.setOut(result);
+diff --git a/com/google/javascript/jscomp/deps/SortedDependencies.java b/com/google/javascript/jscomp/deps/SortedDependencies.java
+index ad82593..5437b59 100644
+--- a/com/google/javascript/jscomp/deps/SortedDependencies.java
++++ b/com/google/javascript/jscomp/deps/SortedDependencies.java
+@@ -27,8 +27,8 @@ import java.util.Deque;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+-import java.util.Map;
+ import java.util.Set;
++import org.jspecify.annotations.Nullable;
+ 
+ /**
+  * A sorted list of inputs following the ES6 module ordering spec.
+@@ -44,17 +44,20 @@ import java.util.Set;
+  */
+ public final class SortedDependencies<InputT extends DependencyInfo> {
+ 
+-  private final List<InputT> userOrderedInputs = new ArrayList<>();
+-  private final List<InputT> importOrderedInputs = new ArrayList<>();
++  private final ArrayList<InputT> userOrderedInputs = new ArrayList<>();
++  private final ArrayList<InputT> importOrderedInputs = new ArrayList<>();
++  private @Nullable List<InputT> sortedListView;
+   private final Set<InputT> completedInputs = new LinkedHashSet<>();
+-  private final Map<String, InputT> nonExportingInputs = new LinkedHashMap<>();
+-  private final Map<String, InputT> exportingInputBySymbolName = new LinkedHashMap<>();
++  private final LinkedHashMap<String, InputT> nonExportingInputs = new LinkedHashMap<>();
++  private final LinkedHashMap<String, InputT> exportingInputBySymbolName = new LinkedHashMap<>();
+   // Maps an input A to the inputs it depends on, ie, inputs that provide stuff that A requires.
+   private final SetMultimap<InputT, InputT> importedInputByImportingInput =
+       LinkedHashMultimap.create();
+ 
+   public SortedDependencies(List<InputT> userOrderedInputs) {
+-    this.userOrderedInputs.addAll(userOrderedInputs);
++    for (int i = 0, size = userOrderedInputs.size(); i < size; i++) {
++      this.userOrderedInputs.add(userOrderedInputs.get(i));
++    }
+     processInputs();
+   }
+ 
+@@ -82,9 +85,19 @@ public final class SortedDependencies<InputT extends DependencyInfo> {
+     }
+ 
+     ImmutableList.Builder<InputT> builder = ImmutableList.builder();
+-    for (InputT input : (sorted ? importOrderedInputs : userOrderedInputs)) {
+-      if (includedInputs.contains(input)) {
+-        builder.add(input);
++    if (sorted) {
++      for (int i = 0, size = importOrderedInputs.size(); i < size; i++) {
++        InputT input = importOrderedInputs.get(i);
++        if (includedInputs.contains(input)) {
++          builder.add(input);
++        }
++      }
++    } else {
++      for (int i = 0, size = userOrderedInputs.size(); i < size; i++) {
++        InputT input = userOrderedInputs.get(i);
++        if (includedInputs.contains(input)) {
++          builder.add(input);
++        }
+       }
+     }
+     return builder.build();
+@@ -158,7 +171,8 @@ public final class SortedDependencies<InputT extends DependencyInfo> {
+     }
+ 
+     ImmutableList.Builder<InputT> builder = ImmutableList.builder();
+-    for (InputT input : importOrderedInputs) {
++    for (int i = 0, size = importOrderedInputs.size(); i < size; i++) {
++      InputT input = importOrderedInputs.get(i);
+       if (weakInputs.contains(input)) {
+         builder.add(input);
+       }
+@@ -168,7 +182,16 @@ public final class SortedDependencies<InputT extends DependencyInfo> {
+   }
+ 
+   public List<InputT> getSortedList() {
+-    return Collections.unmodifiableList(importOrderedInputs);
++    List<InputT> view = this.sortedListView;
++    if (view == null) {
++      ArrayList<InputT> copy = new ArrayList<>(importOrderedInputs.size());
++      for (int i = 0, size = importOrderedInputs.size(); i < size; i++) {
++        copy.add(importOrderedInputs.get(i));
++      }
++      view = Collections.unmodifiableList(copy);
++      this.sortedListView = view;
++    }
++    return view;
+   }
+ 
+   /** Return the input that gives us the given symbol, or null. */
+@@ -196,7 +219,9 @@ public final class SortedDependencies<InputT extends DependencyInfo> {
+ 
+   private void processInputs() {
+     // Index.
+-    for (InputT userOrderedInput : userOrderedInputs) {
++    int inputCount = userOrderedInputs.size();
++    for (int i = 0; i < inputCount; i++) {
++      InputT userOrderedInput = userOrderedInputs.get(i);
+       ImmutableList<String> provides = userOrderedInput.getProvides();
+       String firstProvide = Iterables.getFirst(provides, null);
+       if (firstProvide == null
+@@ -210,11 +235,12 @@ public final class SortedDependencies<InputT extends DependencyInfo> {
+         nonExportingInputs.put(
+             ModuleNames.fileToModuleName(userOrderedInput.getName()), userOrderedInput);
+       }
+-      for (String providedSymbolName : userOrderedInput.getProvides()) {
++      for (String providedSymbolName : provides) {
+         exportingInputBySymbolName.put(providedSymbolName, userOrderedInput);
+       }
+     }
+-    for (InputT userOrderedInput : userOrderedInputs) {
++    for (int i = 0; i < inputCount; i++) {
++      InputT userOrderedInput = userOrderedInputs.get(i);
+       for (String symbolName : userOrderedInput.getRequiredSymbols()) {
+         InputT importedInput = exportingInputBySymbolName.get(symbolName);
+         if (importedInput != null) {
+@@ -225,10 +251,10 @@ public final class SortedDependencies<InputT extends DependencyInfo> {
+ 
+     // Order.
+     // For each input, traverse in user-provided order.
+-    for (InputT userOrderedInput : userOrderedInputs) {
++    for (int i = 0; i < inputCount; i++) {
+       // Traverse the graph starting from this input and record any
+       // newly-reached inputs.
+-      orderInput(userOrderedInput);
++      orderInput(userOrderedInputs.get(i));
+     }
+ 
+     // Free temporary indexes.
+diff --git a/com/google/javascript/jscomp/graph/DiGraph.java b/com/google/javascript/jscomp/graph/DiGraph.java
+index 261f173..9dc22df 100644
+--- a/com/google/javascript/jscomp/graph/DiGraph.java
++++ b/com/google/javascript/jscomp/graph/DiGraph.java
+@@ -110,6 +110,22 @@ public abstract class DiGraph<N, E> extends Graph<N, E> {
+ 
+     public List<? extends DiGraphEdge<N, E>> getInEdges();
+ 
++    default int getOutEdgeCount() {
++      return getOutEdges().size();
++    }
++
++    default DiGraphEdge<N, E> getOutEdgeAt(int index) {
++      return getOutEdges().get(index);
++    }
++
++    default int getInEdgeCount() {
++      return getInEdges().size();
++    }
++
++    default DiGraphEdge<N, E> getInEdgeAt(int index) {
++      return getInEdges().get(index);
++    }
++
+     /** Returns whether a priority has been set. */
+     boolean hasPriority();
+ 
+diff --git a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+index 118ab51..5a615e6 100644
+--- a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+@@ -470,6 +470,38 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+       return outEdges != null ? outEdges.size() : (firstOutEdge != null ? 1 : 0);
+     }
+ 
++    @Override
++    public int getInEdgeCount() {
++      return inEdges != null ? inEdges.size() : (firstInEdge != null ? 1 : 0);
++    }
++
++    @Override
++    public LinkedDiGraphEdge<N, E> getInEdgeAt(int index) {
++      if (inEdges != null) {
++        return inEdges.get(index);
++      }
++      if (index == 0 && firstInEdge != null) {
++        return firstInEdge;
++      }
++      throw new IndexOutOfBoundsException(index);
++    }
++
++    @Override
++    public int getOutEdgeCount() {
++      return outEdges != null ? outEdges.size() : (firstOutEdge != null ? 1 : 0);
++    }
++
++    @Override
++    public LinkedDiGraphEdge<N, E> getOutEdgeAt(int index) {
++      if (outEdges != null) {
++        return outEdges.get(index);
++      }
++      if (index == 0 && firstOutEdge != null) {
++        return firstOutEdge;
++      }
++      throw new IndexOutOfBoundsException(index);
++    }
++
+     void addInEdge(LinkedDiGraphEdge<N, E> edge) {
+       if (inEdges != null) {
+         inEdges.add(edge);

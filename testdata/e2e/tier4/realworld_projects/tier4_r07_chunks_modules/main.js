@@ -1,0 +1,1 @@
+import { LIB } from './vendor.js'; window['app'] = LIB.util(10);

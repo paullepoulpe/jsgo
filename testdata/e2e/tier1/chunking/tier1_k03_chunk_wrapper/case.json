@@ -1,0 +1,32 @@
+{
+  "id": "tier1_k03_chunk_wrapper",
+  "tier": 1,
+  "feature": "chunking",
+  "name": "Chunk output wrapper",
+  "description": "Verifies --chunk_output_wrapper wraps each generated chunk file with prefix and suffix",
+  "args": [
+    "--chunk",
+    "main:1",
+    "--js",
+    "main.js",
+    "--chunk",
+    "sub:1:main",
+    "--js",
+    "sub.js",
+    "--chunk_output_word_spec",
+    "%s.out.js",
+    "--chunk_output_wrapper",
+    "/*chunk*/%output%"
+  ],
+  "stdin": "",
+  "files": {
+    "main.js": "var mainApp = 1;",
+    "sub.js": "var subApp = mainApp;"
+  },
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

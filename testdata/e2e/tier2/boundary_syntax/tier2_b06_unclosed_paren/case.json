@@ -1,0 +1,21 @@
+{
+  "id": "tier2_b06_unclosed_paren",
+  "tier": 2,
+  "feature": "boundary_syntax",
+  "name": "Unclosed parenthesis syntax error",
+  "description": "Fails compilation on unclosed function call / parenthesis",
+  "args": [
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "(function() { var x = 1;"
+  },
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "in.js:1:24: ERROR - [JSC_PARSE_ERROR] Parse error. '}' expected\n  1| (function() { var x = 1;\n                             ^\n\n1 error(s), 0 warning(s)\n",
+    "output_files": {}
+  }
+}

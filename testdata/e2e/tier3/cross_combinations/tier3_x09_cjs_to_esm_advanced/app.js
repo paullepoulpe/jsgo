@@ -1,0 +1,1 @@
+var m = require('./mod.js'); window['res'] = m.calc(5);

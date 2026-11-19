@@ -1,0 +1,1 @@
+const greeting = "hello"; const getGreeting = () => `${greeting} world`; window['g'] = getGreeting();

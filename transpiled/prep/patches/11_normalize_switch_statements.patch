@@ -1,0 +1,190 @@
+diff --git a/com/google/debugging/sourcemap/SourceMapConsumerFactory.java b/com/google/debugging/sourcemap/SourceMapConsumerFactory.java
+index c9e791e..fd8fd41 100644
+--- a/com/google/debugging/sourcemap/SourceMapConsumerFactory.java
++++ b/com/google/debugging/sourcemap/SourceMapConsumerFactory.java
+@@ -49,16 +49,16 @@ public final class SourceMapConsumerFactory {
+       SourceMapObject sourceMapObject = SourceMapObjectParser.parse(contents);
+ 
+       // Check basic assertions about the format.
+-      return switch (sourceMapObject.getVersion()) {
+-        case 3 -> {
++      switch (sourceMapObject.getVersion()) {
++        case 3: {
+           SourceMapConsumerV3 consumer = new SourceMapConsumerV3();
+           consumer.parse(sourceMapObject, supplier);
+-          yield consumer;
++          return consumer;
+         }
+-        default ->
+-            throw new SourceMapParseException(
+-                "Unknown source map version:" + sourceMapObject.getVersion());
+-      };
++        default:
++          throw new SourceMapParseException(
++              "Unknown source map version:" + sourceMapObject.getVersion());
++      }
+     }
+ 
+     throw new SourceMapParseException("unable to detect source map format");
+diff --git a/com/google/debugging/sourcemap/SourceMapGeneratorFactory.java b/com/google/debugging/sourcemap/SourceMapGeneratorFactory.java
+index 70be686..146edbc 100644
+--- a/com/google/debugging/sourcemap/SourceMapGeneratorFactory.java
++++ b/com/google/debugging/sourcemap/SourceMapGeneratorFactory.java
+@@ -21,9 +21,13 @@ public final class SourceMapGeneratorFactory {
+    * @return The appropriate source map object for the given source map format.
+    */
+   public static SourceMapGenerator getInstance(SourceMapFormat format) {
+-    return switch (format) {
+-      case DEFAULT, V3 -> new SourceMapGeneratorV3();
+-    };
++    switch (format) {
++      case DEFAULT:
++      case V3:
++        return new SourceMapGeneratorV3();
++      default:
++        throw new AssertionError("Unexpected format: " + format);
++    }
+   }
+ 
+   private SourceMapGeneratorFactory() {}
+diff --git a/com/google/javascript/jscomp/CheckConformance.java b/com/google/javascript/jscomp/CheckConformance.java
+index 23bf00a..e141961 100644
+--- a/com/google/javascript/jscomp/CheckConformance.java
++++ b/com/google/javascript/jscomp/CheckConformance.java
+@@ -626,31 +626,41 @@ public final class CheckConformance implements NodeTraversal.Callback, CompilerP
+    */
+   private static @Nullable Rule initRule(AbstractCompiler compiler, Requirement requirement) {
+     try {
+-      return switch (requirement.getType()) {
+-        case CUSTOM -> new ConformanceRules.CustomRuleProxy(compiler, requirement);
+-        case NO_OP -> new ConformanceRules.NoOp(compiler, requirement);
+-        case BANNED_CODE_PATTERN -> new ConformanceRules.BannedCodePattern(compiler, requirement);
+-        case BANNED_DEPENDENCY -> new ConformanceRules.BannedDependency(compiler, requirement);
+-        case BANNED_DEPENDENCY_REGEX ->
+-            new ConformanceRules.BannedDependencyRegex(compiler, requirement);
+-        case BANNED_ENHANCE -> new ConformanceRules.BannedEnhance(compiler, requirement);
+-        case BANNED_MODS_REGEX -> new ConformanceRules.BannedModsRegex(compiler, requirement);
+-        case BANNED_NAME,
+-            BANNED_NAME_CALL ->
+-            new ConformanceRules.BannedName(compiler, requirement);
+-        case BANNED_PROPERTY,
+-            BANNED_PROPERTY_READ,
+-            BANNED_PROPERTY_WRITE,
+-            BANNED_PROPERTY_NON_CONSTANT_WRITE,
+-            BANNED_PROPERTY_CALL ->
+-            new ConformanceRules.BannedProperty(compiler, requirement);
+-        case RESTRICTED_NAME_CALL -> new ConformanceRules.RestrictedNameCall(compiler, requirement);
+-        case RESTRICTED_METHOD_CALL ->
+-            new ConformanceRules.RestrictedMethodCall(compiler, requirement);
+-        case RESTRICTED_PROPERTY_WRITE ->
+-            new ConformanceRules.RestrictedPropertyWrite(compiler, requirement);
+-        case BANNED_STRING_REGEX -> new ConformanceRules.BannedStringRegex(compiler, requirement);
+-      };
++      switch (requirement.getType()) {
++        case CUSTOM:
++          return new ConformanceRules.CustomRuleProxy(compiler, requirement);
++        case NO_OP:
++          return new ConformanceRules.NoOp(compiler, requirement);
++        case BANNED_CODE_PATTERN:
++          return new ConformanceRules.BannedCodePattern(compiler, requirement);
++        case BANNED_DEPENDENCY:
++          return new ConformanceRules.BannedDependency(compiler, requirement);
++        case BANNED_DEPENDENCY_REGEX:
++          return new ConformanceRules.BannedDependencyRegex(compiler, requirement);
++        case BANNED_ENHANCE:
++          return new ConformanceRules.BannedEnhance(compiler, requirement);
++        case BANNED_MODS_REGEX:
++          return new ConformanceRules.BannedModsRegex(compiler, requirement);
++        case BANNED_NAME:
++        case BANNED_NAME_CALL:
++          return new ConformanceRules.BannedName(compiler, requirement);
++        case BANNED_PROPERTY:
++        case BANNED_PROPERTY_READ:
++        case BANNED_PROPERTY_WRITE:
++        case BANNED_PROPERTY_NON_CONSTANT_WRITE:
++        case BANNED_PROPERTY_CALL:
++          return new ConformanceRules.BannedProperty(compiler, requirement);
++        case RESTRICTED_NAME_CALL:
++          return new ConformanceRules.RestrictedNameCall(compiler, requirement);
++        case RESTRICTED_METHOD_CALL:
++          return new ConformanceRules.RestrictedMethodCall(compiler, requirement);
++        case RESTRICTED_PROPERTY_WRITE:
++          return new ConformanceRules.RestrictedPropertyWrite(compiler, requirement);
++        case BANNED_STRING_REGEX:
++          return new ConformanceRules.BannedStringRegex(compiler, requirement);
++        default:
++          throw new AssertionError("Unexpected requirement type: " + requirement.getType());
++      }
+     } catch (InvalidRequirementSpec e) {
+       reportInvalidRequirement(compiler, requirement, e.getMessage());
+       return null;
+diff --git a/com/google/javascript/jscomp/Es6NormalizeClasses.java b/com/google/javascript/jscomp/Es6NormalizeClasses.java
+index e9a936d..27bf005 100644
+--- a/com/google/javascript/jscomp/Es6NormalizeClasses.java
++++ b/com/google/javascript/jscomp/Es6NormalizeClasses.java
+@@ -2012,21 +2012,23 @@ public final class Es6NormalizeClasses implements NodeTraversal.ScopedCallback,
+ 
+   // Note: Assumes that we have already filtered out non-static members and non-static blocks.
+   private static boolean isInStaticInitializationContext(Node rootNode) {
+-    return switch (rootNode.getToken()) {
+-      case MEMBER_FUNCTION_DEF, COMPUTED_PROP, GETTER_DEF, SETTER_DEF -> {
++    switch (rootNode.getToken()) {
++      case MEMBER_FUNCTION_DEF:
++      case COMPUTED_PROP:
++      case GETTER_DEF:
++      case SETTER_DEF:
+         checkState(rootNode.isStaticMember());
+-        yield false;
+-      }
+-      case MEMBER_FIELD_DEF, COMPUTED_FIELD_DEF -> {
++        return false;
++      case MEMBER_FIELD_DEF:
++      case COMPUTED_FIELD_DEF:
+         checkState(rootNode.isStaticMember());
+-        yield true;
+-      }
+-      case BLOCK -> {
++        return true;
++      case BLOCK:
+         checkState(rootNode.getParent().isClassMembers());
+-        yield true;
+-      }
+-      default -> throw new IllegalArgumentException("invalid root " + rootNode);
+-    };
++        return true;
++      default:
++        throw new IllegalArgumentException("invalid root " + rootNode);
++    }
+   }
+ 
+   private static class ClassRecord {
+diff --git a/com/google/javascript/jscomp/StrictModeCheck.java b/com/google/javascript/jscomp/StrictModeCheck.java
+index 25dceb4..d9b8a36 100644
+--- a/com/google/javascript/jscomp/StrictModeCheck.java
++++ b/com/google/javascript/jscomp/StrictModeCheck.java
+@@ -128,12 +128,19 @@ class StrictModeCheck extends AbstractPostOrderCallback implements CompilerPass
+    * function, or argument.
+    */
+   private static boolean isDeclaration(Node n) {
+-    return switch (n.getParent().getToken()) {
+-      case LET, CONST, VAR, CATCH -> true;
+-      case FUNCTION -> n == n.getParent().getFirstChild();
+-      case PARAM_LIST -> n.getGrandparent().isFunction();
+-      default -> false;
+-    };
++    switch (n.getParent().getToken()) {
++      case LET:
++      case CONST:
++      case VAR:
++      case CATCH:
++        return true;
++      case FUNCTION:
++        return n == n.getParent().getFirstChild();
++      case PARAM_LIST:
++        return n.getGrandparent().isFunction();
++      default:
++        return false;
++    }
+   }
+ 
+   /** Checks that an assignment is not to the "arguments" object. */

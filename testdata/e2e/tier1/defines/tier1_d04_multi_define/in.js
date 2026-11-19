@@ -1,0 +1,1 @@
+/** @define {boolean} */ var FLAG_A = true; /** @define {boolean} */ var FLAG_B = false; /** @define {string} */ var STR_VAL = 'dev';

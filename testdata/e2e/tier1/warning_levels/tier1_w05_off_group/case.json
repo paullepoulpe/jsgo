@@ -1,0 +1,24 @@
+{
+  "id": "tier1_w05_off_group",
+  "tier": 1,
+  "feature": "warning_levels",
+  "name": "Disabling diagnostic group",
+  "description": "Verifies --jscomp_off=uselessCode suppresses warnings for unreachable statements",
+  "args": [
+    "--warning_level",
+    "VERBOSE",
+    "--jscomp_off=uselessCode",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "function test() { return 1; var dead = 2; }"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "function test(){return 1};\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

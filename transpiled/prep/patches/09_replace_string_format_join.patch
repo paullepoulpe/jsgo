@@ -1,0 +1,23 @@
+diff --git a/com/google/javascript/jscomp/VerboseMessageFormatter.java b/com/google/javascript/jscomp/VerboseMessageFormatter.java
+index 4da2c03..29775de 100644
+--- a/com/google/javascript/jscomp/VerboseMessageFormatter.java
++++ b/com/google/javascript/jscomp/VerboseMessageFormatter.java
+@@ -45,11 +45,12 @@ class VerboseMessageFormatter extends AbstractMessageFormatter {
+     if (sourceRegion != null) {
+       lineSource = sourceRegion.getSourceExcerpt();
+     }
+-    return String.format(
+-        "%s at %s line %s %s",
+-        description,
+-        (Strings.isNullOrEmpty(sourceName) ? "(unknown source)" : sourceName),
+-        ((lineNumber < 0) ? "(unknown line)" : String.valueOf(lineNumber)),
+-        ((lineSource != null) ? ":\n\n" + lineSource : "."));
++    return description
++        + " at "
++        + (Strings.isNullOrEmpty(sourceName) ? "(unknown source)" : sourceName)
++        + " line "
++        + ((lineNumber < 0) ? "(unknown line)" : String.valueOf(lineNumber))
++        + " "
++        + ((lineSource != null) ? ":\n\n" + lineSource : ".");
+   }
+ }

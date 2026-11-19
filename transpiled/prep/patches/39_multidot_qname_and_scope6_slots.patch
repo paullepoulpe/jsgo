@@ -1,0 +1,143 @@
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -3134,31 +3134,125 @@
+         yield name;
+       }
+       case GETPROP -> {
+-        String propName = getString();
+-        Node leftNode = first;
+-        if (!leftNode.isGetProp()) {
+-          String left = leftNode.getQualifiedName();
++        String p1 = getString();
++        Node n1 = first;
++        if (!n1.isGetProp()) {
++          String left = n1.getQualifiedName();
+           if (left == null) {
+             yield null;
+           }
+-          yield left + "." + propName;
+-        }
+-        String midPropName = leftNode.getString();
+-        Node leftLeftNode = leftNode.first;
+-        if (!leftLeftNode.isGetProp()) {
+-          String left = leftLeftNode.getQualifiedName();
++          yield left + "." + p1;
++        }
++        String p2 = n1.getString();
++        Node n2 = n1.first;
++        if (!n2.isGetProp()) {
++          String left = n2.getQualifiedName();
+           if (left == null) {
+             yield null;
+           }
+-          yield left + "." + midPropName + "." + propName;
++          yield left + "." + p2 + "." + p1;
++        }
++        String p3 = n2.getString();
++        Node n3 = n2.first;
++        if (!n3.isGetProp()) {
++          String left = n3.getQualifiedName();
++          if (left == null) {
++            yield null;
++          }
++          yield left + "." + p3 + "." + p2 + "." + p1;
++        }
++        String p4 = n3.getString();
++        Node n4 = n3.first;
++        if (!n4.isGetProp()) {
++          String left = n4.getQualifiedName();
++          if (left == null) {
++            yield null;
++          }
++          yield left + "." + p4 + "." + p3 + "." + p2 + "." + p1;
++        }
++        String p5 = n4.getString();
++        Node n5 = n4.first;
++        if (!n5.isGetProp()) {
++          String left = n5.getQualifiedName();
++          if (left == null) {
++            yield null;
++          }
++          yield left + "." + p5 + "." + p4 + "." + p3 + "." + p2 + "." + p1;
++        }
++        String p6 = n5.getString();
++        Node n6 = n5.first;
++        if (!n6.isGetProp()) {
++          String left = n6.getQualifiedName();
++          if (left == null) {
++            yield null;
++          }
++          yield left + "." + p6 + "." + p5 + "." + p4 + "." + p3 + "." + p2 + "." + p1;
++        }
++        String p7 = n6.getString();
++        Node n7 = n6.first;
++        if (!n7.isGetProp()) {
++          String left = n7.getQualifiedName();
++          if (left == null) {
++            yield null;
++          }
++          yield left + "." + p7 + "." + p6 + "." + p5 + "." + p4 + "." + p3 + "." + p2 + "." + p1;
++        }
++        String p8 = n7.getString();
++        Node n8 = n7.first;
++        if (!n8.isGetProp()) {
++          String left = n8.getQualifiedName();
++          if (left == null) {
++            yield null;
++          }
++          yield left
++              + "."
++              + p8
++              + "."
++              + p7
++              + "."
++              + p6
++              + "."
++              + p5
++              + "."
++              + p4
++              + "."
++              + p3
++              + "."
++              + p2
++              + "."
++              + p1;
+         }
+         StringBuilder builder =
+-            leftLeftNode.getQualifiedNameForGetProp(
+-                2 + midPropName.length() + propName.length());
++            n8.getQualifiedNameForGetProp(
++                8
++                    + p8.length()
++                    + p7.length()
++                    + p6.length()
++                    + p5.length()
++                    + p4.length()
++                    + p3.length()
++                    + p2.length()
++                    + p1.length());
+         if (builder == null) {
+           yield null;
+         }
+-        builder.append('.').append(midPropName).append('.').append(propName);
++        builder
++            .append('.')
++            .append(p8)
++            .append('.')
++            .append(p7)
++            .append('.')
++            .append(p6)
++            .append('.')
++            .append(p5)
++            .append('.')
++            .append(p4)
++            .append('.')
++            .append(p3)
++            .append('.')
++            .append(p2)
++            .append('.')
++            .append(p1);
+         yield builder.toString();
+       }
+       case THIS -> "this";

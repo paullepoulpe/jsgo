@@ -1,0 +1,1 @@
+const m = new Map(); m.set('k', 42); window['mapVal'] = m.get('k');

@@ -1,0 +1,18 @@
+{
+  "id": "tier1_m01_version",
+  "tier": 1,
+  "feature": "cli_meta",
+  "name": "Version flag",
+  "description": "Verifies --version prints version banner and exits 0",
+  "args": [
+    "--version"
+  ],
+  "stdin": "",
+  "files": {},
+  "expected": {
+    "exit_code": 0,
+    "stdout": "Closure Compiler (http://github.com/google/closure-compiler)\nVersion: v20261104\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

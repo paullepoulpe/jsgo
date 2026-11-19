@@ -1,0 +1,262 @@
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -769,7 +769,10 @@
+   }
+ 
+   public final void setIsInClosureUnawareSubtree(boolean value) {
+-    if (this.sourceFile == null || this.propFlags != 0 || this.propListHead != null) {
++    if (this.sourceFile == null
++        || this.jsDocInfo != null
++        || this.propFlags != 0
++        || this.propListHead != null) {
+       throw new IllegalArgumentException(
+           String.format(
+               "Cannot set IS_IN_CLOSURE_UNAWARE_SUBTREE property on a node which proplist is not a"
+@@ -1118,6 +1121,12 @@
+     if (prop == Prop.SOURCE_FILE) {
+       if (this.sourceFile != null) {
+         return PropListItem.objectItem((byte) Prop.SOURCE_FILE.ordinal(), this.sourceFile, null);
++      }
++      return lookupColdProperty(prop);
++    }
++    if (prop == Prop.JSDOC_INFO) {
++      if (this.jsDocInfo != null) {
++        return PropListItem.objectItem((byte) Prop.JSDOC_INFO.ordinal(), this.jsDocInfo, null);
+       }
+       return lookupColdProperty(prop);
+     }
+@@ -1161,9 +1170,13 @@
+   @CanIgnoreReturnValue
+   public final Node clonePropsFrom(Node other) {
+     checkState(
+-        this.sourceFile == null && this.propFlags == 0 && this.propListHead == null,
++        this.sourceFile == null
++            && this.jsDocInfo == null
++            && this.propFlags == 0
++            && this.propListHead == null,
+         "Node has existing properties.");
+     this.sourceFile = other.sourceFile;
++    this.jsDocInfo = other.jsDocInfo;
+     this.propFlags = other.propFlags;
+     this.propListHead = other.propListHead;
+     return this;
+@@ -1180,7 +1193,7 @@
+   public void validateProperties(Consumer<String> violationMessageConsumer) {
+     int flags = this.propFlags;
+     PropListItem head = this.propListHead;
+-    if (this.sourceFile == null && flags == 0 && head == null) {
++    if (this.sourceFile == null && this.jsDocInfo == null && flags == 0 && head == null) {
+       return;
+     }
+ 
+@@ -1332,6 +1345,13 @@
+       PropListItem item = lookupColdProperty(propType);
+       return item == null ? null : item.getObjectValue();
+     }
++    if (propType == Prop.JSDOC_INFO) {
++      if (this.jsDocInfo != null) {
++        return this.jsDocInfo;
++      }
++      PropListItem item = lookupColdProperty(propType);
++      return item == null ? null : item.getObjectValue();
++    }
+     int mask = INLINE_BOOL_MASKS[propType.ordinal()];
+     if (mask != 0) {
+       if ((this.propFlags & mask) != 0) {
+@@ -1363,6 +1383,10 @@
+   }
+ 
+   private boolean getColdBooleanProp(Prop propType) {
++    if ((propType == Prop.SOURCE_FILE && this.sourceFile != null)
++        || (propType == Prop.JSDOC_INFO && this.jsDocInfo != null)) {
++      throw new UnsupportedOperationException();
++    }
+     PropListItem item = lookupColdProperty(propType);
+     return item != null && item.getIntValue() != 0;
+   }
+@@ -1405,6 +1429,9 @@
+     if (propType == Prop.SOURCE_FILE && this.sourceFile != null) {
+       throw new UnsupportedOperationException();
+     }
++    if (propType == Prop.JSDOC_INFO && this.jsDocInfo != null) {
++      throw new UnsupportedOperationException();
++    }
+     return getColdIntProp(propType);
+   }
+ 
+@@ -1433,6 +1460,22 @@
+         return;
+       }
+       this.sourceFile = null;
++    } else if (prop == Prop.JSDOC_INFO) {
++      if (value == null) {
++        this.jsDocInfo = null;
++        if (this.propListHead != null) {
++          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++        }
++        return;
++      }
++      if (value instanceof JSDocInfo info) {
++        this.jsDocInfo = info;
++        if (this.propListHead != null) {
++          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++        }
++        return;
++      }
++      this.jsDocInfo = null;
+     } else {
+       int mask = INLINE_BOOL_MASKS[prop.ordinal()];
+       if (mask != 0) {
+@@ -1508,6 +1551,8 @@
+       this.propFlags &= ~SIDE_EFFECT_BITS_MASK;
+     } else if (prop == Prop.SOURCE_FILE) {
+       this.sourceFile = null;
++    } else if (prop == Prop.JSDOC_INFO) {
++      this.jsDocInfo = null;
+     }
+     PropListItem head = this.propListHead;
+     if (head != null) {
+@@ -1523,6 +1568,8 @@
+   public final void removeProp(Prop prop) {
+     if (prop == Prop.SOURCE_FILE) {
+       this.sourceFile = null;
++    } else if (prop == Prop.JSDOC_INFO) {
++      this.jsDocInfo = null;
+     } else {
+       int mask = INLINE_BOOL_MASKS[prop.ordinal()];
+       if (mask != 0) {
+@@ -1658,6 +1705,9 @@
+       propListStrRepr.add(propValues[propListItem.propType].name());
+       propListItem = propListItem.next;
+     }
++    if (this.jsDocInfo != null) {
++      propListStrRepr.add(Prop.JSDOC_INFO.name());
++    }
+     int flags = this.propFlags;
+     if (flags != 0) {
+       if (((flags >>> SIDE_EFFECT_SHIFT) & SIDE_EFFECT_MAX) != 0) {
+@@ -1694,7 +1744,10 @@
+   public final void deserializeProperties(long propSet, boolean isInClosureUnawareSubtree) {
+     if (this.isRoot()) {
+       checkState(
+-          this.sourceFile == null && this.propFlags == 0 && this.propListHead == null,
++          this.sourceFile == null
++              && this.jsDocInfo == null
++              && this.propFlags == 0
++              && this.propListHead == null,
+           this.propListHead);
+     } else {
+       checkState(
+@@ -1861,7 +1914,7 @@
+   private byte[] getSortedPropTypes() {
+     int flags = this.propFlags;
+     PropListItem head = this.propListHead;
+-    if (this.sourceFile == null && flags == 0 && head == null) {
++    if (this.sourceFile == null && this.jsDocInfo == null && flags == 0 && head == null) {
+       return new byte[0];
+     }
+     int inlineBoolBits = flags & INLINE_BOOL_ALL_MASK;
+@@ -1874,6 +1927,9 @@
+     if (this.sourceFile != null) {
+       count++;
+     }
++    if (this.jsDocInfo != null) {
++      count++;
++    }
+     if ((flags & CONST_VAR_BITS_MASK) != 0) {
+       count++;
+     }
+@@ -1889,6 +1945,9 @@
+     if (this.sourceFile != null) {
+       keys[idx++] = (byte) Prop.SOURCE_FILE.ordinal();
+     }
++    if (this.jsDocInfo != null) {
++      keys[idx++] = (byte) Prop.JSDOC_INFO.ordinal();
++    }
+     while (inlineBoolBits != 0) {
+       int bit = Integer.numberOfTrailingZeros(inlineBoolBits);
+       inlineBoolBits &= ~(1 << bit);
+@@ -2012,6 +2071,8 @@
+         sb.append(": ");
+         if (type == Prop.SOURCE_FILE && this.sourceFile != null) {
+           sb.append(this.sourceFile);
++        } else if (type == Prop.JSDOC_INFO && this.jsDocInfo != null) {
++          sb.append(this.jsDocInfo);
+         } else {
+           sb.append(lookupProperty(type));
+         }
+@@ -2089,7 +2150,9 @@
+         String valStr =
+             (type == Prop.SOURCE_FILE && this.sourceFile != null)
+                 ? String.valueOf(this.sourceFile)
+-                : lookupProperty(type).toString();
++                : (type == Prop.JSDOC_INFO && this.jsDocInfo != null)
++                    ? String.valueOf(this.jsDocInfo)
++                    : lookupProperty(type).toString();
+         sb.append(
+             createJsonPair(
+                 Ascii.toLowerCase(String.valueOf(type)),
+@@ -2188,6 +2251,8 @@
+   private transient @Nullable String originalName;
+ 
+   private @Nullable StaticSourceFile sourceFile;
++
++  private @Nullable JSDocInfo jsDocInfo;
+ 
+   private int propFlags;
+ 
+@@ -2475,6 +2540,9 @@
+     if (this.propListHead != null) {
+       return this.propListHead;
+     }
++    if (this.jsDocInfo != null) {
++      return PropListItem.objectItem((byte) Prop.JSDOC_INFO.ordinal(), this.jsDocInfo, null);
++    }
+     int flags = this.propFlags;
+     if (flags != 0) {
+       int se = (flags >>> SIDE_EFFECT_SHIFT) & SIDE_EFFECT_MAX;
+@@ -2511,6 +2579,7 @@
+ 
+   final void setPropListHead(@Nullable PropListItem propListHead) {
+     this.sourceFile = null;
++    this.jsDocInfo = null;
+     this.propFlags = 0;
+     this.propListHead = null;
+     applyPropListHeadItems(propListHead);
+@@ -3327,16 +3396,10 @@
+     dest.jstypeOrColor = source.jstypeOrColor;
+     dest.originalName = source.originalName;
+     dest.sourceFile = source.sourceFile;
++    JSDocInfo info = source.jsDocInfo;
++    dest.jsDocInfo = (cloneTypeExprs && info != null) ? info.clone(true) : info;
+     dest.propFlags = source.propFlags;
+     dest.propListHead = source.propListHead;
+-
+-    // TODO(johnlenz): Remove this once JSTypeExpression are immutable
+-    if (cloneTypeExprs) {
+-      JSDocInfo info = source.getJSDocInfo();
+-      if (info != null) {
+-        dest.setJSDocInfo(info.clone(true));
+-      }
+-    }
+   }
+ 
+   /** Returns a detached clone of the Node and all its children. */
+@@ -3479,13 +3542,13 @@
+    * @return the information or {@code null} if no JSDoc is attached to this node
+    */
+   public final @Nullable JSDocInfo getJSDocInfo() {
+-    return (JSDocInfo) getProp(Prop.JSDOC_INFO);
++    return this.jsDocInfo;
+   }
+ 
+   /** Sets the {@link JSDocInfo} attached to this node. */
+   @CanIgnoreReturnValue
+-  public final Node setJSDocInfo(JSDocInfo info) {
+-    putProp(Prop.JSDOC_INFO, info);
++  public final Node setJSDocInfo(@Nullable JSDocInfo info) {
++    this.jsDocInfo = info;
+     return this;
+   }
+ 

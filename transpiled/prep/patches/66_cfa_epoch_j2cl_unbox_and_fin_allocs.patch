@@ -1,0 +1,902 @@
+diff --git a/com/google/javascript/jscomp/ControlFlowAnalysis.java b/com/google/javascript/jscomp/ControlFlowAnalysis.java
+--- a/com/google/javascript/jscomp/ControlFlowAnalysis.java
++++ b/com/google/javascript/jscomp/ControlFlowAnalysis.java
+@@ -72,9 +72,12 @@
+ 
+   private Node @Nullable [] astPosKeys;
+   private int @Nullable [] astPosValues;
++  private int @Nullable [] astPosEpochs;
++  private int astPosEpoch = 1;
+   private int astPosSize;
+   private int nullAstPos = -1;
+   private DiGraphNode<Node, Branch> @Nullable [] workHeap;
++  private int workHeapMaxSize;
+ 
+   private int astPositionCounter;
+   private int priorityCounter;
+@@ -222,9 +225,15 @@
+       if (keys.length > MAX_POOLED_AST_POS_CAPACITY) {
+         cfa.astPosKeys = null;
+         cfa.astPosValues = null;
++        cfa.astPosEpochs = null;
++        cfa.astPosEpoch = 1;
+       } else if (cfa.astPosSize > 0) {
+-        for (int i = 0, len = keys.length; i < len; i++) {
+-          keys[i] = null;
++        cfa.astPosEpoch++;
++        if (cfa.astPosEpoch <= 0) {
++          cfa.astPosEpoch = 1;
++          if (cfa.astPosEpochs != null) {
++            Arrays.fill(cfa.astPosEpochs, 0);
++          }
+         }
+       }
+     }
+@@ -237,12 +246,14 @@
+       if (heap.length > MAX_POOLED_WORK_HEAP_CAPACITY) {
+         cfa.workHeap = null;
+       } else if (cfa.workHeapDirty) {
+-        for (int i = 0, len = heap.length; i < len; i++) {
++        int clearLimit = Math.min(cfa.workHeapMaxSize, heap.length);
++        for (int i = 0; i < clearLimit; i++) {
+           heap[i] = null;
+         }
+       }
+     }
+     cfa.workHeapDirty = false;
++    cfa.workHeapMaxSize = 0;
+     if (cfaPoolSize < MAX_CFA_POOL_SIZE) {
+       CFA_POOL[cfaPoolSize++] = cfa;
+     }
+@@ -271,13 +282,23 @@
+       keys = new Node[64];
+       this.astPosKeys = keys;
+       this.astPosValues = new int[64];
++      this.astPosEpochs = new int[64];
+     } else if (this.astPosSize * 4 >= keys.length * 3) {
+       rehashAstPositions(keys.length * 2);
+       keys = this.astPosKeys;
+     }
++    int[] epochs = this.astPosEpochs;
++    int ep = this.astPosEpoch;
+     int mask = keys.length - 1;
+     int slot = mixNodeHash(n.hashCode()) & mask;
+     while (true) {
++      if (epochs[slot] != ep) {
++        epochs[slot] = ep;
++        keys[slot] = n;
++        this.astPosValues[slot] = pos;
++        this.astPosSize++;
++        return;
++      }
+       Node existing = keys[slot];
+       if (existing == null) {
+         keys[slot] = n;
+@@ -296,22 +317,29 @@
+   private void rehashAstPositions(int newCap) {
+     Node[] oldKeys = this.astPosKeys;
+     int[] oldValues = this.astPosValues;
++    int[] oldEpochs = this.astPosEpochs;
++    int ep = this.astPosEpoch;
+     Node[] newKeys = new Node[newCap];
+     int[] newValues = new int[newCap];
++    int[] newEpochs = new int[newCap];
+     int mask = newCap - 1;
+     for (int i = 0, len = oldKeys.length; i < len; i++) {
+-      Node k = oldKeys[i];
+-      if (k != null) {
+-        int slot = mixNodeHash(k.hashCode()) & mask;
+-        while (newKeys[slot] != null) {
+-          slot = (slot + 1) & mask;
++      if (oldEpochs[i] == ep) {
++        Node k = oldKeys[i];
++        if (k != null) {
++          int slot = mixNodeHash(k.hashCode()) & mask;
++          while (newEpochs[slot] == ep && newKeys[slot] != null) {
++            slot = (slot + 1) & mask;
++          }
++          newEpochs[slot] = ep;
++          newKeys[slot] = k;
++          newValues[slot] = oldValues[i];
+         }
+-        newKeys[slot] = k;
+-        newValues[slot] = oldValues[i];
+       }
+     }
+     this.astPosKeys = newKeys;
+     this.astPosValues = newValues;
++    this.astPosEpochs = newEpochs;
+   }
+ 
+   private int getAstPosition(@Nullable Node n) {
+@@ -323,9 +351,11 @@
+     }
+     Node[] keys = this.astPosKeys;
+     if (keys != null) {
++      int[] epochs = this.astPosEpochs;
++      int ep = this.astPosEpoch;
+       int mask = keys.length - 1;
+       int slot = mixNodeHash(n.hashCode()) & mask;
+-      while (true) {
++      while (epochs[slot] == ep) {
+         Node existing = keys[slot];
+         if (existing == null) {
+           break;
+@@ -405,6 +435,7 @@
+     this.workHeapDirty = true;
+     heap[0] = entry;
+     int heapSize = 1;
++    this.workHeapMaxSize = 1;
+ 
+     while (heapSize > 0) {
+       DiGraphNode<Node, Branch> current = heap[0];
+@@ -466,10 +497,14 @@
+             k = parent;
+           }
+           heap[k] = succ;
++        }
++        if (heapSize > this.workHeapMaxSize) {
++          this.workHeapMaxSize = heapSize;
+         }
+       }
+     }
+     this.workHeapDirty = false;
++    this.workHeapMaxSize = 0;
+   }
+ 
+   @Override
+diff --git a/com/google/javascript/jscomp/J2clChecksPass.java b/com/google/javascript/jscomp/J2clChecksPass.java
+--- a/com/google/javascript/jscomp/J2clChecksPass.java
++++ b/com/google/javascript/jscomp/J2clChecksPass.java
+@@ -15,28 +15,39 @@
+  */
+ package com.google.javascript.jscomp;
+ 
++import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableMap;
+ import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.jstype.FunctionType;
+ import com.google.javascript.rhino.jstype.JSType;
++import com.google.javascript.rhino.jstype.ObjectType;
++import com.google.javascript.rhino.jstype.UnionType;
++import org.jspecify.annotations.Nullable;
+ 
+ /**
+  * Performs correctness checks which are specific to J2CL-generated patterns.
+  */
+-public class J2clChecksPass extends AbstractPostOrderCallback implements CompilerPass {
++public final class J2clChecksPass extends AbstractPostOrderCallback implements CompilerPass {
+ 
+   static final DiagnosticType J2CL_REFERENCE_EQUALITY =
+       DiagnosticType.warning(
+           "JSC_J2CL_REFERENCE_EQUALITY",
+           "Reference equality may not be used with the specified type: {0}");
+ 
++  private static final String INTEGER_TYPE_NAME = "java.lang.Integer";
++  private static final String INTEGER_FILE_NAME = "java/lang/Integer.impl.java.js";
++  private static final String FLOAT_TYPE_NAME = "java.lang.Float";
++  private static final String FLOAT_FILE_NAME = "java/lang/Float.impl.java.js";
++  private static final String LONG_TYPE_NAME = "goog.math.Long";
++  private static final String LONG_FILE_NAME = "javascript/closure/math/long.js";
++
+   /** Types for which using reference equality is an error. Mapped from name to filename. */
+   static final ImmutableMap<String, String> REFERENCE_EQUALITY_TYPE_PATTERNS =
+       ImmutableMap.of(
+-          "java.lang.Integer", "java/lang/Integer.impl.java.js",
+-          "java.lang.Float", "java/lang/Float.impl.java.js",
+-          "goog.math.Long", "javascript/closure/math/long.js");
++          INTEGER_TYPE_NAME, INTEGER_FILE_NAME,
++          FLOAT_TYPE_NAME, FLOAT_FILE_NAME,
++          LONG_TYPE_NAME, LONG_FILE_NAME);
+ 
+   private final AbstractCompiler compiler;
+ 
+@@ -46,47 +57,125 @@
+ 
+   @Override
+   public void visit(NodeTraversal unused, Node n, Node parent) {
+-    for (String typeName : REFERENCE_EQUALITY_TYPE_PATTERNS.keySet()) {
+-      checkReferenceEquality(n, typeName, REFERENCE_EQUALITY_TYPE_PATTERNS.get(typeName));
++    switch (n.getToken()) {
++      case SHEQ, EQ, SHNE, NE -> {}
++      default -> {
++        return;
++      }
+     }
++    JSType firstJsType = n.getFirstChild().getJSType();
++    JSType lastJsType = n.getLastChild().getJSType();
++    if (isNullType(firstJsType) || isNullType(lastJsType)) {
++      return;
++    }
++    String firstSource = getRestrictedJ2clSourceName(firstJsType);
++    String lastSource = getRestrictedJ2clSourceName(lastJsType);
++    if (firstSource == null && lastSource == null) {
++      return;
++    }
++    reportIfMatches(n, firstSource, lastSource, INTEGER_TYPE_NAME, INTEGER_FILE_NAME);
++    reportIfMatches(n, firstSource, lastSource, FLOAT_TYPE_NAME, FLOAT_FILE_NAME);
++    reportIfMatches(n, firstSource, lastSource, LONG_TYPE_NAME, LONG_FILE_NAME);
+   }
+ 
+-  /** Reports an error if the node is a reference equality check of the specified type. */
+-  private void checkReferenceEquality(Node n, String typeName, String fileName) {
+-    if (n.isSHEQ() || n.isEQ() || n.isSHNE() || n.isNE()) {
+-      JSType firstJsType = n.getFirstChild().getJSType();
+-      JSType lastJsType = n.getLastChild().getJSType();
+-      boolean hasType = isType(firstJsType, fileName) || isType(lastJsType, fileName);
+-      boolean hasNullType = isNullType(firstJsType) || isNullType(lastJsType);
+-      if (hasType && !hasNullType) {
+-        compiler.report(JSError.make(n, J2CL_REFERENCE_EQUALITY, typeName));
+-      }
++  private void reportIfMatches(
++      Node n,
++      @Nullable String firstSource,
++      @Nullable String lastSource,
++      String typeName,
++      String fileName) {
++    if ((firstSource != null && firstSource.endsWith(fileName))
++        || (lastSource != null && lastSource.endsWith(fileName))) {
++      compiler.report(JSError.make(n, J2CL_REFERENCE_EQUALITY, typeName));
+     }
+   }
+ 
+-  private boolean isNullType(JSType jsType) {
++  private static boolean isNullType(@Nullable JSType jsType) {
+     if (jsType == null) {
+       return false;
+     }
+     return jsType.isNullType() || jsType.isVoidType();
+   }
+ 
+-  private boolean isType(JSType jsType, String fileName) {
++  private static boolean matchesAnyTargetPattern(@Nullable String sourceName) {
++    return sourceName != null
++        && (sourceName.endsWith(INTEGER_FILE_NAME)
++            || sourceName.endsWith(FLOAT_FILE_NAME)
++            || sourceName.endsWith(LONG_FILE_NAME));
++  }
++
++  private static @Nullable String getRestrictedJ2clSourceName(@Nullable JSType jsType) {
+     if (jsType == null) {
+-      return false;
++      return null;
+     }
+-    jsType = jsType.restrictByNotNullOrUndefined();
+-    if (jsType.toMaybeObjectType() == null) {
+-      return false;
++    if (!(jsType instanceof UnionType union)) {
++      if (jsType.isNullType() || jsType.isVoidType()) {
++        return null;
++      }
++      String src = getObjectSourceName(jsType.toMaybeObjectType());
++      return matchesAnyTargetPattern(src) ? src : null;
+     }
+-    String sourceName = getSourceName(jsType);
+-    return sourceName != null && sourceName.endsWith(fileName);
++    ImmutableList<JSType> alts = union.getAlternates();
++    JSType singleNonNull = null;
++    int nonNullCount = 0;
++    boolean hasNestedUnion = false;
++    boolean allNonNullAreObjects = true;
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      JSType alt = alts.get(i);
++      if (alt.isNullType() || alt.isVoidType() || alt.isNoType()) {
++        continue;
++      }
++      if (alt.isUnionType()) {
++        hasNestedUnion = true;
++        break;
++      }
++      nonNullCount++;
++      if (nonNullCount == 1) {
++        singleNonNull = alt;
++      }
++      if (alt.toMaybeObjectType() == null) {
++        allNonNullAreObjects = false;
++      }
++    }
++    if (hasNestedUnion) {
++      String src = getObjectSourceName(union.restrictByNotNullOrUndefined().toMaybeObjectType());
++      return matchesAnyTargetPattern(src) ? src : null;
++    }
++    if (nonNullCount == 0) {
++      return null;
++    }
++    if (nonNullCount == 1) {
++      String src = getObjectSourceName(singleNonNull.toMaybeObjectType());
++      return matchesAnyTargetPattern(src) ? src : null;
++    }
++    if (!allNonNullAreObjects) {
++      return null;
++    }
++    boolean hasJ2clCandidate = false;
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      JSType alt = alts.get(i);
++      if (!alt.isNullType()
++          && !alt.isVoidType()
++          && !alt.isNoType()
++          && matchesAnyTargetPattern(getObjectSourceName(alt.toMaybeObjectType()))) {
++        hasJ2clCandidate = true;
++        break;
++      }
++    }
++    if (!hasJ2clCandidate) {
++      return null;
++    }
++    String src = getObjectSourceName(union.restrictByNotNullOrUndefined().toMaybeObjectType());
++    return matchesAnyTargetPattern(src) ? src : null;
+   }
+ 
+-  private String getSourceName(JSType jsType) {
+-    FunctionType constructor = jsType.toMaybeObjectType().getConstructor();
++  private static @Nullable String getObjectSourceName(@Nullable ObjectType objType) {
++    if (objType == null) {
++      return null;
++    }
++    FunctionType constructor = objType.getConstructor();
+     if (constructor == null) {
+-      return "";
++      return null;
+     }
+     return NodeUtil.getSourceName(constructor.getSource());
+   }
+diff --git a/com/google/javascript/jscomp/MinimizedCondition.java b/com/google/javascript/jscomp/MinimizedCondition.java
+--- a/com/google/javascript/jscomp/MinimizedCondition.java
++++ b/com/google/javascript/jscomp/MinimizedCondition.java
+@@ -34,7 +34,7 @@
+  * may or may not be counted as a cost, so this class provides ways to
+  * access minimized versions of both of those abstract syntax trees (ASTs).
+  */
+-class MinimizedCondition {
++final class MinimizedCondition {
+ 
+   /** Definitions of the style of minimization preferred. */
+   enum MinimizationStyle {
+@@ -46,6 +46,9 @@
+     ALLOW_LEADING_NOT
+   }
+ 
++  private static final MeasuredNode UNOPTIMIZED_NEG =
++      new MeasuredNode(null, -1, null, null, null, Integer.MAX_VALUE, true);
++
+   /** A representation equivalent to the original condition. */
+   private final MeasuredNode positive;
+ 
+@@ -57,6 +60,13 @@
+     negative = n.change();
+   }
+ 
++  static boolean isMinimizable(Node n) {
++    return switch (n.getToken()) {
++      case NOT, AND, OR, HOOK, COMMA -> true;
++      default -> false;
++    };
++  }
++
+   /**
+    * Returns a MinimizedCondition that represents the condition node after
+    * minimization.
+@@ -112,9 +122,8 @@
+    */
+   static MinimizedCondition unoptimized(Node n) {
+     checkNotNull(n.getParent());
+-    MeasuredNode pos = new MeasuredNode(n, null, 0, false);
+-    MeasuredNode neg = new MeasuredNode(null, null, Integer.MAX_VALUE, true);
+-    return new MinimizedCondition(pos, neg);
++    MeasuredNode pos = new MeasuredNode(n, -1, null, null, null, 0, false);
++    return new MinimizedCondition(pos, UNOPTIMIZED_NEG);
+   }
+ 
+   /** return the best, prefer unchanged */
+@@ -150,16 +159,11 @@
+         Node complementNode = new Node(n.isAnd() ? Token.OR : Token.AND).srcref(n);
+         MinimizedCondition leftSubtree = computeMinimizedCondition(n.getFirstChild());
+         MinimizedCondition rightSubtree = computeMinimizedCondition(n.getLastChild());
+-        MeasuredNode positive =
+-            pickBest(
+-                MeasuredNode.addNode(n, leftSubtree.positive, rightSubtree.positive),
+-                MeasuredNode.addNode(complementNode, leftSubtree.negative, rightSubtree.negative)
+-                    .negate());
+-        MeasuredNode negative =
+-            pickBest(
+-                MeasuredNode.addNode(n, leftSubtree.positive, rightSubtree.positive).negate(),
+-                MeasuredNode.addNode(complementNode, leftSubtree.negative, rightSubtree.negative)
+-                    .change());
++        MeasuredNode posTree = MeasuredNode.addNode(n, leftSubtree.positive, rightSubtree.positive);
++        MeasuredNode compTree =
++            MeasuredNode.addNode(complementNode, leftSubtree.negative, rightSubtree.negative);
++        MeasuredNode positive = pickBest(posTree, compTree.negate());
++        MeasuredNode negative = pickBest(posTree.negate(), compTree.change());
+         yield new MinimizedCondition(positive, negative);
+       }
+       case HOOK -> {
+@@ -168,21 +172,19 @@
+         Node elseNode = thenNode.getNext();
+         MinimizedCondition thenSubtree = computeMinimizedCondition(thenNode);
+         MinimizedCondition elseSubtree = computeMinimizedCondition(elseNode);
++        MeasuredNode condNode = MeasuredNode.forNode(cond);
+         MeasuredNode positive =
+-            MeasuredNode.addNode(
+-                n, MeasuredNode.forNode(cond), thenSubtree.positive, elseSubtree.positive);
++            MeasuredNode.addNode(n, condNode, thenSubtree.positive, elseSubtree.positive);
+         MeasuredNode negative =
+-            MeasuredNode.addNode(
+-                n, MeasuredNode.forNode(cond), thenSubtree.negative, elseSubtree.negative);
++            MeasuredNode.addNode(n, condNode, thenSubtree.negative, elseSubtree.negative);
+         yield new MinimizedCondition(positive, negative);
+       }
+       case COMMA -> {
+         Node lhs = n.getFirstChild();
+         MinimizedCondition rhsSubtree = computeMinimizedCondition(lhs.getNext());
+-        MeasuredNode positive =
+-            MeasuredNode.addNode(n, MeasuredNode.forNode(lhs), rhsSubtree.positive);
+-        MeasuredNode negative =
+-            MeasuredNode.addNode(n, MeasuredNode.forNode(lhs), rhsSubtree.negative);
++        MeasuredNode lhsNode = MeasuredNode.forNode(lhs);
++        MeasuredNode positive = MeasuredNode.addNode(n, lhsNode, rhsSubtree.positive);
++        MeasuredNode negative = MeasuredNode.addNode(n, lhsNode, rhsSubtree.negative);
+         yield new MinimizedCondition(positive, negative);
+       }
+       default -> {
+@@ -194,15 +196,30 @@
+   }
+ 
+   /** An AST-node along with some additional metadata. */
+-  static class MeasuredNode {
++  static final class MeasuredNode {
++    private static final int NOT_PRECEDENCE = NodeUtil.precedence(Token.NOT);
++
+     private final Node node;
+     private final int length;
+     private final boolean changed;
+-    private final MeasuredNode[] children;
+-
+-    MeasuredNode(@Nullable Node n, MeasuredNode @Nullable [] children, int len, boolean ch) {
++    private final int childCount;
++    private final @Nullable MeasuredNode c0;
++    private final @Nullable MeasuredNode c1;
++    private final @Nullable MeasuredNode c2;
++
++    MeasuredNode(
++        @Nullable Node n,
++        int childCount,
++        @Nullable MeasuredNode c0,
++        @Nullable MeasuredNode c1,
++        @Nullable MeasuredNode c2,
++        int len,
++        boolean ch) {
+       node = n;
+-      this.children = children;
++      this.childCount = childCount;
++      this.c0 = c0;
++      this.c1 = c1;
++      this.c2 = c2;
+       length = len;
+       changed = ch;
+     }
+@@ -217,7 +234,8 @@
+ 
+     MeasuredNode withoutNot() {
+       checkState(isNot());
+-      return (normalizeChildren(node, children)[0]).change();
++      MeasuredNode first = childCount >= 0 ? c0 : forNode(node.getFirstChild());
++      return first.change();
+     }
+ 
+     private MeasuredNode negate() {
+@@ -231,56 +249,30 @@
+       };
+     }
+ 
+-    static MeasuredNode[] normalizeChildren(Node node, MeasuredNode[] children) {
+-      if (children != null || !node.hasChildren()) {
+-        return children;
+-      } else {
+-        MeasuredNode[] measuredChildren = new MeasuredNode[node.getChildCount()];
+-        int child = 0;
+-        for (Node c = node.getFirstChild(); c != null; c = c.getNext()) {
+-          measuredChildren[child++] = forNode(c);
+-        }
+-        return measuredChildren;
++    private MeasuredNode updateToken(Token token) {
++      Node newNode = new Node(token).srcref(node);
++      if (childCount >= 0) {
++        return new MeasuredNode(newNode, childCount, c0, c1, c2, length, true);
+       }
++      Node first = node.getFirstChild();
++      if (first == null) {
++        return new MeasuredNode(newNode, -1, null, null, null, length, true);
++      }
++      Node second = first.getNext();
++      checkState(second != null && second.getNext() == null);
++      return new MeasuredNode(newNode, 2, forNode(first), forNode(second), null, length, true);
+     }
+ 
+-    private MeasuredNode updateToken(Token token) {
+-      return new MeasuredNode(
+-          new Node(token).srcref(node), normalizeChildren(node, children), length, true);
+-    }
+-
+     private MeasuredNode addNot() {
+-      return addNode(
+-          new Node(Token.NOT).srcref(node), this).change();
++      int cost = this.length + 1;
++      if (this.isLowerPrecedenceThan(NOT_PRECEDENCE)) {
++        cost += 2;
++      }
++      return new MeasuredNode(new Node(Token.NOT).srcref(node), 1, this, null, null, cost, true);
+     }
+ 
+     private MeasuredNode change() {
+-      return (isChanged()) ? this : new MeasuredNode(node, children, length, true);
+-    }
+-
+-    /**
+-     *  Estimate the number of characters in the textual representation of
+-     *  the given node and that will be devoted to negation or parentheses.
+-     *  Since these are the only characters that flipping a condition
+-     *  according to De Morgan's rule can affect, these are the only ones
+-     *  we count.
+-     *  Not nodes are counted by the NOT node itself, whereas
+-     *  parentheses around an expression are counted by the parent node.
+-     *  @param n the node to be checked.
+-     *  @return the number of negations and parentheses in the node.
+-     */
+-    private static int estimateCostOneLevel(Node n, MeasuredNode ...children) {
+-      int cost = 0;
+-      if (n.isNot()) {
+-        cost++;  // A negation is needed.
+-      }
+-      int parentPrecedence = NodeUtil.precedence(n.getToken());
+-      for (MeasuredNode child : children) {
+-        if (child.isLowerPrecedenceThan(parentPrecedence)) {
+-          cost += 2;  // A pair of parenthesis is needed.
+-        }
+-      }
+-      return cost;
++      return isChanged() ? this : new MeasuredNode(node, childCount, c0, c1, c2, length, true);
+     }
+ 
+     /**
+@@ -294,23 +286,66 @@
+      * The returned MeasuredNode is only marked as changed if the children
+      * are marked as changed.
+      */
+-    private static MeasuredNode addNode(Node parent, MeasuredNode ...children) {
+-      int cost = 0;
+-      boolean changed = false;
+-      for (MeasuredNode child : children) {
+-        cost += child.length;
+-        changed = changed || child.changed;
++    private static MeasuredNode addNode(Node parent, MeasuredNode child0) {
++      int cost = child0.length;
++      if (parent.isNot()) {
++        cost++;
+       }
+-      cost += estimateCostOneLevel(parent, children);
+-      return new MeasuredNode(parent, children, cost, changed);
++      int parentPrecedence = NodeUtil.precedence(parent.getToken());
++      if (child0.isLowerPrecedenceThan(parentPrecedence)) {
++        cost += 2;
++      }
++      return new MeasuredNode(parent, 1, child0, null, null, cost, child0.changed);
+     }
+ 
++    private static MeasuredNode addNode(Node parent, MeasuredNode child0, MeasuredNode child1) {
++      int cost = child0.length + child1.length;
++      if (parent.isNot()) {
++        cost++;
++      }
++      int parentPrecedence = NodeUtil.precedence(parent.getToken());
++      if (child0.isLowerPrecedenceThan(parentPrecedence)) {
++        cost += 2;
++      }
++      if (child1.isLowerPrecedenceThan(parentPrecedence)) {
++        cost += 2;
++      }
++      return new MeasuredNode(
++          parent, 2, child0, child1, null, cost, child0.changed || child1.changed);
++    }
++
++    private static MeasuredNode addNode(
++        Node parent, MeasuredNode child0, MeasuredNode child1, MeasuredNode child2) {
++      int cost = child0.length + child1.length + child2.length;
++      if (parent.isNot()) {
++        cost++;
++      }
++      int parentPrecedence = NodeUtil.precedence(parent.getToken());
++      if (child0.isLowerPrecedenceThan(parentPrecedence)) {
++        cost += 2;
++      }
++      if (child1.isLowerPrecedenceThan(parentPrecedence)) {
++        cost += 2;
++      }
++      if (child2.isLowerPrecedenceThan(parentPrecedence)) {
++        cost += 2;
++      }
++      return new MeasuredNode(
++          parent,
++          3,
++          child0,
++          child1,
++          child2,
++          cost,
++          child0.changed || child1.changed || child2.changed);
++    }
++
+     /**
+      * Return a MeasuredNode for a non-participating AST Node. This is used for leaf expression
+      * nodes.
+      */
+     private static MeasuredNode forNode(Node n) {
+-      return new MeasuredNode(n, null, 0, false);
++      return new MeasuredNode(n, -1, null, null, null, 0, false);
+     }
+ 
+     /**
+@@ -345,21 +380,25 @@
+     }
+ 
+     /**
+-     * Build the final AST structure, detaching component Nodes as necessary 
++     * Build the final AST structure, detaching component Nodes as necessary
+      * from the original AST. The root Node, if currently attached is left attached
+      * to avoid the need to keep track of its position.
+      */
+     @VisibleForTesting
+     Node buildReplacement() {
+-      if (children != null) {
++      if (childCount >= 0) {
+         node.detachChildren();
+-        for (MeasuredNode child : children) {
+-          Node replacementChild = safeDetach(child.buildReplacement());
+-          node.addChildToBack(replacementChild);
++        if (childCount >= 1) {
++          node.addChildToBack(safeDetach(c0.buildReplacement()));
+         }
++        if (childCount >= 2) {
++          node.addChildToBack(safeDetach(c1.buildReplacement()));
++        }
++        if (childCount >= 3) {
++          node.addChildToBack(safeDetach(c2.buildReplacement()));
++        }
+       }
+       return node;
+     }
+-
+   }
+ }
+diff --git a/com/google/javascript/jscomp/MustBeReachingVariableDef.java b/com/google/javascript/jscomp/MustBeReachingVariableDef.java
+--- a/com/google/javascript/jscomp/MustBeReachingVariableDef.java
++++ b/com/google/javascript/jscomp/MustBeReachingVariableDef.java
+@@ -48,6 +48,7 @@
+   private final AbstractCompiler compiler;
+   private final Set<Var> escaped;
+   private final Map<String, Var> allVarsInFn;
++  private @Nullable MustDef flowOutput;
+ 
+   MustBeReachingVariableDef(
+       ControlFlowGraph<Node> cfg,
+@@ -106,6 +107,7 @@
+    * <p>(TOP) / | | \ N1 N2 N3 ....Nn \ | | / (BOTTOM)
+    */
+   static final class MustDef implements LatticeElement {
++    static final MustDef EMPTY = new MustDef();
+ 
+     // TODO(user): Use bit vector instead of maps might get better
+     // performance. Change it after this is tested to be fully functional.
+@@ -134,6 +136,9 @@
+ 
+     @Override
+     public boolean equals(Object other) {
++      if (this == other) {
++        return true;
++      }
+       return (other instanceof MustDef mustDef) && mustDef.reachingDef.equals(this.reachingDef);
+     }
+ 
+@@ -185,7 +190,7 @@
+ 
+   @Override
+   MustDef createInitialEstimateLattice() {
+-    return new MustDef();
++    return MustDef.EMPTY;
+   }
+ 
+   @Override
+@@ -195,16 +200,22 @@
+ 
+   @Override
+   MustDef flowThrough(Node n, MustDef input) {
+-    // TODO(user): We are doing a straight copy from input to output. There
+-    // might be some opportunities to cut down overhead.
+-    MustDef output = new MustDef(input);
+-    // TODO(user): This must know about ON_EX edges but it should handle
+-    // it better than what we did in liveness. Because we are in a forward mode,
+-    // we can used the branched forward analysis.
+-    computeMustDef(n, n, output, false);
+-    return output;
++    this.flowOutput = null;
++    computeMustDef(n, n, input, false);
++    MustDef out = this.flowOutput;
++    this.flowOutput = null;
++    return out != null ? out : input;
+   }
+ 
++  private MustDef writableFlowOutput(MustDef input) {
++    MustDef out = this.flowOutput;
++    if (out == null) {
++      out = new MustDef(input);
++      this.flowOutput = out;
++    }
++    return out;
++  }
++
+   /**
+    * @param n The node in question.
+    * @param cfgNode The node to add
+@@ -347,13 +358,15 @@
+    *     conditional define.
+    */
+   private void addToDefIfLocal(
+-      String name, @Nullable Node node, @Nullable Node rValue, MustDef def) {
++      String name, @Nullable Node node, @Nullable Node rValue, MustDef input) {
+     Var var = allVarsInFn.get(name);
+ 
+     // var might be null if the variable is defined in the externs
+     if (var == null) {
+       return;
+     }
++
++    MustDef def = writableFlowOutput(input);
+ 
+     for (Map.Entry<Var, Definition> pair : def.reachingDef.entrySet()) {
+       Definition otherDef = pair.getValue();
+@@ -378,7 +391,8 @@
+     }
+   }
+ 
+-  private void escapeParameters(MustDef output) {
++  private void escapeParameters(MustDef input) {
++    MustDef output = writableFlowOutput(input);
+     for (Var v : allVarsInFn.values()) {
+       if (isParameter(v)) {
+         // Assume we no longer know where the parameter comes from
+diff --git a/com/google/javascript/jscomp/PeepholeMinimizeConditions.java b/com/google/javascript/jscomp/PeepholeMinimizeConditions.java
+--- a/com/google/javascript/jscomp/PeepholeMinimizeConditions.java
++++ b/com/google/javascript/jscomp/PeepholeMinimizeConditions.java
+@@ -442,6 +442,9 @@
+    */
+   private Node tryMinimizeExprResult(Node n) {
+     Node originalExpr = n.getFirstChild();
++    if (!MinimizedCondition.isMinimizable(originalExpr)) {
++      return n;
++    }
+     MinimizedCondition minCond = MinimizedCondition.fromConditionNode(originalExpr);
+     MeasuredNode mNode =
+         minCond.getMinimized(MinimizationStyle.ALLOW_LEADING_NOT);
+@@ -494,17 +497,19 @@
+       }
+     }
+ 
+-    MinimizedCondition minCond = MinimizedCondition.fromConditionNode(originalCond);
+-    MeasuredNode mNode =
+-        minCond.getMinimized(MinimizationStyle.ALLOW_LEADING_NOT);
+-    if (mNode.isNot()) {
+-      // Swap the HOOK
+-      replaceNode(originalCond, mNode.withoutNot());
+-      thenBranch.detach();
+-      n.addChildToBack(thenBranch);
+-      reportChangeToEnclosingScope(n);
+-    } else {
+-      replaceNode(originalCond, mNode);
++    if (MinimizedCondition.isMinimizable(originalCond)) {
++      MinimizedCondition minCond = MinimizedCondition.fromConditionNode(originalCond);
++      MeasuredNode mNode =
++          minCond.getMinimized(MinimizationStyle.ALLOW_LEADING_NOT);
++      if (mNode.isNot()) {
++        // Swap the HOOK
++        replaceNode(originalCond, mNode.withoutNot());
++        thenBranch.detach();
++        n.addChildToBack(thenBranch);
++        reportChangeToEnclosingScope(n);
++      } else {
++        replaceNode(originalCond, mNode);
++      }
+     }
+     return n;
+   }
+@@ -531,15 +536,18 @@
+     Node thenBranch = originalCond.getNext();
+     Node elseBranch = thenBranch.getNext();
+ 
+-    MinimizedCondition minCond = MinimizedCondition.fromConditionNode(originalCond);
+-
+-    // Compute two minimized representations. The first representation counts
+-    // a leading NOT node, and the second ignores a leading NOT node.
+-    // If we can fold the if statement into a HOOK or boolean operation,
+-    // then the NOT node does not matter, and we prefer the second condition.
+-    // If we cannot fold the if statement, then we prefer the first condition.
+-    MeasuredNode unnegatedCond = minCond.getMinimized(MinimizationStyle.PREFER_UNNEGATED);
+-    MeasuredNode shortCond = minCond.getMinimized(MinimizationStyle.ALLOW_LEADING_NOT);
++    MeasuredNode unnegatedCond = null;
++    MeasuredNode shortCond = null;
++    if (MinimizedCondition.isMinimizable(originalCond)) {
++      // Compute two minimized representations. The first representation counts
++      // a leading NOT node, and the second ignores a leading NOT node.
++      // If we can fold the if statement into a HOOK or boolean operation,
++      // then the NOT node does not matter, and we prefer the second condition.
++      // If we cannot fold the if statement, then we prefer the first condition.
++      MinimizedCondition minCond = MinimizedCondition.fromConditionNode(originalCond);
++      unnegatedCond = minCond.getMinimized(MinimizationStyle.PREFER_UNNEGATED);
++      shortCond = minCond.getMinimized(MinimizationStyle.ALLOW_LEADING_NOT);
++    }
+ 
+     if (elseBranch == null) {
+       if (isFoldableExpressBlock(thenBranch)) {
+@@ -552,7 +560,7 @@
+           return n;
+         }
+ 
+-        if (shortCond.isNot()) {
++        if (shortCond != null && shortCond.isNot()) {
+           // if(!x)bar(); -> x||bar();
+           Node replacementCond = replaceNode(originalCond, shortCond.withoutNot()).detach();
+           Node or = IR.or(
+@@ -568,7 +576,11 @@
+         // Preconditions.checkState(shortCond.isEquivalentTo(unnegatedCond));
+ 
+         // if(x)foo(); -> x&&foo();
+-        if (shortCond.isLowerPrecedenceThan(AND_PRECEDENCE)
++        boolean shortLowerThanAnd =
++            shortCond != null
++                ? shortCond.isLowerPrecedenceThan(AND_PRECEDENCE)
++                : isLowerPrecedence(originalCond, AND_PRECEDENCE);
++        if (shortLowerThanAnd
+             && isLowerPrecedence(expr.getFirstChild(), AND_PRECEDENCE)) {
+           // One additional set of parentheses is worth the change even if
+           // there is no immediate code size win. However, two extra pair of
+@@ -596,8 +608,12 @@
+             Node innerThenBranch = innerCond.getNext();
+             Node innerElseBranch = innerThenBranch.getNext();
+ 
++            boolean unnegatedLowerThanAnd =
++                unnegatedCond != null
++                    ? unnegatedCond.isLowerPrecedenceThan(AND_PRECEDENCE)
++                    : isLowerPrecedence(originalCond, AND_PRECEDENCE);
+             if (innerElseBranch == null
+-                 && !(unnegatedCond.isLowerPrecedenceThan(AND_PRECEDENCE)
++                 && !(unnegatedLowerThanAnd
+                    && isLowerPrecedence(innerCond, AND_PRECEDENCE))) {
+               Node replacementCond = replaceNode(originalCond, unnegatedCond).detach();
+               n.detachChildren();
+@@ -626,7 +642,7 @@
+ 
+     // if(!x)foo();else bar(); -> if(x)bar();else foo();
+     // An additional set of curly braces isn't worth it.
+-    if (shortCond.isNot() && !consumesDanglingElse(elseBranch)) {
++    if (shortCond != null && shortCond.isNot() && !consumesDanglingElse(elseBranch)) {
+       replaceNode(originalCond, shortCond.withoutNot());
+       thenBranch.detach();
+       n.addChildToBack(thenBranch);
+@@ -1004,14 +1020,17 @@
+    */
+   private Node tryMinimizeCondition(Node n) {
+     n = performConditionSubstitutions(n);
++    if (!MinimizedCondition.isMinimizable(n)) {
++      return n;
++    }
+     MinimizedCondition minCond = MinimizedCondition.fromConditionNode(n);
+     return replaceNode(
+         n,
+         minCond.getMinimized(MinimizationStyle.PREFER_UNNEGATED));
+   }
+ 
+-  private Node replaceNode(Node original, MeasuredNode measuredNodeReplacement) {
+-    if (measuredNodeReplacement.willChange(original)) {
++  private Node replaceNode(Node original, @Nullable MeasuredNode measuredNodeReplacement) {
++    if (measuredNodeReplacement != null && measuredNodeReplacement.willChange(original)) {
+       Node replacement = measuredNodeReplacement.applyTo(original);
+       reportChangeToEnclosingScope(replacement);
+       return replacement;

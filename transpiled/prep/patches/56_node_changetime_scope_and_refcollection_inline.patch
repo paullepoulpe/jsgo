@@ -1,0 +1,584 @@
+diff --git a/com/google/javascript/jscomp/AbstractScope.java b/com/google/javascript/jscomp/AbstractScope.java
+index 6487bed..f226b21 100644
+--- a/com/google/javascript/jscomp/AbstractScope.java
++++ b/com/google/javascript/jscomp/AbstractScope.java
+@@ -64,6 +64,8 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+     implements StaticScope, Serializable {
+   private @Nullable V var0 = null;
+   private @Nullable V var1 = null;
++  private @Nullable V var2 = null;
++  private @Nullable V var3 = null;
+   private @Nullable LinkedHashMap<String, V> vars = null;
+   private @Nullable Object implicitVars = null;
+   private final Node rootNode;
+@@ -138,8 +140,18 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+       if (var0.getName().equals(name)) {
+         return var0;
+       }
+-      if (var1 != null && var1.getName().equals(name)) {
+-        return var1;
++      if (var1 != null) {
++        if (var1.getName().equals(name)) {
++          return var1;
++        }
++        if (var2 != null) {
++          if (var2.getName().equals(name)) {
++            return var2;
++          }
++          if (var3 != null && var3.getName().equals(name)) {
++            return var3;
++          }
++        }
+       }
+     }
+     return null;
+@@ -167,9 +179,22 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+     if (var0 != null) {
+       if (var0.getName().equals(name)) {
+         var0 = var1;
+-        var1 = null;
+-      } else if (var1 != null && var1.getName().equals(name)) {
+-        var1 = null;
++        var1 = var2;
++        var2 = var3;
++        var3 = null;
++      } else if (var1 != null) {
++        if (var1.getName().equals(name)) {
++          var1 = var2;
++          var2 = var3;
++          var3 = null;
++        } else if (var2 != null) {
++          if (var2.getName().equals(name)) {
++            var2 = var3;
++            var3 = null;
++          } else if (var3 != null && var3.getName().equals(name)) {
++            var3 = null;
++          }
++        }
+       }
+     }
+   }
+@@ -198,17 +223,39 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+       var1 = var;
+       return;
+     }
+-    vars = new LinkedHashMap<>(4);
++    if (var2 == null) {
++      var2 = var;
++      return;
++    }
++    if (var2.getName().equals(name)) {
++      var2 = var;
++      return;
++    }
++    if (var3 == null) {
++      var3 = var;
++      return;
++    }
++    if (var3.getName().equals(name)) {
++      var3 = var;
++      return;
++    }
++    vars = new LinkedHashMap<>(8);
+     vars.put(var0.getName(), var0);
+     vars.put(var1.getName(), var1);
++    vars.put(var2.getName(), var2);
++    vars.put(var3.getName(), var3);
+     vars.put(name, var);
+     var0 = null;
+     var1 = null;
++    var2 = null;
++    var3 = null;
+   }
+ 
+   final void clearVarsInternal() {
+     var0 = null;
+     var1 = null;
++    var2 = null;
++    var3 = null;
+     if (vars != null && !vars.isEmpty()) {
+       vars.clear();
+     }
+@@ -389,7 +436,16 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+     if (var0 == null) {
+       return Collections.emptyList();
+     }
+-    return var1 == null ? Collections.singletonList(var0) : ImmutableList.of(var0, var1);
++    if (var1 == null) {
++      return Collections.singletonList(var0);
++    }
++    if (var2 == null) {
++      return ImmutableList.of(var0, var1);
++    }
++    if (var3 == null) {
++      return ImmutableList.of(var0, var1, var2);
++    }
++    return ImmutableList.of(var0, var1, var2, var3);
+   }
+ 
+   /**
+@@ -417,6 +473,12 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+         accessibleVars.putIfAbsent(s.var0.getName(), s.var0);
+         if (s.var1 != null) {
+           accessibleVars.putIfAbsent(s.var1.getName(), s.var1);
++          if (s.var2 != null) {
++            accessibleVars.putIfAbsent(s.var2.getName(), s.var2);
++            if (s.var3 != null) {
++              accessibleVars.putIfAbsent(s.var3.getName(), s.var3);
++            }
++          }
+         }
+       }
+       s = s.getParent();
+@@ -440,6 +502,12 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+       dst.add(var0);
+       if (var1 != null) {
+         dst.add(var1);
++        if (var2 != null) {
++          dst.add(var2);
++          if (var3 != null) {
++            dst.add(var3);
++          }
++        }
+       }
+     }
+   }
+@@ -453,6 +521,12 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+       dst.add(var0.getName());
+       if (var1 != null) {
+         dst.add(var1.getName());
++        if (var2 != null) {
++          dst.add(var2.getName());
++          if (var3 != null) {
++            dst.add(var3.getName());
++          }
++        }
+       }
+     }
+   }
+@@ -465,7 +539,13 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+     if (var0 == null) {
+       return 0;
+     }
+-    return var1 == null ? 1 : 2;
++    if (var1 == null) {
++      return 1;
++    }
++    if (var2 == null) {
++      return 2;
++    }
++    return var3 == null ? 3 : 4;
+   }
+ 
+   /** Returns whether this is the global scope. */
+diff --git a/com/google/javascript/jscomp/ReferenceCollection.java b/com/google/javascript/jscomp/ReferenceCollection.java
+index 3f71829..ce75070 100644
+--- a/com/google/javascript/jscomp/ReferenceCollection.java
++++ b/com/google/javascript/jscomp/ReferenceCollection.java
+@@ -23,6 +23,7 @@ import java.io.Serializable;
+ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.Iterator;
++import java.util.NoSuchElementException;
+ import java.util.Objects;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -33,20 +34,60 @@ import org.jspecify.annotations.Nullable;
+ public final class ReferenceCollection implements Iterable<Reference>, Serializable {
+ 
+   private @Nullable Reference ref0;
++  private @Nullable Reference ref1;
+   private @Nullable ArrayList<Reference> rest;
+ 
++  private static final class PairIterator implements Iterator<Reference> {
++    private final Reference first;
++    private final Reference second;
++    private int index;
++
++    PairIterator(Reference first, Reference second) {
++      this.first = first;
++      this.second = second;
++    }
++
++    @Override
++    public boolean hasNext() {
++      return index < 2;
++    }
++
++    @Override
++    public Reference next() {
++      if (index == 0) {
++        index = 1;
++        return first;
++      }
++      if (index == 1) {
++        index = 2;
++        return second;
++      }
++      throw new NoSuchElementException();
++    }
++  }
++
+   @Override
+   public Iterator<Reference> iterator() {
+     if (rest != null) {
+       return rest.iterator();
+     }
+-    return ref0 == null
+-        ? Collections.emptyIterator()
+-        : Collections.singletonList(ref0).iterator();
++    if (ref0 == null) {
++      return Collections.emptyIterator();
++    }
++    if (ref1 == null) {
++      return Collections.singletonList(ref0).iterator();
++    }
++    return new PairIterator(ref0, ref1);
+   }
+ 
+   int size() {
+-    return rest != null ? rest.size() : (ref0 != null ? 1 : 0);
++    if (rest != null) {
++      return rest.size();
++    }
++    if (ref0 == null) {
++      return 0;
++    }
++    return ref1 == null ? 1 : 2;
+   }
+ 
+   boolean isEmpty() {
+@@ -60,6 +101,9 @@ public final class ReferenceCollection implements Iterable<Reference>, Serializa
+     if (index == 0 && ref0 != null) {
+       return ref0;
+     }
++    if (index == 1 && ref1 != null) {
++      return ref1;
++    }
+     throw new IndexOutOfBoundsException(index);
+   }
+ 
+@@ -68,12 +112,16 @@ public final class ReferenceCollection implements Iterable<Reference>, Serializa
+       rest.add(reference);
+     } else if (ref0 == null) {
+       ref0 = reference;
++    } else if (ref1 == null) {
++      ref1 = reference;
+     } else {
+       ArrayList<Reference> list = new ArrayList<>(4);
+       list.add(ref0);
++      list.add(ref1);
+       list.add(reference);
+       rest = list;
+       ref0 = null;
++      ref1 = null;
+     }
+   }
+ 
+@@ -309,13 +357,22 @@ public final class ReferenceCollection implements Iterable<Reference>, Serializa
+ 
+   @Override
+   public String toString() {
++    Object refsView;
++    if (rest != null) {
++      refsView = rest;
++    } else if (ref0 == null) {
++      refsView = Collections.emptyList();
++    } else if (ref1 == null) {
++      refsView = Collections.singletonList(ref0);
++    } else {
++      ArrayList<Reference> list = new ArrayList<>(2);
++      list.add(ref0);
++      list.add(ref1);
++      refsView = list;
++    }
+     return toStringHelper(this)
+         .add("initRef", getInitializingReference())
+-        .add(
+-            "references",
+-            rest != null
+-                ? rest
+-                : (ref0 != null ? Collections.singletonList(ref0) : Collections.emptyList()))
++        .add("references", refsView)
+         .add("wellDefined", isWellDefined())
+         .add("assignedOnce", isAssignedOnceInLifetime())
+         .toString();
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+index ad2acbb..32a4c8b 100644
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -772,6 +772,7 @@ public class Node {
+     if (this.sourceFile == null
+         || this.jsDocInfo != null
+         || this.propFlags != 0
++        || this.changeTime != 0
+         || this.propListHead != null) {
+       throw new IllegalArgumentException(
+           String.format(
+@@ -1157,6 +1158,12 @@ public class Node {
+       }
+       return lookupColdProperty(prop);
+     }
++    if (prop == Prop.CHANGE_TIME) {
++      if (this.changeTime != 0) {
++        return PropListItem.intItem((byte) Prop.CHANGE_TIME.ordinal(), this.changeTime, null);
++      }
++      return lookupColdProperty(prop);
++    }
+     return lookupColdProperty(prop);
+   }
+ 
+@@ -1173,11 +1180,13 @@ public class Node {
+         this.sourceFile == null
+             && this.jsDocInfo == null
+             && this.propFlags == 0
++            && this.changeTime == 0
+             && this.propListHead == null,
+         "Node has existing properties.");
+     this.sourceFile = other.sourceFile;
+     this.jsDocInfo = other.jsDocInfo;
+     this.propFlags = other.propFlags;
++    this.changeTime = other.changeTime;
+     this.propListHead = other.propListHead;
+     return this;
+   }
+@@ -1193,7 +1202,11 @@ public class Node {
+   public void validateProperties(Consumer<String> violationMessageConsumer) {
+     int flags = this.propFlags;
+     PropListItem head = this.propListHead;
+-    if (this.sourceFile == null && this.jsDocInfo == null && flags == 0 && head == null) {
++    if (this.sourceFile == null
++        && this.jsDocInfo == null
++        && flags == 0
++        && this.changeTime == 0
++        && head == null) {
+       return;
+     }
+ 
+@@ -1365,6 +1378,10 @@ public class Node {
+       if ((this.propFlags & SIDE_EFFECT_BITS_MASK) != 0) {
+         throw new UnsupportedOperationException();
+       }
++    } else if (propType == Prop.CHANGE_TIME) {
++      if (this.changeTime != 0) {
++        throw new UnsupportedOperationException();
++      }
+     }
+     PropListItem item = lookupColdProperty(propType);
+     if (item == null) {
+@@ -1387,6 +1404,9 @@ public class Node {
+         || (propType == Prop.JSDOC_INFO && this.jsDocInfo != null)) {
+       throw new UnsupportedOperationException();
+     }
++    if (propType == Prop.CHANGE_TIME && this.changeTime != 0) {
++      return true;
++    }
+     PropListItem item = lookupColdProperty(propType);
+     return item != null && item.getIntValue() != 0;
+   }
+@@ -1426,6 +1446,12 @@ public class Node {
+       }
+       return getColdIntProp(propType);
+     }
++    if (propType == Prop.CHANGE_TIME) {
++      if (this.changeTime != 0) {
++        return this.changeTime;
++      }
++      return this.propListHead != null ? getColdIntProp(propType) : 0;
++    }
+     if (propType == Prop.SOURCE_FILE && this.sourceFile != null) {
+       throw new UnsupportedOperationException();
+     }
+@@ -1484,10 +1510,16 @@ public class Node {
+         this.propFlags &= ~CONST_VAR_BITS_MASK;
+       } else if (prop == Prop.SIDE_EFFECT_FLAGS) {
+         this.propFlags &= ~SIDE_EFFECT_BITS_MASK;
++      } else if (prop == Prop.CHANGE_TIME) {
++        this.changeTime = 0;
+       }
+     }
+     PropListItem head = this.propListHead;
+-    if (head != null) {
++    if (head == null) {
++      if (value == null) {
++        return;
++      }
++    } else {
+       head = rebuildListWithoutProp(head, prop);
+     }
+     if (value != null) {
+@@ -1549,13 +1581,23 @@ public class Node {
+         return;
+       }
+       this.propFlags &= ~SIDE_EFFECT_BITS_MASK;
++    } else if (prop == Prop.CHANGE_TIME) {
++      this.changeTime = value;
++      if (this.propListHead != null) {
++        this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++      }
++      return;
+     } else if (prop == Prop.SOURCE_FILE) {
+       this.sourceFile = null;
+     } else if (prop == Prop.JSDOC_INFO) {
+       this.jsDocInfo = null;
+     }
+     PropListItem head = this.propListHead;
+-    if (head != null) {
++    if (head == null) {
++      if (value == 0) {
++        return;
++      }
++    } else {
+       head = rebuildListWithoutProp(head, prop);
+     }
+     if (value != 0) {
+@@ -1578,6 +1620,8 @@ public class Node {
+         this.propFlags &= ~CONST_VAR_BITS_MASK;
+       } else if (prop == Prop.SIDE_EFFECT_FLAGS) {
+         this.propFlags &= ~SIDE_EFFECT_BITS_MASK;
++      } else if (prop == Prop.CHANGE_TIME) {
++        this.changeTime = 0;
+       }
+     }
+     if (this.propListHead != null) {
+@@ -1708,6 +1752,9 @@ public class Node {
+     if (this.jsDocInfo != null) {
+       propListStrRepr.add(Prop.JSDOC_INFO.name());
+     }
++    if (this.changeTime != 0) {
++      propListStrRepr.add(Prop.CHANGE_TIME.name());
++    }
+     int flags = this.propFlags;
+     if (flags != 0) {
+       if (((flags >>> SIDE_EFFECT_SHIFT) & SIDE_EFFECT_MAX) != 0) {
+@@ -1747,6 +1794,7 @@ public class Node {
+           this.sourceFile == null
+               && this.jsDocInfo == null
+               && this.propFlags == 0
++              && this.changeTime == 0
+               && this.propListHead == null,
+           this.propListHead);
+     } else {
+@@ -1882,6 +1930,9 @@ public class Node {
+ 
+   /** Sets the type of this node before casting. */
+   public final void setJSTypeBeforeCast(JSType type) {
++    if (type == null && this.propListHead == null) {
++      return;
++    }
+     putProp(Prop.TYPE_BEFORE_CAST, type);
+   }
+ 
+@@ -1890,6 +1941,9 @@ public class Node {
+    * child of a CAST node after type checking.
+    */
+   public final @Nullable JSType getJSTypeBeforeCast() {
++    if (this.propListHead == null) {
++      return null;
++    }
+     return (JSType) getProp(Prop.TYPE_BEFORE_CAST);
+   }
+ 
+@@ -1914,7 +1968,11 @@ public class Node {
+   private byte[] getSortedPropTypes() {
+     int flags = this.propFlags;
+     PropListItem head = this.propListHead;
+-    if (this.sourceFile == null && this.jsDocInfo == null && flags == 0 && head == null) {
++    if (this.sourceFile == null
++        && this.jsDocInfo == null
++        && flags == 0
++        && this.changeTime == 0
++        && head == null) {
+       return new byte[0];
+     }
+     int inlineBoolBits = flags & INLINE_BOOL_ALL_MASK;
+@@ -1930,6 +1988,9 @@ public class Node {
+     if (this.jsDocInfo != null) {
+       count++;
+     }
++    if (this.changeTime != 0) {
++      count++;
++    }
+     if ((flags & CONST_VAR_BITS_MASK) != 0) {
+       count++;
+     }
+@@ -1948,6 +2009,9 @@ public class Node {
+     if (this.jsDocInfo != null) {
+       keys[idx++] = (byte) Prop.JSDOC_INFO.ordinal();
+     }
++    if (this.changeTime != 0) {
++      keys[idx++] = (byte) Prop.CHANGE_TIME.ordinal();
++    }
+     while (inlineBoolBits != 0) {
+       int bit = Integer.numberOfTrailingZeros(inlineBoolBits);
+       inlineBoolBits &= ~(1 << bit);
+@@ -2073,6 +2137,8 @@ public class Node {
+           sb.append(this.sourceFile);
+         } else if (type == Prop.JSDOC_INFO && this.jsDocInfo != null) {
+           sb.append(this.jsDocInfo);
++        } else if (type == Prop.CHANGE_TIME && this.changeTime != 0) {
++          sb.append(this.changeTime);
+         } else {
+           sb.append(lookupProperty(type));
+         }
+@@ -2152,7 +2218,9 @@ public class Node {
+                 ? String.valueOf(this.sourceFile)
+                 : (type == Prop.JSDOC_INFO && this.jsDocInfo != null)
+                     ? String.valueOf(this.jsDocInfo)
+-                    : lookupProperty(type).toString();
++                    : (type == Prop.CHANGE_TIME && this.changeTime != 0)
++                        ? String.valueOf(this.changeTime)
++                        : lookupProperty(type).toString();
+         sb.append(
+             createJsonPair(
+                 Ascii.toLowerCase(String.valueOf(type)),
+@@ -2256,6 +2324,8 @@ public class Node {
+ 
+   private int propFlags;
+ 
++  private int changeTime;
++
+   /**
+    * Linked list of properties. Since vast majority of nodes would have no more than 2 properties,
+    * linked list saves memory and provides fast lookup. If this does not holds, propListHead can be
+@@ -2543,6 +2613,9 @@ public class Node {
+     if (this.jsDocInfo != null) {
+       return PropListItem.objectItem((byte) Prop.JSDOC_INFO.ordinal(), this.jsDocInfo, null);
+     }
++    if (this.changeTime != 0) {
++      return PropListItem.intItem((byte) Prop.CHANGE_TIME.ordinal(), this.changeTime, null);
++    }
+     int flags = this.propFlags;
+     if (flags != 0) {
+       int se = (flags >>> SIDE_EFFECT_SHIFT) & SIDE_EFFECT_MAX;
+@@ -2581,6 +2654,7 @@ public class Node {
+     this.sourceFile = null;
+     this.jsDocInfo = null;
+     this.propFlags = 0;
++    this.changeTime = 0;
+     this.propListHead = null;
+     applyPropListHeadItems(propListHead);
+   }
+@@ -3493,6 +3567,7 @@ public class Node {
+     JSDocInfo info = source.jsDocInfo;
+     dest.jsDocInfo = (cloneTypeExprs && info != null) ? info.clone(true) : info;
+     dest.propFlags = source.propFlags;
++    dest.changeTime = source.changeTime;
+     dest.propListHead = source.propListHead;
+   }
+ 
+@@ -3648,12 +3723,12 @@ public class Node {
+ 
+   /** This node was last changed at {@code time} */
+   public final void setChangeTime(int time) {
+-    putIntProp(Prop.CHANGE_TIME, time);
++    this.changeTime = time;
+   }
+ 
+   /** Returns the time of the last change for this node */
+   public final int getChangeTime() {
+-    return getIntProp(Prop.CHANGE_TIME);
++    return this.changeTime;
+   }
+ 
+   public final void setDeleted(boolean deleted) {

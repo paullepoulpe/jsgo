@@ -1,0 +1,23 @@
+{
+  "id": "tier2_b11_surrogate_pair_string",
+  "tier": 2,
+  "feature": "boundary_unicode",
+  "name": "UTF-16 4-byte surrogate pair emoji in string",
+  "description": "Preserves supplementary plane characters (surrogate pairs) in string literals",
+  "args": [
+    "--compilation_level",
+    "SIMPLE",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var emoji = '\ud83d\ude00\ud83c\udf89\ud83d\ude80'; window['res'] = emoji.length;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var emoji=\"\\ud83d\\ude00\\ud83c\\udf89\\ud83d\\ude80\";window.res=emoji.length;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

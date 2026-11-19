@@ -1,0 +1,784 @@
+diff --git a/com/google/javascript/rhino/jstype/ArrowType.java b/com/google/javascript/rhino/jstype/ArrowType.java
+--- a/com/google/javascript/rhino/jstype/ArrowType.java
++++ b/com/google/javascript/rhino/jstype/ArrowType.java
+@@ -42,152 +42,8 @@
+  * ***** END LICENSE BLOCK ***** */
+ 
+ package com.google.javascript.rhino.jstype;
+ 
+-import static com.google.javascript.rhino.jstype.JSTypeNative.UNKNOWN_TYPE;
+-
+-import com.google.common.collect.ImmutableList;
+-import com.google.javascript.jscomp.base.Tri;
+-import com.google.javascript.rhino.ErrorReporter;
+-import com.google.javascript.rhino.jstype.FunctionType.Parameter;
+-import java.util.List;
+-import java.util.Objects;
+-import org.jspecify.annotations.Nullable;
+-
+-/**
+- * Models a "bare" function type: from some parameter types to a return type.
+- *
+- * <p>JavaScript functions include more things like properties, type of THIS, etc, and are modeled
+- * by {@link FunctionType}.
+- */
+-final class ArrowType extends JSType {
+-  private static final JSTypeClass TYPE_CLASS = JSTypeClass.ARROW;
+-
+-  private final ImmutableList<Parameter> parameterList;
+-  private JSType returnType;
+-
+-  // Whether the return type is inferred.
+-  final boolean returnTypeInferred;
+-
+-  ArrowType(
+-      JSTypeRegistry registry,
+-      @Nullable List<Parameter> parameters,
+-      @Nullable JSType returnType,
+-      boolean returnTypeInferred) {
+-    super(registry);
+-
+-    this.parameterList =
+-        parameters == null
+-            ? registry.createParametersWithVarArgs(getNativeType(UNKNOWN_TYPE))
+-            : ImmutableList.copyOf(parameters);
+-    this.returnType = returnType == null ? getNativeType(UNKNOWN_TYPE) : returnType;
+-    this.returnTypeInferred = returnTypeInferred;
+-
+-    registry.getResolver().resolveIfClosed(this, TYPE_CLASS);
+-  }
+-
+-  @Override
+-  JSTypeClass getTypeClass() {
+-    return TYPE_CLASS;
+-  }
+-
+-  @Override
+-  int recursionUnsafeHashCode() {
+-    int hashCode = Objects.hashCode(returnType);
+-    for (Parameter param : parameterList) {
+-      hashCode = hashCode * 31 + Objects.hashCode(param.getJSType());
+-    }
+-    return hashCode;
+-  }
+-
+-  public JSType getReturnType() {
+-    return this.returnType;
+-  }
+-
+-  ImmutableList<Parameter> getParameterList() {
+-    return parameterList;
+-  }
+-
+-  @Override
+-  public JSType getLeastSupertype(JSType that) {
+-    throw new UnsupportedOperationException();
+-  }
+-
+-  @Override
+-  public JSType getGreatestSubtype(JSType that) {
+-    throw new UnsupportedOperationException();
+-  }
+-
+-  @Override
+-  public Tri testForEquality(JSType that) {
+-    throw new UnsupportedOperationException();
+-  }
+-
+-  @Override
+-  public <T> T visit(Visitor<T> visitor) {
+-    throw new UnsupportedOperationException();
+-  }
+-
+-  @Override <T> T visit(RelationshipVisitor<T> visitor, JSType that) {
+-    throw new UnsupportedOperationException();
+-  }
+-
+-  @Override
+-  public BooleanLiteralSet getPossibleToBooleanOutcomes() {
+-    return BooleanLiteralSet.TRUE;
+-  }
+-
+-  @Override
+-  JSType resolveInternal(ErrorReporter reporter) {
+-    returnType = safeResolve(returnType, reporter);
+-    for (Parameter param : parameterList) {
+-      param.getJSType().resolve(reporter);
+-    }
+-
+-    return this;
+-  }
+-
+-  boolean hasUnknownParamsOrReturn() {
+-    for (Parameter param : parameterList) {
+-      JSType type = param.getJSType();
+-      if (type.isUnknownType()) {
+-        return true;
+-      }
+-    }
+-
+-    return returnType == null || returnType.isUnknownType();
+-  }
+-
+-  @Override
+-  void appendTo(TypeStringBuilder sb) {
+-    sb.append("[ArrowType]");
+-  }
+-
+-  @Override
+-  public boolean hasAnyTemplateTypesInternal() {
+-    return returnType.hasAnyTemplateTypes() || hasTemplatedParameterType();
+-  }
+-
+-  private boolean hasTemplatedParameterType() {
+-    for (Parameter param : parameterList) {
+-      JSType type = param.getJSType();
+-      if (type.hasAnyTemplateTypes()) {
+-        return true;
+-      }
+-    }
+-    return false;
+-  }
+-
+-  /**
+-   * A string representation of this type, suitable for printing
+-   * in warnings.
+-   */
+-  @Override
+-  public String toString() {
+-    TypeStringBuilder typeStringBuilder = new TypeStringBuilder(false);
+-    typeStringBuilder.append("(");
+-    typeStringBuilder.appendAll(parameterList, ",");
+-    typeStringBuilder.append(") -> ");
+-    typeStringBuilder.append(returnType);
+-    return typeStringBuilder.build();
+-  }
++/** Unused placeholder after inlining ArrowType into FunctionType. */
++final class ArrowType {
++  private ArrowType() {}
+ }
+diff --git a/com/google/javascript/rhino/jstype/AutoValue_FunctionType_Parameter.java b/com/google/javascript/rhino/jstype/AutoValue_FunctionType_Parameter.java
+--- a/com/google/javascript/rhino/jstype/AutoValue_FunctionType_Parameter.java
++++ b/com/google/javascript/rhino/jstype/AutoValue_FunctionType_Parameter.java
+@@ -1,76 +1,6 @@
+ package com.google.javascript.rhino.jstype;
+ 
+-import javax.annotation.processing.Generated;
+-
+-@Generated("com.google.auto.value.processor.AutoValueProcessor")
+-final class AutoValue_FunctionType_Parameter extends FunctionType.Parameter {
+-
+-  private final JSType JSType;
+-
+-  private final boolean optional;
+-
+-  private final boolean variadic;
+-
+-  AutoValue_FunctionType_Parameter(
+-      JSType JSType,
+-      boolean optional,
+-      boolean variadic) {
+-    if (JSType == null) {
+-      throw new NullPointerException("Null JSType");
+-    }
+-    this.JSType = JSType;
+-    this.optional = optional;
+-    this.variadic = variadic;
+-  }
+-
+-  @Override
+-  public JSType getJSType() {
+-    return JSType;
+-  }
+-
+-  @Override
+-  public boolean isOptional() {
+-    return optional;
+-  }
+-
+-  @Override
+-  public boolean isVariadic() {
+-    return variadic;
+-  }
+-
+-  @Override
+-  public String toString() {
+-    return "Parameter{"
+-        + "JSType=" + JSType + ", "
+-        + "optional=" + optional + ", "
+-        + "variadic=" + variadic
+-        + "}";
+-  }
+-
+-  @Override
+-  public boolean equals(Object o) {
+-    if (o == this) {
+-      return true;
+-    }
+-    if (o instanceof FunctionType.Parameter) {
+-      FunctionType.Parameter that = (FunctionType.Parameter) o;
+-      return this.JSType.equals(that.getJSType())
+-          && this.optional == that.isOptional()
+-          && this.variadic == that.isVariadic();
+-    }
+-    return false;
+-  }
+-
+-  @Override
+-  public int hashCode() {
+-    int h$ = 1;
+-    h$ *= 1000003;
+-    h$ ^= JSType.hashCode();
+-    h$ *= 1000003;
+-    h$ ^= optional ? 1231 : 1237;
+-    h$ *= 1000003;
+-    h$ ^= variadic ? 1231 : 1237;
+-    return h$;
+-  }
+-
++/** Unused placeholder after making FunctionType.Parameter a concrete final class. */
++final class AutoValue_FunctionType_Parameter {
++  private AutoValue_FunctionType_Parameter() {}
+ }
+diff --git a/com/google/javascript/rhino/jstype/EqualityChecker.java b/com/google/javascript/rhino/jstype/EqualityChecker.java
+--- a/com/google/javascript/rhino/jstype/EqualityChecker.java
++++ b/com/google/javascript/rhino/jstype/EqualityChecker.java
+@@ -129,12 +129,26 @@
+     return checker.areEqualCaching(left, right);
+   }
+ 
+-  static boolean checkParameters(EqMethod eqMethod, ArrowType left, ArrowType right) {
++  static boolean checkCallType(EqMethod eqMethod, FunctionType left, FunctionType right) {
+     if (identical(left, right)) {
+       return true;
+     }
++    if (left == null || right == null) {
++      return false;
++    }
+     EqualityChecker checker = new EqualityChecker(eqMethod);
+-    return checker.areArrowParameterEqual(left, right);
++    checker.recursionDepth++;
++    boolean result = checker.areCallTypeEqual(left, right);
++    checker.recursionDepth--;
++    return result;
++  }
++
++  static boolean checkParameters(EqMethod eqMethod, FunctionType left, FunctionType right) {
++    if (identical(left, right)) {
++      return true;
++    }
++    EqualityChecker checker = new EqualityChecker(eqMethod);
++    return checker.areParametersEqual(left, right);
+   }
+ 
+   boolean check(JSType left, JSType right) {
+@@ -144,10 +158,10 @@
+   }
+ 
+   /** Return whether the parameters (ignoring any other aspects) of the two types are equal. */
+-  boolean checkParameters(ArrowType left, ArrowType right) {
++  boolean checkParameters(FunctionType left, FunctionType right) {
+     this.checkHasNotRun();
+     this.hasRun = true;
+-    return identical(left, right) || this.areArrowParameterEqual(left, right);
++    return identical(left, right) || this.areParametersEqual(left, right);
+   }
+ 
+   private boolean areEqualCaching(JSType left, JSType right) {
+@@ -229,11 +243,6 @@
+       return this.areFunctionEqual(left.toMaybeFunctionType(), right.toMaybeFunctionType());
+     }
+ 
+-    // TODO(nickreid): Delete `ArrowType` as not a type, or add `toMaybeArrow`.
+-    if (left instanceof ArrowType leftArrow && right instanceof ArrowType rightArrow) {
+-      return this.areArrowEqual(leftArrow, rightArrow);
+-    }
+-
+     if (!this.areTypeMapEqual(left.getTemplateTypeMap(), right.getTemplateTypeMap())) {
+       return false;
+     }
+@@ -337,25 +346,28 @@
+           false;
+       case ORDINARY ->
+           this.areEqualCaching(left.getTypeOfThis(), right.getTypeOfThis())
+-              && this.areEqualCaching(left.getInternalArrowType(), right.getInternalArrowType())
++              && this.areCallTypeEqual(left, right)
+               && Objects.equals(left.getClosurePrimitive(), right.getClosurePrimitive());
+       default -> throw new AssertionError();
+     };
+   }
+ 
+-  private boolean areArrowEqual(ArrowType left, ArrowType right) {
++  private boolean areCallTypeEqual(FunctionType left, FunctionType right) {
+     return this.areEqualCaching(left.getReturnType(), right.getReturnType())
+-        && this.areArrowParameterEqual(left, right);
+-  }
+-
+-  private boolean areArrowParameterEqual(ArrowType left, ArrowType right) {
+-    if (left.getParameterList().size() != right.getParameterList().size()) {
+-      return false;
+-    }
+-
+-    for (int i = 0; i < left.getParameterList().size(); i++) {
+-      Parameter leftParam = left.getParameterList().get(i);
+-      Parameter rightParam = right.getParameterList().get(i);
++        && this.areParametersEqual(left, right);
++  }
++
++  private boolean areParametersEqual(FunctionType left, FunctionType right) {
++    ImmutableList<Parameter> leftParams = left.getParameters();
++    ImmutableList<Parameter> rightParams = right.getParameters();
++    int size = leftParams.size();
++    if (size != rightParams.size()) {
++      return false;
++    }
++
++    for (int i = 0; i < size; i++) {
++      Parameter leftParam = leftParams.get(i);
++      Parameter rightParam = rightParams.get(i);
+ 
+       JSType leftParamType = leftParam.getJSType();
+       JSType rightParamType = rightParam.getJSType();
+diff --git a/com/google/javascript/rhino/jstype/FunctionType.java b/com/google/javascript/rhino/jstype/FunctionType.java
+--- a/com/google/javascript/rhino/jstype/FunctionType.java
++++ b/com/google/javascript/rhino/jstype/FunctionType.java
+@@ -45,10 +45,8 @@
+ import static com.google.javascript.jscomp.base.JSCompObjects.identical;
+ import static com.google.javascript.rhino.jstype.JSTypeNative.OBJECT_TYPE;
+ 
+-import com.google.auto.value.AutoValue;
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableSet;
+-import com.google.common.collect.Iterables;
+ import com.google.javascript.rhino.ClosurePrimitive;
+ import com.google.javascript.rhino.ErrorReporter;
+ import com.google.javascript.rhino.Node;
+@@ -103,8 +101,11 @@
+ 
+   private ConstructorAmbiguity constructorAmbiguity;
+ 
+-  /** {@code [[Call]]} property. */
+-  private ArrowType call;
++  /** {@code [[Call]]} signature fields (inlined from former ArrowType). */
++  private final ImmutableList<Parameter> parameterList;
++
++  private JSType returnType;
++  private final boolean returnTypeInferred;
+ 
+   /**
+    * The {@code prototype} property. This field is lazily initialized by {@code #getPrototype()}.
+@@ -177,6 +178,19 @@
+             ? ConstructorAmbiguity.IS_AMBIGUOUS_CONSTRUCTOR
+             : ConstructorAmbiguity.UNKNOWN;
+ 
++    this.parameterList =
++        builder.parameters == null
++            ? this.registry.createParametersWithVarArgs(
++                this.registry.getNativeType(JSTypeNative.UNKNOWN_TYPE))
++            : ImmutableList.copyOf(builder.parameters);
++    this.returnTypeInferred = builder.returnTypeIsInferred;
++    if (!builder.returnsOwnInstanceType) {
++      this.returnType =
++          builder.returnType == null
++              ? this.registry.getNativeType(JSTypeNative.UNKNOWN_TYPE)
++              : builder.returnType;
++    }
++
+     if (builder.typeOfThis != null) {
+       this.typeOfThis = builder.typeOfThis;
+     } else {
+@@ -199,16 +213,16 @@
+       }
+     }
+ 
++    if (builder.returnsOwnInstanceType) {
++      this.returnType =
++          this.typeOfThis == null
++              ? this.registry.getNativeType(JSTypeNative.UNKNOWN_TYPE)
++              : this.typeOfThis;
++    }
++
+     if (this.kind == Kind.CONSTRUCTOR) {
+       this.propAccess = PropAccess.ANY;
+     }
+-
+-    this.call =
+-        new ArrowType(
+-            this.registry,
+-            builder.parameters,
+-            builder.returnsOwnInstanceType ? this.typeOfThis : builder.returnType,
+-            builder.returnTypeIsInferred);
+ 
+     this.closurePrimitive = builder.primitiveId;
+     this.isStructuralInterface = false;
+@@ -346,7 +360,7 @@
+   }
+ 
+   public final ImmutableList<Parameter> getParameters() {
+-    return getInternalArrowType().getParameterList();
++    return parameterList;
+   }
+ 
+   /** Gets the minimum number of arguments that this function requires. */
+@@ -354,12 +368,11 @@
+     // NOTE(nicksantos): There are some native functions that have optional
+     // parameters before required parameters. This algorithm finds the position
+     // of the last required parameter.
+-    int i = 0;
+     int min = 0;
+-    for (Parameter parameter : getParameters()) {
+-      i++;
++    for (int i = 0, size = parameterList.size(); i < size; i++) {
++      Parameter parameter = parameterList.get(i);
+       if (!parameter.isOptional() && !parameter.isVariadic()) {
+-        min = i;
++        min = i + 1;
+       }
+     }
+     return min;
+@@ -370,11 +383,11 @@
+    * is a variable argument function.
+    */
+   public final int getMaxArity() {
+-    ImmutableList<Parameter> params = getParameters();
++    ImmutableList<Parameter> params = parameterList;
+     if (params.isEmpty()) {
+       return 0;
+     }
+-    Parameter lastParam = Iterables.getLast(params);
++    Parameter lastParam = params.get(params.size() - 1);
+     if (!lastParam.isVariadic()) {
+       return params.size();
+     }
+@@ -383,16 +396,11 @@
+   }
+ 
+   public final JSType getReturnType() {
+-    return call.getReturnType();
++    return returnType;
+   }
+ 
+   public final boolean isReturnTypeInferred() {
+-    return call.returnTypeInferred;
+-  }
+-
+-  /** Gets the internal arrow type. For use by subclasses only. */
+-  final ArrowType getInternalArrowType() {
+-    return call;
++    return returnTypeInferred;
+   }
+ 
+   @Override
+@@ -680,7 +688,7 @@
+     if (argsToBind < 0) {
+       return builder.build();
+     }
+-    ImmutableList<Parameter> origParams = call.getParameterList();
++    ImmutableList<Parameter> origParams = parameterList;
+     List<Parameter> params = new ArrayList<>(origParams);
+     for (int i = 1; i < argsToBind && !params.isEmpty(); i++) {
+       if (params.get(0).isVariadic()) {
+@@ -704,7 +712,7 @@
+             .withReturnType(isCall ? getReturnType() : getBindReturnType(-1))
+             .withTemplateKeys(getTemplateTypeMap().getTemplateKeys());
+ 
+-    ImmutableList<Parameter> origParams = getInternalArrowType().getParameterList();
++    ImmutableList<Parameter> origParams = parameterList;
+ 
+     List<Parameter> params = new ArrayList<>(origParams);
+ 
+@@ -795,8 +803,8 @@
+     // their local lattice and they will merge in weird ways.
+     if (isOrdinaryFunction()
+         && that.isOrdinaryFunction()
+-        && !this.call.hasUnknownParamsOrReturn()
+-        && !that.call.hasUnknownParamsOrReturn()) {
++        && !this.hasUnknownParamsOrReturn()
++        && !that.hasUnknownParamsOrReturn()) {
+ 
+       // Check for the degenerate case, but double check
+       // that there's not a cycle.
+@@ -835,11 +843,20 @@
+     return leastSuper ? greatestFn : leastFn;
+   }
+ 
++  private boolean hasUnknownParamsOrReturn() {
++    for (int i = 0, size = parameterList.size(); i < size; i++) {
++      if (parameterList.get(i).getJSType().isUnknownType()) {
++        return true;
++      }
++    }
++    return returnType == null || returnType.isUnknownType();
++  }
++
+   /** Try to get the sup/inf of two functions by looking at the piecewise components. */
+   private @Nullable FunctionType tryMergeFunctionPiecewise(FunctionType other, boolean leastSuper) {
+     ImmutableList<Parameter> newParamsNode = null;
+-    if (EqualityChecker.checkParameters(EqMethod.IDENTITY, this.call, other.call)) {
+-      newParamsNode = call.getParameterList();
++    if (EqualityChecker.checkParameters(EqMethod.IDENTITY, this, other)) {
++      newParamsNode = parameterList;
+     } else {
+       // If the parameters are not equal, don't try to merge them.
+       // Someday, we should try to merge the individual params.
+@@ -848,8 +865,8 @@
+ 
+     JSType newReturnType =
+         leastSuper
+-            ? call.getReturnType().getLeastSupertype(other.call.getReturnType())
+-            : call.getReturnType().getGreatestSubtype(other.call.getReturnType());
++            ? returnType.getLeastSupertype(other.returnType)
++            : returnType.getGreatestSubtype(other.returnType);
+ 
+     JSType newTypeOfThis = null;
+     if (Objects.equals(typeOfThis, other.typeOfThis)) {
+@@ -862,7 +879,7 @@
+       newTypeOfThis = maybeNewTypeOfThis;
+     }
+ 
+-    boolean newReturnTypeInferred = call.returnTypeInferred || other.call.returnTypeInferred;
++    boolean newReturnTypeInferred = returnTypeInferred || other.returnTypeInferred;
+ 
+     return builder(registry)
+         .withParameters(newParamsNode)
+@@ -893,7 +910,11 @@
+       case CONSTRUCTOR, INTERFACE -> 31 * hc + System.identityHashCode(this);
+       case ORDINARY -> {
+         hc = 31 * hc + typeOfThis.hashCode();
+-        hc = 31 * hc + call.hashCode();
++        int callHash = Objects.hashCode(returnType);
++        for (int i = 0, size = parameterList.size(); i < size; i++) {
++          callHash = callHash * 31 + Objects.hashCode(parameterList.get(i).getJSType());
++        }
++        hc = 31 * hc + callHash;
+         hc = 31 * hc + Objects.hashCode(getClosurePrimitive());
+         yield hc;
+       }
+@@ -902,7 +923,7 @@
+   }
+ 
+   public final boolean hasEqualCallType(FunctionType that) {
+-    return EqualityChecker.check(EqMethod.IDENTITY, this.call, that.call);
++    return EqualityChecker.checkCallType(EqMethod.IDENTITY, this, that);
+   }
+ 
+   /**
+@@ -928,7 +949,7 @@
+     setPrettyPrint(false);
+ 
+     sb.append("function(");
+-    int paramNum = call.getParameterList().size();
++    int paramNum = parameterList.size();
+     boolean hasKnownTypeOfThis = !(typeOfThis instanceof UnknownType);
+     if (hasKnownTypeOfThis) {
+       if (isConstructor()) {
+@@ -942,17 +963,17 @@
+       if (hasKnownTypeOfThis) {
+         sb.append(", ");
+       }
+-      Parameter p = call.getParameterList().get(0);
++      Parameter p = parameterList.get(0);
+       appendArgString(sb, p);
+ 
+       for (int i = 1; i < paramNum; i++) {
+-        p = call.getParameterList().get(i);
++        p = parameterList.get(i);
+         sb.append(", ");
+         appendArgString(sb, p);
+       }
+     }
+     sb.append("): ");
+-    sb.appendNonNull(call.getReturnType());
++    sb.appendNonNull(returnType);
+ 
+     setPrettyPrint(true);
+   }
+@@ -1076,7 +1097,10 @@
+ 
+   @Override
+   JSType resolveInternal(ErrorReporter reporter) {
+-    call = (ArrowType) safeResolve(call, reporter);
++    returnType = safeResolve(returnType, reporter);
++    for (int i = 0, size = parameterList.size(); i < size; i++) {
++      parameterList.get(i).getJSType().resolve(reporter);
++    }
+     if (prototypeSlot != null) {
+       prototypeSlot.setType(safeResolve(prototypeSlot.getType(), reporter));
+     }
+@@ -1141,7 +1165,17 @@
+   final boolean hasAnyTemplateTypesInternal() {
+     return this.getTemplateParamCount() > 0
+         || typeOfThis.hasAnyTemplateTypes()
+-        || call.hasAnyTemplateTypes();
++        || returnType.hasAnyTemplateTypes()
++        || hasTemplatedParameterType();
++  }
++
++  private boolean hasTemplatedParameterType() {
++    for (int i = 0, size = parameterList.size(); i < size; i++) {
++      if (parameterList.get(i).getJSType().hasAnyTemplateTypes()) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   public final boolean hasProperties() {
+@@ -1623,16 +1657,71 @@
+    *
+    * <p>This parameter has a type; optionality; and may be var_args (variadic).
+    */
+-  @AutoValue
+-  public abstract static class Parameter {
++  public static final class Parameter {
++    private final JSType jsType;
++    private final boolean optional;
++    private final boolean variadic;
++
++    private Parameter(JSType jsType, boolean optional, boolean variadic) {
++      if (jsType == null) {
++        throw new NullPointerException("Null JSType");
++      }
++      this.jsType = jsType;
++      this.optional = optional;
++      this.variadic = variadic;
++    }
++
+     public static Parameter create(JSType type, boolean isOptional, boolean isVariadic) {
+-      return new AutoValue_FunctionType_Parameter(type, isOptional, isVariadic);
+-    }
+-
+-    public abstract JSType getJSType();
+-
+-    public abstract boolean isOptional();
+-
+-    public abstract boolean isVariadic();
++      return new Parameter(type, isOptional, isVariadic);
++    }
++
++    public JSType getJSType() {
++      return jsType;
++    }
++
++    public boolean isOptional() {
++      return optional;
++    }
++
++    public boolean isVariadic() {
++      return variadic;
++    }
++
++    @Override
++    public String toString() {
++      return "Parameter{"
++          + "JSType="
++          + jsType
++          + ", optional="
++          + optional
++          + ", variadic="
++          + variadic
++          + "}";
++    }
++
++    @Override
++    public boolean equals(Object o) {
++      if (o == this) {
++        return true;
++      }
++      if (o instanceof Parameter that) {
++        return this.jsType.equals(that.jsType)
++            && this.optional == that.optional
++            && this.variadic == that.variadic;
++      }
++      return false;
++    }
++
++    @Override
++    public int hashCode() {
++      int h = 1;
++      h *= 1000003;
++      h ^= jsType.hashCode();
++      h *= 1000003;
++      h ^= optional ? 1231 : 1237;
++      h *= 1000003;
++      h ^= variadic ? 1231 : 1237;
++      return h;
++    }
+   }
+ }
+diff --git a/com/google/javascript/rhino/jstype/SubtypeChecker.java b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+--- a/com/google/javascript/rhino/jstype/SubtypeChecker.java
++++ b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+@@ -48,7 +48,6 @@
+ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+ import com.google.javascript.rhino.jstype.JSType.MatchStatus;
+ import com.google.javascript.rhino.jstype.JSType.SubtypingMode;
+-import java.util.Iterator;
+ import java.util.LinkedHashMap;
+ import java.util.Objects;
+ import org.jspecify.annotations.Nullable;
+@@ -214,7 +213,6 @@
+    */
+   private boolean isSubtypeDispatching(JSType subtype, JSType supertype) {
+     return switch (subtype.getTypeClass()) {
+-      case ARROW -> this.isArrowTypeSubtype((ArrowType) subtype, supertype);
+       case ENUM_ELEMENT -> this.isEnumElementSubtype((EnumElementType) subtype, supertype);
+       case ENUM -> this.isEnumSubtype((EnumType) subtype, supertype);
+       case NO_OBJECT, NO -> this.isVariousBottomsSubtype(subtype, supertype);
+@@ -476,8 +474,7 @@
+       }
+ 
+       return this.shouldTreatThisTypesAsCovariant(subtype, supertype)
+-          && this.isSubtypeCaching(
+-              subtype.getInternalArrowType(), supertype.getInternalArrowType());
++          && this.isArrowTypeSubtype(subtype, supertype);
+     }
+ 
+     return this.isSubtypeCaching(
+@@ -492,11 +489,7 @@
+     return supertype.isObject() && !supertype.isNoType();
+   }
+ 
+-  private boolean isArrowTypeSubtype(ArrowType subtype, JSType nonArrowSupertype) {
+-    if (!(nonArrowSupertype instanceof ArrowType supertype)) {
+-      return false;
+-    }
+-
++  private boolean isArrowTypeSubtype(FunctionType subtype, FunctionType supertype) {
+     // This is described in Draft 2 of the ES4 spec,
+     // Section 3.4.7: Subtyping Function Types.
+ 
+@@ -524,12 +517,15 @@
+     // to create a new no-op function for every possible type signature.
+     //
+     // So, in this case, g < f, but f !< g
+-    Iterator<FunctionType.Parameter> subtypeParameters = subtype.getParameterList().iterator();
+-    Iterator<FunctionType.Parameter> supertypeParameters = supertype.getParameterList().iterator();
+-    FunctionType.Parameter subtypeParam =
+-        subtypeParameters.hasNext() ? subtypeParameters.next() : null;
++    ImmutableList<FunctionType.Parameter> subtypeParameters = subtype.getParameters();
++    ImmutableList<FunctionType.Parameter> supertypeParameters = supertype.getParameters();
++    int subSize = subtypeParameters.size();
++    int superSize = supertypeParameters.size();
++    int subIdx = 0;
++    int superIdx = 0;
++    FunctionType.Parameter subtypeParam = subIdx < subSize ? subtypeParameters.get(subIdx++) : null;
+     FunctionType.Parameter supertypeParam =
+-        supertypeParameters.hasNext() ? supertypeParameters.next() : null;
++        superIdx < superSize ? supertypeParameters.get(superIdx++) : null;
+     while (subtypeParam != null && supertypeParam != null) {
+ 
+       JSType subtypeParamType = subtypeParam.getJSType();
+@@ -565,10 +561,10 @@
+ 
+       // don't advance if we have variable arguments
+       if (!thisIsVarArgs) {
+-        subtypeParam = subtypeParameters.hasNext() ? subtypeParameters.next() : null;
++        subtypeParam = subIdx < subSize ? subtypeParameters.get(subIdx++) : null;
+       }
+       if (!thatIsVarArgs) {
+-        supertypeParam = supertypeParameters.hasNext() ? supertypeParameters.next() : null;
++        supertypeParam = superIdx < superSize ? supertypeParameters.get(superIdx++) : null;
+       }
+ 
+       // both var_args indicates the end

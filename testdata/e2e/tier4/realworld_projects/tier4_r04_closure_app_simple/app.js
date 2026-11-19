@@ -1,0 +1,1 @@
+goog.provide('my.app'); my.app.init = function() { return 'app ready'; }; window['init'] = my.app.init;

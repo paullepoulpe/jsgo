@@ -1,0 +1,23 @@
+{
+  "id": "tier1_t05_checks_only_clean",
+  "tier": 1,
+  "feature": "type_checking",
+  "name": "Checks only clean pass",
+  "description": "Verifies --checks_only with valid typed code succeeds with code 0 and emits no JS",
+  "args": [
+    "--checks_only",
+    "--jscomp_error=checkTypes",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @param {number} a \n * @param {number} b \n * @return {number} */ function add(a, b) { return a + b; } var res = add(1, 2);"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": "",
+    "output_files": {}
+  }
+}

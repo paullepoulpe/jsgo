@@ -1,0 +1,1 @@
+function compute(firstArg, secondArg) { var localUnused = 100; return firstArg + secondArg; } window['res'] = compute(1, 2);

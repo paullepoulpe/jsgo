@@ -1,0 +1,24 @@
+{
+  "id": "tier4_r03_closure_cli_translations",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "Closure CLI translations message bundle",
+  "description": "Executes localized build using XTB translations file",
+  "args": [
+    "--translations_file",
+    "trans.xtb",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "trans.xtb": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE translationbundle SYSTEM \"translationbundle.dtd\">\n<translationbundle lang=\"fr\">\n  <translation id=\"123456789\">Bonjour le monde</translation>\n</translationbundle>",
+    "in.js": "var MSG_HELLO = goog.getMsg('Hello {$name}', {name: 'world'});"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var MSG_HELLO=\"Hello world\";\n",
+    "stderr": "in.js:1:4: WARNING - [JSC_MSG_HAS_NO_DESCRIPTION] Message MSG_HELLO has no description. Add @desc JsDoc tag.\n  1| var MSG_HELLO = goog.getMsg('Hello {$name}', {name: 'world'});\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n0 error(s), 1 warning(s)\n",
+    "output_files": {}
+  }
+}

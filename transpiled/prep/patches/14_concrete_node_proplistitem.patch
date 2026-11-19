@@ -1,0 +1,174 @@
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+index d6034d5..570b519 100644
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -453,80 +453,59 @@ public class Node {
+     }
+   }
+ 
+-  private abstract static class PropListItem {
+-    final @Nullable PropListItem next;
++  private static final class PropListItem {
+     final byte propType;
++    final int intValue;
++    final @Nullable PropListItem next;
++    private final @Nullable Object objectValue;
+ 
+-    PropListItem(byte propType, @Nullable PropListItem next) {
++    private PropListItem(
++        byte propType, int intValue, @Nullable Object objectValue, @Nullable PropListItem next) {
+       this.propType = propType;
++      this.intValue = intValue;
++      this.objectValue = objectValue;
+       this.next = next;
+     }
+ 
+-    abstract int getIntValue();
+-
+-    abstract Object getObjectValue();
+-
+-    abstract PropListItem chain(@Nullable PropListItem next);
+-  }
+-
+-  // A base class for Object storing props
+-  private static final class ObjectPropListItem extends PropListItem {
+-    private final Object objectValue;
+-
+-    ObjectPropListItem(byte propType, Object objectValue, @Nullable PropListItem next) {
+-      super(propType, next);
+-      this.objectValue = checkNotNull(objectValue);
+-    }
+-
+-    @Override
+-    public int getIntValue() {
+-      throw new UnsupportedOperationException();
+-    }
+-
+-    @Override
+-    public Object getObjectValue() {
+-      return objectValue;
++    static PropListItem objectItem(
++        byte propType, Object objectValue, @Nullable PropListItem next) {
++      return new PropListItem(propType, 0, checkNotNull(objectValue), next);
+     }
+ 
+-    @Override
+-    public String toString() {
+-      return String.valueOf(objectValue);
++    static PropListItem intItem(byte propType, int intValue, @Nullable PropListItem next) {
++      checkState(intValue != 0);
++      return new PropListItem(propType, intValue, null, next);
+     }
+ 
+-    @Override
+-    public PropListItem chain(@Nullable PropListItem next) {
+-      return new ObjectPropListItem(propType, objectValue, next);
++    boolean isObjectItem() {
++      return objectValue != null;
+     }
+-  }
+-
+-  // A base class for int storing props
+-  private static final class IntPropListItem extends PropListItem {
+-    final int intValue;
+ 
+-    IntPropListItem(byte propType, int intValue, @Nullable PropListItem next) {
+-      super(propType, next);
+-      this.intValue = intValue;
+-      checkState(this.intValue != 0);
++    boolean isIntItem() {
++      return objectValue == null;
+     }
+ 
+-    @Override
+     public int getIntValue() {
++      if (objectValue != null) {
++        throw new UnsupportedOperationException();
++      }
+       return intValue;
+     }
+ 
+-    @Override
+     public Object getObjectValue() {
+-      throw new UnsupportedOperationException();
++      if (objectValue == null) {
++        throw new UnsupportedOperationException();
++      }
++      return objectValue;
+     }
+ 
+     @Override
+     public String toString() {
+-      return String.valueOf(intValue);
++      return objectValue != null ? String.valueOf(objectValue) : String.valueOf(intValue);
+     }
+ 
+-    @Override
+     public PropListItem chain(@Nullable PropListItem next) {
+-      return new IntPropListItem(propType, intValue, next);
++      return new PropListItem(propType, intValue, objectValue, next);
+     }
+   }
+ 
+@@ -1130,7 +1109,8 @@ public class Node {
+         }
+         case CLOSURE_UNAWARE_SHADOW -> {
+           PropListItem shadowProp = lookupProperty(Prop.CLOSURE_UNAWARE_SHADOW);
+-          if (!(shadowProp instanceof Node.ObjectPropListItem)
++          if (shadowProp == null
++              || !shadowProp.isObjectItem()
+               || !(shadowProp.getObjectValue() instanceof Node)) {
+             violationMessageConsumer.accept("CLOSURE_UNAWARE_SHADOW property must point to a Node");
+           }
+@@ -1199,7 +1179,7 @@ public class Node {
+   public final void putProp(Prop prop, @Nullable Object value) {
+     this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+     if (value != null) {
+-      this.propListHead = new ObjectPropListItem((byte) prop.ordinal(), value, this.propListHead);
++      this.propListHead = PropListItem.objectItem((byte) prop.ordinal(), value, this.propListHead);
+     }
+   }
+ 
+@@ -1211,7 +1191,7 @@ public class Node {
+   public final void putIntProp(Prop prop, int value) {
+     this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+     if (value != 0) {
+-      this.propListHead = new IntPropListItem((byte) prop.ordinal(), value, this.propListHead);
++      this.propListHead = PropListItem.intItem((byte) prop.ordinal(), value, this.propListHead);
+     }
+   }
+ 
+@@ -1269,7 +1249,7 @@ public class Node {
+             // We check for this bit when building in ScriptNodeDeserializer.
+             propSet = setNodePropertyBit(propSet, NodeProperty.CLOSURE_UNAWARE_SHADOW);
+         default -> {
+-          if (propListItem instanceof Node.IntPropListItem) {
++          if (propListItem.isIntItem()) {
+             NodeProperty nodeProperty = PropTranslator.serialize(prop);
+             if (nodeProperty != null) {
+               propSet = setNodePropertyBit(propSet, nodeProperty);
+@@ -1356,7 +1336,7 @@ public class Node {
+           if (prop == null) {
+             throw new IllegalStateException("Can not translate " + nodeProperty + " to AST Prop");
+           }
+-          this.propListHead = new IntPropListItem((byte) prop.ordinal(), 1, this.propListHead);
++          this.propListHead = PropListItem.intItem((byte) prop.ordinal(), 1, this.propListHead);
+         }
+       }
+     }
+@@ -1364,13 +1344,13 @@ public class Node {
+     // Store the CONSTANT_VAR_FLAGS
+     if (constantVarFlags != 0) {
+       this.propListHead =
+-          new IntPropListItem(
++          PropListItem.intItem(
+               (byte) Prop.CONSTANT_VAR_FLAGS.ordinal(), constantVarFlags, this.propListHead);
+     }
+ 
+     if (sideEffectFlags != 0) {
+       this.propListHead =
+-          new IntPropListItem(
++          PropListItem.intItem(
+               (byte) Prop.SIDE_EFFECT_FLAGS.ordinal(), sideEffectFlags, this.propListHead);
+     }
+ 

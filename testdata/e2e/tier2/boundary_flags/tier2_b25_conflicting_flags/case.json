@@ -1,0 +1,25 @@
+{
+  "id": "tier2_b25_conflicting_flags",
+  "tier": 2,
+  "feature": "boundary_flags",
+  "name": "Conflicting output flags",
+  "description": "Handles contradictory flag combinations with standard exit status",
+  "args": [
+    "--isolation_mode",
+    "IIFE",
+    "--output_wrapper",
+    "%output%",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var x = 1;"
+  },
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "--output_wrapper and --isolation_mode may not be used together.\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "tier2_b24_invalid_charset",
+  "tier": 2,
+  "feature": "boundary_flags",
+  "name": "Invalid charset name argument",
+  "description": "Reports error when unrecognized character set name is specified",
+  "args": [
+    "--charset",
+    "bad-charset-name-xyz",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var x = 1;"
+  },
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "bad-charset-name-xyz is not a valid charset name.\n",
+    "output_files": {}
+  }
+}

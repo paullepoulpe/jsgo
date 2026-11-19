@@ -1,0 +1,1 @@
+var bundleTest = 'ok'; window['bundle'] = bundleTest;

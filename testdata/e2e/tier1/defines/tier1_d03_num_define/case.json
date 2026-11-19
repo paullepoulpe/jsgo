@@ -1,0 +1,22 @@
+{
+  "id": "tier1_d03_num_define",
+  "tier": 1,
+  "feature": "defines",
+  "name": "Number compile-time define",
+  "description": "Overrides numeric @define constant via --define flag",
+  "args": [
+    "--define=MAX_RETRIES=5",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @define {number} */ var MAX_RETRIES = 1; window['retries'] = MAX_RETRIES;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var MAX_RETRIES=5;window.retries=MAX_RETRIES;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

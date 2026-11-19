@@ -1,0 +1,1 @@
+/** @define {boolean} */ var ENABLE_LEGACY = true; function legacyCode() { return 'bloat_function_content'; } if (ENABLE_LEGACY) { window['out'] = legacyCode(); } else { window['out'] = 'modern'; }

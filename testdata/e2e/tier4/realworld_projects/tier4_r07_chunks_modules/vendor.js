@@ -1,0 +1,1 @@
+export const LIB = { util: (x) => x + 1 };

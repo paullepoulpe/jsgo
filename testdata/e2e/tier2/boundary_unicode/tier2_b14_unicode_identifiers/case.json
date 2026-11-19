@@ -1,0 +1,23 @@
+{
+  "id": "tier2_b14_unicode_identifiers",
+  "tier": 2,
+  "feature": "boundary_unicode",
+  "name": "Unicode identifier names",
+  "description": "Parses and compiles non-ASCII identifiers in Japanese, Greek, and Cyrillic",
+  "args": [
+    "--compilation_level",
+    "SIMPLE",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var \u5909\u6570 = 10; var \u03c0 = 3.14159; var \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 = \u5909\u6570 * \u03c0; window['out'] = \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var \\u5909\\u6570=10,\\u03c0=3.14159,\\u0440\\u0435\\u0437\\u0443\\u043b\\u044c\\u0442\\u0430\\u0442=\\u5909\\u6570*\\u03c0;window.out=\\u0440\\u0435\\u0437\\u0443\\u043b\\u044c\\u0442\\u0430\\u0442;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

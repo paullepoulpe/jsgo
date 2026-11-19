@@ -1,0 +1,293 @@
+diff --git a/com/google/javascript/jscomp/serialization/JSTypeColorIdHasher.java b/com/google/javascript/jscomp/serialization/JSTypeColorIdHasher.java
+--- a/com/google/javascript/jscomp/serialization/JSTypeColorIdHasher.java
++++ b/com/google/javascript/jscomp/serialization/JSTypeColorIdHasher.java
+@@ -31,7 +31,10 @@
+ import com.google.javascript.rhino.jstype.JSTypeNative;
+ import com.google.javascript.rhino.jstype.JSTypeRegistry;
+ import com.google.javascript.rhino.jstype.ObjectType;
++import java.util.ArrayList;
++import java.util.Collections;
+ import java.util.Map;
++import java.util.Set;
+ import org.jspecify.annotations.Nullable;
+ 
+ final class JSTypeColorIdHasher {
+@@ -73,8 +76,17 @@
+     if (type.hasReferenceName()) {
+       this.putReferenceNameType(hasher, type);
+     } else {
+-      for (String prop : type.getOwnPropertyNames()) {
+-        putUtf8(hasher, prop);
++      Set<String> ownProps = type.getOwnPropertyNames();
++      if (ownProps.size() <= 1 || type.isRecordType()) {
++        for (String prop : ownProps) {
++          putUtf8(hasher, prop);
++        }
++      } else {
++        ArrayList<String> sortedProps = new ArrayList<>(ownProps);
++        Collections.sort(sortedProps);
++        for (int i = 0; i < sortedProps.size(); i++) {
++          putUtf8(hasher, sortedProps.get(i));
++        }
+       }
+     }
+ 
+diff --git a/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java b/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
+--- a/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
++++ b/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
+@@ -43,8 +43,10 @@
+ import com.google.javascript.rhino.jstype.ObjectType;
+ import com.google.javascript.rhino.jstype.UnionType;
+ import java.util.ArrayList;
++import java.util.Collections;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
++import java.util.Set;
+ import java.util.function.Predicate;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -333,12 +335,24 @@
+         isClosureAssert |= isClosureAssert(fnType.getClosurePrimitive());
+       }
+ 
+-      for (String ownProperty : objType.getOwnPropertyNames()) {
+-        // TODO(b/169899789): consider omitting common, well-known properties like "prototype" to
+-        // save space.
+-        if (shouldPropagatePropertyName.test(ownProperty)) {
+-          ownProperties.add(this.stringPoolBuilder.put(ownProperty));
++      Set<String> ownPropNames = objType.getOwnPropertyNames();
++      if (ownPropNames.size() <= 1 || objType.isRecordType()) {
++        for (String ownProperty : ownPropNames) {
++          // TODO(b/169899789): consider omitting common, well-known properties like "prototype" to
++          // save space.
++          if (shouldPropagatePropertyName.test(ownProperty)) {
++            ownProperties.add(this.stringPoolBuilder.put(ownProperty));
++          }
+         }
++      } else {
++        ArrayList<String> sortedOwnProps = new ArrayList<>(ownPropNames);
++        Collections.sort(sortedOwnProps);
++        for (int i = 0; i < sortedOwnProps.size(); i++) {
++          String ownProperty = sortedOwnProps.get(i);
++          if (shouldPropagatePropertyName.test(ownProperty)) {
++            ownProperties.add(this.stringPoolBuilder.put(ownProperty));
++          }
++        }
+       }
+ 
+       isInvalidating |= this.invalidatingTypes.isInvalidating(objType);
+diff --git a/com/google/javascript/rhino/jstype/ObjectType.java b/com/google/javascript/rhino/jstype/ObjectType.java
+--- a/com/google/javascript/rhino/jstype/ObjectType.java
++++ b/com/google/javascript/rhino/jstype/ObjectType.java
+@@ -501,6 +501,26 @@
+    */
+   final boolean defineProperty(
+       String propertyName, JSType type, boolean inferred, Node propertyNode) {
++    if (this instanceof InstanceObjectType inst) {
++      ObjectType proto = inst.getImplicitPrototype();
++      if ((proto != null && proto.hasOwnDeclaredProperty(propertyName))
++          || inst.hasOwnDeclaredProperty(propertyName)) {
++        return false;
++      }
++      Property newProp = new Property(propertyName, type, inferred, propertyNode);
++      inst.ensurePropertyMap().putProperty(propertyName, newProp);
++      return true;
++    }
++    if (this instanceof PrototypeObjectType proto
++        && !(this instanceof FunctionType)
++        && !(this instanceof RecordType)) {
++      if (proto.hasOwnDeclaredProperty(propertyName)) {
++        return false;
++      }
++      Property newProp = new Property(propertyName, type, inferred, propertyNode);
++      proto.ensurePropertyMap().putProperty(propertyName, newProp);
++      return true;
++    }
+     return defineProperty(new Property.StringKey(propertyName), type, inferred, propertyNode);
+   }
+ 
+diff --git a/com/google/javascript/rhino/jstype/Property.java b/com/google/javascript/rhino/jstype/Property.java
+--- a/com/google/javascript/rhino/jstype/Property.java
++++ b/com/google/javascript/rhino/jstype/Property.java
+@@ -153,11 +153,9 @@
+ 
+   private static final long serialVersionUID = 1L;
+ 
+-  /** Property's name: either a String (`stringKey`) or a KnownSymbolType (`symbolKey`). */
+-  private final @Nullable String stringKey;
++  /** Property's name (either a string key or a KnownSymbolType's display name). */
++  private final String name;
+ 
+-  private final @Nullable KnownSymbolType symbolKey;
+-
+   /**
+    * Property's type.
+    */
+@@ -178,8 +176,7 @@
+   private @Nullable JSDocInfo docInfo = null;
+ 
+   Property(String name, JSType type, boolean inferred, Node propertyNode) {
+-    this.stringKey = checkNotNull(name);
+-    this.symbolKey = null;
++    this.name = checkNotNull(name);
+     this.type = checkNotNull(type, "Null type specified for %s", name);
+     this.inferred = inferred;
+     this.propertyNode = propertyNode;
+@@ -187,13 +184,10 @@
+ 
+   Property(Key name, JSType type, boolean inferred, Node propertyNode) {
+     checkNotNull(name);
+-    if (name.kind() == KeyKind.STRING) {
+-      this.stringKey = checkNotNull(name.string());
+-      this.symbolKey = null;
+-    } else {
+-      this.stringKey = null;
+-      this.symbolKey = checkNotNull(name.symbol());
+-    }
++    this.name =
++        name.kind() == KeyKind.STRING
++            ? checkNotNull(name.string())
++            : checkNotNull(name.symbol()).getDisplayName();
+     this.type = checkNotNull(type, "Null type specified for %s", name);
+     this.inferred = inferred;
+     this.propertyNode = propertyNode;
+@@ -201,10 +195,7 @@
+ 
+   @Override
+   public String getName() {
+-    if (stringKey != null) {
+-      return stringKey;
+-    }
+-    return checkNotNull(symbolKey).getDisplayName();
++    return name;
+   }
+ 
+   @Override
+@@ -242,11 +233,7 @@
+   }
+ 
+   void setType(JSType type) {
+-    this.type =
+-        checkNotNull(
+-            type,
+-            "Null type specified for property %s",
+-            stringKey != null ? stringKey : symbolKey);
++    this.type = checkNotNull(type, "Null type specified for property %s", name);
+   }
+ 
+   @Override public JSDocInfo getJSDocInfo() {
+@@ -264,7 +251,7 @@
+   @Override
+   public String toString() {
+     return "Property { "
+-        + " name: " + (this.stringKey != null ? this.stringKey : this.symbolKey)
++        + " name: " + this.name
+         + ", type:" + this.type
+         + ", inferred: " + this.inferred
+         + "}";
+@@ -277,7 +264,6 @@
+ 
+   @Override
+   public int hashCode() {
+-    int nameHash = stringKey != null ? stringKey.hashCode() : Objects.hashCode(symbolKey);
+-    return 31 * (31 + nameHash) + Objects.hashCode(type);
++    return 31 * (31 + name.hashCode()) + Objects.hashCode(type);
+   }
+ }
+diff --git a/com/google/javascript/rhino/jstype/PropertyMap.java b/com/google/javascript/rhino/jstype/PropertyMap.java
+--- a/com/google/javascript/rhino/jstype/PropertyMap.java
++++ b/com/google/javascript/rhino/jstype/PropertyMap.java
+@@ -43,24 +43,19 @@
+ 
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.collect.ImmutableList;
+-import com.google.common.collect.ImmutableMap;
+ import com.google.common.collect.ImmutableSet;
+ import com.google.common.collect.ImmutableSortedSet;
+ import com.google.javascript.rhino.jstype.Property.OwnedProperty;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+-import java.util.Map;
+ import java.util.Objects;
+ import java.util.Set;
+-import java.util.TreeMap;
+ import java.util.TreeSet;
+ import org.jspecify.annotations.Nullable;
+ 
+ /** Representation for a collection of properties on an object. */
+ final class PropertyMap {
+-  private static final PropertyMap EMPTY_MAP =
+-      new PropertyMap(
+-          ImmutableMap.<String, Property>of(), ImmutableMap.<KnownSymbolType, Property>of());
++  private static final PropertyMap EMPTY_MAP = new PropertyMap();
+ 
+   // A place to get the inheritance structure.
+   // Because the extended interfaces are resolved dynamically, this gets
+@@ -69,9 +64,10 @@
+   private @Nullable ObjectType parentSource = null;
+ 
+   // The map of our own properties.
+-  private @Nullable Map<String, Property> properties; // lazily initialized
++  private @Nullable LinkedHashMap<String, Property> properties = null; // lazily initialized
+ 
+-  private @Nullable Map<KnownSymbolType, Property> knownSymbols; // lazily initialized
++  private @Nullable LinkedHashMap<KnownSymbolType, Property> knownSymbols =
++      null; // lazily initialized
+ 
+   /**
+    * The set of keys for this map and its ancestors.
+@@ -101,16 +97,7 @@
+    */
+   private int cachedKeySetCounter = 0;
+ 
+-  PropertyMap() {
+-    this(null, null);
+-  }
+-
+-  private PropertyMap(
+-      @Nullable Map<String, Property> underlyingMap,
+-      @Nullable Map<KnownSymbolType, Property> underlyingknownSymbols) {
+-    this.properties = underlyingMap;
+-    this.knownSymbols = underlyingknownSymbols;
+-  }
++  PropertyMap() {}
+ 
+   static PropertyMap immutableEmptyMap() {
+     return EMPTY_MAP;
+@@ -365,7 +352,7 @@
+      */
+     if (maxAncestorCounter != this.cachedKeySetCounter || this.cachedKeySet == null) {
+       TreeSet<String> keys = new TreeSet<>();
+-      Set<KnownSymbolType> knownSymbolsKeys = new LinkedHashSet<>();
++      LinkedHashSet<KnownSymbolType> knownSymbolsKeys = new LinkedHashSet<>();
+       for (PropertyMap ancestor : ancestors) {
+         /*
+          * Update the counters in all ancestors.
+@@ -410,9 +397,8 @@
+ 
+   void putProperty(String name, Property newProp) {
+     if (properties == null) {
+-      TreeMap<String, Property> map = new TreeMap<>();
+-      map.put(name, newProp);
+-      this.properties = map;
++      properties = new LinkedHashMap<>();
++      properties.put(name, newProp);
+       this.incrementCachedKeySetCounter();
+       return;
+     }
+@@ -464,7 +450,14 @@
+     // Otherwise we can get into an infinite loop because the ObjectType hashCode
+     // method calls this one.
+     if (this.knownSymbols == null) {
+-      return this.properties != null ? this.properties.keySet().hashCode() : 0;
++      if (this.properties == null) {
++        return 0;
++      }
++      int h = 0;
++      for (String key : this.properties.keySet()) {
++        h += key.hashCode();
++      }
++      return h;
+     }
+     return Objects.hash(getOwnPropertyNames(), this.knownSymbols.keySet());
+   }

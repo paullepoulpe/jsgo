@@ -1,0 +1,1 @@
+var goog = goog || {}; goog.provide = function(ns) {}; goog.require = function(ns) {};

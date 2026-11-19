@@ -1,0 +1,23 @@
+{
+  "id": "tier1_c01_whitespace",
+  "tier": 1,
+  "feature": "compilation_level",
+  "name": "Whitespace only compilation",
+  "description": "Verifies that WHITESPACE_ONLY strips comments and whitespace without modifying AST",
+  "args": [
+    "--compilation_level",
+    "WHITESPACE_ONLY",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "// comment line\nvar a = 10;\n/* block comment */\nvar b = 20;\n"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var a=10;var b=20;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

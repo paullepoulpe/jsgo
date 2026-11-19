@@ -1,0 +1,19 @@
+{
+  "id": "tier2_b21_nonexistent_input",
+  "tier": 2,
+  "feature": "boundary_flags",
+  "name": "Nonexistent input file error",
+  "description": "Reports clear file not found error when input JS file does not exist",
+  "args": [
+    "--js",
+    "in/does_not_exist_xyz123.js"
+  ],
+  "stdin": "",
+  "files": {},
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "ERROR - [JSC_READ_ERROR] Cannot read file in/does_not_exist_xyz123.js: in/does_not_exist_xyz123.js\n\n1 error(s), 0 warning(s)\n",
+    "output_files": {}
+  }
+}

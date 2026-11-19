@@ -1,0 +1,1 @@
+var beta = alpha * 2;

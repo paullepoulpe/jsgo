@@ -1,0 +1,383 @@
+/*
+ * Copyright 2021 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+// Port of com/google/javascript/jscomp/serialization/StringPool.java (generated mechanically by j2go).
+
+package jscomp
+
+import (
+	"sync/atomic"
+
+	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
+	pkg_rhino "github.com/paullepoulpe/jsgo/transpiled/gen/rhino"
+	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
+	"github.com/paullepoulpe/jsgo/transpiled/shims/nodestore"
+)
+
+// Java class: com.google.javascript.jscomp.serialization.StringPool
+type StringPool struct {
+	pool         *pkg_rhino.RhinoStringPool_LazyInternedStringList `gson:"pool"`
+	maxLength    int32                                             `gson:"maxLength"`
+	idHash_      atomic.Int32
+	internedIDs_ []atomic.Uint32
+	internEpoch_ atomic.Uint64
+}
+
+func (this_ *StringPool) BindSelf_(s any) {
+	_ = s
+}
+func (this_ *StringPool) IsJavaNil_() bool { return this_ == nil }
+func (*StringPool) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.serialization.StringPool", "StringPool"
+}
+func (this_ *StringPool) IdentityHash_() int32 {
+	if this_ == nil {
+		return 0
+	}
+	if h := this_.idHash_.Load(); h != 0 {
+		return h
+	}
+	return j2gort.AssignIdentHash(&this_.idHash_)
+}
+func (*StringPool) HasIdentityEquals_() {}
+func init() {
+	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.serialization.StringPool", "com.google.javascript.jscomp.serialization.StringPool", func(v_ any) bool {
+		return j2gort.InstanceOf[*StringPool](v_)
+	})
+}
+
+var static_StringPool_EMPTY *StringPool
+
+func StaticGet_StringPool_EMPTY() *StringPool {
+	clinit_StringPool()
+	return static_StringPool_EMPTY
+}
+func StaticSet_StringPool_EMPTY(v *StringPool) {
+	clinit_StringPool()
+	static_StringPool_EMPTY = v
+}
+
+var clinitDone_StringPool uint32
+var clinitState_StringPool j2gort.ClinitState
+
+func clinit_StringPool() {
+	if atomic.LoadUint32(&clinitDone_StringPool) != 0 {
+		return
+	}
+	clinitSlow_StringPool()
+}
+
+func clinitSlow_StringPool() {
+	if !j2gort.EnterClinit(&clinitState_StringPool, &clinitDone_StringPool) {
+		return
+	}
+	defer j2gort.ExitClinit(&clinitState_StringPool, &clinitDone_StringPool)
+	static_StringPool_EMPTY = StringPool_S_Builder().Build()
+}
+
+func (this_ *StringPool) initFields_StringPool() {
+	_ = this_
+}
+
+// Java constructor: StringPool(int maxLength, java.lang.String[] pool, int size)
+func NewStringPool(maxLength int32, pool []string, size int32) *StringPool {
+	clinit_StringPool()
+	this_ := &StringPool{}
+	InitStringPool(this_, maxLength, pool, size)
+	return this_
+}
+
+func InitStringPool(this_ *StringPool, maxLength int32, pool []string, size int32) {
+	_ = maxLength
+	_ = pool
+	_ = size
+	this_.initFields_StringPool()
+	this_.maxLength = maxLength
+	this_.pool = pkg_rhino.NewRhinoStringPool_LazyInternedStringList_2(pool, size)
+	if !((size > int32(0)) && (j2gort.CheckNotNullString(pool[int32(0)]) == "")) {
+		j2gort.CheckState(false)
+	}
+	if this_.pool != nil {
+		this_.internedIDs_ = make([]atomic.Uint32, this_.pool.Size())
+		this_.internEpoch_.Store(nodestore.Epoch())
+	}
+
+}
+
+// Java static method: StringPool.fromProto(com.google.javascript.jscomp.serialization.StringPoolProto proto)
+func StringPool_FromProto(proto *j2gort.Ext_com_google_javascript_jscomp_serialization_StringPoolProto) *StringPool {
+	clinit_StringPool()
+	_ = proto
+	var decoder *Wtf8_Decoder = Wtf8_S_Decoder(proto.GetMaxLength())
+	_ = decoder
+	var stringsList j2gort.Ext_java_util_List = proto.GetStringsList()
+	_ = stringsList
+	var size int32 = stringsList.Size()
+	_ = size
+	var pool []string = j2gort.NewStringArray((size + int32(1)))
+	_ = pool
+	{
+		a_1 := pool
+		i_2 := int32(0)
+		a_1[i_2] = ""
+	}
+	{
+		var i int32 = int32(0)
+		_ = i
+		for ; i < size; i = i + 1 {
+			var s j2gort.Ext_com_google_protobuf_ByteString = j2gort.ListGetByteString(stringsList, i)
+			_ = s
+			{
+				a_3 := pool
+				i_4 := (i + int32(1))
+				a_3[i_4] = j2gort.CheckNotNullString(decoder.Decode(s))
+			}
+		}
+	}
+	return NewStringPool(proto.GetMaxLength(), pool, (size + int32(1)))
+}
+
+// Java static method: StringPool.empty()
+func StringPool_Empty() *StringPool {
+	clinit_StringPool()
+	return StaticGet_StringPool_EMPTY()
+}
+
+// Java method: StringPool.get(int offset)
+func (this_ *StringPool) Get(offset int32) string {
+	_ = offset
+	return this_.pool.Get(offset)
+}
+
+// Java method: StringPool.getInternedStrings()
+func (this_ *StringPool) GetInternedStrings() *pkg_rhino.RhinoStringPool_LazyInternedStringList {
+	return this_.pool
+}
+
+// Java method: StringPool.toProto()
+func (this_ *StringPool) ToProto() *j2gort.Ext_com_google_javascript_jscomp_serialization_StringPoolProto {
+	var builder *j2gort.Ext_com_google_javascript_jscomp_serialization_StringPoolProto_Builder = j2gort.Ext_com_google_javascript_jscomp_serialization_StringPoolProto_NewBuilder_0().SetMaxLength(this_.maxLength)
+	_ = builder
+	{
+		var i int32 = int32(1)
+		_ = i
+		var n int32 = this_.pool.Size()
+		_ = n
+		for ; i < n; i = i + 1 {
+			builder.AddStrings(Wtf8_EncodeToWtf8(this_.pool.Get(i)))
+		}
+	}
+	return j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_StringPoolProto](builder.Build())
+}
+
+// Java static method: StringPool.builder()
+func StringPool_S_Builder() *StringPool_Builder {
+	clinit_StringPool()
+	return NewStringPool_Builder()
+}
+
+// Java class: com.google.javascript.jscomp.serialization.StringPool.Builder
+type StringPool_Builder struct {
+	pool      []string `gson:"pool"`
+	hashTable []int32  `gson:"hashTable"`
+	maxLength int32    `gson:"maxLength"`
+	size      int32    `gson:"size"`
+	idHash_   atomic.Int32
+	built     bool `gson:"built"`
+}
+
+func (this_ *StringPool_Builder) BindSelf_(s any) {
+	_ = s
+}
+func (this_ *StringPool_Builder) IsJavaNil_() bool { return this_ == nil }
+func (*StringPool_Builder) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.serialization.StringPool$Builder", "Builder"
+}
+func (this_ *StringPool_Builder) IdentityHash_() int32 {
+	if this_ == nil {
+		return 0
+	}
+	if h := this_.idHash_.Load(); h != 0 {
+		return h
+	}
+	return j2gort.AssignIdentHash(&this_.idHash_)
+}
+func (*StringPool_Builder) HasIdentityEquals_() {}
+func init() {
+	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.serialization.StringPool.Builder", "com.google.javascript.jscomp.serialization.StringPool$Builder", func(v_ any) bool {
+		return j2gort.InstanceOf[*StringPool_Builder](v_)
+	})
+}
+
+func (this_ *StringPool_Builder) initFields_StringPool_Builder() {
+	_ = this_
+
+	this_.pool = j2gort.NewStringArray(int32(32))
+
+	this_.hashTable = make([]int32, int32(64))
+
+}
+
+// Java constructor: Builder()
+func NewStringPool_Builder() *StringPool_Builder {
+	this_ := &StringPool_Builder{}
+	InitStringPool_Builder(this_)
+	return this_
+}
+
+func InitStringPool_Builder(this_ *StringPool_Builder) {
+	this_.initFields_StringPool_Builder()
+	this_.Put("")
+}
+
+// Java method: Builder.put(java.lang.String string)
+func (this_ *StringPool_Builder) Put(string_ string) int32 {
+	_ = string_
+	j2gort.CheckNotNullString(string_)
+	var h int32 = javalang.StringHashCode(j2gort.CheckNotNullString(string_))
+	_ = h
+	var table []int32 = this_.hashTable
+	_ = table
+	var mask int32 = (int32(len(table)) - int32(1))
+	_ = mask
+	var slot int32 = ((h ^ (javalang.Ushr32(h, int(int32(16))))) & mask)
+	_ = slot
+	for {
+		var entry int32 = table[slot]
+		_ = entry
+		if entry == int32(0) {
+			break
+		}
+		var existingId int32 = (entry - int32(1))
+		_ = existingId
+		if j2gort.CheckNotNullString(this_.pool[existingId]) == string_ {
+			return existingId
+		}
+		slot = ((slot + int32(1)) & mask)
+	}
+	if this_.built {
+		this_.pool = func() []string {
+			arrSrc_5 := this_.pool
+			arrLen_6 := max(int32(len(this_.pool)), (this_.size + int32(16)))
+			j2gort.CheckNotNullSlice(arrSrc_5)
+			if arrLen_6 < 0 {
+				panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+			}
+			arrOut_7 := j2gort.NewStringArray(arrLen_6)
+			copy(arrOut_7, arrSrc_5)
+			return arrOut_7
+		}()
+		this_.built = false
+	} else if this_.size == int32(len(this_.pool)) {
+		this_.pool = func() []string {
+			arrSrc_8 := this_.pool
+			arrLen_9 := (int32(len(this_.pool)) * int32(2))
+			j2gort.CheckNotNullSlice(arrSrc_8)
+			if arrLen_9 < 0 {
+				panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+			}
+			arrOut_10 := j2gort.NewStringArray(arrLen_9)
+			copy(arrOut_10, arrSrc_8)
+			return arrOut_10
+		}()
+	}
+	if j2gort.JStrLen(string_) > this_.maxLength {
+		this_.maxLength = j2gort.JStrLen(string_)
+	}
+	var id int32 = this_.size
+	_ = id
+	{
+		a_11 := this_.pool
+		i_12 := id
+		a_11[i_12] = string_
+	}
+	this_.size = (id + int32(1))
+	{
+		a_13 := table
+		i_14 := slot
+		a_13[i_14] = (id + int32(1))
+	}
+	if (this_.size * int32(4)) >= (int32(len(table)) * int32(3)) {
+		this_.priv_Builder_rehash_7734((int32(len(table)) * int32(2)))
+	}
+	return id
+}
+
+// Java method: Builder.rehash(int newCap)
+func (this_ *StringPool_Builder) priv_Builder_rehash_7734(newCap int32) {
+	_ = newCap
+	var newTable []int32 = make([]int32, newCap)
+	_ = newTable
+	var mask int32 = (newCap - int32(1))
+	_ = mask
+	var items []string = this_.pool
+	_ = items
+	{
+		var id int32 = int32(0)
+		_ = id
+		var n int32 = this_.size
+		_ = n
+		for ; id < n; id = id + 1 {
+			var h int32 = javalang.StringHashCode(j2gort.CheckNotNullString(items[id]))
+			_ = h
+			var slot int32 = ((h ^ (javalang.Ushr32(h, int(int32(16))))) & mask)
+			_ = slot
+			for newTable[slot] != int32(0) {
+				slot = ((slot + int32(1)) & mask)
+			}
+			{
+				a_15 := newTable
+				i_16 := slot
+				a_15[i_16] = (id + int32(1))
+			}
+		}
+	}
+	this_.hashTable = newTable
+}
+
+// Java method: Builder.putAnd(java.lang.String string)
+func (this_ *StringPool_Builder) PutAnd(string_ string) *StringPool_Builder {
+	_ = string_
+	this_.Put(string_)
+	return this_
+}
+
+// Java method: Builder.build()
+func (this_ *StringPool_Builder) Build() *StringPool {
+	this_.built = true
+	return NewStringPool(this_.maxLength, this_.pool, this_.size)
+}
+func (this_ *StringPool) internAt_(offset int32, alloc_ *nodestore.NodeAllocator) (nodestore.StringID, bool) {
+	if this_ == nil {
+		j2gort.ThrowNPE()
+	}
+	if uint32(offset) < uint32(len(this_.internedIDs_)) && this_.internEpoch_.Load() == nodestore.Epoch() {
+		if id_ := this_.internedIDs_[offset].Load(); id_ != 0 {
+			return nodestore.StringID(id_), true
+		}
+		s_ := this_.pool.Get(offset)
+		if s_ == j2gort.NullString {
+			return 0, false
+		}
+		id_ := alloc_.Intern(s_)
+		this_.internedIDs_[offset].Store(uint32(id_))
+		return id_, true
+	}
+	s_ := this_.pool.Get(offset)
+	if s_ == j2gort.NullString {
+		return 0, false
+	}
+	return alloc_.Intern(s_), true
+}

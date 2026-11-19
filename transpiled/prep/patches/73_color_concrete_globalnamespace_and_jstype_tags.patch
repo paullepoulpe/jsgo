@@ -1,0 +1,2231 @@
+diff --git a/com/google/javascript/jscomp/GlobalNamespace.java b/com/google/javascript/jscomp/GlobalNamespace.java
+index ffd02290..a374238c 100644
+--- a/com/google/javascript/jscomp/GlobalNamespace.java
++++ b/com/google/javascript/jscomp/GlobalNamespace.java
+@@ -109,10 +109,10 @@ class GlobalNamespace
+   }
+ 
+   /** Global namespace tree */
+-  final ArrayList<Name> globalNames = new ArrayList<>();
++  final ArrayList<Name> globalNames = new ArrayList<>(1024);
+ 
+   /** Maps names (e.g. "a.b.c") to nodes in the global namespace tree */
+-  final LinkedHashMap<String, Name> nameMap = new LinkedHashMap<>();
++  final LinkedHashMap<String, Name> nameMap = new LinkedHashMap<>(1024);
+ 
+   /** Maps names (e.g. "a.b.c") and MODULE_BODY nodes to Names in that module */
+   private final LinkedHashMap<ModuleMetadata, ModuleNameMap> nameMapByModule =
+@@ -1261,6 +1261,7 @@ class GlobalNamespace
+ 
+     private final String baseName;
+     private final Name parent;
++    private @Nullable String fullName;
+ 
+     // The children of this name. Must be null if there are no children.
+     @Nullable ArrayList<Name> props = null;
+@@ -1321,6 +1322,7 @@ class GlobalNamespace
+     private Name(String name, Name parent, SourceKind sourceKind) {
+       this.baseName = name;
+       this.parent = parent;
++      this.fullName = parent == null ? name : null;
+       this.setBooleanProperty(NameProp.NOT_A_TYPE);
+       this.setBooleanProperty(NameProp.OTHER_OBJECT);
+       if (sourceKind.equals(SourceKind.EXTERN)) {
+@@ -1355,7 +1357,12 @@ class GlobalNamespace
+     }
+ 
+     String getFullName() {
+-      return parent == null ? baseName : parent.getFullName() + '.' + baseName;
++      String fn = this.fullName;
++      if (fn == null) {
++        fn = parent == null ? baseName : parent.getFullName() + '.' + baseName;
++        this.fullName = fn;
++      }
++      return fn;
+     }
+ 
+     boolean usesHasOwnProperty() {
+diff --git a/com/google/javascript/jscomp/InlineFunctions.java b/com/google/javascript/jscomp/InlineFunctions.java
+index 7eb20077..94d1cf43 100644
+--- a/com/google/javascript/jscomp/InlineFunctions.java
++++ b/com/google/javascript/jscomp/InlineFunctions.java
+@@ -68,7 +68,7 @@ class InlineFunctions implements CompilerPass {
+   // uniquely named variables. There's currently a stopgap scope-check
+   // to ensure that this doesn't produce invalid code. But in the long run,
+   // this needs a major refactor.
+-  private final LinkedHashMap<String, FunctionState> fns = new LinkedHashMap<>();
++  private final LinkedHashMap<String, FunctionState> fns = new LinkedHashMap<>(1024);
+   private final LinkedHashMap<Node, String> anonFns = new LinkedHashMap<>();
+ 
+   private final AbstractCompiler compiler;
+diff --git a/com/google/javascript/jscomp/colors/$AutoValue_Color.java b/com/google/javascript/jscomp/colors/$AutoValue_Color.java
+index da622581..6411e53f 100644
+--- a/com/google/javascript/jscomp/colors/$AutoValue_Color.java
++++ b/com/google/javascript/jscomp/colors/$AutoValue_Color.java
+@@ -1,344 +1,22 @@
+-package com.google.javascript.jscomp.colors;
+-
+-import com.google.common.collect.ImmutableSet;
+-import javax.annotation.processing.Generated;
+-import org.jspecify.annotations.Nullable;
+-
+-@Generated("com.google.auto.value.processor.AutoValueProcessor")
+-abstract class $AutoValue_Color extends Color {
+-
+-  private final ColorId id;
+-
+-  private final ImmutableSet<Color> prototypes;
+-
+-  private final ImmutableSet<Color> instanceColors;
+-
+-  private final boolean invalidating;
+-
+-  private final boolean propertiesKeepOriginalName;
+-
+-  private final boolean constructor;
+-
+-  private final ImmutableSet<String> ownProperties;
+-
+-  private final @Nullable ColorId boxId;
+-
+-  private final boolean closureAssert;
+-
+-  private final ImmutableSet<Color> unionElements;
+-
+-  private final transient int hashCode;
+-
+-  $AutoValue_Color(
+-      ColorId id,
+-      ImmutableSet<Color> prototypes,
+-      ImmutableSet<Color> instanceColors,
+-      boolean invalidating,
+-      boolean propertiesKeepOriginalName,
+-      boolean constructor,
+-      ImmutableSet<String> ownProperties,
+-      @Nullable ColorId boxId,
+-      boolean closureAssert,
+-      ImmutableSet<Color> unionElements) {
+-    if (id == null) {
+-      throw new NullPointerException("Null id");
+-    }
+-    this.id = id;
+-    if (prototypes == null) {
+-      throw new NullPointerException("Null prototypes");
+-    }
+-    this.prototypes = prototypes;
+-    if (instanceColors == null) {
+-      throw new NullPointerException("Null instanceColors");
+-    }
+-    this.instanceColors = instanceColors;
+-    this.invalidating = invalidating;
+-    this.propertiesKeepOriginalName = propertiesKeepOriginalName;
+-    this.constructor = constructor;
+-    if (ownProperties == null) {
+-      throw new NullPointerException("Null ownProperties");
+-    }
+-    this.ownProperties = ownProperties;
+-    this.boxId = boxId;
+-    this.closureAssert = closureAssert;
+-    if (unionElements == null) {
+-      throw new NullPointerException("Null unionElements");
+-    }
+-    this.unionElements = unionElements;
+-    this.hashCode =
+-        computeHashCode(
+-            id,
+-            prototypes,
+-            instanceColors,
+-            invalidating,
+-            propertiesKeepOriginalName,
+-            constructor,
+-            ownProperties,
+-            boxId,
+-            closureAssert,
+-            unionElements);
+-  }
++/*
++ * Copyright 2020 The Closure Compiler Authors.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
+ 
+-  @Override
+-  public ColorId getId() {
+-    return id;
+-  }
+-
+-  @Override
+-  public ImmutableSet<Color> getPrototypes() {
+-    return prototypes;
+-  }
+-
+-  @Override
+-  public ImmutableSet<Color> getInstanceColors() {
+-    return instanceColors;
+-  }
+-
+-  @Override
+-  public boolean isInvalidating() {
+-    return invalidating;
+-  }
+-
+-  @Override
+-  public boolean getPropertiesKeepOriginalName() {
+-    return propertiesKeepOriginalName;
+-  }
+-
+-  @Override
+-  public boolean isConstructor() {
+-    return constructor;
+-  }
+-
+-  @Override
+-  public ImmutableSet<String> getOwnProperties() {
+-    return ownProperties;
+-  }
+-
+-  @Override
+-  public @Nullable ColorId getBoxId() {
+-    return boxId;
+-  }
+-
+-  @Override
+-  public boolean isClosureAssert() {
+-    return closureAssert;
+-  }
+-
+-  @Override
+-  public ImmutableSet<Color> getUnionElements() {
+-    return unionElements;
+-  }
+-
+-  @Override
+-  public String toString() {
+-    return "Color{"
+-        + "id=" + id + ", "
+-        + "prototypes=" + prototypes + ", "
+-        + "instanceColors=" + instanceColors + ", "
+-        + "invalidating=" + invalidating + ", "
+-        + "propertiesKeepOriginalName=" + propertiesKeepOriginalName + ", "
+-        + "constructor=" + constructor + ", "
+-        + "ownProperties=" + ownProperties + ", "
+-        + "boxId=" + boxId + ", "
+-        + "closureAssert=" + closureAssert + ", "
+-        + "unionElements=" + unionElements
+-        + "}";
+-  }
+-
+-  @Override
+-  public boolean equals(@Nullable Object o) {
+-    if (o == this) {
+-      return true;
+-    }
+-    if (o instanceof Color) {
+-      Color that = (Color) o;
+-      return this.id.equals(that.getId())
+-          && this.prototypes.equals(that.getPrototypes())
+-          && this.instanceColors.equals(that.getInstanceColors())
+-          && this.invalidating == that.isInvalidating()
+-          && this.propertiesKeepOriginalName == that.getPropertiesKeepOriginalName()
+-          && this.constructor == that.isConstructor()
+-          && this.ownProperties.equals(that.getOwnProperties())
+-          && (this.boxId == null ? that.getBoxId() == null : this.boxId.equals(that.getBoxId()))
+-          && this.closureAssert == that.isClosureAssert()
+-          && this.unionElements.equals(that.getUnionElements());
+-    }
+-    return false;
+-  }
+-
+-  @Override
+-  public int hashCode() {
+-    return this.hashCode;
+-  }
+-
+-  private static int computeHashCode(
+-      ColorId id,
+-      ImmutableSet<Color> prototypes,
+-      ImmutableSet<Color> instanceColors,
+-      boolean invalidating,
+-      boolean propertiesKeepOriginalName,
+-      boolean constructor,
+-      ImmutableSet<String> ownProperties,
+-      @Nullable ColorId boxId,
+-      boolean closureAssert,
+-      ImmutableSet<Color> unionElements) {
+-    int h$ = 1;
+-    h$ *= 1000003;
+-    h$ ^= id.hashCode();
+-    h$ *= 1000003;
+-    h$ ^= prototypes.hashCode();
+-    h$ *= 1000003;
+-    h$ ^= instanceColors.hashCode();
+-    h$ *= 1000003;
+-    h$ ^= invalidating ? 1231 : 1237;
+-    h$ *= 1000003;
+-    h$ ^= propertiesKeepOriginalName ? 1231 : 1237;
+-    h$ *= 1000003;
+-    h$ ^= constructor ? 1231 : 1237;
+-    h$ *= 1000003;
+-    h$ ^= ownProperties.hashCode();
+-    h$ *= 1000003;
+-    h$ ^= (boxId == null) ? 0 : boxId.hashCode();
+-    h$ *= 1000003;
+-    h$ ^= closureAssert ? 1231 : 1237;
+-    h$ *= 1000003;
+-    h$ ^= unionElements.hashCode();
+-    return h$;
+-  }
+-
+-  static class Builder extends Color.Builder {
+-    private @Nullable ColorId id;
+-    private @Nullable ImmutableSet<Color> prototypes;
+-    private @Nullable ImmutableSet<Color> instanceColors;
+-    private boolean invalidating;
+-    private boolean propertiesKeepOriginalName;
+-    private boolean constructor;
+-    private @Nullable ImmutableSet<String> ownProperties;
+-    private @Nullable ColorId boxId;
+-    private boolean closureAssert;
+-    private @Nullable ImmutableSet<Color> unionElements;
+-    private byte set$0;
+-    Builder() {
+-    }
+-    @Override
+-    public Color.Builder setId(ColorId id) {
+-      if (id == null) {
+-        throw new NullPointerException("Null id");
+-      }
+-      this.id = id;
+-      return this;
+-    }
+-    @Override
+-    public Color.Builder setPrototypes(ImmutableSet<Color> prototypes) {
+-      if (prototypes == null) {
+-        throw new NullPointerException("Null prototypes");
+-      }
+-      this.prototypes = prototypes;
+-      return this;
+-    }
+-    @Override
+-    public Color.Builder setInstanceColors(ImmutableSet<Color> instanceColors) {
+-      if (instanceColors == null) {
+-        throw new NullPointerException("Null instanceColors");
+-      }
+-      this.instanceColors = instanceColors;
+-      return this;
+-    }
+-    @Override
+-    public Color.Builder setInvalidating(boolean invalidating) {
+-      this.invalidating = invalidating;
+-      set$0 |= (byte) 1;
+-      return this;
+-    }
+-    @Override
+-    public Color.Builder setPropertiesKeepOriginalName(boolean propertiesKeepOriginalName) {
+-      this.propertiesKeepOriginalName = propertiesKeepOriginalName;
+-      set$0 |= (byte) 2;
+-      return this;
+-    }
+-    @Override
+-    public Color.Builder setConstructor(boolean constructor) {
+-      this.constructor = constructor;
+-      set$0 |= (byte) 4;
+-      return this;
+-    }
+-    @Override
+-    public Color.Builder setOwnProperties(ImmutableSet<String> ownProperties) {
+-      if (ownProperties == null) {
+-        throw new NullPointerException("Null ownProperties");
+-      }
+-      this.ownProperties = ownProperties;
+-      return this;
+-    }
+-    @Override
+-    Color.Builder setBoxId(@Nullable ColorId boxId) {
+-      this.boxId = boxId;
+-      return this;
+-    }
+-    @Override
+-    public Color.Builder setClosureAssert(boolean closureAssert) {
+-      this.closureAssert = closureAssert;
+-      set$0 |= (byte) 8;
+-      return this;
+-    }
+-    @Override
+-    Color.Builder setUnionElements(ImmutableSet<Color> unionElements) {
+-      if (unionElements == null) {
+-        throw new NullPointerException("Null unionElements");
+-      }
+-      this.unionElements = unionElements;
+-      return this;
+-    }
+-    @Override
+-    Color buildInternal() {
+-      if (set$0 != 0xf
+-          || this.id == null
+-          || this.prototypes == null
+-          || this.instanceColors == null
+-          || this.ownProperties == null
+-          || this.unionElements == null) {
+-        StringBuilder missing = new StringBuilder();
+-        if (this.id == null) {
+-          missing.append(" id");
+-        }
+-        if (this.prototypes == null) {
+-          missing.append(" prototypes");
+-        }
+-        if (this.instanceColors == null) {
+-          missing.append(" instanceColors");
+-        }
+-        if ((set$0 & 1) == 0) {
+-          missing.append(" invalidating");
+-        }
+-        if ((set$0 & 2) == 0) {
+-          missing.append(" propertiesKeepOriginalName");
+-        }
+-        if ((set$0 & 4) == 0) {
+-          missing.append(" constructor");
+-        }
+-        if (this.ownProperties == null) {
+-          missing.append(" ownProperties");
+-        }
+-        if ((set$0 & 8) == 0) {
+-          missing.append(" closureAssert");
+-        }
+-        if (this.unionElements == null) {
+-          missing.append(" unionElements");
+-        }
+-        throw new IllegalStateException("Missing required properties:" + missing);
+-      }
+-      return new AutoValue_Color(
+-          this.id,
+-          this.prototypes,
+-          this.instanceColors,
+-          this.invalidating,
+-          this.propertiesKeepOriginalName,
+-          this.constructor,
+-          this.ownProperties,
+-          this.boxId,
+-          this.closureAssert,
+-          this.unionElements);
+-    }
+-  }
++package com.google.javascript.jscomp.colors;
+ 
++/** Unused placeholder after flattening Color into a concrete final class. */
++final class $AutoValue_Color {
++  private $AutoValue_Color() {}
+ }
+diff --git a/com/google/javascript/jscomp/colors/AutoValue_Color.java b/com/google/javascript/jscomp/colors/AutoValue_Color.java
+index 403425a5..dcb1e143 100644
+--- a/com/google/javascript/jscomp/colors/AutoValue_Color.java
++++ b/com/google/javascript/jscomp/colors/AutoValue_Color.java
+@@ -1,38 +1,22 @@
+-package com.google.javascript.jscomp.colors;
+-
+-import com.google.common.collect.ImmutableSet;
+-import com.google.errorprone.annotations.concurrent.LazyInit;
+-import java.lang.Override;
+-import java.lang.String;
+-import java.lang.SuppressWarnings;
+-import javax.annotation.processing.Generated;
+-import org.jspecify.annotations.Nullable;
++/*
++ * Copyright 2020 The Closure Compiler Authors.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
+ 
+-@Generated("com.google.auto.value.extension.memoized.processor.MemoizeExtension")
+-final class AutoValue_Color extends $AutoValue_Color {
+-  @LazyInit
+-  @SuppressWarnings("Immutable")
+-  private transient volatile Color subtractNullOrVoid;
+-
+-  AutoValue_Color(ColorId id, ImmutableSet<Color> prototypes, ImmutableSet<Color> instanceColors,
+-      boolean invalidating, boolean propertiesKeepOriginalName, boolean constructor,
+-      ImmutableSet<String> ownProperties, @Nullable ColorId boxId, boolean closureAssert,
+-      ImmutableSet<Color> unionElements) {
+-    super(id, prototypes, instanceColors, invalidating, propertiesKeepOriginalName, constructor, ownProperties, boxId, closureAssert, unionElements);
+-  }
++package com.google.javascript.jscomp.colors;
+ 
+-  @Override
+-  public Color subtractNullOrVoid() {
+-    if (subtractNullOrVoid == null) {
+-      synchronized (this) {
+-        if (subtractNullOrVoid == null) {
+-          subtractNullOrVoid = super.subtractNullOrVoid();
+-          if (subtractNullOrVoid == null) {
+-            throw new NullPointerException("subtractNullOrVoid() cannot return null");
+-          }
+-        }
+-      }
+-    }
+-    return subtractNullOrVoid;
+-  }
++/** Unused placeholder after flattening Color into a concrete final class. */
++final class AutoValue_Color {
++  private AutoValue_Color() {}
+ }
+diff --git a/com/google/javascript/jscomp/colors/Color.java b/com/google/javascript/jscomp/colors/Color.java
+index f96dff0b..66806164 100644
+--- a/com/google/javascript/jscomp/colors/Color.java
++++ b/com/google/javascript/jscomp/colors/Color.java
+@@ -18,73 +18,193 @@ package com.google.javascript.jscomp.colors;
+ 
+ import static com.google.common.base.Preconditions.checkState;
+ 
+-import com.google.auto.value.AutoValue;
+-import com.google.auto.value.extension.memoized.Memoized;
+ import com.google.common.collect.ImmutableSet;
+ import com.google.common.collect.Iterables;
++import java.util.Iterator;
+ import java.util.LinkedHashSet;
+ import java.util.Set;
+ import org.jspecify.annotations.Nullable;
+ 
+ /** A simplified version of a Closure or TS type for use by optimizations */
+-@AutoValue
+-public abstract class Color {
++public final class Color {
++
++  private final ColorId id;
++  private final ImmutableSet<Color> prototypes;
++  private final ImmutableSet<Color> instanceColors;
++  private final boolean invalidating;
++  private final boolean propertiesKeepOriginalName;
++  private final boolean constructor;
++  private final ImmutableSet<String> ownProperties;
++  private final @Nullable ColorId boxId;
++  private final boolean closureAssert;
++  private final ImmutableSet<Color> unionElements;
++  private final transient int hashCode;
++  private transient volatile @Nullable Color subtractNullOrVoid;
++
++  private Color(
++      ColorId id,
++      ImmutableSet<Color> prototypes,
++      ImmutableSet<Color> instanceColors,
++      boolean invalidating,
++      boolean propertiesKeepOriginalName,
++      boolean constructor,
++      ImmutableSet<String> ownProperties,
++      @Nullable ColorId boxId,
++      boolean closureAssert,
++      ImmutableSet<Color> unionElements) {
++    if (id == null) {
++      throw new NullPointerException("Null id");
++    }
++    this.id = id;
++    if (prototypes == null) {
++      throw new NullPointerException("Null prototypes");
++    }
++    this.prototypes = prototypes;
++    if (instanceColors == null) {
++      throw new NullPointerException("Null instanceColors");
++    }
++    this.instanceColors = instanceColors;
++    this.invalidating = invalidating;
++    this.propertiesKeepOriginalName = propertiesKeepOriginalName;
++    this.constructor = constructor;
++    if (ownProperties == null) {
++      throw new NullPointerException("Null ownProperties");
++    }
++    this.ownProperties = ownProperties;
++    this.boxId = boxId;
++    this.closureAssert = closureAssert;
++    if (unionElements == null) {
++      throw new NullPointerException("Null unionElements");
++    }
++    this.unionElements = unionElements;
++    this.hashCode =
++        computeHashCode(
++            id,
++            prototypes,
++            instanceColors,
++            invalidating,
++            propertiesKeepOriginalName,
++            constructor,
++            ownProperties,
++            boxId,
++            closureAssert,
++            unionElements);
++  }
+ 
+-  public abstract ColorId getId();
++  public ColorId getId() {
++    return id;
++  }
+ 
+   /** Given `function Foo() {}` or `class Foo {}`, color of Foo.prototype. null otherwise. */
+-  public abstract ImmutableSet<Color> getPrototypes();
++  public ImmutableSet<Color> getPrototypes() {
++    return prototypes;
++  }
+ 
+-  public abstract ImmutableSet<Color> getInstanceColors();
++  public ImmutableSet<Color> getInstanceColors() {
++    return instanceColors;
++  }
+ 
+-  public abstract boolean isInvalidating();
++  public boolean isInvalidating() {
++    return invalidating;
++  }
+ 
+-  public abstract boolean getPropertiesKeepOriginalName();
++  public boolean getPropertiesKeepOriginalName() {
++    return propertiesKeepOriginalName;
++  }
+ 
+-  public abstract boolean isConstructor();
++  public boolean isConstructor() {
++    return constructor;
++  }
+ 
+   /**
+    * Property names 'declared' on an object (as opposed to being conceptually inherited from some
+    * supertype).
+    */
+-  public abstract ImmutableSet<String> getOwnProperties();
++  public ImmutableSet<String> getOwnProperties() {
++    return ownProperties;
++  }
+ 
+-  public abstract @Nullable ColorId getBoxId();
++  public @Nullable ColorId getBoxId() {
++    return boxId;
++  }
+ 
+   /**
+    * Whether this type is some Closure assertion function removable by Closure-specific
+    * optimizations.
+    */
+-  public abstract boolean isClosureAssert();
++  public boolean isClosureAssert() {
++    return closureAssert;
++  }
+ 
+-  public abstract ImmutableSet<Color> getUnionElements();
++  public ImmutableSet<Color> getUnionElements() {
++    return unionElements;
++  }
+ 
+   public static Builder singleBuilder() {
+-    return new AutoValue_Color.Builder()
+-        .setClosureAssert(false)
+-        .setConstructor(false)
+-        .setInstanceColors(ImmutableSet.of())
+-        .setInvalidating(false)
+-        .setOwnProperties(ImmutableSet.of())
+-        .setPropertiesKeepOriginalName(false)
+-        .setPrototypes(ImmutableSet.of())
+-        .setUnionElements(ImmutableSet.of());
++    Builder b = new Builder();
++    b.closureAssert = false;
++    b.constructor = false;
++    b.instanceColors = ImmutableSet.of();
++    b.invalidating = false;
++    b.ownProperties = ImmutableSet.of();
++    b.propertiesKeepOriginalName = false;
++    b.prototypes = ImmutableSet.of();
++    b.unionElements = ImmutableSet.of();
++    b.set$0 = 0xf;
++    return b;
++  }
++
++  private static <T> ImmutableSet<T> mergeTwoSets(ImmutableSet<T> a, ImmutableSet<T> b) {
++    if (a.isEmpty()) {
++      return b;
++    }
++    if (b.isEmpty() || a.equals(b)) {
++      return a;
++    }
++    return ImmutableSet.<T>builderWithExpectedSize(a.size() + b.size())
++        .addAll(a)
++        .addAll(b)
++        .build();
+   }
+ 
+   public static Color createUnion(Set<Color> elements) {
+-    switch (elements.size()) {
+-      case 0 -> throw new IllegalStateException();
+-      case 1 -> {
+-        return Iterables.getOnlyElement(elements);
++    int size = elements.size();
++    if (size == 0) {
++      throw new IllegalStateException();
++    }
++    if (size == 1) {
++      return Iterables.getOnlyElement(elements);
++    }
++    if (size == 2) {
++      Iterator<Color> it = elements.iterator();
++      Color first = it.next();
++      Color second = it.next();
++      if (!first.isUnion() && !second.isUnion()) {
++        ImmutableSet<Color> twoElements = ImmutableSet.of(first, second);
++        if (twoElements.size() > 1) {
++          return new Color(
++              ColorId.union2(first.id, second.id),
++              mergeTwoSets(first.prototypes, second.prototypes),
++              mergeTwoSets(first.instanceColors, second.instanceColors),
++              first.invalidating || second.invalidating,
++              first.propertiesKeepOriginalName || second.propertiesKeepOriginalName,
++              first.constructor && second.constructor,
++              mergeTwoSets(first.ownProperties, second.ownProperties),
++              null,
++              first.closureAssert && second.closureAssert,
++              twoElements);
++        }
+       }
+-      default -> {}
+     }
+ 
+-    ImmutableSet.Builder<Color> instanceColors = ImmutableSet.builder();
+-    ImmutableSet.Builder<Color> prototypes = ImmutableSet.builder();
+-    ImmutableSet.Builder<Color> newElements = ImmutableSet.builder();
+-    ImmutableSet.Builder<ColorId> ids = ImmutableSet.builder();
+-    ImmutableSet.Builder<String> ownProperties = ImmutableSet.builder();
++    ImmutableSet<Color> singleInstanceColors = ImmutableSet.of();
++    ImmutableSet.Builder<Color> instanceColorsBuilder = null;
++    ImmutableSet<Color> singlePrototypes = ImmutableSet.of();
++    ImmutableSet.Builder<Color> prototypesBuilder = null;
++    ImmutableSet<String> singleOwnProperties = ImmutableSet.of();
++    ImmutableSet.Builder<String> ownPropertiesBuilder = null;
++    ImmutableSet.Builder<Color> newElements = ImmutableSet.builderWithExpectedSize(size);
++    ImmutableSet.Builder<ColorId> ids = ImmutableSet.builderWithExpectedSize(size);
+     boolean isClosureAssert = true;
+     boolean isConstructor = true;
+     boolean isInvalidating = false;
+@@ -92,39 +212,83 @@ public abstract class Color {
+ 
+     for (Color element : elements) {
+       if (element.isUnion()) {
+-        for (Color nestedElement : element.getUnionElements()) {
++        for (Color nestedElement : element.unionElements) {
+           newElements.add(nestedElement);
+-          ids.add(nestedElement.getId());
++          ids.add(nestedElement.id);
+         }
+       } else {
+         newElements.add(element);
+-        ids.add(element.getId());
++        ids.add(element.id);
+       }
+ 
+-      instanceColors.addAll(element.getInstanceColors());
+-      isClosureAssert &= element.isClosureAssert();
+-      isConstructor &= element.isConstructor();
+-      isInvalidating |= element.isInvalidating();
+-      ownProperties.addAll(element.getOwnProperties());
+-      propertiesKeepOriginalName |= element.getPropertiesKeepOriginalName();
+-      prototypes.addAll(element.getPrototypes());
+-    }
++      ImmutableSet<Color> elemInstanceColors = element.instanceColors;
++      if (!elemInstanceColors.isEmpty()) {
++        if (instanceColorsBuilder != null) {
++          instanceColorsBuilder.addAll(elemInstanceColors);
++        } else if (singleInstanceColors.isEmpty()) {
++          singleInstanceColors = elemInstanceColors;
++        } else if (!singleInstanceColors.equals(elemInstanceColors)) {
++          instanceColorsBuilder =
++              ImmutableSet.builderWithExpectedSize(
++                  singleInstanceColors.size() + elemInstanceColors.size());
++          instanceColorsBuilder.addAll(singleInstanceColors);
++          instanceColorsBuilder.addAll(elemInstanceColors);
++        }
++      }
+ 
+-    return new AutoValue_Color.Builder()
+-        .setClosureAssert(isClosureAssert)
+-        .setConstructor(isConstructor)
+-        .setId(ColorId.union(ids.build()))
+-        .setInstanceColors(instanceColors.build())
+-        .setInvalidating(isInvalidating)
+-        .setOwnProperties(ownProperties.build())
+-        .setPropertiesKeepOriginalName(propertiesKeepOriginalName)
+-        .setPrototypes(prototypes.build())
+-        .setUnionElements(newElements.build())
+-        .buildUnion();
+-  }
++      isClosureAssert &= element.closureAssert;
++      isConstructor &= element.constructor;
++      isInvalidating |= element.invalidating;
++
++      ImmutableSet<String> elemOwnProps = element.ownProperties;
++      if (!elemOwnProps.isEmpty()) {
++        if (ownPropertiesBuilder != null) {
++          ownPropertiesBuilder.addAll(elemOwnProps);
++        } else if (singleOwnProperties.isEmpty()) {
++          singleOwnProperties = elemOwnProps;
++        } else if (!singleOwnProperties.equals(elemOwnProps)) {
++          ownPropertiesBuilder =
++              ImmutableSet.builderWithExpectedSize(
++                  singleOwnProperties.size() + elemOwnProps.size());
++          ownPropertiesBuilder.addAll(singleOwnProperties);
++          ownPropertiesBuilder.addAll(elemOwnProps);
++        }
++      }
++
++      propertiesKeepOriginalName |= element.propertiesKeepOriginalName;
++
++      ImmutableSet<Color> elemPrototypes = element.prototypes;
++      if (!elemPrototypes.isEmpty()) {
++        if (prototypesBuilder != null) {
++          prototypesBuilder.addAll(elemPrototypes);
++        } else if (singlePrototypes.isEmpty()) {
++          singlePrototypes = elemPrototypes;
++        } else if (!singlePrototypes.equals(elemPrototypes)) {
++          prototypesBuilder =
++              ImmutableSet.builderWithExpectedSize(
++                  singlePrototypes.size() + elemPrototypes.size());
++          prototypesBuilder.addAll(singlePrototypes);
++          prototypesBuilder.addAll(elemPrototypes);
++        }
++      }
++    }
+ 
+-  Color() {
+-    // No public constructor.
++    ImmutableSet<Color> builtUnionElements = newElements.build();
++    Color result =
++        new Color(
++            ColorId.union(ids.build()),
++            prototypesBuilder != null ? prototypesBuilder.build() : singlePrototypes,
++            instanceColorsBuilder != null ? instanceColorsBuilder.build() : singleInstanceColors,
++            isInvalidating,
++            propertiesKeepOriginalName,
++            isConstructor,
++            ownPropertiesBuilder != null ? ownPropertiesBuilder.build() : singleOwnProperties,
++            null,
++            isClosureAssert,
++            builtUnionElements);
++    checkState(result.unionElements.size() > 1, result);
++    checkState(result.boxId == null, result);
++    return result;
+   }
+ 
+   /**
+@@ -133,91 +297,292 @@ public abstract class Color {
+    * <p>Note that the boxed versions of primitives (String, Number, etc.) are /not/ considered
+    * "primitive" by this method.
+    */
+-  public final boolean isPrimitive() {
++  public boolean isPrimitive() {
+     /*
+      * Avoid the design headache about whether unions are primitives. The union *color* isn't
+      * primitive, but the *value* held by a union reference may be.
+      */
+     checkState(!this.isUnion(), this);
+-    return StandardColors.PRIMITIVE_COLORS.containsKey(this.getId());
++    return StandardColors.PRIMITIVE_COLORS.containsKey(this.id);
+   }
+ 
+-  public final boolean isUnion() {
++  public boolean isUnion() {
+     // Single element sets are banned in the builder.
+-    return !this.getUnionElements().isEmpty();
++    return !this.unionElements.isEmpty();
+   }
+ 
+-  @Memoized
+   public Color subtractNullOrVoid() {
+-    /* Avoid defining NULL_OR_VOID.subtract(NULL_OR_VOID) */
+-    checkState(this.isUnion());
++    Color cached = this.subtractNullOrVoid;
++    if (cached == null) {
++      return computeSubtractNullOrVoid();
++    }
++    return cached;
++  }
+ 
+-    if (!this.getUnionElements().contains(StandardColors.NULL_OR_VOID)) {
+-      return this;
++  private Color computeSubtractNullOrVoid() {
++    synchronized (this) {
++      Color cached = this.subtractNullOrVoid;
++      if (cached == null) {
++        /* Avoid defining NULL_OR_VOID.subtract(NULL_OR_VOID) */
++        checkState(this.isUnion());
++
++        if (!this.unionElements.contains(StandardColors.NULL_OR_VOID)) {
++          cached = this;
++        } else if (this.unionElements.size() == 2) {
++          for (Color elem : this.unionElements) {
++            if (!elem.equals(StandardColors.NULL_OR_VOID)) {
++              cached = elem;
++              break;
++            }
++          }
++        } else {
++          LinkedHashSet<Color> elements = new LinkedHashSet<>(this.unionElements);
++          elements.remove(StandardColors.NULL_OR_VOID);
++          cached = createUnion(elements);
++        }
++        if (cached == null) {
++          throw new NullPointerException("subtractNullOrVoid() cannot return null");
++        }
++        this.subtractNullOrVoid = cached;
++      }
++      return cached;
+     }
++  }
+ 
+-    LinkedHashSet<Color> elements = new LinkedHashSet<>(this.getUnionElements());
+-    elements.remove(StandardColors.NULL_OR_VOID);
+-    return createUnion(elements);
++  @Override
++  public String toString() {
++    return "Color{"
++        + "id=" + id + ", "
++        + "prototypes=" + prototypes + ", "
++        + "instanceColors=" + instanceColors + ", "
++        + "invalidating=" + invalidating + ", "
++        + "propertiesKeepOriginalName=" + propertiesKeepOriginalName + ", "
++        + "constructor=" + constructor + ", "
++        + "ownProperties=" + ownProperties + ", "
++        + "boxId=" + boxId + ", "
++        + "closureAssert=" + closureAssert + ", "
++        + "unionElements=" + unionElements
++        + "}";
+   }
+ 
+-  /**
+-   * Builder for a singleton color. Should be passed to {@link
+-   * Color#createSingleton(SingletonColorFields)} after building and before using
+-   */
+-  @AutoValue.Builder
+-  public abstract static class Builder {
++  @Override
++  public boolean equals(@Nullable Object o) {
++    if (o == this) {
++      return true;
++    }
++    if (o instanceof Color) {
++      Color that = (Color) o;
++      return this.hashCode == that.hashCode
++          && this.id.equals(that.id)
++          && this.prototypes.equals(that.prototypes)
++          && this.instanceColors.equals(that.instanceColors)
++          && this.invalidating == that.invalidating
++          && this.propertiesKeepOriginalName == that.propertiesKeepOriginalName
++          && this.constructor == that.constructor
++          && this.ownProperties.equals(that.ownProperties)
++          && (this.boxId == null ? that.boxId == null : this.boxId.equals(that.boxId))
++          && this.closureAssert == that.closureAssert
++          && this.unionElements.equals(that.unionElements);
++    }
++    return false;
++  }
+ 
+-    public abstract Builder setId(ColorId x);
++  @Override
++  public int hashCode() {
++    return this.hashCode;
++  }
+ 
+-    public abstract Builder setInvalidating(boolean x);
++  private static int computeHashCode(
++      ColorId id,
++      ImmutableSet<Color> prototypes,
++      ImmutableSet<Color> instanceColors,
++      boolean invalidating,
++      boolean propertiesKeepOriginalName,
++      boolean constructor,
++      ImmutableSet<String> ownProperties,
++      @Nullable ColorId boxId,
++      boolean closureAssert,
++      ImmutableSet<Color> unionElements) {
++    int h$ = 1;
++    h$ *= 1000003;
++    h$ ^= id.hashCode();
++    h$ *= 1000003;
++    h$ ^= prototypes.hashCode();
++    h$ *= 1000003;
++    h$ ^= instanceColors.hashCode();
++    h$ *= 1000003;
++    h$ ^= invalidating ? 1231 : 1237;
++    h$ *= 1000003;
++    h$ ^= propertiesKeepOriginalName ? 1231 : 1237;
++    h$ *= 1000003;
++    h$ ^= constructor ? 1231 : 1237;
++    h$ *= 1000003;
++    h$ ^= ownProperties.hashCode();
++    h$ *= 1000003;
++    h$ ^= (boxId == null) ? 0 : boxId.hashCode();
++    h$ *= 1000003;
++    h$ ^= closureAssert ? 1231 : 1237;
++    h$ *= 1000003;
++    h$ ^= unionElements.hashCode();
++    return h$;
++  }
+ 
+-    public abstract Builder setPropertiesKeepOriginalName(boolean x);
++  /** Builder for a singleton color. */
++  public static final class Builder {
++    private @Nullable ColorId id;
++    private @Nullable ImmutableSet<Color> prototypes;
++    private @Nullable ImmutableSet<Color> instanceColors;
++    private boolean invalidating;
++    private boolean propertiesKeepOriginalName;
++    private boolean constructor;
++    private @Nullable ImmutableSet<String> ownProperties;
++    private @Nullable ColorId boxId;
++    private boolean closureAssert;
++    private @Nullable ImmutableSet<Color> unionElements;
++    private byte set$0;
++
++    Builder() {}
++
++    public Builder setId(ColorId id) {
++      if (id == null) {
++        throw new NullPointerException("Null id");
++      }
++      this.id = id;
++      return this;
++    }
+ 
+-    public abstract Builder setConstructor(boolean x);
++    public Builder setPrototypes(ImmutableSet<Color> prototypes) {
++      if (prototypes == null) {
++        throw new NullPointerException("Null prototypes");
++      }
++      this.prototypes = prototypes;
++      return this;
++    }
+ 
+-    public abstract Builder setOwnProperties(ImmutableSet<String> x);
++    public Builder setInstanceColors(ImmutableSet<Color> instanceColors) {
++      if (instanceColors == null) {
++        throw new NullPointerException("Null instanceColors");
++      }
++      this.instanceColors = instanceColors;
++      return this;
++    }
+ 
+-    public abstract Builder setClosureAssert(boolean x);
++    public Builder setInvalidating(boolean invalidating) {
++      this.invalidating = invalidating;
++      set$0 |= (byte) 1;
++      return this;
++    }
+ 
+-    public abstract Builder setInstanceColors(ImmutableSet<Color> x);
++    public Builder setPropertiesKeepOriginalName(boolean propertiesKeepOriginalName) {
++      this.propertiesKeepOriginalName = propertiesKeepOriginalName;
++      set$0 |= (byte) 2;
++      return this;
++    }
+ 
+-    public abstract Builder setPrototypes(ImmutableSet<Color> x);
++    public Builder setConstructor(boolean constructor) {
++      this.constructor = constructor;
++      set$0 |= (byte) 4;
++      return this;
++    }
+ 
+-    abstract Builder setUnionElements(ImmutableSet<Color> x);
++    public Builder setOwnProperties(ImmutableSet<String> ownProperties) {
++      if (ownProperties == null) {
++        throw new NullPointerException("Null ownProperties");
++      }
++      this.ownProperties = ownProperties;
++      return this;
++    }
+ 
+-    abstract Builder setBoxId(@Nullable ColorId x);
++    Builder setBoxId(@Nullable ColorId boxId) {
++      this.boxId = boxId;
++      return this;
++    }
++
++    public Builder setClosureAssert(boolean closureAssert) {
++      this.closureAssert = closureAssert;
++      set$0 |= (byte) 8;
++      return this;
++    }
+ 
+-    public Builder setPrototype(Color x) {
++    Builder setUnionElements(ImmutableSet<Color> unionElements) {
++      if (unionElements == null) {
++        throw new NullPointerException("Null unionElements");
++      }
++      this.unionElements = unionElements;
++      return this;
++    }
++
++    public Builder setPrototype(@Nullable Color x) {
+       return this.setPrototypes((x == null) ? ImmutableSet.of() : ImmutableSet.of(x));
+     }
+ 
+-    public Builder setInstanceColor(Color x) {
++    public Builder setInstanceColor(@Nullable Color x) {
+       return this.setInstanceColors((x == null) ? ImmutableSet.of() : ImmutableSet.of(x));
+     }
+ 
+-    abstract Color buildInternal();
+-
+-    public final Color build() {
+-      Color result = this.buildInternal();
+-      checkState(result.getUnionElements().isEmpty(), result);
+-      checkState(result.getBoxId() == null, result);
+-      checkState(!StandardColors.AXIOMATIC_COLORS.containsKey(result.getId()), result);
+-      return result;
++    Color buildInternal() {
++      if (set$0 != 0xf
++          || this.id == null
++          || this.prototypes == null
++          || this.instanceColors == null
++          || this.ownProperties == null
++          || this.unionElements == null) {
++        StringBuilder missing = new StringBuilder();
++        if (this.id == null) {
++          missing.append(" id");
++        }
++        if (this.prototypes == null) {
++          missing.append(" prototypes");
++        }
++        if (this.instanceColors == null) {
++          missing.append(" instanceColors");
++        }
++        if ((set$0 & 1) == 0) {
++          missing.append(" invalidating");
++        }
++        if ((set$0 & 2) == 0) {
++          missing.append(" propertiesKeepOriginalName");
++        }
++        if ((set$0 & 4) == 0) {
++          missing.append(" constructor");
++        }
++        if (this.ownProperties == null) {
++          missing.append(" ownProperties");
++        }
++        if ((set$0 & 8) == 0) {
++          missing.append(" closureAssert");
++        }
++        if (this.unionElements == null) {
++          missing.append(" unionElements");
++        }
++        throw new IllegalStateException("Missing required properties:" + missing);
++      }
++      return new Color(
++          this.id,
++          this.prototypes,
++          this.instanceColors,
++          this.invalidating,
++          this.propertiesKeepOriginalName,
++          this.constructor,
++          this.ownProperties,
++          this.boxId,
++          this.closureAssert,
++          this.unionElements);
+     }
+ 
+-    private final Color buildUnion() {
++    public Color build() {
+       Color result = this.buildInternal();
+-      checkState(result.getUnionElements().size() > 1, result);
+-      checkState(result.getBoxId() == null, result);
++      checkState(result.unionElements.isEmpty(), result);
++      checkState(result.boxId == null, result);
++      checkState(!StandardColors.AXIOMATIC_COLORS.containsKey(result.id), result);
+       return result;
+     }
+ 
+-    final Color buildAxiomatic() {
++    Color buildAxiomatic() {
+       checkState(StandardColors.AXIOMATIC_COLORS == null, "StandardColors are all defined");
+ 
+       Color result = this.buildInternal();
+-      checkState(result.getUnionElements().isEmpty(), result);
++      checkState(result.unionElements.isEmpty(), result);
+       return result;
+     }
+   }
+diff --git a/com/google/javascript/rhino/jstype/AllType.java b/com/google/javascript/rhino/jstype/AllType.java
+index 3a3a4fd1..e0190eb3 100644
+--- a/com/google/javascript/rhino/jstype/AllType.java
++++ b/com/google/javascript/rhino/jstype/AllType.java
+@@ -47,7 +47,7 @@ import com.google.javascript.rhino.ErrorReporter;
+  */
+ public final class AllType extends JSType {
+   AllType(JSTypeRegistry registry) {
+-    super(registry);
++    super(registry, null, KIND_ALL);
+     this.eagerlyResolveToSelf();
+   }
+ 
+@@ -56,11 +56,6 @@ public final class AllType extends JSType {
+     return JSTypeClass.ALL;
+   }
+ 
+-  @Override
+-  public boolean isAllType() {
+-    return true;
+-  }
+-
+   @Override
+   public boolean matchesStringContext() {
+     // Be lenient.
+diff --git a/com/google/javascript/rhino/jstype/BigIntType.java b/com/google/javascript/rhino/jstype/BigIntType.java
+index 8968fc1c..53d64ead 100644
+--- a/com/google/javascript/rhino/jstype/BigIntType.java
++++ b/com/google/javascript/rhino/jstype/BigIntType.java
+@@ -44,7 +44,7 @@ import com.google.javascript.jscomp.base.Tri;
+ /** BigInt type. */
+ public final class BigIntType extends ValueType {
+   BigIntType(JSTypeRegistry registry) {
+-    super(registry);
++    super(registry, KIND_BIGINT_VALUE);
+   }
+ 
+   @Override
+@@ -69,11 +69,6 @@ public final class BigIntType extends ValueType {
+     return Tri.FALSE;
+   }
+ 
+-  @Override
+-  public boolean isBigIntValueType() {
+-    return true;
+-  }
+-
+   @Override
+   public boolean matchesNumberContext() {
+     // BigInt cannot be coerced to a Number
+diff --git a/com/google/javascript/rhino/jstype/BooleanType.java b/com/google/javascript/rhino/jstype/BooleanType.java
+index d87739e3..9ca11019 100644
+--- a/com/google/javascript/rhino/jstype/BooleanType.java
++++ b/com/google/javascript/rhino/jstype/BooleanType.java
+@@ -47,7 +47,7 @@ import com.google.javascript.jscomp.base.Tri;
+  */
+ public final class BooleanType extends ValueType {
+   BooleanType(JSTypeRegistry registry) {
+-    super(registry);
++    super(registry, KIND_BOOLEAN_VALUE);
+   }
+ 
+   @Override
+@@ -70,11 +70,6 @@ public final class BooleanType extends ValueType {
+     return Tri.FALSE;
+   }
+ 
+-  @Override
+-  public boolean isBooleanValueType() {
+-    return true;
+-  }
+-
+   @Override
+   public boolean matchesNumberContext() {
+     return true;
+diff --git a/com/google/javascript/rhino/jstype/EnumElementType.java b/com/google/javascript/rhino/jstype/EnumElementType.java
+index f01e83f9..71b10624 100644
+--- a/com/google/javascript/rhino/jstype/EnumElementType.java
++++ b/com/google/javascript/rhino/jstype/EnumElementType.java
+@@ -68,7 +68,7 @@ public final class EnumElementType extends ObjectType {
+ 
+   EnumElementType(JSTypeRegistry registry, JSType elementType,
+       String name, EnumType enumType) {
+-    super(registry);
++    super(registry, KIND_ENUM_ELEMENT);
+     this.primitiveType = elementType;
+     this.primitiveObjectType = elementType.toObjectType();
+     this.name = name;
+diff --git a/com/google/javascript/rhino/jstype/EnumType.java b/com/google/javascript/rhino/jstype/EnumType.java
+index 1fb91781..1c7a63ae 100644
+--- a/com/google/javascript/rhino/jstype/EnumType.java
++++ b/com/google/javascript/rhino/jstype/EnumType.java
+@@ -118,7 +118,7 @@ public final class EnumType extends PrototypeObjectType implements JSType.WithSo
+   }
+ 
+   private EnumType(Builder builder) {
+-    super(builder);
++    super(builder, KIND_ENUM);
+     this.elementType =
+         new EnumElementType(builder.registry, builder.elementType, builder.elementName, this);
+     this.source = builder.source;
+diff --git a/com/google/javascript/rhino/jstype/FunctionType.java b/com/google/javascript/rhino/jstype/FunctionType.java
+index 69bc65dc..a71a464e 100644
+--- a/com/google/javascript/rhino/jstype/FunctionType.java
++++ b/com/google/javascript/rhino/jstype/FunctionType.java
+@@ -183,13 +183,42 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     return this.kind == Kind.CONSTRUCTOR ? PropAccess.ANY : null;
+   }
+ 
++  private static int computeFunctionKindMask(Builder builder) {
++    int mask;
++    switch (builder.noTypeKind) {
++      case NO_KIND_NO_OBJECT:
++        mask = KIND_NO_OBJECT_TYPE;
++        break;
++      case NO_KIND_NO_TYPE:
++        mask = KIND_NO_TYPE;
++        break;
++      default:
++        mask = KIND_FUNCTION;
++        break;
++    }
++    switch (builder.kind) {
++      case CONSTRUCTOR:
++        mask |= KIND_CONSTRUCTOR;
++        break;
++      case INTERFACE:
++        mask |= KIND_INTERFACE;
++        break;
++      case ORDINARY:
++        mask |= KIND_ORDINARY_FUNCTION;
++        break;
++      default:
++        break;
++    }
++    return mask;
++  }
++
+   /**
+    * Creates an instance for a function that might be a constructor.
+    *
+    * <p>Non-subclasses must go through {@link Builder} to create a new FunctionType.
+    */
+   FunctionType(Builder builder) {
+-    super(builder);
++    super(builder, computeFunctionKindMask(builder));
+     this.noTypeKind = builder.noTypeKind;
+     setPrettyPrint(true);
+ 
+@@ -288,16 +317,6 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     return checkNotNull(this.registry.getNativeFunctionType(JSTypeNative.FUNCTION_FUNCTION_TYPE));
+   }
+ 
+-  @Override
+-  public boolean isNoObjectType() {
+-    return this.noTypeKind == NO_KIND_NO_OBJECT;
+-  }
+-
+-  @Override
+-  public boolean isNoType() {
+-    return this.noTypeKind == NO_KIND_NO_TYPE;
+-  }
+-
+   @Override
+   public boolean isNullable() {
+     return this.noTypeKind == NO_KIND_NO_TYPE;
+@@ -363,21 +382,6 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     return identical(this, this.registry.getNativeType(JSTypeNative.FUNCTION_TYPE));
+   }
+ 
+-  @Override
+-  public final boolean isConstructor() {
+-    return kind == Kind.CONSTRUCTOR;
+-  }
+-
+-  @Override
+-  public final boolean isInterface() {
+-    return kind == Kind.INTERFACE;
+-  }
+-
+-  @Override
+-  public final boolean isOrdinaryFunction() {
+-    return kind == Kind.ORDINARY;
+-  }
+-
+   final Kind getKind() {
+     return kind;
+   }
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index 814ecb5f..10518212 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -85,14 +85,50 @@ public abstract class JSType {
+   private byte templateCheckResult = 0;
+   private static final CanCastToVisitor CAN_CAST_TO_VISITOR = new CanCastToVisitor();
+ 
++  static final int KIND_PROXY = 1 << 0;
++  static final int KIND_NO_TYPE = 1 << 1;
++  static final int KIND_NO_OBJECT_TYPE = 1 << 2;
++  static final int KIND_NO_RESOLVED_TYPE = 1 << 3;
++  static final int KIND_ALL = 1 << 4;
++  static final int KIND_CHECKED_UNKNOWN = 1 << 5;
++  static final int KIND_UNION = 1 << 6;
++  static final int KIND_FUNCTION = 1 << 7;
++  static final int KIND_ENUM_ELEMENT = 1 << 8;
++  static final int KIND_ENUM = 1 << 9;
++  static final int KIND_NAMED = 1 << 10;
++  static final int KIND_RECORD = 1 << 11;
++  static final int KIND_TEMPLATIZED = 1 << 12;
++  static final int KIND_TEMPLATE = 1 << 13;
++  static final int KIND_NUMBER_VALUE = 1 << 14;
++  static final int KIND_STRING_VALUE = 1 << 15;
++  static final int KIND_BOOLEAN_VALUE = 1 << 16;
++  static final int KIND_NULL = 1 << 17;
++  static final int KIND_VOID = 1 << 18;
++  static final int KIND_BIGINT_VALUE = 1 << 19;
++  static final int KIND_SYMBOL_VALUE = 1 << 20;
++  static final int KIND_KNOWN_SYMBOL_VALUE = 1 << 21;
++  static final int KIND_CONSTRUCTOR = 1 << 22;
++  static final int KIND_INTERFACE = 1 << 23;
++  static final int KIND_ORDINARY_FUNCTION = 1 << 24;
++  static final int KIND_NATIVE_OBJECT = 1 << 25;
++
++  private static final int EMPTY_TYPE_MASK =
++      KIND_NO_TYPE | KIND_NO_OBJECT_TYPE | KIND_NO_RESOLVED_TYPE;
++
+   final JSTypeRegistry registry;
++  final int typeKindMask;
+ 
+   JSType(JSTypeRegistry registry) {
+-    this(registry, null);
++    this(registry, null, 0);
+   }
+ 
+   JSType(JSTypeRegistry registry, @Nullable TemplateTypeMap templateTypeMap) {
++    this(registry, templateTypeMap, 0);
++  }
++
++  JSType(JSTypeRegistry registry, @Nullable TemplateTypeMap templateTypeMap, int typeKindMask) {
+     this.registry = registry;
++    this.typeKindMask = typeKindMask;
+ 
+     this.templateTypeMap =
+         (templateTypeMap == null) ? registry.getEmptyTemplateTypeMap() : templateTypeMap;
+@@ -100,6 +136,18 @@ public abstract class JSType {
+     registry.getResolver().addUnresolved(this);
+   }
+ 
++  protected boolean hasKindMaskProxy(int mask) {
++    return false;
++  }
++
++  final boolean hasKindMask(int mask) {
++    int m = this.typeKindMask;
++    if ((m & (mask | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & mask) != 0 || hasKindMaskProxy(mask);
++  }
++
+   abstract JSTypeClass getTypeClass();
+ 
+   /**
+@@ -202,39 +250,58 @@ public abstract class JSType {
+     return !getPropertyKind(pname, false).equals(HasPropertyKind.ABSENT);
+   }
+ 
+-  public boolean isNoType() {
+-    return false;
++  public final boolean isNoType() {
++    int m = this.typeKindMask;
++    if ((m & (KIND_NO_TYPE | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_NO_TYPE) != 0 || hasKindMaskProxy(KIND_NO_TYPE);
+   }
+ 
+-  public boolean isNoResolvedType() {
+-    return false;
++  public final boolean isNoResolvedType() {
++    int m = this.typeKindMask;
++    if ((m & (KIND_NO_RESOLVED_TYPE | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_NO_RESOLVED_TYPE) != 0 || hasKindMaskProxy(KIND_NO_RESOLVED_TYPE);
+   }
+ 
+-  public boolean isNoObjectType() {
+-    return false;
++  public final boolean isNoObjectType() {
++    int m = this.typeKindMask;
++    if ((m & (KIND_NO_OBJECT_TYPE | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_NO_OBJECT_TYPE) != 0 || hasKindMaskProxy(KIND_NO_OBJECT_TYPE);
+   }
+ 
+   public final boolean isEmptyType() {
+-    return isNoType()
+-        || isNoObjectType()
+-        || isNoResolvedType()
+-        || identical(this, registry.getNativeFunctionType(JSTypeNative.LEAST_FUNCTION_TYPE));
++    int m = this.typeKindMask;
++    if ((m & (EMPTY_TYPE_MASK | KIND_PROXY | KIND_FUNCTION)) == 0) {
++      return false;
++    }
++    if ((m & EMPTY_TYPE_MASK) != 0) {
++      return true;
++    }
++    if ((m & KIND_PROXY) != 0) {
++      return hasKindMaskProxy(EMPTY_TYPE_MASK);
++    }
++    return identical(this, registry.getNativeFunctionType(JSTypeNative.LEAST_FUNCTION_TYPE));
+   }
+ 
+   public boolean isNumberObjectType() {
+     return false;
+   }
+ 
+-  public boolean isNumberValueType() {
+-    return false;
++  public final boolean isNumberValueType() {
++    return (this.typeKindMask & KIND_NUMBER_VALUE) != 0;
+   }
+ 
+   public boolean isBigIntObjectType() {
+     return false;
+   }
+ 
+-  public boolean isBigIntValueType() {
+-    return false;
++  public final boolean isBigIntValueType() {
++    return (this.typeKindMask & KIND_BIGINT_VALUE) != 0;
+   }
+ 
+   /** Whether this is the prototype of a function. */
+@@ -255,16 +322,16 @@ public abstract class JSType {
+     return false;
+   }
+ 
+-  public boolean isStringValueType() {
+-    return false;
++  public final boolean isStringValueType() {
++    return (this.typeKindMask & KIND_STRING_VALUE) != 0;
+   }
+ 
+-  public boolean isSymbolValueType() {
+-    return false;
++  public final boolean isSymbolValueType() {
++    return (this.typeKindMask & KIND_SYMBOL_VALUE) != 0;
+   }
+ 
+-  public boolean isKnownSymbolValueType() {
+-    return false;
++  public final boolean isKnownSymbolValueType() {
++    return (this.typeKindMask & KIND_KNOWN_SYMBOL_VALUE) != 0;
+   }
+ 
+   /**
+@@ -318,8 +385,8 @@ public abstract class JSType {
+     return false;
+   }
+ 
+-  public boolean isBooleanValueType() {
+-    return false;
++  public final boolean isBooleanValueType() {
++    return (this.typeKindMask & KIND_BOOLEAN_VALUE) != 0;
+   }
+ 
+   public boolean isRegexpType() {
+@@ -330,16 +397,20 @@ public abstract class JSType {
+     return false;
+   }
+ 
+-  public boolean isNullType() {
+-    return false;
++  public final boolean isNullType() {
++    return (this.typeKindMask & KIND_NULL) != 0;
+   }
+ 
+-  public boolean isVoidType() {
+-    return false;
++  public final boolean isVoidType() {
++    return (this.typeKindMask & KIND_VOID) != 0;
+   }
+ 
+-  public boolean isAllType() {
+-    return false;
++  public final boolean isAllType() {
++    int m = this.typeKindMask;
++    if ((m & (KIND_ALL | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_ALL) != 0 || hasKindMaskProxy(KIND_ALL);
+   }
+ 
+   public boolean isUnknownType() {
+@@ -351,12 +422,20 @@ public abstract class JSType {
+     return isUnknownType();
+   }
+ 
+-  public boolean isCheckedUnknownType() {
+-    return false;
++  public final boolean isCheckedUnknownType() {
++    int m = this.typeKindMask;
++    if ((m & (KIND_CHECKED_UNKNOWN | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_CHECKED_UNKNOWN) != 0 || hasKindMaskProxy(KIND_CHECKED_UNKNOWN);
+   }
+ 
+   public final boolean isUnionType() {
+-    return toMaybeUnionType() != null;
++    int m = this.typeKindMask;
++    if ((m & (KIND_UNION | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_UNION) != 0 || hasKindMaskProxy(KIND_UNION);
+   }
+ 
+   public final boolean isRawTypeOfTemplatizedType() {
+@@ -432,7 +511,11 @@ public abstract class JSType {
+ 
+   /** Returns true if toMaybeFunctionType returns a non-null FunctionType. */
+   public final boolean isFunctionType() {
+-    return toMaybeFunctionType() != null;
++    int m = this.typeKindMask;
++    if ((m & (KIND_FUNCTION | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_FUNCTION) != 0 || hasKindMaskProxy(KIND_FUNCTION);
+   }
+ 
+   /**
+@@ -473,7 +556,11 @@ public abstract class JSType {
+   }
+ 
+   public final boolean isEnumElementType() {
+-    return toMaybeEnumElementType() != null;
++    int m = this.typeKindMask;
++    if ((m & (KIND_ENUM_ELEMENT | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_ENUM_ELEMENT) != 0 || hasKindMaskProxy(KIND_ENUM_ELEMENT);
+   }
+ 
+   public final @Nullable JSType getEnumeratedTypeOfEnumElement() {
+@@ -490,8 +577,12 @@ public abstract class JSType {
+ 
+   // TODO(sdh): Consider changing this to isEnumObjectType(), though this would be inconsistent with
+   // the EnumType class and toMaybeEnumType(), so we would need to consider changing them, too.
+-  public boolean isEnumType() {
+-    return toMaybeEnumType() != null;
++  public final boolean isEnumType() {
++    int m = this.typeKindMask;
++    if ((m & (KIND_ENUM | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_ENUM) != 0 || hasKindMaskProxy(KIND_ENUM);
+   }
+ 
+   /**
+@@ -501,16 +592,20 @@ public abstract class JSType {
+     return null;
+   }
+ 
+-  public boolean isNamedType() {
+-    return toMaybeNamedType() != null;
++  public final boolean isNamedType() {
++    return (this.typeKindMask & KIND_NAMED) != 0;
+   }
+ 
+   public NamedType toMaybeNamedType() {
+     return null;
+   }
+ 
+-  public boolean isRecordType() {
+-    return toMaybeRecordType() != null;
++  public final boolean isRecordType() {
++    int m = this.typeKindMask;
++    if ((m & (KIND_RECORD | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_RECORD) != 0 || hasKindMaskProxy(KIND_RECORD);
+   }
+ 
+   public boolean isStructuralInterface() {
+@@ -530,7 +625,11 @@ public abstract class JSType {
+   }
+ 
+   public final boolean isTemplatizedType() {
+-    return toMaybeTemplatizedType() != null;
++    int m = this.typeKindMask;
++    if ((m & (KIND_TEMPLATIZED | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_TEMPLATIZED) != 0 || hasKindMaskProxy(KIND_TEMPLATIZED);
+   }
+ 
+   /** Downcasts this to a TemplatizedType, or returns null if this is not a templatized type. */
+@@ -539,7 +638,11 @@ public abstract class JSType {
+   }
+ 
+   public final boolean isTemplateType() {
+-    return toMaybeTemplateType() != null;
++    int m = this.typeKindMask;
++    if ((m & (KIND_TEMPLATE | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_TEMPLATE) != 0 || hasKindMaskProxy(KIND_TEMPLATE);
+   }
+ 
+   /** Downcasts this to a TemplateType, or returns null if this is not a template type. */
+@@ -637,8 +740,12 @@ public abstract class JSType {
+    * Whether this type is a {@link FunctionType} that is a constructor or a
+    * named type that points to such a type.
+    */
+-  public boolean isConstructor() {
+-    return false;
++  public final boolean isConstructor() {
++    int m = this.typeKindMask;
++    if ((m & (KIND_CONSTRUCTOR | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_CONSTRUCTOR) != 0 || hasKindMaskProxy(KIND_CONSTRUCTOR);
+   }
+ 
+   /**
+@@ -654,7 +761,7 @@ public abstract class JSType {
+    * Does not include structural constructors.
+    */
+   public final boolean isNominalConstructorOrInterface() {
+-    if (isConstructor() || isInterface()) {
++    if (hasKindMask(KIND_CONSTRUCTOR | KIND_INTERFACE)) {
+       FunctionType fn = toMaybeFunctionType();
+       if (fn == null) {
+         return false;
+@@ -673,8 +780,12 @@ public abstract class JSType {
+     return false;
+   }
+ 
+-  public boolean isNativeObjectType() {
+-    return false;
++  public final boolean isNativeObjectType() {
++    int m = this.typeKindMask;
++    if ((m & (KIND_NATIVE_OBJECT | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_NATIVE_OBJECT) != 0 || hasKindMaskProxy(KIND_NATIVE_OBJECT);
+   }
+ 
+   /**
+@@ -713,8 +824,12 @@ public abstract class JSType {
+    * Whether this type is a {@link FunctionType} that is an interface or a named
+    * type that points to such a type.
+    */
+-  public boolean isInterface() {
+-    return false;
++  public final boolean isInterface() {
++    int m = this.typeKindMask;
++    if ((m & (KIND_INTERFACE | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_INTERFACE) != 0 || hasKindMaskProxy(KIND_INTERFACE);
+   }
+ 
+   /**
+@@ -722,8 +837,12 @@ public abstract class JSType {
+    * constructor, nominal interface, or record interface), or a named type that points to such a
+    * type.
+    */
+-  public boolean isOrdinaryFunction() {
+-    return false;
++  public final boolean isOrdinaryFunction() {
++    int m = this.typeKindMask;
++    if ((m & (KIND_ORDINARY_FUNCTION | KIND_PROXY)) == 0) {
++      return false;
++    }
++    return (m & KIND_ORDINARY_FUNCTION) != 0 || hasKindMaskProxy(KIND_ORDINARY_FUNCTION);
+   }
+ 
+   @Override
+@@ -1396,7 +1515,7 @@ public abstract class JSType {
+ 
+   // TODO(sdh): Should this be exposed more publicly?
+   private boolean isNullTypeOrVoidType() {
+-    return this.isNullType() || this.isVoidType();
++    return (this.typeKindMask & (KIND_NULL | KIND_VOID)) != 0;
+   }
+ 
+   public @Nullable Iterable<JSType> getUnionMembers() {
+diff --git a/com/google/javascript/rhino/jstype/KnownSymbolType.java b/com/google/javascript/rhino/jstype/KnownSymbolType.java
+index 477f0e09..3fd19472 100644
+--- a/com/google/javascript/rhino/jstype/KnownSymbolType.java
++++ b/com/google/javascript/rhino/jstype/KnownSymbolType.java
+@@ -54,7 +54,7 @@ public final class KnownSymbolType extends SymbolType {
+   private final String name;
+ 
+   public KnownSymbolType(JSTypeRegistry registry, String name) {
+-    super(registry);
++    super(registry, KIND_SYMBOL_VALUE | KIND_KNOWN_SYMBOL_VALUE);
+     this.name = name;
+   }
+ 
+@@ -68,11 +68,6 @@ public final class KnownSymbolType extends SymbolType {
+     return name;
+   }
+ 
+-  @Override
+-  public boolean isKnownSymbolValueType() {
+-    return true;
+-  }
+-
+   @Override
+   public KnownSymbolType toMaybeKnownSymbolType() {
+     return this;
+diff --git a/com/google/javascript/rhino/jstype/NamedType.java b/com/google/javascript/rhino/jstype/NamedType.java
+index 6e0fefbe..a366cb0a 100644
+--- a/com/google/javascript/rhino/jstype/NamedType.java
++++ b/com/google/javascript/rhino/jstype/NamedType.java
+@@ -126,7 +126,7 @@ public final class NamedType extends ProxyObjectType {
+   private final boolean restrictByNull;
+ 
+   private NamedType(Builder builder) {
+-    super(builder.registry, builder.referencedType);
++    super(builder.registry, builder.referencedType, null, KIND_NAMED);
+     checkNotNull(builder.referenceName);
+     checkNotNull(builder.resolutionKind);
+     checkNotNull(builder.templateTypes);
+diff --git a/com/google/javascript/rhino/jstype/NoResolvedType.java b/com/google/javascript/rhino/jstype/NoResolvedType.java
+index 031a2f2e..5a85dda5 100644
+--- a/com/google/javascript/rhino/jstype/NoResolvedType.java
++++ b/com/google/javascript/rhino/jstype/NoResolvedType.java
+@@ -79,7 +79,7 @@ public final class NoResolvedType extends ObjectType {
+ 
+   NoResolvedType(
+       JSTypeRegistry registry, String referenceName, ImmutableList<JSType> templateTypes) {
+-    super(registry);
++    super(registry, KIND_NO_RESOLVED_TYPE);
+     this.referenceName = checkNotNull(referenceName);
+     this.templateTypes = templateTypes;
+     this.eagerlyResolveToSelf();
+@@ -100,11 +100,6 @@ public final class NoResolvedType extends ObjectType {
+     return templateTypes;
+   }
+ 
+-  @Override
+-  public boolean isNoResolvedType() {
+-    return true;
+-  }
+-
+   @Override
+   public BooleanLiteralSet getPossibleToBooleanOutcomes() {
+     return BooleanLiteralSet.BOTH;
+diff --git a/com/google/javascript/rhino/jstype/NullType.java b/com/google/javascript/rhino/jstype/NullType.java
+index 99741815..283b8e7b 100644
+--- a/com/google/javascript/rhino/jstype/NullType.java
++++ b/com/google/javascript/rhino/jstype/NullType.java
+@@ -47,7 +47,7 @@ import com.google.javascript.jscomp.base.Tri;
+  */
+ public final class NullType extends ValueType {
+   NullType(JSTypeRegistry registry) {
+-    super(registry);
++    super(registry, KIND_NULL);
+   }
+ 
+   @Override
+@@ -55,11 +55,6 @@ public final class NullType extends ValueType {
+     return JSTypeClass.NULL;
+   }
+ 
+-  @Override
+-  public boolean isNullType() {
+-    return true;
+-  }
+-
+   @Override
+   public boolean isNullable() {
+     return true;
+diff --git a/com/google/javascript/rhino/jstype/NumberType.java b/com/google/javascript/rhino/jstype/NumberType.java
+index 0f8a02b1..2ec3cc87 100644
+--- a/com/google/javascript/rhino/jstype/NumberType.java
++++ b/com/google/javascript/rhino/jstype/NumberType.java
+@@ -47,7 +47,7 @@ import com.google.javascript.jscomp.base.Tri;
+  */
+ public final class NumberType extends ValueType {
+   NumberType(JSTypeRegistry registry) {
+-    super(registry);
++    super(registry, KIND_NUMBER_VALUE);
+   }
+ 
+   @Override
+@@ -72,11 +72,6 @@ public final class NumberType extends ValueType {
+     return Tri.FALSE;
+   }
+ 
+-  @Override
+-  public boolean isNumberValueType() {
+-    return true;
+-  }
+-
+   @Override
+   public boolean matchesNumberContext() {
+     return true;
+diff --git a/com/google/javascript/rhino/jstype/ObjectType.java b/com/google/javascript/rhino/jstype/ObjectType.java
+index 11bcbcc1..a6bba884 100644
+--- a/com/google/javascript/rhino/jstype/ObjectType.java
++++ b/com/google/javascript/rhino/jstype/ObjectType.java
+@@ -89,10 +89,18 @@ public abstract class ObjectType extends JSType {
+     super(registry);
+   }
+ 
++  ObjectType(JSTypeRegistry registry, int typeKindMask) {
++    super(registry, null, typeKindMask);
++  }
++
+   ObjectType(JSTypeRegistry registry, TemplateTypeMap templateTypeMap) {
+     super(registry, templateTypeMap);
+   }
+ 
++  ObjectType(JSTypeRegistry registry, TemplateTypeMap templateTypeMap, int typeKindMask) {
++    super(registry, templateTypeMap, typeKindMask);
++  }
++
+   /**
+    * Returns the property map that manages the set of properties for an object.
+    */
+@@ -978,12 +986,6 @@ public abstract class ObjectType extends JSType {
+     unknown = true;
+   }
+ 
+-  /** Whether this is a built-in object. */
+-  @Override
+-  public boolean isNativeObjectType() {
+-    return false;
+-  }
+-
+   /** A null-safe version of JSType#toObjectType. */
+   public static @Nullable ObjectType cast(JSType type) {
+     return type == null ? null : type.toObjectType();
+diff --git a/com/google/javascript/rhino/jstype/PrototypeObjectType.java b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+index 3accd9f2..ebd79268 100644
+--- a/com/google/javascript/rhino/jstype/PrototypeObjectType.java
++++ b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+@@ -100,7 +100,14 @@ public class PrototypeObjectType extends ObjectType {
+    * native, and any templatized types.
+    */
+   PrototypeObjectType(Builder<?> builder) {
+-    super(builder.registry, builder.templateTypeMap);
++    this(builder, 0);
++  }
++
++  PrototypeObjectType(Builder<?> builder, int extraKindMask) {
++    super(
++        builder.registry,
++        builder.templateTypeMap,
++        (builder.nativeType ? KIND_NATIVE_OBJECT : 0) | extraKindMask);
+ 
+     this.className = builder.className;
+     this.templateParamCount = builder.templateParamCount;
+@@ -503,12 +510,6 @@ public class PrototypeObjectType extends ObjectType {
+     return anonymousType;
+   }
+ 
+-  /** Whether this is a built-in object. */
+-  @Override
+-  public boolean isNativeObjectType() {
+-    return nativeType;
+-  }
+-
+   @Override
+   void setOwnerFunction(@Nullable FunctionType type) {
+     checkState(ownerFunction == null || type == null);
+diff --git a/com/google/javascript/rhino/jstype/ProxyObjectType.java b/com/google/javascript/rhino/jstype/ProxyObjectType.java
+index d5deaaef..d579b30a 100644
+--- a/com/google/javascript/rhino/jstype/ProxyObjectType.java
++++ b/com/google/javascript/rhino/jstype/ProxyObjectType.java
+@@ -63,17 +63,30 @@ public class ProxyObjectType extends ObjectType {
+   private @Nullable ObjectType referencedObjType;
+ 
+   ProxyObjectType(JSTypeRegistry registry, JSType referencedType) {
+-    this(registry, referencedType, null);
++    this(registry, referencedType, null, 0);
+   }
+ 
+   ProxyObjectType(
+       JSTypeRegistry registry, JSType referencedType, @Nullable TemplateTypeMap templateTypeMap) {
+-    super(registry, templateTypeMap);
++    this(registry, referencedType, templateTypeMap, 0);
++  }
++
++  ProxyObjectType(
++      JSTypeRegistry registry,
++      JSType referencedType,
++      @Nullable TemplateTypeMap templateTypeMap,
++      int extraKindMask) {
++    super(registry, templateTypeMap, KIND_PROXY | extraKindMask);
+     setReferencedType(checkNotNull(referencedType));
+ 
+     registry.getResolver().resolveIfClosed(this, TYPE_CLASS);
+   }
+ 
++  @Override
++  protected final boolean hasKindMaskProxy(int mask) {
++    return this.referencedType.hasKindMask(mask);
++  }
++
+   @Override
+   JSTypeClass getTypeClass() {
+     return TYPE_CLASS;
+@@ -160,31 +173,11 @@ public class ProxyObjectType extends ObjectType {
+     return referencedType.isStructuralType();
+   }
+ 
+-  @Override
+-  public final boolean isNoType() {
+-    return referencedType.isNoType();
+-  }
+-
+-  @Override
+-  public final boolean isNoObjectType() {
+-    return referencedType.isNoObjectType();
+-  }
+-
+-  @Override
+-  public final boolean isNoResolvedType() {
+-    return referencedType.isNoResolvedType();
+-  }
+-
+   @Override
+   public final boolean isUnknownType() {
+     return referencedType.isUnknownType();
+   }
+ 
+-  @Override
+-  public final boolean isCheckedUnknownType() {
+-    return referencedType.isCheckedUnknownType();
+-  }
+-
+   @Override
+   public final boolean isNullable() {
+     return referencedType.isNullable();
+@@ -200,11 +193,6 @@ public class ProxyObjectType extends ObjectType {
+     return referencedType.toMaybeEnumType();
+   }
+ 
+-  @Override
+-  public final boolean isConstructor() {
+-    return referencedType.isConstructor();
+-  }
+-
+   @Override
+   public boolean isNominalType() {
+     return referencedType.isNominalType();
+@@ -215,21 +203,6 @@ public class ProxyObjectType extends ObjectType {
+     return referencedType.isInstanceType();
+   }
+ 
+-  @Override
+-  public final boolean isInterface() {
+-    return referencedType.isInterface();
+-  }
+-
+-  @Override
+-  public final boolean isOrdinaryFunction() {
+-    return referencedType.isOrdinaryFunction();
+-  }
+-
+-  @Override
+-  public final boolean isAllType() {
+-    return referencedType.isAllType();
+-  }
+-
+   @Override
+   public final boolean isStruct() {
+     return referencedType.isStruct();
+@@ -240,11 +213,6 @@ public class ProxyObjectType extends ObjectType {
+     return referencedType.isDict();
+   }
+ 
+-  @Override
+-  public final boolean isNativeObjectType() {
+-    return referencedObjType == null ? false : referencedObjType.isNativeObjectType();
+-  }
+-
+   @Override
+   public final RecordType toMaybeRecordType() {
+     return referencedType.toMaybeRecordType();
+diff --git a/com/google/javascript/rhino/jstype/RecordType.java b/com/google/javascript/rhino/jstype/RecordType.java
+index bdf85cdc..dfbac484 100644
+--- a/com/google/javascript/rhino/jstype/RecordType.java
++++ b/com/google/javascript/rhino/jstype/RecordType.java
+@@ -74,7 +74,7 @@ public final class RecordType extends PrototypeObjectType {
+    */
+   RecordType(JSTypeRegistry registry, Map<String, RecordProperty> properties,
+       boolean declared) {
+-    super(PrototypeObjectType.builder(registry));
++    super(PrototypeObjectType.builder(registry), KIND_RECORD);
+     setPrettyPrint(true);
+     this.declared = declared;
+ 
+diff --git a/com/google/javascript/rhino/jstype/StringType.java b/com/google/javascript/rhino/jstype/StringType.java
+index 2fa0bc1c..999dca00 100644
+--- a/com/google/javascript/rhino/jstype/StringType.java
++++ b/com/google/javascript/rhino/jstype/StringType.java
+@@ -47,7 +47,7 @@ import com.google.javascript.jscomp.base.Tri;
+  */
+ public final class StringType extends ValueType {
+   StringType(JSTypeRegistry registry) {
+-    super(registry);
++    super(registry, KIND_STRING_VALUE);
+   }
+ 
+   @Override
+@@ -72,11 +72,6 @@ public final class StringType extends ValueType {
+     return Tri.FALSE;
+   }
+ 
+-  @Override
+-  public boolean isStringValueType() {
+-    return true;
+-  }
+-
+   @Override
+   public boolean matchesNumberContext() {
+     return true;
+diff --git a/com/google/javascript/rhino/jstype/SymbolType.java b/com/google/javascript/rhino/jstype/SymbolType.java
+index 596119fc..670ff331 100644
+--- a/com/google/javascript/rhino/jstype/SymbolType.java
++++ b/com/google/javascript/rhino/jstype/SymbolType.java
+@@ -51,7 +51,11 @@ import com.google.javascript.jscomp.base.Tri;
+  */
+ public class SymbolType extends ValueType {
+   SymbolType(JSTypeRegistry registry) {
+-    super(registry);
++    this(registry, KIND_SYMBOL_VALUE);
++  }
++
++  SymbolType(JSTypeRegistry registry, int typeKindMask) {
++    super(registry, typeKindMask);
+   }
+ 
+   @Override
+@@ -73,11 +77,6 @@ public class SymbolType extends ValueType {
+     return Tri.FALSE;
+   }
+ 
+-  @Override
+-  public boolean isSymbolValueType() {
+-    return true;
+-  }
+-
+   @Override
+   public boolean matchesNumberContext() {
+     return false;
+diff --git a/com/google/javascript/rhino/jstype/TemplateType.java b/com/google/javascript/rhino/jstype/TemplateType.java
+index 01ada316..8882629f 100644
+--- a/com/google/javascript/rhino/jstype/TemplateType.java
++++ b/com/google/javascript/rhino/jstype/TemplateType.java
+@@ -77,7 +77,10 @@ public final class TemplateType extends ProxyObjectType {
+       @Nullable JSType bound,
+       @Nullable Node typeTransformation) {
+     super(
+-        registry, bound == null ? registry.getNativeObjectType(JSTypeNative.UNKNOWN_TYPE) : bound);
++        registry,
++        bound == null ? registry.getNativeObjectType(JSTypeNative.UNKNOWN_TYPE) : bound,
++        null,
++        KIND_TEMPLATE);
+     this.name = name;
+     this.bound = bound == null ? registry.getNativeObjectType(JSTypeNative.UNKNOWN_TYPE) : bound;
+     this.typeTransformation = typeTransformation;
+diff --git a/com/google/javascript/rhino/jstype/TemplatizedType.java b/com/google/javascript/rhino/jstype/TemplatizedType.java
+index 33fc25ed..aa4107f2 100644
+--- a/com/google/javascript/rhino/jstype/TemplatizedType.java
++++ b/com/google/javascript/rhino/jstype/TemplatizedType.java
+@@ -67,7 +67,10 @@ public final class TemplatizedType extends ProxyObjectType {
+       JSTypeRegistry registry, ObjectType objectType,
+       ImmutableList<JSType> templateTypes) {
+     super(
+-        registry, objectType, objectType.getTemplateTypeMap().copyFilledWithValues(templateTypes));
++        registry,
++        objectType,
++        objectType.getTemplateTypeMap().copyFilledWithValues(templateTypes),
++        KIND_TEMPLATIZED);
+ 
+     ImmutableList.Builder<JSType> builder = ImmutableList.builder();
+     boolean maybeIsSpecializedOnlyWithUnknown = true;
+diff --git a/com/google/javascript/rhino/jstype/UnionType.java b/com/google/javascript/rhino/jstype/UnionType.java
+index bb631842..1aa0ab2b 100644
+--- a/com/google/javascript/rhino/jstype/UnionType.java
++++ b/com/google/javascript/rhino/jstype/UnionType.java
+@@ -113,7 +113,7 @@ public final class UnionType extends JSType {
+    * is also responsible for setting the alternates, which is why they aren't passed as a parameter.
+    */
+   private UnionType(Builder builder) {
+-    super(builder.registry);
++    super(builder.registry, null, KIND_UNION);
+     this.fillFromBuilder(builder);
+ 
+     registry.getResolver().resolveIfClosed(this, TYPE_CLASS);
+diff --git a/com/google/javascript/rhino/jstype/UnknownType.java b/com/google/javascript/rhino/jstype/UnknownType.java
+index d780f155..356819ac 100644
+--- a/com/google/javascript/rhino/jstype/UnknownType.java
++++ b/com/google/javascript/rhino/jstype/UnknownType.java
+@@ -50,7 +50,7 @@ public final class UnknownType extends ObjectType {
+   private final boolean isChecked;
+ 
+   UnknownType(JSTypeRegistry registry, boolean isChecked) {
+-    super(registry);
++    super(registry, isChecked ? KIND_CHECKED_UNKNOWN : 0);
+     this.eagerlyResolveToSelf();
+     this.isChecked = isChecked;
+   }
+@@ -65,11 +65,6 @@ public final class UnknownType extends ObjectType {
+     return true;
+   }
+ 
+-  @Override
+-  public boolean isCheckedUnknownType() {
+-    return isChecked;
+-  }
+-
+   @Override
+   public boolean canBeCalled() {
+     return true;
+diff --git a/com/google/javascript/rhino/jstype/ValueType.java b/com/google/javascript/rhino/jstype/ValueType.java
+index 99a3ca2d..eb046a42 100644
+--- a/com/google/javascript/rhino/jstype/ValueType.java
++++ b/com/google/javascript/rhino/jstype/ValueType.java
+@@ -45,8 +45,8 @@ import com.google.javascript.rhino.ErrorReporter;
+  * Value types (null, void, number, boolean, string).
+  */
+ abstract class ValueType extends JSType {
+-  ValueType(JSTypeRegistry registry) {
+-    super(registry);
++  ValueType(JSTypeRegistry registry, int typeKindMask) {
++    super(registry, null, typeKindMask);
+     this.eagerlyResolveToSelf();
+   }
+ 
+diff --git a/com/google/javascript/rhino/jstype/VoidType.java b/com/google/javascript/rhino/jstype/VoidType.java
+index 9cbda12d..4495b37c 100644
+--- a/com/google/javascript/rhino/jstype/VoidType.java
++++ b/com/google/javascript/rhino/jstype/VoidType.java
+@@ -47,7 +47,7 @@ import com.google.javascript.jscomp.base.Tri;
+  */
+ public final class VoidType extends ValueType {
+   VoidType(JSTypeRegistry registry) {
+-    super(registry);
++    super(registry, KIND_VOID);
+   }
+ 
+   @Override
+@@ -91,11 +91,6 @@ public final class VoidType extends ValueType {
+     return true;
+   }
+ 
+-  @Override
+-  public boolean isVoidType() {
+-    return true;
+-  }
+-
+   @Override
+   public boolean isVoidable() {
+     return true;

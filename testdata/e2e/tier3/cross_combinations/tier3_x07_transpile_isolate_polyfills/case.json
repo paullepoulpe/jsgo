@@ -1,0 +1,28 @@
+{
+  "id": "tier3_x07_transpile_isolate_polyfills",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "Transpile with isolated polyfills and output wrapper",
+  "description": "Verifies isolated polyfills preventing global scope modification wrapped in IIFE",
+  "args": [
+    "--language_in",
+    "ECMASCRIPT_NEXT",
+    "--language_out",
+    "ECMASCRIPT5",
+    "--isolate_polyfills",
+    "--output_wrapper",
+    "(function(){%output%})();",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "const nums = [1, 2, 3]; window['hasVal'] = nums.includes(2);"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "(function(){var $jscomp=$jscomp||{};$jscomp.scope={};$jscomp.ASSUME_ES2020=!1;$jscomp.ASSUME_ES6=$jscomp.ASSUME_ES2020;$jscomp.ASSUME_ES5=$jscomp.ASSUME_ES6;$jscomp.ASSUME_NO_NATIVE_MAP=!1;$jscomp.ASSUME_NO_NATIVE_SET=!1;$jscomp.ISOLATE_POLYFILLS=!0;$jscomp.FORCE_POLYFILL_PROMISE=!1;$jscomp.FORCE_POLYFILL_PROMISE_WHEN_NO_UNHANDLED_REJECTION=!1;$jscomp.INSTRUMENT_ASYNC_CONTEXT=!0;\n$jscomp.defineProperty=$jscomp.ASSUME_ES5||typeof Object.defineProperties==\"function\"?Object.defineProperty:function(b,c,a){if(b==Array.prototype||b==Object.prototype)return b;b[c]=a.value;return b};$jscomp.getGlobal=function(b){b=[\"object\"==typeof globalThis&&globalThis,b,\"object\"==typeof window&&window,\"object\"==typeof self&&self,\"object\"==typeof global&&global];for(var c=0;c<b.length;++c){var a=b[c];if(a&&a.Math==Math)return a}throw Error(\"Cannot find global object\");};\n$jscomp.global=$jscomp.ASSUME_ES2020?globalThis:$jscomp.getGlobal(this);$jscomp.IS_SYMBOL_NATIVE=typeof Symbol===\"function\"&&typeof Symbol(\"x\")===\"symbol\";$jscomp.TRUST_ES6_POLYFILLS=!$jscomp.ISOLATE_POLYFILLS||$jscomp.IS_SYMBOL_NATIVE;$jscomp.polyfills={};$jscomp.propertyToPolyfillSymbol={};$jscomp.POLYFILL_PREFIX=\"$jscp$\";var $jscomp$lookupPolyfilledValue=function(b,c,a){if(!a||b!=null){a=$jscomp.propertyToPolyfillSymbol[c];if(a==null)return b[c];a=b[a];return a!==void 0?a:b[c]}};\n$jscomp.TYPED_ARRAY_CLASSES=function(){var b=\"Int8 Uint8 Uint8Clamped Int16 Uint16 Int32 Uint32 Float32 Float64\".split(\" \");$jscomp.global.BigInt64Array&&(b.push(\"BigInt64\"),b.push(\"BigUint64\"));return b}();$jscomp.polyfillTypedArrayMethod=function(b,c,a,d){if(c)for(var e=0;e<$jscomp.TYPED_ARRAY_CLASSES.length;e++){var f=$jscomp.TYPED_ARRAY_CLASSES[e]+\"Array.prototype.\"+b;$jscomp.ISOLATE_POLYFILLS?$jscomp.polyfillIsolated(f,c,a,d):$jscomp.polyfillUnisolated(f,c,a,d)}};\n$jscomp.polyfill=function(b,c,a,d){c&&($jscomp.ISOLATE_POLYFILLS?$jscomp.polyfillIsolated(b,c,a,d):$jscomp.polyfillUnisolated(b,c,a,d))};$jscomp.polyfillUnisolated=function(b,c,a,d){a=$jscomp.global;b=b.split(\".\");for(d=0;d<b.length-1;d++){var e=b[d];if(!(e in a))return;a=a[e]}b=b[b.length-1];d=a[b];c=c(d);c!=d&&c!=null&&$jscomp.defineProperty(a,b,{configurable:!0,writable:!0,value:c})};\n$jscomp.polyfillIsolated=function(b,c,a,d){var e=b.split(\".\");b=e.length===1;d=e[0];d=!b&&d in $jscomp.polyfills?$jscomp.polyfills:$jscomp.global;for(var f=0;f<e.length-1;f++){var g=e[f];if(!(g in d))return;d=d[g]}e=e[e.length-1];a=$jscomp.IS_SYMBOL_NATIVE&&a===\"es6\"?d[e]:null;c=c(a);c!=null&&(b?$jscomp.defineProperty($jscomp.polyfills,e,{configurable:!0,writable:!0,value:c}):c!==a&&($jscomp.propertyToPolyfillSymbol[e]===void 0&&(a=Math.random()*1E9>>>0,$jscomp.propertyToPolyfillSymbol[e]=$jscomp.IS_SYMBOL_NATIVE?\n$jscomp.global.Symbol(e):$jscomp.POLYFILL_PREFIX+a+\"$\"+e),$jscomp.defineProperty(d,$jscomp.propertyToPolyfillSymbol[e],{configurable:!0,writable:!0,value:c})))};$jscomp.polyfill(\"Object.is\",function(b){return b?b:function(c,a){return c===a?c!==0||1/c===1/a:c!==c&&a!==a}},\"es6\",\"es3\");\n$jscomp.polyfill(\"Array.prototype.includes\",function(b){return b?b:function(c,a){var d=this;d instanceof String&&(d=String(d));var e=d.length;a=a||0;for(a<0&&(a=Math.max(a+e,0));a<e;a++){var f=d[a];if(f===c||$jscomp$lookupPolyfilledValue(Object,\"is\").call(Object,f,c))return!0}return!1}},\"es7\",\"es3\");\n$jscomp.checkStringArgs=function(b,c,a){if(b==null)throw new TypeError(\"The 'this' value for String.prototype.\"+a+\" must not be null or undefined\");if(c instanceof RegExp)throw new TypeError(\"First argument to String.prototype.\"+a+\" must not be a regular expression\");return b+\"\"};$jscomp.polyfill(\"String.prototype.includes\",function(b){return b?b:function(c,a){return $jscomp.checkStringArgs(this,c,\"includes\").indexOf(c,a||0)!==-1}},\"es6\",\"es3\");var nums=[1,2,3];\nwindow.hasVal=$jscomp$lookupPolyfilledValue(nums,\"includes\").call(nums,2);})();\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "tier3_x02_typecheck_halting_advanced",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "Type error halting ADVANCED optimization pipeline",
+  "description": "Verifies type error promoted to error halts compilation before optimization phases execute",
+  "args": [
+    "--compilation_level",
+    "ADVANCED",
+    "--jscomp_error=checkTypes",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @type {number} */ var invalidNum = 'string'; function calc(n) { return n * 2; } window['res'] = calc(invalidNum);"
+  },
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "in.js:1:39: ERROR - [JSC_TYPE_MISMATCH] initializing variable\nfound   : string\nrequired: number\n  1| /** @type {number} */ var invalidNum = 'string'; function calc(n) { return n * 2; } window['res'] = calc(invalidNum);\n                                            ^^^^^^^^\n\n1 error(s), 0 warning(s), 80.0% typed\n",
+    "output_files": {}
+  }
+}

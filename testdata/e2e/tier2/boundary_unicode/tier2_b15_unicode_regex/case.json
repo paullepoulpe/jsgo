@@ -1,0 +1,23 @@
+{
+  "id": "tier2_b15_unicode_regex",
+  "tier": 2,
+  "feature": "boundary_unicode",
+  "name": "Unicode escape sequences in regular expressions",
+  "description": "Compiles regular expressions containing Unicode range escapes",
+  "args": [
+    "--compilation_level",
+    "SIMPLE",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var pattern = /[\\u00A0-\\uD7FF\\uF900-\\uFDCF]/gu; window['match'] = pattern.test('test');"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var pattern=/[\\u00A0-\\uD7FF\\uF900-\\uFDCF]/gu;window.match=pattern.test(\"test\");\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

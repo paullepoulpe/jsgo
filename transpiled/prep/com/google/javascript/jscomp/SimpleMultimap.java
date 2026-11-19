@@ -1,0 +1,242 @@
+/*
+ * Copyright 2026 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.javascript.jscomp;
+
+import java.io.Serializable;
+import java.util.AbstractCollection;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+/**
+ * A lightweight, pure-Java replacement for Guava's Multimap backed by LinkedHashMap
+ * and ArrayList to maintain deterministic insertion order without Guava dependencies.
+ */
+public final class SimpleMultimap<K, V> implements Serializable {
+  private static final long serialVersionUID = 1L;
+
+  private final Map<K, List<V>> map;
+  private int totalSize;
+
+  public SimpleMultimap() {
+    this.map = new LinkedHashMap<>();
+    this.totalSize = 0;
+  }
+
+  public SimpleMultimap(SimpleMultimap<? extends K, ? extends V> other) {
+    this();
+    putAll(other);
+  }
+
+  public static <K, V> SimpleMultimap<K, V> create() {
+    return new SimpleMultimap<>();
+  }
+
+  public static <K, V> SimpleMultimap<K, V> create(SimpleMultimap<? extends K, ? extends V> other) {
+    return new SimpleMultimap<>(other);
+  }
+
+  public int size() {
+    return totalSize;
+  }
+
+  public boolean isEmpty() {
+    return totalSize == 0;
+  }
+
+  public boolean containsKey(Object key) {
+    return map.containsKey(key);
+  }
+
+  public boolean containsKey(String key) {
+    return map.containsKey(key);
+  }
+
+  public boolean containsValue(Object value) {
+    for (List<V> collection : map.values()) {
+      if (collection.contains(value)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public boolean containsEntry(Object key, Object value) {
+    List<V> collection = map.get(key);
+    return collection != null && collection.contains(value);
+  }
+
+  public boolean put(K key, V value) {
+    List<V> list = map.computeIfAbsent(key, k -> new ArrayList<>());
+    boolean added = list.add(value);
+    if (added) {
+      totalSize++;
+    }
+    return added;
+  }
+
+  public boolean remove(Object key, Object value) {
+    List<V> list = map.get(key);
+    if (list == null) {
+      return false;
+    }
+    boolean removed = list.remove(value);
+    if (removed) {
+      totalSize--;
+      if (list.isEmpty()) {
+        map.remove(key);
+      }
+    }
+    return removed;
+  }
+
+  public boolean putAll(K key, Iterable<? extends V> values) {
+    Objects.requireNonNull(values);
+    boolean modified = false;
+    for (V value : values) {
+      modified |= put(key, value);
+    }
+    return modified;
+  }
+
+  public boolean putAll(SimpleMultimap<? extends K, ? extends V> other) {
+    Objects.requireNonNull(other);
+    boolean modified = false;
+    for (Map.Entry<? extends K, ? extends V> entry : other.entries()) {
+      modified |= put(entry.getKey(), entry.getValue());
+    }
+    return modified;
+  }
+
+  public List<V> get(Object key) {
+    List<V> list = map.get(key);
+    if (list == null) {
+      return Collections.emptyList();
+    }
+    return list;
+  }
+
+  public List<V> get(String key) {
+    List<V> list = map.get(key);
+    if (list == null) {
+      return Collections.emptyList();
+    }
+    return list;
+  }
+
+  public List<V> removeAll(Object key) {
+    List<V> list = map.remove(key);
+    if (list == null) {
+      return Collections.emptyList();
+    }
+    totalSize -= list.size();
+    return list;
+  }
+
+  public List<V> removeAll(String key) {
+    List<V> list = map.remove(key);
+    if (list == null) {
+      return Collections.emptyList();
+    }
+    totalSize -= list.size();
+    return list;
+  }
+
+  public void clear() {
+    map.clear();
+    totalSize = 0;
+  }
+
+  public Set<K> keySet() {
+    return map.keySet();
+  }
+
+  public Collection<V> values() {
+    return new AbstractCollection<V>() {
+      @Override
+      public Iterator<V> iterator() {
+        return new Iterator<V>() {
+          private final Iterator<List<V>> mapIterator = map.values().iterator();
+          private Iterator<V> listIterator = Collections.emptyIterator();
+
+          @Override
+          public boolean hasNext() {
+            while (!listIterator.hasNext() && mapIterator.hasNext()) {
+              listIterator = mapIterator.next().iterator();
+            }
+            return listIterator.hasNext();
+          }
+
+          @Override
+          public V next() {
+            return listIterator.next();
+          }
+        };
+      }
+
+      @Override
+      public int size() {
+        return totalSize;
+      }
+    };
+  }
+
+  public Collection<Map.Entry<K, V>> entries() {
+    List<Map.Entry<K, V>> entries = new ArrayList<>(totalSize);
+    for (Map.Entry<K, List<V>> entry : map.entrySet()) {
+      K key = entry.getKey();
+      for (V value : entry.getValue()) {
+        entries.add(new AbstractMap.SimpleImmutableEntry<>(key, value));
+      }
+    }
+    return entries;
+  }
+
+  @SuppressWarnings("unchecked")
+  public Map<K, Collection<V>> asMap() {
+    return (Map<K, Collection<V>>) (Map<K, ?>) Collections.unmodifiableMap(map);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (o == this) {
+      return true;
+    }
+    if (!(o instanceof SimpleMultimap<?, ?>)) {
+      return false;
+    }
+    SimpleMultimap<?, ?> other = (SimpleMultimap<?, ?>) o;
+    return this.map.equals(other.map);
+  }
+
+  @Override
+  public int hashCode() {
+    return map.hashCode();
+  }
+
+  @Override
+  public String toString() {
+    return map.toString();
+  }
+}

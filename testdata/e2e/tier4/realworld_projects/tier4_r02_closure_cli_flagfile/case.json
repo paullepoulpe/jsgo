@@ -1,0 +1,24 @@
+{
+  "id": "tier4_r02_closure_cli_flagfile",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "Closure CLI flagfile argument loading",
+  "description": "Executes compilation reading CLI options from @flagfile",
+  "args": [
+    "--flagfile",
+    "flags.txt"
+  ],
+  "stdin": "",
+  "files": {
+    "flags.txt": "--compilation_level SIMPLE\n--js in.js\n--js_output_file out.js\n",
+    "in.js": "var flagfileVar = 42; window['res'] = flagfileVar;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": "",
+    "output_files": {
+      "out.js": "var flagfileVar=42;window.res=flagfileVar;\n"
+    }
+  }
+}

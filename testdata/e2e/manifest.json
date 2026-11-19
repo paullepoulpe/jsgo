@@ -1,0 +1,2581 @@
+{
+  "version": "v20261104",
+  "cases": [
+    {
+      "id": "tier1_c01_whitespace",
+      "tier": 1,
+      "feature": "compilation_level",
+      "name": "Whitespace only compilation",
+      "description": "Verifies that WHITESPACE_ONLY strips comments and whitespace without modifying AST",
+      "args": [
+        "--compilation_level",
+        "WHITESPACE_ONLY",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "// comment line\nvar a = 10;\n/* block comment */\nvar b = 20;\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var a=10;var b=20;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_c02_simple",
+      "tier": 1,
+      "feature": "compilation_level",
+      "name": "Simple optimizations",
+      "description": "Verifies that SIMPLE performs constant folding, local renaming, and dead code elimination",
+      "args": [
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "function compute(firstArg, secondArg) { var localUnused = 100; return firstArg + secondArg; } window['res'] = compute(1, 2);"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "function compute(a,b){return a+b}window.res=compute(1,2);\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_c03_advanced",
+      "tier": 1,
+      "feature": "compilation_level",
+      "name": "Advanced optimizations",
+      "description": "Verifies that ADVANCED performs global renaming, function inlining, and aggressive DCE",
+      "args": [
+        "--compilation_level",
+        "ADVANCED",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "function deadFunc() { return 42; } function multiply(x, y) { return x * y; } window['output'] = multiply(6, 7);"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "window.output=42;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_c04_bundle",
+      "tier": 1,
+      "feature": "compilation_level",
+      "name": "Bundle compilation mode",
+      "description": "Verifies BUNDLE mode concatenates and wraps code without renaming",
+      "args": [
+        "--compilation_level",
+        "BUNDLE",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var bundleTest = 'ok'; window['bundle'] = bundleTest;"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "--compilation_level=BUNDLE cannot be used without a --js_output_file.\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_c05_transpile_only",
+      "tier": 1,
+      "feature": "compilation_level",
+      "name": "Transpile only mode",
+      "description": "Verifies TRANSPILE_ONLY downlevels modern syntax without optimization",
+      "args": [
+        "--compilation_level",
+        "TRANSPILE_ONLY",
+        "--language_out",
+        "ECMASCRIPT5",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "const add = (a, b) => a + b; class Calculator { calc() { return add(2, 3); } } window['c'] = new Calculator();"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var add=function(a,b){return a+b};var Calculator=function(){};Calculator.prototype.calc=function(){return add(2,3)};window[\"c\"]=new Calculator;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_f01_pretty_print",
+      "tier": 1,
+      "feature": "formatting_output",
+      "name": "Pretty print formatting",
+      "description": "Verifies PRETTY_PRINT formats output with proper indentations and newlines",
+      "args": [
+        "--formatting",
+        "PRETTY_PRINT",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "function test(x){if(x>0){return 1;}else{return 0;}}"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "function test(a) {\n  return a > 0 ? 1 : 0;\n}\n;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_f02_print_input_delimiter",
+      "tier": 1,
+      "feature": "formatting_output",
+      "name": "Print input delimiter formatting",
+      "description": "Verifies PRINT_INPUT_DELIMITER adds input boundary comments between concatenated files",
+      "args": [
+        "--formatting",
+        "PRINT_INPUT_DELIMITER",
+        "--js",
+        "part1.js",
+        "--js",
+        "part2.js"
+      ],
+      "stdin": "",
+      "files": {
+        "part1.js": "var partA = 1;",
+        "part2.js": "var partB = 2;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "// Input 0\nvar partA=1;\n// Input 1\nvar partB=2;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_f03_single_quotes",
+      "tier": 1,
+      "feature": "formatting_output",
+      "name": "Single quotes formatting",
+      "description": "Verifies SINGLE_QUOTES formatting emits string literals with single quotes",
+      "args": [
+        "--formatting",
+        "SINGLE_QUOTES",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var greeting = \"hello closure world\";"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var greeting='hello closure world';\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_f04_output_wrapper",
+      "tier": 1,
+      "feature": "formatting_output",
+      "name": "Output wrapper option",
+      "description": "Verifies --output_wrapper wraps compiled JavaScript with custom wrapper",
+      "args": [
+        "--output_wrapper",
+        "(function(){%output%})();",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var isolated = 99; window['val'] = isolated;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "(function(){var isolated=99;window.val=isolated;})();\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_f05_output_file",
+      "tier": 1,
+      "feature": "formatting_output",
+      "name": "File output option",
+      "description": "Verifies --js_output_file writes compiled output to the target file path",
+      "args": [
+        "--js_output_file",
+        "dist/app.js",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var app = { version: 1 };"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {
+          "dist/app.js": "var app={version:1};\n"
+        }
+      }
+    },
+    {
+      "id": "tier1_s01_basic_map",
+      "tier": 1,
+      "feature": "source_maps",
+      "name": "Basic source map generation",
+      "description": "Verifies basic V3 JSON source map generation with valid header and sections",
+      "args": [
+        "--create_source_map",
+        "out.js.map",
+        "--js_output_file",
+        "out.js",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "function greet(name) { return 'Hello ' + name; }\nwindow['msg'] = greet('World');\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {
+          "out.js": "function greet(a){return\"Hello \"+a}window.msg=greet(\"World\");\n",
+          "out.js.map": "{\n\"version\":3,\n\"file\":\"out.js\",\n\"lineCount\":1,\n\"mappings\":\"AAAAA,QAASA,MAAK,CAACC,CAAD,CAAO,CAAE,MAAO,QAAP,CAAkBA,CAApB,CACrBC,MAAA,CAAA,GAAA,CAAgBF,KAAA,CAAM,OAAN;\",\n\"sources\":[\"in.js\"],\n\"names\":[\"greet\",\"name\",\"window\"]\n}\n"
+        }
+      }
+    },
+    {
+      "id": "tier1_s02_multi_input_map",
+      "tier": 1,
+      "feature": "source_maps",
+      "name": "Source map across multiple inputs",
+      "description": "Verifies source map generation with multiple input files properly recording file sources",
+      "args": [
+        "--create_source_map",
+        "multi.js.map",
+        "--js_output_file",
+        "multi.js",
+        "--js",
+        "f1.js",
+        "--js",
+        "f2.js"
+      ],
+      "stdin": "",
+      "files": {
+        "f1.js": "var alpha = 10;",
+        "f2.js": "var beta = alpha * 2;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {
+          "multi.js": "var alpha=10;var beta=alpha*2;\n",
+          "multi.js.map": "{\n\"version\":3,\n\"file\":\"multi.js\",\n\"lineCount\":1,\n\"mappings\":\"AAAA,IAAIA,MAAQ,E,CCAZ,IAAIC,KAAOD,KAAPC,CAAe;\",\n\"sources\":[\"f1.js\",\"f2.js\"],\n\"names\":[\"alpha\",\"beta\"]\n}\n"
+        }
+      }
+    },
+    {
+      "id": "tier1_s03_pretty_map",
+      "tier": 1,
+      "feature": "source_maps",
+      "name": "Source map with PRETTY_PRINT",
+      "description": "Verifies source map generation when combined with PRETTY_PRINT formatting",
+      "args": [
+        "--create_source_map",
+        "pretty.js.map",
+        "--js_output_file",
+        "pretty.js",
+        "--formatting",
+        "PRETTY_PRINT",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "function compute(x, y) {\n  var temp = x + 1;\n  return temp * y;\n}\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {
+          "pretty.js.map": "{\n\"version\":3,\n\"file\":\"pretty.js\",\n\"lineCount\":4,\n\"mappings\":\"AAAAA,QAASA,QAAO,CAACC,CAAD,EAAIC,CAAJ,CAAO;AAErB,UADWD,CACX,GADe,CACf,IAAcC,CAAd;AAFqB;;\",\n\"sources\":[\"in.js\"],\n\"names\":[\"compute\",\"x\",\"y\"]\n}\n",
+          "pretty.js": "function compute(a, b) {\n  return (a + 1) * b;\n}\n;\n"
+        }
+      }
+    },
+    {
+      "id": "tier1_s04_wrapped_map",
+      "tier": 1,
+      "feature": "source_maps",
+      "name": "Source map with output wrapper",
+      "description": "Verifies source map mapping coordinates account for wrapper line offsets",
+      "args": [
+        "--create_source_map",
+        "wrap.js.map",
+        "--js_output_file",
+        "wrap.js",
+        "--output_wrapper",
+        "//header\n(function(){\n%output%\n})();",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var wrappedVal = 42;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {
+          "wrap.js": "//header\n(function(){\nvar wrappedVal=42;\n})();\n",
+          "wrap.js.map": "{\n\"version\":3,\n\"file\":\"wrap.js\",\n\"lineCount\":3,\n\"mappings\":\"A;;AAAA,IAAIA,WAAa;\",\n\"sources\":[\"in.js\"],\n\"names\":[\"wrappedVal\"]\n}\n"
+        }
+      }
+    },
+    {
+      "id": "tier1_s05_advanced_map",
+      "tier": 1,
+      "feature": "source_maps",
+      "name": "Source map under ADVANCED optimizations",
+      "description": "Verifies source map mappings for renamed symbols under ADVANCED optimizations",
+      "args": [
+        "--create_source_map",
+        "adv.js.map",
+        "--js_output_file",
+        "adv.js",
+        "--compilation_level",
+        "ADVANCED",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "function calculateTotal(subtotal, tax) { return subtotal + tax; }\nwindow['total'] = calculateTotal(100, 15);\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {
+          "adv.js": "window.total=115;\n",
+          "adv.js.map": "{\n\"version\":3,\n\"file\":\"adv.js\",\n\"lineCount\":1,\n\"mappings\":\"AACAA,MAAA,CAAA,KAAA,CADgD;\",\n\"sources\":[\"in.js\"],\n\"names\":[\"window\"]\n}\n"
+        }
+      }
+    },
+    {
+      "id": "tier1_l01_esnext_to_es5",
+      "tier": 1,
+      "feature": "language_in_out",
+      "name": "ES_NEXT downlevel to ES5",
+      "description": "Verifies transpilation of arrow functions, classes, and template literals to ECMASCRIPT5",
+      "args": [
+        "--language_in",
+        "ECMASCRIPT_NEXT",
+        "--language_out",
+        "ECMASCRIPT5",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "const name = 'world'; const msg = `hello ${name}`; const fn = () => msg; class Foo { bar() { return fn(); } }"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var $jscomp=$jscomp||{};$jscomp.scope={};$jscomp.createTemplateTagFirstArg=function(a){return $jscomp.createTemplateTagFirstArgWithRaw(a,a)};$jscomp.createTemplateTagFirstArgWithRaw=function(a,b){a.raw=b;Object.freeze&&(Object.freeze(a),Object.freeze(b));return a};var name=\"world\",msg=\"hello \"+name,fn=function(){return msg},Foo=function(){};Foo.prototype.bar=function(){return fn()};\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_l02_esnext_to_es2015",
+      "tier": 1,
+      "feature": "language_in_out",
+      "name": "ES_NEXT downlevel to ES2015",
+      "description": "Verifies transpilation down to ECMASCRIPT_2015 preserving classes but downleveling newer syntax",
+      "args": [
+        "--language_in",
+        "ECMASCRIPT_NEXT",
+        "--language_out",
+        "ECMASCRIPT_2015",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "const base = { a: 1 }; const copy = { ...base, b: 2 }; const val = 2 ** 3;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "const base={a:1},copy=Object.assign({},base,{b:2}),val=8;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_l03_no_transpile",
+      "tier": 1,
+      "feature": "language_in_out",
+      "name": "No transpile language mode",
+      "description": "Verifies NO_TRANSPILE output preserves modern ES syntax",
+      "args": [
+        "--language_in",
+        "ECMASCRIPT_NEXT",
+        "--language_out",
+        "NO_TRANSPILE",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "const square = (x) => x ** 2; const val = obj?.prop ?? 'default';"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "const square=a=>a**2,val=obj?.prop??\"default\";\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_l04_es5_strict",
+      "tier": 1,
+      "feature": "language_in_out",
+      "name": "ES5 strict language mode",
+      "description": "Verifies ECMASCRIPT5_STRICT mode compilation with use strict preservation",
+      "args": [
+        "--language_in",
+        "ECMASCRIPT5_STRICT",
+        "--language_out",
+        "ECMASCRIPT5",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "'use strict'; var x = 10; function getX() { return x; }"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var x=10;function getX(){return x};\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_l05_optional_chaining",
+      "tier": 1,
+      "feature": "language_in_out",
+      "name": "Optional chaining transpilation",
+      "description": "Verifies ES2020 optional chaining transpiled down to ES5 safe conditional access",
+      "args": [
+        "--language_in",
+        "ECMASCRIPT_2020",
+        "--language_out",
+        "ECMASCRIPT5",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var result = window?.config?.settings?.getVal?.();"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var $jscomp$optchain$tmp100294322$0,$jscomp$optchain$tmp100294322$1,$jscomp$optchain$tmp100294322$2,$jscomp$optchain$tmp100294322$3,$jscomp$optchain$tmp100294322$4,result=($jscomp$optchain$tmp100294322$0=window)==null?void 0:($jscomp$optchain$tmp100294322$1=$jscomp$optchain$tmp100294322$0.config)==null?void 0:($jscomp$optchain$tmp100294322$2=$jscomp$optchain$tmp100294322$1.settings)==null?void 0:($jscomp$optchain$tmp100294322$4=($jscomp$optchain$tmp100294322$3=$jscomp$optchain$tmp100294322$2).getVal)==\nnull?void 0:$jscomp$optchain$tmp100294322$4.call($jscomp$optchain$tmp100294322$3);\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_w01_quiet",
+      "tier": 1,
+      "feature": "warning_levels",
+      "name": "Quiet warning level",
+      "description": "Verifies QUIET warning level suppresses non-fatal warning messages",
+      "args": [
+        "--warning_level",
+        "QUIET",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var x = 1;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var x=1;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_w02_verbose",
+      "tier": 1,
+      "feature": "warning_levels",
+      "name": "Verbose warning level",
+      "description": "Verifies VERBOSE warning level enables detailed diagnostic output",
+      "args": [
+        "--warning_level",
+        "VERBOSE",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var x = 1;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var x=1;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_w03_error_group",
+      "tier": 1,
+      "feature": "warning_levels",
+      "name": "Promoting warning group to error",
+      "description": "Verifies --jscomp_error=checkTypes promotes type errors to fatal compilation errors",
+      "args": [
+        "--checks_only",
+        "--jscomp_error=checkTypes",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @type {number} */ var num = 'not_a_number';"
+      },
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "in.js:1:32: ERROR - [JSC_TYPE_MISMATCH] initializing variable\nfound   : string\nrequired: number\n  1| /** @type {number} */ var num = 'not_a_number';\n                                     ^^^^^^^^^^^^^^\n\n1 error(s), 0 warning(s), 100.0% typed\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_w04_warning_group",
+      "tier": 1,
+      "feature": "warning_levels",
+      "name": "Enabling specific warning group",
+      "description": "Verifies --jscomp_warning=checkVars detects undeclared variable references",
+      "args": [
+        "--jscomp_warning=checkVars",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "function test() { undeclaredGlobalVariable = 1; }"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "function test(){undeclaredGlobalVariable=1};\n",
+        "stderr": "in.js:1:18: WARNING - [JSC_UNDEFINED_VARIABLE] variable undeclaredGlobalVariable is undeclared\n  1| function test() { undeclaredGlobalVariable = 1; }\n                       ^^^^^^^^^^^^^^^^^^^^^^^^\n\n0 error(s), 1 warning(s)\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_w05_off_group",
+      "tier": 1,
+      "feature": "warning_levels",
+      "name": "Disabling diagnostic group",
+      "description": "Verifies --jscomp_off=uselessCode suppresses warnings for unreachable statements",
+      "args": [
+        "--warning_level",
+        "VERBOSE",
+        "--jscomp_off=uselessCode",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "function test() { return 1; var dead = 2; }"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "function test(){return 1};\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_t01_var_mismatch",
+      "tier": 1,
+      "feature": "type_checking",
+      "name": "Variable initialization type mismatch",
+      "description": "Detects type mismatch when initializing typed variable with incompatible value",
+      "args": [
+        "--checks_only",
+        "--jscomp_error=checkTypes",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @type {number} */ var count = 'invalid';"
+      },
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "in.js:1:34: ERROR - [JSC_TYPE_MISMATCH] initializing variable\nfound   : string\nrequired: number\n  1| /** @type {number} */ var count = 'invalid';\n                                       ^^^^^^^^^\n\n1 error(s), 0 warning(s), 100.0% typed\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_t02_param_mismatch",
+      "tier": 1,
+      "feature": "type_checking",
+      "name": "Function argument type mismatch",
+      "description": "Detects type mismatch when passing string argument to number parameter",
+      "args": [
+        "--checks_only",
+        "--jscomp_error=checkTypes",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @param {number} x */ function square(x) { return x * x; } square('bad');"
+      },
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "in.js:1:69: ERROR - [JSC_TYPE_MISMATCH] actual parameter 1 of square does not match formal parameter\nfound   : string\nrequired: number\n  1| /** @param {number} x */ function square(x) { return x * x; } square('bad');\n                                                                          ^^^^^\n\n1 error(s), 0 warning(s), 100.0% typed\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_t03_return_mismatch",
+      "tier": 1,
+      "feature": "type_checking",
+      "name": "Function return type mismatch",
+      "description": "Detects return type mismatch when function returns string instead of number",
+      "args": [
+        "--checks_only",
+        "--jscomp_error=checkTypes",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @return {number} */ function getCount() { return 'not_number'; }"
+      },
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "in.js:1:53: ERROR - [JSC_TYPE_MISMATCH] inconsistent return type\nfound   : string\nrequired: number\n  1| /** @return {number} */ function getCount() { return 'not_number'; }\n                                                          ^^^^^^^^^^^^\n\n1 error(s), 0 warning(s), 100.0% typed\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_t04_interface_compliance",
+      "tier": 1,
+      "feature": "type_checking",
+      "name": "Interface record type check",
+      "description": "Verifies structural conformance to declared record interface",
+      "args": [
+        "--checks_only",
+        "--jscomp_error=checkTypes",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @record */ function Named() { /** @type {string} */ this.name; } /** @type {Named} */ var obj = { name: 123 };"
+      },
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "in.js:1:100: ERROR - [JSC_TYPE_MISMATCH] initializing variable\nfound   : {name: number}\nrequired: (Named|null)\nmissing : []\nmismatch: [name]\n  1| /** @record */ function Named() { /** @type {string} */ this.name; } /** @type {Named} */ var obj = { name: 123 };\n                                                                                                         ^^^^^^^^^^^^^\n\n1 error(s), 0 warning(s), 100.0% typed\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_t05_checks_only_clean",
+      "tier": 1,
+      "feature": "type_checking",
+      "name": "Checks only clean pass",
+      "description": "Verifies --checks_only with valid typed code succeeds with code 0 and emits no JS",
+      "args": [
+        "--checks_only",
+        "--jscomp_error=checkTypes",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @param {number} a \n * @param {number} b \n * @return {number} */ function add(a, b) { return a + b; } var res = add(1, 2);"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_k01_two_chunks_linear",
+      "tier": 1,
+      "feature": "chunking",
+      "name": "Two chunks linear dependency",
+      "description": "Verifies 2-chunk linear graph compiling base and dependent feature chunk",
+      "args": [
+        "--chunk",
+        "base:1",
+        "--js",
+        "base.js",
+        "--chunk",
+        "feat:1:base",
+        "--js",
+        "feat.js",
+        "--chunk_output_word_spec",
+        "%s.out.js"
+      ],
+      "stdin": "",
+      "files": {
+        "base.js": "var baseVal = 100;",
+        "feat.js": "var featVal = baseVal + 50;"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_k02_three_chunks_diamond",
+      "tier": 1,
+      "feature": "chunking",
+      "name": "Three chunks diamond graph",
+      "description": "Verifies 3-chunk graph with shared root and independent leaf chunks",
+      "args": [
+        "--chunk",
+        "root:1",
+        "--js",
+        "root.js",
+        "--chunk",
+        "left:1:root",
+        "--js",
+        "left.js",
+        "--chunk",
+        "right:1:root",
+        "--js",
+        "right.js",
+        "--chunk_output_word_spec",
+        "%s.out.js"
+      ],
+      "stdin": "",
+      "files": {
+        "root.js": "var rootConfig = { app: 'test' };",
+        "left.js": "var leftMod = rootConfig.app + '_left';",
+        "right.js": "var rightMod = rootConfig.app + '_right';"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_k03_chunk_wrapper",
+      "tier": 1,
+      "feature": "chunking",
+      "name": "Chunk output wrapper",
+      "description": "Verifies --chunk_output_wrapper wraps each generated chunk file with prefix and suffix",
+      "args": [
+        "--chunk",
+        "main:1",
+        "--js",
+        "main.js",
+        "--chunk",
+        "sub:1:main",
+        "--js",
+        "sub.js",
+        "--chunk_output_word_spec",
+        "%s.out.js",
+        "--chunk_output_wrapper",
+        "/*chunk*/%output%"
+      ],
+      "stdin": "",
+      "files": {
+        "main.js": "var mainApp = 1;",
+        "sub.js": "var subApp = mainApp;"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_k04_code_motion",
+      "tier": 1,
+      "feature": "chunking",
+      "name": "Cross-chunk code motion",
+      "description": "Verifies code motion across chunks moving shared functions to common ancestor chunk",
+      "args": [
+        "--chunk",
+        "common:1",
+        "--js",
+        "common.js",
+        "--chunk",
+        "p1:1:common",
+        "--js",
+        "p1.js",
+        "--chunk",
+        "p2:1:common",
+        "--js",
+        "p2.js",
+        "--chunk_output_word_spec",
+        "%s.out.js"
+      ],
+      "stdin": "",
+      "files": {
+        "common.js": "var commonInit = true;",
+        "p1.js": "function helper(x) { return x + 1; } window['p1'] = helper(10);",
+        "p2.js": "window['p2'] = helper(20);"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_k05_chunk_cycle_error",
+      "tier": 1,
+      "feature": "chunking",
+      "name": "Chunk cyclic dependency error",
+      "description": "Detects cyclic chunk dependency and exits with error code",
+      "args": [
+        "--chunk",
+        "a:1:b",
+        "--js",
+        "a.js",
+        "--chunk",
+        "b:1:a",
+        "--js",
+        "b.js",
+        "--chunk_output_word_spec",
+        "%s.out.js"
+      ],
+      "stdin": "",
+      "files": {
+        "a.js": "var a = 1;",
+        "b.js": "var b = 2;"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_d01_bool_define",
+      "tier": 1,
+      "feature": "defines",
+      "name": "Boolean compile-time define",
+      "description": "Overrides boolean @define constant via --define flag",
+      "args": [
+        "--define=DEBUG_FLAG=false",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @define {boolean} */ var DEBUG_FLAG = true; if (DEBUG_FLAG) { console.log('debug active'); }"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var DEBUG_FLAG=!1;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_d02_str_define",
+      "tier": 1,
+      "feature": "defines",
+      "name": "String compile-time define",
+      "description": "Overrides string @define constant via -D flag",
+      "args": [
+        "-D",
+        "BUILD_ENV='production'",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @define {string} */ var BUILD_ENV = 'development'; window['env'] = BUILD_ENV;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var BUILD_ENV=\"production\";window.env=BUILD_ENV;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_d03_num_define",
+      "tier": 1,
+      "feature": "defines",
+      "name": "Number compile-time define",
+      "description": "Overrides numeric @define constant via --define flag",
+      "args": [
+        "--define=MAX_RETRIES=5",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @define {number} */ var MAX_RETRIES = 1; window['retries'] = MAX_RETRIES;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var MAX_RETRIES=5;window.retries=MAX_RETRIES;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_d04_multi_define",
+      "tier": 1,
+      "feature": "defines",
+      "name": "Multiple simultaneous defines",
+      "description": "Overrides multiple defines of different types simultaneously",
+      "args": [
+        "-D",
+        "FLAG_A=false",
+        "-D",
+        "FLAG_B=true",
+        "--define=STR_VAL='prod'",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @define {boolean} */ var FLAG_A = true; /** @define {boolean} */ var FLAG_B = false; /** @define {string} */ var STR_VAL = 'dev';"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var FLAG_A=!1,FLAG_B=!0,STR_VAL=\"prod\";\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_d05_implicit_bool",
+      "tier": 1,
+      "feature": "defines",
+      "name": "Implicit boolean define flag",
+      "description": "Specifies boolean define flag without explicit =true value",
+      "args": [
+        "-D",
+        "ENABLE_METRICS",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @define {boolean} */ var ENABLE_METRICS = false; window['metrics'] = ENABLE_METRICS;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var ENABLE_METRICS=!0;window.metrics=ENABLE_METRICS;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_m01_version",
+      "tier": 1,
+      "feature": "cli_meta",
+      "name": "Version flag",
+      "description": "Verifies --version prints version banner and exits 0",
+      "args": [
+        "--version"
+      ],
+      "stdin": "",
+      "files": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout": "Closure Compiler (http://github.com/google/closure-compiler)\nVersion: v20261104\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_m02_help",
+      "tier": 1,
+      "feature": "cli_meta",
+      "name": "Help flag",
+      "description": "Verifies --help prints usage instructions and exits 0",
+      "args": [
+        "--help"
+      ],
+      "stdin": "",
+      "files": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout": "\u001b[1mBasic Usage:\n\u001b[0m --compilation_level (-O) VAL           : Specifies the compilation level to\n                                          use. Options: BUNDLE, WHITESPACE_ONLY,\n                                          SIMPLE (default), TRANSPILE_ONLY,ADVAN\n                                          CED (default: SIMPLE)\n --env [BROWSER | CUSTOM]               : Determines the set of builtin externs\n                                          to load. Options: BROWSER, CUSTOM.\n                                          Defaults to BROWSER. (default:\n                                          BROWSER)\n --externs VAL                          : The file containing JavaScript\n                                          externs. You may specify multiple\n --js VAL                               : The JavaScript filename. You may\n                                          specify multiple. The flag name is\n                                          optional, because args are\n                                          interpreted as files by default. You\n                                          may also use minimatch-style glob\n                                          patterns. For example, use\n                                          --js='**.js' --js='!**_test.js' to\n                                          recursively include all js files that\n                                          do not end in _test.js\n --js_output_file VAL                   : Primary output filename. If not\n                                          specified, output is written to\n                                          stdout (default: )\n --language_in VAL                      : Sets the language spec to which input\n                                          sources should conform. Options:\n                                          ECMASCRIPT3, ECMASCRIPT5,\n                                          ECMASCRIPT5_STRICT, ECMASCRIPT_2015,\n                                          ECMASCRIPT_2016, ECMASCRIPT_2017,\n                                          ECMASCRIPT_2018, ECMASCRIPT_2019,\n                                          ECMASCRIPT_2020,ECMASCRIPT_2021,\n                                          STABLE, ECMASCRIPT_NEXT (latest\n                                          features supported),UNSTABLE (for\n                                          testing only) (default: STABLE)\n --language_out VAL                     : Sets the language spec to which\n                                          output should conform. Options:\n                                          ECMASCRIPT3, ECMASCRIPT5,\n                                          ECMASCRIPT_2015, ECMASCRIPT_2016,\n                                          ECMASCRIPT_2017, ECMASCRIPT_2018,\n                                          ECMASCRIPT_2019, ECMASCRIPT_2020,\n                                          ECMASCRIPT_2021, STABLE,\n                                          ECMASCRIPT_NEXT (latest features\n                                          supported) (default: ECMASCRIPT_NEXT)\n --warning_level (-W) [QUIET | DEFAULT  : Specifies the warning level to use.\n | VERBOSE]                               Options: QUIET, DEFAULT, VERBOSE\n                                          (default: DEFAULT)\n\n\n\u001b[1mWarning and Error Management:\n\u001b[0m --conformance_configs VAL              : A list of JS Conformance\n                                          configurations in text protocol\n                                          buffer format.\n --error_format [STANDARD | JSON]       : Specifies format for error messages.\n                                          (default: STANDARD)\n --extra_annotation_name VAL            : A allowlist of tag names in JSDoc.\n                                          You may specify multiple\n --hide_warnings_for VAL                : If specified, files whose path\n                                          contains this string will have their\n                                          warnings hidden. You may specify\n                                          multiple.\n --jscomp_error VAL                     : Make the named class of warnings an\n                                          error. Must be one of the error group\n                                          items. '*' adds all supported.\n --jscomp_off VAL                       : Turn off the named class of warnings.\n                                          Must be one of the error group items.\n                                          '*' adds all supported.\n --jscomp_warning VAL                   : Make the named class of warnings a\n                                          normal warning. Must be one of the\n                                          error group items. '*' adds all\n                                          supported.\n --strict_mode_input                    : Assume input sources are to run in\n                                          strict mode. (default: true)\n --warnings_allowlist_file              : A file containing warnings to\n (--warnings_whitelist_file) VAL          suppress. Each line should be of the\n                                          form\n                                          <file-name>:<line-number>? \n                                          <warning-description> (default: )\n\n\u001b[1mAvailable Error Groups: \u001b[0maccessControls, checkPrototypalTypes,\n    checkRegExp, checkTypes, checkVars, conformanceViolations, const,\n    constantProperty, deprecated, deprecatedAnnotations,\n    defineWithoutGoogDefine, duplicateMessage, es5Strict, externsValidation,\n    functionParams, globalThis, invalidCasts, lintVarDeclarations,\n    misplacedTypeAnnotation, missingCallToSuper, missingOverride,\n    missingPolyfill, missingProperties, missingProvide, missingRequire,\n    missingReturn, missingSourcesWarnings, moduleLoad, moduleImport,\n    msgDescriptions, nonStandardJsDocs, partialAlias, polymer,\n    reportUnknownTypes, strictCheckTypes, strictMissingProperties,\n    strictModuleDepCheck, strictPrimitiveOperators, suspiciousCode,\n    typeInvalidation, undefinedVars, underscore, unknownDefines,\n    unusedLocalVariables, uselessCode, untranspilableFeatures,visibility,\n    weakModuleGet\n\n\u001b[1mOutput:\n\u001b[0m --assume_function_wrapper              : Enable additional optimizations based\n                                          on the assumption that the output\n                                          will be wrapped with a function\n                                          wrapper.  This flag is used to\n                                          indicate that \"global\" declarations\n                                          will not actually be global but\n                                          instead isolated to the compilation\n                                          unit. This enables additional\n                                          optimizations. (default: false)\n --debug                                : Enable debugging options. Property\n                                          renaming uses long mangled names\n                                          which can be mapped back to the\n                                          original name. (default: false)\n --emit_use_strict                      : Start output with \"'use strict';\".\n                                          (default: false)\n --export_local_property_definitions    : Generates export code for local\n                                          properties marked with @export\n                                          (default: true)\n --formatting [PRETTY_PRINT |           : Specifies which formatting options,\n PRINT_INPUT_DELIMITER | SINGLE_QUOTES]   if any, should be applied to the\n                                          output JS. Options: PRETTY_PRINT,\n                                          PRINT_INPUT_DELIMITER, SINGLE_QUOTES\n --generate_exports                     : Generates export code for those\n                                          marked with @export (default: true)\n --isolation_mode [NONE | IIFE]         : If set to IIFE the compiler output\n                                          will follow the form:\n                                            (function(){%output%}).call(this);\n                                          Options: NONE, IIFE (default: NONE)\n --output_wrapper VAL                   : Interpolate output into this string\n                                          at the place denoted by the marker\n                                          token %output%. Use marker token\n                                          %output|jsstring% to do js string\n                                          escaping on the output. Consider\n                                          using the --isolation_mode flag\n                                          instead. (default: )\n --output_wrapper_file VAL              : Loads the specified file and passes\n                                          the file contents to the\n                                          --output_wrapper flag, replacing the\n                                          value if it exists. This is useful if\n                                          you want special characters like\n                                          newline in the wrapper. (default: )\n --rename_variable_prefix VAL           : Specifies a prefix that will be\n                                          prepended to all variables.\n\n\n\u001b[1mDependency Management:\n\u001b[0m --dependency_mode [NONE | SORT_ONLY |  : Specifies how the compiler should\n PRUNE_LEGACY | PRUNE | PRUNE_ALLOW_NO_   determine the set and order of files\n ENTRY_POINTS]                            for a compilation. Options: NONE the\n                                          compiler will include all src files\n                                          in the order listed, SORT_ONLY the\n                                          compiler will include all source\n                                          files in dependency order, PRUNE\n                                          files will only be included if they\n                                          are transitive dependencies of files\n                                          listed in the --entry_point flag and\n                                          then sorted in dependency order,\n                                          PRUNE_LEGACY same as PRUNE but files\n                                          that do not goog.provide a namespace\n                                          and are not modules will be\n                                          automatically added as --entry_point\n                                          entries. Defaults to PRUNE_LEGACY if\n                                          entry points are defined, otherwise\n                                          to NONE.\n --entry_point VAL                      : A file or namespace to use as the\n                                          starting point for determining which\n                                          src files to include in the\n                                          compilation. ES6 and CommonJS modules\n                                          are specified as file paths (without\n                                          the extension). Closure-library\n                                          namespaces are specified with a\n                                          \"goog:\" prefix. Example:\n                                          --entry_point=goog:goog.Promise\n\n\n\u001b[1mJS Modules:\n\u001b[0m --dynamic_import_alias VAL             : Instructs the compiler to replace\n                                          dynamic imports expressions with a\n                                          function call using the specified\n                                          name. Allows dynamic import\n                                          expressions to be externally\n                                          polyfilled when the output language\n                                          level does not natively support them.\n                                          An alias of 'import' is allowed.\n --js_module_root VAL                   : Path prefixes to be removed from ES6\n                                          & CommonJS modules.\n --module_resolution [BROWSER |         : Specifies how the compiler locates\n BROWSER_WITH_TRANSFORMED_PREFIXES |      modules. BROWSER requires all module\n NODE | WEBPACK]                          imports to begin with a '.' or '/'\n                                          and have a file extension. NODE uses\n                                          the node module rules. WEBPACK looks\n                                          up modules from a special lookup map.\n                                          (default: BROWSER)\n --package_json_entry_names VAL         : Ordered list of entries to look for\n                                          in package.json files when processing\n                                          modules with the NODE module\n                                          resolution strategy (i.e.\n                                          esnext:main,browser,main). Defaults\n                                          to a list with the following entries:\n                                          \"browser\", \"module\", \"main\".\n --process_common_js_modules            : Process CommonJS modules to a\n                                          concatenable form. (default: false)\n\n\n\u001b[1mLibrary and Framework Specific:\n\u001b[0m --angular_pass                         : Generate $inject properties for\n                                          AngularJS for functions annotated\n                                          with @ngInject (default: false)\n --force_inject_library VAL             : Force injection of named runtime\n                                          libraries. The format is <name> where\n                                          <name> is the name of a runtime\n                                          library. Possible libraries include:\n                                          base, es6_runtime\n --inject_libraries                     : Allow injecting runtime libraries.\n                                          (default: true)\n --isolate_polyfills                    : Hides injected polyfills from the\n                                          global scope and any external code.\n                                          See the the \"Polyfills\" GitHub Wiki\n                                          page for details. (default: false)\n --polymer_version N                    : Which version of Polymer is being\n                                          used (1 or 2).\n --process_closure_primitives           : Processes built-ins from the Closure\n                                          library, such as goog.require(),\n                                          goog.provide(), and goog.exportSymbol(\n                                          ). True by default. (default: true)\n --rewrite_polyfills                    : Injects polyfills for ES2015+ library\n                                          classes and methods used in source.\n                                          See also the \"Polyfills\" GitHub Wiki\n                                          page. (default: true)\n\n\n\u001b[1mCode Splitting:\n\u001b[0m --chunk VAL                            : A JavaScript chunk specification. The\n                                          format is <name>:<num-js-files>[:[<dep\n                                          >,...][:]]]. Chunk names must be\n                                          unique. Each dep is the name of a\n                                          chunk that this chunk depends on.\n                                          Chunks must be listed in dependency\n                                          order, and JS source files must be\n                                          listed in the corresponding order.\n                                          Where --chunk flags occur in relation\n                                          to --js flags is unimportant.\n                                          <num-js-files> may be set to 'auto'\n                                          for the first chunk if it has no\n                                          dependencies. Provide the value\n                                          'auto' to trigger chunk creation from\n                                          CommonJS modules.\n --chunk_output_path_prefix VAL         : Prefix for filenames of compiled JS\n                                          chunks. <chunk-name>.js will be\n                                          appended to this prefix. Directories\n                                          will be created as needed. Use with\n                                          --chunk (default: ./)\n --chunk_output_type [GLOBAL_NAMESPACE  : Indicates what format the compiler\n | ES_MODULES]                            should use for output chunks.\n                                          GLOBAL_NAMESPACE is typically used in\n                                          conjunction with --rename_prefix_names\n                                          pace. ES_MODULES outputs chunks as\n                                          proper modules with 'import' and\n                                          'export' statements. (default:\n                                          GLOBAL_NAMESPACE)\n --chunk_wrapper VAL                    : An output wrapper for a JavaScript\n                                          chunk (optional). The format is\n                                          <name>:<wrapper>. The chunk name must\n                                          correspond with a chunk specified\n                                          using --chunk. The wrapper must\n                                          contain %s as the code placeholder.\n                                          Alternately, %output% can be used in\n                                          place of %s. %n% can be used to\n                                          represent a newline. The %basename%\n                                          placeholder can also be used to\n                                          substitute the base name of the chunk\n                                          output file.\n --rename_prefix_namespace VAL          : Specifies the name of an object that\n                                          will be used to store all non-extern\n                                          globals\n\n\n\u001b[1mReports:\n\u001b[0m --create_source_map VAL                : If specified, a source map file\n                                          mapping the generated source files\n                                          back to the original source file will\n                                          be output to the specified path. The\n                                          %outname% placeholder will expand to\n                                          the name of the output file that the\n                                          source map corresponds to. (default: )\n --output_chunk_dependencies VAL        : Prints out a JSON file of\n                                          dependencies between chunks.\n                                          (default: )\n --output_manifest VAL                  : Prints out a list of all the files in\n                                          the compilation. If --dependency_mode=\n                                          PRUNE or PRUNE_LEGACY is specified,\n                                          this will not include files that got\n                                          dropped because they were not\n                                          required. The %outname% placeholder\n                                          expands to the JS output file. If\n                                          you're using modularization, using\n                                          %outname% will create a manifest for\n                                          each module. (default: )\n --property_renaming_report VAL         : File where the serialized version of\n                                          the property renaming map produced\n                                          should be saved (default: )\n --source_map_include_content           : Includes sources content into source\n                                          map. Greatly increases the size of\n                                          source maps but offers greater\n                                          portability (default: false)\n --source_map_input VAL                 : Source map locations for input files,\n                                          separated by a '|', (i.e.\n                                          input-file-path|input-source-map)\n --source_map_location_mapping VAL      : Source map location mapping separated\n                                          by a '|' (i.e. filesystem-path|webserv\n                                          er-path)\n --variable_renaming_report VAL         : File where the serialized version of\n                                          the variable renaming map produced\n                                          should be saved (default: )\n\n\n\u001b[1mMiscellaneous:\n\u001b[0m --assume_static_inheritance_is_not_use : Assume that static (class-side)\n d                                        inheritance is not being used and\n                                          that static methods will not be\n                                          referenced via `this` or through\n                                          subclasses. This enables\n                                          optimizations that could break code\n                                          that did those things. (default: true)\n --browser_featureset_year N            : shortcut for defining goog.FEATURESET_\n                                          YEAR=YYYY. The minimum valid value of\n                                          the browser year is 2012 (default: 0)\n --charset VAL                          : Input and output charset for all\n                                          files. By default, we accept UTF-8 as\n                                          input and output US_ASCII (default: )\n --checks_only (--checks-only)          : Don't generate output. Run checks,\n                                          but no optimization passes. (default:\n                                          false)\n --define (--D, -D) VAL                 : Override the value of a variable\n                                          annotated @define. The format is\n                                          <name>[=<val>], where <name> is the\n                                          name of a @define variable and <val>\n                                          is a boolean, number, or a\n                                          single-quoted string that contains no\n                                          single quotes. If [=<val>] is\n                                          omitted, the variable is marked true\n --help                                 : Displays this message on stdout and\n                                          exit (default: true)\n --json_streams [NONE | IN | OUT |      : Specifies whether standard input and\n BOTH]                                    output streams will be a JSON array\n                                          of sources. Each source will be an\n                                          object of the form {path: filename,\n                                          src: file_contents, source_map:\n                                          srcmap_contents }. Intended for use\n                                          by stream-based build systems such as\n                                          gulpjs. Options: NONE, IN, OUT, BOTH.\n                                          Defaults to NONE. (default: NONE)\n --third_party                          : Check source validity but do not\n                                          enforce Closure style rules and\n                                          conventions (default: false)\n --use_types_for_optimization           : Enable or disable the optimizations\n                                          based on available type information.\n                                          Inaccurate type annotations may\n                                          result in incorrect results.\n                                          (default: true)\n --version                              : Prints the compiler version to stdout\n                                          and exit. (default: false)\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_m03_help_markdown",
+      "tier": 1,
+      "feature": "cli_meta",
+      "name": "Help markdown flag",
+      "description": "Verifies --help_markdown prints markdown options documentation and exits 0",
+      "args": [
+        "--help_markdown"
+      ],
+      "stdin": "",
+      "files": {},
+      "expected": {
+        "exit_code": 0,
+        "stdout": "# Basic Usage\n\n**--compilation_level (-O) VAL**  \nSpecifies the compilation level to use\\. Options: BUNDLE, WHITESPACE_ONLY, SIMPLE \\(default\\), TRANSPILE_ONLY,ADVANCED \\(default: SIMPLE\\)\n\n**--env [BROWSER | CUSTOM]**  \nDetermines the set of builtin externs to load\\. Options: BROWSER, CUSTOM\\. Defaults to BROWSER\\. \\(default: BROWSER\\)\n\n**--externs VAL**  \nThe file containing JavaScript externs\\. You may specify multiple\n\n**--js VAL**  \nThe JavaScript filename\\. You may specify multiple\\. The flag name is optional, because args are interpreted as files by default\\. You may also use minimatch\\-style glob patterns\\. For example, use \\-\\-js='\\*\\*\\.js' \\-\\-js='\\!\\*\\*_test\\.js' to recursively include all js files that do not end in _test\\.js\n\n**--js_output_file VAL**  \nPrimary output filename\\. If not specified, output is written to stdout \\(default: \\)\n\n**--language_in VAL**  \nSets the language spec to which input sources should conform\\. Options: ECMASCRIPT3, ECMASCRIPT5, ECMASCRIPT5_STRICT, ECMASCRIPT_2015, ECMASCRIPT_2016, ECMASCRIPT_2017, ECMASCRIPT_2018, ECMASCRIPT_2019, ECMASCRIPT_2020,ECMASCRIPT_2021, STABLE, ECMASCRIPT_NEXT \\(latest features supported\\),UNSTABLE \\(for testing only\\) \\(default: STABLE\\)\n\n**--language_out VAL**  \nSets the language spec to which output should conform\\. Options: ECMASCRIPT3, ECMASCRIPT5, ECMASCRIPT_2015, ECMASCRIPT_2016, ECMASCRIPT_2017, ECMASCRIPT_2018, ECMASCRIPT_2019, ECMASCRIPT_2020, ECMASCRIPT_2021, STABLE, ECMASCRIPT_NEXT \\(latest features supported\\) \\(default: ECMASCRIPT_NEXT\\)\n\n**--warning_level (-W) [QUIET | DEFAULT | VERBOSE]**  \nSpecifies the warning level to use\\. Options: QUIET, DEFAULT, VERBOSE \\(default: DEFAULT\\)\n\n\n# Warning and Error Management\n\n**--conformance_configs VAL**  \nA list of JS Conformance configurations in text protocol buffer format\\.\n\n**--error_format [STANDARD | JSON]**  \nSpecifies format for error messages\\. \\(default: STANDARD\\)\n\n**--extra_annotation_name VAL**  \nA allowlist of tag names in JSDoc\\. You may specify multiple\n\n**--hide_warnings_for VAL**  \nIf specified, files whose path contains this string will have their warnings hidden\\. You may specify multiple\\.\n\n**--jscomp_error VAL**  \nMake the named class of warnings an error\\. Must be one of the error group items\\. '\\*' adds all supported\\.\n\n**--jscomp_off VAL**  \nTurn off the named class of warnings\\. Must be one of the error group items\\. '\\*' adds all supported\\.\n\n**--jscomp_warning VAL**  \nMake the named class of warnings a normal warning\\. Must be one of the error group items\\. '\\*' adds all supported\\.\n\n**--strict_mode_input**  \nAssume input sources are to run in strict mode\\. \\(default: true\\)\n\n**--warnings_allowlist_file (--warnings_whitelist_file) VAL**  \nA file containing warnings to suppress\\. Each line should be of the form\n                                                                                                                                                                                          \\<file\\-name\\>:\\<line\\-number\\>?  \\<warning\\-description\\> \\(default: \\)\n\n## Available Error Groups\n\n  - accessControls\n  - checkPrototypalTypes\n  - checkRegExp\n  - checkTypes\n  - checkVars\n  - conformanceViolations\n  - const\n  - constantProperty\n  - deprecated\n  - deprecatedAnnotations\n  - defineWithoutGoogDefine\n  - duplicateMessage\n  - es5Strict\n  - externsValidation\n  - functionParams\n  - globalThis\n  - invalidCasts\n  - lintVarDeclarations\n  - misplacedTypeAnnotation\n  - missingCallToSuper\n  - missingOverride\n  - missingPolyfill\n  - missingProperties\n  - missingProvide\n  - missingRequire\n  - missingReturn\n  - missingSourcesWarnings\n  - moduleLoad\n  - moduleImport\n  - msgDescriptions\n  - nonStandardJsDocs\n  - partialAlias\n  - polymer\n  - reportUnknownTypes\n  - strictCheckTypes\n  - strictMissingProperties\n  - strictModuleDepCheck\n  - strictPrimitiveOperators\n  - suspiciousCode\n  - typeInvalidation\n  - undefinedVars\n  - underscore\n  - unknownDefines\n  - unusedLocalVariables\n  - uselessCode\n  - untranspilableFeatures,visibility\n  - weakModuleGet\n\n# Output\n\n**--assume_function_wrapper**  \nEnable additional optimizations based on the assumption that the output will be wrapped with a function wrapper\\.  This flag is used to indicate that \"global\" declarations will not actually be global but instead isolated to the compilation unit\\. This enables additional optimizations\\. \\(default: false\\)\n\n**--debug**  \nEnable debugging options\\. Property renaming uses long mangled names which can be mapped back to the original name\\. \\(default: false\\)\n\n**--emit_use_strict**  \nStart output with \"'use strict';\"\\. \\(default: false\\)\n\n**--export_local_property_definitions**  \nGenerates export code for local properties marked with @export \\(default: true\\)\n\n**--formatting [PRETTY_PRINT | PRINT_INPUT_DELIMITER | SINGLE_QUOTES]**  \nSpecifies which formatting options, if any, should be applied to the output JS\\. Options: PRETTY_PRINT, PRINT_INPUT_DELIMITER, SINGLE_QUOTES\n\n**--generate_exports**  \nGenerates export code for those marked with @export \\(default: true\\)\n\n**--isolation_mode [NONE | IIFE]**  \nIf set to IIFE the compiler output will follow the form:\n                                                                                                                                                                                            \\(function\\(\\)\\{%output%\\}\\)\\.call\\(this\\);\n                                                                                                                                                                                          Options: NONE, IIFE \\(default: NONE\\)\n\n**--output_wrapper VAL**  \nInterpolate output into this string at the place denoted by the marker token %output%\\. Use marker token %output|jsstring% to do js string escaping on the output\\. Consider using the \\-\\-isolation_mode flag instead\\. \\(default: \\)\n\n**--output_wrapper_file VAL**  \nLoads the specified file and passes the file contents to the \\-\\-output_wrapper flag, replacing the value if it exists\\. This is useful if you want special characters like newline in the wrapper\\. \\(default: \\)\n\n**--rename_variable_prefix VAL**  \nSpecifies a prefix that will be prepended to all variables\\.\n\n\n# Dependency Management\n\n**--dependency_mode [NONE | SORT_ONLY | PRUNE_LEGACY | PRUNE | PRUNE_ALLOW_NO_ENTRY_POINTS]**  \nSpecifies how the compiler should determine the set and order of files for a compilation\\. Options: NONE the compiler will include all src files in the order listed, SORT_ONLY the compiler will include all source files in dependency order, PRUNE files will only be included if they are transitive dependencies of files listed in the \\-\\-entry_point flag and then sorted in dependency order, PRUNE_LEGACY same as PRUNE but files that do not goog\\.provide a namespace and are not modules will be automatically added as \\-\\-entry_point entries\\. Defaults to PRUNE_LEGACY if entry points are defined, otherwise to NONE\\.\n\n**--entry_point VAL**  \nA file or namespace to use as the starting point for determining which src files to include in the compilation\\. ES6 and CommonJS modules are specified as file paths \\(without the extension\\)\\. Closure\\-library namespaces are specified with a \"goog:\" prefix\\. Example: \\-\\-entry_point=goog:goog\\.Promise\n\n\n# JS Modules\n\n**--dynamic_import_alias VAL**  \nInstructs the compiler to replace dynamic imports expressions with a function call using the specified name\\. Allows dynamic import expressions to be externally polyfilled when the output language level does not natively support them\\. An alias of 'import' is allowed\\.\n\n**--js_module_root VAL**  \nPath prefixes to be removed from ES6 & CommonJS modules\\.\n\n**--module_resolution [BROWSER | BROWSER_WITH_TRANSFORMED_PREFIXES | NODE | WEBPACK]**  \nSpecifies how the compiler locates modules\\. BROWSER requires all module imports to begin with a '\\.' or '/' and have a file extension\\. NODE uses the node module rules\\. WEBPACK looks up modules from a special lookup map\\. \\(default: BROWSER\\)\n\n**--process_common_js_modules**  \nProcess CommonJS modules to a concatenable form\\. \\(default: false\\)\n\n**--package_json_entry_names VAL**  \nOrdered list of entries to look for in package\\.json files when processing modules with the NODE module resolution strategy \\(i\\.e\\. esnext:main,browser,main\\)\\. Defaults to a list with the following entries: \"browser\", \"module\", \"main\"\\.\n\n\n# Library and Framework Specific\n\n**--angular_pass**  \nGenerate $inject properties for AngularJS for functions annotated with @ngInject \\(default: false\\)\n\n**--force_inject_library VAL**  \nForce injection of named runtime libraries\\. The format is \\<name\\> where \\<name\\> is the name of a runtime library\\. Possible libraries include: base, es6_runtime\n\n**--inject_libraries**  \nAllow injecting runtime libraries\\. \\(default: true\\)\n\n**--polymer_version N**  \nWhich version of Polymer is being used \\(1 or 2\\)\\.\n\n**--process_closure_primitives**  \nProcesses built\\-ins from the Closure library, such as goog\\.require\\(\\), goog\\.provide\\(\\), and goog\\.exportSymbol\\(\\)\\. True by default\\. \\(default: true\\)\n\n**--rewrite_polyfills**  \nInjects polyfills for ES2015\\+ library classes and methods used in source\\. See also the \"Polyfills\" GitHub Wiki page\\. \\(default: true\\)\n\n**--isolate_polyfills**  \nHides injected polyfills from the global scope and any external code\\. See the the \"Polyfills\" GitHub Wiki page for details\\. \\(default: false\\)\n\n\n# Code Splitting\n\n**--chunk VAL**  \nA JavaScript chunk specification\\. The format is \\<name\\>:\\<num\\-js\\-files\\>\\[:\\[\\<dep\\>,\\.\\.\\.\\]\\[:\\]\\]\\]\\. Chunk names must be unique\\. Each dep is the name of a chunk that this chunk depends on\\. Chunks must be listed in dependency order, and JS source files must be listed in the corresponding order\\. Where \\-\\-chunk flags occur in relation to \\-\\-js flags is unimportant\\. \\<num\\-js\\-files\\> may be set to 'auto' for the first chunk if it has no dependencies\\. Provide the value 'auto' to trigger chunk creation from CommonJS modules\\.\n\n**--chunk_output_path_prefix VAL**  \nPrefix for filenames of compiled JS chunks\\. \\<chunk\\-name\\>\\.js will be appended to this prefix\\. Directories will be created as needed\\. Use with \\-\\-chunk \\(default: \\./\\)\n\n**--chunk_output_type [GLOBAL_NAMESPACE | ES_MODULES]**  \nIndicates what format the compiler should use for output chunks\\. GLOBAL_NAMESPACE is typically used in conjunction with \\-\\-rename_prefix_namespace\\. ES_MODULES outputs chunks as proper modules with 'import' and 'export' statements\\. \\(default: GLOBAL_NAMESPACE\\)\n\n**--chunk_wrapper VAL**  \nAn output wrapper for a JavaScript chunk \\(optional\\)\\. The format is \\<name\\>:\\<wrapper\\>\\. The chunk name must correspond with a chunk specified using \\-\\-chunk\\. The wrapper must contain %s as the code placeholder\\. Alternately, %output% can be used in place of %s\\. %n% can be used to represent a newline\\. The %basename% placeholder can also be used to substitute the base name of the chunk output file\\.\n\n**--rename_prefix_namespace VAL**  \nSpecifies the name of an object that will be used to store all non\\-extern globals\n\n\n# Reports\n\n**--create_source_map VAL**  \nIf specified, a source map file mapping the generated source files back to the original source file will be output to the specified path\\. The %outname% placeholder will expand to the name of the output file that the source map corresponds to\\. \\(default: \\)\n\n**--output_manifest VAL**  \nPrints out a list of all the files in the compilation\\. If \\-\\-dependency_mode=PRUNE or PRUNE_LEGACY is specified, this will not include files that got dropped because they were not required\\. The %outname% placeholder expands to the JS output file\\. If you're using modularization, using %outname% will create a manifest for each module\\. \\(default: \\)\n\n**--output_chunk_dependencies VAL**  \nPrints out a JSON file of dependencies between chunks\\. \\(default: \\)\n\n**--property_renaming_report VAL**  \nFile where the serialized version of the property renaming map produced should be saved \\(default: \\)\n\n**--source_map_input VAL**  \nSource map locations for input files, separated by a '|', \\(i\\.e\\. input\\-file\\-path|input\\-source\\-map\\)\n\n**--source_map_include_content**  \nIncludes sources content into source map\\. Greatly increases the size of source maps but offers greater portability \\(default: false\\)\n\n**--source_map_location_mapping VAL**  \nSource map location mapping separated by a '|' \\(i\\.e\\. filesystem\\-path|webserver\\-path\\)\n\n**--variable_renaming_report VAL**  \nFile where the serialized version of the variable renaming map produced should be saved \\(default: \\)\n\n\n# Miscellaneous\n\n**--assume_static_inheritance_is_not_used**  \nAssume that static \\(class\\-side\\) inheritance is not being used and that static methods will not be referenced via \\`this\\` or through subclasses\\. This enables optimizations that could break code that did those things\\. \\(default: true\\)\n\n**--browser_featureset_year N**  \nshortcut for defining goog\\.FEATURESET_YEAR=YYYY\\. The minimum valid value of the browser year is 2012 \\(default: 0\\)\n\n**--charset VAL**  \nInput and output charset for all files\\. By default, we accept UTF\\-8 as input and output US_ASCII \\(default: \\)\n\n**--checks_only (--checks-only)**  \nDon't generate output\\. Run checks, but no optimization passes\\. \\(default: false\\)\n\n**--define (--D, -D) VAL**  \nOverride the value of a variable annotated @define\\. The format is \\<name\\>\\[=\\<val\\>\\], where \\<name\\> is the name of a @define variable and \\<val\\> is a boolean, number, or a single\\-quoted string that contains no single quotes\\. If \\[=\\<val\\>\\] is omitted, the variable is marked true\n\n**--help**  \nDisplays this message on stdout and exit \\(default: false\\)\n\n**--json_streams [NONE | IN | OUT | BOTH]**  \nSpecifies whether standard input and output streams will be a JSON array of sources\\. Each source will be an object of the form \\{path: filename, src: file_contents, source_map: srcmap_contents \\}\\. Intended for use by stream\\-based build systems such as gulpjs\\. Options: NONE, IN, OUT, BOTH\\. Defaults to NONE\\. \\(default: NONE\\)\n\n**--third_party**  \nCheck source validity but do not enforce Closure style rules and conventions \\(default: false\\)\n\n**--use_types_for_optimization**  \nEnable or disable the optimizations based on available type information\\. Inaccurate type annotations may result in incorrect results\\. \\(default: true\\)\n\n**--version**  \nPrints the compiler version to stdout and exit\\. \\(default: false\\)\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_m04_unknown_flag",
+      "tier": 1,
+      "feature": "cli_meta",
+      "name": "Unknown flag error handling",
+      "description": "Verifies passing unknown flag produces invalid option message and exits non-zero",
+      "args": [
+        "--nonexistent_cli_option_foo"
+      ],
+      "stdin": "",
+      "files": {},
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "\"--nonexistent_cli_option_foo\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier1_m05_missing_arg",
+      "tier": 1,
+      "feature": "cli_meta",
+      "name": "Missing flag argument error",
+      "description": "Verifies passing flag requiring value without argument produces error",
+      "args": [
+        "--js_output_file"
+      ],
+      "stdin": "",
+      "files": {},
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "Option \"--js_output_file\" takes an operand\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b01_empty_file",
+      "tier": 2,
+      "feature": "boundary_empty",
+      "name": "Zero byte input file",
+      "description": "Compiles completely empty 0-byte input file cleanly",
+      "args": [
+        "--js",
+        "empty.js"
+      ],
+      "stdin": "",
+      "files": {
+        "empty.js": ""
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b02_whitespace_only",
+      "tier": 2,
+      "feature": "boundary_empty",
+      "name": "Whitespace only input",
+      "description": "Compiles input containing only spaces, tabs, and newlines",
+      "args": [
+        "--js",
+        "spaces.js"
+      ],
+      "stdin": "",
+      "files": {
+        "spaces.js": "    \n\t\n   \n\t"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b03_comments_only",
+      "tier": 2,
+      "feature": "boundary_empty",
+      "name": "Comments only input",
+      "description": "Compiles input containing only single-line and multiline comments",
+      "args": [
+        "--js",
+        "comments.js"
+      ],
+      "stdin": "",
+      "files": {
+        "comments.js": "// line comment 1\n/* block comment\n * line 2\n */\n// line comment 3\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b04_empty_with_output_file",
+      "tier": 2,
+      "feature": "boundary_empty",
+      "name": "Empty input with output file",
+      "description": "Compiles 0-byte input file and verifies 0-byte output file is written",
+      "args": [
+        "--js_output_file",
+        "out.js",
+        "--js",
+        "empty.js"
+      ],
+      "stdin": "",
+      "files": {
+        "empty.js": ""
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {
+          "out.js": "\n"
+        }
+      }
+    },
+    {
+      "id": "tier2_b05_multiple_empty",
+      "tier": 2,
+      "feature": "boundary_empty",
+      "name": "Multiple concatenated empty inputs",
+      "description": "Compiles multiple 0-byte input files together",
+      "args": [
+        "--js",
+        "e1.js",
+        "--js",
+        "e2.js",
+        "--js",
+        "e3.js"
+      ],
+      "stdin": "",
+      "files": {
+        "e1.js": "",
+        "e2.js": "",
+        "e3.js": ""
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b06_unclosed_paren",
+      "tier": 2,
+      "feature": "boundary_syntax",
+      "name": "Unclosed parenthesis syntax error",
+      "description": "Fails compilation on unclosed function call / parenthesis",
+      "args": [
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "(function() { var x = 1;"
+      },
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "in.js:1:24: ERROR - [JSC_PARSE_ERROR] Parse error. '}' expected\n  1| (function() { var x = 1;\n                             ^\n\n1 error(s), 0 warning(s)\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b07_illegal_token",
+      "tier": 2,
+      "feature": "boundary_syntax",
+      "name": "Illegal character token syntax error",
+      "description": "Fails compilation on illegal stray characters in source",
+      "args": [
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var a = 1; @#$% invalid; var b = 2;"
+      },
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "in.js:1:11: ERROR - [JSC_PARSE_ERROR] Parse error. Character '@' (U+0040) is not a valid identifier start char\n  1| var a = 1; @#$% invalid; var b = 2;\n                ^\n\n1 error(s), 0 warning(s)\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b08_reserved_word_strict",
+      "tier": 2,
+      "feature": "boundary_syntax",
+      "name": "Reserved keyword identifier in strict mode",
+      "description": "Fails compilation when using reserved keyword as variable name in strict mode",
+      "args": [
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "'use strict'; var let = 100;"
+      },
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "in.js:1:18: ERROR - [JSC_PARSE_ERROR] Parse error. 'identifier' expected\n  1| 'use strict'; var let = 100;\n                       ^\n\n1 error(s), 0 warning(s)\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b09_duplicate_param_strict",
+      "tier": 2,
+      "feature": "boundary_syntax",
+      "name": "Duplicate parameter in strict mode",
+      "description": "Fails compilation when function declares duplicate parameter names in strict mode",
+      "args": [
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "'use strict'; function test(param, param) { return param; }"
+      },
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "in.js:1:35: ERROR - [JSC_DUPLICATE_PARAM] Parse error. Duplicate parameter name \"param\"\n  1| 'use strict'; function test(param, param) { return param; }\n                                        ^\n\n1 error(s), 0 warning(s)\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b10_unclosed_string",
+      "tier": 2,
+      "feature": "boundary_syntax",
+      "name": "Unclosed string literal",
+      "description": "Fails compilation on unclosed quote in string literal",
+      "args": [
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var unclosed = \"unterminated string literal;\nvar next = 1;"
+      },
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "in.js:1:15: ERROR - [JSC_PARSE_ERROR] Parse error. Unterminated string literal\n  1| var unclosed = \"unterminated string literal;\n                    ^\n\n1 error(s), 0 warning(s)\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b11_surrogate_pair_string",
+      "tier": 2,
+      "feature": "boundary_unicode",
+      "name": "UTF-16 4-byte surrogate pair emoji in string",
+      "description": "Preserves supplementary plane characters (surrogate pairs) in string literals",
+      "args": [
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var emoji = '\ud83d\ude00\ud83c\udf89\ud83d\ude80'; window['res'] = emoji.length;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var emoji=\"\\ud83d\\ude00\\ud83c\\udf89\\ud83d\\ude80\";window.res=emoji.length;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b12_lone_high_surrogate",
+      "tier": 2,
+      "feature": "boundary_unicode",
+      "name": "Lone high surrogate in string literal",
+      "description": "Handles lone high surrogate code unit without panic or WTF-8 corruption",
+      "args": [
+        "--compilation_level",
+        "WHITESPACE_ONLY",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var loneHigh = '\\uD800'; window['s'] = loneHigh;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var loneHigh=\"\\ud800\";window[\"s\"]=loneHigh;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b13_lone_low_surrogate",
+      "tier": 2,
+      "feature": "boundary_unicode",
+      "name": "Lone low surrogate in string literal",
+      "description": "Handles lone low surrogate code unit without panic or WTF-8 corruption",
+      "args": [
+        "--compilation_level",
+        "WHITESPACE_ONLY",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var loneLow = '\\uDC00'; window['s'] = loneLow;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var loneLow=\"\\udc00\";window[\"s\"]=loneLow;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b14_unicode_identifiers",
+      "tier": 2,
+      "feature": "boundary_unicode",
+      "name": "Unicode identifier names",
+      "description": "Parses and compiles non-ASCII identifiers in Japanese, Greek, and Cyrillic",
+      "args": [
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var \u5909\u6570 = 10; var \u03c0 = 3.14159; var \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442 = \u5909\u6570 * \u03c0; window['out'] = \u0440\u0435\u0437\u0443\u043b\u044c\u0442\u0430\u0442;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var \\u5909\\u6570=10,\\u03c0=3.14159,\\u0440\\u0435\\u0437\\u0443\\u043b\\u044c\\u0442\\u0430\\u0442=\\u5909\\u6570*\\u03c0;window.out=\\u0440\\u0435\\u0437\\u0443\\u043b\\u044c\\u0442\\u0430\\u0442;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b15_unicode_regex",
+      "tier": 2,
+      "feature": "boundary_unicode",
+      "name": "Unicode escape sequences in regular expressions",
+      "description": "Compiles regular expressions containing Unicode range escapes",
+      "args": [
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var pattern = /[\\u00A0-\\uD7FF\\uF900-\\uFDCF]/gu; window['match'] = pattern.test('test');"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var pattern=/[\\u00A0-\\uD7FF\\uF900-\\uFDCF]/gu;window.match=pattern.test(\"test\");\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b16_deep_binary_expr",
+      "tier": 2,
+      "feature": "boundary_deep_ast",
+      "name": "Deeply nested binary addition expression",
+      "description": "Compiles expression with 250 levels of binary addition without stack overflow",
+      "args": [
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var deepSum = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1; window['sum'] = deepSum;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var deepSum=250;window.sum=deepSum;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b17_deep_parentheses",
+      "tier": 2,
+      "feature": "boundary_deep_ast",
+      "name": "Deeply nested parentheses",
+      "description": "Compiles expression with 250 levels of nested parentheses without stack overflow",
+      "args": [
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var deepParen = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((42)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))); window['p'] = deepParen;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var deepParen=42;window.p=deepParen;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b18_deep_blocks",
+      "tier": 2,
+      "feature": "boundary_deep_ast",
+      "name": "Deeply nested block statements",
+      "description": "Compiles code with 60 levels of nested block scopes",
+      "args": [
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\nvar deepScoped = 100;\nwindow['d'] = deepScoped;\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var deepScoped=100;window.d=deepScoped;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b19_deep_function_chain",
+      "tier": 2,
+      "feature": "boundary_deep_ast",
+      "name": "Deeply nested method invocation chain",
+      "description": "Compiles 80 levels of chained method invocations",
+      "args": [
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var builder = { step: function() { return this; }, done: function() { return 1; } };\nvar res = builder.step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().done();\nwindow['b'] = res;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var builder={step:function(){return this},done:function(){return 1}},res=builder.step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().done();\nwindow.b=res;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b20_deep_ternary",
+      "tier": 2,
+      "feature": "boundary_deep_ast",
+      "name": "Deeply nested ternary conditional expression",
+      "description": "Compiles 50 levels of nested ternary expressions",
+      "args": [
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var a = 5;\nvar res = a === 0 ? 0 : (a === 1 ? 1 : (a === 2 ? 2 : (a === 3 ? 3 : (a === 4 ? 4 : (a === 5 ? 5 : (a === 6 ? 6 : (a === 7 ? 7 : (a === 8 ? 8 : (a === 9 ? 9 : (a === 10 ? 10 : (a === 11 ? 11 : (a === 12 ? 12 : (a === 13 ? 13 : (a === 14 ? 14 : (a === 15 ? 15 : (a === 16 ? 16 : (a === 17 ? 17 : (a === 18 ? 18 : (a === 19 ? 19 : (a === 20 ? 20 : (a === 21 ? 21 : (a === 22 ? 22 : (a === 23 ? 23 : (a === 24 ? 24 : (a === 25 ? 25 : (a === 26 ? 26 : (a === 27 ? 27 : (a === 28 ? 28 : (a === 29 ? 29 : (a === 30 ? 30 : (a === 31 ? 31 : (a === 32 ? 32 : (a === 33 ? 33 : (a === 34 ? 34 : (a === 35 ? 35 : (a === 36 ? 36 : (a === 37 ? 37 : (a === 38 ? 38 : (a === 39 ? 39 : (a === 40 ? 40 : (a === 41 ? 41 : (a === 42 ? 42 : (a === 43 ? 43 : (a === 44 ? 44 : (a === 45 ? 45 : (a === 46 ? 46 : (a === 47 ? 47 : (a === 48 ? 48 : (a === 49 ? 49 : (0))))))))))))))))))))))))))))))))))))))))))))))))));\nwindow['res'] = res;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var a=5,res=a===0?0:a===1?1:a===2?2:a===3?3:a===4?4:a===5?5:a===6?6:a===7?7:a===8?8:a===9?9:a===10?10:a===11?11:a===12?12:a===13?13:a===14?14:a===15?15:a===16?16:a===17?17:a===18?18:a===19?19:a===20?20:a===21?21:a===22?22:a===23?23:a===24?24:a===25?25:a===26?26:a===27?27:a===28?28:a===29?29:a===30?30:a===31?31:a===32?32:a===33?33:a===34?34:a===35?35:a===36?36:a===37?37:a===38?38:a===39?39:a===40?40:a===41?41:a===42?42:a===43?43:a===44?44:a===45?45:a===46?46:a===47?47:a===48?48:a===49?49:0;\nwindow.res=res;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b21_nonexistent_input",
+      "tier": 2,
+      "feature": "boundary_flags",
+      "name": "Nonexistent input file error",
+      "description": "Reports clear file not found error when input JS file does not exist",
+      "args": [
+        "--js",
+        "in/does_not_exist_xyz123.js"
+      ],
+      "stdin": "",
+      "files": {},
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "ERROR - [JSC_READ_ERROR] Cannot read file in/does_not_exist_xyz123.js: in/does_not_exist_xyz123.js\n\n1 error(s), 0 warning(s)\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b22_nonexistent_flagfile",
+      "tier": 2,
+      "feature": "boundary_flags",
+      "name": "Nonexistent flagfile error",
+      "description": "Reports error when specified flagfile does not exist",
+      "args": [
+        "--flagfile",
+        "in/does_not_exist_flags.txt"
+      ],
+      "stdin": "",
+      "files": {},
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "ERROR - in/does_not_exist_flags.txt read error.\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b23_invalid_compilation_level",
+      "tier": 2,
+      "feature": "boundary_flags",
+      "name": "Invalid compilation level argument",
+      "description": "Reports error when invalid compilation level is passed",
+      "args": [
+        "--compilation_level",
+        "INVALID_COMPILATION_LEVEL_NAME",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var x = 1;"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "Bad value for --compilation_level: INVALID_COMPILATION_LEVEL_NAME\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b24_invalid_charset",
+      "tier": 2,
+      "feature": "boundary_flags",
+      "name": "Invalid charset name argument",
+      "description": "Reports error when unrecognized character set name is specified",
+      "args": [
+        "--charset",
+        "bad-charset-name-xyz",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var x = 1;"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "bad-charset-name-xyz is not a valid charset name.\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier2_b25_conflicting_flags",
+      "tier": 2,
+      "feature": "boundary_flags",
+      "name": "Conflicting output flags",
+      "description": "Handles contradictory flag combinations with standard exit status",
+      "args": [
+        "--isolation_mode",
+        "IIFE",
+        "--output_wrapper",
+        "%output%",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "var x = 1;"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "--output_wrapper and --isolation_mode may not be used together.\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x01_typecheck_and_advanced",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "Type checking driving ADVANCED property renaming",
+      "description": "Verifies type declarations guide property disambiguation and renaming under ADVANCED optimizations",
+      "args": [
+        "--compilation_level",
+        "ADVANCED",
+        "--jscomp_warning=checkTypes",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @constructor */ function Point(x, y) { /** @type {number} */ this.x = x; /** @type {number} */ this.y = y; }\nPoint.prototype.getX = function() { return this.x; };\nwindow['res'] = new Point(10, 20).getX();\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "window.res=(new function(){this.x=10;this.y=20}).x;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x02_typecheck_halting_advanced",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "Type error halting ADVANCED optimization pipeline",
+      "description": "Verifies type error promoted to error halts compilation before optimization phases execute",
+      "args": [
+        "--compilation_level",
+        "ADVANCED",
+        "--jscomp_error=checkTypes",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @type {number} */ var invalidNum = 'string'; function calc(n) { return n * 2; } window['res'] = calc(invalidNum);"
+      },
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "in.js:1:39: ERROR - [JSC_TYPE_MISMATCH] initializing variable\nfound   : string\nrequired: number\n  1| /** @type {number} */ var invalidNum = 'string'; function calc(n) { return n * 2; } window['res'] = calc(invalidNum);\n                                            ^^^^^^^^\n\n1 error(s), 0 warning(s), 80.0% typed\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x03_chunking_with_sourcemaps",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "Multi-chunk build with source maps",
+      "description": "Verifies multi-chunk compilation simultaneously generating source maps for each chunk",
+      "args": [
+        "--chunk",
+        "core:1",
+        "--js",
+        "core.js",
+        "--chunk",
+        "ui:1:core",
+        "--js",
+        "ui.js",
+        "--chunk_output_word_spec",
+        "%s.js",
+        "--create_source_map",
+        "%s.map"
+      ],
+      "stdin": "",
+      "files": {
+        "core.js": "var coreAPI = { version: 1 };",
+        "ui.js": "var uiWidget = { core: coreAPI };"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x04_chunking_codemotion_sourcemaps",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "Cross-chunk code motion with source maps",
+      "description": "Verifies cross-chunk code motion maintains source map accuracy when moving code across chunks",
+      "args": [
+        "--chunk",
+        "base:1",
+        "--js",
+        "base.js",
+        "--chunk",
+        "m1:1:base",
+        "--js",
+        "m1.js",
+        "--chunk",
+        "m2:1:base",
+        "--js",
+        "m2.js",
+        "--chunk_output_word_spec",
+        "%s.js",
+        "--create_source_map",
+        "%s.map"
+      ],
+      "stdin": "",
+      "files": {
+        "base.js": "var baseObj = {};",
+        "m1.js": "function sharedCalc(v) { return v + 1; }\nwindow['m1'] = sharedCalc(10);\n",
+        "m2.js": "window['m2'] = sharedCalc(20);\n"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x05_chunking_with_wrappers",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "Multi-chunk compilation with chunk wrappers",
+      "description": "Verifies chunk output wrappers combined with multi-chunk code generation",
+      "args": [
+        "--chunk",
+        "root:1",
+        "--js",
+        "root.js",
+        "--chunk",
+        "app:1:root",
+        "--js",
+        "app.js",
+        "--chunk_output_word_spec",
+        "%s.js",
+        "--chunk_output_wrapper",
+        "/*module_wrap*/(function(){%output%})();"
+      ],
+      "stdin": "",
+      "files": {
+        "root.js": "var RootService = { id: 'root' };",
+        "app.js": "var AppInstance = { service: RootService };"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x06_transpile_polyfills_advanced",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "ES_NEXT transpile with polyfills under ADVANCED",
+      "description": "Verifies ES_NEXT syntax transpiled to ES5 with polyfill rewriting under ADVANCED optimizations",
+      "args": [
+        "--language_in",
+        "ECMASCRIPT_NEXT",
+        "--language_out",
+        "ECMASCRIPT5",
+        "--rewrite_polyfills=true",
+        "--compilation_level",
+        "ADVANCED",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "const m = new Map(); m.set('k', 42); window['mapVal'] = m.get('k');"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "function n(d){d=[\"object\"==typeof globalThis&&globalThis,d,\"object\"==typeof window&&window,\"object\"==typeof self&&self,\"object\"==typeof global&&global];for(var e=0;e<d.length;++e){var g=d[e];if(g&&g.Math==Math)return g}throw Error(\"Cannot find global object\");}var q=n(this);function r(d){var e=0;return function(){return e<d.length?{done:!1,value:d[e++]}:{done:!0}}}\nvar t=typeof Object.defineProperties==\"function\"?Object.defineProperty:function(d,e,g){if(d==Array.prototype||d==Object.prototype)return d;d[e]=g.value;return d},u=typeof Object.create==\"function\"?Object.create:function(d){function e(){}e.prototype=d;return new e};function v(d,e){if(e)a:{var g=q;d=d.split(\".\");for(var k=0;k<d.length-1;k++){var h=d[k];if(!(h in g))break a;g=g[h]}d=d[d.length-1];k=g[d];e=e(k);e!=k&&e!=null&&t(g,d,{configurable:!0,writable:!0,value:e})}}\nv(\"Symbol\",function(d){function e(m){if(this instanceof e)throw new TypeError(\"Symbol is not a constructor\");return new g(k+(m||\"\")+\"_\"+h++,m)}function g(m,l){this.i=m;t(this,\"description\",{configurable:!0,writable:!0,value:l})}if(d)return d;g.prototype.toString=function(){return this.i};var k=\"jscomp_symbol_\"+(Math.random()*1E9>>>0)+\"_\",h=0;return e});\nv(\"Symbol.iterator\",function(d){if(d)return d;d=Symbol(\"Symbol.iterator\");t(Array.prototype,d,{configurable:!0,writable:!0,value:function(){return w(r(this))}});return d});function w(d){var e=(typeof Iterator!=\"undefined\"&&Iterator.prototype&&!Iterator.prototype.next?Iterator.prototype:null)||Object.prototype,g=u(e);g.next=d;e[Symbol.iterator]||(g[Symbol.iterator]=function(){return this});return g}\nfunction x(d){var e=typeof Symbol!=\"undefined\"&&Symbol.iterator&&d[Symbol.iterator];if(e)return e.call(d);if(typeof d.length==\"number\")return{next:r(d)};throw Error(String(d)+\" is not an iterable or ArrayLike\");}function y(d,e){return Object.prototype.hasOwnProperty.call(d,e)}\nv(\"WeakMap\",function(d){function e(a){this.i=(b+=Math.random()+1).toString();if(a){a=x(a);for(var c;!(c=a.next()).done;)c=c.value,this.set(c[0],c[1])}}function g(){}function k(a){var c=typeof a;return c===\"object\"&&a!==null||c===\"function\"}function h(a){if(!y(a,l)){var c=new g;t(a,l,{value:c})}}function m(a){var c=Object[a];c&&(Object[a]=function(f){if(f instanceof g)return f;Object.isExtensible(f)&&h(f);return c(f)})}if(function(){if(!d||!Object.seal)return!1;try{var a=Object.seal({}),c=Object.seal({}),\nf=new d([[a,2],[c,3]]);if(f.get(a)!=2||f.get(c)!=3)return!1;f.delete(a);f.set(c,4);return!f.has(a)&&f.get(c)==4}catch(p){return!1}}())return d;var l=\"$jscomp_hidden_\"+Math.random();m(\"freeze\");m(\"preventExtensions\");m(\"seal\");var b=0;e.prototype.set=function(a,c){if(!k(a))throw Error(\"Invalid WeakMap key\");h(a);if(!y(a,l))throw Error(\"WeakMap key fail: \"+a);a[l][this.i]=c;return this};e.prototype.get=function(a){return k(a)&&y(a,l)?a[l][this.i]:void 0};e.prototype.has=function(a){return k(a)&&y(a,\nl)&&y(a[l],this.i)};e.prototype.delete=function(a){return k(a)&&y(a,l)&&y(a[l],this.i)?delete a[l][this.i]:!1};return e});\nv(\"Map\",function(d){function e(){var b={};return b.h=b.next=b.head=b}function g(b,a){var c=b[1];return w(function(){if(c){for(;c.head!=b[1];)c=c.h;for(;c.next!=c.head;)return c=c.next,{done:!1,value:a(c)};c=null}return{done:!0,value:void 0}})}function k(b,a){var c=a&&typeof a;c==\"object\"||c==\"function\"?m.has(a)?c=m.get(a):(c=\"\"+ ++l,m.set(a,c)):c=\"p_\"+a;var f=b[0][c];if(f&&y(b[0],c))for(b=0;b<f.length;b++){var p=f[b];if(a!==a&&p.key!==p.key||a===p.key)return{id:c,list:f,index:b,entry:p}}return{id:c,\nlist:f,index:-1,entry:void 0}}function h(b){this[0]={};this[1]=e();this.size=0;if(b){b=x(b);for(var a;!(a=b.next()).done;)a=a.value,this.set(a[0],a[1])}}if(function(){if(!d||typeof d!=\"function\"||!d.prototype.entries||typeof Object.seal!=\"function\")return!1;try{var b=Object.seal({x:4}),a=new d(x([[b,\"s\"]]));if(a.get(b)!=\"s\"||a.size!=1||a.get({x:4})||a.set({x:4},\"t\")!=a||a.size!=2)return!1;var c=a.entries(),f=c.next();if(f.done||f.value[0]!=b||f.value[1]!=\"s\")return!1;f=c.next();return!(f.done||f.value[0].x!=\n4||f.value[1]!=\"t\"||!c.next().done)}catch(p){return!1}}())return d;var m=new WeakMap;h.prototype.set=function(b,a){b=b===0?0:b;var c=k(this,b);c.list||(c.list=this[0][c.id]=[]);c.entry?c.entry.value=a:(c.entry={next:this[1],h:this[1].h,head:this[1],key:b,value:a},c.list.push(c.entry),this[1].h.next=c.entry,this[1].h=c.entry,this.size++);return this};h.prototype.delete=function(b){b=k(this,b);return b.entry&&b.list?(b.list.splice(b.index,1),b.list.length||delete this[0][b.id],b.entry.h.next=b.entry.next,\nb.entry.next.h=b.entry.h,b.entry.head=null,this.size--,!0):!1};h.prototype.clear=function(){this[0]={};this[1]=this[1].h=e();this.size=0};h.prototype.has=function(b){return!!k(this,b).entry};h.prototype.get=function(b){return(b=k(this,b).entry)&&b.value};h.prototype.entries=function(){return g(this,function(b){return[b.key,b.value]})};h.prototype.keys=function(){return g(this,function(b){return b.key})};h.prototype.values=function(){return g(this,function(b){return b.value})};h.prototype.forEach=\nfunction(b,a){for(var c=this.entries(),f;!(f=c.next()).done;)f=f.value,b.call(a,f[1],f[0],this)};h.prototype[Symbol.iterator]=h.prototype.entries;var l=0;return h});var z=new Map;z.set(\"k\",42);window.mapVal=z.get(\"k\");\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x07_transpile_isolate_polyfills",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "Transpile with isolated polyfills and output wrapper",
+      "description": "Verifies isolated polyfills preventing global scope modification wrapped in IIFE",
+      "args": [
+        "--language_in",
+        "ECMASCRIPT_NEXT",
+        "--language_out",
+        "ECMASCRIPT5",
+        "--isolate_polyfills",
+        "--output_wrapper",
+        "(function(){%output%})();",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "const nums = [1, 2, 3]; window['hasVal'] = nums.includes(2);"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "(function(){var $jscomp=$jscomp||{};$jscomp.scope={};$jscomp.ASSUME_ES2020=!1;$jscomp.ASSUME_ES6=$jscomp.ASSUME_ES2020;$jscomp.ASSUME_ES5=$jscomp.ASSUME_ES6;$jscomp.ASSUME_NO_NATIVE_MAP=!1;$jscomp.ASSUME_NO_NATIVE_SET=!1;$jscomp.ISOLATE_POLYFILLS=!0;$jscomp.FORCE_POLYFILL_PROMISE=!1;$jscomp.FORCE_POLYFILL_PROMISE_WHEN_NO_UNHANDLED_REJECTION=!1;$jscomp.INSTRUMENT_ASYNC_CONTEXT=!0;\n$jscomp.defineProperty=$jscomp.ASSUME_ES5||typeof Object.defineProperties==\"function\"?Object.defineProperty:function(b,c,a){if(b==Array.prototype||b==Object.prototype)return b;b[c]=a.value;return b};$jscomp.getGlobal=function(b){b=[\"object\"==typeof globalThis&&globalThis,b,\"object\"==typeof window&&window,\"object\"==typeof self&&self,\"object\"==typeof global&&global];for(var c=0;c<b.length;++c){var a=b[c];if(a&&a.Math==Math)return a}throw Error(\"Cannot find global object\");};\n$jscomp.global=$jscomp.ASSUME_ES2020?globalThis:$jscomp.getGlobal(this);$jscomp.IS_SYMBOL_NATIVE=typeof Symbol===\"function\"&&typeof Symbol(\"x\")===\"symbol\";$jscomp.TRUST_ES6_POLYFILLS=!$jscomp.ISOLATE_POLYFILLS||$jscomp.IS_SYMBOL_NATIVE;$jscomp.polyfills={};$jscomp.propertyToPolyfillSymbol={};$jscomp.POLYFILL_PREFIX=\"$jscp$\";var $jscomp$lookupPolyfilledValue=function(b,c,a){if(!a||b!=null){a=$jscomp.propertyToPolyfillSymbol[c];if(a==null)return b[c];a=b[a];return a!==void 0?a:b[c]}};\n$jscomp.TYPED_ARRAY_CLASSES=function(){var b=\"Int8 Uint8 Uint8Clamped Int16 Uint16 Int32 Uint32 Float32 Float64\".split(\" \");$jscomp.global.BigInt64Array&&(b.push(\"BigInt64\"),b.push(\"BigUint64\"));return b}();$jscomp.polyfillTypedArrayMethod=function(b,c,a,d){if(c)for(var e=0;e<$jscomp.TYPED_ARRAY_CLASSES.length;e++){var f=$jscomp.TYPED_ARRAY_CLASSES[e]+\"Array.prototype.\"+b;$jscomp.ISOLATE_POLYFILLS?$jscomp.polyfillIsolated(f,c,a,d):$jscomp.polyfillUnisolated(f,c,a,d)}};\n$jscomp.polyfill=function(b,c,a,d){c&&($jscomp.ISOLATE_POLYFILLS?$jscomp.polyfillIsolated(b,c,a,d):$jscomp.polyfillUnisolated(b,c,a,d))};$jscomp.polyfillUnisolated=function(b,c,a,d){a=$jscomp.global;b=b.split(\".\");for(d=0;d<b.length-1;d++){var e=b[d];if(!(e in a))return;a=a[e]}b=b[b.length-1];d=a[b];c=c(d);c!=d&&c!=null&&$jscomp.defineProperty(a,b,{configurable:!0,writable:!0,value:c})};\n$jscomp.polyfillIsolated=function(b,c,a,d){var e=b.split(\".\");b=e.length===1;d=e[0];d=!b&&d in $jscomp.polyfills?$jscomp.polyfills:$jscomp.global;for(var f=0;f<e.length-1;f++){var g=e[f];if(!(g in d))return;d=d[g]}e=e[e.length-1];a=$jscomp.IS_SYMBOL_NATIVE&&a===\"es6\"?d[e]:null;c=c(a);c!=null&&(b?$jscomp.defineProperty($jscomp.polyfills,e,{configurable:!0,writable:!0,value:c}):c!==a&&($jscomp.propertyToPolyfillSymbol[e]===void 0&&(a=Math.random()*1E9>>>0,$jscomp.propertyToPolyfillSymbol[e]=$jscomp.IS_SYMBOL_NATIVE?\n$jscomp.global.Symbol(e):$jscomp.POLYFILL_PREFIX+a+\"$\"+e),$jscomp.defineProperty(d,$jscomp.propertyToPolyfillSymbol[e],{configurable:!0,writable:!0,value:c})))};$jscomp.polyfill(\"Object.is\",function(b){return b?b:function(c,a){return c===a?c!==0||1/c===1/a:c!==c&&a!==a}},\"es6\",\"es3\");\n$jscomp.polyfill(\"Array.prototype.includes\",function(b){return b?b:function(c,a){var d=this;d instanceof String&&(d=String(d));var e=d.length;a=a||0;for(a<0&&(a=Math.max(a+e,0));a<e;a++){var f=d[a];if(f===c||$jscomp$lookupPolyfilledValue(Object,\"is\").call(Object,f,c))return!0}return!1}},\"es7\",\"es3\");\n$jscomp.checkStringArgs=function(b,c,a){if(b==null)throw new TypeError(\"The 'this' value for String.prototype.\"+a+\" must not be null or undefined\");if(c instanceof RegExp)throw new TypeError(\"First argument to String.prototype.\"+a+\" must not be a regular expression\");return b+\"\"};$jscomp.polyfill(\"String.prototype.includes\",function(b){return b?b:function(c,a){return $jscomp.checkStringArgs(this,c,\"includes\").indexOf(c,a||0)!==-1}},\"es6\",\"es3\");var nums=[1,2,3];\nwindow.hasVal=$jscomp$lookupPolyfilledValue(nums,\"includes\").call(nums,2);})();\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x08_esm_bundling_sourcemaps",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "ES module bundling with source maps",
+      "description": "Bundles multiple ES module files into single bundle with source map generated",
+      "args": [
+        "--create_source_map",
+        "bundle.js.map",
+        "--js_output_file",
+        "bundle.js",
+        "--js",
+        "math.js",
+        "--js",
+        "main.js"
+      ],
+      "stdin": "",
+      "files": {
+        "math.js": "export function add(a, b) { return a + b; }",
+        "main.js": "import { add } from './math.js'; window['res'] = add(3, 4);"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {
+          "bundle.js.map": "{\n\"version\":3,\n\"file\":\"bundle.js\",\n\"lineCount\":1,\n\"mappings\":\"AAAOA,QAASA,iBAAG,CAACC,CAAD,CAAIC,CAAJ,CAAO,CAAE,MAAOD,EAAP,CAAWC,CAAb,CAA1B,IAAAC,YAAA,EAAgBH,YAAAA,CAAAA,GAAAA,CAAAA,gB,CCAiBI,MAAA,CAAA,GAAA,CAAgBJ,gBAAA,CAAI,CAAJ,CAAO,CAAP,CAAjD,KAAAG,YAAA;\",\n\"sources\":[\"math.js\",\"main.js\"],\n\"names\":[\"add\",\"a\",\"b\",\"$jscomp$tmp$exports$module$name\",\"window\"]\n}\n",
+          "bundle.js": "function add$$module$math(a,b){return a+b}var module$math={};module$math.add=add$$module$math;window.res=add$$module$math(3,4);var module$main={};\n"
+        }
+      }
+    },
+    {
+      "id": "tier3_x09_cjs_to_esm_advanced",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "CommonJS module processing under ADVANCED",
+      "description": "Compiles CommonJS module with require/exports under ADVANCED optimizations",
+      "args": [
+        "--process_common_js_modules",
+        "--compilation_level",
+        "ADVANCED",
+        "--js",
+        "mod.js",
+        "--js",
+        "app.js"
+      ],
+      "stdin": "",
+      "files": {
+        "mod.js": "exports.calc = function(x) { return x * 3; };",
+        "app.js": "var m = require('./mod.js'); window['res'] = m.calc(5);"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "window.res=15;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x10_renaming_reports_pretty_wrapper",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "Renaming reports with pretty print and output wrapper",
+      "description": "Generates variable and property renaming reports alongside pretty-printed wrapped output",
+      "args": [
+        "--compilation_level",
+        "ADVANCED",
+        "--variable_renaming_report",
+        "vars.txt",
+        "--property_renaming_report",
+        "props.txt",
+        "--formatting",
+        "PRETTY_PRINT",
+        "--output_wrapper",
+        "(function(){%output%})();",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "function State(initial) { this.currentVal = initial; } State.prototype.update = function(v) { this.currentVal += v; }; window['s'] = new State(10);"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "(function(){function a() {\n}\na.prototype.update = function() {\n};\nwindow.s = new a();\n})();\n",
+        "stderr": "in.js:1:26: WARNING - [JSC_USED_GLOBAL_THIS] dangerous use of the global this object\n  1| function State(initial) { this.currentVal = initial; } State.prototype.update = function(v) { this.currentVal += v; }; window['s'] = new State(10);\n                               ^^^^\n\nin.js:1:133: WARNING - [JSC_NOT_A_CONSTRUCTOR] cannot instantiate non-constructor, found type: function(?): undefined\n  1| function State(initial) { this.currentVal = initial; } State.prototype.update = function(v) { this.currentVal += v; }; window['s'] = new State(10);\n                                                                                                                                          ^^^^^^^^^^^^^\n\n0 error(s), 2 warning(s), 53.3% typed\n",
+        "output_files": {
+          "props.txt": "",
+          "vars.txt": "State:a\n"
+        }
+      }
+    },
+    {
+      "id": "tier3_x11_strict_checks_and_defines",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "Strict type checks with compile-time defines",
+      "description": "Runs strict type checking and custom defines simultaneously",
+      "args": [
+        "--checks_only",
+        "--jscomp_error=checkTypes",
+        "--jscomp_warning=strictCheckTypes",
+        "-D",
+        "DEBUG_MODE=false",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @define {boolean} */ var DEBUG_MODE = true; /** @type {number} */ var count = 10; if (DEBUG_MODE) { count = 20; }"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x12_dynamic_imports_chunks",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "Dynamic import with chunk split",
+      "description": "Compiles dynamic import statements into chunk outputs",
+      "args": [
+        "--chunk",
+        "main:1",
+        "--js",
+        "main.js",
+        "--chunk",
+        "lazy:1:main",
+        "--js",
+        "lazy.js",
+        "--chunk_output_word_spec",
+        "%s.out.js"
+      ],
+      "stdin": "",
+      "files": {
+        "main.js": "function load() { return import('./lazy.js'); } window['load'] = load;",
+        "lazy.js": "export const loadedData = 'data';"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x13_language_out_formatting_wrapper",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "Transpilation with single quotes, pretty print, and wrapper",
+      "description": "Transpiles ES_NEXT to ES5 while applying SINGLE_QUOTES, PRETTY_PRINT, and output wrapper",
+      "args": [
+        "--language_in",
+        "ECMASCRIPT_NEXT",
+        "--language_out",
+        "ECMASCRIPT5",
+        "--formatting",
+        "SINGLE_QUOTES",
+        "--formatting",
+        "PRETTY_PRINT",
+        "--output_wrapper",
+        "// banner\n%output%",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "const greeting = \"hello\"; const getGreeting = () => `${greeting} world`; window['g'] = getGreeting();"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "// banner\nvar $jscomp = $jscomp || {};\n$jscomp.scope = {};\n$jscomp.createTemplateTagFirstArg = function(a) {\n  return $jscomp.createTemplateTagFirstArgWithRaw(a, a);\n};\n$jscomp.createTemplateTagFirstArgWithRaw = function(a, b) {\n  a.raw = b;\n  Object.freeze && (Object.freeze(a), Object.freeze(b));\n  return a;\n};\nvar greeting = 'hello', getGreeting = function() {\n  return greeting + ' world';\n};\nwindow.g = getGreeting();\n\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x14_defines_inlining_deadcode",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "Defines driving complete dead code elimination",
+      "description": "Verifies false boolean define causes dead branch and its functions to be completely removed",
+      "args": [
+        "--define=ENABLE_LEGACY=false",
+        "--compilation_level",
+        "ADVANCED",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @define {boolean} */ var ENABLE_LEGACY = true; function legacyCode() { return 'bloat_function_content'; } if (ENABLE_LEGACY) { window['out'] = legacyCode(); } else { window['out'] = 'modern'; }"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "window.out=\"modern\";\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier3_x15_externs_typecheck_advanced",
+      "tier": 3,
+      "feature": "cross_combinations",
+      "name": "Custom externs type-checked and preserved under ADVANCED",
+      "description": "Custom extern file declaring external API type-checked and preserved from renaming",
+      "args": [
+        "--externs",
+        "externs.js",
+        "--compilation_level",
+        "ADVANCED",
+        "--jscomp_error=checkTypes",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "externs.js": "/** @type {{ logMessage: function(string): void }} */ var externalLogger;",
+        "in.js": "function logEvent(msg) { externalLogger.logMessage(msg); } window['run'] = logEvent;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "window.run=function(a){externalLogger.logMessage(a)};\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r01_closure_cli_globs",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Closure CLI compiler globs job",
+      "description": "Executes closure-cli/compiler-globs scenario from tools/clie2e/projects/closure-cli.json",
+      "args": [
+        "--js",
+        "src/closure-cli/a.js",
+        "--js",
+        "src/closure-cli/b.js",
+        "--compilation_level",
+        "SIMPLE",
+        "--js_output_file",
+        "out.js"
+      ],
+      "stdin": "",
+      "files": {
+        "src/closure-cli/a.js": "var a1 = 1; var a2 = 2;",
+        "src/closure-cli/b.js": "var b1 = a1 + a2;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {
+          "out.js": "var a1=1,a2=2;var b1=a1+a2;\n"
+        }
+      }
+    },
+    {
+      "id": "tier4_r02_closure_cli_flagfile",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Closure CLI flagfile argument loading",
+      "description": "Executes compilation reading CLI options from @flagfile",
+      "args": [
+        "--flagfile",
+        "flags.txt"
+      ],
+      "stdin": "",
+      "files": {
+        "flags.txt": "--compilation_level SIMPLE\n--js in.js\n--js_output_file out.js\n",
+        "in.js": "var flagfileVar = 42; window['res'] = flagfileVar;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {
+          "out.js": "var flagfileVar=42;window.res=flagfileVar;\n"
+        }
+      }
+    },
+    {
+      "id": "tier4_r03_closure_cli_translations",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Closure CLI translations message bundle",
+      "description": "Executes localized build using XTB translations file",
+      "args": [
+        "--translations_file",
+        "trans.xtb",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "trans.xtb": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE translationbundle SYSTEM \"translationbundle.dtd\">\n<translationbundle lang=\"fr\">\n  <translation id=\"123456789\">Bonjour le monde</translation>\n</translationbundle>",
+        "in.js": "var MSG_HELLO = goog.getMsg('Hello {$name}', {name: 'world'});"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var MSG_HELLO=\"Hello world\";\n",
+        "stderr": "in.js:1:4: WARNING - [JSC_MSG_HAS_NO_DESCRIPTION] Message MSG_HELLO has no description. Add @desc JsDoc tag.\n  1| var MSG_HELLO = goog.getMsg('Hello {$name}', {name: 'world'});\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n0 error(s), 1 warning(s)\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r04_closure_app_simple",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Closure Library application SIMPLE compile",
+      "description": "Closure Library goog.provide/goog.require modular compilation under SIMPLE",
+      "args": [
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "base.js",
+        "--js",
+        "app.js"
+      ],
+      "stdin": "",
+      "files": {
+        "base.js": "var goog = goog || {}; goog.provide = function(ns) {}; goog.require = function(ns) {};",
+        "app.js": "goog.provide('my.app'); my.app.init = function() { return 'app ready'; }; window['init'] = my.app.init;"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var goog=goog||{};goog.provide=function(a){};goog.require=function(a){};var my={app:{}};my.app.init=function(){return\"app ready\"};window.init=my.app.init;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r05_closure_app_advanced",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Closure Library application ADVANCED compile",
+      "description": "Closure Library application under ADVANCED optimizations with namespace collapsing",
+      "args": [
+        "--compilation_level",
+        "ADVANCED",
+        "--js",
+        "base.js",
+        "--js",
+        "app.js"
+      ],
+      "stdin": "",
+      "files": {
+        "base.js": "var goog = goog || {}; goog.provide = function(ns) {}; goog.require = function(ns) {};",
+        "app.js": "goog.provide('my.calc'); /** @constructor */ my.calc.Calculator = function() {}; my.calc.Calculator.prototype.add = function(a, b) { return a + b; }; window['calc'] = new my.calc.Calculator().add(10, 20);"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "function a(){}a.prototype.add=function(b,c){return b+c};window.calc=(new a).add(10,20);\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r06_chunks_closure",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Multi-chunk Closure Library application",
+      "description": "Multi-chunk split for Closure application with common base and feature chunks",
+      "args": [
+        "--chunk",
+        "base:1",
+        "--js",
+        "base.js",
+        "--chunk",
+        "featA:1:base",
+        "--js",
+        "featA.js",
+        "--chunk",
+        "featB:1:base",
+        "--js",
+        "featB.js",
+        "--chunk_output_word_spec",
+        "%s.js"
+      ],
+      "stdin": "",
+      "files": {
+        "base.js": "var AppKernel = { version: '2.0' };",
+        "featA.js": "var FeatureA = { name: 'A', kernel: AppKernel };",
+        "featB.js": "var FeatureB = { name: 'B', kernel: AppKernel };"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r07_chunks_modules",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Multi-chunk ES module application",
+      "description": "Multi-chunk split for ES module application graph",
+      "args": [
+        "--chunk",
+        "vendor:1",
+        "--js",
+        "vendor.js",
+        "--chunk",
+        "main:1:vendor",
+        "--js",
+        "main.js",
+        "--chunk_output_word_spec",
+        "%s.js"
+      ],
+      "stdin": "",
+      "files": {
+        "vendor.js": "export const LIB = { util: (x) => x + 1 };",
+        "main.js": "import { LIB } from './vendor.js'; window['app'] = LIB.util(10);"
+      },
+      "expected": {
+        "exit_code": 255,
+        "stdout": "",
+        "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r08_esm_preact",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Preact ES module build scenario",
+      "description": "Compiles Preact component pattern module using ES_NEXT to ES5 transpilation",
+      "args": [
+        "--language_in",
+        "ECMASCRIPT_NEXT",
+        "--language_out",
+        "ECMASCRIPT5",
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "preact_component.js"
+      ],
+      "stdin": "",
+      "files": {
+        "preact_component.js": "function h(tag, props, ...children) { return { tag, props, children }; }\nconst Component = (props) => h('div', { class: 'btn' }, props.label);\nwindow['render'] = Component({ label: 'Click' });\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var $jscomp=$jscomp||{};$jscomp.scope={};$jscomp.getRestArguments=function(){for(var a=Number(this),c=[],b=a;b<arguments.length;b++)c[b-a]=arguments[b];return c};function h(a,c){var b=$jscomp.getRestArguments.apply(2,arguments);return{tag:a,props:c,children:b}}var Component=function(a){return h(\"div\",{class:\"btn\"},a.label)};window.render=Component({label:\"Click\"});\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r09_esm_moment",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Moment.js formatting module scenario",
+      "description": "Compiles date formatting helper utility module under SIMPLE",
+      "args": [
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "date_helper.js"
+      ],
+      "stdin": "",
+      "files": {
+        "date_helper.js": "function pad(n) { return n < 10 ? '0' + n : '' + n; }\nfunction formatDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }\nwindow['fmt'] = formatDate(new Date(2026, 10, 14));\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "function pad(a){return a<10?\"0\"+a:\"\"+a}function formatDate(a){return a.getFullYear()+\"-\"+pad(a.getMonth()+1)+\"-\"+pad(a.getDate())}window.fmt=formatDate(new Date(2026,10,14));\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r10_esm_three",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Three.js 3D math vector module scenario",
+      "description": "Compiles 3D vector and matrix math classes under ADVANCED optimizations",
+      "args": [
+        "--compilation_level",
+        "ADVANCED",
+        "--js",
+        "vector3.js"
+      ],
+      "stdin": "",
+      "files": {
+        "vector3.js": "/** @constructor */ function Vector3(x, y, z) { this.x = x; this.y = y; this.z = z; }\nVector3.prototype.dot = function(v) { return this.x * v.x + this.y * v.y + this.z * v.z; };\nwindow['dotRes'] = new Vector3(1, 2, 3).dot(new Vector3(4, 5, 6));\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "function a(d,e,f){this.x=d;this.y=e;this.z=f}var b=new a(1,2,3),c=new a(4,5,6);window.dotRes=b.x*c.x+b.y*c.y+b.z*c.z;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r11_esm_underscore",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Underscore collection utility scenario",
+      "description": "Compiles functional map/filter collection pipeline under ADVANCED",
+      "args": [
+        "--compilation_level",
+        "ADVANCED",
+        "--js",
+        "utils.js"
+      ],
+      "stdin": "",
+      "files": {
+        "utils.js": "function map(arr, fn) { var res = []; for (var i = 0; i < arr.length; i++) res.push(fn(arr[i])); return res; }\nfunction square(n) { return n * n; }\nwindow['squared'] = map([1, 2, 3, 4], square);\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "for(var a=window,b=[1,2,3,4],c=[],d=0;d<b.length;d++){var e=c,f=b[d];e.push.call(e,f*f)}a.squared=c;\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r12_cjs_lodash",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "CommonJS Lodash utility scenario",
+      "description": "CommonJS module exporting clamp and chunk utilities",
+      "args": [
+        "--process_common_js_modules",
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "clamp.js",
+        "--js",
+        "main.js"
+      ],
+      "stdin": "",
+      "files": {
+        "clamp.js": "module.exports = function clamp(val, min, max) { return Math.min(Math.max(val, min), max); };",
+        "main.js": "var clamp = require('./clamp.js'); window['res'] = clamp(15, 0, 10);"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var module$clamp={default:function(a,b,c){return Math.min(Math.max(a,b),c)}};var clamp=module$clamp.default;window.res=(0,module$clamp.default)(15,0,10);\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r13_cjs_rxjs",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "CommonJS RxJS observable pattern scenario",
+      "description": "CommonJS observable subscription pattern under SIMPLE",
+      "args": [
+        "--process_common_js_modules",
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "observable.js",
+        "--js",
+        "app.js"
+      ],
+      "stdin": "",
+      "files": {
+        "observable.js": "function Observable(sub) { this.sub = sub; } Observable.prototype.subscribe = function(fn) { this.sub(fn); }; module.exports = Observable;",
+        "app.js": "var Obs = require('./observable.js'); new Obs(function(next) { next(100); }).subscribe(function(v) { window['out'] = v; });"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var module$observable={default:function(a){this.sub=a}};module$observable.default.prototype.subscribe=function(a){this.sub(a)};var Obs=module$observable.default;(new module$observable.default(function(a){a(100)})).subscribe(function(a){window.out=a});\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r14_cjs_handlebars",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "CommonJS template compilation scenario",
+      "description": "CommonJS template compiler and renderer under ADVANCED",
+      "args": [
+        "--process_common_js_modules",
+        "--compilation_level",
+        "ADVANCED",
+        "--js",
+        "tpl.js",
+        "--js",
+        "app.js"
+      ],
+      "stdin": "",
+      "files": {
+        "tpl.js": "exports.render = function(data) { return 'Name: ' + data.name; };",
+        "app.js": "var tpl = require('./tpl.js'); window['rendered'] = tpl.render({ name: 'Closure' });"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "window.rendered=\"Name: Closure\";\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r15_bench_typed_app",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Benchmark task: typed-app",
+      "description": "Benchmark typed application compilation scenario with type checking and warnings",
+      "args": [
+        "--checks_only",
+        "--jscomp_error=checkTypes",
+        "--warning_level",
+        "VERBOSE",
+        "--js",
+        "app.js"
+      ],
+      "stdin": "",
+      "files": {
+        "app.js": "/** @constructor */ function User(name, age) { /** @type {string} */ this.name = name; /** @type {number} */ this.age = age; }\n/** @return {string} */ User.prototype.info = function() { return this.name + ' (' + this.age + ')'; };\nvar u = new User('Alice', 30);\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r16_bench_checks_only",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Benchmark task: checks-only",
+      "description": "Benchmark checks-only task verifying fast checking pass without code emission",
+      "args": [
+        "--checks_only",
+        "--language_in",
+        "ECMASCRIPT_NEXT",
+        "--js",
+        "service.js"
+      ],
+      "stdin": "",
+      "files": {
+        "service.js": "class DataService { async fetchData(url) { return url ? { status: 200 } : null; } }\nconst svc = new DataService();\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r17_bench_downlevel_simple",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Benchmark task: downlevel-simple",
+      "description": "Benchmark downleveling modern ECMASCRIPT to ES5 with SIMPLE optimizations",
+      "args": [
+        "--language_in",
+        "ECMASCRIPT_NEXT",
+        "--language_out",
+        "ECMASCRIPT5",
+        "--compilation_level",
+        "SIMPLE",
+        "--js",
+        "calc.js"
+      ],
+      "stdin": "",
+      "files": {
+        "calc.js": "const sumAll = (...args) => args.reduce((acc, x) => acc + x, 0);\nclass Geometry { static area(w, h) { return sumAll(w * h); } }\nwindow['area'] = Geometry.area(10, 20);\n"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "var $jscomp=$jscomp||{};$jscomp.scope={};$jscomp.getRestArguments=function(){for(var a=Number(this),b=[],c=a;c<arguments.length;c++)b[c-a]=arguments[c];return b};$jscomp.arrayIteratorImpl=function(a){var b=0;return function(){return b<a.length?{done:!1,value:a[b++]}:{done:!0}}};$jscomp.arrayIterator=function(a){return{next:$jscomp.arrayIteratorImpl(a)}};$jscomp.getIteratorPrototype=function(){return typeof Iterator!=\"undefined\"&&Iterator.prototype&&!Iterator.prototype.next?Iterator.prototype:null};\n$jscomp.ASSUME_ES2020=!1;$jscomp.ASSUME_ES6=$jscomp.ASSUME_ES2020;$jscomp.ASSUME_ES5=$jscomp.ASSUME_ES6;$jscomp.ASSUME_NO_NATIVE_MAP=!1;$jscomp.ASSUME_NO_NATIVE_SET=!1;$jscomp.ISOLATE_POLYFILLS=!1;$jscomp.FORCE_POLYFILL_PROMISE=!1;$jscomp.FORCE_POLYFILL_PROMISE_WHEN_NO_UNHANDLED_REJECTION=!1;$jscomp.INSTRUMENT_ASYNC_CONTEXT=!0;\n$jscomp.defineProperty=$jscomp.ASSUME_ES5||typeof Object.defineProperties==\"function\"?Object.defineProperty:function(a,b,c){if(a==Array.prototype||a==Object.prototype)return a;a[b]=c.value;return a};$jscomp.objectCreate=$jscomp.ASSUME_ES5||typeof Object.create==\"function\"?Object.create:function(a){var b=function(){};b.prototype=a;return new b};\n$jscomp.getGlobal=function(a){a=[\"object\"==typeof globalThis&&globalThis,a,\"object\"==typeof window&&window,\"object\"==typeof self&&self,\"object\"==typeof global&&global];for(var b=0;b<a.length;++b){var c=a[b];if(c&&c.Math==Math)return c}throw Error(\"Cannot find global object\");};$jscomp.global=$jscomp.ASSUME_ES2020?globalThis:$jscomp.getGlobal(this);$jscomp.IS_SYMBOL_NATIVE=typeof Symbol===\"function\"&&typeof Symbol(\"x\")===\"symbol\";$jscomp.TRUST_ES6_POLYFILLS=!$jscomp.ISOLATE_POLYFILLS||$jscomp.IS_SYMBOL_NATIVE;\n$jscomp.polyfills={};$jscomp.propertyToPolyfillSymbol={};$jscomp.POLYFILL_PREFIX=\"$jscp$\";var $jscomp$lookupPolyfilledValue=function(a,b,c){if(!c||a!=null){c=$jscomp.propertyToPolyfillSymbol[b];if(c==null)return a[b];c=a[c];return c!==void 0?c:a[b]}};$jscomp.TYPED_ARRAY_CLASSES=function(){var a=\"Int8 Uint8 Uint8Clamped Int16 Uint16 Int32 Uint32 Float32 Float64\".split(\" \");$jscomp.global.BigInt64Array&&(a.push(\"BigInt64\"),a.push(\"BigUint64\"));return a}();\n$jscomp.polyfillTypedArrayMethod=function(a,b,c,d){if(b)for(var e=0;e<$jscomp.TYPED_ARRAY_CLASSES.length;e++){var f=$jscomp.TYPED_ARRAY_CLASSES[e]+\"Array.prototype.\"+a;$jscomp.ISOLATE_POLYFILLS?$jscomp.polyfillIsolated(f,b,c,d):$jscomp.polyfillUnisolated(f,b,c,d)}};$jscomp.polyfill=function(a,b,c,d){b&&($jscomp.ISOLATE_POLYFILLS?$jscomp.polyfillIsolated(a,b,c,d):$jscomp.polyfillUnisolated(a,b,c,d))};\n$jscomp.polyfillUnisolated=function(a,b,c,d){c=$jscomp.global;a=a.split(\".\");for(d=0;d<a.length-1;d++){var e=a[d];if(!(e in c))return;c=c[e]}a=a[a.length-1];d=c[a];b=b(d);b!=d&&b!=null&&$jscomp.defineProperty(c,a,{configurable:!0,writable:!0,value:b})};\n$jscomp.polyfillIsolated=function(a,b,c,d){var e=a.split(\".\");a=e.length===1;d=e[0];d=!a&&d in $jscomp.polyfills?$jscomp.polyfills:$jscomp.global;for(var f=0;f<e.length-1;f++){var g=e[f];if(!(g in d))return;d=d[g]}e=e[e.length-1];c=$jscomp.IS_SYMBOL_NATIVE&&c===\"es6\"?d[e]:null;b=b(c);b!=null&&(a?$jscomp.defineProperty($jscomp.polyfills,e,{configurable:!0,writable:!0,value:b}):b!==c&&($jscomp.propertyToPolyfillSymbol[e]===void 0&&(c=Math.random()*1E9>>>0,$jscomp.propertyToPolyfillSymbol[e]=$jscomp.IS_SYMBOL_NATIVE?\n$jscomp.global.Symbol(e):$jscomp.POLYFILL_PREFIX+c+\"$\"+e),$jscomp.defineProperty(d,$jscomp.propertyToPolyfillSymbol[e],{configurable:!0,writable:!0,value:b})))};$jscomp.initSymbol=function(){};\n$jscomp.polyfill(\"Symbol\",function(a){if(a)return a;var b=function(f,g){this.$jscomp$symbol$id_=f;$jscomp.defineProperty(this,\"description\",{configurable:!0,writable:!0,value:g})};b.prototype.toString=function(){return this.$jscomp$symbol$id_};var c=\"jscomp_symbol_\"+(Math.random()*1E9>>>0)+\"_\",d=0,e=function(f){if(this instanceof e)throw new TypeError(\"Symbol is not a constructor\");return new b(c+(f||\"\")+\"_\"+d++,f)};return e},\"es6\",\"es3\");\n$jscomp.polyfill(\"Symbol.iterator\",function(a){if(a)return a;a=Symbol(\"Symbol.iterator\");$jscomp.defineProperty(Array.prototype,a,{configurable:!0,writable:!0,value:function(){return $jscomp.iteratorPrototype($jscomp.arrayIteratorImpl(this))}});return a},\"es6\",\"es3\");$jscomp.polyfill(\"Symbol.toStringTag\",function(a){return a?a:Symbol(\"Symbol.toStringTag\")},\"es6\",\"es3\");\n$jscomp.iteratorPrototype=function(a){var b=$jscomp.getIteratorPrototype()||Object.prototype,c=$jscomp.objectCreate(b);c.next=a;b[Symbol.iterator]||(c[Symbol.iterator]=function(){return this});return c};\n$jscomp.polyfill(\"Iterator\",function(a){var b=Object.getPrototypeOf,c=typeof Symbol!=\"undefined\"&&Symbol.iterator&&[][Symbol.iterator]?[][Symbol.iterator]():null;b=(c=c&&b?b(c):null)&&b?b(c):null;b===Object.prototype&&(b=null);if(a&&b&&a.prototype===b)return a;var d=function(){if(!(this instanceof d)||this.constructor===d)throw new TypeError(\"Abstract Iterator not directly constructable\");};b&&(d.prototype=b);$jscomp.defineProperty(d.prototype,\"constructor\",{configurable:!0,writable:!0,value:d});\nd.prototype[Symbol.iterator]||(d.prototype[Symbol.iterator]=function(){return this});return d},\"es_next\",\"es3\");$jscomp.iteratorClose=function(a,b){var c;b&&!b.done&&(c=a[\"return\"])&&c.call(a)};$jscomp.checkIsObject=function(a){if(Object(a)!==a)throw new TypeError(\"Expected an object\");return a};$jscomp.iteratorCloseAbrupt=function(a){try{var b=a[\"return\"];typeof b==\"function\"&&b.call(a)}catch(c){}};\n$jscomp.iteratorCloseNormal=function(a){var b=a[\"return\"];if(b!=null){if(typeof b!=\"function\")throw new TypeError(\"Iterator return is not a function\");$jscomp.checkIsObject(b.call(a))}};$jscomp.iteratorResult=function(a,b){b==null&&(b=!0);return{value:a,done:b}};$jscomp.ITERATOR_STATE_SUSPENDED_START=1;$jscomp.ITERATOR_STATE_SUSPENDED_YIELD=2;$jscomp.ITERATOR_STATE_EXECUTING=3;$jscomp.ITERATOR_STATE_COMPLETED=4;\n$jscomp.getLazyIteratorState=function(a){if(!a||a.self_!==a)throw new TypeError(\"Method called on incompatible object\");a=a.state_;if(a===$jscomp.ITERATOR_STATE_EXECUTING)throw new TypeError(\"Generator is already running\");return a};$jscomp.lazyIteratorPrototype=null;\n$jscomp.createLazyIterator=function(a,b){var c=$jscomp.lazyIteratorPrototype;if(!c){var d=function(e,f){var g=$jscomp.getLazyIteratorState(e);if(g!=$jscomp.ITERATOR_STATE_COMPLETED){e.state_=f&&g==$jscomp.ITERATOR_STATE_SUSPENDED_START?$jscomp.ITERATOR_STATE_COMPLETED:$jscomp.ITERATOR_STATE_EXECUTING;try{if(f)$jscomp.iteratorCloseNormal(e.iter_);else{var h=e.step_();if(h)return e.state_=$jscomp.ITERATOR_STATE_SUSPENDED_YIELD,h}}finally{e.state_!=$jscomp.ITERATOR_STATE_SUSPENDED_YIELD&&(e.state_=$jscomp.ITERATOR_STATE_COMPLETED,\ne.step_=e.iter_=null)}}return $jscomp.iteratorResult()};c=$jscomp.lazyIteratorPrototype=$jscomp.objectCreate(Iterator.prototype);c.next=function(){return d(this,!1)};c.return=function(){return d(this,!0)};c[Symbol.toStringTag]=\"Iterator Helper\"}c=$jscomp.objectCreate(c);c.self_=c;c.state_=$jscomp.ITERATOR_STATE_SUSPENDED_START;c.iter_=a;c.step_=b;return c};\n$jscomp.validateIteratorCallback=function(a,b){$jscomp.checkIsObject(a);if(typeof b!=\"function\")throw $jscomp.iteratorCloseAbrupt(a),new TypeError(\"callback must be a function\");};$jscomp.iteratorDo=function(a,b,c){$jscomp.validateIteratorCallback(a,b);b=a.next;for(var d=0,e;!(e=$jscomp.checkIsObject(b.call(a))).done;){try{var f=c(e.value,d++)}catch(g){try{$jscomp.iteratorClose(a,e)}catch(h){}throw g;}if(f){c=a[\"return\"];c!=null&&$jscomp.checkIsObject(c.call(a));break}}};\n$jscomp.polyfill(\"Iterator.prototype.reduce\",function(a){return a||function(b){var c=arguments.length>1,d=arguments[1];$jscomp.iteratorDo(this,b,function(e,f){c?d=b(d,e,f):(c=!0,d=e)});if(!c)throw new TypeError(\"Reduce of empty iterator\");return d}},\"es_next\",\"es3\");var sumAll=function(){return $jscomp.getRestArguments.apply(0,arguments).reduce(function(a,b){return a+b},0)},Geometry=function(){};Geometry.area=function(a,b){return sumAll(a*b)};window.area=Geometry.area(10,20);\n",
+        "stderr": "",
+        "output_files": {}
+      }
+    },
+    {
+      "id": "tier4_r18_typecheck_acceptance",
+      "tier": 4,
+      "feature": "realworld_projects",
+      "name": "Acceptance fixture from testdata/fixtures",
+      "description": "Representative type checking fixture from acceptance suite (001_type_mismatch_var.js)",
+      "args": [
+        "--checks_only",
+        "--jscomp_error=checkTypes",
+        "--warning_level=VERBOSE",
+        "--language_in=ECMASCRIPT_NEXT",
+        "--js",
+        "in.js"
+      ],
+      "stdin": "",
+      "files": {
+        "in.js": "/** @type {number} */\nvar x = 'hello';\n"
+      },
+      "expected": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "in.js:2:8: ERROR - [JSC_TYPE_MISMATCH] initializing variable\nfound   : string\nrequired: number\n  2| var x = 'hello';\n             ^^^^^^^\n\n1 error(s), 0 warning(s), 100.0% typed\n",
+        "output_files": {}
+      }
+    }
+  ]
+}

@@ -1,0 +1,193 @@
+--- a/com/google/javascript/jscomp/NodeTraversal.java
++++ b/com/google/javascript/jscomp/NodeTraversal.java
+@@ -27,7 +27,7 @@
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.QualifiedName;
+ import java.util.ArrayDeque;
+-import java.util.ArrayList;
++import java.util.Arrays;
+ import java.util.Deque;
+ import java.util.List;
+ import org.jspecify.annotations.Nullable;
+@@ -60,14 +60,19 @@
+ 
+   /**
+    * The chain scope for the currentNode being visited. Scopes are relatively expensive to build so
+-   * they are built lazily. The list contains instanciated `AbstractScope` or the `Node`
+-   * representing the root of the scope.
++   * they are built lazily. `scopeNodes[i]` holds the root `Node` of scope `i` and `scopeObjs[i]`
++   * holds the instantiated `AbstractScope` once created (or null if still lazy).
+    *
+-   * <p>If `AbstractScope` is seen all previous entries will also have been instanciated due to the
+-   * heirarchical nature of scopes.
++   * <p>If `scopeObjs[i]` is non-null all previous entries will also have been instantiated due to
++   * the hierarchical nature of scopes.
+    */
+-  private final ArrayList<Object> scopes = new ArrayList<>();
++  private Node[] scopeNodes = new Node[16];
+ 
++  @SuppressWarnings({"unchecked", "rawtypes"})
++  private @Nullable AbstractScope<?, ?>[] scopeObjs = new AbstractScope[16];
++
++  private int scopeDepth = 0;
++
+   /** The current source file name */
+   private @Nullable String sourceName;
+ 
+@@ -1148,13 +1153,24 @@
+    */
+   public @Nullable Node getEnclosingFunction() {
+     return currentFunction;
++  }
++
++  private void ensureScopeCapacity() {
++    if (scopeDepth == scopeNodes.length) {
++      int newLen = scopeNodes.length << 1;
++      scopeNodes = Arrays.copyOf(scopeNodes, newLen);
++      scopeObjs = Arrays.copyOf(scopeObjs, newLen);
++    }
+   }
+ 
+   /** Creates a new scope (e.g. when entering a function). */
+   private void pushScope(Node node) {
+     checkNotNull(currentNode);
+     checkNotNull(node);
+-    scopes.add(node);
++    ensureScopeCapacity();
++    scopeNodes[scopeDepth] = node;
++    scopeObjs[scopeDepth] = null;
++    scopeDepth++;
+     if (scopeCallback != null) {
+       scopeCallback.enterScope(this);
+     }
+@@ -1172,7 +1188,10 @@
+    */
+   private void pushScope(AbstractScope<?, ?> s, boolean quietly) {
+     checkNotNull(currentNode);
+-    scopes.add(s);
++    ensureScopeCapacity();
++    scopeNodes[scopeDepth] = s.getRootNode();
++    scopeObjs[scopeDepth] = s;
++    scopeDepth++;
+     if (!quietly && scopeCallback != null) {
+       scopeCallback.enterScope(this);
+     }
+@@ -1191,31 +1210,19 @@
+     if (!quietly && scopeCallback != null) {
+       scopeCallback.exitScope(this);
+     }
+-    scopes.remove(scopes.size() - 1);
++    --scopeDepth;
++    scopeNodes[scopeDepth] = null;
++    scopeObjs[scopeDepth] = null;
+   }
+ 
+-  /**
+-   * Scopes are stored in a list of objects. These can either be instanciated `AbstractScope` or the
+-   * `Node` representing the root of the scope.
+-   */
+-  private Node getNodeRootFromScopeObj(Object root) {
+-    return root instanceof Node node ? node : ((AbstractScope) root).getRootNode();
+-  }
+-
+   /** Returns the current scope's root. */
+   public @Nullable Node getScopeRoot() {
+-    int roots = scopes.size();
+-    if (roots > 0) {
+-      return getNodeRootFromScopeObj(scopes.get(roots - 1));
+-    } else {
+-      return null;
+-    }
++    return scopeDepth > 0 ? scopeNodes[scopeDepth - 1] : null;
+   }
+ 
+   int getScopeDepth() {
+-    int depth = scopes.size();
+-    checkState(depth > 0);
+-    return depth - 1; // Use 0-based scope depth to be consistent within the compiler
++    checkState(scopeDepth > 0);
++    return scopeDepth - 1; // Use 0-based scope depth to be consistent within the compiler
+   }
+ 
+   public Scope getScope() {
+@@ -1228,7 +1235,7 @@
+ 
+   /** Gets the current scope. */
+   public AbstractScope<?, ?> getAbstractScope() {
+-    return getAbstractScope(scopes.size() - 1);
++    return getAbstractScope(scopeDepth - 1);
+   }
+ 
+   /**
+@@ -1236,17 +1243,15 @@
+    * the requested scope.
+    */
+   private AbstractScope<?, ?> getAbstractScope(int rootDepth) {
+-
+-    Object o = scopes.get(rootDepth);
+-    if (o instanceof Node node) {
+-      // The root scope has a null parent.
+-      AbstractScope<?, ?> parentScope = (rootDepth > 0) ? getAbstractScope(rootDepth - 1) : null;
+-      AbstractScope<?, ?> scope = scopeCreator.createScope(node, parentScope);
+-      scopes.set(rootDepth, scope);
+-      return scope;
+-    } else {
+-      return (AbstractScope<?, ?>) o;
++    AbstractScope<?, ?> s = scopeObjs[rootDepth];
++    if (s != null) {
++      return s;
+     }
++    // The root scope has a null parent.
++    AbstractScope<?, ?> parentScope = (rootDepth > 0) ? getAbstractScope(rootDepth - 1) : null;
++    AbstractScope<?, ?> scope = scopeCreator.createScope(scopeNodes[rootDepth], parentScope);
++    scopeObjs[rootDepth] = scope;
++    return scope;
+   }
+ 
+   public boolean isHoistScope() {
+@@ -1254,8 +1259,8 @@
+   }
+ 
+   public @Nullable Node getClosestHoistScopeRoot() {
+-    for (int i = scopes.size() - 1; i >= 0; i--) {
+-      Node rootNode = getNodeRootFromScopeObj(scopes.get(i));
++    for (int i = scopeDepth - 1; i >= 0; i--) {
++      Node rootNode = scopeNodes[i];
+       if (isHoistScopeRootNode(rootNode)) {
+         return rootNode;
+       }
+@@ -1265,9 +1270,8 @@
+   }
+ 
+   public @Nullable AbstractScope<?, ?> getClosestContainerScope() {
+-    for (int i = scopes.size() - 1; i >= 0; i--) {
+-      Node rootNode = getNodeRootFromScopeObj(scopes.get(i));
+-      if (!NodeUtil.createsBlockScope(rootNode)) {
++    for (int i = scopeDepth - 1; i >= 0; i--) {
++      if (!NodeUtil.createsBlockScope(scopeNodes[i])) {
+         return getAbstractScope(i);
+       }
+     }
+@@ -1275,9 +1279,8 @@
+   }
+ 
+   public @Nullable AbstractScope<?, ?> getClosestHoistScope() {
+-    for (int i = scopes.size() - 1; i >= 0; i--) {
+-      Node rootNode = getNodeRootFromScopeObj(scopes.get(i));
+-      if (isHoistScopeRootNode(rootNode)) {
++    for (int i = scopeDepth - 1; i >= 0; i--) {
++      if (isHoistScopeRootNode(scopeNodes[i])) {
+         return getAbstractScope(i);
+       }
+     }
+@@ -1293,8 +1296,8 @@
+ 
+   /** Returns the closest scope binding the `this` or `super` keyword */
+   public @Nullable Node getClosestScopeRootNodeBindingThisOrSuper() {
+-    for (int i = scopes.size() - 1; i >= 0; i--) {
+-      Node rootNode = getNodeRootFromScopeObj(scopes.get(i));
++    for (int i = scopeDepth - 1; i >= 0; i--) {
++      Node rootNode = scopeNodes[i];
+       switch (rootNode.getToken()) {
+         case FUNCTION -> {
+           if (rootNode.isArrowFunction()) {

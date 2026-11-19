@@ -1,0 +1,23 @@
+{
+  "id": "tier1_c02_simple",
+  "tier": 1,
+  "feature": "compilation_level",
+  "name": "Simple optimizations",
+  "description": "Verifies that SIMPLE performs constant folding, local renaming, and dead code elimination",
+  "args": [
+    "--compilation_level",
+    "SIMPLE",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "function compute(firstArg, secondArg) { var localUnused = 100; return firstArg + secondArg; } window['res'] = compute(1, 2);"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "function compute(a,b){return a+b}window.res=compute(1,2);\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

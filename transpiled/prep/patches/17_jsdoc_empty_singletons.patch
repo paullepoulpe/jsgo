@@ -1,0 +1,56 @@
+diff --git a/com/google/javascript/rhino/JSDocInfo.java b/com/google/javascript/rhino/JSDocInfo.java
+index 3be3250..5447672 100644
+--- a/com/google/javascript/rhino/JSDocInfo.java
++++ b/com/google/javascript/rhino/JSDocInfo.java
+@@ -1379,15 +1379,17 @@ public class JSDocInfo implements Serializable {
+   /** Returns the set of suppressed warnings. */
+   public Set<String> getSuppressions() {
+     ImmutableMap<ImmutableSet<String>, String> suppressions = SUPPRESSIONS.get(this);
+-    if (suppressions == null) {
++    if (suppressions == null || suppressions.isEmpty()) {
+       return ImmutableSet.of();
+     }
+-    ImmutableSet<ImmutableSet<String>> nameSets = suppressions.keySet();
+-    Set<String> names = new LinkedHashSet<>();
+-    for (Set<String> nameSet : nameSets) {
++    if (suppressions.size() == 1) {
++      return Iterables.getOnlyElement(suppressions.keySet());
++    }
++    ImmutableSet.Builder<String> names = ImmutableSet.builder();
++    for (ImmutableSet<String> nameSet : suppressions.keySet()) {
+       names.addAll(nameSet);
+     }
+-    return ImmutableSet.copyOf(names);
++    return names.build();
+   }
+ 
+   /**
+@@ -1518,8 +1520,11 @@ public class JSDocInfo implements Serializable {
+    */
+   @SuppressWarnings("unchecked")
+   public Collection<JSTypeExpression> getTypeExpressions() {
+-    ImmutableList.Builder<JSTypeExpression> builder = ImmutableList.builder();
+     long bits = propertyKeysBitset;
++    if (bits == 0) {
++      return ImmutableList.of();
++    }
++    ImmutableList.Builder<JSTypeExpression> builder = ImmutableList.builder();
+     int index = 0;
+     while (bits > 0) {
+       int low = Long.numberOfTrailingZeros(bits);
+@@ -1556,9 +1561,13 @@ public class JSDocInfo implements Serializable {
+    * @return collection of all type nodes
+    */
+   public Collection<Node> getTypeNodes() {
+-    List<Node> nodes = new ArrayList<>();
++    Collection<JSTypeExpression> exprs = getTypeExpressions();
++    if (exprs.isEmpty()) {
++      return ImmutableList.of();
++    }
++    List<Node> nodes = new ArrayList<>(exprs.size());
+ 
+-    for (JSTypeExpression type : getTypeExpressions()) {
++    for (JSTypeExpression type : exprs) {
+       nodes.add(type.getRoot());
+     }
+ 

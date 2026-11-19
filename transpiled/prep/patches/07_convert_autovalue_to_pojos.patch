@@ -1,0 +1,13 @@
+diff --git a/com/google/javascript/jscomp/PassFactory.java b/com/google/javascript/jscomp/PassFactory.java
+index 832fe14..c52f34a 100644
+--- a/com/google/javascript/jscomp/PassFactory.java
++++ b/com/google/javascript/jscomp/PassFactory.java
+@@ -28,7 +28,7 @@ import java.util.function.Function;
+  * <p>Contains all meta-data about compiler passes (like whether it can be run multiple times, a
+  * human-readable name for logging, etc.).
+  */
+-@AutoValue
++/* @AutoValue */
+ public abstract class PassFactory {
+ 
+   /** The name of the pass as it will appear in logs. */

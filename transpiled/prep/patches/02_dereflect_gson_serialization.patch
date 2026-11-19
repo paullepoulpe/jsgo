@@ -1,0 +1,84 @@
+diff --git aa/com/google/javascript/jscomp/AbstractCommandLineRunner.java bb/com/google/javascript/jscomp/AbstractCommandLineRunner.java
+index a0e0c181..a02b3184 100644
+--- aa/com/google/javascript/jscomp/AbstractCommandLineRunner.java
++++ bb/com/google/javascript/jscomp/AbstractCommandLineRunner.java
+@@ -555,7 +555,7 @@ public abstract class AbstractCommandLineRunner<A extends Compiler, B extends Co
+     try (JsonReader reader = new JsonReader(new InputStreamReader(this.in, inputCharset))) {
+       reader.beginArray();
+       while (reader.hasNext()) {
+-        JsonFileSpec jsonFile = gson.fromJson(reader, JsonFileSpec.class);
++        JsonFileSpec jsonFile = JsonFileSpec.readJson(reader);
+         jsonFiles.add(jsonFile);
+       }
+       reader.endArray();
+@@ -1651,9 +1651,12 @@ public abstract class AbstractCommandLineRunner<A extends Compiler, B extends Co
+   void outputJsonStream() throws IOException {
+     try (JsonWriter jsonWriter =
+         new JsonWriter(new BufferedWriter(new OutputStreamWriter(defaultJsOutput, UTF_8)))) {
+-      Gson gsonOut = new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create();
+-      Type filesCollectionType = new TypeToken<List<JsChunkSpec>>() {}.getType();
+-      gsonOut.toJson(this.filesToStreamOut, filesCollectionType, jsonWriter);
++      jsonWriter.setHtmlSafe(false);
++      jsonWriter.beginArray();
++      for (JsonFileSpec spec : this.filesToStreamOut) {
++        spec.writeJson(jsonWriter);
++      }
++      jsonWriter.endArray();
+     }
+   }
+ 
+@@ -3029,10 +3032,30 @@ public abstract class AbstractCommandLineRunner<A extends Compiler, B extends Co
+         alternate = {"webpackId"})
+     private final @Nullable String webpackId;
+ 
+-    // Graal requires a non-arg constructor for use with GSON
+-    // See https://github.com/oracle/graal/issues/680
+-    private JsonFileSpec() {
+-      this(null, null, null, null);
++    public static JsonFileSpec readJson(JsonReader reader) throws IOException {
++      reader.beginObject();
++      String src = null, path = null, sourceMap = null, webpackId = null;
++      while (reader.hasNext()) {
++        String name = reader.nextName();
++        switch (name) {
++          case "src": src = reader.nextString(); break;
++          case "path": path = reader.nextString(); break;
++          case "source_map": case "sourceMap": sourceMap = reader.nextString(); break;
++          case "webpack_id": case "webpackId": webpackId = reader.nextString(); break;
++          default: reader.skipValue(); break;
++        }
++      }
++      reader.endObject();
++      return new JsonFileSpec(src, path, sourceMap, webpackId);
++    }
++
++    public void writeJson(JsonWriter writer) throws IOException {
++      writer.beginObject();
++      if (src != null) writer.name("src").value(src);
++      if (path != null) writer.name("path").value(path);
++      if (sourceMap != null) writer.name("source_map").value(sourceMap);
++      if (webpackId != null) writer.name("webpack_id").value(webpackId);
++      writer.endObject();
+     }
+ 
+     public JsonFileSpec(String src, String path) {
+diff --git aa/com/google/javascript/jscomp/diagnostic/LogsGson.java bb/com/google/javascript/jscomp/diagnostic/LogsGson.java
+index abc14bfc..24e77b62 100644
+--- aa/com/google/javascript/jscomp/diagnostic/LogsGson.java
++++ bb/com/google/javascript/jscomp/diagnostic/LogsGson.java
+@@ -46,6 +46,7 @@ public final class LogsGson {
+ 
+   private static final Gson GSON =
+       new GsonBuilder()
++          // type adapter registered directly
+           .registerTypeHierarchyAdapter(
+               Able.class,
+               new TypeAdapter<Able>() {
+@@ -59,6 +60,7 @@ public final class LogsGson {
+                   out.jsonValue(GSON.toJson(value.toLogsGson()));
+                 }
+               })
++          // type adapter registered directly
+           .registerTypeHierarchyAdapter(
+               Multimap.class,
+               new TypeAdapter<Multimap<?, ?>>() {

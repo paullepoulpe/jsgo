@@ -1,0 +1,1372 @@
+diff --git a/com/google/javascript/jscomp/Compiler.java b/com/google/javascript/jscomp/Compiler.java
+--- a/com/google/javascript/jscomp/Compiler.java
++++ b/com/google/javascript/jscomp/Compiler.java
+@@ -2044,7 +2044,7 @@
+       // Exclude user-defined code names, to save memory and help prevent misuse.
+       gn.setShouldTraverseScriptPredicate(
+           (Node script) -> script.isFromExterns() || script.isFirstChildOf(this.getJsRoot()));
+-      gn.getNameForest(); // ensure namespace is generated
++      gn.ensureGenerated(); // ensure namespace is generated
+       // wrap GlobalNamespace to prevent looking up extra information in GlobalNamespace
+       this.transpilationNamespace = gn;
+     }
+diff --git a/com/google/javascript/jscomp/CrossChunkCodeMotion.java b/com/google/javascript/jscomp/CrossChunkCodeMotion.java
+--- a/com/google/javascript/jscomp/CrossChunkCodeMotion.java
++++ b/com/google/javascript/jscomp/CrossChunkCodeMotion.java
+@@ -28,13 +28,8 @@
+ import java.util.ArrayDeque;
+ import java.util.ArrayList;
+ import java.util.BitSet;
+-import java.util.Collection;
+-import java.util.Deque;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.Set;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -77,7 +72,7 @@
+    * Map from chunk to the node in that chunk that should parent variable declarations that have to
+    * be moved into that chunk
+    */
+-  private final Map<JSChunk, Node> chunkInsertionPointMap = new LinkedHashMap<>();
++  private final LinkedHashMap<JSChunk, Node> chunkInsertionPointMap = new LinkedHashMap<>();
+ 
+   private final boolean parentChunkCanSeeSymbolsDeclaredInChildren;
+ 
+@@ -105,10 +100,10 @@
+         CrossChunkReferenceCollector referenceCollector =
+             new CrossChunkReferenceCollector(compiler, new SyntacticScopeCreator(compiler));
+         referenceCollector.process(root);
+-        Collection<GlobalSymbol> globalSymbols =
+-            new GlobalSymbolCollector().collectGlobalSymbols(referenceCollector);
+-        moveGlobalSymbols(globalSymbols);
+-        addInstanceofGuards(globalSymbols);
++        GlobalSymbolCollector collector = new GlobalSymbolCollector();
++        collector.collectGlobalSymbols(referenceCollector);
++        moveGlobalSymbols(collector);
++        addInstanceofGuards(collector);
+       } else {
+         cccmLog.log("only one chunk exists");
+       }
+@@ -117,8 +112,8 @@
+     }
+   }
+ 
+-  private void addInstanceofGuards(Collection<GlobalSymbol> globalSymbols) {
+-    for (GlobalSymbol globalSymbol : globalSymbols) {
++  private void addInstanceofGuards(GlobalSymbolCollector collector) {
++    for (GlobalSymbol globalSymbol : collector.symbolStack) {
+       for (InstanceofReference instanceofReference : globalSymbol.instanceofReferencesToGuard) {
+         if (!globalSymbol.declarationsCoverChunk(instanceofReference.getChunk())) {
+           addGuardToInstanceofReference(instanceofReference.getReference().getNode());
+@@ -128,31 +123,31 @@
+   }
+ 
+   /** Collects all global symbols, their declaration statements and references. */
+-  private class GlobalSymbolCollector {
+-
+-    final Map<Var, GlobalSymbol> globalSymbolforVar = new LinkedHashMap<>();
++  private final class GlobalSymbolCollector {
++
++    final LinkedHashMap<Var, GlobalSymbol> globalSymbolforVar = new LinkedHashMap<>();
+ 
+     /**
+      * Returning the symbols in the reverse order in which they are defined helps to minimize
+      * unnecessary reordering of declaration statements.
+      */
+-    final Deque<GlobalSymbol> symbolStack = new ArrayDeque<>();
+-
+-    Collection<GlobalSymbol> collectGlobalSymbols(CrossChunkReferenceCollector referenceCollector) {
+-
+-      for (TopLevelStatement statement : referenceCollector.getTopLevelStatements()) {
++    final ArrayDeque<GlobalSymbol> symbolStack = new ArrayDeque<>();
++
++    void collectGlobalSymbols(CrossChunkReferenceCollector referenceCollector) {
++      for (int i = 0, count = referenceCollector.getTopLevelStatementCount(); i < count; i++) {
++        TopLevelStatement statement = referenceCollector.getTopLevelStatement(i);
+         if (statement.isDeclarationStatement()) {
+           processDeclarationStatement(statement);
+         } else {
+           processImmovableStatement(statement);
+         }
+       }
+-      return symbolStack;
+     }
+ 
+     private void processImmovableStatement(TopLevelStatement statement) {
+-      for (Reference ref : statement.getNonDeclarationReferences()) {
+-        processImmovableReference(ref, statement.getChunk());
++      JSChunk chunk = statement.getChunk();
++      for (int i = 0, count = statement.getNonDeclarationReferenceCount(); i < count; i++) {
++        processImmovableReference(statement.getNonDeclarationReference(i), chunk);
+       }
+     }
+ 
+@@ -166,10 +161,7 @@
+         if (isGuardedInstanceofReference(n) || isUndefinedTypeofGuardReference(n)) {
+           return;
+         } else if (isUnguardedInstanceofReference(n)) {
+-          ImmovableInstanceofReference instanceofReference =
+-              new ImmovableInstanceofReference(chunk, ref);
+-
+-          globalSymbol.instanceofReferencesToGuard.push(instanceofReference);
++          globalSymbol.instanceofReferencesToGuard.push(InstanceofReference.immovable(chunk, ref));
+           return;
+         }
+       }
+@@ -185,7 +177,8 @@
+ 
+     private void processDeclarationStatementContainedReferences(
+         TopLevelStatement statement, GlobalSymbol declaredSymbol, DeclarationStatementGroup dsg) {
+-      for (Reference ref : statement.getNonDeclarationReferences()) {
++      for (int i = 0, count = statement.getNonDeclarationReferenceCount(); i < count; i++) {
++        Reference ref = statement.getNonDeclarationReference(i);
+         GlobalSymbol refSymbol = getGlobalSymbol(ref.getSymbol());
+         if (refSymbol.equals(declaredSymbol)) {
+           continue; // ignore circular reference
+@@ -198,10 +191,7 @@
+           if (isGuardedInstanceofReference(n) || isUndefinedTypeofGuardReference(n)) {
+             continue;
+           } else if (isUnguardedInstanceofReference(n)) {
+-            MovableInstanceofReference instanceofReference =
+-                new MovableInstanceofReference(dsg, ref);
+-
+-            refSymbol.instanceofReferencesToGuard.push(instanceofReference);
++            refSymbol.instanceofReferencesToGuard.push(InstanceofReference.movable(dsg, ref));
+             continue;
+           }
+         }
+@@ -224,9 +214,10 @@
+   /**
+    * Moves all of the declaration statements that can move to their best possible chunk location.
+    */
+-  private void moveGlobalSymbols(Collection<GlobalSymbol> globalSymbols) {
+-    for (GlobalSymbolCycle globalSymbolCycle :
+-        new OrderAndCombineGlobalSymbols(globalSymbols).orderAndCombine()) {
++  private void moveGlobalSymbols(GlobalSymbolCollector collector) {
++    OrderAndCombineGlobalSymbols orderer = new OrderAndCombineGlobalSymbols(collector);
++    orderer.orderAndCombine();
++    for (GlobalSymbolCycle globalSymbolCycle : orderer.stronglyConnectedSymbols) {
+       // Symbols whose declarations refer to each other must be grouped together and their
+       // declaration statements moved together.
+       globalSymbolCycle.moveDeclarationStatements();
+@@ -234,13 +225,13 @@
+   }
+ 
+   /** Represents a global symbol whose declaration statements may be moved. */
+-  private class GlobalSymbol {
++  private final class GlobalSymbol {
+     final Var var;
+     /**
+      * As we traverse the statements in execution order the top of the stack represents the most
+      * recently seen DSG for the variable.
+      */
+-    final Deque<DeclarationStatementGroup> dsgStack = new ArrayDeque<>();
++    final ArrayDeque<DeclarationStatementGroup> dsgStack = new ArrayDeque<>();
+ 
+     final BitSet chunksWithImmovableReferences = new BitSet(graph.getChunkCount());
+ 
+@@ -251,10 +242,10 @@
+      * these to identify cycles. This guarantees that the order in which statements are moved won't
+      * depend on the arbitrary ordering of LinkedHashSet.
+      */
+-    final Set<GlobalSymbol> referencingGlobalSymbols = new LinkedHashSet<>();
++    final LinkedHashSet<GlobalSymbol> referencingGlobalSymbols = new LinkedHashSet<>();
+ 
+     /** Instanceof references we may need to update with a guard after moving declarations. */
+-    final Deque<InstanceofReference> instanceofReferencesToGuard = new ArrayDeque<>();
++    final ArrayDeque<InstanceofReference> instanceofReferencesToGuard = new ArrayDeque<>();
+     /** Used by OrderAndCombineGlobalSymbols to find reference cycles. */
+     int preorderNumber = -1;
+     /** Used by OrderAndCombineGlobalSymbols to find reference cycles. */
+@@ -317,8 +308,8 @@
+    * Represents a set of global symbols that all refer to each other, and so must be considered for
+    * movement as a group.
+    */
+-  private class GlobalSymbolCycle {
+-    final Deque<GlobalSymbol> symbols = new ArrayDeque<>();
++  private final class GlobalSymbolCycle {
++    final ArrayDeque<GlobalSymbol> symbols = new ArrayDeque<>();
+ 
+     void addSymbol(GlobalSymbol symbol) {
+       symbols.add(symbol);
+@@ -329,8 +320,10 @@
+         checkState(!symbol.isMoveDeclarationStatementsDone, "duplicate attempt to move %s", symbol);
+       }
+       BitSet chunksWithImmovableReferences = new BitSet(graph.getChunkCount());
+-      List<DeclarationStatementGroupCycle> cyclesLatestFirst = getDsgCyclesLatestFirst();
+-      for (DeclarationStatementGroupCycle dsgCycle : cyclesLatestFirst) {
++      ArrayList<DeclarationStatementGroupCycle> cyclesLatestFirst = new ArrayList<>();
++      populateDsgCyclesLatestFirst(cyclesLatestFirst);
++      for (int i = 0, size = cyclesLatestFirst.size(); i < size; i++) {
++        DeclarationStatementGroupCycle dsgCycle = cyclesLatestFirst.get(i);
+         // Each move may change chunksWithImmovableReferences
+         for (GlobalSymbol symbol : symbols) {
+           chunksWithImmovableReferences.or(symbol.chunksWithImmovableReferences);
+@@ -342,53 +335,60 @@
+       }
+     }
+ 
+-    List<DeclarationStatementGroupCycle> getDsgCyclesLatestFirst() {
+-      List<DeclarationStatementGroupCycle> cyclesLatestFirst = new ArrayList<>();
+-      Deque<DeclarationStatementGroup> dsgsLatestFirst = getDsgsLatestFirst();
++    private void populateDsgCyclesLatestFirst(
++        ArrayList<DeclarationStatementGroupCycle> cyclesLatestFirst) {
++      ArrayList<DeclarationStatementGroup> dsgsLatestFirst = new ArrayList<>();
++      for (GlobalSymbol symbol : symbols) {
++        if (dsgsLatestFirst.isEmpty()) {
++          for (DeclarationStatementGroup dsg : symbol.dsgStack) {
++            dsgsLatestFirst.add(dsg);
++          }
++        } else {
++          ArrayList<DeclarationStatementGroup> prev = new ArrayList<>(dsgsLatestFirst);
++          dsgsLatestFirst.clear();
++          ArrayList<DeclarationStatementGroup> list2 = new ArrayList<>();
++          for (DeclarationStatementGroup dsg : symbol.dsgStack) {
++            list2.add(dsg);
++          }
++          int i1 = 0;
++          int n1 = prev.size();
++          int i2 = 0;
++          int n2 = list2.size();
++          while (i1 < n1 && i2 < n2) {
++            DeclarationStatementGroup dsg1 = prev.get(i1);
++            DeclarationStatementGroup dsg2 = list2.get(i2);
++            if (dsg1.currentChunk.getIndex() > dsg2.currentChunk.getIndex()) {
++              i1++;
++              dsgsLatestFirst.add(dsg1);
++              checkState(
++                  i1 == n1 || prev.get(i1).currentChunk.getIndex() <= dsg1.currentChunk.getIndex(),
++                  "DSG stacks are out of order.");
++            } else {
++              i2++;
++              dsgsLatestFirst.add(dsg2);
++              checkState(
++                  i2 == n2
++                      || list2.get(i2).currentChunk.getIndex() <= dsg2.currentChunk.getIndex(),
++                  "DSG stacks are out of order.");
++            }
++          }
++          while (i1 < n1) {
++            dsgsLatestFirst.add(prev.get(i1++));
++          }
++          while (i2 < n2) {
++            dsgsLatestFirst.add(list2.get(i2++));
++          }
++        }
++      }
+       DeclarationStatementGroupCycle cycle = null;
+-      for (DeclarationStatementGroup dsg : dsgsLatestFirst) {
++      for (int i = 0, size = dsgsLatestFirst.size(); i < size; i++) {
++        DeclarationStatementGroup dsg = dsgsLatestFirst.get(i);
+         if (cycle == null || !cycle.currentChunk.equals(dsg.currentChunk)) {
+           cycle = new DeclarationStatementGroupCycle(dsg.currentChunk);
+           cyclesLatestFirst.add(cycle);
+         }
+         cycle.dsgs.add(dsg);
+       }
+-      return cyclesLatestFirst;
+-    }
+-
+-    private Deque<DeclarationStatementGroup> getDsgsLatestFirst() {
+-      Deque<DeclarationStatementGroup> resultStack = new ArrayDeque<>();
+-      for (GlobalSymbol symbol : symbols) {
+-        Deque<DeclarationStatementGroup> stack1 = resultStack;
+-        Deque<DeclarationStatementGroup> stack2 = new ArrayDeque<>(symbol.dsgStack);
+-        resultStack = new ArrayDeque<>(stack1.size() + stack2.size());
+-        while (true) {
+-          if (stack1.isEmpty()) {
+-            resultStack.addAll(stack2);
+-            break;
+-          } else if (stack2.isEmpty()) {
+-            resultStack.addAll(stack1);
+-            break;
+-          } else {
+-            DeclarationStatementGroup dsg1 = stack1.peek();
+-            DeclarationStatementGroup dsg2 = stack2.peek();
+-            if (dsg1.currentChunk.getIndex() > dsg2.currentChunk.getIndex()) {
+-              resultStack.add(stack1.pop());
+-              checkState(
+-                  stack1.isEmpty()
+-                      || stack1.peek().currentChunk.getIndex() <= dsg1.currentChunk.getIndex(),
+-                  "DSG stacks are out of order.");
+-            } else {
+-              resultStack.add(stack2.pop());
+-              checkState(
+-                  stack2.isEmpty()
+-                      || stack2.peek().currentChunk.getIndex() <= dsg2.currentChunk.getIndex(),
+-                  "DSG stacks are out of order.");
+-            }
+-          }
+-        }
+-      }
+-      return resultStack;
+     }
+   }
+ 
+@@ -418,16 +418,16 @@
+    * <p>All of the statements must be in the same chunk initially. If there are declarations for the
+    * same variable in different chunks, they will be grouped separately.
+    */
+-  private static class DeclarationStatementGroup {
++  private static final class DeclarationStatementGroup {
+ 
+     final GlobalSymbol declaredGlobalSymbol;
+-    final Set<GlobalSymbol> referencedGlobalSymbols = new LinkedHashSet<>();
++    final LinkedHashSet<GlobalSymbol> referencedGlobalSymbols = new LinkedHashSet<>();
+ 
+     /** chunk containing the statements */
+     JSChunk currentChunk;
+ 
+     /** statements in the group, latest first */
+-    final Deque<TopLevelStatement> statementStack = new ArrayDeque<>();
++    final ArrayDeque<TopLevelStatement> statementStack = new ArrayDeque<>();
+ 
+     DeclarationStatementGroup(GlobalSymbol declaredGlobalSymbol, JSChunk currentChunk) {
+       this.declaredGlobalSymbol = declaredGlobalSymbol;
+@@ -470,30 +470,28 @@
+    * <p>This is an implementation of the path-based strong component algorithm as it is described in
+    * the Wikipedia article https://en.wikipedia.org/wiki/Path-based_strong_component_algorithm.
+    */
+-  private class OrderAndCombineGlobalSymbols {
+-    final Collection<GlobalSymbol> inputSymbols;
++  private final class OrderAndCombineGlobalSymbols {
++    final GlobalSymbolCollector collector;
+     /** Tracks DSGs that may be part of a strongly connected component (reference cycle). */
+-    final Deque<GlobalSymbol> componentContents = new ArrayDeque<>();
++    final ArrayDeque<GlobalSymbol> componentContents = new ArrayDeque<>();
+     /** Tracks DSGs that may be the root of a strongly connected component (reference cycle). */
+-    final Deque<GlobalSymbol> componentRoots = new ArrayDeque<>();
++    final ArrayDeque<GlobalSymbol> componentRoots = new ArrayDeque<>();
+     /** Filled with lists of strongly connected DSGs as they are discovered. */
+-    final Deque<GlobalSymbolCycle> stronglyConnectedSymbols;
++    final ArrayDeque<GlobalSymbolCycle> stronglyConnectedSymbols;
+ 
+     int preorderCounter = 0;
+ 
+-    OrderAndCombineGlobalSymbols(Collection<GlobalSymbol> dsgs) {
+-      inputSymbols = dsgs;
+-      stronglyConnectedSymbols = new ArrayDeque<>(dsgs.size());
+-    }
+-
+-    Deque<GlobalSymbolCycle> orderAndCombine() {
+-      for (GlobalSymbol globalSymbol : inputSymbols) {
++    OrderAndCombineGlobalSymbols(GlobalSymbolCollector collector) {
++      this.collector = collector;
++      this.stronglyConnectedSymbols = new ArrayDeque<>(collector.symbolStack.size());
++    }
++
++    void orderAndCombine() {
++      for (GlobalSymbol globalSymbol : collector.symbolStack) {
+         if (globalSymbol.preorderNumber < 0) {
+           processGlobalSymbol(globalSymbol);
+         } // else already processed
+       }
+-      // At this point stronglyConnectedSymbols has been filled.
+-      return stronglyConnectedSymbols;
+     }
+ 
+     /**
+@@ -554,9 +552,9 @@
+    * One or more DeclarationStatementGroups that that share the same chunk and whose declared global
+    * symbols refer to each other.
+    */
+-  private class DeclarationStatementGroupCycle {
++  private final class DeclarationStatementGroupCycle {
+     final JSChunk currentChunk;
+-    final Deque<DeclarationStatementGroup> dsgs;
++    final ArrayDeque<DeclarationStatementGroup> dsgs;
+ 
+     DeclarationStatementGroupCycle(JSChunk currentChunk) {
+       this.currentChunk = currentChunk;
+@@ -600,9 +598,50 @@
+     private void moveStatementsToChunk(JSChunk preferredChunk) {
+       Node destParent =
+           chunkInsertionPointMap.computeIfAbsent(preferredChunk, compiler::getNodeForCodeInsertion);
+-      Deque<TopLevelStatement> statementsLastFirst = getStatementsLastFirst();
+-      for (TopLevelStatement statement : statementsLastFirst) {
+-        Node statementNode = statement.getStatementNode();
++      ArrayList<TopLevelStatement> statementsLastFirst = new ArrayList<>();
++      for (DeclarationStatementGroup dsg : dsgs) {
++        if (statementsLastFirst.isEmpty()) {
++          for (TopLevelStatement stmt : dsg.statementStack) {
++            statementsLastFirst.add(stmt);
++          }
++        } else {
++          ArrayList<TopLevelStatement> list1 = new ArrayList<>();
++          for (TopLevelStatement stmt : dsg.statementStack) {
++            list1.add(stmt);
++          }
++          ArrayList<TopLevelStatement> prev = new ArrayList<>(statementsLastFirst);
++          statementsLastFirst.clear();
++          int i1 = 0;
++          int n1 = list1.size();
++          int i2 = 0;
++          int n2 = prev.size();
++          while (i1 < n1 && i2 < n2) {
++            TopLevelStatement s1 = list1.get(i1);
++            TopLevelStatement s2 = prev.get(i2);
++            if (s1.getOriginalOrder() > s2.getOriginalOrder()) {
++              i1++;
++              statementsLastFirst.add(s1);
++              checkState(
++                  i1 == n1 || list1.get(i1).getOriginalOrder() < s1.getOriginalOrder(),
++                  "Statements are recorded in the wrong order.");
++            } else {
++              i2++;
++              statementsLastFirst.add(s2);
++              checkState(
++                  i2 == n2 || prev.get(i2).getOriginalOrder() < s2.getOriginalOrder(),
++                  "Statements are recorded in the wrong order.");
++            }
++          }
++          while (i1 < n1) {
++            statementsLastFirst.add(list1.get(i1++));
++          }
++          while (i2 < n2) {
++            statementsLastFirst.add(prev.get(i2++));
++          }
++        }
++      }
++      for (int i = 0, size = statementsLastFirst.size(); i < size; i++) {
++        Node statementNode = statementsLastFirst.get(i).getStatementNode();
+         // Remove it
+         compiler.reportChangeToEnclosingScope(statementNode);
+         Node originalScript = NodeUtil.getEnclosingScript(statementNode);
+@@ -615,41 +654,6 @@
+             destParent, NodeUtil.getFeatureSetOfScript(originalScript), compiler);
+         compiler.reportChangeToEnclosingScope(statementNode);
+       }
+-    }
+-
+-    private Deque<TopLevelStatement> getStatementsLastFirst() {
+-      Deque<TopLevelStatement> result = new ArrayDeque<>();
+-
+-      for (DeclarationStatementGroup dsg : dsgs) {
+-        // combine previous result with statements for current DSG
+-        Deque<TopLevelStatement> stack1 = new ArrayDeque<>(dsg.statementStack);
+-        Deque<TopLevelStatement> stack2 = result;
+-        result = new ArrayDeque<>(stack1.size() + stack2.size());
+-        while (true) {
+-          if (stack1.isEmpty()) {
+-            result.addAll(stack2);
+-            break;
+-          } else if (stack2.isEmpty()) {
+-            result.addAll(stack1);
+-            break;
+-          } else {
+-            TopLevelStatement s1 = stack1.peek();
+-            TopLevelStatement s2 = stack2.peek();
+-            if (s1.getOriginalOrder() > s2.getOriginalOrder()) {
+-              result.add(stack1.pop());
+-              checkState(
+-                  stack1.isEmpty() || stack1.peek().getOriginalOrder() < s1.getOriginalOrder(),
+-                  "Statements are recorded in the wrong order.");
+-            } else {
+-              result.add(stack2.pop());
+-              checkState(
+-                  stack2.isEmpty() || stack2.peek().getOriginalOrder() < s2.getOriginalOrder(),
+-                  "Statements are recorded in the wrong order.");
+-            }
+-          }
+-        }
+-      }
+-      return result;
+     }
+ 
+     private JSChunk getPreferredChunk(BitSet chunksWithImmovableReferences) {
+@@ -672,48 +676,34 @@
+     }
+   }
+ 
+-  interface InstanceofReference {
+-    JSChunk getChunk();
+-
+-    Reference getReference();
+-  }
+-
+-  private static class ImmovableInstanceofReference implements InstanceofReference {
+-    final JSChunk chunk;
++  private static final class InstanceofReference {
++    final @Nullable JSChunk chunk;
++    final @Nullable DeclarationStatementGroup containingDsg;
+     final Reference reference;
+ 
+-    ImmovableInstanceofReference(JSChunk chunk, Reference reference) {
++    private InstanceofReference(
++        @Nullable JSChunk chunk,
++        @Nullable DeclarationStatementGroup containingDsg,
++        Reference reference) {
+       this.chunk = chunk;
+-      this.reference = reference;
+-    }
+-
+-    @Override
+-    public JSChunk getChunk() {
+-      return chunk;
+-    }
+-
+-    @Override
+-    public Reference getReference() {
+-      return reference;
+-    }
+-  }
+-
+-  private static class MovableInstanceofReference implements InstanceofReference {
+-    final DeclarationStatementGroup containingDsg;
+-    final Reference reference;
+-
+-    MovableInstanceofReference(DeclarationStatementGroup containingDsg, Reference reference) {
+       this.containingDsg = containingDsg;
+       this.reference = reference;
+     }
+ 
+-    @Override
+-    public JSChunk getChunk() {
+-      return containingDsg.currentChunk;
+-    }
+-
+-    @Override
+-    public Reference getReference() {
++    static InstanceofReference immovable(JSChunk chunk, Reference reference) {
++      return new InstanceofReference(chunk, null, reference);
++    }
++
++    static InstanceofReference movable(
++        DeclarationStatementGroup containingDsg, Reference reference) {
++      return new InstanceofReference(null, containingDsg, reference);
++    }
++
++    JSChunk getChunk() {
++      return containingDsg != null ? containingDsg.currentChunk : chunk;
++    }
++
++    Reference getReference() {
+       return reference;
+     }
+   }
+diff --git a/com/google/javascript/jscomp/CrossChunkReferenceCollector.java b/com/google/javascript/jscomp/CrossChunkReferenceCollector.java
+--- a/com/google/javascript/jscomp/CrossChunkReferenceCollector.java
++++ b/com/google/javascript/jscomp/CrossChunkReferenceCollector.java
+@@ -26,15 +26,13 @@
+ import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.Node;
+ import java.util.ArrayList;
+-import java.util.Collections;
+-import java.util.List;
+ import org.jspecify.annotations.Nullable;
+ 
+ /** Collects global variable references for use by {@link CrossChunkCodeMotion}. */
+ public final class CrossChunkReferenceCollector implements CompilerPass {
+ 
+   /** List of all top-level statements in the order they appear in the AST. */
+-  private final List<TopLevelStatement> topLevelStatements = new ArrayList<>();
++  private final ArrayList<TopLevelStatement> topLevelStatements = new ArrayList<>();
+ 
+   /** JavaScript compiler to use in traversing. */
+   private final AbstractCompiler compiler;
+@@ -111,7 +109,7 @@
+         if (identical(addedReference.getNode(), topLevelStatementDraft.declaredNameNode)) {
+           topLevelStatementDraft.declaredNameReference = addedReference;
+         } else {
+-          topLevelStatementDraft.nonDeclarationReferences.add(addedReference);
++          topLevelStatementDraft.addNonDeclarationReference(addedReference);
+         }
+       }
+     }
+@@ -219,8 +217,12 @@
+     return name.isName() && name.getString().equals("Symbol");
+   }
+ 
+-  List<TopLevelStatement> getTopLevelStatements() {
+-    return Collections.unmodifiableList(topLevelStatements);
++  int getTopLevelStatementCount() {
++    return topLevelStatements.size();
++  }
++
++  TopLevelStatement getTopLevelStatement(int index) {
++    return topLevelStatements.get(index);
+   }
+ 
+   /** Determines whether the given value is eligible to be moved across chunks. */
+@@ -379,7 +381,7 @@
+ 
+     private final JSChunk chunk;
+     private final Node statementNode;
+-    private final List<Reference> nonDeclarationReferences;
++    private final @Nullable ArrayList<Reference> nonDeclarationReferences;
+     private final Reference declaredNameReference;
+     private final Node declaredValueNode;
+ 
+@@ -387,7 +389,7 @@
+       this.originalOrder = draft.originalOrder;
+       this.chunk = draft.chunk;
+       this.statementNode = draft.statementNode;
+-      this.nonDeclarationReferences = Collections.unmodifiableList(draft.nonDeclarationReferences);
++      this.nonDeclarationReferences = draft.nonDeclarationReferences;
+       this.declaredNameReference = draft.declaredNameReference;
+       this.declaredValueNode = draft.declaredValueNode;
+     }
+@@ -404,8 +406,12 @@
+       return statementNode;
+     }
+ 
+-    List<Reference> getNonDeclarationReferences() {
+-      return Collections.unmodifiableList(nonDeclarationReferences);
++    int getNonDeclarationReferenceCount() {
++      return nonDeclarationReferences == null ? 0 : nonDeclarationReferences.size();
++    }
++
++    Reference getNonDeclarationReference(int index) {
++      return nonDeclarationReferences.get(index);
+     }
+ 
+     boolean isDeclarationStatement() {
+@@ -435,7 +441,7 @@
+ 
+     final JSChunk chunk;
+     final Node statementNode;
+-    final List<Reference> nonDeclarationReferences = new ArrayList<>();
++    @Nullable ArrayList<Reference> nonDeclarationReferences = null;
+     @Nullable Node declaredValueNode = null;
+     @Nullable Node declaredNameNode = null;
+     @Nullable Reference declaredNameReference = null;
+@@ -445,5 +451,12 @@
+       this.chunk = chunk;
+       this.statementNode = statementNode;
+     }
++
++    void addNonDeclarationReference(Reference ref) {
++      if (nonDeclarationReferences == null) {
++        nonDeclarationReferences = new ArrayList<>();
++      }
++      nonDeclarationReferences.add(ref);
++    }
+   }
+ }
+diff --git a/com/google/javascript/jscomp/GlobalNamespace.java b/com/google/javascript/jscomp/GlobalNamespace.java
+--- a/com/google/javascript/jscomp/GlobalNamespace.java
++++ b/com/google/javascript/jscomp/GlobalNamespace.java
+@@ -22,9 +22,7 @@
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.base.Joiner;
+ import com.google.common.base.MoreObjects;
+-import com.google.common.collect.HashBasedTable;
+ import com.google.common.collect.ImmutableSet;
+-import com.google.common.collect.Table;
+ import com.google.javascript.jscomp.CodingConvention.SubclassRelationship;
+ import com.google.javascript.jscomp.diagnostic.LogFile;
+ import com.google.javascript.jscomp.modules.ModuleMap;
+@@ -42,8 +40,7 @@
+ import java.util.Collection;
+ import java.util.Collections;
+ import java.util.LinkedHashMap;
+-import java.util.List;
+-import java.util.Map;
++import java.util.NoSuchElementException;
+ import java.util.Set;
+ import java.util.function.Predicate;
+ import java.util.function.Supplier;
+@@ -106,14 +103,33 @@
+     }
+   }
+ 
++  private static final class ModuleNameMap {
++    final LinkedHashMap<String, Name> names = new LinkedHashMap<>();
++  }
++
+   /** Global namespace tree */
+-  private final List<Name> globalNames = new ArrayList<>();
++  final ArrayList<Name> globalNames = new ArrayList<>();
+ 
+   /** Maps names (e.g. "a.b.c") to nodes in the global namespace tree */
+-  private final Map<String, Name> nameMap = new LinkedHashMap<>();
++  final LinkedHashMap<String, Name> nameMap = new LinkedHashMap<>();
+ 
+   /** Maps names (e.g. "a.b.c") and MODULE_BODY nodes to Names in that module */
+-  private final Table<ModuleMetadata, String, Name> nameMapByModule = HashBasedTable.create();
++  private final LinkedHashMap<ModuleMetadata, ModuleNameMap> nameMapByModule =
++      new LinkedHashMap<>();
++
++  private @Nullable Name getModuleName(ModuleMetadata metadata, String name) {
++    ModuleNameMap map = nameMapByModule.get(metadata);
++    return map == null ? null : map.names.get(name);
++  }
++
++  private void putModuleName(ModuleMetadata metadata, String name, Name node) {
++    ModuleNameMap map = nameMapByModule.get(metadata);
++    if (map == null) {
++      map = new ModuleNameMap();
++      nameMapByModule.put(metadata, map);
++    }
++    map.names.put(name, node);
++  }
+ 
+   /** Limits traversal to scripts matching the given predicate. */
+   private Predicate<Node> shouldTraverseScript = (n) -> true;
+@@ -238,31 +254,18 @@
+   @Override
+   public Collection<Name> getAllSymbols() {
+     ensureGenerated();
+-    return Collections.unmodifiableCollection(getNameIndex().values());
+-  }
+-
+-  private void ensureGenerated() {
++    return Collections.unmodifiableCollection(nameMap.values());
++  }
++
++  void ensureGenerated() {
+     if (!generated) {
+       process();
+     }
+   }
+ 
+-  /**
+-   * Gets a list of the roots of the forest of the global names, where the roots are the top-level
+-   * names.
+-   */
+-  List<Name> getNameForest() {
++  boolean containsName(String name) {
+     ensureGenerated();
+-    return globalNames;
+-  }
+-
+-  /**
+-   * Gets an index of all the global names, indexed by full qualified name (as in "a", "a.b.c",
+-   * etc.).
+-   */
+-  Map<String, Name> getNameIndex() {
+-    ensureGenerated();
+-    return nameMap;
++    return nameMap.containsKey(name);
+   }
+ 
+   static interface AstChange {
+@@ -359,7 +362,7 @@
+     checkNotNull(moduleMetadata);
+     checkNotNull(name);
+     ensureGenerated();
+-    return nameMapByModule.get(moduleMetadata, name);
++    return getModuleName(moduleMetadata, name);
+   }
+ 
+   /**
+@@ -1138,7 +1141,7 @@
+      * @return The {@link Name} instance for {@code name}
+      */
+     Name getOrCreateName(String name, @Nullable ModuleMetadata metadata) {
+-      Name node = metadata == null ? nameMap.get(name) : nameMapByModule.get(metadata, name);
++      Name node = metadata == null ? nameMap.get(name) : getModuleName(metadata, name);
+       if (node == null) {
+         int i = name.lastIndexOf('.');
+         if (i >= 0) {
+@@ -1148,7 +1151,7 @@
+           if (metadata == null) {
+             nameMap.put(name, node);
+           } else {
+-            nameMapByModule.put(metadata, name, node);
++            putModuleName(metadata, name, node);
+           }
+         } else {
+           node = new Name(name, null, sourceKind);
+@@ -1156,7 +1159,7 @@
+             globalNames.add(node);
+             nameMap.put(name, node);
+           } else {
+-            nameMapByModule.put(metadata, name, node);
++            putModuleName(metadata, name, node);
+           }
+         }
+       }
+@@ -1232,7 +1235,7 @@
+     private final Name parent;
+ 
+     // The children of this name. Must be null if there are no children.
+-    @Nullable List<Name> props;
++    @Nullable ArrayList<Name> props = null;
+ 
+     /** The declaration of a name. */
+     private @Nullable Ref declaration;
+@@ -1241,16 +1244,12 @@
+     private @Nullable Ref initialization;
+ 
+     /**
+-     * Keep track of which Nodes are Refs for this Name.
+-     *
+-     * <p>This is either null, a {@code Map<Node, Ref>} refsForNodeMap or a singleton Ref.
+-     *
+-     * <p>This makes the code using refsForNode more complex but greatly decreases the memory usage
+-     * of this class. For example, one project had more than 5 million Names, and more than 80% of
+-     * those Names had exactly 1 Ref, their declaration. So specializing this field to sometimes be
+-     * a single Ref, not a map, saves on creating > 4 million Map instances.
+-     */
+-    private Object refsForNode = null;
++     * Keep track of which Nodes are Refs for this Name: either a single Ref (`singleRef`) or a
++     * multi-entry `LinkedHashMap<Node, Ref>` (`refsForNodeMap`).
++     */
++    private @Nullable Ref singleRef = null;
++
++    private @Nullable LinkedHashMap<Node, Ref> refsForNodeMap = null;
+ 
+     private int globalSets = 0;
+     private int localSets = 0;
+@@ -1393,9 +1392,15 @@
+      */
+     JSChunk getDeepestCommonAncestorChunk(JSChunkGraph chunkGraph) {
+       JSChunk commonAncestor = getDeclaration().getChunk();
+-      for (Ref r : this.getRefs()) {
+-        JSChunk rChunk = r.getChunk();
+-        commonAncestor = chunkGraph.getDeepestCommonDependencyInclusive(rChunk, commonAncestor);
++      if (this.singleRef != null) {
++        return chunkGraph.getDeepestCommonDependencyInclusive(
++            this.singleRef.getChunk(), commonAncestor);
++      }
++      if (this.refsForNodeMap != null) {
++        for (Ref r : this.refsForNodeMap.values()) {
++          commonAncestor =
++              chunkGraph.getDeepestCommonDependencyInclusive(r.getChunk(), commonAncestor);
++        }
+       }
+       return commonAncestor;
+     }
+@@ -1421,20 +1426,14 @@
+     }
+ 
+     private void checkNoExistingRefsForNode(Node node) {
+-      if (this.refsForNode == null) {
++      if (this.singleRef != null) {
++        checkState(this.singleRef.node != node, "Ref already exists for node: %s", this.singleRef);
+         return;
+       }
+-      if (this.refsForNode instanceof Ref ref) {
+-        checkState(ref.node != node, "Ref already exists for node: %s", refsForNode);
+-        return;
+-      }
+-      Ref refForNode = castRefsForNodeMap().get(node);
+-      checkState(refForNode == null, "Ref already exists for node: %s", refForNode);
+-    }
+-
+-    @SuppressWarnings("unchecked")
+-    private Map<Node, Ref> castRefsForNodeMap() {
+-      return (Map<Node, Ref>) refsForNode;
++      if (this.refsForNodeMap != null) {
++        Ref refForNode = this.refsForNodeMap.get(node);
++        checkState(refForNode == null, "Ref already exists for node: %s", refForNode);
++      }
+     }
+ 
+     private Ref createNewRef(JSChunk chunk, Scope scope, Node node, Ref.Type type) {
+@@ -1446,18 +1445,19 @@
+     }
+ 
+     private void putRef(Node node, Ref ref) {
+-      if (this.refsForNode == null) {
+-        this.refsForNode = ref;
++      if (this.refsForNodeMap != null) {
++        this.refsForNodeMap.put(node, ref);
+         return;
+       }
+-      if (refsForNode instanceof Ref) {
+-        // Convert the singleton Ref object into a map, so that we can store a second Ref.
+-        Map<Node, Ref> refsForNodeMap = new LinkedHashMap<>();
+-        Ref existingRef = (Ref) this.refsForNode;
+-        refsForNodeMap.put(existingRef.node, existingRef);
+-        this.refsForNode = refsForNodeMap;
+-      }
+-      castRefsForNodeMap().put(node, ref);
++      if (this.singleRef == null) {
++        this.singleRef = ref;
++        return;
++      }
++      Ref existingRef = this.singleRef;
++      this.singleRef = null;
++      this.refsForNodeMap = new LinkedHashMap<>();
++      this.refsForNodeMap.put(existingRef.node, existingRef);
++      this.refsForNodeMap.put(node, ref);
+     }
+ 
+     Ref addSingleRefForTesting(Node node, Ref.Type type) {
+@@ -1569,19 +1569,20 @@
+       checkState(oldNode != null, "Ref's node is already null: %s", ref);
+       ref.node = newNode;
+ 
+-      if (refsForNode == null) {
+-        refsForNode = ref;
+-      } else if (refsForNode instanceof Ref) {
+-        // No update needed, since refsForNode is a singleton.
+-        checkState(refsForNode == ref);
++      if (this.refsForNodeMap == null) {
++        if (this.singleRef == null) {
++          this.singleRef = ref;
++        } else {
++          // No update needed, since singleRef is a singleton.
++          checkState(this.singleRef == ref);
++        }
+       } else {
+-        Map<Node, Ref> refsForNodeMap = castRefsForNodeMap();
+-        refsForNodeMap.remove(oldNode);
++        this.refsForNodeMap.remove(oldNode);
+         if (newNode != null) {
+-          Ref existingRefForNewNode = refsForNodeMap.get(newNode);
++          Ref existingRefForNewNode = this.refsForNodeMap.get(newNode);
+           checkArgument(
+               existingRefForNewNode == null, "refs already exist: %s", existingRefForNewNode);
+-          refsForNodeMap.put(newNode, ref);
++          this.refsForNodeMap.put(newNode, ref);
+         }
+       }
+     }
+@@ -1593,16 +1594,22 @@
+      * get and the set.
+      */
+     void removeRef(Ref ref) {
+-      checkNotNull(refsForNode, "removeRef(%s): unknown ref", ref);
+-      if (refsForNode instanceof Ref) {
+-        checkState(refsForNode == ref, "removeRef(%s): unknown ref", ref);
+-        refsForNode = null;
++      if (this.singleRef != null) {
++        checkState(this.singleRef == ref, "removeRef(%s): unknown ref", ref);
++        this.singleRef = null;
+       } else {
++        checkNotNull(this.refsForNodeMap, "removeRef(%s): unknown ref", ref);
+         checkState(
+-            castRefsForNodeMap().containsKey(ref.getNode()), "removeRef(%s): unknown ref", ref);
++            this.refsForNodeMap.containsKey(ref.getNode()), "removeRef(%s): unknown ref", ref);
+         Node refNode = ref.getNode();
+         if (refNode != null) {
+-          removeRefFromNodeMap(ref);
++          Ref existing = this.refsForNodeMap.get(refNode);
++          checkState(
++              existing == ref,
++              "Unexpected Refs for Node: %s: when removing Ref: %s",
++              existing,
++              ref);
++          this.refsForNodeMap.remove(refNode);
+         }
+       }
+       removeRefAndUpdateState(ref);
+@@ -1612,10 +1619,16 @@
+     private void removeRefAndUpdateState(Ref ref) {
+       if (ref == declaration) {
+         declaration = null;
+-        for (Ref maybeNewDecl : getRefs()) {
+-          if (maybeNewDecl.type == Ref.Type.SET_FROM_GLOBAL) {
+-            declaration = maybeNewDecl;
+-            break;
++        if (this.singleRef != null) {
++          if (this.singleRef.type == Ref.Type.SET_FROM_GLOBAL) {
++            declaration = this.singleRef;
++          }
++        } else if (this.refsForNodeMap != null) {
++          for (Ref maybeNewDecl : this.refsForNodeMap.values()) {
++            if (maybeNewDecl.type == Ref.Type.SET_FROM_GLOBAL) {
++              declaration = maybeNewDecl;
++              break;
++            }
+           }
+         }
+       }
+@@ -1657,30 +1670,14 @@
+       }
+     }
+ 
+-    private void removeRefFromNodeMap(Ref ref) {
+-      Node refNode = checkNotNull(ref.getNode(), ref);
+-      checkNotNull(refsForNode, "Missing ref when trying to remove it: %s", ref);
+-      if (refsForNode instanceof Ref) {
+-        refsForNode = null;
+-      } else {
+-        Ref refsForNode = castRefsForNodeMap().get(refNode);
+-        checkState(
+-            refsForNode == ref,
+-            "Unexpected Refs for Node: %s: when removing Ref: %s",
+-            refsForNode,
+-            ref);
+-        castRefsForNodeMap().remove(refNode);
+-      }
+-    }
+-
+     Collection<Ref> getRefs() {
+-      if (refsForNode == null) {
+-        return ImmutableSet.of();
+-      }
+-      if (refsForNode instanceof Ref ref) {
+-        return ImmutableSet.of(ref);
+-      }
+-      return castRefsForNodeMap().values();
++      if (this.refsForNodeMap != null) {
++        return this.refsForNodeMap.values();
++      }
++      if (this.singleRef != null) {
++        return ImmutableSet.of(this.singleRef);
++      }
++      return ImmutableSet.of();
+     }
+ 
+     /**
+@@ -1691,21 +1688,24 @@
+     @VisibleForTesting
+     @Nullable Ref getRefForNode(Node node) {
+       checkNotNull(node);
+-      if (refsForNode == null) {
+-        return null;
+-      }
+-      if (refsForNode instanceof Ref ref) {
+-        return ref.getNode() == node ? ref : null;
+-      }
+-      return castRefsForNodeMap().get(node);
++      if (this.singleRef != null) {
++        return this.singleRef.getNode() == node ? this.singleRef : null;
++      }
++      if (this.refsForNodeMap != null) {
++        return this.refsForNodeMap.get(node);
++      }
++      return null;
+     }
+ 
+     Ref getFirstRef() {
+-      checkNotNull(refsForNode, "no first Ref to get");
+-      if (refsForNode instanceof Ref ref) {
++      if (this.singleRef != null) {
++        return this.singleRef;
++      }
++      checkNotNull(this.refsForNodeMap, "no first Ref to get");
++      for (Ref ref : this.refsForNodeMap.values()) {
+         return ref;
+       }
+-      return castRefsForNodeMap().values().iterator().next();
++      throw new NoSuchElementException();
+     }
+ 
+     boolean canEliminate() {
+@@ -1714,8 +1714,8 @@
+       }
+ 
+       if (props != null) {
+-        for (Name n : props) {
+-          if (!n.canCollapse()) {
++        for (int i = 0, size = props.size(); i < size; i++) {
++          if (!props.get(i).canCollapse()) {
+             return false;
+           }
+         }
+@@ -1724,7 +1724,8 @@
+     }
+ 
+     boolean isSimpleStubDeclaration() {
+-      if (getRefs().size() == 1) {
++      if (this.singleRef != null
++          || (this.refsForNodeMap != null && this.refsForNodeMap.size() == 1)) {
+         Ref ref = getFirstRef();
+         if (ref.node.getParent().isExprResult()) {
+           return true;
+@@ -1776,37 +1777,43 @@
+               : getDeclaration().getChunk();
+ 
+       // Only allow inlining of simple references.
+-      for (Ref ref : getRefs()) {
+-        switch (ref.type) {
+-          case SET_FROM_GLOBAL, GET_AND_SET_FROM_GLOBAL -> {
+-            // Expect one global set
+-            checkState(
+-                ref.isUninitializedDeclaration() || ref.getChunk().equals(initialChunk), ref);
+-            continue;
+-          }
+-          case SET_FROM_LOCAL, GET_AND_SET_FROM_LOCAL -> throw new IllegalStateException();
+-          case ALIASING_GET, DIRECT_GET, PROTOTYPE_GET, CALL_GET, SUBCLASSING_GET -> {
+-            // This name has a reference in a different chunk that is not guaranteed to be loaded
+-            // before the alias is initialized. In an ideal world, we might just back off inlining
+-            // this alias entirely. Unfortunately, that causes new runtime errors in practice,
+-            // because property collapsing is intentionally unsafe and will collapse properties even
+-            // when it will break code, and so it's safer to still inling usages of this alias
+-            // except for the specific invalid cross-chunk dependency(s).
+-            JSChunk refChunk = ref.getChunk();
+-            if (inlinability != Inlinability.INLINE_UNLESS_INVALID_CROSS_CHUNK_DEPENDENCY
+-                && refChunk != initialChunk
+-                && !compiler.getChunkGraph().dependsOn(refChunk, initialChunk)) {
+-              inlinability = Inlinability.INLINE_UNLESS_INVALID_CROSS_CHUNK_DEPENDENCY;
+-            }
+-            continue;
+-          }
+-          case DELETE_PROP -> {
++      if (this.singleRef != null) {
++        inlinability = checkRefInlinability(this.singleRef, initialChunk, inlinability);
++      } else if (this.refsForNodeMap != null) {
++        for (Ref ref : this.refsForNodeMap.values()) {
++          inlinability = checkRefInlinability(ref, initialChunk, inlinability);
++          if (inlinability == Inlinability.DO_NOT_INLINE) {
+             return Inlinability.DO_NOT_INLINE;
+           }
+         }
+-        throw new AssertionError();
+       }
+       return inlinability;
++    }
++
++    private Inlinability checkRefInlinability(
++        Ref ref, JSChunk initialChunk, Inlinability inlinability) {
++      switch (ref.type) {
++        case SET_FROM_GLOBAL, GET_AND_SET_FROM_GLOBAL -> {
++          // Expect one global set
++          checkState(
++              ref.isUninitializedDeclaration() || ref.getChunk().equals(initialChunk), ref);
++          return inlinability;
++        }
++        case SET_FROM_LOCAL, GET_AND_SET_FROM_LOCAL -> throw new IllegalStateException();
++        case ALIASING_GET, DIRECT_GET, PROTOTYPE_GET, CALL_GET, SUBCLASSING_GET -> {
++          JSChunk refChunk = ref.getChunk();
++          if (inlinability != Inlinability.INLINE_UNLESS_INVALID_CROSS_CHUNK_DEPENDENCY
++              && refChunk != initialChunk
++              && !compiler.getChunkGraph().dependsOn(refChunk, initialChunk)) {
++            return Inlinability.INLINE_UNLESS_INVALID_CROSS_CHUNK_DEPENDENCY;
++          }
++          return inlinability;
++        }
++        case DELETE_PROP -> {
++          return Inlinability.DO_NOT_INLINE;
++        }
++      }
++      throw new AssertionError();
+     }
+ 
+     private boolean hasOneRealGlobalSet() {
+diff --git a/com/google/javascript/jscomp/InlineAndCollapseProperties.java b/com/google/javascript/jscomp/InlineAndCollapseProperties.java
+--- a/com/google/javascript/jscomp/InlineAndCollapseProperties.java
++++ b/com/google/javascript/jscomp/InlineAndCollapseProperties.java
+@@ -305,7 +305,11 @@
+     private void inlineAliases(GlobalNamespace namespace) {
+       // Invariant: All the names in the worklist meet condition (a).
+       // adds all top-level names to the worklist, but not any properties on those names.
+-      Deque<Name> workList = new ArrayDeque<>(namespace.getNameForest());
++      namespace.ensureGenerated();
++      ArrayDeque<Name> workList = new ArrayDeque<>();
++      for (int i = 0, size = namespace.globalNames.size(); i < size; i++) {
++        workList.add(namespace.globalNames.get(i));
++      }
+ 
+       while (!workList.isEmpty()) {
+         Name name = workList.pop();
+@@ -326,7 +330,22 @@
+             inlineAliasesForName(name, namespace);
+           }
+         }
+-        maybeAddPropertiesToWorklist(name, workList);
++        if ((name.isObjectLiteral() || name.isFunction() || name.isClass())
++            && !isUnsafelyReassigned(name)
++            && name.props != null) {
++          if (name.getAliasingGets() == 0) {
++            for (int i = 0, size = name.props.size(); i < size; i++) {
++              workList.add(name.props.get(i));
++            }
++          } else {
++            for (int i = 0, size = name.props.size(); i < size; i++) {
++              Name property = name.props.get(i);
++              if (property.canCollapse()) {
++                workList.add(property);
++              }
++            }
++          }
++        }
+       }
+     }
+ 
+@@ -363,8 +382,8 @@
+             && !ref.isTwin()) {
+           inlineGlobalAliasIfPossible(name, ref, namespace);
+         } else if (name.isClass() && ref.isSubclassingGet() && name.props != null) {
+-          for (Name prop : name.props) {
+-            rewriteAllSubclassInheritedAccesses(name, ref, prop, namespace);
++          for (int i = 0, size = name.props.size(); i < size; i++) {
++            rewriteAllSubclassInheritedAccesses(name, ref, name.props.get(i), namespace);
+           }
+         }
+       }
+@@ -915,8 +934,8 @@
+           "%s should not match name %s",
+           value,
+           name.getFullName());
+-      for (Name prop : name.props) {
+-        rewriteNestedAliasReference(value, depth, newNodes, prop);
++      for (int i = 0, size = name.props.size(); i < size; i++) {
++        rewriteNestedAliasReference(value, depth, newNodes, name.props.get(i));
+       }
+     }
+ 
+@@ -1120,54 +1139,6 @@
+   }
+ 
+   /**
+-   * Adds properties of `name` to the worklist if the following conditions hold:
+-   *
+-   * <ol>
+-   *   <li>1. The given property of `name` either meets condition (a) or is unsafely collapsible (as
+-   *       defined by {@link Name#canCollapse()}
+-   *   <li>2. `name` meets condition (b)
+-   * </ol>
+-   *
+-   * This only adds direct properties of a name, not all its descendants. For example, this adds
+-   * `a.b` given `a`, but not `a.b.c`.
+-   */
+-  private static void maybeAddPropertiesToWorklist(Name name, Deque<Name> workList) {
+-    if (!(name.isObjectLiteral() || name.isFunction() || name.isClass())) {
+-      // Don't add properties for things like `Foo` in
+-      //   const Foo = someMysteriousFunctionCall();
+-      // Since `Foo` is not declared as an object, class, or function literal, assume its value
+-      // may be aliased somewhere and its properties do not meet condition (a).
+-      return;
+-    }
+-    if (isUnsafelyReassigned(name)) {
+-      // Don't add properties if this was assigned multiple times, except for 'safe'
+-      // reassignments:
+-      //    var ns = ns || {};
+-      // This is equivalent to condition (b)
+-      return;
+-    }
+-    if (name.props == null) {
+-      return;
+-    }
+-
+-    if (name.getAliasingGets() == 0) {
+-      // All of {@code name}'s children meet condition (a), so they can be
+-      // added to the worklist.
+-      workList.addAll(name.props);
+-    } else {
+-      // The children do NOT meet condition (a) but we may try to add them anyway.
+-      // This is because CollapseProperties will unsafely collapse properties on constructors and
+-      // enums, so we want to be more aggressive about inlining references to their children.
+-      for (Name property : name.props) {
+-        // Only add properties that would be unsafely collapsed by CollapseProperties
+-        if (property.canCollapse()) {
+-          workList.add(property);
+-        }
+-      }
+-    }
+-  }
+-
+-  /**
+    * Returns true if the alias is possibly defined in the global scope, which we handle with more
+    * caution than with locally scoped variables. May return false positives.
+    *
+@@ -1312,9 +1283,6 @@
+    */
+   class CollapseProperties implements CompilerPass {
+ 
+-    /** Maps names (e.g. "a.b.c") to nodes in the global namespace tree */
+-    private Map<String, Name> nameMap;
+-
+     private final LinkedHashSet<String> dynamicallyImportedModules = new LinkedHashSet<>();
+ 
+     @Override
+@@ -1327,10 +1295,10 @@
+             new FindDynamicallyImportedModules(haveModulesBeenRewritten, moduleResolutionMode));
+       }
+ 
+-      nameMap = checkNotNull(namespace, "namespace was not initialized").getNameIndex();
+-      List<Name> globalNames = namespace.getNameForest();
++      checkNotNull(namespace, "namespace was not initialized").ensureGenerated();
+       ImmutableSet<Name> escaped = checkNamespaces();
+-      for (Name name : globalNames) {
++      for (int i = 0, size = namespace.globalNames.size(); i < size; i++) {
++        Name name = namespace.globalNames.get(i);
+         flattenReferencesToCollapsibleDescendantNames(name, name.getBaseName(), escaped);
+         // We collapse property definitions after collapsing property references
+         // because this step can alter the parse tree above property references,
+@@ -1405,7 +1373,7 @@
+         // When the output chunk type is ES_MODULES, properties of the module namespace
+         // must not be collapsed as they are referenced off the namespace object. The namespace
+         // objects escape via the dynamic import expression.
+-        for (Name name : nameMap.values()) {
++        for (Name name : namespace.nameMap.values()) {
+           // Test if the name is a rewritten module namespace variable and if so mark it as escaped
+           // to prevent any property collapsing.
+           //
+@@ -1417,7 +1385,8 @@
+             if (name.props == null) {
+               continue;
+             }
+-            for (Name prop : name.props) {
++            for (int i = 0, size = name.props.size(); i < size; i++) {
++              Name prop = name.props.get(i);
+               Ref propDeclaration = prop.getDeclaration();
+               if (propDeclaration == null) {
+                 continue;
+@@ -1449,7 +1418,7 @@
+         }
+       }
+ 
+-      for (Name name : nameMap.values()) {
++      for (Name name : namespace.nameMap.values()) {
+         if (!dynamicallyImportedModuleRefs.isEmpty()
+             && dynamicallyImportedModuleRefs.contains(name.getFullName())) {
+           escaped.add(name);
+@@ -1528,7 +1497,8 @@
+         return;
+       }
+ 
+-      for (Name p : n.props) {
++      for (int i = 0, size = n.props.size(); i < size; i++) {
++        Name p = n.props.get(i);
+         String propAlias = appendPropForAlias(alias, p.getBaseName());
+         final Inlinability inlinability = p.canCollapseOrInline();
+ 
+@@ -1626,7 +1596,8 @@
+       // example, if {@code n} corresponds to the name "a.b", then "a.b" will be
+       // replaced with "a$b" in all occurrences of "a.b.c", "a.b.c.d", etc.
+       if (n.props != null) {
+-        for (Name p : n.props) {
++        for (int i = 0, size = n.props.size(); i < size; i++) {
++          Name p = n.props.get(i);
+           flattenPrefixes(alias, originalName + p.getBaseName(), p, 1, isConstantName);
+         }
+       }
+@@ -1661,7 +1632,8 @@
+       }
+ 
+       if (n.props != null) {
+-        for (Name p : n.props) {
++        for (int i = 0, size = n.props.size(); i < size; i++) {
++          Name p = n.props.get(i);
+           flattenPrefixes(alias, originalName + p.getBaseName(), p, depth + 1, isConstantName);
+         }
+       }
+@@ -1766,7 +1738,8 @@
+         return;
+       }
+       logDecisionForName(n, "collapsing descendants");
+-      for (Name p : n.props) {
++      for (int i = 0, size = n.props.size(); i < size; i++) {
++        Name p = n.props.get(i);
+         collapseDeclarationOfNameAndDescendants(
+             p, appendPropForAlias(alias, p.getBaseName()), escaped);
+       }
+@@ -2184,7 +2157,7 @@
+ 
+         // If the name cannot be collapsed, skip it.
+         String qName = objlitName.getFullName() + '.' + propName;
+-        Name p = nameMap.get(qName);
++        Name p = namespace.getOwnSlot(qName);
+         if (p != null && !canCollapse(p)) {
+           continue;
+         }
+@@ -2256,7 +2229,8 @@
+       if (n.props == null) {
+         return;
+       }
+-      for (Name p : n.props) {
++      for (int i = 0, size = n.props.size(); i < size; i++) {
++        Name p = n.props.get(i);
+         if (!p.needsToBeStubbed()) {
+           continue;
+         }
+@@ -2292,7 +2266,7 @@
+       }
+       String result = root + '$' + prop;
+       int id = 1;
+-      while (nameMap.containsKey(result)) {
++      while (namespace.containsName(result)) {
+         result = root + '$' + prop + '$' + id;
+         id++;
+       }

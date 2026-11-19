@@ -323,6 +323,17 @@ func summarize(wd, javaDir, goDir string, jobs []sweepJob, order []string) int {
 	for _, k := range keys {
 		fmt.Printf("%5d  %s\n       e.g. %s\n", sigs[k], k, example[k])
 	}
+	totalErrors := 0
+	for _, c := range classes {
+		if c != clIdentical {
+			for _, m := range counts {
+				totalErrors += m[c]
+			}
+		}
+	}
+	if totalErrors > 0 {
+		return 1
+	}
 	return 0
 }
 

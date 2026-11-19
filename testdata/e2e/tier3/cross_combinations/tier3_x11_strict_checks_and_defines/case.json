@@ -1,0 +1,26 @@
+{
+  "id": "tier3_x11_strict_checks_and_defines",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "Strict type checks with compile-time defines",
+  "description": "Runs strict type checking and custom defines simultaneously",
+  "args": [
+    "--checks_only",
+    "--jscomp_error=checkTypes",
+    "--jscomp_warning=strictCheckTypes",
+    "-D",
+    "DEBUG_MODE=false",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @define {boolean} */ var DEBUG_MODE = true; /** @type {number} */ var count = 10; if (DEBUG_MODE) { count = 20; }"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": "",
+    "output_files": {}
+  }
+}

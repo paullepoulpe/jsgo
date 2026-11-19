@@ -1,0 +1,1 @@
+var FeatureB = { name: 'B', kernel: AppKernel };

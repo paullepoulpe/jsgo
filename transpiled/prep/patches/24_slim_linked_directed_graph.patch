@@ -1,0 +1,189 @@
+diff --git a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+--- a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+@@ -76,8 +76,8 @@
+         useEdgeAnnotations
+             ? new AnnotatedLinkedDiGraphEdge<>(src, edgeValue, dest)
+             : new LinkedDiGraphEdge<>(src, edgeValue, dest);
+-    src.getOutEdges().add(edge);
+-    dest.getInEdges().add(edge);
++    src.addOutEdge(edge);
++    dest.addInEdge(edge);
+   }
+ 
+   // TODO(johnlenz): make this part of the general graph interface.
+@@ -93,8 +93,8 @@
+         useEdgeAnnotations
+             ? new AnnotatedLinkedDiGraphEdge<>(lSrc, edgeValue, lDest)
+             : new LinkedDiGraphEdge<>(lSrc, edgeValue, lDest);
+-    lSrc.getOutEdges().add(edge);
+-    lDest.getInEdges().add(edge);
++    lSrc.addOutEdge(edge);
++    lDest.addInEdge(edge);
+   }
+ 
+   // TODO(johnlenz): make this part of the general graph interface.
+@@ -121,8 +121,8 @@
+     LinkedDiGraphNode<N, E> src = getNodeOrFail(srcValue);
+     LinkedDiGraphNode<N, E> dest = getNodeOrFail(destValue);
+     for (DiGraphEdge<?, E> edge : getEdgesInDirection(srcValue, destValue)) {
+-      src.getOutEdges().remove(edge);
+-      dest.getInEdges().remove(edge);
++      src.removeOutEdge(edge);
++      dest.removeInEdge(edge);
+     }
+   }
+ 
+@@ -139,13 +139,21 @@
+   @Override
+   public List<LinkedDiGraphEdge<N, E>> getInEdges(N nodeValue) {
+     LinkedDiGraphNode<N, E> node = getNodeOrFail(nodeValue);
+-    return Collections.unmodifiableList(node.getInEdges());
++    List<LinkedDiGraphEdge<N, E>> edges = node.getInEdges();
++    if (edges.isEmpty()) {
++      return Collections.emptyList();
++    }
++    return Collections.unmodifiableList(edges);
+   }
+ 
+   @Override
+   public List<LinkedDiGraphEdge<N, E>> getOutEdges(N nodeValue) {
+     LinkedDiGraphNode<N, E> node = getNodeOrFail(nodeValue);
+-    return Collections.unmodifiableList(node.getOutEdges());
++    List<LinkedDiGraphEdge<N, E>> edges = node.getOutEdges();
++    if (edges.isEmpty()) {
++      return Collections.emptyList();
++    }
++    return Collections.unmodifiableList(edges);
+   }
+ 
+   @Override
+@@ -201,8 +209,12 @@
+   public List<LinkedDiGraphEdge<N, E>> getEdgesInDirection(N n1, N n2) {
+     LinkedDiGraphNode<N, E> dNode1 = getNodeOrFail(n1);
+     LinkedDiGraphNode<N, E> dNode2 = getNodeOrFail(n2);
++    List<LinkedDiGraphEdge<N, E>> outEdges = dNode1.getOutEdges();
++    if (outEdges.isEmpty()) {
++      return Collections.emptyList();
++    }
+     List<LinkedDiGraphEdge<N, E>> edges = new ArrayList<>();
+-    for (LinkedDiGraphEdge<N, E> outEdge : dNode1.getOutEdges()) {
++    for (LinkedDiGraphEdge<N, E> outEdge : outEdges) {
+       if (outEdge.getDestination() == dNode2) {
+         edges.add(outEdge);
+       }
+@@ -282,11 +294,18 @@
+   public List<LinkedDiGraphNode<N, E>> getDirectedPredNodes(DiGraphNode<N, E> dNode) {
+     checkNotNull(dNode);
+     LinkedDiGraphNode<N, E> lNode = (LinkedDiGraphNode<N, E>) dNode;
+-
+-    List<LinkedDiGraphNode<N, E>> nodeList = new ArrayList<>(lNode.getInEdges().size());
+-    for (LinkedDiGraphEdge<N, E> edge : lNode.getInEdges()) {
+-      nodeList.add(edge.getSource());
++    List<LinkedDiGraphEdge<N, E>> inEdges = lNode.getInEdges();
++    int size = inEdges.size();
++    if (size == 0) {
++      return Collections.emptyList();
+     }
++    if (size == 1) {
++      return inEdges.get(0).getSource().asSingletonList();
++    }
++    List<LinkedDiGraphNode<N, E>> nodeList = new ArrayList<>(size);
++    for (int i = 0; i < size; i++) {
++      nodeList.add(inEdges.get(i).getSource());
++    }
+     return nodeList;
+   }
+ 
+@@ -299,11 +318,18 @@
+   public List<LinkedDiGraphNode<N, E>> getDirectedSuccNodes(DiGraphNode<N, E> dNode) {
+     checkNotNull(dNode);
+     LinkedDiGraphNode<N, E> lNode = (LinkedDiGraphNode<N, E>) dNode;
+-
+-    List<LinkedDiGraphNode<N, E>> nodeList = new ArrayList<>(lNode.getOutEdges().size());
+-    for (LinkedDiGraphEdge<N, E> edge : lNode.getOutEdges()) {
+-      nodeList.add(edge.getDestination());
++    List<LinkedDiGraphEdge<N, E>> outEdges = lNode.getOutEdges();
++    int size = outEdges.size();
++    if (size == 0) {
++      return Collections.emptyList();
+     }
++    if (size == 1) {
++      return outEdges.get(0).getDestination().asSingletonList();
++    }
++    List<LinkedDiGraphNode<N, E>> nodeList = new ArrayList<>(size);
++    for (int i = 0; i < size; i++) {
++      nodeList.add(outEdges.get(i).getDestination());
++    }
+     return nodeList;
+   }
+ 
+@@ -368,14 +394,12 @@
+    */
+   public static class LinkedDiGraphNode<N, E> implements DiGraphNode<N, E>, GraphvizNode {
+ 
+-    // The overwhelming majority of nodes have in/out degree == 1. Initialize our lists to account
+-    // for that.
+-    private final List<LinkedDiGraphEdge<N, E>> inEdgeList =
+-        new ArrayList<>(/* initialCapacity= */ 1);
++    private List<LinkedDiGraphEdge<N, E>> inEdgeList = Collections.emptyList();
+ 
+-    private final List<LinkedDiGraphEdge<N, E>> outEdgeList =
+-        new ArrayList<>(/* initialCapacity= */ 1);
++    private List<LinkedDiGraphEdge<N, E>> outEdgeList = Collections.emptyList();
+ 
++    private @Nullable List<LinkedDiGraphNode<N, E>> singletonSelfList;
++
+     protected final N value;
+ 
+     private int priority = -1;
+@@ -387,8 +411,49 @@
+      */
+     private LinkedDiGraphNode(N nodeValue) {
+       this.value = nodeValue;
++    }
++
++    void addInEdge(LinkedDiGraphEdge<N, E> edge) {
++      if (inEdgeList.isEmpty()) {
++        inEdgeList = new ArrayList<>(2);
++      }
++      inEdgeList.add(edge);
++    }
++
++    void addOutEdge(LinkedDiGraphEdge<N, E> edge) {
++      if (outEdgeList.isEmpty()) {
++        outEdgeList = new ArrayList<>(2);
++      }
++      outEdgeList.add(edge);
++    }
++
++    void removeInEdge(DiGraphEdge<?, E> edge) {
++      if (!inEdgeList.isEmpty()) {
++        inEdgeList.remove(edge);
++        if (inEdgeList.isEmpty()) {
++          inEdgeList = Collections.emptyList();
++        }
++      }
+     }
+ 
++    void removeOutEdge(DiGraphEdge<?, E> edge) {
++      if (!outEdgeList.isEmpty()) {
++        outEdgeList.remove(edge);
++        if (outEdgeList.isEmpty()) {
++          outEdgeList = Collections.emptyList();
++        }
++      }
++    }
++
++    List<LinkedDiGraphNode<N, E>> asSingletonList() {
++      List<LinkedDiGraphNode<N, E>> list = this.singletonSelfList;
++      if (list == null) {
++        list = Collections.singletonList(this);
++        this.singletonSelfList = list;
++      }
++      return list;
++    }
++
+     @Override
+     public N getValue() {
+       return value;

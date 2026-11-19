@@ -1,0 +1,26 @@
+{
+  "id": "tier1_d04_multi_define",
+  "tier": 1,
+  "feature": "defines",
+  "name": "Multiple simultaneous defines",
+  "description": "Overrides multiple defines of different types simultaneously",
+  "args": [
+    "-D",
+    "FLAG_A=false",
+    "-D",
+    "FLAG_B=true",
+    "--define=STR_VAL='prod'",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @define {boolean} */ var FLAG_A = true; /** @define {boolean} */ var FLAG_B = false; /** @define {string} */ var STR_VAL = 'dev';"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var FLAG_A=!1,FLAG_B=!0,STR_VAL=\"prod\";\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

@@ -1,0 +1,1 @@
+var a = 1; @#$% invalid; var b = 2;

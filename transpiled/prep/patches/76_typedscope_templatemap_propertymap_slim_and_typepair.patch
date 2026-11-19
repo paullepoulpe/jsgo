@@ -1,0 +1,4506 @@
+diff --git a/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java b/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java
+index c7a0fda6..7f46feda 100644
+--- a/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java
++++ b/com/google/javascript/jscomp/DeadPropertyAssignmentElimination.java
+@@ -161,6 +161,9 @@ public class DeadPropertyAssignmentElimination implements CompilerPass {
+ 
+     /** Marks all children of this property as read. */
+     void markChildrenRead() {
++      if (children.isEmpty()) {
++        return;
++      }
+       // If a property is in propertiesSet, it has been added to the queue and processed,
+       // it will not be added to the queue again.
+       Set<Property> propertiesSet = new LinkedHashSet<>(children);
+@@ -245,7 +248,11 @@ public class DeadPropertyAssignmentElimination implements CompilerPass {
+ 
+       String propName = propNode.isGetProp() ? propNode.getString() : propNode.getQualifiedName();
+ 
+-      Property property = propertyMap.computeIfAbsent(propName, Property::new);
++      Property property = propertyMap.get(propName);
++      if (property == null) {
++        property = new Property(propName);
++        propertyMap.put(propName, property);
++      }
+ 
+       /* Using the GETPROP chain, build out the tree of children properties.
+ 
+diff --git a/com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java b/com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java
+index b170f5b9..c4dc3b56 100644
+--- a/com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java
++++ b/com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java
+@@ -184,10 +184,10 @@ final class InvocationTemplateTypeMatcher {
+       // Resolve any template types in common between the argument type and parameter type
+       TemplateTypeMap paramTypeMap = paramType.getTemplateTypeMap();
+ 
+-      TemplateType[] keys = paramTypeMap.getTemplateKeysArray();
++      int paramMapSize = paramTypeMap.size();
+       TemplateTypeMap argTypeMap = argObjectType.getTemplateTypeMap();
+-      for (int index = keys.length - keyCount; index < keys.length; index++) {
+-        TemplateType key = keys[index];
++      for (int index = paramMapSize - keyCount; index < paramMapSize; index++) {
++        TemplateType key = paramTypeMap.getTemplateKeyAt(index);
+         this.matchTemplateTypesRecursive(
+             paramTypeMap.getResolvedTemplateType(key), argTypeMap.getResolvedTemplateType(key));
+       }
+diff --git a/com/google/javascript/jscomp/LinkedFlowScope.java b/com/google/javascript/jscomp/LinkedFlowScope.java
+index 69333b07..85f2bfab 100644
+--- a/com/google/javascript/jscomp/LinkedFlowScope.java
++++ b/com/google/javascript/jscomp/LinkedFlowScope.java
+@@ -56,7 +56,9 @@ final class LinkedFlowScope implements FlowScope {
+ 
+     LinkedFlowScope acquireFlowScope(
+         CompilerInputProvider inputProvider,
+-        HamtPMap<TypedScope, OverlayScope> scopes,
++        @Nullable HamtPMap<TypedScope, OverlayScope> scopes,
++        @Nullable TypedScope singleScopeKey,
++        @Nullable OverlayScope singleScopeVal,
+         TypedScope syntacticScope,
+         TypedScope functionScope,
+         long unindexedRootBloom) {
+@@ -74,12 +76,24 @@ final class LinkedFlowScope implements FlowScope {
+       } else {
+         s = new LinkedFlowScope();
+       }
+-      s.init(this, inputProvider, scopes, syntacticScope, functionScope, unindexedRootBloom);
++      s.init(
++          this,
++          inputProvider,
++          scopes,
++          singleScopeKey,
++          singleScopeVal,
++          syntacticScope,
++          functionScope,
++          unindexedRootBloom);
+       return s;
+     }
+ 
+     OverlayScope acquireOverlayScope(
+-        TypedScope scope, HamtPMap<String, OverlaySlot> slots, boolean hasQualifiedSlots) {
++        TypedScope scope,
++        @Nullable HamtPMap<String, OverlaySlot> slots,
++        @Nullable OverlaySlot slot0,
++        @Nullable OverlaySlot slot1,
++        boolean hasQualifiedSlots) {
+       OverlayScope s;
+       if (this.overlayScopeCount < this.overlayScopeAlloc) {
+         s = this.overlayScopes[this.overlayScopeCount++];
+@@ -95,7 +109,7 @@ final class LinkedFlowScope implements FlowScope {
+       } else {
+         s = new OverlayScope();
+       }
+-      s.init(this, scope, slots, hasQualifiedSlots);
++      s.init(this, scope, slots, slot0, slot1, hasQualifiedSlots);
+       return s;
+     }
+ 
+@@ -139,35 +153,102 @@ final class LinkedFlowScope implements FlowScope {
+     }
+   }
+ 
++  private static int revHash(String s) {
++    return Integer.reverse(s.hashCode());
++  }
++
++  private static int compareUnsigned(int left, int right) {
++    int diff = (left >>> 2) - (right >>> 2);
++    return diff != 0 ? diff : (left & 3) - (right & 3);
++  }
++
+   private static LinkedFlowScope createFlowScope(
+       @Nullable Pool pool,
+       CompilerInputProvider inputProvider,
+-      HamtPMap<TypedScope, OverlayScope> scopes,
++      @Nullable HamtPMap<TypedScope, OverlayScope> scopes,
++      @Nullable TypedScope singleScopeKey,
++      @Nullable OverlayScope singleScopeVal,
+       TypedScope syntacticScope,
+       TypedScope functionScope,
+       long unindexedRootBloom) {
+     if (pool != null) {
+       return pool.acquireFlowScope(
+-          inputProvider, scopes, syntacticScope, functionScope, unindexedRootBloom);
++          inputProvider,
++          scopes,
++          singleScopeKey,
++          singleScopeVal,
++          syntacticScope,
++          functionScope,
++          unindexedRootBloom);
+     }
+     LinkedFlowScope s = new LinkedFlowScope();
+-    s.init(null, inputProvider, scopes, syntacticScope, functionScope, unindexedRootBloom);
++    s.init(
++        null,
++        inputProvider,
++        scopes,
++        singleScopeKey,
++        singleScopeVal,
++        syntacticScope,
++        functionScope,
++        unindexedRootBloom);
+     return s;
+   }
+ 
++  private static LinkedFlowScope createFlowScopeFromMap(
++      @Nullable Pool pool,
++      CompilerInputProvider inputProvider,
++      @Nullable HamtPMap<TypedScope, OverlayScope> map,
++      TypedScope syntacticScope,
++      TypedScope functionScope,
++      long unindexedRootBloom) {
++    if (map == null || map.isEmpty()) {
++      return createFlowScope(
++          pool, inputProvider, null, null, null, syntacticScope, functionScope, 0L);
++    }
++    if (map.isSingleEntry()) {
++      return createFlowScope(
++          pool,
++          inputProvider,
++          null,
++          map.rootKey(),
++          map.rootValue(),
++          syntacticScope,
++          functionScope,
++          unindexedRootBloom);
++    }
++    return createFlowScope(
++        pool, inputProvider, map, null, null, syntacticScope, functionScope, unindexedRootBloom);
++  }
++
+   private static OverlayScope createOverlayScope(
+       @Nullable Pool pool,
+       TypedScope scope,
+-      HamtPMap<String, OverlaySlot> slots,
++      @Nullable HamtPMap<String, OverlaySlot> slots,
++      @Nullable OverlaySlot slot0,
++      @Nullable OverlaySlot slot1,
+       boolean hasQualifiedSlots) {
+     if (pool != null) {
+-      return pool.acquireOverlayScope(scope, slots, hasQualifiedSlots);
++      return pool.acquireOverlayScope(scope, slots, slot0, slot1, hasQualifiedSlots);
+     }
+     OverlayScope s = new OverlayScope();
+-    s.init(null, scope, slots, hasQualifiedSlots);
++    s.init(null, scope, slots, slot0, slot1, hasQualifiedSlots);
+     return s;
+   }
+ 
++  private static OverlayScope createOverlayScopeFromMap(
++      @Nullable Pool pool,
++      TypedScope scope,
++      @Nullable HamtPMap<String, OverlaySlot> map,
++      boolean hasQualifiedSlots) {
++    if (map == null || map.isEmpty()) {
++      return createOverlayScope(pool, scope, null, null, null, false);
++    }
++    if (map.isSingleEntry()) {
++      return createOverlayScope(pool, scope, null, map.rootValue(), null, hasQualifiedSlots);
++    }
++    return createOverlayScope(pool, scope, map, null, null, hasQualifiedSlots);
++  }
++
+   private static OverlaySlot createOverlaySlot(@Nullable Pool pool, String name, JSType type) {
+     if (pool != null) {
+       return pool.acquireOverlaySlot(name, type);
+@@ -180,8 +261,13 @@ final class LinkedFlowScope implements FlowScope {
+   private @Nullable Pool pool;
+   private CompilerInputProvider inputProvider;
+ 
+-  // Map from TypedScope to OverlayScope.
+-  private HamtPMap<TypedScope, OverlayScope> scopes;
++  // Canonical representation of TypedScope -> OverlayScope:
++  // - 0 entries: scopes == null && singleScopeKey == null
++  // - 1 entry:   scopes == null && singleScopeKey != null && singleScopeVal != null
++  // - >=2 entries: scopes != null (!scopes.isEmpty() && !scopes.isSingleEntry())
++  private @Nullable HamtPMap<TypedScope, OverlayScope> scopes;
++  private @Nullable TypedScope singleScopeKey;
++  private @Nullable OverlayScope singleScopeVal;
+ 
+   private TypedScope functionScope;
+ 
+@@ -195,13 +281,17 @@ final class LinkedFlowScope implements FlowScope {
+   private void init(
+       @Nullable Pool pool,
+       CompilerInputProvider inputProvider,
+-      HamtPMap<TypedScope, OverlayScope> scopes,
++      @Nullable HamtPMap<TypedScope, OverlayScope> scopes,
++      @Nullable TypedScope singleScopeKey,
++      @Nullable OverlayScope singleScopeVal,
+       TypedScope syntacticScope,
+       TypedScope functionScope,
+       long unindexedRootBloom) {
+     this.pool = pool;
+     this.inputProvider = inputProvider;
+     this.scopes = scopes;
++    this.singleScopeKey = singleScopeKey;
++    this.singleScopeVal = singleScopeVal;
+     this.syntacticScope = syntacticScope;
+     this.functionScope = functionScope;
+     this.unindexedRootBloom = unindexedRootBloom;
+@@ -211,37 +301,74 @@ final class LinkedFlowScope implements FlowScope {
+     this.pool = null;
+     this.inputProvider = null;
+     this.scopes = null;
++    this.singleScopeKey = null;
++    this.singleScopeVal = null;
+     this.syntacticScope = null;
+     this.functionScope = null;
+     this.unindexedRootBloom = 0L;
+   }
+ 
+-  /**
+-   * Returns the scope map, trimmed to the common ancestor between this FlowScope's syntacticScope
+-   * and the given scope. Any inferred types on variables in deeper scopes cannot be propagated past
+-   * this point (since they're no longer in scope), and trimming them eagerly allows us to ignore
+-   * these irrelevant types when checking equality and joining.
+-   */
+-  private HamtPMap<TypedScope, OverlayScope> trimScopes(TypedScope scope) {
+-    if (scopes.isEmpty()) {
+-      return scopes;
++  private boolean hasNoScopes() {
++    return this.scopes == null && this.singleScopeKey == null;
++  }
++
++  private boolean sameScopes(LinkedFlowScope other) {
++    return this.scopes == other.scopes
++        && this.singleScopeKey == other.singleScopeKey
++        && this.singleScopeVal == other.singleScopeVal;
++  }
++
++  private @Nullable OverlayScope getScopeOverlay(TypedScope key) {
++    if (this.scopes != null) {
++      return this.scopes.get(key);
+     }
+-    TypedScope thisScope = syntacticScope;
++    return this.singleScopeKey == key ? this.singleScopeVal : null;
++  }
++
++  private boolean trimsAwaySingleKey(TypedScope scope, TypedScope keyToCheck) {
++    TypedScope thisScope = this.syntacticScope;
+     TypedScope thatScope = scope;
+     int thisDepth = thisScope.getDepth();
+     int thatDepth = thatScope.getDepth();
+-    HamtPMap<TypedScope, OverlayScope> result = scopes;
+     while (thatDepth > thisDepth) {
+       thatScope = thatScope.getParent();
+       thatDepth--;
+     }
+     while (thisDepth > thatDepth) {
+-      result = result.minus(thisScope);
++      if (thisScope == keyToCheck) {
++        return true;
++      }
+       thisScope = thisScope.getParent();
+       thisDepth--;
+     }
+     while (thisScope != thatScope && thisScope != null && thatScope != null) {
+-      result = result.minus(thisScope);
++      if (thisScope == keyToCheck) {
++        return true;
++      }
++      thisScope = thisScope.getParent();
++      thatScope = thatScope.getParent();
++    }
++    return false;
++  }
++
++  private static @Nullable HamtPMap<TypedScope, OverlayScope> trimScopesMap(
++      HamtPMap<TypedScope, OverlayScope> startMap, TypedScope fromScope, TypedScope toScope) {
++    TypedScope thisScope = fromScope;
++    TypedScope thatScope = toScope;
++    int thisDepth = thisScope.getDepth();
++    int thatDepth = thatScope.getDepth();
++    HamtPMap<TypedScope, OverlayScope> result = startMap;
++    while (thatDepth > thisDepth) {
++      thatScope = thatScope.getParent();
++      thatDepth--;
++    }
++    while (thisDepth > thatDepth && result != null) {
++      result = result.minusOrNull(thisScope);
++      thisScope = thisScope.getParent();
++      thisDepth--;
++    }
++    while (thisScope != thatScope && thisScope != null && thatScope != null && result != null) {
++      result = result.minusOrNull(thisScope);
+       thisScope = thisScope.getParent();
+       thatScope = thatScope.getParent();
+     }
+@@ -256,12 +383,12 @@ final class LinkedFlowScope implements FlowScope {
+   /** Creates an entry lattice for the flow. */
+   public static LinkedFlowScope createEntryLattice(
+       CompilerInputProvider inputProvider, TypedScope scope) {
+-    return createFlowScope(null, inputProvider, EMPTY_SCOPES, scope, scope, 0L);
++    return createFlowScope(null, inputProvider, null, null, null, scope, scope, 0L);
+   }
+ 
+   static LinkedFlowScope createEntryLattice(
+       CompilerInputProvider inputProvider, TypedScope scope, @Nullable Pool pool) {
+-    return createFlowScope(pool, inputProvider, EMPTY_SCOPES, scope, scope, 0L);
++    return createFlowScope(pool, inputProvider, null, null, null, scope, scope, 0L);
+   }
+ 
+   private static int hashPrefixBeforeDot(String symbol, int dot) {
+@@ -279,38 +406,79 @@ final class LinkedFlowScope implements FlowScope {
+     if (targetScope == null) {
+       targetScope = functionScope;
+     }
+-    OverlayScope existingScope = scopes.get(targetScope);
++    OverlayScope existingScope = getScopeOverlay(targetScope);
+     OverlayScope newScope;
++    int dot = symbol.indexOf('.');
+     if (existingScope == null) {
+       OverlaySlot slot = createOverlaySlot(this.pool, symbol, type);
+-      newScope =
+-          createOverlayScope(
+-              this.pool, targetScope, EMPTY_SLOTS.plus(symbol, slot), symbol.indexOf('.') >= 0);
++      newScope = createOverlayScope(this.pool, targetScope, null, slot, null, dot >= 0);
+     } else {
+-      newScope = existingScope.infer(symbol, type);
++      newScope = existingScope.infer(symbol, type, dot >= 0);
+       if (newScope == existingScope) {
+         return this;
+       }
+     }
+-    // Aggressively remove empty scopes to maintain a reasonable equivalence.
+-    HamtPMap<TypedScope, OverlayScope> newScopes =
+-        !newScope.slots.isEmpty() ? scopes.plus(targetScope, newScope) : scopes.minus(targetScope);
+-    if (newScopes == scopes) {
+-      return this;
++
++    long nextBloom = this.unindexedRootBloom;
++    if (!newScope.isEmpty() && dot >= 0) {
++      nextBloom |= (1L << (hashPrefixBeforeDot(symbol, dot) & 63));
+     }
+-    long nextBloom;
+-    if (newScopes.isEmpty()) {
+-      nextBloom = 0L;
+-    } else {
+-      nextBloom = this.unindexedRootBloom;
+-      if (!newScope.slots.isEmpty()) {
+-        int dot = symbol.indexOf('.');
+-        if (dot >= 0) {
+-          nextBloom |= (1L << (hashPrefixBeforeDot(symbol, dot) & 63));
++
++    if (this.scopes == null) {
++      if (this.singleScopeKey == null) {
++        if (newScope.isEmpty()) {
++          return this;
++        }
++        return createFlowScope(
++            this.pool,
++            inputProvider,
++            null,
++            targetScope,
++            newScope,
++            syntacticScope,
++            functionScope,
++            nextBloom);
++      }
++      if (this.singleScopeKey == targetScope) {
++        if (newScope.isEmpty()) {
++          return createFlowScope(
++              this.pool, inputProvider, null, null, null, syntacticScope, functionScope, 0L);
+         }
++        return createFlowScope(
++            this.pool,
++            inputProvider,
++            null,
++            targetScope,
++            newScope,
++            syntacticScope,
++            functionScope,
++            nextBloom);
++      }
++      if (newScope.isEmpty()) {
++        return this;
+       }
++      HamtPMap<TypedScope, OverlayScope> twoScopes =
++          HamtPMap.singleton(this.singleScopeKey, this.singleScopeVal).plus(targetScope, newScope);
++      return createFlowScope(
++          this.pool,
++          inputProvider,
++          twoScopes,
++          null,
++          null,
++          syntacticScope,
++          functionScope,
++          nextBloom);
+     }
+-    return createFlowScope(
++
++    // Aggressively remove empty scopes to maintain a reasonable equivalence.
++    HamtPMap<TypedScope, OverlayScope> newScopes =
++        !newScope.isEmpty()
++            ? this.scopes.plus(targetScope, newScope)
++            : this.scopes.minusOrNull(targetScope);
++    if (newScopes == this.scopes) {
++      return this;
++    }
++    return createFlowScopeFromMap(
+         this.pool, inputProvider, newScopes, syntacticScope, functionScope, nextBloom);
+   }
+ 
+@@ -385,9 +553,7 @@ final class LinkedFlowScope implements FlowScope {
+   public StaticTypedSlot getSlot(String name) {
+     TypedVar var = syntacticScope.getVar(name);
+     OverlayScope scope =
+-        var == null
+-            ? getOverlayScopeForName(name)
+-            : scopes.get(var.getScope());
++        var == null ? getOverlayScopeForName(name) : getScopeOverlay(var.getScope());
+ 
+     return scope != null ? scope.getSlot(name) : var;
+   }
+@@ -423,13 +589,18 @@ final class LinkedFlowScope implements FlowScope {
+     if (this.unindexedRootBloom == 0L) {
+       return false;
+     }
+-    return containsOverlaySlotWithHash(this.scopes, (int) hashes);
++    int rawKeyHash = (int) hashes;
++    if (this.scopes != null) {
++      return containsOverlaySlotWithHash(this.scopes, rawKeyHash);
++    }
++    OverlayScope single = this.singleScopeVal;
++    return single != null && single.hasQualifiedSlots && single.containsSlotWithHash(rawKeyHash);
+   }
+ 
+   private static boolean containsOverlaySlotWithHash(
+       HamtPMap<TypedScope, OverlayScope> map, int rawKeyHash) {
+     OverlayScope overlay = map.rootValue();
+-    if (overlay != null && overlay.hasQualifiedSlots && overlay.slots.containsHash(rawKeyHash)) {
++    if (overlay != null && overlay.hasQualifiedSlots && overlay.containsSlotWithHash(rawKeyHash)) {
+       return true;
+     }
+     for (int i = 0, len = map.childCount(); i < len; i++) {
+@@ -449,7 +620,7 @@ final class LinkedFlowScope implements FlowScope {
+     TypedVar rootVar = syntacticScope.getVar(getRootOfQualifiedName(name));
+     TypedScope scope = rootVar != null ? rootVar.getScope() : null;
+     scope = scope != null ? scope : functionScope;
+-    return scopes.get(scope);
++    return getScopeOverlay(scope);
+   }
+ 
+   @Override
+@@ -463,14 +634,34 @@ final class LinkedFlowScope implements FlowScope {
+     if (scope == syntacticScope) {
+       return this;
+     }
+-    HamtPMap<TypedScope, OverlayScope> trimmed = trimScopes(typedScope);
+-    return createFlowScope(
++    if (hasNoScopes()) {
++      return createFlowScope(
++          this.pool, inputProvider, null, null, null, typedScope, functionScope, 0L);
++    }
++    if (this.scopes == null) {
++      if (trimsAwaySingleKey(typedScope, this.singleScopeKey)) {
++        return createFlowScope(
++            this.pool, inputProvider, null, null, null, typedScope, functionScope, 0L);
++      }
++      return createFlowScope(
++          this.pool,
++          inputProvider,
++          null,
++          this.singleScopeKey,
++          this.singleScopeVal,
++          typedScope,
++          functionScope,
++          this.unindexedRootBloom);
++    }
++    HamtPMap<TypedScope, OverlayScope> trimmed =
++        trimScopesMap(this.scopes, this.syntacticScope, typedScope);
++    return createFlowScopeFromMap(
+         this.pool,
+         inputProvider,
+         trimmed,
+         typedScope,
+         functionScope,
+-        trimmed.isEmpty() ? 0L : this.unindexedRootBloom);
++        this.unindexedRootBloom);
+   }
+ 
+   @Override
+@@ -512,16 +703,16 @@ final class LinkedFlowScope implements FlowScope {
+         this.result = linkedInput;
+         return;
+       } else if (this.result == linkedInput
+-          || (this.result.scopes == linkedInput.scopes
++          || (this.result.sameScopes(linkedInput)
+               && this.result.functionScope == linkedInput.functionScope)) {
+         return;
+       } else if (this.result.flowsFromBottom()
+-          && this.result.scopes.isEmpty()
++          && this.result.hasNoScopes()
+           && !linkedInput.flowsFromBottom()) {
+         this.result = linkedInput;
+         return;
+       } else if (linkedInput.flowsFromBottom()
+-          && linkedInput.scopes.isEmpty()
++          && linkedInput.hasNoScopes()
+           && !this.result.flowsFromBottom()) {
+         return;
+       }
+@@ -531,26 +722,114 @@ final class LinkedFlowScope implements FlowScope {
+           this.pool != null
+               ? this.pool
+               : (this.result.pool != null ? this.result.pool : linkedInput.pool);
+-      this.scopeReconciler.reset(activePool, this.result, linkedInput);
+-      HamtPMap<TypedScope, OverlayScope> joined =
+-          this.result
+-              .trimScopes(common)
+-              .reconcile(linkedInput.trimScopes(common), this.scopeReconciler);
+-      this.scopeReconciler.clearRefs();
++
++      HamtPMap<TypedScope, OverlayScope> aMap = null;
++      TypedScope aKey = null;
++      OverlayScope aVal = null;
++      if (!this.result.hasNoScopes()) {
++        if (this.result.scopes == null) {
++          if (this.result.syntacticScope == common
++              || !this.result.trimsAwaySingleKey(common, this.result.singleScopeKey)) {
++            aKey = this.result.singleScopeKey;
++            aVal = this.result.singleScopeVal;
++          }
++        } else {
++          HamtPMap<TypedScope, OverlayScope> m =
++              this.result.syntacticScope == common
++                  ? this.result.scopes
++                  : trimScopesMap(this.result.scopes, this.result.syntacticScope, common);
++          if (m != null && !m.isEmpty()) {
++            if (m.isSingleEntry()) {
++              aKey = m.rootKey();
++              aVal = m.rootValue();
++            } else {
++              aMap = m;
++            }
++          }
++        }
++      }
++
++      HamtPMap<TypedScope, OverlayScope> bMap = null;
++      TypedScope bKey = null;
++      OverlayScope bVal = null;
++      if (!linkedInput.hasNoScopes()) {
++        if (linkedInput.scopes == null) {
++          if (linkedInput.syntacticScope == common
++              || !linkedInput.trimsAwaySingleKey(common, linkedInput.singleScopeKey)) {
++            bKey = linkedInput.singleScopeKey;
++            bVal = linkedInput.singleScopeVal;
++          }
++        } else {
++          HamtPMap<TypedScope, OverlayScope> m =
++              linkedInput.syntacticScope == common
++                  ? linkedInput.scopes
++                  : trimScopesMap(linkedInput.scopes, linkedInput.syntacticScope, common);
++          if (m != null && !m.isEmpty()) {
++            if (m.isSingleEntry()) {
++              bKey = m.rootKey();
++              bVal = m.rootValue();
++            } else {
++              bMap = m;
++            }
++          }
++        }
++      }
++
++      HamtPMap<TypedScope, OverlayScope> jMap = null;
++      TypedScope jKey = null;
++      OverlayScope jVal = null;
++
++      if (aMap == null && bMap == null && (aKey == null || bKey == null || aKey == bKey)) {
++        if (aKey != null || bKey != null) {
++          this.scopeReconciler.reset(activePool, this.result, linkedInput);
++          if (bKey == null) {
++            jKey = aKey;
++            jVal = this.scopeReconciler.merge(aKey, aVal, null);
++          } else if (aKey == null) {
++            jKey = bKey;
++            jVal = this.scopeReconciler.merge(bKey, null, bVal);
++          } else {
++            jKey = aKey;
++            jVal = (aVal == bVal) ? aVal : this.scopeReconciler.merge(aKey, aVal, bVal);
++          }
++          this.scopeReconciler.clearRefs();
++        }
++      } else {
++        HamtPMap<TypedScope, OverlayScope> leftMap =
++            aMap != null ? aMap : (aKey != null ? HamtPMap.singleton(aKey, aVal) : EMPTY_SCOPES);
++        HamtPMap<TypedScope, OverlayScope> rightMap =
++            bMap != null ? bMap : (bKey != null ? HamtPMap.singleton(bKey, bVal) : EMPTY_SCOPES);
++        this.scopeReconciler.reset(activePool, this.result, linkedInput);
++        HamtPMap<TypedScope, OverlayScope> rec =
++            leftMap.reconcileOrNull(rightMap, this.scopeReconciler);
++        this.scopeReconciler.clearRefs();
++        if (rec != null && !rec.isEmpty()) {
++          if (rec.isSingleEntry()) {
++            jKey = rec.rootKey();
++            jVal = rec.rootValue();
++          } else {
++            jMap = rec;
++          }
++        }
++      }
+ 
+       TypedScope nextFnScope =
+           this.result.flowsFromBottom() ? linkedInput.functionScope : this.result.functionScope;
+       long nextBloom =
+-          joined.isEmpty()
++          (jMap == null && jKey == null)
+               ? 0L
+               : (this.result.unindexedRootBloom | linkedInput.unindexedRootBloom);
+-      if (joined == this.result.scopes
++      if (jMap == this.result.scopes
++          && jKey == this.result.singleScopeKey
++          && jVal == this.result.singleScopeVal
+           && common == this.result.syntacticScope
+           && nextFnScope == this.result.functionScope
+           && nextBloom == this.result.unindexedRootBloom) {
+         return;
+       }
+-      if (joined == linkedInput.scopes
++      if (jMap == linkedInput.scopes
++          && jKey == linkedInput.singleScopeKey
++          && jVal == linkedInput.singleScopeVal
+           && common == linkedInput.syntacticScope
+           && nextFnScope == linkedInput.functionScope
+           && nextBloom == linkedInput.unindexedRootBloom) {
+@@ -558,7 +837,8 @@ final class LinkedFlowScope implements FlowScope {
+         return;
+       }
+       this.result =
+-          createFlowScope(activePool, inputProvider, joined, common, nextFnScope, nextBloom);
++          createFlowScope(
++              activePool, inputProvider, jMap, jKey, jVal, common, nextFnScope, nextBloom);
+     }
+ 
+     @Override
+@@ -576,7 +856,8 @@ final class LinkedFlowScope implements FlowScope {
+     @Nullable TypedScope typedScopeB;
+ 
+     @Override
+-    public OverlaySlot merge(String slotKey, @Nullable OverlaySlot slotA, @Nullable OverlaySlot slotB) {
++    public OverlaySlot merge(
++        String slotKey, @Nullable OverlaySlot slotA, @Nullable OverlaySlot slotB) {
+       String name = slotA != null ? slotA.getName() : slotB.getName();
+       if (slotB == null || slotB.getType() == null) {
+         TypedVar fnSlot = typedScopeB != null ? typedScopeB.getSlot(name) : null;
+@@ -638,8 +919,6 @@ final class LinkedFlowScope implements FlowScope {
+     @Override
+     public OverlayScope merge(
+         TypedScope scopeKey, @Nullable OverlayScope scopeA, @Nullable OverlayScope scopeB) {
+-      HamtPMap<String, OverlaySlot> slotsA = scopeA != null ? scopeA.slots : EMPTY_SLOTS;
+-      HamtPMap<String, OverlaySlot> slotsB = scopeB != null ? scopeB.slots : EMPTY_SLOTS;
+       TypedScope typedScopeA =
+           linkedA.flowsFromBottom() ? null : scopeA != null ? scopeA.scope : scopeB.scope;
+       TypedScope typedScopeB =
+@@ -649,19 +928,118 @@ final class LinkedFlowScope implements FlowScope {
+ 
+       this.slotReconciler.typedScopeA = typedScopeA;
+       this.slotReconciler.typedScopeB = typedScopeB;
+-      HamtPMap<String, OverlaySlot> reconciledSlots = slotsA.reconcile(slotsB, this.slotReconciler);
+ 
+-      if (scopeA != null && scopeA.scope == bestScope && reconciledSlots == scopeA.slots) {
++      if ((scopeA == null || scopeA.slots == null) && (scopeB == null || scopeB.slots == null)) {
++        OverlaySlot a0 = scopeA != null ? scopeA.slot0 : null;
++        OverlaySlot a1 = scopeA != null ? scopeA.slot1 : null;
++        OverlaySlot b0 = scopeB != null ? scopeB.slot0 : null;
++        OverlaySlot b1 = scopeB != null ? scopeB.slot1 : null;
++        int aLen = a0 == null ? 0 : (a1 == null ? 1 : 2);
++        int bLen = b0 == null ? 0 : (b1 == null ? 1 : 2);
++
++        OverlaySlot k0a = null;
++        OverlaySlot k0b = null;
++        OverlaySlot k1a = null;
++        OverlaySlot k1b = null;
++        int outCount = 0;
++        boolean fallbackToMap = false;
++        int ia = 0;
++        int ib = 0;
++        while (ia < aLen || ib < bLen) {
++          OverlaySlot sa = ia == 0 ? a0 : a1;
++          OverlaySlot sb = ib == 0 ? b0 : b1;
++          OverlaySlot pickA = null;
++          OverlaySlot pickB = null;
++          if (ib >= bLen) {
++            pickA = sa;
++            ia++;
++          } else if (ia >= aLen) {
++            pickB = sb;
++            ib++;
++          } else if (sa.name.equals(sb.name)) {
++            pickA = sa;
++            pickB = sb;
++            ia++;
++            ib++;
++          } else {
++            int cmp = compareUnsigned(revHash(sa.name), revHash(sb.name));
++            if (cmp == 0) {
++              fallbackToMap = true;
++              break;
++            } else if (cmp < 0) {
++              pickA = sa;
++              ia++;
++            } else {
++              pickB = sb;
++              ib++;
++            }
++          }
++          if (outCount == 0) {
++            k0a = pickA;
++            k0b = pickB;
++            outCount = 1;
++          } else if (outCount == 1) {
++            k1a = pickA;
++            k1b = pickB;
++            outCount = 2;
++          } else {
++            fallbackToMap = true;
++            break;
++          }
++        }
++
++        if (!fallbackToMap) {
++          OverlaySlot m0 = null;
++          OverlaySlot m1 = null;
++          if (outCount >= 1) {
++            m0 =
++                (k0a != null && k0a == k0b)
++                    ? k0a
++                    : this.slotReconciler.merge(k0a != null ? k0a.name : k0b.name, k0a, k0b);
++            if (outCount == 2) {
++              m1 =
++                  (k1a != null && k1a == k1b)
++                      ? k1a
++                      : this.slotReconciler.merge(k1a != null ? k1a.name : k1b.name, k1a, k1b);
++            }
++          }
++          if (scopeA != null && scopeA.scope == bestScope && m0 == a0 && m1 == a1) {
++            return scopeA;
++          }
++          if (scopeB != null && scopeB.scope == bestScope && m0 == b0 && m1 == b1) {
++            return scopeB;
++          }
++          boolean hasQual =
++              m0 != null
++                  && ((scopeA != null && scopeA.hasQualifiedSlots)
++                      || (scopeB != null && scopeB.hasQualifiedSlots));
++          return createOverlayScope(this.pool, bestScope, null, m0, m1, hasQual);
++        }
++      }
++
++      HamtPMap<String, OverlaySlot> slotsA = scopeA != null ? scopeA.toSlotsMap() : EMPTY_SLOTS;
++      HamtPMap<String, OverlaySlot> slotsB = scopeB != null ? scopeB.toSlotsMap() : EMPTY_SLOTS;
++      HamtPMap<String, OverlaySlot> reconciledSlots =
++          slotsA.reconcileOrNull(slotsB, this.slotReconciler);
++
++      if (scopeA != null
++          && scopeA.scope == bestScope
++          && scopeA.slots != null
++          && reconciledSlots == scopeA.slots) {
+         return scopeA;
+       }
+-      if (scopeB != null && scopeB.scope == bestScope && reconciledSlots == scopeB.slots) {
++      if (scopeB != null
++          && scopeB.scope == bestScope
++          && scopeB.slots != null
++          && reconciledSlots == scopeB.slots) {
+         return scopeB;
+       }
+       boolean hasQual =
+-          !reconciledSlots.isEmpty()
++          reconciledSlots != null
++              && !reconciledSlots.isEmpty()
+               && ((scopeA != null && scopeA.hasQualifiedSlots)
+                   || (scopeB != null && scopeB.hasQualifiedSlots));
+-      return createOverlayScope(this.pool, bestScope, reconciledSlots, hasQual);
++      return createOverlayScopeFromMap(this.pool, bestScope, reconciledSlots, hasQual);
+     }
+   }
+ 
+@@ -684,14 +1062,44 @@ final class LinkedFlowScope implements FlowScope {
+     if (!(other instanceof LinkedFlowScope that)) {
+       return false;
+     }
+-    return this.functionScope == that.functionScope
+-        && this.scopes.equivalent(that.scopes, EQUAL_SCOPES_PREDICATE);
++    if (this.functionScope != that.functionScope) {
++      return false;
++    }
++    if (this.scopes == null && that.scopes == null) {
++      if (this.singleScopeKey != that.singleScopeKey) {
++        return false;
++      }
++      return this.singleScopeKey == null || equalScopes(this.singleScopeVal, that.singleScopeVal);
++    }
++    if (this.scopes == null || that.scopes == null) {
++      return false;
++    }
++    return this.scopes.equivalent(that.scopes, EQUAL_SCOPES_PREDICATE);
+   }
+ 
+   private static boolean equalScopes(OverlayScope left, OverlayScope right) {
+     if (left == right) {
+       return true;
+     }
++    if (left.slots == null && right.slots == null) {
++      OverlaySlot l0 = left.slot0;
++      OverlaySlot r0 = right.slot0;
++      if (l0 == null || r0 == null) {
++        return l0 == r0;
++      }
++      OverlaySlot l1 = left.slot1;
++      OverlaySlot r1 = right.slot1;
++      if ((l1 == null) != (r1 == null)) {
++        return false;
++      }
++      if (!l0.name.equals(r0.name) || !equalSlots(l0, r0)) {
++        return false;
++      }
++      return l1 == null || (l1.name.equals(r1.name) && equalSlots(l1, r1));
++    }
++    if (left.slots == null || right.slots == null) {
++      return false;
++    }
+     return left.slots.equivalent(right.slots, EQUAL_SLOTS_PREDICATE);
+   }
+ 
+@@ -710,7 +1118,14 @@ final class LinkedFlowScope implements FlowScope {
+   private static final class OverlayScope {
+     @Nullable Pool pool;
+     TypedScope scope;
+-    HamtPMap<String, OverlaySlot> slots;
++    // Canonical representation:
++    // - 0 entries: slots == null && slot0 == null && slot1 == null
++    // - 1 entry:   slots == null && slot0 != null && slot1 == null
++    // - 2 entries (distinct hashCode, ordered by unsigned revHash): slots == null && slot0 != null && slot1 != null
++    // - >=3 entries or 2 entries with colliding hashCode: slots != null && slot0 == null && slot1 == null
++    @Nullable HamtPMap<String, OverlaySlot> slots;
++    @Nullable OverlaySlot slot0;
++    @Nullable OverlaySlot slot1;
+     boolean hasQualifiedSlots;
+ 
+     OverlayScope() {}
+@@ -718,11 +1133,15 @@ final class LinkedFlowScope implements FlowScope {
+     void init(
+         @Nullable Pool pool,
+         TypedScope scope,
+-        HamtPMap<String, OverlaySlot> slots,
++        @Nullable HamtPMap<String, OverlaySlot> slots,
++        @Nullable OverlaySlot slot0,
++        @Nullable OverlaySlot slot1,
+         boolean hasQualifiedSlots) {
+       this.pool = pool;
+       this.scope = checkNotNull(scope);
+       this.slots = slots;
++      this.slot0 = slot0;
++      this.slot1 = slot1;
+       this.hasQualifiedSlots = hasQualifiedSlots;
+     }
+ 
+@@ -730,22 +1149,122 @@ final class LinkedFlowScope implements FlowScope {
+       this.pool = null;
+       this.scope = null;
+       this.slots = null;
++      this.slot0 = null;
++      this.slot1 = null;
+       this.hasQualifiedSlots = false;
+     }
+ 
+-    OverlayScope infer(String name, JSType type) {
+-      OverlaySlot slot = slots.get(name);
++    boolean isEmpty() {
++      return this.slots == null && this.slot0 == null;
++    }
++
++    boolean containsSlotWithHash(int rawKeyHash) {
++      if (this.slots != null) {
++        return this.slots.containsHash(rawKeyHash);
++      }
++      OverlaySlot s0 = this.slot0;
++      if (s0 == null) {
++        return false;
++      }
++      if (s0.name.hashCode() == rawKeyHash) {
++        return true;
++      }
++      OverlaySlot s1 = this.slot1;
++      return s1 != null && s1.name.hashCode() == rawKeyHash;
++    }
++
++    HamtPMap<String, OverlaySlot> toSlotsMap() {
++      if (this.slots != null) {
++        return this.slots;
++      }
++      OverlaySlot s0 = this.slot0;
++      if (s0 == null) {
++        return EMPTY_SLOTS;
++      }
++      OverlaySlot s1 = this.slot1;
++      if (s1 == null) {
++        return HamtPMap.singleton(s0.name, s0);
++      }
++      return HamtPMap.singleton(s0.name, s0).plus(s1.name, s1);
++    }
++
++    OverlayScope infer(String name, JSType type, boolean symbolIsQualified) {
++      if (this.slots == null) {
++        OverlaySlot s0 = this.slot0;
++        if (s0 == null) {
++          OverlaySlot nextSlot = createOverlaySlot(this.pool, name, type);
++          return createOverlayScope(
++              this.pool, scope, null, nextSlot, null, this.hasQualifiedSlots || symbolIsQualified);
++        }
++        if (s0.name.equals(name)) {
++          if (identical(type, s0.type)) {
++            return this;
++          }
++          OverlaySlot nextSlot = createOverlaySlot(this.pool, name, type);
++          return createOverlayScope(
++              this.pool,
++              scope,
++              null,
++              nextSlot,
++              this.slot1,
++              this.hasQualifiedSlots || symbolIsQualified);
++        }
++        OverlaySlot s1 = this.slot1;
++        if (s1 == null) {
++          OverlaySlot nextSlot = createOverlaySlot(this.pool, name, type);
++          boolean nextQual = this.hasQualifiedSlots || symbolIsQualified;
++          int cmp = compareUnsigned(revHash(s0.name), revHash(name));
++          if (cmp < 0) {
++            return createOverlayScope(this.pool, scope, null, s0, nextSlot, nextQual);
++          } else if (cmp > 0) {
++            return createOverlayScope(this.pool, scope, null, nextSlot, s0, nextQual);
++          } else {
++            HamtPMap<String, OverlaySlot> map =
++                HamtPMap.singleton(s0.name, s0).plus(name, nextSlot);
++            return createOverlayScope(this.pool, scope, map, null, null, nextQual);
++          }
++        }
++        if (s1.name.equals(name)) {
++          if (identical(type, s1.type)) {
++            return this;
++          }
++          OverlaySlot nextSlot = createOverlaySlot(this.pool, name, type);
++          return createOverlayScope(
++              this.pool, scope, null, s0, nextSlot, this.hasQualifiedSlots || symbolIsQualified);
++        }
++        OverlaySlot nextSlot = createOverlaySlot(this.pool, name, type);
++        boolean nextQual = this.hasQualifiedSlots || symbolIsQualified;
++        HamtPMap<String, OverlaySlot> map =
++            HamtPMap.singleton(s0.name, s0).plus(s1.name, s1).plus(name, nextSlot);
++        return createOverlayScope(this.pool, scope, map, null, null, nextQual);
++      }
++
++      OverlaySlot slot = this.slots.get(name);
+       if (slot != null && identical(type, slot.type)) {
+         return this;
+       }
+-      boolean nextHasQualified = this.hasQualifiedSlots || name.indexOf('.') >= 0;
++      boolean nextHasQualified = this.hasQualifiedSlots || symbolIsQualified;
+       OverlaySlot nextSlot = createOverlaySlot(this.pool, name, type);
+-      return createOverlayScope(this.pool, scope, slots.plus(name, nextSlot), nextHasQualified);
++      return createOverlayScope(
++          this.pool, scope, this.slots.plus(name, nextSlot), null, null, nextHasQualified);
+     }
+ 
+     StaticTypedSlot getSlot(String name) {
+-      OverlaySlot slot = slots.get(name);
+-      return slot != null ? slot : scope.getSlot(name);
++      if (this.slots != null) {
++        OverlaySlot slot = this.slots.get(name);
++        return slot != null ? slot : scope.getSlot(name);
++      }
++      OverlaySlot s0 = this.slot0;
++      if (s0 != null) {
++        if (s0.name.equals(name)) {
++          return s0;
++        }
++        OverlaySlot s1 = this.slot1;
++        if (s1 != null && s1.name.equals(name)) {
++          return s1;
++        }
++      }
++      return scope.getSlot(name);
+     }
+   }
+ 
+diff --git a/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java b/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
+index 5a4275fe..31df6bc6 100644
+--- a/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
++++ b/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
+@@ -580,7 +580,12 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+       }
+ 
+       private Deque<VariableInfo> getVariableInfoStack(String name) {
+-        return mapOfStacks.computeIfAbsent(name, ignoredKey -> new ArrayDeque<>());
++        Deque<VariableInfo> stack = mapOfStacks.get(name);
++        if (stack == null) {
++          stack = new ArrayDeque<>();
++          mapOfStacks.put(name, stack);
++        }
++        return stack;
+       }
+ 
+       VariableInfo getOrCreateCurrentVariableInfo(String name) {
+@@ -681,21 +686,44 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+    * @see Normalize
+    */
+   static class ContextualRenamer implements Renamer {
++    private static final class Counter {
++      int value;
++
++      Counter(int value) {
++        this.value = value;
++      }
++
++      @Override
++      public String toString() {
++        return Integer.toString(value);
++      }
++    }
++
++    private static final Counter RESERVED_ONE = new Counter(1);
++
+     private static final class NameUsage {
+-      private final LinkedHashMap<String, Integer> counts = new LinkedHashMap<>();
++      private final LinkedHashMap<String, Counter> counts = new LinkedHashMap<>();
+ 
+       boolean contains(String name) {
+         return counts.containsKey(name);
+       }
+ 
+       void reserve(String name) {
+-        counts.putIfAbsent(name, 1);
++        counts.putIfAbsent(name, RESERVED_ONE);
+       }
+ 
+       int addOne(String name) {
+-        Integer prev = counts.get(name);
+-        int old = prev != null ? prev : 0;
+-        counts.put(name, old + 1);
++        Counter prev = counts.get(name);
++        if (prev == null) {
++          counts.put(name, RESERVED_ONE);
++          return 0;
++        }
++        if (prev == RESERVED_ONE) {
++          counts.put(name, new Counter(2));
++          return 1;
++        }
++        int old = prev.value;
++        prev.value = old + 1;
+         return old;
+       }
+ 
+@@ -711,31 +739,73 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+     // parent, etc.) because it tracks counts of variables across the entire JS program.
+     private final NameUsage nameUsage;
+ 
++    // Inline storage for 0..4 local declarations before touching `declarations`.
++    private int declCount;
++    private @Nullable String declName0;
++    private @Nullable String declRep0;
++    private @Nullable String declName1;
++    private @Nullable String declRep1;
++    private @Nullable String declName2;
++    private @Nullable String declRep2;
++    private @Nullable String declName3;
++    private @Nullable String declRep3;
++
+     // By contrast, this is a different map for each ContextualRenamer because it's just keeping
+-    // track of the names used by this renamer.
++    // track of the names used by this renamer when > 4 names are declared in the scope.
+     private final LinkedHashMap<String, String> declarations = new LinkedHashMap<>();
+     private final boolean global;
+ 
+     private final Renamer hoistRenamer;
+ 
+     static final String UNIQUE_ID_SEPARATOR = "$jscomp$";
++    private static final int SUFFIX_CACHE_SIZE = 2048;
++    private static final String[] UNIQUE_ID_SUFFIXES = new String[SUFFIX_CACHE_SIZE];
++
++    static {
++      for (int i = 0; i < SUFFIX_CACHE_SIZE; i++) {
++        UNIQUE_ID_SUFFIXES[i] = UNIQUE_ID_SEPARATOR + i;
++      }
++    }
+ 
+     @Override
+     public String toString() {
++      LinkedHashMap<String, String> declView = declarations;
++      if (declCount > 0 && declCount <= 4) {
++        declView = new LinkedHashMap<>(declCount);
++        declView.put(declName0, declRep0);
++        if (declCount > 1) {
++          declView.put(declName1, declRep1);
++          if (declCount > 2) {
++            declView.put(declName2, declRep2);
++            if (declCount > 3) {
++              declView.put(declName3, declRep3);
++            }
++          }
++        }
++      }
+       return toStringHelper(this)
+           .add("scopeRoot", scopeRoot)
+           .add("nameUsage", nameUsage)
+-          .add("declarations", declarations)
++          .add("declarations", declView)
+           .add("global", global)
+           .toString();
+     }
+ 
+     ContextualRenamer() {
+-      scopeRoot = null;
+-      global = true;
+-      nameUsage = new NameUsage();
+-
+-      hoistRenamer = this;
++      this.scopeRoot = null;
++      this.global = true;
++      this.nameUsage = new NameUsage();
++      this.declCount = 0;
++      this.declName0 = null;
++      this.declRep0 = null;
++      this.declName1 = null;
++      this.declRep1 = null;
++      this.declName2 = null;
++      this.declRep2 = null;
++      this.declName3 = null;
++      this.declRep3 = null;
++
++      this.hoistRenamer = this;
+     }
+ 
+     /** Constructor for child scopes. */
+@@ -750,6 +820,15 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+       this.scopeRoot = scopeRoot;
+       this.global = false;
+       this.nameUsage = nameUsage;
++      this.declCount = 0;
++      this.declName0 = null;
++      this.declRep0 = null;
++      this.declName1 = null;
++      this.declRep1 = null;
++      this.declName2 = null;
++      this.declRep2 = null;
++      this.declName3 = null;
++      this.declRep3 = null;
+ 
+       if (hoistingTargetScope) {
+         checkState(!NodeUtil.createsBlockScope(scopeRoot), scopeRoot);
+@@ -766,6 +845,69 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+       return new ContextualRenamer(scopeRoot, nameUsage, hoistingTargetScope, this);
+     }
+ 
++    private boolean hasLocalDeclaration(String name) {
++      int c = this.declCount;
++      if (c == 0) {
++        return false;
++      }
++      if (c <= 4) {
++        if (name.equals(this.declName0)) {
++          return true;
++        }
++        if (c > 1 && name.equals(this.declName1)) {
++          return true;
++        }
++        if (c > 2 && name.equals(this.declName2)) {
++          return true;
++        }
++        return c > 3 && name.equals(this.declName3);
++      }
++      return this.declarations.containsKey(name);
++    }
++
++    private void putLocalDeclaration(String name, @Nullable String newName) {
++      int c = this.declCount;
++      switch (c) {
++        case 0 -> {
++          this.declName0 = name;
++          this.declRep0 = newName;
++          this.declCount = 1;
++        }
++        case 1 -> {
++          this.declName1 = name;
++          this.declRep1 = newName;
++          this.declCount = 2;
++        }
++        case 2 -> {
++          this.declName2 = name;
++          this.declRep2 = newName;
++          this.declCount = 3;
++        }
++        case 3 -> {
++          this.declName3 = name;
++          this.declRep3 = newName;
++          this.declCount = 4;
++        }
++        case 4 -> {
++          this.declarations.put(this.declName0, this.declRep0);
++          this.declarations.put(this.declName1, this.declRep1);
++          this.declarations.put(this.declName2, this.declRep2);
++          this.declarations.put(this.declName3, this.declRep3);
++          this.declarations.put(name, newName);
++          this.declName0 = null;
++          this.declRep0 = null;
++          this.declName1 = null;
++          this.declRep1 = null;
++          this.declName2 = null;
++          this.declRep2 = null;
++          this.declName3 = null;
++          this.declRep3 = null;
++          this.declCount = 5;
++        }
++        default -> this.declarations.put(name, newName);
++      }
++    }
++
+     /** Adds a name to the map of names declared in this scope. */
+     @Override
+     public void addDeclaredName(String name, boolean hoisted) {
+@@ -777,7 +919,7 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+             reserveName(name);
+           } else {
+             // It hasn't been declared locally yet, so increment the count.
+-            if (!declarations.containsKey(name)) {
++            if (!hasLocalDeclaration(name)) {
+               int id = incrementNameCount(name);
+               String newName = null;
+               if (id != 0) {
+@@ -803,7 +945,7 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+                 }
+                 reserveName(newName); // reserve this new name so that it's never reused
+               }
+-              declarations.put(name, newName);
++              putLocalDeclaration(name, newName);
+             }
+           }
+         }
+@@ -811,12 +953,34 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+     }
+ 
+     @Override
+-    public String getReplacementName(String oldName) {
+-      return declarations.get(oldName);
++    public @Nullable String getReplacementName(String oldName) {
++      int c = this.declCount;
++      if (c == 0) {
++        return null;
++      }
++      if (c <= 4) {
++        if (oldName.equals(this.declName0)) {
++          return this.declRep0;
++        }
++        if (c > 1 && oldName.equals(this.declName1)) {
++          return this.declRep1;
++        }
++        if (c > 2 && oldName.equals(this.declName2)) {
++          return this.declRep2;
++        }
++        if (c > 3 && oldName.equals(this.declName3)) {
++          return this.declRep3;
++        }
++        return null;
++      }
++      return this.declarations.get(oldName);
+     }
+ 
+     /** Given a name and the associated id, create a new unique name. */
+     private static String getUniqueName(String name, int id) {
++      if (id >= 0 && id < SUFFIX_CACHE_SIZE) {
++        return name + UNIQUE_ID_SUFFIXES[id];
++      }
+       return name + UNIQUE_ID_SEPARATOR + id;
+     }
+ 
+@@ -883,8 +1047,8 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+       checkState(!name.equals(ARGUMENTS));
+       if (hoisted && hoistRenamer != this) {
+         hoistRenamer.addDeclaredName(name, hoisted);
+-      } else {
+-        declarations.computeIfAbsent(name, this::getUniqueName);
++      } else if (!declarations.containsKey(name)) {
++        declarations.put(name, getUniqueName(name));
+       }
+     }
+ 
+diff --git a/com/google/javascript/jscomp/OptimizeCalls.java b/com/google/javascript/jscomp/OptimizeCalls.java
+index fdba76a9..66eace13 100644
+--- a/com/google/javascript/jscomp/OptimizeCalls.java
++++ b/com/google/javascript/jscomp/OptimizeCalls.java
+@@ -155,23 +155,78 @@ class OptimizeCalls implements CompilerPass {
+   }
+ 
+   static final class NodeList {
+-    private Node[] nodes;
++    private @Nullable Node n0;
++    private @Nullable Node n1;
++    private @Nullable Node n2;
++    private @Nullable Node n3;
++    private Node @Nullable [] nodes;
+     private int size;
+ 
+     NodeList() {
+-      this(4);
++      this.n0 = null;
++      this.n1 = null;
++      this.n2 = null;
++      this.n3 = null;
++      this.nodes = null;
++      this.size = 0;
+     }
+ 
+     NodeList(int initialCapacity) {
+-      this.nodes = new Node[initialCapacity];
++      this.n0 = null;
++      this.n1 = null;
++      this.n2 = null;
++      this.n3 = null;
++      this.nodes = initialCapacity > 4 ? new Node[initialCapacity] : null;
++      this.size = 0;
+     }
+ 
+     void add(Node n) {
+       int s = this.size;
+-      if (s == this.nodes.length) {
+-        this.nodes = Arrays.copyOf(this.nodes, s * 2);
++      Node[] arr = this.nodes;
++      if (arr == null) {
++        switch (s) {
++          case 0 -> {
++            this.n0 = n;
++            this.size = 1;
++            return;
++          }
++          case 1 -> {
++            this.n1 = n;
++            this.size = 2;
++            return;
++          }
++          case 2 -> {
++            this.n2 = n;
++            this.size = 3;
++            return;
++          }
++          case 3 -> {
++            this.n3 = n;
++            this.size = 4;
++            return;
++          }
++          default -> {
++            arr = new Node[8];
++            arr[0] = this.n0;
++            arr[1] = this.n1;
++            arr[2] = this.n2;
++            arr[3] = this.n3;
++            arr[4] = n;
++            this.n0 = null;
++            this.n1 = null;
++            this.n2 = null;
++            this.n3 = null;
++            this.nodes = arr;
++            this.size = 5;
++            return;
++          }
++        }
++      }
++      if (s == arr.length) {
++        arr = Arrays.copyOf(arr, Math.max(8, s * 2));
++        this.nodes = arr;
+       }
+-      this.nodes[s] = n;
++      arr[s] = n;
+       this.size = s + 1;
+     }
+ 
+@@ -180,16 +235,58 @@ class OptimizeCalls implements CompilerPass {
+       if (count == 0) {
+         return;
+       }
+-      int newSize = this.size + count;
+-      if (newSize > this.nodes.length) {
+-        this.nodes = Arrays.copyOf(this.nodes, Math.max(this.nodes.length * 2, newSize));
++      int curSize = this.size;
++      int newSize = curSize + count;
++      if (this.nodes == null && newSize <= 4) {
++        for (int i = 0; i < count; i++) {
++          add(other.get(i));
++        }
++        return;
++      }
++      Node[] arr = this.nodes;
++      if (arr == null) {
++        arr = new Node[Math.max(8, newSize)];
++        if (curSize > 0) {
++          arr[0] = this.n0;
++          if (curSize > 1) {
++            arr[1] = this.n1;
++            if (curSize > 2) {
++              arr[2] = this.n2;
++              if (curSize > 3) {
++                arr[3] = this.n3;
++              }
++            }
++          }
++        }
++        this.n0 = null;
++        this.n1 = null;
++        this.n2 = null;
++        this.n3 = null;
++        this.nodes = arr;
++      } else if (newSize > arr.length) {
++        arr = Arrays.copyOf(arr, Math.max(arr.length * 2, newSize));
++        this.nodes = arr;
++      }
++      Node[] otherArr = other.nodes;
++      if (otherArr != null) {
++        System.arraycopy(otherArr, 0, arr, curSize, count);
++      } else {
++        for (int i = 0; i < count; i++) {
++          arr[curSize + i] = other.get(i);
++        }
+       }
+-      System.arraycopy(other.nodes, 0, this.nodes, this.size, count);
+       this.size = newSize;
+     }
+ 
+     void clear() {
+-      Arrays.fill(this.nodes, 0, this.size, null);
++      if (this.nodes != null) {
++        Arrays.fill(this.nodes, 0, this.size, null);
++      } else {
++        this.n0 = null;
++        this.n1 = null;
++        this.n2 = null;
++        this.n3 = null;
++      }
+       this.size = 0;
+     }
+ 
+@@ -202,7 +299,17 @@ class OptimizeCalls implements CompilerPass {
+     }
+ 
+     Node get(int index) {
+-      return this.nodes[index];
++      Node[] arr = this.nodes;
++      if (arr != null) {
++        return arr[index];
++      }
++      return switch (index) {
++        case 0 -> this.n0;
++        case 1 -> this.n1;
++        case 2 -> this.n2;
++        case 3 -> this.n3;
++        default -> throw new IndexOutOfBoundsException(index);
++      };
+     }
+   }
+ 
+diff --git a/com/google/javascript/jscomp/TypedScope.java b/com/google/javascript/jscomp/TypedScope.java
+index f805084f..abfa85fd 100644
+--- a/com/google/javascript/jscomp/TypedScope.java
++++ b/com/google/javascript/jscomp/TypedScope.java
+@@ -21,6 +21,7 @@ import static com.google.common.base.Preconditions.checkState;
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableSet;
+ import com.google.javascript.jscomp.modules.Module;
++import com.google.javascript.rhino.ErrorReporter;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.StaticScope;
+ import com.google.javascript.rhino.jstype.FunctionType;
+@@ -58,8 +59,10 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     implements StaticTypedScope {
+ 
+   private final @Nullable TypedScope parent;
++  private @Nullable TypedVar var0;
++  private @Nullable TypedVar var1;
++  private @Nullable Overflow overflow;
+   private final int depth;
+-  private final @Nullable Module module;
+ 
+   /** Whether this is a bottom scope for the purposes of type inference. */
+   private final boolean isBottom;
+@@ -151,19 +154,37 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     }
+   }
+ 
+-  // Will shrink over time. Cleared to null once empty.
+-  private @Nullable ReservedNames reservedNames;
++  private static final class Overflow {
++    @Nullable Module module;
++    // Will shrink over time. Cleared to null once empty.
++    @Nullable ReservedNames reservedNames;
++    @Nullable TypedVar var2;
++    @Nullable TypedVar var3;
++    @Nullable TypedVar var4;
++    @Nullable TypedVar var5;
++    @Nullable LinkedHashMap<String, TypedVar> vars;
++    @Nullable HashSet<String> qualifiedRootNames;
++    int @Nullable [] qualifiedVarHashes;
++    int qualifiedVarHashCount;
+ 
+-  private @Nullable TypedVar var0;
+-  private @Nullable TypedVar var1;
+-  private @Nullable TypedVar var2;
+-  private @Nullable TypedVar var3;
+-  private @Nullable TypedVar var4;
+-  private @Nullable TypedVar var5;
+-  private @Nullable LinkedHashMap<String, TypedVar> vars;
+-  private @Nullable HashSet<String> qualifiedRootNames;
+-  private int @Nullable [] qualifiedVarHashes;
+-  private int qualifiedVarHashCount;
++    boolean isEmpty() {
++      return module == null
++          && reservedNames == null
++          && var2 == null
++          && vars == null
++          && qualifiedRootNames == null
++          && qualifiedVarHashes == null;
++    }
++  }
++
++  private Overflow ensureOverflow() {
++    Overflow o = this.overflow;
++    if (o == null) {
++      o = new Overflow();
++      this.overflow = o;
++    }
++    return o;
++  }
+ 
+   // Scope.java contains an arguments field.
+   // We haven't added it here because it's unused by the passes that need typed scopes.
+@@ -185,8 +206,15 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     this.parent = parent;
+     this.depth = parent.depth + 1;
+     this.isBottom = false;
+-    this.reservedNames = reservedNames.isEmpty() ? null : new ReservedNames(reservedNames);
+-    this.module = module;
++    boolean hasReserved = !reservedNames.isEmpty();
++    if (hasReserved || module != null) {
++      Overflow o = new Overflow();
++      if (hasReserved) {
++        o.reservedNames = new ReservedNames(reservedNames);
++      }
++      o.module = module;
++      this.overflow = o;
++    }
+   }
+ 
+   TypedScope(
+@@ -199,11 +227,15 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     this.parent = parent;
+     this.depth = parent.depth + 1;
+     this.isBottom = false;
+-    this.reservedNames =
+-        (reservedNamesOwned == null || reservedNamesOwned.length == 0)
+-            ? null
+-            : new ReservedNames(reservedNamesOwned);
+-    this.module = module;
++    boolean hasReserved = reservedNamesOwned != null && reservedNamesOwned.length != 0;
++    if (hasReserved || module != null) {
++      Overflow o = new Overflow();
++      if (hasReserved) {
++        o.reservedNames = new ReservedNames(reservedNamesOwned);
++      }
++      o.module = module;
++      this.overflow = o;
++    }
+   }
+ 
+   /**
+@@ -218,8 +250,6 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     this.parent = null;
+     this.depth = 0;
+     this.isBottom = isBottom;
+-    this.reservedNames = null;
+-    this.module = null;
+   }
+ 
+   static TypedScope createGlobalScope(Node rootNode) {
+@@ -237,13 +267,19 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+ 
+   /** Asserts that all reserved names in the scope have been actually declared. */
+   void validateCompletelyBuilt() {
+-    checkState(
+-        reservedNames == null || reservedNames.isEmpty(),
+-        "Expected %s to have no reserved names, found: %s. This probably indicates a bug in"
+-            + " TypedScopeCreator where it is failing to declare a variable.",
+-        this,
+-        reservedNames);
+-    reservedNames = null;
++    Overflow o = this.overflow;
++    if (o != null) {
++      checkState(
++          o.reservedNames == null || o.reservedNames.isEmpty(),
++          "Expected %s to have no reserved names, found: %s. This probably indicates a bug in"
++              + " TypedScopeCreator where it is failing to declare a variable.",
++          this,
++          o.reservedNames);
++      o.reservedNames = null;
++      if (o.isEmpty()) {
++        this.overflow = null;
++      }
++    }
+   }
+ 
+   /** Whether this is the bottom of the lattice. */
+@@ -253,7 +289,7 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+ 
+   @Nullable
+   Module getModule() {
+-    return this.module;
++    return this.overflow != null ? this.overflow.module : null;
+   }
+ 
+   @Override
+@@ -297,35 +333,40 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+   TypedVar declare(String name, Node nameNode,
+       JSType type, CompilerInput input, boolean inferred) {
+     checkState(name != null && !name.isEmpty());
+-    if (reservedNames != null) {
++    Overflow o = this.overflow;
++    if (o != null && o.reservedNames != null) {
+       // (reservedNames only contains simple, non-qualified names; so it's completely normal to
+       // declare qualified names that were not 'reserved')
+-      if (reservedNames.removeAndCheckEmpty(name)) {
+-        reservedNames = null;
++      if (o.reservedNames.removeAndCheckEmpty(name)) {
++        o.reservedNames = null;
++        if (o.isEmpty()) {
++          this.overflow = null;
++        }
+       }
+     }
+     TypedVar var = new TypedVar(inferred, name, nameNode, type, this, getVarCount(), input);
+     declareInternal(name, var);
+     int dot = name.indexOf('.');
+     if (dot >= 0) {
+-      if (this.qualifiedRootNames == null) {
+-        this.qualifiedRootNames = new HashSet<>(4);
++      Overflow qo = ensureOverflow();
++      if (qo.qualifiedRootNames == null) {
++        qo.qualifiedRootNames = new HashSet<>(4);
+       }
+-      this.qualifiedRootNames.add(name.substring(0, dot));
+-      addQualifiedVarHash(Node.hashQualifiedNameString(name));
++      qo.qualifiedRootNames.add(name.substring(0, dot));
++      addQualifiedVarHash(qo, Node.hashQualifiedNameString(name));
+     }
+     return var;
+   }
+ 
+-  private void addQualifiedVarHash(int h) {
++  private static void addQualifiedVarHash(Overflow o, int h) {
+     if (h == 0) {
+       return;
+     }
+-    int[] table = this.qualifiedVarHashes;
++    int[] table = o.qualifiedVarHashes;
+     if (table == null) {
+       table = new int[8];
+-      this.qualifiedVarHashes = table;
+-    } else if (this.qualifiedVarHashCount * 4 >= table.length * 3) {
++      o.qualifiedVarHashes = table;
++    } else if (o.qualifiedVarHashCount * 4 >= table.length * 3) {
+       int[] next = new int[table.length * 2];
+       int nextMask = next.length - 1;
+       for (int i = 0, len = table.length; i < len; i++) {
+@@ -339,7 +380,7 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+         }
+       }
+       table = next;
+-      this.qualifiedVarHashes = table;
++      o.qualifiedVarHashes = table;
+     }
+     int mask = table.length - 1;
+     int slot = h & mask;
+@@ -347,7 +388,7 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+       int existing = table[slot];
+       if (existing == 0) {
+         table[slot] = h;
+-        this.qualifiedVarHashCount++;
++        o.qualifiedVarHashCount++;
+         return;
+       }
+       if (existing == h) {
+@@ -358,8 +399,12 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+   }
+ 
+   boolean containsQualifiedVarHash(int h) {
+-    int[] table = this.qualifiedVarHashes;
+-    if (table == null || h == 0) {
++    Overflow o = this.overflow;
++    if (o == null || h == 0) {
++      return false;
++    }
++    int[] table = o.qualifiedVarHashes;
++    if (table == null) {
+       return false;
+     }
+     int mask = table.length - 1;
+@@ -394,11 +439,12 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+   }
+ 
+   boolean hasQualifiedOwnVars() {
+-    return this.qualifiedRootNames != null;
++    return this.overflow != null && this.overflow.qualifiedRootNames != null;
+   }
+ 
+   boolean hasQualifiedOwnVarWithRoot(String rootName) {
+-    return this.qualifiedRootNames != null && this.qualifiedRootNames.contains(rootName);
++    Overflow o = this.overflow;
++    return o != null && o.qualifiedRootNames != null && o.qualifiedRootNames.contains(rootName);
+   }
+ 
+   boolean mayHaveQualifiedVarForRoot(String rootName) {
+@@ -412,8 +458,9 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+ 
+   @Override
+   @Nullable TypedVar getOwnDeclaredVar(String name) {
+-    if (vars != null) {
+-      return vars.get(name);
++    Overflow o = this.overflow;
++    if (o != null && o.vars != null) {
++      return o.vars.get(name);
+     }
+     if (var0 != null) {
+       if (var0.getName().equals(name)) {
+@@ -423,20 +470,20 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+         if (var1.getName().equals(name)) {
+           return var1;
+         }
+-        if (var2 != null) {
+-          if (var2.getName().equals(name)) {
+-            return var2;
++        if (o != null && o.var2 != null) {
++          if (o.var2.getName().equals(name)) {
++            return o.var2;
+           }
+-          if (var3 != null) {
+-            if (var3.getName().equals(name)) {
+-              return var3;
++          if (o.var3 != null) {
++            if (o.var3.getName().equals(name)) {
++              return o.var3;
+             }
+-            if (var4 != null) {
+-              if (var4.getName().equals(name)) {
+-                return var4;
++            if (o.var4 != null) {
++              if (o.var4.getName().equals(name)) {
++                return o.var4;
+               }
+-              if (var5 != null && var5.getName().equals(name)) {
+-                return var5;
++              if (o.var5 != null && o.var5.getName().equals(name)) {
++                return o.var5;
+               }
+             }
+           }
+@@ -448,8 +495,9 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+ 
+   @Override
+   void putOwnDeclaredVar(String name, TypedVar var) {
+-    if (vars != null) {
+-      vars.put(name, var);
++    Overflow o = this.overflow;
++    if (o != null && o.vars != null) {
++      o.vars.put(name, var);
+       return;
+     }
+     if (var0 == null || var0.getName().equals(name)) {
+@@ -460,77 +508,98 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+       var1 = var;
+       return;
+     }
+-    if (var2 == null || var2.getName().equals(name)) {
+-      var2 = var;
++    if (o == null) {
++      o = ensureOverflow();
++    }
++    if (o.var2 == null || o.var2.getName().equals(name)) {
++      o.var2 = var;
+       return;
+     }
+-    if (var3 == null || var3.getName().equals(name)) {
+-      var3 = var;
++    if (o.var3 == null || o.var3.getName().equals(name)) {
++      o.var3 = var;
+       return;
+     }
+-    if (var4 == null || var4.getName().equals(name)) {
+-      var4 = var;
++    if (o.var4 == null || o.var4.getName().equals(name)) {
++      o.var4 = var;
+       return;
+     }
+-    if (var5 == null || var5.getName().equals(name)) {
+-      var5 = var;
++    if (o.var5 == null || o.var5.getName().equals(name)) {
++      o.var5 = var;
+       return;
+     }
+-    vars = new LinkedHashMap<>(parent == null ? 1024 : 16);
+-    vars.put(var0.getName(), var0);
+-    vars.put(var1.getName(), var1);
+-    vars.put(var2.getName(), var2);
+-    vars.put(var3.getName(), var3);
+-    vars.put(var4.getName(), var4);
+-    vars.put(var5.getName(), var5);
+-    vars.put(name, var);
++    o.vars = new LinkedHashMap<>(parent == null ? 1024 : 16);
++    o.vars.put(var0.getName(), var0);
++    o.vars.put(var1.getName(), var1);
++    o.vars.put(o.var2.getName(), o.var2);
++    o.vars.put(o.var3.getName(), o.var3);
++    o.vars.put(o.var4.getName(), o.var4);
++    o.vars.put(o.var5.getName(), o.var5);
++    o.vars.put(name, var);
+     var0 = null;
+     var1 = null;
+-    var2 = null;
+-    var3 = null;
+-    var4 = null;
+-    var5 = null;
++    o.var2 = null;
++    o.var3 = null;
++    o.var4 = null;
++    o.var5 = null;
+   }
+ 
+   @Override
+   void undeclareInteral(TypedVar var) {
+-    if (vars != null) {
+-      vars.remove(var.getName());
++    Overflow o = this.overflow;
++    if (o != null && o.vars != null) {
++      o.vars.remove(var.getName());
+       return;
+     }
+     String name = var.getName();
+     if (var0 != null) {
+       if (var0.getName().equals(name)) {
+         var0 = var1;
+-        var1 = var2;
+-        var2 = var3;
+-        var3 = var4;
+-        var4 = var5;
+-        var5 = null;
++        if (o != null) {
++          var1 = o.var2;
++          o.var2 = o.var3;
++          o.var3 = o.var4;
++          o.var4 = o.var5;
++          o.var5 = null;
++          if (o.isEmpty()) {
++            this.overflow = null;
++          }
++        } else {
++          var1 = null;
++        }
+       } else if (var1 != null) {
+         if (var1.getName().equals(name)) {
+-          var1 = var2;
+-          var2 = var3;
+-          var3 = var4;
+-          var4 = var5;
+-          var5 = null;
+-        } else if (var2 != null) {
+-          if (var2.getName().equals(name)) {
+-            var2 = var3;
+-            var3 = var4;
+-            var4 = var5;
+-            var5 = null;
+-          } else if (var3 != null) {
+-            if (var3.getName().equals(name)) {
+-              var3 = var4;
+-              var4 = var5;
+-              var5 = null;
+-            } else if (var4 != null) {
+-              if (var4.getName().equals(name)) {
+-                var4 = var5;
+-                var5 = null;
+-              } else if (var5 != null && var5.getName().equals(name)) {
+-                var5 = null;
++          if (o != null) {
++            var1 = o.var2;
++            o.var2 = o.var3;
++            o.var3 = o.var4;
++            o.var4 = o.var5;
++            o.var5 = null;
++            if (o.isEmpty()) {
++              this.overflow = null;
++            }
++          } else {
++            var1 = null;
++          }
++        } else if (o != null && o.var2 != null) {
++          if (o.var2.getName().equals(name)) {
++            o.var2 = o.var3;
++            o.var3 = o.var4;
++            o.var4 = o.var5;
++            o.var5 = null;
++            if (o.isEmpty()) {
++              this.overflow = null;
++            }
++          } else if (o.var3 != null) {
++            if (o.var3.getName().equals(name)) {
++              o.var3 = o.var4;
++              o.var4 = o.var5;
++              o.var5 = null;
++            } else if (o.var4 != null) {
++              if (o.var4.getName().equals(name)) {
++                o.var4 = o.var5;
++                o.var5 = null;
++              } else if (o.var5 != null && o.var5.getName().equals(name)) {
++                o.var5 = null;
+               }
+             }
+           }
+@@ -543,22 +612,57 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+   void clearVarsInternal() {
+     var0 = null;
+     var1 = null;
+-    var2 = null;
+-    var3 = null;
+-    var4 = null;
+-    var5 = null;
+-    qualifiedRootNames = null;
+-    qualifiedVarHashes = null;
+-    qualifiedVarHashCount = 0;
+-    if (vars != null && !vars.isEmpty()) {
+-      vars.clear();
++    Overflow o = this.overflow;
++    if (o != null) {
++      o.var2 = null;
++      o.var3 = null;
++      o.var4 = null;
++      o.var5 = null;
++      o.qualifiedRootNames = null;
++      o.qualifiedVarHashes = null;
++      o.qualifiedVarHashCount = 0;
++      if (o.vars != null && !o.vars.isEmpty()) {
++        o.vars.clear();
++      }
++      if (o.isEmpty()) {
++        this.overflow = null;
++      }
++    }
++  }
++
++  void resolveOwnVarTypes(ErrorReporter errorReporter) {
++    Overflow o = this.overflow;
++    if (o != null && o.vars != null) {
++      for (TypedVar var : o.vars.values()) {
++        var.resolveType(errorReporter);
++      }
++      return;
++    }
++    if (var0 != null) {
++      var0.resolveType(errorReporter);
++      if (var1 != null) {
++        var1.resolveType(errorReporter);
++        if (o != null && o.var2 != null) {
++          o.var2.resolveType(errorReporter);
++          if (o.var3 != null) {
++            o.var3.resolveType(errorReporter);
++            if (o.var4 != null) {
++              o.var4.resolveType(errorReporter);
++              if (o.var5 != null) {
++                o.var5.resolveType(errorReporter);
++              }
++            }
++          }
++        }
++      }
+     }
+   }
+ 
+   @Override
+   public Iterable<TypedVar> getVarIterable() {
+-    if (vars != null) {
+-      return vars.values();
++    Overflow o = this.overflow;
++    if (o != null && o.vars != null) {
++      return o.vars.values();
+     }
+     if (var0 == null) {
+       return Collections.emptyList();
+@@ -566,39 +670,40 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     if (var1 == null) {
+       return Collections.singletonList(var0);
+     }
+-    if (var2 == null) {
++    if (o == null || o.var2 == null) {
+       return ImmutableList.of(var0, var1);
+     }
+-    if (var3 == null) {
+-      return ImmutableList.of(var0, var1, var2);
++    if (o.var3 == null) {
++      return ImmutableList.of(var0, var1, o.var2);
+     }
+-    if (var4 == null) {
+-      return ImmutableList.of(var0, var1, var2, var3);
++    if (o.var4 == null) {
++      return ImmutableList.of(var0, var1, o.var2, o.var3);
+     }
+-    if (var5 == null) {
+-      return ImmutableList.of(var0, var1, var2, var3, var4);
++    if (o.var5 == null) {
++      return ImmutableList.of(var0, var1, o.var2, o.var3, o.var4);
+     }
+-    return ImmutableList.of(var0, var1, var2, var3, var4, var5);
++    return ImmutableList.of(var0, var1, o.var2, o.var3, o.var4, o.var5);
+   }
+ 
+   @Override
+   void putOwnVarsIfAbsent(LinkedHashMap<String, TypedVar> dst) {
+-    if (vars != null) {
+-      for (TypedVar v : vars.values()) {
++    Overflow o = this.overflow;
++    if (o != null && o.vars != null) {
++      for (TypedVar v : o.vars.values()) {
+         dst.putIfAbsent(v.getName(), v);
+       }
+     } else if (var0 != null) {
+       dst.putIfAbsent(var0.getName(), var0);
+       if (var1 != null) {
+         dst.putIfAbsent(var1.getName(), var1);
+-        if (var2 != null) {
+-          dst.putIfAbsent(var2.getName(), var2);
+-          if (var3 != null) {
+-            dst.putIfAbsent(var3.getName(), var3);
+-            if (var4 != null) {
+-              dst.putIfAbsent(var4.getName(), var4);
+-              if (var5 != null) {
+-                dst.putIfAbsent(var5.getName(), var5);
++        if (o != null && o.var2 != null) {
++          dst.putIfAbsent(o.var2.getName(), o.var2);
++          if (o.var3 != null) {
++            dst.putIfAbsent(o.var3.getName(), o.var3);
++            if (o.var4 != null) {
++              dst.putIfAbsent(o.var4.getName(), o.var4);
++              if (o.var5 != null) {
++                dst.putIfAbsent(o.var5.getName(), o.var5);
+               }
+             }
+           }
+@@ -609,30 +714,32 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+ 
+   @Override
+   public Iterable<TypedVar> getAllSymbols() {
+-    if (vars != null) {
+-      return Collections.unmodifiableCollection(vars.values());
++    Overflow o = this.overflow;
++    if (o != null && o.vars != null) {
++      return Collections.unmodifiableCollection(o.vars.values());
+     }
+     return getVarIterable();
+   }
+ 
+   @Override
+   void addVarsTo(ArrayList<TypedVar> dst) {
+-    if (vars != null) {
+-      for (TypedVar v : vars.values()) {
++    Overflow o = this.overflow;
++    if (o != null && o.vars != null) {
++      for (TypedVar v : o.vars.values()) {
+         dst.add(v);
+       }
+     } else if (var0 != null) {
+       dst.add(var0);
+       if (var1 != null) {
+         dst.add(var1);
+-        if (var2 != null) {
+-          dst.add(var2);
+-          if (var3 != null) {
+-            dst.add(var3);
+-            if (var4 != null) {
+-              dst.add(var4);
+-              if (var5 != null) {
+-                dst.add(var5);
++        if (o != null && o.var2 != null) {
++          dst.add(o.var2);
++          if (o.var3 != null) {
++            dst.add(o.var3);
++            if (o.var4 != null) {
++              dst.add(o.var4);
++              if (o.var5 != null) {
++                dst.add(o.var5);
+               }
+             }
+           }
+@@ -643,22 +750,23 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+ 
+   @Override
+   void addVarNamesTo(LinkedHashSet<String> dst) {
+-    if (vars != null) {
+-      for (String name : vars.keySet()) {
++    Overflow o = this.overflow;
++    if (o != null && o.vars != null) {
++      for (String name : o.vars.keySet()) {
+         dst.add(name);
+       }
+     } else if (var0 != null) {
+       dst.add(var0.getName());
+       if (var1 != null) {
+         dst.add(var1.getName());
+-        if (var2 != null) {
+-          dst.add(var2.getName());
+-          if (var3 != null) {
+-            dst.add(var3.getName());
+-            if (var4 != null) {
+-              dst.add(var4.getName());
+-              if (var5 != null) {
+-                dst.add(var5.getName());
++        if (o != null && o.var2 != null) {
++          dst.add(o.var2.getName());
++          if (o.var3 != null) {
++            dst.add(o.var3.getName());
++            if (o.var4 != null) {
++              dst.add(o.var4.getName());
++              if (o.var5 != null) {
++                dst.add(o.var5.getName());
+               }
+             }
+           }
+@@ -669,8 +777,9 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+ 
+   @Override
+   public int getVarCount() {
+-    if (vars != null) {
+-      return vars.size();
++    Overflow o = this.overflow;
++    if (o != null && o.vars != null) {
++      return o.vars.size();
+     }
+     if (var0 == null) {
+       return 0;
+@@ -678,16 +787,16 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     if (var1 == null) {
+       return 1;
+     }
+-    if (var2 == null) {
++    if (o == null || o.var2 == null) {
+       return 2;
+     }
+-    if (var3 == null) {
++    if (o.var3 == null) {
+       return 3;
+     }
+-    if (var4 == null) {
++    if (o.var4 == null) {
+       return 4;
+     }
+-    return var5 == null ? 5 : 6;
++    return o.var5 == null ? 5 : 6;
+   }
+ 
+   @Override
+@@ -755,8 +864,9 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+    */
+   public Iterable<TypedVar> getDeclarativelyUnboundVarsWithoutTypes() {
+     ArrayList<TypedVar> result = null;
+-    if (vars != null) {
+-      for (TypedVar var : vars.values()) {
++    Overflow o = this.overflow;
++    if (o != null && o.vars != null) {
++      for (TypedVar var : o.vars.values()) {
+         if (isDeclarativelyUnboundVarWithoutType(var)) {
+           if (result == null) {
+             result = new ArrayList<>();
+@@ -768,14 +878,14 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+       result = addIfDeclarativelyUnboundWithoutType(var0, result);
+       if (var1 != null) {
+         result = addIfDeclarativelyUnboundWithoutType(var1, result);
+-        if (var2 != null) {
+-          result = addIfDeclarativelyUnboundWithoutType(var2, result);
+-          if (var3 != null) {
+-            result = addIfDeclarativelyUnboundWithoutType(var3, result);
+-            if (var4 != null) {
+-              result = addIfDeclarativelyUnboundWithoutType(var4, result);
+-              if (var5 != null) {
+-                result = addIfDeclarativelyUnboundWithoutType(var5, result);
++        if (o != null && o.var2 != null) {
++          result = addIfDeclarativelyUnboundWithoutType(o.var2, result);
++          if (o.var3 != null) {
++            result = addIfDeclarativelyUnboundWithoutType(o.var3, result);
++            if (o.var4 != null) {
++              result = addIfDeclarativelyUnboundWithoutType(o.var4, result);
++              if (o.var5 != null) {
++                result = addIfDeclarativelyUnboundWithoutType(o.var5, result);
+               }
+             }
+           }
+@@ -856,7 +966,9 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+   public final @Nullable TypedVar getVar(String name) {
+     int dot = name.indexOf('.');
+     TypedVar ownSlot =
+-        (dot >= 0 && this.qualifiedRootNames == null) ? null : getOwnSlot(name);
++        (dot >= 0 && (this.overflow == null || this.overflow.qualifiedRootNames == null))
++            ? null
++            : getOwnSlot(name);
+     if (ownSlot != null) {
+       // Micro-optimization: variables declared directly in this scope cannot have been shadowed.
+       return ownSlot;
+@@ -901,7 +1013,9 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+ 
+   @Override
+   public @Nullable StaticScope getTopmostScopeOfEventualDeclaration(String name) {
+-    if (getOwnSlot(name) != null || (reservedNames != null && reservedNames.contains(name))) {
++    Overflow o = this.overflow;
++    if (getOwnSlot(name) != null
++        || (o != null && o.reservedNames != null && o.reservedNames.contains(name))) {
+       return this;
+     } else if (this.getParent() == null) {
+       return null;
+diff --git a/com/google/javascript/jscomp/TypedScopeCreator.java b/com/google/javascript/jscomp/TypedScopeCreator.java
+index 92c2e7c1..f87a5988 100644
+--- a/com/google/javascript/jscomp/TypedScopeCreator.java
++++ b/com/google/javascript/jscomp/TypedScopeCreator.java
+@@ -718,9 +718,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+ 
+     // Resolve types and attach them to scope slots.
+     for (TypedScope scope : getAllMemoizedScopes()) {
+-      for (TypedVar var : scope.getVarIterable()) {
+-        var.resolveType(typeParsingErrorReporter);
+-      }
++      scope.resolveOwnVarTypes(typeParsingErrorReporter);
+       scope.validateCompletelyBuilt();
+     }
+ 
+diff --git a/com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java b/com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+index d86c9f68..901cdf0d 100644
+--- a/com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
++++ b/com/google/javascript/jscomp/type/SemanticReverseAbstractInterpreter.java
+@@ -20,7 +20,6 @@ import static com.google.common.base.Preconditions.checkState;
+ import static com.google.javascript.jscomp.base.JSCompObjects.identical;
+ import static com.google.javascript.rhino.jstype.JSTypeNative.UNKNOWN_TYPE;
+ 
+-import com.google.common.base.Function;
+ import com.google.errorprone.annotations.CheckReturnValue;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.Outcome;
+@@ -45,6 +44,11 @@ import org.jspecify.annotations.Nullable;
+  */
+ public final class SemanticReverseAbstractInterpreter extends ChainableReverseAbstractInterpreter {
+ 
++  @FunctionalInterface
++  private interface TypePairOp {
++    @Nullable TypePair apply(TypePair p);
++  }
++
+   /** Merging function for equality between types. */
+   private static @Nullable TypePair eq(TypePair p) {
+     if (p.typeA == null || p.typeB == null) {
+@@ -246,13 +250,13 @@ public final class SemanticReverseAbstractInterpreter extends ChainableReverseAb
+ 
+   @CheckReturnValue
+   private FlowScope caseEquality(
+-      Node condition, FlowScope blindScope, Function<TypePair, TypePair> merging) {
++      Node condition, FlowScope blindScope, TypePairOp merging) {
+     return caseEquality(condition.getFirstChild(), condition.getLastChild(), blindScope, merging);
+   }
+ 
+   @CheckReturnValue
+   private FlowScope caseEquality(
+-      Node left, Node right, FlowScope blindScope, Function<TypePair, TypePair> merging) {
++      Node left, Node right, FlowScope blindScope, TypePairOp merging) {
+     // left type
+     JSType leftType = getTypeIfRefinable(left, blindScope);
+     boolean leftIsRefineable;
+diff --git a/com/google/javascript/rhino/HamtPMap.java b/com/google/javascript/rhino/HamtPMap.java
+index e78fd245..906affc0 100644
+--- a/com/google/javascript/rhino/HamtPMap.java
++++ b/com/google/javascript/rhino/HamtPMap.java
+@@ -215,6 +215,24 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+     return false;
+   }
+ 
++  /** Returns a singleton 1-entry map. */
++  @CheckReturnValue
++  public static <K, V> HamtPMap<K, V> singleton(K key, V value) {
++    checkNotNull(value);
++    return new HamtPMap<>(key, hash(key), value, true, 0, null);
++  }
++
++  /** Returns whether this map contains exactly one entry. */
++  @CheckReturnValue
++  public boolean isSingleEntry() {
++    return present && mask == 0;
++  }
++
++  @CheckReturnValue
++  public @Nullable K rootKey() {
++    return present ? key : null;
++  }
++
+   @CheckReturnValue
+   public @Nullable V rootValue() {
+     return present ? value : null;
+@@ -303,21 +321,34 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+   @Override
+   @CheckReturnValue
+   public HamtPMap<K, V> minus(K key) {
+-    return !isEmpty() ? minus(key, hash(key), null) : this;
++    if (isEmpty()) {
++      return this;
++    }
++    HamtPMap<K, V> result = minusOrNull(key, hash(key), null);
++    return result != null ? result : empty();
++  }
++
++  /**
++   * Removes {@code key}, returning {@code null} instead of allocating a new empty map if the map
++   * becomes empty.
++   */
++  @CheckReturnValue
++  public @Nullable HamtPMap<K, V> minusOrNull(K key) {
++    return !isEmpty() ? minusOrNull(key, hash(key), null) : null;
+   }
+ 
+   /**
+    * Internal recursive implementation of minus(K). The value of the removed node is returned via
+-   * 'removed', if it is non-null.
++   * 'removed', if it is non-null. Returns null when the resulting subtree is empty.
+    */
+-  private HamtPMap<K, V> minus(K key, int hash, @Nullable Holder<V> removed) {
++  private @Nullable HamtPMap<K, V> minusOrNull(K key, int hash, @Nullable Holder<V> removed) {
+     if (hash == this.hash && key.equals(this.key)) {
+       HamtPMap<K, V> result = deleteRoot(mask, children);
+       if (removed != null) {
+         removed.found = true;
+         removed.value = this.value;
+       }
+-      return result != null ? result : empty();
++      return result;
+     }
+     int bucket = bucket(hash);
+     int bucketMask = 1 << bucket;
+@@ -328,10 +359,10 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+     hash = shift(hash);
+     int index = index(bucketMask);
+     HamtPMap<K, V> child = children[index];
+-    HamtPMap<K, V> newChild = child.minus(key, hash, removed);
++    HamtPMap<K, V> newChild = child.minusOrNull(key, hash, removed);
+     if (newChild == child) {
+       return this;
+-    } else if (newChild.isEmpty()) {
++    } else if (newChild == null) {
+       return withChildren(mask & ~bucketMask, deleteChild(children, index));
+     } else {
+       return withChildren(mask, replaceChild(children, index, newChild));
+@@ -352,6 +383,15 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+     return result != null ? result : empty();
+   }
+ 
++  /**
++   * Reconciles {@code this} with {@code that}, returning {@code null} instead of allocating an
++   * empty map if the result is empty.
++   */
++  @CheckReturnValue
++  public @Nullable HamtPMap<K, V> reconcileOrNull(HamtPMap<K, V> that, Reconciler<K, V> joiner) {
++    return reconcile(!this.isEmpty() ? this : null, !that.isEmpty() ? that : null, joiner);
++  }
++
+   /** Internal recursive implementation of reconcile(HamtPMap, BiFunction), factoring out empies. */
+   private static <K, V> @Nullable HamtPMap<K, V> reconcile(
+       @Nullable HamtPMap<K, V> t1, @Nullable HamtPMap<K, V> t2, Reconciler<K, V> joiner) {
+@@ -447,6 +487,24 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+ 
+     // If the hashes are different, we need to keep the lower one at the top.
+     int hashCmp = compareUnsigned(t1.hash, t2.hash);
++    if (hashCmp != 0 && t1.mask == 0 && t2.mask == 0 && t1.present && t2.present) {
++      if (hashCmp < 0) {
++        V v1 = checkNotNull(joiner.merge(t1.key, t1.value, null));
++        V v2 = checkNotNull(joiner.merge(t2.key, null, t2.value));
++        HamtPMap<K, V> child = new HamtPMap<>(t2.key, shift(t2.hash), v2, true, 0, null);
++        @SuppressWarnings("unchecked")
++        HamtPMap<K, V>[] arr = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[] {child};
++        return new HamtPMap<>(t1.key, t1.hash, v1, true, 1 << bucket(t2.hash), arr);
++      } else {
++        V v2 = checkNotNull(joiner.merge(t2.key, null, t2.value));
++        V v1 = checkNotNull(joiner.merge(t1.key, t1.value, null));
++        HamtPMap<K, V> child = new HamtPMap<>(t1.key, shift(t1.hash), v1, true, 0, null);
++        @SuppressWarnings("unchecked")
++        HamtPMap<K, V>[] arr = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[] {child};
++        return new HamtPMap<>(t2.key, t2.hash, v2, true, 1 << bucket(t1.hash), arr);
++      }
++    }
++
+     K key = t1.key;
+     int hash = t1.hash;
+     if (hashCmp < 0) {
+@@ -476,38 +534,69 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+     } else {
+       newValue = checkNotNull(joiner.merge(t1.key, t1.value, t2.value));
+     }
+-    int newMask = t1.mask | t2.mask;
++    int origMask = t1.mask | t2.mask;
++    int newMask = origMask;
+     sameChildrenAs1 &= (newMask == t1.mask);
+     sameChildrenAs2 &= (newMask == t2.mask);
+ 
+-    @SuppressWarnings("unchecked") // only used internally.
+-    HamtPMap<K, V>[] newChildren =
+-        newMask != 0
+-            ? (HamtPMap<K, V>[]) new HamtPMap<?, ?>[Integer.bitCount(newMask)]
+-            : null;
+-    int mask = newMask;
++    if (origMask == 0) {
++      if (sameChildrenAs1 && t1.present && t1.value.equals(newValue)) {
++        return t1;
++      } else if (sameChildrenAs2 && t2.present && t2.value.equals(newValue)) {
++        return t2;
++      }
++      return new HamtPMap<>(key, hash, newValue, true, 0, null);
++    }
++
++    int totalSlots = Integer.bitCount(origMask);
++    HamtPMap<K, V>[] baseChildren =
++        origMask == t1.mask ? t1.children : (origMask == t2.mask ? t2.children : null);
++    HamtPMap<K, V>[] newChildren = null;
++    if (baseChildren == null) {
++      @SuppressWarnings("unchecked")
++      HamtPMap<K, V>[] alloc = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[totalSlots];
++      newChildren = alloc;
++    }
++
++    int mask = origMask;
++    int slotIdx = 0;
+     int index = 0;
+     while (mask != 0) {
+       int childBit = Integer.lowestOneBit(mask);
+       mask &= ~childBit;
+       HamtPMap<K, V> child1 = t1.getChild(childBit);
+       HamtPMap<K, V> child2 = t2.getChild(childBit);
+-      newChildren[index] = reconcile(child1, child2, joiner);
+-      sameChildrenAs1 &= (newChildren[index] == child1);
+-      sameChildrenAs2 &= (newChildren[index] == child2);
+-      if (newChildren[index] != null) {
+-        index++;
++      HamtPMap<K, V> rec = reconcile(child1, child2, joiner);
++      sameChildrenAs1 &= (rec == child1);
++      sameChildrenAs2 &= (rec == child2);
++      if (newChildren == null) {
++        if (rec == baseChildren[slotIdx]) {
++          slotIdx++;
++          index++;
++          continue;
++        }
++        @SuppressWarnings("unchecked")
++        HamtPMap<K, V>[] alloc = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[totalSlots];
++        for (int j = 0; j < slotIdx; j++) {
++          alloc[j] = baseChildren[j];
++        }
++        newChildren = alloc;
++      }
++      slotIdx++;
++      if (rec != null) {
++        newChildren[index++] = rec;
+       } else {
+         newMask &= ~childBit;
+       }
+     }
+-    newChildren = trimChildren(newChildren, index);
+     if (sameChildrenAs1 && t1.present && t1.value.equals(newValue)) {
+       return t1;
+     } else if (sameChildrenAs2 && t2.present && t2.value.equals(newValue)) {
+       return t2;
+     }
+-    return new HamtPMap<>(key, hash, newValue, true, newMask, newChildren);
++    HamtPMap<K, V>[] finalChildren =
++        newChildren == null ? baseChildren : trimChildren(newChildren, index);
++    return new HamtPMap<>(key, hash, newValue, true, newMask, finalChildren);
+   }
+ 
+   private static <K, V> HamtPMap<K, V> @Nullable [] trimChildren(
+@@ -669,8 +758,8 @@ public final class HamtPMap<K, V> implements PMap<K, V>, Serializable {
+         if ((mask & searchMask) != 0) {
+           int index = index(searchMask);
+           HamtPMap<K, V> child = newChildren[index];
+-          HamtPMap<K, V> newChild = child.minus(key, shift(hash), result);
+-          if (!newChild.isEmpty()) {
++          HamtPMap<K, V> newChild = child.minusOrNull(key, shift(hash), result);
++          if (newChild != null) {
+             newChildren = replaceChild(newChildren, index, newChild);
+           } else {
+             newChildren = deleteChild(newChildren, index);
+diff --git a/com/google/javascript/rhino/jstype/EqualityChecker.java b/com/google/javascript/rhino/jstype/EqualityChecker.java
+index 502e5405..3cd66ec9 100644
+--- a/com/google/javascript/rhino/jstype/EqualityChecker.java
++++ b/com/google/javascript/rhino/jstype/EqualityChecker.java
+@@ -582,6 +582,42 @@ final class EqualityChecker {
+      * <p>Additionally, code that makes heavy use of inline record types compiles very slowly if the
+      * set of inherited properties is recomputed during every equality check.
+      */
++    PropertyMap leftMap = left.getOwnPropertyMapOrNull();
++    PropertyMap rightMap = right.getOwnPropertyMapOrNull();
++    int leftCount = leftMap != null ? leftMap.getOwnPropertiesCount() : 0;
++    int rightCount = rightMap != null ? rightMap.getOwnPropertiesCount() : 0;
++    if (leftCount != rightCount) {
++      return false;
++    }
++    if (leftCount == 0) {
++      return true;
++    }
++    if (leftCount == 1) {
++      Property lp0 = leftMap.getInlineProp0();
++      Property rp0 = rightMap.getInlineProp0();
++      if (lp0 != null && rp0 != null) {
++        String k = lp0.getName();
++        return k.equals(rp0.getName())
++            && this.areEqualCaching(left.getPropertyType(k), right.getPropertyType(k));
++      }
++    } else if (leftCount == 2) {
++      Property lp0 = leftMap.getInlineProp0();
++      Property lp1 = leftMap.getInlineProp1();
++      Property rp0 = rightMap.getInlineProp0();
++      Property rp1 = rightMap.getInlineProp1();
++      if (lp0 != null && lp1 != null && rp0 != null && rp1 != null) {
++        String lk0 = lp0.getName();
++        String lk1 = lp1.getName();
++        String rk0 = rp0.getName();
++        String rk1 = rp1.getName();
++        if ((lk0.equals(rk0) && lk1.equals(rk1)) || (lk0.equals(rk1) && lk1.equals(rk0))) {
++          return this.areEqualCaching(left.getPropertyType(lk0), right.getPropertyType(lk0))
++              && this.areEqualCaching(left.getPropertyType(lk1), right.getPropertyType(lk1));
++        }
++        return false;
++      }
++    }
++
+     Set<String> leftKeys = left.getOwnPropertyNames();
+     Set<String> rightKeys = right.getOwnPropertyNames();
+     if (!rightKeys.equals(leftKeys)) {
+@@ -598,22 +634,18 @@ final class EqualityChecker {
+   }
+ 
+   private boolean areTypeMapEqual(TemplateTypeMap left, TemplateTypeMap right) {
+-    TemplateType[] leftKeys = left.getTemplateKeysArray();
+-    JSType[] leftValues = left.getTemplateValuesArray();
+-    TemplateType[] rightKeys = right.getTemplateKeysArray();
+-    JSType[] rightValues = right.getTemplateValuesArray();
+-    int leftKeysLen = leftKeys.length;
+-    int rightKeysLen = rightKeys.length;
+-    int leftValsLen = leftValues.length;
+-    int rightValsLen = rightValues.length;
++    int leftKeysLen = left.size();
++    int rightKeysLen = right.size();
++    int leftValsLen = left.getTemplateValuesSize();
++    int rightValsLen = right.getTemplateValuesSize();
+ 
+     outer:
+     for (int i = 0; i < leftKeysLen; i++) {
+-      TemplateType leftKey = leftKeys[i];
++      TemplateType leftKey = left.getTemplateKeyAt(i);
+ 
+       inner:
+       for (int j = 0; j < rightKeysLen; j++) {
+-        TemplateType rightKey = rightKeys[j];
++        TemplateType rightKey = right.getTemplateKeyAt(j);
+ 
+         // Cross-compare every key-value pair in this TemplateTypeMap with
+         // those in that TemplateTypeMap. Update the Equivalence match for both
+@@ -623,8 +655,10 @@ final class EqualityChecker {
+         }
+ 
+         // The arrays are index-aligned but we can have more keys than values.
+-        JSType leftValue = i < leftValsLen ? leftValues[i] : left.defaultValueType(leftKey);
+-        JSType rightValue = j < rightValsLen ? rightValues[j] : right.defaultValueType(rightKey);
++        JSType leftValue =
++            i < leftValsLen ? left.getTemplateValueAt(i) : left.defaultValueType(leftKey);
++        JSType rightValue =
++            j < rightValsLen ? right.getTemplateValueAt(j) : right.defaultValueType(rightKey);
+         if (this.areEqualCaching(leftValue, rightValue)) {
+           continue outer;
+         }
+diff --git a/com/google/javascript/rhino/jstype/FunctionType.java b/com/google/javascript/rhino/jstype/FunctionType.java
+index 811e58ba..bf971068 100644
+--- a/com/google/javascript/rhino/jstype/FunctionType.java
++++ b/com/google/javascript/rhino/jstype/FunctionType.java
+@@ -878,7 +878,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+             builder(registry)
+                 .withParameterArray(builder.buildArray())
+                 .withReturnType(getReturnType())
+-                .withTemplateKeysArray(getTemplateTypeMap().getTemplateKeysArray())
++                .withTemplateKeysFrom(getTemplateTypeMap())
+                 .build(),
+             this.subSourceNode);
+       }
+@@ -896,7 +896,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     Builder builder =
+         builder(registry)
+             .withReturnType(getReturnType())
+-            .withTemplateKeysArray(getTemplateTypeMap().getTemplateKeysArray());
++            .withTemplateKeysFrom(getTemplateTypeMap());
+     if (argsToBind < 0) {
+       return builder.build();
+     }
+@@ -932,7 +932,7 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     Builder builder =
+         builder(registry)
+             .withReturnType(isCall ? getReturnType() : getBindReturnType(-1))
+-            .withTemplateKeysArray(getTemplateTypeMap().getTemplateKeysArray());
++            .withTemplateKeysFrom(getTemplateTypeMap());
+ 
+     Parameter[] origParams = this.parameters;
+     int origLen = origParams.length;
+@@ -1461,7 +1461,8 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+   }
+ 
+   public final boolean hasProperties() {
+-    return !super.getOwnPropertyNames().isEmpty();
++    PropertyMap map = this.getOwnPropertyMapOrNull();
++    return map != null && map.getOwnPropertiesCount() > 0;
+   }
+ 
+   /**
+@@ -1853,6 +1854,16 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+           .setTemplateParamCount(templateKeys.length);
+     }
+ 
++    Builder withTemplateKeysFrom(TemplateTypeMap sourceMap) {
++      int count = sourceMap.size();
++      if (count == 0) {
++        return this.setTemplateTypeMap(registry.getEmptyTemplateTypeMap())
++            .setTemplateParamCount(0);
++      }
++      return this.setTemplateTypeMap(sourceMap.asKeysOnlySingleSubMap())
++          .setTemplateParamCount(count);
++    }
++
+     /** Set the template name. */
+     public Builder withTemplateKeys(TemplateType... templateKeys) {
+       return withTemplateKeysArray(templateKeys);
+diff --git a/com/google/javascript/rhino/jstype/JSTypeRegistry.java b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+index 34db08d0..c612382c 100644
+--- a/com/google/javascript/rhino/jstype/JSTypeRegistry.java
++++ b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+@@ -1663,15 +1663,41 @@ public final class JSTypeRegistry {
+   }
+ 
+   void registerDroppedPropertiesInUnion(RecordType subtype, RecordType supertype) {
++    PropertyMap subMap = subtype.getOwnPropertyMapOrNull();
++    if (subMap == null) {
++      return;
++    }
+     boolean foundDroppedProperty = false;
+-    for (String pname : subtype.getPropertyMap().getOwnPropertyNames()) {
+-      if (!supertype.hasProperty(pname)) {
+-        foundDroppedProperty = true;
+-        this.droppedPropertiesOfUnions.add(pname);
++    if (subMap.hasInlinePropsOnly()) {
++      Property p0 = subMap.getInlineProp0();
++      if (p0 != null) {
++        String k0 = p0.getName();
++        if (!supertype.hasProperty(k0)) {
++          foundDroppedProperty = true;
++          this.droppedPropertiesOfUnions.add(k0);
++        }
++        Property p1 = subMap.getInlineProp1();
++        if (p1 != null) {
++          String k1 = p1.getName();
++          if (!supertype.hasProperty(k1)) {
++            foundDroppedProperty = true;
++            this.droppedPropertiesOfUnions.add(k1);
++          }
++        }
++      }
++    } else {
++      for (String pname : subMap.getOwnPropertyNames()) {
++        if (!supertype.hasProperty(pname)) {
++          foundDroppedProperty = true;
++          this.droppedPropertiesOfUnions.add(pname);
++        }
+       }
+     }
+     if (foundDroppedProperty) {
+-      this.propertiesOfSupertypesInUnions.addAll(supertype.getPropertyMap().getOwnPropertyNames());
++      PropertyMap superMap = supertype.getOwnPropertyMapOrNull();
++      if (superMap != null) {
++        superMap.addOwnPropertyNamesTo(this.propertiesOfSupertypesInUnions);
++      }
+     }
+   }
+ 
+@@ -1784,11 +1810,28 @@ public final class JSTypeRegistry {
+ 
+       if (type.toMaybeRecordType() != null) {
+         RecordType rec = type.toMaybeRecordType();
++        PropertyMap recMap = rec.getOwnPropertyMapOrNull();
+         boolean mayBeInUnion = false;
+-        for (String pname : rec.getPropertyMap().getOwnPropertyNames()) {
+-          if (this.propertiesOfSupertypesInUnions.contains(pname)) {
+-            mayBeInUnion = true;
+-            break;
++        if (recMap != null) {
++          if (recMap.hasInlinePropsOnly()) {
++            Property p0 = recMap.getInlineProp0();
++            if (p0 != null) {
++              if (this.propertiesOfSupertypesInUnions.contains(p0.getName())) {
++                mayBeInUnion = true;
++              } else {
++                Property p1 = recMap.getInlineProp1();
++                if (p1 != null && this.propertiesOfSupertypesInUnions.contains(p1.getName())) {
++                  mayBeInUnion = true;
++                }
++              }
++            }
++          } else {
++            for (String pname : recMap.getOwnPropertyNames()) {
++              if (this.propertiesOfSupertypesInUnions.contains(pname)) {
++                mayBeInUnion = true;
++                break;
++              }
++            }
+           }
+         }
+ 
+diff --git a/com/google/javascript/rhino/jstype/ObjectType.java b/com/google/javascript/rhino/jstype/ObjectType.java
+index 7487e2b9..4c55905d 100644
+--- a/com/google/javascript/rhino/jstype/ObjectType.java
++++ b/com/google/javascript/rhino/jstype/ObjectType.java
+@@ -889,7 +889,7 @@ public abstract class ObjectType extends JSType {
+     }
+     if (unwrapToPrototypeObjectType(src.getImplicitPrototype()) == null) {
+       PropertyMap map = src.getOwnPropertyMapOrNull();
+-      return map != null ? map.getOwnPropertyNames().size() : 0;
++      return map != null ? map.getOwnPropertiesCount() : 0;
+     }
+     return src.getPropertyMap().getPropertiesCount();
+   }
+diff --git a/com/google/javascript/rhino/jstype/PropertyMap.java b/com/google/javascript/rhino/jstype/PropertyMap.java
+index 54fa97ee..f5ba8597 100644
+--- a/com/google/javascript/rhino/jstype/PropertyMap.java
++++ b/com/google/javascript/rhino/jstype/PropertyMap.java
+@@ -45,10 +45,10 @@ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableSet;
+ import com.google.common.collect.ImmutableSortedSet;
++import com.google.javascript.rhino.ErrorReporter;
+ import com.google.javascript.rhino.jstype.Property.OwnedProperty;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+-import java.util.Objects;
+ import java.util.Set;
+ import java.util.TreeSet;
+ import org.jspecify.annotations.Nullable;
+@@ -56,6 +56,19 @@ import org.jspecify.annotations.Nullable;
+ /** Representation for a collection of properties on an object. */
+ final class PropertyMap {
+   private static final PropertyMap EMPTY_MAP = new PropertyMap();
++  private static final ImmutableSet<String> EMPTY_PROPERTY_NAMES = ImmutableSet.of();
++  private static final ImmutableSet<KnownSymbolType> EMPTY_KNOWN_SYMBOLS = ImmutableSet.of();
++  private static final AllKeys EMPTY_ALL_KEYS =
++      new AllKeys(ImmutableSortedSet.of(), EMPTY_KNOWN_SYMBOLS);
++
++  /** Cold symbol properties and cached inherited key sets, allocated lazily on demand. */
++  private static final class Extra {
++    @Nullable LinkedHashMap<KnownSymbolType, Property> knownSymbols = null;
++    @Nullable ImmutableSortedSet<String> cachedKeySet = null;
++    @Nullable ImmutableSet<KnownSymbolType> cachedKnownSymbolsKeySet = null;
++    int cachedKeySetCounter = 0;
++    int cachedAncestorHash = 0;
++  }
+ 
+   // A place to get the inheritance structure.
+   // Because the extended interfaces are resolved dynamically, this gets
+@@ -63,42 +76,24 @@ final class PropertyMap {
+   // just reference primary parents and secondary parents directly.
+   private @Nullable ObjectType parentSource = null;
+ 
+-  // The map of our own properties.
+-  private @Nullable LinkedHashMap<String, Property> properties = null; // lazily initialized
+-
+-  private @Nullable LinkedHashMap<KnownSymbolType, Property> knownSymbols =
+-      null; // lazily initialized
+-
+-  /**
+-   * The set of keys for this map and its ancestors.
+-   *
+-   * <p>Collecting the set of properties turns out to be expensive for some high volume callers
+-   * (e.g. structural type equality). Since the results don't change often, this cache eliminates
+-   * most of the cost.
+-   */
+-  private @Nullable ImmutableSortedSet<String> cachedKeySet = null;
++  // Inline own string properties for 0..2 properties; spilled to `properties` on 3rd distinct name.
++  private @Nullable Property prop0 = null;
++  private @Nullable Property prop1 = null;
++  private @Nullable LinkedHashMap<String, Property> properties = null;
+ 
+-  /**
+-   * The set of known symbols keys for this map and its ancestors.
+-   *
+-   * <p>Collecting the set of properties turns out to be expensive for some high volume callers
+-   * (e.g. structural type equality). Since the results don't change often, this cache eliminates
+-   * most of the cost.
+-   */
+-  private ImmutableSet<KnownSymbolType> cachedKnownSymbolsKeySet = null;
+-
+-  /**
+-   * A "timestamp" for map mutations to validate {@link #cachedKeySet} and {@link
+-   * #cachedKnownSymbolsKeySet}.
+-   *
+-   * <p>If this value is less than the counter in any ancestor map, the cache is invalid. The update
+-   * algorithm is similar to using a global counter, but uses a distributed approach that prevents
+-   * the need for a single source of truth.
+-   */
+-  private int cachedKeySetCounter = 0;
++  private @Nullable Extra extra = null;
+ 
+   PropertyMap() {}
+ 
++  private Extra ensureExtra() {
++    Extra e = this.extra;
++    if (e == null) {
++      e = new Extra();
++      this.extra = e;
++    }
++    return e;
++  }
++
+   static PropertyMap immutableEmptyMap() {
+     return EMPTY_MAP;
+   }
+@@ -197,8 +192,8 @@ final class PropertyMap {
+         curr != null;
+         curr = ObjectType.unwrapToPrototypeObjectType(curr.getImplicitPrototype())) {
+       PropertyMap ownMap = curr.getOwnPropertyMapOrNull();
+-      if (ownMap != null && ownMap.knownSymbols != null) {
+-        Property prop = ownMap.knownSymbols.get(symbol);
++      if (ownMap != null) {
++        Property prop = ownMap.getOwnSymbolProperty(symbol);
+         if (prop != null) {
+           return new OwnedProperty(curr, prop);
+         }
+@@ -277,8 +272,8 @@ final class PropertyMap {
+         curr != null;
+         curr = ObjectType.unwrapToPrototypeObjectType(curr.getImplicitPrototype())) {
+       PropertyMap ownMap = curr.getOwnPropertyMapOrNull();
+-      if (ownMap != null && ownMap.knownSymbols != null) {
+-        Property prop = ownMap.knownSymbols.get(symbol);
++      if (ownMap != null) {
++        Property prop = ownMap.getOwnSymbolProperty(symbol);
+         if (prop != null) {
+           return prop;
+         }
+@@ -307,89 +302,204 @@ final class PropertyMap {
+     return findClosestProperty(ObjectType.unwrapToPrototypeObjectType(parentSource), name);
+   }
+ 
++  private @Nullable Property getOwnSymbolProperty(KnownSymbolType symbol) {
++    Extra e = this.extra;
++    return (e != null && e.knownSymbols != null) ? e.knownSymbols.get(symbol) : null;
++  }
++
+   @Nullable Property getOwnProperty(String propertyName) {
+-    return properties != null ? properties.get(propertyName) : null;
++    if (this.properties != null) {
++      return this.properties.get(propertyName);
++    }
++    Property p0 = this.prop0;
++    if (p0 != null) {
++      if (p0.getName().equals(propertyName)) {
++        return p0;
++      }
++      Property p1 = this.prop1;
++      if (p1 != null && p1.getName().equals(propertyName)) {
++        return p1;
++      }
++    }
++    return null;
+   }
+ 
+   @Nullable Property getOwnProperty(Property.Key propertyName) {
+     return switch (propertyName.kind()) {
+       case STRING -> getOwnProperty(propertyName.string());
+-      case SYMBOL -> knownSymbols != null ? knownSymbols.get(propertyName.symbol()) : null;
++      case SYMBOL -> getOwnSymbolProperty(propertyName.symbol());
+     };
+   }
+ 
+   int getPropertiesCount() {
+     PropertyMap primaryParent = getPrimaryParent();
+     if (primaryParent == null) {
+-      return this.properties != null ? this.properties.size() : 0;
++      return getOwnPropertiesCount();
+     }
+ 
+     return this.getAllKeys().stringKeys().size();
+   }
+ 
+-  private static final ImmutableSet<String> EMPTY_PROPERTY_NAMES = ImmutableSet.of();
+-  private static final ImmutableSet<KnownSymbolType> EMPTY_KNOWN_SYMBOLS = ImmutableSet.of();
++  boolean hasInlinePropsOnly() {
++    return this.properties == null;
++  }
++
++  @Nullable Property getInlineProp0() {
++    return this.prop0;
++  }
++
++  @Nullable Property getInlineProp1() {
++    return this.prop1;
++  }
++
++  boolean hasOwnKnownSymbols() {
++    Extra e = this.extra;
++    return e != null && e.knownSymbols != null && !e.knownSymbols.isEmpty();
++  }
+ 
+   int getOwnPropertiesCount() {
+-    return properties != null ? properties.size() : 0;
++    if (this.properties != null) {
++      return this.properties.size();
++    }
++    if (this.prop0 == null) {
++      return 0;
++    }
++    return this.prop1 == null ? 1 : 2;
+   }
+ 
+   int collectOwnPropertyNames(String[] out, int idx, boolean skipPrototype) {
+-    if (properties != null) {
+-      for (String key : properties.keySet()) {
++    if (this.properties != null) {
++      for (String key : this.properties.keySet()) {
+         if (!skipPrototype || !"prototype".equals(key)) {
+           out[idx++] = key;
+         }
+       }
++      return idx;
++    }
++    Property p0 = this.prop0;
++    if (p0 != null) {
++      String k0 = p0.getName();
++      if (!skipPrototype || !"prototype".equals(k0)) {
++        out[idx++] = k0;
++      }
++      Property p1 = this.prop1;
++      if (p1 != null) {
++        String k1 = p1.getName();
++        if (!skipPrototype || !"prototype".equals(k1)) {
++          out[idx++] = k1;
++        }
++      }
+     }
+     return idx;
+   }
+ 
++  void addOwnPropertyNamesTo(Set<String> out) {
++    if (this.properties != null) {
++      out.addAll(this.properties.keySet());
++      return;
++    }
++    Property p0 = this.prop0;
++    if (p0 != null) {
++      out.add(p0.getName());
++      Property p1 = this.prop1;
++      if (p1 != null) {
++        out.add(p1.getName());
++      }
++    }
++  }
++
+   Set<String> getOwnPropertyNames() {
+-    return properties != null ? properties.keySet() : EMPTY_PROPERTY_NAMES;
++    if (this.properties != null) {
++      return this.properties.keySet();
++    }
++    Property p0 = this.prop0;
++    if (p0 == null) {
++      return EMPTY_PROPERTY_NAMES;
++    }
++    Property p1 = this.prop1;
++    if (p1 == null) {
++      return ImmutableSet.of(p0.getName());
++    }
++    return ImmutableSet.of(p0.getName(), p1.getName());
+   }
+ 
+   Set<KnownSymbolType> getOwnKnownSymbols() {
+-    return knownSymbols != null ? knownSymbols.keySet() : EMPTY_KNOWN_SYMBOLS;
++    Extra e = this.extra;
++    return (e != null && e.knownSymbols != null) ? e.knownSymbols.keySet() : EMPTY_KNOWN_SYMBOLS;
+   }
+ 
+   public AllKeys getAllKeys() {
++    if (this == EMPTY_MAP
++        || (this.parentSource == null
++            && this.prop0 == null
++            && this.properties == null
++            && (this.extra == null || this.extra.knownSymbols == null))) {
++      return EMPTY_ALL_KEYS;
++    }
++
+     LinkedHashSet<PropertyMap> ancestors = new LinkedHashSet<>();
+     this.collectAllAncestors(ancestors);
+ 
+-    int maxAncestorCounter = 0;
++    int maxAncestorCounter = 1;
++    int ancestorHash = 0;
++    boolean missingAncestorExtra = false;
+     for (PropertyMap ancestor : ancestors) {
+-      if (ancestor.cachedKeySetCounter > maxAncestorCounter) {
+-        maxAncestorCounter = ancestor.cachedKeySetCounter;
++      if (ancestor == EMPTY_MAP) {
++        continue;
++      }
++      ancestorHash = 31 * ancestorHash + System.identityHashCode(ancestor);
++      Extra ae = ancestor.extra;
++      if (ae == null) {
++        missingAncestorExtra = true;
++      } else if (ae.cachedKeySetCounter > maxAncestorCounter) {
++        maxAncestorCounter = ae.cachedKeySetCounter;
+       }
+     }
+ 
+     /*
+-     * If any counter is greater than this counter, there has been a mutation and the cache must be
+-     * rebuilt.
++     * If any counter is greater than this counter, or the ancestor chain changed, there has been a
++     * mutation and the cache must be rebuilt.
+      */
+-    if (maxAncestorCounter != this.cachedKeySetCounter || this.cachedKeySet == null) {
++    Extra selfExtra = this.extra;
++    if (selfExtra == null
++        || missingAncestorExtra
++        || selfExtra.cachedKeySet == null
++        || maxAncestorCounter != selfExtra.cachedKeySetCounter
++        || ancestorHash != selfExtra.cachedAncestorHash) {
+       TreeSet<String> keys = new TreeSet<>();
+-      LinkedHashSet<KnownSymbolType> knownSymbolsKeys = new LinkedHashSet<>();
++      LinkedHashSet<KnownSymbolType> knownSymbolsKeys = null;
+       for (PropertyMap ancestor : ancestors) {
++        if (ancestor == EMPTY_MAP) {
++          continue;
++        }
+         /*
+          * Update the counters in all ancestors.
+          *
+          * <p>This update scheme is convergent. As long as there are no mutations, calls {@link
+          * #keySet} will eventually set stable caches on all maps.
+          */
+-        ancestor.cachedKeySetCounter = maxAncestorCounter;
+-        ancestor.cachedKeySet = null;
+-        ancestor.cachedKnownSymbolsKeySet = null;
+-
+-        keys.addAll(ancestor.getOwnPropertyNames());
+-        knownSymbolsKeys.addAll(ancestor.getOwnKnownSymbols());
++        Extra ae = ancestor.ensureExtra();
++        ae.cachedKeySetCounter = maxAncestorCounter;
++        ae.cachedKeySet = null;
++        ae.cachedKnownSymbolsKeySet = null;
++
++        ancestor.addOwnPropertyNamesTo(keys);
++        if (ae.knownSymbols != null && !ae.knownSymbols.isEmpty()) {
++          if (knownSymbolsKeys == null) {
++            knownSymbolsKeys = new LinkedHashSet<>();
++          }
++          knownSymbolsKeys.addAll(ae.knownSymbols.keySet());
++        }
+       }
+-      this.cachedKeySet = ImmutableSortedSet.copyOfSorted(keys);
+-      this.cachedKnownSymbolsKeySet = ImmutableSet.copyOf(knownSymbolsKeys);
++      selfExtra = this.ensureExtra();
++      selfExtra.cachedKeySetCounter = maxAncestorCounter;
++      selfExtra.cachedAncestorHash = ancestorHash;
++      selfExtra.cachedKeySet = ImmutableSortedSet.copyOfSorted(keys);
++      selfExtra.cachedKnownSymbolsKeySet =
++          knownSymbolsKeys != null ? ImmutableSet.copyOf(knownSymbolsKeys) : EMPTY_KNOWN_SYMBOLS;
+     }
+ 
+-    return new AllKeys(this.cachedKeySet, this.cachedKnownSymbolsKeySet);
++    return new AllKeys(selfExtra.cachedKeySet, selfExtra.cachedKnownSymbolsKeySet);
+   }
+ 
+   public record AllKeys(
+@@ -414,14 +524,42 @@ final class PropertyMap {
+   }
+ 
+   void putProperty(String name, Property newProp) {
+-    if (properties == null) {
+-      properties = new LinkedHashMap<>();
+-      properties.put(name, newProp);
++    LinkedHashMap<String, Property> map = this.properties;
++    if (map == null) {
++      Property p0 = this.prop0;
++      if (p0 == null) {
++        this.prop0 = newProp;
++        this.incrementCachedKeySetCounter();
++        return;
++      }
++      if (p0.getName().equals(name)) {
++        newProp.setJSDocInfo(p0.getJSDocInfo());
++        this.prop0 = newProp;
++        return;
++      }
++      Property p1 = this.prop1;
++      if (p1 == null) {
++        this.prop1 = newProp;
++        this.incrementCachedKeySetCounter();
++        return;
++      }
++      if (p1.getName().equals(name)) {
++        newProp.setJSDocInfo(p1.getJSDocInfo());
++        this.prop1 = newProp;
++        return;
++      }
++      map = new LinkedHashMap<>(4);
++      map.put(p0.getName(), p0);
++      map.put(p1.getName(), p1);
++      map.put(name, newProp);
++      this.prop0 = null;
++      this.prop1 = null;
++      this.properties = map;
+       this.incrementCachedKeySetCounter();
+       return;
+     }
+ 
+-    Property oldProp = properties.get(name);
++    Property oldProp = map.get(name);
+ 
+     if (oldProp == null) {
+       // The cache is only invalidated if this is a new property name.
+@@ -431,21 +569,22 @@ final class PropertyMap {
+       newProp.setJSDocInfo(oldProp.getJSDocInfo());
+     }
+ 
+-    properties.put(name, newProp);
++    map.put(name, newProp);
+   }
+ 
+   void putProperty(KnownSymbolType symbol, Property newProp) {
+-    Property oldProp = knownSymbols != null ? knownSymbols.get(symbol) : null;
++    Extra e = this.ensureExtra();
++    Property oldProp = e.knownSymbols != null ? e.knownSymbols.get(symbol) : null;
+ 
+     if (oldProp == null) {
+       // The cache is only invalidated if this is a new property name.
+       this.incrementCachedKeySetCounter();
+     }
+ 
+-    if (knownSymbols == null) {
+-      knownSymbols = new LinkedHashMap<>();
++    if (e.knownSymbols == null) {
++      e.knownSymbols = new LinkedHashMap<>();
+     }
+-    knownSymbols.put(symbol, newProp);
++    e.knownSymbols.put(symbol, newProp);
+   }
+ 
+   void putProperty(Property.Key name, Property newProp) {
+@@ -455,8 +594,36 @@ final class PropertyMap {
+     }
+   }
+ 
++  void resolveOwnPropertyTypes(ErrorReporter reporter) {
++    if (this.properties != null) {
++      for (Property prop : this.properties.values()) {
++        prop.setType(JSType.safeResolve(prop.getType(), reporter));
++      }
++      return;
++    }
++    Property p0 = this.prop0;
++    if (p0 != null) {
++      p0.setType(JSType.safeResolve(p0.getType(), reporter));
++      Property p1 = this.prop1;
++      if (p1 != null) {
++        p1.setType(JSType.safeResolve(p1.getType(), reporter));
++      }
++    }
++  }
++
+   Iterable<Property> values() {
+-    return properties != null ? properties.values() : ImmutableList.of();
++    if (this.properties != null) {
++      return this.properties.values();
++    }
++    Property p0 = this.prop0;
++    if (p0 == null) {
++      return ImmutableList.of();
++    }
++    Property p1 = this.prop1;
++    if (p1 == null) {
++      return ImmutableList.of(p0);
++    }
++    return ImmutableList.of(p0, p1);
+   }
+ 
+   @Override
+@@ -467,23 +634,32 @@ final class PropertyMap {
+     // Calculate the hash just based on the property names, not their types.
+     // Otherwise we can get into an infinite loop because the ObjectType hashCode
+     // method calls this one.
+-    if (this.knownSymbols == null) {
+-      if (this.properties == null) {
+-        return 0;
+-      }
+-      int h = 0;
++    int h = 0;
++    if (this.properties != null) {
+       for (String key : this.properties.keySet()) {
+         h += key.hashCode();
+       }
++    } else if (this.prop0 != null) {
++      h = this.prop0.getName().hashCode();
++      if (this.prop1 != null) {
++        h += this.prop1.getName().hashCode();
++      }
++    }
++    Extra e = this.extra;
++    if (e == null || e.knownSymbols == null) {
+       return h;
+     }
+-    return Objects.hash(getOwnPropertyNames(), this.knownSymbols.keySet());
++    return 31 * (31 + h) + e.knownSymbols.keySet().hashCode();
+   }
+ 
+   private void incrementCachedKeySetCounter() {
+-    this.cachedKeySetCounter++;
+-    this.cachedKeySet = null;
++    Extra e = this.extra;
++    if (e != null) {
++      e.cachedKeySetCounter++;
++      e.cachedKeySet = null;
++      e.cachedKnownSymbolsKeySet = null;
+ 
+-    checkState(this.cachedKeySetCounter >= 0);
++      checkState(e.cachedKeySetCounter >= 0);
++    }
+   }
+ }
+diff --git a/com/google/javascript/rhino/jstype/PrototypeObjectType.java b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+index 3a29d954..ea25d316 100644
+--- a/com/google/javascript/rhino/jstype/PrototypeObjectType.java
++++ b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+@@ -629,9 +629,7 @@ public class PrototypeObjectType extends ObjectType {
+       }
+     }
+     if (properties != null) {
+-      for (Property prop : properties.values()) {
+-        prop.setType(safeResolve(prop.getType(), reporter));
+-      }
++      properties.resolveOwnPropertyTypes(reporter);
+     }
+     return this;
+   }
+diff --git a/com/google/javascript/rhino/jstype/SubtypeChecker.java b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+index 55ef4545..b88d3e1c 100644
+--- a/com/google/javascript/rhino/jstype/SubtypeChecker.java
++++ b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+@@ -494,24 +494,53 @@ final class SubtypeChecker {
+     // 2) And for each property of supertype, its type must be
+     //    a super type of the corresponding property of subtype.
+ 
+-    PropertyMap.AllKeys keys =
+-        supertype.isRecordType() ? null : supertype.getPropertyMap().getAllKeys();
+-    Iterable<String> props =
+-        // NOTE: Inline record literal types always have Object as a supertype. In these cases, we
+-        // really only care about the properties explicitly declared in the record literal, and not
+-        // about any properties inherited from Object.prototype. On the other hand, @record types
+-        // allow inheritance and we need to match against inherited properties as well.
+-        supertype.isRecordType() ? supertype.getOwnPropertyNames() : keys.stringKeys();
+-
+-    for (String property : props) {
++    // NOTE: Inline record literal types always have Object as a supertype. In these cases, we
++    // really only care about the properties explicitly declared in the record literal, and not
++    // about any properties inherited from Object.prototype. On the other hand, @record types
++    // allow inheritance and we need to match against inherited properties as well.
++    if (supertype.isRecordType()) {
++      PrototypeObjectType superProto = ObjectType.unwrapToPrototypeObjectType(supertype);
++      PropertyMap ownMap = superProto != null ? superProto.getOwnPropertyMapOrNull() : null;
++      if (ownMap == null) {
++        return true;
++      }
++      if (ownMap.hasInlinePropsOnly()) {
++        Property p0 = ownMap.getInlineProp0();
++        if (p0 != null) {
++          if (!checkPropertyPresence(p0.getName(), subtype, supertype, optionality)) {
++            return false;
++          }
++          Property p1 = ownMap.getInlineProp1();
++          if (p1 != null
++              && !checkPropertyPresence(p1.getName(), subtype, supertype, optionality)) {
++            return false;
++          }
++        }
++      } else {
++        for (String property : ownMap.getOwnPropertyNames()) {
++          if (!checkPropertyPresence(property, subtype, supertype, optionality)) {
++            return false;
++          }
++        }
++      }
++      if (ownMap.hasOwnKnownSymbols()) {
++        for (KnownSymbolType knownSymbolType : ownMap.getOwnKnownSymbols()) {
++          Property.Key knownSymbolTypeKey = new Property.SymbolKey(knownSymbolType);
++          if (!checkPropertyPresence(knownSymbolTypeKey, subtype, supertype, optionality)) {
++            return false;
++          }
++        }
++      }
++      return true;
++    }
++
++    PropertyMap.AllKeys keys = supertype.getPropertyMap().getAllKeys();
++    for (String property : keys.stringKeys()) {
+       if (!checkPropertyPresence(property, subtype, supertype, optionality)) {
+         return false;
+       }
+     }
+-    Iterable<KnownSymbolType> knownSymbols =
+-        supertype.isRecordType() ? supertype.getOwnPropertyKnownSymbols() : keys.knownSymbolKeys();
+-
+-    for (KnownSymbolType knownSymbolType : knownSymbols) {
++    for (KnownSymbolType knownSymbolType : keys.knownSymbolKeys()) {
+       Property.Key knownSymbolTypeKey = new Property.SymbolKey(knownSymbolType);
+       if (!checkPropertyPresence(knownSymbolTypeKey, subtype, supertype, optionality)) {
+         return false;
+@@ -749,9 +778,8 @@ final class SubtypeChecker {
+      * <p>A submap may have additional entries not present in the supermap, so long as it also has
+      * all supermap entries.
+      */
+-    TemplateType[] superKeys = supermap.getTemplateKeysArray();
+-    for (int i = 0, n = superKeys.length; i < n; i++) {
+-      TemplateType key = superKeys[i];
++    for (int i = 0, n = supermap.size(); i < n; i++) {
++      TemplateType key = supermap.getTemplateKeyAt(i);
+       int keyCount = submap.getTemplateKeyCountThisShouldAlwaysBeOneOrZeroButIsnt(key);
+       if (keyCount == 0) {
+         if (subtype.loosenTypecheckingDueToForwardReferencedSupertype()) {
+diff --git a/com/google/javascript/rhino/jstype/TemplateTypeMap.java b/com/google/javascript/rhino/jstype/TemplateTypeMap.java
+index 480ff96d..b68ae7e0 100644
+--- a/com/google/javascript/rhino/jstype/TemplateTypeMap.java
++++ b/com/google/javascript/rhino/jstype/TemplateTypeMap.java
+@@ -41,6 +41,7 @@ package com.google.javascript.rhino.jstype;
+ 
+ import static com.google.common.base.Preconditions.checkArgument;
+ import static com.google.common.base.Preconditions.checkNotNull;
++import static com.google.common.base.Preconditions.checkState;
+ import static com.google.javascript.jscomp.base.JSCompObjects.identical;
+ import static java.lang.Math.max;
+ import static java.lang.Math.min;
+@@ -62,26 +63,48 @@ public final class TemplateTypeMap {
+   private static final ImmutableList<TemplateType> EMPTY_KEY_LIST = ImmutableList.of();
+   private static final ImmutableList<JSType> EMPTY_VALUE_LIST = ImmutableList.of();
+ 
++  private static final byte FLAG_SUBMAP_BIT0 = 1 << 0;
++  private static final int RESOLVED_SHIFT = 1;
++  private static final int RESOLVED_UNCOMPUTED = 0;
++  private static final int RESOLVED_SAME_AS_VALUES = 1;
++  private static final int RESOLVED_IN_EXTRA = 2;
++
+   private static final class Extra {
++    final @Nullable JSTypeRegistry emptyMapRegistry;
++    final TemplateType @Nullable [] keys;
++    final JSType @Nullable [] ownValues;
+     JSType @Nullable [] resolvedValues;
++    final int subMapStartsMask;
+     final @Nullable BitSet subMapStartsOverflow;
+ 
+-    Extra(JSType @Nullable [] resolvedValues, @Nullable BitSet subMapStartsOverflow) {
+-      this.resolvedValues = resolvedValues;
++    Extra(
++        @Nullable JSTypeRegistry emptyMapRegistry,
++        TemplateType @Nullable [] keys,
++        JSType @Nullable [] ownValues,
++        int subMapStartsMask,
++        @Nullable BitSet subMapStartsOverflow) {
++      this.emptyMapRegistry = emptyMapRegistry;
++      this.keys = keys;
++      this.ownValues = ownValues;
++      this.subMapStartsMask = subMapStartsMask;
+       this.subMapStartsOverflow = subMapStartsOverflow;
+     }
+   }
+ 
+-  // The TemplateType keys of the map.
+-  private final TemplateType[] templateKeys;
+-  // The JSType values, which are index-aligned with their corresponding keys.
+-  private final JSType[] templateValues;
+-  // Cold resolved values (only non-null when resolved values differ from templateValues) and
+-  // >32-key subMapStarts overflow BitSet.
++  // Inline up to 2 own JSType values (covers Array<T>, Promise<T>, Object<K, V>, Map<K, V>, etc.
++  // with zero slice allocations).
++  private final @Nullable JSType val0;
++  private final @Nullable JSType val1;
++  // Non-null when created via copyFilledWithValues on a base map: shares base's keys,
++  // subMapStarts, and prefix values [0 .. base.getTemplateValuesSize() - 1].
++  private final @Nullable TemplateTypeMap base;
++  // First TemplateType key (always non-null iff !isEmpty(); also provides key0.registry).
++  private final @Nullable TemplateType key0;
+   private @Nullable Extra extra;
+-  private final JSTypeRegistry registry;
+-  // Inline bitmask for subMapStarts indices 0..31 (covers 99.99%+ of maps with zero allocations).
+-  private final int subMapStartsMask;
++  // 0 = 0 own values, 1 = val0, 2 = val0 + val1, 3 = extra.ownValues
++  private final byte ownValKind;
++  // bit 0: subMapStart(0) when base == null && size == 1; bits 1..2: resolvedValues state.
++  private byte flags;
+ 
+   static final TemplateTypeMap createEmpty(JSTypeRegistry registry) {
+     // This method should only be called during registry initialization.
+@@ -91,46 +114,94 @@ public final class TemplateTypeMap {
+   }
+ 
+   private TemplateTypeMap(JSTypeRegistry registry) {
+-    this.registry = registry;
+-    this.templateKeys = EMPTY_KEYS;
+-    this.templateValues = EMPTY_VALUES;
+-    this.subMapStartsMask = 0;
+-    this.extra = null;
++    this.val0 = null;
++    this.val1 = null;
++    this.base = null;
++    this.key0 = null;
++    this.extra = new Extra(registry, null, null, 0, null);
++    this.ownValKind = 0;
++    this.flags = (byte) (RESOLVED_SAME_AS_VALUES << RESOLVED_SHIFT);
+   }
+ 
+   private TemplateTypeMap(
+-      JSTypeRegistry registry,
+-      TemplateType[] templateKeys,
+-      int subMapStartsMask,
+-      @Nullable BitSet subMapStartsOverflow) {
+-    this.registry = registry;
+-    this.templateKeys = templateKeys.length == 0 ? EMPTY_KEYS : templateKeys;
+-    this.templateValues = EMPTY_VALUES;
+-    this.subMapStartsMask = subMapStartsMask;
+-    this.extra = subMapStartsOverflow != null ? new Extra(null, subMapStartsOverflow) : null;
++      @Nullable TemplateTypeMap base,
++      TemplateType key0,
++      @Nullable JSType val0,
++      @Nullable JSType val1,
++      byte ownValKind,
++      byte flags,
++      @Nullable Extra extra) {
++    this.val0 = val0;
++    this.val1 = val1;
++    this.base = base;
++    this.key0 = key0;
++    this.extra = extra;
++    this.ownValKind = ownValKind;
++    this.flags = flags;
+   }
+ 
+-  private TemplateTypeMap(
++  private static TemplateTypeMap createSingleKey(TemplateType key, int subMapStartsMask) {
++    byte f =
++        (byte)
++            (((subMapStartsMask & 1) != 0 ? FLAG_SUBMAP_BIT0 : 0)
++                | (RESOLVED_SAME_AS_VALUES << RESOLVED_SHIFT));
++    return new TemplateTypeMap(null, key, null, null, (byte) 0, f, null);
++  }
++
++  private static TemplateTypeMap createSingleKeyAndValue(
++      TemplateType key, JSType val, int subMapStartsMask) {
++    byte f = (subMapStartsMask & 1) != 0 ? FLAG_SUBMAP_BIT0 : 0;
++    return new TemplateTypeMap(null, key, val, null, (byte) 1, f, null);
++  }
++
++  private static TemplateTypeMap createFromArrays(
+       JSTypeRegistry registry,
+       TemplateType[] templateKeys,
+       JSType[] templateValues,
+       int subMapStartsMask,
+       @Nullable BitSet subMapStartsOverflow) {
+-    checkArgument(templateValues.length <= templateKeys.length);
++    int nKeys = templateKeys.length;
++    int nVals = templateValues.length;
++    checkArgument(nVals <= nKeys);
+ 
+-    this.registry = registry;
+-    this.templateKeys = templateKeys.length == 0 ? EMPTY_KEYS : templateKeys;
+-    this.templateValues = templateValues.length == 0 ? EMPTY_VALUES : templateValues;
+-    this.subMapStartsMask = subMapStartsMask;
+-    this.extra = subMapStartsOverflow != null ? new Extra(null, subMapStartsOverflow) : null;
+-    JSType[] resolved = computeResolvedValues();
+-    if (resolved != null) {
+-      if (this.extra != null) {
+-        this.extra.resolvedValues = resolved;
+-      } else {
+-        this.extra = new Extra(resolved, null);
++    if (nKeys == 0) {
++      TemplateTypeMap empty = registry.getEmptyTemplateTypeMap();
++      return empty != null ? empty : new TemplateTypeMap(registry);
++    }
++
++    if (nKeys == 1 && subMapStartsOverflow == null) {
++      if (nVals == 0) {
++        return createSingleKey(templateKeys[0], subMapStartsMask);
+       }
++      return createSingleKeyAndValue(templateKeys[0], templateValues[0], subMapStartsMask);
++    }
++
++    JSType v0 = null;
++    JSType v1 = null;
++    JSType[] extraVals = null;
++    byte valKind;
++    byte f = 0;
++    if (nVals == 0) {
++      valKind = 0;
++      f = (byte) (RESOLVED_SAME_AS_VALUES << RESOLVED_SHIFT);
++    } else if (nVals == 1) {
++      valKind = 1;
++      v0 = templateValues[0];
++    } else if (nVals == 2) {
++      valKind = 2;
++      v0 = templateValues[0];
++      v1 = templateValues[1];
++    } else {
++      valKind = 3;
++      extraVals = templateValues;
+     }
++
++    Extra extra = new Extra(null, templateKeys, extraVals, subMapStartsMask, subMapStartsOverflow);
++    return new TemplateTypeMap(null, templateKeys[0], v0, v1, valKind, f, extra);
++  }
++
++  private JSTypeRegistry registry() {
++    return this.key0 != null ? this.key0.registry : this.extra.emptyMapRegistry;
+   }
+ 
+   private static TemplateType[] copyKeysListToArray(ImmutableList<TemplateType> keys) {
+@@ -157,12 +228,43 @@ public final class TemplateTypeMap {
+     return out;
+   }
+ 
++  private int subMapStartsMask32() {
++    if (this.base != null) {
++      return this.base.subMapStartsMask32();
++    }
++    if (this.key0 == null) {
++      return 0;
++    }
++    Extra e = this.extra;
++    if (e != null && e.keys != null) {
++      return e.subMapStartsMask;
++    }
++    return (this.flags & FLAG_SUBMAP_BIT0) != 0 ? 1 : 0;
++  }
++
++  private @Nullable BitSet subMapStartsOverflowOrNull() {
++    if (this.base != null) {
++      return this.base.subMapStartsOverflowOrNull();
++    }
++    Extra e = this.extra;
++    return e != null ? e.subMapStartsOverflow : null;
++  }
++
+   private boolean isSubMapStart(int index) {
+-    if (index < 32) {
+-      return (this.subMapStartsMask & (1 << index)) != 0;
++    if (this.base != null) {
++      return this.base.isSubMapStart(index);
++    }
++    if (this.key0 == null) {
++      return false;
+     }
+     Extra e = this.extra;
+-    return e != null && e.subMapStartsOverflow != null && e.subMapStartsOverflow.get(index);
++    if (e == null || e.keys == null) {
++      return index == 0 && (this.flags & FLAG_SUBMAP_BIT0) != 0;
++    }
++    if (index < 32) {
++      return (e.subMapStartsMask & (1 << index)) != 0;
++    }
++    return e.subMapStartsOverflow != null && e.subMapStartsOverflow.get(index);
+   }
+ 
+   private static boolean mayContainReplacerTarget(JSType type) {
+@@ -172,51 +274,199 @@ public final class TemplateTypeMap {
+     };
+   }
+ 
++  private static boolean definitelyUnchangedByTotalReplacer(JSType type, boolean isReplacementHop) {
++    if (mayContainReplacerTarget(type)) {
++      if (type instanceof UnionType union) {
++        for (JSType alt : union.getAlternates()) {
++          if (mayContainReplacerTarget(alt) || alt.isCheckedUnknownType()) {
++            return false;
++          }
++        }
++        return true;
++      }
++      return false;
++    }
++    return !isReplacementHop || !type.isCheckedUnknownType();
++  }
++
++  private JSType @Nullable [] ensureResolvedValues() {
++    int state = (this.flags >>> RESOLVED_SHIFT) & 0x3;
++    if (state == RESOLVED_SAME_AS_VALUES) {
++      return null;
++    }
++    if (state == RESOLVED_IN_EXTRA) {
++      return this.extra.resolvedValues;
++    }
++    JSType[] resolved = computeResolvedValues();
++    if (resolved == null) {
++      this.flags =
++          (byte)
++              ((this.flags & ~(0x3 << RESOLVED_SHIFT))
++                  | (RESOLVED_SAME_AS_VALUES << RESOLVED_SHIFT));
++      return null;
++    }
++    Extra e = this.extra;
++    if (e == null) {
++      e = new Extra(null, null, null, 0, null);
++      this.extra = e;
++    }
++    e.resolvedValues = resolved;
++    this.flags =
++        (byte) ((this.flags & ~(0x3 << RESOLVED_SHIFT)) | (RESOLVED_IN_EXTRA << RESOLVED_SHIFT));
++    return resolved;
++  }
++
+   private JSType @Nullable [] computeResolvedValues() {
+-    JSType[] values = this.templateValues;
+-    int nValues = values.length;
++    int nValues = getTemplateValuesSize();
+     if (nValues == 0) {
+       return null;
+     }
+-    TemplateType[] keys = this.templateKeys;
+     // Iteratively resolve any JSType values that refer to the TemplateType keys
+     // of this TemplateTypeMap.
+     JSType[] resolvedValues = null;
+     TemplateTypeReplacer replacer = null;
++    JSTypeRegistry reg = registry();
+     for (int i = 0; i < nValues; i++) {
+-      JSType templateValue = values[i];
++      JSType templateValue = getTemplateValueAt(i);
+       JSType resolved;
+-      if (mayContainReplacerTarget(templateValue)) {
++      if (definitelyUnchangedByTotalReplacer(templateValue, false)) {
++        resolved = templateValue;
++      } else {
+         if (replacer == null) {
+-          replacer = TemplateTypeReplacer.forTotalReplacement(this.registry, this);
++          replacer = TemplateTypeReplacer.forTotalReplacement(reg, this);
+         }
+         int nextSubMap = nextSubMapStart(i + 1);
+-        replacer.setKeyType(keys[i], nextSubMap);
++        replacer.setKeyType(getTemplateKeyAt(i), nextSubMap);
+         resolved = templateValue.visit(replacer);
+-      } else {
+-        resolved = templateValue;
+       }
+       if (resolvedValues != null) {
+         resolvedValues[i] = resolved;
+       } else if (!identical(resolved, templateValue)) {
+         resolvedValues = new JSType[nValues];
+-        System.arraycopy(values, 0, resolvedValues, 0, i);
++        for (int j = 0; j < i; j++) {
++          resolvedValues[j] = getTemplateValueAt(j);
++        }
+         resolvedValues[i] = resolved;
+       }
+     }
+     return resolvedValues;
+   }
+ 
++  private JSType getResolvedTemplateTypeAt(int index) {
++    int state = (this.flags >>> RESOLVED_SHIFT) & 0x3;
++    if (state == RESOLVED_SAME_AS_VALUES) {
++      return getTemplateValueAt(index);
++    }
++    if (state == RESOLVED_IN_EXTRA) {
++      return this.extra.resolvedValues[index];
++    }
++
++    JSType rawVal = getTemplateValueAt(index);
++    if (definitelyUnchangedByTotalReplacer(rawVal, false)) {
++      return rawVal;
++    }
++
++    if (rawVal.getTypeClass() == JSTypeClass.TEMPLATE) {
++      TemplateType keyType = getTemplateKeyAt(index);
++      int boundary = nextSubMapStart(index + 1);
++      TemplateType seen0 = null;
++      TemplateType seen1 = null;
++      TemplateType seen2 = null;
++      TemplateType seen3 = null;
++      JSType cur = rawVal;
++      for (int hop = 0; hop < 4; hop++) {
++        TemplateType tt = (TemplateType) cur;
++        if (!identical(tt, keyType) && !hasTemplateKey(tt, boundary)) {
++          return tt;
++        }
++        if (identical(tt, seen0)
++            || identical(tt, seen1)
++            || identical(tt, seen2)
++            || identical(tt, seen3)) {
++          return tt;
++        }
++        int targetIdx = getTemplateTypeIndex(tt);
++        if (targetIdx == -1) {
++          return registry().getNativeType(JSTypeNative.UNKNOWN_TYPE);
++        }
++        JSType next = getTemplateValueAt(targetIdx);
++        if (identical(next, keyType)
++            || identical(next, tt)
++            || identical(next, seen0)
++            || identical(next, seen1)
++            || identical(next, seen2)
++            || identical(next, seen3)) {
++          return tt;
++        }
++        if (definitelyUnchangedByTotalReplacer(next, true)) {
++          return next;
++        }
++        if (next.getTypeClass() != JSTypeClass.TEMPLATE) {
++          break;
++        }
++        if (hop == 0) {
++          seen0 = tt;
++        } else if (hop == 1) {
++          seen1 = tt;
++        } else if (hop == 2) {
++          seen2 = tt;
++        } else {
++          seen3 = tt;
++        }
++        cur = next;
++      }
++    }
++
++    JSType[] resolved = ensureResolvedValues();
++    return resolved != null ? resolved[index] : rawVal;
++  }
++
+   // Returns the index of the next submap in subMapStarts, starting at index (inclusive);
+-  // will return templateKeys.length if there is no next submap & we are in the last one.
++  // will return size() if there is no next submap & we are in the last one.
+   private int nextSubMapStart(int index) {
+-    int nKeys = this.templateKeys.length;
++    int nKeys = size();
+     while (index < nKeys && !isSubMapStart(index)) {
+       index++;
+     }
+     return index;
+   }
+ 
++  private void copyKeysInto(TemplateType[] dst, int dstOffset) {
++    if (this.base != null) {
++      this.base.copyKeysInto(dst, dstOffset);
++      return;
++    }
++    if (this.key0 == null) {
++      return;
++    }
++    Extra e = this.extra;
++    if (e != null && e.keys != null) {
++      System.arraycopy(e.keys, 0, dst, dstOffset, e.keys.length);
++    } else {
++      dst[dstOffset] = this.key0;
++    }
++  }
++
++  private void copyValuesInto(JSType[] dst, int dstOffset) {
++    int pos = dstOffset;
++    if (this.base != null) {
++      this.base.copyValuesInto(dst, pos);
++      pos += this.base.getTemplateValuesSize();
++    }
++    switch (this.ownValKind) {
++      case 0 -> {}
++      case 1 -> dst[pos] = this.val0;
++      case 2 -> {
++        dst[pos] = this.val0;
++        dst[pos + 1] = this.val1;
++      }
++      default -> {
++        JSType[] own = this.extra.ownValues;
++        System.arraycopy(own, 0, dst, pos, own.length);
++      }
++    }
++  }
++
+   /**
+    * Create a new map in which any unfilled values in this map have been filled with {@code values}.
+    *
+@@ -233,31 +483,62 @@ public final class TemplateTypeMap {
+       return this; // Nothing will change.
+     }
+ 
+-    BitSet overflow = this.extra != null ? this.extra.subMapStartsOverflow : null;
+-    int existingSize = this.templateValues.length;
+-    if (existingSize == 0 && requiredUnknownCount == 0) {
+-      return new TemplateTypeMap(
+-          this.registry,
+-          this.templateKeys,
+-          copyValuesListToArray(values),
+-          this.subMapStartsMask,
+-          overflow);
++    checkState(this.base == null);
++    int existingSize = getTemplateValuesSize();
++    if (unfilled == 1) {
++      JSType v0 =
++          valuesSize == 1
++              ? checkNotNull(values.get(0))
++              : defaultValueType(getTemplateKeyAt(existingSize));
++      return new TemplateTypeMap(this, this.key0, v0, null, (byte) 1, (byte) 0, null);
+     }
+-
+-    int nKeys = this.templateKeys.length;
+-    JSType[] filledValues = new JSType[nKeys];
+-    if (existingSize > 0) {
+-      System.arraycopy(this.templateValues, 0, filledValues, 0, existingSize);
++    if (unfilled == 2) {
++      JSType v0 =
++          valuesSize >= 1
++              ? checkNotNull(values.get(0))
++              : defaultValueType(getTemplateKeyAt(existingSize));
++      JSType v1 =
++          valuesSize >= 2
++              ? checkNotNull(values.get(1))
++              : defaultValueType(getTemplateKeyAt(existingSize + 1));
++      return new TemplateTypeMap(this, this.key0, v0, v1, (byte) 2, (byte) 0, null);
+     }
++
++    JSType[] addedValues = new JSType[unfilled];
+     for (int i = 0; i < valuesSize; i++) {
+-      filledValues[existingSize + i] = checkNotNull(values.get(i));
++      addedValues[i] = checkNotNull(values.get(i));
+     }
+-    for (int i = existingSize + valuesSize; i < nKeys; i++) {
+-      filledValues[i] = defaultValueType(this.templateKeys[i]);
++    for (int i = valuesSize; i < unfilled; i++) {
++      addedValues[i] = defaultValueType(getTemplateKeyAt(existingSize + i));
+     }
++    Extra extra = new Extra(null, null, addedValues, 0, null);
++    return new TemplateTypeMap(this, this.key0, null, null, (byte) 3, (byte) 0, extra);
++  }
+ 
+-    return new TemplateTypeMap(
+-        this.registry, this.templateKeys, filledValues, this.subMapStartsMask, overflow);
++  /**
++   * Returns a map containing only this map's keys as a single submap starting at index 0 (with zero
++   * values), reusing {@code this} directly whenever already in that exact form.
++   */
++  TemplateTypeMap asKeysOnlySingleSubMap() {
++    int n = size();
++    if (n == 0) {
++      return this;
++    }
++    if (this.base == null && this.ownValKind == 0) {
++      if (n == 1 && (this.flags & FLAG_SUBMAP_BIT0) != 0) {
++        return this;
++      }
++      Extra e = this.extra;
++      if (n <= 32 && e != null && e.subMapStartsMask == 1 && e.subMapStartsOverflow == null) {
++        return this;
++      }
++    }
++    if (n == 1) {
++      return createSingleKey(this.key0, 1);
++    }
++    TemplateType[] copiedKeys = new TemplateType[n];
++    copyKeysInto(copiedKeys, 0);
++    return createFromArrays(registry(), copiedKeys, EMPTY_VALUES, 1, null);
+   }
+ 
+   /**
+@@ -266,15 +547,50 @@ public final class TemplateTypeMap {
+    * <p>Before extension, any unfilled values in the initial map will be filled with `?`.
+    */
+   public TemplateTypeMap copyWithExtension(TemplateTypeMap extension) {
+-    if (extension.templateKeys.length == 0 && numUnfilledTemplateKeys() == 0) {
++    if (extension.isEmpty() && numUnfilledTemplateKeys() == 0) {
+       return this;
+     }
+-    if (this.templateKeys.length == 0 && this.registry == extension.registry) {
++    if (this.isEmpty() && this.registry() == extension.registry()) {
+       return extension;
+     }
+-    BitSet extOverflow = extension.extra != null ? extension.extra.subMapStartsOverflow : null;
+-    return copyWithExtensionArrays(
+-        extension.templateKeys, extension.templateValues, extension.subMapStartsMask, extOverflow);
++    int extKeyCount = extension.size();
++    int extValCount = extension.getTemplateValuesSize();
++    TemplateType[] extKeys;
++    if (extKeyCount == 0) {
++      extKeys = EMPTY_KEYS;
++    } else if (extension.base == null && extension.extra != null && extension.extra.keys != null) {
++      extKeys = extension.extra.keys;
++    } else {
++      extKeys = new TemplateType[extKeyCount];
++      extension.copyKeysInto(extKeys, 0);
++    }
++    JSType[] extVals;
++    if (extValCount == 0) {
++      extVals = EMPTY_VALUES;
++    } else if (extension.base == null
++        && extension.ownValKind == 3
++        && extension.extra != null
++        && extension.extra.ownValues != null) {
++      extVals = extension.extra.ownValues;
++    } else {
++      extVals = new JSType[extValCount];
++      extension.copyValuesInto(extVals, 0);
++    }
++    int extMask = extKeyCount <= 32 ? extension.subMapStartsMask32() : 0;
++    BitSet extOverflow = extension.subMapStartsOverflowOrNull();
++    if (extKeyCount > 32 && extOverflow == null) {
++      extOverflow = new BitSet(extKeyCount);
++      for (int i = 0; i < extKeyCount; i++) {
++        if (extension.isSubMapStart(i)) {
++          if (i < 32) {
++            extMask |= (1 << i);
++          } else {
++            extOverflow.set(i);
++          }
++        }
++      }
++    }
++    return copyWithExtensionArrays(extKeys, extVals, extMask, extOverflow);
+   }
+ 
+   TemplateTypeMap copyWithExtensionKeysOnly(TemplateType[] keys) {
+@@ -286,12 +602,15 @@ public final class TemplateTypeMap {
+       }
+       return copyWithExtensionArrays(EMPTY_KEYS, EMPTY_VALUES, 0, null);
+     }
++    if (this.isEmpty() && newKeyCount == 1) {
++      return createSingleKey(checkNotNull(keys[0]), 1);
++    }
+     TemplateType[] safeKeys = new TemplateType[newKeyCount];
+     for (int i = 0; i < newKeyCount; i++) {
+       safeKeys[i] = checkNotNull(keys[i]);
+     }
+-    if (this.templateKeys.length == 0) {
+-      return new TemplateTypeMap(this.registry, safeKeys, 1, null);
++    if (this.isEmpty()) {
++      return createFromArrays(registry(), safeKeys, EMPTY_VALUES, 1, null);
+     }
+     return copyWithExtensionArrays(safeKeys, EMPTY_VALUES, 1, null);
+   }
+@@ -317,13 +636,17 @@ public final class TemplateTypeMap {
+       }
+       return copyWithExtensionArrays(EMPTY_KEYS, EMPTY_VALUES, 0, null);
+     }
+-    TemplateType[] keyArr = copyKeysListToArray(keys);
+-    JSType[] valArr = copyValuesListToArray(values);
+-    if (this.templateKeys.length == 0) {
++    if (this.isEmpty() && newKeyCount == 1) {
++      TemplateType k0 = checkNotNull(keys.get(0));
+       if (newValCount == 0) {
+-        return new TemplateTypeMap(this.registry, keyArr, 1, null);
++        return createSingleKey(k0, 1);
+       }
+-      return new TemplateTypeMap(this.registry, keyArr, valArr, 1, null);
++      return createSingleKeyAndValue(k0, checkNotNull(values.get(0)), 1);
++    }
++    TemplateType[] keyArr = copyKeysListToArray(keys);
++    JSType[] valArr = copyValuesListToArray(values);
++    if (this.isEmpty()) {
++      return createFromArrays(registry(), keyArr, valArr, 1, null);
+     }
+     return copyWithExtensionArrays(keyArr, valArr, 1, null);
+   }
+@@ -342,31 +665,36 @@ public final class TemplateTypeMap {
+       return this; // Nothing will change.
+     }
+ 
+-    int oldKeyCount = this.templateKeys.length;
+-    int oldValCount = this.templateValues.length;
++    int oldKeyCount = size();
++    int oldValCount = getTemplateValuesSize();
+     int totalKeys = oldKeyCount + newKeyCount;
+     TemplateType[] extendedKeys;
+-    if (newKeyCount == 0) {
+-      extendedKeys = this.templateKeys;
++    if (newKeyCount == 0
++        && this.base == null
++        && this.extra != null
++        && this.extra.keys != null) {
++      extendedKeys = this.extra.keys;
+     } else if (oldKeyCount == 0) {
+       extendedKeys = keys;
+     } else {
+       extendedKeys = new TemplateType[totalKeys];
+-      System.arraycopy(this.templateKeys, 0, extendedKeys, 0, oldKeyCount);
+-      System.arraycopy(keys, 0, extendedKeys, oldKeyCount, newKeyCount);
++      copyKeysInto(extendedKeys, 0);
++      if (newKeyCount > 0) {
++        System.arraycopy(keys, 0, extendedKeys, oldKeyCount, newKeyCount);
++      }
+     }
+ 
+     int extendedMask;
+     BitSet extendedOverflow;
+     if (totalKeys <= 32) {
+       extendedOverflow = null;
++      int oldMask = subMapStartsMask32();
+       if (newKeyCount == 0) {
+-        extendedMask =
+-            this.subMapStartsMask & (oldKeyCount == 32 ? -1 : ((1 << oldKeyCount) - 1));
++        extendedMask = oldMask & (oldKeyCount == 32 ? -1 : ((1 << oldKeyCount) - 1));
+       } else if (oldKeyCount == 0) {
+         extendedMask = newStartsMask & (newKeyCount == 32 ? -1 : ((1 << newKeyCount) - 1));
+       } else {
+-        int oldClean = this.subMapStartsMask & ((1 << oldKeyCount) - 1);
++        int oldClean = oldMask & ((1 << oldKeyCount) - 1);
+         int newClean = newStartsMask & ((1 << newKeyCount) - 1);
+         extendedMask = oldClean | (newClean << oldKeyCount);
+       }
+@@ -399,23 +727,23 @@ public final class TemplateTypeMap {
+     }
+ 
+     int totalValues = oldKeyCount + newValCount;
++    JSTypeRegistry reg = registry();
+     if (totalValues == 0) {
+-      return new TemplateTypeMap(this.registry, extendedKeys, extendedMask, extendedOverflow);
++      return createFromArrays(reg, extendedKeys, EMPTY_VALUES, extendedMask, extendedOverflow);
+     }
+ 
+     JSType[] extendedValues = new JSType[totalValues];
+     if (oldValCount > 0) {
+-      System.arraycopy(this.templateValues, 0, extendedValues, 0, oldValCount);
++      copyValuesInto(extendedValues, 0);
+     }
+     for (int i = oldValCount; i < oldKeyCount; i++) {
+-      extendedValues[i] = defaultValueType(this.templateKeys[i]);
++      extendedValues[i] = defaultValueType(getTemplateKeyAt(i));
+     }
+     if (newValCount > 0) {
+       System.arraycopy(values, 0, extendedValues, oldKeyCount, newValCount);
+     }
+ 
+-    return new TemplateTypeMap(
+-        this.registry, extendedKeys, extendedValues, extendedMask, extendedOverflow);
++    return createFromArrays(reg, extendedKeys, extendedValues, extendedMask, extendedOverflow);
+   }
+ 
+   /**
+@@ -427,11 +755,11 @@ public final class TemplateTypeMap {
+     if (removals.isEmpty()) {
+       return this;
+     }
+-    int valCount = templateValues.length;
+-    int keyCount = templateKeys.length;
++    int valCount = getTemplateValuesSize();
++    int keyCount = size();
+     int removedCount = 0;
+     for (int i = valCount; i < keyCount; i++) {
+-      if (removals.contains(templateKeys[i])) {
++      if (removals.contains(getTemplateKeyAt(i))) {
+         removedCount++;
+       }
+     }
+@@ -439,17 +767,18 @@ public final class TemplateTypeMap {
+       return this; // Nothing will change.
+     }
+     int targetSize = keyCount - removedCount;
++    JSTypeRegistry reg = registry();
+     if (targetSize == 0) {
+-      TemplateTypeMap empty = this.registry.getEmptyTemplateTypeMap();
+-      return empty != null ? empty : new TemplateTypeMap(this.registry);
++      TemplateTypeMap empty = reg.getEmptyTemplateTypeMap();
++      return empty != null ? empty : new TemplateTypeMap(reg);
+     }
+ 
+     TemplateType[] newKeys = new TemplateType[targetSize];
+     int newMask = 0;
+     BitSet newOverflow = targetSize > 32 ? new BitSet(targetSize) : null;
+     if (valCount > 0) {
+-      System.arraycopy(templateKeys, 0, newKeys, 0, valCount);
+       for (int i = 0; i < valCount; i++) {
++        newKeys[i] = getTemplateKeyAt(i);
+         if (isSubMapStart(i)) {
+           if (i < 32) {
+             newMask |= (1 << i);
+@@ -462,7 +791,7 @@ public final class TemplateTypeMap {
+     int newKeysSize = 0;
+     boolean inNewSubmap = false;
+     for (int i = valCount; i < keyCount; i++) {
+-      TemplateType key = templateKeys[i];
++      TemplateType key = getTemplateKeyAt(i);
+       inNewSubmap = inNewSubmap || isSubMapStart(i);
+       if (!removals.contains(key)) {
+         int dst = valCount + newKeysSize++;
+@@ -479,85 +808,127 @@ public final class TemplateTypeMap {
+     }
+ 
+     if (valCount == 0) {
+-      return new TemplateTypeMap(this.registry, newKeys, newMask, newOverflow);
++      return createFromArrays(reg, newKeys, EMPTY_VALUES, newMask, newOverflow);
+     }
+-    return new TemplateTypeMap(this.registry, newKeys, this.templateValues, newMask, newOverflow);
++    JSType[] copiedVals;
++    if (this.base == null && this.ownValKind == 3 && this.extra != null && this.extra.ownValues != null) {
++      copiedVals = this.extra.ownValues;
++    } else {
++      copiedVals = new JSType[valCount];
++      copyValuesInto(copiedVals, 0);
++    }
++    return createFromArrays(reg, newKeys, copiedVals, newMask, newOverflow);
+   }
+ 
+   public int size() {
+-    return this.templateKeys.length;
++    if (this.base != null) {
++      return this.base.size();
++    }
++    if (this.key0 == null) {
++      return 0;
++    }
++    Extra e = this.extra;
++    return (e != null && e.keys != null) ? e.keys.length : 1;
+   }
+ 
+   /**
+    * Returns true if the map is empty; false otherwise.
+    */
+   public boolean isEmpty() {
+-    return templateKeys.length == 0;
+-  }
+-
+-  public TemplateType[] getTemplateKeysArray() {
+-    return templateKeys;
++    return this.key0 == null;
+   }
+ 
+   public TemplateType getTemplateKeyAt(int index) {
+-    return templateKeys[index];
++    if (this.base != null) {
++      return this.base.getTemplateKeyAt(index);
++    }
++    Extra e = this.extra;
++    if (e != null && e.keys != null) {
++      return e.keys[index];
++    }
++    if (index == 0 && this.key0 != null) {
++      return this.key0;
++    }
++    throw new IndexOutOfBoundsException(index);
+   }
+ 
+-  public JSType[] getTemplateValuesArray() {
+-    return templateValues;
++  private int ownValuesSize() {
++    int kind = this.ownValKind;
++    return kind < 3 ? kind : this.extra.ownValues.length;
+   }
+ 
+   public int getTemplateValuesSize() {
+-    return templateValues.length;
++    int own = ownValuesSize();
++    return this.base != null ? this.base.getTemplateValuesSize() + own : own;
+   }
+ 
+   public JSType getTemplateValueAt(int index) {
+-    return templateValues[index];
++    int localIdx = index;
++    if (this.base != null) {
++      int prefix = this.base.getTemplateValuesSize();
++      if (index < prefix) {
++        return this.base.getTemplateValueAt(index);
++      }
++      localIdx = index - prefix;
++    }
++    int kind = this.ownValKind;
++    if (kind < 3) {
++      if (localIdx == 0 && kind >= 1) {
++        return this.val0;
++      }
++      if (localIdx == 1 && kind == 2) {
++        return this.val1;
++      }
++      throw new IndexOutOfBoundsException(index);
++    }
++    return this.extra.ownValues[localIdx];
+   }
+ 
+   ImmutableList<TemplateType> getTemplateKeysSlice(int fromIndex, int toIndex) {
+-    checkArgument(fromIndex >= 0 && toIndex <= templateKeys.length && fromIndex <= toIndex);
++    int nKeys = size();
++    checkArgument(fromIndex >= 0 && toIndex <= nKeys && fromIndex <= toIndex);
+     int len = toIndex - fromIndex;
+     if (len == 0) {
+       return EMPTY_KEY_LIST;
+     }
+     if (len == 1) {
+-      return ImmutableList.of(templateKeys[fromIndex]);
++      return ImmutableList.of(getTemplateKeyAt(fromIndex));
+     }
+     if (len == 2) {
+-      return ImmutableList.of(templateKeys[fromIndex], templateKeys[fromIndex + 1]);
++      return ImmutableList.of(getTemplateKeyAt(fromIndex), getTemplateKeyAt(fromIndex + 1));
+     }
+     if (len == 3) {
+       return ImmutableList.of(
+-          templateKeys[fromIndex], templateKeys[fromIndex + 1], templateKeys[fromIndex + 2]);
++          getTemplateKeyAt(fromIndex),
++          getTemplateKeyAt(fromIndex + 1),
++          getTemplateKeyAt(fromIndex + 2));
+     }
+     ImmutableList.Builder<TemplateType> b = ImmutableList.builderWithExpectedSize(len);
+     for (int i = fromIndex; i < toIndex; i++) {
+-      b.add(templateKeys[i]);
++      b.add(getTemplateKeyAt(i));
+     }
+     return b.build();
+   }
+ 
+   /** Returns a list of all template keys. */
+   public ImmutableList<TemplateType> getTemplateKeys() {
+-    return getTemplateKeysSlice(0, templateKeys.length);
++    return getTemplateKeysSlice(0, size());
+   }
+ 
+   public ImmutableList<JSType> getTemplateValues() {
+-    JSType[] vals = this.templateValues;
+-    int len = vals.length;
++    int len = getTemplateValuesSize();
+     if (len == 0) {
+       return EMPTY_VALUE_LIST;
+     }
+     if (len == 1) {
+-      return ImmutableList.of(vals[0]);
++      return ImmutableList.of(getTemplateValueAt(0));
+     }
+     if (len == 2) {
+-      return ImmutableList.of(vals[0], vals[1]);
++      return ImmutableList.of(getTemplateValueAt(0), getTemplateValueAt(1));
+     }
+     ImmutableList.Builder<JSType> b = ImmutableList.builderWithExpectedSize(len);
+     for (int i = 0; i < len; i++) {
+-      b.add(vals[i]);
++      b.add(getTemplateValueAt(i));
+     }
+     return b.build();
+   }
+@@ -580,33 +951,52 @@ public final class TemplateTypeMap {
+    * <p>For use in {@link TemplateTypeReplacer}.
+    */
+   boolean hasTemplateKey(TemplateType templateKey, int nextSubMap) {
+-    TemplateType[] keys = this.templateKeys;
+-    int keyCount = keys.length;
++    if (this.base != null) {
++      return this.base.hasTemplateKey(templateKey, nextSubMap);
++    }
++    if (this.key0 == null) {
++      return false;
++    }
+     int start = max(0, nextSubMap);
+-    for (int i = start; i < keyCount; i++) {
+-      if (identical(templateKey, keys[i])) {
+-        return true;
++    Extra e = this.extra;
++    if (e != null && e.keys != null) {
++      TemplateType[] keys = e.keys;
++      int keyCount = keys.length;
++      for (int i = start; i < keyCount; i++) {
++        if (identical(templateKey, keys[i])) {
++          return true;
++        }
+       }
++      return false;
+     }
+-    return false;
++    return start == 0 && identical(templateKey, this.key0);
+   }
+ 
+   // TODO(b/139230800): This method should be deleted. It checks what should be an impossible case.
+   int getTemplateKeyCountThisShouldAlwaysBeOneOrZeroButIsnt(TemplateType templateKey) {
+-    int matches = 0;
+-    TemplateType[] keys = this.templateKeys;
+-    int keyCount = keys.length;
+-
+-    for (int i = 0; i < keyCount; i++) {
+-      if (identical(templateKey, keys[i])) {
+-        matches++;
++    if (this.base != null) {
++      return this.base.getTemplateKeyCountThisShouldAlwaysBeOneOrZeroButIsnt(templateKey);
++    }
++    if (this.key0 == null) {
++      return 0;
++    }
++    Extra e = this.extra;
++    if (e != null && e.keys != null) {
++      int matches = 0;
++      TemplateType[] keys = e.keys;
++      int keyCount = keys.length;
++      for (int i = 0; i < keyCount; i++) {
++        if (identical(templateKey, keys[i])) {
++          matches++;
++        }
+       }
++      return matches;
+     }
+-    return matches;
++    return identical(templateKey, this.key0) ? 1 : 0;
+   }
+ 
+   private int numUnfilledTemplateKeys() {
+-    return templateKeys.length - templateValues.length;
++    return size() - getTemplateValuesSize();
+   }
+ 
+   /**
+@@ -620,8 +1010,8 @@ public final class TemplateTypeMap {
+   JSType getUnresolvedOriginalTemplateType(TemplateType key) {
+     int index = getTemplateTypeIndex(key);
+     return (index == -1)
+-        ? registry.getNativeType(JSTypeNative.UNKNOWN_TYPE)
+-        : templateValues[index];
++        ? registry().getNativeType(JSTypeNative.UNKNOWN_TYPE)
++        : getTemplateValueAt(index);
+   }
+ 
+   /**
+@@ -632,14 +1022,24 @@ public final class TemplateTypeMap {
+    * based equality.
+    */
+   public @Nullable TemplateType getLastTemplateTypeKeyByName(String keyName) {
+-    TemplateType[] keys = this.templateKeys;
+-    for (int i = keys.length - 1; i >= 0; i--) {
+-      TemplateType key = keys[i];
+-      if (key.getReferenceName().equals(keyName)) {
+-        return key;
++    if (this.base != null) {
++      return this.base.getLastTemplateTypeKeyByName(keyName);
++    }
++    if (this.key0 == null) {
++      return null;
++    }
++    Extra e = this.extra;
++    if (e != null && e.keys != null) {
++      TemplateType[] keys = e.keys;
++      for (int i = keys.length - 1; i >= 0; i--) {
++        TemplateType key = keys[i];
++        if (key.getReferenceName().equals(keyName)) {
++          return key;
++        }
+       }
++      return null;
+     }
+-    return null;
++    return this.key0.getReferenceName().equals(keyName) ? this.key0 : null;
+   }
+ 
+   /**
+@@ -647,14 +1047,25 @@ public final class TemplateTypeMap {
+    * template key. If no JSType value is associated, returns -1.
+    */
+   private int getTemplateTypeIndex(TemplateType key) {
+-    TemplateType[] keys = this.templateKeys;
+-    int maxIndex = min(keys.length, templateValues.length);
+-    for (int i = maxIndex - 1; i >= 0; i--) {
+-      if (identical(keys[i], key)) {
+-        return i;
++    if (this.key0 == null) {
++      return -1;
++    }
++    int maxIndex = min(size(), getTemplateValuesSize());
++    if (maxIndex <= 0) {
++      return -1;
++    }
++    TemplateTypeMap keySource = this.base != null ? this.base : this;
++    Extra ke = keySource.extra;
++    if (ke != null && ke.keys != null) {
++      TemplateType[] keys = ke.keys;
++      for (int i = maxIndex - 1; i >= 0; i--) {
++        if (identical(keys[i], key)) {
++          return i;
++        }
+       }
++      return -1;
+     }
+-    return -1;
++    return identical(keySource.key0, key) ? 0 : -1;
+   }
+ 
+   /**
+@@ -666,29 +1077,19 @@ public final class TemplateTypeMap {
+     if (index == -1) {
+       return defaultValueType(key);
+     }
+-    JSType[] resolved = this.extra != null ? this.extra.resolvedValues : null;
+-    return resolved != null ? resolved[index] : templateValues[index];
++    return getResolvedTemplateTypeAt(index);
+   }
+ 
+   boolean hasAnyTemplateTypesInternal() {
+-    int nValues = this.templateValues.length;
+-    JSType[] resolved = this.extra != null ? this.extra.resolvedValues : null;
+-    if (resolved != null) {
+-      for (int i = 0; i < nValues; i++) {
+-        if (resolved[i].hasAnyTemplateTypes()) {
+-          return true;
+-        }
+-      }
+-    } else {
+-      for (int i = 0; i < nValues; i++) {
+-        if (this.templateValues[i].hasAnyTemplateTypes()) {
+-          return true;
+-        }
++    int nValues = getTemplateValuesSize();
++    for (int i = 0; i < nValues; i++) {
++      if (getResolvedTemplateTypeAt(i).hasAnyTemplateTypes()) {
++        return true;
+       }
+     }
+-    int nKeys = this.templateKeys.length;
++    int nKeys = size();
+     for (int i = nValues; i < nKeys; i++) {
+-      if (this.templateKeys[i].getBound().hasAnyTemplateTypes()) {
++      if (getTemplateKeyAt(i).getBound().hasAnyTemplateTypes()) {
+         return true;
+       }
+     }
+@@ -699,20 +1100,20 @@ public final class TemplateTypeMap {
+   public String toString() {
+     String s = "";
+ 
+-    int len = templateKeys.length;
+-    int nValues = templateValues.length;
+-    JSType[] resolved = this.extra != null ? this.extra.resolvedValues : null;
++    int len = size();
++    int nValues = getTemplateValuesSize();
+     s += "{ ";
+     for (int i = 0; i < len; i++) {
++      TemplateType k = getTemplateKeyAt(i);
+       s += "(";
+-      s += templateKeys[i];
++      s += k;
+       s += ",";
+-      s += (i < nValues) ? templateValues[i] : "";
++      s += (i < nValues) ? getTemplateValueAt(i) : "";
+       s += ",";
+       if (i < nValues) {
+-        s += (resolved != null) ? resolved[i] : templateValues[i];
++        s += getResolvedTemplateTypeAt(i);
+       } else {
+-        s += templateKeys[i].getBound();
++        s += k.getBound();
+       }
+       s += ") ";
+     }
+@@ -727,14 +1128,15 @@ public final class TemplateTypeMap {
+    */
+   JSType defaultValueType(TemplateType type) {
+     return type.getBound().isUnknownType()
+-        ? this.registry.getNativeType(JSTypeNative.UNKNOWN_TYPE)
++        ? registry().getNativeType(JSTypeNative.UNKNOWN_TYPE)
+         : type;
+   }
+ 
+   @VisibleForTesting
+   public ImmutableList<Integer> getIndicesOfSubmapsForTesting() {
+     ImmutableList.Builder<Integer> indices = ImmutableList.builder();
+-    for (int i = 0; i < templateKeys.length; i++) {
++    int n = size();
++    for (int i = 0; i < n; i++) {
+       if (isSubMapStart(i)) {
+         indices.add(i);
+       }

@@ -1,0 +1,25 @@
+diff --git aa/com/google/javascript/jscomp/AbstractCommandLineRunner.java bb/com/google/javascript/jscomp/AbstractCommandLineRunner.java
+index a02b3184..1061a791 100644
+--- aa/com/google/javascript/jscomp/AbstractCommandLineRunner.java
++++ bb/com/google/javascript/jscomp/AbstractCommandLineRunner.java
+@@ -480,7 +480,8 @@ public abstract class AbstractCommandLineRunner<A extends Compiler, B extends Co
+    */
+   public static List<SourceFile> getBuiltinExterns(CompilerOptions.Environment env)
+       throws IOException {
+-    try (InputStream input = getExternsInput()) {
++    InputStream input = getExternsInput();
++    try {
+       ZipInputStream zip = new ZipInputStream(input);
+       String envPrefix = Ascii.toLowerCase(env.toString()) + "/";
+       Map<String, SourceFile> mapFromExternsZip = new LinkedHashMap<>();
+@@ -509,6 +510,10 @@ public abstract class AbstractCommandLineRunner<A extends Compiler, B extends Co
+                 .build());
+       }
+       return DefaultExterns.prepareExterns(env, mapFromExternsZip);
++    } finally {
++      if (input != null) {
++        input.close();
++      }
+     }
+   }
+ 

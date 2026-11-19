@@ -1,0 +1,30 @@
+{
+  "id": "tier3_x12_dynamic_imports_chunks",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "Dynamic import with chunk split",
+  "description": "Compiles dynamic import statements into chunk outputs",
+  "args": [
+    "--chunk",
+    "main:1",
+    "--js",
+    "main.js",
+    "--chunk",
+    "lazy:1:main",
+    "--js",
+    "lazy.js",
+    "--chunk_output_word_spec",
+    "%s.out.js"
+  ],
+  "stdin": "",
+  "files": {
+    "main.js": "function load() { return import('./lazy.js'); } window['load'] = load;",
+    "lazy.js": "export const loadedData = 'data';"
+  },
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

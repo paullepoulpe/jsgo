@@ -1,0 +1,1 @@
+/** @record */ function Named() { /** @type {string} */ this.name; } /** @type {Named} */ var obj = { name: 123 };

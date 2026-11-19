@@ -1,0 +1,27 @@
+{
+  "id": "tier2_b05_multiple_empty",
+  "tier": 2,
+  "feature": "boundary_empty",
+  "name": "Multiple concatenated empty inputs",
+  "description": "Compiles multiple 0-byte input files together",
+  "args": [
+    "--js",
+    "e1.js",
+    "--js",
+    "e2.js",
+    "--js",
+    "e3.js"
+  ],
+  "stdin": "",
+  "files": {
+    "e1.js": "",
+    "e2.js": "",
+    "e3.js": ""
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

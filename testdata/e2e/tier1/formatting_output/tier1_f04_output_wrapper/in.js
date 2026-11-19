@@ -1,0 +1,1 @@
+var isolated = 99; window['val'] = isolated;

@@ -1,0 +1,25 @@
+{
+  "id": "tier1_l01_esnext_to_es5",
+  "tier": 1,
+  "feature": "language_in_out",
+  "name": "ES_NEXT downlevel to ES5",
+  "description": "Verifies transpilation of arrow functions, classes, and template literals to ECMASCRIPT5",
+  "args": [
+    "--language_in",
+    "ECMASCRIPT_NEXT",
+    "--language_out",
+    "ECMASCRIPT5",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "const name = 'world'; const msg = `hello ${name}`; const fn = () => msg; class Foo { bar() { return fn(); } }"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var $jscomp=$jscomp||{};$jscomp.scope={};$jscomp.createTemplateTagFirstArg=function(a){return $jscomp.createTemplateTagFirstArgWithRaw(a,a)};$jscomp.createTemplateTagFirstArgWithRaw=function(a,b){a.raw=b;Object.freeze&&(Object.freeze(a),Object.freeze(b));return a};var name=\"world\",msg=\"hello \"+name,fn=function(){return msg},Foo=function(){};Foo.prototype.bar=function(){return fn()};\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

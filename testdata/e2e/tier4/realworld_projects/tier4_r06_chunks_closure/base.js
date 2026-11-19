@@ -1,0 +1,1 @@
+var AppKernel = { version: '2.0' };

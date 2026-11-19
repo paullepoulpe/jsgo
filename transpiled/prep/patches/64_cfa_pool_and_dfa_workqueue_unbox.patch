@@ -1,0 +1,582 @@
+diff --git a/com/google/javascript/jscomp/ControlFlowAnalysis.java b/com/google/javascript/jscomp/ControlFlowAnalysis.java
+--- a/com/google/javascript/jscomp/ControlFlowAnalysis.java
++++ b/com/google/javascript/jscomp/ControlFlowAnalysis.java
+@@ -59,10 +59,17 @@
+    *
+    * <p>At the moment, we are not performing any inter-procedural analysis.
+    */
+-  private final AbstractCompiler compiler;
++  private static final int MAX_CFA_POOL_SIZE = 16;
++  private static final int MAX_POOLED_AST_POS_CAPACITY = 4096;
++  private static final int MAX_POOLED_WORK_HEAP_CAPACITY = 2048;
++  private static final ControlFlowAnalysis @Nullable [] CFA_POOL =
++      new ControlFlowAnalysis[MAX_CFA_POOL_SIZE];
++  private static int cfaPoolSize;
+ 
+-  private ControlFlowGraph<Node> cfg;
++  private @Nullable AbstractCompiler compiler;
+ 
++  private @Nullable ControlFlowGraph<Node> cfg;
++
+   private Node @Nullable [] astPosKeys;
+   private int @Nullable [] astPosValues;
+   private int astPosSize;
+@@ -72,8 +79,9 @@
+   private int astPositionCounter;
+   private int priorityCounter;
+ 
+-  private final boolean shouldTraverseFunctions;
+-  private final boolean edgeAnnotations;
++  private boolean shouldTraverseFunctions;
++  private boolean edgeAnnotations;
++  private boolean workHeapDirty;
+ 
+   // We need to store where we started, in case we aren't doing a flow analysis
+   // for the whole scope. This happens, for example, when running type inference
+@@ -177,13 +185,69 @@
+     public ControlFlowGraph<Node> computeCfg() {
+       Preconditions.checkNotNull(compiler, "Need to call setCompiler()");
+       Preconditions.checkNotNull(cfgRoot, "Need to call setCfgRoot()");
+-      ControlFlowAnalysis cfa =
+-          new ControlFlowAnalysis(compiler, shouldTraverseFunctions, edgeAnnotations);
+-      cfa.computeCfg(this.cfgRoot);
+-      return cfa.cfg;
++      ControlFlowAnalysis cfa = acquireCfa(compiler, shouldTraverseFunctions, edgeAnnotations);
++      try {
++        cfa.computeCfg(this.cfgRoot);
++        return cfa.cfg;
++      } finally {
++        releaseCfa(cfa);
++      }
+     }
+   }
+ 
++  private static synchronized ControlFlowAnalysis acquireCfa(
++      AbstractCompiler compiler, boolean shouldTraverseFunctions, boolean edgeAnnotations) {
++    if (cfaPoolSize > 0) {
++      int idx = --cfaPoolSize;
++      ControlFlowAnalysis cfa = CFA_POOL[idx];
++      CFA_POOL[idx] = null;
++      cfa.compiler = compiler;
++      cfa.shouldTraverseFunctions = shouldTraverseFunctions;
++      cfa.edgeAnnotations = edgeAnnotations;
++      return cfa;
++    }
++    return new ControlFlowAnalysis(compiler, shouldTraverseFunctions, edgeAnnotations);
++  }
++
++  private static synchronized void releaseCfa(ControlFlowAnalysis cfa) {
++    cfa.compiler = null;
++    cfa.cfg = null;
++    cfa.root = null;
++    cfa.finallyMap = null;
++    if (!cfa.exceptionHandler.isEmpty()) {
++      cfa.exceptionHandler.clear();
++    }
++    Node[] keys = cfa.astPosKeys;
++    if (keys != null) {
++      if (keys.length > MAX_POOLED_AST_POS_CAPACITY) {
++        cfa.astPosKeys = null;
++        cfa.astPosValues = null;
++      } else if (cfa.astPosSize > 0) {
++        for (int i = 0, len = keys.length; i < len; i++) {
++          keys[i] = null;
++        }
++      }
++    }
++    cfa.astPosSize = 0;
++    cfa.nullAstPos = -1;
++    cfa.astPositionCounter = 0;
++    cfa.priorityCounter = 0;
++    DiGraphNode<Node, Branch>[] heap = cfa.workHeap;
++    if (heap != null) {
++      if (heap.length > MAX_POOLED_WORK_HEAP_CAPACITY) {
++        cfa.workHeap = null;
++      } else if (cfa.workHeapDirty) {
++        for (int i = 0, len = heap.length; i < len; i++) {
++          heap[i] = null;
++        }
++      }
++    }
++    cfa.workHeapDirty = false;
++    if (cfaPoolSize < MAX_CFA_POOL_SIZE) {
++      CFA_POOL[cfaPoolSize++] = cfa;
++    }
++  }
++
+   public static Builder builder() {
+     return new Builder();
+   }
+@@ -204,9 +268,9 @@
+     }
+     Node[] keys = this.astPosKeys;
+     if (keys == null) {
+-      keys = new Node[32];
++      keys = new Node[64];
+       this.astPosKeys = keys;
+-      this.astPosValues = new int[32];
++      this.astPosValues = new int[64];
+     } else if (this.astPosSize * 4 >= keys.length * 3) {
+       rehashAstPositions(keys.length * 2);
+       keys = this.astPosKeys;
+@@ -288,8 +352,6 @@
+     Preconditions.checkArgument(
+         NodeUtil.isValidCfgRoot(root), "Unexpected control flow graph root %s", root);
+     this.root = root;
+-    astPosKeys = null;
+-    astPosValues = null;
+     astPosSize = 0;
+     nullAstPos = -1;
+     astPositionCounter = 0;
+@@ -318,12 +380,6 @@
+       }
+     }
+ 
+-    // Free our large table now that it is no longer needed
+-    astPosKeys = null;
+-    astPosValues = null;
+-    astPosSize = 0;
+-    workHeap = null;
+-
+     // At this point, all reachable nodes have been given a priority, but
+     // unreachable nodes have not been given a priority. Put them last.
+     // Presumably, it doesn't really matter what priority they get, since
+@@ -343,9 +399,10 @@
+   private void prioritizeFromEntryNode(DiGraphNode<Node, Branch> entry) {
+     DiGraphNode<Node, Branch>[] heap = this.workHeap;
+     if (heap == null) {
+-      heap = (DiGraphNode<Node, Branch>[]) new DiGraphNode<?, ?>[16];
++      heap = (DiGraphNode<Node, Branch>[]) new DiGraphNode<?, ?>[32];
+       this.workHeap = heap;
+     }
++    this.workHeapDirty = true;
+     heap[0] = entry;
+     int heapSize = 1;
+ 
+@@ -412,6 +469,7 @@
+         }
+       }
+     }
++    this.workHeapDirty = false;
+   }
+ 
+   @Override
+@@ -1195,10 +1253,18 @@
+   private static final class AstControlFlowGraph extends ControlFlowGraph<Node> {
+ 
+     private static final Comparator<DiGraphNode<Node, Branch>> FORWARD_COMPARATOR =
+-        (a, b) -> Integer.compare(a.getPriority(), b.getPriority());
++        (a, b) -> {
++          int pa = a.getPriority();
++          int pb = b.getPriority();
++          return pa < pb ? -1 : (pa == pb ? 0 : 1);
++        };
+ 
+     private static final Comparator<DiGraphNode<Node, Branch>> BACKWARD_COMPARATOR =
+-        (a, b) -> Integer.compare(b.getPriority(), a.getPriority());
++        (a, b) -> {
++          int pa = a.getPriority();
++          int pb = b.getPriority();
++          return pb < pa ? -1 : (pb == pa ? 0 : 1);
++        };
+ 
+     /**
+      * Constructs this graph.
+@@ -1210,6 +1276,11 @@
+       super(entry, /* nodeAnnotations = */ true, edgeAnnotations);
+     }
+ 
++    @Override
++    public boolean hasPriorityComparator() {
++      return true;
++    }
++
+     /**
+      * Returns a node comparator based on the pre-order traversal of the AST.
+      *
+diff --git a/com/google/javascript/jscomp/ControlFlowGraph.java b/com/google/javascript/jscomp/ControlFlowGraph.java
+--- a/com/google/javascript/jscomp/ControlFlowGraph.java
++++ b/com/google/javascript/jscomp/ControlFlowGraph.java
+@@ -89,6 +89,10 @@
+     return null;
+   }
+ 
++  public boolean hasPriorityComparator() {
++    return false;
++  }
++
+   /**
+    * The edge object for the control flow graph.
+    */
+diff --git a/com/google/javascript/jscomp/DataFlowAnalysis.java b/com/google/javascript/jscomp/DataFlowAnalysis.java
+--- a/com/google/javascript/jscomp/DataFlowAnalysis.java
++++ b/com/google/javascript/jscomp/DataFlowAnalysis.java
+@@ -27,12 +27,9 @@
+ import com.google.javascript.jscomp.graph.DiGraph.DiGraphNode;
+ import com.google.javascript.jscomp.graph.LatticeElement;
+ import com.google.javascript.rhino.Node;
+-import java.util.ArrayDeque;
++import java.util.Arrays;
+ import java.util.Comparator;
+-import java.util.LinkedHashSet;
+ import java.util.Map;
+-import java.util.PriorityQueue;
+-import java.util.Queue;
+ import java.util.Set;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -87,7 +84,13 @@
+ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+ 
+   private final ControlFlowGraph<N> cfg;
+-  private final UniqueQueue<DiGraphNode<N, Branch>> workQueue;
++  private final boolean forward;
++  private final boolean branched;
++  private final boolean ordered;
++  private final @Nullable Comparator<DiGraphNode<N, Branch>> customComparator;
++  private DiGraphNode<N, Branch> @Nullable [] workElements;
++  private int workHead;
++  private int workSize;
+ 
+   /**
+    * The maximum number of steps per individual CFG node before we assume the analysis is divergent.
+@@ -117,10 +120,21 @@
+    */
+   DataFlowAnalysis(ControlFlowGraph<N> cfg) {
+     this.cfg = cfg;
+-    this.workQueue = new UniqueQueue<>(cfg.getOptionalNodeComparator(isForward()));
++    boolean forward = isForward();
++    boolean branched = isBranched();
++    this.forward = forward;
++    this.branched = branched;
++    if (cfg.hasPriorityComparator()) {
++      this.ordered = true;
++      this.customComparator = null;
++    } else {
++      Comparator<DiGraphNode<N, Branch>> cmp = cfg.getOptionalNodeComparator(forward);
++      this.ordered = cmp != null;
++      this.customComparator = cmp;
++    }
+ 
+-    if (this.isBranched()) {
+-      checkState(this.isForward());
++    if (branched) {
++      checkState(forward);
+     }
+   }
+ 
+@@ -211,10 +225,13 @@
+    */
+   final void analyze() {
+     initialize();
+-    while (!this.workQueue.isEmpty()) {
+-      DiGraphNode<N, Branch> curNode = this.workQueue.removeFirst();
++    boolean forward = this.forward;
++    DiGraphNode<N, Branch> implicitReturn = cfg.getImplicitReturn();
++    while (this.workSize > 0) {
++      DiGraphNode<N, Branch> curNode = dequeueWorkNode();
+       LinearFlowState<L> curState = curNode.getAnnotation();
+       if (curState.stepCount++ > MAX_STEPS_PER_NODE) {
++        clearWorkQueue();
+         throw new IllegalStateException("Dataflow analysis appears to diverge around: " + curNode);
+       }
+ 
+@@ -222,26 +239,25 @@
+       if (flow(curNode)) {
+         // If there is a change in the current node, we want to grab the list
+         // of nodes that this node affects.
+-        DiGraphNode<N, Branch> implicitReturn = cfg.getImplicitReturn();
+-        if (isForward()) {
++        if (forward) {
+           for (int i = 0, count = curNode.getOutEdgeCount(); i < count; i++) {
+             DiGraphNode<N, Branch> nextNode = curNode.getOutEdgeAt(i).getDestination();
+             if (nextNode != implicitReturn) {
+-              this.workQueue.add(nextNode);
++              enqueueWorkNode(nextNode);
+             }
+           }
+         } else {
+           for (int i = 0, count = curNode.getInEdgeCount(); i < count; i++) {
+             DiGraphNode<N, Branch> nextNode = curNode.getInEdgeAt(i).getSource();
+             if (nextNode != implicitReturn) {
+-              this.workQueue.add(nextNode);
++              enqueueWorkNode(nextNode);
+             }
+           }
+         }
+       }
+     }
+-    if (isForward()) {
+-      joinInputs(getCfg().getImplicitReturn());
++    if (forward) {
++      joinInputs(implicitReturn);
+     }
+   }
+ 
+@@ -260,19 +276,34 @@
+   abstract L createEntryLattice();
+ 
+   /** Initializes the work list and the control flow graph. */
++  @SuppressWarnings("unchecked")
+   private void initialize() {
+-    // TODO(user): Calling clear doesn't deallocate the memory in a
+-    // LinkedHashSet. Consider creating a new work set if we plan to repeatedly
+-    // call analyze.
+-    workQueue.clear();
++    clearWorkQueue();
++    int nodeCount = cfg.getNodeCount();
++    if (this.ordered) {
++      int cap = nodeCount > 4 ? nodeCount : 4;
++      if (this.workElements == null || this.workElements.length < cap) {
++        this.workElements = (DiGraphNode<N, Branch>[]) new DiGraphNode<?, ?>[cap];
++      }
++    } else {
++      int cap = 8;
++      while (cap < nodeCount) {
++        cap <<= 1;
++      }
++      if (this.workElements == null || this.workElements.length < cap) {
++        this.workElements = (DiGraphNode<N, Branch>[]) new DiGraphNode<?, ?>[cap];
++      }
++    }
++    DiGraphNode<N, Branch> implicitReturn = cfg.getImplicitReturn();
+     for (DiGraphNode<N, Branch> node : cfg.getNodes()) {
++      node.setInDfaQueue(false);
+       node.setAnnotation(
+           new LinearFlowState<>(createInitialEstimateLattice(), createInitialEstimateLattice()));
+-      if (node != cfg.getImplicitReturn()) {
+-        workQueue.add(node);
++      if (node != implicitReturn) {
++        enqueueWorkNode(node);
+       }
+     }
+-    if (this.isBranched()) {
++    if (this.branched) {
+       for (DiGraphNode<N, Branch> node : cfg.getNodes()) {
+         for (int i = 0, outCount = node.getOutEdgeCount(); i < outCount; i++) {
+           node.getOutEdgeAt(i).setAnnotation(this.createInitialEstimateLattice());
+@@ -288,12 +319,12 @@
+    */
+   private boolean flow(DiGraphNode<N, Branch> node) {
+     LinearFlowState<L> state = node.getAnnotation();
+-    if (isForward()) {
++    if (this.forward) {
+       L outBefore = state.getOut();
+       state.setOut(flowThrough(node.getValue(), state.getIn()));
+       boolean changed = !outBefore.equals(state.getOut());
+ 
+-      if (this.isBranched()) {
++      if (this.branched) {
+         FlowBrancher<L> brancher = this.createFlowBrancher(node.getValue(), state.getOut());
+         for (int i = 0, outCount = node.getOutEdgeCount(); i < outCount; i++) {
+           DiGraphEdge<N, Branch> outEdge = node.getOutEdgeAt(i);
+@@ -322,7 +353,7 @@
+    */
+   private void joinInputs(DiGraphNode<N, Branch> node) {
+     LinearFlowState<L> state = node.getAnnotation();
+-    boolean forward = this.isForward();
++    boolean forward = this.forward;
+     if (forward && cfg.getEntry() == node) {
+       state.setIn(createEntryLattice());
+       return;
+@@ -359,9 +390,9 @@
+   }
+ 
+   private L getInputFromEdge(DiGraphEdge<N, Branch> edge) {
+-    if (this.isBranched()) {
++    if (this.branched) {
+       return edge.getAnnotation();
+-    } else if (this.isForward()) {
++    } else if (this.forward) {
+       LinearFlowState<L> state = edge.getSource().getAnnotation();
+       return state.getOut();
+     } else {
+@@ -498,33 +529,122 @@
+     return false;
+   }
+ 
+-  private static final class UniqueQueue<T> {
+-    private final LinkedHashSet<T> seenSet = new LinkedHashSet<>();
+-    private final Queue<T> queue;
+-
+-    UniqueQueue(@Nullable Comparator<T> priority) {
+-      this.queue = (priority == null) ? new ArrayDeque<>() : new PriorityQueue<>(priority);
++  private int compareWorkNodes(DiGraphNode<N, Branch> a, DiGraphNode<N, Branch> b) {
++    Comparator<DiGraphNode<N, Branch>> cmp = this.customComparator;
++    if (cmp != null) {
++      return cmp.compare(a, b);
+     }
++    int pa = a.getPriority();
++    int pb = b.getPriority();
++    return this.forward ? (pa < pb ? -1 : (pa == pb ? 0 : 1)) : (pb < pa ? -1 : (pb == pa ? 0 : 1));
++  }
+ 
+-    boolean isEmpty() {
+-      return this.queue.isEmpty();
++  @SuppressWarnings("unchecked")
++  private void enqueueWorkNode(DiGraphNode<N, Branch> node) {
++    if (node.isInDfaQueue()) {
++      return;
++    }
++    node.setInDfaQueue(true);
++    DiGraphNode<N, Branch>[] elems = this.workElements;
++    if (this.ordered) {
++      int k = this.workSize;
++      if (k == elems.length) {
++        elems = Arrays.copyOf(elems, elems.length * 2);
++        this.workElements = elems;
++      }
++      this.workSize = k + 1;
++      while (k > 0) {
++        int parent = (k - 1) >>> 1;
++        DiGraphNode<N, Branch> e = elems[parent];
++        if (compareWorkNodes(node, e) >= 0) {
++          break;
++        }
++        elems[k] = e;
++        k = parent;
++      }
++      elems[k] = node;
++    } else {
++      if (this.workSize == elems.length) {
++        int oldLen = elems.length;
++        DiGraphNode<N, Branch>[] grown =
++            (DiGraphNode<N, Branch>[]) new DiGraphNode<?, ?>[oldLen * 2];
++        int mask = oldLen - 1;
++        for (int i = 0; i < oldLen; i++) {
++          grown[i] = elems[(this.workHead + i) & mask];
++        }
++        elems = grown;
++        this.workElements = elems;
++        this.workHead = 0;
++      }
++      int tail = (this.workHead + this.workSize) & (elems.length - 1);
++      elems[tail] = node;
++      this.workSize++;
+     }
++  }
+ 
+-    T removeFirst() {
+-      T t = this.queue.poll();
+-      this.seenSet.remove(t);
+-      return t;
++  private DiGraphNode<N, Branch> dequeueWorkNode() {
++    DiGraphNode<N, Branch>[] elems = this.workElements;
++    if (this.ordered) {
++      DiGraphNode<N, Branch> result = elems[0];
++      result.setInDfaQueue(false);
++      int n = --this.workSize;
++      DiGraphNode<N, Branch> x = elems[n];
++      elems[n] = null;
++      if (n > 0) {
++        int half = n >>> 1;
++        int k = 0;
++        while (k < half) {
++          int child = (k << 1) + 1;
++          DiGraphNode<N, Branch> c = elems[child];
++          int right = child + 1;
++          if (right < n && compareWorkNodes(c, elems[right]) > 0) {
++            child = right;
++            c = elems[right];
++          }
++          if (compareWorkNodes(x, c) <= 0) {
++            break;
++          }
++          elems[k] = c;
++          k = child;
++        }
++        elems[k] = x;
++      }
++      return result;
++    } else {
++      int head = this.workHead;
++      DiGraphNode<N, Branch> result = elems[head];
++      elems[head] = null;
++      result.setInDfaQueue(false);
++      this.workHead = (head + 1) & (elems.length - 1);
++      this.workSize--;
++      return result;
+     }
++  }
+ 
+-    void add(T t) {
+-      if (this.seenSet.add(t)) {
+-        this.queue.add(t);
++  private void clearWorkQueue() {
++    DiGraphNode<N, Branch>[] elems = this.workElements;
++    if (elems != null && this.workSize > 0) {
++      if (this.ordered) {
++        for (int i = 0, sz = this.workSize; i < sz; i++) {
++          DiGraphNode<N, Branch> n = elems[i];
++          if (n != null) {
++            n.setInDfaQueue(false);
++            elems[i] = null;
++          }
++        }
++      } else {
++        int mask = elems.length - 1;
++        for (int i = 0, sz = this.workSize; i < sz; i++) {
++          int idx = (this.workHead + i) & mask;
++          DiGraphNode<N, Branch> n = elems[idx];
++          if (n != null) {
++            n.setInDfaQueue(false);
++            elems[idx] = null;
++          }
++        }
+       }
+     }
+-
+-    void clear() {
+-      this.seenSet.clear();
+-      this.queue.clear();
+-    }
++    this.workHead = 0;
++    this.workSize = 0;
+   }
+ }
+diff --git a/com/google/javascript/jscomp/graph/DiGraph.java b/com/google/javascript/jscomp/graph/DiGraph.java
+--- a/com/google/javascript/jscomp/graph/DiGraph.java
++++ b/com/google/javascript/jscomp/graph/DiGraph.java
+@@ -144,6 +144,12 @@
+     }
+ 
+     default void setAstPosition(int astPosition) {}
++
++    default boolean isInDfaQueue() {
++      return false;
++    }
++
++    default void setInDfaQueue(boolean inDfaQueue) {}
+   }
+ 
+   /**
+diff --git a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+--- a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+@@ -453,6 +453,8 @@
+     private int astPosition = -1;
+ 
+     private final boolean useAnnotation;
++
++    private boolean inDfaQueue;
+ 
+     /**
+      * Constructor
+@@ -668,7 +670,17 @@
+     @Override
+     public void setAstPosition(int astPosition) {
+       this.astPosition = astPosition;
++    }
++
++    @Override
++    public boolean isInDfaQueue() {
++      return this.inDfaQueue;
+     }
++
++    @Override
++    public void setInDfaQueue(boolean inDfaQueue) {
++      this.inDfaQueue = inDfaQueue;
++    }
+   }
+ 
+   /** A directed graph edge that stores the source and destination nodes at each edge. */

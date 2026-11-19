@@ -1,0 +1,30 @@
+{
+  "id": "tier4_r07_chunks_modules",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "Multi-chunk ES module application",
+  "description": "Multi-chunk split for ES module application graph",
+  "args": [
+    "--chunk",
+    "vendor:1",
+    "--js",
+    "vendor.js",
+    "--chunk",
+    "main:1:vendor",
+    "--js",
+    "main.js",
+    "--chunk_output_word_spec",
+    "%s.js"
+  ],
+  "stdin": "",
+  "files": {
+    "vendor.js": "export const LIB = { util: (x) => x + 1 };",
+    "main.js": "import { LIB } from './vendor.js'; window['app'] = LIB.util(10);"
+  },
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

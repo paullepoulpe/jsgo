@@ -1,0 +1,4190 @@
+diff --git a/com/google/javascript/jscomp/AbstractScope.java b/com/google/javascript/jscomp/AbstractScope.java
+index af87062..385a40c 100644
+--- a/com/google/javascript/jscomp/AbstractScope.java
++++ b/com/google/javascript/jscomp/AbstractScope.java
+@@ -164,9 +164,16 @@ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends Abs
+   /** Returns true if a variable is declared in this or any parent scope. */
+   public final boolean hasSlot(String name) {
+     ImplicitVar implicit = ImplicitVar.of(name);
++    if (implicit == null) {
++      for (AbstractScope<S, V> scope = this; scope != null; scope = scope.getParent()) {
++        if (scope.getOwnDeclaredVar(name) != null) {
++          return true;
++        }
++      }
++      return false;
++    }
+     for (AbstractScope<S, V> scope = this; scope != null; scope = scope.getParent()) {
+-      if (scope.getOwnDeclaredVar(name) != null
+-          || (implicit != null && scope.hasOwnImplicitSlot(implicit))) {
++      if (scope.getOwnDeclaredVar(name) != null || scope.hasOwnImplicitSlot(implicit)) {
+         return true;
+       }
+     }
+diff --git a/com/google/javascript/jscomp/AstFactory.java b/com/google/javascript/jscomp/AstFactory.java
+index 9a8d0df..77ccd66 100644
+--- a/com/google/javascript/jscomp/AstFactory.java
++++ b/com/google/javascript/jscomp/AstFactory.java
+@@ -43,7 +43,6 @@ import com.google.javascript.rhino.jstype.JSTypeNative;
+ import com.google.javascript.rhino.jstype.JSTypeRegistry;
+ import com.google.javascript.rhino.jstype.ObjectType;
+ import com.google.javascript.rhino.jstype.TemplateTypeMap;
+-import com.google.javascript.rhino.jstype.TemplateTypeReplacer;
+ import java.util.Arrays;
+ import java.util.List;
+ import java.util.function.Supplier;
+@@ -1543,9 +1542,8 @@ final class AstFactory {
+     TemplateTypeMap typeMap =
+         registry
+             .getEmptyTemplateTypeMap()
+-            .copyWithExtension(templatedType.getTemplateTypeMap().getTemplateKeys(), templateTypes);
+-    TemplateTypeReplacer replacer = TemplateTypeReplacer.forPartialReplacement(registry, typeMap);
+-    return templatedType.visit(replacer);
++            .copyWithKeysFromAndValues(templatedType.getTemplateTypeMap(), templateTypes);
++    return registry.replaceTemplateTypesPartial(templatedType, typeMap);
+   }
+ 
+   /**
+diff --git a/com/google/javascript/jscomp/CheckJSDoc.java b/com/google/javascript/jscomp/CheckJSDoc.java
+index d665968..ce9758b 100644
+--- a/com/google/javascript/jscomp/CheckJSDoc.java
++++ b/com/google/javascript/jscomp/CheckJSDoc.java
+@@ -751,8 +751,8 @@ final class CheckJSDoc extends AbstractPostOrderCallback implements CompilerPass
+     if (info == null) {
+       return;
+     }
+-    for (Node typeNode : info.getTypeNodes()) {
+-      NodeUtil.visitPreOrder(typeNode, checkJsDocTypesVisitor);
++    for (int i = 0, count = info.getTypeNodeCount(); i < count; i++) {
++      NodeUtil.visitPreOrder(info.getTypeNodeAt(i), checkJsDocTypesVisitor);
+     }
+   }
+ 
+diff --git a/com/google/javascript/jscomp/ClosureCheckModule.java b/com/google/javascript/jscomp/ClosureCheckModule.java
+index 5c6556e..f69ab0b 100644
+--- a/com/google/javascript/jscomp/ClosureCheckModule.java
++++ b/com/google/javascript/jscomp/ClosureCheckModule.java
+@@ -329,34 +329,28 @@ public final class ClosureCheckModule extends AbstractModuleCallback implements
+   }
+ 
+   private void checkJSDoc(NodeTraversal t, JSDocInfo jsDoc) {
+-    for (Node typeNode : jsDoc.getTypeNodes()) {
+-      checkTypeExpression(t, typeNode);
++    for (int i = 0, count = jsDoc.getTypeNodeCount(); i < count; i++) {
++      checkTypeExpression(t, jsDoc.getTypeNodeAt(i));
+     }
+   }
+ 
+-  private void checkTypeExpression(NodeTraversal t, Node typeNode) {
+-    NodeUtil.visitPreOrder(
+-        typeNode,
+-        new NodeUtil.Visitor() {
+-          @Override
+-          public void visit(Node node) {
+-            if (!node.isStringLit()) {
+-              return;
+-            }
+-
+-            String qname = node.getString();
+-            String nextQnamePart = null;
++  private void checkTypeExpression(NodeTraversal t, Node node) {
++    if (node.isStringLit()) {
++      String qname = node.getString();
++      String nextQnamePart = null;
+ 
+-            while (checkImproperReferenceToImport(t, node, qname, nextQnamePart)) {
+-              int lastDot = qname.lastIndexOf('.');
+-              if (lastDot < 0) {
+-                return;
+-              }
+-              nextQnamePart = qname.substring(lastDot + 1);
+-              qname = qname.substring(0, lastDot);
+-            }
+-          }
+-        });
++      while (checkImproperReferenceToImport(t, node, qname, nextQnamePart)) {
++        int lastDot = qname.lastIndexOf('.');
++        if (lastDot < 0) {
++          break;
++        }
++        nextQnamePart = qname.substring(lastDot + 1);
++        qname = qname.substring(0, lastDot);
++      }
++    }
++    for (Node child = node.getFirstChild(); child != null; child = child.getNext()) {
++      checkTypeExpression(t, child);
++    }
+   }
+ 
+   private static boolean isLocalVar(Var v) {
+diff --git a/com/google/javascript/jscomp/ClosureRewriteModule.java b/com/google/javascript/jscomp/ClosureRewriteModule.java
+index b2d6481..74298c3 100644
+--- a/com/google/javascript/jscomp/ClosureRewriteModule.java
++++ b/com/google/javascript/jscomp/ClosureRewriteModule.java
+@@ -514,119 +514,114 @@ public final class ClosureRewriteModule implements CompilerPass {
+    * from fully qualified legacy namespace to its binary name.
+    */
+   private void rewriteJsdoc(JSDocInfo info, Scope scope) {
+-    ReplaceJsDocRefs replacer = new ReplaceJsDocRefs(scope);
+-    for (Node typeNode : info.getTypeNodes()) {
+-      NodeUtil.visitPreOrder(typeNode, replacer);
++    for (int i = 0, n = info.getTypeNodeCount(); i < n; i++) {
++      rewriteJsdocTypeNode(info.getTypeNodeAt(i), scope);
+     }
+   }
+ 
+-  /**
+-   * Rewrites JsDoc type references to match AST changes resulting from imported alias inlining,
+-   * module content renaming of top level constructor functions and classes, and module renaming
+-   * from fully qualified legacy namespace to its binary name.
+-   */
+-  private final class ReplaceJsDocRefs implements NodeUtil.Visitor {
+-    private final Scope scope;
++  private void rewriteJsdocTypeNode(Node typeRefNode, Scope scope) {
++    if (typeRefNode.isStringLit()) {
++      rewriteJsdocStringTypeRef(typeRefNode, scope);
++    }
++    for (Node child = typeRefNode.getFirstChild(); child != null; child = child.getNext()) {
++      rewriteJsdocTypeNode(child, scope);
++    }
++  }
+ 
+-    ReplaceJsDocRefs(Scope scope) {
+-      this.scope = scope;
++  private void rewriteJsdocStringTypeRef(Node typeRefNode, Scope scope) {
++    // A type name that might be simple like "Foo" or qualified like "foo.Bar".
++    final String typeName = typeRefNode.getString();
++    int dot = typeName.indexOf('.');
++    String rootOfType = dot == -1 ? typeName : typeName.substring(0, dot);
++
++    Var rootVar = scope.lookupVar(rootOfType);
++    if (rootVar != null
++        && !rootVar.getScope().getClosestHoistScope().isGlobal()
++        && !rootVar.getScope().isModuleScope()) {
++      // this is a variable inside a local scope, not a module local or imported alias.
++      return;
+     }
++    // Rewrite the type node if any of the following hold, in priority order:
++    //  - the root of the type name is in our set of aliases to inline
++    //  - the root of the type name is a name defined in the module scope
++    //  - a prefix of the type name matches a Closure namespace
++    // AND the following is false:
++    //  - the root of the type name is defined in an inner scope
++
++    // If the name is an alias for an imported namespace rewrite from
++    // "{Foo}" to
++    // "{module$exports$bar$Foo}" or
++    // "{bar.Foo}"
++    AliasName importRecord = currentScript.namesToInlineByAlias.get(rootOfType);
++    if (importRecord != null) {
++      if (preprocessorSymbolTable != null) {
++        // Jsdoc type node is a single STRING node that spans the whole type. For example
++        // STRING node "bar.Foo". When rewriting modules potentially replace only "module"
++        // part of the type: "bar.Foo" => "module$exports$bar$Foo". So we need to remember
++        // that "bar" as alias. To do that we clone type node and make "bar" node from it.
++        Node moduleOnlyNode = typeRefNode.cloneNode();
++        safeSetString(moduleOnlyNode, rootOfType);
++        moduleOnlyNode.setLength(rootOfType.length());
++        maybeAddAliasToSymbolTable(moduleOnlyNode, currentScript.namespaceId);
++      }
+ 
+-    @Override
+-    public void visit(Node typeRefNode) {
+-      if (!typeRefNode.isStringLit()) {
++      String aliasedNamespace = importRecord.newName;
++      String remainder = dot == -1 ? "" : typeName.substring(dot);
++      safeSetString(typeRefNode, aliasedNamespace + remainder);
++    } else if (currentScript.isModule && currentScript.topLevelNames.contains(rootOfType)) {
++      // If this is a module and the type name is the name of a top level var/function/class
++      // defined in this script then that var will have been previously renamed from Foo to
++      // module$contents$Foo_Foo. Update the JsDoc reference to match.
++      safeSetString(typeRefNode, currentScript.contentsPrefix + typeName);
++    } else if (currentScript.isModule && rootOfType.equals("exports")) {
++      // rewrite a type reference to the implicit "exports" variable
++      // e.g. /** @type {exports.Foo} */ -> /** @type {module$exports$my$mod.Foo} */
++      String namespace = currentScript.getBinaryNamespace();
++      String remainder = dot == -1 ? "" : typeName.substring(dot);
++      safeSetString(typeRefNode, namespace + remainder);
++    } else {
++      rewriteIfClosureNamespaceRef(typeName, typeRefNode);
++    }
++  }
++
++  /**
++   * Tries to match the longest possible prefix of this type to a Closure namespace
++   *
++   * <p>If the longest prefix match is a legacy module or provide, this is a no-op. If the longest
++   * prefix match is a non-legacy module, this method rewrites the type node.
++   */
++  private void rewriteIfClosureNamespaceRef(String typeName, Node typeRefNode) {
++    // Tries to rename progressively shorter type prefixes like "foo.Bar.Baz", then "foo.Bar",
++    // then "foo".
++    String prefixTypeName = typeName;
++
++    while (true) {
++      String binaryNamespaceIfModule = rewriteState.getBinaryNamespace(prefixTypeName);
++      if (legacyScriptNamespacesAndPrefixes.contains(prefixTypeName)
++          && binaryNamespaceIfModule == null) {
++        // This thing is definitely coming from a legacy script and so the fully qualified
++        // type name will always resolve as is.
+         return;
+       }
+-      // A type name that might be simple like "Foo" or qualified like "foo.Bar".
+-      final String typeName = typeRefNode.getString();
+-      int dot = typeName.indexOf('.');
+-      String rootOfType = dot == -1 ? typeName : typeName.substring(0, dot);
+-
+-      Var rootVar = this.scope.getVar(rootOfType);
+-      if (rootVar != null
+-          && !rootVar.getScope().getClosestHoistScope().isGlobal()
+-          && !rootVar.getScope().isModuleScope()) {
+-        // this is a variable inside a local scope, not a module local or imported alias.
++
++      // If the typeName is a reference to a fully qualified legacy namespace like
++      // "foo.bar.Baz" of something that is actually a module then rewrite the JsDoc reference
++      // to "module$exports$Bar".
++      // Note: we may want to ban this pattern in the future. See b/133501660.
++      if (binaryNamespaceIfModule != null) {
++        String suffix =
++            prefixTypeName.length() == typeName.length()
++                ? ""
++                : typeName.substring(prefixTypeName.length());
++        safeSetString(typeRefNode, binaryNamespaceIfModule + suffix);
+         return;
+       }
+-      // Rewrite the type node if any of the following hold, in priority order:
+-      //  - the root of the type name is in our set of aliases to inline
+-      //  - the root of the type name is a name defined in the module scope
+-      //  - a prefix of the type name matches a Closure namespace
+-      // AND the following is false:
+-      //  - the root of the type name is defined in an inner scope
+-
+-      // If the name is an alias for an imported namespace rewrite from
+-      // "{Foo}" to
+-      // "{module$exports$bar$Foo}" or
+-      // "{bar.Foo}"
+-      if (currentScript.namesToInlineByAlias.containsKey(rootOfType)) {
+-        if (preprocessorSymbolTable != null) {
+-          // Jsdoc type node is a single STRING node that spans the whole type. For example
+-          // STRING node "bar.Foo". When rewriting modules potentially replace only "module"
+-          // part of the type: "bar.Foo" => "module$exports$bar$Foo". So we need to remember
+-          // that "bar" as alias. To do that we clone type node and make "bar" node from it.
+-          Node moduleOnlyNode = typeRefNode.cloneNode();
+-          safeSetString(moduleOnlyNode, rootOfType);
+-          moduleOnlyNode.setLength(rootOfType.length());
+-          maybeAddAliasToSymbolTable(moduleOnlyNode, currentScript.namespaceId);
+-        }
+ 
+-        String aliasedNamespace = currentScript.namesToInlineByAlias.get(rootOfType).newName;
+-        String remainder = dot == -1 ? "" : typeName.substring(dot);
+-        safeSetString(typeRefNode, aliasedNamespace + remainder);
+-      } else if (currentScript.isModule && currentScript.topLevelNames.contains(rootOfType)) {
+-        // If this is a module and the type name is the name of a top level var/function/class
+-        // defined in this script then that var will have been previously renamed from Foo to
+-        // module$contents$Foo_Foo. Update the JsDoc reference to match.
+-        safeSetString(typeRefNode, currentScript.contentsPrefix + typeName);
+-      } else if (currentScript.isModule && rootOfType.equals("exports")) {
+-        // rewrite a type reference to the implicit "exports" variable
+-        // e.g. /** @type {exports.Foo} */ -> /** @type {module$exports$my$mod.Foo} */
+-        String namespace = currentScript.getBinaryNamespace();
+-        String remainder = dot == -1 ? "" : typeName.substring(dot);
+-        safeSetString(typeRefNode, namespace + remainder);
++      int lastDot = prefixTypeName.lastIndexOf('.');
++      if (lastDot >= 0) {
++        prefixTypeName = typeName.substring(0, lastDot);
+       } else {
+-        rewriteIfClosureNamespaceRef(typeName, typeRefNode);
+-      }
+-    }
+-
+-    /**
+-     * Tries to match the longest possible prefix of this type to a Closure namespace
+-     *
+-     * <p>If the longest prefix match is a legacy module or provide, this is a no-op. If the longest
+-     * prefix match is a non-legacy module, this method rewrites the type node.
+-     */
+-    private void rewriteIfClosureNamespaceRef(String typeName, Node typeRefNode) {
+-      // Tries to rename progressively shorter type prefixes like "foo.Bar.Baz", then "foo.Bar",
+-      // then "foo".
+-      String prefixTypeName = typeName;
+-      String suffix = "";
+-
+-      while (true) {
+-        String binaryNamespaceIfModule = rewriteState.getBinaryNamespace(prefixTypeName);
+-        if (legacyScriptNamespacesAndPrefixes.contains(prefixTypeName)
+-            && binaryNamespaceIfModule == null) {
+-          // This thing is definitely coming from a legacy script and so the fully qualified
+-          // type name will always resolve as is.
+-          return;
+-        }
+-
+-        // If the typeName is a reference to a fully qualified legacy namespace like
+-        // "foo.bar.Baz" of something that is actually a module then rewrite the JsDoc reference
+-        // to "module$exports$Bar".
+-        // Note: we may want to ban this pattern in the future. See b/133501660.
+-        if (binaryNamespaceIfModule != null) {
+-          safeSetString(typeRefNode, binaryNamespaceIfModule + suffix);
+-          return;
+-        }
+-
+-        if (prefixTypeName.contains(".")) {
+-          prefixTypeName = prefixTypeName.substring(0, prefixTypeName.lastIndexOf('.'));
+-          suffix = typeName.substring(prefixTypeName.length());
+-        } else {
+-          break;
+-        }
++        break;
+       }
+     }
+   }
+@@ -812,7 +807,7 @@ public final class ClosureRewriteModule implements CompilerPass {
+    * or implicitly by a goog.provide or legacy goog.module.
+    */
+   private boolean isNameInGlobalScope(String name) {
+-    return legacyScriptNamespacesAndPrefixes.contains(name) || globalScope.getVar(name) != null;
++    return legacyScriptNamespacesAndPrefixes.contains(name) || globalScope.lookupVar(name) != null;
+   }
+ 
+   /**
+@@ -1505,7 +1500,7 @@ public final class ClosureRewriteModule implements CompilerPass {
+     if (!currentScript.isModule || !currentScript.topLevelNames.contains(name)) {
+       return;
+     }
+-    Var var = t.getScope().getVar(name);
++    Var var = t.getScope().lookupVar(name);
+     // If the name refers to a var that is not from the top level scope.
+     if (var == null || var.getScope().getRootNode() != currentScript.rootNode) {
+       // Then it shouldn't be renamed.
+@@ -1545,7 +1540,7 @@ public final class ClosureRewriteModule implements CompilerPass {
+       // Make sure this action won't shadow a local variable.
+       if (namespaceToInline.indexOf('.') != -1) {
+         String firstQualifiedName = namespaceToInline.substring(0, namespaceToInline.indexOf('.'));
+-        Var shadowedVar = t.getScope().getVar(firstQualifiedName);
++        Var shadowedVar = t.getScope().lookupVar(firstQualifiedName);
+         if (shadowedVar == null
+             || shadowedVar.isGlobal()
+             || shadowedVar.getScope().isModuleScope()) {
+@@ -1605,7 +1600,7 @@ public final class ClosureRewriteModule implements CompilerPass {
+     // Otherwise the type name might be invalid.
+     if (value.isName()) {
+       Scope currentScope = t.getScope();
+-      Var v = t.getScope().getVar(value.getString());
++      Var v = t.getScope().lookupVar(value.getString());
+       if (v != null) {
+         AbstractScope<?, ?> varScope = v.getScope();
+         if (varScope.getDepth() == currentScope.getDepth()) {
+@@ -2052,7 +2047,7 @@ public final class ClosureRewriteModule implements CompilerPass {
+     if (!target.isName() || !target.matchesName("exports")) {
+       return false;
+     }
+-    Var exportsVar = t.getScope().getVar("exports");
++    Var exportsVar = t.getScope().lookupVar("exports");
+     // note: exportsVar may be null for third-party code using UMD patterns like
+     //   if ("object"==typeof exports) { [...]
+     // and if null, is not in a goog.module => not a goog.module exports var
+diff --git a/com/google/javascript/jscomp/Es6RenameTypeReferences.java b/com/google/javascript/jscomp/Es6RenameTypeReferences.java
+index 86517e6..a93c747 100644
+--- a/com/google/javascript/jscomp/Es6RenameTypeReferences.java
++++ b/com/google/javascript/jscomp/Es6RenameTypeReferences.java
+@@ -45,8 +45,8 @@ final class Es6RenameTypeReferences extends AbstractPostOrderCallback {
+     // after type checking.
+     JSDocInfo info = n.getJSDocInfo();
+     if (info != null) {
+-      for (Node root : info.getTypeNodes()) {
+-        renameTypeNodeRecursive(t, root);
++      for (int i = 0, count = info.getTypeNodeCount(); i < count; i++) {
++        renameTypeNodeRecursive(t, info.getTypeNodeAt(i));
+       }
+     }
+   }
+diff --git a/com/google/javascript/jscomp/Es6RewriteModules.java b/com/google/javascript/jscomp/Es6RewriteModules.java
+index a1b4876..cb2a0e1 100644
+--- a/com/google/javascript/jscomp/Es6RewriteModules.java
++++ b/com/google/javascript/jscomp/Es6RewriteModules.java
+@@ -733,13 +733,13 @@ public final class Es6RewriteModules implements CompilerPass, NodeTraversal.Call
+             (NodeTraversal t, Node n, Node parent) -> {
+               JSDocInfo info = n.getJSDocInfo();
+               if (info != null) {
+-                for (Node typeNode : info.getTypeNodes()) {
+-                  inlineAliasedTypes(t, typeNode);
++                for (int i = 0, count = info.getTypeNodeCount(); i < count; i++) {
++                  inlineAliasedTypes(t, info.getTypeNodeAt(i));
+                 }
+               }
+ 
+               if (n.isName() && namesToInlineByAlias.containsKey(n.getString())) {
+-                Var v = t.getScope().getVar(n.getString());
++                Var v = t.getScope().lookupVar(n.getString());
+                 if (v == null || v.getNameNode() != n) {
+                   GlobalizedModuleName replacementName = namesToInlineByAlias.get(n.getString());
+                   Node replacement = replacementName.toQname(astFactory).srcrefTree(n);
+@@ -753,16 +753,14 @@ public final class Es6RewriteModules implements CompilerPass, NodeTraversal.Call
+   private void inlineAliasedTypes(NodeTraversal t, Node typeNode) {
+     if (typeNode.isStringLit()) {
+       String name = typeNode.getString();
+-      List<String> split = DOT_SPLITTER.limit(2).splitToList(name);
++      int dot = name.indexOf('.');
++      String baseName = dot < 0 ? name : name.substring(0, dot);
+ 
+       // We've already removed the alias.
+-      if (t.getScope().getVar(split.get(0)) == null) {
+-        GlobalizedModuleName replacement = namesToInlineByAlias.get(split.get(0));
++      if (t.getScope().lookupVar(baseName) == null) {
++        GlobalizedModuleName replacement = namesToInlineByAlias.get(baseName);
+         if (replacement != null) {
+-          String rest = "";
+-          if (split.size() == 2) {
+-            rest = "." + split.get(1);
+-          }
++          String rest = dot < 0 ? "" : name.substring(dot);
+           typeNode.setOriginalName(name);
+           typeNode.setString(replacement.aliasName().join() + rest);
+           t.reportCodeChange();
+@@ -910,15 +908,15 @@ public final class Es6RewriteModules implements CompilerPass, NodeTraversal.Call
+     public void visit(NodeTraversal t, Node n, Node parent) {
+       JSDocInfo info = n.getJSDocInfo();
+       if (info != null) {
+-        for (Node typeNode : info.getTypeNodes()) {
+-          fixTypeNode(t, typeNode);
++        for (int i = 0, count = info.getTypeNodeCount(); i < count; i++) {
++          fixTypeNode(t, info.getTypeNodeAt(i));
+         }
+       }
+ 
+       if (n.isName()) {
+         String name = n.getString();
+ 
+-        Var var = t.getScope().getVar(name);
++        Var var = t.getScope().lookupVar(name);
+         if (var != null && var.isGlobal()) {
+           // Avoid polluting the global namespace.
+           String newName =
+@@ -1036,14 +1034,11 @@ public final class Es6RewriteModules implements CompilerPass, NodeTraversal.Call
+       if (typeNode.isStringLit()) {
+         Module thisModule = moduleMap.getModule(t.getInput().getPath());
+         String name = typeNode.getString();
+-        List<String> splitted = DOT_SPLITTER.splitToList(name);
+-        String baseName = splitted.get(0);
+-        String rest = "";
+-        if (splitted.size() > 1) {
+-          rest = name.substring(baseName.length());
+-        }
+-        Var var = t.getScope().getVar(baseName);
++        int dot = name.indexOf('.');
++        String baseName = dot < 0 ? name : name.substring(0, dot);
++        Var var = t.getScope().lookupVar(baseName);
+         if (var != null && var.isGlobal()) {
++          String rest = dot < 0 ? "" : name.substring(dot);
+           maybeSetNewName(
+               t,
+               typeNode,
+@@ -1055,9 +1050,10 @@ public final class Es6RewriteModules implements CompilerPass, NodeTraversal.Call
+           // Imports have been detached, so they won't show up in scope. Thus if we have a variable
+           // not in scope that shares the name of an import it is the import.
+           Binding binding = thisModule.boundNames().get(baseName);
++          List<String> propChain =
++              dot < 0 ? List.of() : DOT_SPLITTER.splitToList(name.substring(dot + 1));
+           String globalName =
+-              ModuleRenaming.getGlobalNameForJsDoc(
+-                  moduleMap, binding, splitted.subList(1, splitted.size()));
++              ModuleRenaming.getGlobalNameForJsDoc(moduleMap, binding, propChain);
+           maybeSetNewName(t, typeNode, name, globalName);
+ 
+           if (preprocessorSymbolTable != null) {
+diff --git a/com/google/javascript/jscomp/FunctionInjector.java b/com/google/javascript/jscomp/FunctionInjector.java
+index 6017361..565e547 100644
+--- a/com/google/javascript/jscomp/FunctionInjector.java
++++ b/com/google/javascript/jscomp/FunctionInjector.java
+@@ -953,6 +953,65 @@ class FunctionInjector {
+     }
+ 
+     int referencesUsingDirectInlining = referenceCount - referencesUsingBlockInlining;
++    return inliningLowersCostForCounts(
++        fnNode,
++        referenceCount,
++        referencesUsingDirectInlining,
++        referencesUsingBlockInlining,
++        namesToAlias,
++        isRemovable,
++        referencesThis);
++  }
++
++  boolean inliningLowersCostInline(
++      JSChunk fnChunk,
++      Node fnNode,
++      @Nullable Reference ref0,
++      @Nullable Reference ref1,
++      Set<String> namesToAlias,
++      boolean isRemovable,
++      boolean referencesThis) {
++    if (ref0 == null) {
++      return true;
++    }
++    int referenceCount = (ref1 != null) ? 2 : 1;
++    int referencesUsingBlockInlining = 0;
++    if (ref0.mode == InliningMode.BLOCK) {
++      referencesUsingBlockInlining++;
++    }
++    if (ref1 != null && ref1.mode == InliningMode.BLOCK) {
++      referencesUsingBlockInlining++;
++    }
++    if (isRemovable && fnChunk != null) {
++      JSChunkGraph chunkGraph = compiler.getChunkGraph();
++      if (ref0.chunk != null && ref0.chunk != fnChunk && !chunkGraph.dependsOn(ref0.chunk, fnChunk)) {
++        isRemovable = false;
++      } else if (ref1 != null
++          && ref1.chunk != null
++          && ref1.chunk != fnChunk
++          && !chunkGraph.dependsOn(ref1.chunk, fnChunk)) {
++        isRemovable = false;
++      }
++    }
++    int referencesUsingDirectInlining = referenceCount - referencesUsingBlockInlining;
++    return inliningLowersCostForCounts(
++        fnNode,
++        referenceCount,
++        referencesUsingDirectInlining,
++        referencesUsingBlockInlining,
++        namesToAlias,
++        isRemovable,
++        referencesThis);
++  }
++
++  private boolean inliningLowersCostForCounts(
++      Node fnNode,
++      int referenceCount,
++      int referencesUsingDirectInlining,
++      int referencesUsingBlockInlining,
++      Set<String> namesToAlias,
++      boolean isRemovable,
++      boolean referencesThis) {
+ 
+     // Don't bother calculating the cost of function for simple functions where
+     // possible.
+diff --git a/com/google/javascript/jscomp/FunctionTypeBuilder.java b/com/google/javascript/jscomp/FunctionTypeBuilder.java
+index 492bd53..7ea768a 100644
+--- a/com/google/javascript/jscomp/FunctionTypeBuilder.java
++++ b/com/google/javascript/jscomp/FunctionTypeBuilder.java
+@@ -47,6 +47,7 @@ import com.google.javascript.rhino.jstype.JSTypeRegistry;
+ import com.google.javascript.rhino.jstype.ObjectType;
+ import com.google.javascript.rhino.jstype.StaticTypedScope;
+ import com.google.javascript.rhino.jstype.TemplateType;
++import com.google.javascript.rhino.jstype.TemplateTypeMap;
+ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.LinkedHashMap;
+@@ -737,6 +738,26 @@ final class FunctionTypeBuilder {
+     }
+   }
+ 
++  private void registerTemplatesWithOwner(
++      ImmutableList<TemplateType> templates,
++      @Nullable TemplateTypeMap ownerMap,
++      @Nullable Node scopeRoot) {
++    boolean hasOwn = !templates.isEmpty();
++    boolean hasOwner = ownerMap != null && !ownerMap.isEmpty();
++    if (hasOwn || hasOwner) {
++      this.templateScope =
++          typeRegistry.createScopeWithTemplates(templateScope, templates, ownerMap);
++      if (scopeRoot != null) {
++        for (int i = 0, n = templates.size(); i < n; i++) {
++          typeRegistry.registerSingleTemplateTypeNameInScope(templates.get(i), scopeRoot);
++        }
++        if (hasOwner) {
++          typeRegistry.registerTemplateTypeNamesInScope(ownerMap, scopeRoot);
++        }
++      }
++    }
++  }
++
+   /** Infer parameters from the params list and info. Also maybe add extra templates. */
+   @CanIgnoreReturnValue
+   FunctionTypeBuilder inferConstructorParameters(Node argsParent, @Nullable JSDocInfo info) {
+@@ -881,15 +902,13 @@ final class FunctionTypeBuilder {
+       }
+     }
+ 
+-    ImmutableList<TemplateType> ownerTypeKeys =
+-        ownerType != null ? ownerType.getTemplateTypeMap().getTemplateKeys() : ImmutableList.of();
++    TemplateTypeMap ownerTypeMap = ownerType != null ? ownerType.getTemplateTypeMap() : null;
+ 
+-    if (!templateTypeNames.isEmpty() || !ownerTypeKeys.isEmpty()) {
++    if (!templateTypeNames.isEmpty() || (ownerTypeMap != null && !ownerTypeMap.isEmpty())) {
+       // TODO(sdh): The order of these should be switched to avoid class templates shadowing
+       // method templates, but this currently loosens type checking of arrays more than we'd like.
+       // See http://github.com/google/closure-compiler/issues/2973
+-      registerTemplates(
+-          Iterables.concat(templateTypeNames, ownerTypeKeys), contents.getSourceNode());
++      registerTemplatesWithOwner(templateTypeNames, ownerTypeMap, contents.getSourceNode());
+     }
+ 
+     return this;
+diff --git a/com/google/javascript/jscomp/GatherExternProperties.java b/com/google/javascript/jscomp/GatherExternProperties.java
+index 2d265f7..6615412 100644
+--- a/com/google/javascript/jscomp/GatherExternProperties.java
++++ b/com/google/javascript/jscomp/GatherExternProperties.java
+@@ -104,8 +104,8 @@ final class GatherExternProperties implements NodeTraversal.Callback, CompilerPa
+   }
+ 
+   private void gatherPropertiesFromJSDocInfo(JSDocInfo jsDocInfo) {
+-    for (Node jsTypeExpressionNode : jsDocInfo.getTypeNodes()) {
+-      gatherPropertiesFromJsTypeExpressionNode(jsTypeExpressionNode);
++    for (int i = 0, count = jsDocInfo.getTypeNodeCount(); i < count; i++) {
++      gatherPropertiesFromJsTypeExpressionNode(jsDocInfo.getTypeNodeAt(i));
+     }
+   }
+ 
+diff --git a/com/google/javascript/jscomp/GlobalNamespace.java b/com/google/javascript/jscomp/GlobalNamespace.java
+index 3493dcc..5af32c6 100644
+--- a/com/google/javascript/jscomp/GlobalNamespace.java
++++ b/com/google/javascript/jscomp/GlobalNamespace.java
+@@ -218,7 +218,7 @@ class GlobalNamespace
+   }
+ 
+   private @Nullable Node getRootNodeForTopVar(String topVarName, Scope s) {
+-    Var v = s.getVar(topVarName);
++    Var v = s.lookupVar(topVarName);
+     if (v == null) {
+       Name providedName = nameMap.get(topVarName);
+       return providedName != null && providedName.getBooleanProperty(NameProp.IS_PROVIDED)
+@@ -1263,8 +1263,10 @@ class GlobalNamespace
+     private final Name parent;
+     private @Nullable String fullName;
+ 
+-    // The children of this name. Must be null if there are no children.
+-    @Nullable ArrayList<Name> props = null;
++    // The children of this name: inline up to 2 children before spilling to `props`.
++    private @Nullable Name prop0 = null;
++    private @Nullable Name prop1 = null;
++    private @Nullable ArrayList<Name> props = null;
+ 
+     /** The declaration of a name. */
+     private @Nullable Ref declaration;
+@@ -1331,14 +1333,56 @@ class GlobalNamespace
+     }
+ 
+     Name addProperty(String name, SourceKind sourceKind) {
+-      if (props == null) {
+-        props = new ArrayList<>();
+-      }
+       Name node = new Name(name, this, sourceKind);
+-      props.add(node);
++      if (this.props != null) {
++        this.props.add(node);
++        return node;
++      }
++      if (this.prop0 == null) {
++        this.prop0 = node;
++        return node;
++      }
++      if (this.prop1 == null) {
++        this.prop1 = node;
++        return node;
++      }
++      ArrayList<Name> list = new ArrayList<>(4);
++      list.add(this.prop0);
++      list.add(this.prop1);
++      list.add(node);
++      this.prop0 = null;
++      this.prop1 = null;
++      this.props = list;
+       return node;
+     }
+ 
++    boolean hasProps() {
++      return this.prop0 != null || (this.props != null && !this.props.isEmpty());
++    }
++
++    int getPropCount() {
++      if (this.props != null) {
++        return this.props.size();
++      }
++      if (this.prop0 == null) {
++        return 0;
++      }
++      return this.prop1 == null ? 1 : 2;
++    }
++
++    Name getPropAt(int index) {
++      if (this.props != null) {
++        return this.props.get(index);
++      }
++      if (index == 0 && this.prop0 != null) {
++        return this.prop0;
++      }
++      if (index == 1 && this.prop1 != null) {
++        return this.prop1;
++      }
++      throw new IndexOutOfBoundsException(index);
++    }
++
+     String getBaseName() {
+       return baseName;
+     }
+@@ -1952,11 +1996,9 @@ class GlobalNamespace
+         return false;
+       }
+ 
+-      if (props != null) {
+-        for (int i = 0, size = props.size(); i < size; i++) {
+-          if (!props.get(i).canCollapse()) {
+-            return false;
+-          }
++      for (int i = 0, size = getPropCount(); i < size; i++) {
++        if (!getPropAt(i).canCollapse()) {
++          return false;
+         }
+       }
+       return true;
+diff --git a/com/google/javascript/jscomp/ImplicitNullabilityCheck.java b/com/google/javascript/jscomp/ImplicitNullabilityCheck.java
+index 97751cb..5bf5799 100644
+--- a/com/google/javascript/jscomp/ImplicitNullabilityCheck.java
++++ b/com/google/javascript/jscomp/ImplicitNullabilityCheck.java
+@@ -119,8 +119,14 @@ public final class ImplicitNullabilityCheck extends AbstractPostOrderCallback
+       return ImmutableList.of();
+     }
+ 
++    int typeNodeCount = info.getTypeNodeCount();
++    if (typeNodeCount == 0) {
++      return ImmutableList.of();
++    }
++
+     final ImmutableList.Builder<Result> builder = ImmutableList.builder();
+-    for (Node typeRoot : info.getTypeNodes()) {
++    for (int i = 0; i < typeNodeCount; i++) {
++      Node typeRoot = info.getTypeNodeAt(i);
+       NodeUtil.visitPreOrder(
+           typeRoot,
+           new NodeUtil.Visitor() {
+diff --git a/com/google/javascript/jscomp/InlineAndCollapseProperties.java b/com/google/javascript/jscomp/InlineAndCollapseProperties.java
+index 667ee38..7e3266b 100644
+--- a/com/google/javascript/jscomp/InlineAndCollapseProperties.java
++++ b/com/google/javascript/jscomp/InlineAndCollapseProperties.java
+@@ -332,14 +332,14 @@ class InlineAndCollapseProperties implements CompilerPass {
+         }
+         if ((name.isObjectLiteral() || name.isFunction() || name.isClass())
+             && !isUnsafelyReassigned(name)
+-            && name.props != null) {
++            && name.hasProps()) {
+           if (name.getAliasingGets() == 0) {
+-            for (int i = 0, size = name.props.size(); i < size; i++) {
+-              workList.add(name.props.get(i));
++            for (int i = 0, size = name.getPropCount(); i < size; i++) {
++              workList.add(name.getPropAt(i));
+             }
+           } else {
+-            for (int i = 0, size = name.props.size(); i < size; i++) {
+-              Name property = name.props.get(i);
++            for (int i = 0, size = name.getPropCount(); i < size; i++) {
++              Name property = name.getPropAt(i);
+               if (property.canCollapse()) {
+                 workList.add(property);
+               }
+@@ -381,9 +381,9 @@ class InlineAndCollapseProperties implements CompilerPass {
+             && ref.scope.getClosestHoistScope().isGlobal()
+             && !ref.isTwin()) {
+           inlineGlobalAliasIfPossible(name, ref, namespace);
+-        } else if (name.isClass() && ref.isSubclassingGet() && name.props != null) {
+-          for (int i = 0, size = name.props.size(); i < size; i++) {
+-            rewriteAllSubclassInheritedAccesses(name, ref, name.props.get(i), namespace);
++        } else if (name.isClass() && ref.isSubclassingGet() && name.hasProps()) {
++          for (int i = 0, size = name.getPropCount(); i < size; i++) {
++            rewriteAllSubclassInheritedAccesses(name, ref, name.getPropAt(i), namespace);
+           }
+         }
+       }
+@@ -926,7 +926,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+      * @param newNodes Expression nodes that have been updated.
+      */
+     private void rewriteAliasProps(Name name, Node value, int depth, Set<AstChange> newNodes) {
+-      if (name.props == null) {
++      if (!name.hasProps()) {
+         return;
+       }
+       Preconditions.checkState(
+@@ -934,8 +934,8 @@ class InlineAndCollapseProperties implements CompilerPass {
+           "%s should not match name %s",
+           value,
+           name.getFullName());
+-      for (int i = 0, size = name.props.size(); i < size; i++) {
+-        rewriteNestedAliasReference(value, depth, newNodes, name.props.get(i));
++      for (int i = 0, size = name.getPropCount(); i < size; i++) {
++        rewriteNestedAliasReference(value, depth, newNodes, name.getPropAt(i));
+       }
+     }
+ 
+@@ -1379,8 +1379,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+           }
+         }
+       }
+-      if (name.props == null
+-          || name.props.isEmpty()
++      if (!name.hasProps()
+           || propertyCollapseLevel != PropertyCollapseLevel.MODULE_EXPORT) {
+         return true;
+       }
+@@ -1409,11 +1408,11 @@ class InlineAndCollapseProperties implements CompilerPass {
+           if (dynamicallyImportedModules.contains(name.getFullName())) {
+             logDecisionForName(name, "escapes - dynamically imported module namespace");
+             escaped.add(name);
+-            if (name.props == null) {
++            if (!name.hasProps()) {
+               continue;
+             }
+-            for (int i = 0, size = name.props.size(); i < size; i++) {
+-              Name prop = name.props.get(i);
++            for (int i = 0, size = name.getPropCount(); i < size; i++) {
++              Name prop = name.getPropAt(i);
+               Ref propDeclaration = prop.getDeclaration();
+               if (propDeclaration == null) {
+                 continue;
+@@ -1512,7 +1511,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+      */
+     private void flattenReferencesToCollapsibleDescendantNames(
+         Name n, String alias, Set<Name> escaped) {
+-      if (n.props == null) {
++      if (!n.hasProps()) {
+         return;
+       }
+       if (n.isCollapsingExplicitlyDenied()) {
+@@ -1524,8 +1523,8 @@ class InlineAndCollapseProperties implements CompilerPass {
+         return;
+       }
+ 
+-      for (int i = 0, size = n.props.size(); i < size; i++) {
+-        Name p = n.props.get(i);
++      for (int i = 0, size = n.getPropCount(); i < size; i++) {
++        Name p = n.getPropAt(i);
+         String propAlias = appendPropForAlias(alias, p.getBaseName());
+         final Inlinability inlinability = p.canCollapseOrInline();
+ 
+@@ -1658,13 +1657,13 @@ class InlineAndCollapseProperties implements CompilerPass {
+       // Flatten all occurrences of a name as a prefix of its subnames. For
+       // example, if {@code n} corresponds to the name "a.b", then "a.b" will be
+       // replaced with "a$b" in all occurrences of "a.b.c", "a.b.c.d", etc.
+-      if (n.props != null) {
++      if (n.hasProps()) {
+         StringBuilder prefixBuf = this.prefixOriginalNameBuf;
+         prefixBuf.setLength(0);
+         prefixBuf.append(originalName);
+         int baseLen = prefixBuf.length();
+-        for (int i = 0, size = n.props.size(); i < size; i++) {
+-          Name p = n.props.get(i);
++        for (int i = 0, size = n.getPropCount(); i < size; i++) {
++          Name p = n.getPropAt(i);
+           prefixBuf.append(p.getBaseName());
+           flattenPrefixes(alias, prefixBuf, p, 1, isConstantName);
+           prefixBuf.setLength(baseLen);
+@@ -1758,10 +1757,10 @@ class InlineAndCollapseProperties implements CompilerPass {
+         }
+       }
+ 
+-      if (n.props != null) {
++      if (n.hasProps()) {
+         int prevLen = prefixBuf.length();
+-        for (int i = 0, size = n.props.size(); i < size; i++) {
+-          Name p = n.props.get(i);
++        for (int i = 0, size = n.getPropCount(); i < size; i++) {
++          Name p = n.getPropAt(i);
+           prefixBuf.append(p.getBaseName());
+           flattenPrefixes(alias, prefixBuf, p, depth + 1, isConstantName);
+           prefixBuf.setLength(prevLen);
+@@ -1874,15 +1873,15 @@ class InlineAndCollapseProperties implements CompilerPass {
+         updateGlobalNameDeclaration(n, alias, canCollapseChildNames);
+       }
+ 
+-      if (n.props == null) {
++      if (!n.hasProps()) {
+         return;
+       }
+       if (escaped.contains(n)) {
+         return;
+       }
+       logDecisionForName(n, "collapsing descendants");
+-      for (int i = 0, size = n.props.size(); i < size; i++) {
+-        Name p = n.props.get(i);
++      for (int i = 0, size = n.getPropCount(); i < size; i++) {
++        Name p = n.getPropAt(i);
+         collapseDeclarationOfNameAndDescendants(
+             p, appendPropForAlias(alias, p.getBaseName()), escaped);
+       }
+@@ -2372,11 +2371,11 @@ class InlineAndCollapseProperties implements CompilerPass {
+       checkState(n.canCollapseUnannotatedChildNames(), n);
+       checkArgument(NodeUtil.isStatementBlock(parent), parent);
+       checkNotNull(addAfter);
+-      if (n.props == null) {
++      if (!n.hasProps()) {
+         return;
+       }
+-      for (int i = 0, size = n.props.size(); i < size; i++) {
+-        Name p = n.props.get(i);
++      for (int i = 0, size = n.getPropCount(); i < size; i++) {
++        Name p = n.getPropAt(i);
+         if (!p.needsToBeStubbed()) {
+           continue;
+         }
+diff --git a/com/google/javascript/jscomp/InlineFunctions.java b/com/google/javascript/jscomp/InlineFunctions.java
+index 94d1cf4..f77eaa5 100644
+--- a/com/google/javascript/jscomp/InlineFunctions.java
++++ b/com/google/javascript/jscomp/InlineFunctions.java
+@@ -757,15 +757,26 @@ class InlineFunctions implements CompilerPass {
+    * @return Whether inlining the function reduces code size.
+    */
+   private boolean inliningLowersCost(FunctionState functionState) {
+-    return functionState.requireInlining()
+-        || functionState.encourageInlining()
+-        || injector.inliningLowersCost(
+-            functionState.getChunk(),
+-            functionState.getFn().getFunctionNode(),
+-            functionState.getReferences(),
+-            functionState.getNamesToAlias(),
+-            functionState.canRemove(),
+-            functionState.getReferencesThis());
++    if (functionState.requireInlining() || functionState.encourageInlining()) {
++      return true;
++    }
++    if (functionState.hasInlineReferences()) {
++      return injector.inliningLowersCostInline(
++          functionState.getChunk(),
++          functionState.getFn().getFunctionNode(),
++          functionState.inlineRef0(),
++          functionState.inlineRef1(),
++          functionState.getNamesToAliasReadOnly(),
++          functionState.canRemove(),
++          functionState.getReferencesThis());
++    }
++    return injector.inliningLowersCost(
++        functionState.getChunk(),
++        functionState.getFn().getFunctionNode(),
++        functionState.getReferences(),
++        functionState.getNamesToAliasReadOnly(),
++        functionState.canRemove(),
++        functionState.getReferencesThis());
+   }
+ 
+   /**
+@@ -865,9 +876,22 @@ class InlineFunctions implements CompilerPass {
+   private void decomposeExpressions() {
+     for (FunctionState functionState : fns.values()) {
+       if (functionState.canInline()) {
+-        for (Reference ref : functionState.getReferences()) {
+-          if (ref.requiresDecomposition) {
+-            injector.maybePrepareCall(ref);
++        if (functionState.hasInlineReferences()) {
++          Reference r0 = functionState.inlineRef0();
++          if (r0 != null) {
++            if (r0.requiresDecomposition) {
++              injector.maybePrepareCall(r0);
++            }
++            Reference r1 = functionState.inlineRef1();
++            if (r1 != null && r1.requiresDecomposition) {
++              injector.maybePrepareCall(r1);
++            }
++          }
++        } else {
++          for (Reference ref : functionState.getReferences()) {
++            if (ref.requiresDecomposition) {
++              injector.maybePrepareCall(ref);
++            }
+           }
+         }
+       }
+@@ -892,17 +916,32 @@ class InlineFunctions implements CompilerPass {
+ 
+   /** Check to verify that expression rewriting didn't make a call inaccessible. */
+   private void verifyAllReferencesInlined(String name, FunctionState functionState) {
+-    for (Reference ref : functionState.getReferences()) {
+-      if (!ref.inlined) {
+-        Node parent = ref.callNode.getParent();
+-        throw new IllegalStateException(
+-            "Call site missed ("
+-                + name
+-                + ").\n call: "
+-                + ref.callNode.toStringTree()
+-                + "\n parent:  "
+-                + ((parent == null) ? "null" : parent.toStringTree()));
++    if (functionState.hasInlineReferences()) {
++      Reference r0 = functionState.inlineRef0();
++      if (r0 != null) {
++        verifyReferenceInlined(name, r0);
++        Reference r1 = functionState.inlineRef1();
++        if (r1 != null) {
++          verifyReferenceInlined(name, r1);
++        }
+       }
++      return;
++    }
++    for (Reference ref : functionState.getReferences()) {
++      verifyReferenceInlined(name, ref);
++    }
++  }
++
++  private static void verifyReferenceInlined(String name, Reference ref) {
++    if (!ref.inlined) {
++      Node parent = ref.callNode.getParent();
++      throw new IllegalStateException(
++          "Call site missed ("
++              + name
++              + ").\n call: "
++              + ref.callNode.toStringTree()
++              + "\n parent:  "
++              + ((parent == null) ? "null" : parent.toStringTree()));
+     }
+   }
+ 
+@@ -1122,6 +1161,18 @@ class InlineFunctions implements CompilerPass {
+       references.put(ref.callNode, ref);
+     }
+ 
++    boolean hasInlineReferences() {
++      return references == null;
++    }
++
++    @Nullable Reference inlineRef0() {
++      return ref0;
++    }
++
++    @Nullable Reference inlineRef1() {
++      return ref1;
++    }
++
+     Collection<Reference> getReferences() {
+       if (references != null) {
+         return references.values();
+@@ -1147,6 +1198,10 @@ class InlineFunctions implements CompilerPass {
+       return null;
+     }
+ 
++    Set<String> getNamesToAliasReadOnly() {
++      return namesToAlias != null ? namesToAlias : ImmutableSet.of();
++    }
++
+     ImmutableSet<String> getNamesToAlias() {
+       if (namesToAlias == null) {
+         return ImmutableSet.of();
+diff --git a/com/google/javascript/jscomp/InlineObjectLiterals.java b/com/google/javascript/jscomp/InlineObjectLiterals.java
+index 82f2ece..f4dc799 100644
+--- a/com/google/javascript/jscomp/InlineObjectLiterals.java
++++ b/com/google/javascript/jscomp/InlineObjectLiterals.java
+@@ -26,6 +26,7 @@ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.Token;
+ import com.google.javascript.rhino.TokenStream;
+ import java.util.ArrayList;
++import java.util.HashSet;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+@@ -72,20 +73,24 @@ class InlineObjectLiterals implements CompilerPass {
+      * A list of variables that should not be inlined, because their reference information is out of
+      * sync with the state of the AST.
+      */
+-    private final Set<Var> staleVars = new LinkedHashSet<>();
++    private final HashSet<Var> staleVars = new HashSet<>();
++    private final HashSet<String> validProperties = new HashSet<>();
+ 
+     @Override
+     public void afterExitScope(NodeTraversal t, ReferenceMap referenceMap) {
+-      for (Var v : t.getScope().getVarIterable()) {
+-        if (isVarInlineForbidden(v)) {
++      Scope scope = t.getScope();
++      if (scope.isGlobal()) {
++        return;
++      }
++      for (Var v : scope.getVarIterable()) {
++        if (v.isGlobal() || v.isExtern()) {
+           continue;
+         }
+-
+         ReferenceCollection referenceInfo = referenceMap.getReferences(v);
+         // ReferenceMap only creates collections for variables that have references.
+         // A variable declared in a scope (e.g. unreferenced catch parameter or block-scoped
+         // function declaration) without references will return null.
+-        if (referenceInfo == null) {
++        if (referenceInfo == null || isVarInlineForbidden(v)) {
+           continue;
+         }
+ 
+@@ -108,18 +113,18 @@ class InlineObjectLiterals implements CompilerPass {
+      * pass from trying to inline the variable. Any code modifications will have potentially made
+      * the ReferenceCollection invalid.
+      */
+-    private void recordStaleVarReferencesInTree(Node root, final Scope scope) {
+-      NodeUtil.visitPreOrder(
+-          root,
+-          new NodeUtil.Visitor() {
+-            @Override
+-            public void visit(Node node) {
+-              if (node.isName()) {
+-                staleVars.add(scope.getVar(node.getString()));
+-              }
+-            }
+-          },
+-          NodeUtil.MATCH_NOT_FUNCTION);
++    private void recordStaleVarReferencesInTree(Node node, Scope scope) {
++      if (node.isName()) {
++        Var var = scope.lookupVar(node.getString());
++        if (var != null) {
++          staleVars.add(var);
++        }
++      }
++      if (!node.isFunction()) {
++        for (Node c = node.getFirstChild(); c != null; c = c.getNext()) {
++          recordStaleVarReferencesInTree(c, scope);
++        }
++      }
+     }
+ 
+     /** Whether the given variable is forbidden from being inlined. */
+@@ -136,9 +141,9 @@ class InlineObjectLiterals implements CompilerPass {
+ 
+       return var.isGlobal()
+           || var.isExtern()
++          || (!staleVars.isEmpty() && staleVars.contains(var))
+           || compiler.getCodingConvention().isExported(var.getName(), /* local= */ true)
+-          || compiler.getCodingConvention().isPropertyRenameFunction(var.getNameNode())
+-          || staleVars.contains(var);
++          || compiler.getCodingConvention().isPropertyRenameFunction(var.getNameNode());
+     }
+ 
+     /**
+@@ -152,7 +157,8 @@ class InlineObjectLiterals implements CompilerPass {
+      */
+     private boolean isInlinableObject(ReferenceCollection refs) {
+       boolean ret = false;
+-      Set<String> validProperties = new LinkedHashSet<>();
++      boolean hasAnyValidProps = false;
++      HashSet<String> validProps = this.validProperties;
+       for (int i = 0, size = refs.size(); i < size; i++) {
+         Reference ref = refs.get(i);
+         Node name = ref.getNode();
+@@ -184,9 +190,13 @@ class InlineObjectLiterals implements CompilerPass {
+           // to a property that isn't defined on the object literal. This
+           // isn't a perfect algorithm, but it should catch most cases.
+           String propName = parent.getString();
+-          if (!validProperties.contains(propName)) {
++          if (!hasAnyValidProps || !validProps.contains(propName)) {
+             if (NodeUtil.isNameDeclOrSimpleAssignLhs(parent, grandparent)) {
+-              validProperties.add(propName);
++              if (!hasAnyValidProps) {
++                validProps.clear();
++                hasAnyValidProps = true;
++              }
++              validProps.add(propName);
+             } else {
+               return false;
+             }
+@@ -241,7 +251,11 @@ class InlineObjectLiterals implements CompilerPass {
+                     "Unexpected child of OBJECTLIT: " + child.toStringTree());
+           }
+ 
+-          validProperties.add(child.getString());
++          if (!hasAnyValidProps) {
++            validProps.clear();
++            hasAnyValidProps = true;
++          }
++          validProps.add(child.getString());
+ 
+           Node childVal = child.getFirstChild();
+           // Check if childVal is the parent of any of the passed in
+diff --git a/com/google/javascript/jscomp/InlineVariables.java b/com/google/javascript/jscomp/InlineVariables.java
+index a4440d1..292daf9 100644
+--- a/com/google/javascript/jscomp/InlineVariables.java
++++ b/com/google/javascript/jscomp/InlineVariables.java
+@@ -588,7 +588,7 @@ class InlineVariables implements CompilerPass {
+             String aliasedName = value.getString();
+             // Never consider this variable to be an alias of itself.
+             if (!aliasedName.equals(v.getName())) {
+-              resolved = v.getScope().getVar(aliasedName);
++              resolved = v.getScope().lookupVar(aliasedName);
+             }
+           }
+           checkState(!aliasedVarKnown, "already known");
+diff --git a/com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java b/com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java
+index 3778b95..23f5e70 100644
+--- a/com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java
++++ b/com/google/javascript/jscomp/InvocationTemplateTypeMatcher.java
+@@ -34,6 +34,7 @@ import com.google.javascript.rhino.jstype.TemplateType;
+ import com.google.javascript.rhino.jstype.TemplateTypeMap;
+ import com.google.javascript.rhino.jstype.TemplatizedType;
+ import com.google.javascript.rhino.jstype.UnionType;
++import org.jspecify.annotations.Nullable;
+ 
+ /**
+  * Determines the types that fill any template parameters at a function invocation.
+@@ -48,9 +49,10 @@ import com.google.javascript.rhino.jstype.UnionType;
+  */
+ final class InvocationTemplateTypeMatcher {
+ 
+-  private final LinkedIdentityHashMap<TemplateType, JSType> matchedTypes =
+-      new LinkedIdentityHashMap<>();
+-  private final LinkedIdentityHashSet<JSType> seenTypes = new LinkedIdentityHashSet<>();
++  private @Nullable TemplateType matchedKey0 = null;
++  private @Nullable JSType matchedVal0 = null;
++  private @Nullable LinkedIdentityHashMap<TemplateType, JSType> matchedTypes = null;
++  private @Nullable LinkedIdentityHashSet<JSType> seenTypes = null;
+ 
+   private final JSTypeRegistry registry;
+   private final FunctionType calleeType;
+@@ -69,9 +71,9 @@ final class InvocationTemplateTypeMatcher {
+     this.unknownType = registry.getNativeType(UNKNOWN_TYPE);
+   }
+ 
+-  ImmutableMap<TemplateType, JSType> match() {
++  void runMatch() {
+     if (this.calleeType.getTemplateTypeMap().isEmpty()) {
+-      return ImmutableMap.of();
++      return;
+     }
+ 
+     Node target = this.invocation.getFirstChild();
+@@ -96,7 +98,7 @@ final class InvocationTemplateTypeMatcher {
+     if (this.invocation.isTaggedTemplateLit()) {
+       if (calleeParameters.length == 0) {
+         // TypeCheck will warn if there are too few function parameters
+-        return this.copyMatchedTypes();
++        return;
+       }
+ 
+       // The first argument to the tag function is an array of strings (typed as ITemplateArray)
+@@ -109,7 +111,17 @@ final class InvocationTemplateTypeMatcher {
+     } else if (this.invocation.hasMoreThanOneChild()) {
+       this.matchTemplateTypesFromNodes(calleeParameters, 0, /* isTaggedTemplate= */ false);
+     }
++  }
+ 
++  @Nullable JSType lookupMatched(TemplateType key) {
++    if (this.matchedTypes != null) {
++      return this.matchedTypes.get(key);
++    }
++    return this.matchedKey0 == key ? this.matchedVal0 : null;
++  }
++
++  ImmutableMap<TemplateType, JSType> match() {
++    runMatch();
+     return this.copyMatchedTypes();
+   }
+ 
+@@ -154,6 +166,9 @@ final class InvocationTemplateTypeMatcher {
+       }
+     } else if (paramType.isRecordType() && !paramType.isNominalType()) {
+       // example: @param {{foo:T}}
++      if (this.seenTypes == null) {
++        this.seenTypes = new LinkedIdentityHashSet<>();
++      }
+       if (this.seenTypes.add(paramType)) {
+         ObjectType paramRecordType = paramType.toObjectType();
+         ObjectType argObjectType = argType.restrictByNotNullOrUndefined().toObjectType();
+@@ -241,13 +256,37 @@ final class InvocationTemplateTypeMatcher {
+     }
+ 
+     // Don't worry about checking bounds here. We'll validate them once they're all collected.
+-    this.matchedTypes.merge(template, match, JSType::getLeastSupertype);
++    if (this.matchedTypes != null) {
++      this.matchedTypes.merge(template, match, JSType::getLeastSupertype);
++      return;
++    }
++    if (this.matchedKey0 == null) {
++      this.matchedKey0 = template;
++      this.matchedVal0 = match;
++      return;
++    }
++    if (this.matchedKey0 == template) {
++      this.matchedVal0 = this.matchedVal0.getLeastSupertype(match);
++      return;
++    }
++    LinkedIdentityHashMap<TemplateType, JSType> map = new LinkedIdentityHashMap<>();
++    map.put(this.matchedKey0, this.matchedVal0);
++    map.put(template, match);
++    this.matchedKey0 = null;
++    this.matchedVal0 = null;
++    this.matchedTypes = map;
+   }
+ 
+   private ImmutableMap<TemplateType, JSType> copyMatchedTypes() {
+-    ImmutableMap.Builder<TemplateType, JSType> builder = ImmutableMap.builder();
+-    this.matchedTypes.forEach(builder::put);
+-    return builder.buildOrThrow();
++    if (this.matchedTypes != null) {
++      ImmutableMap.Builder<TemplateType, JSType> builder = ImmutableMap.builder();
++      this.matchedTypes.forEach(builder::put);
++      return builder.buildOrThrow();
++    }
++    if (this.matchedKey0 != null) {
++      return ImmutableMap.of(this.matchedKey0, this.matchedVal0);
++    }
++    return ImmutableMap.of();
+   }
+ 
+   private final JSType getTypeOrUnknown(Node n) {
+diff --git a/com/google/javascript/jscomp/LinkedFlowScope.java b/com/google/javascript/jscomp/LinkedFlowScope.java
+index 85f2bfa..fe82f9d 100644
+--- a/com/google/javascript/jscomp/LinkedFlowScope.java
++++ b/com/google/javascript/jscomp/LinkedFlowScope.java
+@@ -401,7 +401,7 @@ final class LinkedFlowScope implements FlowScope {
+ 
+   @Override
+   public LinkedFlowScope inferSlotType(String symbol, JSType type) {
+-    TypedVar rootVar = syntacticScope.getVar(getRootOfQualifiedName(symbol));
++    TypedVar rootVar = syntacticScope.lookupTypedVar(getRootOfQualifiedName(symbol));
+     TypedScope targetScope = rootVar != null ? rootVar.getScope() : null;
+     if (targetScope == null) {
+       targetScope = functionScope;
+@@ -492,7 +492,7 @@ final class LinkedFlowScope implements FlowScope {
+       // undeclared qualified names in the global scope) with no real benefit.
+       return this;
+     }
+-    TypedVar v = syntacticScope.getVar(symbol);
++    TypedVar v = syntacticScope.lookupTypedVar(symbol);
+     if (v == null && !functionScope.isBottom()) {
+       // NOTE(sdh): Qualified names are declared on scopes lazily via this method.
+       // The difficulty is that it's not always clear which scope they need to be
+@@ -502,8 +502,11 @@ final class LinkedFlowScope implements FlowScope {
+       // declared in multiple different blocks.  Instead, the qualified name is declared
+       // on the scope that owns the root, when possible. When the root is undeclared, the qualified
+       // name is declared in the global scope, as only global variables can be undeclared.
+-      TypedVar rootVar = syntacticScope.getVar(getRootOfQualifiedName(symbol));
+-      TypedScope rootScope = rootVar != null ? rootVar.getScope() : syntacticScope.getGlobalScope();
++      int dot = symbol.indexOf('.');
++      TypedVar rootVar =
++          dot < 0 ? null : syntacticScope.lookupTypedVar(symbol.substring(0, dot));
++      TypedScope rootScope =
++          rootVar != null ? rootVar.getScope() : syntacticScope.getGlobalTypedScope();
+       v =
+           rootScope.declare(
+               symbol,
+@@ -551,11 +554,20 @@ final class LinkedFlowScope implements FlowScope {
+   /** Get the slot for the given symbol. */
+   @Override
+   public StaticTypedSlot getSlot(String name) {
+-    TypedVar var = syntacticScope.getVar(name);
+-    OverlayScope scope =
+-        var == null ? getOverlayScopeForName(name) : getScopeOverlay(var.getScope());
+-
+-    return scope != null ? scope.getSlot(name) : var;
++    TypedVar var = syntacticScope.lookupTypedVar(name);
++    if (var != null) {
++      OverlayScope scope = getScopeOverlay(var.getScope());
++      return scope != null ? scope.getOverlayOrFallback(name, var) : var;
++    }
++    int dot = name.indexOf('.');
++    OverlayScope scope;
++    if (dot < 0) {
++      scope = getScopeOverlay(functionScope);
++    } else {
++      TypedVar rootVar = syntacticScope.lookupTypedVar(name.substring(0, dot));
++      scope = getScopeOverlay(rootVar != null ? rootVar.getScope() : functionScope);
++    }
++    return scope != null ? scope.getSlot(name) : null;
+   }
+ 
+   boolean hasGlobalFunctionScope() {
+@@ -617,7 +629,7 @@ final class LinkedFlowScope implements FlowScope {
+   }
+ 
+   private @Nullable OverlayScope getOverlayScopeForName(String name) {
+-    TypedVar rootVar = syntacticScope.getVar(getRootOfQualifiedName(name));
++    TypedVar rootVar = syntacticScope.lookupTypedVar(getRootOfQualifiedName(name));
+     TypedScope scope = rootVar != null ? rootVar.getScope() : null;
+     scope = scope != null ? scope : functionScope;
+     return getScopeOverlay(scope);
+@@ -860,7 +872,7 @@ final class LinkedFlowScope implements FlowScope {
+         String slotKey, @Nullable OverlaySlot slotA, @Nullable OverlaySlot slotB) {
+       String name = slotA != null ? slotA.getName() : slotB.getName();
+       if (slotB == null || slotB.getType() == null) {
+-        TypedVar fnSlot = typedScopeB != null ? typedScopeB.getSlot(name) : null;
++        TypedVar fnSlot = typedScopeB != null ? typedScopeB.lookupTypedVar(name) : null;
+         JSType fnSlotType = fnSlot != null ? fnSlot.getType() : null;
+         if (fnSlotType == null || identical(fnSlotType, slotA.getType())) {
+           return slotA;
+@@ -871,7 +883,7 @@ final class LinkedFlowScope implements FlowScope {
+               : createOverlaySlot(this.pool, name, joinedType);
+         }
+       } else if (slotA == null || slotA.getType() == null) {
+-        TypedVar fnSlot = typedScopeA != null ? typedScopeA.getSlot(name) : null;
++        TypedVar fnSlot = typedScopeA != null ? typedScopeA.lookupTypedVar(name) : null;
+         JSType fnSlotType = fnSlot != null ? fnSlot.getType() : null;
+         if (fnSlotType == null || identical(fnSlotType, slotB.getType())) {
+           return slotB;
+@@ -1249,10 +1261,28 @@ final class LinkedFlowScope implements FlowScope {
+           this.pool, scope, this.slots.plus(name, nextSlot), null, null, nextHasQualified);
+     }
+ 
++    StaticTypedSlot getOverlayOrFallback(String name, @Nullable TypedVar fallbackVar) {
++      if (this.slots != null) {
++        OverlaySlot slot = this.slots.get(name);
++        return slot != null ? slot : fallbackVar;
++      }
++      OverlaySlot s0 = this.slot0;
++      if (s0 != null) {
++        if (s0.name.equals(name)) {
++          return s0;
++        }
++        OverlaySlot s1 = this.slot1;
++        if (s1 != null && s1.name.equals(name)) {
++          return s1;
++        }
++      }
++      return fallbackVar;
++    }
++
+     StaticTypedSlot getSlot(String name) {
+       if (this.slots != null) {
+         OverlaySlot slot = this.slots.get(name);
+-        return slot != null ? slot : scope.getSlot(name);
++        return slot != null ? slot : scope.lookupTypedVar(name);
+       }
+       OverlaySlot s0 = this.slot0;
+       if (s0 != null) {
+@@ -1264,7 +1294,7 @@ final class LinkedFlowScope implements FlowScope {
+           return s1;
+         }
+       }
+-      return scope.getSlot(name);
++      return scope.lookupTypedVar(name);
+     }
+   }
+ 
+diff --git a/com/google/javascript/jscomp/ProcessCommonJSModules.java b/com/google/javascript/jscomp/ProcessCommonJSModules.java
+index 4811bba..b323832 100644
+--- a/com/google/javascript/jscomp/ProcessCommonJSModules.java
++++ b/com/google/javascript/jscomp/ProcessCommonJSModules.java
+@@ -1431,8 +1431,8 @@ public final class ProcessCommonJSModules extends NodeTraversal.AbstractPreOrder
+     private void fixTypeAnnotationsForNode(NodeTraversal t, Node n) {
+       JSDocInfo info = n.getJSDocInfo();
+       if (info != null) {
+-        for (Node typeNode : info.getTypeNodes()) {
+-          fixTypeNode(t, typeNode);
++        for (int i = 0, count = info.getTypeNodeCount(); i < count; i++) {
++          fixTypeNode(t, info.getTypeNodeAt(i));
+         }
+       }
+     }
+diff --git a/com/google/javascript/jscomp/ProcessDefines.java b/com/google/javascript/jscomp/ProcessDefines.java
+index 59f4f88..a28a70a 100644
+--- a/com/google/javascript/jscomp/ProcessDefines.java
++++ b/com/google/javascript/jscomp/ProcessDefines.java
+@@ -20,7 +20,6 @@ import static com.google.common.base.MoreObjects.firstNonNull;
+ import static com.google.common.base.Preconditions.checkState;
+ import static com.google.javascript.jscomp.ClosurePrimitiveErrors.INVALID_CLOSURE_CALL_SCOPE_ERROR;
+ import static com.google.javascript.rhino.jstype.JSTypeNative.NUMBER_STRING_BOOLEAN;
+-import static java.util.stream.Collectors.toCollection;
+ 
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableMap;
+@@ -38,8 +37,9 @@ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.Token;
+ import com.google.javascript.rhino.jstype.JSType;
+ import com.google.javascript.rhino.jstype.JSTypeRegistry;
++import java.util.ArrayList;
++import java.util.HashSet;
+ import java.util.LinkedHashMap;
+-import java.util.LinkedHashSet;
+ import java.util.Map;
+ import java.util.Set;
+ import java.util.function.Supplier;
+@@ -79,13 +79,13 @@ class ProcessDefines implements CompilerPass {
+   private final @Nullable Pattern zoneInputPattern;
+   private final ImmutableSet<String> unknownDefinesToIgnore;
+ 
+-  private final LinkedHashSet<JSDocInfo> knownDefineJsdocs = new LinkedHashSet<>();
+-  private final LinkedHashSet<Node> knownGoogDefineCalls = new LinkedHashSet<>();
++  private final HashSet<JSDocInfo> knownDefineJsdocs = new HashSet<>();
++  private final HashSet<Node> knownGoogDefineCalls = new HashSet<>();
+   private final LinkedHashMap<String, Define> defineByDefineName = new LinkedHashMap<>();
+   // from var CLOSURE_DEFINES = {
+   private final LinkedHashMap<String, Node> replacementValuesFromClosureDefines =
+       new LinkedHashMap<>();
+-  private final LinkedHashSet<Node> validDefineValueExpressions = new LinkedHashSet<>();
++  private final HashSet<Node> validDefineValueExpressions = new HashSet<>();
+   private boolean hasZoneInput = false;
+ 
+   private GlobalNamespace namespace;
+@@ -434,14 +434,14 @@ class ProcessDefines implements CompilerPass {
+        * pass more complex.
+        */
+       if (totalSets > 1) {
+-        for (Ref ref : name.getRefs()) {
+-          if (ref.isSet() && !ref.equals(declaration)) {
+-            this.compiler.report(
+-                JSError.make(
+-                    ref.getNode(),
+-                    NON_CONST_DEFINE,
+-                    defineName,
+-                    declaration.getNode().getLocation()));
++        if (name.hasInlineRefs()) {
++          reportIfExtraSetRef(name.inlineRef0(), declaration, defineName);
++          reportIfExtraSetRef(name.inlineRef1(), declaration, defineName);
++          reportIfExtraSetRef(name.inlineRef2(), declaration, defineName);
++          reportIfExtraSetRef(name.inlineRef3(), declaration, defineName);
++        } else {
++          for (Ref ref : name.getRefs()) {
++            reportIfExtraSetRef(ref, declaration, defineName);
+           }
+         }
+       }
+@@ -453,25 +453,57 @@ class ProcessDefines implements CompilerPass {
+             .build());
+   }
+ 
++  private void reportIfExtraSetRef(@Nullable Ref ref, Ref declaration, String defineName) {
++    if (ref != null && ref.isSet() && !ref.equals(declaration)) {
++      this.compiler.report(
++          JSError.make(
++              ref.getNode(),
++              NON_CONST_DEFINE,
++              defineName,
++              declaration.getNode().getLocation()));
++    }
++  }
++
++  private @Nullable Ref matchDefineDeclarationRef(@Nullable Ref ref) {
++    if (ref == null || !ref.isSetFromGlobal()) {
++      return null;
++    }
++    Node refNode = ref.getNode();
++    if (!refNode.isQualifiedName()) {
++      return null;
++    }
++    JSDocInfo jsdoc = NodeUtil.getBestJSDocInfo(refNode);
++    if (jsdoc == null || !jsdoc.isDefine()) {
++      return null;
++    }
++    this.knownDefineJsdocs.add(jsdoc);
++    return ref;
++  }
++
+   private @Nullable Ref selectDefineDeclaration(Name name) {
+-    for (Ref ref : name.getRefs()) {
+-      // Make sure we don't select a local set as the declaration.
+-      if (!ref.isSetFromGlobal()) {
+-        continue;
++    if (name.getGlobalSets() == 0) {
++      return null;
++    }
++    if (name.hasInlineRefs()) {
++      Ref r = matchDefineDeclarationRef(name.inlineRef0());
++      if (r != null) {
++        return r;
+       }
+-
+-      Node refNode = ref.getNode();
+-      if (!refNode.isQualifiedName()) {
+-        continue;
++      r = matchDefineDeclarationRef(name.inlineRef1());
++      if (r != null) {
++        return r;
+       }
+-
+-      JSDocInfo jsdoc = NodeUtil.getBestJSDocInfo(refNode);
+-      if (jsdoc == null || !jsdoc.isDefine()) {
+-        continue;
++      r = matchDefineDeclarationRef(name.inlineRef2());
++      if (r != null) {
++        return r;
++      }
++      return matchDefineDeclarationRef(name.inlineRef3());
++    }
++    for (Ref ref : name.getRefs()) {
++      Ref r = matchDefineDeclarationRef(ref);
++      if (r != null) {
++        return r;
+       }
+-
+-      this.knownDefineJsdocs.add(jsdoc);
+-      return ref;
+     }
+ 
+     return null;
+@@ -499,44 +531,102 @@ class ProcessDefines implements CompilerPass {
+     return null;
+   }
+ 
+-  private void collectValidDefineValueExpressions() {
++  private void addNonSetRefNodes(Name name) {
++    if (name.hasInlineRefs()) {
++      Ref r0 = name.inlineRef0();
++      if (r0 != null) {
++        if (!r0.isSet()) {
++          this.validDefineValueExpressions.add(r0.getNode());
++        }
++        Ref r1 = name.inlineRef1();
++        if (r1 != null) {
++          if (!r1.isSet()) {
++            this.validDefineValueExpressions.add(r1.getNode());
++          }
++          Ref r2 = name.inlineRef2();
++          if (r2 != null) {
++            if (!r2.isSet()) {
++              this.validDefineValueExpressions.add(r2.getNode());
++            }
++            Ref r3 = name.inlineRef3();
++            if (r3 != null && !r3.isSet()) {
++              this.validDefineValueExpressions.add(r3.getNode());
++            }
++          }
++        }
++      }
++      return;
++    }
++    for (Ref ref : name.getRefs()) {
++      if (!ref.isSet()) {
++        this.validDefineValueExpressions.add(ref.getNode());
++      }
++    }
++  }
+ 
+-    LinkedHashSet<Name> namesToCheck =
+-        this.namespace.getAllSymbols().stream()
+-            .filter(ProcessDefines::isGlobalConst)
+-            .collect(toCollection(LinkedHashSet::new));
++  private void addAllRefNodes(Name name) {
++    if (name.hasInlineRefs()) {
++      Ref r0 = name.inlineRef0();
++      if (r0 != null) {
++        this.validDefineValueExpressions.add(r0.getNode());
++        Ref r1 = name.inlineRef1();
++        if (r1 != null) {
++          this.validDefineValueExpressions.add(r1.getNode());
++          Ref r2 = name.inlineRef2();
++          if (r2 != null) {
++            this.validDefineValueExpressions.add(r2.getNode());
++            Ref r3 = name.inlineRef3();
++            if (r3 != null) {
++              this.validDefineValueExpressions.add(r3.getNode());
++            }
++          }
++        }
++      }
++      return;
++    }
++    for (Ref ref : name.getRefs()) {
++      this.validDefineValueExpressions.add(ref.getNode());
++    }
++  }
+ 
+-    // All defines are implicitly valid in the values of other defines.
+-    for (Define define : this.defineByDefineName.values()) {
+-      namesToCheck.remove(define.name);
+-      define.name.getRefs().stream()
+-          .filter((r) -> !r.isSet())
+-          .map(Ref::getNode)
+-          .forEachOrdered(this.validDefineValueExpressions::add);
++  private void collectValidDefineValueExpressions() {
++    HashSet<Name> defineNames = null;
++    if (!this.defineByDefineName.isEmpty()) {
++      defineNames = new HashSet<>(this.defineByDefineName.size() * 2);
++      // All defines are implicitly valid in the values of other defines.
++      for (Define define : this.defineByDefineName.values()) {
++        defineNames.add(define.name);
++        addNonSetRefNodes(define.name);
++      }
++    }
++
++    ArrayList<Name> namesToCheck = new ArrayList<>();
++    for (Name name : this.namespace.getAllSymbols()) {
++      if (isGlobalConst(name) && (defineNames == null || !defineNames.contains(name))) {
++        namesToCheck.add(name);
++      }
+     }
+ 
+     // Do a breadth-first search of all const names to find those defined in terms of valid values.
+-    while (true) {
+-      LinkedHashSet<Name> namesToCheckAgain = new LinkedHashSet<>();
++    int count = namesToCheck.size();
++    while (count > 0) {
++      int size = count;
++      int write = 0;
+ 
+-      for (Name name : namesToCheck) {
++      for (int i = 0; i < size; i++) {
++        Name name = namesToCheck.get(i);
+         Node declValue = getConstantDeclValue(name.getDeclaration().getNode());
+         switch (isValidDefineValue(declValue)) {
+-          case TRUE -> {
+-            for (Ref ref : name.getRefs()) {
+-              this.validDefineValueExpressions.add(ref.getNode());
+-            }
+-          }
+-          case UNKNOWN -> namesToCheckAgain.add(name);
++          case TRUE -> addAllRefNodes(name);
++          case UNKNOWN -> namesToCheck.set(write++, name);
+           default -> {}
+         }
+       }
+ 
+-      if (namesToCheckAgain.size() == namesToCheck.size()) {
++      if (write == size) {
+         break;
+-      } else {
+-        namesToCheck = namesToCheckAgain;
+       }
++      count = write;
+     }
+   }
+ 
+diff --git a/com/google/javascript/jscomp/ReferenceCollector.java b/com/google/javascript/jscomp/ReferenceCollector.java
+index af73c56..4352c74 100644
+--- a/com/google/javascript/jscomp/ReferenceCollector.java
++++ b/com/google/javascript/jscomp/ReferenceCollector.java
+@@ -279,7 +279,7 @@ public final class ReferenceCollector
+     public void visit(NodeTraversal t, Node n, Node parent) {
+       Reference addedReference = null;
+       if ((n.isName() || n.isImportStar()) && !isNonLocalModuleSpecifierName(n, parent)) {
+-        Var v = t.getScope().getVar(n.getString());
++        Var v = t.getScope().lookupVar(n.getString());
+         if (v != null) {
+           addedReference = addReference(v, n, t);
+           if (collectHoistedFunctionsInReferenceOrder) {
+diff --git a/com/google/javascript/jscomp/RemoveUnusedCode.java b/com/google/javascript/jscomp/RemoveUnusedCode.java
+index bcc7f86..178e7ea 100644
+--- a/com/google/javascript/jscomp/RemoveUnusedCode.java
++++ b/com/google/javascript/jscomp/RemoveUnusedCode.java
+@@ -752,7 +752,7 @@ class RemoveUnusedCode implements CompilerPass {
+ 
+       Var classVar = null;
+       if (classVarName != null && NodeUtil.isValidSimpleName(classVarName)) {
+-        classVar = checkNotNull(scope.getVar(classVarName), classVarName);
++        classVar = checkNotNull(scope.lookupVar(classVarName), classVarName);
+       }
+ 
+       if (classVar == null || !classVar.isGlobal()) {
+@@ -858,7 +858,7 @@ class RemoveUnusedCode implements CompilerPass {
+   }
+ 
+   private Var getVarForNameNode(Node nameNode, Scope scope) {
+-    return checkNotNull(scope.getVar(nameNode.getString()), nameNode);
++    return checkNotNull(scope.lookupVar(nameNode.getString()), nameNode);
+   }
+ 
+   private void traverseObjectLiteral(Node objectLiteral, Scope scope) {
+diff --git a/com/google/javascript/jscomp/RenameVars.java b/com/google/javascript/jscomp/RenameVars.java
+index ad4e571..6cc99f5 100644
+--- a/com/google/javascript/jscomp/RenameVars.java
++++ b/com/google/javascript/jscomp/RenameVars.java
+@@ -232,7 +232,7 @@ final class RenameVars implements CompilerPass {
+       // Bleeding functions should be treated as part of their outer
+       // scope, because IE has bugs in how it handles bleeding
+       // functions.
+-      Var var = t.getScope().getVar(name);
++      Var var = t.getScope().lookupVar(name);
+       boolean local =
+           var != null
+               && var.isLocal()
+diff --git a/com/google/javascript/jscomp/Scope.java b/com/google/javascript/jscomp/Scope.java
+index 7c57328..8bff7b1 100644
+--- a/com/google/javascript/jscomp/Scope.java
++++ b/com/google/javascript/jscomp/Scope.java
+@@ -138,8 +138,7 @@ public final class Scope extends AbstractScope<Scope, Var> {
+         /* implicitGoogNamespaceDefinition= */ null);
+   }
+ 
+-  @Override
+-  @Nullable Var getOwnDeclaredVar(String name) {
++  private @Nullable Var findOwnDeclaredVar(String name) {
+     if (vars != null) {
+       return vars.get(name);
+     }
+@@ -174,6 +173,11 @@ public final class Scope extends AbstractScope<Scope, Var> {
+     return null;
+   }
+ 
++  @Override
++  @Nullable Var getOwnDeclaredVar(String name) {
++    return findOwnDeclaredVar(name);
++  }
++
+   @Override
+   void putOwnDeclaredVar(String name, Var var) {
+     if (vars != null) {
+@@ -280,24 +284,35 @@ public final class Scope extends AbstractScope<Scope, Var> {
+     }
+   }
+ 
+-  @Override
+-  public @Nullable Var getVar(String name) {
++  public @Nullable Var lookupVar(String name) {
+     ImplicitVar implicit = ImplicitVar.of(name);
++    if (implicit == null) {
++      for (Scope scope = this; scope != null; scope = scope.parent) {
++        Var var = scope.findOwnDeclaredVar(name);
++        if (var != null) {
++          return var;
++        }
++      }
++      return null;
++    }
+     for (Scope scope = this; scope != null; scope = scope.parent) {
+-      Var var = scope.getOwnDeclaredVar(name);
++      Var var = scope.findOwnDeclaredVar(name);
+       if (var != null) {
+         return var;
+       }
+-      if (implicit != null) {
+-        var = scope.getOwnImplicitSlot(implicit);
+-        if (var != null) {
+-          return var;
+-        }
++      var = scope.getOwnImplicitSlot(implicit);
++      if (var != null) {
++        return var;
+       }
+     }
+     return null;
+   }
+ 
++  @Override
++  public @Nullable Var getVar(String name) {
++    return lookupVar(name);
++  }
++
+   @Override
+   public Iterable<Var> getVarIterable() {
+     if (vars != null) {
+diff --git a/com/google/javascript/jscomp/ScopedAliases.java b/com/google/javascript/jscomp/ScopedAliases.java
+index e15aa94..e08ee73 100644
+--- a/com/google/javascript/jscomp/ScopedAliases.java
++++ b/com/google/javascript/jscomp/ScopedAliases.java
+@@ -805,8 +805,8 @@ class ScopedAliases implements CompilerPass {
+       // we only process that jsdoc once.
+       JSDocInfo info = n.getJSDocInfo();
+       if (info != null && !injectedDecls.contains(n)) {
+-        for (Node node : info.getTypeNodes()) {
+-          fixTypeNode(node);
++        for (int i = 0, count = info.getTypeNodeCount(); i < count; i++) {
++          fixTypeNode(info.getTypeNodeAt(i));
+         }
+       }
+     }
+diff --git a/com/google/javascript/jscomp/SymbolTable.java b/com/google/javascript/jscomp/SymbolTable.java
+index 78c05bc..f40df23 100644
+--- a/com/google/javascript/jscomp/SymbolTable.java
++++ b/com/google/javascript/jscomp/SymbolTable.java
+@@ -2170,9 +2170,10 @@ public final class SymbolTable {
+       }
+       docInfos.add(n);
+ 
+-      for (Node typeAst : info.getTypeNodes()) {
++      for (int i = 0, count = info.getTypeNodeCount(); i < count; i++) {
+         SymbolScope scope = scopes.get(t.getScopeRoot());
+-        visitTypeNode(info.getTemplateTypes(), scope == null ? globalScope : scope, typeAst);
++        visitTypeNode(
++            info.getTemplateTypes(), scope == null ? globalScope : scope, info.getTypeNodeAt(i));
+       }
+     }
+ 
+diff --git a/com/google/javascript/jscomp/TypeCheck.java b/com/google/javascript/jscomp/TypeCheck.java
+index 0e51f88..b52c6f6 100644
+--- a/com/google/javascript/jscomp/TypeCheck.java
++++ b/com/google/javascript/jscomp/TypeCheck.java
+@@ -567,7 +567,7 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+       // Check for a bug in IE9 (quirks mode) and earlier where bleeding function names would
+       // refer to the wrong variable (i.e. "var x; var y = function x() { use(x); }" would pass
+       // the 'x' from the outer scope, rather than the local alias bled into the function).
+-      final TypedVar var = outerScope.getVar(n.getFirstChild().getString());
++      final TypedVar var = outerScope.lookupTypedVar(n.getFirstChild().getString());
+       if (var != null
+           && var.getScope().hasSameContainerScope(outerScope)
+           // Ideally, we would want to check whether the type in the scope
+@@ -1245,7 +1245,7 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     JSType leftType = getJSType(lvalue);
+     if (lvalue.isQualifiedName()) {
+       // variable with inferred type case
+-      TypedVar var = t.getTypedScope().getVar(lvalue.getQualifiedName());
++      TypedVar var = t.getTypedScope().lookupTypedVar(lvalue.getQualifiedName());
+       if (var != null) {
+         if (var.isTypeInferred()) {
+           return;
+@@ -2041,7 +2041,7 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     if (type == null) {
+       type = getNativeType(UNKNOWN_TYPE);
+       // TODO(b/149843534): crash instead of defaulting to '?' when the var is null.
+-      TypedVar var = t.getTypedScope().getVar(n.getString());
++      TypedVar var = t.getTypedScope().lookupTypedVar(n.getString());
+       if (var != null) {
+         type = checkNotNull(var.getType());
+       }
+@@ -3199,7 +3199,7 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     QualifiedName moduleName = QualifiedName.of(associatedModule.closureNamespace());
+     Node googModuleCall = moduleBody.getFirstChild();
+     if (moduleName.isSimple()) {
+-      TypedVar globalVar = topScope.getVar(moduleName.join());
++      TypedVar globalVar = topScope.lookupTypedVar(moduleName.join());
+       validator.expectCanAssignTo(
+           googModuleCall, moduleBody.getJSType(), globalVar.getType(), "legacy goog.module export");
+     } else {
+@@ -3562,9 +3562,10 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+ 
+     // We could be a reference to "ReadonlyArray" or a templatized wrapper.
+     JSType roArray = getNativeType(JSTypeNative.READONLY_ARRAY_TYPE);
+-    ImmutableList<JSType> alternates = flattenUnion(lhsType);
+-    for (int i = 0; i < alternates.size(); i++) {
+-      JSType type = alternates.get(i);
++    UnionType union = lhsType.toMaybeUnionType();
++    int altCount = (union != null) ? union.getAlternatesCount() : 1;
++    for (int i = 0; i < altCount; i++) {
++      JSType type = (union != null) ? union.getAlternateAt(i) : lhsType;
+       if (roArray.equals(type) || roArray.equals(maybeReferencedType(type))) {
+         compiler.report(JSError.make(lhs, PROPERTY_ASSIGNMENT_TO_READONLY_VALUE, type.toString()));
+         break;
+@@ -3577,11 +3578,6 @@ public final class TypeCheck implements NodeTraversal.Callback, CompilerPass {
+     return (maybeTemplatized != null) ? maybeTemplatized.getReferencedType() : null;
+   }
+ 
+-  private static ImmutableList<JSType> flattenUnion(JSType maybeUnion) {
+-    UnionType union = maybeUnion.toMaybeUnionType();
+-    return (union == null) ? ImmutableList.of(maybeUnion) : union.getAlternates();
+-  }
+-
+   private static boolean declaresOverride(@Nullable JSDocInfo jsdoc) {
+     return (jsdoc != null) && jsdoc.isOverride();
+   }
+diff --git a/com/google/javascript/jscomp/TypeInference.java b/com/google/javascript/jscomp/TypeInference.java
+index 1155035..c96ba83 100644
+--- a/com/google/javascript/jscomp/TypeInference.java
++++ b/com/google/javascript/jscomp/TypeInference.java
+@@ -315,7 +315,7 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+             entryFlowScope,
+             inferredType,
+             (FlowScope scope, Node lvalue, JSType type) -> {
+-              TypedVar var = containerScope.getVar(lvalue.getString());
++              TypedVar var = containerScope.lookupTypedVar(lvalue.getString());
+               checkNotNull(var);
+               // This condition will trigger on cases like
+               //   (function f({x}) {})({x: 3})
+@@ -354,7 +354,7 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+   @CheckReturnValue
+   private FlowScope updateNamedParameter(
+       Node paramName, boolean hasDefaultValue, JSType inferredType, FlowScope entryFlowScope) {
+-    TypedVar var = containerScope.getVar(paramName.getString());
++    TypedVar var = containerScope.lookupTypedVar(paramName.getString());
+     checkNotNull(var, "Missing var for parameter %s", paramName);
+ 
+     paramName.setJSType(inferredType);
+@@ -473,8 +473,8 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+         // Update the global scope for the implicit assignment "legacy.module.id = exports;" created
+         // by `goog.module.declareLegacyNamespace();`
+         String moduleId = module.closureNamespace();
+-        TypedScope globalScope = syntacticBlockScope.getGlobalScope();
+-        TypedVar globalVar = globalScope.getVar(moduleId);
++        TypedScope globalScope = syntacticBlockScope.getGlobalTypedScope();
++        TypedVar globalVar = globalScope.lookupTypedVar(moduleId);
+         if (globalVar.isTypeInferred()) {
+           globalVar.setType(exportsType);
+         }
+@@ -1334,7 +1334,7 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+         String propName = getprop.getString();
+         String qName = getprop.getQualifiedName();
+         if (qName != null) {
+-          TypedVar var = declScope.getVar(qName);
++          TypedVar var = declScope.lookupTypedVar(qName);
+           if (var != null && !var.isTypeInferred()) {
+             // Handle normal declarations that could not be addressed earlier.
+             if (propName.equals("prototype")
+@@ -1486,7 +1486,7 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+         // type {number}, even though it's undefined.
+         TypedVar maybeOuterVar =
+             isInferred && containerScope.isLocal()
+-                ? containerScope.getParent().getVar(varName)
++                ? containerScope.getParent().lookupTypedVar(varName)
+                 : null;
+         boolean nonLocalInferredSlot =
+             var.equals(maybeOuterVar) && !maybeOuterVar.isMarkedAssignedExactlyOnce();
+@@ -2196,7 +2196,7 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+ 
+   /** This function will evaluate the type transformations associated to the template types */
+   private Map<TemplateType, JSType> evaluateTypeTransformations(
+-      ImmutableList<TemplateType> templateTypes,
++      TemplateTypeMap templateMap,
+       Map<TemplateType, JSType> inferredTypes,
+       FlowScope scope) {
+ 
+@@ -2204,7 +2204,8 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+     Map<TemplateType, JSType> result = null;
+     TypeTransformation ttlObj = null;
+ 
+-    for (TemplateType type : templateTypes) {
++    for (int i = 0, n = templateMap.size(); i < n; i++) {
++      TemplateType type = templateMap.getTemplateKeyAt(i);
+       if (type.isTypeTransformation()) {
+         // Lazy initialization when the first type transformation is found
+         if (ttlObj == null) {
+@@ -2231,41 +2232,71 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+    */
+   private boolean inferTemplatedTypesForCall(Node n, FunctionType fnType, FlowScope scope) {
+     TemplateTypeMap fnTemplateMap = fnType.getTemplateTypeMap();
+-    if (fnTemplateMap.isEmpty()) {
++    int keyCount = fnTemplateMap.size();
++    if (keyCount == 0) {
+       return false;
+     }
+-    ImmutableList<TemplateType> keys = fnTemplateMap.getTemplateKeys();
+ 
+     // Try to infer the template types
+-    ImmutableMap<TemplateType, JSType> bindings =
+-        new InvocationTemplateTypeMatcher(this.registry, fnType, scope.getTypeOfThis(), n).match();
+-    Map<TemplateType, JSType> inferred = new LinkedHashMap<>();
+-    for (TemplateType key : keys) {
+-      inferred.put(key, bindings.getOrDefault(key, unknownType));
+-    }
+-
+-    // If the inferred type doesn't satisfy the template bound, swap to using the bound. This
+-    // ensures errors will be reported in type-checking.
+-    inferred.replaceAll((k, v) -> v.isSubtypeOf(k.getBound()) ? v : k.getBound());
++    InvocationTemplateTypeMatcher matcher =
++        new InvocationTemplateTypeMatcher(this.registry, fnType, scope.getTypeOfThis(), n);
++    matcher.runMatch();
++
++    TemplateTypeMap inferenceMap;
++    if (keyCount == 1 && !fnTemplateMap.getTemplateKeyAt(0).isTypeTransformation()) {
++      TemplateType k0 = fnTemplateMap.getTemplateKeyAt(0);
++      JSType v0 = matcher.lookupMatched(k0);
++      if (v0 == null) {
++        v0 = unknownType;
++      } else if (!v0.isSubtypeOf(k0.getBound())) {
++        v0 = k0.getBound();
++      }
++      inferenceMap = TemplateTypeMap.ofSingleBinding(k0, v0);
++    } else {
++      Map<TemplateType, JSType> inferred = new LinkedHashMap<>(keyCount * 2);
++      boolean hasTypeTransformation = false;
++      for (int i = 0; i < keyCount; i++) {
++        TemplateType key = fnTemplateMap.getTemplateKeyAt(i);
++        if (key.isTypeTransformation()) {
++          hasTypeTransformation = true;
++        }
++        JSType matched = matcher.lookupMatched(key);
++        if (matched == null) {
++          matched = unknownType;
++        } else if (!matched.isSubtypeOf(key.getBound())) {
++          matched = key.getBound();
++        }
++        inferred.put(key, matched);
++      }
+ 
+-    // Try to infer the template types using the type transformations
+-    Map<TemplateType, JSType> typeTransformations =
+-        evaluateTypeTransformations(keys, inferred, scope);
+-    if (typeTransformations != null) {
+-      inferred.putAll(typeTransformations);
++      if (hasTypeTransformation) {
++        Map<TemplateType, JSType> typeTransformations =
++            evaluateTypeTransformations(fnTemplateMap, inferred, scope);
++        if (typeTransformations != null) {
++          inferred.putAll(typeTransformations);
++        }
++      }
++      inferenceMap = TemplateTypeMap.fromInferenceMap(registry, inferred);
+     }
+ 
+     // Replace all template types. If we couldn't find a replacement, we
+     // replace it with UNKNOWN.
+-    TemplateTypeReplacer replacer = TemplateTypeReplacer.forInference(registry, inferred);
+-    Node callTarget = n.getFirstChild();
+-
+-    FunctionType replacementFnType = fnType.visit(replacer).toMaybeFunctionType();
++    TemplateTypeReplacer replacer =
++        registry.acquireTemplateTypeReplacer(inferenceMap, true, true, true);
++    final FunctionType replacementFnType;
++    final boolean madeReplacement;
++    try {
++      replacementFnType = replacer.replace(fnType).toMaybeFunctionType();
++      madeReplacement = replacer.hasMadeReplacement();
++    } finally {
++      registry.releaseTemplateTypeReplacer(replacer);
++    }
+     checkNotNull(replacementFnType);
++    Node callTarget = n.getFirstChild();
+     callTarget.setJSType(replacementFnType);
+     n.setJSType(replacementFnType.getReturnType());
+ 
+-    return replacer.hasMadeReplacement();
++    return madeReplacement;
+   }
+ 
+   private FlowScope traverseNew(Node n, FlowScope scope) {
+@@ -2958,6 +2989,6 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+   }
+ 
+   private static TypedVar getDeclaredVar(FlowScope scope, String name) {
+-    return ((TypedScope) scope.getDeclarationScope()).getVar(name);
++    return ((TypedScope) scope.getDeclarationScope()).lookupTypedVar(name);
+   }
+ }
+diff --git a/com/google/javascript/jscomp/TypeValidator.java b/com/google/javascript/jscomp/TypeValidator.java
+index ac93b77..d140fc7 100644
+--- a/com/google/javascript/jscomp/TypeValidator.java
++++ b/com/google/javascript/jscomp/TypeValidator.java
+@@ -58,7 +58,6 @@ import com.google.javascript.rhino.jstype.Property;
+ import com.google.javascript.rhino.jstype.Property.OwnedProperty;
+ import com.google.javascript.rhino.jstype.TemplateType;
+ import com.google.javascript.rhino.jstype.TemplateTypeMap;
+-import com.google.javascript.rhino.jstype.TemplateTypeReplacer;
+ import com.google.javascript.rhino.jstype.TemplatizedType;
+ import com.google.javascript.rhino.jstype.UnionType;
+ import com.google.javascript.rhino.jstype.UnknownType;
+@@ -1009,7 +1008,7 @@ class TypeValidator implements Serializable {
+     JSType required = parent.getPropertyType(propertyName);
+     TemplateTypeMap typeMap = instance.getTemplateTypeMap();
+     if (!typeMap.isEmpty() && required.hasAnyTemplateTypes()) {
+-      required = required.visit(TemplateTypeReplacer.forPartialReplacement(typeRegistry, typeMap));
++      required = typeRegistry.replaceTemplateTypesPartial(required, typeMap);
+     }
+ 
+     if (found.isSubtypeOf(required, this.subtypingMode)) {
+@@ -1039,7 +1038,7 @@ class TypeValidator implements Serializable {
+     JSType required = parent.getPropertyType(propertyName);
+     TemplateTypeMap typeMap = instance.getTemplateTypeMap();
+     if (!typeMap.isEmpty() && required.hasAnyTemplateTypes()) {
+-      required = required.visit(TemplateTypeReplacer.forPartialReplacement(typeRegistry, typeMap));
++      required = typeRegistry.replaceTemplateTypesPartial(required, typeMap);
+     }
+ 
+     if (found.isSubtypeOf(required, this.subtypingMode)) {
+@@ -1322,14 +1321,13 @@ class TypeValidator implements Serializable {
+ 
+     @Override
+     public Boolean caseTemplatizedType(TemplatizedType type) {
+-      ImmutableList<TemplateType> referencedTemplates =
+-          type.getReferencedType().getTemplateTypeMap().getTemplateKeys();
++      TemplateTypeMap referencedTemplates = type.getReferencedType().getTemplateTypeMap();
+       ImmutableList<JSType> templateTypes = type.getTemplateTypes();
+       int refCount = referencedTemplates.size();
+       for (int i = 0, len = templateTypes.size(); i < len; i++) {
+         JSType assignedType = templateTypes.get(i);
+         if (i < refCount) {
+-          TemplateType templateType = referencedTemplates.get(i);
++          TemplateType templateType = referencedTemplates.getTemplateKeyAt(i);
+           if (!assignedType.isSubtype(templateType.getBound())) {
+             registerMismatchAndReport(
+                 assignedType,
+diff --git a/com/google/javascript/jscomp/TypedScope.java b/com/google/javascript/jscomp/TypedScope.java
+index abfa85f..b5f1c7a 100644
+--- a/com/google/javascript/jscomp/TypedScope.java
++++ b/com/google/javascript/jscomp/TypedScope.java
+@@ -456,8 +456,7 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     return false;
+   }
+ 
+-  @Override
+-  @Nullable TypedVar getOwnDeclaredVar(String name) {
++  private @Nullable TypedVar findOwnDeclaredVar(String name) {
+     Overflow o = this.overflow;
+     if (o != null && o.vars != null) {
+       return o.vars.get(name);
+@@ -493,6 +492,11 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     return null;
+   }
+ 
++  @Override
++  @Nullable TypedVar getOwnDeclaredVar(String name) {
++    return findOwnDeclaredVar(name);
++  }
++
+   @Override
+   void putOwnDeclaredVar(String name, TypedVar var) {
+     Overflow o = this.overflow;
+@@ -824,7 +828,7 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+         // Look for an extern named "arguments" and use its type if available.
+         // TODO(sdh): consider looking for "Arguments" ctor rather than "arguments" var: this could
+         // allow deleting the variable, which doesn't really belong in externs in the first place.
+-        TypedVar globalArgs = getGlobalScope().getVar(Var.ARGUMENTS);
++        TypedVar globalArgs = getGlobalTypedScope().lookupTypedVar(Var.ARGUMENTS);
+         return globalArgs != null && globalArgs.isExtern() ? globalArgs.getType() : null;
+       }
+       case THIS -> {
+@@ -932,18 +936,33 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+    * function scope contains "a". When looking up "a.b" in the function scope, AbstractScope::getVar
+    * returns "a.b". This method returns null because the global "a" is shadowed.
+    */
++  TypedScope getGlobalTypedScope() {
++    TypedScope s = this;
++    while (s.parent != null) {
++      s = s.parent;
++    }
++    return s;
++  }
++
+   private @Nullable TypedVar findRootVar(String name) {
+     ImplicitVar implicit = ImplicitVar.of(name);
++    if (implicit == null) {
++      for (TypedScope scope = this; scope != null; scope = scope.parent) {
++        TypedVar var = scope.findOwnDeclaredVar(name);
++        if (var != null) {
++          return var;
++        }
++      }
++      return null;
++    }
+     for (TypedScope scope = this; scope != null; scope = scope.parent) {
+-      TypedVar var = scope.getOwnDeclaredVar(name);
++      TypedVar var = scope.findOwnDeclaredVar(name);
+       if (var != null) {
+         return var;
+       }
+-      if (implicit != null) {
+-        var = scope.getOwnImplicitSlot(implicit);
+-        if (var != null) {
+-          return var;
+-        }
++      var = scope.getOwnImplicitSlot(implicit);
++      if (var != null) {
++        return var;
+       }
+     }
+     return null;
+@@ -951,48 +970,58 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+ 
+   @Nullable TypedScope findScopeForRootName(String name) {
+     ImplicitVar implicit = ImplicitVar.of(name);
++    if (implicit == null) {
++      for (TypedScope scope = this; scope != null; scope = scope.parent) {
++        if (scope.findOwnDeclaredVar(name) != null) {
++          return scope;
++        }
++      }
++      return null;
++    }
+     for (TypedScope scope = this; scope != null; scope = scope.parent) {
+-      if (scope.getOwnDeclaredVar(name) != null) {
++      if (scope.findOwnDeclaredVar(name) != null) {
+         return scope;
+       }
+-      if (implicit != null && !scope.isGlobal() && scope.hasOwnImplicitSlot(implicit)) {
++      if (!scope.isGlobal() && scope.hasOwnImplicitSlot(implicit)) {
+         return scope;
+       }
+     }
+     return null;
+   }
+ 
+-  @Override
+-  public final @Nullable TypedVar getVar(String name) {
++  public @Nullable TypedVar lookupTypedVar(String name) {
+     int dot = name.indexOf('.');
+-    TypedVar ownSlot =
+-        (dot >= 0 && (this.overflow == null || this.overflow.qualifiedRootNames == null))
+-            ? null
+-            : getOwnSlot(name);
+-    if (ownSlot != null) {
+-      // Micro-optimization: variables declared directly in this scope cannot have been shadowed.
+-      return ownSlot;
+-    } else if (this.parent == null) {
++    if (dot < 0) {
++      return findRootVar(name);
++    }
++    Overflow o = this.overflow;
++    if (o != null && o.qualifiedRootNames != null) {
++      TypedVar ownSlot = this.findOwnDeclaredVar(name);
++      if (ownSlot != null) {
++        return ownSlot;
++      }
++    }
++    if (this.parent == null) {
+       return null;
+     }
+-    // Find the root name and its slot.
+-    String rootName = dot < 0 ? name : name.substring(0, dot);
++    String rootName = name.substring(0, dot);
+     TypedVar rootVar = findRootVar(rootName);
+-
+-    if (dot < 0) {
+-      return rootVar;
+-    } else if (rootVar == null) {
++    if (rootVar == null) {
+       // Default to the global scope because externs may have qualified names with undeclared roots.
+-      TypedScope global = this.parent.getGlobalScope();
+-      return global.hasQualifiedOwnVarWithRoot(rootName) ? global.getOwnDeclaredVar(name) : null;
+-    } else {
+-      // Qualified names 'a.b.c' are declared in the same scope as 'a', never a child scope, which
+-      // is why calling `getOwnSlot` is sufficient.
+-      TypedScope rootScope = rootVar.getScope();
+-      return rootScope.hasQualifiedOwnVarWithRoot(rootName)
+-          ? rootScope.getOwnDeclaredVar(name)
+-          : null;
+-    }
++      TypedScope global = this.parent.getGlobalTypedScope();
++      return global.hasQualifiedOwnVarWithRoot(rootName) ? global.findOwnDeclaredVar(name) : null;
++    }
++    // Qualified names 'a.b.c' are declared in the same scope as 'a', never a child scope, which
++    // is why calling `findOwnDeclaredVar` is sufficient.
++    TypedScope rootScope = rootVar.getScope();
++    return rootScope.hasQualifiedOwnVarWithRoot(rootName)
++        ? rootScope.findOwnDeclaredVar(name)
++        : null;
++  }
++
++  @Override
++  public final @Nullable TypedVar getVar(String name) {
++    return lookupTypedVar(name);
+   }
+ 
+   final @Nullable JSType getTypeThroughNamespace(String moduleId) {
+@@ -1006,7 +1035,7 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+       }
+       return parentType.assertObjectType().getPropertyType(prop);
+     } else {
+-      TypedVar var = this.getSlot(moduleId);
++      TypedVar var = this.lookupTypedVar(moduleId);
+       return var != null ? var.getType() : null;
+     }
+   }
+diff --git a/com/google/javascript/jscomp/TypedScopeCreator.java b/com/google/javascript/jscomp/TypedScopeCreator.java
+index ce385d1..e3ee882 100644
+--- a/com/google/javascript/jscomp/TypedScopeCreator.java
++++ b/com/google/javascript/jscomp/TypedScopeCreator.java
+@@ -93,7 +93,6 @@ import com.google.javascript.rhino.jstype.Property;
+ import com.google.javascript.rhino.jstype.StaticTypedScope;
+ import com.google.javascript.rhino.jstype.TemplateType;
+ import com.google.javascript.rhino.jstype.TemplateTypeMap;
+-import com.google.javascript.rhino.jstype.TemplateTypeReplacer;
+ import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.LinkedHashMap;
+@@ -1233,7 +1232,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       JSDocInfo info = objectLit.getJSDocInfo();
+       if (info != null && info.hasLendsName()) {
+         String lendsName = info.getLendsName().getRoot().getString();
+-        TypedVar lendsVar = currentScope.getVar(lendsName);
++        TypedVar lendsVar = currentScope.lookupTypedVar(lendsName);
+         if (lendsVar == null) {
+           report(JSError.make(objectLit, UNKNOWN_LENDS, lendsName));
+         } else {
+@@ -1358,35 +1357,35 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+      */
+     private JSType getDeclaredTypeInAnnotation(Node node, JSDocInfo info) {
+       checkArgument(info.hasType(), info);
+-      ImmutableList<TemplateType> ownerTypeKeys = findOwnerTypeKeys(node);
++      TemplateTypeMap ownerTemplateMap = findOwnerTemplateMap(node);
+ 
+       StaticTypedScope templateScope =
+-          !ownerTypeKeys.isEmpty()
+-              ? typeRegistry.createScopeWithTemplates(currentScope, ownerTypeKeys)
++          (ownerTemplateMap != null && !ownerTemplateMap.isEmpty())
++              ? typeRegistry.createScopeWithTemplates(currentScope, ownerTemplateMap)
+               : currentScope;
+       return info.getType().evaluate(templateScope, typeRegistry);
+     }
+ 
+-    ImmutableList<TemplateType> findOwnerTypeKeys(Node node) {
++    @Nullable TemplateTypeMap findOwnerTemplateMap(Node node) {
+       if (node != null && !node.isStaticMember() && node.getParent().isClassMembers()) {
+         JSType classType = node.getGrandparent().getJSType();
+         if (classType != null) {
+-          return classType.toMaybeFunctionType().getTemplateTypeMap().getTemplateKeys();
++          return classType.toMaybeFunctionType().getTemplateTypeMap();
+         }
+-        return ImmutableList.of();
++        return null;
+       }
+       Node ownerNode = NodeUtil.getBestLValueOwner(node);
+       String ownerName = NodeUtil.getBestLValueName(ownerNode);
+       if (ownerName != null) {
+-        TypedVar ownerVar = currentScope.getVar(ownerName);
++        TypedVar ownerVar = currentScope.lookupTypedVar(ownerName);
+         if (ownerVar != null) {
+           JSType ownerType = getPrototypeOwnerType(ObjectType.cast(ownerVar.getType()));
+           if (ownerType != null) {
+-            return ownerType.getTemplateTypeMap().getTemplateKeys();
++            return ownerType.getTemplateTypeMap();
+           }
+         }
+       }
+-      return ImmutableList.of();
++      return null;
+     }
+ 
+     /**
+@@ -1868,7 +1867,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+           // Look up qualified names in the scope (types won't be set on the AST until inference).
+           ctorType = currentScope.lookupQualifiedName(superclass);
+           if (ctorType == null) {
+-            TypedVar var = currentScope.getVar(superclass);
++            TypedVar var = currentScope.lookupTypedVar(superclass);
+             ctorType = var != null ? var.getType() : null;
+           }
+           // If that doesn't work, then fall back on the registry
+@@ -1975,7 +1974,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+         @Nullable Node lvalueNode) {
+       // Check for an alias.
+       if (rValue != null && rValue.isQualifiedName() && lvalueNode != null) {
+-        TypedVar var = currentScope.getVar(rValue.getQualifiedName());
++        TypedVar var = currentScope.lookupTypedVar(rValue.getQualifiedName());
+         if (var != null && var.getType() != null && var.getType().isFunctionType()) {
+           FunctionType aliasedType = var.getType().toMaybeFunctionType();
+           if (aliasedType.isConstructor() || aliasedType.isInterface()) {
+@@ -2218,7 +2217,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       }
+ 
+       if (result != null && typeMap != null && !typeMap.isEmpty()) {
+-        result = result.visit(TemplateTypeReplacer.forPartialReplacement(typeRegistry, typeMap));
++        result = typeRegistry.replaceTemplateTypesPartial(result, typeMap);
+       }
+ 
+       return result;
+@@ -2251,7 +2250,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       if (rValue != null && rValue.isQualifiedName()) {
+         // Handle an aliased enum. Note that putting @enum on an enum alias is optional. If the
+         // rValue is not an enum, then this assignment errors during TypeCheck.
+-        TypedVar var = currentScope.getVar(rValue.getQualifiedName());
++        TypedVar var = currentScope.lookupTypedVar(rValue.getQualifiedName());
+         if (var != null && var.getType() != null && var.getType().isEnumType()) {
+           enumType = var.getType().toMaybeEnumType();
+         }
+@@ -2425,7 +2424,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+         // declared in closest scope?
+         CompilerInput input = compiler.getInput(inputId);
+         if (!scopeToDeclareIn.canDeclare(variableName)) {
+-          TypedVar oldVar = scopeToDeclareIn.getVar(variableName);
++          TypedVar oldVar = scopeToDeclareIn.lookupTypedVar(variableName);
+           validator.expectUndeclaredVariable(
+               sourceName, input, declarationNode, parent, oldVar, variableName, type);
+         } else {
+@@ -2520,7 +2519,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       // There are some rare cases where the prototype will already
+       // be declared. See TypedScopeCreatorTest#testBogusPrototypeInit.
+       // Fortunately, other warnings will complain if this happens.
+-      TypedVar prototypeVar = scopeToDeclareIn.getVar(prototypeName);
++      TypedVar prototypeVar = scopeToDeclareIn.lookupTypedVar(prototypeName);
+       if (prototypeVar != null && prototypeVar.getScope() == scopeToDeclareIn) {
+         scopeToDeclareIn.undeclare(prototypeVar);
+       }
+@@ -2563,7 +2562,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+                 // Ensure that 'exports = class {}' in a goog.module returns the module scope.
+                 return currentScope;
+               }
+-              TypedVar var = currentScope.getVar(root.getString());
++              TypedVar var = currentScope.lookupTypedVar(root.getString());
+               if (var != null) {
+                 return var.getScope();
+               }
+@@ -2829,7 +2828,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     private @Nullable Node getDefinitionNode(String qname, TypedScope scope) {
+       int lastDot = qname.lastIndexOf('.');
+       if (lastDot < 0) {
+-        TypedVar var = scope.getVar(qname);
++        TypedVar var = scope.lookupTypedVar(qname);
+         return var != null ? var.getNameNode() : null;
+       }
+       ObjectType parent = ObjectType.cast(scope.lookupQualifiedName(qname.substring(0, lastDot)));
+@@ -2839,7 +2838,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     /** Returns the AST node associated with the definition, if any. */
+     private @Nullable Node getDefinitionNode(QualifiedName qname, TypedScope scope) {
+       if (qname.isSimple()) {
+-        TypedVar var = scope.getVar(qname.getComponent());
++        TypedVar var = scope.lookupTypedVar(qname.getComponent());
+         return var != null ? var.getNameNode() : null;
+       }
+       ObjectType parent = ObjectType.cast(scope.lookupQualifiedName(qname.getOwner()));
+@@ -3078,7 +3077,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       if ("prototype".equals(propName)) {
+         ownerName = ownerNode.getQualifiedName();
+         qName = ownerName + "." + propName;
+-        TypedVar qVar = currentScope.getVar(qName);
++        TypedVar qVar = currentScope.lookupTypedVar(qName);
+         if (qVar != null) {
+           // If the programmer has declared that F inherits from Super,
+           // and they assign F.prototype to an object literal,
+@@ -3195,7 +3194,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+           }
+           className = qName.substring(0, qName.lastIndexOf(".prototype"));
+         }
+-        TypedVar slot = currentScope.getVar(className);
++        TypedVar slot = currentScope.lookupTypedVar(className);
+         JSType classType = slot == null ? null : slot.getType();
+         if (classType != null && (classType.isConstructor() || classType.isInterface())) {
+           return false;
+@@ -3319,7 +3318,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+      * @return An object type, or null if this slot does not contain an object.
+      */
+     private @Nullable ObjectType getObjectSlot(String slotName) {
+-      TypedVar ownerVar = currentScope.getVar(slotName);
++      TypedVar ownerVar = currentScope.lookupTypedVar(slotName);
+       if (ownerVar != null) {
+         JSType ownerVarType = ownerVar.getType();
+         return ObjectType.cast(
+@@ -3659,7 +3658,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       // scope. (they were already registered as types by FunctionTypeBuilder, but they need to be
+       // in a TypedScope to let JSTypeRegistry correctly handle scoping).
+       JSDocInfo info = NodeUtil.getBestJSDocInfo(functionNode);
+-      ImmutableList<TemplateType> ownerTypeKeys = ImmutableList.of();
++      TemplateTypeMap ownerTemplateMap = null;
+ 
+       boolean isPossiblePrototypeMethod =
+           !functionType.hasInstanceType() && (info == null || !info.hasThisType());
+@@ -3672,21 +3671,22 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+         //   }
+         // We want to declare 'T' in the scope of 'bar'
+         Node ownerNode = NodeUtil.getBestLValue(functionNode);
+-        ownerTypeKeys = findOwnerTypeKeys(ownerNode);
++        ownerTemplateMap = findOwnerTemplateMap(ownerNode);
+       }
+       ImmutableList<String> infoTemplateNames =
+           info != null ? info.getTemplateTypeNames() : ImmutableList.of();
+       ImmutableMap<String, Node> infoTypeTransformations =
+           info != null ? info.getTypeTransformations() : ImmutableMap.of();
+-      if (ownerTypeKeys.isEmpty()
++      int ownerKeyCount = ownerTemplateMap != null ? ownerTemplateMap.size() : 0;
++      if (ownerKeyCount == 0
+           && infoTemplateNames.isEmpty()
+           && infoTypeTransformations.isEmpty()) {
+         return;
+       }
+ 
+       LinkedHashSet<String> templateNames = new LinkedHashSet<>();
+-      for (int i = 0, len = ownerTypeKeys.size(); i < len; i++) {
+-        templateNames.add(ownerTypeKeys.get(i).getReferenceName());
++      for (int i = 0; i < ownerKeyCount; i++) {
++        templateNames.add(ownerTemplateMap.getTemplateKeyAt(i).getReferenceName());
+       }
+       templateNames.addAll(infoTemplateNames);
+       if (!infoTypeTransformations.isEmpty()) {
+@@ -4053,7 +4053,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       if (n.isName() && NodeUtil.isLValue(n) && !NodeUtil.isBleedingFunctionName(n)) {
+         String name = n.getString();
+         Scope scope = t.getScope();
+-        Var var = scope.getVar(name);
++        Var var = scope.lookupVar(name);
+         // TODO(sdh): consider checking hasSameHoistScope instead of container scope here and
+         // below. This will detect function(a) { a.foo = bar } as an escaped qualified name,
+         // which seems like the right thing to do (but could possibly break things?)
+@@ -4068,7 +4068,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       } else if (n.isGetProp() && n.isUnscopedQualifiedName() && NodeUtil.isLValue(n)) {
+         String name = NodeUtil.getRootOfQualifiedName(n).getString();
+         Scope scope = t.getScope();
+-        Var var = scope.getVar(name);
++        Var var = scope.lookupVar(name);
+         if (var != null) {
+           Scope ownerScope = var.getScope();
+           if (ownerScope.isLocal() && !containerScope.hasSameContainerScope(ownerScope)) {
+diff --git a/com/google/javascript/jscomp/lint/CheckPrimitiveAsObject.java b/com/google/javascript/jscomp/lint/CheckPrimitiveAsObject.java
+index 464d14f..a15bd76 100644
+--- a/com/google/javascript/jscomp/lint/CheckPrimitiveAsObject.java
++++ b/com/google/javascript/jscomp/lint/CheckPrimitiveAsObject.java
+@@ -67,8 +67,8 @@ public final class CheckPrimitiveAsObject extends AbstractPostOrderCallback
+     JSDocInfo jsDocInfo = n.getJSDocInfo();
+ 
+     if (jsDocInfo != null) {
+-      for (Node typeRoot : jsDocInfo.getTypeNodes()) {
+-        checkTypeNodeForPrimitiveObjectDeclaration(t, typeRoot);
++      for (int i = 0, count = jsDocInfo.getTypeNodeCount(); i < count; i++) {
++        checkTypeNodeForPrimitiveObjectDeclaration(t, jsDocInfo.getTypeNodeAt(i));
+       }
+     }
+   }
+diff --git a/com/google/javascript/rhino/JSDocInfo.java b/com/google/javascript/rhino/JSDocInfo.java
+index 2537316..8e7e70e 100644
+--- a/com/google/javascript/rhino/JSDocInfo.java
++++ b/com/google/javascript/rhino/JSDocInfo.java
+@@ -130,6 +130,14 @@ public final class JSDocInfo implements Serializable {
+       return sink;
+     }
+ 
++    int countTypeNodes(T unusedValue) {
++      return 0;
++    }
++
++    @Nullable Node typeNodeAt(T unusedValue, int unusedOffset) {
++      return null;
++    }
++
+     // NOTE: These need to be comparable so that we can iterate over them to build the list.
+     @Override
+     public int compareTo(Property<Object> that) {
+@@ -210,6 +218,16 @@ public final class JSDocInfo implements Serializable {
+       }
+       return sink;
+     }
++
++    @Override
++    int countTypeNodes(JSTypeExpression type) {
++      return type != null ? 1 : 0;
++    }
++
++    @Override
++    @Nullable Node typeNodeAt(JSTypeExpression type, int offset) {
++      return (offset == 0 && type != null) ? type.getRoot() : null;
++    }
+   }
+ 
+   private static final class TypeList {
+@@ -359,6 +377,32 @@ public final class JSDocInfo implements Serializable {
+       }
+       return sink;
+     }
++
++    @Override
++    int countTypeNodes(TypeList types) {
++      int count = 0;
++      for (int i = 0, n = types.size; i < n; i++) {
++        if (types.values[i] != null) {
++          count++;
++        }
++      }
++      return count;
++    }
++
++    @Override
++    @Nullable Node typeNodeAt(TypeList types, int offset) {
++      int rem = offset;
++      for (int i = 0, n = types.size; i < n; i++) {
++        JSTypeExpression type = types.values[i];
++        if (type != null) {
++          if (rem == 0) {
++            return type.getRoot();
++          }
++          rem--;
++        }
++      }
++      return null;
++    }
+   }
+ 
+   private static final class TypeMap {
+@@ -555,6 +599,32 @@ public final class JSDocInfo implements Serializable {
+       }
+       return sink;
+     }
++
++    @Override
++    int countTypeNodes(TypeMap map) {
++      int count = 0;
++      for (int i = 0, n = map.values.size(); i < n; i++) {
++        if (map.values.get(i) != null) {
++          count++;
++        }
++      }
++      return count;
++    }
++
++    @Override
++    @Nullable Node typeNodeAt(TypeMap map, int offset) {
++      int rem = offset;
++      for (int i = 0, n = map.values.size(); i < n; i++) {
++        JSTypeExpression type = map.values.get(i);
++        if (type != null) {
++          if (rem == 0) {
++            return type.getRoot();
++          }
++          rem--;
++        }
++      }
++      return null;
++    }
+   }
+ 
+   private static final class StringMap {
+@@ -2236,6 +2306,68 @@ public final class JSDocInfo implements Serializable {
+    *
+    * @return collection of all type nodes
+    */
++  @SuppressWarnings("unchecked")
++  public int getTypeNodeCount() {
++    long typeBits = propertyKeysBitset & TYPE_EXPR_PROPERTIES_MASK;
++    if (typeBits == 0L) {
++      return 0;
++    }
++    if ((typeBits & (typeBits - 1L)) == 0L && (typeBits & SINGLE_TYPE_EXPR_PROPERTIES_MASK) != 0L) {
++      return this.type0 != null ? 1 : 0;
++    }
++    int count = 0;
++    while (typeBits != 0L) {
++      int low = Long.numberOfTrailingZeros(typeBits);
++      typeBits &= typeBits - 1L;
++      if (((1L << low) & SINGLE_TYPE_EXPR_PROPERTIES_MASK) != 0L) {
++        if (getSingleTypeForBit(low) != null) {
++          count++;
++        }
++      } else {
++        Property<Object> prop = (Property<Object>) Property.values[low];
++        count += prop.countTypeNodes(getNonType0ValueForBit(low));
++      }
++    }
++    return count;
++  }
++
++  @SuppressWarnings("unchecked")
++  public Node getTypeNodeAt(int index) {
++    if (index < 0) {
++      throw new IndexOutOfBoundsException(index);
++    }
++    long typeBits = propertyKeysBitset & TYPE_EXPR_PROPERTIES_MASK;
++    if ((typeBits & (typeBits - 1L)) == 0L && (typeBits & SINGLE_TYPE_EXPR_PROPERTIES_MASK) != 0L) {
++      if (index == 0 && this.type0 != null) {
++        return this.type0.getRoot();
++      }
++      throw new IndexOutOfBoundsException(index);
++    }
++    int remaining = index;
++    while (typeBits != 0L) {
++      int low = Long.numberOfTrailingZeros(typeBits);
++      typeBits &= typeBits - 1L;
++      if (((1L << low) & SINGLE_TYPE_EXPR_PROPERTIES_MASK) != 0L) {
++        JSTypeExpression expr = getSingleTypeForBit(low);
++        if (expr != null) {
++          if (remaining == 0) {
++            return expr.getRoot();
++          }
++          remaining--;
++        }
++      } else {
++        Property<Object> prop = (Property<Object>) Property.values[low];
++        Object val = getNonType0ValueForBit(low);
++        int subCount = prop.countTypeNodes(val);
++        if (remaining < subCount) {
++          return prop.typeNodeAt(val, remaining);
++        }
++        remaining -= subCount;
++      }
++    }
++    throw new IndexOutOfBoundsException(index);
++  }
++
+   @SuppressWarnings("unchecked")
+   public Collection<Node> getTypeNodes() {
+     long typeBits = propertyKeysBitset & TYPE_EXPR_PROPERTIES_MASK;
+diff --git a/com/google/javascript/rhino/jstype/EqualityChecker.java b/com/google/javascript/rhino/jstype/EqualityChecker.java
+index 3cd66ec..8a626d5 100644
+--- a/com/google/javascript/rhino/jstype/EqualityChecker.java
++++ b/com/google/javascript/rhino/jstype/EqualityChecker.java
+@@ -618,6 +618,21 @@ final class EqualityChecker {
+       }
+     }
+ 
++    if (leftMap.hasFlatProps() && rightMap.hasFlatProps()) {
++      for (int i = 0; i < leftCount; i++) {
++        if (rightMap.getOwnProperty(leftMap.getFlatPropAt(i).getName()) == null) {
++          return false;
++        }
++      }
++      for (int i = 0; i < leftCount; i++) {
++        String key = leftMap.getFlatPropAt(i).getName();
++        if (!this.areEqualCaching(left.getPropertyType(key), right.getPropertyType(key))) {
++          return false;
++        }
++      }
++      return true;
++    }
++
+     Set<String> leftKeys = left.getOwnPropertyNames();
+     Set<String> rightKeys = right.getOwnPropertyNames();
+     if (!rightKeys.equals(leftKeys)) {
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index 8c9f67e..6f09b3e 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -974,13 +974,12 @@ public abstract class JSType {
+ 
+     // Do templatized type replacing logic here, and make this method final, to prevent a subclass
+     // from forgetting to replace template types
+-    if (getTemplateTypeMap().isEmpty() || !propertyType.hasAnyTemplateTypes()) {
++    TemplateTypeMap typeMap = getTemplateTypeMap();
++    if (typeMap.isEmpty() || !propertyType.hasAnyTemplateTypes()) {
+       return propertyType;
+     }
+ 
+-    TemplateTypeMap typeMap = getTemplateTypeMap();
+-    TemplateTypeReplacer replacer = TemplateTypeReplacer.forPartialReplacement(registry, typeMap);
+-    return propertyType.visit(replacer);
++    return registry.replaceTemplateTypesPartial(propertyType, typeMap);
+   }
+ 
+   /**
+@@ -998,13 +997,12 @@ public abstract class JSType {
+       return null;
+     }
+ 
+-    if (getTemplateTypeMap().isEmpty() || !propertyType.hasAnyTemplateTypes()) {
++    TemplateTypeMap typeMap = getTemplateTypeMap();
++    if (typeMap.isEmpty() || !propertyType.hasAnyTemplateTypes()) {
+       return propertyType;
+     }
+ 
+-    TemplateTypeMap typeMap = getTemplateTypeMap();
+-    TemplateTypeReplacer replacer = TemplateTypeReplacer.forPartialReplacement(registry, typeMap);
+-    return propertyType.visit(replacer);
++    return registry.replaceTemplateTypesPartial(propertyType, typeMap);
+   }
+ 
+   @ForOverride
+diff --git a/com/google/javascript/rhino/jstype/JSTypeRegistry.java b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+index 52f5a84..872f3bc 100644
+--- a/com/google/javascript/rhino/jstype/JSTypeRegistry.java
++++ b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+@@ -413,6 +413,49 @@ public final class JSTypeRegistry {
+   private final ScopedNameSet nonNullableTypeNames = new ScopedNameSet();
+   private final UnionType.Builder[] unionBuilderPool = new UnionType.Builder[16];
+   private int unionBuilderPoolSize = 0;
++  private final TemplateTypeReplacer[] replacerPool = new TemplateTypeReplacer[8];
++  private int replacerPoolSize = 0;
++
++  public TemplateTypeReplacer acquireTemplateTypeReplacer(
++      TemplateTypeMap bindings,
++      boolean visitProperties,
++      boolean useUnknownForMissingKeys,
++      boolean useUnknownForMissingValues) {
++    TemplateTypeReplacer r;
++    int n = this.replacerPoolSize;
++    if (n > 0) {
++      int top = n - 1;
++      r = this.replacerPool[top];
++      this.replacerPool[top] = null;
++      this.replacerPoolSize = top;
++    } else {
++      r = TemplateTypeReplacer.createPooled(this);
++    }
++    r.initForPool(
++        bindings, visitProperties, useUnknownForMissingKeys, useUnknownForMissingValues);
++    return r;
++  }
++
++  public void releaseTemplateTypeReplacer(TemplateTypeReplacer r) {
++    r.resetForPool();
++    int n = this.replacerPoolSize;
++    if (n < this.replacerPool.length) {
++      this.replacerPool[n] = r;
++      this.replacerPoolSize = n + 1;
++    }
++  }
++
++  public JSType replaceTemplateTypesPartial(JSType type, TemplateTypeMap bindings) {
++    if (bindings.isEmpty() || !TemplateTypeReplacer.mayBeAffectedByPartialReplacement(type)) {
++      return type;
++    }
++    TemplateTypeReplacer replacer = acquireTemplateTypeReplacer(bindings, false, false, false);
++    try {
++      return replacer.replace(type);
++    } finally {
++      releaseTemplateTypeReplacer(replacer);
++    }
++  }
+ 
+   public UnionType.Builder acquireUnionTypeBuilder() {
+     int n = this.unionBuilderPoolSize;
+@@ -1697,21 +1740,12 @@ public final class JSTypeRegistry {
+       return;
+     }
+     boolean foundDroppedProperty = false;
+-    if (subMap.hasInlinePropsOnly()) {
+-      Property p0 = subMap.getInlineProp0();
+-      if (p0 != null) {
+-        String k0 = p0.getName();
+-        if (!supertype.hasProperty(k0)) {
++    if (subMap.hasFlatProps()) {
++      for (int i = 0, n = subMap.getOwnPropertiesCount(); i < n; i++) {
++        String k = subMap.getFlatPropAt(i).getName();
++        if (!supertype.hasProperty(k)) {
+           foundDroppedProperty = true;
+-          this.droppedPropertiesOfUnions.add(k0);
+-        }
+-        Property p1 = subMap.getInlineProp1();
+-        if (p1 != null) {
+-          String k1 = p1.getName();
+-          if (!supertype.hasProperty(k1)) {
+-            foundDroppedProperty = true;
+-            this.droppedPropertiesOfUnions.add(k1);
+-          }
++          this.droppedPropertiesOfUnions.add(k);
+         }
+       }
+     } else {
+@@ -1843,16 +1877,11 @@ public final class JSTypeRegistry {
+         PropertyMap recMap = rec.getOwnPropertyMapOrNull();
+         boolean mayBeInUnion = false;
+         if (recMap != null) {
+-          if (recMap.hasInlinePropsOnly()) {
+-            Property p0 = recMap.getInlineProp0();
+-            if (p0 != null) {
+-              if (this.propertiesOfSupertypesInUnions.contains(p0.getName())) {
++          if (recMap.hasFlatProps()) {
++            for (int i = 0, n = recMap.getOwnPropertiesCount(); i < n; i++) {
++              if (this.propertiesOfSupertypesInUnions.contains(recMap.getFlatPropAt(i).getName())) {
+                 mayBeInUnion = true;
+-              } else {
+-                Property p1 = recMap.getInlineProp1();
+-                if (p1 != null && this.propertiesOfSupertypesInUnions.contains(p1.getName())) {
+-                  mayBeInUnion = true;
+-                }
++                break;
+               }
+             }
+           } else {
+@@ -2938,11 +2967,21 @@ public final class JSTypeRegistry {
+    */
+   public void registerTemplateTypeNamesInScope(Iterable<TemplateType> keys, Node scopeRoot) {
+     for (TemplateType key : keys) {
+-      String refName = key.getReferenceName();
+-      scopedNameTable.put(scopeRoot, refName, key);
+-      if (refName.indexOf('.') >= 0) {
+-        addQualifiedScopedNameHash(Node.hashQualifiedNameString(refName));
+-      }
++      registerSingleTemplateTypeNameInScope(key, scopeRoot);
++    }
++  }
++
++  public void registerTemplateTypeNamesInScope(TemplateTypeMap map, Node scopeRoot) {
++    for (int i = 0, n = map.size(); i < n; i++) {
++      registerSingleTemplateTypeNameInScope(map.getTemplateKeyAt(i), scopeRoot);
++    }
++  }
++
++  public void registerSingleTemplateTypeNameInScope(TemplateType key, Node scopeRoot) {
++    String refName = key.getReferenceName();
++    scopedNameTable.put(scopeRoot, refName, key);
++    if (refName.indexOf('.') >= 0) {
++      addQualifiedScopedNameHash(Node.hashQualifiedNameString(refName));
+     }
+   }
+ 
+@@ -2952,6 +2991,26 @@ public final class JSTypeRegistry {
+     return new SyntheticTemplateScope(scope, templates);
+   }
+ 
++  public StaticTypedScope createScopeWithTemplates(
++      StaticTypedScope scope, TemplateTypeMap templateMap) {
++    if (templateMap.isEmpty()) {
++      return scope;
++    }
++    return new SyntheticTemplateScope(scope, templateMap);
++  }
++
++  public StaticTypedScope createScopeWithTemplates(
++      StaticTypedScope scope,
++      ImmutableList<TemplateType> primaryTemplates,
++      @Nullable TemplateTypeMap secondaryTemplateMap) {
++    if (primaryTemplates.isEmpty()) {
++      return secondaryTemplateMap != null && !secondaryTemplateMap.isEmpty()
++          ? new SyntheticTemplateScope(scope, secondaryTemplateMap)
++          : scope;
++    }
++    return new SyntheticTemplateScope(scope, primaryTemplates, secondaryTemplateMap);
++  }
++
+   /**
+    * Synthetic scope that includes template names. This is necessary for resolving template names
+    * outside the body of templated functions (e.g. when evaluating JSDoc on things assigned to a
+@@ -2962,18 +3021,97 @@ public final class JSTypeRegistry {
+     private static final HamtPMap<String, TemplateType> EMPTY_TEMPLATE_TYPES = HamtPMap.empty();
+ 
+     final StaticTypedScope delegate;
+-    final HamtPMap<String, TemplateType> types;
++    final @Nullable String singleKey;
++    final @Nullable TemplateType singleType;
++    final @Nullable HamtPMap<String, TemplateType> types;
+ 
+     SyntheticTemplateScope(StaticTypedScope delegate, Iterable<TemplateType> templates) {
+       this.delegate = delegate;
+-      HamtPMap<String, TemplateType> types =
+-          delegate instanceof SyntheticTemplateScope syntheticTemplateScope
+-              ? syntheticTemplateScope.types
+-              : EMPTY_TEMPLATE_TYPES;
+-      for (TemplateType key : templates) {
+-        types = types.plus(key.getReferenceName(), key);
++      if (delegate instanceof SyntheticTemplateScope syntheticTemplateScope) {
++        HamtPMap<String, TemplateType> map = syntheticTemplateScope.asMap();
++        for (TemplateType key : templates) {
++          map = map.plus(key.getReferenceName(), key);
++        }
++        this.singleKey = null;
++        this.singleType = null;
++        this.types = map;
++      } else if (templates instanceof ImmutableList<TemplateType> list && list.size() == 1) {
++        TemplateType t0 = list.get(0);
++        this.singleKey = t0.getReferenceName();
++        this.singleType = t0;
++        this.types = null;
++      } else {
++        HamtPMap<String, TemplateType> map = EMPTY_TEMPLATE_TYPES;
++        for (TemplateType key : templates) {
++          map = map.plus(key.getReferenceName(), key);
++        }
++        this.singleKey = null;
++        this.singleType = null;
++        this.types = map;
+       }
+-      this.types = types;
++    }
++
++    SyntheticTemplateScope(StaticTypedScope delegate, TemplateTypeMap templateMap) {
++      this.delegate = delegate;
++      int n = templateMap.size();
++      if (!(delegate instanceof SyntheticTemplateScope) && n == 1) {
++        TemplateType t0 = templateMap.getTemplateKeyAt(0);
++        this.singleKey = t0.getReferenceName();
++        this.singleType = t0;
++        this.types = null;
++      } else {
++        HamtPMap<String, TemplateType> map =
++            delegate instanceof SyntheticTemplateScope syntheticTemplateScope
++                ? syntheticTemplateScope.asMap()
++                : EMPTY_TEMPLATE_TYPES;
++        for (int i = 0; i < n; i++) {
++          TemplateType key = templateMap.getTemplateKeyAt(i);
++          map = map.plus(key.getReferenceName(), key);
++        }
++        this.singleKey = null;
++        this.singleType = null;
++        this.types = map;
++      }
++    }
++
++    SyntheticTemplateScope(
++        StaticTypedScope delegate,
++        ImmutableList<TemplateType> primaryTemplates,
++        @Nullable TemplateTypeMap secondaryTemplateMap) {
++      this.delegate = delegate;
++      int n1 = primaryTemplates.size();
++      int n2 = secondaryTemplateMap != null ? secondaryTemplateMap.size() : 0;
++      if (!(delegate instanceof SyntheticTemplateScope) && n1 == 1 && n2 == 0) {
++        TemplateType t0 = primaryTemplates.get(0);
++        this.singleKey = t0.getReferenceName();
++        this.singleType = t0;
++        this.types = null;
++      } else {
++        HamtPMap<String, TemplateType> map =
++            delegate instanceof SyntheticTemplateScope syntheticTemplateScope
++                ? syntheticTemplateScope.asMap()
++                : EMPTY_TEMPLATE_TYPES;
++        for (int i = 0; i < n1; i++) {
++          TemplateType key = primaryTemplates.get(i);
++          map = map.plus(key.getReferenceName(), key);
++        }
++        for (int i = 0; i < n2; i++) {
++          TemplateType key = secondaryTemplateMap.getTemplateKeyAt(i);
++          map = map.plus(key.getReferenceName(), key);
++        }
++        this.singleKey = null;
++        this.singleType = null;
++        this.types = map;
++      }
++    }
++
++    private HamtPMap<String, TemplateType> asMap() {
++      if (this.types != null) {
++        return this.types;
++      }
++      return this.singleKey != null
++          ? HamtPMap.singleton(this.singleKey, this.singleType)
++          : EMPTY_TEMPLATE_TYPES;
+     }
+ 
+     @Override
+@@ -3002,12 +3140,15 @@ public final class JSTypeRegistry {
+     }
+ 
+     @Nullable TemplateType getTemplateType(String name) {
+-      return types.get(name);
++      if (this.types != null) {
++        return this.types.get(name);
++      }
++      return (this.singleKey != null && this.singleKey.equals(name)) ? this.singleType : null;
+     }
+ 
+     @Override
+     public StaticScope getTopmostScopeOfEventualDeclaration(String name) {
+-      if (types.get(name) != null) {
++      if (getTemplateType(name) != null) {
+         return this;
+       }
+       return delegate.getTopmostScopeOfEventualDeclaration(name);
+diff --git a/com/google/javascript/rhino/jstype/ObjectType.java b/com/google/javascript/rhino/jstype/ObjectType.java
+index 4c55905..96cff5e 100644
+--- a/com/google/javascript/rhino/jstype/ObjectType.java
++++ b/com/google/javascript/rhino/jstype/ObjectType.java
+@@ -663,7 +663,9 @@ public abstract class ObjectType extends JSType {
+   public final JSType getPropertyType(String propertyName) {
+     if (this instanceof TemplatizedType templatized) {
+       JSType result = getPropertyTypeFromSlot(getSlot(propertyName));
+-      return result == null ? null : result.visit(templatized.replacer);
++      return result == null
++          ? null
++          : registry.replaceTemplateTypesPartial(result, templatized.getTemplateTypeMap());
+     }
+     if (this instanceof FunctionType) {
+       if ("call".equals(propertyName)) {
+diff --git a/com/google/javascript/rhino/jstype/PropertyMap.java b/com/google/javascript/rhino/jstype/PropertyMap.java
+index f5ba859..1bc0806 100644
+--- a/com/google/javascript/rhino/jstype/PropertyMap.java
++++ b/com/google/javascript/rhino/jstype/PropertyMap.java
+@@ -47,6 +47,7 @@ import com.google.common.collect.ImmutableSet;
+ import com.google.common.collect.ImmutableSortedSet;
+ import com.google.javascript.rhino.ErrorReporter;
+ import com.google.javascript.rhino.jstype.Property.OwnedProperty;
++import java.util.Arrays;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.Set;
+@@ -76,10 +77,29 @@ final class PropertyMap {
+   // just reference primary parents and secondary parents directly.
+   private @Nullable ObjectType parentSource = null;
+ 
+-  // Inline own string properties for 0..2 properties; spilled to `properties` on 3rd distinct name.
++  /**
++   * Storage for 3..16 own string properties in a flat {@code Property[]} array, spilling to
++   * {@code map} only when > 16 distinct own string properties exist.
++   */
++  private static final class PropStore {
++    Property @Nullable [] items;
++    int size;
++    @Nullable LinkedHashMap<String, Property> map = null;
++
++    PropStore(Property p0, Property p1, Property p2) {
++      Property[] arr = new Property[4];
++      arr[0] = p0;
++      arr[1] = p1;
++      arr[2] = p2;
++      this.items = arr;
++      this.size = 3;
++    }
++  }
++
++  // Inline own string properties for 0..2 properties; 3..16 in `store.items`; >16 in `store.map`.
+   private @Nullable Property prop0 = null;
+   private @Nullable Property prop1 = null;
+-  private @Nullable LinkedHashMap<String, Property> properties = null;
++  private @Nullable PropStore store = null;
+ 
+   private @Nullable Extra extra = null;
+ 
+@@ -308,20 +328,36 @@ final class PropertyMap {
+   }
+ 
+   @Nullable Property getOwnProperty(String propertyName) {
+-    if (this.properties != null) {
+-      return this.properties.get(propertyName);
+-    }
+-    Property p0 = this.prop0;
+-    if (p0 != null) {
+-      if (p0.getName().equals(propertyName)) {
+-        return p0;
++    PropStore s = this.store;
++    if (s == null) {
++      Property p0 = this.prop0;
++      if (p0 != null) {
++        String n0 = p0.getName();
++        if (n0 == propertyName || n0.equals(propertyName)) {
++          return p0;
++        }
++        Property p1 = this.prop1;
++        if (p1 != null) {
++          String n1 = p1.getName();
++          if (n1 == propertyName || n1.equals(propertyName)) {
++            return p1;
++          }
++        }
+       }
+-      Property p1 = this.prop1;
+-      if (p1 != null && p1.getName().equals(propertyName)) {
+-        return p1;
++      return null;
++    }
++    if (s.map == null) {
++      Property[] items = s.items;
++      for (int i = 0, n = s.size; i < n; i++) {
++        Property p = items[i];
++        String pn = p.getName();
++        if (pn == propertyName || pn.equals(propertyName)) {
++          return p;
++        }
+       }
++      return null;
+     }
+-    return null;
++    return s.map.get(propertyName);
+   }
+ 
+   @Nullable Property getOwnProperty(Property.Key propertyName) {
+@@ -341,7 +377,20 @@ final class PropertyMap {
+   }
+ 
+   boolean hasInlinePropsOnly() {
+-    return this.properties == null;
++    return this.store == null;
++  }
++
++  boolean hasFlatProps() {
++    PropStore s = this.store;
++    return s == null || s.map == null;
++  }
++
++  Property getFlatPropAt(int index) {
++    PropStore s = this.store;
++    if (s != null) {
++      return s.items[index];
++    }
++    return index == 0 ? this.prop0 : this.prop1;
+   }
+ 
+   @Nullable Property getInlineProp0() {
+@@ -358,8 +407,9 @@ final class PropertyMap {
+   }
+ 
+   int getOwnPropertiesCount() {
+-    if (this.properties != null) {
+-      return this.properties.size();
++    PropStore s = this.store;
++    if (s != null) {
++      return s.map != null ? s.map.size() : s.size;
+     }
+     if (this.prop0 == null) {
+       return 0;
+@@ -368,8 +418,19 @@ final class PropertyMap {
+   }
+ 
+   int collectOwnPropertyNames(String[] out, int idx, boolean skipPrototype) {
+-    if (this.properties != null) {
+-      for (String key : this.properties.keySet()) {
++    PropStore s = this.store;
++    if (s != null) {
++      if (s.map != null) {
++        for (String key : s.map.keySet()) {
++          if (!skipPrototype || !"prototype".equals(key)) {
++            out[idx++] = key;
++          }
++        }
++        return idx;
++      }
++      Property[] items = s.items;
++      for (int i = 0, n = s.size; i < n; i++) {
++        String key = items[i].getName();
+         if (!skipPrototype || !"prototype".equals(key)) {
+           out[idx++] = key;
+         }
+@@ -394,8 +455,16 @@ final class PropertyMap {
+   }
+ 
+   void addOwnPropertyNamesTo(Set<String> out) {
+-    if (this.properties != null) {
+-      out.addAll(this.properties.keySet());
++    PropStore s = this.store;
++    if (s != null) {
++      if (s.map != null) {
++        out.addAll(s.map.keySet());
++        return;
++      }
++      Property[] items = s.items;
++      for (int i = 0, n = s.size; i < n; i++) {
++        out.add(items[i].getName());
++      }
+       return;
+     }
+     Property p0 = this.prop0;
+@@ -409,8 +478,18 @@ final class PropertyMap {
+   }
+ 
+   Set<String> getOwnPropertyNames() {
+-    if (this.properties != null) {
+-      return this.properties.keySet();
++    PropStore s = this.store;
++    if (s != null) {
++      if (s.map != null) {
++        return s.map.keySet();
++      }
++      int n = s.size;
++      Property[] items = s.items;
++      ImmutableSet.Builder<String> builder = ImmutableSet.builderWithExpectedSize(n);
++      for (int i = 0; i < n; i++) {
++        builder.add(items[i].getName());
++      }
++      return builder.build();
+     }
+     Property p0 = this.prop0;
+     if (p0 == null) {
+@@ -432,7 +511,7 @@ final class PropertyMap {
+     if (this == EMPTY_MAP
+         || (this.parentSource == null
+             && this.prop0 == null
+-            && this.properties == null
++            && this.store == null
+             && (this.extra == null || this.extra.knownSymbols == null))) {
+       return EMPTY_ALL_KEYS;
+     }
+@@ -524,15 +603,16 @@ final class PropertyMap {
+   }
+ 
+   void putProperty(String name, Property newProp) {
+-    LinkedHashMap<String, Property> map = this.properties;
+-    if (map == null) {
++    PropStore s = this.store;
++    if (s == null) {
+       Property p0 = this.prop0;
+       if (p0 == null) {
+         this.prop0 = newProp;
+         this.incrementCachedKeySetCounter();
+         return;
+       }
+-      if (p0.getName().equals(name)) {
++      String n0 = p0.getName();
++      if (n0 == name || n0.equals(name)) {
+         newProp.setJSDocInfo(p0.getJSDocInfo());
+         this.prop0 = newProp;
+         return;
+@@ -543,23 +623,54 @@ final class PropertyMap {
+         this.incrementCachedKeySetCounter();
+         return;
+       }
+-      if (p1.getName().equals(name)) {
++      String n1 = p1.getName();
++      if (n1 == name || n1.equals(name)) {
+         newProp.setJSDocInfo(p1.getJSDocInfo());
+         this.prop1 = newProp;
+         return;
+       }
+-      map = new LinkedHashMap<>(4);
+-      map.put(p0.getName(), p0);
+-      map.put(p1.getName(), p1);
+-      map.put(name, newProp);
++      this.store = new PropStore(p0, p1, newProp);
+       this.prop0 = null;
+       this.prop1 = null;
+-      this.properties = map;
+       this.incrementCachedKeySetCounter();
+       return;
+     }
+ 
+-    Property oldProp = map.get(name);
++    if (s.map == null) {
++      Property[] items = s.items;
++      int n = s.size;
++      for (int i = 0; i < n; i++) {
++        Property existing = items[i];
++        String en = existing.getName();
++        if (en == name || en.equals(name)) {
++          newProp.setJSDocInfo(existing.getJSDocInfo());
++          items[i] = newProp;
++          return;
++        }
++      }
++      if (n < 16) {
++        if (n == items.length) {
++          items = Arrays.copyOf(items, n * 2);
++          s.items = items;
++        }
++        items[n] = newProp;
++        s.size = n + 1;
++        this.incrementCachedKeySetCounter();
++        return;
++      }
++      s.map = new LinkedHashMap<>(32);
++      for (int i = 0; i < 16; i++) {
++        Property existing = items[i];
++        s.map.put(existing.getName(), existing);
++      }
++      s.map.put(name, newProp);
++      s.items = null;
++      s.size = 0;
++      this.incrementCachedKeySetCounter();
++      return;
++    }
++
++    Property oldProp = s.map.get(name);
+ 
+     if (oldProp == null) {
+       // The cache is only invalidated if this is a new property name.
+@@ -569,7 +680,62 @@ final class PropertyMap {
+       newProp.setJSDocInfo(oldProp.getJSDocInfo());
+     }
+ 
+-    map.put(name, newProp);
++    s.map.put(name, newProp);
++  }
++
++  boolean removeProperty(String name) {
++    PropStore s = this.store;
++    if (s == null) {
++      Property p0 = this.prop0;
++      if (p0 == null) {
++        return false;
++      }
++      String n0 = p0.getName();
++      if (n0 == name || n0.equals(name)) {
++        this.prop0 = this.prop1;
++        this.prop1 = null;
++        this.incrementCachedKeySetCounter();
++        return true;
++      }
++      Property p1 = this.prop1;
++      if (p1 != null) {
++        String n1 = p1.getName();
++        if (n1 == name || n1.equals(name)) {
++          this.prop1 = null;
++          this.incrementCachedKeySetCounter();
++          return true;
++        }
++      }
++      return false;
++    }
++    if (s.map == null) {
++      Property[] items = s.items;
++      int n = s.size;
++      for (int i = 0; i < n; i++) {
++        String iname = items[i].getName();
++        if (iname == name || iname.equals(name)) {
++          int last = n - 1;
++          for (int j = i; j < last; j++) {
++            items[j] = items[j + 1];
++          }
++          items[last] = null;
++          s.size = last;
++          if (last == 2) {
++            this.prop0 = items[0];
++            this.prop1 = items[1];
++            this.store = null;
++          }
++          this.incrementCachedKeySetCounter();
++          return true;
++        }
++      }
++      return false;
++    }
++    if (s.map.remove(name) != null) {
++      this.incrementCachedKeySetCounter();
++      return true;
++    }
++    return false;
+   }
+ 
+   void putProperty(KnownSymbolType symbol, Property newProp) {
+@@ -595,8 +761,17 @@ final class PropertyMap {
+   }
+ 
+   void resolveOwnPropertyTypes(ErrorReporter reporter) {
+-    if (this.properties != null) {
+-      for (Property prop : this.properties.values()) {
++    PropStore s = this.store;
++    if (s != null) {
++      if (s.map != null) {
++        for (Property prop : s.map.values()) {
++          prop.setType(JSType.safeResolve(prop.getType(), reporter));
++        }
++        return;
++      }
++      Property[] items = s.items;
++      for (int i = 0, n = s.size; i < n; i++) {
++        Property prop = items[i];
+         prop.setType(JSType.safeResolve(prop.getType(), reporter));
+       }
+       return;
+@@ -612,8 +787,18 @@ final class PropertyMap {
+   }
+ 
+   Iterable<Property> values() {
+-    if (this.properties != null) {
+-      return this.properties.values();
++    PropStore s = this.store;
++    if (s != null) {
++      if (s.map != null) {
++        return s.map.values();
++      }
++      int n = s.size;
++      Property[] items = s.items;
++      ImmutableList.Builder<Property> builder = ImmutableList.builderWithExpectedSize(n);
++      for (int i = 0; i < n; i++) {
++        builder.add(items[i]);
++      }
++      return builder.build();
+     }
+     Property p0 = this.prop0;
+     if (p0 == null) {
+@@ -635,9 +820,17 @@ final class PropertyMap {
+     // Otherwise we can get into an infinite loop because the ObjectType hashCode
+     // method calls this one.
+     int h = 0;
+-    if (this.properties != null) {
+-      for (String key : this.properties.keySet()) {
+-        h += key.hashCode();
++    PropStore s = this.store;
++    if (s != null) {
++      if (s.map != null) {
++        for (String key : s.map.keySet()) {
++          h += key.hashCode();
++        }
++      } else {
++        Property[] items = s.items;
++        for (int i = 0, n = s.size; i < n; i++) {
++          h += items[i].getName().hashCode();
++        }
+       }
+     } else if (this.prop0 != null) {
+       h = this.prop0.getName().hashCode();
+diff --git a/com/google/javascript/rhino/jstype/PrototypeObjectType.java b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+index 4961ee5..ff69aa9 100644
+--- a/com/google/javascript/rhino/jstype/PrototypeObjectType.java
++++ b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+@@ -664,6 +664,30 @@ public class PrototypeObjectType extends ObjectType {
+   }
+ 
+   public void matchRecordTypeConstraint(ObjectType constraintObj) {
++    if (constraintObj != this && !(constraintObj instanceof FunctionType)) {
++      PrototypeObjectType src = unwrapToPrototypeObjectType(constraintObj);
++      if (src != null) {
++        PropertyMap ownMap = src.getOwnPropertyMapOrNull();
++        if (ownMap == null) {
++          return;
++        }
++        if (ownMap.hasFlatProps()) {
++          for (int i = 0, n = ownMap.getOwnPropertiesCount(); i < n; i++) {
++            String prop = ownMap.getFlatPropAt(i).getName();
++            JSType propType = constraintObj.getPropertyType(prop);
++            Property slot = getSlot(prop);
++            if (slot == null || slot.isTypeInferred()) {
++              JSType typeToInfer = propType;
++              if (slot == null && !isEmptyType() && !isUnknownType()) {
++                typeToInfer = getNativeType(JSTypeNative.VOID_TYPE).getLeastSupertype(propType);
++              }
++              defineInferredProperty(prop, typeToInfer, null);
++            }
++          }
++          return;
++        }
++      }
++    }
+     for (String prop : constraintObj.getOwnPropertyNames()) {
+       JSType propType = constraintObj.getPropertyType(prop);
+       Property slot = getSlot(prop);
+diff --git a/com/google/javascript/rhino/jstype/RecordType.java b/com/google/javascript/rhino/jstype/RecordType.java
+index bd0d94d..816c56d 100644
+--- a/com/google/javascript/rhino/jstype/RecordType.java
++++ b/com/google/javascript/rhino/jstype/RecordType.java
+@@ -144,25 +144,63 @@ public final class RecordType extends PrototypeObjectType {
+       // The greatest subtype consists of those *unique* properties of both
+       // record types. If any property conflicts, then the NO_TYPE type
+       // is returned.
+-      for (String property : getOwnPropertyNames()) {
+-        JSType thisPropertyType = getPropertyType(property);
+-        JSType propType = null;
+-        if (thatRecord.hasProperty(property)) {
+-          JSType thatPropertyType = thatRecord.getPropertyType(property);
+-          propType = thisPropertyType.getGreatestSubtype(thatPropertyType);
+-          if (propType.equals(noType)) {
+-            return noType;
++      PropertyMap thisMap = this.getOwnPropertyMapOrNull();
++      if (thisMap != null) {
++        if (thisMap.hasFlatProps()) {
++          for (int i = 0, n = thisMap.getOwnPropertiesCount(); i < n; i++) {
++            Property thisProp = thisMap.getFlatPropAt(i);
++            String property = thisProp.getName();
++            JSType thisPropertyType = getPropertyType(property);
++            JSType propType;
++            if (thatRecord.hasProperty(property)) {
++              JSType thatPropertyType = thatRecord.getPropertyType(property);
++              propType = thisPropertyType.getGreatestSubtype(thatPropertyType);
++              if (propType.equals(noType)) {
++                return noType;
++              }
++            } else {
++              propType = thisPropertyType;
++            }
++            builder.addProperty(property, propType, thisProp.getNode());
+           }
+         } else {
+-          propType = thisPropertyType;
++          for (String property : getOwnPropertyNames()) {
++            JSType thisPropertyType = getPropertyType(property);
++            JSType propType = null;
++            if (thatRecord.hasProperty(property)) {
++              JSType thatPropertyType = thatRecord.getPropertyType(property);
++              propType = thisPropertyType.getGreatestSubtype(thatPropertyType);
++              if (propType.equals(noType)) {
++                return noType;
++              }
++            } else {
++              propType = thisPropertyType;
++            }
++            builder.addProperty(property, propType, getPropertyNode(property));
++          }
+         }
+-        builder.addProperty(property, propType, getPropertyNode(property));
+       }
+ 
+-      for (String property : thatRecord.getOwnPropertyNames()) {
+-        if (!hasProperty(property)) {
+-          builder.addProperty(property, thatRecord.getPropertyType(property),
+-              thatRecord.getPropertyNode(property));
++      PropertyMap thatMap = thatRecord.getOwnPropertyMapOrNull();
++      if (thatMap != null) {
++        if (thatMap.hasFlatProps()) {
++          for (int i = 0, n = thatMap.getOwnPropertiesCount(); i < n; i++) {
++            Property thatProp = thatMap.getFlatPropAt(i);
++            String property = thatProp.getName();
++            if (!hasProperty(property)) {
++              builder.addProperty(
++                  property, thatRecord.getPropertyType(property), thatProp.getNode());
++            }
++          }
++        } else {
++          for (String property : thatRecord.getOwnPropertyNames()) {
++            if (!hasProperty(property)) {
++              builder.addProperty(
++                  property,
++                  thatRecord.getPropertyType(property),
++                  thatRecord.getPropertyNode(property));
++            }
++          }
+         }
+       }
+       return builder.build();
+@@ -180,25 +218,52 @@ public final class RecordType extends PrototypeObjectType {
+       //    of all classes with a property "x" with a compatible property type.
+       //    and which are a subtype of {@code that}.
+       // 2) Take the intersection of all of these unions.
+-      for (String propName : getOwnPropertyNames()) {
+-        JSType propType = getPropertyType(propName);
+-        UnionType.Builder builder = registry.acquireUnionTypeBuilder();
+-        final JSType propUnion;
+-        try {
+-          for (ObjectType alt : registry.getEachReferenceTypeWithProperty(propName)) {
+-            JSType altPropType = alt.getPropertyType(propName);
+-            if (altPropType != null
+-                && !alt.equals(this)
+-                && alt.isSubtypeOf(that)
+-                && altPropType.isSubtypeOf(propType)) {
+-              builder.addAlternate(alt);
++      PropertyMap thisMap = this.getOwnPropertyMapOrNull();
++      if (thisMap != null) {
++        if (thisMap.hasFlatProps()) {
++          for (int i = 0, n = thisMap.getOwnPropertiesCount(); i < n; i++) {
++            String propName = thisMap.getFlatPropAt(i).getName();
++            JSType propType = getPropertyType(propName);
++            UnionType.Builder builder = registry.acquireUnionTypeBuilder();
++            final JSType propUnion;
++            try {
++              for (ObjectType alt : registry.getEachReferenceTypeWithProperty(propName)) {
++                JSType altPropType = alt.getPropertyType(propName);
++                if (altPropType != null
++                    && !alt.equals(this)
++                    && alt.isSubtypeOf(that)
++                    && altPropType.isSubtypeOf(propType)) {
++                  builder.addAlternate(alt);
++                }
++              }
++              propUnion = builder.build();
++            } finally {
++              registry.releaseUnionTypeBuilder(builder);
++            }
++            greatestSubtype = greatestSubtype.getLeastSupertype(propUnion);
++          }
++        } else {
++          for (String propName : getOwnPropertyNames()) {
++            JSType propType = getPropertyType(propName);
++            UnionType.Builder builder = registry.acquireUnionTypeBuilder();
++            final JSType propUnion;
++            try {
++              for (ObjectType alt : registry.getEachReferenceTypeWithProperty(propName)) {
++                JSType altPropType = alt.getPropertyType(propName);
++                if (altPropType != null
++                    && !alt.equals(this)
++                    && alt.isSubtypeOf(that)
++                    && altPropType.isSubtypeOf(propType)) {
++                  builder.addAlternate(alt);
++                }
++              }
++              propUnion = builder.build();
++            } finally {
++              registry.releaseUnionTypeBuilder(builder);
+             }
++            greatestSubtype = greatestSubtype.getLeastSupertype(propUnion);
+           }
+-          propUnion = builder.build();
+-        } finally {
+-          registry.releaseUnionTypeBuilder(builder);
+         }
+-        greatestSubtype = greatestSubtype.getLeastSupertype(propUnion);
+       }
+     }
+     return greatestSubtype;
+diff --git a/com/google/javascript/rhino/jstype/SubtypeChecker.java b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+index b88d3e1..ac23eed 100644
+--- a/com/google/javascript/rhino/jstype/SubtypeChecker.java
++++ b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+@@ -504,15 +504,10 @@ final class SubtypeChecker {
+       if (ownMap == null) {
+         return true;
+       }
+-      if (ownMap.hasInlinePropsOnly()) {
+-        Property p0 = ownMap.getInlineProp0();
+-        if (p0 != null) {
+-          if (!checkPropertyPresence(p0.getName(), subtype, supertype, optionality)) {
+-            return false;
+-          }
+-          Property p1 = ownMap.getInlineProp1();
+-          if (p1 != null
+-              && !checkPropertyPresence(p1.getName(), subtype, supertype, optionality)) {
++      if (ownMap.hasFlatProps()) {
++        for (int i = 0, n = ownMap.getOwnPropertiesCount(); i < n; i++) {
++          if (!checkPropertyPresence(
++              ownMap.getFlatPropAt(i).getName(), subtype, supertype, optionality)) {
+             return false;
+           }
+         }
+diff --git a/com/google/javascript/rhino/jstype/TemplateTypeMap.java b/com/google/javascript/rhino/jstype/TemplateTypeMap.java
+index b1e8ffb..49468c8 100644
+--- a/com/google/javascript/rhino/jstype/TemplateTypeMap.java
++++ b/com/google/javascript/rhino/jstype/TemplateTypeMap.java
+@@ -49,6 +49,7 @@ import static java.lang.Math.min;
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.collect.ImmutableList;
+ import java.util.BitSet;
++import java.util.Map;
+ import java.util.Set;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -148,6 +149,34 @@ public final class TemplateTypeMap {
+     return new TemplateTypeMap(null, key, null, null, (byte) 0, f, null);
+   }
+ 
++  public static TemplateTypeMap ofSingleBinding(TemplateType key, JSType val) {
++    return createSingleKeyAndValue(checkNotNull(key), checkNotNull(val), 1);
++  }
++
++  public static TemplateTypeMap fromInferenceMap(
++      JSTypeRegistry registry, Map<TemplateType, JSType> bindings) {
++    int size = bindings.size();
++    if (size == 0) {
++      return registry.getEmptyTemplateTypeMap();
++    }
++    JSType unknown = registry.getNativeType(JSTypeNative.UNKNOWN_TYPE);
++    if (size == 1) {
++      Map.Entry<TemplateType, JSType> e = bindings.entrySet().iterator().next();
++      JSType val = e.getValue();
++      return createSingleKeyAndValue(checkNotNull(e.getKey()), val != null ? val : unknown, 1);
++    }
++    TemplateType[] keys = new TemplateType[size];
++    JSType[] vals = new JSType[size];
++    int i = 0;
++    for (Map.Entry<TemplateType, JSType> e : bindings.entrySet()) {
++      keys[i] = checkNotNull(e.getKey());
++      JSType val = e.getValue();
++      vals[i] = val != null ? val : unknown;
++      i++;
++    }
++    return createFromArrays(registry, keys, vals, 1, null);
++  }
++
+   private static TemplateTypeMap createSingleKeyAndValue(
+       TemplateType key, JSType val, int subMapStartsMask) {
+     byte f = (subMapStartsMask & 1) != 0 ? FLAG_SUBMAP_BIT0 : 0;
+@@ -327,30 +356,36 @@ public final class TemplateTypeMap {
+     JSType[] resolvedValues = null;
+     TemplateTypeReplacer replacer = null;
+     JSTypeRegistry reg = registry();
+-    for (int i = 0; i < nValues; i++) {
+-      JSType templateValue = getTemplateValueAt(i);
+-      JSType resolved;
+-      if (definitelyUnchangedByTotalReplacer(templateValue, false)) {
+-        resolved = templateValue;
+-      } else {
+-        if (replacer == null) {
+-          replacer = TemplateTypeReplacer.forTotalReplacement(reg, this);
++    try {
++      for (int i = 0; i < nValues; i++) {
++        JSType templateValue = getTemplateValueAt(i);
++        JSType resolved;
++        if (definitelyUnchangedByTotalReplacer(templateValue, false)) {
++          resolved = templateValue;
++        } else {
++          if (replacer == null) {
++            replacer = reg.acquireTemplateTypeReplacer(this, false, false, true);
++          }
++          int nextSubMap = nextSubMapStart(i + 1);
++          replacer.setKeyType(getTemplateKeyAt(i), nextSubMap);
++          resolved = replacer.replace(templateValue);
+         }
+-        int nextSubMap = nextSubMapStart(i + 1);
+-        replacer.setKeyType(getTemplateKeyAt(i), nextSubMap);
+-        resolved = templateValue.visit(replacer);
+-      }
+-      if (resolvedValues != null) {
+-        resolvedValues[i] = resolved;
+-      } else if (!identical(resolved, templateValue)) {
+-        resolvedValues = new JSType[nValues];
+-        for (int j = 0; j < i; j++) {
+-          resolvedValues[j] = getTemplateValueAt(j);
++        if (resolvedValues != null) {
++          resolvedValues[i] = resolved;
++        } else if (!identical(resolved, templateValue)) {
++          resolvedValues = new JSType[nValues];
++          for (int j = 0; j < i; j++) {
++            resolvedValues[j] = getTemplateValueAt(j);
++          }
++          resolvedValues[i] = resolved;
+         }
+-        resolvedValues[i] = resolved;
++      }
++      return resolvedValues;
++    } finally {
++      if (replacer != null) {
++        reg.releaseTemplateTypeReplacer(replacer);
+       }
+     }
+-    return resolvedValues;
+   }
+ 
+   private JSType getResolvedTemplateTypeAt(int index) {
+@@ -821,6 +856,46 @@ public final class TemplateTypeMap {
+     return createFromArrays(reg, newKeys, copiedVals, newMask, newOverflow);
+   }
+ 
++  public TemplateTypeMap copyWithKeysFromAndValues(
++      TemplateTypeMap keysSource, ImmutableList<JSType> values) {
++    checkNotNull(keysSource);
++    checkNotNull(values);
++    int newKeyCount = keysSource.size();
++    int newValCount = values.size();
++    int extendedUnfilledCount = newKeyCount - newValCount;
++    checkArgument(extendedUnfilledCount >= 0, extendedUnfilledCount);
++
++    if (newKeyCount == 0) {
++      if (numUnfilledTemplateKeys() == 0) {
++        return this;
++      }
++      return copyWithExtensionArrays(EMPTY_KEYS, EMPTY_VALUES, 0, null);
++    }
++    if (this.isEmpty() && newKeyCount == 1) {
++      TemplateType k0 = keysSource.getTemplateKeyAt(0);
++      if (newValCount == 0) {
++        return createSingleKey(k0, 1);
++      }
++      return createSingleKeyAndValue(k0, checkNotNull(values.get(0)), 1);
++    }
++    TemplateType[] keyArr;
++    if (keysSource.base == null && keysSource.extra != null && keysSource.extra.keys != null) {
++      keyArr = keysSource.extra.keys;
++    } else {
++      keyArr = new TemplateType[newKeyCount];
++      keysSource.copyKeysInto(keyArr, 0);
++    }
++    JSType[] valArr = copyValuesListToArray(values);
++    if (this.isEmpty()) {
++      return createFromArrays(registry(), keyArr, valArr, 1, null);
++    }
++    return copyWithExtensionArrays(keyArr, valArr, 1, null);
++  }
++
++  public int getTemplateKeysCount() {
++    return size();
++  }
++
+   public int size() {
+     if (this.base != null) {
+       return this.base.size();
+diff --git a/com/google/javascript/rhino/jstype/TemplateTypeReplacer.java b/com/google/javascript/rhino/jstype/TemplateTypeReplacer.java
+index 0e414cf..b7ada04 100644
+--- a/com/google/javascript/rhino/jstype/TemplateTypeReplacer.java
++++ b/com/google/javascript/rhino/jstype/TemplateTypeReplacer.java
+@@ -58,17 +58,26 @@ import org.jspecify.annotations.Nullable;
+  */
+ public final class TemplateTypeReplacer implements Visitor<JSType> {
+ 
++  private static final int PARTIAL_REPLACER_ACTIVE_MASK =
++      JSType.KIND_TEMPLATE
++          | JSType.KIND_UNION
++          | JSType.KIND_TEMPLATIZED
++          | JSType.KIND_FUNCTION
++          | JSType.KIND_PROXY
++          | JSType.KIND_CHECKED_UNKNOWN
++          | JSType.KIND_NO_OBJECT_TYPE;
++
+   private final JSTypeRegistry registry;
+-  private final TemplateTypeMap bindings;
++  private @Nullable TemplateTypeMap bindings;
+ 
+-  private final boolean visitProperties;
++  private boolean visitProperties;
+   // TODO(nickreid): We should only need `useUnknownForMissingBinding`. Keeping two separate bits
+   // was a quick fix for collapsing two different classes.
+-  private final boolean useUnknownForMissingKeys;
+-  private final boolean useUnknownForMissingValues;
++  private boolean useUnknownForMissingKeys;
++  private boolean useUnknownForMissingValues;
+ 
+   private boolean hasMadeReplacement = false;
+-  private TemplateType keyType;
++  private @Nullable TemplateType keyType;
+   // The index in the corresponding bindings pointing to where the submap for the specified key
+   // type ends, exclusive; or if keyType is null, defaults to -1.
+   private int ownSubMapBoundary = -1;
+@@ -78,22 +87,56 @@ public final class TemplateTypeReplacer implements Visitor<JSType> {
+   private int seenDepth = 0;
+   private @Nullable IdentityHashMap<JSType, JSType> visitedObjectTypes = null;
+ 
++  static boolean mayBeAffectedByPartialReplacement(JSType type) {
++    int mask = type.typeKindMask;
++    return (mask & PARTIAL_REPLACER_ACTIVE_MASK) != 0
++        && mask != (JSType.KIND_PROXY | JSType.KIND_NAMED);
++  }
++
++  static TemplateTypeReplacer createPooled(JSTypeRegistry registry) {
++    return new TemplateTypeReplacer(registry, null, false, false, false);
++  }
++
++  void initForPool(
++      TemplateTypeMap bindings,
++      boolean visitProperties,
++      boolean useUnknownForMissingKeys,
++      boolean useUnknownForMissingValues) {
++    this.bindings = bindings;
++    this.visitProperties = visitProperties;
++    this.useUnknownForMissingKeys = useUnknownForMissingKeys;
++    this.useUnknownForMissingValues = useUnknownForMissingValues;
++    this.hasMadeReplacement = false;
++    this.keyType = null;
++    this.ownSubMapBoundary = -1;
++  }
++
++  void resetForPool() {
++    this.bindings = null;
++    this.keyType = null;
++    this.ownSubMapBoundary = -1;
++    this.hasMadeReplacement = false;
++    int depth = this.seenDepth;
++    if (depth > 0 && this.seenStack != null) {
++      Arrays.fill(this.seenStack, 0, depth, null);
++      this.seenDepth = 0;
++    }
++    if (this.seenStack != null && this.seenStack.length > 32) {
++      this.seenStack = null;
++    }
++    if (this.visitedObjectTypes != null && !this.visitedObjectTypes.isEmpty()) {
++      if (this.visitedObjectTypes.size() > 64) {
++        this.visitedObjectTypes = null;
++      } else {
++        this.visitedObjectTypes.clear();
++      }
++    }
++  }
++
+   /** Creates a replacer for use during {@code TypeInference}. */
+   public static TemplateTypeReplacer forInference(
+       JSTypeRegistry registry, Map<TemplateType, JSType> bindings) {
+-    if (bindings.isEmpty()) {
+-      return new TemplateTypeReplacer(
+-          registry, registry.getEmptyTemplateTypeMap(), true, true, true);
+-    }
+-    ImmutableList<TemplateType> keys = ImmutableList.copyOf(bindings.keySet());
+-    int keyCount = keys.size();
+-    ImmutableList.Builder<JSType> values = ImmutableList.builderWithExpectedSize(keyCount);
+-    for (int i = 0; i < keyCount; i++) {
+-      JSType value = bindings.get(keys.get(i));
+-      values.add(value != null ? value : registry.getNativeType(JSTypeNative.UNKNOWN_TYPE));
+-    }
+-    TemplateTypeMap map =
+-        registry.getEmptyTemplateTypeMap().copyWithExtension(keys, values.build());
++    TemplateTypeMap map = TemplateTypeMap.fromInferenceMap(registry, bindings);
+     return new TemplateTypeReplacer(registry, map, true, true, true);
+   }
+ 
+@@ -178,6 +221,44 @@ public final class TemplateTypeReplacer implements Visitor<JSType> {
+     this.seenDepth = nextDepth;
+   }
+ 
++  /**
++   * Unboxed concrete dispatch equivalent to {@code type.visit(this)}, avoiding generic {@code
++   * Visitor<JSType>} return-type erasure on recursive replacement.
++   */
++  public JSType replace(JSType type) {
++    if (!this.visitProperties && !mayBeAffectedByPartialReplacement(type)) {
++      return type;
++    }
++    return switch (type.getTypeClass()) {
++      case TEMPLATE -> caseTemplateType((TemplateType) type);
++      case UNION -> caseUnionType((UnionType) type);
++      case TEMPLATIZED -> caseTemplatizedType((TemplatizedType) type);
++      case FUNCTION -> caseFunctionType((FunctionType) type);
++      case RECORD -> caseObjectType((ObjectType) type);
++      case PROXY_OBJECT -> caseProxyObjectType((ProxyObjectType) type);
++      case UNKNOWN -> getNativeType(JSTypeNative.UNKNOWN_TYPE);
++      case NO_OBJECT -> getNativeType(JSTypeNative.NO_OBJECT_TYPE);
++      case ALL -> getNativeType(JSTypeNative.ALL_TYPE);
++      case BOOLEAN -> getNativeType(JSTypeNative.BOOLEAN_TYPE);
++      case NULL -> getNativeType(JSTypeNative.NULL_TYPE);
++      case NUMBER -> getNativeType(JSTypeNative.NUMBER_TYPE);
++      case BIGINT -> getNativeType(JSTypeNative.BIGINT_TYPE);
++      case STRING -> getNativeType(JSTypeNative.STRING_TYPE);
++      case VOID -> getNativeType(JSTypeNative.VOID_TYPE);
++      case NO,
++          ENUM_ELEMENT,
++          ENUM,
++          INSTANCE_OBJECT,
++          PROTOTYPE_OBJECT,
++          NO_RESOLVED,
++          NAMED,
++          SYMBOL,
++          WELL_KNOWN_SYMBOL ->
++          type;
++      case ARROW -> throw new AssertionError();
++    };
++  }
++
+   @Override
+   public JSType caseNoType(FunctionType type) {
+     return type;
+@@ -222,13 +303,13 @@ public final class TemplateTypeReplacer implements Visitor<JSType> {
+     boolean changed = false;
+ 
+     JSType beforeThis = type.getTypeOfThis();
+-    JSType afterThis = coerseToThisType(beforeThis.visit(this));
++    JSType afterThis = coerseToThisType(replace(beforeThis));
+     if (!identical(beforeThis, afterThis)) {
+       changed = true;
+     }
+ 
+     JSType beforeReturn = type.getReturnType();
+-    JSType afterReturn = beforeReturn.visit(this);
++    JSType afterReturn = replace(beforeReturn);
+     if (!identical(beforeReturn, afterReturn)) {
+       changed = true;
+     }
+@@ -239,7 +320,7 @@ public final class TemplateTypeReplacer implements Visitor<JSType> {
+     for (int i = 0; i < numParams; i++) {
+       FunctionType.Parameter parameter = origParams[i];
+       JSType beforeParamType = parameter.getJSType();
+-      JSType afterParamType = beforeParamType.visit(this);
++      JSType afterParamType = replace(beforeParamType);
+ 
+       if (!identical(beforeParamType, afterParamType)) {
+         changed = true;
+@@ -304,14 +385,30 @@ public final class TemplateTypeReplacer implements Visitor<JSType> {
+ 
+     boolean changed = false;
+     RecordTypeBuilder builder = new RecordTypeBuilder(registry);
+-    for (String prop : objType.getOwnPropertyNames()) {
+-      Node propertyNode = objType.getPropertyNode(prop);
+-      JSType beforeType = objType.getPropertyType(prop);
+-      JSType afterType = beforeType.visit(this);
+-      if (!identical(beforeType, afterType)) {
+-        changed = true;
++    PropertyMap ownMap =
++        (objType instanceof PrototypeObjectType proto) ? proto.getOwnPropertyMapOrNull() : null;
++    if (ownMap != null && ownMap.hasFlatProps()) {
++      for (int i = 0, n = ownMap.getOwnPropertiesCount(); i < n; i++) {
++        Property slot = ownMap.getFlatPropAt(i);
++        String prop = slot.getName();
++        Node propertyNode = slot.getNode();
++        JSType beforeType = objType.getPropertyType(prop);
++        JSType afterType = replace(beforeType);
++        if (!identical(beforeType, afterType)) {
++          changed = true;
++        }
++        builder.addProperty(prop, afterType, propertyNode);
++      }
++    } else if (ownMap != null || !(objType instanceof PrototypeObjectType)) {
++      for (String prop : objType.getOwnPropertyNames()) {
++        Node propertyNode = objType.getPropertyNode(prop);
++        JSType beforeType = objType.getPropertyType(prop);
++        JSType afterType = replace(beforeType);
++        if (!identical(beforeType, afterType)) {
++          changed = true;
++        }
++        builder.addProperty(prop, afterType, propertyNode);
+       }
+-      builder.addProperty(prop, afterType, propertyNode);
+     }
+ 
+     // Use our new type if anything changed, and be sure to update the cache.
+@@ -335,7 +432,7 @@ public final class TemplateTypeReplacer implements Visitor<JSType> {
+   private JSType caseTemplatizedTypeUnguarded(TemplatizedType type) {
+     boolean changed = false;
+     ObjectType beforeBaseType = type.getReferencedType();
+-    ObjectType afterBaseType = ObjectType.cast(beforeBaseType.visit(this));
++    ObjectType afterBaseType = ObjectType.cast(replace(beforeBaseType));
+     if (!identical(beforeBaseType, afterBaseType)) {
+       changed = true;
+     }
+@@ -345,7 +442,7 @@ public final class TemplateTypeReplacer implements Visitor<JSType> {
+     JSType[] newTemplateTypes = null;
+     for (int i = 0; i < templateCount; i++) {
+       JSType beforeTemplateType = origTemplateTypes.get(i);
+-      JSType afterTemplateType = beforeTemplateType.visit(this);
++      JSType afterTemplateType = replace(beforeTemplateType);
+       if (!identical(beforeTemplateType, afterTemplateType)) {
+         changed = true;
+         if (newTemplateTypes == null) {
+@@ -421,7 +518,7 @@ public final class TemplateTypeReplacer implements Visitor<JSType> {
+       int alternateCount = type.getAlternatesCount();
+       for (int i = 0; i < alternateCount; i++) {
+         var alternative = type.getAlternateAt(i);
+-        JSType replacement = alternative.visit(this);
++        JSType replacement = replace(alternative);
+         if (results == null && !identical(replacement, alternative)) {
+           results = registry.acquireUnionTypeBuilder();
+           for (int j = 0; j < i; j++) {
+@@ -478,7 +575,7 @@ public final class TemplateTypeReplacer implements Visitor<JSType> {
+     enterSeenType(type);
+     final JSType visitedReplacement;
+     try {
+-      visitedReplacement = replacement.visit(this);
++      visitedReplacement = replace(replacement);
+     } finally {
+       exitSeenType();
+     }
+@@ -519,7 +616,7 @@ public final class TemplateTypeReplacer implements Visitor<JSType> {
+   private JSType caseProxyObjectTypeUnguarded(ProxyObjectType type) {
+     // Be careful not to unwrap a type unless it has changed.
+     JSType beforeType = type.getReferencedTypeInternal();
+-    JSType replacement = beforeType.visit(this);
++    JSType replacement = replace(beforeType);
+     if (!identical(replacement, beforeType)) {
+       return replacement;
+     }
+diff --git a/com/google/javascript/rhino/jstype/TemplatizedType.java b/com/google/javascript/rhino/jstype/TemplatizedType.java
+index 1dbd77c..5b63eae 100644
+--- a/com/google/javascript/rhino/jstype/TemplatizedType.java
++++ b/com/google/javascript/rhino/jstype/TemplatizedType.java
+@@ -63,7 +63,6 @@ public final class TemplatizedType extends ProxyObjectType {
+   /** Whether all type parameter values for this specialization are `?`. */
+   private final boolean isSpecializedOnlyWithUnknown;
+ 
+-  final TemplateTypeReplacer replacer;
+   private @Nullable TemplatizedType rebuiltResolveResult = null;
+ 
+   TemplatizedType(
+@@ -113,8 +112,6 @@ public final class TemplatizedType extends ProxyObjectType {
+       this.isSpecializedOnlyWithUnknown = maybeIsSpecializedOnlyWithUnknown;
+     }
+ 
+-    this.replacer = TemplateTypeReplacer.forPartialReplacement(registry, getTemplateTypeMap());
+-
+     registry.getResolver().resolveIfClosed(this, TYPE_CLASS);
+   }
+ 
+@@ -131,11 +128,13 @@ public final class TemplatizedType extends ProxyObjectType {
+   @Override
+   public Iterable<ObjectType> getCtorImplementedInterfaces() {
+     LinkedHashSet<ObjectType> resolvedImplementedInterfaces = null;
++    TemplateTypeMap ownMap = getTemplateTypeMap();
+     for (ObjectType obj : getReferencedObjTypeInternal().getCtorImplementedInterfaces()) {
+       if (resolvedImplementedInterfaces == null) {
+         resolvedImplementedInterfaces = new LinkedHashSet<>();
+       }
+-      resolvedImplementedInterfaces.add(obj.visit(replacer).toObjectType());
++      resolvedImplementedInterfaces.add(
++          registry.replaceTemplateTypesPartial(obj, ownMap).toObjectType());
+     }
+     return resolvedImplementedInterfaces != null
+         ? resolvedImplementedInterfaces
+@@ -145,11 +144,13 @@ public final class TemplatizedType extends ProxyObjectType {
+   @Override
+   public Iterable<ObjectType> getCtorExtendedInterfaces() {
+     LinkedHashSet<ObjectType> resolvedExtendedInterfaces = null;
++    TemplateTypeMap ownMap = getTemplateTypeMap();
+     for (ObjectType obj : getReferencedObjTypeInternal().getCtorExtendedInterfaces()) {
+       if (resolvedExtendedInterfaces == null) {
+         resolvedExtendedInterfaces = new LinkedHashSet<>();
+       }
+-      resolvedExtendedInterfaces.add(obj.visit(replacer).toObjectType());
++      resolvedExtendedInterfaces.add(
++          registry.replaceTemplateTypesPartial(obj, ownMap).toObjectType());
+     }
+     return resolvedExtendedInterfaces != null ? resolvedExtendedInterfaces : EMPTY_OBJECT_LIST;
+   }
+@@ -195,7 +196,9 @@ public final class TemplatizedType extends ProxyObjectType {
+   @Override
+   public @Nullable JSType getPropertyType(Property.Key propertyName) {
+     JSType result = super.getPropertyType(propertyName);
+-    return result == null ? null : result.visit(replacer);
++    return result == null
++        ? null
++        : registry.replaceTemplateTypesPartial(result, getTemplateTypeMap());
+   }
+ 
+   boolean wrapsSameRawType(JSType that) {

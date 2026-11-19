@@ -1,0 +1,27 @@
+{
+  "id": "tier3_x09_cjs_to_esm_advanced",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "CommonJS module processing under ADVANCED",
+  "description": "Compiles CommonJS module with require/exports under ADVANCED optimizations",
+  "args": [
+    "--process_common_js_modules",
+    "--compilation_level",
+    "ADVANCED",
+    "--js",
+    "mod.js",
+    "--js",
+    "app.js"
+  ],
+  "stdin": "",
+  "files": {
+    "mod.js": "exports.calc = function(x) { return x * 3; };",
+    "app.js": "var m = require('./mod.js'); window['res'] = m.calc(5);"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "window.res=15;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

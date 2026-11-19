@@ -1,0 +1,1 @@
+var tpl = require('./tpl.js'); window['rendered'] = tpl.render({ name: 'Closure' });

@@ -1,0 +1,23 @@
+{
+  "id": "tier2_b18_deep_blocks",
+  "tier": 2,
+  "feature": "boundary_deep_ast",
+  "name": "Deeply nested block statements",
+  "description": "Compiles code with 60 levels of nested block scopes",
+  "args": [
+    "--compilation_level",
+    "SIMPLE",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\n{\nvar deepScoped = 100;\nwindow['d'] = deepScoped;\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n}\n"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var deepScoped=100;window.d=deepScoped;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

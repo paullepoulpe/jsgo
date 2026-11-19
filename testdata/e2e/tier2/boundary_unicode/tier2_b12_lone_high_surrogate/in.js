@@ -1,0 +1,1 @@
+var loneHigh = '\uD800'; window['s'] = loneHigh;

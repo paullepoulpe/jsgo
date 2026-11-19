@@ -1,0 +1,1 @@
+var flagfileVar = 42; window['res'] = flagfileVar;

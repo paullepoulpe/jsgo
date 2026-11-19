@@ -1,0 +1,350 @@
+diff --git a/com/google/javascript/rhino/jstype/PropertyMap.java b/com/google/javascript/rhino/jstype/PropertyMap.java
+--- a/com/google/javascript/rhino/jstype/PropertyMap.java
++++ b/com/google/javascript/rhino/jstype/PropertyMap.java
+@@ -155,11 +155,7 @@
+   }
+ 
+   @Nullable OwnedProperty findClosest(String name) {
+-    return findClosest(new Property.StringKey(name));
+-  }
+-
+-  @Nullable OwnedProperty findClosest(Property.Key name) {
+-    // Check primary parents which always has precendence over secondary.
++    // Check primary parents which always has precedence over secondary.
+     for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
+       Property prop = map.getOwnProperty(name);
+       if (prop != null) {
+@@ -169,12 +165,107 @@
+ 
+     // Recurse into secondary parents.
+     for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
++      if (map.parentSource == null) {
++        continue;
++      }
+       for (ObjectType o : map.getSecondaryParentObjects()) {
+         PropertyMap parent = o.getPropertyMap();
+         if (parent != null) {
+           OwnedProperty e = parent.findClosest(name);
+           if (e != null) {
+             return e;
++          }
++        }
++      }
++    }
++
++    return null;
++  }
++
++  @Nullable OwnedProperty findClosest(Property.Key name) {
++    if (name.kind() == Property.KeyKind.STRING) {
++      return findClosest(name.string());
++    }
++
++    // Check primary parents which always has precendence over secondary.
++    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
++      Property prop = map.knownSymbols != null ? map.knownSymbols.get(name.symbol()) : null;
++      if (prop != null) {
++        return new OwnedProperty(map.parentSource, prop);
++      }
++    }
++
++    // Recurse into secondary parents.
++    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
++      if (map.parentSource == null) {
++        continue;
++      }
++      for (ObjectType o : map.getSecondaryParentObjects()) {
++        PropertyMap parent = o.getPropertyMap();
++        if (parent != null) {
++          OwnedProperty e = parent.findClosest(name);
++          if (e != null) {
++            return e;
++          }
++        }
++      }
++    }
++
++    return null;
++  }
++
++  @Nullable Property findClosestProperty(String name) {
++    // Check primary parents which always has precedence over secondary.
++    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
++      Property prop = map.getOwnProperty(name);
++      if (prop != null) {
++        return prop;
++      }
++    }
++
++    // Recurse into secondary parents.
++    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
++      if (map.parentSource == null) {
++        continue;
++      }
++      for (ObjectType o : map.getSecondaryParentObjects()) {
++        PropertyMap parent = o.getPropertyMap();
++        if (parent != null) {
++          Property prop = parent.findClosestProperty(name);
++          if (prop != null) {
++            return prop;
++          }
++        }
++      }
++    }
++
++    return null;
++  }
++
++  @Nullable Property findClosestProperty(Property.Key name) {
++    if (name.kind() == Property.KeyKind.STRING) {
++      return findClosestProperty(name.string());
++    }
++
++    // Check primary parents which always has precedence over secondary.
++    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
++      Property prop = map.knownSymbols != null ? map.knownSymbols.get(name.symbol()) : null;
++      if (prop != null) {
++        return prop;
++      }
++    }
++
++    // Recurse into secondary parents.
++    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
++      if (map.parentSource == null) {
++        continue;
++      }
++      for (ObjectType o : map.getSecondaryParentObjects()) {
++        PropertyMap parent = o.getPropertyMap();
++        if (parent != null) {
++          Property prop = parent.findClosestProperty(name);
++          if (prop != null) {
++            return prop;
+           }
+         }
+       }
+diff --git a/com/google/javascript/rhino/jstype/ObjectType.java b/com/google/javascript/rhino/jstype/ObjectType.java
+--- a/com/google/javascript/rhino/jstype/ObjectType.java
++++ b/com/google/javascript/rhino/jstype/ObjectType.java
+@@ -100,17 +100,21 @@
+     return PropertyMap.immutableEmptyMap();
+   }
+ 
++  private static final Property.StringKey PROTOTYPE_KEY = new Property.StringKey("prototype");
++
+   /**
+    * Default getSlot implementation. This gets overridden by FunctionType for lazily-resolved
+    * prototypes.
+    */
+   public @Nullable Property getSlot(Property.Key name) {
+-    OwnedProperty property = getPropertyMap().findClosest(name);
+-    return property == null ? null : property.getValue();
++    return getPropertyMap().findClosestProperty(name);
+   }
+ 
+   public final @Nullable Property getSlot(String name) {
+-    return getSlot(new Property.StringKey(name));
++    if (this instanceof FunctionType && "prototype".equals(name)) {
++      return getSlot(PROTOTYPE_KEY);
++    }
++    return getPropertyMap().findClosestProperty(name);
+   }
+ 
+   public final Property getOwnSlot(String name) {
+@@ -301,13 +305,13 @@
+ 
+   /** Returns the closest ancestor that defines the property including this type itself. */
+   public final @Nullable ObjectType getClosestDefiningType(String propertyName) {
+-    OwnedProperty property = getPropertyMap().findClosest(new Property.StringKey(propertyName));
++    OwnedProperty property = getPropertyMap().findClosest(propertyName);
+     return property == null ? null : property.getOwner();
+   }
+ 
+   /** Returns the closest definition of the property including this type itself. */
+   public final OwnedProperty findClosestDefinition(String propertyName) {
+-    return findClosestDefinition(new Property.StringKey(propertyName));
++    return getPropertyMap().findClosest(propertyName);
+   }
+ 
+   /** Returns the closest definition of the property including this type itself. */
+@@ -417,13 +421,25 @@
+    *     later be accessed using {@code getPropertyNode}.
+    */
+   public final boolean defineInferredProperty(String propertyName, JSType type, Node propertyNode) {
+-    if (hasProperty(propertyName)) {
+-      if (isPropertyTypeDeclared(propertyName)) {
+-        // We never want to hide a declared property with an inferred property.
+-        return true;
++    if (this instanceof ProxyObjectType || this instanceof EnumElementType) {
++      if (hasProperty(propertyName)) {
++        if (isPropertyTypeDeclared(propertyName)) {
++          // We never want to hide a declared property with an inferred property.
++          return true;
++        }
++        JSType originalType = checkNotNull(getPropertyType(propertyName));
++        type = originalType.getLeastSupertype(type);
+       }
+-      JSType originalType = checkNotNull(getPropertyType(propertyName));
+-      type = originalType.getLeastSupertype(type);
++    } else {
++      Property slot = getSlot(propertyName);
++      if (slot != null || isEmptyType() || isUnknownType()) {
++        if (slot != null && !slot.isTypeInferred()) {
++          // We never want to hide a declared property with an inferred property.
++          return true;
++        }
++        JSType originalType = checkNotNull(getPropertyType(propertyName));
++        type = originalType.getLeastSupertype(type);
++      }
+     }
+     // TODO(b/140764208): verify that if isResolved() then type.isResolved().
+     // Defining unresolved properties on resolved types is dangerous because the property type
+@@ -490,7 +506,8 @@
+    * @return the {@code Node} corresponding to the property or null.
+    */
+   public final @Nullable Node getPropertyNode(String propertyName) {
+-    return getPropertyNode(new Property.StringKey(propertyName));
++    Property p = getSlot(propertyName);
++    return p == null ? null : p.getNode();
+   }
+ 
+   public final @Nullable Node getPropertyNode(Property.Key propertyName) {
+@@ -499,7 +516,7 @@
+   }
+ 
+   public final Node getPropertyDefSite(String propertyName) {
+-    return getPropertyDefSite(new Property.StringKey(propertyName));
++    return getPropertyNode(propertyName);
+   }
+ 
+   public final Node getPropertyDefSite(Property.Key propertyName) {
+@@ -508,7 +525,8 @@
+ 
+   @SuppressWarnings("IdentifierName") // for compatibility with former 3p code
+   public final @Nullable JSDocInfo getPropertyJSDocInfo(String propertyName) {
+-    return this.getPropertyJSDocInfo(new Property.StringKey(propertyName));
++    Property p = getSlot(propertyName);
++    return p == null ? null : p.getJSDocInfo();
+   }
+ 
+   @SuppressWarnings("IdentifierName") // for compatibility with former 3p code
+@@ -524,7 +542,8 @@
+    */
+   @SuppressWarnings("IdentifierName") // for compatibility with former 3p code
+   public final @Nullable JSDocInfo getOwnPropertyJSDocInfo(String propertyName) {
+-    return getOwnPropertyJSDocInfo(new Property.StringKey(propertyName));
++    Property p = getOwnSlot(propertyName);
++    return p == null ? null : p.getJSDocInfo();
+   }
+ 
+   /**
+@@ -539,7 +558,8 @@
+   }
+ 
+   public final @Nullable Node getOwnPropertyDefSite(String propertyName) {
+-    return getOwnPropertyDefSite(new Property.StringKey(propertyName));
++    Property p = getOwnSlot(propertyName);
++    return p == null ? null : p.getNode();
+   }
+ 
+   public final @Nullable Node getOwnPropertyDefSite(Property.Key propertyName) {
+@@ -593,7 +613,14 @@
+    * @return the property's type or {@link UnknownType}. This method never returns {@code null}.
+    */
+   public final JSType getPropertyType(String propertyName) {
+-    return getPropertyType(new Property.StringKey(propertyName));
++    if (this instanceof TemplatizedType
++        || (this instanceof FunctionType
++            && ("call".equals(propertyName)
++                || "bind".equals(propertyName)
++                || "apply".equals(propertyName)))) {
++      return getPropertyType(new Property.StringKey(propertyName));
++    }
++    return getPropertyTypeFromSlot(getSlot(propertyName));
+   }
+ 
+   /**
+@@ -606,11 +633,11 @@
+    * @return the property's type or {@link UnknownType}. This method never returns {@code null}.
+    */
+   public JSType getPropertyType(Property.Key propertyName) {
+-    @Nullable StaticTypedSlot slot = getSlot(propertyName);
++    @Nullable Property slot = getSlot(propertyName);
+     return getPropertyTypeFromSlot(slot);
+   }
+ 
+-  private JSType getPropertyTypeFromSlot(StaticTypedSlot slot) {
++  private JSType getPropertyTypeFromSlot(@Nullable Property slot) {
+     if (slot == null) {
+       if (isNoResolvedType() || isCheckedUnknownType()) {
+         return getNativeType(JSTypeNative.CHECKED_UNKNOWN_TYPE);
+@@ -633,7 +660,9 @@
+    * the object.  Returns false even if it is declared on a supertype.
+    */
+   public final HasPropertyKind getOwnPropertyKind(String propertyName) {
+-    return getOwnPropertyKind(new Property.StringKey(propertyName));
++    return getOwnSlot(propertyName) != null
++        ? HasPropertyKind.KNOWN_PRESENT
++        : HasPropertyKind.ABSENT;
+   }
+ 
+   /**
+@@ -651,7 +680,7 @@
+    * the object.  Returns false even if it is declared on a supertype.
+    */
+   public final boolean hasOwnProperty(String propertyName) {
+-    return hasOwnProperty(new Property.StringKey(propertyName));
++    return getOwnSlot(propertyName) != null;
+   }
+ 
+   /**
+@@ -698,26 +727,28 @@
+    * Checks whether the property's type is inferred.
+    */
+   public final boolean isPropertyTypeInferred(String propertyName) {
+-    return isPropertyTypeInferred(new Property.StringKey(propertyName));
++    Property slot = getSlot(propertyName);
++    return slot != null && slot.isTypeInferred();
+   }
+ 
+   /** Checks whether the property's type is inferred. */
+   public final boolean isPropertyTypeInferred(Property.Key propertyName) {
+-    StaticTypedSlot slot = getSlot(propertyName);
+-    return slot == null ? false : slot.isTypeInferred();
++    Property slot = getSlot(propertyName);
++    return slot != null && slot.isTypeInferred();
+   }
+ 
+   /**
+    * Checks whether the property's type is declared.
+    */
+   public final boolean isPropertyTypeDeclared(String propertyName) {
+-    return isPropertyTypeDeclared(new Property.StringKey(propertyName));
++    Property slot = getSlot(propertyName);
++    return slot != null && !slot.isTypeInferred();
+   }
+ 
+   /** Checks whether the property's type is declared. */
+   public final boolean isPropertyTypeDeclared(Property.Key propertyName) {
+-    StaticTypedSlot slot = getSlot(propertyName);
+-    return slot == null ? false : !slot.isTypeInferred();
++    Property slot = getSlot(propertyName);
++    return slot != null && !slot.isTypeInferred();
+   }
+ 
+   @Override
+diff --git a/com/google/javascript/rhino/jstype/PrototypeObjectType.java b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+--- a/com/google/javascript/rhino/jstype/PrototypeObjectType.java
++++ b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+@@ -523,9 +523,10 @@
+   public void matchRecordTypeConstraint(ObjectType constraintObj) {
+     for (String prop : constraintObj.getOwnPropertyNames()) {
+       JSType propType = constraintObj.getPropertyType(prop);
+-      if (!isPropertyTypeDeclared(prop)) {
++      Property slot = getSlot(prop);
++      if (slot == null || slot.isTypeInferred()) {
+         JSType typeToInfer = propType;
+-        if (!hasProperty(prop)) {
++        if (slot == null && !isEmptyType() && !isUnknownType()) {
+           typeToInfer = getNativeType(JSTypeNative.VOID_TYPE)
+               .getLeastSupertype(propType);
+         }

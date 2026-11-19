@@ -1,0 +1,704 @@
+diff --git a/com/google/javascript/rhino/JSDocInfo.java b/com/google/javascript/rhino/JSDocInfo.java
+--- a/com/google/javascript/rhino/JSDocInfo.java
++++ b/com/google/javascript/rhino/JSDocInfo.java
+@@ -55,8 +55,6 @@
+ import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.Collections;
+-import java.util.Iterator;
+-import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+ import java.util.Map;
+@@ -121,9 +119,7 @@
+       return left.equals(right);
+     }
+ 
+-    Iterable<JSTypeExpression> getTypeExpressions(T unusedValue) {
+-      return ImmutableList.of();
+-    }
++    void collectTypeExpressions(T unusedValue, ImmutableList.Builder<JSTypeExpression> unusedSink) {}
+ 
+     // NOTE: These need to be comparable so that we can iterate over them to build the list.
+     @Override
+@@ -170,8 +166,11 @@
+     }
+ 
+     @Override
+-    ImmutableList<JSTypeExpression> getTypeExpressions(JSTypeExpression type) {
+-      return ImmutableList.of(type);
++    void collectTypeExpressions(
++        JSTypeExpression type, ImmutableList.Builder<JSTypeExpression> sink) {
++      if (type != null) {
++        sink.add(type);
++      }
+     }
+   }
+ 
+@@ -201,15 +200,12 @@
+ 
+     @Override
+     boolean equalValues(ArrayList<JSTypeExpression> left, ArrayList<JSTypeExpression> right) {
+-      if (left.size() != right.size()) {
++      int n = left.size();
++      if (n != right.size()) {
+         return false;
+       }
+-      final Iterator<JSTypeExpression> leftIterator = left.iterator();
+-      final Iterator<JSTypeExpression> rightIterator = right.iterator();
+-      while (leftIterator.hasNext()) {
+-        final JSTypeExpression leftExpr = leftIterator.next();
+-        final JSTypeExpression rightExpr = rightIterator.next();
+-        if (!leftExpr.isEquivalentTo(rightExpr)) {
++      for (int i = 0; i < n; i++) {
++        if (!left.get(i).isEquivalentTo(right.get(i))) {
+           return false;
+         }
+       }
+@@ -217,45 +213,167 @@
+     }
+ 
+     @Override
+-    Iterable<JSTypeExpression> getTypeExpressions(ArrayList<JSTypeExpression> types) {
+-      return types;
++    void collectTypeExpressions(
++        ArrayList<JSTypeExpression> types, ImmutableList.Builder<JSTypeExpression> sink) {
++      for (int i = 0, n = types.size(); i < n; i++) {
++        JSTypeExpression type = types.get(i);
++        if (type != null) {
++          sink.add(type);
++        }
++      }
+     }
+   }
+ 
+-  private static final class TypeMapProperty
+-      extends Property<LinkedHashMap<String, JSTypeExpression>> {
++  private static final class TypeMap {
++    private final ArrayList<String> keys;
++    private final ArrayList<@Nullable JSTypeExpression> values;
++
++    TypeMap(int initialCapacity) {
++      this.keys = new ArrayList<>(initialCapacity);
++      this.values = new ArrayList<>(initialCapacity);
++    }
++
++    int size() {
++      return keys.size();
++    }
++
++    boolean isEmpty() {
++      return keys.isEmpty();
++    }
++
++    int indexOfKey(String key) {
++      for (int i = 0, n = keys.size(); i < n; i++) {
++        if (keys.get(i).equals(key)) {
++          return i;
++        }
++      }
++      return -1;
++    }
++
++    boolean containsKey(String key) {
++      return indexOfKey(key) >= 0;
++    }
++
++    @Nullable JSTypeExpression get(String key) {
++      int idx = indexOfKey(key);
++      return idx >= 0 ? values.get(idx) : null;
++    }
++
++    String keyAt(int index) {
++      return keys.get(index);
++    }
++
++    boolean putIfAbsent(String key, @Nullable JSTypeExpression value) {
++      int idx = indexOfKey(key);
++      if (idx < 0) {
++        keys.add(key);
++        values.add(value);
++        return true;
++      }
++      if (values.get(idx) == null) {
++        values.set(idx, value);
++        return true;
++      }
++      return false;
++    }
++
++    ImmutableSet<String> keysAsImmutableSet() {
++      int n = keys.size();
++      if (n == 0) {
++        return ImmutableSet.of();
++      }
++      if (n == 1) {
++        String k0 = keys.get(0);
++        return ImmutableSet.of(k0);
++      }
++      ImmutableSet.Builder<String> builder = ImmutableSet.builderWithExpectedSize(n);
++      for (int i = 0; i < n; i++) {
++        String k = keys.get(i);
++        builder.add(k);
++      }
++      return builder.build();
++    }
++
++    ImmutableList<String> keysAsImmutableList() {
++      return ImmutableList.copyOf(keys);
++    }
++
++    ImmutableMap<String, JSTypeExpression> toImmutableMap() {
++      int n = keys.size();
++      if (n == 0) {
++        return ImmutableMap.of();
++      }
++      if (n == 1) {
++        String k0 = keys.get(0);
++        JSTypeExpression v0 = values.get(0);
++        return ImmutableMap.of(k0, v0);
++      }
++      ImmutableMap.Builder<String, JSTypeExpression> builder =
++          ImmutableMap.builderWithExpectedSize(n);
++      for (int i = 0; i < n; i++) {
++        String k = keys.get(i);
++        JSTypeExpression v = values.get(i);
++        builder.put(k, v);
++      }
++      return builder.buildOrThrow();
++    }
++
++    @Override
++    public String toString() {
++      int n = keys.size();
++      if (n == 0) {
++        return "{}";
++      }
++      StringBuilder sb = new StringBuilder();
++      sb.append('{');
++      for (int i = 0; i < n; i++) {
++        if (i > 0) {
++          sb.append(", ");
++        }
++        String k = keys.get(i);
++        JSTypeExpression v = values.get(i);
++        sb.append(k).append('=').append(v);
++      }
++      sb.append('}');
++      return sb.toString();
++    }
++  }
++
++  private static final class TypeMapProperty extends Property<TypeMap> {
+     TypeMapProperty(String name) {
+       super(name);
+     }
+ 
+     @Override
+-    LinkedHashMap<String, JSTypeExpression> clone(
+-        LinkedHashMap<String, JSTypeExpression> arg, TypeTransform transform) {
+-      LinkedHashMap<String, JSTypeExpression> out = new LinkedHashMap<>(arg);
+-      if (transform != null) {
+-        for (Map.Entry<String, JSTypeExpression> entry : out.entrySet()) {
+-          JSTypeExpression elem = entry.getValue();
+-          if (elem != null) {
+-            entry.setValue(transform.apply(elem));
+-          }
++    boolean isDefault(TypeMap value) {
++      return value == null || value.isEmpty();
++    }
++
++    @Override
++    TypeMap clone(TypeMap arg, TypeTransform transform) {
++      int n = arg.size();
++      TypeMap out = new TypeMap(n);
++      for (int i = 0; i < n; i++) {
++        String k = arg.keys.get(i);
++        JSTypeExpression elem = arg.values.get(i);
++        if (elem != null && transform != null) {
++          elem = transform.apply(elem);
+         }
++        out.keys.add(k);
++        out.values.add(elem);
+       }
+       return out;
+     }
+ 
+     @Override
+-    boolean equalValues(
+-        LinkedHashMap<String, JSTypeExpression> left,
+-        LinkedHashMap<String, JSTypeExpression> right) {
+-      final Set<String> leftKeys = left.keySet();
+-      final Set<String> rightKeys = right.keySet();
+-      if (!leftKeys.equals(rightKeys)) {
++    boolean equalValues(TypeMap left, TypeMap right) {
++      int n = left.size();
++      if (n != right.size()) {
+         return false;
+       }
+-      for (String key : leftKeys) {
+-        final JSTypeExpression leftExpr = left.get(key);
+-        final JSTypeExpression rightExpr = right.get(key);
+-        if (!areEquivalent(leftExpr, rightExpr)) {
++      for (int i = 0; i < n; i++) {
++        int rightIdx = right.indexOfKey(left.keys.get(i));
++        if (rightIdx < 0 || !areEquivalent(left.values.get(i), right.values.get(rightIdx))) {
+           return false;
+         }
+       }
+@@ -267,29 +385,228 @@
+     }
+ 
+     @Override
+-    Iterable<JSTypeExpression> getTypeExpressions(LinkedHashMap<String, JSTypeExpression> map) {
+-      return map.values();
++    void collectTypeExpressions(TypeMap map, ImmutableList.Builder<JSTypeExpression> sink) {
++      for (int i = 0, n = map.values.size(); i < n; i++) {
++        JSTypeExpression type = map.values.get(i);
++        if (type != null) {
++          sink.add(type);
++        }
++      }
+     }
+   }
+ 
+-  private static final class NodeMapProperty extends Property<LinkedHashMap<String, Node>> {
++  private static final class StringMap {
++    private final ArrayList<String> keys = new ArrayList<>(4);
++    private final ArrayList<@Nullable String> values = new ArrayList<>(4);
++
++    int size() {
++      return keys.size();
++    }
++
++    boolean isEmpty() {
++      return keys.isEmpty();
++    }
++
++    int indexOfKey(String key) {
++      for (int i = 0, n = keys.size(); i < n; i++) {
++        if (keys.get(i).equals(key)) {
++          return i;
++        }
++      }
++      return -1;
++    }
++
++    boolean containsKey(String key) {
++      return indexOfKey(key) >= 0;
++    }
++
++    @Nullable String get(String key) {
++      int idx = indexOfKey(key);
++      return idx >= 0 ? values.get(idx) : null;
++    }
++
++    boolean putIfAbsent(String key, @Nullable String value) {
++      int idx = indexOfKey(key);
++      if (idx < 0) {
++        keys.add(key);
++        values.add(value);
++        return true;
++      }
++      if (values.get(idx) == null) {
++        values.set(idx, value);
++        return true;
++      }
++      return false;
++    }
++
++    @Override
++    public String toString() {
++      int n = keys.size();
++      if (n == 0) {
++        return "{}";
++      }
++      StringBuilder sb = new StringBuilder();
++      sb.append('{');
++      for (int i = 0; i < n; i++) {
++        if (i > 0) {
++          sb.append(", ");
++        }
++        String k = keys.get(i);
++        String v = values.get(i);
++        sb.append(k).append('=').append(v);
++      }
++      sb.append('}');
++      return sb.toString();
++    }
++  }
++
++  private static final class StringMapProperty extends Property<StringMap> {
++    StringMapProperty(String name) {
++      super(name);
++    }
++
++    @Override
++    boolean isDefault(StringMap value) {
++      return value == null || value.isEmpty();
++    }
++
++    @Override
++    boolean equalValues(StringMap left, StringMap right) {
++      int n = left.size();
++      if (n != right.size()) {
++        return false;
++      }
++      for (int i = 0; i < n; i++) {
++        int rightIdx = right.indexOfKey(left.keys.get(i));
++        if (rightIdx < 0 || !Objects.equals(left.values.get(i), right.values.get(rightIdx))) {
++          return false;
++        }
++      }
++      return true;
++    }
++  }
++
++  private static final class NodeMap {
++    private final ArrayList<String> keys;
++    private final ArrayList<Node> values;
++
++    NodeMap(int initialCapacity) {
++      this.keys = new ArrayList<>(initialCapacity);
++      this.values = new ArrayList<>(initialCapacity);
++    }
++
++    int size() {
++      return keys.size();
++    }
++
++    boolean isEmpty() {
++      return keys.isEmpty();
++    }
++
++    int indexOfKey(String key) {
++      for (int i = 0, n = keys.size(); i < n; i++) {
++        if (keys.get(i).equals(key)) {
++          return i;
++        }
++      }
++      return -1;
++    }
++
++    boolean containsKey(String key) {
++      return indexOfKey(key) >= 0;
++    }
++
++    @Nullable Node get(String key) {
++      int idx = indexOfKey(key);
++      return idx >= 0 ? values.get(idx) : null;
++    }
++
++    boolean putIfAbsent(String key, Node value) {
++      int idx = indexOfKey(key);
++      if (idx < 0) {
++        keys.add(key);
++        values.add(value);
++        return true;
++      }
++      if (values.get(idx) == null) {
++        values.set(idx, value);
++        return true;
++      }
++      return false;
++    }
++
++    ImmutableMap<String, Node> toImmutableMap() {
++      int n = keys.size();
++      if (n == 0) {
++        return ImmutableMap.of();
++      }
++      if (n == 1) {
++        String k0 = keys.get(0);
++        Node v0 = values.get(0);
++        return ImmutableMap.of(k0, v0);
++      }
++      ImmutableMap.Builder<String, Node> builder = ImmutableMap.builderWithExpectedSize(n);
++      for (int i = 0; i < n; i++) {
++        String k = keys.get(i);
++        Node v = values.get(i);
++        builder.put(k, v);
++      }
++      return builder.buildOrThrow();
++    }
++
++    @Override
++    public String toString() {
++      int n = keys.size();
++      if (n == 0) {
++        return "{}";
++      }
++      StringBuilder sb = new StringBuilder();
++      sb.append('{');
++      for (int i = 0; i < n; i++) {
++        if (i > 0) {
++          sb.append(", ");
++        }
++        String k = keys.get(i);
++        Node v = values.get(i);
++        sb.append(k).append('=').append(v);
++      }
++      sb.append('}');
++      return sb.toString();
++    }
++  }
++
++  private static final class NodeMapProperty extends Property<NodeMap> {
+     NodeMapProperty(String name) {
+       super(name);
+     }
+ 
+     @Override
+-    LinkedHashMap<String, Node> clone(LinkedHashMap<String, Node> arg, TypeTransform transform) {
+-      return new LinkedHashMap<>(arg);
++    boolean isDefault(NodeMap value) {
++      return value == null || value.isEmpty();
+     }
+ 
+     @Override
+-    boolean equalValues(LinkedHashMap<String, Node> left, LinkedHashMap<String, Node> right) {
+-      if (left.size() != right.size()) {
++    NodeMap clone(NodeMap arg, TypeTransform transform) {
++      int n = arg.size();
++      NodeMap out = new NodeMap(n);
++      for (int i = 0; i < n; i++) {
++        String k = arg.keys.get(i);
++        Node v = arg.values.get(i);
++        out.keys.add(k);
++        out.values.add(v);
++      }
++      return out;
++    }
++
++    @Override
++    boolean equalValues(NodeMap left, NodeMap right) {
++      int n = left.size();
++      if (n != right.size()) {
+         return false;
+       }
+-      for (Map.Entry<String, Node> entry : left.entrySet()) {
+-        Node rightValue = right.get(entry.getKey());
+-        if (rightValue == null || !entry.getValue().isEquivalentTo(rightValue)) {
++      for (int i = 0; i < n; i++) {
++        Node rightValue = right.get(left.keys.get(i));
++        if (rightValue == null || !left.values.get(i).isEquivalentTo(rightValue)) {
+           return false;
+         }
+       }
+@@ -555,8 +872,8 @@
+   // when JSDocInfo is cloned (i.e. none of these Properties override {@link Property#clone}).
+   private static final Property<String> SOURCE_COMMENT = new Property<>("sourceComment");
+   private static final Property<ArrayList<Marker>> MARKERS = new MarkerListProperty("markers");
+-  private static final Property<LinkedHashMap<String, String>> PARAMETER_DESCRIPTIONS =
+-      new Property<>("parameterDescriptions");
++  private static final StringMapProperty PARAMETER_DESCRIPTIONS =
++      new StringMapProperty("parameterDescriptions");
+   private static final Property<String> BLOCK_DESCRIPTION = new Property<>("blockDescription");
+   private static final Property<String> FILEOVERVIEW_DESCRIPTION =
+       new Property<>("fileoverviewDescription");
+@@ -1116,13 +1433,13 @@
+    *     null} type
+    */
+   public @Nullable JSTypeExpression getParameterType(String parameter) {
+-    LinkedHashMap<String, JSTypeExpression> params = PARAMETERS.get(this);
++    TypeMap params = PARAMETERS.get(this);
+     return params != null ? params.get(parameter) : null;
+   }
+ 
+   /** Returns whether the parameter is defined. */
+   public boolean hasParameter(String parameter) {
+-    LinkedHashMap<String, JSTypeExpression> params = PARAMETERS.get(this);
++    TypeMap params = PARAMETERS.get(this);
+     return params != null && params.containsKey(parameter);
+   }
+ 
+@@ -1144,8 +1461,8 @@
+    * @return the set of names of the defined parameters. The returned set is immutable.
+    */
+   public Set<String> getParameterNames() {
+-    LinkedHashMap<String, JSTypeExpression> params = PARAMETERS.get(this);
+-    return params != null ? ImmutableSet.copyOf(params.keySet()) : ImmutableSet.of();
++    TypeMap params = PARAMETERS.get(this);
++    return params != null ? params.keysAsImmutableSet() : ImmutableSet.of();
+   }
+ 
+   /**
+@@ -1153,16 +1470,16 @@
+    * parameters are defined in the JSDoc, rather than the order in which the function declares them.
+    */
+   public @Nullable String getParameterNameAt(int index) {
+-    LinkedHashMap<String, JSTypeExpression> params = PARAMETERS.get(this);
++    TypeMap params = PARAMETERS.get(this);
+     if (params == null || index >= params.size()) {
+       return null;
+     }
+-    return Iterables.get(params.keySet(), index);
++    return params.keyAt(index);
+   }
+ 
+   /** Gets the number of parameters defined. */
+   public int getParameterCount() {
+-    LinkedHashMap<String, JSTypeExpression> params = PARAMETERS.get(this);
++    TypeMap params = PARAMETERS.get(this);
+     return params != null ? params.size() : 0;
+   }
+ 
+@@ -1481,13 +1798,13 @@
+ 
+   /** Returns whether a description exists for the parameter with the specified name. */
+   public boolean hasDescriptionForParameter(String name) {
+-    LinkedHashMap<String, String> params = PARAMETER_DESCRIPTIONS.get(this);
++    StringMap params = PARAMETER_DESCRIPTIONS.get(this);
+     return params != null && params.containsKey(name);
+   }
+ 
+   /** Returns the description for the parameter with the given name, if its exists. */
+   public @Nullable String getDescriptionForParameter(String name) {
+-    LinkedHashMap<String, String> params = PARAMETER_DESCRIPTIONS.get(this);
++    StringMap params = PARAMETER_DESCRIPTIONS.get(this);
+     return params != null ? params.get(name) : null;
+   }
+ 
+@@ -1553,19 +1870,19 @@
+    * <p>Excludes @template types from TTL; get those with {@link #getTypeTransformations()}
+    */
+   public ImmutableList<String> getTemplateTypeNames() {
+-    LinkedHashMap<String, JSTypeExpression> map = TEMPLATE_TYPE_NAMES.get(this);
+-    return map != null ? ImmutableList.copyOf(map.keySet()) : ImmutableList.of();
++    TypeMap map = TEMPLATE_TYPE_NAMES.get(this);
++    return map != null ? map.keysAsImmutableList() : ImmutableList.of();
+   }
+ 
+   public ImmutableMap<String, JSTypeExpression> getTemplateTypes() {
+-    LinkedHashMap<String, JSTypeExpression> map = TEMPLATE_TYPE_NAMES.get(this);
+-    return map != null ? ImmutableMap.copyOf(map) : ImmutableMap.of();
++    TypeMap map = TEMPLATE_TYPE_NAMES.get(this);
++    return map != null ? map.toImmutableMap() : ImmutableMap.of();
+   }
+ 
+   /** Gets the type transformations. */
+   public ImmutableMap<String, Node> getTypeTransformations() {
+-    LinkedHashMap<String, Node> map = TYPE_TRANSFORMATIONS.get(this);
+-    return map != null ? ImmutableMap.copyOf(map) : ImmutableMap.of();
++    NodeMap map = TYPE_TRANSFORMATIONS.get(this);
++    return map != null ? map.toImmutableMap() : ImmutableMap.of();
+   }
+ 
+   /**
+@@ -1602,11 +1919,7 @@
+       int low = Long.numberOfTrailingZeros(bits);
+       bits &= ~(1L << low);
+       Property<Object> prop = (Property<Object>) Property.values[low];
+-      for (JSTypeExpression type : prop.getTypeExpressions(getPropertyValueByIndex(index++))) {
+-        if (type != null) {
+-          builder.add(type);
+-        }
+-      }
++      prop.collectTypeExpressions(getPropertyValueByIndex(index++), builder);
+     }
+     return builder.build();
+   }
+@@ -2008,7 +2321,7 @@
+      */
+     public boolean recordParameter(String parameterName, JSTypeExpression type) {
+       return !hasAnySingletonTypeTags()
+-          && populatePropEntry(PARAMETERS, RhinoStringPool.addOrGet(parameterName), type);
++          && populateTypePropEntry(PARAMETERS, RhinoStringPool.addOrGet(parameterName), type);
+     }
+ 
+     /**
+@@ -2021,7 +2334,7 @@
+       if (!shouldParseDocumentation()) {
+         return true;
+       }
+-      return populatePropEntry(
++      return populateStringPropEntry(
+           PARAMETER_DESCRIPTIONS, RhinoStringPool.addOrGet(parameterName), description);
+     }
+ 
+@@ -2039,21 +2352,21 @@
+       if (bound == null) {
+         bound = JSTypeExpression.IMPLICIT_TEMPLATE_BOUND;
+       }
+-      Map<String, Node> transformations = getProp(TYPE_TRANSFORMATIONS);
++      NodeMap transformations = getProp(TYPE_TRANSFORMATIONS);
+       if ((transformations != null && transformations.containsKey(name))
+           || (propKeys & TYPEDEF_TYPE.mask) != 0L) {
+         return false;
+       }
+-      return populatePropEntry(TEMPLATE_TYPE_NAMES, RhinoStringPool.addOrGet(name), bound);
++      return populateTypePropEntry(TEMPLATE_TYPE_NAMES, RhinoStringPool.addOrGet(name), bound);
+     }
+ 
+     /** Records a type transformation expression together with its template type name. */
+     public boolean recordTypeTransformation(String name, Node expr) {
+-      Map<String, JSTypeExpression> names = getProp(TEMPLATE_TYPE_NAMES);
++      TypeMap names = getProp(TEMPLATE_TYPE_NAMES);
+       if (names != null && names.containsKey(name)) {
+         return false;
+       }
+-      return populatePropEntry(TYPE_TRANSFORMATIONS, RhinoStringPool.addOrGet(name), expr);
++      return populateNodePropEntry(TYPE_TRANSFORMATIONS, RhinoStringPool.addOrGet(name), expr);
+     }
+ 
+     /**
+@@ -2780,7 +3093,7 @@
+ 
+     /** Returns whether a parameter of the given name has already been recorded. */
+     public boolean hasParameter(String name) {
+-      Map<String, JSTypeExpression> params = getProp(PARAMETERS);
++      TypeMap params = getProp(PARAMETERS);
+       return params != null && params.containsKey(name);
+     }
+ 
+@@ -2974,7 +3287,7 @@
+     }
+ 
+     private boolean hasAnyParameters() {
+-      Map<?, ?> params = getProp(PARAMETERS);
++      TypeMap params = getProp(PARAMETERS);
+       return params != null && !params.isEmpty();
+     }
+ 
+@@ -3062,19 +3375,35 @@
+       return list;
+     }
+ 
+-    private <K, V> boolean putPropEntry(Property<LinkedHashMap<K, V>> prop, K key, V value) {
+-      LinkedHashMap<K, V> map = getProp(prop);
++    private boolean populateTypePropEntry(
++        TypeMapProperty prop, String key, @Nullable JSTypeExpression value) {
++      TypeMap map = getProp(prop);
+       if (map == null) {
+-        map = new LinkedHashMap<>();
++        map = new TypeMap(4);
+         setProp(prop, map);
+       }
+-      return map.putIfAbsent(key, value) == null;
++      return map.putIfAbsent(key, value) && (populated = true);
+     }
+ 
+-    private <K, V> boolean populatePropEntry(Property<LinkedHashMap<K, V>> prop, K key, V value) {
+-      return putPropEntry(prop, key, value) && (populated = true);
++    private boolean populateStringPropEntry(
++        StringMapProperty prop, String key, @Nullable String value) {
++      StringMap map = getProp(prop);
++      if (map == null) {
++        map = new StringMap();
++        setProp(prop, map);
++      }
++      return map.putIfAbsent(key, value) && (populated = true);
+     }
+ 
++    private boolean populateNodePropEntry(NodeMapProperty prop, String key, Node value) {
++      NodeMap map = getProp(prop);
++      if (map == null) {
++        map = new NodeMap(4);
++        setProp(prop, map);
++      }
++      return map.putIfAbsent(key, value) && (populated = true);
++    }
++
+     private <T> boolean populateProp(Property<T> prop, T value) {
+       populated = true;
+       if ((propKeys & prop.mask) != 0L) {

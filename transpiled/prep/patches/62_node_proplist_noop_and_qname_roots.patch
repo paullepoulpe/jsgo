@@ -1,0 +1,706 @@
+diff --git a/com/google/javascript/jscomp/ConcretizeStaticInheritanceForInlining.java b/com/google/javascript/jscomp/ConcretizeStaticInheritanceForInlining.java
+--- a/com/google/javascript/jscomp/ConcretizeStaticInheritanceForInlining.java
++++ b/com/google/javascript/jscomp/ConcretizeStaticInheritanceForInlining.java
+@@ -27,11 +27,13 @@
+ import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.Node;
+ import java.util.ArrayList;
++import java.util.HashSet;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Set;
++import org.jspecify.annotations.Nullable;
+ 
+ /**
+  * Rewrites static inheritance to explicitly copy inherited properties from superclass to subclass
+@@ -131,6 +133,40 @@
+   private final AbstractCompiler compiler;
+ 
+   private final LinkedHashMap<String, JavascriptClass> classByAlias = new LinkedHashMap<>();
++  private final HashSet<String> classLeafNames = new HashSet<>();
++
++  private void putClassAlias(String name, JavascriptClass cls) {
++    classByAlias.put(name, cls);
++    int lastDot = name.lastIndexOf('.');
++    classLeafNames.add(lastDot < 0 ? name : name.substring(lastDot + 1));
++  }
++
++  private @Nullable String getClassKeyIfPresent(Node n) {
++    if (classByAlias.isEmpty()) {
++      return null;
++    }
++    if (n.isName()) {
++      String name = n.getString();
++      return (!name.isEmpty() && classByAlias.containsKey(name)) ? name : null;
++    }
++    if (n.isGetProp()) {
++      String prop = n.getString();
++      int dot = prop.lastIndexOf('.');
++      String leaf = dot < 0 ? prop : prop.substring(dot + 1);
++      if (!classLeafNames.contains(leaf)) {
++        return null;
++      }
++      String qname = n.getQualifiedName();
++      return (qname != null && classByAlias.containsKey(qname)) ? qname : null;
++    }
++    if (n.isThis()) {
++      return classByAlias.containsKey("this") ? "this" : null;
++    }
++    if (n.isSuper()) {
++      return classByAlias.containsKey("super") ? "super" : null;
++    }
++    return null;
++  }
+ 
+   public ConcretizeStaticInheritanceForInlining(AbstractCompiler compiler) {
+     this.compiler = compiler;
+@@ -222,18 +258,20 @@
+     return false;
+   }
+ 
+-  private boolean isReferenceToClass(NodeTraversal t, Node n) {
+-    String className = n.getQualifiedName();
+-    if (!classByAlias.containsKey(className)) {
+-      return false;
+-    }
+-
+-    if (!n.isName()) {
+-      return true;
+-    }
+-
+-    Var var = t.getScope().getVar(className);
+-    return var == null || !var.isLocal();
++  private @Nullable JavascriptClass getReferencedClass(NodeTraversal t, Node n) {
++    String className = getClassKeyIfPresent(n);
++    if (className == null) {
++      return null;
++    }
++
++    if (n.isName()) {
++      Var var = t.getScope().getVar(className);
++      if (var != null && var.isLocal()) {
++        return null;
++      }
++    }
++
++    return classByAlias.get(className);
+   }
+ 
+   private class FindStaticMembers extends AbstractPostOrderCallback {
+@@ -263,9 +301,8 @@
+ 
+     private void visitDefinedPropertiesCall(NodeTraversal t, Node definePropertiesCall) {
+       Node object = definePropertiesCall.getSecondChild();
+-      if (isReferenceToClass(t, object)) {
+-        String className = object.getQualifiedName();
+-        JavascriptClass c = classByAlias.get(className);
++      JavascriptClass c = getReferencedClass(t, object);
++      if (c != null) {
+         for (Node prop : NodeUtil.getObjectDefinedPropertiesKeys(definePropertiesCall)) {
+           c.definedProperties.add(prop.getString());
+         }
+@@ -282,7 +319,7 @@
+         if (classByAlias.containsKey(name)) {
+           duplicateClassNames.add(name);
+         } else {
+-          classByAlias.put(name, new JavascriptClass());
++          putClassAlias(name, new JavascriptClass());
+         }
+       }
+     }
+@@ -291,13 +328,16 @@
+       Preconditions.checkNotNull(original, "original is null");
+       Preconditions.checkNotNull(alias, "alias is null");
+       checkArgument(classByAlias.containsKey(original));
+-      classByAlias.put(alias, classByAlias.get(original));
++      putClassAlias(alias, classByAlias.get(original));
+     }
+ 
+     private void visitAssign(NodeTraversal t, Node n) {
++      if (classByAlias.isEmpty()) {
++        return;
++      }
+       // Alias for classes. We assume that the alias appears after the class declaration.
+-      String existingClassQname = n.getLastChild().getQualifiedName();
+-      if (existingClassQname != null && classByAlias.containsKey(existingClassQname)) {
++      String existingClassQname = getClassKeyIfPresent(n.getLastChild());
++      if (existingClassQname != null) {
+         String alias = n.getFirstChild().getQualifiedName();
+         if (alias != null) {
+           setAlias(existingClassQname, alias);
+@@ -305,20 +345,24 @@
+       } else if (n.getFirstChild().isGetProp()) {
+         Node getProp = n.getFirstChild();
+         Node classNode = getProp.getFirstChild();
+-        if (isReferenceToClass(t, classNode) && !BANNED_PROP_NAMES.contains(getProp.getString())) {
+-          classByAlias.get(classNode.getQualifiedName()).addStaticMember(n);
++        JavascriptClass refClass = getReferencedClass(t, classNode);
++        if (refClass != null && !BANNED_PROP_NAMES.contains(getProp.getString())) {
++          refClass.addStaticMember(n);
+           nodeOrder.put(n, nodeOrder.size());
+         }
+       }
+     }
+ 
+     private void visitVariableDeclaration(Node n) {
++      if (classByAlias.isEmpty()) {
++        return;
++      }
+       Node child = n.getFirstChild();
+       if (!child.hasChildren()) {
+         return;
+       }
+-      String maybeOriginalName = child.getFirstChild().getQualifiedName();
+-      if (maybeOriginalName != null && classByAlias.containsKey(maybeOriginalName)) {
++      String maybeOriginalName = getClassKeyIfPresent(child.getFirstChild());
++      if (maybeOriginalName != null) {
+         String maybeAlias = child.getQualifiedName();
+         if (maybeAlias != null) {
+           setAlias(maybeOriginalName, maybeAlias);
+diff --git a/com/google/javascript/jscomp/JsMessageVisitor.java b/com/google/javascript/jscomp/JsMessageVisitor.java
+--- a/com/google/javascript/jscomp/JsMessageVisitor.java
++++ b/com/google/javascript/jscomp/JsMessageVisitor.java
+@@ -355,8 +355,14 @@
+     // to this program.
+     // TODO(bradfordcsmith): Make this check more robust, possibly building on ModuleMetadata or
+     // ProcessClosurePrimitives.
+-    final String qualifiedName = calleeNode.getQualifiedName();
+-    return qualifiedName != null && qualifiedName.endsWith(ICU_MSG_FUNCTION_NAME);
++    if (calleeNode.isName()) {
++      return calleeNode.getString().endsWith(ICU_MSG_FUNCTION_NAME);
++    }
++    if (calleeNode.isGetProp()) {
++      return calleeNode.getString().endsWith(ICU_MSG_FUNCTION_NAME)
++          && calleeNode.isQualifiedName();
++    }
++    return false;
+   }
+ 
+   interface InputForBuildJsMsg {
+@@ -1569,8 +1575,15 @@
+   }
+ 
+   private static boolean isMessageIdentifier(Node node) {
+-    String qname = node.getQualifiedName();
+-    return qname != null && qname.contains(MSG_PREFIX);
++    if (!node.isQualifiedName()) {
++      return false;
++    }
++    for (Node cur = node; cur != null; cur = cur.isGetProp() ? cur.getFirstChild() : null) {
++      if ((cur.isGetProp() || cur.isName()) && cur.getString().contains(MSG_PREFIX)) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   /**
+diff --git a/com/google/javascript/jscomp/LinkedFlowScope.java b/com/google/javascript/jscomp/LinkedFlowScope.java
+--- a/com/google/javascript/jscomp/LinkedFlowScope.java
++++ b/com/google/javascript/jscomp/LinkedFlowScope.java
+@@ -202,8 +202,14 @@
+     return scope != null ? scope.getSlot(name) : var;
+   }
+ 
++  boolean hasGlobalFunctionScope() {
++    return this.functionScope.isGlobal();
++  }
++
+   boolean mayHaveQualifiedSlotForRoot(String rootName) {
+-    if (this.hasQualifiedOverlaySlots || this.syntacticScope.hasQualifiedOwnVars()) {
++    if (this.hasQualifiedOverlaySlots
++        || this.syntacticScope.hasQualifiedOwnVarWithRoot(rootName)
++        || this.functionScope.hasQualifiedOwnVarWithRoot(rootName)) {
+       return true;
+     }
+     if (this.syntacticScope.getParent() == null) {
+@@ -211,10 +217,9 @@
+     }
+     TypedScope rootScope = this.syntacticScope.findScopeForRootName(rootName);
+     if (rootScope != null) {
+-      return rootScope.hasQualifiedOwnVars();
+-    }
+-    return this.functionScope.hasQualifiedOwnVars()
+-        || this.syntacticScope.getGlobalScope().hasQualifiedOwnVars();
++      return rootScope.hasQualifiedOwnVarWithRoot(rootName);
++    }
++    return this.syntacticScope.getGlobalScope().hasQualifiedOwnVarWithRoot(rootName);
+   }
+ 
+   private static String getRootOfQualifiedName(String name) {
+diff --git a/com/google/javascript/jscomp/ReferenceCollector.java b/com/google/javascript/jscomp/ReferenceCollector.java
+--- a/com/google/javascript/jscomp/ReferenceCollector.java
++++ b/com/google/javascript/jscomp/ReferenceCollector.java
+@@ -28,7 +28,6 @@
+ import java.util.ArrayDeque;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+-import java.util.Map;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -45,7 +44,7 @@
+    * Var objects are not stable across multiple traversals (unlike scope root or
+    * name).
+    */
+-  private final Map<Var, ReferenceCollection> referenceMap =
++  private final LinkedHashMap<Var, ReferenceCollection> referenceMap =
+        new LinkedHashMap<>();
+ 
+   /** The stack of basic blocks and scopes the current traversal is in. */
+@@ -356,13 +355,16 @@
+ 
+   @CanIgnoreReturnValue
+   private @Nullable Reference addReference(Var v, Node n, NodeTraversal t) {
+-    if (!this.varFilter.apply(v)) {
++    if (this.varFilter != Predicates.<Var>alwaysTrue() && !this.varFilter.apply(v)) {
+       return null;
+     }
+ 
+     // Create collection if none already
+-    ReferenceCollection collection =
+-        referenceMap.computeIfAbsent(v, k -> new ReferenceCollection());
++    ReferenceCollection collection = referenceMap.get(v);
++    if (collection == null) {
++      collection = new ReferenceCollection();
++      referenceMap.put(v, collection);
++    }
+ 
+     // Add this particular reference
+     Reference reference = new Reference(n, t, blockStack.getLast());
+diff --git a/com/google/javascript/jscomp/ReplaceCssNames.java b/com/google/javascript/jscomp/ReplaceCssNames.java
+--- a/com/google/javascript/jscomp/ReplaceCssNames.java
++++ b/com/google/javascript/jscomp/ReplaceCssNames.java
+@@ -578,6 +578,12 @@
+ 
+     @Override
+     public void visit(NodeTraversal t, Node n, Node parent) {
++      if (classesObjectsQualifiedNames.isEmpty()) {
++        return;
++      }
++      if (n.isGetProp() && !"classes".equals(n.getString())) {
++        return;
++      }
+       String classesObjectQualifiedName = n.getQualifiedName();
+       if (classesObjectQualifiedName == null
+           || !classesObjectsQualifiedNames.contains(classesObjectQualifiedName)) {
+diff --git a/com/google/javascript/jscomp/ScopedName.java b/com/google/javascript/jscomp/ScopedName.java
+--- a/com/google/javascript/jscomp/ScopedName.java
++++ b/com/google/javascript/jscomp/ScopedName.java
+@@ -56,9 +56,6 @@
+ 
+   @Override
+   public final boolean equals(Object other) {
+-    if (this == other) {
+-      return true;
+-    }
+     if (!(other instanceof ScopedName scopedName)) {
+       return false;
+     }
+@@ -70,15 +67,22 @@
+   public final int hashCode() {
+     int h = this.cachedHashCode;
+     if (h == 0) {
+-      // NOTE: here we avoid Object.hash because of this function is called
+-      // frequently enough that the overhead of implicit array creation of
+-      // a varargs function is enough that we want to avoid it.
+-      int result = 1;
+-      result = 31 * result + this.name.hashCode();
+-      result = 31 * result + (this.scopeRoot != null ? this.scopeRoot.hashCode() : 0);
+-      h = result;
+-      this.cachedHashCode = h;
++      return computeHashCode();
+     }
+     return h;
+   }
++
++  private int computeHashCode() {
++    // NOTE: here we avoid Object.hash because of this function is called
++    // frequently enough that the overhead of implicit array creation of
++    // a varargs function is enough that we want to avoid it.
++    int result = 31 + this.name.hashCode();
++    int rootHash = 0;
++    if (this.scopeRoot != null) {
++      rootHash = this.scopeRoot.hashCode();
++    }
++    result = 31 * result + rootHash;
++    this.cachedHashCode = result;
++    return result;
++  }
+ }
+diff --git a/com/google/javascript/jscomp/TypeInference.java b/com/google/javascript/jscomp/TypeInference.java
+--- a/com/google/javascript/jscomp/TypeInference.java
++++ b/com/google/javascript/jscomp/TypeInference.java
+@@ -1157,7 +1157,8 @@
+         }
+       }
+       case GETPROP -> {
+-        if (target.isQualifiedName()) {
++        if ((!(scope instanceof LinkedFlowScope lfs) || !lfs.hasGlobalFunctionScope())
++            && target.isQualifiedName()) {
+           String qualifiedName = target.getQualifiedName();
+           boolean declaredSlotType = false;
+           JSType rawObjType = target.getFirstChild().getJSType();
+@@ -1274,19 +1275,23 @@
+    */
+   private boolean ensurePropertyDeclaredHelper(
+       Node getprop, ObjectType objectType, FlowScope scope) {
+-    if (getprop.isQualifiedName()) {
+-      String propName = getprop.getString();
+-      String qName = getprop.getQualifiedName();
+-      TypedVar var = getDeclaredVar(scope, qName);
+-      if (var != null && !var.isTypeInferred()) {
+-        // Handle normal declarations that could not be addressed earlier.
+-        if (propName.equals("prototype")
+-            ||
+-            // Handle prototype declarations that could not be addressed earlier.
+-            (!objectType.hasOwnProperty(propName)
+-                && (!objectType.isInstanceType()
+-                    || (var.isExtern() && !objectType.isNativeObjectType())))) {
+-          return defineDeclaredProperty(objectType, propName, var.getType(), getprop);
++    String rootName = getGetPropRootName(getprop);
++    if (rootName != null) {
++      TypedScope declScope = (TypedScope) scope.getDeclarationScope();
++      if (declScope.mayHaveQualifiedVarForRoot(rootName) && getprop.isQualifiedName()) {
++        String propName = getprop.getString();
++        String qName = getprop.getQualifiedName();
++        TypedVar var = declScope.getVar(qName);
++        if (var != null && !var.isTypeInferred()) {
++          // Handle normal declarations that could not be addressed earlier.
++          if (propName.equals("prototype")
++              ||
++              // Handle prototype declarations that could not be addressed earlier.
++              (!objectType.hasOwnProperty(propName)
++                  && (!objectType.isInstanceType()
++                      || (var.isExtern() && !objectType.isNativeObjectType())))) {
++            return defineDeclaredProperty(objectType, propName, var.getType(), getprop);
++          }
+         }
+       }
+     }
+@@ -1891,7 +1896,6 @@
+     if (assertedNode == null) {
+       return scope;
+     }
+-    String assertedNodeName = assertedNode.getQualifiedName();
+ 
+     // Handle assertions that enforce expressions evaluate to true.
+     switch (assertionFunctionSpec.getAssertionKind()) {
+@@ -1918,7 +1922,7 @@
+           narrowed = type.getGreatestSubtype(assertedType);
+         }
+         callNode.setJSType(narrowed);
+-        if (assertedNodeName != null && type.differsFrom(narrowed)) {
++        if (assertedNode.isQualifiedName() && type.differsFrom(narrowed)) {
+           scope = narrowScope(scope, assertedNode, narrowed);
+         }
+       }
+diff --git a/com/google/javascript/jscomp/TypedScope.java b/com/google/javascript/jscomp/TypedScope.java
+--- a/com/google/javascript/jscomp/TypedScope.java
++++ b/com/google/javascript/jscomp/TypedScope.java
+@@ -29,6 +29,7 @@
+ import com.google.javascript.rhino.jstype.StaticTypedScope;
+ import java.util.ArrayList;
+ import java.util.Collections;
++import java.util.HashSet;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.Set;
+@@ -73,7 +74,7 @@
+   private @Nullable TypedVar var4;
+   private @Nullable TypedVar var5;
+   private @Nullable LinkedHashMap<String, TypedVar> vars;
+-  private boolean hasQualifiedOwnVars;
++  private @Nullable HashSet<String> qualifiedRootNames;
+ 
+   // Scope.java contains an arguments field.
+   // We haven't added it here because it's unused by the passes that need typed scopes.
+@@ -201,14 +202,36 @@
+     }
+     TypedVar var = new TypedVar(inferred, name, nameNode, type, this, getVarCount(), input);
+     declareInternal(name, var);
+-    if (name.indexOf('.') >= 0) {
+-      this.hasQualifiedOwnVars = true;
++    int dot = name.indexOf('.');
++    if (dot >= 0) {
++      if (this.qualifiedRootNames == null) {
++        this.qualifiedRootNames = new HashSet<>(4);
++      }
++      this.qualifiedRootNames.add(name.substring(0, dot));
+     }
+     return var;
+   }
+ 
+   boolean hasQualifiedOwnVars() {
+-    return this.hasQualifiedOwnVars;
++    return this.qualifiedRootNames != null;
++  }
++
++  boolean hasQualifiedOwnVarWithRoot(String rootName) {
++    return this.qualifiedRootNames != null && this.qualifiedRootNames.contains(rootName);
++  }
++
++  boolean mayHaveQualifiedVarForRoot(String rootName) {
++    if (this.hasQualifiedOwnVarWithRoot(rootName)) {
++      return true;
++    }
++    if (this.parent == null) {
++      return false;
++    }
++    TypedScope rootScope = findScopeForRootName(rootName);
++    if (rootScope != null) {
++      return rootScope.hasQualifiedOwnVarWithRoot(rootName);
++    }
++    return this.parent.getGlobalScope().hasQualifiedOwnVarWithRoot(rootName);
+   }
+ 
+   @Override
+@@ -348,6 +371,7 @@
+     var3 = null;
+     var4 = null;
+     var5 = null;
++    qualifiedRootNames = null;
+     if (vars != null && !vars.isEmpty()) {
+       vars.clear();
+     }
+@@ -654,7 +678,7 @@
+   public final @Nullable TypedVar getVar(String name) {
+     int dot = name.indexOf('.');
+     TypedVar ownSlot =
+-        (dot >= 0 && !this.hasQualifiedOwnVars) ? null : getOwnSlot(name);
++        (dot >= 0 && this.qualifiedRootNames == null) ? null : getOwnSlot(name);
+     if (ownSlot != null) {
+       // Micro-optimization: variables declared directly in this scope cannot have been shadowed.
+       return ownSlot;
+@@ -670,12 +694,14 @@
+     } else if (rootVar == null) {
+       // Default to the global scope because externs may have qualified names with undeclared roots.
+       TypedScope global = this.parent.getGlobalScope();
+-      return global.hasQualifiedOwnVars ? global.getOwnDeclaredVar(name) : null;
++      return global.hasQualifiedOwnVarWithRoot(rootName) ? global.getOwnDeclaredVar(name) : null;
+     } else {
+       // Qualified names 'a.b.c' are declared in the same scope as 'a', never a child scope, which
+       // is why calling `getOwnSlot` is sufficient.
+       TypedScope rootScope = rootVar.getScope();
+-      return rootScope.hasQualifiedOwnVars ? rootScope.getOwnDeclaredVar(name) : null;
++      return rootScope.hasQualifiedOwnVarWithRoot(rootName)
++          ? rootScope.getOwnDeclaredVar(name)
++          : null;
+     }
+   }
+ 
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -1342,6 +1342,16 @@
+     }
+   }
+ 
++  private void removeColdProp(Prop prop) {
++    PropListItem head = this.propListHead;
++    if (head != null) {
++      PropListItem nextHead = rebuildListWithoutProp(head, prop);
++      if (nextHead != head) {
++        this.propListHead = nextHead;
++      }
++    }
++  }
++
+   /**
+    * Returns the object property value for the given property type, or null if not set.
+    *
+@@ -1473,32 +1483,24 @@
+     if (prop == Prop.SOURCE_FILE) {
+       if (value == null) {
+         this.sourceFile = null;
+-        if (this.propListHead != null) {
+-          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+-        }
++        removeColdProp(prop);
+         return;
+       }
+       if (value instanceof StaticSourceFile) {
+         this.sourceFile = (StaticSourceFile) value;
+-        if (this.propListHead != null) {
+-          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+-        }
++        removeColdProp(prop);
+         return;
+       }
+       this.sourceFile = null;
+     } else if (prop == Prop.JSDOC_INFO) {
+       if (value == null) {
+         this.jsDocInfo = null;
+-        if (this.propListHead != null) {
+-          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+-        }
++        removeColdProp(prop);
+         return;
+       }
+       if (value instanceof JSDocInfo info) {
+         this.jsDocInfo = info;
+-        if (this.propListHead != null) {
+-          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+-        }
++        removeColdProp(prop);
+         return;
+       }
+       this.jsDocInfo = null;
+@@ -1514,7 +1516,8 @@
+         this.changeTime = 0;
+       }
+     }
+-    PropListItem head = this.propListHead;
++    PropListItem oldHead = this.propListHead;
++    PropListItem head = oldHead;
+     if (head == null) {
+       if (value == null) {
+         return;
+@@ -1525,7 +1528,9 @@
+     if (value != null) {
+       head = PropListItem.objectItem((byte) prop.ordinal(), value, head);
+     }
+-    this.propListHead = head;
++    if (head != oldHead) {
++      this.propListHead = head;
++    }
+   }
+ 
+   @SuppressWarnings("EnumOrdinal") // performance tuning
+@@ -1537,9 +1542,7 @@
+       } else {
+         this.propFlags &= ~mask;
+       }
+-      if (this.propListHead != null) {
+-        this.propListHead = rebuildListWithoutProp(this.propListHead, propType);
+-      }
++      removeColdProp(propType);
+       return;
+     }
+     putIntProp(propType, value ? 1 : 0);
+@@ -1551,48 +1554,39 @@
+     if (mask != 0) {
+       if (value == 0) {
+         this.propFlags &= ~mask;
+-        if (this.propListHead != null) {
+-          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+-        }
++        removeColdProp(prop);
+         return;
+       }
+       this.propFlags |= mask;
+       if (value == 1) {
+-        if (this.propListHead != null) {
+-          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+-        }
++        removeColdProp(prop);
+         return;
+       }
+     } else if (prop == Prop.CONSTANT_VAR_FLAGS) {
+       if ((value & ~CONST_VAR_MAX) == 0) {
+         this.propFlags = (this.propFlags & ~CONST_VAR_BITS_MASK) | (value << CONST_VAR_SHIFT);
+-        if (this.propListHead != null) {
+-          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+-        }
++        removeColdProp(prop);
+         return;
+       }
+       this.propFlags &= ~CONST_VAR_BITS_MASK;
+     } else if (prop == Prop.SIDE_EFFECT_FLAGS) {
+       if ((value & ~SIDE_EFFECT_MAX) == 0) {
+         this.propFlags = (this.propFlags & ~SIDE_EFFECT_BITS_MASK) | (value << SIDE_EFFECT_SHIFT);
+-        if (this.propListHead != null) {
+-          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+-        }
++        removeColdProp(prop);
+         return;
+       }
+       this.propFlags &= ~SIDE_EFFECT_BITS_MASK;
+     } else if (prop == Prop.CHANGE_TIME) {
+       this.changeTime = value;
+-      if (this.propListHead != null) {
+-        this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+-      }
++      removeColdProp(prop);
+       return;
+     } else if (prop == Prop.SOURCE_FILE) {
+       this.sourceFile = null;
+     } else if (prop == Prop.JSDOC_INFO) {
+       this.jsDocInfo = null;
+     }
+-    PropListItem head = this.propListHead;
++    PropListItem oldHead = this.propListHead;
++    PropListItem head = oldHead;
+     if (head == null) {
+       if (value == 0) {
+         return;
+@@ -1603,7 +1597,9 @@
+     if (value != 0) {
+       head = PropListItem.intItem((byte) prop.ordinal(), value, head);
+     }
+-    this.propListHead = head;
++    if (head != oldHead) {
++      this.propListHead = head;
++    }
+   }
+ 
+   @SuppressWarnings("EnumOrdinal") // performance tuning
+@@ -1624,9 +1620,7 @@
+         this.changeTime = 0;
+       }
+     }
+-    if (this.propListHead != null) {
+-      this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+-    }
++    removeColdProp(prop);
+   }
+ 
+   static long nodePropertyToBit(NodeProperty prop) {
+@@ -1929,8 +1923,9 @@
+   }
+ 
+   /** Sets the type of this node before casting. */
+-  public final void setJSTypeBeforeCast(JSType type) {
+-    if (type == null && this.propListHead == null) {
++  public final void setJSTypeBeforeCast(@Nullable JSType type) {
++    if (type == null) {
++      removeColdProp(Prop.TYPE_BEFORE_CAST);
+       return;
+     }
+     putProp(Prop.TYPE_BEFORE_CAST, type);
+@@ -1941,10 +1936,11 @@
+    * child of a CAST node after type checking.
+    */
+   public final @Nullable JSType getJSTypeBeforeCast() {
+-    if (this.propListHead == null) {
++    PropListItem item = lookupColdProperty(Prop.TYPE_BEFORE_CAST);
++    if (item == null) {
+       return null;
+     }
+-    return (JSType) getProp(Prop.TYPE_BEFORE_CAST);
++    return (JSType) item.getObjectValue();
+   }
+ 
+   /**
+@@ -2338,17 +2334,13 @@
+ 
+   public final void setStaticSourceFileFrom(Node other) {
+     this.sourceFile = other.getStaticSourceFile();
+-    if (this.propListHead != null) {
+-      this.propListHead = rebuildListWithoutProp(this.propListHead, Prop.SOURCE_FILE);
+-    }
++    removeColdProp(Prop.SOURCE_FILE);
+   }
+ 
+   @CanIgnoreReturnValue
+   public final Node setStaticSourceFile(@Nullable StaticSourceFile file) {
+     this.sourceFile = file;
+-    if (this.propListHead != null) {
+-      this.propListHead = rebuildListWithoutProp(this.propListHead, Prop.SOURCE_FILE);
+-    }
++    removeColdProp(Prop.SOURCE_FILE);
+     return this;
+   }
+ 

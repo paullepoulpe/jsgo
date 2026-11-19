@@ -1,0 +1,23 @@
+{
+  "id": "tier1_f01_pretty_print",
+  "tier": 1,
+  "feature": "formatting_output",
+  "name": "Pretty print formatting",
+  "description": "Verifies PRETTY_PRINT formats output with proper indentations and newlines",
+  "args": [
+    "--formatting",
+    "PRETTY_PRINT",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "function test(x){if(x>0){return 1;}else{return 0;}}"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "function test(a) {\n  return a > 0 ? 1 : 0;\n}\n;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

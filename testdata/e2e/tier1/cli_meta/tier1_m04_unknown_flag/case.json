@@ -1,0 +1,18 @@
+{
+  "id": "tier1_m04_unknown_flag",
+  "tier": 1,
+  "feature": "cli_meta",
+  "name": "Unknown flag error handling",
+  "description": "Verifies passing unknown flag produces invalid option message and exits non-zero",
+  "args": [
+    "--nonexistent_cli_option_foo"
+  ],
+  "stdin": "",
+  "files": {},
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "\"--nonexistent_cli_option_foo\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

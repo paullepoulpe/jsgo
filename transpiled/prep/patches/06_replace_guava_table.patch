@@ -1,0 +1,280 @@
+diff --git ab/com/google/javascript/jscomp/SimpleTable.java b/com/google/javascript/jscomp/SimpleTable.java
+new file mode 100644
+index 00000000..dad09e0f
+--- /dev/null
++++ b/com/google/javascript/jscomp/SimpleTable.java
+@@ -0,0 +1,260 @@
++/*
++ * Copyright 2026 The Closure Compiler Authors.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.google.javascript.jscomp;
++
++import java.io.Serializable;
++import java.util.AbstractSet;
++import java.util.ArrayList;
++import java.util.Collection;
++import java.util.Collections;
++import java.util.Iterator;
++import java.util.LinkedHashMap;
++import java.util.LinkedHashSet;
++import java.util.List;
++import java.util.Map;
++import java.util.Objects;
++import java.util.Set;
++
++/**
++ * A lightweight, pure-Java replacement for Guava's Table backed by nested LinkedHashMaps
++ * to maintain deterministic row and column insertion order without Guava dependencies.
++ */
++public final class SimpleTable<R, C, V> implements Serializable {
++  private static final long serialVersionUID = 1L;
++
++  public interface Cell<R, C, V> {
++    R getRowKey();
++    C getColumnKey();
++    V getValue();
++  }
++
++  public static final class SimpleCell<R, C, V> implements Cell<R, C, V>, Serializable {
++    private static final long serialVersionUID = 1L;
++    private final R rowKey;
++    private final C columnKey;
++    private final V value;
++
++    public SimpleCell(R rowKey, C columnKey, V value) {
++      this.rowKey = rowKey;
++      this.columnKey = columnKey;
++      this.value = value;
++    }
++
++    @Override
++    public R getRowKey() {
++      return rowKey;
++    }
++
++    @Override
++    public C getColumnKey() {
++      return columnKey;
++    }
++
++    @Override
++    public V getValue() {
++      return value;
++    }
++
++    @Override
++    public boolean equals(Object o) {
++      if (o == this) {
++        return true;
++      }
++      if (!(o instanceof Cell<?, ?, ?>)) {
++        return false;
++      }
++      Cell<?, ?, ?> other = (Cell<?, ?, ?>) o;
++      return Objects.equals(rowKey, other.getRowKey())
++          && Objects.equals(columnKey, other.getColumnKey())
++          && Objects.equals(value, other.getValue());
++    }
++
++    @Override
++    public int hashCode() {
++      return Objects.hash(rowKey, columnKey, value);
++    }
++
++    @Override
++    public String toString() {
++      return "(" + rowKey + "," + columnKey + ")=" + value;
++    }
++  }
++
++  private final Map<R, Map<C, V>> rowMap;
++
++  public SimpleTable() {
++    this.rowMap = new LinkedHashMap<>();
++  }
++
++  public static <R, C, V> SimpleTable<R, C, V> create() {
++    return new SimpleTable<>();
++  }
++
++  public boolean contains(Object rowKey, Object columnKey) {
++    Map<C, V> row = rowMap.get(rowKey);
++    return row != null && row.containsKey(columnKey);
++  }
++
++  public boolean containsRow(Object rowKey) {
++    return rowMap.containsKey(rowKey);
++  }
++
++  public boolean containsColumn(Object columnKey) {
++    for (Map<C, V> row : rowMap.values()) {
++      if (row.containsKey(columnKey)) {
++        return true;
++      }
++    }
++    return false;
++  }
++
++  public boolean containsValue(Object value) {
++    for (Map<C, V> row : rowMap.values()) {
++      if (row.containsValue(value)) {
++        return true;
++      }
++    }
++    return false;
++  }
++
++  public V get(Object rowKey, Object columnKey) {
++    Map<C, V> row = rowMap.get(rowKey);
++    return row == null ? null : row.get(columnKey);
++  }
++
++  public boolean isEmpty() {
++    return rowMap.isEmpty();
++  }
++
++  public int size() {
++    int total = 0;
++    for (Map<C, V> row : rowMap.values()) {
++      total += row.size();
++    }
++    return total;
++  }
++
++  public void clear() {
++    rowMap.clear();
++  }
++
++  public V put(R rowKey, C columnKey, V value) {
++    Objects.requireNonNull(rowKey);
++    Objects.requireNonNull(columnKey);
++    Objects.requireNonNull(value);
++    Map<C, V> row = rowMap.computeIfAbsent(rowKey, k -> new LinkedHashMap<>());
++    return row.put(columnKey, value);
++  }
++
++  public V remove(Object rowKey, Object columnKey) {
++    Map<C, V> row = rowMap.get(rowKey);
++    if (row == null) {
++      return null;
++    }
++    V removed = row.remove(columnKey);
++    if (row.isEmpty()) {
++      rowMap.remove(rowKey);
++    }
++    return removed;
++  }
++
++  public Map<C, V> row(R rowKey) {
++    Map<C, V> row = rowMap.get(rowKey);
++    if (row == null) {
++      return Collections.emptyMap();
++    }
++    return row;
++  }
++
++  public Map<R, V> column(C columnKey) {
++    Map<R, V> col = new LinkedHashMap<>();
++    for (Map.Entry<R, Map<C, V>> entry : rowMap.entrySet()) {
++      V val = entry.getValue().get(columnKey);
++      if (val != null) {
++        col.put(entry.getKey(), val);
++      }
++    }
++    return col;
++  }
++
++  public Set<Cell<R, C, V>> cellSet() {
++    return new AbstractSet<Cell<R, C, V>>() {
++      @Override
++      public Iterator<Cell<R, C, V>> iterator() {
++        List<Cell<R, C, V>> cells = new ArrayList<>(size());
++        for (Map.Entry<R, Map<C, V>> rowEntry : rowMap.entrySet()) {
++          R r = rowEntry.getKey();
++          for (Map.Entry<C, V> colEntry : rowEntry.getValue().entrySet()) {
++            cells.add(new SimpleCell<>(r, colEntry.getKey(), colEntry.getValue()));
++          }
++        }
++        return cells.iterator();
++      }
++
++      @Override
++      public int size() {
++        return SimpleTable.this.size();
++      }
++    };
++  }
++
++  public Set<R> rowKeySet() {
++    return rowMap.keySet();
++  }
++
++  public Set<C> columnKeySet() {
++    Set<C> cols = new LinkedHashSet<>();
++    for (Map<C, V> row : rowMap.values()) {
++      cols.addAll(row.keySet());
++    }
++    return cols;
++  }
++
++  public Collection<V> values() {
++    Collection<V> vals = new ArrayList<>(size());
++    for (Map<C, V> row : rowMap.values()) {
++      vals.addAll(row.values());
++    }
++    return vals;
++  }
++
++  public Map<R, Map<C, V>> rowMap() {
++    return Collections.unmodifiableMap(rowMap);
++  }
++
++  @Override
++  public boolean equals(Object o) {
++    if (o == this) {
++      return true;
++    }
++    if (!(o instanceof SimpleTable<?, ?, ?>)) {
++      return false;
++    }
++    SimpleTable<?, ?, ?> other = (SimpleTable<?, ?, ?>) o;
++    return cellSet().equals(other.cellSet());
++  }
++
++  @Override
++  public int hashCode() {
++    return cellSet().hashCode();
++  }
++
++  @Override
++  public String toString() {
++    return rowMap.toString();
++  }
++}
+diff --git aa/com/google/javascript/jscomp/SymbolTable.java bb/com/google/javascript/jscomp/SymbolTable.java
+index e86d3803..82f35b87 100644
+--- aa/com/google/javascript/jscomp/SymbolTable.java
++++ bb/com/google/javascript/jscomp/SymbolTable.java
+@@ -110,8 +110,7 @@ public final class SymbolTable {
+    * All symbols in the program, uniquely identified by the node where they're declared and their
+    * name.
+    */
+-  private final Table<Node, String, Symbol> symbols =
+-      Tables.newCustomTable(new LinkedHashMap<>(), LinkedHashMap::new);
++  private final SimpleTable<Node, String, Symbol> symbols = SimpleTable.create();
+ 
+   /**
+    * All syntactic scopes in the program, uniquely identified by the node where they're declared.

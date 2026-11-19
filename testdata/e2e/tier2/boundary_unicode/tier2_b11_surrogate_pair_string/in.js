@@ -1,0 +1,1 @@
+var emoji = '😀🎉🚀'; window['res'] = emoji.length;

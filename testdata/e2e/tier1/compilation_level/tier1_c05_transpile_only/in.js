@@ -1,0 +1,1 @@
+const add = (a, b) => a + b; class Calculator { calc() { return add(2, 3); } } window['c'] = new Calculator();

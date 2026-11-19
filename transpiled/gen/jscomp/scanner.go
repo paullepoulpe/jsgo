@@ -1,0 +1,100 @@
+/*
+ * Copyright 2014 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+// Port of com/google/javascript/refactoring/Scanner.java (generated mechanically by j2go).
+
+package jscomp
+
+import (
+	"sync/atomic"
+
+	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
+	pkg_rhino "github.com/paullepoulpe/jsgo/transpiled/gen/rhino"
+)
+
+// Java polymorphic class interface: com.google.javascript.refactoring.Scanner
+type Scanner interface {
+	Implements_jscomp_Scanner()
+	IsJavaNil_() bool
+	GetScannerBase() *ScannerBase
+	Matches(pkg_rhino.Node, *NodeMetadata) bool
+	ProcessMatch(*Match) any
+	ProcessAllMatches(j2gort.Ext_java_util_Collection) j2gort.Ext_java_util_List
+}
+func ToIface_Scanner[T interface {
+	Scanner
+	comparable
+}](v T) Scanner {
+	var z T
+	if v == z {
+		return nil
+	}
+	return v
+}
+
+// Java class: com.google.javascript.refactoring.Scanner
+type ScannerBase struct {
+	idHash_ atomic.Int32
+}
+
+func (this_ *ScannerBase) BindSelf_(s any) {
+	_ = s
+}
+func (this_ *ScannerBase) IsJavaNil_() bool { return this_ == nil }
+func (*ScannerBase) JavaClassInfo_() (string, string) { return "com.google.javascript.refactoring.Scanner", "Scanner" }
+func (this_ *ScannerBase) IdentityHash_() int32 {
+	if this_ == nil {
+		return 0
+	}
+	if h := this_.idHash_.Load(); h != 0 {
+		return h
+	}
+	return j2gort.AssignIdentHash(&this_.idHash_)
+}
+func init() {
+	j2gort.RegisterTypePredicate("com.google.javascript.refactoring.Scanner", "com.google.javascript.refactoring.Scanner", func(v_ any) bool {
+		return j2gort.InstanceOf[Scanner](v_)
+	})
+}
+func (b *ScannerBase) GetScannerBase() *ScannerBase { return b }
+func (*ScannerBase) Implements_jscomp_Scanner() {}
+
+func (this_ *ScannerBase) initFields_Scanner() {
+	_ = this_
+}
+
+func InitScanner(this_ *ScannerBase) {
+	this_.initFields_Scanner()
+}
+
+// Java method: Scanner.matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata t)
+func (this_ *ScannerBase) Matches(node pkg_rhino.Node, t *NodeMetadata) bool {
+	_ = node
+	_ = t
+	panic("abstract or native method invoked")
+}
+
+// Java method: Scanner.processMatch(com.google.javascript.refactoring.Match match)
+func (this_ *ScannerBase) ProcessMatch(match *Match) any {
+	_ = match
+	return j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()
+}
+
+// Java method: Scanner.processAllMatches(java.util.Collection<com.google.javascript.refactoring.Match> matches)
+func (this_ *ScannerBase) ProcessAllMatches(matches j2gort.Ext_java_util_Collection) j2gort.Ext_java_util_List {
+	_ = matches
+	return j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_Of_0())
+}
+

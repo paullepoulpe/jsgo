@@ -1,0 +1,663 @@
+diff --git a/com/google/javascript/jscomp/RemoveUnusedCode.java b/com/google/javascript/jscomp/RemoveUnusedCode.java
+--- a/com/google/javascript/jscomp/RemoveUnusedCode.java
++++ b/com/google/javascript/jscomp/RemoveUnusedCode.java
+@@ -111,7 +111,8 @@
+ 
+   private final LinkedHashMap<Var, VarInfo> varInfoMap = new LinkedHashMap<>();
+ 
+-  private final Set<String> pinnedPropertyNames = new LinkedHashSet<>(IMPLICITLY_USED_PROPERTIES);
++  private final LinkedHashSet<String> pinnedPropertyNames =
++      new LinkedHashSet<>(IMPLICITLY_USED_PROPERTIES);
+ 
+   /** Stores Removable objects for each property name that is currently considered removable. */
+   private final Multimap<String, Removable> removablesForPropertyNames = HashMultimap.create();
+@@ -120,7 +121,7 @@
+   private final VarInfo canonicalUnremovableVarInfo;
+ 
+   /** Keep track of scopes that we've traversed. */
+-  private final List<Scope> allFunctionParamScopes = new ArrayList<>();
++  private final ArrayList<Scope> allFunctionParamScopes = new ArrayList<>();
+ 
+   /**
+    * Stores the names of all "leaf" properties that are polyfilled, to avoid unnecessary qualified
+@@ -130,7 +131,7 @@
+    */
+   private final Multimap<String, PolyfillInfo> polyfills = HashMultimap.create();
+ 
+-  private final Set<Node> guardedUsages = new LinkedHashSet<>();
++  private final LinkedHashSet<Node> guardedUsages = new LinkedHashSet<>();
+ 
+   private final Polyfills polyfillsFromTable;
+   private final PolyfillUsageFinder polyfillUsageFinder;
+@@ -1754,7 +1755,7 @@
+   /** Represents a portion of the AST that can be removed. */
+   private abstract class Removable {
+ 
+-    private final List<Continuation> continuations;
++    private @Nullable ArrayList<Continuation> continuations;
+ 
+     /**
+      * If this object represents an assignment of a value to a property. This is the name of the
+@@ -1800,13 +1801,15 @@
+     void applyContinuations() {
+       if (!continuationsAreApplied) {
+         continuationsAreApplied = true;
+-        for (Continuation c : continuations) {
+-          // Enqueue the continuation for processing.
+-          // Don't invoke the continuation immediately, because that can lead to concurrent
+-          // modification of data structures.
+-          worklist.add(c);
++        if (continuations != null) {
++          for (int i = 0, n = continuations.size(); i < n; i++) {
++            // Enqueue the continuation for processing.
++            // Don't invoke the continuation immediately, because that can lead to concurrent
++            // modification of data structures.
++            worklist.add(continuations.get(i));
++          }
++          continuations = null;
+         }
+-        continuations.clear();
+       }
+     }
+ 
+@@ -1893,7 +1896,7 @@
+   }
+ 
+   private class RemovableBuilder {
+-    final List<Continuation> continuations = new ArrayList<>();
++    private @Nullable ArrayList<Continuation> continuations;
+ 
+     @Nullable String propertyName = null;
+     boolean isPrototypeDotPropertyReference = false;
+@@ -1901,6 +1904,9 @@
+ 
+     @CanIgnoreReturnValue
+     RemovableBuilder addContinuation(Continuation continuation) {
++      if (continuations == null) {
++        continuations = new ArrayList<>();
++      }
+       continuations.add(continuation);
+       return this;
+     }
+@@ -2946,7 +2952,7 @@
+      * <p>NOTE: Once we realize that we cannot remove the variable, this list will be cleared and no
+      * more will be added.
+      */
+-    final List<Removable> removables = new ArrayList<>();
++    private final ArrayList<Removable> removables = new ArrayList<>();
+ 
+     boolean isEntirelyRemovable = true;
+ 
+diff --git a/com/google/javascript/jscomp/TypeCheck.java b/com/google/javascript/jscomp/TypeCheck.java
+--- a/com/google/javascript/jscomp/TypeCheck.java
++++ b/com/google/javascript/jscomp/TypeCheck.java
+@@ -2341,8 +2341,8 @@
+   private void checkInterfaceConflictProperties(
+       Node n,
+       String functionName,
+-      Map<Property.Key, ObjectType> properties,
+-      Map<Property.Key, ObjectType> currentProperties,
++      LinkedHashMap<Property.Key, ObjectType> properties,
++      LinkedHashMap<Property.Key, ObjectType> currentProperties,
+       ObjectType interfaceType) {
+     ObjectType implicitProto = interfaceType.getImplicitPrototype();
+     ImmutableSet<Property.Key> currentPropertyNames;
+@@ -2474,7 +2474,7 @@
+       }
+ 
+       // Warn if any @implemented types are not interfaces or if there are any duplicates
+-      Set<JSType> alreadySeenInterfaces = new LinkedHashSet<>();
++      LinkedHashSet<JSType> alreadySeenInterfaces = new LinkedHashSet<>();
+ 
+       for (JSType baseInterface : functionType.getOwnImplementedInterfaces()) {
+         boolean badImplementedType = false;
+@@ -3192,8 +3192,9 @@
+   private void checkTypeContainsObjectWithBadKey(Node n, JSTypeExpression type) {
+     if (type != null && type.getRoot().getJSType() != null) {
+       JSType realType = type.getRoot().getJSType();
++      LinkedHashSet<JSType> alreadyCheckedTypes = new LinkedHashSet<>();
+       JSType objectWithBadKey =
+-          findObjectWithNonStringifiableKey(realType, new LinkedHashSet<JSType>());
++          findObjectWithNonStringifiableKey(realType, alreadyCheckedTypes);
+       if (objectWithBadKey != null) {
+         compiler.report(JSError.make(n, NON_STRINGIFIABLE_OBJECT_KEY, objectWithBadKey.toString()));
+       }
+@@ -3300,7 +3301,7 @@
+    * @return non-stringifiable type which is used as key or null if all there are no such types.
+    */
+   private @Nullable JSType findObjectWithNonStringifiableKey(
+-      JSType type, Set<JSType> alreadyCheckedTypes) {
++      JSType type, LinkedHashSet<JSType> alreadyCheckedTypes) {
+     if (alreadyCheckedTypes.contains(type)) {
+       // This can happen in recursive types. Current type already being checked earlier in
+       // stacktrace so now we just skip it.
+diff --git a/com/google/javascript/jscomp/TypedScopeCreator.java b/com/google/javascript/jscomp/TypedScopeCreator.java
+--- a/com/google/javascript/jscomp/TypedScopeCreator.java
++++ b/com/google/javascript/jscomp/TypedScopeCreator.java
+@@ -171,16 +171,16 @@
+   private final ModuleMetadataMap metadataMap;
+   private final ModuleImportResolver moduleImportResolver;
+   private final boolean processClosurePrimitives;
+-  private final Map<Node, TypedScope> memoized = new LinkedHashMap<>();
++  private final LinkedHashMap<Node, TypedScope> memoized = new LinkedHashMap<>();
+ 
+   // Maps from scope root to declared variable names. Populated by FirstOrderFunctionAnalyzer to
+   // reserve names before the TypedScope is populated.
+   private ListMultimap<Node, String> reservedNamesForScope;
+ 
+   // Set of functions with non-empty returns, for passing to FunctionTypeBuilder.
+-  private Set<Node> functionsWithNonEmptyReturns;
++  private LinkedHashSet<Node> functionsWithNonEmptyReturns = new LinkedHashSet<>();
+   // Includes both simple and qualified names.
+-  private Set<ScopedName> escapedVarNames;
++  private LinkedHashSet<ScopedName> escapedVarNames = new LinkedHashSet<>();
+   // Count of how many times each variable is assigned, for marking effectively final.
+   private Multiset<ScopedName> assignedVarNames;
+ 
+@@ -188,15 +188,15 @@
+   private final ObjectType unknownType;
+ 
+   // All names imported through goog.requireType. Resolve these after all scopes are created.
+-  private List<WeakModuleImport> weakImports;
++  private ArrayList<WeakModuleImport> weakImports = new ArrayList<>();
+ 
+-  private List<Node> unresolvedNodes;
++  private ArrayList<Node> unresolvedNodes = new ArrayList<>();
+ 
+   // Set of NAME, GETPROP, and STRING_KEY lvalues which should be treated as const declarations when
+   // assigned. Treat simple names in this list as if they were declared `const`. E.g. treat `exports
+   // = class {};` as `const exports = class {};`. Treat GETPROP and STRING_KEY nodes as if they were
+   // annotated @const.
+-  private Set<Node> undeclaredNamesForClosure;
++  private LinkedHashSet<Node> undeclaredNamesForClosure = new LinkedHashSet<>();
+ 
+   // Maps EXPR_RESULT nodes from goog.provides to all implicitly provided names from the call
+   private Multimap<Node, ProvidedName> providedNamesFromCall;
+@@ -323,7 +323,7 @@
+ 
+   @Override
+   public Iterable<TypedVar> getAllSymbols() {
+-    List<TypedVar> vars = new ArrayList<>();
++    ArrayList<TypedVar> vars = new ArrayList<>();
+     for (TypedScope s : memoized.values()) {
+       Iterables.addAll(vars, s.getAllSymbols());
+     }
+@@ -405,7 +405,7 @@
+       // Because JSTypeRegistry#getType looks up the scope in which a root of a qualified name is
+       // declared, pre-populate this TypedScope with all qualified name roots. This prevents
+       // type resolution from accidentally returning a type from an outer scope that is shadowed.
+-      Set<String> reservedNames = new LinkedHashSet<>();
++      LinkedHashSet<String> reservedNames = new LinkedHashSet<>();
+       reservedNames.addAll(reservedNamesForScope.removeAll(root));
+       if (module != null && module.metadata().isGoogModule()) {
+         // TypedScopeCreator treats default export assignments, like `exports = class {};`, as
+@@ -820,9 +820,10 @@
+                   this.getModule(),
+                   currentScope,
+                   compiler.getInput(NodeUtil.getInputId(moduleBody)));
+-          unresolvedImports.entrySet().stream()
+-              .map(entry -> new WeakModuleImport(entry.getKey(), entry.getValue(), currentScope))
+-              .forEachOrdered(weakImports::add);
++          for (Map.Entry<Node, ScopedName> entry : unresolvedImports.entrySet()) {
++            weakImports.add(
++                new WeakModuleImport(entry.getKey(), entry.getValue(), currentScope));
++          }
+         }
+         default ->
+             // This should have been a build-breaking DUPLICATE_NAMESPACE_AND_MODULE error in
+@@ -3328,7 +3329,7 @@
+       // scope. (they were already registered as types by FunctionTypeBuilder, but they need to be
+       // in a TypedScope to let JSTypeRegistry correctly handle scoping).
+       JSDocInfo info = NodeUtil.getBestJSDocInfo(functionNode);
+-      Set<String> templateNames = new LinkedHashSet<>();
++      LinkedHashSet<String> templateNames = new LinkedHashSet<>();
+ 
+       boolean isPossiblePrototypeMethod =
+           !functionType.hasInstanceType() && (info == null || !info.hasThisType());
+diff --git a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+--- a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+@@ -22,6 +22,7 @@
+ 
+ import com.google.common.base.Predicate;
+ import com.google.common.base.Predicates;
++import com.google.common.collect.ImmutableList;
+ import com.google.javascript.jscomp.graph.DiGraph.DiGraphEdge;
+ import com.google.javascript.jscomp.graph.DiGraph.DiGraphNode;
+ import com.google.javascript.jscomp.graph.GraphvizGraph.GraphvizEdge;
+@@ -43,7 +44,7 @@
+  * @param <E> Value type that the graph edge stores.
+  */
+ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements GraphvizGraph {
+-  protected final LinkedHashMap<N, LinkedDiGraphNode<N, E>> nodes = new LinkedHashMap<>();
++  private final LinkedHashMap<N, LinkedDiGraphNode<N, E>> nodes = new LinkedHashMap<>();
+ 
+   @Override
+   public SubGraph<N, E> newSubGraph() {
+@@ -135,10 +136,10 @@
+   public List<LinkedDiGraphEdge<N, E>> getInEdges(N nodeValue) {
+     LinkedDiGraphNode<N, E> node = getNodeOrFail(nodeValue);
+     if (node.inEdges != null) {
+-      return Collections.unmodifiableList(node.inEdges);
++      return ImmutableList.copyOf(node.inEdges);
+     }
+     return node.firstInEdge == null
+-        ? Collections.emptyList()
++        ? ImmutableList.of()
+         : node.firstInEdge.asSingletonList();
+   }
+ 
+@@ -146,17 +147,21 @@
+   public List<LinkedDiGraphEdge<N, E>> getOutEdges(N nodeValue) {
+     LinkedDiGraphNode<N, E> node = getNodeOrFail(nodeValue);
+     if (node.outEdges != null) {
+-      return Collections.unmodifiableList(node.outEdges);
++      return ImmutableList.copyOf(node.outEdges);
+     }
+     return node.firstOutEdge == null
+-        ? Collections.emptyList()
++        ? ImmutableList.of()
+         : node.firstOutEdge.asSingletonList();
+   }
+ 
+   @Override
+   public LinkedDiGraphNode<N, E> createNode(N nodeValue) {
+-    return nodes.computeIfAbsent(
+-        nodeValue, (N k) -> new LinkedDiGraphNode<N, E>(k, useNodeAnnotations));
++    LinkedDiGraphNode<N, E> node = nodes.get(nodeValue);
++    if (node == null) {
++      node = new LinkedDiGraphNode<>(nodeValue, useNodeAnnotations);
++      nodes.put(nodeValue, node);
++    }
++    return node;
+   }
+ 
+   @Override
+@@ -166,23 +171,29 @@
+     List<LinkedDiGraphEdge<N, E>> forwardEdges = getEdgesInDirection(n1, n2);
+     List<LinkedDiGraphEdge<N, E>> backwardEdges = getEdgesInDirection(n2, n1);
+     int totalSize = forwardEdges.size() + backwardEdges.size();
+-    List<LinkedDiGraphEdge<N, E>> edges = new ArrayList<>(totalSize);
+-    edges.addAll(forwardEdges);
+-    edges.addAll(backwardEdges);
+-    return edges;
++    ArrayList<LinkedDiGraphEdge<N, E>> edges = new ArrayList<>(totalSize);
++    for (int i = 0, size = forwardEdges.size(); i < size; i++) {
++      edges.add(forwardEdges.get(i));
++    }
++    for (int i = 0, size = backwardEdges.size(); i < size; i++) {
++      edges.add(backwardEdges.get(i));
++    }
++    return ImmutableList.copyOf(edges);
+   }
+ 
+   @Override
+   public List<LinkedDiGraphEdge<N, E>> getEdges() {
+-    List<LinkedDiGraphEdge<N, E>> result = new ArrayList<>();
++    ArrayList<LinkedDiGraphEdge<N, E>> result = new ArrayList<>();
+     for (LinkedDiGraphNode<N, E> node : nodes.values()) {
+       if (node.outEdges != null) {
+-        result.addAll(node.outEdges);
++        for (int i = 0, size = node.outEdges.size(); i < size; i++) {
++          result.add(node.outEdges.get(i));
++        }
+       } else if (node.firstOutEdge != null) {
+         result.add(node.firstOutEdge);
+       }
+     }
+-    return Collections.unmodifiableList(result);
++    return ImmutableList.copyOf(result);
+   }
+ 
+   @Override
+@@ -190,9 +201,8 @@
+     LinkedDiGraphNode<N, E> dNode1 = getNodeOrFail(n1);
+     LinkedDiGraphNode<N, E> dNode2 = getNodeOrFail(n2);
+     if (dNode1.outEdges != null) {
+-      ArrayList<LinkedDiGraphEdge<N, E>> outEdges = dNode1.outEdges;
+-      for (int i = 0, size = outEdges.size(); i < size; i++) {
+-        LinkedDiGraphEdge<N, E> outEdge = outEdges.get(i);
++      for (int i = 0, size = dNode1.outEdges.size(); i < size; i++) {
++        LinkedDiGraphEdge<N, E> outEdge = dNode1.outEdges.get(i);
+         if (outEdge.getDestination() == dNode2) {
+           return outEdge;
+         }
+@@ -201,9 +211,8 @@
+       return dNode1.firstOutEdge;
+     }
+     if (dNode2.outEdges != null) {
+-      ArrayList<LinkedDiGraphEdge<N, E>> outEdges = dNode2.outEdges;
+-      for (int i = 0, size = outEdges.size(); i < size; i++) {
+-        LinkedDiGraphEdge<N, E> outEdge = outEdges.get(i);
++      for (int i = 0, size = dNode2.outEdges.size(); i < size; i++) {
++        LinkedDiGraphEdge<N, E> outEdge = dNode2.outEdges.get(i);
+         if (outEdge.getDestination() == dNode1) {
+           return outEdge;
+         }
+@@ -222,17 +231,16 @@
+       if (dNode1.firstOutEdge != null && dNode1.firstOutEdge.getDestination() == dNode2) {
+         return dNode1.firstOutEdge.asSingletonList();
+       }
+-      return Collections.emptyList();
++      return ImmutableList.of();
+     }
+-    List<LinkedDiGraphEdge<N, E>> edges = new ArrayList<>();
+-    ArrayList<LinkedDiGraphEdge<N, E>> outEdges = dNode1.outEdges;
+-    for (int i = 0, size = outEdges.size(); i < size; i++) {
+-      LinkedDiGraphEdge<N, E> outEdge = outEdges.get(i);
++    ArrayList<LinkedDiGraphEdge<N, E>> edges = new ArrayList<>();
++    for (int i = 0, size = dNode1.outEdges.size(); i < size; i++) {
++      LinkedDiGraphEdge<N, E> outEdge = dNode1.outEdges.get(i);
+       if (outEdge.getDestination() == dNode2) {
+         edges.add(outEdge);
+       }
+     }
+-    return edges;
++    return ImmutableList.copyOf(edges);
+   }
+ 
+   /**
+@@ -274,9 +282,8 @@
+     // to search based on the shorter list since the edge lists should be symmetric.
+     if (outEdgesLen < inEdgesLen) {
+       if (source.outEdges != null) {
+-        ArrayList<LinkedDiGraphEdge<N, E>> outEdges = source.outEdges;
+         for (int i = 0; i < outEdgesLen; i++) {
+-          LinkedDiGraphEdge<N, E> outEdge = outEdges.get(i);
++          LinkedDiGraphEdge<N, E> outEdge = source.outEdges.get(i);
+           if (outEdge.getDestination() == dest && edgeFilter.apply(outEdge.getValue())) {
+             return true;
+           }
+@@ -287,9 +294,8 @@
+       }
+     } else {
+       if (dest.inEdges != null) {
+-        ArrayList<LinkedDiGraphEdge<N, E>> inEdges = dest.inEdges;
+         for (int i = 0; i < inEdgesLen; i++) {
+-          LinkedDiGraphEdge<N, E> inEdge = inEdges.get(i);
++          LinkedDiGraphEdge<N, E> inEdge = dest.inEdges.get(i);
+           if (inEdge.getSource() == source && edgeFilter.apply(inEdge.getValue())) {
+             return true;
+           }
+@@ -321,16 +327,15 @@
+     LinkedDiGraphNode<N, E> lNode = (LinkedDiGraphNode<N, E>) dNode;
+     if (lNode.inEdges == null) {
+       return lNode.firstInEdge == null
+-          ? Collections.emptyList()
++          ? ImmutableList.of()
+           : lNode.firstInEdge.getSource().asSingletonList();
+     }
+-    ArrayList<LinkedDiGraphEdge<N, E>> inEdges = lNode.inEdges;
+-    int size = inEdges.size();
+-    List<LinkedDiGraphNode<N, E>> nodeList = new ArrayList<>(size);
++    int size = lNode.inEdges.size();
++    ArrayList<LinkedDiGraphNode<N, E>> nodeList = new ArrayList<>(size);
+     for (int i = 0; i < size; i++) {
+-      nodeList.add(inEdges.get(i).getSource());
++      nodeList.add(lNode.inEdges.get(i).getSource());
+     }
+-    return nodeList;
++    return ImmutableList.copyOf(nodeList);
+   }
+ 
+   @Override
+@@ -344,26 +349,24 @@
+     LinkedDiGraphNode<N, E> lNode = (LinkedDiGraphNode<N, E>) dNode;
+     if (lNode.outEdges == null) {
+       return lNode.firstOutEdge == null
+-          ? Collections.emptyList()
++          ? ImmutableList.of()
+           : lNode.firstOutEdge.getDestination().asSingletonList();
+     }
+-    ArrayList<LinkedDiGraphEdge<N, E>> outEdges = lNode.outEdges;
+-    int size = outEdges.size();
+-    List<LinkedDiGraphNode<N, E>> nodeList = new ArrayList<>(size);
++    int size = lNode.outEdges.size();
++    ArrayList<LinkedDiGraphNode<N, E>> nodeList = new ArrayList<>(size);
+     for (int i = 0; i < size; i++) {
+-      nodeList.add(outEdges.get(i).getDestination());
++      nodeList.add(lNode.outEdges.get(i).getDestination());
+     }
+-    return nodeList;
++    return ImmutableList.copyOf(nodeList);
+   }
+ 
+   @Override
+   public List<GraphvizEdge> getGraphvizEdges() {
+-    List<GraphvizEdge> edgeList = new ArrayList<>();
++    ArrayList<GraphvizEdge> edgeList = new ArrayList<>();
+     for (LinkedDiGraphNode<N, E> node : nodes.values()) {
+       if (node.outEdges != null) {
+-        ArrayList<LinkedDiGraphEdge<N, E>> outEdges = node.outEdges;
+-        for (int i = 0, size = outEdges.size(); i < size; i++) {
+-          edgeList.add(outEdges.get(i));
++        for (int i = 0, size = node.outEdges.size(); i < size; i++) {
++          edgeList.add(node.outEdges.get(i));
+         }
+       } else if (node.firstOutEdge != null) {
+         edgeList.add(node.firstOutEdge);
+@@ -374,7 +377,7 @@
+ 
+   @Override
+   public List<GraphvizNode> getGraphvizNodes() {
+-    List<GraphvizNode> nodeList = new ArrayList<>(nodes.size());
++    ArrayList<GraphvizNode> nodeList = new ArrayList<>(nodes.size());
+     for (LinkedDiGraphNode<N, E> node : nodes.values()) {
+       nodeList.add(node);
+     }
+@@ -399,19 +402,17 @@
+   @Override
+   public List<GraphNode<N, E>> getNeighborNodes(N value) {
+     LinkedDiGraphNode<N, E> node = getNode(value);
+-    List<GraphNode<N, E>> result = new ArrayList<>(node.inEdgeCount() + node.outEdgeCount());
++    ArrayList<GraphNode<N, E>> result = new ArrayList<>(node.inEdgeCount() + node.outEdgeCount());
+     if (node.inEdges != null) {
+-      ArrayList<LinkedDiGraphEdge<N, E>> inEdges = node.inEdges;
+-      for (int i = 0, size = inEdges.size(); i < size; i++) {
+-        result.add(inEdges.get(i).getSource());
++      for (int i = 0, size = node.inEdges.size(); i < size; i++) {
++        result.add(node.inEdges.get(i).getSource());
+       }
+     } else if (node.firstInEdge != null) {
+       result.add(node.firstInEdge.getSource());
+     }
+     if (node.outEdges != null) {
+-      ArrayList<LinkedDiGraphEdge<N, E>> outEdges = node.outEdges;
+-      for (int i = 0, size = outEdges.size(); i < size; i++) {
+-        result.add(outEdges.get(i).getDestination());
++      for (int i = 0, size = node.outEdges.size(); i < size; i++) {
++        result.add(node.outEdges.get(i).getDestination());
+       }
+     } else if (node.firstOutEdge != null) {
+       result.add(node.firstOutEdge.getDestination());
+@@ -495,12 +496,17 @@
+ 
+     void removeInEdge(LinkedDiGraphEdge<N, E> edge) {
+       if (inEdges != null) {
+-        if (inEdges.remove(edge)) {
+-          if (inEdges.size() == 1) {
+-            firstInEdge = inEdges.get(0);
+-            inEdges = null;
+-          } else if (inEdges.isEmpty()) {
+-            inEdges = null;
++        for (int i = 0, size = inEdges.size(); i < size; i++) {
++          if (inEdges.get(i).equals(edge)) {
++            inEdges.remove(i);
++            int remaining = inEdges.size();
++            if (remaining == 1) {
++              firstInEdge = inEdges.get(0);
++              inEdges = null;
++            } else if (remaining == 0) {
++              inEdges = null;
++            }
++            return;
+           }
+         }
+       } else if (firstInEdge != null && firstInEdge.equals(edge)) {
+@@ -510,12 +516,17 @@
+ 
+     void removeOutEdge(LinkedDiGraphEdge<N, E> edge) {
+       if (outEdges != null) {
+-        if (outEdges.remove(edge)) {
+-          if (outEdges.size() == 1) {
+-            firstOutEdge = outEdges.get(0);
+-            outEdges = null;
+-          } else if (outEdges.isEmpty()) {
+-            outEdges = null;
++        for (int i = 0, size = outEdges.size(); i < size; i++) {
++          if (outEdges.get(i).equals(edge)) {
++            outEdges.remove(i);
++            int remaining = outEdges.size();
++            if (remaining == 1) {
++              firstOutEdge = outEdges.get(0);
++              outEdges = null;
++            } else if (remaining == 0) {
++              outEdges = null;
++            }
++            return;
+           }
+         }
+       } else if (firstOutEdge != null && firstOutEdge.equals(edge)) {
+@@ -583,17 +594,17 @@
+     @Override
+     public List<LinkedDiGraphEdge<N, E>> getInEdges() {
+       if (inEdges != null) {
+-        return inEdges;
++        return ImmutableList.copyOf(inEdges);
+       }
+-      return firstInEdge == null ? Collections.emptyList() : firstInEdge.asSingletonList();
++      return firstInEdge == null ? ImmutableList.of() : firstInEdge.asSingletonList();
+     }
+ 
+     @Override
+     public List<LinkedDiGraphEdge<N, E>> getOutEdges() {
+       if (outEdges != null) {
+-        return outEdges;
++        return ImmutableList.copyOf(outEdges);
+       }
+-      return firstOutEdge == null ? Collections.emptyList() : firstOutEdge.asSingletonList();
++      return firstOutEdge == null ? ImmutableList.of() : firstOutEdge.asSingletonList();
+     }
+ 
+     @Override
+diff --git a/com/google/javascript/jscomp/graph/LinkedUndirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedUndirectedGraph.java
+--- a/com/google/javascript/jscomp/graph/LinkedUndirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedUndirectedGraph.java
+@@ -36,7 +36,7 @@
+  */
+ public final class LinkedUndirectedGraph<N, E>
+     extends UndiGraph<N, E> implements GraphvizGraph {
+-  final LinkedHashMap<N, LinkedUndirectedGraphNode<N, E>> nodes = new LinkedHashMap<>();
++  private final LinkedHashMap<N, LinkedUndirectedGraphNode<N, E>> nodes = new LinkedHashMap<>();
+ 
+   @Override
+   public SubGraph<N, E> newSubGraph() {
+@@ -79,8 +79,12 @@
+   @Override
+   public UndiGraphNode<N, E> createUndirectedGraphNode(
+       N nodeValue) {
+-    return nodes.computeIfAbsent(
+-        nodeValue, (N k) -> new LinkedUndirectedGraphNode<N, E>(k, useNodeAnnotations));
++    LinkedUndirectedGraphNode<N, E> node = nodes.get(nodeValue);
++    if (node == null) {
++      node = new LinkedUndirectedGraphNode<>(nodeValue, useNodeAnnotations);
++      nodes.put(nodeValue, node);
++    }
++    return node;
+   }
+ 
+   @Override
+@@ -99,7 +103,7 @@
+     if (dNode2 == null) {
+       return null;
+     }
+-    List<UndiGraphEdge<N, E>> edges = new ArrayList<>();
++    ArrayList<UndiGraphEdge<N, E>> edges = new ArrayList<>();
+     for (UndiGraphEdge<N, E> outEdge : dNode1.getNeighborEdges()) {
+       if (outEdge.getNodeA() == dNode2 || outEdge.getNodeB() == dNode2) {
+         edges.add(outEdge);
+@@ -131,7 +135,7 @@
+ 
+   @Override
+   public List<GraphEdge<N, E>> getEdges() {
+-    List<GraphEdge<N, E>> result = new ArrayList<>();
++    ArrayList<GraphEdge<N, E>> result = new ArrayList<>();
+     for (LinkedUndirectedGraphNode<N, E> node : nodes.values()) {
+       for (UndiGraphEdge<N, E> edge : node.getNeighborEdges()) {
+         if (edge.getNodeA() == node) {
+@@ -191,7 +195,7 @@
+ 
+   @Override
+   public List<GraphvizEdge> getGraphvizEdges() {
+-    List<GraphvizEdge> edgeList = new ArrayList<>();
++    ArrayList<GraphvizEdge> edgeList = new ArrayList<>();
+     for (LinkedUndirectedGraphNode<N, E> node : nodes.values()) {
+       for (UndiGraphEdge<N, E> edge : node.getNeighborEdges()) {
+         if (edge.getNodeA() == node) {
+@@ -209,7 +213,7 @@
+ 
+   @Override
+   public List<GraphvizNode> getGraphvizNodes() {
+-    List<GraphvizNode> nodeList = new ArrayList<>(nodes.size());
++    ArrayList<GraphvizNode> nodeList = new ArrayList<>(nodes.size());
+     for (LinkedUndirectedGraphNode<N, E> node : nodes.values()) {
+       nodeList.add(node);
+     }
+@@ -247,7 +251,7 @@
+   static final class LinkedUndirectedGraphNode<N, E>
+       implements UndiGraphNode<N, E>, GraphvizNode {
+ 
+-    private final List<UndiGraphEdge<N, E>> neighborEdges = new ArrayList<>();
++    private final ArrayList<UndiGraphEdge<N, E>> neighborEdges = new ArrayList<>();
+     private final N value;
+     private @Nullable Annotation annotation;
+     private final boolean useAnnotation;
+@@ -307,8 +311,9 @@
+     }
+ 
+     private List<GraphNode<N, E>> neighborList() {
+-      List<GraphNode<N, E>> result = new ArrayList<>(neighborEdges.size());
+-      for (UndiGraphEdge<N, E> edge : neighborEdges) {
++      ArrayList<GraphNode<N, E>> result = new ArrayList<>(neighborEdges.size());
++      for (int i = 0, size = neighborEdges.size(); i < size; i++) {
++        UndiGraphEdge<N, E> edge = neighborEdges.get(i);
+         if (edge.getNodeA() == this) {
+           result.add(edge.getNodeB());
+         } else {
+diff --git a/com/google/javascript/rhino/jstype/UnionType.java b/com/google/javascript/rhino/jstype/UnionType.java
+--- a/com/google/javascript/rhino/jstype/UnionType.java
++++ b/com/google/javascript/rhino/jstype/UnionType.java
+@@ -505,10 +505,10 @@
+   void appendTo(TypeStringBuilder sb) {
+     sb.append("(");
+ 
+-    List<String> names = new ArrayList<>();
+-    for (JSType alt : this.alternates) {
++    ArrayList<String> names = new ArrayList<>(this.alternates.size());
++    for (int i = 0, n = this.alternates.size(); i < n; i++) {
+       // Clone the config to preserve indentation.
+-      names.add(sb.cloneWithConfig().append(alt).build());
++      names.add(sb.cloneWithConfig().append(this.alternates.get(i)).build());
+     }
+     // Sort types by stringification to get deterministic behaviour.
+     Collections.sort(names);
+@@ -672,7 +672,7 @@
+     private final @Nullable UnionType rebuildTarget;
+     private final JSTypeRegistry registry;
+ 
+-    private final List<JSType> alternates = new ArrayList<>();
++    private final ArrayList<JSType> alternates = new ArrayList<>();
+     private @Nullable ImmutableList<JSType> finalAlternates = null;
+ 
+     // If a union has ? or *, we do not care about any other types, except for undefined (for
+@@ -758,8 +758,8 @@
+       if (!alternate.isResolved()) {
+         this.alternatesResolvedBeforeBuild = false;
+ 
+-        for (JSType current : alternates) {
+-          if (identical(current, alternate)) {
++        for (int i = 0, n = alternates.size(); i < n; i++) {
++          if (identical(alternates.get(i), alternate)) {
+             return this;
+           }
+         }

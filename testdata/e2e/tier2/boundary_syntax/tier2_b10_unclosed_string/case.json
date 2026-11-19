@@ -1,0 +1,21 @@
+{
+  "id": "tier2_b10_unclosed_string",
+  "tier": 2,
+  "feature": "boundary_syntax",
+  "name": "Unclosed string literal",
+  "description": "Fails compilation on unclosed quote in string literal",
+  "args": [
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var unclosed = \"unterminated string literal;\nvar next = 1;"
+  },
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "in.js:1:15: ERROR - [JSC_PARSE_ERROR] Parse error. Unterminated string literal\n  1| var unclosed = \"unterminated string literal;\n                    ^\n\n1 error(s), 0 warning(s)\n",
+    "output_files": {}
+  }
+}

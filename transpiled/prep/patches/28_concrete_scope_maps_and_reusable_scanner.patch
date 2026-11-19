@@ -1,0 +1,244 @@
+diff --git a/com/google/javascript/jscomp/AbstractScope.java b/com/google/javascript/jscomp/AbstractScope.java
+--- a/com/google/javascript/jscomp/AbstractScope.java
++++ b/com/google/javascript/jscomp/AbstractScope.java
+@@ -20,8 +20,6 @@
+ import static com.google.common.base.Preconditions.checkNotNull;
+ import static com.google.common.base.Preconditions.checkState;
+ 
+-import com.google.common.collect.ImmutableMap;
+-import com.google.common.collect.Maps;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.StaticScope;
+ import java.io.Serializable;
+@@ -63,8 +61,8 @@
+  */
+ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends AbstractVar<S, V>>
+     implements StaticScope, Serializable {
+-  private Map<String, V> vars = ImmutableMap.of();
+-  private Map<ImplicitVar, V> implicitVars = ImmutableMap.of();
++  private @Nullable LinkedHashMap<String, V> vars = null;
++  private @Nullable EnumMap<ImplicitVar, V> implicitVars = null;
+   private final Node rootNode;
+ 
+   AbstractScope(Node rootNode) {
+@@ -135,29 +133,30 @@
+    */
+   final void undeclare(V var) {
+     checkState(var.getScope() == this);
+-    checkState(vars.get(var.getName()).equals(var));
++    checkState(vars != null && vars.get(var.getName()).equals(var));
+     undeclareInteral(var);
+   }
+ 
+   /** Without any safety checks */
+   final void undeclareInteral(V var) {
+     // Assume that vars must contain var, and thus not be empty
+-    vars.remove(var.getName());
++    if (vars != null) {
++      vars.remove(var.getName());
++    }
+   }
+ 
+   final void declareInternal(String name, V var) {
+     checkState(hasOwnSlot(name) || canDeclare(name), "Illegal shadow: %s", var.getNode());
+ 
+     // For memory savings, only initialize the map once it needs to add its first element
+-    ImmutableMap<String, V> emptySentinel = ImmutableMap.of();
+-    if (vars == emptySentinel) {
+-      vars = Maps.newLinkedHashMapWithExpectedSize(1);
++    if (vars == null) {
++      vars = new LinkedHashMap<>();
+     }
+     vars.put(name, var);
+   }
+ 
+   final void clearVarsInternal() {
+-    if (!vars.isEmpty()) {
++    if (vars != null && !vars.isEmpty()) {
+       vars.clear();
+     }
+   }
+@@ -169,13 +168,15 @@
+ 
+   /** Returns true if a variable is declared in this scope, with no recursion. */
+   public final boolean hasOwnSlot(String name) {
+-    return vars.containsKey(name) || hasOwnImplicitSlot(ImplicitVar.of(name));
++    return (vars != null && vars.containsKey(name)) || hasOwnImplicitSlot(ImplicitVar.of(name));
+   }
+ 
+   /** Returns true if a variable is declared in this or any parent scope. */
+   public final boolean hasSlot(String name) {
+-    for (S scope = thisScope(); scope != null; scope = scope.getParent()) {
+-      if (scope.hasOwnSlot(name)) {
++    ImplicitVar implicit = ImplicitVar.of(name);
++    for (AbstractScope<S, V> scope = this; scope != null; scope = scope.getParent()) {
++      if ((scope.vars != null && scope.vars.containsKey(name))
++          || (implicit != null && scope.hasOwnImplicitSlot(implicit))) {
+         return true;
+       }
+     }
+@@ -188,19 +189,27 @@
+     }
+ 
+     // For memory savings, only initialize the map once it needs to add its first element
+-    ImmutableMap<ImplicitVar, V> emptySentinel = ImmutableMap.of();
+-    if (implicitVars == emptySentinel) {
++    if (implicitVars == null) {
+       implicitVars = new EnumMap<>(ImplicitVar.class);
+     }
+ 
+-    return implicitVars.computeIfAbsent(name, this::makeImplicitVar);
++    V var = implicitVars.get(name);
++    if (var == null) {
++      var = makeImplicitVar(name);
++      if (var != null) {
++        implicitVars.put(name, var);
++      }
++    }
++    return var;
+   }
+ 
+   @Override
+   public final V getOwnSlot(String name) {
+-    V var = vars.get(name);
+-    if (var != null) {
+-      return var;
++    if (vars != null) {
++      V var = vars.get(name);
++      if (var != null) {
++        return var;
++      }
+     }
+ 
+     return getOwnImplicitSlot(ImplicitVar.of(name));
+@@ -217,10 +226,19 @@
+    * <p>Non-final for {@link TypedScope} which needs to handle qualified names.
+    */
+   public V getVar(String name) {
++    ImplicitVar implicit = ImplicitVar.of(name);
+     for (AbstractScope<S, V> scope = thisScope(); scope != null; scope = scope.getParent()) {
+-      @Nullable V var = scope.getOwnSlot(name);
+-      if (var != null) {
+-        return var;
++      if (scope.vars != null) {
++        V var = scope.vars.get(name);
++        if (var != null) {
++          return var;
++        }
++      }
++      if (implicit != null) {
++        V var = scope.getOwnImplicitSlot(implicit);
++        if (var != null) {
++          return var;
++        }
+       }
+     }
+     return null;
+@@ -271,7 +289,7 @@
+    * 'arguments' variable).
+    */
+   public final Iterable<V> getVarIterable() {
+-    return vars.values();
++    return vars != null ? vars.values() : Collections.emptyList();
+   }
+ 
+   /**
+@@ -300,12 +318,14 @@
+   }
+ 
+   public final Iterable<V> getAllSymbols() {
+-    return Collections.unmodifiableCollection(vars.values());
++    return vars != null
++        ? Collections.unmodifiableCollection(vars.values())
++        : Collections.emptyList();
+   }
+ 
+   /** Returns number of variables in this scope (excluding the special 'arguments' variable) */
+   public final int getVarCount() {
+-    return vars.size();
++    return vars != null ? vars.size() : 0;
+   }
+ 
+   /** Returns whether this is the global scope. */
+diff --git a/com/google/javascript/jscomp/SyntacticScopeCreator.java b/com/google/javascript/jscomp/SyntacticScopeCreator.java
+--- a/com/google/javascript/jscomp/SyntacticScopeCreator.java
++++ b/com/google/javascript/jscomp/SyntacticScopeCreator.java
+@@ -34,6 +34,8 @@
+   private final AbstractCompiler compiler;
+   private final RedeclarationHandler redeclarationHandler;
+   private final boolean treatProvidesAsRedeclarations;
++  private final ScopeScanner reusableScanner;
++  private boolean scannerInUse;
+ 
+   // The arguments variable is special, in that it's declared for every function,
+   // but not explicitly declared.
+@@ -62,6 +64,8 @@
+     this.compiler = compiler;
+     this.redeclarationHandler = redeclarationHandler;
+     this.treatProvidesAsRedeclarations = treatProvidesAsRedeclarations;
++    this.reusableScanner =
++        new ScopeScanner(compiler, redeclarationHandler, treatProvidesAsRedeclarations);
+   }
+ 
+   @Override
+@@ -71,34 +75,51 @@
+ 
+   public Scope createScope(Node n, Scope parent) {
+     Scope scope = (parent == null) ? Scope.createGlobalScope(n) : Scope.createChildScope(parent, n);
+-    new ScopeScanner(compiler, redeclarationHandler, scope, null, treatProvidesAsRedeclarations)
+-        .populate();
++    if (!scannerInUse) {
++      scannerInUse = true;
++      try {
++        reusableScanner.populate(scope);
++      } finally {
++        reusableScanner.reset();
++        scannerInUse = false;
++      }
++    } else {
++      new ScopeScanner(compiler, redeclarationHandler, treatProvidesAsRedeclarations)
++          .populate(scope);
++    }
+     return scope;
+   }
+ 
+   /** A class to traverse the AST looking for name definitions and add them to the Scope. */
+   private static class ScopeScanner {
+-    private final Scope scope;
++    private @Nullable Scope scope;
+     private final AbstractCompiler compiler;
+     private final RedeclarationHandler redeclarationHandler;
+     private final boolean treatProvidesAsRedeclarations;
+ 
+     // Will be null, when a detached node is traversed.
+     private @Nullable InputId inputId;
+-    private final Set<Node> changeRootSet;
++    private @Nullable Set<Node> changeRootSet;
+ 
+     private ScopeScanner(
+         AbstractCompiler compiler,
+         RedeclarationHandler redeclarationHandler,
+-        Scope scope,
+-        @Nullable Set<Node> changeRootSet,
+         boolean treatProvidesAsRedeclarations) {
+       this.compiler = compiler;
+       this.redeclarationHandler = redeclarationHandler;
++      this.treatProvidesAsRedeclarations = treatProvidesAsRedeclarations;
++    }
++
++    void populate(Scope scope) {
+       this.scope = scope;
+-      this.changeRootSet = changeRootSet;
+-      checkState(changeRootSet == null || scope.isGlobal());
+-      this.treatProvidesAsRedeclarations = treatProvidesAsRedeclarations;
++      this.changeRootSet = null;
++      populate();
++    }
++
++    void reset() {
++      this.scope = null;
++      this.inputId = null;
++      this.changeRootSet = null;
+     }
+ 
+     void populate() {

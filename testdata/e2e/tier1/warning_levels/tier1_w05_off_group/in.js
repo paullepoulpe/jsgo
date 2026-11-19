@@ -1,0 +1,1 @@
+function test() { return 1; var dead = 2; }

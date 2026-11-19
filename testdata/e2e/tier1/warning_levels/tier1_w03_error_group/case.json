@@ -1,0 +1,23 @@
+{
+  "id": "tier1_w03_error_group",
+  "tier": 1,
+  "feature": "warning_levels",
+  "name": "Promoting warning group to error",
+  "description": "Verifies --jscomp_error=checkTypes promotes type errors to fatal compilation errors",
+  "args": [
+    "--checks_only",
+    "--jscomp_error=checkTypes",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @type {number} */ var num = 'not_a_number';"
+  },
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "in.js:1:32: ERROR - [JSC_TYPE_MISMATCH] initializing variable\nfound   : string\nrequired: number\n  1| /** @type {number} */ var num = 'not_a_number';\n                                     ^^^^^^^^^^^^^^\n\n1 error(s), 0 warning(s), 100.0% typed\n",
+    "output_files": {}
+  }
+}

@@ -1,0 +1,271 @@
+diff --git a/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java b/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java
+--- a/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java
++++ b/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java
+@@ -20,6 +20,7 @@
+ import com.google.javascript.jscomp.parsing.parser.util.SourcePosition;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ import java.util.Objects;
++import org.jspecify.annotations.Nullable;
+ 
+ /** Utility for finding line and column offsets within a source file. */
+ final class LineNumberScanner {
+@@ -30,6 +31,8 @@
+   private int lastLine = -1;
+   private int lastLineStart = -1;
+   private int nextLineStart = 0;
++  private int cachedOffset = -1;
++  private @Nullable SourcePosition cachedPosition;
+ 
+   LineNumberScanner(SourceFile sourceFile) {
+     this.sourceFile = sourceFile;
+@@ -43,6 +46,9 @@
+    * called before backing up to a previous line.
+    */
+   SourcePosition getSourcePosition(int offset) {
++    if (offset == cachedOffset && cachedPosition != null) {
++      return cachedPosition;
++    }
+     Preconditions.checkArgument(
+         offset >= lastLineStart,
+         "Must call rewindTo before calling getSourcePosition for an earlier line (%s < %s)",
+@@ -51,7 +57,10 @@
+     while (offset >= nextLineStart) {
+       advanceLine();
+     }
+-    return new SourcePosition(sourceFile, offset, lastLine, offset - lastLineStart);
++    SourcePosition pos = new SourcePosition(sourceFile, offset, lastLine, offset - lastLineStart);
++    cachedOffset = offset;
++    cachedPosition = pos;
++    return pos;
+   }
+ 
+   SourceRange getSourceRange(int startOffset, int endOffset) {
+@@ -67,6 +76,8 @@
+     if (position.offset < lastLineStart) {
+       lastLine = position.line - 1;
+       nextLineStart = position.offset - position.column;
++      cachedOffset = -1;
++      cachedPosition = null;
+       advanceLine();
+     }
+   }
+diff --git a/com/google/javascript/jscomp/RemoveUnusedCode.java b/com/google/javascript/jscomp/RemoveUnusedCode.java
+--- a/com/google/javascript/jscomp/RemoveUnusedCode.java
++++ b/com/google/javascript/jscomp/RemoveUnusedCode.java
+@@ -87,6 +87,8 @@
+   private static final ImmutableSet<String> IMPLICITLY_USED_PROPERTIES =
+       ImmutableSet.of("length", "toString", "valueOf", "constructor", "prototype");
+ 
++  private static final Supplier<String> UNREMOVABLE_REF_REASON = () -> "";
++
+   private final AbstractCompiler compiler;
+   private final AstAnalyzer astAnalyzer;
+ 
+@@ -401,7 +403,9 @@
+ 
+   private void removeIndependentlyRemovableProperties() {
+     for (String propName : removablesForPropertyNames.keySet()) {
+-      removalLog.log(RemovalLogRecord.forProperty(propName));
++      if (removalLog.isLogging()) {
++        removalLog.log(RemovalLogRecord.forProperty(propName));
++      }
+       for (Removable removable : removablesForPropertyNames.get(propName)) {
+         removable.remove(compiler);
+       }
+@@ -491,7 +495,9 @@
+           checkState(!((parent.isFunction() || parent.isClass()) && parent.getFirstChild() == n));
+           traverseNameNode(n, scope)
+               .setIsExplicitlyNotRemovable(
+-                  () -> String.format("reference found: %s", n.getLocation()));
++                  unremovableLog.isLogging()
++                      ? () -> String.format("reference found: %s", n.getLocation())
++                      : UNREMOVABLE_REF_REASON);
+         }
+       }
+       case GETPROP, OPTCHAIN_GETPROP -> traverseNormalOrOptChainGetProp(n, scope);
+@@ -1512,7 +1518,9 @@
+       if (varInfo.isRemovable()) {
+         param.setUnusedParameter(true);
+         compiler.reportChangeToEnclosingScope(paramList);
+-        removalLog.log(RemovalLogRecord.forMarkingNamedArg(paramNameNode, paramList));
++        if (removalLog.isLogging()) {
++          removalLog.log(RemovalLogRecord.forMarkingNamedArg(paramNameNode, paramList));
++        }
+       }
+     }
+   }
+@@ -1551,7 +1559,9 @@
+           // destructuring pattern with a "leftover" property key as in {a:{}} is not considered
+           // empty in this case!
+           NodeUtil.deleteNode(lastArg, compiler);
+-          removalLog.log(RemovalLogRecord.forDestructuringArg(argList));
++          if (removalLog.isLogging()) {
++            removalLog.log(RemovalLogRecord.forDestructuringArg(argList));
++          }
+           continue;
+         }
+       }
+@@ -1559,7 +1569,9 @@
+       VarInfo varInfo = getVarInfo(getVarForNameNode(argNode, fparamScope));
+       if (varInfo.isRemovable()) {
+         NodeUtil.deleteNode(lastArg, compiler);
+-        removalLog.log(RemovalLogRecord.forNamedArg(argNode, argList));
++        if (removalLog.isLogging()) {
++          removalLog.log(RemovalLogRecord.forNamedArg(argNode, argList));
++        }
+       } else {
+         break;
+       }
+@@ -1624,10 +1636,14 @@
+     checkNotNull(var);
+     boolean isGlobal = var.isGlobal();
+     if (var.isExtern()) {
+-      unremovableLog.log(() -> String.format("%s: extern", var.getName()));
++      if (unremovableLog.isLogging()) {
++        unremovableLog.log(() -> String.format("%s: extern", var.getName()));
++      }
+       return canonicalUnremovableVarInfo;
+     } else if (codingConvention.isExported(var.getName(), /* local= */ !isGlobal)) {
+-      unremovableLog.log(() -> String.format("%s: exported by convention", var.getName()));
++      if (unremovableLog.isLogging()) {
++        unremovableLog.log(() -> String.format("%s: exported by convention", var.getName()));
++      }
+       return canonicalUnremovableVarInfo;
+     } else if (var.isArguments()) {
+       // No point in logging that we cannot remove "arguments"
+@@ -1666,7 +1682,9 @@
+         continue;
+       }
+ 
+-      removalLog.log(RemovalLogRecord.forVar(var));
++      if (removalLog.isLogging()) {
++        removalLog.log(RemovalLogRecord.forVar(var));
++      }
+       // Regardless of what happens to the original declaration,
+       // we need to remove all assigns, because they may contain references
+       // to other unreferenced variables.
+@@ -1701,7 +1719,9 @@
+     while (iter.hasNext()) {
+       PolyfillInfo polyfill = iter.next();
+       if (polyfill.isRemovable) {
+-        removalLog.log(RemovalLogRecord.forPolyfill(polyfill));
++        if (removalLog.isLogging()) {
++          removalLog.log(RemovalLogRecord.forPolyfill(polyfill));
++        }
+         polyfill.removable.remove(compiler);
+         iter.remove();
+       }
+@@ -2998,7 +3018,9 @@
+     public void setIsExplicitlyNotRemovable(Supplier<String> reasonSupplier) {
+       if (isEntirelyRemovable) {
+         isEntirelyRemovable = false;
+-        unremovableLog.log(String.format("%s: %s", varName, reasonSupplier.get()));
++        if (unremovableLog.isLogging()) {
++          unremovableLog.log(String.format("%s: %s", varName, reasonSupplier.get()));
++        }
+         for (Removable r : removables) {
+           considerForIndependentRemoval(r);
+         }
+diff --git a/com/google/javascript/jscomp/TypeValidator.java b/com/google/javascript/jscomp/TypeValidator.java
+--- a/com/google/javascript/jscomp/TypeValidator.java
++++ b/com/google/javascript/jscomp/TypeValidator.java
+@@ -1217,10 +1217,30 @@
+     return originalDeclLevel == CheckLevel.OFF;
+   }
+ 
++  private transient @Nullable WellFormedTemplatizedTypeVerifier reusableVerifier;
++  private transient boolean verifierInUse;
++
+   void expectWellFormedTemplatizedType(Node n) {
+-    WellFormedTemplatizedTypeVerifier verifier = new WellFormedTemplatizedTypeVerifier(n);
+-    if (n.getJSType() != null) {
+-      n.getJSType().visit(verifier);
++    JSType type = n.getJSType();
++    if (type == null) {
++      return;
++    }
++    if (!verifierInUse) {
++      WellFormedTemplatizedTypeVerifier verifier = this.reusableVerifier;
++      if (verifier == null) {
++        verifier = new WellFormedTemplatizedTypeVerifier(null);
++        this.reusableVerifier = verifier;
++      }
++      verifierInUse = true;
++      verifier.node = n;
++      try {
++        type.visit(verifier);
++      } finally {
++        verifier.node = null;
++        verifierInUse = false;
++      }
++    } else {
++      type.visit(new WellFormedTemplatizedTypeVerifier(n));
+     }
+   }
+ 
+diff --git a/com/google/javascript/jscomp/ReplaceCssNames.java b/com/google/javascript/jscomp/ReplaceCssNames.java
+--- a/com/google/javascript/jscomp/ReplaceCssNames.java
++++ b/com/google/javascript/jscomp/ReplaceCssNames.java
+@@ -22,6 +22,7 @@
+ import com.google.common.base.Joiner;
+ import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
+ import com.google.javascript.rhino.IR;
++import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.Node.AncestorIterable;
+ import java.util.ArrayList;
+@@ -265,24 +266,32 @@
+     }
+ 
+     SassGeneratedCssTsExpert createSassGeneratedCssTsExpert(Node n) {
+-      boolean hasSassGeneratedCssTsJsDoc =
+-          n.getJSDocInfo() != null && n.getJSDocInfo().isSassGeneratedCssTs();
++      JSDocInfo jsdoc = n.getJSDocInfo();
++      boolean hasSassGeneratedCssTsJsDoc = jsdoc != null && jsdoc.isSassGeneratedCssTs();
++
++      if (!hasSassGeneratedCssTsJsDoc && !traversalState.inSassGeneratedCssTsScript) {
++        return SassGeneratedCssTsExpert.DEFAULT;
++      }
+ 
+       JSError sassGeneratedCssTsValidationError = null;
+-      boolean isInvalidSassGeneratedCssTsJsDoc = !n.isScript() || isNotInCssClosureFile(n);
+-      if (hasSassGeneratedCssTsJsDoc && isInvalidSassGeneratedCssTsJsDoc) {
++      if (hasSassGeneratedCssTsJsDoc && (!n.isScript() || isNotInCssClosureFile(n))) {
+         sassGeneratedCssTsValidationError = JSError.make(n, UNEXPECTED_SASS_GENERATED_CSS_TS_ERROR);
+       }
+ 
+-      Node assignmentTarget = n.getFirstChild();
+-      boolean isCssClosureClassesAssignment =
+-          n.isAssign()
+-              && assignmentTarget.isGetProp()
+-              && assignmentTarget.getString().equals("classes");
+-
++      boolean isCssClosureClassesAssignment = false;
+       String cssClosureClassesQualifiedName = null;
+-      if (isCssClosureClassesAssignment) {
+-        cssClosureClassesQualifiedName = assignmentTarget.getQualifiedName();
++      if (traversalState.inSassGeneratedCssTsScript && n.isAssign()) {
++        Node assignmentTarget = n.getFirstChild();
++        if (assignmentTarget.isGetProp() && assignmentTarget.getString().equals("classes")) {
++          isCssClosureClassesAssignment = true;
++          cssClosureClassesQualifiedName = assignmentTarget.getQualifiedName();
++        }
++      }
++
++      if (!hasSassGeneratedCssTsJsDoc
++          && sassGeneratedCssTsValidationError == null
++          && !isCssClosureClassesAssignment) {
++        return SassGeneratedCssTsExpert.DEFAULT;
+       }
+ 
+       return new SassGeneratedCssTsExpert(
+@@ -293,6 +302,9 @@
+     }
+ 
+     private static class SassGeneratedCssTsExpert {
++      static final SassGeneratedCssTsExpert DEFAULT =
++          new SassGeneratedCssTsExpert(false, null, false, null);
++
+       final boolean hasSassGeneratedCssTsJsDoc;
+       final JSError sassGeneratedCssTsValidationError;
+       final boolean isCssClosureClassesAssignment;

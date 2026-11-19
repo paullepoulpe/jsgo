@@ -1,0 +1,1 @@
+function helper(x) { return x + 1; } window['p1'] = helper(10);

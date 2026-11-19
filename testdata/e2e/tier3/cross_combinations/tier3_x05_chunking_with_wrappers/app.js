@@ -1,0 +1,1 @@
+var AppInstance = { service: RootService };

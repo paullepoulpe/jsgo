@@ -1,0 +1,1236 @@
+diff --git a/com/google/javascript/jscomp/GlobalNamespace.java b/com/google/javascript/jscomp/GlobalNamespace.java
+index 9a5f399f..ffd02290 100644
+--- a/com/google/javascript/jscomp/GlobalNamespace.java
++++ b/com/google/javascript/jscomp/GlobalNamespace.java
+@@ -1272,13 +1272,17 @@ class GlobalNamespace
+     private @Nullable Ref initialization;
+ 
+     /**
+-     * Keep track of which Nodes are Refs for this Name: up to two inline Refs (`ref0`, `ref1`)
++     * Keep track of which Nodes are Refs for this Name: up to four inline Refs (`ref0`..`ref3`)
+      * before spilling to a `LinkedHashMap<Node, Ref>` (`refsForNodeMap`).
+      */
+     private @Nullable Ref ref0 = null;
+ 
+     private @Nullable Ref ref1 = null;
+ 
++    private @Nullable Ref ref2 = null;
++
++    private @Nullable Ref ref3 = null;
++
+     private @Nullable LinkedHashMap<Node, Ref> refsForNodeMap = null;
+ 
+     private int globalSets = 0;
+@@ -1430,6 +1434,16 @@ class GlobalNamespace
+         if (this.ref1 != null) {
+           commonAncestor =
+               chunkGraph.getDeepestCommonDependencyInclusive(this.ref1.getChunk(), commonAncestor);
++          if (this.ref2 != null) {
++            commonAncestor =
++                chunkGraph.getDeepestCommonDependencyInclusive(
++                    this.ref2.getChunk(), commonAncestor);
++            if (this.ref3 != null) {
++              commonAncestor =
++                  chunkGraph.getDeepestCommonDependencyInclusive(
++                      this.ref3.getChunk(), commonAncestor);
++            }
++          }
+         }
+         return commonAncestor;
+       }
+@@ -1467,6 +1481,12 @@ class GlobalNamespace
+         checkState(this.ref0.node != node, "Ref already exists for node: %s", this.ref0);
+         if (this.ref1 != null) {
+           checkState(this.ref1.node != node, "Ref already exists for node: %s", this.ref1);
++          if (this.ref2 != null) {
++            checkState(this.ref2.node != node, "Ref already exists for node: %s", this.ref2);
++            if (this.ref3 != null) {
++              checkState(this.ref3.node != node, "Ref already exists for node: %s", this.ref3);
++            }
++          }
+         }
+         return;
+       }
+@@ -1506,17 +1526,61 @@ class GlobalNamespace
+         this.ref1 = ref;
+         return;
+       }
++      if (this.ref2 == null) {
++        this.ref2 = ref;
++        return;
++      }
++      if (this.ref2.node == node) {
++        this.ref2 = ref;
++        return;
++      }
++      if (this.ref3 == null) {
++        this.ref3 = ref;
++        return;
++      }
++      if (this.ref3.node == node) {
++        this.ref3 = ref;
++        return;
++      }
+       Ref r0 = this.ref0;
+       Ref r1 = this.ref1;
++      Ref r2 = this.ref2;
++      Ref r3 = this.ref3;
+       this.ref0 = null;
+       this.ref1 = null;
++      this.ref2 = null;
++      this.ref3 = null;
+       // Spill directly to field so native_map_lowering specializes refsForNodeMap.
+       this.refsForNodeMap = new LinkedHashMap<>(8);
+       this.refsForNodeMap.put(r0.node, r0);
+       this.refsForNodeMap.put(r1.node, r1);
++      this.refsForNodeMap.put(r2.node, r2);
++      this.refsForNodeMap.put(r3.node, r3);
+       this.refsForNodeMap.put(node, ref);
+     }
+ 
++    private @Nullable Ref findInlineRefForNode(Node node) {
++      if (this.ref0 != null) {
++        if (this.ref0.node == node) {
++          return this.ref0;
++        }
++        if (this.ref1 != null) {
++          if (this.ref1.node == node) {
++            return this.ref1;
++          }
++          if (this.ref2 != null) {
++            if (this.ref2.node == node) {
++              return this.ref2;
++            }
++            if (this.ref3 != null && this.ref3.node == node) {
++              return this.ref3;
++            }
++          }
++        }
++      }
++      return null;
++    }
++
+     Ref addSingleRefForTesting(Node node, Ref.Type type) {
+       Ref ref = new Ref(/* chunk= */ null, /* scope= */ null, /* node= */ node, type);
+       putRef(node, ref);
+@@ -1644,22 +1708,24 @@ class GlobalNamespace
+       } else {
+         if (this.ref0 == ref || (this.ref0 != null && this.ref0.node == oldNode)) {
+           this.ref0 = this.ref1;
+-          this.ref1 = null;
++          this.ref1 = this.ref2;
++          this.ref2 = this.ref3;
++          this.ref3 = null;
+         } else if (this.ref1 == ref || (this.ref1 != null && this.ref1.node == oldNode)) {
+-          this.ref1 = null;
++          this.ref1 = this.ref2;
++          this.ref2 = this.ref3;
++          this.ref3 = null;
++        } else if (this.ref2 == ref || (this.ref2 != null && this.ref2.node == oldNode)) {
++          this.ref2 = this.ref3;
++          this.ref3 = null;
++        } else if (this.ref3 == ref || (this.ref3 != null && this.ref3.node == oldNode)) {
++          this.ref3 = null;
+         }
+         if (newNode != null) {
+-          Ref existingRefForNewNode =
+-              (this.ref0 != null && this.ref0.node == newNode)
+-                  ? this.ref0
+-                  : ((this.ref1 != null && this.ref1.node == newNode) ? this.ref1 : null);
++          Ref existingRefForNewNode = findInlineRefForNode(newNode);
+           checkArgument(
+               existingRefForNewNode == null, "refs already exist: %s", existingRefForNewNode);
+-          if (this.ref0 == null) {
+-            this.ref0 = ref;
+-          } else {
+-            this.ref1 = ref;
+-          }
++          putRef(newNode, ref);
+         }
+       }
+     }
+@@ -1692,12 +1758,7 @@ class GlobalNamespace
+         this.ref0 = null;
+       } else {
+         Node refNode = ref.getNode();
+-        Ref existing =
+-            refNode == null
+-                ? null
+-                : ((this.ref0 != null && this.ref0.node == refNode)
+-                    ? this.ref0
+-                    : ((this.ref1 != null && this.ref1.node == refNode) ? this.ref1 : null));
++        Ref existing = refNode == null ? null : findInlineRefForNode(refNode);
+         checkState(existing != null, "removeRef(%s): unknown ref", ref);
+         checkState(
+             existing == ref,
+@@ -1706,9 +1767,18 @@ class GlobalNamespace
+             ref);
+         if (existing == this.ref0) {
+           this.ref0 = this.ref1;
+-          this.ref1 = null;
++          this.ref1 = this.ref2;
++          this.ref2 = this.ref3;
++          this.ref3 = null;
++        } else if (existing == this.ref1) {
++          this.ref1 = this.ref2;
++          this.ref2 = this.ref3;
++          this.ref3 = null;
++        } else if (existing == this.ref2) {
++          this.ref2 = this.ref3;
++          this.ref3 = null;
+         } else {
+-          this.ref1 = null;
++          this.ref3 = null;
+         }
+       }
+       removeRefAndUpdateState(ref);
+@@ -1728,8 +1798,16 @@ class GlobalNamespace
+         } else if (this.ref0 != null) {
+           if (this.ref0.type == Ref.Type.SET_FROM_GLOBAL) {
+             declaration = this.ref0;
+-          } else if (this.ref1 != null && this.ref1.type == Ref.Type.SET_FROM_GLOBAL) {
+-            declaration = this.ref1;
++          } else if (this.ref1 != null) {
++            if (this.ref1.type == Ref.Type.SET_FROM_GLOBAL) {
++              declaration = this.ref1;
++            } else if (this.ref2 != null) {
++              if (this.ref2.type == Ref.Type.SET_FROM_GLOBAL) {
++                declaration = this.ref2;
++              } else if (this.ref3 != null && this.ref3.type == Ref.Type.SET_FROM_GLOBAL) {
++                declaration = this.ref3;
++              }
++            }
+           }
+         }
+       }
+@@ -1776,7 +1854,16 @@ class GlobalNamespace
+         return this.refsForNodeMap.values();
+       }
+       if (this.ref0 != null) {
+-        return this.ref1 != null ? ImmutableList.of(this.ref0, this.ref1) : ImmutableList.of(this.ref0);
++        if (this.ref1 == null) {
++          return ImmutableList.of(this.ref0);
++        }
++        if (this.ref2 == null) {
++          return ImmutableList.of(this.ref0, this.ref1);
++        }
++        if (this.ref3 == null) {
++          return ImmutableList.of(this.ref0, this.ref1, this.ref2);
++        }
++        return ImmutableList.of(this.ref0, this.ref1, this.ref2, this.ref3);
+       }
+       return ImmutableList.of();
+     }
+@@ -1792,15 +1879,7 @@ class GlobalNamespace
+       if (this.refsForNodeMap != null) {
+         return this.refsForNodeMap.get(node);
+       }
+-      if (this.ref0 != null) {
+-        if (this.ref0.getNode() == node) {
+-          return this.ref0;
+-        }
+-        if (this.ref1 != null && this.ref1.getNode() == node) {
+-          return this.ref1;
+-        }
+-      }
+-      return null;
++      return findInlineRefForNode(node);
+     }
+ 
+     Ref getFirstRef() {
+@@ -1895,6 +1974,18 @@ class GlobalNamespace
+         }
+         if (this.ref1 != null) {
+           inlinability = checkRefInlinability(this.ref1, initialChunk, inlinability);
++          if (inlinability == Inlinability.DO_NOT_INLINE) {
++            return Inlinability.DO_NOT_INLINE;
++          }
++          if (this.ref2 != null) {
++            inlinability = checkRefInlinability(this.ref2, initialChunk, inlinability);
++            if (inlinability == Inlinability.DO_NOT_INLINE) {
++              return Inlinability.DO_NOT_INLINE;
++            }
++            if (this.ref3 != null) {
++              inlinability = checkRefInlinability(this.ref3, initialChunk, inlinability);
++            }
++          }
+         }
+       } else if (this.refsForNodeMap != null) {
+         for (Ref ref : this.refsForNodeMap.values()) {
+diff --git a/com/google/javascript/jscomp/deps/SortedDependencies.java b/com/google/javascript/jscomp/deps/SortedDependencies.java
+index e5445f68..6e966055 100644
+--- a/com/google/javascript/jscomp/deps/SortedDependencies.java
++++ b/com/google/javascript/jscomp/deps/SortedDependencies.java
+@@ -51,6 +51,37 @@ public final class SortedDependencies<InputT extends DependencyInfo> {
+   private int uniqueInputCount;
+   private int[] userInputIds;
+   private int[] importInputIds;
++  private boolean scratchStrongInUse;
++  private boolean @Nullable [] scratchIncludedById;
++  private @Nullable ArrayDeque<InputT> scratchWorklist;
++  private boolean scratchWeakInUse;
++  private boolean @Nullable [] scratchStrongById;
++  private boolean @Nullable [] scratchWeakById;
++  private @Nullable ArrayDeque<InputT> scratchWeakWorklist;
++
++  private static synchronized boolean tryAcquireStrongScratch(SortedDependencies<?> self) {
++    if (self.scratchStrongInUse) {
++      return false;
++    }
++    self.scratchStrongInUse = true;
++    return true;
++  }
++
++  private static synchronized void releaseStrongScratch(SortedDependencies<?> self) {
++    self.scratchStrongInUse = false;
++  }
++
++  private static synchronized boolean tryAcquireWeakScratch(SortedDependencies<?> self) {
++    if (self.scratchWeakInUse) {
++      return false;
++    }
++    self.scratchWeakInUse = true;
++    return true;
++  }
++
++  private static synchronized void releaseWeakScratch(SortedDependencies<?> self) {
++    self.scratchWeakInUse = false;
++  }
+ 
+   public SortedDependencies(List<InputT> userOrderedInputs) {
+     for (int i = 0, size = userOrderedInputs.size(); i < size; i++) {
+@@ -119,47 +150,74 @@ public final class SortedDependencies<InputT extends DependencyInfo> {
+     if (rootInputs.isEmpty() || this.uniqueInputCount == 0) {
+       return ImmutableList.of();
+     }
+-    boolean[] includedById = new boolean[this.uniqueInputCount];
+-    LinkedHashSet<InputT> extraIncluded = null;
+-    ArrayDeque<InputT> worklist = new ArrayDeque<>(rootInputs);
+-    while (!worklist.isEmpty()) {
+-      InputT input = worklist.pop();
+-      int id = findInputId(input);
+-      boolean added;
+-      if (id >= 0) {
+-        added = !includedById[id];
+-        includedById[id] = true;
+-      } else {
+-        if (extraIncluded == null) {
+-          extraIncluded = new LinkedHashSet<>();
+-        }
+-        added = extraIncluded.add(input);
++    boolean ownsScratch = tryAcquireStrongScratch(this);
++    boolean[] includedById;
++    ArrayDeque<InputT> worklist;
++    if (ownsScratch) {
++      includedById = this.scratchIncludedById;
++      if (includedById == null || includedById.length < this.uniqueInputCount) {
++        includedById = new boolean[this.uniqueInputCount];
++        this.scratchIncludedById = includedById;
++      }
++      worklist = this.scratchWorklist;
++      if (worklist == null) {
++        worklist = new ArrayDeque<>();
++        this.scratchWorklist = worklist;
++      }
++      for (int i = 0, size = rootInputs.size(); i < size; i++) {
++        worklist.add(rootInputs.get(i));
+       }
+-      if (added) {
+-        for (String symbolName : input.getRequiredSymbols()) {
+-          InputT importedSymbolName = exportingInputBySymbolName.get(symbolName);
+-          if (importedSymbolName != null) {
+-            worklist.add(importedSymbolName);
++    } else {
++      includedById = new boolean[this.uniqueInputCount];
++      worklist = new ArrayDeque<>(rootInputs);
++    }
++    try {
++      LinkedHashSet<InputT> extraIncluded = null;
++      while (!worklist.isEmpty()) {
++        InputT input = worklist.pop();
++        int id = findInputId(input);
++        boolean added;
++        if (id >= 0) {
++          added = !includedById[id];
++          includedById[id] = true;
++        } else {
++          if (extraIncluded == null) {
++            extraIncluded = new LinkedHashSet<>();
++          }
++          added = extraIncluded.add(input);
++        }
++        if (added) {
++          for (String symbolName : input.getRequiredSymbols()) {
++            InputT importedSymbolName = exportingInputBySymbolName.get(symbolName);
++            if (importedSymbolName != null) {
++              worklist.add(importedSymbolName);
++            }
+           }
+         }
+       }
+-    }
+ 
+-    ImmutableList.Builder<InputT> builder = ImmutableList.builder();
+-    if (sorted) {
+-      for (int i = 0, size = importOrderedInputs.size(); i < size; i++) {
+-        if (includedById[importInputIds[i]]) {
+-          builder.add(importOrderedInputs.get(i));
++      ImmutableList.Builder<InputT> builder = ImmutableList.builder();
++      if (sorted) {
++        for (int i = 0, size = importOrderedInputs.size(); i < size; i++) {
++          if (includedById[importInputIds[i]]) {
++            builder.add(importOrderedInputs.get(i));
++          }
+         }
+-      }
+-    } else {
+-      for (int i = 0, size = userOrderedInputs.size(); i < size; i++) {
+-        if (includedById[userInputIds[i]]) {
+-          builder.add(userOrderedInputs.get(i));
++      } else {
++        for (int i = 0, size = userOrderedInputs.size(); i < size; i++) {
++          if (includedById[userInputIds[i]]) {
++            builder.add(userOrderedInputs.get(i));
++          }
+         }
+       }
++      return builder.build();
++    } finally {
++      if (ownsScratch) {
++        Arrays.fill(includedById, 0, this.uniqueInputCount, false);
++        worklist.clear();
++        releaseStrongScratch(this);
++      }
+     }
+-    return builder.build();
+   }
+ 
+   /**
+@@ -207,41 +265,72 @@ public final class SortedDependencies<InputT extends DependencyInfo> {
+     if (strongList.isEmpty() || this.uniqueInputCount == 0) {
+       return ImmutableList.of();
+     }
+-    boolean[] strongById = new boolean[this.uniqueInputCount];
+-    boolean[] weakById = new boolean[this.uniqueInputCount];
+-    ArrayDeque<InputT> worklist = new ArrayDeque<>(strongList.size());
+-    for (int i = 0, size = strongList.size(); i < size; i++) {
+-      InputT strongInput = strongList.get(i);
+-      int sId = findInputId(strongInput);
+-      if (!strongById[sId]) {
+-        strongById[sId] = true;
+-        worklist.add(strongInput);
++    boolean ownsScratch = tryAcquireWeakScratch(this);
++    boolean[] strongById;
++    boolean[] weakById;
++    ArrayDeque<InputT> worklist;
++    if (ownsScratch) {
++      strongById = this.scratchStrongById;
++      if (strongById == null || strongById.length < this.uniqueInputCount) {
++        strongById = new boolean[this.uniqueInputCount];
++        this.scratchStrongById = strongById;
++      }
++      weakById = this.scratchWeakById;
++      if (weakById == null || weakById.length < this.uniqueInputCount) {
++        weakById = new boolean[this.uniqueInputCount];
++        this.scratchWeakById = weakById;
+       }
++      worklist = this.scratchWeakWorklist;
++      if (worklist == null) {
++        worklist = new ArrayDeque<>(strongList.size());
++        this.scratchWeakWorklist = worklist;
++      }
++    } else {
++      strongById = new boolean[this.uniqueInputCount];
++      weakById = new boolean[this.uniqueInputCount];
++      worklist = new ArrayDeque<>(strongList.size());
+     }
++    try {
++      for (int i = 0, size = strongList.size(); i < size; i++) {
++        InputT strongInput = strongList.get(i);
++        int sId = findInputId(strongInput);
++        if (!strongById[sId]) {
++          strongById[sId] = true;
++          worklist.add(strongInput);
++        }
++      }
+ 
+-    while (!worklist.isEmpty()) {
+-      InputT input = worklist.pop();
+-      int id = findInputId(input);
+-      boolean isStrong = strongById[id];
++      while (!worklist.isEmpty()) {
++        InputT input = worklist.pop();
++        int id = findInputId(input);
++        boolean isStrong = strongById[id];
+ 
+-      if (!isStrong) {
+-        if (weakById[id]) {
+-          continue;
++        if (!isStrong) {
++          if (weakById[id]) {
++            continue;
++          }
++          weakById[id] = true;
++          enqueueWeakEdges(input.getRequiredSymbols(), strongById, weakById, worklist);
++        }
++        enqueueWeakEdges(input.getTypeRequires(), strongById, weakById, worklist);
++      }
++
++      ImmutableList.Builder<InputT> builder = ImmutableList.builder();
++      for (int i = 0, size = importOrderedInputs.size(); i < size; i++) {
++        if (weakById[importInputIds[i]]) {
++          builder.add(importOrderedInputs.get(i));
+         }
+-        weakById[id] = true;
+-        enqueueWeakEdges(input.getRequiredSymbols(), strongById, weakById, worklist);
+       }
+-      enqueueWeakEdges(input.getTypeRequires(), strongById, weakById, worklist);
+-    }
+ 
+-    ImmutableList.Builder<InputT> builder = ImmutableList.builder();
+-    for (int i = 0, size = importOrderedInputs.size(); i < size; i++) {
+-      if (weakById[importInputIds[i]]) {
+-        builder.add(importOrderedInputs.get(i));
++      return builder.build();
++    } finally {
++      if (ownsScratch) {
++        Arrays.fill(strongById, 0, this.uniqueInputCount, false);
++        Arrays.fill(weakById, 0, this.uniqueInputCount, false);
++        worklist.clear();
++        releaseWeakScratch(this);
+       }
+     }
+-
+-    return builder.build();
+   }
+ 
+   private void enqueueWeakEdges(
+diff --git a/com/google/javascript/jscomp/parsing/IRFactory.java b/com/google/javascript/jscomp/parsing/IRFactory.java
+index 490de378..96ca5b30 100644
+--- a/com/google/javascript/jscomp/parsing/IRFactory.java
++++ b/com/google/javascript/jscomp/parsing/IRFactory.java
+@@ -207,6 +207,7 @@ class IRFactory {
+   private final ErrorReporter errorReporter;
+   private final TransformDispatcher transformDispatcher;
+   private @Nullable JsDocTokenStream reusableJsDocStream;
++  private @Nullable JsDocInfoParser reusableJsDocParser;
+ 
+   private static final ImmutableSet<String> ES5_RESERVED_KEYWORDS =
+       ImmutableSet.of(
+@@ -777,8 +778,12 @@ class IRFactory {
+ 
+   private void handlePossibleFileOverviewJsDoc(Comment comment, boolean useLicensesOnlyConfig) {
+     JsDocInfoParser jsDocParser = createJsDocInfoParser(comment, useLicensesOnlyConfig);
+-    parsedComments.add(comment);
+-    handlePossibleFileOverviewJsDoc(jsDocParser);
++    try {
++      parsedComments.add(comment);
++      handlePossibleFileOverviewJsDoc(jsDocParser);
++    } finally {
++      releaseJsDocInfoParser(jsDocParser);
++    }
+   }
+ 
+   private Comment getJSDocCommentAt(SourcePosition pos) {
+@@ -807,13 +812,17 @@ class IRFactory {
+     }
+ 
+     JsDocInfoParser jsDocParser = createJsDocInfoParser(comment);
+-    parsedComments.add(comment);
+-    if (handlePossibleFileOverviewJsDoc(jsDocParser)) {
+-      // Returning null here means that the comment was treated as a fileoverview comment, and
+-      // JSDocInfo should not then be attached to a specific node, so we return null;
+-      return null;
++    try {
++      parsedComments.add(comment);
++      if (handlePossibleFileOverviewJsDoc(jsDocParser)) {
++        // Returning null here means that the comment was treated as a fileoverview comment, and
++        // JSDocInfo should not then be attached to a specific node, so we return null;
++        return null;
++      }
++      return jsDocParser.retrieveAndResetParsedJSDocInfo();
++    } finally {
++      releaseJsDocInfoParser(jsDocParser);
+     }
+-    return jsDocParser.retrieveAndResetParsedJSDocInfo();
+   }
+ 
+   private @Nullable JSDocInfo parseJSDocInfoOnTree(ParseTree tree) {
+@@ -1294,30 +1303,53 @@ class IRFactory {
+       this.reusableJsDocStream = null;
+       stream.reset(body, lineno, charno + numOpeningChars);
+     }
+-    JsDocInfoParser jsdocParser =
+-        new JsDocInfoParser(
+-            stream,
+-            comment,
+-            position,
+-            templateNode,
+-            config,
+-            jsDocSourceKind,
+-            errorReporter);
++    JsDocInfoParser jsdocParser = this.reusableJsDocParser;
++    if (jsdocParser == null) {
++      jsdocParser =
++          new JsDocInfoParser(
++              stream,
++              comment,
++              position,
++              templateNode,
++              config,
++              jsDocSourceKind,
++              errorReporter);
++    } else {
++      this.reusableJsDocParser = null;
++      jsdocParser.reset(
++          stream,
++          comment,
++          position,
++          templateNode,
++          config,
++          jsDocSourceKind,
++          errorReporter);
++    }
+     jsdocParser.setFileOverviewJSDocInfo(this.firstFileoverview);
++    boolean completed = false;
+     try {
+       if (node.type == Comment.Type.IMPORTANT && node.value.length() > 0) {
+         jsdocParser.parseImportantComment();
+       } else {
+         jsdocParser.parse();
+       }
++      completed = true;
+     } finally {
+       stream.clearSource();
+       this.reusableJsDocStream = stream;
++      if (!completed) {
++        releaseJsDocInfoParser(jsdocParser);
++      }
+     }
+ 
+     return jsdocParser;
+   }
+ 
++  private void releaseJsDocInfoParser(JsDocInfoParser parser) {
++    parser.clearForReuse();
++    this.reusableJsDocParser = parser;
++  }
++
+   /** Parses inline type info. */
+   private JSDocInfo parseInlineTypeDoc(Comment node) {
+     String comment = node.value;
+@@ -1334,20 +1366,34 @@ class IRFactory {
+       this.reusableJsDocStream = null;
+       stream.reset(body, lineno, charno + numOpeningChars);
+     }
+-    JsDocInfoParser parser =
+-        new JsDocInfoParser(
+-            stream,
+-            comment,
+-            node.location.start.offset,
+-            templateNode,
+-            config,
+-            jsDocSourceKind,
+-            errorReporter);
++    JsDocInfoParser parser = this.reusableJsDocParser;
++    if (parser == null) {
++      parser =
++          new JsDocInfoParser(
++              stream,
++              comment,
++              node.location.start.offset,
++              templateNode,
++              config,
++              jsDocSourceKind,
++              errorReporter);
++    } else {
++      this.reusableJsDocParser = null;
++      parser.reset(
++          stream,
++          comment,
++          node.location.start.offset,
++          templateNode,
++          config,
++          jsDocSourceKind,
++          errorReporter);
++    }
+     try {
+       return parser.parseInlineTypeDoc();
+     } finally {
+       stream.clearSource();
+       this.reusableJsDocStream = stream;
++      releaseJsDocInfoParser(parser);
+     }
+   }
+ 
+@@ -1881,21 +1927,22 @@ class IRFactory {
+ 
+     Node processFunctionCall(CallExpressionTree callNode) {
+       Node node = newNode(Token.CALL, transform(callNode.operand));
+-      node.setTrailingComma(callNode.arguments.hasTrailingComma);
+       ArgumentListTree argumentsTree = callNode.arguments;
+-      // For each arg, represents a location (end SourcePosition) such that all
+-      // trailing comments before this location correspond to that arg.
+-      List<SourcePosition> zones =
+-          getEndOfArgCommentZones(
+-              argumentsTree.arguments, argumentsTree.commaPositions, argumentsTree.location.end);
+-      int argCount = 0;
+-      for (ParseTree child : callNode.arguments.arguments) {
+-        Node childNode = transform(child);
+-        node.addChildToBack(childNode);
+-        // The non-trailing comments are already attached to `childNode` in `transform(child)`
+-        // call. Now we must attach possible trailing comments to `childNode`.
+-
+-        attachPossibleTrailingCommentsForArg(childNode, zones.get(argCount));
++      node.setTrailingComma(argumentsTree.hasTrailingComma);
++      ImmutableList<ParseTree> arguments = argumentsTree.arguments;
++      if (!arguments.isEmpty()) {
++        // Upstream keeps argCount at 0 across all arguments in processFunctionCall.
++        SourcePosition firstArgZone =
++            getEndOfArgCommentZone(
++                arguments, argumentsTree.commaPositions, argumentsTree.location.end, 0);
++        for (int i = 0, size = arguments.size(); i < size; i++) {
++          Node childNode = transform(arguments.get(i));
++          node.addChildToBack(childNode);
++          // The non-trailing comments are already attached to `childNode` in `transform(child)`
++          // call. Now we must attach possible trailing comments to `childNode`.
++
++          attachPossibleTrailingCommentsForArg(childNode, firstArgZone);
++        }
+       }
+       annotateCalls(node);
+       return node;
+@@ -1957,38 +2004,29 @@ class IRFactory {
+      *     formal parameter list
+      * @param argListEndPosition SourcePosition of the end of argsList or paramList
+      */
+-    List<SourcePosition> getEndOfArgCommentZones(
++    SourcePosition getEndOfArgCommentZone(
+         ImmutableList<ParseTree> args,
+         ImmutableList<SourcePosition> commaPositions,
+-        SourcePosition argListEndPosition) {
+-      ImmutableList.Builder<SourcePosition> zones = ImmutableList.builder();
+-      int commaCount = 0;
+-      for (ParseTree arg : args) {
+-        if (args.size() > commaCount + 1) {
+-          // there is a next arg after this arg
+-          ParseTree nextParam = args.get(commaCount + 1);
+-          if (nextParam.location.start.line > arg.location.end.line) {
+-            // Next arg is on a new line; all trailing comments on this line belong to this arg
+-            // create a source position to represent the end of current line
+-            SourcePosition tempSourcePos =
+-                new SourcePosition(
+-                    null,
+-                    /* offset= */ Integer.MAX_VALUE,
+-                    arg.location.end.line,
+-                    Integer.MAX_VALUE /*col */);
+-            zones.add(tempSourcePos);
+-          } else {
+-            // Next arg is on the same line; trailing comments before the comma belong to this arg
+-            SourcePosition commaPosition = commaPositions.get(commaCount);
+-            zones.add(commaPosition);
+-          }
+-        } else {
+-          // last arg; trailing comments till the end of argList belong to this arg
+-          zones.add(argListEndPosition);
+-        }
+-        commaCount++;
+-      }
+-      return zones.build();
++        SourcePosition argListEndPosition,
++        int index) {
++      if (args.size() > index + 1) {
++        // there is a next arg after this arg
++        ParseTree arg = args.get(index);
++        ParseTree nextParam = args.get(index + 1);
++        if (nextParam.location.start.line > arg.location.end.line) {
++          // Next arg is on a new line; all trailing comments on this line belong to this arg
++          // create a source position to represent the end of current line
++          return new SourcePosition(
++              null,
++              /* offset= */ Integer.MAX_VALUE,
++              arg.location.end.line,
++              Integer.MAX_VALUE /*col */);
++        }
++        // Next arg is on the same line; trailing comments before the comma belong to this arg
++        return commaPositions.get(index);
++      }
++      // last arg; trailing comments till the end of argList belong to this arg
++      return argListEndPosition;
+     }
+ 
+     /**
+@@ -2229,11 +2267,8 @@ class IRFactory {
+       }
+ 
+       ImmutableList<ParseTree> parameters = tree.parameters;
+-      List<SourcePosition> zones =
+-          getEndOfArgCommentZones(parameters, tree.commaPositions, tree.location.end);
+-      int argCount = 0;
+-
+-      for (ParseTree param : tree.parameters) {
++      for (int argCount = 0, size = parameters.size(); argCount < size; argCount++) {
++        ParseTree param = parameters.get(argCount);
+         final Node paramNode;
+         switch (param.type) {
+           case DEFAULT_PARAMETER ->
+@@ -2247,7 +2282,10 @@ class IRFactory {
+           default -> {
+             paramNode = transformNodeWithInlineComments(param);
+             // Reusing the logic to attach trailing comments used from call-site argsList
+-            attachPossibleTrailingCommentsForArg(paramNode, zones.get(argCount));
++            attachPossibleTrailingCommentsForArg(
++                paramNode,
++                getEndOfArgCommentZone(
++                    parameters, tree.commaPositions, tree.location.end, argCount));
+           }
+         }
+ 
+@@ -2260,7 +2298,6 @@ class IRFactory {
+                 || paramNode.isObjectPattern()
+                 || paramNode.isDefaultValue());
+         params.addChildToBack(paramNode);
+-        argCount++;
+       }
+ 
+       return params;
+diff --git a/com/google/javascript/jscomp/parsing/JsDocInfoParser.java b/com/google/javascript/jscomp/parsing/JsDocInfoParser.java
+index 7ffdb87a..ae8f3d87 100644
+--- a/com/google/javascript/jscomp/parsing/JsDocInfoParser.java
++++ b/com/google/javascript/jscomp/parsing/JsDocInfoParser.java
+@@ -66,14 +66,14 @@ public final class JsDocInfoParser {
+       "JsDocInfoParser_TsickleMode_MissingSupertypePlaceholder";
+   private static final String TS_TYPE_PLACEHOLDER = "JsDocInfoParser_tsType_PlaceHolder";
+ 
+-  private final JsDocTokenStream stream;
+-  private final JSDocInfo.Builder jsdocBuilder;
+-  private final ErrorReporter errorReporter;
+-  private final JsDocSourceKind jsDocSourceKind;
++  private JsDocTokenStream stream;
++  private JSDocInfo.Builder jsdocBuilder;
++  private ErrorReporter errorReporter;
++  private JsDocSourceKind jsDocSourceKind;
+ 
+   // Use a template node for properties set on all nodes to minimize the
+   // memory footprint associated with these (similar to IRFactory).
+-  private final Node templateNode;
++  private Node templateNode;
+ 
+   private void addParserWarning(Msg msg, String messageArg) {
+     addParserWarning(msg, messageArg, stream.getLineno(), stream.getCharno());
+@@ -123,19 +123,20 @@ public final class JsDocInfoParser {
+   private @Nullable JSDocInfo fileOverviewJSDocInfo = null;
+   private State state;
+ 
+-  private final ImmutableMap<String, Annotation> annotations;
+-  private final ImmutableSet<String> suppressionNames;
+-  private final ImmutableSet<String> closurePrimitiveNames;
+-  private final boolean preserveWhitespace;
++  private ImmutableMap<String, Annotation> annotations;
++  private ImmutableSet<String> suppressionNames;
++  private ImmutableSet<String> closurePrimitiveNames;
++  private boolean preserveWhitespace;
+   private static final ImmutableSet<String> modifiesAnnotationKeywords =
+       ImmutableSet.of("this", "arguments");
+   private static final ImmutableSet<String> idGeneratorAnnotationKeywords =
+       ImmutableSet.of("unique", "consistent", "stable", "mapped", "xid");
+   private static final ImmutableSet<String> primitiveTypes =
+       ImmutableSet.of("number", "string", "boolean", "symbol");
+-  private final boolean onlyParseLicenseJsDoc;
++  private boolean onlyParseLicenseJsDoc;
+ 
+   private @Nullable String licenseText;
++  private final ArrayList<ExtendedTypeInfo> reusableExtendedTypes = new ArrayList<>();
+ 
+   private void setLicenseTextMonotonic(String x) {
+     checkNotNull(x);
+@@ -171,7 +172,7 @@ public final class JsDocInfoParser {
+     TSICKLE // make some extra allowances for tsickle-generated JSDoc
+   }
+ 
+-  private final boolean recordTsType;
++  private boolean recordTsType;
+ 
+   public JsDocInfoParser(
+       JsDocTokenStream stream,
+@@ -181,7 +182,29 @@ public final class JsDocInfoParser {
+       Config config,
+       JsDocSourceKind jsDocSourceKind,
+       ErrorReporter errorReporter) {
++    reset(
++        stream,
++        comment,
++        commentPosition,
++        templateNode,
++        config,
++        jsDocSourceKind,
++        errorReporter);
++  }
++
++  void reset(
++      JsDocTokenStream stream,
++      String comment,
++      int commentPosition,
++      @Nullable Node templateNode,
++      Config config,
++      JsDocSourceKind jsDocSourceKind,
++      ErrorReporter errorReporter) {
+     this.stream = stream;
++    this.fileOverviewJSDocInfo = null;
++    this.state = null;
++    this.licenseText = null;
++    this.unreadToken = NO_UNREAD_TOKEN;
+ 
+     boolean parseDocumentation = config.jsDocParsingMode().shouldParseDescriptions();
+     this.jsdocBuilder = JSDocInfo.builder();
+@@ -192,7 +215,7 @@ public final class JsDocInfoParser {
+       this.jsdocBuilder.recordOriginalCommentString(comment);
+       this.jsdocBuilder.recordOriginalCommentPosition(commentPosition);
+     }
+-    this.recordTsType = config.jsDocParsingMode().shouldParseDescriptions();
++    this.recordTsType = parseDocumentation;
+     this.annotations = config.annotations();
+     this.suppressionNames = config.suppressionNames();
+     this.closurePrimitiveNames = config.closurePrimitiveNames();
+@@ -205,6 +228,23 @@ public final class JsDocInfoParser {
+     this.templateNode = templateNode == null ? IR.script() : templateNode;
+   }
+ 
++  void clearForReuse() {
++    this.stream = null;
++    this.jsdocBuilder = null;
++    this.errorReporter = null;
++    this.templateNode = null;
++    this.fileOverviewJSDocInfo = null;
++    this.state = null;
++    this.annotations = null;
++    this.suppressionNames = null;
++    this.closurePrimitiveNames = null;
++    this.licenseText = null;
++    this.unreadToken = NO_UNREAD_TOKEN;
++    if (!this.reusableExtendedTypes.isEmpty()) {
++      this.reusableExtendedTypes.clear();
++    }
++  }
++
+   private @Nullable String getSourceName() {
+     StaticSourceFile sourceFile = getSourceFile();
+     return sourceFile == null ? null : sourceFile.getName();
+@@ -307,7 +347,17 @@ public final class JsDocInfoParser {
+       }
+     }
+ 
+-    return parseHelperLoop(token, new ArrayList<ExtendedTypeInfo>());
++    ArrayList<ExtendedTypeInfo> extendedTypes = this.reusableExtendedTypes;
++    if (!extendedTypes.isEmpty()) {
++      extendedTypes.clear();
++    }
++    try {
++      return parseHelperLoop(token, extendedTypes);
++    } finally {
++      if (!extendedTypes.isEmpty()) {
++        extendedTypes.clear();
++      }
++    }
+   }
+ 
+   /**
+@@ -334,7 +384,7 @@ public final class JsDocInfoParser {
+     }
+   }
+ 
+-  private boolean parseHelperLoop(JsDocToken token, List<ExtendedTypeInfo> extendedTypes) {
++  private boolean parseHelperLoop(JsDocToken token, ArrayList<ExtendedTypeInfo> extendedTypes) {
+     while (true) {
+       switch (token) {
+         case ANNOTATION -> {
+@@ -395,7 +445,7 @@ public final class JsDocInfoParser {
+     }
+   }
+ 
+-  private JsDocToken parseAnnotation(JsDocToken token, List<ExtendedTypeInfo> extendedTypes) {
++  private JsDocToken parseAnnotation(JsDocToken token, ArrayList<ExtendedTypeInfo> extendedTypes) {
+     // JSTypes are represented as Rhino AST nodes, and then resolved later.
+     JSTypeExpression type;
+     int lineno = stream.getLineno();
+@@ -1377,7 +1427,7 @@ public final class JsDocInfoParser {
+     return token;
+   }
+ 
+-  private void checkExtendedTypes(List<ExtendedTypeInfo> extendedTypes) {
++  private void checkExtendedTypes(ArrayList<ExtendedTypeInfo> extendedTypes) {
+     if (extendedTypes.size() > 1) {
+       // Multiple extends is always ok for an interface.
+       boolean isInterface = jsdocBuilder.isInterfaceRecorded();
+@@ -1395,7 +1445,8 @@ public final class JsDocInfoParser {
+         return;
+       }
+     }
+-    for (ExtendedTypeInfo typeInfo : extendedTypes) {
++    for (int i = 0, size = extendedTypes.size(); i < size; i++) {
++      ExtendedTypeInfo typeInfo = extendedTypes.get(i);
+       // If interface, record the multiple extended interfaces
+       if (jsdocBuilder.isInterfaceRecorded()) {
+         if (!jsdocBuilder.recordExtendedInterface(typeInfo.type)) {
+diff --git a/com/google/javascript/jscomp/parsing/JsDocTokenStream.java b/com/google/javascript/jscomp/parsing/JsDocTokenStream.java
+index 7dc2e409..101c16d8 100644
+--- a/com/google/javascript/jscomp/parsing/JsDocTokenStream.java
++++ b/com/google/javascript/jscomp/parsing/JsDocTokenStream.java
+@@ -51,6 +51,8 @@ public final class JsDocTokenStream {
+     checkNotNull(sourceString);
+     this.string = "";
+     this.stringBufferTop = 0;
++    this.rawTokenStart = -1;
++    this.rawTokenContiguous = false;
+     this.ungetCursor = 0;
+     this.lineStart = 0;
+     this.lineEndChar = -1;
+@@ -67,6 +69,15 @@ public final class JsDocTokenStream {
+     this.sourceString = "";
+     this.sourceEnd = 0;
+     this.string = "";
++    this.stringBufferTop = 0;
++    this.rawTokenStart = -1;
++    this.rawTokenContiguous = false;
++  }
++
++  private void resetStringBuffer() {
++    this.stringBufferTop = 0;
++    this.rawTokenStart = -1;
++    this.rawTokenContiguous = false;
+   }
+ 
+   /**
+@@ -75,7 +86,7 @@ public final class JsDocTokenStream {
+   @SuppressWarnings("fallthrough")
+   final JsDocToken getJsDocToken() {
+     int c;
+-    stringBufferTop = 0;
++    resetStringBuffer();
+     for (;;) {
+       // eat white spaces
+       for (;;) {
+@@ -100,7 +111,7 @@ public final class JsDocTokenStream {
+             } else {
+               ungetChar(c);
+               this.string = getStringFromBuffer();
+-              stringBufferTop = 0;
++              resetStringBuffer();
+               return JsDocToken.ANNOTATION;
+             }
+           } while (true);
+@@ -182,7 +193,7 @@ public final class JsDocTokenStream {
+           if (!isJSDocString(c2)) {
+             ungetChar(c2);
+             this.string = getStringFromBuffer();
+-            stringBufferTop = 0;
++            resetStringBuffer();
+             return JsDocToken.STRING;
+           } else {
+             do {
+@@ -192,7 +203,7 @@ public final class JsDocTokenStream {
+                 ungetChar(c2);
+                 ungetChar(c1);
+                 this.string = getStringFromBuffer();
+-                stringBufferTop = 0;
++                resetStringBuffer();
+                 return JsDocToken.STRING;
+               } else {
+                 if (isJSDocString(c2)) {
+@@ -201,7 +212,7 @@ public final class JsDocTokenStream {
+                   ungetChar(c2);
+                   addToString(c1);
+                   this.string = getStringFromBuffer();
+-                  stringBufferTop = 0;
++                  resetStringBuffer();
+                   return JsDocToken.STRING;
+                 }
+               }
+@@ -232,7 +243,7 @@ public final class JsDocTokenStream {
+         case '\n':
+           ungetChar(c);
+           this.string = getStringFromBuffer();
+-          stringBufferTop = 0;
++          resetStringBuffer();
+           return this.string;
+ 
+         default:
+@@ -251,11 +262,33 @@ public final class JsDocTokenStream {
+   final String getString() { return string; }
+ 
+   private String getStringFromBuffer() {
+-    return new String(stringBuffer, 0, stringBufferTop);
++    int top = stringBufferTop;
++    if (top == 0) {
++      return "";
++    }
++    if (rawTokenContiguous) {
++      return sourceString.substring(rawTokenStart, rawTokenStart + top);
++    }
++    return new String(stringBuffer, 0, top);
+   }
+ 
+   private void addToString(int c) {
+     int n = stringBufferTop;
++    if (n == 0) {
++      int start = sourceCursor - ungetCursor - 1;
++      if (start >= 0 && start < sourceEnd && sourceString.charAt(start) == (char) c) {
++        rawTokenStart = start;
++        rawTokenContiguous = true;
++      } else {
++        rawTokenStart = -1;
++        rawTokenContiguous = false;
++      }
++    } else if (rawTokenContiguous) {
++      int pos = rawTokenStart + n;
++      if (pos >= sourceEnd || sourceString.charAt(pos) != (char) c) {
++        rawTokenContiguous = false;
++      }
++    }
+     if (n == stringBuffer.length) {
+       int newCap = n == 0 ? 64 : n * 2;
+       char[] tmp = new char[newCap];
+@@ -490,6 +523,8 @@ public final class JsDocTokenStream {
+ 
+   private char[] stringBuffer = EMPTY_CHAR_ARRAY;
+   private int stringBufferTop;
++  private int rawTokenStart = -1;
++  private boolean rawTokenContiguous = false;
+ 
+   // Room to backtrace from to < on failed match of the last - in <!--
+   private int unget0;
+diff --git a/com/google/javascript/rhino/jstype/JSTypeRegistry.java b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+index c79d64dd..84807a37 100644
+--- a/com/google/javascript/rhino/jstype/JSTypeRegistry.java
++++ b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+@@ -1212,7 +1212,7 @@ public final class JSTypeRegistry {
+     // Find the `exports` type of the longest prefix match of this namespace, if any. Then resolve
+     // it via property.
+     String prefix = reference;
+-    ImmutableList.Builder<String> unusedComponents = ImmutableList.builder();
++    int firstComponentStart = -1;
+     while (true) {
+       ClosureNamespace namespace = this.closureNamespaces.get(prefix);
+       if (namespace != null) {
+@@ -1223,18 +1223,17 @@ public final class JSTypeRegistry {
+           // Always stop resolution here whether successful or not, instead of continuing with
+           // resolution via registry or via properties, to match legacy behavior.
+           return resolveViaPropertyGivenSlot(
+-              namespace.type(), namespace.definitionNode(), unusedComponents.build().reverse());
++              namespace.type(), namespace.definitionNode(), reference, firstComponentStart);
+         }
+       }
+ 
+-      int lastDot = prefix.lastIndexOf(".");
++      int lastDot = prefix.lastIndexOf('.');
+       if (lastDot < 0) {
+         return null;
+       }
+ 
+-      String postfix = prefix.substring(lastDot + 1);
+-      unusedComponents.add(postfix);
+-      prefix = prefix.substring(0, lastDot);
++      firstComponentStart = lastDot + 1;
++      prefix = reference.substring(0, lastDot);
+     }
+   }
+ 
+@@ -1242,42 +1241,31 @@ public final class JSTypeRegistry {
+       StaticTypedScope declarationScope, String qualifiedName) {
+     checkNotNull(qualifiedName);
+     checkArgument(!qualifiedName.isEmpty());
+-    String rootName = getRootElementOfName(qualifiedName);
++    int firstDot = qualifiedName.indexOf('.');
++    String rootName = firstDot == -1 ? qualifiedName : qualifiedName.substring(0, firstDot);
+     StaticTypedSlot slot = declarationScope.getOwnSlot(rootName);
+     if (slot == null) {
+       return null;
+     }
+-    int firstDot = qualifiedName.indexOf('.');
+-    List<String> componentNames;
+-    if (firstDot == -1) {
+-      componentNames = ImmutableList.of();
+-    } else {
+-      ArrayList<String> parts = new ArrayList<>();
+-      int start = firstDot + 1;
+-      while (true) {
+-        int nextDot = qualifiedName.indexOf('.', start);
+-        if (nextDot == -1) {
+-          parts.add(qualifiedName.substring(start));
+-          break;
+-        }
+-        parts.add(qualifiedName.substring(start, nextDot));
+-        start = nextDot + 1;
+-      }
+-      componentNames = parts;
+-    }
+     JSType slotType = slot.getType();
+-    return resolveViaPropertyGivenSlot(slotType, null, componentNames);
++    return resolveViaPropertyGivenSlot(
++        slotType, null, qualifiedName, firstDot == -1 ? -1 : firstDot + 1);
+   }
+ 
+   /**
+-   * Resolve a type using a given StaticTypedSlot and list of properties on that type.
++   * Resolve a type using a given StaticTypedSlot and dot-separated properties on that type starting
++   * at {@code firstComponentStart} in {@code qualifiedName} (or {@code -1} when there are no
++   * property components).
+    *
+    * @param slotType the JSType of the slot, possibly null
+    * @param definitionNode If known, the Node representing the type definition.
+    */
+   private @Nullable JSType resolveViaPropertyGivenSlot(
+-      JSType slotType, @Nullable Node definitionNode, List<String> componentNames) {
+-    if (componentNames.isEmpty()) {
++      JSType slotType,
++      @Nullable Node definitionNode,
++      String qualifiedName,
++      int firstComponentStart) {
++    if (firstComponentStart < 0) {
+       JSType typedefType = resolveTypeFromNodeIfTypedef(definitionNode);
+       if (typedefType != null) {
+         return typedefType;
+@@ -1292,21 +1280,30 @@ public final class JSTypeRegistry {
+     }
+ 
+     // resolving component by component
+-    for (int i = 0; i < componentNames.size(); i++) {
+-      String component = componentNames.get(i);
+-      ObjectType parentObj = ObjectType.cast(slotType);
+-      if (parentObj == null || component.isEmpty() || !parentObj.hasOwnProperty(component)) {
+-        return null;
+-      }
+-      if (i == componentNames.size() - 1) {
+-        // Look for a typedefTypeProp on the definition node of the last component.
+-        Node def = parentObj.getPropertyDefSite(component);
+-        JSType typedefType = resolveTypeFromNodeIfTypedef(def);
+-        if (typedefType != null) {
+-          return typedefType;
++    if (firstComponentStart >= 0) {
++      int pos = firstComponentStart;
++      while (true) {
++        int nextDot = qualifiedName.indexOf('.', pos);
++        boolean isLast = nextDot == -1;
++        String component =
++            isLast ? qualifiedName.substring(pos) : qualifiedName.substring(pos, nextDot);
++        ObjectType parentObj = ObjectType.cast(slotType);
++        if (parentObj == null || component.isEmpty() || !parentObj.hasOwnProperty(component)) {
++          return null;
++        }
++        if (isLast) {
++          // Look for a typedefTypeProp on the definition node of the last component.
++          Node def = parentObj.getPropertyDefSite(component);
++          JSType typedefType = resolveTypeFromNodeIfTypedef(def);
++          if (typedefType != null) {
++            return typedefType;
++          }
++          slotType = parentObj.getPropertyType(component);
++          break;
+         }
++        slotType = parentObj.getPropertyType(component);
++        pos = nextDot + 1;
+       }
+-      slotType = parentObj.getPropertyType(component);
+     }
+ 
+     // Translate "constructor" types to "instance" types.

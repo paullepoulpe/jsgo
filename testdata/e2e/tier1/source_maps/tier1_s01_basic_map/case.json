@@ -1,0 +1,28 @@
+{
+  "id": "tier1_s01_basic_map",
+  "tier": 1,
+  "feature": "source_maps",
+  "name": "Basic source map generation",
+  "description": "Verifies basic V3 JSON source map generation with valid header and sections",
+  "args": [
+    "--create_source_map",
+    "out.js.map",
+    "--js_output_file",
+    "out.js",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "function greet(name) { return 'Hello ' + name; }\nwindow['msg'] = greet('World');\n"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": "",
+    "output_files": {
+      "out.js": "function greet(a){return\"Hello \"+a}window.msg=greet(\"World\");\n",
+      "out.js.map": "{\n\"version\":3,\n\"file\":\"out.js\",\n\"lineCount\":1,\n\"mappings\":\"AAAAA,QAASA,MAAK,CAACC,CAAD,CAAO,CAAE,MAAO,QAAP,CAAkBA,CAApB,CACrBC,MAAA,CAAA,GAAA,CAAgBF,KAAA,CAAM,OAAN;\",\n\"sources\":[\"in.js\"],\n\"names\":[\"greet\",\"name\",\"window\"]\n}\n"
+    }
+  }
+}

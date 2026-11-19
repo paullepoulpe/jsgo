@@ -1,0 +1,1 @@
+function logEvent(msg) { externalLogger.logMessage(msg); } window['run'] = logEvent;

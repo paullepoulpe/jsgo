@@ -1,0 +1,98 @@
+--- a/com/google/javascript/rhino/jstype/Property.java
++++ b/com/google/javascript/rhino/jstype/Property.java
+@@ -153,15 +153,11 @@
+ 
+   private static final long serialVersionUID = 1L;
+ 
+-  /**
+-   * Property's name. Either a String or a KnownSymbolType.
+-   *
+-   * <p>NOTE(lharker): storing this as a Key would be correct & more type-safe, but that caused some
+-   * OOMs when I tried it, presumably because of the extra memory usage. So we store this as a plain
+-   * Object for now. All the non-private API methods should use Key though.
+-   */
+-  private final Object name;
++  /** Property's name: either a String (`stringKey`) or a KnownSymbolType (`symbolKey`). */
++  private final @Nullable String stringKey;
+ 
++  private final @Nullable KnownSymbolType symbolKey;
++
+   /**
+    * Property's type.
+    */
+@@ -182,7 +178,8 @@
+   private @Nullable JSDocInfo docInfo = null;
+ 
+   Property(String name, JSType type, boolean inferred, Node propertyNode) {
+-    this.name = checkNotNull(name);
++    this.stringKey = checkNotNull(name);
++    this.symbolKey = null;
+     this.type = checkNotNull(type, "Null type specified for %s", name);
+     this.inferred = inferred;
+     this.propertyNode = propertyNode;
+@@ -190,11 +187,13 @@
+ 
+   Property(Key name, JSType type, boolean inferred, Node propertyNode) {
+     checkNotNull(name);
+-    this.name =
+-        switch (name.kind()) {
+-          case STRING -> name.string();
+-          case SYMBOL -> name.symbol();
+-        };
++    if (name.kind() == KeyKind.STRING) {
++      this.stringKey = checkNotNull(name.string());
++      this.symbolKey = null;
++    } else {
++      this.stringKey = null;
++      this.symbolKey = checkNotNull(name.symbol());
++    }
+     this.type = checkNotNull(type, "Null type specified for %s", name);
+     this.inferred = inferred;
+     this.propertyNode = propertyNode;
+@@ -202,11 +201,10 @@
+ 
+   @Override
+   public String getName() {
+-    return switch (name) {
+-      case String s -> s;
+-      case KnownSymbolType s -> s.getDisplayName();
+-      default -> throw new AssertionError();
+-    };
++    if (stringKey != null) {
++      return stringKey;
++    }
++    return checkNotNull(symbolKey).getDisplayName();
+   }
+ 
+   @Override
+@@ -244,7 +242,11 @@
+   }
+ 
+   void setType(JSType type) {
+-    this.type = checkNotNull(type, "Null type specified for property %s", name);
++    this.type =
++        checkNotNull(
++            type,
++            "Null type specified for property %s",
++            stringKey != null ? stringKey : symbolKey);
+   }
+ 
+   @Override public JSDocInfo getJSDocInfo() {
+@@ -262,7 +264,7 @@
+   @Override
+   public String toString() {
+     return "Property { "
+-        + " name: " + this.name
++        + " name: " + (this.stringKey != null ? this.stringKey : this.symbolKey)
+         + ", type:" + this.type
+         + ", inferred: " + this.inferred
+         + "}";
+@@ -275,6 +277,7 @@
+ 
+   @Override
+   public int hashCode() {
+-    return Objects.hash(name, type);
++    int nameHash = stringKey != null ? stringKey.hashCode() : Objects.hashCode(symbolKey);
++    return 31 * (31 + nameHash) + Objects.hashCode(type);
+   }
+ }

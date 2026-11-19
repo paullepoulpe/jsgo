@@ -1,0 +1,23 @@
+{
+  "id": "tier1_t01_var_mismatch",
+  "tier": 1,
+  "feature": "type_checking",
+  "name": "Variable initialization type mismatch",
+  "description": "Detects type mismatch when initializing typed variable with incompatible value",
+  "args": [
+    "--checks_only",
+    "--jscomp_error=checkTypes",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @type {number} */ var count = 'invalid';"
+  },
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "in.js:1:34: ERROR - [JSC_TYPE_MISMATCH] initializing variable\nfound   : string\nrequired: number\n  1| /** @type {number} */ var count = 'invalid';\n                                       ^^^^^^^^^\n\n1 error(s), 0 warning(s), 100.0% typed\n",
+    "output_files": {}
+  }
+}

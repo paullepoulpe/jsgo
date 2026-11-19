@@ -1,0 +1,281 @@
+diff --git a/com/google/javascript/rhino/jstype/EqualityChecker.java b/com/google/javascript/rhino/jstype/EqualityChecker.java
+index d0043f7f..6a37a6b8 100644
+--- a/com/google/javascript/rhino/jstype/EqualityChecker.java
++++ b/com/google/javascript/rhino/jstype/EqualityChecker.java
+@@ -119,6 +119,24 @@ final class EqualityChecker {
+ 
+   EqualityChecker() {}
+ 
++  private EqualityChecker(EqMethod eqMethod) {
++    this.eqMethod = eqMethod;
++    this.hasRun = true;
++  }
++
++  static boolean check(EqMethod eqMethod, JSType left, JSType right) {
++    EqualityChecker checker = new EqualityChecker(eqMethod);
++    return checker.areEqualCaching(left, right);
++  }
++
++  static boolean checkParameters(EqMethod eqMethod, ArrowType left, ArrowType right) {
++    if (identical(left, right)) {
++      return true;
++    }
++    EqualityChecker checker = new EqualityChecker(eqMethod);
++    return checker.areArrowParameterEqual(left, right);
++  }
++
+   boolean check(JSType left, JSType right) {
+     this.checkHasNotRun();
+     this.hasRun = true;
+@@ -142,12 +160,10 @@ final class EqualityChecker {
+ 
+     // Once the cache exists, use it consistently.
+     if (this.eqCache == null) {
+-      try {
+-        this.recursionDepth++;
+-        return this.areEqualInternal(left, right);
+-      } finally {
+-        this.recursionDepth--;
+-      }
++      this.recursionDepth++;
++      boolean result = this.areEqualInternal(left, right);
++      this.recursionDepth--;
++      return result;
+     }
+ 
+     CacheKey key = new CacheKey(left, right);
+diff --git a/com/google/javascript/rhino/jstype/FunctionType.java b/com/google/javascript/rhino/jstype/FunctionType.java
+index f3522257..08635175 100644
+--- a/com/google/javascript/rhino/jstype/FunctionType.java
++++ b/com/google/javascript/rhino/jstype/FunctionType.java
+@@ -838,9 +838,7 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+   /** Try to get the sup/inf of two functions by looking at the piecewise components. */
+   private @Nullable FunctionType tryMergeFunctionPiecewise(FunctionType other, boolean leastSuper) {
+     ImmutableList<Parameter> newParamsNode = null;
+-    if (new EqualityChecker()
+-        .setEqMethod(EqMethod.IDENTITY)
+-        .checkParameters(this.call, other.call)) {
++    if (EqualityChecker.checkParameters(EqMethod.IDENTITY, this.call, other.call)) {
+       newParamsNode = call.getParameterList();
+     } else {
+       // If the parameters are not equal, don't try to merge them.
+@@ -904,7 +902,7 @@ public class FunctionType extends PrototypeObjectType implements JSType.WithSour
+   }
+ 
+   public final boolean hasEqualCallType(FunctionType that) {
+-    return new EqualityChecker().setEqMethod(EqMethod.IDENTITY).check(this.call, that.call);
++    return EqualityChecker.check(EqMethod.IDENTITY, this.call, that.call);
+   }
+ 
+   /**
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index 37cf412d..3bf3d69e 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -731,7 +731,7 @@ public abstract class JSType {
+       return true;
+     }
+     return (other instanceof JSType jSType)
+-        && new EqualityChecker().setEqMethod(EqMethod.IDENTITY).check(this, jSType);
++        && EqualityChecker.check(EqMethod.IDENTITY, this, jSType);
+   }
+ 
+   /**
+@@ -742,9 +742,7 @@ public abstract class JSType {
+    * types. See {@code EqMethod} for more info.
+    */
+   public final boolean differsFrom(JSType that) {
+-    return !new EqualityChecker()
+-        .setEqMethod(EqMethod.DATA_FLOW)
+-        .check(this, that);
++    return !EqualityChecker.check(EqMethod.DATA_FLOW, this, that);
+   }
+ 
+   /**
+@@ -1409,12 +1407,7 @@ public abstract class JSType {
+    * cases.
+    */
+   public final boolean isSubtypeWithoutStructuralTyping(JSType supertype) {
+-    return new SubtypeChecker(this.registry)
+-        .setSubtype(this)
+-        .setSupertype(supertype)
+-        .setUsingStructuralSubtyping(false)
+-        .setSubtypingMode(SubtypingMode.NORMAL)
+-        .check();
++    return SubtypeChecker.check(this.registry, this, supertype, false, SubtypingMode.NORMAL);
+   }
+ 
+   /** In files translated from Java, we typecheck null and undefined loosely. */
+@@ -1466,21 +1459,11 @@ public abstract class JSType {
+   }
+ 
+   public final boolean isSubtypeOf(JSType supertype) {
+-    return new SubtypeChecker(this.registry)
+-        .setSubtype(this)
+-        .setSupertype(supertype)
+-        .setUsingStructuralSubtyping(true)
+-        .setSubtypingMode(SubtypingMode.NORMAL)
+-        .check();
++    return SubtypeChecker.check(this.registry, this, supertype, true, SubtypingMode.NORMAL);
+   }
+ 
+   public final boolean isSubtypeOf(JSType supertype, SubtypingMode mode) {
+-    return new SubtypeChecker(this.registry)
+-        .setSubtype(this)
+-        .setSupertype(supertype)
+-        .setUsingStructuralSubtyping(true)
+-        .setSubtypingMode(mode)
+-        .check();
++    return SubtypeChecker.check(this.registry, this, supertype, true, mode);
+   }
+ 
+   /**
+diff --git a/com/google/javascript/rhino/jstype/SubtypeChecker.java b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+index 57c2692e..a3e0ee35 100644
+--- a/com/google/javascript/rhino/jstype/SubtypeChecker.java
++++ b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+@@ -42,9 +42,8 @@ package com.google.javascript.rhino.jstype;
+ import static com.google.common.base.Preconditions.checkNotNull;
+ import static com.google.common.base.Preconditions.checkState;
+ import static com.google.javascript.jscomp.base.JSCompObjects.identical;
+-import static com.google.javascript.rhino.jstype.JSTypeIterations.allTypesMatch;
+-import static com.google.javascript.rhino.jstype.JSTypeIterations.anyTypeMatches;
+ 
++import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableSet;
+ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+ import com.google.javascript.rhino.jstype.JSType.MatchStatus;
+@@ -52,7 +51,6 @@ import com.google.javascript.rhino.jstype.JSType.SubtypingMode;
+ import java.util.Iterator;
+ import java.util.LinkedHashMap;
+ import java.util.Objects;
+-import java.util.function.BooleanSupplier;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -82,7 +80,8 @@ final class SubtypeChecker {
+   private JSType initialSubtype;
+ 
+   private final JSTypeRegistry registry;
+-  private Boolean isUsingStructuralTyping;
++  private boolean isUsingStructuralTyping;
++  private boolean hasUsingStructuralTyping;
+   private SubtypingMode subtypingMode;
+ 
+   private LinkedHashMap<CacheKey, MatchStatus> subtypeCache;
+@@ -109,7 +108,8 @@ final class SubtypeChecker {
+   @CanIgnoreReturnValue
+   SubtypeChecker setUsingStructuralSubtyping(boolean value) {
+     checkHasNotRun();
+-    checkState(this.isUsingStructuralTyping == null);
++    checkState(!this.hasUsingStructuralTyping);
++    this.hasUsingStructuralTyping = true;
+     this.isUsingStructuralTyping = value;
+     return this;
+   }
+@@ -130,6 +130,32 @@ final class SubtypeChecker {
+     this.registry = registry;
+   }
+ 
++  private SubtypeChecker(
++      JSTypeRegistry registry,
++      JSType subtype,
++      JSType supertype,
++      boolean isUsingStructuralTyping,
++      SubtypingMode subtypingMode) {
++    this.registry = registry;
++    this.initialSubtype = checkNotNull(subtype);
++    this.initialSupertype = checkNotNull(supertype);
++    this.isUsingStructuralTyping = isUsingStructuralTyping;
++    this.hasUsingStructuralTyping = true;
++    this.subtypingMode = checkNotNull(subtypingMode);
++    this.hasRun = true;
++  }
++
++  static boolean check(
++      JSTypeRegistry registry,
++      JSType subtype,
++      JSType supertype,
++      boolean isUsingStructuralTyping,
++      SubtypingMode subtypingMode) {
++    SubtypeChecker checker =
++        new SubtypeChecker(registry, subtype, supertype, isUsingStructuralTyping, subtypingMode);
++    return checker.isSubtypeCaching(checker.initialSubtype, checker.initialSupertype);
++  }
++
+   boolean check() {
+     checkHasNotRun();
+     this.hasRun = true;
+@@ -155,12 +181,10 @@ final class SubtypeChecker {
+ 
+     // Once the cache exists, use it consistently.
+     if (this.subtypeCache == null) {
+-      try {
+-        this.recursionDepth++;
+-        return this.isSubtypeDispatching(subtype, supertype);
+-      } finally {
+-        this.recursionDepth--;
+-      }
++      this.recursionDepth++;
++      boolean result = this.isSubtypeDispatching(subtype, supertype);
++      this.recursionDepth--;
++      return result;
+     }
+ 
+     CacheKey key = new CacheKey(subtype, supertype);
+@@ -251,12 +275,22 @@ final class SubtypeChecker {
+     // Union decomposition.
+     if (subtype.isUnionType()) {
+       // All alternates must be subtypes.
+-      return allTypesMatch(
+-          (sub) -> this.isSubtypeCaching(sub, supertype), subtype.toMaybeUnionType());
++      ImmutableList<JSType> alternates = subtype.toMaybeUnionType().getAlternates();
++      for (int i = 0; i < alternates.size(); i++) {
++        if (!this.isSubtypeCaching(alternates.get(i), supertype)) {
++          return false;
++        }
++      }
++      return true;
+     } else if (supertype.isUnionType()) {
+       // Some alternate must be a supertype.
+-      return anyTypeMatches(
+-          (sup) -> this.isSubtypeCaching(subtype, sup), supertype.toMaybeUnionType());
++      ImmutableList<JSType> alternates = supertype.toMaybeUnionType().getAlternates();
++      for (int i = 0; i < alternates.size(); i++) {
++        if (this.isSubtypeCaching(subtype, alternates.get(i))) {
++          return true;
++        }
++      }
++      return false;
+     }
+ 
+     if (!subtype.isObjectType() || !supertype.isObjectType()) {
+@@ -713,22 +747,13 @@ final class SubtypeChecker {
+ 
+     // If one of the 'this' types is covariant of the other,
+     // then we'll treat them as covariant (see comment above).
+-    return hackTemporarilyChangeSubtypingMode(
+-        SubtypingMode.NORMAL,
+-        () ->
+-            this.isSubtypeCaching(supertype.getTypeOfThis(), subtype.getTypeOfThis())
+-                || this.isSubtypeCaching(subtype.getTypeOfThis(), supertype.getTypeOfThis()));
+-  }
+-
+-  private boolean hackTemporarilyChangeSubtypingMode(
+-      SubtypingMode tempMode, BooleanSupplier callback) {
+     SubtypingMode originalMode = this.subtypingMode;
+-    try {
+-      this.subtypingMode = tempMode;
+-      return callback.getAsBoolean();
+-    } finally {
+-      this.subtypingMode = originalMode;
+-    }
++    this.subtypingMode = SubtypingMode.NORMAL;
++    boolean result =
++        this.isSubtypeCaching(supertype.getTypeOfThis(), subtype.getTypeOfThis())
++            || this.isSubtypeCaching(subtype.getTypeOfThis(), supertype.getTypeOfThis());
++    this.subtypingMode = originalMode;
++    return result;
+   }
+ 
+   private static @Nullable ObjectType getObjectTypeIfNative(JSType type) {

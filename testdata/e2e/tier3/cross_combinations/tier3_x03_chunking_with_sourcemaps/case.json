@@ -1,0 +1,32 @@
+{
+  "id": "tier3_x03_chunking_with_sourcemaps",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "Multi-chunk build with source maps",
+  "description": "Verifies multi-chunk compilation simultaneously generating source maps for each chunk",
+  "args": [
+    "--chunk",
+    "core:1",
+    "--js",
+    "core.js",
+    "--chunk",
+    "ui:1:core",
+    "--js",
+    "ui.js",
+    "--chunk_output_word_spec",
+    "%s.js",
+    "--create_source_map",
+    "%s.map"
+  ],
+  "stdin": "",
+  "files": {
+    "core.js": "var coreAPI = { version: 1 };",
+    "ui.js": "var uiWidget = { core: coreAPI };"
+  },
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

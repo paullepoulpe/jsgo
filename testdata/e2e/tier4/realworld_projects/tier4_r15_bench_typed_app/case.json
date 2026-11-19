@@ -1,0 +1,25 @@
+{
+  "id": "tier4_r15_bench_typed_app",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "Benchmark task: typed-app",
+  "description": "Benchmark typed application compilation scenario with type checking and warnings",
+  "args": [
+    "--checks_only",
+    "--jscomp_error=checkTypes",
+    "--warning_level",
+    "VERBOSE",
+    "--js",
+    "app.js"
+  ],
+  "stdin": "",
+  "files": {
+    "app.js": "/** @constructor */ function User(name, age) { /** @type {string} */ this.name = name; /** @type {number} */ this.age = age; }\n/** @return {string} */ User.prototype.info = function() { return this.name + ' (' + this.age + ')'; };\nvar u = new User('Alice', 30);\n"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": "",
+    "output_files": {}
+  }
+}

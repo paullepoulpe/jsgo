@@ -1,0 +1,25 @@
+{
+  "id": "tier1_l02_esnext_to_es2015",
+  "tier": 1,
+  "feature": "language_in_out",
+  "name": "ES_NEXT downlevel to ES2015",
+  "description": "Verifies transpilation down to ECMASCRIPT_2015 preserving classes but downleveling newer syntax",
+  "args": [
+    "--language_in",
+    "ECMASCRIPT_NEXT",
+    "--language_out",
+    "ECMASCRIPT_2015",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "const base = { a: 1 }; const copy = { ...base, b: 2 }; const val = 2 ** 3;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "const base={a:1},copy=Object.assign({},base,{b:2}),val=8;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

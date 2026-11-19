@@ -1,0 +1,3 @@
+var builder = { step: function() { return this; }, done: function() { return 1; } };
+var res = builder.step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().done();
+window['b'] = res;

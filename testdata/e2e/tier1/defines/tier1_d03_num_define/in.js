@@ -1,0 +1,1 @@
+/** @define {number} */ var MAX_RETRIES = 1; window['retries'] = MAX_RETRIES;

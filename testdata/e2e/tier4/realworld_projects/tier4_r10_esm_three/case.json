@@ -1,0 +1,23 @@
+{
+  "id": "tier4_r10_esm_three",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "Three.js 3D math vector module scenario",
+  "description": "Compiles 3D vector and matrix math classes under ADVANCED optimizations",
+  "args": [
+    "--compilation_level",
+    "ADVANCED",
+    "--js",
+    "vector3.js"
+  ],
+  "stdin": "",
+  "files": {
+    "vector3.js": "/** @constructor */ function Vector3(x, y, z) { this.x = x; this.y = y; this.z = z; }\nVector3.prototype.dot = function(v) { return this.x * v.x + this.y * v.y + this.z * v.z; };\nwindow['dotRes'] = new Vector3(1, 2, 3).dot(new Vector3(4, 5, 6));\n"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "function a(d,e,f){this.x=d;this.y=e;this.z=f}var b=new a(1,2,3),c=new a(4,5,6);window.dotRes=b.x*c.x+b.y*c.y+b.z*c.z;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

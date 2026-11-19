@@ -1,0 +1,27 @@
+{
+  "id": "tier4_r14_cjs_handlebars",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "CommonJS template compilation scenario",
+  "description": "CommonJS template compiler and renderer under ADVANCED",
+  "args": [
+    "--process_common_js_modules",
+    "--compilation_level",
+    "ADVANCED",
+    "--js",
+    "tpl.js",
+    "--js",
+    "app.js"
+  ],
+  "stdin": "",
+  "files": {
+    "tpl.js": "exports.render = function(data) { return 'Name: ' + data.name; };",
+    "app.js": "var tpl = require('./tpl.js'); window['rendered'] = tpl.render({ name: 'Closure' });"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "window.rendered=\"Name: Closure\";\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

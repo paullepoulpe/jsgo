@@ -1,0 +1,26 @@
+{
+  "id": "tier1_f02_print_input_delimiter",
+  "tier": 1,
+  "feature": "formatting_output",
+  "name": "Print input delimiter formatting",
+  "description": "Verifies PRINT_INPUT_DELIMITER adds input boundary comments between concatenated files",
+  "args": [
+    "--formatting",
+    "PRINT_INPUT_DELIMITER",
+    "--js",
+    "part1.js",
+    "--js",
+    "part2.js"
+  ],
+  "stdin": "",
+  "files": {
+    "part1.js": "var partA = 1;",
+    "part2.js": "var partB = 2;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "// Input 0\nvar partA=1;\n// Input 1\nvar partB=2;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

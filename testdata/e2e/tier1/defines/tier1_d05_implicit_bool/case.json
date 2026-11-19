@@ -1,0 +1,23 @@
+{
+  "id": "tier1_d05_implicit_bool",
+  "tier": 1,
+  "feature": "defines",
+  "name": "Implicit boolean define flag",
+  "description": "Specifies boolean define flag without explicit =true value",
+  "args": [
+    "-D",
+    "ENABLE_METRICS",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @define {boolean} */ var ENABLE_METRICS = false; window['metrics'] = ENABLE_METRICS;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var ENABLE_METRICS=!0;window.metrics=ENABLE_METRICS;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

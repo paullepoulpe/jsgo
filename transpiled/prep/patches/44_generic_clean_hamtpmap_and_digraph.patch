@@ -1,0 +1,958 @@
+diff --git a/com/google/javascript/jscomp/ControlFlowAnalysis.java b/com/google/javascript/jscomp/ControlFlowAnalysis.java
+--- a/com/google/javascript/jscomp/ControlFlowAnalysis.java
++++ b/com/google/javascript/jscomp/ControlFlowAnalysis.java
+@@ -1057,8 +1057,9 @@
+     @Override
+     public Comparator<DiGraphNode<Node, Branch>> getOptionalNodeComparator(boolean isForward) {
+       return isForward
+-          ? Comparator.<DiGraphNode<Node, Branch>>comparingInt(DiGraphNode::getPriority)
+-          : Comparator.<DiGraphNode<Node, Branch>>comparingInt(DiGraphNode::getPriority).reversed();
++          ? Comparator.comparingInt((DiGraphNode<Node, Branch> dNode) -> dNode.getPriority())
++          : Comparator.comparingInt((DiGraphNode<Node, Branch> dNode) -> dNode.getPriority())
++              .reversed();
+     }
+   }
+ }
+diff --git a/com/google/javascript/jscomp/TypeInferencePass.java b/com/google/javascript/jscomp/TypeInferencePass.java
+--- a/com/google/javascript/jscomp/TypeInferencePass.java
++++ b/com/google/javascript/jscomp/TypeInferencePass.java
+@@ -157,7 +157,7 @@
+     typeInference.analyze();
+ 
+     if (this.stepCountHistogram != null) {
+-      for (DiGraphNode<Node, ?> node : cfg.getNodes()) {
++      for (DiGraphNode<Node, ControlFlowGraph.Branch> node : cfg.getNodes()) {
+         if (node == cfg.getImplicitReturn()) {
+           continue;
+         }
+diff --git a/com/google/javascript/jscomp/disambiguate/AmbiguateProperties.java b/com/google/javascript/jscomp/disambiguate/AmbiguateProperties.java
+--- a/com/google/javascript/jscomp/disambiguate/AmbiguateProperties.java
++++ b/com/google/javascript/jscomp/disambiguate/AmbiguateProperties.java
+@@ -156,7 +156,9 @@
+ 
+     ColorGraphBuilder graphBuilder =
+         new ColorGraphBuilder(
+-            graphNodeFactory, LowestCommonAncestorFinder::new, this.colorRegistry);
++            graphNodeFactory,
++            LowestCommonAncestorFinder<ColorGraphNode, Object>::new,
++            this.colorRegistry);
+     graphBuilder.addAll(graphNodeFactory.getAllKnownTypes());
+     LinkedDirectedGraph<ColorGraphNode, Object> colorGraph = graphBuilder.build();
+     try (LogFile chunkGraphLog = compiler.createOrReopenLog(this.getClass(), "color_graph.dot")) {
+diff --git a/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java b/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java
+--- a/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java
++++ b/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java
+@@ -87,7 +87,10 @@
+         new ColorFindPropertyReferences(
+             flattener, this.compiler.getCodingConvention()::isPropertyRenameFunction);
+     ColorGraphBuilder graphBuilder =
+-        new ColorGraphBuilder(flattener, LowestCommonAncestorFinder::new, this.registry);
++        new ColorGraphBuilder(
++            flattener,
++            LowestCommonAncestorFinder<ColorGraphNode, Object>::new,
++            this.registry);
+     ClusterPropagator propagator = new ClusterPropagator();
+     UseSiteRenamer renamer =
+         new UseSiteRenamer(/* mutationCb= */ this.compiler::reportChangeToEnclosingScope);
+diff --git a/com/google/javascript/jscomp/graph/DominatorTree.java b/com/google/javascript/jscomp/graph/DominatorTree.java
+--- a/com/google/javascript/jscomp/graph/DominatorTree.java
++++ b/com/google/javascript/jscomp/graph/DominatorTree.java
+@@ -63,16 +63,15 @@
+    * @param entry The entry node of the graph.
+    * @return A {@link DominatorTree} instance.
+    */
+-  public static <N> DominatorTree<N> compute(DiGraph<N, ?> graph, N entry) {
++  public static <N, E> DominatorTree<N> compute(DiGraph<N, E> graph, N entry) {
+     checkNotNull(graph.getNode(entry), "Entry node not in graph");
+ 
+     // 1. Post-order traversal to assign indexes to nodes.
+-    List<N> postOrder = new ArrayList<>();
+-    Map<N, Integer> postOrderIndex = new LinkedHashMap<>();
++    ArrayList<N> postOrder = new ArrayList<>();
++    LinkedHashMap<N, Integer> postOrderIndex = new LinkedHashMap<>();
+     buildPostOrder(graph, entry, postOrder, new LinkedHashMap<>());
+ 
+     int numNodes = postOrder.size();
+-    N[] reversePostOrder = toReversedArray(postOrder);
+ 
+     // Map each node to its index in the post-order list.
+     for (int i = 0; i < numNodes; i++) {
+@@ -90,7 +89,8 @@
+     while (changed) {
+       changed = false;
+       // Process nodes in reverse post-order (excluding entry node).
+-      for (N node : reversePostOrder) {
++      for (int r = numNodes - 1; r >= 0; r--) {
++        N node = postOrder.get(r);
+         if (node.equals(entry)) {
+           continue;
+         }
+@@ -99,7 +99,7 @@
+         int newIdomIdx = -1;
+ 
+         // Pick first processed predecessor.
+-        for (DiGraphNode<N, ?> pred : graph.getDirectedPredNodes(node)) {
++        for (DiGraphNode<N, E> pred : graph.getDirectedPredNodes(node)) {
+           N predValue = pred.getValue();
+           Integer predIdx = postOrderIndex.get(predValue);
+           // predIdx can be null if `predValue` is not in the graph. This is normal - it just means
+@@ -112,7 +112,7 @@
+ 
+         if (newIdomIdx != -1) {
+           // Intersect with all other processed predecessors.
+-          for (DiGraphNode<N, ?> pred : graph.getDirectedPredNodes(node)) {
++          for (DiGraphNode<N, E> pred : graph.getDirectedPredNodes(node)) {
+             N predValue = pred.getValue();
+             Integer predIdx = postOrderIndex.get(predValue);
+             // predIdx can be null if `predValue` is not in the graph. This is normal - it just
+@@ -131,7 +131,7 @@
+     }
+ 
+     // 3. Build the result maps.
+-    Map<N, N> idomsMap = new LinkedHashMap<>();
++    LinkedHashMap<N, N> idomsMap = new LinkedHashMap<>();
+     ListMultimap<N, N> children = ArrayListMultimap.create();
+     for (int i = 0; i < numNodes; i++) {
+       N node = postOrder.get(i);
+@@ -143,7 +143,7 @@
+       }
+     }
+ 
+-    Map<N, Integer> sizesMap = new LinkedHashMap<>();
++    LinkedHashMap<N, Integer> sizesMap = new LinkedHashMap<>();
+     computeSubtreeSizes(entry, children, sizesMap);
+ 
+     return new DominatorTree<>(idomsMap, sizesMap);
+@@ -163,10 +163,10 @@
+     return finger1;
+   }
+ 
+-  private static <N> void buildPostOrder(
+-      DiGraph<N, ?> graph, N node, List<N> postOrder, Map<N, Boolean> visited) {
++  private static <N, E> void buildPostOrder(
++      DiGraph<N, E> graph, N node, ArrayList<N> postOrder, LinkedHashMap<N, Boolean> visited) {
+     visited.put(node, true);
+-    for (DiGraphNode<N, ?> succ : graph.getDirectedSuccNodes(node)) {
++    for (DiGraphNode<N, E> succ : graph.getDirectedSuccNodes(node)) {
+       N succValue = succ.getValue();
+       if (!visited.containsKey(succValue)) {
+         buildPostOrder(graph, succValue, postOrder, visited);
+@@ -177,7 +177,7 @@
+ 
+   @CanIgnoreReturnValue
+   private static <N> int computeSubtreeSizes(
+-      N node, ListMultimap<N, N> children, Map<N, Integer> sizes) {
++      N node, ListMultimap<N, N> children, LinkedHashMap<N, Integer> sizes) {
+     int size = 1;
+     List<N> nodeChildren = children.get(node);
+     if (nodeChildren != null) {
+@@ -200,14 +200,4 @@
+   public ImmutableMap<N, Integer> getAllSubtreeSizes() {
+     return subtreeSizes;
+   }
+-
+-  private static <N> N[] toReversedArray(List<N> list) {
+-    int size = list.size();
+-    @SuppressWarnings("unchecked") // we're immediately casting to N[] upon creation.
+-    N[] reversed = (N[]) new Object[size];
+-    for (int i = 0; i < size; i++) {
+-      reversed[i] = list.get(size - 1 - i);
+-    }
+-    return reversed;
+-  }
+ }
+diff --git a/com/google/javascript/jscomp/graph/GraphColoring.java b/com/google/javascript/jscomp/graph/GraphColoring.java
+--- a/com/google/javascript/jscomp/graph/GraphColoring.java
++++ b/com/google/javascript/jscomp/graph/GraphColoring.java
+@@ -17,7 +17,6 @@
+ package com.google.javascript.jscomp.graph;
+ 
+ import static com.google.common.base.Preconditions.checkNotNull;
+-import static java.util.Comparator.comparing;
+ 
+ import java.util.ArrayList;
+ import java.util.Collections;
+@@ -141,15 +140,14 @@
+       // Sort nodes by degree.
+       Collections.sort(
+           worklist,
+-          comparing(
+-              GraphNode::getValue,
+-              // TODO(b/28382956): Take better advantage of Java8 comparing() to simplify this
+-              (leftProperty, rightProperty) -> {
+-                int result = graph.getWeight(rightProperty) - graph.getWeight(leftProperty);
+-                return result == 0 && tieBreaker != null
+-                    ? tieBreaker.compare(leftProperty, rightProperty)
+-                    : result;
+-              }));
++          (GraphNode<N, E> leftNode, GraphNode<N, E> rightNode) -> {
++            N leftProperty = leftNode.getValue();
++            N rightProperty = rightNode.getValue();
++            int result = graph.getWeight(rightProperty) - graph.getWeight(leftProperty);
++            return result == 0 && tieBreaker != null
++                ? tieBreaker.compare(leftProperty, rightProperty)
++                : result;
++          });
+ 
+       // Idea: From the highest to lowest degree, assign any uncolored node with
+       // a unique color if none of its neighbors has been assigned that color.
+diff --git a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+--- a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+@@ -31,7 +31,6 @@
+ import java.util.Collections;
+ import java.util.LinkedHashMap;
+ import java.util.List;
+-import java.util.Map;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -44,7 +43,7 @@
+  * @param <E> Value type that the graph edge stores.
+  */
+ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements GraphvizGraph {
+-  protected final Map<N, LinkedDiGraphNode<N, E>> nodes = new LinkedHashMap<>();
++  protected final LinkedHashMap<N, LinkedDiGraphNode<N, E>> nodes = new LinkedHashMap<>();
+ 
+   @Override
+   public SubGraph<N, E> newSubGraph() {
+@@ -116,7 +115,7 @@
+   public void disconnectInDirection(N srcValue, N destValue) {
+     LinkedDiGraphNode<N, E> src = getNodeOrFail(srcValue);
+     LinkedDiGraphNode<N, E> dest = getNodeOrFail(destValue);
+-    for (DiGraphEdge<?, E> edge : getEdgesInDirection(srcValue, destValue)) {
++    for (LinkedDiGraphEdge<N, E> edge : getEdgesInDirection(srcValue, destValue)) {
+       src.removeOutEdge(edge);
+       dest.removeInEdge(edge);
+     }
+@@ -494,7 +493,7 @@
+       }
+     }
+ 
+-    void removeInEdge(DiGraphEdge<?, E> edge) {
++    void removeInEdge(LinkedDiGraphEdge<N, E> edge) {
+       if (inEdges != null) {
+         if (inEdges.remove(edge)) {
+           if (inEdges.size() == 1) {
+@@ -509,7 +508,7 @@
+       }
+     }
+ 
+-    void removeOutEdge(DiGraphEdge<?, E> edge) {
++    void removeOutEdge(LinkedDiGraphEdge<N, E> edge) {
+       if (outEdges != null) {
+         if (outEdges.remove(edge)) {
+           if (outEdges.size() == 1) {
+diff --git a/com/google/javascript/jscomp/graph/LinkedUndirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedUndirectedGraph.java
+--- a/com/google/javascript/jscomp/graph/LinkedUndirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedUndirectedGraph.java
+@@ -24,7 +24,6 @@
+ import java.util.Iterator;
+ import java.util.LinkedHashMap;
+ import java.util.List;
+-import java.util.Map;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -37,7 +36,7 @@
+  */
+ public final class LinkedUndirectedGraph<N, E>
+     extends UndiGraph<N, E> implements GraphvizGraph {
+-  final Map<N, LinkedUndirectedGraphNode<N, E>> nodes = new LinkedHashMap<>();
++  final LinkedHashMap<N, LinkedUndirectedGraphNode<N, E>> nodes = new LinkedHashMap<>();
+ 
+   @Override
+   public SubGraph<N, E> newSubGraph() {
+@@ -92,11 +91,11 @@
+ 
+   @Override
+   public @Nullable List<UndiGraphEdge<N, E>> getUndirectedGraphEdges(N n1, N n2) {
+-    UndiGraphNode<N, E> dNode1 = nodes.get(n1);
++    LinkedUndirectedGraphNode<N, E> dNode1 = nodes.get(n1);
+     if (dNode1 == null) {
+       return null;
+     }
+-    UndiGraphNode<N, E> dNode2 = nodes.get(n2);
++    LinkedUndirectedGraphNode<N, E> dNode2 = nodes.get(n2);
+     if (dNode2 == null) {
+       return null;
+     }
+@@ -111,7 +110,8 @@
+ 
+   @Override
+   public UndiGraphNode<N, E> getUndirectedGraphNode(N nodeValue) {
+-    return nodes.get(nodeValue);
++    LinkedUndirectedGraphNode<N, E> node = nodes.get(nodeValue);
++    return node;
+   }
+ 
+   @Override
+@@ -170,11 +170,11 @@
+   }
+ 
+   private boolean isConnected(N n1, Predicate<E> edgePredicate, N n2) {
+-    UndiGraphNode<N, E> dNode1 = nodes.get(n1);
++    LinkedUndirectedGraphNode<N, E> dNode1 = nodes.get(n1);
+     if (dNode1 == null) {
+       return false;
+     }
+-    UndiGraphNode<N, E> dNode2 = nodes.get(n2);
++    LinkedUndirectedGraphNode<N, E> dNode2 = nodes.get(n2);
+     if (dNode2 == null) {
+       return false;
+     }
+diff --git a/com/google/javascript/rhino/HamtPMap.java b/com/google/javascript/rhino/HamtPMap.java
+--- a/com/google/javascript/rhino/HamtPMap.java
++++ b/com/google/javascript/rhino/HamtPMap.java
+@@ -42,16 +42,12 @@
+ import static com.google.common.base.Preconditions.checkState;
+ 
+ import com.google.common.annotations.VisibleForTesting;
+-import com.google.common.base.Function;
+ import com.google.errorprone.annotations.CheckReturnValue;
+ import com.google.javascript.rhino.PMap.Reconciler;
+ import java.io.Serializable;
+ import java.util.ArrayDeque;
+-import java.util.Arrays;
+ import java.util.Collections;
+-import java.util.Deque;
+ import java.util.Iterator;
+-import java.util.Objects;
+ import java.util.function.BiPredicate;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -64,9 +60,9 @@
+  * and children. It is also optimized to take maximum advantage of binary operations on shared
+  * trees. Specifically, {@link #reconcile} avoids recursing into entire subtrees if they are
+  * identical objects. Null keys and values are not allowed. The implementation special-cases away
+- * the EMPTY map as soon as possible, using 'null' instead for all the logic (since EMPTY violates
+- * the invariant that key and value are non-null). Finally, we maintain an invariant that the
+- * entry with the smallest hash code is always at the root of the tree, which avoids almost all
++ * the empty map as soon as possible, using 'null' instead for all the logic (since an empty map
++ * violates the invariant that key and value are non-null). Finally, we maintain an invariant that
++ * the entry with the smallest hash code is always at the root of the tree, which avoids almost all
+  * extra tree rebuilding during binary operations.
+  */
+ // TODO(sdh): Consider using tricks from https://bendyworks.com/blog/leveling-clojures-hash-maps
+@@ -88,29 +84,40 @@
+   /** Number of bits to shift off to get the most significant BITS number of bits. */
+   private static final int BITS_SHIFT = 32 - BITS;
+ 
+-  /** Non-null key (exception: empty map has a null key). */
++  /** Non-null key when {@code present} is true. */
+   private final @Nullable K key;
+ 
+   /** Hash of the key, right-shifted by BITS*depth. */
+   private final int hash;
+ 
+-  /** Non-null value (exceptions: (1) empty map, (2) result of pivot, if not found). */
++  /** Non-null value when {@code present} is true. */
+   private final @Nullable V value;
+ 
++  /** Whether this root node holds a key-value entry (false for empty, vacated, or unfound pivot). */
++  private final boolean present;
++
+   /** Bit mask indicating the children that are present (bitCount(mask) == children.length). */
+   private final int mask;
+ 
+-  /** Non-null array of children. Elements are never reassigned. */
+-  private final HamtPMap<K, V>[] children;
++  /** Nullable array of children (null iff mask == 0). Elements are never reassigned. */
++  private final HamtPMap<K, V> @Nullable [] children;
+ 
+-  private static final HamtPMap<?, ?>[] EMPTY_CHILDREN = new HamtPMap<?, ?>[0];
+-  private static final HamtPMap<?, ?> EMPTY =
+-      new HamtPMap<>(null, 0, null, 0, emptyChildren());
++  private static final class Holder<V> {
++    boolean found;
++    @Nullable V value;
++  }
+ 
+-  private HamtPMap(K key, int hash, V value, int mask, HamtPMap<K, V>[] children) {
++  private HamtPMap(
++      @Nullable K key,
++      int hash,
++      @Nullable V value,
++      boolean present,
++      int mask,
++      HamtPMap<K, V> @Nullable [] children) {
+     this.key = key;
+     this.hash = hash;
+     this.value = value;
++    this.present = present;
+     this.mask = mask;
+     this.children = children;
+ 
+@@ -118,23 +125,21 @@
+   }
+ 
+   private void checkInvariants() {
++    if (this.mask == 0) {
++      checkState(this.children == null);
++      return;
++    }
++    checkNotNull(this.children);
+     checkState(Integer.bitCount(this.mask) == this.children.length);
+-    for (HamtPMap<?, ?> child : this.children) {
++    for (HamtPMap<K, V> child : this.children) {
+       checkNotNull(child);
+     }
+   }
+ 
+   /** Returns an empty map. */
+-  @SuppressWarnings("unchecked") // Empty immutable collection is safe to cast.
+   @CheckReturnValue
+   public static <K, V> HamtPMap<K, V> empty() {
+-    return (HamtPMap<K, V>) EMPTY;
+-  }
+-
+-  /** Returns an empty array of child maps. */
+-  @SuppressWarnings("unchecked") // Empty array is safe to cast.
+-  private static <K, V> HamtPMap<K, V>[] emptyChildren() {
+-    return (HamtPMap<K, V>[]) EMPTY_CHILDREN;
++    return new HamtPMap<>(null, 0, null, false, 0, null);
+   }
+ 
+   @Override
+@@ -153,8 +158,10 @@
+       sb.append(", ");
+     }
+     sb.append(key).append(": ").append(value);
+-    for (HamtPMap<K, V> child : children) {
+-      child.appendTo(sb);
++    if (children != null) {
++      for (HamtPMap<K, V> child : children) {
++        child.appendTo(sb);
++      }
+     }
+   }
+ 
+@@ -162,7 +169,7 @@
+   @Override
+   @CheckReturnValue
+   public boolean isEmpty() {
+-    return key == null;
++    return !present && mask == 0;
+   }
+ 
+   /** Returns an iterable for a (possibly null) tree. */
+@@ -172,7 +179,7 @@
+     if (isEmpty()) {
+       return Collections.<V>emptyList();
+     }
+-    return () -> new Iter<>(this, map -> map.value);
++    return () -> new ValueIter<>(this);
+   }
+ 
+   /** Returns an iterable for a (possibly null) tree. */
+@@ -182,7 +189,7 @@
+     if (isEmpty()) {
+       return Collections.emptyList();
+     }
+-    return () -> new Iter<>(this, map -> map.key);
++    return () -> new KeyIter<>(this);
+   }
+ 
+   /**
+@@ -191,12 +198,12 @@
+    */
+   @Override
+   @CheckReturnValue
+-  public V get(K key) {
++  public @Nullable V get(K key) {
+     return !isEmpty() ? get(key, hash(key)) : null;
+   }
+ 
+   /** Internal recursive implementation of get(K). */
+-  private V get(K key, int hash) {
++  private @Nullable V get(K key, int hash) {
+     if (hash == this.hash && key.equals(this.key)) {
+       return this.value;
+     }
+@@ -216,7 +223,7 @@
+ 
+     return !isEmpty()
+         ? plus(key, hash(key), value)
+-        : new HamtPMap<>(key, hash(key), value, 0, emptyChildren());
++        : new HamtPMap<>(key, hash(key), value, true, 0, null);
+   }
+ 
+   /** Internal recursive implementation of plus(K, V). */
+@@ -224,7 +231,7 @@
+     if (hash == this.hash && key.equals(this.key)) {
+       return value.equals(this.value)
+           ? this
+-          : new HamtPMap<>(key, hash, value, mask, children);
++          : new HamtPMap<>(key, hash, value, true, mask, children);
+     }
+     if (compareUnsigned(hash, this.hash) < 0) {
+       return replaceRoot(key, hash, value);
+@@ -240,7 +247,7 @@
+       return child == newChild ? this : withChildren(mask, replaceChild(children, index, newChild));
+     } else {
+       // insert at index
+-      HamtPMap<K, V> newChild = new HamtPMap<>(key, hash, value, 0, emptyChildren());
++      HamtPMap<K, V> newChild = new HamtPMap<>(key, hash, value, true, 0, null);
+       return withChildren(mask | bucketMask, insertChild(children, index, newChild));
+     }
+   }
+@@ -255,10 +262,10 @@
+       newChildren =
+           replaceChild(children, index, children[index].plus(this.key, leafHash, this.value));
+     } else {
+-      HamtPMap<K, V> newChild = new HamtPMap<>(this.key, leafHash, this.value, 0, emptyChildren());
++      HamtPMap<K, V> newChild = new HamtPMap<>(this.key, leafHash, this.value, true, 0, null);
+       newChildren = insertChild(children, index, newChild);
+     }
+-    return new HamtPMap<>(key, hash, value, mask | bucketMask, newChildren);
++    return new HamtPMap<>(key, hash, value, true, mask | bucketMask, newChildren);
+   }
+ 
+   /**
+@@ -273,13 +280,14 @@
+ 
+   /**
+    * Internal recursive implementation of minus(K). The value of the removed node is returned via
+-   * the 'value' array, if it is non-null.
++   * 'removed', if it is non-null.
+    */
+-  private HamtPMap<K, V> minus(K key, int hash, V @Nullable [] value) {
++  private HamtPMap<K, V> minus(K key, int hash, @Nullable Holder<V> removed) {
+     if (hash == this.hash && key.equals(this.key)) {
+       HamtPMap<K, V> result = deleteRoot(mask, children);
+-      if (value != null) {
+-        value[0] = this.value;
++      if (removed != null) {
++        removed.found = true;
++        removed.value = this.value;
+       }
+       return result != null ? result : empty();
+     }
+@@ -292,10 +300,10 @@
+     hash = shift(hash);
+     int index = index(bucketMask);
+     HamtPMap<K, V> child = children[index];
+-    HamtPMap<K, V> newChild = child.minus(key, hash, value);
++    HamtPMap<K, V> newChild = child.minus(key, hash, removed);
+     if (newChild == child) {
+       return this;
+-    } else if (newChild == EMPTY) {
++    } else if (newChild.isEmpty()) {
+       return withChildren(mask & ~bucketMask, deleteChild(children, index));
+     } else {
+       return withChildren(mask, replaceChild(children, index, newChild));
+@@ -314,28 +322,58 @@
+   }
+ 
+   /** Internal recursive implementation of reconcile(HamtPMap, BiFunction), factoring out empies. */
+-  private static <K, V> HamtPMap<K, V> reconcile(
++  private static <K, V> @Nullable HamtPMap<K, V> reconcile(
+       @Nullable HamtPMap<K, V> t1, @Nullable HamtPMap<K, V> t2, Reconciler<K, V> joiner) {
+     if (t1 == t2) {
+       return t1;
+     } else if (t1 == null) {
+       V newValue = joiner.merge(t2.key, null, t2.value);
+-      HamtPMap<K, V>[] newChildren = Arrays.copyOf(t2.children, t2.children.length);
+-      for (int i = 0; i < newChildren.length; i++) {
+-        newChildren[i] = reconcile(null, newChildren[i], joiner);
++      int childMask = t2.mask;
++      HamtPMap<K, V>[] newChildren = null;
++      if (t2.children != null) {
++        @SuppressWarnings("unchecked")
++        HamtPMap<K, V>[] copied = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[t2.children.length];
++        int rem = childMask;
++        int outIdx = 0;
++        for (int i = 0; i < t2.children.length; i++) {
++          int bit = Integer.lowestOneBit(rem);
++          rem &= ~bit;
++          HamtPMap<K, V> c = reconcile(null, t2.children[i], joiner);
++          if (c != null) {
++            copied[outIdx++] = c;
++          } else {
++            childMask &= ~bit;
++          }
++        }
++        newChildren = trimChildren(copied, outIdx);
+       }
+       return newValue != null
+-          ? new HamtPMap<>(t2.key, t2.hash, newValue, t2.mask, newChildren)
+-          : deleteRoot(t2.mask, newChildren);
++          ? new HamtPMap<>(t2.key, t2.hash, newValue, true, childMask, newChildren)
++          : deleteRoot(childMask, newChildren);
+     } else if (t2 == null) {
+       V newValue = joiner.merge(t1.key, t1.value, null);
+-      HamtPMap<K, V>[] newChildren = Arrays.copyOf(t1.children, t1.children.length);
+-      for (int i = 0; i < newChildren.length; i++) {
+-        newChildren[i] = reconcile(newChildren[i], null, joiner);
++      int childMask = t1.mask;
++      HamtPMap<K, V>[] newChildren = null;
++      if (t1.children != null) {
++        @SuppressWarnings("unchecked")
++        HamtPMap<K, V>[] copied = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[t1.children.length];
++        int rem = childMask;
++        int outIdx = 0;
++        for (int i = 0; i < t1.children.length; i++) {
++          int bit = Integer.lowestOneBit(rem);
++          rem &= ~bit;
++          HamtPMap<K, V> c = reconcile(t1.children[i], null, joiner);
++          if (c != null) {
++            copied[outIdx++] = c;
++          } else {
++            childMask &= ~bit;
++          }
++        }
++        newChildren = trimChildren(copied, outIdx);
+       }
+       return newValue != null
+-          ? new HamtPMap<>(t1.key, t1.hash, newValue, t1.mask, newChildren)
+-          : deleteRoot(t1.mask, newChildren);
++          ? new HamtPMap<>(t1.key, t1.hash, newValue, true, childMask, newChildren)
++          : deleteRoot(childMask, newChildren);
+     }
+ 
+     // Try as hard as possible to return input trees exactly.
+@@ -361,12 +399,18 @@
+       t2 = t2.pivot(t1.key, t1.hash);
+       sameChildrenAs2 = false;
+     }
+-    // Note: one or the other (but not both) tree may have a null key at root.
++    // Note: one or the other (but not both) tree may have a vacated/absent root (!present).
+ 
+-    V newValue =
+-        Objects.equals(t1.value, t2.value)
+-            ? t1.value
+-            : joiner.merge(t1.key != null ? t1.key : t2.key, t1.value, t2.value);
++    V newValue;
++    if (!t1.present) {
++      newValue = joiner.merge(t2.key, null, t2.value);
++    } else if (!t2.present) {
++      newValue = joiner.merge(t1.key, t1.value, null);
++    } else if (t1.value.equals(t2.value)) {
++      newValue = t1.value;
++    } else {
++      newValue = joiner.merge(t1.key, t1.value, t2.value);
++    }
+     int newMask = t1.mask | t2.mask;
+     sameChildrenAs1 &= (newMask == t1.mask);
+     sameChildrenAs2 &= (newMask == t2.mask);
+@@ -375,7 +419,7 @@
+     HamtPMap<K, V>[] newChildren =
+         newMask != 0
+             ? (HamtPMap<K, V>[]) new HamtPMap<?, ?>[Integer.bitCount(newMask)]
+-            : emptyChildren();
++            : null;
+     int mask = newMask;
+     int index = 0;
+     while (mask != 0) {
+@@ -392,16 +436,33 @@
+         newMask &= ~childBit;
+       }
+     }
+-    if (sameChildrenAs1 && t1.value.equals(newValue)) {
++    newChildren = trimChildren(newChildren, index);
++    if (sameChildrenAs1 && t1.present && t1.value.equals(newValue)) {
+       return t1;
+-    } else if (sameChildrenAs2 && t2.value.equals(newValue)) {
++    } else if (sameChildrenAs2 && t2.present && t2.value.equals(newValue)) {
+       return t2;
+     } else if (newValue == null) {
+       return deleteRoot(newMask, newChildren);
+     }
+-    return new HamtPMap<>(key, hash, newValue, newMask, newChildren);
++    return new HamtPMap<>(key, hash, newValue, true, newMask, newChildren);
+   }
+ 
++  private static <K, V> HamtPMap<K, V> @Nullable [] trimChildren(
++      HamtPMap<K, V> @Nullable [] children, int count) {
++    if (count == 0 || children == null) {
++      return null;
++    }
++    if (count == children.length) {
++      return children;
++    }
++    @SuppressWarnings("unchecked")
++    HamtPMap<K, V>[] trimmed = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[count];
++    for (int i = 0; i < count; i++) {
++      trimmed[i] = children[i];
++    }
++    return trimmed;
++  }
++
+   /**
+    * Checks equality recursively based on the given equivalence. Short-circuits as soon as a 'false'
+    * result is found.
+@@ -430,8 +491,8 @@
+     } else if (!t1.key.equals(t2.key)) {
+       // Hash collision: try to rearrange t2 to have the same root as t1
+       t2 = t2.pivot(t1.key, t1.hash);
+-      if (t2.value == null) {
+-        // pivot() returns a null 't2.value' when t1.key was not found in t2
++      if (!t2.present) {
++        // pivot() returns '!t2.present' when t1.key was not found in t2
+         return false;
+       }
+     }
+@@ -504,28 +565,28 @@
+ 
+   /**
+    * Returns a new version of this map with the given key at the root, and the root element moved to
+-   * some deeper node. If the key is not found in this map, then value will be null in the returned
+-   * map.
++   * some deeper node. If the key is not found in this map, then {@code present} will be false in
++   * the returned map.
+    */
+-  @SuppressWarnings("unchecked")
+   private HamtPMap<K, V> pivot(K key, int hash) {
+-    return pivot(key, hash, null, (V[]) new Object[1]);
++    return pivot(key, hash, null, new Holder<>());
+   }
+ 
+   /**
+    * Internal recursive version of pivot.
+    *
+-   * @param result an array of size 1. The value, if found, is stored in the 'result' array, as a
+-   *     secondary return value. Otherwise the result array is unchanged.
+-   * @return if parent is null, a map whose value is the value from the 'result' array (possibly
+-   *     null) and that is rooted at 'key'. Otherwise, a map rooted at 'parent.key'.
++   * @param result holder receiving the value if found. Otherwise {@code result.found} stays false.
++   * @return if parent is null, a map whose value is from {@code result} and that is rooted at
++   *     'key'. Otherwise, a map rooted at 'parent.key'.
+    */
+-  private HamtPMap<K, V> pivot(K key, int hash, @Nullable HamtPMap<K, V> parent, V[] result) {
++  private HamtPMap<K, V> pivot(
++      K key, int hash, @Nullable HamtPMap<K, V> parent, Holder<V> result) {
+     int newMask = mask;
+     HamtPMap<K, V>[] newChildren = this.children;
+     if (hash == this.hash && key.equals(this.key)) {
+       // Found the key: swap out this key/value with the parent and return the result in the holder.
+-      result[0] = this.value;
++      result.found = true;
++      result.value = this.value;
+     } else {
+       // Otherwise, see if the value might be present in a child.
+       int searchBucket = bucket(hash);
+@@ -564,14 +625,14 @@
+               insertChild(
+                   newChildren,
+                   index,
+-                  new HamtPMap<>(this.key, shift(this.hash), this.value, 0, emptyChildren()));
++                  new HamtPMap<>(this.key, shift(this.hash), this.value, true, 0, null));
+           newMask |= replacementMask;
+         }
+       }
+     }
+     return parent != null
+-        ? new HamtPMap<>(parent.key, shift(parent.hash), parent.value, newMask, newChildren)
+-        : new HamtPMap<>(key, hash, result[0], newMask, newChildren);
++        ? new HamtPMap<>(parent.key, shift(parent.hash), parent.value, true, newMask, newChildren)
++        : new HamtPMap<>(key, hash, result.value, result.found, newMask, newChildren);
+   }
+ 
+   /** Moves the root into the appropriate child. */
+@@ -581,25 +642,27 @@
+     int index = index(bucketMask);
+     if ((mask & bucketMask) != 0) {
+       HamtPMap<K, V> newChild = children[index].plus(this.key, shift(this.hash), this.value);
+-      return new HamtPMap<>(null, 0, null, mask, replaceChild(children, index, newChild));
++      return new HamtPMap<>(null, 0, null, false, mask, replaceChild(children, index, newChild));
+     }
+     HamtPMap<K, V> newChild =
+-        new HamtPMap<>(this.key, shift(this.hash), this.value, 0, emptyChildren());
+-    return new HamtPMap<>(null, 0, null, mask | bucketMask, insertChild(children, index, newChild));
++        new HamtPMap<>(this.key, shift(this.hash), this.value, true, 0, null);
++    return new HamtPMap<>(
++        null, 0, null, false, mask | bucketMask, insertChild(children, index, newChild));
+   }
+ 
+   /** Returns a copy of this node with a different array of children. */
+-  private HamtPMap<K, V> withChildren(int mask, HamtPMap<K, V>[] children) {
++  private HamtPMap<K, V> withChildren(int mask, HamtPMap<K, V> @Nullable [] children) {
+     return mask == this.mask && children == this.children
+         ? this
+-        : new HamtPMap<>(key, hash, value, mask, children);
++        : new HamtPMap<>(key, hash, value, present, mask, children);
+   }
+ 
+   /**
+    * Returns a new map with the elements from children. One element is removed from one of the
+    * children and promoted to a root node. If there are no children, returns null.
+    */
+-  private static <K, V> @Nullable HamtPMap<K, V> deleteRoot(int mask, HamtPMap<K, V>[] children) {
++  private static <K, V> @Nullable HamtPMap<K, V> deleteRoot(
++      int mask, HamtPMap<K, V> @Nullable [] children) {
+     if (mask == 0) {
+       return null;
+     }
+@@ -609,53 +672,65 @@
+     HamtPMap<K, V> newChild = deleteRoot(child.mask, child.children);
+     if (newChild == null) {
+       int newMask = mask & ~Integer.lowestOneBit(mask);
+-      return new HamtPMap<>(child.key, newHash, child.value, newMask, deleteChild(children, 0));
++      return new HamtPMap<>(
++          child.key, newHash, child.value, true, newMask, deleteChild(children, 0));
+     } else {
+       return new HamtPMap<>(
+-          child.key, newHash, child.value, mask, replaceChild(children, 0, newChild));
++          child.key, newHash, child.value, true, mask, replaceChild(children, 0, newChild));
+     }
+   }
+ 
+   /** Returns a new array of children with an additional child inserted at the given index. */
+   private static <K, V> HamtPMap<K, V>[] insertChild(
+-      HamtPMap<K, V>[] children, int index, HamtPMap<K, V> child) {
++      HamtPMap<K, V> @Nullable [] children, int index, HamtPMap<K, V> child) {
++    int oldLen = children == null ? 0 : children.length;
+     @SuppressWarnings("unchecked") // only used internally.
+-    HamtPMap<K, V>[] newChildren = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[children.length + 1];
++    HamtPMap<K, V>[] newChildren = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[oldLen + 1];
++    for (int i = 0; i < index; i++) {
++      newChildren[i] = children[i];
++    }
+     newChildren[index] = child;
+-    System.arraycopy(children, 0, newChildren, 0, index);
+-    System.arraycopy(children, index, newChildren, index + 1, children.length - index);
++    for (int i = index; i < oldLen; i++) {
++      newChildren[i + 1] = children[i];
++    }
+     return newChildren;
+   }
+ 
+   /** Returns a new array of children with the child at the given index replaced. */
+   private static <K, V> HamtPMap<K, V>[] replaceChild(
+       HamtPMap<K, V>[] children, int index, HamtPMap<K, V> child) {
+-    HamtPMap<K, V>[] newChildren = Arrays.copyOf(children, children.length);
++    @SuppressWarnings("unchecked") // only used internally.
++    HamtPMap<K, V>[] newChildren = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[children.length];
++    for (int i = 0; i < children.length; i++) {
++      newChildren[i] = children[i];
++    }
+     newChildren[index] = child;
+     return newChildren;
+   }
+ 
+   /** Returns a new array of children with the child at the given index deleted. */
+-  private static <K, V> HamtPMap<K, V>[] deleteChild(
++  private static <K, V> HamtPMap<K, V> @Nullable [] deleteChild(
+       HamtPMap<K, V>[] children, int index) {
+     if (children.length == 1) {
+       // Note: index should always be zero.
+-      return emptyChildren();
++      return null;
+     }
+     @SuppressWarnings("unchecked") // only used internally.
+     HamtPMap<K, V>[] newChildren = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[children.length - 1];
+-    System.arraycopy(children, 0, newChildren, 0, index);
+-    System.arraycopy(children, index + 1, newChildren, index, children.length - index - 1);
++    for (int i = 0; i < index; i++) {
++      newChildren[i] = children[i];
++    }
++    for (int i = index + 1; i < children.length; i++) {
++      newChildren[i - 1] = children[i];
++    }
+     return newChildren;
+   }
+ 
+-  /** Iterates sequentially over a tree. */
+-  private static class Iter<K, V, O> implements Iterator<O> {
+-    final Deque<HamtPMap<K, V>> queue = new ArrayDeque<>();
+-    final Function<HamtPMap<K, V>, O> transformer;
++  /** Iterates sequentially over keys in a tree. */
++  private static final class KeyIter<K, V> implements Iterator<K> {
++    final ArrayDeque<HamtPMap<K, V>> queue = new ArrayDeque<>();
+ 
+-    Iter(HamtPMap<K, V> map, Function<HamtPMap<K, V>, O> transformer) {
+-      this.transformer = transformer;
++    KeyIter(HamtPMap<K, V> map) {
+       if (!map.isEmpty()) {
+         queue.add(map);
+       }
+@@ -667,12 +742,14 @@
+     }
+ 
+     @Override
+-    public O next() {
++    public K next() {
+       HamtPMap<K, V> top = queue.removeFirst();
+-      for (int i = top.children.length - 1; i >= 0; i--) {
+-        queue.add(top.children[i]);
++      if (top.children != null) {
++        for (int i = top.children.length - 1; i >= 0; i--) {
++          queue.add(top.children[i]);
++        }
+       }
+-      return transformer.apply(top);
++      return top.key;
+     }
+ 
+     @Override
+@@ -681,6 +758,38 @@
+     }
+   }
+ 
++  /** Iterates sequentially over values in a tree. */
++  private static final class ValueIter<K, V> implements Iterator<V> {
++    final ArrayDeque<HamtPMap<K, V>> queue = new ArrayDeque<>();
++
++    ValueIter(HamtPMap<K, V> map) {
++      if (!map.isEmpty()) {
++        queue.add(map);
++      }
++    }
++
++    @Override
++    public boolean hasNext() {
++      return !queue.isEmpty();
++    }
++
++    @Override
++    public V next() {
++      HamtPMap<K, V> top = queue.removeFirst();
++      if (top.children != null) {
++        for (int i = top.children.length - 1; i >= 0; i--) {
++          queue.add(top.children[i]);
++        }
++      }
++      return top.value;
++    }
++
++    @Override
++    public void remove() {
++      throw new UnsupportedOperationException();
++    }
++  }
++
+   /** Throws an assertion error if the map invariant is violated. */
+   @VisibleForTesting
+   HamtPMap<K, V> assertCorrectStructure() {
+@@ -688,14 +797,24 @@
+       return this;
+     }
+     int hash = hash(key);
+-    for (int i = 0; i < children.length; i++) {
+-      int childHash = hash(children[i].key);
+-      if (compareUnsigned(childHash, hash) < 0) {
+-          throw new AssertionError("Invalid map has decreasing hash " + children[i].key + "("
+-              + Integer.toHexString(childHash) + ") beneath " + key + "("
+-              + Integer.toHexString(hash) + ": " + this);
++    if (children != null) {
++      for (int i = 0; i < children.length; i++) {
++        int childHash = hash(children[i].key);
++        if (compareUnsigned(childHash, hash) < 0) {
++          throw new AssertionError(
++              "Invalid map has decreasing hash "
++                  + children[i].key
++                  + "("
++                  + Integer.toHexString(childHash)
++                  + ") beneath "
++                  + key
++                  + "("
++                  + Integer.toHexString(hash)
++                  + ": "
++                  + this);
++        }
++        children[i].assertCorrectStructure();
+       }
+-      children[i].assertCorrectStructure();
+     }
+     return this;
+   }

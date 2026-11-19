@@ -1,0 +1,2741 @@
+diff --git a/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java b/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java
+index 221a3d4b..ff4d908c 100644
+--- a/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java
++++ b/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java
+@@ -22,6 +22,7 @@ import static com.google.common.base.Preconditions.checkState;
+ 
+ import com.google.common.base.Predicate;
+ import com.google.common.base.Predicates;
++import com.google.common.collect.ImmutableSet;
+ import com.google.javascript.jscomp.ControlFlowGraph.AbstractCfgNodeTraversalCallback;
+ import com.google.javascript.jscomp.ControlFlowGraph.Branch;
+ import com.google.javascript.jscomp.MustBeReachingVariableDef.Definition;
+@@ -75,7 +76,7 @@ class FlowSensitiveInlineVariables implements CompilerPass, ScopedCallback {
+   // These two pieces of data is persistent in the whole execution of enter
+   // scope.
+   private ControlFlowGraph<Node> cfg;
+-  private Set<Candidate> candidates;
++  private @Nullable LinkedHashSet<Candidate> candidates;
+   private MustBeReachingVariableDef reachingDef;
+   private MaybeReachingVariableUse reachingUses;
+ 
+@@ -196,7 +197,7 @@ class FlowSensitiveInlineVariables implements CompilerPass, ScopedCallback {
+ 
+       reachingDef = new MustBeReachingVariableDef(cfg, compiler, escaped, allVarsInFn);
+       reachingDef.analyze();
+-      candidates = new LinkedHashSet<>();
++      candidates = null;
+ 
+       // Using the forward reaching definition search to find all the inline
+       // candidates
+@@ -205,7 +206,7 @@ class FlowSensitiveInlineVariables implements CompilerPass, ScopedCallback {
+       // Compute the backward reaching use. The CFG and per-function variable info can be reused.
+       reachingUses = new MaybeReachingVariableUse(cfg, escaped, allVarsInFn);
+       reachingUses.analyze();
+-      while (!candidates.isEmpty()) {
++      while (candidates != null && !candidates.isEmpty()) {
+         Candidate c = candidates.iterator().next();
+         Var candidateVar = checkNotNull(allVarsInFn.get(c.varName));
+         if (c.canInline(candidateVar.getScope())) {
+@@ -219,11 +220,12 @@ class FlowSensitiveInlineVariables implements CompilerPass, ScopedCallback {
+           // Ideally we should iterate to a fixed point, but that can be costly. Therefore, we use
+           // a conservative heuristic here: For each candidate "other", we back off if its set of
+           // dependencies cannot contain all of "c"'s dependencies.
+-          if (!c.defMetadata.depends.isEmpty()) {
++          if (!c.defMetadata.isEmptyDepends()) {
++            Var cVar = t.getScope().getVar(c.varName);
+             for (Iterator<Candidate> it = candidates.iterator(); it.hasNext(); ) {
+               Candidate other = it.next();
+-              if (other.defMetadata.depends.contains(t.getScope().getVar(c.varName))
+-                  && !other.defMetadata.depends.containsAll(c.defMetadata.depends)) {
++              if (other.defMetadata.hasDependency(cVar)
++                  && !other.defMetadata.containsAllDependencies(c.defMetadata)) {
+                 it.remove();
+               }
+             }
+@@ -333,6 +335,9 @@ class FlowSensitiveInlineVariables implements CompilerPass, ScopedCallback {
+         // TODO(nicksantos): We need to add some notion of @const outer
+         // scope vars. We can inline those just fine.
+         if (def != null && !reachingDef.dependsOnOuterScopeVars(def)) {
++          if (candidates == null) {
++            candidates = new LinkedHashSet<>();
++          }
+           candidates.add(new Candidate(name, def, n, cfgNode));
+         }
+       }
+@@ -414,11 +419,12 @@ class FlowSensitiveInlineVariables implements CompilerPass, ScopedCallback {
+         return false;
+       }
+ 
+-      Set<String> namesToCheck = new LinkedHashSet<>();
+-      if (defMetadata.depends != null) {
+-        for (Var var : defMetadata.depends) {
+-          namesToCheck.add(var.getName());
+-        }
++      Set<String> namesToCheck;
++      if (defMetadata.isEmptyDepends()) {
++        namesToCheck = ImmutableSet.of();
++      } else {
++        namesToCheck = new LinkedHashSet<>(4);
++        defMetadata.addDependencyNamesTo(namesToCheck);
+       }
+ 
+       SideEffectPredicate sideEffectPredicateWithNames = new SideEffectPredicate(namesToCheck);
+@@ -458,7 +464,7 @@ class FlowSensitiveInlineVariables implements CompilerPass, ScopedCallback {
+         return false;
+       }
+ 
+-      if (!hasExactlyOne(reachingUses.getUses(varName, getDefCfgNode()))) {
++      if (!reachingUses.hasSingleUse(varName, getDefCfgNode())) {
+         return false;
+       }
+ 
+diff --git a/com/google/javascript/jscomp/MaybeReachingVariableUse.java b/com/google/javascript/jscomp/MaybeReachingVariableUse.java
+index b8740a0f..4a9e0062 100644
+--- a/com/google/javascript/jscomp/MaybeReachingVariableUse.java
++++ b/com/google/javascript/jscomp/MaybeReachingVariableUse.java
+@@ -30,6 +30,7 @@ import com.google.javascript.rhino.Node;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Set;
++import org.jspecify.annotations.Nullable;
+ 
+ /**
+  * Computes "may be" reaching use for all definitions of each variable.
+@@ -68,48 +69,97 @@ import java.util.Set;
+  */
+ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+   // The scope of the function that we are analyzing.
+-  private final Set<Var> escaped;
+-  private final Map<String, Var> allVarsInFn;
++  private final int numVars;
++  private final String[] varNames;
++  private final boolean[] isEscaped;
++  private final String @Nullable [] nameTable;
++  private final int @Nullable [] indexTable;
++  private final ReachingUses emptyLattice;
++  private @Nullable ReachingUses flowOutput;
+ 
+   MaybeReachingVariableUse(
+       ControlFlowGraph<Node> cfg, Set<Var> escaped, Map<String, Var> allVarsInFn) {
+     super(cfg);
+-    this.escaped = escaped;
+-    this.allVarsInFn = allVarsInFn;
++    int n = allVarsInFn.size();
++    this.numVars = n;
++    this.varNames = new String[n];
++    this.isEscaped = new boolean[n];
++
++    int i = 0;
++    for (Map.Entry<String, Var> entry : allVarsInFn.entrySet()) {
++      this.varNames[i] = entry.getKey();
++      this.isEscaped[i] = escaped.contains(entry.getValue());
++      i++;
++    }
++
++    if (n > 8) {
++      int cap = Integer.highestOneBit(n * 2 - 1) << 1;
++      int mask = cap - 1;
++      String[] keys = new String[cap];
++      int[] indices = new int[cap];
++      for (int j = 0; j < n; j++) {
++        String key = this.varNames[j];
++        int slot = key.hashCode() & mask;
++        while (keys[slot] != null) {
++          slot = (slot + 1) & mask;
++        }
++        keys[slot] = key;
++        indices[slot] = j;
++      }
++      this.nameTable = keys;
++      this.indexTable = indices;
++    } else {
++      this.nameTable = null;
++      this.indexTable = null;
++    }
++
++    this.emptyLattice = new ReachingUses(n);
++  }
++
++  private int lookupVarIndex(String name) {
++    String[] table = this.nameTable;
++    if (table != null) {
++      int mask = table.length - 1;
++      int slot = name.hashCode() & mask;
++      while (true) {
++        String k = table[slot];
++        if (k == null) {
++          return -1;
++        }
++        if (k.equals(name)) {
++          return this.indexTable[slot];
++        }
++        slot = (slot + 1) & mask;
++      }
++    }
++    String[] names = this.varNames;
++    for (int i = 0, len = names.length; i < len; i++) {
++      if (names[i].equals(name)) {
++        return i;
++      }
++    }
++    return -1;
+   }
+ 
+   /**
+    * May use definition lattice representation. It captures a product lattice for each local
+    * (non-escaped) variable. The sub-lattice is a n + 2 power set element lattice with all the Nodes
+-   * in the program, TOP and BOTTOM. This is better explained with an example:
+-   *
+-   * <p>Consider: A sub-lattice element representing the variable A represented by { N_4, N_5} where
+-   * N_x is a Node in the program. This implies at that particular point in the program the content
+-   * of A is "upward exposed" at point N_4 and N_5.
+-   *
+-   * <p>Example:
+-   *
+-   * <p><code>
+-   *
+-   * A = 1;
+-   * ...
+-   * N_3:
+-   * N_4: print(A);
+-   * N_5: y = A;
+-   * N_6: A = 1;
+-   * N_7: print(A);
+-   * </code>
+-   *
+-   * <p>At N_3, reads of A in {N_4, N_5} are said to be upward exposed.
++   * in the program, TOP and BOTTOM.
+    */
+   static final class ReachingUses implements LatticeElement {
+-    private static final HamtPMap<Var, HamtPMap<Node, Node>> EMPTY_MAY_USE = HamtPMap.empty();
+     private static final HamtPMap<Node, Node> EMPTY_NODE_MAP = HamtPMap.empty();
+ 
+-    // Maps variables to all their uses that are upward exposed at the current cfgNode.
+-    private HamtPMap<Var, HamtPMap<Node, Node>> mayUsePMap = EMPTY_MAY_USE;
++    private final int numVars;
++    // Per-variable slot encoding (lazily allocated when non-empty):
++    //   null                  => 0 upward-exposed uses
++    //   Node                  => 1 upward-exposed use
++    //   HamtPMap<Node, Node>  => 2+ upward-exposed uses
++    private Object @Nullable [] mayUse;
+ 
+-    public ReachingUses() {}
++    ReachingUses(int numVars) {
++      this.numVars = numVars;
++      this.mayUse = null;
++    }
+ 
+     /**
+      * Copy constructor.
+@@ -117,49 +167,137 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+      * @param other The constructed object is a replicated copy of this element.
+      */
+     public ReachingUses(ReachingUses other) {
+-      mayUsePMap = other.mayUsePMap;
++      this.numVars = other.numVars;
++      this.mayUse = other.mayUse != null ? other.mayUse.clone() : null;
+     }
+ 
+-    public Iterable<Node> get(Var v) {
+-      HamtPMap<Node, Node> uses = this.mayUsePMap.get(v);
+-      return uses != null ? uses.keys() : ImmutableList.of();
++    @Nullable Object getSlot(int varIdx) {
++      return this.mayUse != null ? this.mayUse[varIdx] : null;
+     }
+ 
+-    public void removeAll(Var v) {
+-      mayUsePMap = mayUsePMap.minus(v);
++    @SuppressWarnings("unchecked")
++    Iterable<Node> getUsesAt(int varIdx) {
++      Object slot = this.mayUse != null ? this.mayUse[varIdx] : null;
++      if (slot == null) {
++        return ImmutableList.of();
++      }
++      if (slot instanceof Node singleNode) {
++        return ImmutableList.of(singleNode);
++      }
++      return ((HamtPMap<Node, Node>) slot).keys();
+     }
+ 
+-    public void put(Var v, Node n) {
+-      HamtPMap<Node, Node> values = mayUsePMap.get(v);
+-      if (values == null) {
+-        values = EMPTY_NODE_MAP;
++    void removeAll(int varIdx) {
++      if (this.mayUse != null) {
++        this.mayUse[varIdx] = null;
+       }
+-      HamtPMap<Node, Node> newValues = values.plus(n, n);
+-      if (newValues != values) {
+-        mayUsePMap = mayUsePMap.plus(v, newValues);
++    }
++
++    @SuppressWarnings("unchecked")
++    void put(int varIdx, Node n) {
++      Object[] arr = this.mayUse;
++      if (arr == null) {
++        arr = new Object[this.numVars];
++        arr[varIdx] = n;
++        this.mayUse = arr;
++        return;
++      }
++      Object cur = arr[varIdx];
++      if (cur == null) {
++        arr[varIdx] = n;
++      } else if (cur instanceof Node existingNode) {
++        if (existingNode != n) {
++          arr[varIdx] = EMPTY_NODE_MAP.plus(existingNode, existingNode).plus(n, n);
++        }
++      } else {
++        HamtPMap<Node, Node> values = (HamtPMap<Node, Node>) cur;
++        HamtPMap<Node, Node> newValues = values.plus(n, n);
++        if (newValues != values) {
++          arr[varIdx] = newValues;
++        }
+       }
+     }
+ 
++    @SuppressWarnings("unchecked")
+     public void join(ReachingUses other) {
+-      mayUsePMap =
+-          mayUsePMap.reconcile(
+-              other.mayUsePMap,
+-              (Var var, HamtPMap<Node, Node> thisVal, HamtPMap<Node, Node> thatVal) -> {
+-                if (thisVal == null) {
+-                  return thatVal;
+-                }
+-                if (thatVal == null) {
+-                  return thisVal;
+-                }
+-                // The PMap as a set with the key and value pair have the same value.
+-                return thisVal.reconcile(thatVal, (node, unused1, unused2) -> node);
+-              });
++      Object[] otherArr = other.mayUse;
++      if (otherArr == null) {
++        return;
++      }
++      Object[] thisArr = this.mayUse;
++      if (thisArr == null) {
++        this.mayUse = otherArr.clone();
++        return;
++      }
++      for (int i = 0, len = this.numVars; i < len; i++) {
++        Object thatVal = otherArr[i];
++        if (thatVal == null) {
++          continue;
++        }
++        Object thisVal = thisArr[i];
++        if (thisVal == null) {
++          thisArr[i] = thatVal;
++        } else if (thisVal == thatVal) {
++          continue;
++        } else if (thisVal instanceof Node n1 && thatVal instanceof Node n2) {
++          thisArr[i] = EMPTY_NODE_MAP.plus(n1, n1).plus(n2, n2);
++        } else if (thisVal instanceof Node n1) {
++          thisArr[i] = ((HamtPMap<Node, Node>) thatVal).plus(n1, n1);
++        } else if (thatVal instanceof Node n2) {
++          thisArr[i] = ((HamtPMap<Node, Node>) thisVal).plus(n2, n2);
++        } else {
++          thisArr[i] =
++              ((HamtPMap<Node, Node>) thisVal)
++                  .reconcile(
++                      (HamtPMap<Node, Node>) thatVal, (node, unused1, unused2) -> node);
++        }
++      }
+     }
+ 
+     @Override
++    @SuppressWarnings("unchecked")
+     public boolean equals(Object other) {
+-      return (other instanceof ReachingUses reachingUses)
+-          && reachingUses.mayUsePMap.equivalent(this.mayUsePMap, ReachingUses::equalMaps);
++      if (this == other) {
++        return true;
++      }
++      if (!(other instanceof ReachingUses otherUses) || this.numVars != otherUses.numVars) {
++        return false;
++      }
++      Object[] a = this.mayUse;
++      Object[] b = otherUses.mayUse;
++      if (a == b) {
++        return true;
++      }
++      if (a == null) {
++        for (int i = 0, len = b.length; i < len; i++) {
++          if (b[i] != null) {
++            return false;
++          }
++        }
++        return true;
++      }
++      if (b == null) {
++        for (int i = 0, len = a.length; i < len; i++) {
++          if (a[i] != null) {
++            return false;
++          }
++        }
++        return true;
++      }
++      for (int i = 0, len = this.numVars; i < len; i++) {
++        Object va = a[i];
++        Object vb = b[i];
++        if (va == vb) {
++          continue;
++        }
++        if (va == null || vb == null || va instanceof Node || vb instanceof Node) {
++          return false;
++        }
++        if (!equalMaps((HamtPMap<Node, Node>) va, (HamtPMap<Node, Node>) vb)) {
++          return false;
++        }
++      }
++      return true;
+     }
+ 
+     private static boolean equalMaps(HamtPMap<Node, Node> map1, HamtPMap<Node, Node> map2) {
+@@ -183,8 +321,12 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+    *
+    * <p>The read of A "may be" exposed to A = 1 in the beginning.
+    */
+-  private static class ReachingUsesJoinOp implements FlowJoiner<ReachingUses> {
+-    final ReachingUses result = new ReachingUses();
++  private static final class ReachingUsesJoinOp implements FlowJoiner<ReachingUses> {
++    final ReachingUses result;
++
++    ReachingUsesJoinOp(int numVars) {
++      this.result = new ReachingUses(numVars);
++    }
+ 
+     @Override
+     public void joinFlow(ReachingUses uses) {
+@@ -204,17 +346,17 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+ 
+   @Override
+   ReachingUses createEntryLattice() {
+-    return new ReachingUses();
++    return this.emptyLattice;
+   }
+ 
+   @Override
+   ReachingUses createInitialEstimateLattice() {
+-    return new ReachingUses();
++    return this.emptyLattice;
+   }
+ 
+   @Override
+   FlowJoiner<ReachingUses> createFlowJoiner() {
+-    return new ReachingUsesJoinOp();
++    return new ReachingUsesJoinOp(this.numVars);
+   }
+ 
+   /**
+@@ -230,21 +372,32 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+    */
+   @Override
+   ReachingUses flowThrough(Node n, ReachingUses input) {
+-    ReachingUses output = new ReachingUses(input);
++    this.flowOutput = null;
+ 
+     // If there's an ON_EX edge, this cfgNode may or may not get executed.
+     // We can express this concisely by just pretending this happens in
+     // a conditional.
+     boolean conditional = hasExceptionHandler(n);
+-    computeMayUse(n, n, output, conditional);
++    computeMayUse(n, n, input, conditional);
+ 
+-    return output;
++    ReachingUses out = this.flowOutput;
++    this.flowOutput = null;
++    return out != null ? out : input;
++  }
++
++  private ReachingUses writableFlowOutput(ReachingUses input) {
++    ReachingUses out = this.flowOutput;
++    if (out == null) {
++      out = new ReachingUses(input);
++      this.flowOutput = out;
++    }
++    return out;
+   }
+ 
+   private boolean hasExceptionHandler(Node cfgNode) {
+     List<? extends DiGraphEdge<Node, Branch>> branchEdges = getCfg().getOutEdges(cfgNode);
+-    for (DiGraphEdge<Node, Branch> edge : branchEdges) {
+-      if (edge.getValue() == Branch.ON_EX) {
++    for (int i = 0, size = branchEdges.size(); i < size; i++) {
++      if (branchEdges.get(i).getValue() == Branch.ON_EX) {
+         return true;
+       }
+     }
+@@ -383,28 +536,32 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+    * Sets the variable for the given name to the node value in the upward exposed lattice. Do
+    * nothing if the variable name is one of the escaped variable.
+    */
+-  private void addToUseIfLocal(String name, Node node, ReachingUses use) {
+-    Var var = allVarsInFn.get(name);
+-    if (var == null) {
++  private void addToUseIfLocal(String name, Node node, ReachingUses input) {
++    int varIdx = lookupVarIndex(name);
++    if (varIdx < 0 || this.isEscaped[varIdx]) {
+       return;
+     }
+-    if (!escaped.contains(var)) {
+-      use.put(var, node);
++    ReachingUses cur = this.flowOutput != null ? this.flowOutput : input;
++    if (cur.getSlot(varIdx) == node) {
++      return;
+     }
++    writableFlowOutput(input).put(varIdx, node);
+   }
+ 
+   /**
+    * Removes the variable for the given name from the node value in the upward exposed lattice. Do
+    * nothing if the variable name is one of the escaped variable.
+    */
+-  private void removeFromUseIfLocal(String name, ReachingUses use) {
+-    Var var = allVarsInFn.get(name);
+-    if (var == null) {
++  private void removeFromUseIfLocal(String name, ReachingUses input) {
++    int varIdx = lookupVarIndex(name);
++    if (varIdx < 0 || this.isEscaped[varIdx]) {
+       return;
+     }
+-    if (!escaped.contains(var)) {
+-      use.removeAll(var);
++    ReachingUses cur = this.flowOutput != null ? this.flowOutput : input;
++    if (cur.getSlot(varIdx) == null) {
++      return;
+     }
++    writableFlowOutput(input).removeAll(varIdx);
+   }
+ 
+   /**
+@@ -419,7 +576,22 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+   Iterable<Node> getUses(String name, Node defNode) {
+     GraphNode<Node, Branch> n = getCfg().getNode(defNode);
+     checkNotNull(n);
++    int varIdx = lookupVarIndex(name);
++    if (varIdx < 0) {
++      return ImmutableList.of();
++    }
++    LinearFlowState<ReachingUses> state = n.getAnnotation();
++    return state.getOut().getUsesAt(varIdx);
++  }
++
++  boolean hasSingleUse(String name, Node defNode) {
++    GraphNode<Node, Branch> n = getCfg().getNode(defNode);
++    checkNotNull(n);
++    int varIdx = lookupVarIndex(name);
++    if (varIdx < 0) {
++      return false;
++    }
+     LinearFlowState<ReachingUses> state = n.getAnnotation();
+-    return state.getOut().get(allVarsInFn.get(name));
++    return state.getOut().getSlot(varIdx) instanceof Node;
+   }
+ }
+diff --git a/com/google/javascript/jscomp/MustBeReachingVariableDef.java b/com/google/javascript/jscomp/MustBeReachingVariableDef.java
+index d5ecef08..8dc881f8 100644
+--- a/com/google/javascript/jscomp/MustBeReachingVariableDef.java
++++ b/com/google/javascript/jscomp/MustBeReachingVariableDef.java
+@@ -24,8 +24,7 @@ import com.google.javascript.jscomp.ControlFlowGraph.Branch;
+ import com.google.javascript.jscomp.graph.GraphNode;
+ import com.google.javascript.jscomp.graph.LatticeElement;
+ import com.google.javascript.rhino.Node;
+-import java.util.Collection;
+-import java.util.LinkedHashMap;
++import java.util.Arrays;
+ import java.util.LinkedHashSet;
+ import java.util.Map;
+ import java.util.Set;
+@@ -44,11 +43,36 @@ import org.jspecify.annotations.Nullable;
+ final class MustBeReachingVariableDef
+     extends DataFlowAnalysis<Node, MustBeReachingVariableDef.MustDef> {
+ 
++  private static final int[] EMPTY_INT_ARRAY = new int[0];
++
+   // The scope of the function that we are analyzing.
+   private final AbstractCompiler compiler;
+-  private final Set<Var> escaped;
+-  private final Map<String, Var> allVarsInFn;
++  private final int numVars;
++  private final String[] varNames;
++  private final Var[] vars;
++  private final boolean[] isEscaped;
++  private final int[] paramIndices;
++  private final String @Nullable [] nameTable;
++  private final int @Nullable [] indexTable;
++  private final MustDef emptyLattice;
+   private @Nullable MustDef flowOutput;
++  private @Nullable Definition currentDepTarget;
++
++  private final AbstractCfgNodeTraversalCallback depCollector =
++      new AbstractCfgNodeTraversalCallback() {
++        @Override
++        public void visit(NodeTraversal t, Node n, Node parent) {
++          if (n.isName()) {
++            int idx = lookupVarIndex(n.getString());
++            Definition target = currentDepTarget;
++            if (idx < 0) {
++              target.unknownDependencies = true;
++            } else {
++              target.addDependency(vars[idx]);
++            }
++          }
++        }
++      };
+ 
+   MustBeReachingVariableDef(
+       ControlFlowGraph<Node> cfg,
+@@ -57,8 +81,86 @@ final class MustBeReachingVariableDef
+       Map<String, Var> allVarsInFn) {
+     super(cfg);
+     this.compiler = compiler;
+-    this.escaped = escaped;
+-    this.allVarsInFn = allVarsInFn;
++    int n = allVarsInFn.size();
++    this.numVars = n;
++    this.varNames = new String[n];
++    this.vars = new Var[n];
++    this.isEscaped = new boolean[n];
++
++    int paramCount = 0;
++    int i = 0;
++    for (Map.Entry<String, Var> entry : allVarsInFn.entrySet()) {
++      String name = entry.getKey();
++      Var v = entry.getValue();
++      this.varNames[i] = name;
++      this.vars[i] = v;
++      this.isEscaped[i] = escaped.contains(v);
++      if (v.isParam()) {
++        paramCount++;
++      }
++      i++;
++    }
++
++    if (paramCount == 0) {
++      this.paramIndices = EMPTY_INT_ARRAY;
++    } else {
++      int[] pIndices = new int[paramCount];
++      int p = 0;
++      for (int j = 0; j < n; j++) {
++        if (this.vars[j].isParam()) {
++          pIndices[p++] = j;
++        }
++      }
++      this.paramIndices = pIndices;
++    }
++
++    if (n > 8) {
++      int cap = Integer.highestOneBit(n * 2 - 1) << 1;
++      int mask = cap - 1;
++      String[] keys = new String[cap];
++      int[] indices = new int[cap];
++      for (int j = 0; j < n; j++) {
++        String key = this.varNames[j];
++        int slot = key.hashCode() & mask;
++        while (keys[slot] != null) {
++          slot = (slot + 1) & mask;
++        }
++        keys[slot] = key;
++        indices[slot] = j;
++      }
++      this.nameTable = keys;
++      this.indexTable = indices;
++    } else {
++      this.nameTable = null;
++      this.indexTable = null;
++    }
++
++    this.emptyLattice = new MustDef(n);
++  }
++
++  private int lookupVarIndex(String name) {
++    String[] table = this.nameTable;
++    if (table != null) {
++      int mask = table.length - 1;
++      int slot = name.hashCode() & mask;
++      while (true) {
++        String k = table[slot];
++        if (k == null) {
++          return -1;
++        }
++        if (k.equals(name)) {
++          return this.indexTable[slot];
++        }
++        slot = (slot + 1) & mask;
++      }
++    }
++    String[] names = this.varNames;
++    for (int i = 0, len = names.length; i < len; i++) {
++      if (names[i].equals(name)) {
++        return i;
++      }
++    }
++    return -1;
+   }
+ 
+   /**
+@@ -66,23 +168,135 @@ final class MustBeReachingVariableDef
+    * defined as well as a set of other local variables that this definition reads from. For example
+    * N: a = b + foo.bar(c). The definition node will be N, the depending set would be {b,c}.
+    */
+-  static class Definition {
+-    final Node node;
+-    final Set<Var> depends = new LinkedHashSet<>();
++  static final class Definition {
++    static final Definition BOTTOM = new Definition(null);
++
++    final @Nullable Node node;
++    private @Nullable Var dep0;
++    private @Nullable Var dep1;
++    private @Nullable LinkedHashSet<Var> restDeps;
+     private boolean unknownDependencies = false;
+ 
+-    Definition(Node node) {
++    Definition(@Nullable Node node) {
+       this.node = node;
+     }
+ 
++    void addDependency(Var v) {
++      if (v == dep0 || v == dep1) {
++        return;
++      }
++      if (dep0 == null) {
++        dep0 = v;
++        return;
++      }
++      if (dep1 == null) {
++        dep1 = v;
++        return;
++      }
++      if (this.restDeps == null) {
++        this.restDeps = new LinkedHashSet<>(4);
++      }
++      this.restDeps.add(v);
++    }
++
++    boolean isEmptyDepends() {
++      return dep0 == null;
++    }
++
++    boolean hasDependency(@Nullable Var v) {
++      if (v == null || dep0 == null) {
++        return false;
++      }
++      if (v == dep0 || v == dep1) {
++        return true;
++      }
++      return restDeps != null && restDeps.contains(v);
++    }
++
++    boolean containsAllDependencies(Definition other) {
++      if (other.dep0 != null && !hasDependency(other.dep0)) {
++        return false;
++      }
++      if (other.dep1 != null && !hasDependency(other.dep1)) {
++        return false;
++      }
++      if (other.restDeps != null) {
++        for (Var v : other.restDeps) {
++          if (!hasDependency(v)) {
++            return false;
++          }
++        }
++      }
++      return true;
++    }
++
++    void addDependencyNamesTo(Set<String> out) {
++      if (dep0 != null) {
++        out.add(dep0.getName());
++        if (dep1 != null) {
++          out.add(dep1.getName());
++          if (restDeps != null) {
++            for (Var v : restDeps) {
++              out.add(v.getName());
++            }
++          }
++        }
++      }
++    }
++
++    boolean dependsOnParameter() {
++      if (dep0 != null) {
++        if (dep0.isParam()) {
++          return true;
++        }
++        if (dep1 != null) {
++          if (dep1.isParam()) {
++            return true;
++          }
++          if (restDeps != null) {
++            for (Var v : restDeps) {
++              if (v.isParam()) {
++                return true;
++              }
++            }
++          }
++        }
++      }
++      return false;
++    }
++
++    boolean dependsOnCatchScopeVar() {
++      if (dep0 != null) {
++        if (dep0.getScope().isCatchScope()) {
++          return true;
++        }
++        if (dep1 != null) {
++          if (dep1.getScope().isCatchScope()) {
++            return true;
++          }
++          if (restDeps != null) {
++            for (Var v : restDeps) {
++              if (v.getScope().isCatchScope()) {
++                return true;
++              }
++            }
++          }
++        }
++      }
++      return false;
++    }
++
+     @Override
+     public boolean equals(Object other) {
+-      if (!(other instanceof Definition otherDef)) {
++      if (this == other) {
++        return true;
++      }
++      if (!(other instanceof Definition otherDef) || this.node == null || otherDef.node == null) {
+         return false;
+       }
+       // If the var has the same definition node we can assume they have the
+       // same depends set.
+-      return otherDef.node == node;
++      return otherDef.node == this.node;
+     }
+ 
+     @Override
+@@ -92,7 +306,7 @@ final class MustBeReachingVariableDef
+ 
+     @Override
+     public int hashCode() {
+-      return node.hashCode();
++      return node != null ? node.hashCode() : 0;
+     }
+   }
+ 
+@@ -107,21 +321,28 @@ final class MustBeReachingVariableDef
+    * <p>(TOP) / | | \ N1 N2 N3 ....Nn \ | | / (BOTTOM)
+    */
+   static final class MustDef implements LatticeElement {
+-    static final MustDef EMPTY = new MustDef();
++    private static final @Nullable Definition[] EMPTY_DEFS = new Definition[0];
+ 
+-    // TODO(user): Use bit vector instead of maps might get better
+-    // performance. Change it after this is tested to be fully functional.
++    // Slot encoding for var index i:
++    //   null              => TOP
++    //   Definition.BOTTOM => BOTTOM
++    //   Definition(node)  => single reaching definition at node
++    final @Nullable Definition[] reachingDef;
+ 
+-    // When a Var "A" = "TOP", "A" does not exist in reachingDef's keySet.
+-    // When a Var "A" = Node N, "A" maps to that node.
+-    // When a Var "A" = "BOTTOM", "A" maps to null.
+-    final LinkedHashMap<Var, Definition> reachingDef = new LinkedHashMap<>();
+-
+-    public MustDef() {}
++    MustDef(int numVars) {
++      this.reachingDef = numVars == 0 ? EMPTY_DEFS : new Definition[numVars];
++    }
+ 
+-    public MustDef(Collection<Var> vars) {
+-      for (Var var : vars) {
+-        reachingDef.put(var, new Definition(var.getScope().getRootNode()));
++    MustDef(Var[] vars) {
++      int len = vars.length;
++      if (len == 0) {
++        this.reachingDef = EMPTY_DEFS;
++      } else {
++        Definition[] defs = new Definition[len];
++        for (int i = 0; i < len; i++) {
++          defs[i] = new Definition(vars[i].getScope().getRootNode());
++        }
++        this.reachingDef = defs;
+       }
+     }
+ 
+@@ -131,7 +352,8 @@ final class MustBeReachingVariableDef
+      * @param other The constructed object is a replicated copy of this element.
+      */
+     public MustDef(MustDef other) {
+-      this.reachingDef.putAll(other.reachingDef);
++      this.reachingDef =
++          other.reachingDef.length == 0 ? EMPTY_DEFS : other.reachingDef.clone();
+     }
+ 
+     @Override
+@@ -139,37 +361,61 @@ final class MustBeReachingVariableDef
+       if (this == other) {
+         return true;
+       }
+-      return (other instanceof MustDef mustDef) && mustDef.reachingDef.equals(this.reachingDef);
++      if (!(other instanceof MustDef otherMustDef)) {
++        return false;
++      }
++      Definition[] a = this.reachingDef;
++      Definition[] b = otherMustDef.reachingDef;
++      int len = a.length;
++      if (len != b.length) {
++        return false;
++      }
++      for (int i = 0; i < len; i++) {
++        Definition da = a[i];
++        Definition db = b[i];
++        if (da == db) {
++          continue;
++        }
++        if (da == null || db == null || da.node == null || da.node != db.node) {
++          return false;
++        }
++      }
++      return true;
+     }
+ 
+     @Override
+     public int hashCode() {
+-      return reachingDef.hashCode();
++      return Arrays.hashCode(reachingDef);
+     }
+   }
+ 
+-  private static class MustDefJoin implements FlowJoiner<MustDef> {
++  private static final class MustDefJoin implements FlowJoiner<MustDef> {
++    final MustDef result;
+ 
+-    final MustDef result = new MustDef();
+-    final LinkedHashMap<Var, Definition> resultMap = result.reachingDef;
++    MustDefJoin(int numVars) {
++      this.result = new MustDef(numVars);
++    }
+ 
+     @Override
+     public void joinFlow(MustDef input) {
+-      input.reachingDef.forEach(this::mergeVarDef);
+-    }
+-
+-    private void mergeVarDef(Var var, Definition def) {
+-      final Definition resultDef;
+-      if (def == null) {
+-        resultDef = null;
+-      } else if (!this.resultMap.containsKey(var)) {
+-        resultDef = def;
+-      } else if (def.equals(this.resultMap.get(var))) {
+-        return;
+-      } else {
+-        resultDef = null;
++      Definition[] res = this.result.reachingDef;
++      Definition[] inDefs = input.reachingDef;
++      for (int i = 0, len = res.length; i < len; i++) {
++        Definition inDef = inDefs[i];
++        if (inDef == null) {
++          continue;
++        }
++        if (inDef == Definition.BOTTOM) {
++          res[i] = Definition.BOTTOM;
++          continue;
++        }
++        Definition cur = res[i];
++        if (cur == null) {
++          res[i] = inDef;
++        } else if (cur != Definition.BOTTOM && cur != inDef && cur.node != inDef.node) {
++          res[i] = Definition.BOTTOM;
++        }
+       }
+-      this.resultMap.put(var, resultDef);
+     }
+ 
+     @Override
+@@ -185,17 +431,17 @@ final class MustBeReachingVariableDef
+ 
+   @Override
+   MustDef createEntryLattice() {
+-    return new MustDef(allVarsInFn.values());
++    return new MustDef(this.vars);
+   }
+ 
+   @Override
+   MustDef createInitialEstimateLattice() {
+-    return MustDef.EMPTY;
++    return this.emptyLattice;
+   }
+ 
+   @Override
+   MustDefJoin createFlowJoiner() {
+-    return new MustDefJoin();
++    return new MustDefJoin(this.numVars);
+   }
+ 
+   @Override
+@@ -359,88 +605,73 @@ final class MustBeReachingVariableDef
+    */
+   private void addToDefIfLocal(
+       String name, @Nullable Node node, @Nullable Node rValue, MustDef input) {
+-    Var var = allVarsInFn.get(name);
++    int varIdx = lookupVarIndex(name);
+ 
+-    // var might be null if the variable is defined in the externs
+-    if (var == null) {
++    // var might not exist if the variable is defined in the externs / outer scope
++    if (varIdx < 0) {
+       return;
+     }
+ 
++    Var var = this.vars[varIdx];
+     MustDef def = writableFlowOutput(input);
++    Definition[] defs = def.reachingDef;
+ 
+-    for (Map.Entry<Var, Definition> pair : def.reachingDef.entrySet()) {
+-      Definition otherDef = pair.getValue();
+-      if (otherDef == null) {
++    for (int i = 0, len = defs.length; i < len; i++) {
++      Definition otherDef = defs[i];
++      if (otherDef == null || otherDef == Definition.BOTTOM) {
+         continue;
+       }
+-      if (otherDef.depends.contains(var)) {
+-        pair.setValue(null);
++      if (otherDef.hasDependency(var)) {
++        defs[i] = Definition.BOTTOM;
+       }
+     }
+ 
+-    if (!escaped.contains(var)) {
++    if (!this.isEscaped[varIdx]) {
+       if (node == null) {
+-        def.reachingDef.put(var, null);
++        defs[varIdx] = Definition.BOTTOM;
+       } else {
+         Definition definition = new Definition(node);
+         if (rValue != null) {
+           computeDependence(definition, rValue);
+         }
+-        def.reachingDef.put(var, definition);
++        defs[varIdx] = definition;
+       }
+     }
+   }
+ 
+   private void escapeParameters(MustDef input) {
+     MustDef output = writableFlowOutput(input);
+-    for (Var v : allVarsInFn.values()) {
+-      if (isParameter(v)) {
+-        // Assume we no longer know where the parameter comes from
+-        // anymore.
+-        output.reachingDef.put(v, null);
+-      }
++    Definition[] defs = output.reachingDef;
++    int[] pIndices = this.paramIndices;
++    for (int i = 0, len = pIndices.length; i < len; i++) {
++      // Assume we no longer know where the parameter comes from anymore.
++      defs[pIndices[i]] = Definition.BOTTOM;
+     }
+ 
+     // Also, assume we no longer know anything that depends on a parameter.
+-    for (Map.Entry<Var, Definition> pair : output.reachingDef.entrySet()) {
+-      Definition value = pair.getValue();
+-      if (value == null) {
++    for (int i = 0, len = defs.length; i < len; i++) {
++      Definition value = defs[i];
++      if (value == null || value == Definition.BOTTOM) {
+         continue;
+       }
+-      for (Var dep : value.depends) {
+-        if (isParameter(dep)) {
+-          pair.setValue(null);
+-          break;
+-        }
++      if (value.dependsOnParameter()) {
++        defs[i] = Definition.BOTTOM;
+       }
+     }
+   }
+ 
+-  private static boolean isParameter(Var v) {
+-    return v.isParam();
+-  }
+-
+   /**
+    * Computes all the local variables that rValue reads from and store that in the def's depends
+    * set.
+    */
+-  private void computeDependence(final Definition def, Node rValue) {
+-    NodeTraversal.traverse(
+-        compiler,
+-        rValue,
+-        new AbstractCfgNodeTraversalCallback() {
+-          @Override
+-          public void visit(NodeTraversal t, Node n, Node parent) {
+-            if (n.isName()) {
+-              Var dep = allVarsInFn.get(n.getString());
+-              if (dep == null) {
+-                def.unknownDependencies = true;
+-              } else {
+-                def.depends.add(dep);
+-              }
+-            }
+-          }
+-        });
++  private void computeDependence(Definition def, Node rValue) {
++    Definition prevTarget = this.currentDepTarget;
++    this.currentDepTarget = def;
++    try {
++      NodeTraversal.traverse(compiler, rValue, this.depCollector);
++    } finally {
++      this.currentDepTarget = prevTarget;
++    }
+   }
+ 
+   /**
+@@ -450,11 +681,16 @@ final class MustBeReachingVariableDef
+    *     parameters, escaped variables or variables declared in catch.
+    * @param useNode the location of the use where the definition reaches.
+    */
+-  Definition getDef(String name, Node useNode) {
++  @Nullable Definition getDef(String name, Node useNode) {
+     checkArgument(getCfg().hasNode(useNode));
++    int varIdx = lookupVarIndex(name);
++    if (varIdx < 0) {
++      return null;
++    }
+     GraphNode<Node, Branch> n = getCfg().getNode(useNode);
+     LinearFlowState<MustDef> state = n.getAnnotation();
+-    return state.getIn().reachingDef.get(allVarsInFn.get(name));
++    Definition def = state.getIn().reachingDef[varIdx];
++    return (def == null || def == Definition.BOTTOM) ? null : def;
+   }
+ 
+   @Nullable Node getDefNode(String name, Node useNode) {
+@@ -466,13 +702,7 @@ final class MustBeReachingVariableDef
+     if (def.unknownDependencies) {
+       return true;
+     }
+-
+-    for (Var s : def.depends) {
+-      // Don't inline try catch
+-      if (s.getScope().isCatchScope()) {
+-        return true;
+-      }
+-    }
+-    return false;
++    // Don't inline try catch
++    return def.dependsOnCatchScopeVar();
+   }
+ }
+diff --git a/com/google/javascript/jscomp/NodeUtil.java b/com/google/javascript/jscomp/NodeUtil.java
+index 6c36c150..482e7cf0 100644
+--- a/com/google/javascript/jscomp/NodeUtil.java
++++ b/com/google/javascript/jscomp/NodeUtil.java
+@@ -1105,7 +1105,7 @@ public final class NodeUtil {
+    */
+   public static boolean isNamespaceDecl(Node n) {
+     JSDocInfo jsdoc = getBestJSDocInfo(n);
+-    if (jsdoc != null && !jsdoc.getTypeNodes().isEmpty() && !jsdoc.hasTypedefType()) {
++    if (jsdoc != null && jsdoc.hasTypeNodes() && !jsdoc.hasTypedefType()) {
+       return false;
+     }
+     // In externs, we allow namespace definitions without @const.
+diff --git a/com/google/javascript/jscomp/Scope.java b/com/google/javascript/jscomp/Scope.java
+index f7b4a7e2..7c573284 100644
+--- a/com/google/javascript/jscomp/Scope.java
++++ b/com/google/javascript/jscomp/Scope.java
+@@ -410,6 +410,45 @@ public final class Scope extends AbstractScope<Scope, Var> {
+     }
+   }
+ 
++  String[] getOwnVarNamesArray() {
++    if (vars != null) {
++      String[] out = new String[vars.size()];
++      int i = 0;
++      for (String name : vars.keySet()) {
++        out[i++] = name;
++      }
++      return out;
++    }
++    int count = getVarCount();
++    String[] out = new String[count];
++    if (count > 0) {
++      out[0] = var0.getName();
++      if (count > 1) {
++        out[1] = var1.getName();
++        if (count > 2) {
++          out[2] = var2.getName();
++          if (count > 3) {
++            out[3] = var3.getName();
++            if (count > 4) {
++              out[4] = var4.getName();
++              if (count > 5) {
++                out[5] = var5.getName();
++              }
++            }
++          }
++        }
++      }
++    }
++    return out;
++  }
++
++  String[] mergeVarNamesArray(String[] existing) {
++    LinkedHashSet<String> merged = new LinkedHashSet<>(existing.length + getVarCount());
++    Collections.addAll(merged, existing);
++    addVarNamesTo(merged);
++    return merged.toArray(new String[0]);
++  }
++
+   @Override
+   public int getVarCount() {
+     if (vars != null) {
+diff --git a/com/google/javascript/jscomp/TypedScope.java b/com/google/javascript/jscomp/TypedScope.java
+index c6c8507c..f805084f 100644
+--- a/com/google/javascript/jscomp/TypedScope.java
++++ b/com/google/javascript/jscomp/TypedScope.java
+@@ -64,8 +64,95 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+   /** Whether this is a bottom scope for the purposes of type inference. */
+   private final boolean isBottom;
+ 
++  private static final class ReservedNames {
++    private final String @Nullable [] names;
++    private int remaining;
++    private @Nullable LinkedHashSet<String> largeSet;
++
++    ReservedNames(String[] names) {
++      int len = names.length;
++      if (len <= 8) {
++        this.names = names;
++        this.remaining = len;
++      } else {
++        this.names = null;
++        this.largeSet = new LinkedHashSet<>(len * 4 / 3 + 1);
++        for (int i = 0; i < len; i++) {
++          this.largeSet.add(names[i]);
++        }
++        this.remaining = this.largeSet.size();
++      }
++    }
++
++    ReservedNames(Set<String> set) {
++      int len = set.size();
++      if (len <= 8) {
++        String[] arr = new String[len];
++        int i = 0;
++        for (String s : set) {
++          arr[i++] = s;
++        }
++        this.names = arr;
++        this.remaining = len;
++      } else {
++        this.names = null;
++        this.largeSet = new LinkedHashSet<>(set);
++        this.remaining = this.largeSet.size();
++      }
++    }
++
++    boolean contains(String name) {
++      if (largeSet != null) {
++        return largeSet.contains(name);
++      }
++      String[] arr = this.names;
++      for (int i = 0, len = arr.length; i < len; i++) {
++        if (name.equals(arr[i])) {
++          return true;
++        }
++      }
++      return false;
++    }
++
++    boolean removeAndCheckEmpty(String name) {
++      if (largeSet != null) {
++        if (largeSet.remove(name)) {
++          remaining--;
++        }
++        return remaining == 0;
++      }
++      String[] arr = this.names;
++      for (int i = 0, len = arr.length; i < len; i++) {
++        if (name.equals(arr[i])) {
++          arr[i] = null;
++          remaining--;
++          break;
++        }
++      }
++      return remaining == 0;
++    }
++
++    boolean isEmpty() {
++      return remaining == 0;
++    }
++
++    @Override
++    public String toString() {
++      if (largeSet != null) {
++        return largeSet.toString();
++      }
++      ArrayList<String> left = new ArrayList<>(remaining);
++      for (String s : names) {
++        if (s != null) {
++          left.add(s);
++        }
++      }
++      return left.toString();
++    }
++  }
++
+   // Will shrink over time. Cleared to null once empty.
+-  private @Nullable LinkedHashSet<String> reservedNames;
++  private @Nullable ReservedNames reservedNames;
+ 
+   private @Nullable TypedVar var0;
+   private @Nullable TypedVar var1;
+@@ -82,7 +169,7 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+   // We haven't added it here because it's unused by the passes that need typed scopes.
+ 
+   TypedScope(TypedScope parent, Node rootNode) {
+-    this(parent, rootNode, ImmutableSet.of(), null);
++    this(parent, rootNode, (String[]) null, null);
+   }
+ 
+   /**
+@@ -98,8 +185,24 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     this.parent = parent;
+     this.depth = parent.depth + 1;
+     this.isBottom = false;
++    this.reservedNames = reservedNames.isEmpty() ? null : new ReservedNames(reservedNames);
++    this.module = module;
++  }
++
++  TypedScope(
++      TypedScope parent,
++      Node rootNode,
++      String @Nullable [] reservedNamesOwned,
++      @Nullable Module module) {
++    super(rootNode);
++    checkChildScope(parent);
++    this.parent = parent;
++    this.depth = parent.depth + 1;
++    this.isBottom = false;
+     this.reservedNames =
+-        reservedNames.isEmpty() ? null : new LinkedHashSet<>(reservedNames);
++        (reservedNamesOwned == null || reservedNamesOwned.length == 0)
++            ? null
++            : new ReservedNames(reservedNamesOwned);
+     this.module = module;
+   }
+ 
+@@ -197,8 +300,7 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     if (reservedNames != null) {
+       // (reservedNames only contains simple, non-qualified names; so it's completely normal to
+       // declare qualified names that were not 'reserved')
+-      reservedNames.remove(name);
+-      if (reservedNames.isEmpty()) {
++      if (reservedNames.removeAndCheckEmpty(name)) {
+         reservedNames = null;
+       }
+     }
+diff --git a/com/google/javascript/jscomp/TypedScopeCreator.java b/com/google/javascript/jscomp/TypedScopeCreator.java
+index a67e54af..e1347970 100644
+--- a/com/google/javascript/jscomp/TypedScopeCreator.java
++++ b/com/google/javascript/jscomp/TypedScopeCreator.java
+@@ -176,7 +176,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+ 
+   // Maps from scope root to declared variable names. Populated by FirstOrderFunctionAnalyzer to
+   // reserve names before the TypedScope is populated.
+-  private LinkedHashMap<Node, LinkedHashSet<String>> reservedNamesForScope;
++  private LinkedHashMap<Node, String[]> reservedNamesForScope;
+ 
+   // Set of functions with non-empty returns, for passing to FunctionTypeBuilder.
+   private LinkedHashSet<Node> functionsWithNonEmptyReturns = new LinkedHashSet<>();
+@@ -406,18 +406,17 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       // Because JSTypeRegistry#getType looks up the scope in which a root of a qualified name is
+       // declared, pre-populate this TypedScope with all qualified name roots. This prevents
+       // type resolution from accidentally returning a type from an outer scope that is shadowed.
+-      LinkedHashSet<String> reservedNames = reservedNamesForScope.remove(root);
+-      if (reservedNames == null) {
+-        reservedNames = new LinkedHashSet<>();
+-      }
++      String[] reservedNames = reservedNamesForScope.remove(root);
+       if (module != null && module.metadata().isGoogModule()) {
+         // TypedScopeCreator treats default export assignments, like `exports = class {};`, as
+         // declarations. However, the untyped scope only contains an implicit slot for `exports`.
+-        reservedNames.add("exports");
+-      } else if (root.isFunction() && NodeUtil.isBundledGoogModuleCall(root.getParent())) {
++        reservedNames = withReservedExports(reservedNames);
++      } else if (reservedNames != null
++          && root.isFunction()
++          && NodeUtil.isBundledGoogModuleCall(root.getParent())) {
+         // Pretend that 'exports' is declared in the block of goog.loadModule
+         // functions, not the function scope. See the above comment for why.
+-        reservedNames.remove("exports");
++        reservedNames = withoutReservedExports(reservedNames);
+       }
+ 
+       newScope = new TypedScope(typedParent, root, reservedNames, module);
+@@ -460,6 +459,46 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     return newScope;
+   }
+ 
++  private static String[] withReservedExports(String @Nullable [] reservedNames) {
++    if (reservedNames == null || reservedNames.length == 0) {
++      return new String[] {"exports"};
++    }
++    for (int i = 0; i < reservedNames.length; i++) {
++      if ("exports".equals(reservedNames[i])) {
++        return reservedNames;
++      }
++    }
++    String[] out = new String[reservedNames.length + 1];
++    System.arraycopy(reservedNames, 0, out, 0, reservedNames.length);
++    out[reservedNames.length] = "exports";
++    return out;
++  }
++
++  private static String @Nullable [] withoutReservedExports(String[] reservedNames) {
++    int foundIdx = -1;
++    for (int i = 0; i < reservedNames.length; i++) {
++      if ("exports".equals(reservedNames[i])) {
++        foundIdx = i;
++        break;
++      }
++    }
++    if (foundIdx < 0) {
++      return reservedNames;
++    }
++    if (reservedNames.length == 1) {
++      return null;
++    }
++    String[] out = new String[reservedNames.length - 1];
++    if (foundIdx > 0) {
++      System.arraycopy(reservedNames, 0, out, 0, foundIdx);
++    }
++    int tail = reservedNames.length - foundIdx - 1;
++    if (tail > 0) {
++      System.arraycopy(reservedNames, foundIdx + 1, out, foundIdx, tail);
++    }
++    return out;
++  }
++
+   /**
+    * Adds nodes representing goog.module exports to a list, to treat them as @const.
+    *
+@@ -3788,14 +3827,14 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     @Override
+     public void enterScope(NodeTraversal t) {
+       Scope scope = t.getScope();
+-      if (scope.getVarCount() > 0) {
++      if (!scope.isGlobal() && scope.getVarCount() > 0) {
+         Node root = scope.getRootNode();
+-        LinkedHashSet<String> names = reservedNamesForScope.get(root);
+-        if (names == null) {
+-          names = new LinkedHashSet<>();
+-          reservedNamesForScope.put(root, names);
++        String[] existing = reservedNamesForScope.get(root);
++        if (existing == null) {
++          reservedNamesForScope.put(root, scope.getOwnVarNamesArray());
++        } else {
++          reservedNamesForScope.put(root, scope.mergeVarNamesArray(existing));
+         }
+-        scope.addVarNamesTo(names);
+       }
+     }
+ 
+diff --git a/com/google/javascript/jscomp/colors/ColorId.java b/com/google/javascript/jscomp/colors/ColorId.java
+index 755219d2..a2706835 100644
+--- a/com/google/javascript/jscomp/colors/ColorId.java
++++ b/com/google/javascript/jscomp/colors/ColorId.java
+@@ -126,6 +126,97 @@ public final class ColorId implements Serializable, LogsGson.Able {
+     return new ColorId(hasher.hash().asLong());
+   }
+ 
++  public static ColorId union2(ColorId a, ColorId b) {
++    long x = a.rightAligned;
++    long y = b.rightAligned;
++    if (x == y) {
++      return a;
++    }
++    if (x > y) {
++      long t = x;
++      x = y;
++      y = t;
++    }
++    Hasher hasher = FARM_64.newHasher();
++    hasher.putLong(x);
++    hasher.putLong(y);
++    return new ColorId(hasher.hash().asLong());
++  }
++
++  public static ColorId union3(ColorId a, ColorId b, ColorId c) {
++    long x = a.rightAligned;
++    long y = b.rightAligned;
++    long z = c.rightAligned;
++    if (x > y) {
++      long t = x;
++      x = y;
++      y = t;
++    }
++    if (y > z) {
++      long t = y;
++      y = z;
++      z = t;
++    }
++    if (x > y) {
++      long t = x;
++      x = y;
++      y = t;
++    }
++    Hasher hasher = FARM_64.newHasher();
++    hasher.putLong(x);
++    if (y != x) {
++      hasher.putLong(y);
++    }
++    if (z != y) {
++      hasher.putLong(z);
++    }
++    return new ColorId(hasher.hash().asLong());
++  }
++
++  public static ColorId union4(ColorId a, ColorId b, ColorId c, ColorId d) {
++    long v0 = a.rightAligned;
++    long v1 = b.rightAligned;
++    long v2 = c.rightAligned;
++    long v3 = d.rightAligned;
++    if (v0 > v1) {
++      long t = v0;
++      v0 = v1;
++      v1 = t;
++    }
++    if (v2 > v3) {
++      long t = v2;
++      v2 = v3;
++      v3 = t;
++    }
++    if (v0 > v2) {
++      long t = v0;
++      v0 = v2;
++      v2 = t;
++    }
++    if (v1 > v3) {
++      long t = v1;
++      v1 = v3;
++      v3 = t;
++    }
++    if (v1 > v2) {
++      long t = v1;
++      v1 = v2;
++      v2 = t;
++    }
++    Hasher hasher = FARM_64.newHasher();
++    hasher.putLong(v0);
++    if (v1 != v0) {
++      hasher.putLong(v1);
++    }
++    if (v2 != v1) {
++      hasher.putLong(v2);
++    }
++    if (v3 != v2) {
++      hasher.putLong(v3);
++    }
++    return new ColorId(hasher.hash().asLong());
++  }
++
+   private ColorId(long rightAligned) {
+     this.rightAligned = rightAligned;
+   }
+diff --git a/com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java b/com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java
+index ea7f90a6..de658244 100644
+--- a/com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java
++++ b/com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java
+@@ -435,7 +435,7 @@ public class ConvertToTypedInterface implements CompilerPass {
+               if (jsdoc == null) {
+                 return TypingLevel.NO_JSDOC;
+               }
+-              if (jsdoc.getTypeNodes().isEmpty()) {
++              if (!jsdoc.hasTypeNodes()) {
+                 return TypingLevel.UNTYPED_JSDOC_DECLARATION;
+               }
+               return TypingLevel.TYPED_JSDOC_DECLARATION;
+diff --git a/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java b/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
+index 41004b9c..cffe6aa0 100644
+--- a/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
++++ b/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
+@@ -75,6 +75,9 @@ final class JSTypeReconserializer {
+       new LinkedIdentityHashMap<>();
+   private final LinkedHashMap<ColorId, SeenTypeRecord> seenTypeRecords = new LinkedHashMap<>(4096);
+   private final SetMultimap<Integer, Integer> disambiguateEdges = LinkedHashMultimap.create();
++  private final LinkedHashSet<Integer> scratchInstancePointers = new LinkedHashSet<>();
++  private final LinkedHashSet<Integer> scratchPrototypePointers = new LinkedHashSet<>();
++  private final LinkedHashSet<Integer> scratchOwnProperties = new LinkedHashSet<>();
+ 
+   private State state = State.COLLECTING_TYPES;
+ 
+@@ -214,23 +217,125 @@ final class JSTypeReconserializer {
+   private SeenTypeRecord recordUnionType(UnionType type) {
+     checkNotNull(type);
+ 
+-    LinkedHashSet<SeenTypeRecord> altRecords = new LinkedHashSet<>();
+-    for (JSType altType : type.getAlternates()) {
+-      SeenTypeRecord alt = this.recordType(altType);
++    SeenTypeRecord r0 = null;
++    SeenTypeRecord r1 = null;
++    SeenTypeRecord r2 = null;
++    SeenTypeRecord r3 = null;
++    int count = 0;
++    LinkedHashSet<SeenTypeRecord> altRecords = null;
++
++    ImmutableList<JSType> alternates = type.getAlternates();
++    for (int i = 0, n = alternates.size(); i < n; i++) {
++      SeenTypeRecord alt = this.recordType(alternates.get(i));
+       if (alt.unionMembers == null) {
+-        altRecords.add(alt);
++        if (altRecords != null) {
++          altRecords.add(alt);
++        } else if (alt != r0 && alt != r1 && alt != r2 && alt != r3) {
++          switch (count) {
++            case 0 -> {
++              r0 = alt;
++              count = 1;
++            }
++            case 1 -> {
++              r1 = alt;
++              count = 2;
++            }
++            case 2 -> {
++              r2 = alt;
++              count = 3;
++            }
++            case 3 -> {
++              r3 = alt;
++              count = 4;
++            }
++            default -> {
++              altRecords = new LinkedHashSet<>(8);
++              altRecords.add(r0);
++              altRecords.add(r1);
++              altRecords.add(r2);
++              altRecords.add(r3);
++              altRecords.add(alt);
++            }
++          }
++        }
+       } else {
+         // Flatten out any nested unions. They are possible due to proxy-like types.
+-        altRecords.addAll(alt.unionMembers);
++        for (SeenTypeRecord member : alt.unionMembers) {
++          if (altRecords != null) {
++            altRecords.add(member);
++          } else if (member != r0 && member != r1 && member != r2 && member != r3) {
++            switch (count) {
++              case 0 -> {
++                r0 = member;
++                count = 1;
++              }
++              case 1 -> {
++                r1 = member;
++                count = 2;
++              }
++              case 2 -> {
++                r2 = member;
++                count = 3;
++              }
++              case 3 -> {
++                r3 = member;
++                count = 4;
++              }
++              default -> {
++                altRecords = new LinkedHashSet<>(8);
++                altRecords.add(r0);
++                altRecords.add(r1);
++                altRecords.add(r2);
++                altRecords.add(r3);
++                altRecords.add(member);
++              }
++            }
++          }
++        }
+       }
+     }
+ 
+-    // Some elements of the union may be equal as Colors
+-    if (altRecords.size() == 1) {
+-      return Iterables.getOnlyElement(altRecords);
++    if (altRecords == null) {
++      // Some elements of the union may be equal as Colors
++      if (count == 1) {
++        return r0;
++      }
++      ColorId unionId =
++          switch (count) {
++            case 2 -> ColorId.union2(r0.colorId, r1.colorId);
++            case 3 -> ColorId.union3(r0.colorId, r1.colorId, r2.colorId);
++            case 4 -> ColorId.union4(r0.colorId, r1.colorId, r2.colorId, r3.colorId);
++            default -> throw new AssertionError(count);
++          };
++      SeenTypeRecord record = this.getOrCreateRecord(unionId, type);
++      if (record.unionMembers == null) {
++        record.unionMembers =
++            switch (count) {
++              case 2 -> ImmutableSet.of(r0, r1);
++              case 3 -> ImmutableSet.of(r0, r1, r2);
++              case 4 -> ImmutableSet.of(r0, r1, r2, r3);
++              default -> throw new AssertionError(count);
++            };
++      } else if (this.serializationMode.runValidation()) {
++        ImmutableSet<SeenTypeRecord> expected =
++            switch (count) {
++              case 2 -> ImmutableSet.of(r0, r1);
++              case 3 -> ImmutableSet.of(r0, r1, r2);
++              case 4 -> ImmutableSet.of(r0, r1, r2, r3);
++              default -> throw new AssertionError(count);
++            };
++        checkState(
++            expected.equals(record.unionMembers),
++            "Unions with same ID must have same members: %s => %s == %s",
++            unionId,
++            expected.stream().map((r) -> r.colorId).collect(toImmutableSet()),
++            record.unionMembers.stream().map((r) -> r.colorId).collect(toImmutableSet()));
++      }
++      return record;
+     }
+ 
+-    ImmutableSet.Builder<ColorId> alternateIds = ImmutableSet.builder();
++    ImmutableSet.Builder<ColorId> alternateIds =
++        ImmutableSet.builderWithExpectedSize(altRecords.size());
+     for (SeenTypeRecord altRecord : altRecords) {
+       alternateIds.add(altRecord.colorId);
+     }
+@@ -307,9 +412,12 @@ final class JSTypeReconserializer {
+   }
+ 
+   private TypeProto reconcileObjectTypes(SeenTypeRecord seen) {
+-    LinkedHashSet<Integer> instancePointers = new LinkedHashSet<>();
+-    LinkedHashSet<Integer> prototypePointers = new LinkedHashSet<>();
+-    LinkedHashSet<Integer> ownProperties = new LinkedHashSet<>();
++    LinkedHashSet<Integer> instancePointers = this.scratchInstancePointers;
++    LinkedHashSet<Integer> prototypePointers = this.scratchPrototypePointers;
++    LinkedHashSet<Integer> ownProperties = this.scratchOwnProperties;
++    instancePointers.clear();
++    prototypePointers.clear();
++    ownProperties.clear();
+     boolean isClosureAssert = false;
+     boolean isConstructor = false;
+     boolean isInvalidating = false;
+@@ -362,17 +470,27 @@ final class JSTypeReconserializer {
+       propertiesKeepOriginalName |= objType.isEnumType();
+     }
+ 
++    ObjectTypeProto.Builder protoBuilder = ObjectTypeProto.newBuilder();
++    if (!instancePointers.isEmpty()) {
++      protoBuilder.addAllInstanceType(instancePointers);
++    }
++    if (!ownProperties.isEmpty()) {
++      protoBuilder.addAllOwnProperty(ownProperties);
++    }
++    if (!prototypePointers.isEmpty()) {
++      protoBuilder.addAllPrototype(prototypePointers);
++    }
+     ObjectTypeProto objectProto =
+-        ObjectTypeProto.newBuilder()
+-            .addAllInstanceType(instancePointers)
+-            .addAllOwnProperty(ownProperties)
+-            .addAllPrototype(prototypePointers)
++        protoBuilder
+             .setClosureAssert(isClosureAssert)
+             .setIsInvalidating(isInvalidating)
+             .setMarkedConstructor(isConstructor)
+             .setPropertiesKeepOriginalName(propertiesKeepOriginalName)
+             .setUuid(seen.colorId.asByteString())
+             .build();
++    instancePointers.clear();
++    prototypePointers.clear();
++    ownProperties.clear();
+     return TypeProto.newBuilder().setObject(objectProto).build();
+   }
+ 
+diff --git a/com/google/javascript/rhino/JSDocInfo.java b/com/google/javascript/rhino/JSDocInfo.java
+index ef9797d2..2743d618 100644
+--- a/com/google/javascript/rhino/JSDocInfo.java
++++ b/com/google/javascript/rhino/JSDocInfo.java
+@@ -119,8 +119,16 @@ public final class JSDocInfo implements Serializable {
+       return left.equals(right);
+     }
+ 
++    boolean hasAnyTypeExpression(T unusedValue) {
++      return false;
++    }
++
+     void collectTypeExpressions(T unusedValue, ImmutableList.Builder<JSTypeExpression> unusedSink) {}
+ 
++    @Nullable ArrayList<Node> collectTypeNodes(T unusedValue, @Nullable ArrayList<Node> sink) {
++      return sink;
++    }
++
+     // NOTE: These need to be comparable so that we can iterate over them to build the list.
+     @Override
+     public int compareTo(Property<Object> that) {
+@@ -165,6 +173,11 @@ public final class JSDocInfo implements Serializable {
+       return left.isEquivalentTo(right);
+     }
+ 
++    @Override
++    boolean hasAnyTypeExpression(JSTypeExpression type) {
++      return type != null;
++    }
++
+     @Override
+     void collectTypeExpressions(
+         JSTypeExpression type, ImmutableList.Builder<JSTypeExpression> sink) {
+@@ -172,6 +185,18 @@ public final class JSDocInfo implements Serializable {
+         sink.add(type);
+       }
+     }
++
++    @Override
++    @Nullable ArrayList<Node> collectTypeNodes(
++        JSTypeExpression type, @Nullable ArrayList<Node> sink) {
++      if (type != null) {
++        if (sink == null) {
++          sink = new ArrayList<>(4);
++        }
++        sink.add(type.getRoot());
++      }
++      return sink;
++    }
+   }
+ 
+   private static final class TypeListProperty extends Property<ArrayList<JSTypeExpression>> {
+@@ -212,6 +237,16 @@ public final class JSDocInfo implements Serializable {
+       return true;
+     }
+ 
++    @Override
++    boolean hasAnyTypeExpression(ArrayList<JSTypeExpression> types) {
++      for (int i = 0, n = types.size(); i < n; i++) {
++        if (types.get(i) != null) {
++          return true;
++        }
++      }
++      return false;
++    }
++
+     @Override
+     void collectTypeExpressions(
+         ArrayList<JSTypeExpression> types, ImmutableList.Builder<JSTypeExpression> sink) {
+@@ -222,6 +257,22 @@ public final class JSDocInfo implements Serializable {
+         }
+       }
+     }
++
++    @Override
++    @Nullable ArrayList<Node> collectTypeNodes(
++        ArrayList<JSTypeExpression> types, @Nullable ArrayList<Node> sink) {
++      int n = types.size();
++      for (int i = 0; i < n; i++) {
++        JSTypeExpression type = types.get(i);
++        if (type != null) {
++          if (sink == null) {
++            sink = new ArrayList<>(Math.max(4, n));
++          }
++          sink.add(type.getRoot());
++        }
++      }
++      return sink;
++    }
+   }
+ 
+   private static final class TypeMap {
+@@ -384,6 +435,16 @@ public final class JSDocInfo implements Serializable {
+       return Objects.equals(expr1, expr2) || (expr1 != null && expr1.isEquivalentTo(expr2));
+     }
+ 
++    @Override
++    boolean hasAnyTypeExpression(TypeMap map) {
++      for (int i = 0, n = map.values.size(); i < n; i++) {
++        if (map.values.get(i) != null) {
++          return true;
++        }
++      }
++      return false;
++    }
++
+     @Override
+     void collectTypeExpressions(TypeMap map, ImmutableList.Builder<JSTypeExpression> sink) {
+       for (int i = 0, n = map.values.size(); i < n; i++) {
+@@ -393,6 +454,21 @@ public final class JSDocInfo implements Serializable {
+         }
+       }
+     }
++
++    @Override
++    @Nullable ArrayList<Node> collectTypeNodes(TypeMap map, @Nullable ArrayList<Node> sink) {
++      int n = map.values.size();
++      for (int i = 0; i < n; i++) {
++        JSTypeExpression type = map.values.get(i);
++        if (type != null) {
++          if (sink == null) {
++            sink = new ArrayList<>(Math.max(4, n));
++          }
++          sink.add(type.getRoot());
++        }
++      }
++      return sink;
++    }
+   }
+ 
+   private static final class StringMap {
+@@ -908,6 +984,22 @@ public final class JSDocInfo implements Serializable {
+   private static final Property<List<String>> AUTHORS = new Property<>("authors");
+   private static final Property<List<String>> SEES = new Property<>("sees");
+ 
++  private static final long SINGLE_TYPE_EXPR_PROPERTIES_MASK =
++      TYPE.mask
++          | RETURN_TYPE.mask
++          | ENUM_PARAMETER_TYPE.mask
++          | TYPEDEF_TYPE.mask
++          | THIS_TYPE.mask
++          | BASE_TYPE.mask
++          | LENDS_NAME.mask;
++
++  private static final long TYPE_EXPR_PROPERTIES_MASK =
++      SINGLE_TYPE_EXPR_PROPERTIES_MASK
++          | EXTENDED_INTERFACES.mask
++          | IMPLEMENTED_INTERFACES.mask
++          | PARAMETERS.mask
++          | TEMPLATE_TYPE_NAMES.mask;
++
+   private abstract static class ComparableSourcePosition<T> extends SourcePosition<T> {
+     abstract boolean isEquivalentTo(SourcePosition<T> that);
+   }
+@@ -1935,21 +2027,53 @@ public final class JSDocInfo implements Serializable {
+    *
+    * @return collection of all type nodes
+    */
++  @SuppressWarnings("unchecked")
++  public boolean hasTypeNodes() {
++    long typeBits = propertyKeysBitset & TYPE_EXPR_PROPERTIES_MASK;
++    if (typeBits == 0L) {
++      return false;
++    }
++    if ((typeBits & SINGLE_TYPE_EXPR_PROPERTIES_MASK) != 0L) {
++      return true;
++    }
++    while (typeBits != 0L) {
++      int low = Long.numberOfTrailingZeros(typeBits);
++      typeBits &= typeBits - 1L;
++      Property<Object> prop = (Property<Object>) Property.values[low];
++      int idx = Long.bitCount(propertyKeysBitset & ((1L << low) - 1L));
++      if (prop.hasAnyTypeExpression(getPropertyValueByIndex(idx))) {
++        return true;
++      }
++    }
++    return false;
++  }
++
+   @SuppressWarnings("unchecked")
+   public Collection<JSTypeExpression> getTypeExpressions() {
+-    long bits = propertyKeysBitset;
+-    if (bits == 0) {
++    long typeBits = propertyKeysBitset & TYPE_EXPR_PROPERTIES_MASK;
++    if (typeBits == 0L) {
+       return ImmutableList.of();
+     }
+-    ImmutableList.Builder<JSTypeExpression> builder = ImmutableList.builder();
+-    int index = 0;
+-    while (bits > 0) {
+-      int low = Long.numberOfTrailingZeros(bits);
+-      bits &= ~(1L << low);
++    if ((typeBits & (typeBits - 1L)) == 0L && (typeBits & SINGLE_TYPE_EXPR_PROPERTIES_MASK) != 0L) {
++      JSTypeExpression expr =
++          (JSTypeExpression)
++              getPropertyValueByIndex(Long.bitCount(propertyKeysBitset & (typeBits - 1L)));
++      return expr != null ? ImmutableList.of(expr) : ImmutableList.of();
++    }
++    ImmutableList.Builder<JSTypeExpression> builder = null;
++    while (typeBits != 0L) {
++      int low = Long.numberOfTrailingZeros(typeBits);
++      typeBits &= typeBits - 1L;
+       Property<Object> prop = (Property<Object>) Property.values[low];
+-      prop.collectTypeExpressions(getPropertyValueByIndex(index++), builder);
++      Object value = getPropertyValueByIndex(Long.bitCount(propertyKeysBitset & ((1L << low) - 1L)));
++      if (prop.hasAnyTypeExpression(value)) {
++        if (builder == null) {
++          builder = ImmutableList.builder();
++        }
++        prop.collectTypeExpressions(value, builder);
++      }
+     }
+-    return builder.build();
++    return builder != null ? builder.build() : ImmutableList.of();
+   }
+ 
+   /**
+@@ -1973,18 +2097,27 @@ public final class JSDocInfo implements Serializable {
+    *
+    * @return collection of all type nodes
+    */
++  @SuppressWarnings("unchecked")
+   public Collection<Node> getTypeNodes() {
+-    Collection<JSTypeExpression> exprs = getTypeExpressions();
+-    if (exprs.isEmpty()) {
++    long typeBits = propertyKeysBitset & TYPE_EXPR_PROPERTIES_MASK;
++    if (typeBits == 0L) {
+       return ImmutableList.of();
+     }
+-    List<Node> nodes = new ArrayList<>(exprs.size());
+-
+-    for (JSTypeExpression type : exprs) {
+-      nodes.add(type.getRoot());
++    if ((typeBits & (typeBits - 1L)) == 0L && (typeBits & SINGLE_TYPE_EXPR_PROPERTIES_MASK) != 0L) {
++      JSTypeExpression expr =
++          (JSTypeExpression)
++              getPropertyValueByIndex(Long.bitCount(propertyKeysBitset & (typeBits - 1L)));
++      return expr != null ? ImmutableList.of(expr.getRoot()) : ImmutableList.of();
+     }
+-
+-    return nodes;
++    ArrayList<Node> nodes = null;
++    while (typeBits != 0L) {
++      int low = Long.numberOfTrailingZeros(typeBits);
++      typeBits &= typeBits - 1L;
++      Property<Object> prop = (Property<Object>) Property.values[low];
++      int idx = Long.bitCount(propertyKeysBitset & ((1L << low) - 1L));
++      nodes = prop.collectTypeNodes(getPropertyValueByIndex(idx), nodes);
++    }
++    return nodes != null ? nodes : ImmutableList.of();
+   }
+ 
+   public boolean hasModifies() {
+diff --git a/com/google/javascript/rhino/jstype/FunctionType.java b/com/google/javascript/rhino/jstype/FunctionType.java
+index eaddc879..da95ac22 100644
+--- a/com/google/javascript/rhino/jstype/FunctionType.java
++++ b/com/google/javascript/rhino/jstype/FunctionType.java
+@@ -658,31 +658,52 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+    * set.
+    */
+   public final Iterable<ObjectType> getAllImplementedInterfaces() {
++    ImmutableList<ObjectType> implemented = getImplementedInterfaces();
++    int n = implemented.size();
++    if (n == 0) {
++      return ImmutableList.of();
++    }
++    if (n == 1) {
++      ObjectType single = implemented.get(0);
++      FunctionType ctor = single.getConstructor();
++      if (ctor == null || !ctor.isInterface()) {
++        return ImmutableList.of();
++      }
++      if (ctor.getExtendedInterfacesCount() == 0) {
++        return implemented;
++      }
++    }
+     // Store them in a linked hash set, so that the compile job is
+     // deterministic.
+-    Set<ObjectType> interfaces = new LinkedHashSet<>();
+-
+-    for (ObjectType type : getImplementedInterfaces()) {
+-      addRelatedInterfaces(type, interfaces);
++    Set<ObjectType> interfaces = null;
++    for (int i = 0; i < n; i++) {
++      interfaces = addRelatedInterfaces(implemented.get(i), interfaces);
+     }
+-    return interfaces;
++    return interfaces != null ? interfaces : ImmutableList.of();
+   }
+ 
+-  private void addRelatedInterfaces(ObjectType instance, Set<ObjectType> set) {
++  private @Nullable Set<ObjectType> addRelatedInterfaces(
++      ObjectType instance, @Nullable Set<ObjectType> set) {
+     FunctionType constructor = instance.getConstructor();
+     if (constructor != null) {
+       if (!constructor.isInterface()) {
+-        return;
++        return set;
+       }
+ 
++      if (set == null) {
++        set = new LinkedHashSet<>();
++      }
+       if (!set.add(instance)) {
+-        return;
++        return set;
+       }
+ 
+-      for (ObjectType interfaceType : instance.getCtorExtendedInterfaces()) {
+-        addRelatedInterfaces(interfaceType, set);
++      if (constructor.getExtendedInterfacesCount() > 0) {
++        for (ObjectType interfaceType : instance.getCtorExtendedInterfaces()) {
++          set = addRelatedInterfaces(interfaceType, set);
++        }
+       }
+     }
++    return set;
+   }
+ 
+   public final Collection<ObjectType> getAncestorInterfaces() {
+@@ -699,13 +720,21 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+   public final ImmutableList<ObjectType> getImplementedInterfaces() {
+     ImmutableList<ObjectType> ownImplemented = getOwnImplementedInterfaces();
+     FunctionType superCtor = isConstructor() ? getSuperClassConstructor() : null;
++    while (superCtor != null && superCtor.getOwnImplementedInterfaces().isEmpty()) {
++      superCtor = superCtor.getSuperClassConstructor();
++    }
+     if (superCtor == null) {
+       return ownImplemented;
+     }
+     ImmutableList.Builder<ObjectType> builder = ImmutableList.builder();
+-    builder.addAll(ownImplemented);
++    for (int i = 0, n = ownImplemented.size(); i < n; i++) {
++      builder.add(ownImplemented.get(i));
++    }
+     while (superCtor != null) {
+-      builder.addAll(superCtor.getOwnImplementedInterfaces());
++      ImmutableList<ObjectType> superOwn = superCtor.getOwnImplementedInterfaces();
++      for (int i = 0, n = superOwn.size(); i < n; i++) {
++        builder.add(superOwn.get(i));
++      }
+       superCtor = superCtor.getSuperClassConstructor();
+     }
+     return builder.build();
+diff --git a/com/google/javascript/rhino/jstype/PrototypeObjectType.java b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+index 30e7dc2f..fe2e4f97 100644
+--- a/com/google/javascript/rhino/jstype/PrototypeObjectType.java
++++ b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+@@ -73,18 +73,7 @@ import org.jspecify.annotations.Nullable;
+ public class PrototypeObjectType extends ObjectType {
+   private static final JSTypeClass TYPE_CLASS = JSTypeClass.PROTOTYPE_OBJECT;
+ 
+-  private static final class NamingExtra {
+-    @Nullable String className;
+-    @Nullable FunctionType ownerFunction;
+-    int templateParamCount;
+-  }
+-
+-  private @Nullable NamingExtra namingExtra;
+-  private final boolean nativeType;
+-  private final boolean anonymousType;
+-  // Whether the toString representation of this should be pretty-printed,
+-  // by printing all properties.
+-  private boolean prettyPrint = false;
++  private final @Nullable String className;
+   private @Nullable PropertyMap properties = null;
+ 
+   // NOTE(nicksantos): The implicit prototype can change over time.
+@@ -92,6 +81,18 @@ public class PrototypeObjectType extends ObjectType {
+   // some subclasses override this to do special resolution handling.
+   private ObjectType implicitPrototypeFallback;
+ 
++  // If this is a function prototype, then this is the owner.
++  // A PrototypeObjectType can only be the prototype of one function. If we try
++  // to do this for multiple functions, then we'll have to create a new one.
++  private @Nullable FunctionType ownerFunction = null;
++
++  private final int templateParamCount;
++  private final boolean nativeType;
++  private final boolean anonymousType;
++  // Whether the toString representation of this should be pretty-printed,
++  // by printing all properties.
++  private boolean prettyPrint = false;
++
+   private static final int MAX_PRETTY_PRINTED_PROPERTIES = 10;
+ 
+   /**
+@@ -101,14 +102,8 @@ public class PrototypeObjectType extends ObjectType {
+   PrototypeObjectType(Builder<?> builder) {
+     super(builder.registry, builder.templateTypeMap);
+ 
+-    String className = builder.className;
+-    int templateParamCount = builder.templateParamCount;
+-    if (className != null || templateParamCount != 0) {
+-      NamingExtra extra = new NamingExtra();
+-      extra.className = className;
+-      extra.templateParamCount = templateParamCount;
+-      this.namingExtra = extra;
+-    }
++    this.className = builder.className;
++    this.templateParamCount = builder.templateParamCount;
+     this.nativeType = builder.nativeType;
+     this.anonymousType = builder.anonymousType;
+ 
+@@ -119,11 +114,11 @@ public class PrototypeObjectType extends ObjectType {
+     }
+ 
+     if (this.anonymousType) {
+-      checkState(className == null);
++      checkState(this.className == null);
+     }
+     checkNotNull(this.templateTypeMap);
+     // Also guarantees `templateParamCount >= 0`.
+-    checkState(this.templateTypeMap.size() >= templateParamCount);
++    checkState(this.templateTypeMap.size() >= this.templateParamCount);
+ 
+     registry.getResolver().resolveIfClosed(this, TYPE_CLASS);
+   }
+@@ -455,20 +450,15 @@ public class PrototypeObjectType extends ObjectType {
+ 
+   @Override
+   public final int getTemplateParamCount() {
+-    NamingExtra extra = this.namingExtra;
+-    return extra != null ? extra.templateParamCount : 0;
++    return this.templateParamCount;
+   }
+ 
+   @Override
+   public @Nullable String getReferenceName() {
+-    NamingExtra extra = this.namingExtra;
+-    if (extra == null) {
+-      return null;
+-    }
+-    if (extra.className != null) {
+-      return extra.className;
+-    } else if (extra.ownerFunction != null) {
+-      return extra.ownerFunction.getReferenceName() + ".prototype";
++    if (className != null) {
++      return className;
++    } else if (ownerFunction != null) {
++      return ownerFunction.getReferenceName() + ".prototype";
+     } else {
+       return null;
+     }
+@@ -485,25 +475,14 @@ public class PrototypeObjectType extends ObjectType {
+   }
+ 
+   @Override
+-  void setOwnerFunction(FunctionType type) {
+-    NamingExtra extra = this.namingExtra;
+-    FunctionType currentOwner = extra != null ? extra.ownerFunction : null;
+-    checkState(currentOwner == null || type == null);
+-    if (type != null) {
+-      if (extra == null) {
+-        extra = new NamingExtra();
+-        this.namingExtra = extra;
+-      }
+-      extra.ownerFunction = type;
+-    } else if (extra != null) {
+-      extra.ownerFunction = null;
+-    }
++  void setOwnerFunction(@Nullable FunctionType type) {
++    checkState(ownerFunction == null || type == null);
++    ownerFunction = type;
+   }
+ 
+   @Override
+-  public FunctionType getOwnerFunction() {
+-    NamingExtra extra = this.namingExtra;
+-    return extra != null ? extra.ownerFunction : null;
++  public @Nullable FunctionType getOwnerFunction() {
++    return ownerFunction;
+   }
+ 
+   @Override
+@@ -580,7 +559,6 @@ public class PrototypeObjectType extends ObjectType {
+   int recursionUnsafeHashCode() {
+     if (isStructuralType()) {
+       int propsHash = properties != null ? properties.hashCode() : 0;
+-      String className = namingExtra != null ? namingExtra.className : null;
+       return 31 * (31 + Objects.hashCode(className)) + propsHash;
+     } else {
+       return System.identityHashCode(this);
+diff --git a/com/google/javascript/rhino/jstype/TemplateTypeMap.java b/com/google/javascript/rhino/jstype/TemplateTypeMap.java
+index c579a294..f4065814 100644
+--- a/com/google/javascript/rhino/jstype/TemplateTypeMap.java
++++ b/com/google/javascript/rhino/jstype/TemplateTypeMap.java
+@@ -47,7 +47,6 @@ import static java.lang.Math.min;
+ 
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.collect.ImmutableList;
+-import java.util.ArrayList;
+ import java.util.BitSet;
+ import java.util.Set;
+ import org.jspecify.annotations.Nullable;
+@@ -58,6 +57,15 @@ import org.jspecify.annotations.Nullable;
+  */
+ public final class TemplateTypeMap {
+ 
++  private static final BitSet EMPTY_BITSET = new BitSet(0);
++  private static final BitSet SINGLE_SUBMAP_START = createSingleSubMapStart();
++
++  private static BitSet createSingleSubMapStart() {
++    BitSet bs = new BitSet(64);
++    bs.set(0);
++    return bs;
++  }
++
+   // The TemplateType keys of the map.
+   private final ImmutableList<TemplateType> templateKeys;
+   // The JSType values, which are index-aligned with their corresponding keys.
+@@ -65,11 +73,9 @@ public final class TemplateTypeMap {
+   // may refer to TemplateTypes that are keys in this TemplateTypeMap, requiring
+   // iterative type resolution to find their true, resolved type.
+   private final ImmutableList<JSType> templateValues;
+-  // The JSType values, which are index-aligned with their corresponding keys.
+-  // These values have been iteratively type-resolved using this TemplateTypeMap
+-  // instance. These fully-resolved values are necessary for determining the
+-  // equivalence of two TemplateTypeMap instances.
+-  private final JSType[] resolvedTemplateValues;
++  // The JSType values, which are index-aligned with their corresponding keys (up to
++  // templateValues.size()), or null when every resolved value is identical to templateValues.
++  private final JSType @Nullable [] resolvedTemplateValues;
+   // A positive boolean indicates that the corresponding key is the start of a new submap, which
+   // corresponds to separate individual ObjectTypes with their own keys.
+   // For example, consider:
+@@ -108,7 +114,43 @@ public final class TemplateTypeMap {
+     // This method should only be called during registry initialization.
+     checkArgument(registry.getEmptyTemplateTypeMap() == null);
+ 
+-    return new TemplateTypeMap(registry, ImmutableList.of(), ImmutableList.of(), new BitSet());
++    return new TemplateTypeMap(registry);
++  }
++
++  private TemplateTypeMap(JSTypeRegistry registry) {
++    this.registry = registry;
++    this.templateKeys = ImmutableList.of();
++    this.templateValues = ImmutableList.of();
++    this.subMapStarts = EMPTY_BITSET;
++    this.resolvedTemplateValues = null;
++  }
++
++  private TemplateTypeMap(
++      JSTypeRegistry registry, ImmutableList<TemplateType> templateKeys, BitSet subMapStarts) {
++    checkNotNull(templateKeys);
++    checkArgument(templateKeys.size() <= subMapStarts.size());
++
++    this.registry = registry;
++    this.templateKeys = templateKeys;
++    this.templateValues = ImmutableList.of();
++    this.subMapStarts = subMapStarts;
++    this.resolvedTemplateValues = null;
++  }
++
++  private TemplateTypeMap(
++      JSTypeRegistry registry,
++      TemplateTypeMap keysSource,
++      ImmutableList<JSType> templateValues,
++      BitSet subMapStarts) {
++    checkNotNull(templateValues);
++    checkArgument(templateValues.size() <= keysSource.templateKeys.size());
++    checkArgument(keysSource.templateKeys.size() <= subMapStarts.size());
++
++    this.registry = registry;
++    this.templateKeys = keysSource.templateKeys;
++    this.templateValues = templateValues;
++    this.subMapStarts = subMapStarts;
++    this.resolvedTemplateValues = computeResolvedValues();
+   }
+ 
+   private TemplateTypeMap(
+@@ -125,26 +167,49 @@ public final class TemplateTypeMap {
+     this.templateKeys = templateKeys;
+     this.templateValues = templateValues;
+     this.subMapStarts = subMapStarts;
++    this.resolvedTemplateValues = computeResolvedValues();
++  }
+ 
+-    // Iteratively resolve any JSType values that refer to the TemplateType keys
+-    // of this TemplateTypeMap.
+-    TemplateTypeReplacer replacer = TemplateTypeReplacer.forTotalReplacement(registry, this);
++  private static boolean mayContainReplacerTarget(JSType type) {
++    return switch (type.getTypeClass()) {
++      case TEMPLATE, TEMPLATIZED, UNION, FUNCTION, PROXY_OBJECT, NO_RESOLVED -> true;
++      default -> false;
++    };
++  }
+ 
++  private JSType @Nullable [] computeResolvedValues() {
+     int nValues = this.templateValues.size();
+-    int nKeys = this.templateKeys.size();
+-    JSType[] resolvedValues = new JSType[nKeys];
+-    for (int i = 0; i < nKeys; i++) {
+-      if (i < nValues) {
++    if (nValues == 0) {
++      return null;
++    }
++    // Iteratively resolve any JSType values that refer to the TemplateType keys
++    // of this TemplateTypeMap.
++    JSType[] resolvedValues = null;
++    TemplateTypeReplacer replacer = null;
++    for (int i = 0; i < nValues; i++) {
++      JSType templateValue = this.templateValues.get(i);
++      JSType resolved;
++      if (mayContainReplacerTarget(templateValue)) {
++        if (replacer == null) {
++          replacer = TemplateTypeReplacer.forTotalReplacement(this.registry, this);
++        }
+         int nextSubMap = nextSubMapStart(i + 1);
+-        TemplateType templateKey = this.templateKeys.get(i);
+-        replacer.setKeyType(templateKey, nextSubMap);
+-        JSType templateValue = this.templateValues.get(i);
+-        resolvedValues[i] = templateValue.visit(replacer);
++        replacer.setKeyType(this.templateKeys.get(i), nextSubMap);
++        resolved = templateValue.visit(replacer);
+       } else {
+-        resolvedValues[i] = this.templateKeys.get(i).getBound();
++        resolved = templateValue;
++      }
++      if (resolvedValues != null) {
++        resolvedValues[i] = resolved;
++      } else if (!identical(resolved, templateValue)) {
++        resolvedValues = new JSType[nValues];
++        for (int j = 0; j < i; j++) {
++          resolvedValues[j] = this.templateValues.get(j);
++        }
++        resolvedValues[i] = resolved;
+       }
+     }
+-    this.resolvedTemplateValues = resolvedValues;
++    return resolvedValues;
+   }
+ 
+   // Returns the index of the next submap in subMapStarts, starting at index (inclusive);
+@@ -162,20 +227,34 @@ public final class TemplateTypeMap {
+    * <p>If there are fewer {@code values} than unfilled values, `?` will be used to fill the rest.
+    */
+   TemplateTypeMap copyFilledWithValues(ImmutableList<JSType> values) {
+-    int requiredUnknownCount = numUnfilledTemplateKeys() - values.size();
++    checkNotNull(values);
++    int unfilled = numUnfilledTemplateKeys();
++    int valuesSize = values.size();
++    int requiredUnknownCount = unfilled - valuesSize;
+     checkArgument(requiredUnknownCount >= 0, requiredUnknownCount);
+ 
+-    if (numUnfilledTemplateKeys() == 0) {
++    if (unfilled == 0) {
+       return this; // Nothing will change.
+     }
+ 
+-    ArrayList<JSType> extendedValues = new ArrayList<>();
+-    extendedValues.addAll(this.templateValues);
+-    extendedValues.addAll(values);
+-    padToSameLength(this.templateKeys, extendedValues);
++    int existingSize = this.templateValues.size();
++    if (existingSize == 0 && requiredUnknownCount == 0) {
++      return new TemplateTypeMap(this.registry, this, values, this.subMapStarts);
++    }
+ 
+-    return new TemplateTypeMap(
+-        this.registry, this.templateKeys, ImmutableList.copyOf(extendedValues), subMapStarts);
++    int nKeys = this.templateKeys.size();
++    ImmutableList.Builder<JSType> valBuilder = ImmutableList.builderWithExpectedSize(nKeys);
++    for (int i = 0; i < existingSize; i++) {
++      valBuilder.add(this.templateValues.get(i));
++    }
++    for (int i = 0; i < valuesSize; i++) {
++      valBuilder.add(values.get(i));
++    }
++    for (int i = existingSize + valuesSize; i < nKeys; i++) {
++      valBuilder.add(defaultValueType(this.templateKeys.get(i)));
++    }
++
++    return new TemplateTypeMap(this.registry, this, valBuilder.build(), this.subMapStarts);
+   }
+ 
+   /**
+@@ -184,6 +263,12 @@ public final class TemplateTypeMap {
+    * <p>Before extension, any unfilled values in the initial map will be filled with `?`.
+    */
+   public TemplateTypeMap copyWithExtension(TemplateTypeMap extension) {
++    if (extension.templateKeys.isEmpty() && numUnfilledTemplateKeys() == 0) {
++      return this;
++    }
++    if (this.templateKeys.isEmpty() && this.registry == extension.registry) {
++      return extension;
++    }
+     return copyWithExtension(
+         extension.templateKeys, extension.templateValues, extension.subMapStarts);
+   }
+@@ -196,12 +281,33 @@ public final class TemplateTypeMap {
+    */
+   public TemplateTypeMap copyWithExtension(
+       ImmutableList<TemplateType> keys, ImmutableList<JSType> values) {
+-    if (keys.isEmpty()) {
+-      return copyWithExtension(keys, values, new BitSet());
++    checkNotNull(keys);
++    checkNotNull(values);
++    int newKeyCount = keys.size();
++    int newValCount = values.size();
++    int extendedUnfilledCount = newKeyCount - newValCount;
++    checkArgument(extendedUnfilledCount >= 0, extendedUnfilledCount);
++
++    if (newKeyCount == 0) {
++      if (numUnfilledTemplateKeys() == 0) {
++        return this;
++      }
++      return copyWithExtension(keys, values, EMPTY_BITSET);
++    }
++    BitSet starts;
++    if (newKeyCount <= 64) {
++      starts = SINGLE_SUBMAP_START;
++    } else {
++      starts = new BitSet(newKeyCount);
++      starts.set(0);
+     }
+-    BitSet subMapStarts = new BitSet(keys.size());
+-    subMapStarts.set(0);
+-    return copyWithExtension(keys, values, subMapStarts);
++    if (this.templateKeys.isEmpty()) {
++      if (newValCount == 0) {
++        return new TemplateTypeMap(this.registry, keys, starts);
++      }
++      return new TemplateTypeMap(this.registry, keys, values, starts);
++    }
++    return copyWithExtension(keys, values, starts);
+   }
+ 
+   /**
+@@ -212,28 +318,58 @@ public final class TemplateTypeMap {
+    */
+   private TemplateTypeMap copyWithExtension(
+       ImmutableList<TemplateType> keys, ImmutableList<JSType> values, BitSet newsubMapStarts) {
+-    int extendedUnfilledCount = keys.size() - values.size();
++    int newKeyCount = keys.size();
++    int newValCount = values.size();
++    int extendedUnfilledCount = newKeyCount - newValCount;
+     checkArgument(extendedUnfilledCount >= 0, extendedUnfilledCount);
+ 
+-    if (numUnfilledTemplateKeys() == 0 && keys.isEmpty()) {
++    if (numUnfilledTemplateKeys() == 0 && newKeyCount == 0) {
+       return this; // Nothing will change.
+     }
+ 
+-    ImmutableList<TemplateType> extendedKeys =
+-        ImmutableList.<TemplateType>builder().addAll(this.templateKeys).addAll(keys).build();
++    int oldKeyCount = this.templateKeys.size();
++    int oldValCount = this.templateValues.size();
++    ImmutableList<TemplateType> extendedKeys;
++    if (newKeyCount == 0) {
++      extendedKeys = this.templateKeys;
++    } else if (oldKeyCount == 0) {
++      extendedKeys = keys;
++    } else {
++      ImmutableList.Builder<TemplateType> keyBuilder =
++          ImmutableList.builderWithExpectedSize(oldKeyCount + newKeyCount);
++      for (int i = 0; i < oldKeyCount; i++) {
++        keyBuilder.add(this.templateKeys.get(i));
++      }
++      for (int i = 0; i < newKeyCount; i++) {
++        keyBuilder.add(keys.get(i));
++      }
++      extendedKeys = keyBuilder.build();
++    }
+ 
+-    ArrayList<JSType> extendedValues = new ArrayList<>();
+-    extendedValues.addAll(this.templateValues);
+-    padToSameLength(this.templateKeys, extendedValues);
+-    extendedValues.addAll(values);
+-    BitSet extendedsubMapStarts = new BitSet(keys.size() + this.templateKeys.size());
++    BitSet extendedsubMapStarts = new BitSet(newKeyCount + oldKeyCount);
+     extendedsubMapStarts.or(subMapStarts);
+-    for (int i = 0; i < keys.size(); i++) {
+-      extendedsubMapStarts.set(i + this.templateKeys.size(), newsubMapStarts.get(i));
++    for (int i = 0; i < newKeyCount; i++) {
++      extendedsubMapStarts.set(i + oldKeyCount, newsubMapStarts.get(i));
++    }
++
++    int totalValues = oldKeyCount + newValCount;
++    if (totalValues == 0) {
++      return new TemplateTypeMap(this.registry, extendedKeys, extendedsubMapStarts);
++    }
++
++    ImmutableList.Builder<JSType> valBuilder = ImmutableList.builderWithExpectedSize(totalValues);
++    for (int i = 0; i < oldValCount; i++) {
++      valBuilder.add(this.templateValues.get(i));
++    }
++    for (int i = oldValCount; i < oldKeyCount; i++) {
++      valBuilder.add(defaultValueType(this.templateKeys.get(i)));
++    }
++    for (int i = 0; i < newValCount; i++) {
++      valBuilder.add(values.get(i));
+     }
+ 
+     return new TemplateTypeMap(
+-        this.registry, extendedKeys, ImmutableList.copyOf(extendedValues), extendedsubMapStarts);
++        this.registry, extendedKeys, valBuilder.build(), extendedsubMapStarts);
+   }
+ 
+   /**
+@@ -242,30 +378,47 @@ public final class TemplateTypeMap {
+    * <p>The keys in {@code removals} will only be removed if they are unfilled.
+    */
+   TemplateTypeMap copyWithoutKeys(Set<TemplateType> removals) {
+-    ImmutableList.Builder<TemplateType> keys = ImmutableList.builder();
+-    BitSet newsubMapStarts = new BitSet();
+-    keys.addAll(templateKeys.subList(0, templateValues.size()));
+-    for (int i = 0; i < templateValues.size(); i++) {
++    if (removals.isEmpty()) {
++      return this;
++    }
++    int valCount = templateValues.size();
++    int keyCount = templateKeys.size();
++    int removedCount = 0;
++    for (int i = valCount; i < keyCount; i++) {
++      if (removals.contains(templateKeys.get(i))) {
++        removedCount++;
++      }
++    }
++    if (removedCount == 0) {
++      return this; // Nothing will change.
++    }
++    int targetSize = keyCount - removedCount;
++    if (targetSize == 0) {
++      TemplateTypeMap empty = this.registry.getEmptyTemplateTypeMap();
++      return empty != null ? empty : new TemplateTypeMap(this.registry);
++    }
++
++    ImmutableList.Builder<TemplateType> keys = ImmutableList.builderWithExpectedSize(targetSize);
++    BitSet newsubMapStarts = new BitSet(targetSize);
++    for (int i = 0; i < valCount; i++) {
++      keys.add(templateKeys.get(i));
+       newsubMapStarts.set(i, subMapStarts.get(i));
+     }
+     int newKeysSize = 0;
+     boolean inNewSubmap = false;
+-    for (int i = templateValues.size(); i < templateKeys.size(); i++) {
++    for (int i = valCount; i < keyCount; i++) {
+       TemplateType key = templateKeys.get(i);
+       inNewSubmap = inNewSubmap || subMapStarts.get(i);
+       if (!removals.contains(key)) {
+         keys.add(key);
+-        newsubMapStarts.set(templateValues.size() + newKeysSize++, inNewSubmap);
++        newsubMapStarts.set(valCount + newKeysSize++, inNewSubmap);
+         inNewSubmap = false;
+       }
+     }
+ 
+-    // There are some checks we could do for this before calculating the removal, but it was less
+-    // error prone to only check in one place.
+-    if (keys.build().size() == templateKeys.size()) {
+-      return this; // Nothing will change.
++    if (valCount == 0) {
++      return new TemplateTypeMap(this.registry, keys.build(), newsubMapStarts);
+     }
+-
+     return new TemplateTypeMap(this.registry, keys.build(), this.templateValues, newsubMapStarts);
+   }
+ 
+@@ -470,19 +623,35 @@ public final class TemplateTypeMap {
+    */
+   public JSType getResolvedTemplateType(TemplateType key) {
+     int index = getTemplateTypeIndex(key);
+-    return (index == -1)
+-        ? defaultValueType(key)
+-        : resolvedTemplateValues[index];
++    if (index == -1) {
++      return defaultValueType(key);
++    }
++    return resolvedTemplateValues != null
++        ? resolvedTemplateValues[index]
++        : templateValues.get(index);
+   }
+ 
+   boolean hasAnyTemplateTypesInternal() {
++    int nValues = this.templateValues.size();
+     if (resolvedTemplateValues != null) {
+-      for (JSType templateValue : resolvedTemplateValues) {
+-        if (templateValue.hasAnyTemplateTypes()) {
++      for (int i = 0; i < nValues; i++) {
++        if (resolvedTemplateValues[i].hasAnyTemplateTypes()) {
++          return true;
++        }
++      }
++    } else {
++      for (int i = 0; i < nValues; i++) {
++        if (this.templateValues.get(i).hasAnyTemplateTypes()) {
+           return true;
+         }
+       }
+     }
++    int nKeys = this.templateKeys.size();
++    for (int i = nValues; i < nKeys; i++) {
++      if (this.templateKeys.get(i).getBound().hasAnyTemplateTypes()) {
++        return true;
++      }
++    }
+     return false;
+   }
+ 
+@@ -491,16 +660,19 @@ public final class TemplateTypeMap {
+     String s = "";
+ 
+     int len = templateKeys.size();
++    int nValues = templateValues.size();
+     s += "{ ";
+     for (int i = 0; i < len; i++) {
+       s += "(";
+       s += templateKeys.get(i);
+       s += ",";
+-      s += (i < templateValues.size()) ? templateValues.get(i) : "";
++      s += (i < nValues) ? templateValues.get(i) : "";
+       s += ",";
+-      s += (resolvedTemplateValues != null && i < resolvedTemplateValues.length)
+-          ? resolvedTemplateValues[i]
+-          : "";
++      if (i < nValues) {
++        s += (resolvedTemplateValues != null) ? resolvedTemplateValues[i] : templateValues.get(i);
++      } else {
++        s += templateKeys.get(i).getBound();
++      }
+       s += ") ";
+     }
+     s += "}";
+@@ -508,14 +680,6 @@ public final class TemplateTypeMap {
+     return s;
+   }
+ 
+-  private void padToSameLength(ImmutableList<TemplateType> keys, ArrayList<JSType> builder) {
+-    checkArgument(builder.size() <= keys.size());
+-
+-    for (int i = builder.size(); i < keys.size(); i++) {
+-      builder.add(defaultValueType(keys.get(i)));
+-    }
+-  }
+-
+   /**
+    * Returns the default value type for the given key type. Since the bounded generics feature
+    * was removed, in practice this always returns `?`.
+diff --git a/com/google/javascript/rhino/jstype/TemplatizedType.java b/com/google/javascript/rhino/jstype/TemplatizedType.java
+index 31c4c9d3..9f308bed 100644
+--- a/com/google/javascript/rhino/jstype/TemplatizedType.java
++++ b/com/google/javascript/rhino/jstype/TemplatizedType.java
+@@ -100,20 +100,28 @@ public final class TemplatizedType extends ProxyObjectType {
+   // an UnsupportedOperationException.
+   @Override
+   public Iterable<ObjectType> getCtorImplementedInterfaces() {
+-    LinkedHashSet<ObjectType> resolvedImplementedInterfaces = new LinkedHashSet<>();
++    LinkedHashSet<ObjectType> resolvedImplementedInterfaces = null;
+     for (ObjectType obj : getReferencedObjTypeInternal().getCtorImplementedInterfaces()) {
++      if (resolvedImplementedInterfaces == null) {
++        resolvedImplementedInterfaces = new LinkedHashSet<>();
++      }
+       resolvedImplementedInterfaces.add(obj.visit(replacer).toObjectType());
+     }
+-    return resolvedImplementedInterfaces;
++    return resolvedImplementedInterfaces != null
++        ? resolvedImplementedInterfaces
++        : ImmutableList.of();
+   }
+ 
+   @Override
+   public Iterable<ObjectType> getCtorExtendedInterfaces() {
+-    LinkedHashSet<ObjectType> resolvedExtendedInterfaces = new LinkedHashSet<>();
++    LinkedHashSet<ObjectType> resolvedExtendedInterfaces = null;
+     for (ObjectType obj : getReferencedObjTypeInternal().getCtorExtendedInterfaces()) {
++      if (resolvedExtendedInterfaces == null) {
++        resolvedExtendedInterfaces = new LinkedHashSet<>();
++      }
+       resolvedExtendedInterfaces.add(obj.visit(replacer).toObjectType());
+     }
+-    return resolvedExtendedInterfaces;
++    return resolvedExtendedInterfaces != null ? resolvedExtendedInterfaces : ImmutableList.of();
+   }
+ 
+   @Override

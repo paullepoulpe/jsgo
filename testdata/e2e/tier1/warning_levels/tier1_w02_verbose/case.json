@@ -1,0 +1,23 @@
+{
+  "id": "tier1_w02_verbose",
+  "tier": 1,
+  "feature": "warning_levels",
+  "name": "Verbose warning level",
+  "description": "Verifies VERBOSE warning level enables detailed diagnostic output",
+  "args": [
+    "--warning_level",
+    "VERBOSE",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var x = 1;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var x=1;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

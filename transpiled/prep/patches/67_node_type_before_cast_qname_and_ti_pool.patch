@@ -1,0 +1,2283 @@
+diff -ruN com/google/javascript/jscomp/CodingConvention.java b/com/google/javascript/jscomp/CodingConvention.java
+--- com/google/javascript/jscomp/CodingConvention.java	2010-01-01 00:00:00
++++ b/com/google/javascript/jscomp/CodingConvention.java	2026-11-18 10:27:58
+@@ -464,10 +464,65 @@
+     @SuppressWarnings("Immutable")
+     private final ImmutableMap<Object, AssertionFunctionSpec> internal;
+ 
++    private final boolean hasSimpleNamedSpecs;
++
++    @SuppressWarnings("Immutable")
++    private final int @Nullable [] qnameHashes;
++
+     private AssertionFunctionLookup(ImmutableMap<Object, AssertionFunctionSpec> internal) {
+       this.internal = internal;
++      boolean hasSimple = false;
++      int dottedCount = 0;
++      for (Object id : internal.keySet()) {
++        if (id instanceof String name) {
++          if (name.indexOf('.') >= 0) {
++            dottedCount++;
++          } else {
++            hasSimple = true;
++          }
++        }
++      }
++      this.hasSimpleNamedSpecs = hasSimple;
++      if (dottedCount == 0) {
++        this.qnameHashes = null;
++      } else {
++        int cap = 8;
++        while (cap < dottedCount * 2) {
++          cap <<= 1;
++        }
++        int[] table = new int[cap];
++        int mask = cap - 1;
++        for (Object id : internal.keySet()) {
++          if (id instanceof String name && name.indexOf('.') >= 0) {
++            int h = Node.hashQualifiedNameString(name);
++            if (h != 0) {
++              int slot = h & mask;
++              while (table[slot] != 0 && table[slot] != h) {
++                slot = (slot + 1) & mask;
++              }
++              table[slot] = h;
++            }
++          }
++        }
++        this.qnameHashes = table;
++      }
+     }
+ 
++    private static boolean containsHash(int[] table, int h) {
++      int mask = table.length - 1;
++      int slot = h & mask;
++      while (true) {
++        int existing = table[slot];
++        if (existing == 0) {
++          return false;
++        }
++        if (existing == h) {
++          return true;
++        }
++        slot = (slot + 1) & mask;
++      }
++    }
++
+     /**
+      * Returns a new map containing all the given {@link AssertionFunctionSpec}s
+      *
+@@ -497,7 +552,31 @@
+       }
+ 
+       // TODO(b/126254920): remove this
+-      if (callee.isQualifiedName()) {
++      if (callee.isGetProp()) {
++        int[] table = this.qnameHashes;
++        if (table == null) {
++          return null;
++        }
++        int h = callee.hashQualifiedName();
++        if (h == 0 || !containsHash(table, h)) {
++          return null;
++        }
++        return internal.get(callee.getQualifiedName());
++      }
++      if (callee.isName()) {
++        String name = callee.getString();
++        if (name.isEmpty()) {
++          return null;
++        }
++        if (name.indexOf('.') >= 0) {
++          return this.qnameHashes != null
++                  && containsHash(this.qnameHashes, Node.hashQualifiedNameString(name))
++              ? internal.get(name)
++              : null;
++        }
++        return this.hasSimpleNamedSpecs ? internal.get(name) : null;
++      }
++      if (this.hasSimpleNamedSpecs && callee.isQualifiedName()) {
+         return internal.get(callee.getQualifiedName());
+       }
+ 
+diff -ruN com/google/javascript/jscomp/ControlFlowAnalysis.java b/com/google/javascript/jscomp/ControlFlowAnalysis.java
+--- com/google/javascript/jscomp/ControlFlowAnalysis.java	2026-11-18 10:27:57
++++ b/com/google/javascript/jscomp/ControlFlowAnalysis.java	2026-11-18 10:27:58
+@@ -60,11 +60,15 @@
+    * <p>At the moment, we are not performing any inter-procedural analysis.
+    */
+   private static final int MAX_CFA_POOL_SIZE = 16;
++  private static final int MAX_CFG_POOL_SIZE = 16;
+   private static final int MAX_POOLED_AST_POS_CAPACITY = 4096;
+   private static final int MAX_POOLED_WORK_HEAP_CAPACITY = 2048;
+   private static final ControlFlowAnalysis @Nullable [] CFA_POOL =
+       new ControlFlowAnalysis[MAX_CFA_POOL_SIZE];
+   private static int cfaPoolSize;
++  private static final AstControlFlowGraph @Nullable [] CFG_POOL =
++      new AstControlFlowGraph[MAX_CFG_POOL_SIZE];
++  private static int cfgPoolSize;
+ 
+   private @Nullable AbstractCompiler compiler;
+ 
+@@ -188,12 +192,57 @@
+     public ControlFlowGraph<Node> computeCfg() {
+       Preconditions.checkNotNull(compiler, "Need to call setCompiler()");
+       Preconditions.checkNotNull(cfgRoot, "Need to call setCfgRoot()");
+-      ControlFlowAnalysis cfa = acquireCfa(compiler, shouldTraverseFunctions, edgeAnnotations);
+-      try {
+-        cfa.computeCfg(this.cfgRoot);
+-        return cfa.cfg;
+-      } finally {
+-        releaseCfa(cfa);
++      return computeCfgDirect(compiler, this.cfgRoot, shouldTraverseFunctions, edgeAnnotations);
++    }
++  }
++
++  static ControlFlowGraph<Node> computeCfgDirect(
++      AbstractCompiler compiler,
++      Node cfgRoot,
++      boolean shouldTraverseFunctions,
++      boolean edgeAnnotations) {
++    ControlFlowAnalysis cfa = acquireCfa(compiler, shouldTraverseFunctions, edgeAnnotations);
++    try {
++      cfa.computeCfg(cfgRoot);
++      return cfa.cfg;
++    } finally {
++      releaseCfa(cfa);
++    }
++  }
++
++  private static @Nullable synchronized AstControlFlowGraph popPooledAstCfg() {
++    if (cfgPoolSize > 0) {
++      int idx = --cfgPoolSize;
++      AstControlFlowGraph pooled = CFG_POOL[idx];
++      CFG_POOL[idx] = null;
++      return pooled;
++    }
++    return null;
++  }
++
++  private static synchronized boolean pushPooledAstCfg(AstControlFlowGraph astCfg) {
++    if (cfgPoolSize < MAX_CFG_POOL_SIZE) {
++      CFG_POOL[cfgPoolSize++] = astCfg;
++      return true;
++    }
++    return false;
++  }
++
++  private static AstControlFlowGraph acquireAstCfg(Node entry, boolean edgeAnnotations) {
++    AstControlFlowGraph pooled = popPooledAstCfg();
++    if (pooled != null) {
++      pooled.reinitCfg(entry, edgeAnnotations);
++      return pooled;
++    }
++    return new AstControlFlowGraph(entry, edgeAnnotations);
++  }
++
++  static void releaseCfg(@Nullable Object maybeCfg) {
++    if (maybeCfg instanceof AstControlFlowGraph astCfg) {
++      DataFlowAnalysis.<Node>recycleGraphFlowStates(astCfg);
++      boolean pooled = astCfg.resetCfgForPool() && pushPooledAstCfg(astCfg);
++      if (!pooled) {
++        // Slab release hook target for gopasses when CFG is not retained in CFG_POOL.
+       }
+     }
+   }
+@@ -385,7 +434,7 @@
+     astPosSize = 0;
+     nullAstPos = -1;
+     astPositionCounter = 0;
+-    cfg = new AstControlFlowGraph(computeFallThrough(root), edgeAnnotations);
++    cfg = acquireAstCfg(computeFallThrough(root), edgeAnnotations);
+ 
+     // Traverse the graph.
+     NodeTraversal.traverse(compiler, root, this);
+diff -ruN com/google/javascript/jscomp/ControlFlowGraph.java b/com/google/javascript/jscomp/ControlFlowGraph.java
+--- com/google/javascript/jscomp/ControlFlowGraph.java	2026-11-18 10:27:57
++++ b/com/google/javascript/jscomp/ControlFlowGraph.java	2026-11-18 10:27:58
+@@ -19,6 +19,7 @@
+ import com.google.javascript.jscomp.graph.LinkedDirectedGraph;
+ import com.google.javascript.rhino.Node;
+ import java.util.Comparator;
++import org.jspecify.annotations.Nullable;
+ 
+ /**
+  * Control flow graph.
+@@ -33,9 +34,9 @@
+    * "return" when control is transferred outside of the current control flow
+    * graph.
+    */
+-  private final DiGraphNode<N, ControlFlowGraph.Branch> implicitReturn;
++  private @Nullable DiGraphNode<N, ControlFlowGraph.Branch> implicitReturn;
+ 
+-  private final DiGraphNode<N, ControlFlowGraph.Branch> entry;
++  private @Nullable DiGraphNode<N, ControlFlowGraph.Branch> entry;
+ 
+   /**
+    * Constructor.
+@@ -45,6 +46,18 @@
+     super(nodeAnnotations, edgeAnnotations);
+     implicitReturn = createNode(null);
+     this.entry = createNode(entry);
++  }
++
++  final boolean resetCfgForPool() {
++    this.implicitReturn = null;
++    this.entry = null;
++    return resetForReuse(true, false);
++  }
++
++  final void reinitCfg(N entryValue, boolean edgeAnnotations) {
++    setUseEdgeAnnotations(edgeAnnotations);
++    this.implicitReturn = createNode(null);
++    this.entry = createNode(entryValue);
+   }
+ 
+   /**
+diff -ruN com/google/javascript/jscomp/DataFlowAnalysis.java b/com/google/javascript/jscomp/DataFlowAnalysis.java
+--- com/google/javascript/jscomp/DataFlowAnalysis.java	2026-11-18 10:27:57
++++ b/com/google/javascript/jscomp/DataFlowAnalysis.java	2026-11-18 10:27:58
+@@ -83,11 +83,17 @@
+  */
+ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+ 
+-  private final ControlFlowGraph<N> cfg;
++  private static final int MAX_FLOW_STATE_POOL_SIZE = 4096;
++  private static final int MAX_POOLED_WORK_ELEMENTS_CAPACITY = 4096;
++  private static final LinearFlowState<?> @Nullable [] FLOW_STATE_POOL =
++      new LinearFlowState<?>[MAX_FLOW_STATE_POOL_SIZE];
++  private static int flowStatePoolSize;
++
++  private @Nullable ControlFlowGraph<N> cfg;
+   private final boolean forward;
+   private final boolean branched;
+-  private final boolean ordered;
+-  private final @Nullable Comparator<DiGraphNode<N, Branch>> customComparator;
++  private boolean ordered;
++  private @Nullable Comparator<DiGraphNode<N, Branch>> customComparator;
+   private DiGraphNode<N, Branch> @Nullable [] workElements;
+   private int workHead;
+   private int workSize;
+@@ -119,25 +125,60 @@
+    * @see #analyze()
+    */
+   DataFlowAnalysis(ControlFlowGraph<N> cfg) {
+-    this.cfg = cfg;
+     boolean forward = isForward();
+     boolean branched = isBranched();
+     this.forward = forward;
+     this.branched = branched;
++    if (branched) {
++      checkState(forward);
++    }
++    initCfg(cfg);
++  }
++
++  final void initCfg(ControlFlowGraph<N> cfg) {
++    this.cfg = cfg;
+     if (cfg.hasPriorityComparator()) {
+       this.ordered = true;
+       this.customComparator = null;
+     } else {
+-      Comparator<DiGraphNode<N, Branch>> cmp = cfg.getOptionalNodeComparator(forward);
++      Comparator<DiGraphNode<N, Branch>> cmp = cfg.getOptionalNodeComparator(this.forward);
+       this.ordered = cmp != null;
+       this.customComparator = cmp;
+     }
++  }
+ 
+-    if (branched) {
+-      checkState(forward);
++  final void releaseCfgReference() {
++    clearWorkQueue();
++    if (this.workElements != null && this.workElements.length > MAX_POOLED_WORK_ELEMENTS_CAPACITY) {
++      this.workElements = null;
+     }
++    this.cfg = null;
++    this.customComparator = null;
+   }
+ 
++  private static synchronized @Nullable LinearFlowState<?> popPooledFlowState() {
++    if (flowStatePoolSize > 0) {
++      int idx = --flowStatePoolSize;
++      LinearFlowState<?> pooled = FLOW_STATE_POOL[idx];
++      FLOW_STATE_POOL[idx] = null;
++      return pooled;
++    }
++    return null;
++  }
++
++  static synchronized <N> void recycleGraphFlowStates(ControlFlowGraph<N> cfg) {
++    for (DiGraphNode<N, Branch> node : cfg.getNodes()) {
++      Annotation ann = node.getAnnotation();
++      if (ann instanceof LinearFlowState<?> state) {
++        state.clearForPool();
++        node.setAnnotation(null);
++        if (flowStatePoolSize < MAX_FLOW_STATE_POOL_SIZE) {
++          FLOW_STATE_POOL[flowStatePoolSize++] = state;
++        }
++      }
++    }
++  }
++
+   /**
+    * Returns the control flow graph that this analysis was performed on. Modifications can be done
+    * on this graph, however, the only time that the annotations are correct is after {@link
+@@ -297,8 +338,24 @@
+     DiGraphNode<N, Branch> implicitReturn = cfg.getImplicitReturn();
+     for (DiGraphNode<N, Branch> node : cfg.getNodes()) {
+       node.setInDfaQueue(false);
+-      node.setAnnotation(
+-          new LinearFlowState<>(createInitialEstimateLattice(), createInitialEstimateLattice()));
++      L initIn = createInitialEstimateLattice();
++      L initOut = createInitialEstimateLattice();
++      Annotation existing = node.getAnnotation();
++      if (existing instanceof LinearFlowState<?> raw) {
++        @SuppressWarnings("unchecked")
++        LinearFlowState<L> reused = (LinearFlowState<L>) raw;
++        reused.reinit(initIn, initOut);
++      } else {
++        LinearFlowState<?> rawPooled = popPooledFlowState();
++        if (rawPooled != null) {
++          @SuppressWarnings("unchecked")
++          LinearFlowState<L> pooled = (LinearFlowState<L>) rawPooled;
++          pooled.reinit(initIn, initOut);
++          node.setAnnotation(pooled);
++        } else {
++          node.setAnnotation(new LinearFlowState<>(initIn, initOut));
++        }
++      }
+       if (node != implicitReturn) {
+         enqueueWorkNode(node);
+       }
+@@ -408,14 +465,28 @@
+   /** The in and out states of a node. */
+   static final class LinearFlowState<L> implements Annotation {
+     private int stepCount = 0;
+-    private L in;
+-    private L out;
++    private @Nullable L in;
++    private @Nullable L out;
+ 
+     private LinearFlowState(L in, L out) {
+       checkNotNull(in);
+       checkNotNull(out);
+       this.in = in;
+       this.out = out;
++    }
++
++    void reinit(L in, L out) {
++      checkNotNull(in);
++      checkNotNull(out);
++      this.stepCount = 0;
++      this.in = in;
++      this.out = out;
++    }
++
++    void clearForPool() {
++      this.stepCount = 0;
++      this.in = null;
++      this.out = null;
+     }
+ 
+     int getStepCount() {
+diff -ruN com/google/javascript/jscomp/FlowSensitiveInlineVariables.java b/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java
+--- com/google/javascript/jscomp/FlowSensitiveInlineVariables.java	2010-01-01 00:00:00
++++ b/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java	2026-11-18 10:27:58
+@@ -182,57 +182,62 @@
+     SyntacticScopeCreator scopeCreator = (SyntacticScopeCreator) t.getScopeCreator();
+ 
+     // Compute the forward reaching definition.
+-    cfg =
+-        ControlFlowAnalysis.builder()
+-            .setCompiler(compiler)
+-            .setCfgRoot(functionScopeRoot)
+-            .setIncludeEdgeAnnotations(true)
+-            .computeCfg();
++    ControlFlowGraph<Node> localCfg =
++        ControlFlowAnalysis.computeCfgDirect(compiler, functionScopeRoot, false, true);
++    try {
++      cfg = localCfg;
++      LinkedHashSet<Var> escaped = new LinkedHashSet<>();
++      Scope scope = t.getScope();
++      AllVarsDeclaredInFunction allVarsDeclaredInFunction =
++          NodeUtil.getAllVarsDeclaredInFunction(compiler, scopeCreator, scope.getParent());
++      Map<String, Var> allVarsInFn = allVarsDeclaredInFunction.getAllVariables();
++      DataFlowAnalysis.computeEscaped(
++          scope.getParent(), escaped, compiler, scopeCreator, allVarsInFn);
+ 
+-    LinkedHashSet<Var> escaped = new LinkedHashSet<>();
+-    Scope scope = t.getScope();
+-    AllVarsDeclaredInFunction allVarsDeclaredInFunction =
+-        NodeUtil.getAllVarsDeclaredInFunction(compiler, scopeCreator, scope.getParent());
+-    Map<String, Var> allVarsInFn = allVarsDeclaredInFunction.getAllVariables();
+-    DataFlowAnalysis.computeEscaped(
+-        scope.getParent(), escaped, compiler, scopeCreator, allVarsInFn);
++      reachingDef = new MustBeReachingVariableDef(cfg, compiler, escaped, allVarsInFn);
++      reachingDef.analyze();
++      candidates = new LinkedHashSet<>();
+ 
+-    reachingDef = new MustBeReachingVariableDef(cfg, compiler, escaped, allVarsInFn);
+-    reachingDef.analyze();
+-    candidates = new LinkedHashSet<>();
++      // Using the forward reaching definition search to find all the inline
++      // candidates
++      NodeTraversal.traverse(compiler, t.getScopeRoot(), new GatherCandidates());
+ 
+-    // Using the forward reaching definition search to find all the inline
+-    // candidates
+-    NodeTraversal.traverse(compiler, t.getScopeRoot(), new GatherCandidates());
++      // Compute the backward reaching use. The CFG and per-function variable info can be reused.
++      reachingUses = new MaybeReachingVariableUse(cfg, escaped, allVarsInFn);
++      reachingUses.analyze();
++      while (!candidates.isEmpty()) {
++        Candidate c = candidates.iterator().next();
++        Var candidateVar = checkNotNull(allVarsInFn.get(c.varName));
++        if (c.canInline(candidateVar.getScope())) {
++          c.inlineVariable();
++          candidates.remove(c);
+ 
+-    // Compute the backward reaching use. The CFG and per-function variable info can be reused.
+-    reachingUses = new MaybeReachingVariableUse(cfg, escaped, allVarsInFn);
+-    reachingUses.analyze();
+-    while (!candidates.isEmpty()) {
+-      Candidate c = candidates.iterator().next();
+-      Var candidateVar = checkNotNull(allVarsInFn.get(c.varName));
+-      if (c.canInline(candidateVar.getScope())) {
+-        c.inlineVariable();
+-        candidates.remove(c);
+-
+-        // If candidate "c" has dependencies, then inlining it may have introduced new dependencies
+-        // for our other inlining candidates. MustBeReachingVariableDef uses a dependency graph in
+-        // its analysis. Generating a new dependency graph will need another CFG computation.
+-        // Ideally we should iterate to a fixed point, but that can be costly. Therefore, we use
+-        // a conservative heuristic here: For each candidate "other", we back off if its set of
+-        // dependencies cannot contain all of "c"'s dependencies.
+-        if (!c.defMetadata.depends.isEmpty()) {
+-          for (Iterator<Candidate> it = candidates.iterator(); it.hasNext();) {
+-            Candidate other = it.next();
+-            if (other.defMetadata.depends.contains(t.getScope().getVar(c.varName))
+-                && !other.defMetadata.depends.containsAll(c.defMetadata.depends)) {
+-              it.remove();
++          // If candidate "c" has dependencies, then inlining it may have introduced new
++          // dependencies
++          // for our other inlining candidates. MustBeReachingVariableDef uses a dependency graph in
++          // its analysis. Generating a new dependency graph will need another CFG computation.
++          // Ideally we should iterate to a fixed point, but that can be costly. Therefore, we use
++          // a conservative heuristic here: For each candidate "other", we back off if its set of
++          // dependencies cannot contain all of "c"'s dependencies.
++          if (!c.defMetadata.depends.isEmpty()) {
++            for (Iterator<Candidate> it = candidates.iterator(); it.hasNext(); ) {
++              Candidate other = it.next();
++              if (other.defMetadata.depends.contains(t.getScope().getVar(c.varName))
++                  && !other.defMetadata.depends.containsAll(c.defMetadata.depends)) {
++                it.remove();
++              }
+             }
+           }
++        } else {
++          candidates.remove(c);
+         }
+-      } else {
+-        candidates.remove(c);
+       }
++    } finally {
++      cfg = null;
++      reachingDef = null;
++      reachingUses = null;
++      candidates = null;
++      ControlFlowAnalysis.releaseCfg(localCfg);
+     }
+   }
+ 
+diff -ruN com/google/javascript/jscomp/GlobalNamespace.java b/com/google/javascript/jscomp/GlobalNamespace.java
+--- com/google/javascript/jscomp/GlobalNamespace.java	2026-11-18 10:27:57
++++ b/com/google/javascript/jscomp/GlobalNamespace.java	2026-11-18 10:27:58
+@@ -213,10 +213,13 @@
+    * @return The root node of the scope in which this is defined, or null if this is undeclared.
+    */
+   private @Nullable Node getRootNode(String name, Scope s) {
+-    name = getTopVarName(name);
+-    Var v = s.getVar(name);
++    return getRootNodeForTopVar(getTopVarName(name), s);
++  }
++
++  private @Nullable Node getRootNodeForTopVar(String topVarName, Scope s) {
++    Var v = s.getVar(topVarName);
+     if (v == null) {
+-      Name providedName = nameMap.get(name);
++      Name providedName = nameMap.get(topVarName);
+       return providedName != null && providedName.getBooleanProperty(NameProp.IS_PROVIDED)
+           ? globalRoot
+           : null;
+@@ -456,10 +459,27 @@
+       }
+     }
+ 
++    private static @Nullable String getTopVarNameFromQualifiedNode(Node n) {
++      Node cur = n;
++      while (cur.isGetProp()) {
++        cur = cur.getFirstChild();
++      }
++      return switch (cur.getToken()) {
++        case NAME -> {
++          String s = cur.getString();
++          yield s.isEmpty() ? null : getTopVarName(s);
++        }
++        case THIS -> "this";
++        case SUPER -> "super";
++        default -> null;
++      };
++    }
++
+     private void collect(Scope scope, JSChunk chunk, Node n) {
+       Node parent = n.getParent();
+ 
+       String name;
++      Node root = null;
+       boolean isSet = false;
+       NameProp type = NameProp.OTHER_OBJECT;
+ 
+@@ -577,9 +597,14 @@
+                 type = NameProp.OTHER_OBJECT;
+               }
+           }
+-          if (!n.isQualifiedName()) {
++          String topVarName = getTopVarNameFromQualifiedNode(n);
++          if (topVarName == null) {
+             return;
+           }
++          root = getRootNodeForTopVar(topVarName, scope);
++          if (!isTopLevelScopeRoot(root)) {
++            return;
++          }
+           name = n.getQualifiedName();
+         }
+         case CALL -> {
+@@ -603,10 +628,12 @@
+         return;
+       }
+ 
+-      Node root = getRootNode(name, scope);
+-      // We are only interested in global and module names.
+-      if (!isTopLevelScopeRoot(root)) {
+-        return;
++      if (root == null) {
++        root = getRootNode(name, scope);
++        // We are only interested in global and module names.
++        if (!isTopLevelScopeRoot(root)) {
++          return;
++        }
+       }
+ 
+       ModuleMetadata nameMetadata = root == globalRoot ? null : curMetadata;
+diff -ruN com/google/javascript/jscomp/LinkedFlowScope.java b/com/google/javascript/jscomp/LinkedFlowScope.java
+--- com/google/javascript/jscomp/LinkedFlowScope.java	2026-11-18 10:27:57
++++ b/com/google/javascript/jscomp/LinkedFlowScope.java	2026-11-18 10:27:58
+@@ -46,7 +46,7 @@
+   // The TypedScope for the block that this flow scope is defined for.
+   private final TypedScope syntacticScope;
+ 
+-  private final boolean hasQualifiedOverlaySlots;
++  private final boolean hasUnindexedQualifiedOverlaySlots;
+ 
+   /**
+    * Creates a flow scope without a direct parent. This can happen in three cases: (1) the "bottom"
+@@ -58,12 +58,12 @@
+       HamtPMap<TypedScope, OverlayScope> scopes,
+       TypedScope syntacticScope,
+       TypedScope functionScope,
+-      boolean hasQualifiedOverlaySlots) {
++      boolean hasUnindexedQualifiedOverlaySlots) {
+     this.inputProvider = inputProvider;
+     this.scopes = scopes;
+     this.syntacticScope = syntacticScope;
+     this.functionScope = functionScope;
+-    this.hasQualifiedOverlaySlots = hasQualifiedOverlaySlots;
++    this.hasUnindexedQualifiedOverlaySlots = hasUnindexedQualifiedOverlaySlots;
+   }
+ 
+   /**
+@@ -73,6 +73,9 @@
+    * these irrelevant types when checking equality and joining.
+    */
+   private HamtPMap<TypedScope, OverlayScope> trimScopes(TypedScope scope) {
++    if (scopes.isEmpty()) {
++      return scopes;
++    }
+     TypedScope thisScope = syntacticScope;
+     TypedScope thatScope = scope;
+     int thisDepth = thisScope.getDepth();
+@@ -116,12 +119,15 @@
+     if (newScopes == scopes) {
+       return this;
+     }
+-    boolean nextHasQualified =
++    boolean nextHasUnindexed =
+         !newScopes.isEmpty()
+-            && (this.hasQualifiedOverlaySlots
+-                || (!newScope.slots.isEmpty() && symbol.indexOf('.') >= 0));
++            && (this.hasUnindexedQualifiedOverlaySlots
++                || (!newScope.slots.isEmpty()
++                    && symbol.indexOf('.') >= 0
++                    && !scope.scope.mayHaveQualifiedVarWithHash(
++                        Node.hashQualifiedNameString(symbol))));
+     return new LinkedFlowScope(
+-        inputProvider, newScopes, syntacticScope, functionScope, nextHasQualified);
++        inputProvider, newScopes, syntacticScope, functionScope, nextHasUnindexed);
+   }
+ 
+   @Override
+@@ -207,24 +213,17 @@
+   }
+ 
+   boolean mayHaveQualifiedSlotForRoot(String rootName) {
+-    if (this.hasQualifiedOverlaySlots
+-        || this.syntacticScope.hasQualifiedOwnVarWithRoot(rootName)
+-        || this.functionScope.hasQualifiedOwnVarWithRoot(rootName)) {
++    if (this.hasUnindexedQualifiedOverlaySlots) {
+       return true;
+     }
+-    if (this.syntacticScope.getParent() == null) {
+-      return false;
+-    }
+-    TypedScope rootScope = this.syntacticScope.findScopeForRootName(rootName);
+-    if (rootScope != null) {
+-      return rootScope.hasQualifiedOwnVarWithRoot(rootName);
+-    }
+-    return this.syntacticScope.getGlobalScope().hasQualifiedOwnVarWithRoot(rootName);
++    return this.syntacticScope.mayHaveQualifiedVarForRoot(rootName)
++        || (this.functionScope != this.syntacticScope
++            && this.functionScope.mayHaveQualifiedVarForRoot(rootName));
+   }
+ 
+   boolean mayHaveQualifiedSlotForNode(Node n) {
+-    if (this.hasQualifiedOverlaySlots) {
+-      return true;
++    if (this.hasUnindexedQualifiedOverlaySlots) {
++      return n.isQualifiedName();
+     }
+     if (!n.isGetProp()) {
+       return n.isQualifiedName();
+@@ -289,7 +288,7 @@
+         trimmed,
+         typedScope,
+         functionScope,
+-        !trimmed.isEmpty() && this.hasQualifiedOverlaySlots);
++        !trimmed.isEmpty() && this.hasUnindexedQualifiedOverlaySlots);
+   }
+ 
+   @Override
+@@ -301,11 +300,21 @@
+   static class FlowScopeJoinOp implements FlowJoiner<FlowScope> {
+     @Nullable LinkedFlowScope result = null;
+     final CompilerInputProvider inputProvider;
++    private boolean inUse;
+ 
+     FlowScopeJoinOp(CompilerInputProvider inputProvider) {
+       this.inputProvider = inputProvider;
+     }
+ 
++    boolean tryAcquire() {
++      if (this.inUse) {
++        return false;
++      }
++      this.inUse = true;
++      this.result = null;
++      return true;
++    }
++
+     // NOTE(sdh): When joining flow scopes with different syntactic scopes,
+     // we do not attempt to recover the correct syntactic scope.  This is
+     // okay because joins only occur in two situations: (1) performed by
+@@ -324,9 +333,19 @@
+       if (this.result == null) {
+         this.result = linkedInput;
+         return;
+-      } else if (this.result.scopes == linkedInput.scopes
+-          && this.result.functionScope == linkedInput.functionScope) {
++      } else if (this.result == linkedInput
++          || (this.result.scopes == linkedInput.scopes
++              && this.result.functionScope == linkedInput.functionScope)) {
+         return;
++      } else if (this.result.flowsFromBottom()
++          && this.result.scopes.isEmpty()
++          && !linkedInput.flowsFromBottom()) {
++        this.result = linkedInput;
++        return;
++      } else if (linkedInput.flowsFromBottom()
++          && linkedInput.scopes.isEmpty()
++          && !this.result.flowsFromBottom()) {
++        return;
+       }
+ 
+       // NOTE: it would be nice to put 'null' as the syntactic scope if they're not
+@@ -345,22 +364,35 @@
+       // adding irrelevant block-local variables to the joined scope unnecessarily.
+       TypedScope common = getCommonParentDeclarationScope(this.result, linkedInput);
+       HamtPMap<TypedScope, OverlayScope> joined = join(this.result, linkedInput, common);
++      TypedScope nextFnScope =
++          this.result.flowsFromBottom() ? linkedInput.functionScope : this.result.functionScope;
++      boolean nextUnindexed =
++          !joined.isEmpty()
++              && (this.result.hasUnindexedQualifiedOverlaySlots
++                  || linkedInput.hasUnindexedQualifiedOverlaySlots);
++      if (joined == this.result.scopes
++          && common == this.result.syntacticScope
++          && nextFnScope == this.result.functionScope
++          && nextUnindexed == this.result.hasUnindexedQualifiedOverlaySlots) {
++        return;
++      }
++      if (joined == linkedInput.scopes
++          && common == linkedInput.syntacticScope
++          && nextFnScope == linkedInput.functionScope
++          && nextUnindexed == linkedInput.hasUnindexedQualifiedOverlaySlots) {
++        this.result = linkedInput;
++        return;
++      }
+       this.result =
+-          new LinkedFlowScope(
+-              inputProvider,
+-              joined,
+-              common,
+-              this.result.flowsFromBottom()
+-                  ? linkedInput.functionScope
+-                  : this.result.functionScope,
+-              !joined.isEmpty()
+-                  && (this.result.hasQualifiedOverlaySlots
+-                      || linkedInput.hasQualifiedOverlaySlots));
++          new LinkedFlowScope(inputProvider, joined, common, nextFnScope, nextUnindexed);
+     }
+ 
+     @Override
+     public FlowScope finish() {
+-      return this.result;
++      LinkedFlowScope res = this.result;
++      this.result = null;
++      this.inUse = false;
++      return res;
+     }
+   }
+ 
+@@ -430,8 +462,7 @@
+               TypedScope bestScope = typedScopeA != null ? typedScopeA : typedScopeB;
+               bestScope =
+                   bestScope != null ? bestScope : scopeA != null ? scopeA.scope : scopeB.scope;
+-              return new OverlayScope(
+-                  bestScope,
++              HamtPMap<String, OverlaySlot> reconciledSlots =
+                   slotsA.reconcile(
+                       slotsB,
+                       (slotKey, slotA, slotB) -> {
+@@ -482,7 +513,14 @@
+                         return identical(joinedType, slotA.getType())
+                             ? slotA
+                             : new OverlaySlot(name, joinedType);
+-                      }));
++                      });
++              if (scopeA != null && scopeA.scope == bestScope && reconciledSlots == scopeA.slots) {
++                return scopeA;
++              }
++              if (scopeB != null && scopeB.scope == bestScope && reconciledSlots == scopeB.slots) {
++                return scopeB;
++              }
++              return new OverlayScope(bestScope, reconciledSlots);
+             });
+   }
+ 
+diff -ruN com/google/javascript/jscomp/NodeTraversal.java b/com/google/javascript/jscomp/NodeTraversal.java
+--- com/google/javascript/jscomp/NodeTraversal.java	2026-11-18 10:27:57
++++ b/com/google/javascript/jscomp/NodeTraversal.java	2026-11-18 10:27:58
+@@ -211,12 +211,7 @@
+       Object o = cfgs.peek();
+       checkState(o != null);
+       if (o instanceof Node cfgRoot) {
+-        result =
+-            ControlFlowAnalysis.builder()
+-                .setCompiler(compiler)
+-                .setCfgRoot(cfgRoot)
+-                .setIncludeEdgeAnnotations(true)
+-                .computeCfg();
++        result = ControlFlowAnalysis.computeCfgDirect(compiler, cfgRoot, false, true);
+         cfgs.pop();
+         cfgs.push(result);
+       } else {
+@@ -235,11 +230,15 @@
+     }
+ 
+     @Override
++    @SuppressWarnings("unchecked")
+     public final void exitScope(NodeTraversal t) {
+-      exitScopeWithCfg(t);
+-      Node currentScopeRoot = t.getScopeRoot();
+-      if (NodeUtil.isValidCfgRoot(currentScopeRoot)) {
+-        cfgs.pop();
++      try {
++        exitScopeWithCfg(t);
++      } finally {
++        Node currentScopeRoot = t.getScopeRoot();
++        if (NodeUtil.isValidCfgRoot(currentScopeRoot)) {
++          ControlFlowAnalysis.releaseCfg(cfgs.pop());
++        }
+       }
+     }
+ 
+diff -ruN com/google/javascript/jscomp/ProcessClosurePrimitives.java b/com/google/javascript/jscomp/ProcessClosurePrimitives.java
+--- com/google/javascript/jscomp/ProcessClosurePrimitives.java	2010-01-01 00:00:00
++++ b/com/google/javascript/jscomp/ProcessClosurePrimitives.java	2026-11-18 10:27:58
+@@ -130,14 +130,59 @@
+   private final Set<String> knownClosureSubclasses = new LinkedHashSet<>();
+ 
+   private final ImmutableMap<String, ModuleMetadata> closureModules;
++  private final int @Nullable [] googProvideHashes;
+ 
+   ProcessClosurePrimitives(AbstractCompiler compiler) {
+     this.compiler = compiler;
+     this.closureModules =
+         checkNotNull(compiler.getModuleMetadataMap(), "Need to run GatherModuleMetadata")
+             .getModulesByGoogNamespace();
++    int provideCount = 0;
++    for (ModuleMetadata metadata : this.closureModules.values()) {
++      if (metadata.isGoogProvide()) {
++        provideCount++;
++      }
++    }
++    if (provideCount == 0) {
++      this.googProvideHashes = null;
++    } else {
++      int cap = 8;
++      while (cap < provideCount * 2) {
++        cap <<= 1;
++      }
++      int[] table = new int[cap];
++      int mask = cap - 1;
++      for (Map.Entry<String, ModuleMetadata> entry : this.closureModules.entrySet()) {
++        if (entry.getValue().isGoogProvide()) {
++          int h = Node.hashQualifiedNameString(entry.getKey());
++          if (h != 0) {
++            int slot = h & mask;
++            while (table[slot] != 0 && table[slot] != h) {
++              slot = (slot + 1) & mask;
++            }
++            table[slot] = h;
++          }
++        }
++      }
++      this.googProvideHashes = table;
++    }
+   }
+ 
++  private static boolean containsHash(int[] table, int h) {
++    int mask = table.length - 1;
++    int slot = h & mask;
++    while (true) {
++      int existing = table[slot];
++      if (existing == 0) {
++        return false;
++      }
++      if (existing == h) {
++        return true;
++      }
++      slot = (slot + 1) & mask;
++    }
++  }
++
+   @Override
+   public void process(Node externs, Node root) {
+     // Replace and validate other Closure primitives
+@@ -173,11 +218,23 @@
+         }
+       }
+       case EXPR_RESULT -> {
+-        if (!n.getFirstChild().isAssign() || !n.getFirstFirstChild().isQualifiedName()) {
++        Node assign = n.getFirstChild();
++        if (!assign.isAssign()) {
+           break;
+         }
+-        String lhs = n.getFirstFirstChild().getQualifiedName();
+-        checkPossibleGoogProvideInit(lhs, n.getFirstChild().getJSDocInfo(), n);
++        JSDocInfo info = assign.getJSDocInfo();
++        if (info == null || this.googProvideHashes == null || n.isFromExterns()) {
++          break;
++        }
++        Node target = assign.getFirstChild();
++        int h = target.hashQualifiedName();
++        if (h == 0 || !containsHash(this.googProvideHashes, h)) {
++          break;
++        }
++        String lhs = target.getQualifiedName();
++        if (lhs != null) {
++          checkPossibleGoogProvideInit(lhs, info, n);
++        }
+       }
+       case VAR, CONST, LET -> {
+         if (!n.getFirstChild().isName()) {
+diff -ruN com/google/javascript/jscomp/ProcessClosureProvidesAndRequires.java b/com/google/javascript/jscomp/ProcessClosureProvidesAndRequires.java
+--- com/google/javascript/jscomp/ProcessClosureProvidesAndRequires.java	2010-01-01 00:00:00
++++ b/com/google/javascript/jscomp/ProcessClosureProvidesAndRequires.java	2026-11-18 10:27:58
+@@ -62,6 +62,8 @@
+ 
+   // Use a LinkedHashMap because the goog.provides must be processed in a deterministic order.
+   private final Map<String, ProvidedName> providedNames = new LinkedHashMap<>();
++  private int @Nullable [] providedNameHashes;
++  private int providedNameHashCount;
+ 
+   private final Set<String> exportedVariables = new LinkedHashSet<>();
+ 
+@@ -82,6 +84,67 @@
+     this.astFactory = compiler.createAstFactory();
+   }
+ 
++  private void putProvidedName(String ns, ProvidedName pn) {
++    providedNames.put(ns, pn);
++    int h = Node.hashQualifiedNameString(ns);
++    if (h == 0) {
++      return;
++    }
++    int[] table = this.providedNameHashes;
++    if (table == null) {
++      table = new int[16];
++      this.providedNameHashes = table;
++    } else if (this.providedNameHashCount * 4 >= table.length * 3) {
++      int[] next = new int[table.length * 2];
++      int nextMask = next.length - 1;
++      for (int i = 0, len = table.length; i < len; i++) {
++        int existing = table[i];
++        if (existing != 0) {
++          int s = existing & nextMask;
++          while (next[s] != 0) {
++            s = (s + 1) & nextMask;
++          }
++          next[s] = existing;
++        }
++      }
++      table = next;
++      this.providedNameHashes = table;
++    }
++    int mask = table.length - 1;
++    int slot = h & mask;
++    while (true) {
++      int existing = table[slot];
++      if (existing == 0) {
++        table[slot] = h;
++        this.providedNameHashCount++;
++        return;
++      }
++      if (existing == h) {
++        return;
++      }
++      slot = (slot + 1) & mask;
++    }
++  }
++
++  private boolean containsProvidedNameHash(int h) {
++    int[] table = this.providedNameHashes;
++    if (table == null || h == 0) {
++      return false;
++    }
++    int mask = table.length - 1;
++    int slot = h & mask;
++    while (true) {
++      int existing = table[slot];
++      if (existing == 0) {
++        return false;
++      }
++      if (existing == h) {
++        return true;
++      }
++      slot = (slot + 1) & mask;
++    }
++  }
++
+   /** When invoked as compiler pass, we rewrite all provides and requires. */
+   @Override
+   public void process(Node externs, Node root) {
+@@ -96,7 +159,7 @@
+   Map<String, ProvidedName> collectProvidedNames(Node externs, Node root) {
+     if (this.providedNames.isEmpty()) {
+       // goog is special-cased because it is provided in Closure's base library.
+-      providedNames.put(
++      putProvidedName(
+           GOOG, new ProvidedNameBuilder().setNamespace(GOOG).setNode(null).setChunk(null).build());
+       NodeTraversal.traverseRoots(compiler, new CollectDefinitions(), externs, root);
+     }
+@@ -228,7 +291,7 @@
+   /** Handles a goog.module that is a legacy namespace. */
+   private void processLegacyModuleCall(String namespace, Node googModuleCall, JSChunk chunk) {
+     registerAnyProvidedPrefixes(namespace, googModuleCall, chunk);
+-    providedNames.put(
++    putProvidedName(
+         namespace,
+         new ProvidedNameBuilder()
+             .setNamespace(namespace)
+@@ -259,7 +322,7 @@
+       }
+     } else {
+       registerAnyProvidedPrefixes(ns, parent, t.getChunk());
+-      providedNames.put(
++      putProvidedName(
+           ns,
+           new ProvidedNameBuilder()
+               .setNamespace(ns)
+@@ -288,11 +351,15 @@
+     boolean isValidTypedefStubDefinition = isTypedefStub && !this.hasRewritingOccurred;
+ 
+     if (isValidTypedefStubDefinition || isExternStub) {
+-      if (exprResult.getFirstChild().isQualifiedName()) {
+-        String name = exprResult.getFirstChild().getQualifiedName();
+-        ProvidedName pn = providedNames.get(name);
+-        if (pn != null) {
+-          pn.addDefinition(exprResult, t.getChunk(), chunkGraph);
++      Node target = exprResult.getFirstChild();
++      int h = target.hashQualifiedName();
++      if (h != 0 && containsProvidedNameHash(h)) {
++        String name = target.getQualifiedName();
++        if (name != null) {
++          ProvidedName pn = providedNames.get(name);
++          if (pn != null) {
++            pn.addDefinition(exprResult, t.getChunk(), chunkGraph);
++          }
+         }
+       }
+     }
+@@ -309,7 +376,7 @@
+   private void checkNestedTypedefProvide(Node exprResult) {
+     // forbid this pattern:
+     //   goog.provide('my.parent');
+-    //   goog.provide('my.parent.ChildTypedef');
++    //   goog.provide('my.provide.ChildTypedef');
+     //   my.parent = [...]; // some initialization, doesn't matter what
+     //   /** @typedef {...} */
+     //   my.parent.ChildType;
+@@ -317,7 +384,12 @@
+     // runtime because the compiler would initializer `my.parent.ChildType = {}` before
+     // `my.parent = [...]`, so report an error.
+ 
+-    String name = exprResult.getFirstChild().getQualifiedName();
++    Node target = exprResult.getFirstChild();
++    int h = target.hashQualifiedName();
++    if (h == 0 || !containsProvidedNameHash(h)) {
++      return;
++    }
++    String name = target.getQualifiedName();
+     if (name == null || !name.contains(".")) {
+       // @typedefs on simple names are okay.
+       return;
+@@ -354,7 +426,17 @@
+         switch (n.getParent().getToken()) {
+           case LET, CONST -> t.inGlobalScope() ? n.getString() : null;
+           case VAR -> n.getString();
+-          case EXPR_RESULT -> n.isAssign() ? n.getFirstChild().getQualifiedName() : null;
++          case EXPR_RESULT -> {
++            if (!n.isAssign()) {
++              yield null;
++            }
++            Node target = n.getFirstChild();
++            int h = target.hashQualifiedName();
++            if (h == 0 || !containsProvidedNameHash(h)) {
++              yield null;
++            }
++            yield target.getQualifiedName();
++          }
+           case CLASS, FUNCTION ->
+               // Class and function provides are forbidden; see ProcessClosurePrimitives's
+               // CLASS_NAMESPACE_ERROR and FUNCTION_NAMESPACE_ERROR.
+@@ -413,7 +495,7 @@
+       if (providedNames.containsKey(prefixNs)) {
+         providedNames.get(prefixNs).addProvide(node, chunk, /* explicit= */ false, chunkGraph);
+       } else {
+-        providedNames.put(
++        putProvidedName(
+             prefixNs,
+             new ProvidedNameBuilder()
+                 .setNamespace(prefixNs)
+diff -ruN com/google/javascript/jscomp/TypeInference.java b/com/google/javascript/jscomp/TypeInference.java
+--- com/google/javascript/jscomp/TypeInference.java	2026-11-18 10:27:57
++++ b/com/google/javascript/jscomp/TypeInference.java	2026-11-18 10:27:58
+@@ -90,8 +90,8 @@
+   private final AbstractCompiler compiler;
+   private final JSTypeRegistry registry;
+   private final ReverseAbstractInterpreter reverseInterpreter;
+-  private final FlowScope bottomScope;
+-  private final TypedScope containerScope; // global scope, function scope, or static block scope
++  private @Nullable FlowScope bottomScope;
++  private @Nullable TypedScope containerScope; // global scope, function scope, or static block scope
+   private final TypedScopeCreator scopeCreator;
+   private final AssertionFunctionLookup assertionFunctionLookup;
+   private final ModuleImportResolver moduleImportResolver;
+@@ -104,6 +104,7 @@
+   // Scopes that have had their unbound untyped vars inferred as undefined.
+   private final LinkedHashSet<TypedScope> inferredUnboundVars = new LinkedHashSet<>();
+   private final ReusableFlowBrancher flowBrancher = new ReusableFlowBrancher();
++  private final LinkedFlowScope.FlowScopeJoinOp reusableJoinOp;
+ 
+   // For convenience
+   private final ObjectType unknownType;
+@@ -133,6 +134,7 @@
+     this.containerScope = syntacticScope;
+     this.scopeCreator = checkNotNull(scopeCreator);
+     this.assertionFunctionLookup = checkNotNull(assertionFunctionLookup);
++    this.reusableJoinOp = new LinkedFlowScope.FlowScopeJoinOp(this.compiler);
+ 
+     this.unknownType = registry.getNativeObjectType(UNKNOWN_TYPE);
+     this.numberAdditionSupertype = registry.getNativeType(JSTypeNative.NUMBER_ADDITION_SUPERTYPE);
+@@ -142,6 +144,40 @@
+             compiler, TypedScope.createLatticeBottom(syntacticScope.getRootNode()));
+   }
+ 
++  void resetForScope(ControlFlowGraph<Node> cfg, TypedScope syntacticScope) {
++    checkArgument(
++        syntacticScope.getRootNode() == cfg.getEntry().getValue(),
++        "Expected syntactic scope to be rooted at CFG root node of %s, but instead got syntactic"
++            + " scope root node of %s",
++        cfg.getEntry(),
++        syntacticScope.getRootNode());
++    initCfg(cfg);
++    this.containerScope = syntacticScope;
++    this.bottomScope =
++        LinkedFlowScope.createEntryLattice(
++            this.compiler, TypedScope.createLatticeBottom(syntacticScope.getRootNode()));
++    if (!this.optChainArrayDeque.isEmpty()) {
++      this.optChainArrayDeque.clear();
++    }
++    if (!this.inferredUnboundVars.isEmpty()) {
++      this.inferredUnboundVars.clear();
++    }
++    this.flowBrancher.clear();
++  }
++
++  void finishScope() {
++    releaseCfgReference();
++    this.bottomScope = null;
++    this.containerScope = null;
++    if (!this.optChainArrayDeque.isEmpty()) {
++      this.optChainArrayDeque.clear();
++    }
++    if (!this.inferredUnboundVars.isEmpty()) {
++      this.inferredUnboundVars.clear();
++    }
++    this.flowBrancher.clear();
++  }
++
+   @CheckReturnValue
+   private FlowScope inferDeclarativelyUnboundVarsWithoutTypes(FlowScope flow) {
+     TypedScope scope = (TypedScope) flow.getDeclarationScope();
+@@ -465,7 +501,9 @@
+ 
+   @Override
+   FlowJoiner<FlowScope> createFlowJoiner() {
+-    return new LinkedFlowScope.FlowScopeJoinOp(this.compiler);
++    return this.reusableJoinOp.tryAcquire()
++        ? this.reusableJoinOp
++        : new LinkedFlowScope.FlowScopeJoinOp(this.compiler);
+   }
+ 
+   @Override
+@@ -495,6 +533,14 @@
+       return this;
+     }
+ 
++    void clear() {
++      this.source = null;
++      this.output = null;
++      this.condition = null;
++      this.conditionFlowScope = null;
++      this.conditionOutcomes = null;
++    }
++
+     @Override
+     public FlowScope branchFlow(Branch branch) {
+       switch (branch) {
+@@ -1941,6 +1987,9 @@
+     }
+ 
+     if (node.isGetProp()) {
++      if (scope instanceof LinkedFlowScope lfs && lfs.hasGlobalFunctionScope()) {
++        return scope;
++      }
+       return scope.inferQualifiedSlot(
+           node, node.getQualifiedName(), getJSType(node), narrowed, false);
+     }
+@@ -2588,15 +2637,18 @@
+     }
+ 
+     if ((propertyType == null || propertyType.isUnknownType()) && rootName != null) {
+-      if (!qualifiedNameComputed) {
+-        qualifiedName = n.getQualifiedName();
+-      }
+-      if (qualifiedName != null) {
+-        // If we find this node in the registry, then we can infer its type.
+-        ObjectType regType =
+-            ObjectType.cast(registry.getType(scope.getDeclarationScope(), qualifiedName));
+-        if (regType != null) {
+-          propertyType = regType.getConstructor();
++      StaticTypedScope declScope = scope.getDeclarationScope();
++      if (qualifiedNameComputed
++          || registry.mayHaveQualifiedTypeForGetProp(declScope, rootName, n)) {
++        if (!qualifiedNameComputed) {
++          qualifiedName = n.getQualifiedName();
++        }
++        if (qualifiedName != null) {
++          // If we find this node in the registry, then we can infer its type.
++          ObjectType regType = ObjectType.cast(registry.getType(declScope, qualifiedName));
++          if (regType != null) {
++            propertyType = regType.getConstructor();
++          }
+         }
+       }
+     }
+diff -ruN com/google/javascript/jscomp/TypeInferencePass.java b/com/google/javascript/jscomp/TypeInferencePass.java
+--- com/google/javascript/jscomp/TypeInferencePass.java	2026-11-18 10:27:57
++++ b/com/google/javascript/jscomp/TypeInferencePass.java	2026-11-18 10:27:58
+@@ -49,6 +49,8 @@
+ 
+   // (stepCount, Token) -> populationCount
+   private final @Nullable LinkedHashMap<Integer, HashMultiset<Token>> stepCountHistogram;
++  private @Nullable TypeInference reusableTypeInference;
++  private boolean typeInferenceInUse;
+ 
+   TypeInferencePass(
+       AbstractCompiler compiler,
+@@ -146,27 +148,52 @@
+       }
+     }
+ 
++    this.reusableTypeInference = null;
+     return this.topScope;
+   }
+ 
+   private void inferScope(Node n, TypedScope scope) {
+     ControlFlowGraph<Node> cfg = computeCfg(n);
+-    TypeInference typeInference =
+-        new TypeInference(
+-            compiler, cfg, reverseInterpreter, scope, scopeCreator, assertionFunctionLookup);
+-    typeInference.analyze();
++    boolean usedReusable = false;
++    TypeInference typeInference;
++    if (!this.typeInferenceInUse) {
++      this.typeInferenceInUse = true;
++      usedReusable = true;
++      typeInference = this.reusableTypeInference;
++      if (typeInference == null) {
++        typeInference =
++            new TypeInference(
++                compiler, cfg, reverseInterpreter, scope, scopeCreator, assertionFunctionLookup);
++        this.reusableTypeInference = typeInference;
++      } else {
++        typeInference.resetForScope(cfg, scope);
++      }
++    } else {
++      typeInference =
++          new TypeInference(
++              compiler, cfg, reverseInterpreter, scope, scopeCreator, assertionFunctionLookup);
++    }
++    try {
++      typeInference.analyze();
+ 
+-    if (this.stepCountHistogram != null) {
+-      for (DiGraphNode<Node, ControlFlowGraph.Branch> node : cfg.getNodes()) {
+-        if (node == cfg.getImplicitReturn()) {
+-          continue;
+-        }
++      if (this.stepCountHistogram != null) {
++        for (DiGraphNode<Node, ControlFlowGraph.Branch> node : cfg.getNodes()) {
++          if (node == cfg.getImplicitReturn()) {
++            continue;
++          }
+ 
+-        LinearFlowState<?> state = node.getAnnotation();
+-        this.stepCountHistogram
+-            .computeIfAbsent(state.getStepCount(), (k) -> HashMultiset.create())
+-            .add(node.getValue().getToken());
++          LinearFlowState<?> state = node.getAnnotation();
++          this.stepCountHistogram
++              .computeIfAbsent(state.getStepCount(), (k) -> HashMultiset.create())
++              .add(node.getValue().getToken());
++        }
+       }
++    } finally {
++      typeInference.finishScope();
++      if (usedReusable) {
++        this.typeInferenceInUse = false;
++      }
++      ControlFlowAnalysis.releaseCfg(cfg);
+     }
+   }
+ 
+@@ -203,10 +230,6 @@
+   }
+ 
+   private ControlFlowGraph<Node> computeCfg(Node n) {
+-    return ControlFlowAnalysis.builder()
+-        .setCompiler(compiler)
+-        .setCfgRoot(n)
+-        .setIncludeEdgeAnnotations(true)
+-        .computeCfg();
++    return ControlFlowAnalysis.computeCfgDirect(compiler, n, false, true);
+   }
+ }
+diff -ruN com/google/javascript/jscomp/TypedScope.java b/com/google/javascript/jscomp/TypedScope.java
+--- com/google/javascript/jscomp/TypedScope.java	2026-11-18 10:27:57
++++ b/com/google/javascript/jscomp/TypedScope.java	2026-11-18 10:27:58
+@@ -300,17 +300,12 @@
+   }
+ 
+   boolean mayHaveQualifiedVarForRoot(String rootName) {
+-    if (this.hasQualifiedOwnVarWithRoot(rootName)) {
+-      return true;
++    for (TypedScope s = this; s != null; s = s.parent) {
++      if (s.hasQualifiedOwnVarWithRoot(rootName)) {
++        return true;
++      }
+     }
+-    if (this.parent == null) {
+-      return false;
+-    }
+-    TypedScope rootScope = findScopeForRootName(rootName);
+-    if (rootScope != null) {
+-      return rootScope.hasQualifiedOwnVarWithRoot(rootName);
+-    }
+-    return this.parent.getGlobalScope().hasQualifiedOwnVarWithRoot(rootName);
++    return false;
+   }
+ 
+   @Override
+diff -ruN com/google/javascript/jscomp/TypedScopeCreator.java b/com/google/javascript/jscomp/TypedScopeCreator.java
+--- com/google/javascript/jscomp/TypedScopeCreator.java	2026-11-18 10:27:57
++++ b/com/google/javascript/jscomp/TypedScopeCreator.java	2026-11-18 10:27:58
+@@ -82,6 +82,7 @@
+ import com.google.javascript.rhino.QualifiedName;
+ import com.google.javascript.rhino.StaticSymbolTable;
+ import com.google.javascript.rhino.Token;
++import com.google.javascript.rhino.TokenStream;
+ import com.google.javascript.rhino.jstype.EnumType;
+ import com.google.javascript.rhino.jstype.FunctionType;
+ import com.google.javascript.rhino.jstype.FunctionType.Parameter;
+@@ -1078,6 +1079,8 @@
+      *     caller should take care of this.
+      */
+     void processObjectLitProperties(Node objLit, ObjectType objLitType, boolean declareOnOwner) {
++      String ownerName = null;
++      boolean ownerNameComputed = false;
+       for (Node keyNode = objLit.getFirstChild(); keyNode != null; keyNode = keyNode.getNext()) {
+         if (keyNode.isSpread()) {
+           // Don't try defining computed or spread properties on an object. Note that for spread
+@@ -1098,8 +1101,20 @@
+           value = keyNode.getSecondChild();
+         } else {
+           value = keyNode.getFirstChild();
+-          memberName = new StringKey(NodeUtil.getObjectOrClassLitKeyName(keyNode));
+-          qualifiedName = NodeUtil.getBestLValueName(keyNode);
++          String rawKeyName = NodeUtil.getObjectOrClassLitKeyName(keyNode);
++          memberName = new StringKey(rawKeyName);
++          if (NodeUtil.mayBeObjectLitKey(keyNode)) {
++            if (!ownerNameComputed) {
++              ownerName = NodeUtil.getBestLValueName(NodeUtil.getBestLValue(objLit));
++              ownerNameComputed = true;
++            }
++            qualifiedName =
++                (ownerName != null && TokenStream.isJSIdentifier(rawKeyName))
++                    ? ownerName + "." + rawKeyName
++                    : null;
++          } else {
++            qualifiedName = NodeUtil.getBestLValueName(keyNode);
++          }
+         }
+         JSDocInfo info = keyNode.getJSDocInfo();
+         JSType valueType = getDeclaredType(info, keyNode, value, null);
+@@ -2776,11 +2791,12 @@
+       }
+ 
+       Node ownerNode = n.getFirstChild();
+-      String ownerName = ownerNode.getQualifiedName();
+-      String qName = n.getQualifiedName();
+       String propName = n.getString();
+-      checkArgument(qName != null && ownerName != null);
++      checkArgument(n.isGetProp() && ownerNode.isQualifiedName());
+ 
++      String ownerName = null;
++      String qName = null;
++
+       // Precedence of type information on GETPROPs:
+       // 1) @type annotation / @enum annotation
+       // 2) ASSIGN to FUNCTION literal
+@@ -2807,6 +2823,8 @@
+       // So if F does not have an explicitly declared super type,
+       // allow F.prototype to be redefined arbitrarily.
+       if ("prototype".equals(propName)) {
++        ownerName = ownerNode.getQualifiedName();
++        qName = ownerName + "." + propName;
+         TypedVar qVar = currentScope.getVar(qName);
+         if (qVar != null) {
+           // If the programmer has declared that F inherits from Super,
+@@ -2833,17 +2851,30 @@
+ 
+       if (valueType == null) {
+         if (parent.isExprResult()) {
++          if (ownerName == null) {
++            ownerName = ownerNode.getQualifiedName();
++          }
++          final String stubOwnerName = ownerName;
+           // t is mutable so make sure to capture the current state before the lambda.
+           boolean isExtern = t.getInput() != null && t.getInput().isExtern();
+           deferredActions.put(
+-              currentScope.getRootNode(), () -> resolveStubDeclaration(n, isExtern, ownerName));
++              currentScope.getRootNode(),
++              () -> resolveStubDeclaration(n, isExtern, stubOwnerName));
+         }
+ 
+         return;
+       }
+ 
+-      boolean inferred = isQualifiedNameInferred(qName, n, info, rhsValue, valueType);
++      boolean inferred =
++          isQualifiedNameInferred(
++              ownerNode, ownerName, qName, propName, n, info, rhsValue, valueType);
+       if (!inferred) {
++        if (ownerName == null) {
++          ownerName = ownerNode.getQualifiedName();
++        }
++        if (qName == null) {
++          qName = ownerName + "." + propName;
++        }
+         ObjectType ownerType = getObjectSlot(ownerName);
+         if (ownerType != null) {
+           declarePropertyIfNamespaceType(
+@@ -2889,14 +2920,28 @@
+      * or @const with a known type, or a function literal with a name we haven't seen before.
+      */
+     private boolean isQualifiedNameInferred(
++        Node ownerNode,
++        @Nullable String ownerName,
+         @Nullable String qName,
++        String propName,
+         Node n,
+         @Nullable JSDocInfo info,
+         @Nullable Node rhsValue,
+         JSType valueType) {
+       // Prototypes of constructors and interfaces are always declared.
+-      if (qName != null && qName.endsWith(".prototype")) {
+-        String className = qName.substring(0, qName.lastIndexOf(".prototype"));
++      if ("prototype".equals(propName) || propName.endsWith(".prototype")) {
++        if (ownerName == null) {
++          ownerName = ownerNode.getQualifiedName();
++        }
++        String className;
++        if ("prototype".equals(propName) && propName.indexOf('.') < 0) {
++          className = ownerName;
++        } else {
++          if (qName == null) {
++            qName = ownerName + "." + propName;
++          }
++          className = qName.substring(0, qName.lastIndexOf(".prototype"));
++        }
+         TypedVar slot = currentScope.getVar(className);
+         JSType classType = slot == null ? null : slot.getType();
+         if (classType != null && (classType.isConstructor() || classType.isInterface())) {
+@@ -2938,6 +2983,12 @@
+ 
+       // If this qname is already declared then treat this definition as inferred.
+       TypedScope ownerScope = getLValueRootScope(n);
++      if (qName == null) {
++        if (ownerName == null) {
++          ownerName = ownerNode.getQualifiedName();
++        }
++        qName = ownerName + "." + propName;
++      }
+       if (ownerScope != null && ownerScope.hasOwnSlot(qName)) {
+         return true;
+       }
+diff -ruN com/google/javascript/jscomp/graph/LinkedDirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+--- com/google/javascript/jscomp/graph/LinkedDirectedGraph.java	2026-11-18 10:27:57
++++ b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java	2026-11-18 10:27:58
+@@ -44,7 +44,13 @@
+  * @param <E> Value type that the graph edge stores.
+  */
+ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements GraphvizGraph {
++  private static final int MAX_POOLED_GRAPH_NODES = 4096;
++  private static final int MAX_POOLED_GRAPH_EDGES = 8192;
++
+   private final LinkedHashMap<N, LinkedDiGraphNode<N, E>> nodes = new LinkedHashMap<>();
++  private @Nullable Collection<LinkedDiGraphNode<N, E>> nodesView;
++  private @Nullable ArrayList<LinkedDiGraphNode<N, E>> freeNodes;
++  private @Nullable ArrayList<LinkedDiGraphEdge<N, E>> freeEdges;
+ 
+   @Override
+   public SubGraph<N, E> newSubGraph() {
+@@ -59,8 +65,8 @@
+     return new LinkedDirectedGraph<>(true, true);
+   }
+ 
+-  private final boolean useNodeAnnotations;
+-  private final boolean useEdgeAnnotations;
++  private boolean useNodeAnnotations;
++  private boolean useEdgeAnnotations;
+ 
+   protected LinkedDirectedGraph(
+       boolean useNodeAnnotations, boolean useEdgeAnnotations) {
+@@ -68,12 +74,67 @@
+     this.useEdgeAnnotations = useEdgeAnnotations;
+   }
+ 
++  protected final void setUseEdgeAnnotations(boolean useEdgeAnnotations) {
++    this.useEdgeAnnotations = useEdgeAnnotations;
++  }
++
++  protected final boolean resetForReuse(boolean useNodeAnnotations, boolean useEdgeAnnotations) {
++    int size = nodes.size();
++    if (size > MAX_POOLED_GRAPH_NODES) {
++      return false;
++    }
++    if (size > 0) {
++      if (this.freeNodes == null) {
++        this.freeNodes = new ArrayList<>(Math.max(size, 16));
++      }
++      if (this.freeEdges == null) {
++        this.freeEdges = new ArrayList<>(Math.max(size * 2, 32));
++      }
++      for (LinkedDiGraphNode<N, E> node : nodes.values()) {
++        if (node.outEdges != null) {
++          for (int i = 0, outSize = node.outEdges.size(); i < outSize; i++) {
++            LinkedDiGraphEdge<N, E> edge = node.outEdges.get(i);
++            edge.clearForPool();
++            if (this.freeEdges.size() < MAX_POOLED_GRAPH_EDGES) {
++              this.freeEdges.add(edge);
++            }
++          }
++        } else if (node.firstOutEdge != null) {
++          LinkedDiGraphEdge<N, E> edge = node.firstOutEdge;
++          edge.clearForPool();
++          if (this.freeEdges.size() < MAX_POOLED_GRAPH_EDGES) {
++            this.freeEdges.add(edge);
++          }
++        }
++        node.clearForPool();
++        if (this.freeNodes.size() < MAX_POOLED_GRAPH_NODES) {
++          this.freeNodes.add(node);
++        }
++      }
++      nodes.clear();
++    }
++    this.useNodeAnnotations = useNodeAnnotations;
++    this.useEdgeAnnotations = useEdgeAnnotations;
++    return true;
++  }
++
++  private LinkedDiGraphEdge<N, E> acquireEdge(
++      LinkedDiGraphNode<N, E> src, E edgeValue, LinkedDiGraphNode<N, E> dest) {
++    if (this.freeEdges != null && !this.freeEdges.isEmpty()) {
++      int last = this.freeEdges.size() - 1;
++      LinkedDiGraphEdge<N, E> edge = this.freeEdges.get(last);
++      this.freeEdges.remove(last);
++      edge.reinit(src, edgeValue, dest, useEdgeAnnotations);
++      return edge;
++    }
++    return new LinkedDiGraphEdge<>(src, edgeValue, dest, useEdgeAnnotations);
++  }
++
+   @Override
+   public void connect(N srcValue, E edgeValue, N destValue) {
+     LinkedDiGraphNode<N, E> src = getNodeOrFail(srcValue);
+     LinkedDiGraphNode<N, E> dest = getNodeOrFail(destValue);
+-    LinkedDiGraphEdge<N, E> edge =
+-        new LinkedDiGraphEdge<>(src, edgeValue, dest, useEdgeAnnotations);
++    LinkedDiGraphEdge<N, E> edge = acquireEdge(src, edgeValue, dest);
+     src.addOutEdge(edge);
+     dest.addInEdge(edge);
+   }
+@@ -87,8 +148,7 @@
+     LinkedDiGraphNode<N, E> lSrc = (LinkedDiGraphNode<N, E>) src;
+     LinkedDiGraphNode<N, E> lDest = (LinkedDiGraphNode<N, E>) dest;
+ 
+-    LinkedDiGraphEdge<N, E> edge =
+-        new LinkedDiGraphEdge<>(lSrc, edgeValue, lDest, useEdgeAnnotations);
++    LinkedDiGraphEdge<N, E> edge = acquireEdge(lSrc, edgeValue, lDest);
+     lSrc.addOutEdge(edge);
+     lDest.addInEdge(edge);
+   }
+@@ -124,7 +184,12 @@
+ 
+   @Override
+   public Collection<LinkedDiGraphNode<N, E>> getNodes() {
+-    return Collections.unmodifiableCollection(nodes.values());
++    Collection<LinkedDiGraphNode<N, E>> view = this.nodesView;
++    if (view == null) {
++      view = Collections.unmodifiableCollection(nodes.values());
++      this.nodesView = view;
++    }
++    return view;
+   }
+ 
+   @Override
+@@ -158,7 +223,14 @@
+   public LinkedDiGraphNode<N, E> createNode(N nodeValue) {
+     LinkedDiGraphNode<N, E> node = nodes.get(nodeValue);
+     if (node == null) {
+-      node = new LinkedDiGraphNode<>(nodeValue, useNodeAnnotations);
++      if (this.freeNodes != null && !this.freeNodes.isEmpty()) {
++        int last = this.freeNodes.size() - 1;
++        node = this.freeNodes.get(last);
++        this.freeNodes.remove(last);
++        node.reinit(nodeValue, useNodeAnnotations);
++      } else {
++        node = new LinkedDiGraphNode<>(nodeValue, useNodeAnnotations);
++      }
+       nodes.put(nodeValue, node);
+     }
+     return node;
+@@ -444,7 +516,7 @@
+ 
+     private @Nullable List<LinkedDiGraphNode<N, E>> singletonSelfList;
+ 
+-    protected final N value;
++    protected @Nullable N value;
+ 
+     private @Nullable Annotation annotation;
+ 
+@@ -452,7 +524,7 @@
+ 
+     private int astPosition = -1;
+ 
+-    private final boolean useAnnotation;
++    private boolean useAnnotation;
+ 
+     private boolean inDfaQueue;
+ 
+@@ -466,6 +538,23 @@
+       this.useAnnotation = useAnnotation;
+     }
+ 
++    void reinit(N nodeValue, boolean useAnnotation) {
++      this.value = nodeValue;
++      this.useAnnotation = useAnnotation;
++    }
++
++    void clearForPool() {
++      this.firstInEdge = null;
++      this.inEdges = null;
++      this.firstOutEdge = null;
++      this.outEdges = null;
++      this.value = null;
++      this.annotation = null;
++      this.priority = -1;
++      this.astPosition = -1;
++      this.inDfaQueue = false;
++    }
++
+     int inEdgeCount() {
+       return inEdges != null ? inEdges.size() : (firstInEdge != null ? 1 : 0);
+     }
+@@ -686,17 +775,17 @@
+   /** A directed graph edge that stores the source and destination nodes at each edge. */
+   public static final class LinkedDiGraphEdge<N, E> implements DiGraphEdge<N, E>, GraphvizEdge {
+ 
+-    private final LinkedDiGraphNode<N, E> sourceNode;
++    private @Nullable LinkedDiGraphNode<N, E> sourceNode;
+ 
+-    private final LinkedDiGraphNode<N, E> destNode;
++    private @Nullable LinkedDiGraphNode<N, E> destNode;
+ 
+-    protected final E value;
++    protected @Nullable E value;
+ 
+     private @Nullable List<LinkedDiGraphEdge<N, E>> singletonSelfList;
+ 
+     private @Nullable Annotation annotation;
+ 
+-    private final boolean useAnnotation;
++    private boolean useAnnotation;
+ 
+     /**
+      * Constructor.
+@@ -712,6 +801,24 @@
+       this.sourceNode = sourceNode;
+       this.destNode = destNode;
+       this.useAnnotation = useAnnotation;
++    }
++
++    void reinit(
++        LinkedDiGraphNode<N, E> sourceNode,
++        E edgeValue,
++        LinkedDiGraphNode<N, E> destNode,
++        boolean useAnnotation) {
++      this.value = edgeValue;
++      this.sourceNode = sourceNode;
++      this.destNode = destNode;
++      this.useAnnotation = useAnnotation;
++    }
++
++    void clearForPool() {
++      this.sourceNode = null;
++      this.destNode = null;
++      this.value = null;
++      this.annotation = null;
+     }
+ 
+     List<LinkedDiGraphEdge<N, E>> asSingletonList() {
+diff -ruN com/google/javascript/rhino/HamtPMap.java b/com/google/javascript/rhino/HamtPMap.java
+--- com/google/javascript/rhino/HamtPMap.java	2026-11-18 10:27:57
++++ b/com/google/javascript/rhino/HamtPMap.java	2026-11-18 10:27:58
+@@ -317,46 +317,84 @@
+     } else if (t1 == null) {
+       V newValue = checkNotNull(joiner.merge(t2.key, null, t2.value));
+       int childMask = t2.mask;
+-      HamtPMap<K, V>[] newChildren = null;
+-      if (t2.children != null) {
+-        @SuppressWarnings("unchecked")
+-        HamtPMap<K, V>[] copied = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[t2.children.length];
+-        int rem = childMask;
+-        int outIdx = 0;
+-        for (int i = 0; i < t2.children.length; i++) {
+-          int bit = Integer.lowestOneBit(rem);
+-          rem &= ~bit;
+-          HamtPMap<K, V> c = reconcile(null, t2.children[i], joiner);
+-          if (c != null) {
+-            copied[outIdx++] = c;
+-          } else {
+-            childMask &= ~bit;
++      if (t2.children == null) {
++        return t2.present && t2.value.equals(newValue)
++            ? t2
++            : new HamtPMap<>(t2.key, t2.hash, newValue, true, 0, null);
++      }
++      HamtPMap<K, V>[] copied = null;
++      int rem = childMask;
++      int outIdx = 0;
++      for (int i = 0, len = t2.children.length; i < len; i++) {
++        int bit = Integer.lowestOneBit(rem);
++        rem &= ~bit;
++        HamtPMap<K, V> origChild = t2.children[i];
++        HamtPMap<K, V> c = reconcile(null, origChild, joiner);
++        if (copied == null) {
++          if (c == origChild) {
++            outIdx++;
++            continue;
+           }
++          @SuppressWarnings("unchecked")
++          HamtPMap<K, V>[] alloc = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[len];
++          for (int j = 0; j < i; j++) {
++            alloc[j] = t2.children[j];
++          }
++          copied = alloc;
+         }
+-        newChildren = trimChildren(copied, outIdx);
++        if (c != null) {
++          copied[outIdx++] = c;
++        } else {
++          childMask &= ~bit;
++        }
+       }
++      if (copied == null) {
++        return t2.present && t2.value.equals(newValue)
++            ? t2
++            : new HamtPMap<>(t2.key, t2.hash, newValue, true, childMask, t2.children);
++      }
++      HamtPMap<K, V>[] newChildren = trimChildren(copied, outIdx);
+       return new HamtPMap<>(t2.key, t2.hash, newValue, true, childMask, newChildren);
+     } else if (t2 == null) {
+       V newValue = checkNotNull(joiner.merge(t1.key, t1.value, null));
+       int childMask = t1.mask;
+-      HamtPMap<K, V>[] newChildren = null;
+-      if (t1.children != null) {
+-        @SuppressWarnings("unchecked")
+-        HamtPMap<K, V>[] copied = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[t1.children.length];
+-        int rem = childMask;
+-        int outIdx = 0;
+-        for (int i = 0; i < t1.children.length; i++) {
+-          int bit = Integer.lowestOneBit(rem);
+-          rem &= ~bit;
+-          HamtPMap<K, V> c = reconcile(t1.children[i], null, joiner);
+-          if (c != null) {
+-            copied[outIdx++] = c;
+-          } else {
+-            childMask &= ~bit;
++      if (t1.children == null) {
++        return t1.present && t1.value.equals(newValue)
++            ? t1
++            : new HamtPMap<>(t1.key, t1.hash, newValue, true, 0, null);
++      }
++      HamtPMap<K, V>[] copied = null;
++      int rem = childMask;
++      int outIdx = 0;
++      for (int i = 0, len = t1.children.length; i < len; i++) {
++        int bit = Integer.lowestOneBit(rem);
++        rem &= ~bit;
++        HamtPMap<K, V> origChild = t1.children[i];
++        HamtPMap<K, V> c = reconcile(origChild, null, joiner);
++        if (copied == null) {
++          if (c == origChild) {
++            outIdx++;
++            continue;
+           }
++          @SuppressWarnings("unchecked")
++          HamtPMap<K, V>[] alloc = (HamtPMap<K, V>[]) new HamtPMap<?, ?>[len];
++          for (int j = 0; j < i; j++) {
++            alloc[j] = t1.children[j];
++          }
++          copied = alloc;
+         }
+-        newChildren = trimChildren(copied, outIdx);
++        if (c != null) {
++          copied[outIdx++] = c;
++        } else {
++          childMask &= ~bit;
++        }
+       }
++      if (copied == null) {
++        return t1.present && t1.value.equals(newValue)
++            ? t1
++            : new HamtPMap<>(t1.key, t1.hash, newValue, true, childMask, t1.children);
++      }
++      HamtPMap<K, V>[] newChildren = trimChildren(copied, outIdx);
+       return new HamtPMap<>(t1.key, t1.hash, newValue, true, childMask, newChildren);
+     }
+ 
+diff -ruN com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+--- com/google/javascript/rhino/Node.java	2026-11-18 10:27:57
++++ b/com/google/javascript/rhino/Node.java	2026-11-18 10:27:58
+@@ -771,6 +771,7 @@
+   public final void setIsInClosureUnawareSubtree(boolean value) {
+     if (this.sourceFile == null
+         || this.jsDocInfo != null
++        || this.typeBeforeCast != null
+         || this.propFlags != 0
+         || this.changeTime != 0
+         || this.propListHead != null) {
+@@ -1131,6 +1132,13 @@
+       }
+       return lookupColdProperty(prop);
+     }
++    if (prop == Prop.TYPE_BEFORE_CAST) {
++      if (this.typeBeforeCast != null) {
++        return PropListItem.objectItem(
++            (byte) Prop.TYPE_BEFORE_CAST.ordinal(), this.typeBeforeCast, null);
++      }
++      return lookupColdProperty(prop);
++    }
+     int mask = INLINE_BOOL_MASKS[prop.ordinal()];
+     if (mask != 0) {
+       if ((this.propFlags & mask) != 0) {
+@@ -1179,12 +1187,14 @@
+     checkState(
+         this.sourceFile == null
+             && this.jsDocInfo == null
++            && this.typeBeforeCast == null
+             && this.propFlags == 0
+             && this.changeTime == 0
+             && this.propListHead == null,
+         "Node has existing properties.");
+     this.sourceFile = other.sourceFile;
+     this.jsDocInfo = other.jsDocInfo;
++    this.typeBeforeCast = other.typeBeforeCast;
+     this.propFlags = other.propFlags;
+     this.changeTime = other.changeTime;
+     this.propListHead = other.propListHead;
+@@ -1204,6 +1214,7 @@
+     PropListItem head = this.propListHead;
+     if (this.sourceFile == null
+         && this.jsDocInfo == null
++        && this.typeBeforeCast == null
+         && flags == 0
+         && this.changeTime == 0
+         && head == null) {
+@@ -1375,6 +1386,13 @@
+       PropListItem item = lookupColdProperty(propType);
+       return item == null ? null : item.getObjectValue();
+     }
++    if (propType == Prop.TYPE_BEFORE_CAST) {
++      if (this.typeBeforeCast != null) {
++        return this.typeBeforeCast;
++      }
++      PropListItem item = lookupColdProperty(propType);
++      return item == null ? null : item.getObjectValue();
++    }
+     int mask = INLINE_BOOL_MASKS[propType.ordinal()];
+     if (mask != 0) {
+       if ((this.propFlags & mask) != 0) {
+@@ -1411,7 +1429,8 @@
+ 
+   private boolean getColdBooleanProp(Prop propType) {
+     if ((propType == Prop.SOURCE_FILE && this.sourceFile != null)
+-        || (propType == Prop.JSDOC_INFO && this.jsDocInfo != null)) {
++        || (propType == Prop.JSDOC_INFO && this.jsDocInfo != null)
++        || (propType == Prop.TYPE_BEFORE_CAST && this.typeBeforeCast != null)) {
+       throw new UnsupportedOperationException();
+     }
+     if (propType == Prop.CHANGE_TIME && this.changeTime != 0) {
+@@ -1468,6 +1487,9 @@
+     if (propType == Prop.JSDOC_INFO && this.jsDocInfo != null) {
+       throw new UnsupportedOperationException();
+     }
++    if (propType == Prop.TYPE_BEFORE_CAST && this.typeBeforeCast != null) {
++      throw new UnsupportedOperationException();
++    }
+     return getColdIntProp(propType);
+   }
+ 
+@@ -1504,6 +1526,18 @@
+         return;
+       }
+       this.jsDocInfo = null;
++    } else if (prop == Prop.TYPE_BEFORE_CAST) {
++      if (value == null) {
++        this.typeBeforeCast = null;
++        removeColdProp(prop);
++        return;
++      }
++      if (value instanceof JSType jsType) {
++        this.typeBeforeCast = jsType;
++        removeColdProp(prop);
++        return;
++      }
++      this.typeBeforeCast = null;
+     } else {
+       int mask = INLINE_BOOL_MASKS[prop.ordinal()];
+       if (mask != 0) {
+@@ -1584,6 +1618,8 @@
+       this.sourceFile = null;
+     } else if (prop == Prop.JSDOC_INFO) {
+       this.jsDocInfo = null;
++    } else if (prop == Prop.TYPE_BEFORE_CAST) {
++      this.typeBeforeCast = null;
+     }
+     PropListItem oldHead = this.propListHead;
+     PropListItem head = oldHead;
+@@ -1608,6 +1644,8 @@
+       this.sourceFile = null;
+     } else if (prop == Prop.JSDOC_INFO) {
+       this.jsDocInfo = null;
++    } else if (prop == Prop.TYPE_BEFORE_CAST) {
++      this.typeBeforeCast = null;
+     } else {
+       int mask = INLINE_BOOL_MASKS[prop.ordinal()];
+       if (mask != 0) {
+@@ -1671,6 +1709,9 @@
+         propSet = setNodePropertySideEffectFlags(propSet, seFlags);
+       }
+     }
++    if (this.typeBeforeCast != null) {
++      propSet = setNodePropertyBit(propSet, NodeProperty.COLOR_FROM_CAST);
++    }
+     for (PropListItem propListItem = this.propListHead;
+         propListItem != null;
+         propListItem = propListItem.next) {
+@@ -1746,6 +1787,9 @@
+     if (this.jsDocInfo != null) {
+       propListStrRepr.add(Prop.JSDOC_INFO.name());
+     }
++    if (this.typeBeforeCast != null) {
++      propListStrRepr.add(Prop.TYPE_BEFORE_CAST.name());
++    }
+     if (this.changeTime != 0) {
+       propListStrRepr.add(Prop.CHANGE_TIME.name());
+     }
+@@ -1787,6 +1831,7 @@
+       checkState(
+           this.sourceFile == null
+               && this.jsDocInfo == null
++              && this.typeBeforeCast == null
+               && this.propFlags == 0
+               && this.changeTime == 0
+               && this.propListHead == null,
+@@ -1924,11 +1969,7 @@
+ 
+   /** Sets the type of this node before casting. */
+   public final void setJSTypeBeforeCast(@Nullable JSType type) {
+-    if (type == null) {
+-      removeColdProp(Prop.TYPE_BEFORE_CAST);
+-      return;
+-    }
+-    putProp(Prop.TYPE_BEFORE_CAST, type);
++    this.typeBeforeCast = type;
+   }
+ 
+   /**
+@@ -1936,11 +1977,7 @@
+    * child of a CAST node after type checking.
+    */
+   public final @Nullable JSType getJSTypeBeforeCast() {
+-    PropListItem item = lookupColdProperty(Prop.TYPE_BEFORE_CAST);
+-    if (item == null) {
+-      return null;
+-    }
+-    return (JSType) item.getObjectValue();
++    return this.typeBeforeCast;
+   }
+ 
+   /**
+@@ -1966,6 +2003,7 @@
+     PropListItem head = this.propListHead;
+     if (this.sourceFile == null
+         && this.jsDocInfo == null
++        && this.typeBeforeCast == null
+         && flags == 0
+         && this.changeTime == 0
+         && head == null) {
+@@ -1984,6 +2022,9 @@
+     if (this.jsDocInfo != null) {
+       count++;
+     }
++    if (this.typeBeforeCast != null) {
++      count++;
++    }
+     if (this.changeTime != 0) {
+       count++;
+     }
+@@ -2005,6 +2046,9 @@
+     if (this.jsDocInfo != null) {
+       keys[idx++] = (byte) Prop.JSDOC_INFO.ordinal();
+     }
++    if (this.typeBeforeCast != null) {
++      keys[idx++] = (byte) Prop.TYPE_BEFORE_CAST.ordinal();
++    }
+     if (this.changeTime != 0) {
+       keys[idx++] = (byte) Prop.CHANGE_TIME.ordinal();
+     }
+@@ -2133,6 +2177,8 @@
+           sb.append(this.sourceFile);
+         } else if (type == Prop.JSDOC_INFO && this.jsDocInfo != null) {
+           sb.append(this.jsDocInfo);
++        } else if (type == Prop.TYPE_BEFORE_CAST && this.typeBeforeCast != null) {
++          sb.append(this.typeBeforeCast);
+         } else if (type == Prop.CHANGE_TIME && this.changeTime != 0) {
+           sb.append(this.changeTime);
+         } else {
+@@ -2214,9 +2260,11 @@
+                 ? String.valueOf(this.sourceFile)
+                 : (type == Prop.JSDOC_INFO && this.jsDocInfo != null)
+                     ? String.valueOf(this.jsDocInfo)
+-                    : (type == Prop.CHANGE_TIME && this.changeTime != 0)
+-                        ? String.valueOf(this.changeTime)
+-                        : lookupProperty(type).toString();
++                    : (type == Prop.TYPE_BEFORE_CAST && this.typeBeforeCast != null)
++                        ? String.valueOf(this.typeBeforeCast)
++                        : (type == Prop.CHANGE_TIME && this.changeTime != 0)
++                            ? String.valueOf(this.changeTime)
++                            : lookupProperty(type).toString();
+         sb.append(
+             createJsonPair(
+                 Ascii.toLowerCase(String.valueOf(type)),
+@@ -2318,6 +2366,8 @@
+ 
+   private @Nullable JSDocInfo jsDocInfo;
+ 
++  private @Nullable JSType typeBeforeCast;
++
+   private int propFlags;
+ 
+   private int changeTime;
+@@ -2605,6 +2655,10 @@
+     if (this.jsDocInfo != null) {
+       return PropListItem.objectItem((byte) Prop.JSDOC_INFO.ordinal(), this.jsDocInfo, null);
+     }
++    if (this.typeBeforeCast != null) {
++      return PropListItem.objectItem(
++          (byte) Prop.TYPE_BEFORE_CAST.ordinal(), this.typeBeforeCast, null);
++    }
+     if (this.changeTime != 0) {
+       return PropListItem.intItem((byte) Prop.CHANGE_TIME.ordinal(), this.changeTime, null);
+     }
+@@ -2645,6 +2699,7 @@
+   final void setPropListHead(@Nullable PropListItem propListHead) {
+     this.sourceFile = null;
+     this.jsDocInfo = null;
++    this.typeBeforeCast = null;
+     this.propFlags = 0;
+     this.changeTime = 0;
+     this.propListHead = null;
+@@ -3694,6 +3749,7 @@
+     dest.sourceFile = source.sourceFile;
+     JSDocInfo info = source.jsDocInfo;
+     dest.jsDocInfo = (cloneTypeExprs && info != null) ? info.clone(true) : info;
++    dest.typeBeforeCast = source.typeBeforeCast;
+     dest.propFlags = source.propFlags;
+     dest.changeTime = source.changeTime;
+     dest.propListHead = source.propListHead;
+diff -ruN com/google/javascript/rhino/jstype/JSTypeRegistry.java b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+--- com/google/javascript/rhino/jstype/JSTypeRegistry.java	2026-11-18 10:27:57
++++ b/com/google/javascript/rhino/jstype/JSTypeRegistry.java	2026-11-18 10:27:58
+@@ -215,9 +215,13 @@
+   private final JSType[] nativeTypes;
+ 
+   private final Table<Node, String, JSType> scopedNameTable = HashBasedTable.create();
++  private int @Nullable [] qualifiedScopedNameHashes;
++  private int qualifiedScopedNameHashCount;
+ 
+   // Only needed for type resolution at the moment
+   private final transient Map<String, ClosureNamespace> closureNamespaces = new LinkedHashMap<>();
++  private final transient LinkedHashSet<String> nonLegacyClosureNamespaceRoots =
++      new LinkedHashSet<>();
+ 
+   // NOTE: This would normally be "static final" but that causes unit test failures
+   // when serializing and deserializing compiler state for multistage builds.
+@@ -1202,6 +1206,10 @@
+    * that namespace.
+    */
+   public @Nullable JSType resolveViaClosureNamespace(String reference) {
++    if (this.nonLegacyClosureNamespaceRoots.isEmpty()
++        || !this.nonLegacyClosureNamespaceRoots.contains(getRootElementOfName(reference))) {
++      return null;
++    }
+     // Find the `exports` type of the longest prefix match of this namespace, if any. Then resolve
+     // it via property.
+     String prefix = reference;
+@@ -1345,8 +1353,138 @@
+ 
+   private void registerForScope(StaticScope scope, JSType type, String name) {
+     scopedNameTable.put(getRootNodeForScope(scope), name, type);
++    if (name.indexOf('.') >= 0) {
++      addQualifiedScopedNameHash(Node.hashQualifiedNameString(name));
++    }
+   }
+ 
++  private void addQualifiedScopedNameHash(int h) {
++    if (h == 0) {
++      return;
++    }
++    int[] table = this.qualifiedScopedNameHashes;
++    if (table == null) {
++      table = new int[32];
++      this.qualifiedScopedNameHashes = table;
++    } else if (this.qualifiedScopedNameHashCount * 4 >= table.length * 3) {
++      int[] next = new int[table.length * 2];
++      int nextMask = next.length - 1;
++      for (int i = 0, len = table.length; i < len; i++) {
++        int existing = table[i];
++        if (existing != 0) {
++          int s = existing & nextMask;
++          while (next[s] != 0) {
++            s = (s + 1) & nextMask;
++          }
++          next[s] = existing;
++        }
++      }
++      table = next;
++      this.qualifiedScopedNameHashes = table;
++    }
++    int mask = table.length - 1;
++    int slot = h & mask;
++    while (true) {
++      int existing = table[slot];
++      if (existing == 0) {
++        table[slot] = h;
++        this.qualifiedScopedNameHashCount++;
++        return;
++      }
++      if (existing == h) {
++        return;
++      }
++      slot = (slot + 1) & mask;
++    }
++  }
++
++  private boolean containsQualifiedScopedNameHash(int h) {
++    int[] table = this.qualifiedScopedNameHashes;
++    if (table == null || h == 0) {
++      return false;
++    }
++    int mask = table.length - 1;
++    int slot = h & mask;
++    while (true) {
++      int existing = table[slot];
++      if (existing == 0) {
++        return false;
++      }
++      if (existing == h) {
++        return true;
++      }
++      slot = (slot + 1) & mask;
++    }
++  }
++
++  public boolean mayHaveQualifiedTypeForGetProp(
++      @Nullable StaticScope scope, String rootName, Node getPropNode) {
++    if (scope instanceof SyntheticTemplateScope) {
++      return true;
++    }
++    if (!this.nonLegacyClosureNamespaceRoots.isEmpty()
++        && this.nonLegacyClosureNamespaceRoots.contains(rootName)) {
++      return true;
++    }
++    int h = getPropNode.hashQualifiedName();
++    if (h == 0) {
++      return false;
++    }
++    if (containsQualifiedScopedNameHash(h)) {
++      return true;
++    }
++    StaticScope declarationScope =
++        (scope != null && scope.getParentScope() != null)
++            ? scope.getTopmostScopeOfEventualDeclaration(rootName)
++            : scope;
++    StaticScope bestScope = declarationScope != null ? declarationScope : scope;
++    if (!(bestScope instanceof StaticTypedScope resolutionScope)) {
++      return false;
++    }
++    StaticTypedSlot slot = resolutionScope.getOwnSlot(rootName);
++    if (slot == null) {
++      return false;
++    }
++    JSType slotType = slot.getType();
++    if (slotType == null || slotType.isAllType() || slotType.isNoType()) {
++      return false;
++    }
++    return canResolveGetPropViaSlot(slotType, getPropNode);
++  }
++
++  private static boolean canResolveGetPropViaSlot(JSType rootSlotType, Node getPropNode) {
++    Node root = getPropNode.getFirstChild();
++    while (root.isGetProp()) {
++      root = root.getFirstChild();
++    }
++    if (root.isName() && root.getString().indexOf('.') >= 0) {
++      return true;
++    }
++    JSType ownerType = stepGetPropOwnerType(rootSlotType, getPropNode.getFirstChild());
++    if (ownerType == null) {
++      return false;
++    }
++    ObjectType ownerObj = ObjectType.cast(ownerType);
++    String lastProp = getPropNode.getString();
++    return ownerObj != null && !lastProp.isEmpty() && ownerObj.hasOwnProperty(lastProp);
++  }
++
++  private static @Nullable JSType stepGetPropOwnerType(JSType rootSlotType, Node node) {
++    if (!node.isGetProp()) {
++      return rootSlotType;
++    }
++    JSType parentType = stepGetPropOwnerType(rootSlotType, node.getFirstChild());
++    if (parentType == null) {
++      return null;
++    }
++    ObjectType parentObj = ObjectType.cast(parentType);
++    String prop = node.getString();
++    if (parentObj == null || prop.isEmpty() || !parentObj.hasOwnProperty(prop)) {
++      return null;
++    }
++    return parentObj.getPropertyType(prop);
++  }
++
+   private void registerNativeType(JSTypeNative typeId, JSType type) {
+     nativeTypes[typeId.ordinal()] = type;
+   }
+@@ -2522,7 +2660,11 @@
+    */
+   public void registerTemplateTypeNamesInScope(Iterable<TemplateType> keys, Node scopeRoot) {
+     for (TemplateType key : keys) {
+-      scopedNameTable.put(scopeRoot, key.getReferenceName(), key);
++      String refName = key.getReferenceName();
++      scopedNameTable.put(scopeRoot, refName, key);
++      if (refName.indexOf('.') >= 0) {
++        addQualifiedScopedNameHash(Node.hashQualifiedNameString(refName));
++      }
+     }
+   }
+ 
+@@ -2624,6 +2766,7 @@
+       String moduleName, Node definitionNode, JSType type) {
+     closureNamespaces.put(
+         moduleName, ClosureNamespace.create(/* isLegacy= */ false, definitionNode, type));
++    nonLegacyClosureNamespaceRoots.add(getRootElementOfName(moduleName));
+   }
+ 
+   /** Registers a goog.provide or legacy goog.module namespace with the type registry */

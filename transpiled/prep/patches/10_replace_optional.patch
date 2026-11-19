@@ -1,0 +1,13 @@
+diff --git a/com/google/javascript/jscomp/Compiler.java b/com/google/javascript/jscomp/Compiler.java
+index 47a1fb2..9bb53e2 100644
+--- a/com/google/javascript/jscomp/Compiler.java
++++ b/com/google/javascript/jscomp/Compiler.java
+@@ -716,7 +716,7 @@ public class Compiler extends AbstractCompiler implements ErrorHandler, SourceFi
+ 
+     this.typedAstFilesystem = astData.getFilesystem();
+     this.externProperties = astData.getExternProperties();
+-    this.colorRegistry = astData.getColorRegistry().orNull();
++    this.colorRegistry = astData.getColorRegistry() != null ? astData.getColorRegistry().orNull() : null;
+     this.setTypeCheckingHasRun(deserializeTypes);
+ 
+     for (String library : astData.getRuntimeLibraries()) {

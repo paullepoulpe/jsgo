@@ -1,0 +1,1 @@
+'use strict'; function test(param, param) { return param; }

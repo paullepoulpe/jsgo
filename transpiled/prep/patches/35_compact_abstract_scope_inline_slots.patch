@@ -1,0 +1,225 @@
+diff --git a/com/google/javascript/jscomp/AbstractScope.java b/com/google/javascript/jscomp/AbstractScope.java
+--- a/com/google/javascript/jscomp/AbstractScope.java
++++ b/com/google/javascript/jscomp/AbstractScope.java
+@@ -20,6 +20,7 @@
+ import static com.google.common.base.Preconditions.checkNotNull;
+ import static com.google.common.base.Preconditions.checkState;
+ 
++import com.google.common.collect.ImmutableList;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.StaticScope;
+ import java.io.Serializable;
+@@ -61,6 +62,8 @@
+  */
+ public abstract class AbstractScope<S extends AbstractScope<S, V>, V extends AbstractVar<S, V>>
+     implements StaticScope, Serializable {
++  private @Nullable V var0 = null;
++  private @Nullable V var1 = null;
+   private @Nullable LinkedHashMap<String, V> vars = null;
+   private @Nullable EnumMap<ImplicitVar, V> implicitVars = null;
+   private final Node rootNode;
+@@ -127,13 +130,29 @@
+ 
+   abstract V makeImplicitVar(ImplicitVar type);
+ 
++  private @Nullable V getOwnDeclaredVar(String name) {
++    if (vars != null) {
++      return vars.get(name);
++    }
++    if (var0 != null) {
++      if (var0.getName().equals(name)) {
++        return var0;
++      }
++      if (var1 != null && var1.getName().equals(name)) {
++        return var1;
++      }
++    }
++    return null;
++  }
++
+   /**
+    * Undeclares a variable, to be used when the compiler optimizes out a variable and removes it
+    * from the scope.
+    */
+   final void undeclare(V var) {
+     checkState(var.getScope() == this);
+-    checkState(vars != null && vars.get(var.getName()).equals(var));
++    V existing = getOwnDeclaredVar(var.getName());
++    checkState(existing != null && existing.equals(var));
+     undeclareInteral(var);
+   }
+ 
+@@ -142,20 +161,54 @@
+     // Assume that vars must contain var, and thus not be empty
+     if (vars != null) {
+       vars.remove(var.getName());
++      return;
++    }
++    String name = var.getName();
++    if (var0 != null) {
++      if (var0.getName().equals(name)) {
++        var0 = var1;
++        var1 = null;
++      } else if (var1 != null && var1.getName().equals(name)) {
++        var1 = null;
++      }
+     }
+   }
+ 
+   final void declareInternal(String name, V var) {
+     checkState(hasOwnSlot(name) || canDeclare(name), "Illegal shadow: %s", var.getNode());
+-
+-    // For memory savings, only initialize the map once it needs to add its first element
+-    if (vars == null) {
+-      vars = new LinkedHashMap<>();
+-    }
++    checkArgument(name.equals(var.getName()));
++
++    if (vars != null) {
++      vars.put(name, var);
++      return;
++    }
++    if (var0 == null) {
++      var0 = var;
++      return;
++    }
++    if (var0.getName().equals(name)) {
++      var0 = var;
++      return;
++    }
++    if (var1 == null) {
++      var1 = var;
++      return;
++    }
++    if (var1.getName().equals(name)) {
++      var1 = var;
++      return;
++    }
++    vars = new LinkedHashMap<>(4);
++    vars.put(var0.getName(), var0);
++    vars.put(var1.getName(), var1);
+     vars.put(name, var);
++    var0 = null;
++    var1 = null;
+   }
+ 
+   final void clearVarsInternal() {
++    var0 = null;
++    var1 = null;
+     if (vars != null && !vars.isEmpty()) {
+       vars.clear();
+     }
+@@ -168,14 +221,14 @@
+ 
+   /** Returns true if a variable is declared in this scope, with no recursion. */
+   public final boolean hasOwnSlot(String name) {
+-    return (vars != null && vars.containsKey(name)) || hasOwnImplicitSlot(ImplicitVar.of(name));
++    return getOwnDeclaredVar(name) != null || hasOwnImplicitSlot(ImplicitVar.of(name));
+   }
+ 
+   /** Returns true if a variable is declared in this or any parent scope. */
+   public final boolean hasSlot(String name) {
+     ImplicitVar implicit = ImplicitVar.of(name);
+     for (AbstractScope<S, V> scope = this; scope != null; scope = scope.getParent()) {
+-      if ((scope.vars != null && scope.vars.containsKey(name))
++      if (scope.getOwnDeclaredVar(name) != null
+           || (implicit != null && scope.hasOwnImplicitSlot(implicit))) {
+         return true;
+       }
+@@ -205,11 +258,9 @@
+ 
+   @Override
+   public final V getOwnSlot(String name) {
+-    if (vars != null) {
+-      V var = vars.get(name);
+-      if (var != null) {
+-        return var;
+-      }
++    V var = getOwnDeclaredVar(name);
++    if (var != null) {
++      return var;
+     }
+ 
+     return getOwnImplicitSlot(ImplicitVar.of(name));
+@@ -228,14 +279,12 @@
+   public V getVar(String name) {
+     ImplicitVar implicit = ImplicitVar.of(name);
+     for (AbstractScope<S, V> scope = thisScope(); scope != null; scope = scope.getParent()) {
+-      if (scope.vars != null) {
+-        V var = scope.vars.get(name);
+-        if (var != null) {
+-          return var;
+-        }
++      V var = scope.getOwnDeclaredVar(name);
++      if (var != null) {
++        return var;
+       }
+       if (implicit != null) {
+-        V var = scope.getOwnImplicitSlot(implicit);
++        var = scope.getOwnImplicitSlot(implicit);
+         if (var != null) {
+           return var;
+         }
+@@ -289,7 +338,13 @@
+    * 'arguments' variable).
+    */
+   public final Iterable<V> getVarIterable() {
+-    return vars != null ? vars.values() : Collections.emptyList();
++    if (vars != null) {
++      return vars.values();
++    }
++    if (var0 == null) {
++      return Collections.emptyList();
++    }
++    return var1 == null ? Collections.singletonList(var0) : ImmutableList.of(var0, var1);
+   }
+ 
+   /**
+@@ -306,11 +361,18 @@
+    */
+   public final Iterable<V> getAllAccessibleVariables() {
+     Map<String, V> accessibleVars = new LinkedHashMap<>();
+-    S s = thisScope();
++    AbstractScope<S, V> s = this;
+ 
+     while (s != null) {
+-      for (V v : s.getVarIterable()) {
+-        accessibleVars.putIfAbsent(v.getName(), v);
++      if (s.vars != null) {
++        for (V v : s.vars.values()) {
++          accessibleVars.putIfAbsent(v.getName(), v);
++        }
++      } else if (s.var0 != null) {
++        accessibleVars.putIfAbsent(s.var0.getName(), s.var0);
++        if (s.var1 != null) {
++          accessibleVars.putIfAbsent(s.var1.getName(), s.var1);
++        }
+       }
+       s = s.getParent();
+     }
+@@ -318,14 +380,21 @@
+   }
+ 
+   public final Iterable<V> getAllSymbols() {
+-    return vars != null
+-        ? Collections.unmodifiableCollection(vars.values())
+-        : Collections.emptyList();
++    if (vars != null) {
++      return Collections.unmodifiableCollection(vars.values());
++    }
++    return getVarIterable();
+   }
+ 
+   /** Returns number of variables in this scope (excluding the special 'arguments' variable) */
+   public final int getVarCount() {
+-    return vars != null ? vars.size() : 0;
++    if (vars != null) {
++      return vars.size();
++    }
++    if (var0 == null) {
++      return 0;
++    }
++    return var1 == null ? 1 : 2;
+   }
+ 
+   /** Returns whether this is the global scope. */

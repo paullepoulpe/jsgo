@@ -1,0 +1,22 @@
+{
+  "id": "tier1_w04_warning_group",
+  "tier": 1,
+  "feature": "warning_levels",
+  "name": "Enabling specific warning group",
+  "description": "Verifies --jscomp_warning=checkVars detects undeclared variable references",
+  "args": [
+    "--jscomp_warning=checkVars",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "function test() { undeclaredGlobalVariable = 1; }"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "function test(){undeclaredGlobalVariable=1};\n",
+    "stderr": "in.js:1:18: WARNING - [JSC_UNDEFINED_VARIABLE] variable undeclaredGlobalVariable is undeclared\n  1| function test() { undeclaredGlobalVariable = 1; }\n                       ^^^^^^^^^^^^^^^^^^^^^^^^\n\n0 error(s), 1 warning(s)\n",
+    "output_files": {}
+  }
+}

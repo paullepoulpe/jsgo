@@ -1,0 +1,1 @@
+exports.calc = function(x) { return x * 3; };

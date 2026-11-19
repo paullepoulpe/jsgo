@@ -1,0 +1,35 @@
+{
+  "id": "tier1_k04_code_motion",
+  "tier": 1,
+  "feature": "chunking",
+  "name": "Cross-chunk code motion",
+  "description": "Verifies code motion across chunks moving shared functions to common ancestor chunk",
+  "args": [
+    "--chunk",
+    "common:1",
+    "--js",
+    "common.js",
+    "--chunk",
+    "p1:1:common",
+    "--js",
+    "p1.js",
+    "--chunk",
+    "p2:1:common",
+    "--js",
+    "p2.js",
+    "--chunk_output_word_spec",
+    "%s.out.js"
+  ],
+  "stdin": "",
+  "files": {
+    "common.js": "var commonInit = true;",
+    "p1.js": "function helper(x) { return x + 1; } window['p1'] = helper(10);",
+    "p2.js": "window['p2'] = helper(20);"
+  },
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

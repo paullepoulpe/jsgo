@@ -1,0 +1,1 @@
+function Observable(sub) { this.sub = sub; } Observable.prototype.subscribe = function(fn) { this.sub(fn); }; module.exports = Observable;

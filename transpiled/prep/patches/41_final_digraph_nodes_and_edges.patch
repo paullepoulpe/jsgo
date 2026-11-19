@@ -1,0 +1,1078 @@
+diff --git a/com/google/javascript/jscomp/AbstractVar.java b/com/google/javascript/jscomp/AbstractVar.java
+--- a/com/google/javascript/jscomp/AbstractVar.java
++++ b/com/google/javascript/jscomp/AbstractVar.java
+@@ -34,11 +34,9 @@
+ /**
+  * Used by {@code Scope} to store information about variables.
+  */
+-public class AbstractVar<S extends AbstractScope<S, V>, V extends AbstractVar<S, V>>
++public abstract class AbstractVar<S extends AbstractScope<S, V>, V extends AbstractVar<S, V>>
+     extends ScopedName implements StaticSlot, StaticRef {
+ 
+-  private final String name;
+-
+   private final @Nullable Node nameNode;
+ 
+   // null if not an implicit goog namespace; otherwise starts out as an ArrayList then is frozen
+@@ -72,8 +70,8 @@
+       int index,
+       @Nullable CompilerInput input,
+       @Nullable Node implicitGoogNamespaceDefinition) {
++    super(checkNotNull(name), scope != null ? scope.getRootNode() : null);
+     checkArgument(index >= -1, index);
+-    this.name = checkNotNull(name);
+     if (implicitGoogNamespaceDefinition != null) {
+       this.nameNode = null;
+       this.implicitGoogNamespaceStrength = strengthOf(implicitGoogNamespaceDefinition);
+@@ -87,16 +85,6 @@
+   }
+ 
+   @Override
+-  public final String getName() {
+-    return name;
+-  }
+-
+-  @Override
+-  public final Node getScopeRoot() {
+-    return scope.getRootNode();
+-  }
+-
+-  @Override
+   public final Node getNode() {
+     return nameNode;
+   }
+@@ -107,29 +95,25 @@
+ 
+   @Override
+   public final StaticSourceFile getSourceFile() {
+-    return (this.getNode() != null ? this.getNode() : scope.getRootNode()).getStaticSourceFile();
++    return (this.nameNode != null ? this.nameNode : scope.getRootNode()).getStaticSourceFile();
+   }
+ 
+   @Override
+-  public final V getSymbol() {
+-    return thisVar();
+-  }
++  public abstract V getSymbol();
+ 
+   @Override
+-  public final V getDeclaration() {
+-    return this.getNode() == null ? null : thisVar();
+-  }
++  public abstract @Nullable V getDeclaration();
+ 
+   public final @Nullable Node getParentNode() {
+-    return this.getNode() == null ? null : this.getNode().getParent();
++    return this.nameNode == null ? null : this.nameNode.getParent();
+   }
+ 
+   /**
+    * Whether this is a bleeding function (an anonymous named function
+    * that bleeds into the inner scope).
+    */
+-  public boolean isBleedingFunction() {
+-    Node parent = getParentNode();
++  public final boolean isBleedingFunction() {
++    Node parent = this.nameNode == null ? null : this.nameNode.getParent();
+     return parent != null && NodeUtil.isFunctionExpression(parent);
+   }
+ 
+@@ -142,7 +126,7 @@
+    * The index at which the var is declared. e.g. if it's 0, it's the first declared variable in
+    * that scope
+    */
+-  int getIndex() {
++  final int getIndex() {
+     return index;
+   }
+ 
+@@ -160,7 +144,7 @@
+ 
+   /** Returns {@code true} if the variable is declared or inferred to be a constant. */
+   public final boolean isDeclaredOrInferredConst() {
+-    Node declarationNode = this.getNode();
++    Node declarationNode = this.nameNode;
+     if (declarationNode == null) {
+       return false;
+     }
+@@ -175,55 +159,55 @@
+    * A variable is a define if it is annotated by {@code @define}.
+    */
+   public final boolean isDefine() {
+-    JSDocInfo info = getJSDocInfo();
++    JSDocInfo info = this.nameNode == null ? null : NodeUtil.getBestJSDocInfo(this.nameNode);
+     return info != null && info.isDefine();
+   }
+ 
+   public final @Nullable Node getInitialValue() {
+-    return this.getNode() == null ? null : NodeUtil.getRValueOfLValue(this.getNode());
++    return this.nameNode == null ? null : NodeUtil.getRValueOfLValue(this.nameNode);
+   }
+ 
+   public final Node getNameNode() {
+-    return this.getNode();
++    return this.nameNode;
+   }
+ 
+   @Override
+   public final @Nullable JSDocInfo getJSDocInfo() {
+-    return this.getNode() == null ? null : NodeUtil.getBestJSDocInfo(this.getNode());
++    return this.nameNode == null ? null : NodeUtil.getBestJSDocInfo(this.nameNode);
+   }
+ 
+   final boolean isVar() {
+-    return declarationType() == Token.VAR;
++    return declarationTypeImpl() == Token.VAR;
+   }
+ 
+   final boolean isCatch() {
+-    return declarationType() == Token.CATCH;
++    return declarationTypeImpl() == Token.CATCH;
+   }
+ 
+   final boolean isLet() {
+-    return declarationType() == Token.LET;
++    return declarationTypeImpl() == Token.LET;
+   }
+ 
+   final boolean isConst() {
+-    return declarationType() == Token.CONST;
++    return declarationTypeImpl() == Token.CONST;
+   }
+ 
+   final boolean isClass() {
+-    return declarationType() == Token.CLASS;
++    return declarationTypeImpl() == Token.CLASS;
+   }
+ 
+   final boolean isParam() {
+-    return declarationType() == Token.PARAM_LIST;
++    return declarationTypeImpl() == Token.PARAM_LIST;
+   }
+ 
+   public final boolean isDefaultParam() {
+-    Node parent = this.getNode().getParent();
++    Node parent = this.nameNode.getParent();
+     return parent.getParent().isParamList() && parent.isDefaultValue()
+         && parent.getFirstChild() == nameNode;
+   }
+ 
+   final boolean isImport() {
+-    return declarationType() == Token.IMPORT;
++    return declarationTypeImpl() == Token.IMPORT;
+   }
+ 
+   public final boolean isArguments() {
+@@ -239,7 +223,7 @@
+   }
+ 
+   private boolean isImplicit() {
+-    if (isImplicitGoogNamespace()) {
++    if (this.implicitGoogNamespaceStrength != null) {
+       return true;
+     }
+     AbstractScope.ImplicitVar var = AbstractScope.ImplicitVar.of(name);
+@@ -257,28 +241,24 @@
+       Token.PARAM_LIST);
+ 
+   final @Nullable Token declarationType() {
+-    if (isImplicitGoogNamespace()) {
++    return declarationTypeImpl();
++  }
++
++  private @Nullable Token declarationTypeImpl() {
++    if (this.implicitGoogNamespaceStrength != null) {
+       return null;
+     }
+-    for (Node current = this.getNode(); current != null; current = current.getParent()) {
++    for (Node current = this.nameNode; current != null; current = current.getParent()) {
+       if (DECLARATION_TYPES.contains(current.getToken())) {
+         return current.getToken();
+       }
+     }
+     checkState(
+         isImplicit(),
+-        "The nameNode for %s must be a descendant of one of: %s", this, DECLARATION_TYPES);
++        "The nameNode for %s must be a descendant of one of: %s", name, DECLARATION_TYPES);
+     return null;
+   }
+ 
+-  // This is safe because any concrete subclass of AbstractVar<V> should be assignable to V.
+-  // While it's theoretically possible to do otherwise, such a class would be very awkward to
+-  // implement, and is therefore not worth worrying about.
+-  @SuppressWarnings("unchecked")
+-  private V thisVar() {
+-    return (V) this;
+-  }
+-
+   /**
+    * Whether this name comes from a goog.provide or legacy goog.module and does not have a normal
+    * syntactical definition
+@@ -293,14 +273,14 @@
+    * @param definition the STRINGLIT in a goog.provide or goog.module call
+    */
+   final void addImplicitGoogNamespaceDefinition(Node definition) {
+-    checkState(this.isImplicitGoogNamespace(), this);
++    checkState(this.implicitGoogNamespaceStrength != null, name);
+     this.implicitGoogNamespaceStrength =
+         strongerOf(this.implicitGoogNamespaceStrength, strengthOf(definition));
+   }
+ 
+   /** Returns the strongest kind of all definitions of this namespace */
+   final SourceKind getImplicitGoogNamespaceStrength() {
+-    checkState(this.isImplicitGoogNamespace(), this);
++    checkState(this.implicitGoogNamespaceStrength != null, name);
+     return this.implicitGoogNamespaceStrength;
+   }
+ 
+diff --git a/com/google/javascript/jscomp/ScopedName.java b/com/google/javascript/jscomp/ScopedName.java
+--- a/com/google/javascript/jscomp/ScopedName.java
++++ b/com/google/javascript/jscomp/ScopedName.java
+@@ -29,51 +29,38 @@
+  * careful to not depend on any other details in situations where vars are
+  * stored in sets.
+  */
+-abstract class ScopedName {
++class ScopedName {
+ 
+   private int cachedHashCode;
++  final @Nullable Node scopeRoot;
++  final String name;
+ 
++  ScopedName(String name, @Nullable Node scopeRoot) {
++    this.name = name;
++    this.scopeRoot = scopeRoot;
++  }
++
+   /** Returns the name as a string. */
+-  abstract String getName();
++  public final String getName() {
++    return name;
++  }
+ 
+   /** Returns the root node of the scope in which this name is defined. */
+-  abstract Node getScopeRoot();
++  public final @Nullable Node getScopeRoot() {
++    return scopeRoot;
++  }
+ 
+   static ScopedName of(String name, @Nullable Node scopeRoot) {
+-    return new Simple(name, scopeRoot);
++    return new ScopedName(name, scopeRoot);
+   }
+ 
+-  /** Simple implementation with no additional data or semantics. */
+-  private static class Simple extends ScopedName {
+-    final String name;
+-    final Node scopeRoot;
+-
+-    Simple(String name, Node scopeRoot) {
+-      this.name = name;
+-      this.scopeRoot = scopeRoot;
+-    }
+-
+-    @Override
+-    String getName() {
+-      return name;
+-    }
+-
+-    @Override
+-    Node getScopeRoot() {
+-      return scopeRoot;
+-    }
+-  }
+-
+   @Override
+   public final boolean equals(Object other) {
+-    if (this == other) {
+-      return true;
+-    }
+     if (!(other instanceof ScopedName scopedName)) {
+       return false;
+     }
+-    return getScopeRoot() == scopedName.getScopeRoot()
+-        && getName().equals(scopedName.getName());
++    return this.scopeRoot == scopedName.scopeRoot
++        && this.name.equals(scopedName.name);
+   }
+ 
+   @Override
+@@ -83,11 +70,9 @@
+       // NOTE: here we avoid Object.hash because of this function is called
+       // frequently enough that the overhead of implicit array creation of
+       // a varargs function is enough that we want to avoid it.
+-      String name = getName();
+-      Node root = getScopeRoot();
+       int result = 1;
+-      result = 31 * result + name.hashCode();
+-      result = 31 * result + root.hashCode();
++      result = 31 * result + this.name.hashCode();
++      result = 31 * result + this.scopeRoot.hashCode();
+       h = result;
+       this.cachedHashCode = h;
+     }
+diff --git a/com/google/javascript/jscomp/TypedScope.java b/com/google/javascript/jscomp/TypedScope.java
+--- a/com/google/javascript/jscomp/TypedScope.java
++++ b/com/google/javascript/jscomp/TypedScope.java
+@@ -50,7 +50,8 @@
+  *     called. The reason for this is that we want to shadow methods from the parent class, to avoid
+  *     calling them accidentally.
+  */
+-public class TypedScope extends AbstractScope<TypedScope, TypedVar> implements StaticTypedScope {
++public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
++    implements StaticTypedScope {
+ 
+   private final @Nullable TypedScope parent;
+   private final int depth;
+@@ -59,15 +60,14 @@
+   /** Whether this is a bottom scope for the purposes of type inference. */
+   private final boolean isBottom;
+ 
+-  // Will shrink over time. Set to "ImmutableSet.of()" once empty (so don't try removing
+-  // elements from an empty set)
+-  private Set<String> reservedNames;
++  // Will shrink over time. Cleared to null once empty.
++  private @Nullable LinkedHashSet<String> reservedNames;
+ 
+   // Scope.java contains an arguments field.
+   // We haven't added it here because it's unused by the passes that need typed scopes.
+ 
+   TypedScope(TypedScope parent, Node rootNode) {
+-    this(parent, rootNode, new LinkedHashSet<>(), null);
++    this(parent, rootNode, ImmutableSet.of(), null);
+   }
+ 
+   /**
+@@ -84,7 +84,7 @@
+     this.depth = parent.depth + 1;
+     this.isBottom = false;
+     this.reservedNames =
+-        reservedNames.isEmpty() ? ImmutableSet.of() : new LinkedHashSet<>(reservedNames);
++        reservedNames.isEmpty() ? null : new LinkedHashSet<>(reservedNames);
+     this.module = module;
+   }
+ 
+@@ -100,7 +100,7 @@
+     this.parent = null;
+     this.depth = 0;
+     this.isBottom = isBottom;
+-    this.reservedNames = ImmutableSet.of();
++    this.reservedNames = null;
+     this.module = null;
+   }
+ 
+@@ -120,14 +120,12 @@
+   /** Asserts that all reserved names in the scope have been actually declared. */
+   void validateCompletelyBuilt() {
+     checkState(
+-        reservedNames.isEmpty(),
++        reservedNames == null || reservedNames.isEmpty(),
+         "Expected %s to have no reserved names, found: %s. This probably indicates a bug in"
+             + " TypedScopeCreator where it is failing to declare a variable.",
+         this,
+         reservedNames);
+-    // let a (16-bit) VM garbage collect 64 bytes per TypedScope. (ImmutableSet.of() returns a
+-    // singleton)
+-    reservedNames = ImmutableSet.of();
++    reservedNames = null;
+   }
+ 
+   /** Whether this is the bottom of the lattice. */
+@@ -181,10 +179,13 @@
+   TypedVar declare(String name, Node nameNode,
+       JSType type, CompilerInput input, boolean inferred) {
+     checkState(name != null && !name.isEmpty());
+-    if (!reservedNames.isEmpty()) {
++    if (reservedNames != null) {
+       // (reservedNames only contains simple, non-qualified names; so it's completely normal to
+       // declare qualified names that were not 'reserved')
+       reservedNames.remove(name);
++      if (reservedNames.isEmpty()) {
++        reservedNames = null;
++      }
+     }
+     TypedVar var = new TypedVar(inferred, name, nameNode, type, this, getVarCount(), input);
+     declareInternal(name, var);
+@@ -328,7 +329,7 @@
+ 
+   @Override
+   public @Nullable StaticScope getTopmostScopeOfEventualDeclaration(String name) {
+-    if (getOwnSlot(name) != null || reservedNames.contains(name)) {
++    if (getOwnSlot(name) != null || (reservedNames != null && reservedNames.contains(name))) {
+       return this;
+     } else if (this.getParent() == null) {
+       return null;
+diff --git a/com/google/javascript/jscomp/TypedVar.java b/com/google/javascript/jscomp/TypedVar.java
+--- a/com/google/javascript/jscomp/TypedVar.java
++++ b/com/google/javascript/jscomp/TypedVar.java
+@@ -26,6 +26,7 @@
+ import com.google.javascript.rhino.jstype.JSType;
+ import com.google.javascript.rhino.jstype.StaticTypedRef;
+ import com.google.javascript.rhino.jstype.StaticTypedSlot;
++import org.jspecify.annotations.Nullable;
+ 
+ /**
+  * {@link AbstractVar} subclass for use with {@link TypedScope}.
+@@ -36,7 +37,7 @@
+  * TypedVar} instances are stored in a set, the type information is at risk of disappearing if an
+  * untyped (or differently typed) var is added for the same symbol.
+  */
+-public class TypedVar extends AbstractVar<TypedScope, TypedVar>
++public final class TypedVar extends AbstractVar<TypedScope, TypedVar>
+     implements StaticTypedSlot, StaticTypedRef {
+ 
+   private JSType type;
+@@ -118,6 +119,16 @@
+   }
+ 
+   @Override
++  public TypedVar getSymbol() {
++    return this;
++  }
++
++  @Override
++  public @Nullable TypedVar getDeclaration() {
++    return getNode() == null ? null : this;
++  }
++
++  @Override
+   public String toString() {
+     return "Var " + getName() + "{" + type + "}";
+   }
+diff --git a/com/google/javascript/jscomp/Var.java b/com/google/javascript/jscomp/Var.java
+--- a/com/google/javascript/jscomp/Var.java
++++ b/com/google/javascript/jscomp/Var.java
+@@ -25,7 +25,7 @@
+ /**
+  * Used by {@code Scope} to store information about variables.
+  */
+-public class Var extends AbstractVar<Scope, Var> implements StaticSlot, StaticRef {
++public final class Var extends AbstractVar<Scope, Var> implements StaticSlot, StaticRef {
+ 
+   static final String ARGUMENTS = "arguments";
+   static final String EXPORTS = "exports";
+@@ -51,6 +51,16 @@
+   }
+ 
+   @Override
++  public Var getSymbol() {
++    return this;
++  }
++
++  @Override
++  public @Nullable Var getDeclaration() {
++    return getNode() == null ? null : this;
++  }
++
++  @Override
+   public String toString() {
+     return "Var " + getName() + " @ " + getNameNode();
+   }
+diff --git a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+--- a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+@@ -73,9 +73,7 @@
+     LinkedDiGraphNode<N, E> src = getNodeOrFail(srcValue);
+     LinkedDiGraphNode<N, E> dest = getNodeOrFail(destValue);
+     LinkedDiGraphEdge<N, E> edge =
+-        useEdgeAnnotations
+-            ? new AnnotatedLinkedDiGraphEdge<>(src, edgeValue, dest)
+-            : new LinkedDiGraphEdge<>(src, edgeValue, dest);
++        new LinkedDiGraphEdge<>(src, edgeValue, dest, useEdgeAnnotations);
+     src.addOutEdge(edge);
+     dest.addInEdge(edge);
+   }
+@@ -90,9 +88,7 @@
+     LinkedDiGraphNode<N, E> lDest = (LinkedDiGraphNode<N, E>) dest;
+ 
+     LinkedDiGraphEdge<N, E> edge =
+-        useEdgeAnnotations
+-            ? new AnnotatedLinkedDiGraphEdge<>(lSrc, edgeValue, lDest)
+-            : new LinkedDiGraphEdge<>(lSrc, edgeValue, lDest);
++        new LinkedDiGraphEdge<>(lSrc, edgeValue, lDest, useEdgeAnnotations);
+     lSrc.addOutEdge(edge);
+     lDest.addInEdge(edge);
+   }
+@@ -161,11 +157,7 @@
+   @Override
+   public LinkedDiGraphNode<N, E> createNode(N nodeValue) {
+     return nodes.computeIfAbsent(
+-        nodeValue,
+-        (N k) ->
+-            useNodeAnnotations
+-                ? new AnnotatedLinkedDiGraphNode<N, E>(k)
+-                : new LinkedDiGraphNode<N, E>(k));
++        nodeValue, (N k) -> new LinkedDiGraphNode<N, E>(k, useNodeAnnotations));
+   }
+ 
+   @Override
+@@ -438,7 +430,7 @@
+    * A directed graph node that stores outgoing edges and incoming edges as an list within the node
+    * itself.
+    */
+-  public static class LinkedDiGraphNode<N, E> implements DiGraphNode<N, E>, GraphvizNode {
++  public static final class LinkedDiGraphNode<N, E> implements DiGraphNode<N, E>, GraphvizNode {
+ 
+     private @Nullable LinkedDiGraphEdge<N, E> firstInEdge;
+ 
+@@ -451,16 +443,21 @@
+     private @Nullable List<LinkedDiGraphNode<N, E>> singletonSelfList;
+ 
+     protected final N value;
++
++    private @Nullable Annotation annotation;
+ 
+     private int priority = -1;
+ 
++    private final boolean useAnnotation;
++
+     /**
+      * Constructor
+      *
+      * @param nodeValue Node's value.
+      */
+-    private LinkedDiGraphNode(N nodeValue) {
++    private LinkedDiGraphNode(N nodeValue, boolean useAnnotation) {
+       this.value = nodeValue;
++      this.useAnnotation = useAnnotation;
+     }
+ 
+     int inEdgeCount() {
+@@ -541,16 +538,23 @@
+       return value;
+     }
+ 
++    @SuppressWarnings("unchecked")
+     @Override
+     public <A extends Annotation> A getAnnotation() {
+-      throw new UnsupportedOperationException(
+-          "Graph initialized with node annotations turned off");
++      if (!useAnnotation) {
++        throw new UnsupportedOperationException(
++            "Graph initialized with node annotations turned off");
++      }
++      return (A) annotation;
+     }
+ 
+     @Override
+     public void setAnnotation(Annotation data) {
+-      throw new UnsupportedOperationException(
+-          "Graph initialized with node annotations turned off");
++      if (!useAnnotation) {
++        throw new UnsupportedOperationException(
++            "Graph initialized with node annotations turned off");
++      }
++      annotation = data;
+     }
+ 
+     @Override
+@@ -565,7 +569,11 @@
+ 
+     @Override
+     public String getLabel() {
+-      return this.toString();
++      String result = this.toString();
++      if (this.annotation != null) {
++        result += "\n" + this.annotation;
++      }
++      return result;
+     }
+ 
+     @Override
+@@ -607,39 +615,8 @@
+     }
+   }
+ 
+-  /** A directed graph node with annotations. */
+-  static final class AnnotatedLinkedDiGraphNode<N, E> extends LinkedDiGraphNode<N, E> {
+-
+-    Annotation annotation;
+-
+-    /** @param nodeValue Node's value. */
+-    private AnnotatedLinkedDiGraphNode(N nodeValue) {
+-      super(nodeValue);
+-    }
+-
+-    @SuppressWarnings("unchecked")
+-    @Override
+-    public <A extends Annotation> A getAnnotation() {
+-      return (A) annotation;
+-    }
+-
+-    @Override
+-    public void setAnnotation(Annotation data) {
+-      annotation = data;
+-    }
+-
+-    @Override
+-    public String getLabel() {
+-      String result = this.toString();
+-      if (this.annotation != null) {
+-        result += "\n" + this.annotation;
+-      }
+-      return result;
+-    }
+-  }
+-
+   /** A directed graph edge that stores the source and destination nodes at each edge. */
+-  public static class LinkedDiGraphEdge<N, E> implements DiGraphEdge<N, E>, GraphvizEdge {
++  public static final class LinkedDiGraphEdge<N, E> implements DiGraphEdge<N, E>, GraphvizEdge {
+ 
+     private final LinkedDiGraphNode<N, E> sourceNode;
+ 
+@@ -649,16 +626,24 @@
+ 
+     private @Nullable List<LinkedDiGraphEdge<N, E>> singletonSelfList;
+ 
++    private @Nullable Annotation annotation;
++
++    private final boolean useAnnotation;
++
+     /**
+      * Constructor.
+      *
+      * @param edgeValue Edge Value.
+      */
+     private LinkedDiGraphEdge(
+-        LinkedDiGraphNode<N, E> sourceNode, E edgeValue, LinkedDiGraphNode<N, E> destNode) {
++        LinkedDiGraphNode<N, E> sourceNode,
++        E edgeValue,
++        LinkedDiGraphNode<N, E> destNode,
++        boolean useAnnotation) {
+       this.value = edgeValue;
+       this.sourceNode = sourceNode;
+       this.destNode = destNode;
++      this.useAnnotation = useAnnotation;
+     }
+ 
+     List<LinkedDiGraphEdge<N, E>> asSingletonList() {
+@@ -685,16 +670,23 @@
+       return value;
+     }
+ 
++    @SuppressWarnings("unchecked")
+     @Override
+     public <A extends Annotation> A getAnnotation() {
+-      throw new UnsupportedOperationException(
+-          "Graph initialized with edge annotations turned off");
++      if (!useAnnotation) {
++        throw new UnsupportedOperationException(
++            "Graph initialized with edge annotations turned off");
++      }
++      return (A) annotation;
+     }
+ 
+     @Override
+     public void setAnnotation(Annotation data) {
+-      throw new UnsupportedOperationException(
+-          "Graph initialized with edge annotations turned off");
++      if (!useAnnotation) {
++        throw new UnsupportedOperationException(
++            "Graph initialized with edge annotations turned off");
++      }
++      annotation = data;
+     }
+ 
+     @Override
+@@ -732,31 +724,4 @@
+       return destNode;
+     }
+   }
+-
+-  /** A directed graph edge that stores the source and destination nodes at each edge. */
+-  static final class AnnotatedLinkedDiGraphEdge<N, E> extends LinkedDiGraphEdge<N, E> {
+-
+-    Annotation annotation;
+-
+-    /**
+-     * Constructor.
+-     *
+-     * @param edgeValue Edge Value.
+-     */
+-    private AnnotatedLinkedDiGraphEdge(
+-        LinkedDiGraphNode<N, E> sourceNode, E edgeValue, LinkedDiGraphNode<N, E> destNode) {
+-      super(sourceNode, edgeValue, destNode);
+-    }
+-
+-    @SuppressWarnings("unchecked")
+-    @Override
+-    public <A extends Annotation> A getAnnotation() {
+-      return (A) annotation;
+-    }
+-
+-    @Override
+-    public void setAnnotation(Annotation data) {
+-      annotation = data;
+-    }
+-  }
+ }
+diff --git a/com/google/javascript/jscomp/graph/LinkedUndirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedUndirectedGraph.java
+--- a/com/google/javascript/jscomp/graph/LinkedUndirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedUndirectedGraph.java
+@@ -61,9 +61,7 @@
+     LinkedUndirectedGraphNode<N, E> src = getNodeOrFail(srcValue);
+     LinkedUndirectedGraphNode<N, E> dest = getNodeOrFail(destValue);
+     LinkedUndirectedGraphEdge<N, E> edge =
+-        useEdgeAnnotations ?
+-        new AnnotatedLinkedUndirectedGraphEdge<>(src, edgeValue, dest) :
+-        new LinkedUndirectedGraphEdge<>(src, edgeValue, dest);
++        new LinkedUndirectedGraphEdge<>(src, edgeValue, dest, useEdgeAnnotations);
+     src.getNeighborEdges().add(edge);
+     dest.getNeighborEdges().add(edge);
+   }
+@@ -83,11 +81,7 @@
+   public UndiGraphNode<N, E> createUndirectedGraphNode(
+       N nodeValue) {
+     return nodes.computeIfAbsent(
+-        nodeValue,
+-        (N k) ->
+-            useNodeAnnotations
+-                ? new AnnotatedLinkedUndirectedGraphNode<N, E>(k)
+-                : new LinkedUndirectedGraphNode<N, E>(k));
++        nodeValue, (N k) -> new LinkedUndirectedGraphNode<N, E>(k, useNodeAnnotations));
+   }
+ 
+   @Override
+@@ -250,14 +244,17 @@
+    * An undirected graph node that stores outgoing edges and incoming edges as
+    * an list within the node itself.
+    */
+-  static class LinkedUndirectedGraphNode<N, E> implements UndiGraphNode<N, E>,
+-      GraphvizNode {
++  static final class LinkedUndirectedGraphNode<N, E>
++      implements UndiGraphNode<N, E>, GraphvizNode {
+ 
+     private final List<UndiGraphEdge<N, E>> neighborEdges = new ArrayList<>();
+     private final N value;
++    private @Nullable Annotation annotation;
++    private final boolean useAnnotation;
+ 
+-    LinkedUndirectedGraphNode(N nodeValue) {
++    LinkedUndirectedGraphNode(N nodeValue, boolean useAnnotation) {
+       this.value = nodeValue;
++      this.useAnnotation = useAnnotation;
+     }
+ 
+     @Override
+@@ -270,16 +267,23 @@
+       return neighborEdges.iterator();
+     }
+ 
++    @SuppressWarnings("unchecked")
+     @Override
+     public <A extends Annotation> A getAnnotation() {
+-      throw new UnsupportedOperationException(
+-          "Graph initialized with node annotations turned off");
++      if (!useAnnotation) {
++        throw new UnsupportedOperationException(
++            "Graph initialized with node annotations turned off");
++      }
++      return (A) annotation;
+     }
+ 
+     @Override
+     public void setAnnotation(Annotation data) {
+-      throw new UnsupportedOperationException(
+-          "Graph initialized with node annotations turned off");
++      if (!useAnnotation) {
++        throw new UnsupportedOperationException(
++            "Graph initialized with node annotations turned off");
++      }
++      annotation = data;
+     }
+ 
+     @Override
+@@ -316,44 +320,26 @@
+   }
+ 
+   /**
+-   * An undirected graph node with annotations.
+-   */
+-  static class AnnotatedLinkedUndirectedGraphNode<N, E>
+-      extends LinkedUndirectedGraphNode<N, E> {
+-
+-    protected Annotation annotation;
+-
+-    AnnotatedLinkedUndirectedGraphNode(N nodeValue) {
+-      super(nodeValue);
+-    }
+-
+-    @SuppressWarnings("unchecked")
+-    @Override
+-    public <A extends Annotation> A getAnnotation() {
+-      return (A) annotation;
+-    }
+-
+-    @Override
+-    public void setAnnotation(Annotation data) {
+-      annotation = data;
+-    }
+-  }
+-
+-  /**
+    * An undirected graph edge that stores two nodes at each edge.
+    */
+-  static class LinkedUndirectedGraphEdge<N, E> implements UndiGraphEdge<N, E>,
+-      GraphvizEdge {
++  static final class LinkedUndirectedGraphEdge<N, E>
++      implements UndiGraphEdge<N, E>, GraphvizEdge {
+ 
+     private final UndiGraphNode<N, E> nodeA;
+     private final UndiGraphNode<N, E> nodeB;
+     protected final E value;
++    private @Nullable Annotation annotation;
++    private final boolean useAnnotation;
+ 
+-    LinkedUndirectedGraphEdge(UndiGraphNode<N, E> nodeA, E edgeValue,
+-        UndiGraphNode<N, E> nodeB) {
++    LinkedUndirectedGraphEdge(
++        UndiGraphNode<N, E> nodeA,
++        E edgeValue,
++        UndiGraphNode<N, E> nodeB,
++        boolean useAnnotation) {
+       this.value = edgeValue;
+       this.nodeA = nodeA;
+       this.nodeB = nodeB;
++      this.useAnnotation = useAnnotation;
+     }
+ 
+     @Override
+@@ -371,16 +357,23 @@
+       return nodeB;
+     }
+ 
++    @SuppressWarnings("unchecked")
+     @Override
+     public <A extends Annotation> A getAnnotation() {
+-      throw new UnsupportedOperationException(
+-          "Graph initialized with edge annotations turned off");
++      if (!useAnnotation) {
++        throw new UnsupportedOperationException(
++            "Graph initialized with edge annotations turned off");
++      }
++      return (A) annotation;
+     }
+ 
+     @Override
+     public void setAnnotation(Annotation data) {
+-      throw new UnsupportedOperationException(
+-          "Graph initialized with edge annotations turned off");
++      if (!useAnnotation) {
++        throw new UnsupportedOperationException(
++            "Graph initialized with edge annotations turned off");
++      }
++      annotation = data;
+     }
+ 
+     @Override
+@@ -408,30 +401,4 @@
+       return nodeA + " -- " + nodeB;
+     }
+   }
+-
+-  /**
+-   * An annotated undirected graph edge..
+-   */
+-  static class AnnotatedLinkedUndirectedGraphEdge<N, E>
+-      extends LinkedUndirectedGraphEdge<N, E> {
+-
+-    protected Annotation annotation;
+-
+-    AnnotatedLinkedUndirectedGraphEdge(
+-        UndiGraphNode<N, E> nodeA, E edgeValue,
+-        UndiGraphNode<N, E> nodeB) {
+-      super(nodeA, edgeValue, nodeB);
+-    }
+-
+-    @SuppressWarnings("unchecked")
+-    @Override
+-    public <A extends Annotation> A getAnnotation() {
+-      return (A) annotation;
+-    }
+-
+-    @Override
+-    public void setAnnotation(Annotation data) {
+-      annotation = data;
+-    }
+-  }
+ }
+diff --git a/com/google/javascript/jscomp/parsing/IRFactory.java b/com/google/javascript/jscomp/parsing/IRFactory.java
+--- a/com/google/javascript/jscomp/parsing/IRFactory.java
++++ b/com/google/javascript/jscomp/parsing/IRFactory.java
+@@ -1458,10 +1458,10 @@
+       }
+ 
+       if (input.type == TokenType.IDENTIFIER) {
+-        return processName(input.asIdentifier(), output, identifierType);
++        return processName((IdentifierToken) input, output, identifierType);
+       }
+ 
+-      LiteralToken literal = input.asLiteral();
++      LiteralToken literal = (LiteralToken) input;
+       JSDocInfo jsDocInfo = parseJSDocInfoOnToken(literal);
+       NonJSDocComment comment = parseNonJSDocCommentAt(literal.getStart(), true);
+ 
+@@ -1599,7 +1599,7 @@
+         // The key is also the target name.
+         valueNode =
+             processNameWithInlineComments(
+-                propertyNameAssignment.name.asIdentifier(), IdentifierType.STANDARD);
++                (IdentifierToken) propertyNameAssignment.name, IdentifierType.STANDARD);
+         key.setShorthandProperty(true);
+       } else {
+         valueNode = processDestructuringElementTarget(targetTree);
+@@ -2533,7 +2533,7 @@
+     }
+ 
+     Node processNumberLiteral(LiteralExpressionTree literalNode) {
+-      double value = normalizeNumber(literalNode.literalToken.asLiteral());
++      double value = normalizeNumber((LiteralToken) literalNode.literalToken);
+       Node number = newNumberNode(value);
+       setSourceInfo(number, literalNode);
+       return number;
+@@ -2541,7 +2541,7 @@
+ 
+     Node processBigIntLiteral(LiteralExpressionTree literalNode) {
+       maybeWarnForFeature(literalNode, Feature.BIGINT);
+-      BigInteger value = normalizeBigInt(literalNode.literalToken.asLiteral());
++      BigInteger value = normalizeBigInt((LiteralToken) literalNode.literalToken);
+       Node bigint = newBigIntNode(value);
+       setSourceInfo(bigint, literalNode);
+       return bigint;
+@@ -2755,7 +2755,7 @@
+     }
+ 
+     Node processRegExpLiteral(LiteralExpressionTree literalTree) {
+-      LiteralToken token = literalTree.literalToken.asLiteral();
++      LiteralToken token = (LiteralToken) literalTree.literalToken;
+       Node literalStringNode = newStringNode(normalizeRegex(token));
+       // TODO(johnlenz): fix the source location.
+       setSourceInfo(literalStringNode, token);
+@@ -2804,7 +2804,7 @@
+     }
+ 
+     Node processStringLiteral(LiteralExpressionTree literalTree) {
+-      LiteralToken token = literalTree.literalToken.asLiteral();
++      LiteralToken token = (LiteralToken) literalTree.literalToken;
+       return processString(token);
+     }
+ 
+@@ -2826,7 +2826,7 @@
+     }
+ 
+     Node processTemplateLiteralPortion(TemplateLiteralPortionTree tree) {
+-      return processTemplateLiteralToken(tree.value.asTemplateLiteral());
++      return processTemplateLiteralToken((TemplateLiteralToken) tree.value);
+     }
+ 
+     Node processTemplateSubstitution(TemplateSubstitutionTree tree) {
+@@ -3347,7 +3347,7 @@
+       }
+ 
+       if (!memberName.type.equals(TokenType.IDENTIFIER)
+-          || !memberName.asIdentifier().valueEquals("constructor")) {
++          || !((IdentifierToken) memberName).valueEquals("constructor")) {
+         // There's only a potential issue if the member is named "constructor".
+         // TODO(b/123769080): Also check for quoted string literals with the value "constructor".
+         return false;
+diff --git a/com/google/javascript/jscomp/parsing/parser/IdentifierToken.java b/com/google/javascript/jscomp/parsing/parser/IdentifierToken.java
+--- a/com/google/javascript/jscomp/parsing/parser/IdentifierToken.java
++++ b/com/google/javascript/jscomp/parsing/parser/IdentifierToken.java
+@@ -21,7 +21,7 @@
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ 
+ /** A token representing an identifier. */
+-public class IdentifierToken extends Token {
++public final class IdentifierToken extends Token {
+   private final String value;
+   private final boolean privateIdentifier;
+ 
+diff --git a/com/google/javascript/jscomp/parsing/parser/Parser.java b/com/google/javascript/jscomp/parsing/parser/Parser.java
+--- a/com/google/javascript/jscomp/parsing/parser/Parser.java
++++ b/com/google/javascript/jscomp/parsing/parser/Parser.java
+@@ -311,7 +311,7 @@
+ 
+     // import ModuleSpecifier ;
+     if (peek(TokenType.STRING)) {
+-      LiteralToken moduleSpecifier = eat(TokenType.STRING).asLiteral();
++      LiteralToken moduleSpecifier = (LiteralToken) eat(TokenType.STRING);
+       eatPossiblyImplicitSemiColon();
+ 
+       return new ImportDeclarationTree(getTreeLocation(start), null, null, null, moduleSpecifier);
+@@ -351,7 +351,7 @@
+ 
+     eatPredefinedString(PredefinedName.FROM);
+     Token moduleStr = eat(TokenType.STRING);
+-    LiteralToken moduleSpecifier = (moduleStr == null) ? null : moduleStr.asLiteral();
++    LiteralToken moduleSpecifier = (moduleStr == null) ? null : (LiteralToken) moduleStr;
+     eatPossiblyImplicitSemiColon();
+ 
+     return new ImportDeclarationTree(
+@@ -1925,8 +1925,8 @@
+   }
+ 
+   private @Nullable Token eatPredefinedString(String string) {
+-    Token token = eatId();
+-    if (token == null || !token.asIdentifier().valueEquals(string)) {
++    IdentifierToken token = eatId();
++    if (token == null || !token.valueEquals(string)) {
+       reportExpectedError(token, string);
+       return null;
+     }
+@@ -2010,7 +2010,7 @@
+     if (colon == null) {
+       if (name.type != TokenType.IDENTIFIER) {
+         reportExpectedError(peekToken(), TokenType.COLON);
+-      } else if (name.asIdentifier().isKeyword()) {
++      } else if (((IdentifierToken) name).isKeyword()) {
+         reportError(name, "Cannot use keyword in short object literal");
+       } else if (peek(TokenType.EQUAL)) {
+         IdentifierExpressionTree idTree =
+@@ -3349,7 +3349,7 @@
+     TokenType typeToCheck = token.type;
+ 
+     if (typeToCheck == TokenType.IDENTIFIER) {
+-      String value = token.asIdentifier().getMaybePrivateValue();
++      String value = ((IdentifierToken) token).getMaybePrivateValue();
+       Keywords k = Keywords.get(value);
+       if (k == null) {
+         return true;
+diff --git a/com/google/javascript/jscomp/parsing/parser/StringLiteralToken.java b/com/google/javascript/jscomp/parsing/parser/StringLiteralToken.java
+--- a/com/google/javascript/jscomp/parsing/parser/StringLiteralToken.java
++++ b/com/google/javascript/jscomp/parsing/parser/StringLiteralToken.java
+@@ -19,7 +19,7 @@
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ 
+ /** A single or double quoted JavaScript string literal. */
+-public class StringLiteralToken extends LiteralToken {
++public final class StringLiteralToken extends LiteralToken {
+   private final boolean hasUnescapedUnicodeLineOrParagraphSeparator;
+ 
+   public StringLiteralToken(
+diff --git a/com/google/javascript/jscomp/parsing/parser/TemplateLiteralToken.java b/com/google/javascript/jscomp/parsing/parser/TemplateLiteralToken.java
+--- a/com/google/javascript/jscomp/parsing/parser/TemplateLiteralToken.java
++++ b/com/google/javascript/jscomp/parsing/parser/TemplateLiteralToken.java
+@@ -28,7 +28,7 @@
+  * escapes. The parser, not the scanner, reports these errors because the errors are suppressed in
+  * tagged template literals. The scanner does not know if it's in a tagged or untagged template lit.
+  */
+-public class TemplateLiteralToken extends LiteralToken {
++public final class TemplateLiteralToken extends LiteralToken {
+   public final @Nullable String errorMessage;
+   public final SourcePosition errorPosition;
+   public final ErrorLevel errorLevel;
+diff --git a/com/google/javascript/jscomp/parsing/parser/Token.java b/com/google/javascript/jscomp/parsing/parser/Token.java
+--- a/com/google/javascript/jscomp/parsing/parser/Token.java
++++ b/com/google/javascript/jscomp/parsing/parser/Token.java
+@@ -42,11 +42,4 @@
+   public String toString() {
+     return type.toString();
+   }
+-
+-  public IdentifierToken asIdentifier() { return (IdentifierToken) this; }
+-  public LiteralToken asLiteral() { return (LiteralToken) this; }
+-
+-  public TemplateLiteralToken asTemplateLiteral() {
+-    return (TemplateLiteralToken) this;
+-  }
+ }

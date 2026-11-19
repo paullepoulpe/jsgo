@@ -1,0 +1,1 @@
+goog.provide('my.calc'); /** @constructor */ my.calc.Calculator = function() {}; my.calc.Calculator.prototype.add = function(a, b) { return a + b; }; window['calc'] = new my.calc.Calculator().add(10, 20);

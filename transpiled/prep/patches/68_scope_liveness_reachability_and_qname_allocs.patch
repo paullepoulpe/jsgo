@@ -1,0 +1,1936 @@
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/AbstractScope.java b/com/google/javascript/jscomp/AbstractScope.java
+--- a/com/google/javascript/jscomp/AbstractScope.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/AbstractScope.java	2026-11-18 11:25:47
+@@ -336,7 +336,7 @@
+    * <p>We do not include the special 'arguments' variable.
+    */
+   public final Iterable<V> getAllAccessibleVariables() {
+-    LinkedHashMap<String, V> accessibleVars = new LinkedHashMap<>();
++    LinkedHashMap<String, V> accessibleVars = new LinkedHashMap<>(16);
+     AbstractScope<S, V> s = this;
+ 
+     while (s != null) {
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/CheckUnreachableCode.java b/com/google/javascript/jscomp/CheckUnreachableCode.java
+--- a/com/google/javascript/jscomp/CheckUnreachableCode.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/CheckUnreachableCode.java	2026-11-18 11:27:38
+@@ -18,10 +18,12 @@
+ 
+ import com.google.javascript.jscomp.ControlFlowGraph.Branch;
+ import com.google.javascript.jscomp.base.Tri;
++import com.google.javascript.jscomp.graph.DiGraph.DiGraphNode;
+ import com.google.javascript.jscomp.graph.GraphNode;
+ import com.google.javascript.jscomp.graph.GraphReachability;
+-import com.google.javascript.jscomp.graph.GraphReachability.EdgeTuple;
++import com.google.javascript.jscomp.graph.GraphReachability.EdgeFilter;
+ import com.google.javascript.rhino.Node;
++import java.util.ArrayDeque;
+ 
+ /**
+  * Use {@link ControlFlowGraph} and {@link GraphReachability} to inform user about unreachable code.
+@@ -31,7 +33,11 @@
+   static final DiagnosticType UNREACHABLE_CODE = DiagnosticType.warning(
+       "JSC_UNREACHABLE_CODE", "unreachable code");
+ 
++  private static final EdgeFilter<Node, Branch> REACHABLE_EDGE_FILTER =
++      CheckUnreachableCode::isReachable;
++
+   private final AbstractCompiler compiler;
++  private final ArrayDeque<DiGraphNode<Node, Branch>> reachabilityQueue = new ArrayDeque<>();
+ 
+   CheckUnreachableCode(AbstractCompiler compiler) {
+     this.compiler = compiler;
+@@ -60,7 +66,7 @@
+         compiler.report(JSError.make(n, UNREACHABLE_CODE));
+         // From now on, we are going to assume the user fixed the error and not
+         // give more warning related to code section reachable from this node.
+-        new GraphReachability<>(cfg).recompute(n);
++        GraphReachability.recomputeReachability(cfg, n, reachabilityQueue);
+ 
+         // Saves time by not traversing children.
+         return false;
+@@ -70,16 +76,17 @@
+   }
+ 
+   private void initScope(ControlFlowGraph<Node> controlFlowGraph) {
+-    new GraphReachability<>(controlFlowGraph, CheckUnreachableCode::isReachable)
+-        .compute(controlFlowGraph.getEntry().getValue());
++    GraphReachability.computeReachability(
++        controlFlowGraph,
++        controlFlowGraph.getEntry().getValue(),
++        REACHABLE_EDGE_FILTER,
++        reachabilityQueue);
+   }
+ 
+-  private static boolean isReachable(EdgeTuple<Node, Branch> input) {
+-    Branch branch = input.edge;
++  private static boolean isReachable(Node predecessor, Branch branch, Node destNode) {
+     if (!branch.isConditional()) {
+       return true;
+     }
+-    Node predecessor = input.sourceNode;
+     Node condition = NodeUtil.getConditionExpression(predecessor);
+ 
+     // TODO(user): Handle more complicated expression like true == true,
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/LinkedFlowScope.java b/com/google/javascript/jscomp/LinkedFlowScope.java
+--- a/com/google/javascript/jscomp/LinkedFlowScope.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/LinkedFlowScope.java	2026-11-18 11:31:05
+@@ -46,7 +46,7 @@
+   // The TypedScope for the block that this flow scope is defined for.
+   private final TypedScope syntacticScope;
+ 
+-  private final boolean hasUnindexedQualifiedOverlaySlots;
++  private final long unindexedRootBloom;
+ 
+   /**
+    * Creates a flow scope without a direct parent. This can happen in three cases: (1) the "bottom"
+@@ -58,12 +58,12 @@
+       HamtPMap<TypedScope, OverlayScope> scopes,
+       TypedScope syntacticScope,
+       TypedScope functionScope,
+-      boolean hasUnindexedQualifiedOverlaySlots) {
++      long unindexedRootBloom) {
+     this.inputProvider = inputProvider;
+     this.scopes = scopes;
+     this.syntacticScope = syntacticScope;
+     this.functionScope = functionScope;
+-    this.hasUnindexedQualifiedOverlaySlots = hasUnindexedQualifiedOverlaySlots;
++    this.unindexedRootBloom = unindexedRootBloom;
+   }
+ 
+   /**
+@@ -106,9 +106,17 @@
+   /** Creates an entry lattice for the flow. */
+   public static LinkedFlowScope createEntryLattice(
+       CompilerInputProvider inputProvider, TypedScope scope) {
+-    return new LinkedFlowScope(inputProvider, EMPTY_SCOPES, scope, scope, false);
++    return new LinkedFlowScope(inputProvider, EMPTY_SCOPES, scope, scope, 0L);
+   }
+ 
++  private static int hashPrefixBeforeDot(String symbol, int dot) {
++    int h = 0;
++    for (int i = 0; i < dot; i++) {
++      h = 31 * h + symbol.charAt(i);
++    }
++    return h;
++  }
++
+   @Override
+   public LinkedFlowScope inferSlotType(String symbol, JSType type) {
+     OverlayScope scope = getOverlayScopeForName(symbol, true);
+@@ -119,15 +127,19 @@
+     if (newScopes == scopes) {
+       return this;
+     }
+-    boolean nextHasUnindexed =
+-        !newScopes.isEmpty()
+-            && (this.hasUnindexedQualifiedOverlaySlots
+-                || (!newScope.slots.isEmpty()
+-                    && symbol.indexOf('.') >= 0
+-                    && !scope.scope.mayHaveQualifiedVarWithHash(
+-                        Node.hashQualifiedNameString(symbol))));
+-    return new LinkedFlowScope(
+-        inputProvider, newScopes, syntacticScope, functionScope, nextHasUnindexed);
++    long nextBloom;
++    if (newScopes.isEmpty()) {
++      nextBloom = 0L;
++    } else {
++      nextBloom = this.unindexedRootBloom;
++      if (!newScope.slots.isEmpty()) {
++        int dot = symbol.indexOf('.');
++        if (dot >= 0) {
++          nextBloom |= (1L << (hashPrefixBeforeDot(symbol, dot) & 63));
++        }
++      }
++    }
++    return new LinkedFlowScope(inputProvider, newScopes, syntacticScope, functionScope, nextBloom);
+   }
+ 
+   @Override
+@@ -213,7 +225,8 @@
+   }
+ 
+   boolean mayHaveQualifiedSlotForRoot(String rootName) {
+-    if (this.hasUnindexedQualifiedOverlaySlots) {
++    if (this.unindexedRootBloom != 0L
++        && (this.unindexedRootBloom & (1L << (rootName.hashCode() & 63))) != 0L) {
+       return true;
+     }
+     return this.syntacticScope.mayHaveQualifiedVarForRoot(rootName)
+@@ -222,21 +235,39 @@
+   }
+ 
+   boolean mayHaveQualifiedSlotForNode(Node n) {
+-    if (this.hasUnindexedQualifiedOverlaySlots) {
+-      return n.isQualifiedName();
+-    }
+     if (!n.isGetProp()) {
+       return n.isQualifiedName();
+     }
+-    int h = n.hashQualifiedName();
+-    if (h == 0) {
++    long hashes = n.qualifiedNameHashes();
++    if (hashes == 0L) {
+       return false;
+     }
+-    return this.syntacticScope.mayHaveQualifiedVarWithHash(h)
++    int mixedHash = (int) (hashes >>> 32);
++    if (this.syntacticScope.mayHaveQualifiedVarWithHash(mixedHash)
+         || (this.functionScope != this.syntacticScope
+-            && this.functionScope.mayHaveQualifiedVarWithHash(h));
++            && this.functionScope.mayHaveQualifiedVarWithHash(mixedHash))) {
++      return true;
++    }
++    if (this.unindexedRootBloom == 0L) {
++      return false;
++    }
++    return containsOverlaySlotWithHash(this.scopes, (int) hashes);
+   }
+ 
++  private static boolean containsOverlaySlotWithHash(
++      HamtPMap<TypedScope, OverlayScope> map, int rawKeyHash) {
++    OverlayScope overlay = map.rootValue();
++    if (overlay != null && overlay.hasQualifiedSlots && overlay.slots.containsHash(rawKeyHash)) {
++      return true;
++    }
++    for (int i = 0, len = map.childCount(); i < len; i++) {
++      if (containsOverlaySlotWithHash(map.childAt(i), rawKeyHash)) {
++        return true;
++      }
++    }
++    return false;
++  }
++
+   private static String getRootOfQualifiedName(String name) {
+     int index = name.indexOf('.');
+     return index < 0 ? name : name.substring(0, index);
+@@ -288,7 +319,7 @@
+         trimmed,
+         typedScope,
+         functionScope,
+-        !trimmed.isEmpty() && this.hasUnindexedQualifiedOverlaySlots);
++        trimmed.isEmpty() ? 0L : this.unindexedRootBloom);
+   }
+ 
+   @Override
+@@ -366,25 +397,24 @@
+       HamtPMap<TypedScope, OverlayScope> joined = join(this.result, linkedInput, common);
+       TypedScope nextFnScope =
+           this.result.flowsFromBottom() ? linkedInput.functionScope : this.result.functionScope;
+-      boolean nextUnindexed =
+-          !joined.isEmpty()
+-              && (this.result.hasUnindexedQualifiedOverlaySlots
+-                  || linkedInput.hasUnindexedQualifiedOverlaySlots);
++      long nextBloom =
++          joined.isEmpty()
++              ? 0L
++              : (this.result.unindexedRootBloom | linkedInput.unindexedRootBloom);
+       if (joined == this.result.scopes
+           && common == this.result.syntacticScope
+           && nextFnScope == this.result.functionScope
+-          && nextUnindexed == this.result.hasUnindexedQualifiedOverlaySlots) {
++          && nextBloom == this.result.unindexedRootBloom) {
+         return;
+       }
+       if (joined == linkedInput.scopes
+           && common == linkedInput.syntacticScope
+           && nextFnScope == linkedInput.functionScope
+-          && nextUnindexed == linkedInput.hasUnindexedQualifiedOverlaySlots) {
++          && nextBloom == linkedInput.unindexedRootBloom) {
+         this.result = linkedInput;
+         return;
+       }
+-      this.result =
+-          new LinkedFlowScope(inputProvider, joined, common, nextFnScope, nextUnindexed);
++      this.result = new LinkedFlowScope(inputProvider, joined, common, nextFnScope, nextBloom);
+     }
+ 
+     @Override
+@@ -520,22 +550,29 @@
+               if (scopeB != null && scopeB.scope == bestScope && reconciledSlots == scopeB.slots) {
+                 return scopeB;
+               }
+-              return new OverlayScope(bestScope, reconciledSlots);
++              boolean hasQual =
++                  !reconciledSlots.isEmpty()
++                      && ((scopeA != null && scopeA.hasQualifiedSlots)
++                          || (scopeB != null && scopeB.hasQualifiedSlots));
++              return new OverlayScope(bestScope, reconciledSlots, hasQual);
+             });
+   }
+ 
+   private static class OverlayScope {
+     final TypedScope scope;
+     final HamtPMap<String, OverlaySlot> slots;
++    final boolean hasQualifiedSlots;
+ 
+     OverlayScope(TypedScope scope) {
+       this.scope = checkNotNull(scope);
+       this.slots = EMPTY_SLOTS;
++      this.hasQualifiedSlots = false;
+     }
+ 
+-    OverlayScope(TypedScope scope, HamtPMap<String, OverlaySlot> slots) {
++    OverlayScope(TypedScope scope, HamtPMap<String, OverlaySlot> slots, boolean hasQualifiedSlots) {
+       this.scope = checkNotNull(scope);
+       this.slots = slots;
++      this.hasQualifiedSlots = hasQualifiedSlots;
+     }
+ 
+     OverlayScope infer(String name, JSType type) {
+@@ -544,7 +581,9 @@
+       if (slot != null && identical(type, slot.type)) {
+         return this;
+       }
+-      return new OverlayScope(scope, slots.plus(name, new OverlaySlot(name, type)));
++      boolean nextHasQualified = this.hasQualifiedSlots || name.indexOf('.') >= 0;
++      return new OverlayScope(
++          scope, slots.plus(name, new OverlaySlot(name, type)), nextHasQualified);
+     }
+ 
+     StaticTypedSlot getSlot(String name) {
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/LiveVariablesAnalysis.java b/com/google/javascript/jscomp/LiveVariablesAnalysis.java
+--- a/com/google/javascript/jscomp/LiveVariablesAnalysis.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/LiveVariablesAnalysis.java	2026-11-18 11:27:34
+@@ -15,12 +15,13 @@
+  */
+ package com.google.javascript.jscomp;
+ 
++import static com.google.common.base.Preconditions.checkArgument;
+ import static com.google.common.base.Preconditions.checkNotNull;
+ import static com.google.common.base.Preconditions.checkState;
+ 
+ import com.google.javascript.jscomp.ControlFlowGraph.Branch;
+ import com.google.javascript.jscomp.NodeUtil.AllVarsDeclaredInFunction;
+-import com.google.javascript.jscomp.graph.DiGraph.DiGraphEdge;
++import com.google.javascript.jscomp.graph.DiGraph.DiGraphNode;
+ import com.google.javascript.jscomp.graph.LatticeElement;
+ import com.google.javascript.rhino.Node;
+ import java.util.BitSet;
+@@ -29,6 +30,7 @@
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Set;
++import java.util.function.Consumer;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -54,11 +56,14 @@
+ 
+     @Override
+     public void joinFlow(LiveVariableLattice x) {
+-      this.result.liveSet.or(x.liveSet);
++      this.result.orFrom(x);
+     }
+ 
+     @Override
+     public LiveVariableLattice finish() {
++      if (this.result.isEmpty()) {
++        return emptyLattice;
++      }
+       return result;
+     }
+   }
+@@ -69,48 +74,255 @@
+    * the set.
+    */
+   static class LiveVariableLattice implements LatticeElement {
+-    private final BitSet liveSet;
++    private long w0;
++    private long w1;
++    private final int numVars;
++    private @Nullable BitSet overflow;
+ 
+     /**
+      * @param numVars Number of all local variables.
+      */
+     private LiveVariableLattice(int numVars) {
+-      this.liveSet = new BitSet(numVars);
++      checkArgument(numVars >= 0);
++      this.numVars = numVars;
++      this.overflow = numVars > 128 ? new BitSet(numVars) : null;
+     }
+ 
++    private LiveVariableLattice(int numVars, long w0, long w1) {
++      this.numVars = numVars;
++      this.w0 = w0;
++      this.w1 = w1;
++      this.overflow = null;
++    }
++
+     private LiveVariableLattice(LiveVariableLattice other) {
+       checkNotNull(other);
+-      this.liveSet = (BitSet) other.liveSet.clone();
++      this.numVars = other.numVars;
++      this.w0 = other.w0;
++      this.w1 = other.w1;
++      this.overflow = other.overflow != null ? (BitSet) other.overflow.clone() : null;
+     }
+ 
++    private BitSet ensureOverflow() {
++      BitSet bs = this.overflow;
++      if (bs == null) {
++        bs = new BitSet(Math.max(this.numVars, 129));
++        long word0 = this.w0;
++        while (word0 != 0L) {
++          int bit = Long.numberOfTrailingZeros(word0);
++          bs.set(bit);
++          word0 &= (word0 - 1L);
++        }
++        long word1 = this.w1;
++        while (word1 != 0L) {
++          int bit = Long.numberOfTrailingZeros(word1);
++          bs.set(64 + bit);
++          word1 &= (word1 - 1L);
++        }
++        this.w0 = 0L;
++        this.w1 = 0L;
++        this.overflow = bs;
++      }
++      return bs;
++    }
++
++    boolean isEmpty() {
++      if (this.overflow != null) {
++        return this.overflow.isEmpty();
++      }
++      return this.w0 == 0L && this.w1 == 0L;
++    }
++
++    void setLive(int index) {
++      if (index < 0) {
++        throw new IndexOutOfBoundsException("bitIndex < 0: " + index);
++      }
++      if (this.overflow != null) {
++        this.overflow.set(index);
++      } else if (index < 64) {
++        this.w0 |= (1L << index);
++      } else if (index < 128) {
++        this.w1 |= (1L << (index - 64));
++      } else {
++        ensureOverflow().set(index);
++      }
++    }
++
++    void clearLive(int index) {
++      if (index < 0) {
++        throw new IndexOutOfBoundsException("bitIndex < 0: " + index);
++      }
++      if (this.overflow != null) {
++        this.overflow.clear(index);
++      } else if (index < 64) {
++        this.w0 &= ~(1L << index);
++      } else if (index < 128) {
++        this.w1 &= ~(1L << (index - 64));
++      }
++    }
++
++    void clearAll() {
++      this.w0 = 0L;
++      this.w1 = 0L;
++      if (this.overflow != null) {
++        this.overflow.clear();
++      }
++    }
++
++    void orFrom(LiveVariableLattice other) {
++      if (this.overflow == null && other.overflow == null) {
++        this.w0 |= other.w0;
++        this.w1 |= other.w1;
++      } else {
++        BitSet dst = ensureOverflow();
++        if (other.overflow != null) {
++          dst.or(other.overflow);
++        } else {
++          long word0 = other.w0;
++          while (word0 != 0L) {
++            int bit = Long.numberOfTrailingZeros(word0);
++            dst.set(bit);
++            word0 &= (word0 - 1L);
++          }
++          long word1 = other.w1;
++          while (word1 != 0L) {
++            int bit = Long.numberOfTrailingZeros(word1);
++            dst.set(64 + bit);
++            word1 &= (word1 - 1L);
++          }
++        }
++      }
++    }
++
++    void andNotFrom(LiveVariableLattice other) {
++      if (this.overflow == null && other.overflow == null) {
++        this.w0 &= ~other.w0;
++        this.w1 &= ~other.w1;
++      } else if (this.overflow == null) {
++        // other.overflow != null: clear bits in 0..127 that are set in other.overflow
++        for (int i = other.overflow.nextSetBit(0); i >= 0 && i < 128; i = other.overflow.nextSetBit(i + 1)) {
++          if (i < 64) {
++            this.w0 &= ~(1L << i);
++          } else {
++            this.w1 &= ~(1L << (i - 64));
++          }
++        }
++      } else if (other.overflow != null) {
++        this.overflow.andNot(other.overflow);
++      } else {
++        long word0 = other.w0;
++        while (word0 != 0L) {
++          int bit = Long.numberOfTrailingZeros(word0);
++          this.overflow.clear(bit);
++          word0 &= (word0 - 1L);
++        }
++        long word1 = other.w1;
++        while (word1 != 0L) {
++          int bit = Long.numberOfTrailingZeros(word1);
++          this.overflow.clear(64 + bit);
++          word1 &= (word1 - 1L);
++        }
++      }
++    }
++
+     @Override
+     public boolean equals(Object other) {
+       checkNotNull(other);
+-      return (other instanceof LiveVariableLattice liveVariableLattice)
+-          && this.liveSet.equals(liveVariableLattice.liveSet);
++      if (!(other instanceof LiveVariableLattice that)) {
++        return false;
++      }
++      if (this == that) {
++        return true;
++      }
++      if (this.overflow == null && that.overflow == null) {
++        return this.w0 == that.w0 && this.w1 == that.w1;
++      }
++      if (this.overflow != null && that.overflow != null) {
++        return this.overflow.equals(that.overflow);
++      }
++      LiveVariableLattice inline = this.overflow == null ? this : that;
++      BitSet bs = this.overflow != null ? this.overflow : that.overflow;
++      if (bs.length() > 128) {
++        return false;
++      }
++      long[] words = bs.toLongArray();
++      long bsW0 = words.length > 0 ? words[0] : 0L;
++      long bsW1 = words.length > 1 ? words[1] : 0L;
++      return inline.w0 == bsW0 && inline.w1 == bsW1;
+     }
+ 
+     // There is only a version of this function with index since var.index will
+     // return the wrong one. Use an instantiation of
+     // LiveVariablesAnalysis and getVarIndex(var) to get the right index.
+     public boolean isLive(int index) {
+-      return liveSet.get(index);
++      if (index < 0) {
++        throw new IndexOutOfBoundsException("bitIndex < 0: " + index);
++      }
++      if (this.overflow != null) {
++        return this.overflow.get(index);
++      }
++      if (index < 64) {
++        return (this.w0 & (1L << index)) != 0L;
++      }
++      if (index < 128) {
++        return (this.w1 & (1L << (index - 64))) != 0L;
++      }
++      return false;
+     }
+ 
+     @Override
+     public String toString() {
+-      return liveSet.toString();
++      if (this.overflow != null) {
++        return this.overflow.toString();
++      }
++      int first = nextSetBit(0);
++      if (first < 0) {
++        return "{}";
++      }
++      StringBuilder sb = new StringBuilder();
++      sb.append('{').append(first);
++      for (int i = nextSetBit(first + 1); i >= 0; i = nextSetBit(i + 1)) {
++        sb.append(", ").append(i);
++      }
++      sb.append('}');
++      return sb.toString();
+     }
+ 
+     // Returns the index of the first bit that is set to true that occurs
+     // on or after the specified starting index.
+     public int nextSetBit(int fromIndex) {
+-      return liveSet.nextSetBit(fromIndex);
++      if (fromIndex < 0) {
++        throw new IndexOutOfBoundsException("fromIndex < 0: " + fromIndex);
++      }
++      if (this.overflow != null) {
++        return this.overflow.nextSetBit(fromIndex);
++      }
++      if (fromIndex < 64) {
++        long word = this.w0 & (~0L << fromIndex);
++        if (word != 0L) {
++          return Long.numberOfTrailingZeros(word);
++        }
++        if (this.w1 != 0L) {
++          return 64 + Long.numberOfTrailingZeros(this.w1);
++        }
++        return -1;
++      }
++      if (fromIndex < 128) {
++        long word = this.w1 & (~0L << (fromIndex - 64));
++        if (word != 0L) {
++          return 64 + Long.numberOfTrailingZeros(word);
++        }
++      }
++      return -1;
+     }
+ 
+     @Override
+     public int hashCode() {
+-      return liveSet.hashCode();
++      if (this.overflow != null) {
++        return this.overflow.hashCode();
++      }
++      long h = 1234L ^ (this.w1 * 2L) ^ this.w0;
++      return (int) ((h >> 32) ^ h);
+     }
+   }
+ 
+@@ -131,6 +343,12 @@
+ 
+   private final Map<String, Var> allVarsInFn;
+ 
++  private final LiveVariableLattice emptyLattice;
++  private final LiveVariableLattice scratchGen;
++  private final LiveVariableLattice scratchKill;
++  private @Nullable Consumer<Node> killLhsConsumer;
++  private @Nullable Consumer<Node> killDestructuringNameConsumer;
++
+   /**
+    * Live Variables Analysis using the ES6 scope creator. This analysis should only be done on
+    * function where jsScope is the function scope. If we call LiveVariablesAnalysis from the
+@@ -159,9 +377,13 @@
+     this.jsScope = jsScope;
+     this.jsScopeChild = jsScopeChild;
+     this.escaped = new LinkedHashSet<>();
+-    this.scopeVariables = new LinkedHashMap<>();
+     this.orderedVars = allVarsDeclaredInFunction.getAllVariablesInOrder();
++    int varCount = this.orderedVars.size();
++    this.scopeVariables = new LinkedHashMap<>(varCount);
+     this.allVarsInFn = allVarsDeclaredInFunction.getAllVariables();
++    this.emptyLattice = new LiveVariableLattice(varCount);
++    this.scratchGen = new LiveVariableLattice(varCount);
++    this.scratchKill = new LiveVariableLattice(varCount);
+ 
+     computeEscaped(jsScope, escaped, compiler, scopeCreator, allVarsInFn);
+ 
+@@ -204,12 +426,12 @@
+ 
+   @Override
+   LiveVariableLattice createEntryLattice() {
+-    return new LiveVariableLattice(orderedVars.size());
++    return emptyLattice;
+   }
+ 
+   @Override
+   LiveVariableLattice createInitialEstimateLattice() {
+-    return new LiveVariableLattice(orderedVars.size());
++    return emptyLattice;
+   }
+ 
+   @Override
+@@ -219,25 +441,62 @@
+ 
+   @Override
+   LiveVariableLattice flowThrough(Node node, LiveVariableLattice input) {
+-    final BitSet gen = new BitSet(input.liveSet.size());
+-    final BitSet kill = new BitSet(input.liveSet.size());
++    LiveVariableLattice gen = this.scratchGen;
++    LiveVariableLattice kill = this.scratchKill;
++    gen.clearAll();
++    kill.clearAll();
+ 
+     // Make kills conditional if the node can end abruptly by an exception.
+     boolean conditional = false;
+-    List<? extends DiGraphEdge<Node, Branch>> edgeList = getCfg().getOutEdges(node);
+-    for (DiGraphEdge<Node, Branch> edge : edgeList) {
+-      if (Branch.ON_EX.equals(edge.getValue())) {
++    DiGraphNode<Node, Branch> cfgNode = getCfg().getNode(node);
++    for (int i = 0, outCount = cfgNode.getOutEdgeCount(); i < outCount; i++) {
++      if (Branch.ON_EX.equals(cfgNode.getOutEdgeAt(i).getValue())) {
+         conditional = true;
++        break;
+       }
+     }
+     computeGenKill(node, gen, kill, conditional);
++    if (input.overflow == null && gen.overflow == null && kill.overflow == null) {
++      long nextW0 = (input.w0 & ~kill.w0) | gen.w0;
++      long nextW1 = (input.w1 & ~kill.w1) | gen.w1;
++      if (nextW0 == input.w0 && nextW1 == input.w1) {
++        return input;
++      }
++      if (nextW0 == 0L && nextW1 == 0L) {
++        return emptyLattice;
++      }
++      return new LiveVariableLattice(input.numVars, nextW0, nextW1);
++    }
+     LiveVariableLattice result = new LiveVariableLattice(input);
+     // L_in = L_out - Kill + Gen
+-    result.liveSet.andNot(kill);
+-    result.liveSet.or(gen);
++    result.andNotFrom(kill);
++    result.orFrom(gen);
+     return result;
+   }
+ 
++  private Consumer<Node> getKillLhsConsumer() {
++    Consumer<Node> c = this.killLhsConsumer;
++    if (c == null) {
++      c = (lhsNode) -> addToSetIfLocal(lhsNode, this.scratchKill);
++      this.killLhsConsumer = c;
++    }
++    return c;
++  }
++
++  private Consumer<Node> getKillDestructuringNameConsumer() {
++    Consumer<Node> c = this.killDestructuringNameConsumer;
++    if (c == null) {
++      c =
++          (child) -> {
++            if (child.isName()) {
++              addToSetIfLocal(child, this.scratchKill);
++            }
++          };
++      this.killDestructuringNameConsumer = c;
++    }
++    return c;
++  }
++
+   /**
+    * Computes the GEN and KILL set.
+    *
+@@ -249,7 +508,8 @@
+    * @param conditional {@code true} if any assignments encountered are conditionally executed.
+    *     These assignments might not kill a variable.
+    */
+-  private void computeGenKill(Node n, BitSet gen, BitSet kill, boolean conditional) {
++  private void computeGenKill(
++      Node n, LiveVariableLattice gen, LiveVariableLattice kill, boolean conditional) {
+ 
+     switch (n.getToken()) {
+       case SCRIPT, ROOT, FUNCTION, BLOCK -> {
+@@ -287,7 +547,7 @@
+           } else {
+             checkState(c.isDestructuringLhs(), c);
+             if (!conditional) {
+-              NodeUtil.visitLhsNodesInNode(c, (lhsNode) -> addToSetIfLocal(lhsNode, kill));
++              NodeUtil.visitLhsNodesInNode(c, getKillLhsConsumer());
+             }
+             computeGenKill(c.getFirstChild(), gen, kill, conditional);
+             computeGenKill(c.getSecondChild(), gen, kill, conditional);
+@@ -340,13 +600,7 @@
+           computeGenKill(lhs.getNext(), gen, kill, conditional);
+         } else if (n.isAssign() && n.getFirstChild().isDestructuringPattern()) {
+           if (!conditional) {
+-            NodeUtil.visitLhsNodesInNode(
+-                n,
+-                (child) -> {
+-                  if (child.isName()) {
+-                    addToSetIfLocal(child, kill);
+-                  }
+-                });
++            NodeUtil.visitLhsNodesInNode(n, getKillDestructuringNameConsumer());
+           }
+           computeGenKill(n.getFirstChild(), gen, kill, conditional);
+           computeGenKill(n.getSecondChild(), gen, kill, conditional);
+@@ -360,7 +614,7 @@
+     }
+   }
+ 
+-  private void addToSetIfLocal(Node node, BitSet set) {
++  private void addToSetIfLocal(Node node, LiveVariableLattice set) {
+     checkState(node.isName(), node);
+     String name = node.getString();
+ 
+@@ -387,7 +641,7 @@
+     }
+ 
+     if (!escaped.contains(var)) {
+-      set.set(getVarIndex(var.getName()));
++      set.setLive(getVarIndex(var.getName()));
+     }
+   }
+ 
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/NodeTraversal.java b/com/google/javascript/jscomp/NodeTraversal.java
+--- a/com/google/javascript/jscomp/NodeTraversal.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/NodeTraversal.java	2026-11-18 11:27:40
+@@ -203,13 +203,18 @@
+   public abstract static class AbstractCfgCallback implements ScopedCallback {
+ 
+     private final ArrayDeque<Object> cfgs = new ArrayDeque<>();
++    private @Nullable ControlFlowGraph<Node> currentCfg;
+ 
+     /** Gets the control flow graph for the current JS scope. */
+     @SuppressWarnings("unchecked") // The type is always ControlFlowGraph<Node>
+     public ControlFlowGraph<Node> getControlFlowGraph(AbstractCompiler compiler) {
+-      ControlFlowGraph<Node> result;
++      ControlFlowGraph<Node> cached = this.currentCfg;
++      if (cached != null) {
++        return cached;
++      }
+       Object o = cfgs.peek();
+       checkState(o != null);
++      ControlFlowGraph<Node> result;
+       if (o instanceof Node cfgRoot) {
+         result = ControlFlowAnalysis.computeCfgDirect(compiler, cfgRoot, false, true);
+         cfgs.pop();
+@@ -217,6 +222,7 @@
+       } else {
+         result = (ControlFlowGraph<Node>) o;
+       }
++      this.currentCfg = result;
+       return result;
+     }
+ 
+@@ -225,6 +231,7 @@
+       Node currentScopeRoot = t.getScopeRoot();
+       if (NodeUtil.isValidCfgRoot(currentScopeRoot)) {
+         cfgs.push(currentScopeRoot);
++        this.currentCfg = null;
+       }
+       enterScopeWithCfg(t);
+     }
+@@ -238,6 +245,9 @@
+         Node currentScopeRoot = t.getScopeRoot();
+         if (NodeUtil.isValidCfgRoot(currentScopeRoot)) {
+           ControlFlowAnalysis.releaseCfg(cfgs.pop());
++          Object top = cfgs.peek();
++          this.currentCfg =
++              (top instanceof ControlFlowGraph<?>) ? (ControlFlowGraph<Node>) top : null;
+         }
+       }
+     }
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/Scope.java b/com/google/javascript/jscomp/Scope.java
+--- a/com/google/javascript/jscomp/Scope.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/Scope.java	2026-11-18 11:25:44
+@@ -204,7 +204,7 @@
+       var5 = var;
+       return;
+     }
+-    vars = new LinkedHashMap<>(16);
++    vars = new LinkedHashMap<>(parent == null ? 1024 : 16);
+     vars.put(var0.getName(), var0);
+     vars.put(var1.getName(), var1);
+     vars.put(var2.getName(), var2);
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/TypeCheck.java b/com/google/javascript/jscomp/TypeCheck.java
+--- a/com/google/javascript/jscomp/TypeCheck.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/TypeCheck.java	2026-11-18 11:30:02
+@@ -2573,9 +2573,9 @@
+     SubclassRelationship relationship = compiler.getCodingConvention().getClassesDefinedByCall(n);
+     TypedScope scope = t.getTypedScope();
+     if (relationship != null) {
+-      JSType superClass = scope.lookupQualifiedName(QualifiedName.of(relationship.superclassName));
++      JSType superClass = scope.lookupQualifiedName(relationship.superclassName);
+       ObjectType superClassInstanceType = TypeValidator.getInstanceOfCtor(superClass);
+-      JSType subClass = scope.lookupQualifiedName(QualifiedName.of(relationship.subclassName));
++      JSType subClass = scope.lookupQualifiedName(relationship.subclassName);
+       ObjectType subClassInstance = TypeValidator.getInstanceOfCtor(subClass);
+       if (relationship.type == SubclassType.INHERITS
+           && superClassInstanceType != null
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/TypeInference.java b/com/google/javascript/jscomp/TypeInference.java
+--- a/com/google/javascript/jscomp/TypeInference.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/TypeInference.java	2026-11-18 11:34:54
+@@ -50,7 +50,6 @@
+ import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.Outcome;
+-import com.google.javascript.rhino.QualifiedName;
+ import com.google.javascript.rhino.Token;
+ import com.google.javascript.rhino.jstype.BooleanLiteralSet;
+ import com.google.javascript.rhino.jstype.EnumElementType;
+@@ -473,14 +472,13 @@
+           globalVar.setType(exportsType);
+         }
+         // Update the property slot on the parent namespace.
+-        QualifiedName moduleQname = QualifiedName.of(moduleId);
+-        if (!moduleQname.isSimple()) {
+-          JSType parentType = globalScope.lookupQualifiedName(moduleQname.getOwner());
++        int lastDot = moduleId.lastIndexOf('.');
++        if (lastDot >= 0) {
++          String propName = moduleId.substring(lastDot + 1);
++          JSType parentType = globalScope.lookupQualifiedName(moduleId.substring(0, lastDot));
+           ObjectType parentObjectType = parentType != null ? parentType.toMaybeObjectType() : null;
+-          if (parentObjectType != null
+-              && !parentObjectType.isPropertyTypeDeclared(moduleQname.getComponent())) {
+-            parentObjectType.defineInferredProperty(
+-                moduleQname.getComponent(), exportsType, exportsVar.getNode());
++          if (parentObjectType != null && !parentObjectType.isPropertyTypeDeclared(propName)) {
++            parentObjectType.defineInferredProperty(propName, exportsType, exportsVar.getNode());
+           }
+         }
+         return;
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/TypedScope.java b/com/google/javascript/jscomp/TypedScope.java
+--- a/com/google/javascript/jscomp/TypedScope.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/TypedScope.java	2026-11-18 11:25:46
+@@ -374,7 +374,7 @@
+       var5 = var;
+       return;
+     }
+-    vars = new LinkedHashMap<>(16);
++    vars = new LinkedHashMap<>(parent == null ? 1024 : 16);
+     vars.put(var0.getName(), var0);
+     vars.put(var1.getName(), var1);
+     vars.put(var2.getName(), var2);
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/TypedScopeCreator.java b/com/google/javascript/jscomp/TypedScopeCreator.java
+--- a/com/google/javascript/jscomp/TypedScopeCreator.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/TypedScopeCreator.java	2026-11-18 11:33:43
+@@ -172,7 +172,7 @@
+   private final ModuleMetadataMap metadataMap;
+   private final ModuleImportResolver moduleImportResolver;
+   private final boolean processClosurePrimitives;
+-  private final LinkedHashMap<Node, TypedScope> memoized = new LinkedHashMap<>();
++  private final LinkedHashMap<Node, TypedScope> memoized = new LinkedHashMap<>(1024);
+ 
+   // Maps from scope root to declared variable names. Populated by FirstOrderFunctionAnalyzer to
+   // reserve names before the TypedScope is populated.
+@@ -886,20 +886,21 @@
+       TypedVar exportsVar = checkNotNull(currentScope.getSlot("exports"));
+ 
+       if (this.getModule().metadata().isLegacyGoogModule()) {
+-        typeRegistry.registerLegacyClosureNamespace(this.getModule().closureNamespace());
+-        QualifiedName moduleNamespace = QualifiedName.of(this.getModule().closureNamespace());
++        String moduleNamespace = this.getModule().closureNamespace();
++        typeRegistry.registerLegacyClosureNamespace(moduleNamespace);
+         new SlotDefiner()
+             .inScope(currentScope.getGlobalScope())
+             .forDeclarationNode(exportsVar.getNameNode())
+-            .forVariableName(moduleNamespace.join())
++            .forVariableName(moduleNamespace)
+             .withType(exportsVar.getType())
+             .allowLaterTypeInference(exportsVar.isTypeInferred())
+             .forGoogProvidedName()
+             .defineSlot();
+ 
+-        if (!moduleNamespace.isSimple() && !exportsVar.isTypeInferred()) {
++        int lastDot = moduleNamespace.lastIndexOf('.');
++        if (lastDot >= 0 && !exportsVar.isTypeInferred()) {
+           JSType parentType =
+-              currentScope.getGlobalScope().lookupQualifiedName(moduleNamespace.getOwner());
++              currentScope.getGlobalScope().lookupQualifiedName(moduleNamespace.substring(0, lastDot));
+           if (parentType != null && parentType.toMaybeObjectType() != null) {
+             // Declare the namespace on the parent name, propagating any JSDoc annotations
+             // on "exports = Foo".
+@@ -907,16 +908,16 @@
+             declarePropertyIfNamespaceType(
+                 parentType.toMaybeObjectType(),
+                 exportsVar.getNameNode(),
+-                new StringKey(moduleNamespace.getComponent()),
++                new StringKey(moduleNamespace.substring(lastDot + 1)),
+                 exportsVar.getType(),
+                 exportsVar.getNameNode(),
+                 typeDoc);
+           }
+         }
+         declareAliasTypeIfRvalueIsAliasable(
+-            this.getModule().closureNamespace(),
++            moduleNamespace,
+             exportsVar.getNameNode(), // Pretend that 'exports = '... is the lvalue node.
+-            QualifiedName.of("exports"),
++            "exports",
+             exportsVar.getType(),
+             currentScope,
+             currentScope.getGlobalScope());
+@@ -1510,12 +1511,18 @@
+ 
+       // The scope is null for modules that were not visited yet.
+       if (exportScope != null) {
+-        JSType type = exportScope.lookupQualifiedName(QualifiedName.of(exportedName.getName()));
++        String exportedQname = exportedName.getName();
++        JSType type = exportScope.lookupQualifiedName(exportedQname);
+ 
+         // The type is null if either the name is inferred or this is an early ref.
+         if (type != null) {
+           declareAliasTypeIfRvalueIsAliasable(
+-              localNameNode, QualifiedName.of(exportedName.getName()), type, exportScope);
++              localNameNode.getQualifiedName(),
++              localNameNode,
++              exportedQname,
++              type,
++              exportScope,
++              currentScope);
+ 
+           new SlotDefiner()
+               .forDeclarationNode(localNameNode)
+@@ -1658,7 +1665,7 @@
+         if (extendsNode.isQualifiedName()) {
+           String superclass = extendsNode.getQualifiedName();
+           // Look up qualified names in the scope (types won't be set on the AST until inference).
+-          ctorType = currentScope.lookupQualifiedName(QualifiedName.of(superclass));
++          ctorType = currentScope.lookupQualifiedName(superclass);
+           if (ctorType == null) {
+             TypedVar var = currentScope.getVar(superclass);
+             ctorType = var != null ? var.getType() : null;
+@@ -1736,8 +1743,7 @@
+       }
+       TypedScope moduleScope = memoized.get(extendsCall.getScopeRoot());
+       properties.add(0, extendsCall.getName());
+-      QualifiedName superclassName = QualifiedName.of(Joiner.on('.').join(properties));
+-      return moduleScope.lookupQualifiedName(superclassName);
++      return moduleScope.lookupQualifiedName(Joiner.on('.').join(properties));
+     }
+ 
+     /**
+@@ -1822,18 +1828,24 @@
+         }
+         propName = lvalueNode.isComputedProp() ? null : lvalueNode.getString();
+       } else {
+-        String ownerName = NodeUtil.getBestLValueName(ownerNode);
++        String ownerName;
++        if (lvalueNode != null && lvalueNode.isGetProp() && name != null) {
++          int lastDot = name.lastIndexOf('.');
++          ownerName =
++              lastDot >= 0 ? name.substring(0, lastDot) : NodeUtil.getBestLValueName(ownerNode);
++          propName = lvalueNode.getString();
++        } else {
++          ownerName = NodeUtil.getBestLValueName(ownerNode);
++          if (ownerName != null && name != null) {
++            // TODO(b/111621092): Use the AST rather than manipulating strings here.
++            checkState(
++                name.startsWith(ownerName), "Expected \"%s\" to start with \"%s\"", name, ownerName);
++            propName = name.substring(ownerName.length() + 1);
++          }
++        }
+         if (ownerName != null) {
+-          ownerType =
+-              ObjectType.cast(currentScope.lookupQualifiedName(QualifiedName.of(ownerName)));
++          ownerType = ObjectType.cast(currentScope.lookupQualifiedName(ownerName));
+         }
+-
+-        if (ownerName != null && name != null) {
+-          // TODO(b/111621092): Use the AST rather than manipulating strings here.
+-          checkState(
+-              name.startsWith(ownerName), "Expected \"%s\" to start with \"%s\"", name, ownerName);
+-          propName = name.substring(ownerName.length() + 1);
+-        }
+       }
+ 
+       ObjectType prototypeOwner = getPrototypeOwnerType(ownerType);
+@@ -2435,16 +2447,25 @@
+           || isGoogModuleExports(lValue)) {
+         if (rValue != null) {
+           JSType rValueType = getDeclaredRValueType(lValue, rValue);
+-          declareAliasTypeIfRvalueIsAliasable(
+-              lValue, rValue.getQualifiedNameObject(), rValueType, currentScope);
++          if (rValue.isQualifiedName()) {
++            declareAliasTypeIfRvalueIsAliasable(
++                lValue.getQualifiedName(),
++                lValue,
++                rValue.getQualifiedName(),
++                rValueType,
++                currentScope,
++                currentScope);
++          }
+           if (rValueType != null) {
+             return rValueType;
+           }
+         } else if (declaredRValueTypeSupplier != null) {
+           RValueInfo rvalueInfo = declaredRValueTypeSupplier.get();
+           if (rvalueInfo != null) {
+-            declareAliasTypeIfRvalueIsAliasable(
+-                lValue, rvalueInfo.qualifiedName, rvalueInfo.type, currentScope);
++            if (rvalueInfo.qualifiedName != null) {
++              declareAliasTypeIfRvalueIsAliasable(
++                  lValue, rvalueInfo.qualifiedName, rvalueInfo.type, currentScope);
++            }
+             if (rvalueInfo.type != null) {
+               return rvalueInfo.type;
+             }
+@@ -2509,20 +2530,42 @@
+     private void declareAliasTypeIfRvalueIsAliasable(
+         @Nullable String lValueName,
+         @Nullable Node actualLvalueNode,
+-        @Nullable QualifiedName rValue,
++        @Nullable String rValueName,
+         @Nullable JSType rValueType,
+         TypedScope rValueLookupScope,
+         TypedScope aliasDeclarationScope) {
+-      // NOTE: this allows some strange patterns such allowing instance properties
+-      // to be aliases of constructors, and then creating a local alias of that to be
+-      // used as a type name.  Consider restricting this.
++      if (rValueName == null) {
++        return;
++      }
++      Node definitionNode = getDefinitionNode(rValueName, rValueLookupScope);
++      finishDeclareAliasType(
++          lValueName, actualLvalueNode, definitionNode, rValueType, aliasDeclarationScope);
++    }
+ 
++    private void declareAliasTypeIfRvalueIsAliasable(
++        @Nullable String lValueName,
++        @Nullable Node actualLvalueNode,
++        @Nullable QualifiedName rValue,
++        @Nullable JSType rValueType,
++        TypedScope rValueLookupScope,
++        TypedScope aliasDeclarationScope) {
+       if (rValue == null) {
+         return;
+       }
+-
+-      // Look for a @typedef annotation on the definition node
+       Node definitionNode = getDefinitionNode(rValue, rValueLookupScope);
++      finishDeclareAliasType(
++          lValueName, actualLvalueNode, definitionNode, rValueType, aliasDeclarationScope);
++    }
++
++    private void finishDeclareAliasType(
++        @Nullable String lValueName,
++        @Nullable Node actualLvalueNode,
++        @Nullable Node definitionNode,
++        @Nullable JSType rValueType,
++        TypedScope aliasDeclarationScope) {
++      // NOTE: this allows some strange patterns such allowing instance properties
++      // to be aliases of constructors, and then creating a local alias of that to be
++      // used as a type name.  Consider restricting this.
+       if (definitionNode != null) {
+         JSType typedefType = definitionNode.getTypedefTypeProp();
+         if (typedefType != null) {
+@@ -2583,6 +2626,17 @@
+     }
+ 
+     /** Returns the AST node associated with the definition, if any. */
++    private @Nullable Node getDefinitionNode(String qname, TypedScope scope) {
++      int lastDot = qname.lastIndexOf('.');
++      if (lastDot < 0) {
++        TypedVar var = scope.getVar(qname);
++        return var != null ? var.getNameNode() : null;
++      }
++      ObjectType parent = ObjectType.cast(scope.lookupQualifiedName(qname.substring(0, lastDot)));
++      return parent != null ? parent.getPropertyDefSite(qname.substring(lastDot + 1)) : null;
++    }
++
++    /** Returns the AST node associated with the definition, if any. */
+     private @Nullable Node getDefinitionNode(QualifiedName qname, TypedScope scope) {
+       if (qname.isSimple()) {
+         TypedVar var = scope.getVar(qname.getComponent());
+@@ -2618,7 +2672,7 @@
+ 
+       // If rValue is a name, try looking it up in the current scope.
+       if (rValue.isQualifiedName()) {
+-        return currentScope.lookupQualifiedName(rValue.getQualifiedNameObject());
++        return currentScope.lookupQualifiedNameNode(rValue);
+       }
+ 
+       // Check for simple invariant operations, such as "!x" or "+x" or "''+x"
+@@ -2639,8 +2693,7 @@
+       }
+ 
+       if (rValue.isNew() && rValue.getFirstChild().isQualifiedName()) {
+-        JSType targetType =
+-            currentScope.lookupQualifiedName(rValue.getFirstChild().getQualifiedNameObject());
++        JSType targetType = currentScope.lookupQualifiedNameNode(rValue.getFirstChild());
+         if (targetType != null) {
+           FunctionType fnType = targetType.restrictByNotNullOrUndefined().toMaybeFunctionType();
+           if (fnType != null && fnType.hasInstanceType()) {
+@@ -2689,10 +2742,10 @@
+       if (relationship != null) {
+         ObjectType superClass =
+             TypeValidator.getInstanceOfCtor(
+-                currentScope.lookupQualifiedName(QualifiedName.of(relationship.superclassName)));
++                currentScope.lookupQualifiedName(relationship.superclassName));
+         ObjectType subClass =
+             TypeValidator.getInstanceOfCtor(
+-                currentScope.lookupQualifiedName(QualifiedName.of(relationship.subclassName)));
++                currentScope.lookupQualifiedName(relationship.subclassName));
+         if (superClass != null && subClass != null) {
+           // superCtor and subCtor might be structural constructors
+           // (like {function(new:Object)}) so we need to resolve them back
+@@ -3033,13 +3086,14 @@
+           .forGoogProvidedName()
+           .defineSlot();
+ 
+-      QualifiedName namespace = QualifiedName.of(providedName.getNamespace());
+-      if (!namespace.isSimple()) {
+-        JSType ownerType = currentScope.lookupQualifiedName(namespace.getOwner());
++      String ns = providedName.getNamespace();
++      int lastDot = ns.lastIndexOf('.');
++      if (lastDot >= 0) {
++        JSType ownerType = currentScope.lookupQualifiedName(ns.substring(0, lastDot));
+         if (ownerType != null && ownerType.isObjectType()) {
+           ownerType
+               .toMaybeObjectType()
+-              .defineDeclaredProperty(namespace.getComponent(), anonymousObjectType, provideCall);
++              .defineDeclaredProperty(ns.substring(lastDot + 1), anonymousObjectType, provideCall);
+         }
+       }
+     }
+@@ -3646,7 +3700,7 @@
+       if (!key.isQualifiedName()) {
+         return;
+       }
+-      JSType keyType = currentScope.lookupQualifiedName(key.getQualifiedNameObject());
++      JSType keyType = currentScope.lookupQualifiedNameNode(key);
+       if (keyType == null || !keyType.isKnownSymbolValueType()) {
+         return;
+       }
+@@ -3823,7 +3877,7 @@
+     if (!key.isQualifiedName()) {
+       return null;
+     }
+-    JSType type = currentScope.lookupQualifiedName(key.getQualifiedNameObject());
++    JSType type = currentScope.lookupQualifiedNameNode(key);
+     return type != null ? type.toMaybeKnownSymbolType() : null;
+   }
+ }
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/graph/FixedPointGraphTraversal.java b/com/google/javascript/jscomp/graph/FixedPointGraphTraversal.java
+--- a/com/google/javascript/jscomp/graph/FixedPointGraphTraversal.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/graph/FixedPointGraphTraversal.java	2026-11-18 11:28:59
+@@ -22,6 +22,7 @@
+ 
+ import com.google.javascript.jscomp.graph.DiGraph.DiGraphEdge;
+ import com.google.javascript.jscomp.graph.DiGraph.DiGraphNode;
++import java.util.ArrayDeque;
+ import java.util.LinkedHashSet;
+ import java.util.Set;
+ 
+@@ -79,11 +80,21 @@
+    * @param graph The graph to traverse.
+    */
+   public void computeFixedPoint(DiGraph<N, E> graph) {
+-    Set<N> nodes = new LinkedHashSet<>();
+-    for (DiGraphNode<N, E> node : graph.getNodes()) {
+-      nodes.add(node.getValue());
++    if (graph instanceof LinkedDirectedGraph<N, E>) {
++      ArrayDeque<DiGraphNode<N, E>> workQueue =
++          new ArrayDeque<>(max(graph.getNodeCount(), 8));
++      for (DiGraphNode<N, E> node : graph.getNodes()) {
++        if (!node.isInDfaQueue()) {
++          node.setInDfaQueue(true);
++          workQueue.addLast(node);
++        }
++      }
++      runWorkQueueFixedPoint(graph, workQueue);
++      return;
+     }
+-    computeFixedPoint(graph, nodes);
++    LinkedHashSet<DiGraphNode<N, E>> workSet = new LinkedHashSet<>(graph.getNodeCount());
++    workSet.addAll(graph.getNodes());
++    runWorkSetFixedPoint(graph, workSet);
+   }
+ 
+   /**
+@@ -92,9 +103,19 @@
+    * @param entry The node to begin traversing from.
+    */
+   public void computeFixedPoint(DiGraph<N, E> graph, N entry) {
+-    Set<N> entrySet = new LinkedHashSet<>();
+-    entrySet.add(entry);
+-    computeFixedPoint(graph, entrySet);
++    DiGraphNode<N, E> entryNode = graph.getNode(entry);
++    if (graph instanceof LinkedDirectedGraph<N, E>
++        && entryNode != null
++        && !entryNode.isInDfaQueue()) {
++      ArrayDeque<DiGraphNode<N, E>> workQueue = new ArrayDeque<>();
++      entryNode.setInDfaQueue(true);
++      workQueue.addLast(entryNode);
++      runWorkQueueFixedPoint(graph, workQueue);
++      return;
++    }
++    LinkedHashSet<DiGraphNode<N, E>> workSet = new LinkedHashSet<>(4);
++    workSet.add(entryNode);
++    runWorkSetFixedPoint(graph, workSet);
+   }
+ 
+   // We cube the number of nodes to estimate the largest number of iterations we should allow before
+@@ -112,18 +133,64 @@
+    * @param entrySet The nodes to begin traversing from.
+    */
+   public void computeFixedPoint(DiGraph<N, E> graph, Set<N> entrySet) {
++    if (graph instanceof LinkedDirectedGraph<N, E>) {
++      ArrayDeque<DiGraphNode<N, E>> workQueue = new ArrayDeque<>(max(entrySet.size(), 8));
++      boolean ok = true;
++      for (N n : entrySet) {
++        DiGraphNode<N, E> node = graph.getNode(n);
++        if (node == null) {
++          ok = false;
++          break;
++        }
++        if (!node.isInDfaQueue()) {
++          node.setInDfaQueue(true);
++          workQueue.addLast(node);
++        }
++      }
++      if (ok) {
++        runWorkQueueFixedPoint(graph, workQueue);
++        return;
++      }
++      while (!workQueue.isEmpty()) {
++        workQueue.removeFirst().setInDfaQueue(false);
++      }
++    }
++    // Use a LinkedHashSet, so that the traversal is deterministic.
++    LinkedHashSet<DiGraphNode<N, E>> workSet = new LinkedHashSet<>(entrySet.size());
++    for (N n : entrySet) {
++      workSet.add(graph.getNode(n));
++    }
++    runWorkSetFixedPoint(graph, workSet);
++  }
++
++  private void runWorkQueueFixedPoint(
++      DiGraph<N, E> graph, ArrayDeque<DiGraphNode<N, E>> workQueue) {
+     long cycleCount = 0;
+     long nodeCount = min(graph.getNodeCount(), MAX_NODE_COUNT_FOR_ITERATION_LIMIT);
++    long maxIterations = max(nodeCount * nodeCount * nodeCount, 100L);
++    try {
++      for (; !workQueue.isEmpty() && cycleCount < maxIterations; cycleCount++) {
++        DiGraphNode<N, E> node = workQueue.removeFirst();
++        node.setInDfaQueue(false);
++        visitNodeQueue(node, workQueue);
++      }
++      checkState(cycleCount != maxIterations, NON_HALTING_ERROR_MSG);
++    } finally {
++      while (!workQueue.isEmpty()) {
++        workQueue.removeFirst().setInDfaQueue(false);
++      }
++    }
++  }
+ 
++  private void runWorkSetFixedPoint(
++      DiGraph<N, E> graph, LinkedHashSet<DiGraphNode<N, E>> workSet) {
++    long cycleCount = 0;
++    long nodeCount = min(graph.getNodeCount(), MAX_NODE_COUNT_FOR_ITERATION_LIMIT);
++
+     // Choose a bail-out heuristically in case the computation
+     // doesn't converge.
+     long maxIterations = max(nodeCount * nodeCount * nodeCount, 100L);
+ 
+-    // Use a LinkedHashSet, so that the traversal is deterministic.
+-    LinkedHashSet<DiGraphNode<N, E>> workSet = new LinkedHashSet<>();
+-    for (N n : entrySet) {
+-      workSet.add(graph.getNode(n));
+-    }
+     for (; !workSet.isEmpty() && cycleCount < maxIterations; cycleCount++) {
+       visitNode(workSet.getFirst(), workSet);
+     }
+@@ -131,6 +198,40 @@
+     checkState(cycleCount != maxIterations, NON_HALTING_ERROR_MSG);
+   }
+ 
++  private void visitNodeQueue(DiGraphNode<N, E> node, ArrayDeque<DiGraphNode<N, E>> workQueue) {
++    switch (traversalDirection) {
++      case OUTWARDS -> {
++        N sourceValue = node.getValue();
++        for (int i = 0, outCount = node.getOutEdgeCount(); i < outCount; i++) {
++          DiGraphEdge<N, E> edge = node.getOutEdgeAt(i);
++          DiGraphNode<N, E> dest = edge.getDestination();
++          if (callback.traverseEdge(sourceValue, edge.getValue(), dest.getValue())) {
++            if (!dest.isInDfaQueue()) {
++              dest.setInDfaQueue(true);
++              workQueue.addLast(dest);
++            }
++          }
++        }
++        return;
++      }
++      case INWARDS -> {
++        N revSourceValue = node.getValue();
++        for (int i = 0, inCount = node.getInEdgeCount(); i < inCount; i++) {
++          DiGraphEdge<N, E> edge = node.getInEdgeAt(i);
++          DiGraphNode<N, E> src = edge.getSource();
++          if (callback.traverseEdge(revSourceValue, edge.getValue(), src.getValue())) {
++            if (!src.isInDfaQueue()) {
++              src.setInDfaQueue(true);
++              workQueue.addLast(src);
++            }
++          }
++        }
++        return;
++      }
++    }
++    throw new AssertionError("Unrecognized direction " + traversalDirection);
++  }
++
+   private void visitNode(DiGraphNode<N, E> node, LinkedHashSet<DiGraphNode<N, E>> workSet) {
+     // For every out edge in the workSet, traverse that edge. If that
+     // edge updates the state of the graph, then add the destination
+@@ -140,20 +241,22 @@
+     switch (traversalDirection) {
+       case OUTWARDS -> {
+         N sourceValue = node.getValue();
+-        for (DiGraphEdge<N, E> edge : node.getOutEdges()) {
+-          N destValue = edge.getDestination().getValue();
+-          if (callback.traverseEdge(sourceValue, edge.getValue(), destValue)) {
+-            workSet.add(edge.getDestination());
++        for (int i = 0, outCount = node.getOutEdgeCount(); i < outCount; i++) {
++          DiGraphEdge<N, E> edge = node.getOutEdgeAt(i);
++          DiGraphNode<N, E> dest = edge.getDestination();
++          if (callback.traverseEdge(sourceValue, edge.getValue(), dest.getValue())) {
++            workSet.add(dest);
+           }
+         }
+         return;
+       }
+       case INWARDS -> {
+         N revSourceValue = node.getValue();
+-        for (DiGraphEdge<N, E> edge : node.getInEdges()) {
+-          N revDestValue = edge.getSource().getValue();
+-          if (callback.traverseEdge(revSourceValue, edge.getValue(), revDestValue)) {
+-            workSet.add(edge.getSource());
++        for (int i = 0, inCount = node.getInEdgeCount(); i < inCount; i++) {
++          DiGraphEdge<N, E> edge = node.getInEdgeAt(i);
++          DiGraphNode<N, E> src = edge.getSource();
++          if (callback.traverseEdge(revSourceValue, edge.getValue(), src.getValue())) {
++            workSet.add(src);
+           }
+         }
+         return;
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/graph/GraphReachability.java b/com/google/javascript/jscomp/graph/GraphReachability.java
+--- a/com/google/javascript/jscomp/graph/GraphReachability.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/graph/GraphReachability.java	2026-11-18 11:27:37
+@@ -19,7 +19,10 @@
+ import static com.google.common.base.Preconditions.checkState;
+ 
+ import com.google.common.base.Predicate;
++import com.google.javascript.jscomp.graph.DiGraph.DiGraphEdge;
++import com.google.javascript.jscomp.graph.DiGraph.DiGraphNode;
+ import com.google.javascript.jscomp.graph.FixedPointGraphTraversal.EdgeCallback;
++import java.util.ArrayDeque;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -34,14 +37,23 @@
+  */
+ public final class GraphReachability<N, E> implements EdgeCallback<N, E> {
+ 
++  /** Zero-allocation 3-argument edge reachability filter. */
++  @FunctionalInterface
++  public interface EdgeFilter<N, E> {
++    boolean apply(N sourceNode, E edge, N destNode);
++  }
++
+   // TODO(user): This should work for undirected graphs when
+   // FixedPointGraphTraversal accepts them.
+   private final DiGraph<N, E> graph;
+ 
+-  private final Predicate<EdgeTuple<N, E>> edgePredicate;
++  private final @Nullable Predicate<EdgeTuple<N, E>> edgePredicate;
++  private final @Nullable EdgeFilter<N, E> edgeFilter;
+ 
+   public GraphReachability(DiGraph<N, E> graph) {
+-    this(graph, null);
++    this.graph = graph;
++    this.edgePredicate = null;
++    this.edgeFilter = null;
+   }
+ 
+   /**
+@@ -53,28 +65,111 @@
+       DiGraph<N, E> graph, @Nullable Predicate<EdgeTuple<N, E>> edgePredicate) {
+     this.graph = graph;
+     this.edgePredicate = edgePredicate;
++    this.edgeFilter = null;
+   }
+ 
++  public GraphReachability(DiGraph<N, E> graph, @Nullable EdgeFilter<N, E> edgeFilter) {
++    this.graph = graph;
++    this.edgePredicate = null;
++    this.edgeFilter = edgeFilter;
++  }
++
+   public void compute(N entry) {
+     graph.clearNodeAnnotations();
+-    graph.getNode(entry).setAnnotation(REACHABLE);
+-    FixedPointGraphTraversal.newTraversal(this)
+-        .computeFixedPoint(graph, entry);
++    DiGraphNode<N, E> entryNode = graph.getNode(entry);
++    entryNode.setAnnotation(REACHABLE);
++    propagate(entryNode, new ArrayDeque<>());
+   }
+ 
+   public void recompute(N reachableNode) {
+-    GraphNode<N, E> newReachable = graph.getNode(reachableNode);
++    DiGraphNode<N, E> newReachable = graph.getNode(reachableNode);
+     checkState(newReachable.getAnnotation() != REACHABLE);
+     newReachable.setAnnotation(REACHABLE);
+-    FixedPointGraphTraversal.newTraversal(this)
+-        .computeFixedPoint(graph, reachableNode);
++    propagate(newReachable, new ArrayDeque<>());
+   }
+ 
++  public static <N, E> void computeReachability(
++      DiGraph<N, E> graph,
++      N entry,
++      @Nullable EdgeFilter<N, E> edgeFilter,
++      ArrayDeque<DiGraphNode<N, E>> workQueue) {
++    graph.clearNodeAnnotations();
++    DiGraphNode<N, E> entryNode = graph.getNode(entry);
++    entryNode.setAnnotation(REACHABLE);
++    propagateWithFilter(entryNode, edgeFilter, workQueue);
++  }
++
++  public static <N, E> void recomputeReachability(
++      DiGraph<N, E> graph, N reachableNode, ArrayDeque<DiGraphNode<N, E>> workQueue) {
++    DiGraphNode<N, E> newReachable = graph.getNode(reachableNode);
++    checkState(newReachable.getAnnotation() != REACHABLE);
++    newReachable.setAnnotation(REACHABLE);
++    propagateWithFilter(newReachable, null, workQueue);
++  }
++
++  private void propagate(
++      DiGraphNode<N, E> startNode, ArrayDeque<DiGraphNode<N, E>> workQueue) {
++    if (edgePredicate == null) {
++      propagateWithFilter(startNode, edgeFilter, workQueue);
++      return;
++    }
++    workQueue.clear();
++    workQueue.addLast(startNode);
++    while (!workQueue.isEmpty()) {
++      DiGraphNode<N, E> srcNode = workQueue.removeFirst();
++      N srcValue = srcNode.getValue();
++      for (int i = 0, outCount = srcNode.getOutEdgeCount(); i < outCount; i++) {
++        DiGraphEdge<N, E> edge = srcNode.getOutEdgeAt(i);
++        DiGraphNode<N, E> destNode = edge.getDestination();
++        if (destNode.getAnnotation() != REACHABLE
++            && edgePredicate.apply(new EdgeTuple<>(srcValue, edge.getValue(), destNode.getValue()))) {
++          destNode.setAnnotation(REACHABLE);
++          workQueue.addLast(destNode);
++        }
++      }
++    }
++  }
++
++  private static <N, E> void propagateWithFilter(
++      DiGraphNode<N, E> startNode,
++      @Nullable EdgeFilter<N, E> edgeFilter,
++      ArrayDeque<DiGraphNode<N, E>> workQueue) {
++    workQueue.clear();
++    workQueue.addLast(startNode);
++    if (edgeFilter == null) {
++      while (!workQueue.isEmpty()) {
++        DiGraphNode<N, E> srcNode = workQueue.removeFirst();
++        for (int i = 0, outCount = srcNode.getOutEdgeCount(); i < outCount; i++) {
++          DiGraphNode<N, E> destNode = srcNode.getOutEdgeAt(i).getDestination();
++          if (destNode.getAnnotation() != REACHABLE) {
++            destNode.setAnnotation(REACHABLE);
++            workQueue.addLast(destNode);
++          }
++        }
++      }
++    } else {
++      while (!workQueue.isEmpty()) {
++        DiGraphNode<N, E> srcNode = workQueue.removeFirst();
++        N srcValue = srcNode.getValue();
++        for (int i = 0, outCount = srcNode.getOutEdgeCount(); i < outCount; i++) {
++          DiGraphEdge<N, E> edge = srcNode.getOutEdgeAt(i);
++          DiGraphNode<N, E> destNode = edge.getDestination();
++          if (destNode.getAnnotation() != REACHABLE
++              && edgeFilter.apply(srcValue, edge.getValue(), destNode.getValue())) {
++            destNode.setAnnotation(REACHABLE);
++            workQueue.addLast(destNode);
++          }
++        }
++      }
++    }
++  }
++
+   @Override
+   public boolean traverseEdge(N source, E e, N destination) {
+-    if (graph.getNode(source).getAnnotation() == REACHABLE &&
+-        (edgePredicate == null ||
+-            edgePredicate.apply(new EdgeTuple<>(source, e, destination)))) {
++    if (graph.getNode(source).getAnnotation() == REACHABLE
++        && (edgeFilter == null || edgeFilter.apply(source, e, destination))
++        && (edgePredicate == null
++            || edgePredicate.apply(new EdgeTuple<>(source, e, destination)))) {
+       GraphNode<N, E> destNode = graph.getNode(destination);
+       if (destNode.getAnnotation() != REACHABLE) {
+         destNode.setAnnotation(REACHABLE);
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/serialization/ColorSerializer.java b/com/google/javascript/jscomp/serialization/ColorSerializer.java
+--- a/com/google/javascript/jscomp/serialization/ColorSerializer.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/serialization/ColorSerializer.java	2026-11-18 11:31:49
+@@ -50,14 +50,14 @@
+    * Stores the `Integer` values assigned to `Color`s as they are added for serialization, so they
+    * can be looked up and used for references between the output `TypeProto`s.
+    */
+-  private final LinkedHashMap<ColorId, Integer> colorIdToTypePointer = new LinkedHashMap<>();
++  private final LinkedHashMap<ColorId, Integer> colorIdToTypePointer = new LinkedHashMap<>(4096);
+ 
+   /**
+    * Stores the `Color`s to be serialized in the order they will be serialized.
+    *
+    * <p>This is used as a worklist when the `TypePool` is generated.
+    */
+-  private final ArrayList<Color> colorsInSerializedOrder = new ArrayList<>();
++  private final ArrayList<Color> colorsInSerializedOrder = new ArrayList<>(4096);
+ 
+   /**
+    * Create a ColorSerializer.
+@@ -105,13 +105,15 @@
+    * create.
+    */
+   int addColor(Color color) {
+-    return colorIdToTypePointer.computeIfAbsent(
+-        color.getId(),
+-        (unusedKey) -> {
+-          final int index = colorsInSerializedOrder.size();
+-          colorsInSerializedOrder.add(color);
+-          return index;
+-        });
++    ColorId id = color.getId();
++    Integer existing = colorIdToTypePointer.get(id);
++    if (existing != null) {
++      return existing;
++    }
++    int index = colorsInSerializedOrder.size();
++    colorsInSerializedOrder.add(color);
++    colorIdToTypePointer.put(id, index);
++    return index;
+   }
+ 
+   /**
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java b/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
+--- a/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java	2026-11-18 11:31:45
+@@ -73,7 +73,7 @@
+ 
+   private final LinkedIdentityHashMap<JSType, SeenTypeRecord> typeToRecordCache =
+       new LinkedIdentityHashMap<>();
+-  private final LinkedHashMap<ColorId, SeenTypeRecord> seenTypeRecords = new LinkedHashMap<>();
++  private final LinkedHashMap<ColorId, SeenTypeRecord> seenTypeRecords = new LinkedHashMap<>(4096);
+   private final SetMultimap<Integer, Integer> disambiguateEdges = LinkedHashMultimap.create();
+ 
+   private State state = State.COLLECTING_TYPES;
+@@ -283,13 +283,12 @@
+     checkNotNull(jstype);
+     checkState(State.COLLECTING_TYPES == this.state || State.GENERATING_POOL == this.state);
+ 
+-    SeenTypeRecord record =
+-        this.seenTypeRecords.computeIfAbsent(
+-            id,
+-            (unused) -> {
+-              int pointer = this.seenTypeRecords.size();
+-              return new SeenTypeRecord(id, pointer);
+-            });
++    SeenTypeRecord record = this.seenTypeRecords.get(id);
++    if (record == null) {
++      int pointer = this.seenTypeRecords.size();
++      record = new SeenTypeRecord(id, pointer);
++      this.seenTypeRecords.put(id, record);
++    }
+     this.typeToRecordCache.put(jstype, record);
+     record.jstypes.add(jstype);
+ 
+@@ -297,15 +296,13 @@
+   }
+ 
+   private TypeProto reconcileUnionTypes(SeenTypeRecord seen) {
++    ArrayList<Integer> sortedMembers = new ArrayList<>(seen.unionMembers.size());
++    for (SeenTypeRecord member : seen.unionMembers) {
++      sortedMembers.add(member.pointer);
++    }
++    Collections.sort(sortedMembers);
+     return TypeProto.newBuilder()
+-        .setUnion(
+-            UnionTypeProto.newBuilder()
+-                .addAllUnionMember(
+-                    seen.unionMembers.stream()
+-                        .map((r) -> r.pointer)
+-                        .sorted()
+-                        .collect(toImmutableList()))
+-                .build())
++        .setUnion(UnionTypeProto.newBuilder().addAllUnionMember(sortedMembers).build())
+         .build();
+   }
+ 
+@@ -392,12 +389,19 @@
+       return ImmutableList.of();
+     }
+ 
++    Iterable<ObjectType> extended = ctorType.getExtendedInterfaces();
++    Iterable<ObjectType> implemented = ctorType.getOwnImplementedInterfaces();
++    if (Iterables.isEmpty(extended) && Iterables.isEmpty(implemented)) {
++      return ImmutableList.of();
++    }
++
+     ImmutableList.Builder<Integer> ancestors = ImmutableList.builder();
+-    for (JSType ancestor :
+-        Iterables.concat(
+-            ctorType.getExtendedInterfaces(), ctorType.getOwnImplementedInterfaces())) {
++    for (ObjectType ancestor : extended) {
+       ancestors.add(this.serializeType(ancestor));
+     }
++    for (ObjectType ancestor : implemented) {
++      ancestors.add(this.serializeType(ancestor));
++    }
+     return ancestors.build();
+   }
+ 
+@@ -529,7 +533,7 @@
+      * set. The likely cause is that the caches head of these lists have low hit-rates for unions,
+      * and that union reconciliation doesn't actually look at most entries in this list.
+      */
+-    final ArrayList<JSType> jstypes = new ArrayList<>();
++    final ArrayList<JSType> jstypes = new ArrayList<>(2);
+ 
+     @Nullable ImmutableSet<SeenTypeRecord> unionMembers = null;
+ 
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/serialization/SerializeTypesToPointers.java b/com/google/javascript/jscomp/serialization/SerializeTypesToPointers.java
+--- a/com/google/javascript/jscomp/serialization/SerializeTypesToPointers.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/serialization/SerializeTypesToPointers.java	2026-11-18 11:31:47
+@@ -80,7 +80,7 @@
+             .build();
+ 
+     // this set requires access to the externs and src ASTs, so can't be populated yet.
+-    LinkedHashSet<String> propertiesReferencedInAst = new LinkedHashSet<>();
++    LinkedHashSet<String> propertiesReferencedInAst = new LinkedHashSet<>(4096);
+     JSTypeReconserializer jsTypeReconserializer =
+         JSTypeReconserializer.create(
+             compiler.getTypeRegistry(),
+@@ -157,14 +157,16 @@
+       }
+       JSType type = n.getJSType();
+       if (type != null) {
+-        typePointersByJstype.computeIfAbsent(type, jstypeReconserializer::serializeType);
++        Integer existing = typePointersByJstype.get(type);
++        if (existing == null) {
++          typePointersByJstype.put(type, jstypeReconserializer.serializeType(type));
++        }
+       }
+       Node shadow = n.getClosureUnawareShadow();
+       if (shadow != null) {
+         // Shadow roots are structured as
+         // ROOT -> SCRIPT -> EXPR_RESULT -> FUNCTION
+-        NodeTraversal.traverse(
+-            compiler, shadow.getFirstFirstChild().getFirstChild(), new TypeSearchCallback());
++        NodeTraversal.traverse(compiler, shadow.getFirstFirstChild().getFirstChild(), this);
+       }
+     }
+   }
+diff -ruN --exclude=.prep_applied a/com/google/javascript/jscomp/serialization/TypedAstSerializer.java b/com/google/javascript/jscomp/serialization/TypedAstSerializer.java
+--- a/com/google/javascript/jscomp/serialization/TypedAstSerializer.java	2026-11-18 11:24:28
++++ b/com/google/javascript/jscomp/serialization/TypedAstSerializer.java	2026-11-18 11:31:48
+@@ -46,7 +46,7 @@
+   private int previousLine;
+   private int previousColumn;
+   private final ArrayDeque<SourceFile> subtreeSourceFiles = new ArrayDeque<>();
+-  private final LinkedHashMap<SourceFile, Integer> sourceFilePointers = new LinkedHashMap<>();
++  private final LinkedHashMap<SourceFile, Integer> sourceFilePointers = new LinkedHashMap<>(256);
+ 
+   private @Nullable TypeSerializer typeSerializer = null;
+ 
+@@ -204,8 +204,12 @@
+     }
+ 
+     subtreeSourceFiles.addLast(sourceFile);
+-    return this.sourceFilePointers.computeIfAbsent(
+-        sourceFile, (f) -> 1 + this.sourceFilePointers.size());
++    Integer ptr = this.sourceFilePointers.get(sourceFile);
++    if (ptr == null) {
++      ptr = 1 + this.sourceFilePointers.size();
++      this.sourceFilePointers.put(sourceFile, ptr);
++    }
++    return ptr;
+   }
+ 
+   private void addType(Node n, AstNode.Builder builder) {
+diff -ruN --exclude=.prep_applied a/com/google/javascript/rhino/HamtPMap.java b/com/google/javascript/rhino/HamtPMap.java
+--- a/com/google/javascript/rhino/HamtPMap.java	2026-11-18 11:24:28
++++ b/com/google/javascript/rhino/HamtPMap.java	2026-11-18 11:29:01
+@@ -187,6 +187,49 @@
+     return !isEmpty() ? get(key, hash(key)) : null;
+   }
+ 
++  /**
++   * Returns true iff this map contains any key whose {@code key.hashCode()} equals {@code keyHash},
++   * without allocating or requiring a key object.
++   */
++  @CheckReturnValue
++  public boolean containsHash(int keyHash) {
++    if (isEmpty()) {
++      return false;
++    }
++    int h = Integer.reverse(keyHash);
++    HamtPMap<K, V> cur = this;
++    while (cur != null) {
++      if (cur.present && cur.hash == h) {
++        return true;
++      }
++      if (compareUnsigned(h, cur.hash) < 0) {
++        return false;
++      }
++      int bucketMask = 1 << bucket(h);
++      if ((cur.mask & bucketMask) == 0) {
++        return false;
++      }
++      cur = cur.children[cur.index(bucketMask)];
++      h = shift(h);
++    }
++    return false;
++  }
++
++  @CheckReturnValue
++  public @Nullable V rootValue() {
++    return present ? value : null;
++  }
++
++  @CheckReturnValue
++  public int childCount() {
++    return children == null ? 0 : children.length;
++  }
++
++  @CheckReturnValue
++  public HamtPMap<K, V> childAt(int index) {
++    return children[index];
++  }
++
+   /** Internal recursive implementation of get(K). */
+   private @Nullable V get(K key, int hash) {
+     if (hash == this.hash && key.equals(this.key)) {
+diff -ruN --exclude=.prep_applied a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+--- a/com/google/javascript/rhino/Node.java	2026-11-18 11:24:28
++++ b/com/google/javascript/rhino/Node.java	2026-11-18 11:29:00
+@@ -3583,6 +3583,15 @@
+    * returns {@code 0} if {@code !isQualifiedName()}.
+    */
+   public final int hashQualifiedName() {
++    return (int) (qualifiedNameHashes() >>> 32);
++  }
++
++  /**
++   * Computes both the non-zero mixed 32-bit hash (in the upper 32 bits) and the exact {@code
++   * String.hashCode()} of {@code getQualifiedName()} (in the lower 32 bits) without allocating any
++   * intermediate strings, or returns {@code 0L} if {@code !isQualifiedName()}.
++   */
++  public final long qualifiedNameHashes() {
+     int suffixHash = 0;
+     int suffixPow = 1;
+     Node cur = this;
+@@ -3593,21 +3602,26 @@
+       suffixPow *= 31 * p;
+       cur = cur.first;
+       if (cur == null) {
+-        return 0;
++        return 0L;
+       }
+     }
+-    return switch (cur.token) {
++    int rawHash;
++    switch (cur.token) {
+       case NAME -> {
+         String root = cur.getString();
+         if (root.isEmpty()) {
+-          yield 0;
++          return 0L;
+         }
+-        yield mixQualifiedHash(root.hashCode() * suffixPow + suffixHash);
++        rawHash = root.hashCode() * suffixPow + suffixHash;
+       }
+-      case THIS -> mixQualifiedHash(3559070 * suffixPow + suffixHash);
+-      case SUPER -> mixQualifiedHash(109801339 * suffixPow + suffixHash);
+-      default -> 0;
+-    };
++      case THIS -> rawHash = 3559070 * suffixPow + suffixHash;
++      case SUPER -> rawHash = 109801339 * suffixPow + suffixHash;
++      default -> {
++        return 0L;
++      }
++    }
++    int mixedHash = mixQualifiedHash(rawHash);
++    return (((long) mixedHash) << 32) | (rawHash & 0xFFFFFFFFL);
+   }
+ 
+   /**
+diff -ruN --exclude=.prep_applied a/com/google/javascript/rhino/jstype/JSTypeRegistry.java b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+--- a/com/google/javascript/rhino/jstype/JSTypeRegistry.java	2026-11-18 11:24:28
++++ b/com/google/javascript/rhino/jstype/JSTypeRegistry.java	2026-11-18 11:34:04
+@@ -68,7 +68,6 @@
+ import com.google.javascript.rhino.JSTypeExpression;
+ import com.google.javascript.rhino.Msg;
+ import com.google.javascript.rhino.Node;
+-import com.google.javascript.rhino.QualifiedName;
+ import com.google.javascript.rhino.StaticScope;
+ import com.google.javascript.rhino.StaticSlot;
+ import com.google.javascript.rhino.Token;
+@@ -2408,11 +2407,11 @@
+       case TYPEOF -> {
+         String name = n.getFirstChild().getString();
+         // TODO(sdh): require var to be const?
+-        QualifiedName qname = QualifiedName.of(name);
+-        String root = qname.getRoot();
++        int firstDot = name.indexOf('.');
++        String root = firstDot < 0 ? name : name.substring(0, firstDot);
+         StaticScope declarationScope = scope.getTopmostScopeOfEventualDeclaration(root);
+         StaticSlot rootSlot = scope.getSlot(root);
+-        JSType type = scope.lookupQualifiedName(qname);
++        JSType type = scope.lookupQualifiedName(name);
+         if (type == null || type.isUnknownType() || rootSlot.getScope() != declarationScope) {
+           // Create a NamedType via getType so that it will be added to the list of types to
+           // eventually resolve if necessary.
+diff -ruN --exclude=.prep_applied a/com/google/javascript/rhino/jstype/NamedType.java b/com/google/javascript/rhino/jstype/NamedType.java
+--- a/com/google/javascript/rhino/jstype/NamedType.java	2026-11-18 11:24:28
++++ b/com/google/javascript/rhino/jstype/NamedType.java	2026-11-18 11:34:02
+@@ -47,7 +47,6 @@
+ import com.google.common.collect.ImmutableList;
+ import com.google.javascript.rhino.ErrorReporter;
+ import com.google.javascript.rhino.Node;
+-import com.google.javascript.rhino.QualifiedName;
+ import com.google.javascript.rhino.StaticScope;
+ import com.google.javascript.rhino.StaticSlot;
+ import java.util.ArrayList;
+@@ -334,7 +333,7 @@
+ 
+     // TODO(sdh): require var to be const?
+     String scopeName = reference.substring("typeof ".length());
+-    JSType type = resolutionScope.lookupQualifiedName(QualifiedName.of(scopeName));
++    JSType type = resolutionScope.lookupQualifiedName(scopeName);
+     if (type == null || type.isUnknownType()) {
+       if (registry.isForwardDeclaredType(scopeName)) {
+         // Preserve the "typeof" as a `NoResolvedType`.
+diff -ruN --exclude=.prep_applied a/com/google/javascript/rhino/jstype/StaticTypedScope.java b/com/google/javascript/rhino/jstype/StaticTypedScope.java
+--- a/com/google/javascript/rhino/jstype/StaticTypedScope.java	2026-11-18 11:24:28
++++ b/com/google/javascript/rhino/jstype/StaticTypedScope.java	2026-11-18 11:29:05
+@@ -39,6 +39,7 @@
+ 
+ package com.google.javascript.rhino.jstype;
+ 
++import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.QualifiedName;
+ import com.google.javascript.rhino.StaticScope;
+ import org.jspecify.annotations.Nullable;
+@@ -92,5 +93,38 @@
+       }
+     }
+     return null;
++  }
++
++  /**
++   * Looks up a qualified name string directly without allocating {@link QualifiedName} wrappers or
++   * intermediate joined strings.
++   */
++  default @Nullable JSType lookupQualifiedName(String qname) {
++    StaticTypedSlot slot = getSlot(qname);
++    if (slot != null && !slot.isTypeInferred()) {
++      return slot.getType();
++    }
++    int lastDot = qname.lastIndexOf('.');
++    if (lastDot >= 0) {
++      JSType type = lookupQualifiedName(qname.substring(0, lastDot));
++      if (type != null && !type.isUnknownType()) {
++        return type.findPropertyType(qname.substring(lastDot + 1));
++      }
++    }
++    return null;
++  }
++
++  /** Looks up a qualified-name AST node directly without allocating {@link QualifiedName}. */
++  default @Nullable JSType lookupQualifiedNameNode(Node qnameNode) {
++    if (qnameNode.isName()) {
++      String name = qnameNode.getString();
++      if (name.isEmpty()) {
++        return null;
++      }
++      StaticTypedSlot slot = getSlot(name);
++      return (slot != null && !slot.isTypeInferred()) ? slot.getType() : null;
++    }
++    String qname = qnameNode.getQualifiedName();
++    return qname != null ? lookupQualifiedName(qname) : null;
+   }
+ }

@@ -1,0 +1,37 @@
+{
+  "id": "tier3_x04_chunking_codemotion_sourcemaps",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "Cross-chunk code motion with source maps",
+  "description": "Verifies cross-chunk code motion maintains source map accuracy when moving code across chunks",
+  "args": [
+    "--chunk",
+    "base:1",
+    "--js",
+    "base.js",
+    "--chunk",
+    "m1:1:base",
+    "--js",
+    "m1.js",
+    "--chunk",
+    "m2:1:base",
+    "--js",
+    "m2.js",
+    "--chunk_output_word_spec",
+    "%s.js",
+    "--create_source_map",
+    "%s.map"
+  ],
+  "stdin": "",
+  "files": {
+    "base.js": "var baseObj = {};",
+    "m1.js": "function sharedCalc(v) { return v + 1; }\nwindow['m1'] = sharedCalc(10);\n",
+    "m2.js": "window['m2'] = sharedCalc(20);\n"
+  },
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "\"--chunk_output_word_spec\" is not a valid option\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

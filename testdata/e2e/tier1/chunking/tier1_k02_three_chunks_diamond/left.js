@@ -1,0 +1,1 @@
+var leftMod = rootConfig.app + '_left';

@@ -1,0 +1,97 @@
+diff --git a/com/google/javascript/rhino/jstype/PropertyMap.java b/com/google/javascript/rhino/jstype/PropertyMap.java
+--- a/com/google/javascript/rhino/jstype/PropertyMap.java
++++ b/com/google/javascript/rhino/jstype/PropertyMap.java
+@@ -69,9 +69,9 @@
+   private @Nullable ObjectType parentSource = null;
+ 
+   // The map of our own properties.
+-  private final Map<String, Property> properties;
+-
+-  private Map<KnownSymbolType, Property> knownSymbols; // lazily initialized
++  private @Nullable Map<String, Property> properties; // lazily initialized
++
++  private @Nullable Map<KnownSymbolType, Property> knownSymbols; // lazily initialized
+ 
+   /**
+    * The set of keys for this map and its ancestors.
+@@ -102,11 +102,12 @@
+   private int cachedKeySetCounter = 0;
+ 
+   PropertyMap() {
+-    this(new TreeMap<>(), null);
++    this(null, null);
+   }
+ 
+   private PropertyMap(
+-      Map<String, Property> underlyingMap, Map<KnownSymbolType, Property> underlyingknownSymbols) {
++      @Nullable Map<String, Property> underlyingMap,
++      @Nullable Map<KnownSymbolType, Property> underlyingknownSymbols) {
+     this.properties = underlyingMap;
+     this.knownSymbols = underlyingknownSymbols;
+   }
+@@ -182,8 +183,8 @@
+     return null;
+   }
+ 
+-  Property getOwnProperty(String propertyName) {
+-    return properties.get(propertyName);
++  @Nullable Property getOwnProperty(String propertyName) {
++    return properties != null ? properties.get(propertyName) : null;
+   }
+ 
+   @Nullable Property getOwnProperty(Property.Key propertyName) {
+@@ -196,14 +197,14 @@
+   int getPropertiesCount() {
+     PropertyMap primaryParent = getPrimaryParent();
+     if (primaryParent == null) {
+-      return this.properties.size();
++      return this.properties != null ? this.properties.size() : 0;
+     }
+ 
+     return this.getAllKeys().stringKeys().size();
+   }
+ 
+   Set<String> getOwnPropertyNames() {
+-    return properties.keySet();
++    return properties != null ? properties.keySet() : ImmutableSet.of();
+   }
+ 
+   Set<KnownSymbolType> getOwnKnownSymbols() {
+@@ -271,6 +272,14 @@
+   }
+ 
+   void putProperty(String name, Property newProp) {
++    if (properties == null) {
++      TreeMap<String, Property> map = new TreeMap<>();
++      map.put(name, newProp);
++      this.properties = map;
++      this.incrementCachedKeySetCounter();
++      return;
++    }
++
+     Property oldProp = properties.get(name);
+ 
+     if (oldProp == null) {
+@@ -306,7 +315,7 @@
+   }
+ 
+   Iterable<Property> values() {
+-    return properties.values();
++    return properties != null ? properties.values() : ImmutableList.of();
+   }
+ 
+   @Override
+@@ -317,9 +326,10 @@
+     // Calculate the hash just based on the property names, not their types.
+     // Otherwise we can get into an infinite loop because the ObjectType hashCode
+     // method calls this one.
+-    return this.knownSymbols == null
+-        ? Objects.hashCode(this.properties.keySet())
+-        : Objects.hash(this.properties.keySet(), this.knownSymbols.keySet());
++    if (this.knownSymbols == null) {
++      return this.properties != null ? this.properties.keySet().hashCode() : 0;
++    }
++    return Objects.hash(getOwnPropertyNames(), this.knownSymbols.keySet());
+   }
+ 
+   private void incrementCachedKeySetCounter() {

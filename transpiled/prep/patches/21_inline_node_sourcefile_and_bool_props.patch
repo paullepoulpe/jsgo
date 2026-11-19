@@ -1,0 +1,976 @@
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -509,6 +509,127 @@
+     }
+   }
+ 
++  // Inline property bit layout in `Node.propFlags` (32 bits total):
++  // - Bits  0..25: 26 hot boolean properties
++  // - Bits 26..27: Prop.CONSTANT_VAR_FLAGS (0..3)
++  // - Bits 28..31: Prop.SIDE_EFFECT_FLAGS (0..15)
++  private static final int PROP_FLAG_IS_CONSTANT_NAME = 1 << 0;
++  private static final int PROP_FLAG_QUOTED = 1 << 1;
++  private static final int PROP_FLAG_FREE_CALL = 1 << 2;
++  private static final int PROP_FLAG_NON_INDEXABLE = 1 << 3;
++  private static final int PROP_FLAG_ADDED_BLOCK = 1 << 4;
++  private static final int PROP_FLAG_TRAILING_COMMA = 1 << 5;
++  private static final int PROP_FLAG_IS_PARENTHESIZED = 1 << 6;
++  private static final int PROP_FLAG_ARROW_FN = 1 << 7;
++  private static final int PROP_FLAG_INCRDECR = 1 << 8;
++  private static final int PROP_FLAG_SYNTHETIC = 1 << 9;
++  private static final int PROP_FLAG_IS_SHORTHAND_PROPERTY = 1 << 10;
++  private static final int PROP_FLAG_IS_NAMESPACE = 1 << 11;
++  private static final int PROP_FLAG_USE_STRICT = 1 << 12;
++  private static final int PROP_FLAG_STATIC_MEMBER = 1 << 13;
++  private static final int PROP_FLAG_GENERATOR_FN = 1 << 14;
++  private static final int PROP_FLAG_ASYNC_FN = 1 << 15;
++  private static final int PROP_FLAG_COLOR_FROM_CAST = 1 << 16;
++  private static final int PROP_FLAG_GOOG_MODULE = 1 << 17;
++  private static final int PROP_FLAG_ES6_MODULE = 1 << 18;
++  private static final int PROP_FLAG_DELETED = 1 << 19;
++  private static final int PROP_FLAG_MODULE_ALIAS = 1 << 20;
++  private static final int PROP_FLAG_IS_UNUSED_PARAMETER = 1 << 21;
++  private static final int PROP_FLAG_MODULE_EXPORT = 1 << 22;
++  private static final int PROP_FLAG_START_OF_OPT_CHAIN = 1 << 23;
++  private static final int PROP_FLAG_IS_IN_CLOSURE_UNAWARE_SUBTREE = 1 << 24;
++  private static final int PROP_FLAG_COMPUTED_PROP_METHOD = 1 << 25;
++
++  private static final int INLINE_BOOL_COUNT = 26;
++  private static final int INLINE_BOOL_ALL_MASK = (1 << INLINE_BOOL_COUNT) - 1;
++
++  private static final int CONST_VAR_SHIFT = 26;
++  private static final int CONST_VAR_MAX = 3;
++  private static final int CONST_VAR_BITS_MASK = CONST_VAR_MAX << CONST_VAR_SHIFT;
++
++  private static final int SIDE_EFFECT_SHIFT = 28;
++  private static final int SIDE_EFFECT_MAX = 15;
++  private static final int SIDE_EFFECT_BITS_MASK = SIDE_EFFECT_MAX << SIDE_EFFECT_SHIFT;
++
++  private static final int VALIDATED_INLINE_PROPS_MASK =
++      PROP_FLAG_IS_PARENTHESIZED
++          | PROP_FLAG_ARROW_FN
++          | PROP_FLAG_ASYNC_FN
++          | PROP_FLAG_SYNTHETIC
++          | PROP_FLAG_COLOR_FROM_CAST
++          | PROP_FLAG_START_OF_OPT_CHAIN
++          | CONST_VAR_BITS_MASK;
++
++  private static final int PROP_EQUALITY_INLINE_MASK =
++      PROP_FLAG_ARROW_FN
++          | PROP_FLAG_ASYNC_FN
++          | PROP_FLAG_GENERATOR_FN
++          | PROP_FLAG_START_OF_OPT_CHAIN
++          | PROP_FLAG_STATIC_MEMBER
++          | PROP_FLAG_INCRDECR
++          | PROP_FLAG_QUOTED
++          | PROP_FLAG_FREE_CALL
++          | PROP_FLAG_COMPUTED_PROP_METHOD;
++
++  private static final Prop[] INLINE_BIT_TO_PROP = new Prop[INLINE_BOOL_COUNT];
++  private static final int[] INLINE_BOOL_MASKS = new int[propValues.length];
++  private static final PropListItem[] STATIC_INLINE_BOOL_ITEMS =
++      new PropListItem[INLINE_BOOL_COUNT];
++  private static final PropListItem[] STATIC_CONST_VAR_ITEMS =
++      new PropListItem[CONST_VAR_MAX + 1];
++  private static final PropListItem[] STATIC_SIDE_EFFECT_ITEMS =
++      new PropListItem[SIDE_EFFECT_MAX + 1];
++
++  @SuppressWarnings("EnumOrdinal")
++  private static void registerInlineBoolProp(int bit, Prop prop) {
++    INLINE_BIT_TO_PROP[bit] = prop;
++    INLINE_BOOL_MASKS[prop.ordinal()] = 1 << bit;
++    STATIC_INLINE_BOOL_ITEMS[bit] = PropListItem.intItem((byte) prop.ordinal(), 1, null);
++  }
++
++  static {
++    registerInlineBoolProp(0, Prop.IS_CONSTANT_NAME);
++    registerInlineBoolProp(1, Prop.QUOTED);
++    registerInlineBoolProp(2, Prop.FREE_CALL);
++    registerInlineBoolProp(3, Prop.NON_INDEXABLE);
++    registerInlineBoolProp(4, Prop.ADDED_BLOCK);
++    registerInlineBoolProp(5, Prop.TRAILING_COMMA);
++    registerInlineBoolProp(6, Prop.IS_PARENTHESIZED);
++    registerInlineBoolProp(7, Prop.ARROW_FN);
++    registerInlineBoolProp(8, Prop.INCRDECR);
++    registerInlineBoolProp(9, Prop.SYNTHETIC);
++    registerInlineBoolProp(10, Prop.IS_SHORTHAND_PROPERTY);
++    registerInlineBoolProp(11, Prop.IS_NAMESPACE);
++    registerInlineBoolProp(12, Prop.USE_STRICT);
++    registerInlineBoolProp(13, Prop.STATIC_MEMBER);
++    registerInlineBoolProp(14, Prop.GENERATOR_FN);
++    registerInlineBoolProp(15, Prop.ASYNC_FN);
++    registerInlineBoolProp(16, Prop.COLOR_FROM_CAST);
++    registerInlineBoolProp(17, Prop.GOOG_MODULE);
++    registerInlineBoolProp(18, Prop.ES6_MODULE);
++    registerInlineBoolProp(19, Prop.DELETED);
++    registerInlineBoolProp(20, Prop.MODULE_ALIAS);
++    registerInlineBoolProp(21, Prop.IS_UNUSED_PARAMETER);
++    registerInlineBoolProp(22, Prop.MODULE_EXPORT);
++    registerInlineBoolProp(23, Prop.START_OF_OPT_CHAIN);
++    registerInlineBoolProp(24, Prop.IS_IN_CLOSURE_UNAWARE_SUBTREE);
++    registerInlineBoolProp(25, Prop.COMPUTED_PROP_METHOD);
++
++    for (int v = 1; v <= CONST_VAR_MAX; v++) {
++      STATIC_CONST_VAR_ITEMS[v] =
++          PropListItem.intItem((byte) Prop.CONSTANT_VAR_FLAGS.ordinal(), v, null);
++    }
++    for (int v = 1; v <= SIDE_EFFECT_MAX; v++) {
++      STATIC_SIDE_EFFECT_ITEMS[v] =
++          PropListItem.intItem((byte) Prop.SIDE_EFFECT_FLAGS.ordinal(), v, null);
++    }
++  }
++
++  @SuppressWarnings("EnumOrdinal")
++  private static int inlineBoolBitMask(Prop prop) {
++    return INLINE_BOOL_MASKS[prop.ordinal()];
++  }
++
+   public Node(Token token) {
+     this.token = token;
+   }
+@@ -653,9 +774,7 @@
+   }
+ 
+   public final void setIsInClosureUnawareSubtree(boolean value) {
+-    if (propListHead == null
+-        || propListHead.propType != Prop.SOURCE_FILE.ordinal()
+-        || propListHead.next != null) {
++    if (this.sourceFile == null || this.propFlags != 0 || this.propListHead != null) {
+       throw new IllegalArgumentException(
+           String.format(
+               "Cannot set IS_IN_CLOSURE_UNAWARE_SUBTREE property on a node which proplist is not a"
+@@ -985,15 +1104,50 @@
+     first = null;
+   }
+ 
++  @SuppressWarnings("EnumOrdinal") // performance tuning
++  private @Nullable PropListItem lookupColdProperty(Prop prop) {
++    PropListItem x = this.propListHead;
++    if (x == null) {
++      return null;
++    }
++    byte propType = (byte) prop.ordinal();
++    while (x != null && propType != x.propType) {
++      x = x.next;
++    }
++    return x;
++  }
++
+   @VisibleForTesting
+   @SuppressWarnings("EnumOrdinal") // performance tuning
+   final @Nullable PropListItem lookupProperty(Prop prop) {
+-    byte propType = (byte) prop.ordinal();
+-    PropListItem x = propListHead;
+-    while (x != null && propType != x.propType) {
+-      x = x.next;
+-    }
+-    return x;
++    if (prop == Prop.SOURCE_FILE) {
++      if (this.sourceFile != null) {
++        return PropListItem.objectItem((byte) Prop.SOURCE_FILE.ordinal(), this.sourceFile, null);
++      }
++      return lookupColdProperty(prop);
++    }
++    int mask = inlineBoolBitMask(prop);
++    if (mask != 0) {
++      if ((this.propFlags & mask) != 0) {
++        return STATIC_INLINE_BOOL_ITEMS[Integer.numberOfTrailingZeros(mask)];
++      }
++      return lookupColdProperty(prop);
++    }
++    if (prop == Prop.CONSTANT_VAR_FLAGS) {
++      int v = (this.propFlags >>> CONST_VAR_SHIFT) & CONST_VAR_MAX;
++      if (v != 0) {
++        return STATIC_CONST_VAR_ITEMS[v];
++      }
++      return lookupColdProperty(prop);
++    }
++    if (prop == Prop.SIDE_EFFECT_FLAGS) {
++      int v = (this.propFlags >>> SIDE_EFFECT_SHIFT) & SIDE_EFFECT_MAX;
++      if (v != 0) {
++        return STATIC_SIDE_EFFECT_ITEMS[v];
++      }
++      return lookupColdProperty(prop);
++    }
++    return lookupColdProperty(prop);
+   }
+ 
+   /**
+@@ -1005,7 +1159,11 @@
+    */
+   @CanIgnoreReturnValue
+   public final Node clonePropsFrom(Node other) {
+-    checkState(this.propListHead == null, "Node has existing properties.");
++    checkState(
++        this.sourceFile == null && this.propFlags == 0 && this.propListHead == null,
++        "Node has existing properties.");
++    this.sourceFile = other.sourceFile;
++    this.propFlags = other.propFlags;
+     this.propListHead = other.propListHead;
+     return this;
+   }
+@@ -1019,23 +1177,9 @@
+    */
+   @SuppressWarnings("EnumOrdinal") // performance tuning
+   public void validateProperties(Consumer<String> violationMessageConsumer) {
+-    if (propListHead == null) {
+-      // TODO(bradfordcsmith): Fix the bugs that prevent enabling this validation.
+-      //
+-      // In particular:
+-      //
+-      // 1. CoverageInstrumentationPass and BranchCoverageInstrumentationCallback
+-      // create a bunch of nodes without valid source reference info, and it isn't obvious what
+-      // source reference info they should be using.
+-      //
+-      // 2. b/186056977 covers an issue blocking correcting a violation in `VarCheck`
+-      //
+-      // 3. Fixing a violation in DeclaredGlobalExternsOnWindow makes an unexpected change to
+-      //    the pre-computed TypedAst for the runtime libraries.
+-      //
+-      // if (token != Token.ROOT) {
+-      //   violationMessageConsumer.accept("non-ROOT has no properties");
+-      // }
++    int flags = this.propFlags;
++    PropListItem head = this.propListHead;
++    if (this.sourceFile == null && flags == 0 && head == null) {
+       return;
+     }
+ 
+@@ -1044,7 +1188,32 @@
+       violationMessageConsumer.accept("ROOT has properties");
+     }
+ 
+-    for (PropListItem propListItem = propListHead;
++    if ((flags & VALIDATED_INLINE_PROPS_MASK) != 0) {
++      if ((flags & PROP_FLAG_IS_PARENTHESIZED) != 0 && !IR.mayBeExpression(this)) {
++        violationMessageConsumer.accept("non-expression is parenthesized");
++      }
++      if ((flags & PROP_FLAG_ARROW_FN) != 0 && !isFunction()) {
++        violationMessageConsumer.accept("invalid ARROW_FN prop");
++      }
++      if ((flags & PROP_FLAG_ASYNC_FN) != 0 && !isFunction()) {
++        violationMessageConsumer.accept("invalid ASYNC_FN prop");
++      }
++      if ((flags & PROP_FLAG_SYNTHETIC) != 0 && !isBlock()) {
++        violationMessageConsumer.accept("invalid SYNTHETIC prop");
++      }
++      if ((flags & PROP_FLAG_COLOR_FROM_CAST) != 0 && getColor() == null) {
++        violationMessageConsumer.accept("COLOR_FROM_CAST with no Color");
++      }
++      if ((flags & PROP_FLAG_START_OF_OPT_CHAIN) != 0
++          && !(isOptChainCall() || isOptChainGetElem() || isOptChainGetProp())) {
++        violationMessageConsumer.accept("START_OF_OPT_CHAIN on non-optional Node");
++      }
++      if ((flags & CONST_VAR_BITS_MASK) != 0 && !(isName() || isImportStar())) {
++        violationMessageConsumer.accept("invalid CONST_VAR_FLAGS");
++      }
++    }
++
++    for (PropListItem propListItem = head;
+         propListItem != null;
+         propListItem = propListItem.next) {
+       final Prop prop = propValues[propListItem.propType];
+@@ -1148,7 +1317,28 @@
+    */
+   @Deprecated
+   public final @Nullable Object getProp(Prop propType) {
+-    PropListItem item = lookupProperty(propType);
++    if (propType == Prop.SOURCE_FILE) {
++      if (this.sourceFile != null) {
++        return this.sourceFile;
++      }
++      PropListItem item = lookupColdProperty(propType);
++      return item == null ? null : item.getObjectValue();
++    }
++    int mask = inlineBoolBitMask(propType);
++    if (mask != 0) {
++      if ((this.propFlags & mask) != 0) {
++        throw new UnsupportedOperationException();
++      }
++    } else if (propType == Prop.CONSTANT_VAR_FLAGS) {
++      if ((this.propFlags & CONST_VAR_BITS_MASK) != 0) {
++        throw new UnsupportedOperationException();
++      }
++    } else if (propType == Prop.SIDE_EFFECT_FLAGS) {
++      if ((this.propFlags & SIDE_EFFECT_BITS_MASK) != 0) {
++        throw new UnsupportedOperationException();
++      }
++    }
++    PropListItem item = lookupColdProperty(propType);
+     if (item == null) {
+       return null;
+     }
+@@ -1156,12 +1346,48 @@
+   }
+ 
+   public final boolean getBooleanProp(Prop propType) {
++    int mask = inlineBoolBitMask(propType);
++    if (mask != 0) {
++      if ((this.propFlags & mask) != 0) {
++        return true;
++      }
++      if (this.propListHead == null) {
++        return false;
++      }
++    }
+     return getIntProp(propType) != 0;
+   }
+ 
+   /** Returns the integer value for the property, or 0 if the property is not defined. */
+   private int getIntProp(Prop propType) {
+-    PropListItem item = lookupProperty(propType);
++    int mask = inlineBoolBitMask(propType);
++    if (mask != 0) {
++      if ((this.propFlags & mask) != 0) {
++        return 1;
++      }
++      PropListItem item = lookupColdProperty(propType);
++      return item == null ? 0 : item.getIntValue();
++    }
++    if (propType == Prop.CONSTANT_VAR_FLAGS) {
++      int v = (this.propFlags >>> CONST_VAR_SHIFT) & CONST_VAR_MAX;
++      if (v != 0) {
++        return v;
++      }
++      PropListItem item = lookupColdProperty(propType);
++      return item == null ? 0 : item.getIntValue();
++    }
++    if (propType == Prop.SIDE_EFFECT_FLAGS) {
++      int v = (this.propFlags >>> SIDE_EFFECT_SHIFT) & SIDE_EFFECT_MAX;
++      if (v != 0) {
++        return v;
++      }
++      PropListItem item = lookupColdProperty(propType);
++      return item == null ? 0 : item.getIntValue();
++    }
++    if (propType == Prop.SOURCE_FILE && this.sourceFile != null) {
++      throw new UnsupportedOperationException();
++    }
++    PropListItem item = lookupColdProperty(propType);
+     if (item == null) {
+       return 0;
+     }
+@@ -1177,26 +1403,124 @@
+   @Deprecated
+   @SuppressWarnings("EnumOrdinal") // performance tuning
+   public final void putProp(Prop prop, @Nullable Object value) {
+-    this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++    if (prop == Prop.SOURCE_FILE) {
++      if (value == null) {
++        this.sourceFile = null;
++        if (this.propListHead != null) {
++          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++        }
++        return;
++      }
++      if (value instanceof StaticSourceFile) {
++        this.sourceFile = (StaticSourceFile) value;
++        if (this.propListHead != null) {
++          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++        }
++        return;
++      }
++      this.sourceFile = null;
++    } else {
++      int mask = inlineBoolBitMask(prop);
++      if (mask != 0) {
++        this.propFlags &= ~mask;
++      } else if (prop == Prop.CONSTANT_VAR_FLAGS) {
++        this.propFlags &= ~CONST_VAR_BITS_MASK;
++      } else if (prop == Prop.SIDE_EFFECT_FLAGS) {
++        this.propFlags &= ~SIDE_EFFECT_BITS_MASK;
++      }
++    }
++    PropListItem head = this.propListHead;
++    if (head != null) {
++      head = rebuildListWithoutProp(head, prop);
++    }
+     if (value != null) {
+-      this.propListHead = PropListItem.objectItem((byte) prop.ordinal(), value, this.propListHead);
+-    }
++      head = PropListItem.objectItem((byte) prop.ordinal(), value, head);
++    }
++    this.propListHead = head;
+   }
+ 
+   public final void putBooleanProp(Prop propType, boolean value) {
++    int mask = inlineBoolBitMask(propType);
++    if (mask != 0) {
++      if (value) {
++        this.propFlags |= mask;
++      } else {
++        this.propFlags &= ~mask;
++      }
++      if (this.propListHead != null) {
++        this.propListHead = rebuildListWithoutProp(this.propListHead, propType);
++      }
++      return;
++    }
+     putIntProp(propType, value ? 1 : 0);
+   }
+ 
+   @SuppressWarnings("EnumOrdinal") // performance tuning
+   public final void putIntProp(Prop prop, int value) {
+-    this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++    int mask = inlineBoolBitMask(prop);
++    if (mask != 0) {
++      if (value == 0) {
++        this.propFlags &= ~mask;
++        if (this.propListHead != null) {
++          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++        }
++        return;
++      }
++      if (value == 1) {
++        this.propFlags |= mask;
++        if (this.propListHead != null) {
++          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++        }
++        return;
++      }
++      this.propFlags &= ~mask;
++    } else if (prop == Prop.CONSTANT_VAR_FLAGS) {
++      if ((value & ~CONST_VAR_MAX) == 0) {
++        this.propFlags = (this.propFlags & ~CONST_VAR_BITS_MASK) | (value << CONST_VAR_SHIFT);
++        if (this.propListHead != null) {
++          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++        }
++        return;
++      }
++      this.propFlags &= ~CONST_VAR_BITS_MASK;
++    } else if (prop == Prop.SIDE_EFFECT_FLAGS) {
++      if ((value & ~SIDE_EFFECT_MAX) == 0) {
++        this.propFlags = (this.propFlags & ~SIDE_EFFECT_BITS_MASK) | (value << SIDE_EFFECT_SHIFT);
++        if (this.propListHead != null) {
++          this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++        }
++        return;
++      }
++      this.propFlags &= ~SIDE_EFFECT_BITS_MASK;
++    } else if (prop == Prop.SOURCE_FILE) {
++      this.sourceFile = null;
++    }
++    PropListItem head = this.propListHead;
++    if (head != null) {
++      head = rebuildListWithoutProp(head, prop);
++    }
+     if (value != 0) {
+-      this.propListHead = PropListItem.intItem((byte) prop.ordinal(), value, this.propListHead);
+-    }
++      head = PropListItem.intItem((byte) prop.ordinal(), value, head);
++    }
++    this.propListHead = head;
+   }
+ 
+   public final void removeProp(Prop prop) {
+-    this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++    if (prop == Prop.SOURCE_FILE) {
++      this.sourceFile = null;
++    } else {
++      int mask = inlineBoolBitMask(prop);
++      if (mask != 0) {
++        this.propFlags &= ~mask;
++      } else if (prop == Prop.CONSTANT_VAR_FLAGS) {
++        this.propFlags &= ~CONST_VAR_BITS_MASK;
++      } else if (prop == Prop.SIDE_EFFECT_FLAGS) {
++        this.propFlags &= ~SIDE_EFFECT_BITS_MASK;
++      }
++    }
++    if (this.propListHead != null) {
++      this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
++    }
+   }
+ 
+   static long nodePropertyToBit(NodeProperty prop) {
+@@ -1221,6 +1545,32 @@
+ 
+   public final long serializeProperties() {
+     long propSet = 0;
++    int flags = this.propFlags;
++    if (flags != 0) {
++      int boolBits = flags & INLINE_BOOL_ALL_MASK;
++      while (boolBits != 0) {
++        int bit = Integer.numberOfTrailingZeros(boolBits);
++        boolBits &= ~(1 << bit);
++        Prop prop = INLINE_BIT_TO_PROP[bit];
++        NodeProperty nodeProperty = PropTranslator.serialize(prop);
++        if (nodeProperty != null) {
++          propSet = setNodePropertyBit(propSet, nodeProperty);
++        }
++      }
++      int constFlags = (flags >>> CONST_VAR_SHIFT) & CONST_VAR_MAX;
++      if (constFlags != 0) {
++        if (anyBitSet(constFlags, ConstantVarFlags.INFERRED)) {
++          propSet = setNodePropertyBit(propSet, NodeProperty.IS_INFERRED_CONSTANT);
++        }
++        if (anyBitSet(constFlags, ConstantVarFlags.DECLARED)) {
++          propSet = setNodePropertyBit(propSet, NodeProperty.IS_DECLARED_CONSTANT);
++        }
++      }
++      int seFlags = (flags >>> SIDE_EFFECT_SHIFT) & SIDE_EFFECT_MAX;
++      if (seFlags != 0) {
++        propSet = setNodePropertySideEffectFlags(propSet, seFlags);
++      }
++    }
+     for (PropListItem propListItem = this.propListHead;
+         propListItem != null;
+         propListItem = propListItem.next) {
+@@ -1290,8 +1640,29 @@
+     PropListItem propListItem = this.propListHead;
+     List<String> propListStrRepr = new ArrayList<>();
+     while (propListItem != null) {
+-      propListStrRepr.add(Prop.values()[propListItem.propType].name());
++      propListStrRepr.add(propValues[propListItem.propType].name());
+       propListItem = propListItem.next;
++    }
++    int flags = this.propFlags;
++    if (flags != 0) {
++      if (((flags >>> SIDE_EFFECT_SHIFT) & SIDE_EFFECT_MAX) != 0) {
++        propListStrRepr.add(Prop.SIDE_EFFECT_FLAGS.name());
++      }
++      if (((flags >>> CONST_VAR_SHIFT) & CONST_VAR_MAX) != 0) {
++        propListStrRepr.add(Prop.CONSTANT_VAR_FLAGS.name());
++      }
++      int boolBits = flags & (INLINE_BOOL_ALL_MASK & ~PROP_FLAG_IS_IN_CLOSURE_UNAWARE_SUBTREE);
++      while (boolBits != 0) {
++        int bit = Integer.numberOfTrailingZeros(boolBits);
++        boolBits &= ~(1 << bit);
++        propListStrRepr.add(INLINE_BIT_TO_PROP[bit].name());
++      }
++      if ((flags & PROP_FLAG_IS_IN_CLOSURE_UNAWARE_SUBTREE) != 0) {
++        propListStrRepr.add(Prop.IS_IN_CLOSURE_UNAWARE_SUBTREE.name());
++      }
++    }
++    if (this.sourceFile != null) {
++      propListStrRepr.add(Prop.SOURCE_FILE.name());
+     }
+     Joiner joiner = Joiner.on("->");
+     return joiner.join(propListStrRepr);
+@@ -1300,7 +1671,9 @@
+   @SuppressWarnings("EnumOrdinal") // performance tuning
+   public final void deserializeProperties(long propSet, boolean isInClosureUnawareSubtree) {
+     if (this.isRoot()) {
+-      checkState(this.propListHead == null, this.propListHead);
++      checkState(
++          this.sourceFile == null && this.propFlags == 0 && this.propListHead == null,
++          this.propListHead);
+     } else {
+       checkState(
+           this.validatePropListTailOrdering(isInClosureUnawareSubtree),
+@@ -1336,22 +1709,27 @@
+           if (prop == null) {
+             throw new IllegalStateException("Can not translate " + nodeProperty + " to AST Prop");
+           }
+-          this.propListHead = PropListItem.intItem((byte) prop.ordinal(), 1, this.propListHead);
++          int mask = inlineBoolBitMask(prop);
++          if (mask != 0) {
++            this.propFlags |= mask;
++          } else {
++            this.propListHead = PropListItem.intItem((byte) prop.ordinal(), 1, this.propListHead);
++          }
+         }
+       }
+     }
+ 
+     // Store the CONSTANT_VAR_FLAGS
+     if (constantVarFlags != 0) {
+-      this.propListHead =
+-          PropListItem.intItem(
+-              (byte) Prop.CONSTANT_VAR_FLAGS.ordinal(), constantVarFlags, this.propListHead);
++      this.propFlags =
++          (this.propFlags & ~CONST_VAR_BITS_MASK)
++              | ((constantVarFlags & CONST_VAR_MAX) << CONST_VAR_SHIFT);
+     }
+ 
+     if (sideEffectFlags != 0) {
+-      this.propListHead =
+-          PropListItem.intItem(
+-              (byte) Prop.SIDE_EFFECT_FLAGS.ordinal(), sideEffectFlags, this.propListHead);
++      this.propFlags =
++          (this.propFlags & ~SIDE_EFFECT_BITS_MASK)
++              | ((sideEffectFlags & SIDE_EFFECT_MAX) << SIDE_EFFECT_SHIFT);
+     }
+ 
+     // Make sure the deserialized properties are valid.
+@@ -1457,16 +1835,46 @@
+   }
+ 
+   // Gets all the property types, in sorted order.
++  @SuppressWarnings("EnumOrdinal")
+   private byte[] getSortedPropTypes() {
+-    int count = 0;
+-    for (PropListItem x = propListHead; x != null; x = x.next) {
++    int flags = this.propFlags;
++    PropListItem head = this.propListHead;
++    if (this.sourceFile == null && flags == 0 && head == null) {
++      return new byte[0];
++    }
++    int inlineBoolBits = flags & INLINE_BOOL_ALL_MASK;
++    int count = Integer.bitCount(inlineBoolBits);
++    if (this.sourceFile != null) {
+       count++;
+     }
++    if ((flags & CONST_VAR_BITS_MASK) != 0) {
++      count++;
++    }
++    if ((flags & SIDE_EFFECT_BITS_MASK) != 0) {
++      count++;
++    }
++    for (PropListItem x = head; x != null; x = x.next) {
++      count++;
++    }
+ 
+     byte[] keys = new byte[count];
+-    for (PropListItem x = propListHead; x != null; x = x.next) {
+-      count--;
+-      keys[count] = x.propType;
++    int idx = 0;
++    if (this.sourceFile != null) {
++      keys[idx++] = (byte) Prop.SOURCE_FILE.ordinal();
++    }
++    while (inlineBoolBits != 0) {
++      int bit = Integer.numberOfTrailingZeros(inlineBoolBits);
++      inlineBoolBits &= ~(1 << bit);
++      keys[idx++] = (byte) INLINE_BIT_TO_PROP[bit].ordinal();
++    }
++    if ((flags & CONST_VAR_BITS_MASK) != 0) {
++      keys[idx++] = (byte) Prop.CONSTANT_VAR_FLAGS.ordinal();
++    }
++    if ((flags & SIDE_EFFECT_BITS_MASK) != 0) {
++      keys[idx++] = (byte) Prop.SIDE_EFFECT_FLAGS.ordinal();
++    }
++    for (PropListItem x = head; x != null; x = x.next) {
++      keys[idx++] = x.propType;
+     }
+ 
+     Arrays.sort(keys);
+@@ -1572,11 +1980,14 @@
+           sb.append(" [is_shadow_host]");
+           continue;
+         }
+-        PropListItem x = lookupProperty(type);
+         sb.append(" [");
+         sb.append(Ascii.toLowerCase(String.valueOf(type)));
+         sb.append(": ");
+-        sb.append(x);
++        if (type == Prop.SOURCE_FILE && this.sourceFile != null) {
++          sb.append(this.sourceFile);
++        } else {
++          sb.append(lookupProperty(type));
++        }
+         sb.append(']');
+       }
+       if (this.originalName != null) {
+@@ -1648,11 +2059,14 @@
+       sb.append("\"props\":{");
+       for (int i = 0; i < keys.length; i++) {
+         Prop type = propValues[keys[i]];
+-        PropListItem x = lookupProperty(type);
++        String valStr =
++            (type == Prop.SOURCE_FILE && this.sourceFile != null)
++                ? String.valueOf(this.sourceFile)
++                : lookupProperty(type).toString();
+         sb.append(
+             createJsonPair(
+                 Ascii.toLowerCase(String.valueOf(type)),
+-                x.toString().replace("\n", "\\n").replace("\"", "\\\"")));
++                valStr.replace("\n", "\\n").replace("\"", "\\\"")));
+         if (i + 1 < keys.length) {
+           sb.append(',');
+         }
+@@ -1746,6 +2160,10 @@
+ 
+   private transient @Nullable String originalName;
+ 
++  private @Nullable StaticSourceFile sourceFile;
++
++  private int propFlags;
++
+   /**
+    * Linked list of properties. Since vast majority of nodes would have no more than 2 properties,
+    * linked list saves memory and provides fast lookup. If this does not holds, propListHead can be
+@@ -1756,35 +2174,25 @@
+   // ==========================================================================
+   // Source position management
+ 
+-  @SuppressWarnings("EnumOrdinal") // performance tuning
+   public final void setStaticSourceFileFrom(Node other) {
+-    // Make sure source file prop nodes are not duplicated.
+-    if (other.propListHead != null
+-        && (this.propListHead == null
+-            || (this.propListHead.propType == Prop.SOURCE_FILE.ordinal()
+-                && this.propListHead.next == null))) {
+-      // Either the node has only Prop.SOURCE_FILE as a property or has not properties.
+-      PropListItem tail = other.propListHead;
+-      while (tail.next != null) {
+-        tail = tail.next;
+-      }
+-      if (tail.propType == Prop.SOURCE_FILE.ordinal()) {
+-        propListHead = tail;
+-        return;
+-      }
+-    }
+-    setStaticSourceFile(other.getStaticSourceFile());
++    this.sourceFile = other.getStaticSourceFile();
++    if (this.propListHead != null) {
++      this.propListHead = rebuildListWithoutProp(this.propListHead, Prop.SOURCE_FILE);
++    }
+   }
+ 
+   @CanIgnoreReturnValue
+   public final Node setStaticSourceFile(@Nullable StaticSourceFile file) {
+-    this.putProp(Prop.SOURCE_FILE, file);
++    this.sourceFile = file;
++    if (this.propListHead != null) {
++      this.propListHead = rebuildListWithoutProp(this.propListHead, Prop.SOURCE_FILE);
++    }
+     return this;
+   }
+ 
+   /** Sets the source file to a non-extern file of the given name. */
+   public final void setSourceFileForTesting(String name) {
+-    this.putProp(Prop.SOURCE_FILE, new SimpleSourceFile(name, SourceKind.STRONG));
++    setStaticSourceFile(new SimpleSourceFile(name, SourceKind.STRONG));
+   }
+ 
+   // TODO(johnlenz): make this final
+@@ -1795,7 +2203,13 @@
+ 
+   /** Returns the source file associated with this input. */
+   public @Nullable StaticSourceFile getStaticSourceFile() {
+-    return ((StaticSourceFile) this.getProp(Prop.SOURCE_FILE));
++    if (this.sourceFile != null) {
++      return this.sourceFile;
++    }
++    if (this.propListHead != null) {
++      return (StaticSourceFile) this.getProp(Prop.SOURCE_FILE);
++    }
++    return null;
+   }
+ 
+   /** Sets the ID of the input this Node came from. */
+@@ -2029,12 +2443,50 @@
+   // ==========================================================================
+   // Accessors
+ 
++  @SuppressWarnings("EnumOrdinal")
+   final @Nullable PropListItem getPropListHeadForTesting() {
+-    return propListHead;
++    if (this.propListHead != null) {
++      return this.propListHead;
++    }
++    int flags = this.propFlags;
++    if (flags != 0) {
++      int se = (flags >>> SIDE_EFFECT_SHIFT) & SIDE_EFFECT_MAX;
++      if (se != 0) {
++        return STATIC_SIDE_EFFECT_ITEMS[se];
++      }
++      int cv = (flags >>> CONST_VAR_SHIFT) & CONST_VAR_MAX;
++      if (cv != 0) {
++        return STATIC_CONST_VAR_ITEMS[cv];
++      }
++      int boolBits = flags & INLINE_BOOL_ALL_MASK;
++      if (boolBits != 0) {
++        return STATIC_INLINE_BOOL_ITEMS[Integer.numberOfTrailingZeros(boolBits)];
++      }
++    }
++    if (this.sourceFile != null) {
++      return PropListItem.objectItem((byte) Prop.SOURCE_FILE.ordinal(), this.sourceFile, null);
++    }
++    return null;
++  }
++
++  private void applyPropListHeadItems(@Nullable PropListItem item) {
++    if (item == null) {
++      return;
++    }
++    applyPropListHeadItems(item.next);
++    Prop prop = propValues[item.propType];
++    if (item.isObjectItem()) {
++      putProp(prop, item.getObjectValue());
++    } else {
++      putIntProp(prop, item.getIntValue());
++    }
+   }
+ 
+   final void setPropListHead(@Nullable PropListItem propListHead) {
+-    this.propListHead = propListHead;
++    this.sourceFile = null;
++    this.propFlags = 0;
++    this.propListHead = null;
++    applyPropListHeadItems(propListHead);
+   }
+ 
+   public final @Nullable Node getParent() {
+@@ -2303,7 +2755,19 @@
+   // TODO(user): these getters and the following two validation methods are a bit redundant.
+   // We should consider simplifying them in a follow up CL.
+   private final @Nullable PropListItem getSecondToLastPropListItem() {
++    if (getIsInClosureUnawareSubtree()) {
++      return lookupProperty(Prop.IS_IN_CLOSURE_UNAWARE_SUBTREE);
++    }
+     PropListItem propListItem = propListHead;
++    if (this.sourceFile != null) {
++      if (propListItem == null) {
++        return null;
++      }
++      while (propListItem.next != null) {
++        propListItem = propListItem.next;
++      }
++      return propListItem;
++    }
+     if (propListItem == null || propListItem.next == null) {
+       return null;
+     }
+@@ -2313,7 +2777,11 @@
+     return propListItem;
+   }
+ 
++  @SuppressWarnings("EnumOrdinal")
+   private final @Nullable PropListItem getLastPropListItem() {
++    if (this.sourceFile != null) {
++      return PropListItem.objectItem((byte) Prop.SOURCE_FILE.ordinal(), this.sourceFile, null);
++    }
+     PropListItem propListItem = propListHead;
+     if (propListItem == null) {
+       return null;
+@@ -2325,24 +2793,11 @@
+   }
+ 
+   private final boolean validatePropListTailOrdering(boolean shouldNodeBeClosureUnaware) {
+-
+-    PropListItem prev = null;
+-    PropListItem curr = this.propListHead;
+-    if (curr == null) {
++    if (this.getStaticSourceFile() == null) {
+       return false;
+     }
+-    while (curr.next != null) {
+-      prev = curr;
+-      curr = curr.next;
+-    }
+-    if (curr.propType != Prop.SOURCE_FILE.ordinal()) {
++    if (shouldNodeBeClosureUnaware && !this.getIsInClosureUnawareSubtree()) {
+       return false;
+-    }
+-
+-    if (shouldNodeBeClosureUnaware) {
+-      if (prev == null || prev.propType != Prop.IS_IN_CLOSURE_UNAWARE_SUBTREE.ordinal()) {
+-        return false;
+-      }
+     }
+     return true;
+   }
+@@ -2353,31 +2808,20 @@
+       boolean shouldNode1BeClosureUnaware,
+       Node node2,
+       boolean shouldNode2BeClosureUnaware) {
+-    // checks to do here:
+-    // 1. there should be only one sourcefile proplist item and it should be the last item
+-    // 2. if there is a proplist item that is IS_INCLOSURE_UNAWARE_SUBTREE it should be followed by
+-    // a SOURCE_FILE proplist item
+-    // 3. if there is another node, check that the actual proplist items are the same for the
+-    // sourcefile and the IS_IN_CLOSURE_UNAWARE_SUBTREE
+-    // validate that the last two elements of the property list are IS_IN_CLOSURE_UNAWARE_SUBTREE
+-    // and SOURCE_FILE, also validate that these propelist items are the same actual item and not
+-    // only the same values.
+-
+     if (!node1.validatePropListTailOrdering(shouldNode1BeClosureUnaware)) {
+       return false;
+     }
+     if (!node2.validatePropListTailOrdering(shouldNode2BeClosureUnaware)) {
+       return false;
+     }
+-    if (node1.getLastPropListItem() != node2.getLastPropListItem()) {
++    if (node1.getStaticSourceFile() != node2.getStaticSourceFile()) {
+       return false;
+     }
+     if (shouldNode1BeClosureUnaware && shouldNode2BeClosureUnaware) {
+-      if (node1.getSecondToLastPropListItem() != node2.getSecondToLastPropListItem()) {
++      if (node1.getIsInClosureUnawareSubtree() != node2.getIsInClosureUnawareSubtree()) {
+         return false;
+       }
+     }
+-    // return true if all of the property list items are what we expect.
+     return true;
+   }
+ 
+@@ -2460,22 +2904,33 @@
+       return false;
+     }
+ 
+-    EnumSet<Prop> propSet = EnumSet.noneOf(Prop.class);
+-    for (PropListItem propListItem = this.propListHead;
+-        propListItem != null;
+-        propListItem = propListItem.next) {
+-      Prop prop = propValues[propListItem.propType];
+-      propSet.add(prop);
+-    }
+-    for (PropListItem propListItem = node.propListHead;
+-        propListItem != null;
+-        propListItem = propListItem.next) {
+-      Prop prop = propValues[propListItem.propType];
+-      propSet.add(prop);
+-    }
+-
+-    for (Prop prop : propSet) {
+-      if (propMapForEqualityKeys.contains(prop)) {
++    int eqMask =
++        isFunction()
++            ? PROP_EQUALITY_INLINE_MASK
++            : (PROP_EQUALITY_INLINE_MASK & ~(PROP_FLAG_ARROW_FN | PROP_FLAG_ASYNC_FN));
++    if (((this.propFlags ^ node.propFlags) & eqMask) != 0) {
++      return false;
++    }
++
++    PropListItem thisHead = this.propListHead;
++    PropListItem nodeHead = node.propListHead;
++    if (thisHead != null || nodeHead != null) {
++      long coldPropBits = 0L;
++      for (PropListItem propListItem = thisHead;
++          propListItem != null;
++          propListItem = propListItem.next) {
++        coldPropBits |= 1L << propListItem.propType;
++      }
++      for (PropListItem propListItem = nodeHead;
++          propListItem != null;
++          propListItem = propListItem.next) {
++        coldPropBits |= 1L << propListItem.propType;
++      }
++      coldPropBits &= PROP_EQUALITY_ORDINAL_MASK;
++      while (coldPropBits != 0L) {
++        int ord = Long.numberOfTrailingZeros(coldPropBits);
++        coldPropBits &= ~(1L << ord);
++        Prop prop = propValues[ord];
+         Function<Node, Object> getter = PROP_MAP_FOR_EQUALITY.get(prop);
+         if (!Objects.equals(getter.apply(this), getter.apply(node))) {
+           return false;
+@@ -2553,6 +3008,18 @@
+   private static final EnumSet<Prop> propMapForEqualityKeys =
+       EnumSet.copyOf(PROP_MAP_FOR_EQUALITY.keySet());
+ 
++  @SuppressWarnings("EnumOrdinal")
++  private static long computePropEqualityOrdinalMask() {
++    checkState(propValues.length <= 64);
++    long mask = 0L;
++    for (Prop p : propMapForEqualityKeys) {
++      mask |= 1L << p.ordinal();
++    }
++    return mask;
++  }
++
++  private static final long PROP_EQUALITY_ORDINAL_MASK = computePropEqualityOrdinalMask();
++
+   /**
+    * This function takes a set of GETPROP nodes and produces a string that is each property
+    * separated by dots. If the node ultimately under the left sub-tree is not a simple name, this is
+@@ -2805,6 +3272,8 @@
+     dest.length = source.length;
+     dest.jstypeOrColor = source.jstypeOrColor;
+     dest.originalName = source.originalName;
++    dest.sourceFile = source.sourceFile;
++    dest.propFlags = source.propFlags;
+     dest.propListHead = source.propListHead;
+ 
+     // TODO(johnlenz): Remove this once JSTypeExpression are immutable

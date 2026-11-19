@@ -1,0 +1,860 @@
+diff --git a/com/google/javascript/jscomp/AnalyzePrototypeProperties.java b/com/google/javascript/jscomp/AnalyzePrototypeProperties.java
+index 9e779b4..71901fd 100644
+--- a/com/google/javascript/jscomp/AnalyzePrototypeProperties.java
++++ b/com/google/javascript/jscomp/AnalyzePrototypeProperties.java
+@@ -90,11 +90,11 @@ class AnalyzePrototypeProperties implements CompilerPass {
+ 
+   // All the real NameInfo for prototype properties, hashed by the name
+   // of the property that they represent.
+-  private final Map<String, NameInfo> propertyNameInfo = new LinkedHashMap<>();
++  private final LinkedHashMap<String, NameInfo> propertyNameInfo = new LinkedHashMap<>();
+ 
+   // All the NameInfo for global functions, hashed by the name of the
+   // global variable that it's assigned to.
+-  private final Map<String, NameInfo> varNameInfo = new LinkedHashMap<>();
++  private final LinkedHashMap<String, NameInfo> varNameInfo = new LinkedHashMap<>();
+ 
+   /**
+    * Creates a new pass for analyzing prototype properties.
+@@ -159,7 +159,7 @@ class AnalyzePrototypeProperties implements CompilerPass {
+ 
+   /** Returns information on all prototype properties. */
+   public Collection<NameInfo> getAllNameInfo() {
+-    List<NameInfo> result = new ArrayList<>(propertyNameInfo.values());
++    ArrayList<NameInfo> result = new ArrayList<>(propertyNameInfo.values());
+     result.addAll(varNameInfo.values());
+     return result;
+   }
+@@ -172,13 +172,21 @@ class AnalyzePrototypeProperties implements CompilerPass {
+    * @param type The type of symbol.
+    */
+   private NameInfo getNameInfoForName(String name, SymbolType type) {
+-    Map<String, NameInfo> map = type == PROPERTY ? propertyNameInfo : varNameInfo;
+-    if (map.containsKey(name)) {
+-      return map.get(name);
++    if (type == PROPERTY) {
++      NameInfo nameInfo = propertyNameInfo.get(name);
++      if (nameInfo == null) {
++        nameInfo = new NameInfo(name);
++        propertyNameInfo.put(name, nameInfo);
++        symbolGraph.createNode(nameInfo);
++      }
++      return nameInfo;
+     } else {
+-      NameInfo nameInfo = new NameInfo(name);
+-      map.put(name, nameInfo);
+-      symbolGraph.createNode(nameInfo);
++      NameInfo nameInfo = varNameInfo.get(name);
++      if (nameInfo == null) {
++        nameInfo = new NameInfo(name);
++        varNameInfo.put(name, nameInfo);
++        symbolGraph.createNode(nameInfo);
++      }
+       return nameInfo;
+     }
+   }
+diff --git a/com/google/javascript/jscomp/CoalesceVariableNames.java b/com/google/javascript/jscomp/CoalesceVariableNames.java
+index 1f52f00..1a26f35 100644
+--- a/com/google/javascript/jscomp/CoalesceVariableNames.java
++++ b/com/google/javascript/jscomp/CoalesceVariableNames.java
+@@ -609,8 +609,8 @@ class CoalesceVariableNames extends NodeTraversal.AbstractCfgCallback implements
+     private final Node root;
+     private final LinearFlowState<LiveVariableLattice> state;
+     private final Var[] orderedVariables;
+-    private final List<Integer> isAssignToList = new ArrayList<>(); // indices of written variables
+-    private final List<Integer> isReadFromList = new ArrayList<>(); // indices of read variables
++    private final ArrayList<Integer> isAssignToList = new ArrayList<>(); // indices of written variables
++    private final ArrayList<Integer> isReadFromList = new ArrayList<>(); // indices of read variables
+ 
+     LiveRangeChecker(
+         Node root, Var[] orderedVariables, LinearFlowState<LiveVariableLattice> state) {
+@@ -657,8 +657,10 @@ class CoalesceVariableNames extends NodeTraversal.AbstractCfgCallback implements
+     }
+ 
+     void setCrossingVariables(BitSet[] interferenceBitSet) {
+-      for (Integer iWrittenVar : isAssignToList) {
+-        for (Integer iReadVar : isReadFromList) {
++      for (int i = 0, wSize = isAssignToList.size(); i < wSize; i++) {
++        int iWrittenVar = isAssignToList.get(i);
++        for (int j = 0, rSize = isReadFromList.size(); j < rSize; j++) {
++          int iReadVar = isReadFromList.get(j);
+           interferenceBitSet[iWrittenVar].set(iReadVar);
+           interferenceBitSet[iReadVar].set(iWrittenVar);
+         }
+diff --git a/com/google/javascript/jscomp/CodePrinter.java b/com/google/javascript/jscomp/CodePrinter.java
+index d5441a9..53f9eea 100644
+--- a/com/google/javascript/jscomp/CodePrinter.java
++++ b/com/google/javascript/jscomp/CodePrinter.java
+@@ -50,10 +50,10 @@ public final class CodePrinter {
+   // version.
+ 
+   private abstract static class MappedCodePrinter extends CodeConsumer {
+-    private final @Nullable Deque<SourceMap.Mapping> mappings;
+-    private final @Nullable List<SourceMap.Mapping> allMappings;
++    private final ArrayDeque<SourceMap.Mapping> mappings = new ArrayDeque<>();
++    private final ArrayList<SourceMap.Mapping> allMappings = new ArrayList<>();
+     // The ordered list of finalized mappings since the last line break. See #reportLineCut.
+-    private final @Nullable List<SourceMap.Mapping> completeMappings;
++    private final ArrayList<SourceMap.Mapping> completeMappings = new ArrayList<>();
+     // The index into allMappings to find the mappings added since the last line
+     // break. See #reportLineCut.
+     private int firstCandidateMappingForCut = 0;
+@@ -75,9 +75,6 @@ public final class CodePrinter {
+         lineLengthThreshold;
+       this.createSrcMap = createSrcMap;
+       this.sourceMapDetailLevel = sourceMapDetailLevel;
+-      this.mappings = createSrcMap ? new ArrayDeque<>() : null;
+-      this.allMappings = createSrcMap ? new ArrayList<>() : null;
+-      this.completeMappings = createSrcMap ? new ArrayList<>() : null;
+       this.licenseTracker = licenseTracker;
+     }
+ 
+@@ -143,8 +140,9 @@ public final class CodePrinter {
+         return null;
+       }
+       ImmutableList<Integer> lineLengths = computeLineLengths(code);
+-      List<SourceMap.Mapping> fixedMappings = new ArrayList<>();
+-      for (SourceMap.Mapping mapping : allMappings) {
++      ArrayList<SourceMap.Mapping> fixedMappings = new ArrayList<>(allMappings.size());
++      for (int i = 0, size = allMappings.size(); i < size; i++) {
++        SourceMap.Mapping mapping = allMappings.get(i);
+         SourceMap.Mapping adjusted = new SourceMap.Mapping();
+         adjusted.node = mapping.node;
+         adjusted.start = mapping.start;
+@@ -174,7 +172,8 @@ public final class CodePrinter {
+         }
+         firstCandidateMappingForCut = mappingCount;
+ 
+-        for (SourceMap.Mapping mapping : completeMappings) {
++        for (int i = 0, size = completeMappings.size(); i < size; i++) {
++          SourceMap.Mapping mapping = completeMappings.get(i);
+           mapping.end = convertPositionAfterLineCut(mapping.end, lineIndex, charIndex);
+         }
+         // To avoid iterating over every mapping, every time we cut a line, keep track of
+diff --git a/com/google/javascript/jscomp/Compiler.java b/com/google/javascript/jscomp/Compiler.java
+index bf6cbb6..f1f1437 100644
+--- a/com/google/javascript/jscomp/Compiler.java
++++ b/com/google/javascript/jscomp/Compiler.java
+@@ -2323,20 +2323,23 @@ public class Compiler extends AbstractCompiler implements ErrorHandler, SourceFi
+   private void findModulesFromEntryPoints(
+       boolean supportEs6Modules, boolean supportCommonJSModules) {
+     maybeDoThreadedParsing();
+-    List<CompilerInput> entryPoints = new ArrayList<>();
+-    Map<String, CompilerInput> inputsByProvide = new LinkedHashMap<>();
+-    Map<String, CompilerInput> inputsByIdentifier = new LinkedHashMap<>();
++    ArrayList<CompilerInput> entryPoints = new ArrayList<>();
++    LinkedHashMap<String, CompilerInput> inputsByProvide = new LinkedHashMap<>();
++    LinkedHashMap<String, CompilerInput> inputsByIdentifier = new LinkedHashMap<>();
++    boolean keepMoochers = !options.getDependencyOptions().shouldDropMoochers();
+     for (CompilerInput input : chunkGraph.getAllInputs()) {
+-      Iterable<String> provides =
+-          Iterables.filter(input.getProvides(), p -> !p.startsWith("module$"));
+-      if (!options.getDependencyOptions().shouldDropMoochers() && Iterables.isEmpty(provides)) {
++      boolean hasNonModuleProvide = false;
++      for (String provide : input.getProvides()) {
++        if (!provide.startsWith("module$")) {
++          hasNonModuleProvide = true;
++          inputsByProvide.put(provide, input);
++        }
++      }
++      if (keepMoochers && !hasNonModuleProvide) {
+         entryPoints.add(input);
+       }
+       inputsByIdentifier.put(
+           ModuleIdentifier.forFile(input.getPath().toString()).toString(), input);
+-      for (String provide : provides) {
+-        inputsByProvide.put(provide, input);
+-      }
+     }
+     for (ModuleIdentifier moduleIdentifier : options.getDependencyOptions().entryPoints()) {
+       CompilerInput input = inputsByProvide.get(moduleIdentifier.toString());
+diff --git a/com/google/javascript/jscomp/CrossChunkReferenceCollector.java b/com/google/javascript/jscomp/CrossChunkReferenceCollector.java
+index cf43eb0..4eb9405 100644
+--- a/com/google/javascript/jscomp/CrossChunkReferenceCollector.java
++++ b/com/google/javascript/jscomp/CrossChunkReferenceCollector.java
+@@ -40,7 +40,7 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+   private final ReferenceCollector referenceCollector;
+ 
+   private int statementCounter = 0;
+-  private @Nullable TopLevelStatementDraft topLevelStatementDraft = null;
++  private @Nullable TopLevelStatement topLevelStatementDraft = null;
+ 
+   /** Constructor initializes reference collector. */
+   CrossChunkReferenceCollector(AbstractCompiler compiler, ScopeCreator creator) {
+@@ -103,7 +103,7 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+         return;
+       }
+       if (n.equals(topLevelStatementDraft.statementNode)) {
+-        topLevelStatements.add(new TopLevelStatement(topLevelStatementDraft));
++        topLevelStatements.add(topLevelStatementDraft);
+         topLevelStatementDraft = null;
+       } else if (addedReference != null && n.isName()) {
+         if (identical(addedReference.getNode(), topLevelStatementDraft.declaredNameNode)) {
+@@ -118,9 +118,9 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+     public void afterExitScope(NodeTraversal t, ReferenceMap referenceMap) {}
+   }
+ 
+-  private TopLevelStatementDraft initializeDraftStatement(JSChunk chunk, Node statementNode) {
+-    TopLevelStatementDraft draft =
+-        new TopLevelStatementDraft(statementCounter++, chunk, statementNode);
++  private TopLevelStatement initializeDraftStatement(JSChunk chunk, Node statementNode) {
++    TopLevelStatement draft =
++        new TopLevelStatement(statementCounter++, chunk, statementNode);
+     // Determine whether this statement declares a name or not.
+     // If so, save its name node and value node, if any.
+     if (NodeUtil.isNameDeclaration(statementNode)) {
+@@ -381,17 +381,22 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+ 
+     private final JSChunk chunk;
+     private final Node statementNode;
+-    private final @Nullable ArrayList<Reference> nonDeclarationReferences;
+-    private final Reference declaredNameReference;
+-    private final Node declaredValueNode;
+-
+-    TopLevelStatement(TopLevelStatementDraft draft) {
+-      this.originalOrder = draft.originalOrder;
+-      this.chunk = draft.chunk;
+-      this.statementNode = draft.statementNode;
+-      this.nonDeclarationReferences = draft.nonDeclarationReferences;
+-      this.declaredNameReference = draft.declaredNameReference;
+-      this.declaredValueNode = draft.declaredValueNode;
++    private @Nullable ArrayList<Reference> nonDeclarationReferences = null;
++    @Nullable Node declaredNameNode = null;
++    @Nullable Reference declaredNameReference = null;
++    @Nullable Node declaredValueNode = null;
++
++    TopLevelStatement(int originalOrder, JSChunk chunk, Node statementNode) {
++      this.originalOrder = originalOrder;
++      this.chunk = chunk;
++      this.statementNode = statementNode;
++    }
++
++    void addNonDeclarationReference(Reference ref) {
++      if (nonDeclarationReferences == null) {
++        nonDeclarationReferences = new ArrayList<>();
++      }
++      nonDeclarationReferences.add(ref);
+     }
+ 
+     int getOriginalOrder() {
+@@ -411,6 +416,9 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+     }
+ 
+     Reference getNonDeclarationReference(int index) {
++      if (nonDeclarationReferences == null) {
++        throw new NullPointerException();
++      }
+       return nonDeclarationReferences.get(index);
+     }
+ 
+@@ -432,31 +440,4 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+           && canMoveValue(declaredNameReference.getScope(), declaredValueNode);
+     }
+   }
+-
+-  /** Holds statement info temporarily while the statement is being traversed. */
+-  private static final class TopLevelStatementDraft {
+-
+-    /** 0-based index indicating original order of this statement in the source. */
+-    final int originalOrder;
+-
+-    final JSChunk chunk;
+-    final Node statementNode;
+-    @Nullable ArrayList<Reference> nonDeclarationReferences = null;
+-    @Nullable Node declaredValueNode = null;
+-    @Nullable Node declaredNameNode = null;
+-    @Nullable Reference declaredNameReference = null;
+-
+-    TopLevelStatementDraft(int originalOrder, JSChunk chunk, Node statementNode) {
+-      this.originalOrder = originalOrder;
+-      this.chunk = chunk;
+-      this.statementNode = statementNode;
+-    }
+-
+-    void addNonDeclarationReference(Reference ref) {
+-      if (nonDeclarationReferences == null) {
+-        nonDeclarationReferences = new ArrayList<>();
+-      }
+-      nonDeclarationReferences.add(ref);
+-    }
+-  }
+ }
+diff --git a/com/google/javascript/jscomp/GlobalNamespace.java b/com/google/javascript/jscomp/GlobalNamespace.java
+index ad13b8a..dcdc81b 100644
+--- a/com/google/javascript/jscomp/GlobalNamespace.java
++++ b/com/google/javascript/jscomp/GlobalNamespace.java
+@@ -1598,7 +1598,9 @@ class GlobalNamespace
+         checkState(this.singleRef == ref, "removeRef(%s): unknown ref", ref);
+         this.singleRef = null;
+       } else {
+-        checkNotNull(this.refsForNodeMap, "removeRef(%s): unknown ref", ref);
++        if (this.refsForNodeMap == null) {
++          throw new NullPointerException("removeRef(" + ref + "): unknown ref");
++        }
+         checkState(
+             this.refsForNodeMap.containsKey(ref.getNode()), "removeRef(%s): unknown ref", ref);
+         Node refNode = ref.getNode();
+@@ -1701,7 +1703,9 @@ class GlobalNamespace
+       if (this.singleRef != null) {
+         return this.singleRef;
+       }
+-      checkNotNull(this.refsForNodeMap, "no first Ref to get");
++      if (this.refsForNodeMap == null) {
++        throw new NullPointerException("no first Ref to get");
++      }
+       for (Ref ref : this.refsForNodeMap.values()) {
+         return ref;
+       }
+diff --git a/com/google/javascript/jscomp/InlineAndCollapseProperties.java b/com/google/javascript/jscomp/InlineAndCollapseProperties.java
+index 3fac2a6..1b94c69 100644
+--- a/com/google/javascript/jscomp/InlineAndCollapseProperties.java
++++ b/com/google/javascript/jscomp/InlineAndCollapseProperties.java
+@@ -1734,7 +1734,10 @@ class InlineAndCollapseProperties implements CompilerPass {
+         updateGlobalNameDeclaration(n, alias, canCollapseChildNames);
+       }
+ 
+-      if (n.props == null || escaped.contains(n)) {
++      if (n.props == null) {
++        return;
++      }
++      if (escaped.contains(n)) {
+         return;
+       }
+       logDecisionForName(n, "collapsing descendants");
+diff --git a/com/google/javascript/jscomp/InlineFunctions.java b/com/google/javascript/jscomp/InlineFunctions.java
+index 2dac0f8..bd832da 100644
+--- a/com/google/javascript/jscomp/InlineFunctions.java
++++ b/com/google/javascript/jscomp/InlineFunctions.java
+@@ -22,6 +22,7 @@ import static com.google.common.base.Predicates.alwaysTrue;
+ 
+ import com.google.common.base.Preconditions;
+ import com.google.common.base.Predicate;
++import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableMap;
+ import com.google.common.collect.ImmutableSet;
+ import com.google.javascript.jscomp.CompilerOptions.Reach;
+@@ -67,8 +68,8 @@ class InlineFunctions implements CompilerPass {
+   // uniquely named variables. There's currently a stopgap scope-check
+   // to ensure that this doesn't produce invalid code. But in the long run,
+   // this needs a major refactor.
+-  private final Map<String, FunctionState> fns = new LinkedHashMap<>();
+-  private final Map<Node, String> anonFns = new LinkedHashMap<>();
++  private final LinkedHashMap<String, FunctionState> fns = new LinkedHashMap<>();
++  private final LinkedHashMap<Node, String> anonFns = new LinkedHashMap<>();
+ 
+   private final AbstractCompiler compiler;
+ 
+@@ -125,7 +126,7 @@ class InlineFunctions implements CompilerPass {
+     if (fns.isEmpty()) {
+       return; // Nothing left to do.
+     }
+-    NodeTraversal.traverse(compiler, root, new FindCandidatesReferences(fns, anonFns));
++    NodeTraversal.traverse(compiler, root, new FindCandidatesReferences());
+     trimCandidatesNotMeetingMinimumRequirements();
+     if (fns.isEmpty()) {
+       return; // Nothing left to do.
+@@ -148,7 +149,7 @@ class InlineFunctions implements CompilerPass {
+     }
+     resolveInlineConflicts();
+     decomposeExpressions();
+-    NodeTraversal.traverse(compiler, root, new CallVisitor(fns, anonFns, new Inline(injector)));
++    NodeTraversal.traverse(compiler, root, new CallVisitor(this, new Inline(injector)));
+ 
+     removeInlinedFunctions();
+   }
+@@ -421,15 +422,10 @@ class InlineFunctions implements CompilerPass {
+   private static class CallVisitor extends AbstractPostOrderCallback {
+ 
+     CallVisitorCallback callback;
+-    private final Map<String, FunctionState> functionMap;
+-    private final Map<Node, String> anonFunctionMap;
+-
+-    CallVisitor(
+-        Map<String, FunctionState> fns,
+-        Map<Node, String> anonFns,
+-        @Nullable CallVisitorCallback callback) {
+-      this.functionMap = fns;
+-      this.anonFunctionMap = anonFns;
++    final InlineFunctions owner;
++
++    CallVisitor(InlineFunctions owner, @Nullable CallVisitorCallback callback) {
++      this.owner = owner;
+       this.callback = callback;
+     }
+ 
+@@ -444,19 +440,19 @@ class InlineFunctions implements CompilerPass {
+           if (child.isName()) {
+             name = child.getString();
+           } else if (child.isFunction()) {
+-            name = anonFunctionMap.get(child);
++            name = owner.anonFns.get(child);
+           } else if (NodeUtil.isFunctionObjectCall(n)) {
+             checkState(NodeUtil.isNormalOrOptChainGet(child));
+             Node fnIdentifyingNode = child.getFirstChild();
+             if (fnIdentifyingNode.isName()) {
+               name = fnIdentifyingNode.getString();
+             } else if (fnIdentifyingNode.isFunction()) {
+-              name = anonFunctionMap.get(fnIdentifyingNode);
++              name = owner.anonFns.get(fnIdentifyingNode);
+             }
+           }
+ 
+           if (name != null) {
+-            FunctionState functionState = functionMap.get(name);
++            FunctionState functionState = owner.fns.get(name);
+ 
+             // Only visit call-sites for functions that can be inlined.
+             if (functionState != null) {
+@@ -510,8 +506,8 @@ class InlineFunctions implements CompilerPass {
+ 
+   /** Find references to functions that are inlinable. */
+   private class FindCandidatesReferences extends CallVisitor implements CallVisitorCallback {
+-    FindCandidatesReferences(Map<String, FunctionState> fns, Map<Node, String> anonFns) {
+-      super(fns, anonFns, null);
++    FindCandidatesReferences() {
++      super(InlineFunctions.this, null);
+       this.callback = this;
+     }
+ 
+@@ -601,7 +597,7 @@ class InlineFunctions implements CompilerPass {
+ 
+       // Other refs to a function name remove its candidacy for inlining
+       String name = n.getString();
+-      FunctionState functionState = fns.get(name);
++      FunctionState functionState = owner.fns.get(name);
+       if (functionState == null) {
+         return;
+       }
+@@ -683,31 +679,50 @@ class InlineFunctions implements CompilerPass {
+ 
+   /** Remove entries that aren't a valid inline candidates, from the list of encountered names. */
+   private void trimCandidatesNotMeetingMinimumRequirements() {
+-    Iterator<Entry<String, FunctionState>> i;
+-    for (i = fns.entrySet().iterator(); i.hasNext(); ) {
+-      FunctionState functionState = i.next().getValue();
++    ArrayList<String> toRemove = null;
++    for (Entry<String, FunctionState> entry : fns.entrySet()) {
++      FunctionState functionState = entry.getValue();
+       if (!functionState.hasExistingFunctionDefinition() || !functionState.canInline()) {
+-        i.remove();
++        if (toRemove == null) {
++          toRemove = new ArrayList<>();
++        }
++        toRemove.add(entry.getKey());
++      }
++    }
++    if (toRemove != null) {
++      for (int i = 0, size = toRemove.size(); i < size; i++) {
++        fns.remove(toRemove.get(i));
+       }
+     }
+   }
+ 
+   /** Remove entries from the list of candidates that can't be inlined. */
+   private void trimCandidatesUsingOnCost() {
+-    Iterator<Entry<String, FunctionState>> i;
+-    for (i = fns.entrySet().iterator(); i.hasNext(); ) {
+-      FunctionState functionState = i.next().getValue();
++    ArrayList<String> toRemove = null;
++    for (Entry<String, FunctionState> entry : fns.entrySet()) {
++      FunctionState functionState = entry.getValue();
+       if (functionState.hasReferences()) {
+         // Only inline function if it decreases the code size.
+         boolean lowersCost = minimizeCost(functionState);
+         if (!lowersCost) {
+           // It shouldn't be inlined; remove it from the list.
+-          i.remove();
++          if (toRemove == null) {
++            toRemove = new ArrayList<>();
++          }
++          toRemove.add(entry.getKey());
+         }
+       } else if (!functionState.canRemove()) {
+         // Don't bother tracking functions without references that can't be
+         // removed.
+-        i.remove();
++        if (toRemove == null) {
++          toRemove = new ArrayList<>();
++        }
++        toRemove.add(entry.getKey());
++      }
++    }
++    if (toRemove != null) {
++      for (int i = 0, size = toRemove.size(); i < size; i++) {
++        fns.remove(toRemove.get(i));
+       }
+     }
+   }
+@@ -900,7 +915,7 @@ class InlineFunctions implements CompilerPass {
+     private boolean inlineDirectly = false;
+     private boolean referencesThis = false;
+     private boolean hasInnerClosures = false;
+-    private @Nullable Map<Node, Reference> references = null;
++    private @Nullable LinkedHashMap<Node, Reference> references = null;
+     private @Nullable JSChunk chunk = null;
+     private @Nullable Set<String> namesToAlias = null;
+ 
+@@ -932,17 +947,30 @@ class InlineFunctions implements CompilerPass {
+     }
+ 
+     void removeBlockInliningReferences() {
+-      Iterator<Entry<Node, Reference>> i;
+-      for (i = getReferencesInternal().entrySet().iterator(); i.hasNext(); ) {
+-        Entry<Node, Reference> entry = i.next();
++      if (references == null) {
++        return;
++      }
++      ArrayList<Node> toRemove = null;
++      for (Entry<Node, Reference> entry : references.entrySet()) {
+         if (entry.getValue().mode == InliningMode.BLOCK) {
+-          i.remove();
++          if (toRemove == null) {
++            toRemove = new ArrayList<>();
++          }
++          toRemove.add(entry.getKey());
++        }
++      }
++      if (toRemove != null) {
++        for (int i = 0, size = toRemove.size(); i < size; i++) {
++          references.remove(toRemove.get(i));
+         }
+       }
+     }
+ 
+     boolean hasBlockInliningReferences() {
+-      for (Reference r : getReferencesInternal().values()) {
++      if (references == null) {
++        return false;
++      }
++      for (Reference r : references.values()) {
+         if (r.mode == InliningMode.BLOCK) {
+           return true;
+         }
+@@ -1060,13 +1088,6 @@ class InlineFunctions implements CompilerPass {
+       return (references != null && !references.isEmpty());
+     }
+ 
+-    private Map<Node, Reference> getReferencesInternal() {
+-      if (references == null) {
+-        return ImmutableMap.of();
+-      }
+-      return references;
+-    }
+-
+     void addReference(Reference ref) {
+       if (references == null) {
+         references = new LinkedHashMap<>();
+@@ -1075,11 +1096,17 @@ class InlineFunctions implements CompilerPass {
+     }
+ 
+     Collection<Reference> getReferences() {
+-      return getReferencesInternal().values();
++      if (references == null) {
++        return ImmutableList.of();
++      }
++      return references.values();
+     }
+ 
+     Reference getReference(Node n) {
+-      return getReferencesInternal().get(n);
++      if (references == null) {
++        return null;
++      }
++      return references.get(n);
+     }
+ 
+     ImmutableSet<String> getNamesToAlias() {
+diff --git a/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java b/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
+index 69f2279..5a4275f 100644
+--- a/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
++++ b/com/google/javascript/jscomp/MakeDeclaredNamesUnique.java
+@@ -681,15 +681,39 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+    * @see Normalize
+    */
+   static class ContextualRenamer implements Renamer {
++    private static final class NameUsage {
++      private final LinkedHashMap<String, Integer> counts = new LinkedHashMap<>();
++
++      boolean contains(String name) {
++        return counts.containsKey(name);
++      }
++
++      void reserve(String name) {
++        counts.putIfAbsent(name, 1);
++      }
++
++      int addOne(String name) {
++        Integer prev = counts.get(name);
++        int old = prev != null ? prev : 0;
++        counts.put(name, old + 1);
++        return old;
++      }
++
++      @Override
++      public String toString() {
++        return counts.toString();
++      }
++    }
++
+     private final @Nullable Node scopeRoot;
+ 
+-    // This multiset is shared between this ContextualRenamer and its parent (and its parent's
++    // This counter map is shared between this ContextualRenamer and its parent (and its parent's
+     // parent, etc.) because it tracks counts of variables across the entire JS program.
+-    private final Multiset<String> nameUsage;
++    private final NameUsage nameUsage;
+ 
+     // By contrast, this is a different map for each ContextualRenamer because it's just keeping
+     // track of the names used by this renamer.
+-    private final Map<String, String> declarations = new LinkedHashMap<>();
++    private final LinkedHashMap<String, String> declarations = new LinkedHashMap<>();
+     private final boolean global;
+ 
+     private final Renamer hoistRenamer;
+@@ -709,14 +733,14 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+     ContextualRenamer() {
+       scopeRoot = null;
+       global = true;
+-      nameUsage = HashMultiset.create();
++      nameUsage = new NameUsage();
+ 
+       hoistRenamer = this;
+     }
+ 
+     /** Constructor for child scopes. */
+     private ContextualRenamer(
+-        Node scopeRoot, Multiset<String> nameUsage, boolean hoistingTargetScope, Renamer parent) {
++        Node scopeRoot, NameUsage nameUsage, boolean hoistingTargetScope, Renamer parent) {
+       checkState(NodeUtil.createsScope(scopeRoot), scopeRoot);
+ 
+       if (scopeRoot.isFunction()) {
+@@ -797,11 +821,11 @@ class MakeDeclaredNamesUnique extends NodeTraversal.AbstractScopedCallback {
+     }
+ 
+     private void reserveName(String name) {
+-      nameUsage.setCount(name, 0, 1);
++      nameUsage.reserve(name);
+     }
+ 
+     private int incrementNameCount(String name) {
+-      return nameUsage.add(name, 1);
++      return nameUsage.addOne(name);
+     }
+ 
+     @Override
+diff --git a/com/google/javascript/jscomp/RemoveUnusedCode.java b/com/google/javascript/jscomp/RemoveUnusedCode.java
+index 0549dbf..75fbf62 100644
+--- a/com/google/javascript/jscomp/RemoveUnusedCode.java
++++ b/com/google/javascript/jscomp/RemoveUnusedCode.java
+@@ -115,7 +115,8 @@ class RemoveUnusedCode implements CompilerPass {
+       new LinkedHashSet<>(IMPLICITLY_USED_PROPERTIES);
+ 
+   /** Stores Removable objects for each property name that is currently considered removable. */
+-  private final Multimap<String, Removable> removablesForPropertyNames = HashMultimap.create();
++  private final LinkedHashMap<String, LinkedHashSet<Removable>> removablesForPropertyNames =
++      new LinkedHashMap<>();
+ 
+   /** Single value to use for all vars for which we cannot remove anything at all. */
+   private final VarInfo canonicalUnremovableVarInfo;
+@@ -403,11 +404,13 @@ class RemoveUnusedCode implements CompilerPass {
+   }
+ 
+   private void removeIndependentlyRemovableProperties() {
+-    for (String propName : removablesForPropertyNames.keySet()) {
++    for (Entry<String, LinkedHashSet<Removable>> entry :
++        removablesForPropertyNames.entrySet()) {
++      String propName = entry.getKey();
+       if (removalLog.isLogging()) {
+         removalLog.log(RemovalLogRecord.forProperty(propName));
+       }
+-      for (Removable removable : removablesForPropertyNames.get(propName)) {
++      for (Removable removable : entry.getValue()) {
+         removable.remove(compiler);
+       }
+     }
+@@ -1426,8 +1429,11 @@ class RemoveUnusedCode implements CompilerPass {
+     if (pinnedPropertyNames.add(propertyName)) {
+       // Continue traversal of all of the property name's values and no longer consider them for
+       // removal.
+-      for (Removable removable : removablesForPropertyNames.removeAll(propertyName)) {
+-        removable.applyContinuations();
++      LinkedHashSet<Removable> removed = removablesForPropertyNames.remove(propertyName);
++      if (removed != null) {
++        for (Removable removable : removed) {
++          removable.applyContinuations();
++        }
+       }
+     }
+   }
+@@ -1442,7 +1448,12 @@ class RemoveUnusedCode implements CompilerPass {
+         removable.applyContinuations();
+       } else if (isIndependentlyRemovable(removable)) {
+         // Store for possible removal later.
+-        removablesForPropertyNames.put(propertyName, removable);
++        LinkedHashSet<Removable> set = removablesForPropertyNames.get(propertyName);
++        if (set == null) {
++          set = new LinkedHashSet<>();
++          removablesForPropertyNames.put(propertyName, set);
++        }
++        set.add(removable);
+       } else {
+         removable.applyContinuations();
+         // This assignment counts as a reference, since we won't be removing it.
+diff --git a/com/google/javascript/jscomp/Timeline.java b/com/google/javascript/jscomp/Timeline.java
+index 574e889..7cac258 100644
+--- a/com/google/javascript/jscomp/Timeline.java
++++ b/com/google/javascript/jscomp/Timeline.java
+@@ -99,13 +99,12 @@ final class Timeline<T> {
+ 
+   @SuppressWarnings("unchecked")
+   @Nullable List<T> getSince(String timeName) {
+-    List<T> values = new ArrayList<>();
+-
+     Event<?> firstEvent = eventsByTime.get(new Time(timeName));
+     if (firstEvent == null) {
+       return null;
+     }
+ 
++    ArrayList<T> values = new ArrayList<>();
+     for (Event<?> event = firstEvent; event != null; event = event.nextEvent) {
+       // If the event contains a user provided value, accumulate it.
+       if (!(event.value instanceof Time)) {
+diff --git a/com/google/javascript/jscomp/disambiguate/ColorFindPropertyReferences.java b/com/google/javascript/jscomp/disambiguate/ColorFindPropertyReferences.java
+index eab3143..f6cd044 100644
+--- a/com/google/javascript/jscomp/disambiguate/ColorFindPropertyReferences.java
++++ b/com/google/javascript/jscomp/disambiguate/ColorFindPropertyReferences.java
+@@ -211,7 +211,7 @@ final class ColorFindPropertyReferences extends AbstractPostOrderCallback {
+     // Make sure there's a cluster for this name/type combination.
+     prop.getClusters().add(flatOwner);
+     // Record the site to rename once clusters are found. If it's an extern, we won't rename anyway.
+-    prop.getUseSites().put(site, flatOwner);
++    prop.putUseSite(site, flatOwner);
+ 
+     // Track the cluster of types whose properties must keep their original name after
+     // disambiguation. Note: an "enum type" is the type of an enum object like "{STOP: 0, GO: 1}".
+diff --git a/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java b/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java
+index 3e11a25..469cd9f 100644
+--- a/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java
++++ b/com/google/javascript/jscomp/disambiguate/DisambiguateProperties.java
+@@ -345,10 +345,11 @@ public final class DisambiguateProperties implements CompilerPass {
+       if (prop.isInvalidated()) {
+         this.refs = ImmutableSortedSet.of();
+       } else {
+-        this.refs =
+-            prop.getUseSites().entrySet().stream()
+-                .map((e) -> new PropertyReferenceJson(e.getKey(), e.getValue()))
+-                .collect(toImmutableSortedSet(naturalOrder()));
++        ImmutableSortedSet.Builder<PropertyReferenceJson> builder =
++            ImmutableSortedSet.naturalOrder();
++        prop.forEachUseSite(
++            (site, owner) -> builder.add(new PropertyReferenceJson(site, owner)));
++        this.refs = builder.build();
+       }
+     }
+ 
+diff --git a/com/google/javascript/jscomp/disambiguate/PropertyClustering.java b/com/google/javascript/jscomp/disambiguate/PropertyClustering.java
+index 16376f2..d380ec1 100644
+--- a/com/google/javascript/jscomp/disambiguate/PropertyClustering.java
++++ b/com/google/javascript/jscomp/disambiguate/PropertyClustering.java
+@@ -24,6 +24,7 @@ import com.google.errorprone.annotations.DoNotCall;
+ import com.google.javascript.jscomp.graph.StandardUnionFind;
+ import com.google.javascript.rhino.Node;
+ import java.util.LinkedHashMap;
++import java.util.function.BiConsumer;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -59,8 +60,12 @@ final class PropertyClustering {
+    * <p>This index allows property references to be efficiently renamed once all clusters have been
+    * found. It prevents us from re-traversing the code.
+    */
+-  LinkedHashMap<Node, ColorGraphNode> getUseSites() {
+-    return this.useSites;
++  void putUseSite(Node site, ColorGraphNode owner) {
++    this.useSites.put(site, owner);
++  }
++
++  void forEachUseSite(BiConsumer<Node, ColorGraphNode> consumer) {
++    this.useSites.forEach(consumer);
+   }
+ 
+   StandardUnionFind<ColorGraphNode> getClusters() {
+diff --git a/com/google/javascript/jscomp/disambiguate/UseSiteRenamer.java b/com/google/javascript/jscomp/disambiguate/UseSiteRenamer.java
+index 36dcf73..96cd67b 100644
+--- a/com/google/javascript/jscomp/disambiguate/UseSiteRenamer.java
++++ b/com/google/javascript/jscomp/disambiguate/UseSiteRenamer.java
+@@ -65,15 +65,15 @@ final class UseSiteRenamer {
+     }
+ 
+     this.renamingIndex.putAll(prop.getName(), clusterNames.values());
+-    for (Map.Entry<Node, ColorGraphNode> usage : prop.getUseSites().entrySet()) {
+-      Node site = usage.getKey();
+-      ColorGraphNode flatRep = prop.getClusters().find(usage.getValue());
+-      String newName = clusterNames.get(flatRep);
+-      if (!Objects.equals(newName, site.getString())) {
+-        site.setString(newName);
+-        this.mutationCb.accept(site);
+-      }
+-    }
++    prop.forEachUseSite(
++        (Node site, ColorGraphNode owner) -> {
++          ColorGraphNode flatRep = prop.getClusters().find(owner);
++          String newName = clusterNames.get(flatRep);
++          if (!Objects.equals(newName, site.getString())) {
++            site.setString(newName);
++            this.mutationCb.accept(site);
++          }
++        });
+     return RenameUsesResult.DISAMBIGUATED;
+   }
+ 
+diff --git a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+index 373ab97..118ab51 100644
+--- a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+@@ -326,9 +326,10 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+     checkNotNull(dNode);
+     LinkedDiGraphNode<N, E> lNode = (LinkedDiGraphNode<N, E>) dNode;
+     if (lNode.inEdges == null) {
+-      return lNode.firstInEdge == null
+-          ? ImmutableList.of()
+-          : lNode.firstInEdge.getSource().asSingletonList();
++      if (lNode.firstInEdge != null) {
++        return lNode.firstInEdge.getSource().asSingletonList();
++      }
++      return ImmutableList.of();
+     }
+     int size = lNode.inEdges.size();
+     ArrayList<LinkedDiGraphNode<N, E>> nodeList = new ArrayList<>(size);
+@@ -348,9 +349,10 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+     checkNotNull(dNode);
+     LinkedDiGraphNode<N, E> lNode = (LinkedDiGraphNode<N, E>) dNode;
+     if (lNode.outEdges == null) {
+-      return lNode.firstOutEdge == null
+-          ? ImmutableList.of()
+-          : lNode.firstOutEdge.getDestination().asSingletonList();
++      if (lNode.firstOutEdge != null) {
++        return lNode.firstOutEdge.getDestination().asSingletonList();
++      }
++      return ImmutableList.of();
+     }
+     int size = lNode.outEdges.size();
+     ArrayList<LinkedDiGraphNode<N, E>> nodeList = new ArrayList<>(size);
+diff --git a/com/google/javascript/jscomp/serialization/StringPool.java b/com/google/javascript/jscomp/serialization/StringPool.java
+index c0e9839..98a2c81 100644
+--- a/com/google/javascript/jscomp/serialization/StringPool.java
++++ b/com/google/javascript/jscomp/serialization/StringPool.java
+@@ -42,10 +42,10 @@ public final class StringPool {
+   public static StringPool fromProto(StringPoolProto proto) {
+     Wtf8.Decoder decoder = Wtf8.decoder(proto.getMaxLength());
+ 
+-    ArrayList<String> pool = new ArrayList<>();
+-    pool.add("");
+     var stringsList = proto.getStringsList();
+-    for (int i = 0; i < stringsList.size(); i++) {
++    ArrayList<String> pool = new ArrayList<>(stringsList.size() + 1);
++    pool.add("");
++    for (int i = 0, size = stringsList.size(); i < size; i++) {
+       ByteString s = stringsList.get(i);
+       pool.add(decoder.decode(s));
+     }

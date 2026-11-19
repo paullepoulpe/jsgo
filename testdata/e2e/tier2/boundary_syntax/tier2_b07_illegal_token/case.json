@@ -1,0 +1,21 @@
+{
+  "id": "tier2_b07_illegal_token",
+  "tier": 2,
+  "feature": "boundary_syntax",
+  "name": "Illegal character token syntax error",
+  "description": "Fails compilation on illegal stray characters in source",
+  "args": [
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var a = 1; @#$% invalid; var b = 2;"
+  },
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "in.js:1:11: ERROR - [JSC_PARSE_ERROR] Parse error. Character '@' (U+0040) is not a valid identifier start char\n  1| var a = 1; @#$% invalid; var b = 2;\n                ^\n\n1 error(s), 0 warning(s)\n",
+    "output_files": {}
+  }
+}

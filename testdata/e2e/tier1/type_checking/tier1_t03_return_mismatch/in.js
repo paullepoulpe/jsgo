@@ -1,0 +1,1 @@
+/** @return {number} */ function getCount() { return 'not_number'; }

@@ -1,0 +1,23 @@
+{
+  "id": "tier2_b17_deep_parentheses",
+  "tier": 2,
+  "feature": "boundary_deep_ast",
+  "name": "Deeply nested parentheses",
+  "description": "Compiles expression with 250 levels of nested parentheses without stack overflow",
+  "args": [
+    "--compilation_level",
+    "SIMPLE",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var deepParen = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((42)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))); window['p'] = deepParen;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var deepParen=42;window.p=deepParen;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

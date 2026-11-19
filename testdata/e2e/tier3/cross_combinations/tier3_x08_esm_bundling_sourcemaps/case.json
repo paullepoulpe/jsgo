@@ -1,0 +1,31 @@
+{
+  "id": "tier3_x08_esm_bundling_sourcemaps",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "ES module bundling with source maps",
+  "description": "Bundles multiple ES module files into single bundle with source map generated",
+  "args": [
+    "--create_source_map",
+    "bundle.js.map",
+    "--js_output_file",
+    "bundle.js",
+    "--js",
+    "math.js",
+    "--js",
+    "main.js"
+  ],
+  "stdin": "",
+  "files": {
+    "math.js": "export function add(a, b) { return a + b; }",
+    "main.js": "import { add } from './math.js'; window['res'] = add(3, 4);"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": "",
+    "output_files": {
+      "bundle.js.map": "{\n\"version\":3,\n\"file\":\"bundle.js\",\n\"lineCount\":1,\n\"mappings\":\"AAAOA,QAASA,iBAAG,CAACC,CAAD,CAAIC,CAAJ,CAAO,CAAE,MAAOD,EAAP,CAAWC,CAAb,CAA1B,IAAAC,YAAA,EAAgBH,YAAAA,CAAAA,GAAAA,CAAAA,gB,CCAiBI,MAAA,CAAA,GAAA,CAAgBJ,gBAAA,CAAI,CAAJ,CAAO,CAAP,CAAjD,KAAAG,YAAA;\",\n\"sources\":[\"math.js\",\"main.js\"],\n\"names\":[\"add\",\"a\",\"b\",\"$jscomp$tmp$exports$module$name\",\"window\"]\n}\n",
+      "bundle.js": "function add$$module$math(a,b){return a+b}var module$math={};module$math.add=add$$module$math;window.res=add$$module$math(3,4);var module$main={};\n"
+    }
+  }
+}

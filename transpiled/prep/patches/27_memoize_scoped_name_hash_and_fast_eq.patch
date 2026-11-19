@@ -1,0 +1,55 @@
+diff --git a/com/google/javascript/jscomp/ScopedName.java b/com/google/javascript/jscomp/ScopedName.java
+--- a/com/google/javascript/jscomp/ScopedName.java
++++ b/com/google/javascript/jscomp/ScopedName.java
+@@ -30,6 +30,8 @@
+  * stored in sets.
+  */
+ abstract class ScopedName {
++
++  private int cachedHashCode;
+ 
+   /** Returns the name as a string. */
+   abstract String getName();
+@@ -64,23 +66,31 @@
+ 
+   @Override
+   public final boolean equals(Object other) {
++    if (this == other) {
++      return true;
++    }
+     if (!(other instanceof ScopedName scopedName)) {
+       return false;
+     }
+-    return getName().equals(scopedName.getName())
+-        && getScopeRoot().equals(scopedName.getScopeRoot());
++    return getScopeRoot() == scopedName.getScopeRoot()
++        && getName().equals(scopedName.getName());
+   }
+ 
+   @Override
+   public final int hashCode() {
+-    // NOTE: here we avoid Object.hash because of this function is called
+-    // frequently enough that the overhead of implicit array creation of
+-    // a varargs function is enough that we want to avoid it.
+-    String name = getName();
+-    Node root = getScopeRoot();
+-    int result = 1;
+-    result = 31 * result + name.hashCode();
+-    result = 31 * result + root.hashCode();
+-    return result;
++    int h = this.cachedHashCode;
++    if (h == 0) {
++      // NOTE: here we avoid Object.hash because of this function is called
++      // frequently enough that the overhead of implicit array creation of
++      // a varargs function is enough that we want to avoid it.
++      String name = getName();
++      Node root = getScopeRoot();
++      int result = 1;
++      result = 31 * result + name.hashCode();
++      result = 31 * result + root.hashCode();
++      h = result;
++      this.cachedHashCode = h;
++    }
++    return h;
+   }
+ }

@@ -1,0 +1,27 @@
+{
+  "id": "tier4_r13_cjs_rxjs",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "CommonJS RxJS observable pattern scenario",
+  "description": "CommonJS observable subscription pattern under SIMPLE",
+  "args": [
+    "--process_common_js_modules",
+    "--compilation_level",
+    "SIMPLE",
+    "--js",
+    "observable.js",
+    "--js",
+    "app.js"
+  ],
+  "stdin": "",
+  "files": {
+    "observable.js": "function Observable(sub) { this.sub = sub; } Observable.prototype.subscribe = function(fn) { this.sub(fn); }; module.exports = Observable;",
+    "app.js": "var Obs = require('./observable.js'); new Obs(function(next) { next(100); }).subscribe(function(v) { window['out'] = v; });"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var module$observable={default:function(a){this.sub=a}};module$observable.default.prototype.subscribe=function(a){this.sub(a)};var Obs=module$observable.default;(new module$observable.default(function(a){a(100)})).subscribe(function(a){window.out=a});\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

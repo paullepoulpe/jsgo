@@ -1,0 +1,1 @@
+var pattern = /[\u00A0-\uD7FF\uF900-\uFDCF]/gu; window['match'] = pattern.test('test');

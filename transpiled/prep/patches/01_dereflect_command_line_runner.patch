@@ -1,0 +1,94 @@
+diff --git aa/com/google/javascript/jscomp/CommandLineRunner.java bb/com/google/javascript/jscomp/CommandLineRunner.java
+index 3944b6dc..06ee8919 100644
+--- aa/com/google/javascript/jscomp/CommandLineRunner.java
++++ bb/com/google/javascript/jscomp/CommandLineRunner.java
+@@ -960,6 +960,35 @@ public class CommandLineRunner extends AbstractCommandLineRunner<Compiler, Compi
+     @Argument private List<String> arguments = new ArrayList<>();
+     private final CmdLineParser parser;
+ 
++    public boolean setOption(String name, String value) throws CmdLineException {
++      switch (name) {
++        case "--js":
++          this.js.add(value);
++          return true;
++        case "--compilation_level":
++          this.compilationLevel = value;
++          return true;
++        case "--warning_level":
++          try {
++            this.warningLevel = WarningLevel.valueOf(value);
++          } catch (IllegalArgumentException e) {
++            throw new CmdLineException(parser, e);
++          }
++          return true;
++        case "--language_in":
++          this.languageIn = value;
++          return true;
++        case "--language_out":
++          this.languageOut = value;
++          return true;
++        case "--js_output_file":
++          this.jsOutputFile = value;
++          return true;
++        default:
++          return false;
++      }
++    }
++
+     Flags() {
+       parser = new CmdLineParser(this);
+     }
+@@ -1312,7 +1341,7 @@ public class CommandLineRunner extends AbstractCommandLineRunner<Compiler, Compi
+       private static final ImmutableSet<String> TRUES = ImmutableSet.of("true", "on", "yes", "1");
+       private static final ImmutableSet<String> FALSES = ImmutableSet.of("false", "off", "no", "0");
+ 
+-      // Handlers are used reflectively by args4j
++      // Handlers are used directly without reflection
+       @Keep
+       public BooleanOptionHandler(
+           CmdLineParser parser, OptionDef option, Setter<? super Boolean> setter) {
+@@ -1354,7 +1383,7 @@ public class CommandLineRunner extends AbstractCommandLineRunner<Compiler, Compi
+     // Our own parser for warning guards that preserves the original order
+     // of the flags.
+     public static class WarningGuardErrorOptionHandler extends StringOptionHandler {
+-      // Handlers are used reflectively by args4j
++      // Handlers are used directly without reflection
+       @Keep
+       public WarningGuardErrorOptionHandler(
+           CmdLineParser parser, OptionDef option, Setter<? super String> setter) {
+@@ -1363,7 +1392,7 @@ public class CommandLineRunner extends AbstractCommandLineRunner<Compiler, Compi
+     }
+ 
+     public static class WarningGuardWarningOptionHandler extends StringOptionHandler {
+-      // Handlers are used reflectively by args4j
++      // Handlers are used directly without reflection
+       @Keep
+       public WarningGuardWarningOptionHandler(
+           CmdLineParser parser, OptionDef option, Setter<? super String> setter) {
+@@ -1372,7 +1401,7 @@ public class CommandLineRunner extends AbstractCommandLineRunner<Compiler, Compi
+     }
+ 
+     public static class WarningGuardOffOptionHandler extends StringOptionHandler {
+-      // Handlers are used reflectively by args4j
++      // Handlers are used directly without reflection
+       @Keep
+       public WarningGuardOffOptionHandler(
+           CmdLineParser parser, OptionDef option, Setter<? super String> setter) {
+@@ -1381,7 +1410,7 @@ public class CommandLineRunner extends AbstractCommandLineRunner<Compiler, Compi
+     }
+ 
+     public static class JsOptionHandler extends StringOptionHandler {
+-      // Handlers are used reflectively by args4j
++      // Handlers are used directly without reflection
+       @Keep
+       public JsOptionHandler(
+           CmdLineParser parser, OptionDef option, Setter<? super String> setter) {
+@@ -1390,7 +1419,7 @@ public class CommandLineRunner extends AbstractCommandLineRunner<Compiler, Compi
+     }
+ 
+     public static class JsZipOptionHandler extends StringOptionHandler {
+-      // Handlers are used reflectively by args4j
++      // Handlers are used directly without reflection
+       @Keep
+       public JsZipOptionHandler(
+           CmdLineParser parser, OptionDef option, Setter<? super String> setter) {

@@ -1,0 +1,1 @@
+function State(initial) { this.currentVal = initial; } State.prototype.update = function(v) { this.currentVal += v; }; window['s'] = new State(10);

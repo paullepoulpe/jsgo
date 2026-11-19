@@ -1,0 +1,1 @@
+/** @define {boolean} */ var ENABLE_METRICS = false; window['metrics'] = ENABLE_METRICS;

@@ -1,0 +1,25 @@
+{
+  "id": "tier1_l04_es5_strict",
+  "tier": 1,
+  "feature": "language_in_out",
+  "name": "ES5 strict language mode",
+  "description": "Verifies ECMASCRIPT5_STRICT mode compilation with use strict preservation",
+  "args": [
+    "--language_in",
+    "ECMASCRIPT5_STRICT",
+    "--language_out",
+    "ECMASCRIPT5",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "'use strict'; var x = 10; function getX() { return x; }"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var x=10;function getX(){return x};\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

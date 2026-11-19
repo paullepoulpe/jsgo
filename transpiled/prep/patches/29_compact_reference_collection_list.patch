@@ -1,0 +1,40 @@
+diff --git a/com/google/javascript/jscomp/ReferenceCollection.java b/com/google/javascript/jscomp/ReferenceCollection.java
+--- a/com/google/javascript/jscomp/ReferenceCollection.java
++++ b/com/google/javascript/jscomp/ReferenceCollection.java
+@@ -21,6 +21,7 @@
+ 
+ import java.io.Serializable;
+ import java.util.ArrayList;
++import java.util.Collections;
+ import java.util.Iterator;
+ import java.util.List;
+ import java.util.Objects;
+@@ -32,7 +33,7 @@
+  */
+ public final class ReferenceCollection implements Iterable<Reference>, Serializable {
+ 
+-  List<Reference> references = new ArrayList<>();
++  List<Reference> references = Collections.emptyList();
+ 
+   @Override
+   public Iterator<Reference> iterator() {
+@@ -40,7 +41,18 @@
+   }
+ 
+   void add(Reference reference) {
+-    references.add(reference);
++    int size = references.size();
++    if (size == 0) {
++      references = Collections.singletonList(reference);
++    } else if (size == 1) {
++      Reference first = references.get(0);
++      ArrayList<Reference> list = new ArrayList<>(4);
++      list.add(first);
++      list.add(reference);
++      references = list;
++    } else {
++      references.add(reference);
++    }
+   }
+ 
+   /**

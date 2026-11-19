@@ -1004,5 +1004,8 @@ func summarizeProjects(wd, javaDir, goDir string, jobs []*projJob) int {
 		fmt.Printf(" %s %d", c, counts[c])
 	}
 	fmt.Println()
+	if counts[clDiff] > 0 || counts[clPanic] > 0 || counts[clHang] > 0 || counts[clMissing] > 0 || counts[clGoMissing] > 0 {
+		return 1
+	}
 	return 0
 }

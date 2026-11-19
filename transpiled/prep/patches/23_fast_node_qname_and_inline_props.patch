@@ -1,0 +1,536 @@
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -264,7 +264,7 @@
+ 
+   /** Check whether node was inside original source-level parentheses. */
+   public final boolean getIsParenthesized() {
+-    return getBooleanProp(Prop.IS_PARENTHESIZED);
++    return (this.propFlags & PROP_FLAG_IS_PARENTHESIZED) != 0;
+   }
+ 
+   // TODO(sdh): Get rid of these by using accessor methods instead.
+@@ -625,11 +625,6 @@
+     }
+   }
+ 
+-  @SuppressWarnings("EnumOrdinal")
+-  private static int inlineBoolBitMask(Prop prop) {
+-    return INLINE_BOOL_MASKS[prop.ordinal()];
+-  }
+-
+   public Node(Token token) {
+     this.token = token;
+   }
+@@ -785,7 +780,7 @@
+   }
+ 
+   public final boolean getIsInClosureUnawareSubtree() {
+-    return this.getBooleanProp(Prop.IS_IN_CLOSURE_UNAWARE_SUBTREE);
++    return (this.propFlags & PROP_FLAG_IS_IN_CLOSURE_UNAWARE_SUBTREE) != 0;
+   }
+ 
+   /**
+@@ -1126,9 +1121,15 @@
+       }
+       return lookupColdProperty(prop);
+     }
+-    int mask = inlineBoolBitMask(prop);
++    int mask = INLINE_BOOL_MASKS[prop.ordinal()];
+     if (mask != 0) {
+       if ((this.propFlags & mask) != 0) {
++        if (this.propListHead != null) {
++          PropListItem cold = lookupColdProperty(prop);
++          if (cold != null) {
++            return cold;
++          }
++        }
+         return STATIC_INLINE_BOOL_ITEMS[Integer.numberOfTrailingZeros(mask)];
+       }
+       return lookupColdProperty(prop);
+@@ -1188,27 +1189,33 @@
+       violationMessageConsumer.accept("ROOT has properties");
+     }
+ 
+-    if ((flags & VALIDATED_INLINE_PROPS_MASK) != 0) {
+-      if ((flags & PROP_FLAG_IS_PARENTHESIZED) != 0 && !IR.mayBeExpression(this)) {
++    int inlineFlags = flags;
++    if (head != null && (inlineFlags & VALIDATED_INLINE_PROPS_MASK) != 0) {
++      for (PropListItem x = head; x != null; x = x.next) {
++        inlineFlags &= ~INLINE_BOOL_MASKS[x.propType];
++      }
++    }
++    if ((inlineFlags & VALIDATED_INLINE_PROPS_MASK) != 0) {
++      if ((inlineFlags & PROP_FLAG_IS_PARENTHESIZED) != 0 && !IR.mayBeExpression(this)) {
+         violationMessageConsumer.accept("non-expression is parenthesized");
+       }
+-      if ((flags & PROP_FLAG_ARROW_FN) != 0 && !isFunction()) {
++      if ((inlineFlags & PROP_FLAG_ARROW_FN) != 0 && !isFunction()) {
+         violationMessageConsumer.accept("invalid ARROW_FN prop");
+       }
+-      if ((flags & PROP_FLAG_ASYNC_FN) != 0 && !isFunction()) {
++      if ((inlineFlags & PROP_FLAG_ASYNC_FN) != 0 && !isFunction()) {
+         violationMessageConsumer.accept("invalid ASYNC_FN prop");
+       }
+-      if ((flags & PROP_FLAG_SYNTHETIC) != 0 && !isBlock()) {
++      if ((inlineFlags & PROP_FLAG_SYNTHETIC) != 0 && !isBlock()) {
+         violationMessageConsumer.accept("invalid SYNTHETIC prop");
+       }
+-      if ((flags & PROP_FLAG_COLOR_FROM_CAST) != 0 && getColor() == null) {
++      if ((inlineFlags & PROP_FLAG_COLOR_FROM_CAST) != 0 && getColor() == null) {
+         violationMessageConsumer.accept("COLOR_FROM_CAST with no Color");
+       }
+-      if ((flags & PROP_FLAG_START_OF_OPT_CHAIN) != 0
++      if ((inlineFlags & PROP_FLAG_START_OF_OPT_CHAIN) != 0
+           && !(isOptChainCall() || isOptChainGetElem() || isOptChainGetProp())) {
+         violationMessageConsumer.accept("START_OF_OPT_CHAIN on non-optional Node");
+       }
+-      if ((flags & CONST_VAR_BITS_MASK) != 0 && !(isName() || isImportStar())) {
++      if ((inlineFlags & CONST_VAR_BITS_MASK) != 0 && !(isName() || isImportStar())) {
+         violationMessageConsumer.accept("invalid CONST_VAR_FLAGS");
+       }
+     }
+@@ -1316,6 +1323,7 @@
+    *     #getImplements()}, {@link #getReflectedObject()}, etc.) instead.
+    */
+   @Deprecated
++  @SuppressWarnings("EnumOrdinal") // performance tuning
+   public final @Nullable Object getProp(Prop propType) {
+     if (propType == Prop.SOURCE_FILE) {
+       if (this.sourceFile != null) {
+@@ -1324,7 +1332,7 @@
+       PropListItem item = lookupColdProperty(propType);
+       return item == null ? null : item.getObjectValue();
+     }
+-    int mask = inlineBoolBitMask(propType);
++    int mask = INLINE_BOOL_MASKS[propType.ordinal()];
+     if (mask != 0) {
+       if ((this.propFlags & mask) != 0) {
+         throw new UnsupportedOperationException();
+@@ -1345,53 +1353,59 @@
+     return item.getObjectValue();
+   }
+ 
++  @SuppressWarnings("EnumOrdinal") // performance tuning
+   public final boolean getBooleanProp(Prop propType) {
+-    int mask = inlineBoolBitMask(propType);
++    int mask = INLINE_BOOL_MASKS[propType.ordinal()];
+     if (mask != 0) {
+-      if ((this.propFlags & mask) != 0) {
+-        return true;
+-      }
+-      if (this.propListHead == null) {
+-        return false;
+-      }
++      return (this.propFlags & mask) != 0;
+     }
+-    return getIntProp(propType) != 0;
++    return getColdBooleanProp(propType);
+   }
+ 
++  private boolean getColdBooleanProp(Prop propType) {
++    PropListItem item = lookupColdProperty(propType);
++    return item != null && item.getIntValue() != 0;
++  }
++
++  private int getColdIntProp(Prop propType) {
++    PropListItem item = lookupColdProperty(propType);
++    return item == null ? 0 : item.getIntValue();
++  }
++
+   /** Returns the integer value for the property, or 0 if the property is not defined. */
++  @SuppressWarnings("EnumOrdinal") // performance tuning
+   private int getIntProp(Prop propType) {
+-    int mask = inlineBoolBitMask(propType);
++    int mask = INLINE_BOOL_MASKS[propType.ordinal()];
+     if (mask != 0) {
+       if ((this.propFlags & mask) != 0) {
++        if (this.propListHead != null) {
++          PropListItem cold = lookupColdProperty(propType);
++          if (cold != null) {
++            return cold.getIntValue();
++          }
++        }
+         return 1;
+       }
+-      PropListItem item = lookupColdProperty(propType);
+-      return item == null ? 0 : item.getIntValue();
++      return getColdIntProp(propType);
+     }
+     if (propType == Prop.CONSTANT_VAR_FLAGS) {
+       int v = (this.propFlags >>> CONST_VAR_SHIFT) & CONST_VAR_MAX;
+       if (v != 0) {
+         return v;
+       }
+-      PropListItem item = lookupColdProperty(propType);
+-      return item == null ? 0 : item.getIntValue();
++      return getColdIntProp(propType);
+     }
+     if (propType == Prop.SIDE_EFFECT_FLAGS) {
+       int v = (this.propFlags >>> SIDE_EFFECT_SHIFT) & SIDE_EFFECT_MAX;
+       if (v != 0) {
+         return v;
+       }
+-      PropListItem item = lookupColdProperty(propType);
+-      return item == null ? 0 : item.getIntValue();
++      return getColdIntProp(propType);
+     }
+     if (propType == Prop.SOURCE_FILE && this.sourceFile != null) {
+       throw new UnsupportedOperationException();
+     }
+-    PropListItem item = lookupColdProperty(propType);
+-    if (item == null) {
+-      return 0;
+-    }
+-    return item.getIntValue();
++    return getColdIntProp(propType);
+   }
+ 
+   /**
+@@ -1420,7 +1434,7 @@
+       }
+       this.sourceFile = null;
+     } else {
+-      int mask = inlineBoolBitMask(prop);
++      int mask = INLINE_BOOL_MASKS[prop.ordinal()];
+       if (mask != 0) {
+         this.propFlags &= ~mask;
+       } else if (prop == Prop.CONSTANT_VAR_FLAGS) {
+@@ -1439,8 +1453,9 @@
+     this.propListHead = head;
+   }
+ 
++  @SuppressWarnings("EnumOrdinal") // performance tuning
+   public final void putBooleanProp(Prop propType, boolean value) {
+-    int mask = inlineBoolBitMask(propType);
++    int mask = INLINE_BOOL_MASKS[propType.ordinal()];
+     if (mask != 0) {
+       if (value) {
+         this.propFlags |= mask;
+@@ -1457,7 +1472,7 @@
+ 
+   @SuppressWarnings("EnumOrdinal") // performance tuning
+   public final void putIntProp(Prop prop, int value) {
+-    int mask = inlineBoolBitMask(prop);
++    int mask = INLINE_BOOL_MASKS[prop.ordinal()];
+     if (mask != 0) {
+       if (value == 0) {
+         this.propFlags &= ~mask;
+@@ -1466,14 +1481,13 @@
+         }
+         return;
+       }
++      this.propFlags |= mask;
+       if (value == 1) {
+-        this.propFlags |= mask;
+         if (this.propListHead != null) {
+           this.propListHead = rebuildListWithoutProp(this.propListHead, prop);
+         }
+         return;
+       }
+-      this.propFlags &= ~mask;
+     } else if (prop == Prop.CONSTANT_VAR_FLAGS) {
+       if ((value & ~CONST_VAR_MAX) == 0) {
+         this.propFlags = (this.propFlags & ~CONST_VAR_BITS_MASK) | (value << CONST_VAR_SHIFT);
+@@ -1505,11 +1519,12 @@
+     this.propListHead = head;
+   }
+ 
++  @SuppressWarnings("EnumOrdinal") // performance tuning
+   public final void removeProp(Prop prop) {
+     if (prop == Prop.SOURCE_FILE) {
+       this.sourceFile = null;
+     } else {
+-      int mask = inlineBoolBitMask(prop);
++      int mask = INLINE_BOOL_MASKS[prop.ordinal()];
+       if (mask != 0) {
+         this.propFlags &= ~mask;
+       } else if (prop == Prop.CONSTANT_VAR_FLAGS) {
+@@ -1652,12 +1667,19 @@
+         propListStrRepr.add(Prop.CONSTANT_VAR_FLAGS.name());
+       }
+       int boolBits = flags & (INLINE_BOOL_ALL_MASK & ~PROP_FLAG_IS_IN_CLOSURE_UNAWARE_SUBTREE);
++      if (this.propListHead != null && boolBits != 0) {
++        for (PropListItem x = this.propListHead; x != null; x = x.next) {
++          boolBits &= ~INLINE_BOOL_MASKS[x.propType];
++        }
++      }
+       while (boolBits != 0) {
+         int bit = Integer.numberOfTrailingZeros(boolBits);
+         boolBits &= ~(1 << bit);
+         propListStrRepr.add(INLINE_BIT_TO_PROP[bit].name());
+       }
+-      if ((flags & PROP_FLAG_IS_IN_CLOSURE_UNAWARE_SUBTREE) != 0) {
++      if ((flags & PROP_FLAG_IS_IN_CLOSURE_UNAWARE_SUBTREE) != 0
++          && (this.propListHead == null
++              || lookupColdProperty(Prop.IS_IN_CLOSURE_UNAWARE_SUBTREE) == null)) {
+         propListStrRepr.add(Prop.IS_IN_CLOSURE_UNAWARE_SUBTREE.name());
+       }
+     }
+@@ -1709,7 +1731,7 @@
+           if (prop == null) {
+             throw new IllegalStateException("Can not translate " + nodeProperty + " to AST Prop");
+           }
+-          int mask = inlineBoolBitMask(prop);
++          int mask = INLINE_BOOL_MASKS[prop.ordinal()];
+           if (mask != 0) {
+             this.propFlags |= mask;
+           } else {
+@@ -1831,7 +1853,7 @@
+    * Indicates that this node's color comes from a type assertion. Only set when colors are present.
+    */
+   public final boolean isColorFromTypeCast() {
+-    return getBooleanProp(Prop.COLOR_FROM_CAST);
++    return (this.propFlags & PROP_FLAG_COLOR_FROM_CAST) != 0;
+   }
+ 
+   // Gets all the property types, in sorted order.
+@@ -1843,6 +1865,11 @@
+       return new byte[0];
+     }
+     int inlineBoolBits = flags & INLINE_BOOL_ALL_MASK;
++    if (head != null && inlineBoolBits != 0) {
++      for (PropListItem x = head; x != null; x = x.next) {
++        inlineBoolBits &= ~INLINE_BOOL_MASKS[x.propType];
++      }
++    }
+     int count = Integer.bitCount(inlineBoolBits);
+     if (this.sourceFile != null) {
+       count++;
+@@ -2256,7 +2283,7 @@
+ 
+   /** Whether this node should be indexed by static analysis / code indexing tools. */
+   public final boolean isIndexable() {
+-    return !this.getBooleanProp(Prop.NON_INDEXABLE);
++    return (this.propFlags & PROP_FLAG_NON_INDEXABLE) == 0;
+   }
+ 
+   public final void makeNonIndexable() {
+@@ -3032,11 +3059,38 @@
+     return switch (token) {
+       case NAME -> {
+         String name = getString();
+-        yield name.isEmpty() ? null : name;
++        if (name.isEmpty()) {
++          yield null;
++        }
++        yield name;
+       }
+       case GETPROP -> {
+-        StringBuilder builder = getQualifiedNameForGetProp(0);
+-        yield builder != null ? builder.toString() : null;
++        String propName = getString();
++        Node leftNode = first;
++        if (!leftNode.isGetProp()) {
++          String left = leftNode.getQualifiedName();
++          if (left == null) {
++            yield null;
++          }
++          yield left + "." + propName;
++        }
++        String midPropName = leftNode.getString();
++        Node leftLeftNode = leftNode.first;
++        if (!leftLeftNode.isGetProp()) {
++          String left = leftLeftNode.getQualifiedName();
++          if (left == null) {
++            yield null;
++          }
++          yield left + "." + midPropName + "." + propName;
++        }
++        StringBuilder builder =
++            leftLeftNode.getQualifiedNameForGetProp(
++                2 + midPropName.length() + propName.length());
++        if (builder == null) {
++          yield null;
++        }
++        builder.append('.').append(midPropName).append('.').append(propName);
++        yield builder.toString();
+       }
+       case THIS -> "this";
+       case SUPER -> "super";
+@@ -3450,7 +3504,7 @@
+   }
+ 
+   public final boolean isDeleted() {
+-    return getBooleanProp(Prop.DELETED);
++    return (this.propFlags & PROP_FLAG_DELETED) != 0;
+   }
+ 
+   /** If this node represents a typedef declaration, the associated JSType */
+@@ -3474,7 +3528,7 @@
+    * <p>Set by RemoveUnusedVars
+    */
+   public final boolean isUnusedParameter() {
+-    return getBooleanProp(Prop.IS_UNUSED_PARAMETER);
++    return (this.propFlags & PROP_FLAG_IS_UNUSED_PARAMETER) != 0;
+   }
+ 
+   /** Sets the isShorthandProperty annotation. */
+@@ -3484,7 +3538,7 @@
+ 
+   /** Whether this {x:x} property was originally parsed as {x}. */
+   public final boolean isShorthandProperty() {
+-    return getBooleanProp(Prop.IS_SHORTHAND_PROPERTY);
++    return (this.propFlags & PROP_FLAG_IS_SHORTHAND_PROPERTY) != 0;
+   }
+ 
+   /** Returns whether this node is an optional node in the ES6 Typed syntax. */
+@@ -3502,7 +3556,7 @@
+    * Returns whether this is a synthetic block that should not be considered a real source block.
+    */
+   public final boolean isSyntheticBlock() {
+-    return getBooleanProp(Prop.SYNTHETIC);
++    return (this.propFlags & PROP_FLAG_SYNTHETIC) != 0;
+   }
+ 
+   public final void setIsSynthesizedUnfulfilledNameDeclaration(boolean val) {
+@@ -3526,7 +3580,7 @@
+ 
+   /** Returns whether this node contained the "use strict" directive. */
+   public final boolean isUseStrict() {
+-    return this.getBooleanProp(Prop.USE_STRICT);
++    return (this.propFlags & PROP_FLAG_USE_STRICT) != 0;
+   }
+ 
+   /**
+@@ -3539,7 +3593,7 @@
+ 
+   /** Returns whether this is an added block that should not be considered a real source block. */
+   public final boolean isAddedBlock() {
+-    return getBooleanProp(Prop.ADDED_BLOCK);
++    return (this.propFlags & PROP_FLAG_ADDED_BLOCK) != 0;
+   }
+ 
+   /**
+@@ -3557,7 +3611,7 @@
+    * contained within {@link Token#CLASS}.
+    */
+   public final boolean isStaticMember() {
+-    return getBooleanProp(Prop.STATIC_MEMBER);
++    return (this.propFlags & PROP_FLAG_STATIC_MEMBER) != 0;
+   }
+ 
+   /**
+@@ -3570,7 +3624,7 @@
+ 
+   /** Returns whether this node is a generator function node. */
+   public final boolean isGeneratorFunction() {
+-    return getBooleanProp(Prop.GENERATOR_FN);
++    return (this.propFlags & PROP_FLAG_GENERATOR_FN) != 0;
+   }
+ 
+   /**
+@@ -3617,7 +3671,7 @@
+ 
+   /** Returns whether this node is an optional chaining node. */
+   public final boolean isOptionalChainStart() {
+-    return getBooleanProp(Prop.START_OF_OPT_CHAIN);
++    return (this.propFlags & PROP_FLAG_START_OF_OPT_CHAIN) != 0;
+   }
+ 
+   /**
+@@ -3631,7 +3685,7 @@
+ 
+   /** Returns whether this node is a arrow function node. */
+   public final boolean isArrowFunction() {
+-    return isFunction() && getBooleanProp(Prop.ARROW_FN);
++    return (this.propFlags & PROP_FLAG_ARROW_FN) != 0 && isFunction();
+   }
+ 
+   /**
+@@ -3645,7 +3699,7 @@
+ 
+   /** Returns whether this is an async function node. */
+   public final boolean isAsyncFunction() {
+-    return isFunction() && getBooleanProp(Prop.ASYNC_FN);
++    return (this.propFlags & PROP_FLAG_ASYNC_FN) != 0 && isFunction();
+   }
+ 
+   /** Returns whether this is an async generator function node. */
+@@ -3676,7 +3730,7 @@
+ 
+   /** Returns true if there was a trailing comma in the orginal code */
+   public final boolean hasTrailingComma() {
+-    return getBooleanProp(Prop.TRAILING_COMMA);
++    return (this.propFlags & PROP_FLAG_TRAILING_COMMA) != 0;
+   }
+ 
+   /**
+@@ -3706,7 +3760,11 @@
+     // Int props default to 0, but we want the default for side-effect flags to be all 1s.
+     // Therefore, we invert the value returned here. This is correct for non-defaults because we
+     // also invert when setting the flags.
+-    return ~getIntProp(Prop.SIDE_EFFECT_FLAGS) & SideEffectFlags.USED_BITS_MASK;
++    int v = (this.propFlags >>> SIDE_EFFECT_SHIFT) & SIDE_EFFECT_MAX;
++    if (v == 0 && this.propListHead != null) {
++      v = getColdIntProp(Prop.SIDE_EFFECT_FLAGS);
++    }
++    return ~v & SideEffectFlags.USED_BITS_MASK;
+   }
+ 
+   /**
+@@ -3833,20 +3891,16 @@
+ 
+   /** Returns true if this is a new/call that may mutate its arguments. */
+   public final boolean mayMutateArguments() {
+-    return allBitsSet(getSideEffectFlags(), SideEffectFlags.MUTATES_ARGUMENTS);
++    return (getSideEffectFlags() & SideEffectFlags.MUTATES_ARGUMENTS)
++        == SideEffectFlags.MUTATES_ARGUMENTS;
+   }
+ 
+   /** Returns true if this is a new/call that may mutate global state or throw. */
+   public final boolean mayMutateGlobalStateOrThrow() {
+-    return anyBitSet(
+-        getSideEffectFlags(), SideEffectFlags.MUTATES_GLOBAL_STATE | SideEffectFlags.THROWS);
++    return (getSideEffectFlags() & (SideEffectFlags.MUTATES_GLOBAL_STATE | SideEffectFlags.THROWS))
++        != 0;
+   }
+ 
+-  /** Returns true iff all the set bits in {@code mask} are also set in {@code value}. */
+-  private static boolean allBitsSet(int value, int mask) {
+-    return (value & mask) == mask;
+-  }
+-
+   /** Returns true iff any the bit set in {@code mask} is also set in {@code value}. */
+   private static boolean anyBitSet(int value, int mask) {
+     return (value & mask) != 0;
+@@ -3874,7 +3928,11 @@
+   }
+ 
+   private final int getConstantVarFlags() {
+-    return getIntProp(Prop.CONSTANT_VAR_FLAGS);
++    int v = (this.propFlags >>> CONST_VAR_SHIFT) & CONST_VAR_MAX;
++    if (v == 0 && this.propListHead != null) {
++      v = getColdIntProp(Prop.CONSTANT_VAR_FLAGS);
++    }
++    return v;
+   }
+ 
+   private final void setConstantVarFlag(int flag, boolean value) {
+@@ -3905,7 +3963,7 @@
+         isName() || isImportStar(),
+         "Should only be called on name or import * nodes. Found %s",
+         this);
+-    return anyBitSet(getConstantVarFlags(), ConstantVarFlags.DECLARED);
++    return (getConstantVarFlags() & ConstantVarFlags.DECLARED) != 0;
+   }
+ 
+   /**
+@@ -3939,7 +3997,7 @@
+         isName() || isImportStar(),
+         "Should only be called on name or import * nodes. Found %s",
+         this);
+-    return anyBitSet(getConstantVarFlags(), ConstantVarFlags.INFERRED);
++    return (getConstantVarFlags() & ConstantVarFlags.INFERRED) != 0;
+   }
+ 
+   /**
+@@ -3956,7 +4014,7 @@
+   }
+ 
+   public final boolean isQuotedStringKey() {
+-    return (this instanceof StringNode) && this.getBooleanProp(Prop.QUOTED);
++    return (this instanceof StringNode) && (this.propFlags & PROP_FLAG_QUOTED) != 0;
+   }
+ 
+   public final void setQuotedStringKey() {

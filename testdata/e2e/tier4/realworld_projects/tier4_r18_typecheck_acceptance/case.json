@@ -1,0 +1,25 @@
+{
+  "id": "tier4_r18_typecheck_acceptance",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "Acceptance fixture from testdata/fixtures",
+  "description": "Representative type checking fixture from acceptance suite (001_type_mismatch_var.js)",
+  "args": [
+    "--checks_only",
+    "--jscomp_error=checkTypes",
+    "--warning_level=VERBOSE",
+    "--language_in=ECMASCRIPT_NEXT",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @type {number} */\nvar x = 'hello';\n"
+  },
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "in.js:2:8: ERROR - [JSC_TYPE_MISMATCH] initializing variable\nfound   : string\nrequired: number\n  2| var x = 'hello';\n             ^^^^^^^\n\n1 error(s), 0 warning(s), 100.0% typed\n",
+    "output_files": {}
+  }
+}

@@ -1,0 +1,413 @@
+diff --git a/com/google/javascript/rhino/jstype/JSTypeIterations.java b/com/google/javascript/rhino/jstype/JSTypeIterations.java
+--- a/com/google/javascript/rhino/jstype/JSTypeIterations.java
++++ b/com/google/javascript/rhino/jstype/JSTypeIterations.java
+@@ -61,7 +61,7 @@
+   /** @return whether any element of {@code types} matches {@code predicate}. */
+   static boolean anyTypeMatches(
+       Predicate<? super JSType> predicate, ImmutableList<? extends JSType> types) {
+-    for (int i = 0; i < types.size(); i++) {
++    for (int i = 0, n = types.size(); i < n; i++) {
+       if (predicate.test(types.get(i))) {
+         return true;
+       }
+@@ -71,13 +71,19 @@
+ 
+   /** @return whether any element of {@code union} matches {@code predicate}. */
+   static boolean anyTypeMatches(Predicate<? super JSType> predicate, UnionType union) {
+-    return anyTypeMatches(predicate, union.getAlternates());
++    ImmutableList<JSType> alternates = union.getAlternates();
++    for (int i = 0, n = alternates.size(); i < n; i++) {
++      if (predicate.test(alternates.get(i))) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   /** @return whether all elements of {@code types} match {@code predicate}. */
+   static boolean allTypesMatch(
+       Predicate<? super JSType> predicate, ImmutableList<? extends JSType> types) {
+-    for (int i = 0; i < types.size(); i++) {
++    for (int i = 0, n = types.size(); i < n; i++) {
+       if (!predicate.test(types.get(i))) {
+         return false;
+       }
+@@ -87,14 +93,24 @@
+ 
+   /** @return whether all elements of {@code union} match {@code predicate}. */
+   static boolean allTypesMatch(Predicate<? super JSType> predicate, UnionType union) {
+-    return allTypesMatch(predicate, union.getAlternates());
++    ImmutableList<JSType> alternates = union.getAlternates();
++    for (int i = 0, n = alternates.size(); i < n; i++) {
++      if (!predicate.test(alternates.get(i))) {
++        return false;
++      }
++    }
++    return true;
+   }
+ 
+   /** @return the result of applying {@code mapper} to all elements of {@code types}. */
+   static <T extends JSType> ImmutableList<T> mapTypes(
+       Function<? super JSType, T> mapper, ImmutableList<? extends JSType> types) {
+-    ImmutableList.Builder<T> builder = ImmutableList.builder();
+-    for (int i = 0; i < types.size(); i++) {
++    int n = types.size();
++    if (n == 0) {
++      return ImmutableList.of();
++    }
++    ImmutableList.Builder<T> builder = ImmutableList.builderWithExpectedSize(n);
++    for (int i = 0; i < n; i++) {
+       builder.add(mapper.apply(types.get(i)));
+     }
+     return builder.build();
+@@ -102,9 +118,12 @@
+ 
+   /** @return the union of applying {@code mapper} to all elements of {@code types}. */
+   static JSType mapTypes(Function<? super JSType, ? extends JSType> mapper, UnionType union) {
+-    return UnionType.builder(union.registry)
+-        .addAlternates(mapTypes(mapper, union.getAlternates()))
+-        .build();
++    UnionType.Builder builder = UnionType.builder(union.registry);
++    ImmutableList<JSType> alternates = union.getAlternates();
++    for (int i = 0, n = alternates.size(); i < n; i++) {
++      builder.addAlternate(mapper.apply(alternates.get(i)));
++    }
++    return builder.build();
+   }
+ 
+   private JSTypeIterations() {
+diff --git a/com/google/javascript/rhino/jstype/JSTypeRegistry.java b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+--- a/com/google/javascript/rhino/jstype/JSTypeRegistry.java
++++ b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+@@ -42,7 +42,6 @@
+ import static com.google.common.base.Preconditions.checkArgument;
+ import static com.google.common.base.Preconditions.checkNotNull;
+ import static com.google.common.base.Preconditions.checkState;
+-import static com.google.javascript.rhino.jstype.JSTypeIterations.mapTypes;
+ import static com.google.javascript.rhino.jstype.JSTypeNative.ALL_TYPE;
+ import static com.google.javascript.rhino.jstype.JSTypeNative.BIGINT_NUMBER;
+ import static com.google.javascript.rhino.jstype.JSTypeNative.BIGINT_NUMBER_OBJECT;
+@@ -2110,11 +2109,16 @@
+   public TemplatizedType createTemplatizedType(
+       ObjectType baseType, Map<TemplateType, JSType> templatizedTypes) {
+     JSType unknownType = getNativeType(UNKNOWN_TYPE);
+-    return createTemplatizedType(
+-        baseType,
+-        mapTypes(
+-            (key) -> templatizedTypes.getOrDefault(key, unknownType),
+-            baseType.getTypeParameters()));
++    ImmutableList<TemplateType> typeParams = baseType.getTypeParameters();
++    int n = typeParams.size();
++    if (n == 0) {
++      return createTemplatizedType(baseType, ImmutableList.of());
++    }
++    ImmutableList.Builder<JSType> builder = ImmutableList.builderWithExpectedSize(n);
++    for (int i = 0; i < n; i++) {
++      builder.add(templatizedTypes.getOrDefault(typeParams.get(i), unknownType));
++    }
++    return createTemplatizedType(baseType, builder.build());
+   }
+ 
+   /**
+diff --git a/com/google/javascript/rhino/jstype/NamedType.java b/com/google/javascript/rhino/jstype/NamedType.java
+--- a/com/google/javascript/rhino/jstype/NamedType.java
++++ b/com/google/javascript/rhino/jstype/NamedType.java
+@@ -246,8 +246,17 @@
+    */
+   @Override
+   JSType resolveInternal(ErrorReporter reporter) {
+-    ImmutableList<JSType> resolvedTypeArgs =
+-        JSTypeIterations.mapTypes((t) -> t.resolve(reporter), this.templateTypes);
++    ImmutableList<JSType> resolvedTypeArgs;
++    if (this.templateTypes.isEmpty()) {
++      resolvedTypeArgs = ImmutableList.of();
++    } else {
++      ImmutableList.Builder<JSType> argsBuilder =
++          ImmutableList.builderWithExpectedSize(this.templateTypes.size());
++      for (int i = 0, n = this.templateTypes.size(); i < n; i++) {
++        argsBuilder.add(this.templateTypes.get(i).resolve(reporter));
++      }
++      resolvedTypeArgs = argsBuilder.build();
++    }
+ 
+     if (resolutionKind.equals(ResolutionKind.NONE)) {
+       // In some cases (e.g. typeof(ns) when the actual type is just a literal object), a NamedType
+diff --git a/com/google/javascript/rhino/jstype/UnionType.java b/com/google/javascript/rhino/jstype/UnionType.java
+--- a/com/google/javascript/rhino/jstype/UnionType.java
++++ b/com/google/javascript/rhino/jstype/UnionType.java
+@@ -42,9 +42,6 @@
+ import static com.google.common.base.Preconditions.checkNotNull;
+ import static com.google.common.base.Preconditions.checkState;
+ import static com.google.javascript.jscomp.base.JSCompObjects.identical;
+-import static com.google.javascript.rhino.jstype.JSTypeIterations.allTypesMatch;
+-import static com.google.javascript.rhino.jstype.JSTypeIterations.anyTypeMatches;
+-import static com.google.javascript.rhino.jstype.JSTypeIterations.mapTypes;
+ import static com.google.javascript.rhino.jstype.JSTypeNative.ALL_TYPE;
+ import static com.google.javascript.rhino.jstype.JSTypeNative.CHECKED_UNKNOWN_TYPE;
+ import static com.google.javascript.rhino.jstype.JSTypeNative.NO_TYPE;
+@@ -203,7 +200,13 @@
+   @Override
+   public boolean matchesNumberContext() {
+     // TODO(user): Reverse this logic to make it correct instead of generous.
+-    return anyTypeMatches(JSType::matchesNumberContext, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (alts.get(i).matchesNumberContext()) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   /**
+@@ -220,7 +223,13 @@
+   @Override
+   public boolean matchesStringContext() {
+     // TODO(user): Reverse this logic to make it correct instead of generous.
+-    return anyTypeMatches(JSType::matchesStringContext, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (alts.get(i).matchesStringContext()) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   /**
+@@ -231,7 +240,13 @@
+   @Override
+   public boolean matchesSymbolContext() {
+     // TODO(user): Reverse this logic to make it correct instead of generous.
+-    return anyTypeMatches(JSType::matchesSymbolContext, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (alts.get(i).matchesSymbolContext()) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   /**
+@@ -253,14 +268,21 @@
+   @Override
+   public boolean matchesObjectContext() {
+     // TODO(user): Reverse this logic to make it correct instead of generous.
+-    return anyTypeMatches(JSType::matchesObjectContext, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (alts.get(i).matchesObjectContext()) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   @Override
+   protected JSType findPropertyTypeWithoutConsideringTemplateTypes(Property.Key propertyName) {
+     JSType propertyType = null;
+ 
+-    for (JSType alternate : alternates) {
++    for (int i = 0, n = alternates.size(); i < n; i++) {
++      JSType alternate = alternates.get(i);
+       // Filter out the null/undefined type.
+       if (alternate.isNullType() || alternate.isVoidType()) {
+         continue;
+@@ -283,27 +305,53 @@
+ 
+   @Override
+   public boolean canBeCalled() {
+-    return allTypesMatch(JSType::canBeCalled, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (!alts.get(i).canBeCalled()) {
++        return false;
++      }
++    }
++    return true;
+   }
+ 
+   @Override
+   public JSType autobox() {
+-    return mapTypes(JSType::autobox, this);
++    Builder builder = builder(registry);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      builder.addAlternate(alts.get(i).autobox());
++    }
++    return builder.build();
+   }
+ 
+   @Override
+   public JSType restrictByNotNullOrUndefined() {
+-    return mapTypes(JSType::restrictByNotNullOrUndefined, this);
++    Builder builder = builder(registry);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      builder.addAlternate(alts.get(i).restrictByNotNullOrUndefined());
++    }
++    return builder.build();
+   }
+ 
+   @Override
+   public JSType restrictByNotUndefined() {
+-    return mapTypes(JSType::restrictByNotUndefined, this);
++    Builder builder = builder(registry);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      builder.addAlternate(alts.get(i).restrictByNotUndefined());
++    }
++    return builder.build();
+   }
+ 
+   @Override
+   public JSType restrictByNotNull() {
+-    return mapTypes(JSType::restrictByNotNull, this);
++    Builder builder = builder(registry);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      builder.addAlternate(alts.get(i).restrictByNotNull());
++    }
++    return builder.build();
+   }
+ 
+   @Override
+@@ -331,7 +379,13 @@
+    */
+   @Override
+   public boolean isNullable() {
+-    return anyTypeMatches(JSType::isNullable, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (alts.get(i).isNullable()) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   /**
+@@ -339,28 +393,58 @@
+    */
+   @Override
+   public boolean isVoidable() {
+-    return anyTypeMatches(JSType::isVoidable, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (alts.get(i).isVoidable()) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   /** Tests whether this type explicitly allows undefined (as opposed to ? or *). */
+   @Override
+   public boolean isExplicitlyVoidable() {
+-    return anyTypeMatches(JSType::isExplicitlyVoidable, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (alts.get(i).isExplicitlyVoidable()) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   @Override
+   public boolean isUnknownType() {
+-    return anyTypeMatches(JSType::isUnknownType, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (alts.get(i).isUnknownType()) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   @Override
+   public boolean isStruct() {
+-    return anyTypeMatches(JSType::isStruct, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (alts.get(i).isStruct()) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   @Override
+   public boolean isDict() {
+-    return anyTypeMatches(JSType::isDict, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (alts.get(i).isDict()) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   @Override
+@@ -460,7 +544,13 @@
+ 
+   @Override
+   public boolean isObject() {
+-    return allTypesMatch(JSType::isObject, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (!alts.get(i).isObject()) {
++        return false;
++      }
++    }
++    return true;
+   }
+ 
+   /**
+@@ -472,7 +562,13 @@
+    * @return {@code true} if the alternate is in the union
+    */
+   public boolean contains(JSType type) {
+-    return anyTypeMatches(type::equals, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (type.equals(alts.get(i))) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   /**
+@@ -520,7 +616,12 @@
+   @Override
+   public JSType getRestrictedTypeGivenOutcome(
+       Outcome outcome) {
+-    return mapTypes((t) -> t.getRestrictedTypeGivenOutcome(outcome), this);
++    Builder builder = builder(registry);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      builder.addAlternate(alts.get(i).getRestrictedTypeGivenOutcome(outcome));
++    }
++    return builder.build();
+   }
+ 
+   @Override
+@@ -656,7 +757,13 @@
+ 
+   @Override
+   public boolean hasAnyTemplateTypesInternal() {
+-    return anyTypeMatches(JSType::hasAnyTemplateTypes, this);
++    ImmutableList<JSType> alts = getAlternates();
++    for (int i = 0, n = alts.size(); i < n; i++) {
++      if (alts.get(i).hasAnyTemplateTypes()) {
++        return true;
++      }
++    }
++    return false;
+   }
+ 
+   /**

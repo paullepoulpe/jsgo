@@ -1,0 +1,1 @@
+/** @define {boolean} */ var DEBUG_MODE = true; /** @type {number} */ var count = 10; if (DEBUG_MODE) { count = 20; }

@@ -1,0 +1,27 @@
+{
+  "id": "tier3_x15_externs_typecheck_advanced",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "Custom externs type-checked and preserved under ADVANCED",
+  "description": "Custom extern file declaring external API type-checked and preserved from renaming",
+  "args": [
+    "--externs",
+    "externs.js",
+    "--compilation_level",
+    "ADVANCED",
+    "--jscomp_error=checkTypes",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "externs.js": "/** @type {{ logMessage: function(string): void }} */ var externalLogger;",
+    "in.js": "function logEvent(msg) { externalLogger.logMessage(msg); } window['run'] = logEvent;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "window.run=function(a){externalLogger.logMessage(a)};\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

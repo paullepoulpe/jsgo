@@ -1,0 +1,507 @@
+--- a/com/google/javascript/rhino/jstype/PrototypeObjectType.java
++++ b/com/google/javascript/rhino/jstype/PrototypeObjectType.java
+@@ -75,7 +75,7 @@
+ 
+   private final String className;
+   private final int templateParamCount;
+-  private final PropertyMap properties = new PropertyMap();
++  private @Nullable PropertyMap properties = null;
+   private final boolean nativeType;
+   private final boolean anonymousType;
+ 
+@@ -107,8 +107,6 @@
+     this.nativeType = builder.nativeType;
+     this.anonymousType = builder.anonymousType;
+ 
+-    this.properties.setParentSource(this);
+-
+     if (this.nativeType || builder.implicitPrototype != null) {
+       this.setImplicitPrototype(builder.implicitPrototype);
+     } else {
+@@ -199,9 +197,23 @@
+     return new Builder<>(registry);
+   }
+ 
++  @Nullable PropertyMap getOwnPropertyMapOrNull() {
++    return properties;
++  }
++
++  PropertyMap ensurePropertyMap() {
++    PropertyMap map = this.properties;
++    if (map == null) {
++      map = new PropertyMap();
++      map.setParentSource(this);
++      this.properties = map;
++    }
++    return map;
++  }
++
+   @Override
+   PropertyMap getPropertyMap() {
+-    return properties;
++    return ensurePropertyMap();
+   }
+ 
+   @Override
+@@ -210,14 +222,14 @@
+       return false;
+     }
+     Property newProp = new Property(name, type, inferred, propertyNode);
+-    properties.putProperty(name, newProp);
++    ensurePropertyMap().putProperty(name, newProp);
+     return true;
+   }
+ 
+   @Override
+   public void setPropertyJSDocInfo(Property.Key propertyName, JSDocInfo info) {
+     if (info != null) {
+-      if (properties.getOwnProperty(propertyName) == null) {
++      if (properties == null || properties.getOwnProperty(propertyName) == null) {
+         // If docInfo was attached, but the type of the property
+         // was not defined anywhere, then we consider this an explicit
+         // declaration of the property.
+@@ -227,7 +239,7 @@
+ 
+       // The prototype property is not represented as a normal Property.
+       // We probably don't want to attach any JSDoc to it anyway.
+-      Property property = properties.getOwnProperty(propertyName);
++      Property property = properties != null ? properties.getOwnProperty(propertyName) : null;
+       if (property != null) {
+         property.setJSDocInfo(info);
+       }
+@@ -236,9 +248,11 @@
+ 
+   @Override
+   public void setPropertyNode(Property.Key propertyName, Node defSite) {
+-    Property property = properties.getOwnProperty(propertyName);
+-    if (property != null) {
+-      property.setNode(defSite);
++    if (properties != null) {
++      Property property = properties.getOwnProperty(propertyName);
++      if (property != null) {
++        property.setNode(defSite);
++      }
+     }
+   }
+ 
+@@ -424,7 +438,11 @@
+    */
+   final void setImplicitPrototype(ObjectType implicitPrototype) {
+     checkState(!hasCachedValues());
++    boolean hadPreviousPrototype = this.implicitPrototypeFallback != null;
+     this.implicitPrototypeFallback = implicitPrototype;
++    if (hadPreviousPrototype) {
++      ensurePropertyMap().setParentSource(this);
++    }
+     if (implicitPrototype != null) {
+       maybeLoosenTypecheckingDueToForwardReferencedSupertype(implicitPrototype);
+     }
+@@ -487,8 +505,10 @@
+     if (implicitPrototype != null) {
+       implicitPrototypeFallback = (ObjectType) implicitPrototype.resolve(reporter);
+     }
+-    for (Property prop : properties.values()) {
+-      prop.setType(safeResolve(prop.getType(), reporter));
++    if (properties != null) {
++      for (Property prop : properties.values()) {
++        prop.setType(safeResolve(prop.getType(), reporter));
++      }
+     }
+     return this;
+   }
+@@ -538,7 +558,8 @@
+   @Override
+   int recursionUnsafeHashCode() {
+     if (isStructuralType()) {
+-      return Objects.hash(className, properties);
++      int propsHash = properties != null ? properties.hashCode() : 0;
++      return 31 * (31 + Objects.hashCode(className)) + propsHash;
+     } else {
+       return System.identityHashCode(this);
+     }
+--- a/com/google/javascript/rhino/jstype/ObjectType.java
++++ b/com/google/javascript/rhino/jstype/ObjectType.java
+@@ -100,6 +100,23 @@
+     return PropertyMap.immutableEmptyMap();
+   }
+ 
++  static @Nullable PrototypeObjectType unwrapToPrototypeObjectType(@Nullable ObjectType type) {
++    ObjectType curr = type;
++    while (curr != null) {
++      if (curr instanceof PrototypeObjectType pot) {
++        return pot;
++      }
++      if (curr instanceof ProxyObjectType proxy) {
++        curr = proxy.getReferencedObjTypeInternal();
++      } else if (curr instanceof EnumElementType enumElem) {
++        curr = enumElem.getPrimitiveType().toObjectType();
++      } else {
++        return null;
++      }
++    }
++    return null;
++  }
++
+   private static final Property.StringKey PROTOTYPE_KEY = new Property.StringKey("prototype");
+ 
+   /**
+@@ -107,22 +124,32 @@
+    * prototypes.
+    */
+   public @Nullable Property getSlot(Property.Key name) {
+-    return getPropertyMap().findClosestProperty(name);
++    return PropertyMap.findClosestProperty(unwrapToPrototypeObjectType(this), name);
+   }
+ 
+   public final @Nullable Property getSlot(String name) {
+     if (this instanceof FunctionType && "prototype".equals(name)) {
+       return getSlot(PROTOTYPE_KEY);
+     }
+-    return getPropertyMap().findClosestProperty(name);
++    return PropertyMap.findClosestProperty(unwrapToPrototypeObjectType(this), name);
+   }
+ 
+   public final Property getOwnSlot(String name) {
+-    return getPropertyMap().getOwnProperty(name);
++    PrototypeObjectType src = unwrapToPrototypeObjectType(this);
++    if (src == null) {
++      return null;
++    }
++    PropertyMap map = src.getOwnPropertyMapOrNull();
++    return map != null ? map.getOwnProperty(name) : null;
+   }
+ 
+   public final Property getOwnSlot(Property.Key name) {
+-    return getPropertyMap().getOwnProperty(name);
++    PrototypeObjectType src = unwrapToPrototypeObjectType(this);
++    if (src == null) {
++      return null;
++    }
++    PropertyMap map = src.getOwnPropertyMapOrNull();
++    return map != null ? map.getOwnProperty(name) : null;
+   }
+ 
+   public JSType getTypeOfThis() {
+@@ -305,18 +332,19 @@
+ 
+   /** Returns the closest ancestor that defines the property including this type itself. */
+   public final @Nullable ObjectType getClosestDefiningType(String propertyName) {
+-    OwnedProperty property = getPropertyMap().findClosest(propertyName);
++    OwnedProperty property =
++        PropertyMap.findClosest(unwrapToPrototypeObjectType(this), propertyName);
+     return property == null ? null : property.getOwner();
+   }
+ 
+   /** Returns the closest definition of the property including this type itself. */
+   public final OwnedProperty findClosestDefinition(String propertyName) {
+-    return getPropertyMap().findClosest(propertyName);
++    return PropertyMap.findClosest(unwrapToPrototypeObjectType(this), propertyName);
+   }
+ 
+   /** Returns the closest definition of the property including this type itself. */
+   public final OwnedProperty findClosestDefinition(Property.Key propertyName) {
+-    return getPropertyMap().findClosest(propertyName);
++    return PropertyMap.findClosest(unwrapToPrototypeObjectType(this), propertyName);
+   }
+ 
+   /**
+@@ -692,7 +720,12 @@
+   }
+ 
+   public Set<KnownSymbolType> getOwnPropertyKnownSymbols() {
+-    return getPropertyMap().getOwnKnownSymbols();
++    PrototypeObjectType src = unwrapToPrototypeObjectType(this);
++    if (src == null) {
++      return ImmutableSet.of();
++    }
++    PropertyMap map = src.getOwnPropertyMapOrNull();
++    return map != null ? map.getOwnKnownSymbols() : ImmutableSet.of();
+   }
+ 
+   /**
+@@ -704,7 +737,12 @@
+     // TODO(sdh): ObjectType specifies that this should include prototype properties,
+     // but currently it does not.  Check if this is a constructor and add them, but
+     // this could possibly break things so it should be done separately.
+-    return getPropertyMap().getOwnPropertyNames();
++    PrototypeObjectType src = unwrapToPrototypeObjectType(this);
++    if (src == null) {
++      return ImmutableSet.of();
++    }
++    PropertyMap map = src.getOwnPropertyMapOrNull();
++    return map != null ? map.getOwnPropertyNames() : ImmutableSet.of();
+   }
+ 
+   /**
+@@ -779,7 +817,15 @@
+    * Gets the number of properties of this object.
+    */
+   public final int getPropertiesCount() {
+-    return getPropertyMap().getPropertiesCount();
++    PrototypeObjectType src = unwrapToPrototypeObjectType(this);
++    if (src == null) {
++      return 0;
++    }
++    if (unwrapToPrototypeObjectType(src.getImplicitPrototype()) == null) {
++      PropertyMap map = src.getOwnPropertyMapOrNull();
++      return map != null ? map.getOwnPropertyNames().size() : 0;
++    }
++    return src.getPropertyMap().getPropertiesCount();
+   }
+ 
+   /** Returns a list of properties defined or inferred on this type and any of its supertypes. */
+--- a/com/google/javascript/rhino/jstype/PropertyMap.java
++++ b/com/google/javascript/rhino/jstype/PropertyMap.java
+@@ -144,37 +144,45 @@
+    * Returns the secondary parents of this property map, for interfaces that need multiple
+    * inheritance or for interfaces of abstract classes.
+    */
+-  private Iterable<ObjectType> getSecondaryParentObjects() {
++  private static Iterable<ObjectType> getSecondaryParentObjects(
++      @Nullable ObjectType parentSource) {
+     if (parentSource == null) {
+       return ImmutableList.of();
+     }
+-    if (parentSource.getConstructor() != null && parentSource.getConstructor().isAbstract()) {
+-      return parentSource.getConstructor().getOwnImplementedInterfaces();
++    FunctionType ctor = parentSource.getConstructor();
++    if (ctor != null && ctor.isAbstract()) {
++      return ctor.getOwnImplementedInterfaces();
+     }
+     return parentSource.getCtorExtendedInterfaces();
+   }
+ 
+-  @Nullable OwnedProperty findClosest(String name) {
++  private Iterable<ObjectType> getSecondaryParentObjects() {
++    return getSecondaryParentObjects(parentSource);
++  }
++
++  static @Nullable OwnedProperty findClosest(
++      @Nullable PrototypeObjectType start, String name) {
+     // Check primary parents which always has precedence over secondary.
+-    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
+-      Property prop = map.getOwnProperty(name);
+-      if (prop != null) {
+-        return new OwnedProperty(map.parentSource, prop);
++    for (PrototypeObjectType curr = start;
++        curr != null;
++        curr = ObjectType.unwrapToPrototypeObjectType(curr.getImplicitPrototype())) {
++      PropertyMap ownMap = curr.getOwnPropertyMapOrNull();
++      if (ownMap != null) {
++        Property prop = ownMap.getOwnProperty(name);
++        if (prop != null) {
++          return new OwnedProperty(curr, prop);
++        }
+       }
+     }
+ 
+     // Recurse into secondary parents.
+-    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
+-      if (map.parentSource == null) {
+-        continue;
+-      }
+-      for (ObjectType o : map.getSecondaryParentObjects()) {
+-        PropertyMap parent = o.getPropertyMap();
+-        if (parent != null) {
+-          OwnedProperty e = parent.findClosest(name);
+-          if (e != null) {
+-            return e;
+-          }
++    for (PrototypeObjectType curr = start;
++        curr != null;
++        curr = ObjectType.unwrapToPrototypeObjectType(curr.getImplicitPrototype())) {
++      for (ObjectType o : getSecondaryParentObjects(curr)) {
++        OwnedProperty e = findClosest(ObjectType.unwrapToPrototypeObjectType(o), name);
++        if (e != null) {
++          return e;
+         }
+       }
+     }
+@@ -182,31 +190,42 @@
+     return null;
+   }
+ 
+-  @Nullable OwnedProperty findClosest(Property.Key name) {
++  @Nullable OwnedProperty findClosest(String name) {
++    if (parentSource == null) {
++      Property prop = getOwnProperty(name);
++      return prop != null ? new OwnedProperty(null, prop) : null;
++    }
++    return findClosest(ObjectType.unwrapToPrototypeObjectType(parentSource), name);
++  }
++
++  static @Nullable OwnedProperty findClosest(
++      @Nullable PrototypeObjectType start, Property.Key name) {
+     if (name.kind() == Property.KeyKind.STRING) {
+-      return findClosest(name.string());
++      return findClosest(start, name.string());
+     }
+ 
+-    // Check primary parents which always has precendence over secondary.
+-    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
+-      Property prop = map.knownSymbols != null ? map.knownSymbols.get(name.symbol()) : null;
+-      if (prop != null) {
+-        return new OwnedProperty(map.parentSource, prop);
++    KnownSymbolType symbol = name.symbol();
++    // Check primary parents which always has precedence over secondary.
++    for (PrototypeObjectType curr = start;
++        curr != null;
++        curr = ObjectType.unwrapToPrototypeObjectType(curr.getImplicitPrototype())) {
++      PropertyMap ownMap = curr.getOwnPropertyMapOrNull();
++      if (ownMap != null && ownMap.knownSymbols != null) {
++        Property prop = ownMap.knownSymbols.get(symbol);
++        if (prop != null) {
++          return new OwnedProperty(curr, prop);
++        }
+       }
+     }
+ 
+     // Recurse into secondary parents.
+-    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
+-      if (map.parentSource == null) {
+-        continue;
+-      }
+-      for (ObjectType o : map.getSecondaryParentObjects()) {
+-        PropertyMap parent = o.getPropertyMap();
+-        if (parent != null) {
+-          OwnedProperty e = parent.findClosest(name);
+-          if (e != null) {
+-            return e;
+-          }
++    for (PrototypeObjectType curr = start;
++        curr != null;
++        curr = ObjectType.unwrapToPrototypeObjectType(curr.getImplicitPrototype())) {
++      for (ObjectType o : getSecondaryParentObjects(curr)) {
++        OwnedProperty e = findClosest(ObjectType.unwrapToPrototypeObjectType(o), name);
++        if (e != null) {
++          return e;
+         }
+       }
+     }
+@@ -214,27 +233,37 @@
+     return null;
+   }
+ 
+-  @Nullable Property findClosestProperty(String name) {
++  @Nullable OwnedProperty findClosest(Property.Key name) {
++    if (parentSource == null) {
++      Property prop = getOwnProperty(name);
++      return prop != null ? new OwnedProperty(null, prop) : null;
++    }
++    return findClosest(ObjectType.unwrapToPrototypeObjectType(parentSource), name);
++  }
++
++  static @Nullable Property findClosestProperty(
++      @Nullable PrototypeObjectType start, String name) {
+     // Check primary parents which always has precedence over secondary.
+-    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
+-      Property prop = map.getOwnProperty(name);
+-      if (prop != null) {
+-        return prop;
++    for (PrototypeObjectType curr = start;
++        curr != null;
++        curr = ObjectType.unwrapToPrototypeObjectType(curr.getImplicitPrototype())) {
++      PropertyMap ownMap = curr.getOwnPropertyMapOrNull();
++      if (ownMap != null) {
++        Property prop = ownMap.getOwnProperty(name);
++        if (prop != null) {
++          return prop;
++        }
+       }
+     }
+ 
+     // Recurse into secondary parents.
+-    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
+-      if (map.parentSource == null) {
+-        continue;
+-      }
+-      for (ObjectType o : map.getSecondaryParentObjects()) {
+-        PropertyMap parent = o.getPropertyMap();
+-        if (parent != null) {
+-          Property prop = parent.findClosestProperty(name);
+-          if (prop != null) {
+-            return prop;
+-          }
++    for (PrototypeObjectType curr = start;
++        curr != null;
++        curr = ObjectType.unwrapToPrototypeObjectType(curr.getImplicitPrototype())) {
++      for (ObjectType o : getSecondaryParentObjects(curr)) {
++        Property prop = findClosestProperty(ObjectType.unwrapToPrototypeObjectType(o), name);
++        if (prop != null) {
++          return prop;
+         }
+       }
+     }
+@@ -242,31 +271,41 @@
+     return null;
+   }
+ 
+-  @Nullable Property findClosestProperty(Property.Key name) {
++  @Nullable Property findClosestProperty(String name) {
++    if (parentSource == null) {
++      return getOwnProperty(name);
++    }
++    return findClosestProperty(ObjectType.unwrapToPrototypeObjectType(parentSource), name);
++  }
++
++  static @Nullable Property findClosestProperty(
++      @Nullable PrototypeObjectType start, Property.Key name) {
+     if (name.kind() == Property.KeyKind.STRING) {
+-      return findClosestProperty(name.string());
++      return findClosestProperty(start, name.string());
+     }
+ 
++    KnownSymbolType symbol = name.symbol();
+     // Check primary parents which always has precedence over secondary.
+-    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
+-      Property prop = map.knownSymbols != null ? map.knownSymbols.get(name.symbol()) : null;
+-      if (prop != null) {
+-        return prop;
++    for (PrototypeObjectType curr = start;
++        curr != null;
++        curr = ObjectType.unwrapToPrototypeObjectType(curr.getImplicitPrototype())) {
++      PropertyMap ownMap = curr.getOwnPropertyMapOrNull();
++      if (ownMap != null && ownMap.knownSymbols != null) {
++        Property prop = ownMap.knownSymbols.get(symbol);
++        if (prop != null) {
++          return prop;
++        }
+       }
+     }
+ 
+     // Recurse into secondary parents.
+-    for (PropertyMap map = this; map != null; map = map.getPrimaryParent()) {
+-      if (map.parentSource == null) {
+-        continue;
+-      }
+-      for (ObjectType o : map.getSecondaryParentObjects()) {
+-        PropertyMap parent = o.getPropertyMap();
+-        if (parent != null) {
+-          Property prop = parent.findClosestProperty(name);
+-          if (prop != null) {
+-            return prop;
+-          }
++    for (PrototypeObjectType curr = start;
++        curr != null;
++        curr = ObjectType.unwrapToPrototypeObjectType(curr.getImplicitPrototype())) {
++      for (ObjectType o : getSecondaryParentObjects(curr)) {
++        Property prop = findClosestProperty(ObjectType.unwrapToPrototypeObjectType(o), name);
++        if (prop != null) {
++          return prop;
+         }
+       }
+     }
+@@ -274,6 +313,13 @@
+     return null;
+   }
+ 
++  @Nullable Property findClosestProperty(Property.Key name) {
++    if (parentSource == null) {
++      return getOwnProperty(name);
++    }
++    return findClosestProperty(ObjectType.unwrapToPrototypeObjectType(parentSource), name);
++  }
++
+   @Nullable Property getOwnProperty(String propertyName) {
+     return properties != null ? properties.get(propertyName) : null;
+   }

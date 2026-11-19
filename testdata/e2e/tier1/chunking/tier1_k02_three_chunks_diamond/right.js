@@ -1,0 +1,1 @@
+var rightMod = rootConfig.app + '_right';

@@ -1,0 +1,1 @@
+function test() { undeclaredGlobalVariable = 1; }

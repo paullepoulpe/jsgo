@@ -1,0 +1,23 @@
+{
+  "id": "tier4_r09_esm_moment",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "Moment.js formatting module scenario",
+  "description": "Compiles date formatting helper utility module under SIMPLE",
+  "args": [
+    "--compilation_level",
+    "SIMPLE",
+    "--js",
+    "date_helper.js"
+  ],
+  "stdin": "",
+  "files": {
+    "date_helper.js": "function pad(n) { return n < 10 ? '0' + n : '' + n; }\nfunction formatDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }\nwindow['fmt'] = formatDate(new Date(2026, 10, 14));\n"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "function pad(a){return a<10?\"0\"+a:\"\"+a}function formatDate(a){return a.getFullYear()+\"-\"+pad(a.getMonth()+1)+\"-\"+pad(a.getDate())}window.fmt=formatDate(new Date(2026,10,14));\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

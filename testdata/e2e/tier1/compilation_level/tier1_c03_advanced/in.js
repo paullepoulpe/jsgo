@@ -1,0 +1,1 @@
+function deadFunc() { return 42; } function multiply(x, y) { return x * y; } window['output'] = multiply(6, 7);

@@ -1,0 +1,1 @@
+var Obs = require('./observable.js'); new Obs(function(next) { next(100); }).subscribe(function(v) { window['out'] = v; });

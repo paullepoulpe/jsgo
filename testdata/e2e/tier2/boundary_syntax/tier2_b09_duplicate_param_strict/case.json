@@ -1,0 +1,21 @@
+{
+  "id": "tier2_b09_duplicate_param_strict",
+  "tier": 2,
+  "feature": "boundary_syntax",
+  "name": "Duplicate parameter in strict mode",
+  "description": "Fails compilation when function declares duplicate parameter names in strict mode",
+  "args": [
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "'use strict'; function test(param, param) { return param; }"
+  },
+  "expected": {
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "in.js:1:35: ERROR - [JSC_DUPLICATE_PARAM] Parse error. Duplicate parameter name \"param\"\n  1| 'use strict'; function test(param, param) { return param; }\n                                        ^\n\n1 error(s), 0 warning(s)\n",
+    "output_files": {}
+  }
+}

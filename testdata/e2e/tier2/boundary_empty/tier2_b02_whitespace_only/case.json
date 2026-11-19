@@ -1,0 +1,21 @@
+{
+  "id": "tier2_b02_whitespace_only",
+  "tier": 2,
+  "feature": "boundary_empty",
+  "name": "Whitespace only input",
+  "description": "Compiles input containing only spaces, tabs, and newlines",
+  "args": [
+    "--js",
+    "spaces.js"
+  ],
+  "stdin": "",
+  "files": {
+    "spaces.js": "    \n\t\n   \n\t"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

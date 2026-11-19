@@ -1,0 +1,1149 @@
+diff --git a/com/google/javascript/jscomp/DevirtualizeMethods.java b/com/google/javascript/jscomp/DevirtualizeMethods.java
+--- a/com/google/javascript/jscomp/DevirtualizeMethods.java
++++ b/com/google/javascript/jscomp/DevirtualizeMethods.java
+@@ -19,11 +19,10 @@
+ import static com.google.common.base.Preconditions.checkArgument;
+ import static com.google.common.base.Preconditions.checkState;
+ import static com.google.common.base.Predicates.alwaysTrue;
+-import static com.google.common.collect.ImmutableList.toImmutableList;
+-
+-import com.google.common.collect.ImmutableList;
++
+ import com.google.common.collect.ImmutableListMultimap;
+ import com.google.common.collect.Iterables;
++import com.google.javascript.jscomp.OptimizeCalls.NodeList;
+ import com.google.javascript.jscomp.OptimizeCalls.ReferenceMap;
+ import com.google.javascript.rhino.IR;
+ import com.google.javascript.rhino.JSDocInfo;
+@@ -31,7 +30,6 @@
+ import com.google.javascript.rhino.Token;
+ import java.util.ArrayList;
+ import java.util.Collection;
+-import java.util.List;
+ import java.util.Map;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -99,12 +97,12 @@
+ 
+     this.refMap = refMap;
+ 
+-    for (Map.Entry<String, ArrayList<Node>> referenceGroup : refMap.getPropReferences()) {
++    for (Map.Entry<String, NodeList> referenceGroup : refMap.props.entrySet()) {
+       processReferenceList(referenceGroup.getKey(), referenceGroup.getValue());
+     }
+   }
+ 
+-  private void processReferenceList(String name, List<Node> sites) {
++  private void processReferenceList(String name, NodeList sites) {
+     ImmutableListMultimap<Node, Node> functionsBySite = ReferenceMap.getFunctionNodes(sites);
+     if (functionsBySite.isEmpty()) {
+       return; // We can't devirtualize without a definition.
+@@ -115,8 +113,9 @@
+     // `A::foo` before `B::foo` is defined.
+     Node canonicalDefinitionSite = Iterables.get(functionsBySite.keySet(), 0);
+ 
+-    List<Node> callSites = new ArrayList<>();
+-    for (Node s : sites) {
++    ArrayList<Node> callSites = new ArrayList<>();
++    for (int i = 0, count = sites.size(); i < count; i++) {
++      Node s = sites.get(i);
+       if (!functionsBySite.containsKey(s)) {
+         callSites.add(s);
+       }
+@@ -127,14 +126,22 @@
+ 
+     // Check that this method is safe for devirtualization. These are in (estimated) increasing
+     // order of cost.
+-    if (!functionsBySite.keySet().stream().allMatch((s) -> isEligibleDefinitionSite(name, s))) {
+-      return;
+-    } else if (!functionsBySite.values().stream().allMatch(this::isEligibleDefinitionFunction)) {
+-      return;
+-    } else if (!callSites.stream()
+-        .allMatch((c) -> isEligibleCallSite(c, canonicalDefinitionSite))) {
+-      return;
+-    } else if (!allDefinitionsEquivalent(functionsBySite.values())) {
++    for (Node s : functionsBySite.keySet()) {
++      if (!isEligibleDefinitionSite(name, s)) {
++        return;
++      }
++    }
++    for (Node fn : functionsBySite.values()) {
++      if (!isEligibleDefinitionFunction(fn)) {
++        return;
++      }
++    }
++    for (int i = 0, count = callSites.size(); i < count; i++) {
++      if (!isEligibleCallSite(callSites.get(i), canonicalDefinitionSite)) {
++        return;
++      }
++    }
++    if (!allDefinitionsEquivalent(functionsBySite.values())) {
+       // Remember that this is only valid because we already checked the scoping of the definitions.
+       return;
+     }
+@@ -143,8 +150,8 @@
+     JSDocInfo bestJSDoc = NodeUtil.getBestJSDocInfo(canonicalDefinitionSite);
+     boolean isConstantName = bestJSDoc != null && bestJSDoc.isConstant();
+ 
+-    for (Node callSite : callSites) {
+-      rewriteCall(callSite, devirtualizedName, isConstantName);
++    for (int i = 0, count = callSites.size(); i < count; i++) {
++      rewriteCall(callSites.get(i), devirtualizedName, isConstantName);
+     }
+     // We only have to rewrite one definition. We've checked they're all identical so any of them
+     // can replace the others. The un-rewritten ones will be dead-code eliminated.
+diff --git a/com/google/javascript/jscomp/OptimizeCalls.java b/com/google/javascript/jscomp/OptimizeCalls.java
+--- a/com/google/javascript/jscomp/OptimizeCalls.java
++++ b/com/google/javascript/jscomp/OptimizeCalls.java
+@@ -28,8 +28,6 @@
+ import com.google.javascript.rhino.Node;
+ import java.util.ArrayList;
+ import java.util.LinkedHashMap;
+-import java.util.List;
+-import java.util.Map;
+ import java.util.Set;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -150,38 +148,68 @@
+    * }</pre>
+    */
+   private void eliminateAccessorsFrom(ReferenceMap references) {
+-    references.props.keySet().removeAll(compiler.getAccessorSummary().getAccessors().keySet());
++    for (String accessorName : compiler.getAccessorSummary().getAccessors().keySet()) {
++      references.removePropReferences(accessorName);
++    }
++  }
++
++  static final class NodeList {
++    private final ArrayList<Node> nodes = new ArrayList<>();
++
++    void add(Node n) {
++      nodes.add(n);
++    }
++
++    void addAll(NodeList other) {
++      int count = other.nodes.size();
++      for (int i = 0; i < count; i++) {
++        nodes.add(other.nodes.get(i));
++      }
++    }
++
++    int size() {
++      return nodes.size();
++    }
++
++    boolean isEmpty() {
++      return nodes.isEmpty();
++    }
++
++    Node get(int index) {
++      return nodes.get(index);
++    }
+   }
+ 
+   /** A reference map for global symbols and properties. */
+-  static class ReferenceMap {
++  static final class ReferenceMap {
+     private Scope globalScope;
+-    private final LinkedHashMap<String, ArrayList<Node>> names = new LinkedHashMap<>();
+-    private final LinkedHashMap<String, ArrayList<Node>> props = new LinkedHashMap<>();
+-
+-    private void addReference(LinkedHashMap<String, ArrayList<Node>> data, String name, Node n) {
+-      ArrayList<Node> refs = data.computeIfAbsent(name, (String k) -> new ArrayList<>());
++    final LinkedHashMap<String, NodeList> names = new LinkedHashMap<>();
++    final LinkedHashMap<String, NodeList> props = new LinkedHashMap<>();
++
++    void addNameReference(String name, Node n) {
++      NodeList refs = names.get(name);
++      if (refs == null) {
++        refs = new NodeList();
++        names.put(name, refs);
++      }
+       refs.add(n);
+     }
+ 
+-    void addNameReference(String name, Node n) {
+-      addReference(names, name, n);
+-    }
+-
+     void addPropReference(String name, Node n) {
+-      addReference(props, name, n);
++      NodeList refs = props.get(name);
++      if (refs == null) {
++        refs = new NodeList();
++        props.put(name, refs);
++      }
++      refs.add(n);
++    }
++
++    void removePropReferences(String name) {
++      props.remove(name);
+     }
+ 
+     Scope getGlobalScope() {
+       return globalScope;
+-    }
+-
+-    Iterable<Map.Entry<String, ArrayList<Node>>> getNameReferences() {
+-      return names.entrySet();
+-    }
+-
+-    Iterable<Map.Entry<String, ArrayList<Node>>> getPropReferences() {
+-      return props.entrySet();
+     }
+ 
+     /**
+@@ -205,9 +233,10 @@
+      * @return A mapping from the input {@code definitionSites} to each of their associated
+      *     functions.
+      */
+-    static ImmutableListMultimap<Node, Node> getFunctionNodes(List<Node> definitionSites) {
++    static ImmutableListMultimap<Node, Node> getFunctionNodes(NodeList definitionSites) {
+       ImmutableListMultimap.Builder<Node, Node> result = ImmutableListMultimap.builder();
+-      for (Node def : definitionSites) {
++      for (int i = 0, count = definitionSites.size(); i < count; i++) {
++        Node def = definitionSites.get(i);
+         result.putAll(def, definitionFunctionNodesFor(def));
+       }
+       return result.build();
+@@ -218,7 +247,7 @@
+      *
+      * @see {@link #getFunctionNodes}
+      */
+-    private static ImmutableList<Node> definitionFunctionNodesFor(Node definitionSite) {
++    static ImmutableList<Node> definitionFunctionNodesFor(Node definitionSite) {
+       if (definitionSite.isGetterDef() || definitionSite.isSetterDef()) {
+         // TODO(nickreid): Support getters and setters. Ignore them for now since they aren't
+         // "called".
+diff --git a/com/google/javascript/jscomp/OptimizeConstructors.java b/com/google/javascript/jscomp/OptimizeConstructors.java
+--- a/com/google/javascript/jscomp/OptimizeConstructors.java
++++ b/com/google/javascript/jscomp/OptimizeConstructors.java
+@@ -20,6 +20,7 @@
+ import static com.google.common.base.Preconditions.checkState;
+ 
+ import com.google.javascript.jscomp.AbstractCompiler.LifeCycleStage;
++import com.google.javascript.jscomp.OptimizeCalls.NodeList;
+ import com.google.javascript.jscomp.OptimizeCalls.ReferenceMap;
+ import com.google.javascript.rhino.Node;
+ import java.util.ArrayList;
+@@ -81,7 +82,7 @@
+ 
+   @Override
+   public void process(Node externs, Node root, ReferenceMap refMap) {
+-    for (Map.Entry<String, ArrayList<Node>> entry : refMap.getNameReferences()) {
++    for (Map.Entry<String, NodeList> entry : refMap.names.entrySet()) {
+       addConstructorsToBeRemoved(entry.getKey(), entry.getValue());
+     }
+ 
+@@ -106,7 +107,7 @@
+    *
+    * <p>-allowed reference (anything not an assignment)
+    */
+-  private void addConstructorsToBeRemoved(String name, ArrayList<Node> refs) {
++  private void addConstructorsToBeRemoved(String name, NodeList refs) {
+     if (!OptimizeCalls.mayBeOptimizableName(compiler, name)) {
+       return;
+     }
+@@ -117,7 +118,8 @@
+     // Lazily init as most symbols aren't class, and most classes don't have subclasses
+     ArrayList<Node> subclassConstructors = null;
+ 
+-    for (Node n : refs) {
++    for (int i = 0, size = refs.size(); i < size; i++) {
++      Node n = refs.get(i);
+       Node definition = getClassDefinitionOrFunction(n);
+       if (definition != null) {
+         if (candidateClassDefinition != null) {
+diff --git a/com/google/javascript/jscomp/OptimizeParameters.java b/com/google/javascript/jscomp/OptimizeParameters.java
+--- a/com/google/javascript/jscomp/OptimizeParameters.java
++++ b/com/google/javascript/jscomp/OptimizeParameters.java
+@@ -22,13 +22,10 @@
+ import static java.lang.Math.min;
+ 
+ import com.google.common.base.Preconditions;
+-import com.google.common.collect.ArrayListMultimap;
+-import com.google.common.collect.ImmutableCollection;
+ import com.google.common.collect.ImmutableListMultimap;
+ import com.google.common.collect.Iterables;
+-import com.google.common.collect.Lists;
+-import com.google.errorprone.annotations.CanIgnoreReturnValue;
+ import com.google.javascript.jscomp.AbstractCompiler.LifeCycleStage;
++import com.google.javascript.jscomp.OptimizeCalls.NodeList;
+ import com.google.javascript.jscomp.OptimizeCalls.ReferenceMap;
+ import com.google.javascript.jscomp.diagnostic.LogFile;
+ import com.google.javascript.rhino.IR;
+@@ -36,8 +33,7 @@
+ import com.google.javascript.rhino.Node;
+ import java.util.ArrayList;
+ import java.util.BitSet;
+-import java.util.Collection;
+-import java.util.List;
++import java.util.LinkedHashMap;
+ import java.util.Map;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -86,11 +82,11 @@
+       this.globalScope = refMap.getGlobalScope();
+ 
+       // Find all function nodes that are possible candidates for parameter removal.
+-      List<ArrayList<Node>> toOptimize = new ArrayList<>();
+-
+-      for (Map.Entry<String, ArrayList<Node>> entry : refMap.getNameReferences()) {
++      ArrayList<NodeList> toOptimize = new ArrayList<>();
++
++      for (Map.Entry<String, NodeList> entry : refMap.names.entrySet()) {
+         String key = entry.getKey();
+-        ArrayList<Node> refs = entry.getValue();
++        NodeList refs = entry.getValue();
+         final CandidateAnalysis candidateAnalysis = analyzeCandidateName(key, refs);
+         if (candidateAnalysis.shouldConvertTaggedTemplateLiterals()) {
+           candidateAnalysis.convertTaggedTemplateLiterals();
+@@ -100,9 +96,9 @@
+         }
+       }
+ 
+-      for (Map.Entry<String, ArrayList<Node>> entry : refMap.getPropReferences()) {
++      for (Map.Entry<String, NodeList> entry : refMap.props.entrySet()) {
+         String key = entry.getKey();
+-        ArrayList<Node> refs = entry.getValue();
++        NodeList refs = entry.getValue();
+         final CandidateAnalysis candidateAnalysis = analyzeCandidateProperty(key, refs);
+         if (candidateAnalysis.shouldConvertTaggedTemplateLiterals()) {
+           candidateAnalysis.convertTaggedTemplateLiterals();
+@@ -133,18 +129,18 @@
+       // - Removing parameters that are unreferenced from call-sites, may
+       // remove references, as it is run last.
+ 
+-      for (ArrayList<Node> refs : toOptimize) {
+-        tryEliminateOptionalArgs(refs);
+-      }
+-
+-      for (ArrayList<Node> refs : toOptimize) {
+-        tryEliminateConstantArgs(refs);
++      for (int i = 0, size = toOptimize.size(); i < size; i++) {
++        tryEliminateOptionalArgs(toOptimize.get(i));
++      }
++
++      for (int i = 0, size = toOptimize.size(); i < size; i++) {
++        tryEliminateConstantArgs(toOptimize.get(i));
+       }
+ 
+       // tryEliminateUnusedArgs may mutate
+       UnusedParameterOptimizer optimizer = new UnusedParameterOptimizer();
+-      for (ArrayList<Node> refs : toOptimize) {
+-        optimizer.tryEliminateUnusedArgs(refs);
++      for (int i = 0, size = toOptimize.size(); i < size; i++) {
++        optimizer.tryEliminateUnusedArgs(toOptimize.get(i));
+       }
+       optimizer.applyChanges();
+     } finally {
+@@ -152,9 +148,9 @@
+     }
+   }
+ 
+-  class UnusedParameterOptimizer {
+-    final List<Node> toRemove = new ArrayList<>();
+-    final List<Node> toReplaceWithZero = new ArrayList<>();
++  final class UnusedParameterOptimizer {
++    private final ArrayList<Node> toRemove = new ArrayList<>();
++    private final ArrayList<Node> toReplaceWithZero = new ArrayList<>();
+ 
+     /**
+      * Attempt to eliminate unused parameters by removing them from both the call sites and the
+@@ -166,7 +162,7 @@
+      * @param refs A list of references to the symbol (name or property) as vetted by
+      *     #analyzeCandidate.
+      */
+-    void tryEliminateUnusedArgs(ArrayList<Node> refs) {
++    void tryEliminateUnusedArgs(NodeList refs) {
+       // An argument is unused if its position is greater than the number of declared parameters
+       // or if it marked as unused.
+       ImmutableListMultimap<Node, Node> fns = ReferenceMap.getFunctionNodes(refs);
+@@ -245,7 +241,8 @@
+ 
+       // Build a list of parameters to remove
+       int lowestSpread = Integer.MAX_VALUE;
+-      for (Node n : refs) {
++      for (int i = 0, refCount = refs.size(); i < refCount; i++) {
++        Node n = refs.get(i);
+         if (ReferenceMap.isNormalOrOptChainCallOrNewTarget(n)) {
+           if (hasSpreadInFirstCallParam(n)) {
+             // Bail: with spread in the first argument of .call, we know nothing about any of the
+@@ -287,7 +284,8 @@
+         removeAllAfterIndex = maxFormalsCount - 1;
+       }
+ 
+-      for (Node n : refs) {
++      for (int i = 0, refCount = refs.size(); i < refCount; i++) {
++        Node n = refs.get(i);
+         if (ReferenceMap.isNormalOrOptChainCallOrNewTarget(n) && !alreadyRemoved(n)) {
+           Node arg = ReferenceMap.getFirstArgumentForCallOrNewOrDotCall(n);
+           recordRemovalCallArguments(
+@@ -450,11 +448,11 @@
+     return !n.isRoot();
+   }
+ 
+-  private CandidateAnalysis analyzeCandidateName(String key, ArrayList<Node> refs) {
++  private CandidateAnalysis analyzeCandidateName(String key, NodeList refs) {
+     return analyzeCandidate("name", key, refs);
+   }
+ 
+-  private CandidateAnalysis analyzeCandidateProperty(String key, ArrayList<Node> refs) {
++  private CandidateAnalysis analyzeCandidateProperty(String key, NodeList refs) {
+     return analyzeCandidate("property", key, refs);
+   }
+ 
+@@ -468,15 +466,16 @@
+    *   <li>none of the calls are tagged template literals, OR the special first argument is unused
+    * </ul>
+    */
+-  private CandidateAnalysis analyzeCandidate(String refKind, String key, ArrayList<Node> refs) {
+-    CandidateAnalysisBuilder analysisBuilder = new CandidateAnalysisBuilder();
++  private CandidateAnalysis analyzeCandidate(String refKind, String key, NodeList refs) {
++    CandidateAnalysis analysis = new CandidateAnalysis();
+     if (!OptimizeCalls.mayBeOptimizableName(compiler, key)) {
+       decisionsLog.log("%s\t%s\tnot an optimizable name", refKind, key);
+-      return analysisBuilder.setIsSafeToOptimize(false).build();
++      return analysis;
+     }
+     final ArrayList<Node> definitions = new ArrayList<>();
+     boolean seenCandidateUse = false;
+-    for (Node n : refs) {
++    for (int i = 0, refCount = refs.size(); i < refCount; i++) {
++      Node n = refs.get(i);
+       // TODO(johnlenz): Determine what to do about ".constructor" references.
+       // Currently classes that are super classes or have superclasses aren't optimized
+       //
+@@ -488,7 +487,7 @@
+         // TODO(johnlenz): filter .apply when we support it
+         seenCandidateUse = true;
+       } else if (n.getParent().isTaggedTemplateLit()) {
+-        analysisBuilder.addTaggedTemplateLiteral(n.getParent());
++        analysis.addTaggedTemplateLiteral(n.getParent());
+       } else if (isCandidateDefinition(n)) {
+         definitions.add(n);
+       } else if (!OptimizeCalls.isAllowedReference(n)) {
+@@ -496,23 +495,22 @@
+           decisionsLog.log("%s\t%s\tnot an allowed reference: %s", refKind, key, n.getLocation());
+         }
+         // TODO(johnlenz): allow extends clauses.
+-        return analysisBuilder.setIsSafeToOptimize(false).build();
++        return analysis;
+       }
+     }
+     if (definitions.isEmpty()) {
+       decisionsLog.log("%s\t%s\tno definition found", refKind, key);
+-      return analysisBuilder.setIsSafeToOptimize(false).build();
+-    }
+-    if (!analysisBuilder.taggedTemplateLiterals.isEmpty()) {
+-      final ImmutableCollection<Node> functionNodes =
+-          ReferenceMap.getFunctionNodes(definitions).values();
+-
+-      for (Node functionNode : functionNodes) {
+-        final Node firstParam = NodeUtil.getFunctionParameters(functionNode).getFirstChild();
+-        if (firstParam != null && !firstParam.isUnusedParameter()) {
+-          decisionsLog.log(
+-              "%s\t%s\twill not optimize parameters for tagged template literals", refKind, key);
+-          return analysisBuilder.setIsSafeToOptimize(false).build();
++      return analysis;
++    }
++    if (analysis.hasTaggedTemplateLiterals()) {
++      for (int i = 0, defCount = definitions.size(); i < defCount; i++) {
++        for (Node functionNode : ReferenceMap.definitionFunctionNodesFor(definitions.get(i))) {
++          final Node firstParam = NodeUtil.getFunctionParameters(functionNode).getFirstChild();
++          if (firstParam != null && !firstParam.isUnusedParameter()) {
++            decisionsLog.log(
++                "%s\t%s\twill not optimize parameters for tagged template literals", refKind, key);
++            return analysis;
++          }
+         }
+       }
+       decisionsLog.log(
+@@ -525,56 +523,43 @@
+ 
+     if (!seenCandidateUse) {
+       decisionsLog.log("%s\t%s\tno usage found", refKind, key);
+-      return analysisBuilder.setIsSafeToOptimize(false).build();
+-    }
+-    return analysisBuilder.setIsSafeToOptimize(true).build();
++      return analysis;
++    }
++    analysis.isSafeToOptimize = true;
++    return analysis;
+   }
+ 
+   /** Results of analyzing a candidate function's definition and references. */
+-  class CandidateAnalysis {
+-    private final ArrayList<Node> taggedTemplateLiterals;
+-    private final boolean isSafeToOptimize;
+-
+-    CandidateAnalysis(CandidateAnalysisBuilder builder) {
+-      this.taggedTemplateLiterals = builder.taggedTemplateLiterals;
+-      this.isSafeToOptimize = builder.isSafeToOptimize;
++  final class CandidateAnalysis {
++    private @Nullable ArrayList<Node> taggedTemplateLiterals = null;
++    boolean isSafeToOptimize = false;
++
++    void addTaggedTemplateLiteral(Node ttlNode) {
++      if (taggedTemplateLiterals == null) {
++        taggedTemplateLiterals = new ArrayList<>();
++      }
++      taggedTemplateLiterals.add(ttlNode);
++    }
++
++    boolean hasTaggedTemplateLiterals() {
++      return taggedTemplateLiterals != null && !taggedTemplateLiterals.isEmpty();
+     }
+ 
+     boolean shouldConvertTaggedTemplateLiterals() {
+-      return !taggedTemplateLiterals.isEmpty() && isSafeToOptimize;
++      return hasTaggedTemplateLiterals() && isSafeToOptimize;
+     }
+ 
+     void convertTaggedTemplateLiterals() {
+-      for (Node taggedTemplateLiteral : taggedTemplateLiterals) {
+-        convertTaggedTemplateLiteralToNormalCall(taggedTemplateLiteral);
+-      }
+-      taggedTemplateLiterals.clear();
++      if (taggedTemplateLiterals != null) {
++        for (int i = 0, size = taggedTemplateLiterals.size(); i < size; i++) {
++          convertTaggedTemplateLiteralToNormalCall(taggedTemplateLiterals.get(i));
++        }
++        taggedTemplateLiterals = null;
++      }
+     }
+ 
+     boolean isSafeToOptimize() {
+-      return isSafeToOptimize && taggedTemplateLiterals.isEmpty();
+-    }
+-  }
+-
+-  /** Builder class for CandidateAnalysis. */
+-  class CandidateAnalysisBuilder {
+-    final ArrayList<Node> taggedTemplateLiterals = new ArrayList<>();
+-    boolean isSafeToOptimize = false;
+-
+-    @CanIgnoreReturnValue
+-    CandidateAnalysisBuilder setIsSafeToOptimize(boolean isSafeToOptimize) {
+-      this.isSafeToOptimize = isSafeToOptimize;
+-      return this;
+-    }
+-
+-    @CanIgnoreReturnValue
+-    CandidateAnalysisBuilder addTaggedTemplateLiteral(Node ttlNode) {
+-      taggedTemplateLiterals.add(ttlNode);
+-      return this;
+-    }
+-
+-    CandidateAnalysis build() {
+-      return new CandidateAnalysis(this);
++      return isSafeToOptimize && !hasTaggedTemplateLiterals();
+     }
+   }
+ 
+@@ -739,22 +724,29 @@
+       return false; // Fast path; there can't possibly be back-refs.
+     }
+ 
+-    ArrayListMultimap<String, Node> namesByNames = ArrayListMultimap.create();
++    LinkedHashMap<String, NodeList> namesByNames = new LinkedHashMap<>();
+     NodeUtil.visitPostOrder(
+         paramList,
+         (n) -> {
+           if (n.isName()) {
+-            namesByNames.put(n.getString(), n);
++            String name = n.getString();
++            NodeList list = namesByNames.get(name);
++            if (list == null) {
++              list = new NodeList();
++              namesByNames.put(name, list);
++            }
++            list.add(n);
+           }
+         });
+ 
+-    for (Collection<Node> names : namesByNames.asMap().values()) {
+-      if (names.size() == 1) {
++    for (NodeList names : namesByNames.values()) {
++      int count = names.size();
++      if (count == 1) {
+         continue; // There can't be back-refs if there's only one ref.
+       }
+ 
+-      for (Node name : names) {
+-        if (NodeUtil.isLValue(name)) {
++      for (int i = 0; i < count; i++) {
++        if (NodeUtil.isLValue(names.get(i))) {
+           return true; // One ref is a definition, so the rest of might be back-refs.
+         }
+       }
+@@ -764,12 +756,13 @@
+   }
+ 
+   /** Removes any optional parameters if no callers specifies it as an argument. */
+-  private void tryEliminateOptionalArgs(ArrayList<Node> refs) {
++  private void tryEliminateOptionalArgs(NodeList refs) {
+     // Count the maximum number of arguments passed into this function all
+     // all points of the program.
+     int maxArgs = -1;
+ 
+-    for (Node n : refs) {
++    for (int i = 0, refCount = refs.size(); i < refCount; i++) {
++      Node n = refs.get(i);
+       if (ReferenceMap.isNormalOrOptChainCallOrNewTarget(n)) {
+         if (hasSpreadInFirstCallParam(n)) {
+           // Bail: with spread we must assume all parameters are used, don't waste
+@@ -798,6 +791,22 @@
+     }
+   }
+ 
++  private static final class ParameterList {
++    private final ArrayList<Parameter> items = new ArrayList<>();
++
++    int size() {
++      return items.size();
++    }
++
++    Parameter get(int index) {
++      return items.get(index);
++    }
++
++    void add(Parameter p) {
++      items.add(p);
++    }
++  }
++
+   /**
+    * Eliminate parameters if they are always constant.
+    *
+@@ -807,8 +816,8 @@
+    * @param refs A list of references to the symbol (name or property) as vetted by
+    *     #analyzeCandidate.
+    */
+-  private void tryEliminateConstantArgs(ArrayList<Node> refs) {
+-    List<Parameter> parameters = findFixedArguments(refs);
++  private void tryEliminateConstantArgs(NodeList refs) {
++    ParameterList parameters = findFixedArguments(refs);
+     if (parameters == null) {
+       return;
+     }
+@@ -830,7 +839,8 @@
+     }
+ 
+     // Found something to do, move the values from the call sites to the function definitions.
+-    for (Node n : refs) {
++    for (int i = 0, refCount = refs.size(); i < refCount; i++) {
++      Node n = refs.get(i);
+       if (!alreadyRemoved(n) && ReferenceMap.isNormalOrOptChainCallOrNewTarget(n)) {
+         optimizeCallSite(parameters, n);
+       }
+@@ -845,13 +855,14 @@
+    * @return A list of Parameter objects, in the declaration order, which represent potentially
+    *     movable values fixed values from all call sites or null if there are no candidate values.
+    */
+-  private @Nullable List<Parameter> findFixedArguments(ArrayList<Node> refs) {
+-    List<Parameter> parameters = new ArrayList<>();
++  private @Nullable ParameterList findFixedArguments(NodeList refs) {
++    ParameterList parameters = new ParameterList();
+     boolean firstCall = true;
+ 
+     // Build a list of parameters to remove
+     boolean continueLooking = false;
+-    for (Node n : refs) {
++    for (int i = 0, refCount = refs.size(); i < refCount; i++) {
++      Node n = refs.get(i);
+       if (ReferenceMap.isNormalOrOptChainCallOrNewTarget(n)) {
+         // Normally, we ignore the first parameter to a .call expression (the 'this' value)
+         // but if it is a spread, we know nothing about any of the parameters, so bail out now.
+@@ -908,7 +919,7 @@
+    *     the parameters are fixed.
+    * @return Whether there are any movable parameters.
+    */
+-  private static boolean adjustForConstraints(Node fn, List<Parameter> parameters) {
++  private static boolean adjustForConstraints(Node fn, ParameterList parameters) {
+     JSDocInfo info = NodeUtil.getBestJSDocInfo(fn);
+     if (info != null && info.isNoInline()) {
+       return false;
+@@ -1003,7 +1014,7 @@
+    *
+    * @return Whether any parameter was found that can be updated.
+    */
+-  private boolean findFixedParameters(List<Parameter> parameters, Node cur) {
++  private boolean findFixedParameters(ParameterList parameters, Node cur) {
+     boolean anyMovable = false;
+     int index = 0;
+     while (cur != null) {
+@@ -1041,7 +1052,7 @@
+   }
+ 
+   /** @return Whether any parameter was movable. */
+-  private boolean buildInitialParameterList(List<Parameter> parameters, Node cur) {
++  private boolean buildInitialParameterList(ParameterList parameters, Node cur) {
+     boolean anyMovable = false;
+     while (cur != null) {
+       boolean movable = isMovableValue(cur, globalScope);
+@@ -1106,7 +1117,7 @@
+     return true;
+   }
+ 
+-  private void optimizeFunctionDefinition(List<Parameter> parameters, Node fn) {
++  private void optimizeFunctionDefinition(ParameterList parameters, Node fn) {
+     Node paramList = NodeUtil.getFunctionParameters(fn);
+     Node maybeRest = paramList.getLastChild();
+     int lastParameter = parameters.size() - 1;
+@@ -1159,7 +1170,7 @@
+     }
+   }
+ 
+-  private void optimizeCallSite(List<Parameter> parameters, Node target) {
++  private void optimizeCallSite(ParameterList parameters, Node target) {
+     Node call = ReferenceMap.getCallOrNewNodeForTarget(target);
+     boolean callMayMutateArgs = call.mayMutateArguments();
+     boolean callMayMutateGlobalsOrThrow = call.mayMutateGlobalStateOrThrow();
+@@ -1188,7 +1199,7 @@
+   }
+ 
+   /** Simple container class that keeps tracks of a parameter and whether it should be removed. */
+-  private static class Parameter {
++  private static final class Parameter {
+     private final Node arg;
+     private boolean shouldRemove;
+     private boolean hasSideEffects;
+@@ -1250,7 +1261,7 @@
+     checkState(value.getParent() == null, "Value must be detached");
+     checkState(lhs != null, "formal parameter being declared must not be null");
+     checkState(lhs.getParent() == null, "formal parameter being declared must be detached");
+-    List<Node> stmts = new ArrayList<>();
++    ArrayList<Node> stmts = new ArrayList<>();
+     if (lhs.isDestructuringPattern()) {
+       rewriteDestructuringPattern(lhs, value, stmts);
+     } else {
+@@ -1261,7 +1272,7 @@
+ 
+   /** Adds an expression to the function block after all hoisted functions. */
+   private void addExpressionToFunction(Node function, Node value) {
+-    List<Node> stmts = new ArrayList<>();
++    ArrayList<Node> stmts = new ArrayList<>();
+     stmts.add(IR.exprResult(value).srcref(value));
+     insertStatements(function, stmts);
+   }
+@@ -1270,7 +1281,7 @@
+    * Insert the statements at the beginning of the function body, but after any hoisted function
+    * declarations so that the AST stays normalized.
+    */
+-  private void insertStatements(Node function, List<Node> stmts) {
++  private void insertStatements(Node function, ArrayList<Node> stmts) {
+     if (stmts.isEmpty()) {
+       return;
+     }
+@@ -1284,15 +1295,15 @@
+     compiler.reportChangeToEnclosingScope(stmts.get(0));
+   }
+ 
+-  private void addStatementsToBack(Node block, List<Node> stmts) {
+-    for (Node stmt : stmts) {
+-      block.addChildToBack(stmt);
+-    }
+-  }
+-
+-  private void addStatementsBefore(Node insertionPoint, List<Node> stmts) {
+-    for (Node item : Lists.reverse(stmts)) {
+-      item.insertBefore(insertionPoint);
++  private void addStatementsToBack(Node block, ArrayList<Node> stmts) {
++    for (int i = 0, size = stmts.size(); i < size; i++) {
++      block.addChildToBack(stmts.get(i));
++    }
++  }
++
++  private void addStatementsBefore(Node insertionPoint, ArrayList<Node> stmts) {
++    for (int i = stmts.size() - 1; i >= 0; i--) {
++      stmts.get(i).insertBefore(insertionPoint);
+     }
+   }
+ 
+@@ -1310,7 +1321,7 @@
+     if (formal != null) {
+       // Keep the args in the same order, do the last first.
+       eliminateParamsAfter(fnNode, formal.getNext());
+-      List<Node> stmts = new ArrayList<>();
++      ArrayList<Node> stmts = new ArrayList<>();
+       formal.detach();
+       if (formal.isRest()) {
+         checkState(formal.getNext() == null);
+@@ -1337,7 +1348,7 @@
+   }
+ 
+   private void rewriteDestructuringPattern(
+-      Node destructuringPattern, Node value, List<Node> stmts) {
++      Node destructuringPattern, Node value, ArrayList<Node> stmts) {
+     checkState(destructuringPattern.isDestructuringPattern());
+     checkState(
+         !destructuringPattern.hasParent(), "Formal parameter must be detached for rewriting");
+diff --git a/com/google/javascript/jscomp/OptimizeReturns.java b/com/google/javascript/jscomp/OptimizeReturns.java
+--- a/com/google/javascript/jscomp/OptimizeReturns.java
++++ b/com/google/javascript/jscomp/OptimizeReturns.java
+@@ -19,12 +19,12 @@
+ import static com.google.common.base.Preconditions.checkState;
+ 
+ import com.google.common.annotations.VisibleForTesting;
++import com.google.javascript.jscomp.OptimizeCalls.NodeList;
+ import com.google.javascript.jscomp.OptimizeCalls.ReferenceMap;
+ import com.google.javascript.jscomp.diagnostic.LogFile;
+ import com.google.javascript.rhino.IR;
+ import com.google.javascript.rhino.Node;
+ import java.util.ArrayList;
+-import java.util.List;
+ import java.util.Map.Entry;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -65,21 +65,21 @@
+     try (LogFile logFile = compiler.createOrReopenIndexedLog(this.getClass(), "decisions.log")) {
+       decisionsLog = logFile; // avoid passing the log file through a bunch of methods
+       // Find all function nodes whose callers ignore the return values.
+-      List<ArrayList<Node>> toOptimize = new ArrayList<>();
++      ArrayList<NodeList> toOptimize = new ArrayList<>();
+ 
+       // Find all the candidates before modifying the AST.
+-      for (Entry<String, ArrayList<Node>> entry : definitions.getNameReferences()) {
++      for (Entry<String, NodeList> entry : definitions.names.entrySet()) {
+         String key = entry.getKey();
+-        ArrayList<Node> refs = entry.getValue();
++        NodeList refs = entry.getValue();
+         if (isCandidate(key, refs)) {
+           decisionsLog.log("name %s\tremoving return value", key);
+           toOptimize.add(refs);
+         }
+       }
+ 
+-      for (Entry<String, ArrayList<Node>> entry : definitions.getPropReferences()) {
++      for (Entry<String, NodeList> entry : definitions.props.entrySet()) {
+         String key = entry.getKey();
+-        ArrayList<Node> refs = entry.getValue();
++        NodeList refs = entry.getValue();
+         if (isCandidate(key, refs)) {
+           decisionsLog.log("property %s\tremoving return value", key);
+           toOptimize.add(refs);
+@@ -87,7 +87,8 @@
+       }
+ 
+       // Now modify the AST
+-      for (ArrayList<Node> refs : toOptimize) {
++      for (int i = 0, size = toOptimize.size(); i < size; i++) {
++        NodeList refs = toOptimize.get(i);
+         for (Node fn : ReferenceMap.getFunctionNodes(refs).values()) {
+           rewriteReturns(fn);
+         }
+@@ -103,7 +104,7 @@
+    * at least one known function definition - if there is at least one use NOTE: unknown definitions
+    * are allowed, as only known definitions will be removed.
+    */
+-  private boolean isCandidate(String name, List<Node> refs) {
++  private boolean isCandidate(String name, NodeList refs) {
+     if (!OptimizeCalls.mayBeOptimizableName(compiler, name)) {
+       decisionsLog.log("%s\tnot an optimizable name", name);
+       return false;
+@@ -111,7 +112,8 @@
+ 
+     boolean seenCandidateDefiniton = false;
+     boolean seenUse = false;
+-    for (Node n : refs) {
++    for (int i = 0, size = refs.size(); i < size; i++) {
++      Node n = refs.get(i);
+       // Assume indirect definitions references use the result
+       if (ReferenceMap.isCallTarget(n) || ReferenceMap.isOptChainCallTarget(n)) {
+         Node callNode = ReferenceMap.getCallOrNewNodeForTarget(n);
+diff --git a/com/google/javascript/jscomp/PureFunctionIdentifier.java b/com/google/javascript/jscomp/PureFunctionIdentifier.java
+--- a/com/google/javascript/jscomp/PureFunctionIdentifier.java
++++ b/com/google/javascript/jscomp/PureFunctionIdentifier.java
+@@ -22,15 +22,13 @@
+ import static java.util.stream.Collectors.joining;
+ 
+ import com.google.common.base.MoreObjects;
+-import com.google.common.collect.ArrayListMultimap;
+ import com.google.common.collect.ImmutableList;
+-import com.google.common.collect.Multimap;
+-import com.google.common.collect.Multimaps;
+ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+ import com.google.errorprone.annotations.DoNotCall;
+ import com.google.javascript.jscomp.AccessorSummary.PropertyAccessKind;
+ import com.google.javascript.jscomp.CodingConvention.Cache;
+ import com.google.javascript.jscomp.NodeTraversal.ScopedCallback;
++import com.google.javascript.jscomp.OptimizeCalls.NodeList;
+ import com.google.javascript.jscomp.OptimizeCalls.ReferenceMap;
+ import com.google.javascript.jscomp.graph.DiGraph;
+ import com.google.javascript.jscomp.graph.DiGraph.DiGraphNode;
+@@ -41,7 +39,6 @@
+ import com.google.javascript.rhino.Node;
+ import java.util.ArrayDeque;
+ import java.util.ArrayList;
+-import java.util.Collection;
+ import java.util.Comparator;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+@@ -88,7 +85,24 @@
+    *
+    * @see {@link AmbiguatedFunctionSummary}
+    */
+-  private final Map<String, AmbiguatedFunctionSummary> summariesByName = new LinkedHashMap<>();
++  private static final class SummaryList {
++    private final ArrayList<AmbiguatedFunctionSummary> items = new ArrayList<>();
++
++    void add(AmbiguatedFunctionSummary summary) {
++      items.add(summary);
++    }
++
++    int size() {
++      return items.size();
++    }
++
++    AmbiguatedFunctionSummary get(int index) {
++      return items.get(index);
++    }
++  }
++
++  private final LinkedHashMap<String, AmbiguatedFunctionSummary> summariesByName =
++      new LinkedHashMap<>();
+ 
+   /**
+    * Mapping from function node to summaries for all names associated with that node.
+@@ -110,8 +124,17 @@
+    * names to infos. However, since names are 1:1 with infos, it's more effecient to "pre-join" in
+    * this way.
+    */
+-  private final Multimap<Node, AmbiguatedFunctionSummary> summariesForAllNamesOfFunctionByNode =
+-      ArrayListMultimap.create();
++  private final LinkedHashMap<Node, SummaryList> summariesForAllNamesOfFunctionByNode =
++      new LinkedHashMap<>();
++
++  private void putFunctionSummary(Node fn, AmbiguatedFunctionSummary summary) {
++    SummaryList list = summariesForAllNamesOfFunctionByNode.get(fn);
++    if (list == null) {
++      list = new SummaryList();
++      summariesForAllNamesOfFunctionByNode.put(fn, list);
++    }
++    list.add(summary);
++  }
+ 
+   /**
+    * Set of FUNCTION nodes which are artificially marked as pure, via a `@nosideeffects` JSDoc tag
+@@ -127,7 +150,7 @@
+   // List of all function call sites. Storing them here during the function analysis traversal
+   // prevents us from doing a second traversal to annotate them with side-effects. We can just
+   // iterate the list.
+-  private final List<Node> allFunctionCalls = new ArrayList<>();
++  private final ArrayList<Node> allFunctionCalls = new ArrayList<>();
+ 
+   /**
+    * A graph linking the summary of a function callee to the summaries of its callers.
+@@ -213,7 +236,12 @@
+       return;
+     }
+     for (Node function : this.artificiallyPureLiteralsForDebugging) {
+-      for (AmbiguatedFunctionSummary summary : summariesForAllNamesOfFunctionByNode.get(function)) {
++      SummaryList summaries = summariesForAllNamesOfFunctionByNode.get(function);
++      if (summaries == null) {
++        continue;
++      }
++      for (int i = 0, count = summaries.size(); i < count; i++) {
++        AmbiguatedFunctionSummary summary = summaries.get(i);
+         if (summary.hasNoFlagsSet()) {
+           // no flags set == the function is successfully treated as pure.
+           continue;
+@@ -453,11 +481,15 @@
+       if (callee.isFunction()) {
+         checkState(callee.isFunction(), callee);
+ 
+-        Collection<AmbiguatedFunctionSummary> summariesForFunction =
+-            summariesForAllNamesOfFunctionByNode.get(callee);
+-        checkState(!summariesForFunction.isEmpty(), "Function missed during analysis: %s", callee);
+-
+-        results.addAll(summariesForFunction);
++        SummaryList summariesForFunction = summariesForAllNamesOfFunctionByNode.get(callee);
++        checkState(
++            summariesForFunction != null && summariesForFunction.size() > 0,
++            "Function missed during analysis: %s",
++            callee);
++
++        for (int i = 0, count = summariesForFunction.size(); i < count; i++) {
++          results.add(summariesForFunction.get(i));
++        }
+       } else {
+         String calleeName = nameForReference(callee);
+         results.add(summariesByName.getOrDefault(calleeName, unknownFunctionSummary));
+@@ -475,13 +507,28 @@
+    * it needs access to scopes and also depends on global knowledge of functions.
+    */
+   private void populateDatastructuresForAnalysisTraversal(ReferenceMap referenceMap) {
+-    // Merge the prop and name references into a single multimap since only the name matters.
+-    ArrayListMultimap<String, Node> referencesByName = ArrayListMultimap.create();
+-    for (Map.Entry<String, ? extends List<Node>> entry : referenceMap.getNameReferences()) {
+-      referencesByName.putAll(entry.getKey(), entry.getValue());
+-    }
+-    for (Map.Entry<String, ? extends List<Node>> entry : referenceMap.getPropReferences()) {
+-      referencesByName.putAll(PROP_NAME_PREFIX + entry.getKey(), entry.getValue());
++    // Merge the prop and name references into a single map since only the name matters.
++    LinkedHashMap<String, NodeList> referencesByName = new LinkedHashMap<>();
++    for (Map.Entry<String, NodeList> entry : referenceMap.names.entrySet()) {
++      NodeList refs = entry.getValue();
++      if (!refs.isEmpty()) {
++        referencesByName.put(entry.getKey(), refs);
++      }
++    }
++    for (Map.Entry<String, NodeList> entry : referenceMap.props.entrySet()) {
++      NodeList refs = entry.getValue();
++      if (!refs.isEmpty()) {
++        String key = PROP_NAME_PREFIX + entry.getKey();
++        NodeList existing = referencesByName.get(key);
++        if (existing == null) {
++          referencesByName.put(key, refs);
++        } else {
++          NodeList merged = new NodeList();
++          merged.addAll(existing);
++          merged.addAll(refs);
++          referencesByName.put(key, merged);
++        }
++      }
+     }
+     // Empty function names cause a crash during analysis that is better to detect here.
+     // Additionally, functions require a name to be invoked in a statically analyzable way; there's
+@@ -494,8 +541,10 @@
+       summariesByName.put(name, AmbiguatedFunctionSummary.createInGraph(reverseCallGraph, name));
+     }
+ 
+-    Multimaps.asMap(referencesByName).forEach(this::populateFunctionDefinitions);
+-    this.summariesForAllNamesOfFunctionByNode.put(
++    for (Map.Entry<String, NodeList> entry : referencesByName.entrySet()) {
++      populateFunctionDefinitions(entry.getKey(), entry.getValue());
++    }
++    putFunctionSummary(
+         IMPLICIT_PURE_FN,
+         AmbiguatedFunctionSummary.createInGraph(reverseCallGraph, "<implicit pure class ctor"));
+   }
+@@ -507,15 +556,16 @@
+    * @param name A variable or property name,
+    * @param references The set of all nodes representing R- and L-value references to {@code name}.
+    */
+-  private void populateFunctionDefinitions(String name, List<Node> references) {
++  private void populateFunctionDefinitions(String name, NodeList references) {
+     AmbiguatedFunctionSummary summaryForName = checkNotNull(summariesByName.get(name));
+ 
+     // Make sure we get absolutely every R-value assigned to `name` or at the very least detect
+     // there are some we're missing. Overlooking a single R-value would invalidate the analysis.
+ 
+     boolean invalid = false;
+-    List<ImmutableList<Node>> rvaluesAssignedToName = new ArrayList<>();
+-    for (Node reference : references) {
++    ArrayList<ImmutableList<Node>> rvaluesAssignedToName = new ArrayList<>();
++    for (int i = 0, refCount = references.size(); i < refCount; i++) {
++      Node reference = references.get(i);
+       // Eliminate any references that we're sure are R-values themselves. Otherwise
+       // there's a high probability we'll inspect an R-value for futher R-values. We wouldn't
+       // find any, and then we'd have to consider `name` impure.
+@@ -560,7 +610,7 @@
+       for (ImmutableList<Node> callables : rvaluesAssignedToName) {
+         for (Node rvalue : callables) {
+           if (rvalue.isFunction()) {
+-            summariesForAllNamesOfFunctionByNode.put(rvalue, summaryForName);
++            putFunctionSummary(rvalue, summaryForName);
+           } else if (NodeUtil.isUndefined(rvalue)) {
+           } else {
+             String rvalueName = nameForReference(rvalue);
+@@ -673,9 +723,11 @@
+         return;
+       }
+ 
+-      for (AmbiguatedFunctionSummary definitionSummary :
+-          summariesForAllNamesOfFunctionByNode.get(node)) {
+-        updateSideEffectsForExternFunction(node, definitionSummary);
++      SummaryList summaries = summariesForAllNamesOfFunctionByNode.get(node);
++      if (summaries != null) {
++        for (int i = 0, count = summaries.size(); i < count; i++) {
++          updateSideEffectsForExternFunction(node, summaries.get(i));
++        }
+       }
+     }
+ 
+@@ -801,8 +853,11 @@
+         return;
+       }
+ 
+-      for (AmbiguatedFunctionSummary summary : summariesForAllNamesOfFunctionByNode.get(root)) {
+-        updateSideEffectsForNode(checkNotNull(summary), traversal, node);
++      SummaryList summaries = summariesForAllNamesOfFunctionByNode.get(root);
++      if (summaries != null) {
++        for (int i = 0, count = summaries.size(); i < count; i++) {
++          updateSideEffectsForNode(checkNotNull(summaries.get(i)), traversal, node);
++        }
+       }
+     }
+ 
+@@ -1038,7 +1093,7 @@
+         // function.
+         AmbiguatedFunctionSummary summary =
+             AmbiguatedFunctionSummary.createInGraph(reverseCallGraph, "<anonymous>");
+-        summariesForAllNamesOfFunctionByNode.put(function, summary);
++        putFunctionSummary(function, summary);
+       }
+     }
+ 
+@@ -1058,33 +1113,36 @@
+       }
+ 
+       // Handle deferred local variable modifications:
+-      for (AmbiguatedFunctionSummary sideEffectInfo :
+-          summariesForAllNamesOfFunctionByNode.get(functionEntry.root)) {
+-        checkNotNull(sideEffectInfo, "%s has no side effect info.", functionEntry.root);
+-
+-        if (sideEffectInfo.mutatesGlobalState()) {
+-          continue;
+-        }
+-
+-        for (Var v : t.getScope().getVarIterable()) {
+-          boolean isFromDestructuring = NodeUtil.isLhsByDestructuring(v.getNameNode());
+-          if (v.isParam()
+-              // Ignore destructuring parameters because they don't directly correspond to an
+-              // argument passed to the function for the purposes of "setMutatesArguments"
+-              && !isFromDestructuring
+-              && !functionEntry.skiplistedVars.contains(v)
+-              && functionEntry.taintedVars.contains(v)) {
+-            sideEffectInfo.setMutatesArgumentAt(getParamIndex(v), v.getNode());
++      SummaryList summaries = summariesForAllNamesOfFunctionByNode.get(functionEntry.root);
++      if (summaries != null) {
++        for (int i = 0, count = summaries.size(); i < count; i++) {
++          AmbiguatedFunctionSummary sideEffectInfo = summaries.get(i);
++          checkNotNull(sideEffectInfo, "%s has no side effect info.", functionEntry.root);
++
++          if (sideEffectInfo.mutatesGlobalState()) {
+             continue;
+           }
+ 
+-          // Take care of locals that might have been tainted.
+-          if (!functionEntry.isLocalVar(v, t.getScope())) {
+-            if (functionEntry.taintedVars.contains(v)) {
+-              // If the function has global side-effects
+-              // don't bother with the local side-effects.
+-              sideEffectInfo.setMutatesGlobalStateAndAllOtherFlags(v.getNode());
+-              break;
++          for (Var v : t.getScope().getVarIterable()) {
++            boolean isFromDestructuring = NodeUtil.isLhsByDestructuring(v.getNameNode());
++            if (v.isParam()
++                // Ignore destructuring parameters because they don't directly correspond to an
++                // argument passed to the function for the purposes of "setMutatesArguments"
++                && !isFromDestructuring
++                && !functionEntry.skiplistedVars.contains(v)
++                && functionEntry.taintedVars.contains(v)) {
++              sideEffectInfo.setMutatesArgumentAt(getParamIndex(v), v.getNode());
++              continue;
++            }
++
++            // Take care of locals that might have been tainted.
++            if (!functionEntry.isLocalVar(v, t.getScope())) {
++              if (functionEntry.taintedVars.contains(v)) {
++                // If the function has global side-effects
++                // don't bother with the local side-effects.
++                sideEffectInfo.setMutatesGlobalStateAndAllOtherFlags(v.getNode());
++                break;
++              }
+             }
+           }
+         }

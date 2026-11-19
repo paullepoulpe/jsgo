@@ -1,0 +1,1 @@
+function load() { return import('./lazy.js'); } window['load'] = load;

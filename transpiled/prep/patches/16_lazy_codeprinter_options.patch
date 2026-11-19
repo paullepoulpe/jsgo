@@ -1,0 +1,50 @@
+diff --git a/com/google/javascript/jscomp/CodePrinter.java b/com/google/javascript/jscomp/CodePrinter.java
+index 28fb08e..d5441a9 100644
+--- a/com/google/javascript/jscomp/CodePrinter.java
++++ b/com/google/javascript/jscomp/CodePrinter.java
+@@ -685,7 +685,7 @@ public final class CodePrinter {
+ 
+   public static final class Builder {
+     private final Node root;
+-    private CompilerOptions options = new CompilerOptions();
++    private @Nullable CompilerOptions options;
+     private boolean lineBreak;
+     private boolean prettyPrint;
+     private boolean outputTypes = false;
+@@ -697,12 +697,20 @@ public final class CodePrinter {
+         new CodeGeneratorFactory() {
+           @Override
+           public CodeGenerator getCodeGenerator(Format outputFormat, CodeConsumer cc) {
++            CompilerOptions opts = getOptions();
+             return outputFormat == Format.TYPED
+-                ? new TypedCodeGenerator(cc, options, registry)
+-                : new CodeGenerator(cc, options);
++                ? new TypedCodeGenerator(cc, opts, registry)
++                : new CodeGenerator(cc, opts);
+           }
+         };
+ 
++    private CompilerOptions getOptions() {
++      if (this.options == null) {
++        this.options = new CompilerOptions();
++      }
++      return this.options;
++    }
++
+     /**
+      * Sets the root node from which to generate the source code.
+      * @param node The root node.
+@@ -807,10 +815,11 @@ public final class CodePrinter {
+         throw new IllegalStateException("Cannot build without root node being specified");
+       }
+ 
++      CompilerOptions opts = getOptions();
+       return toSource(
+           root,
+-          Format.fromOptions(options, outputTypes, prettyPrint),
+-          options,
++          Format.fromOptions(opts, outputTypes, prettyPrint),
++          opts,
+           licenseTracker,
+           tagAsTypeSummary,
+           tagAsStrict,

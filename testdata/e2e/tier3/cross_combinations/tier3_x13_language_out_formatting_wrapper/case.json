@@ -1,0 +1,31 @@
+{
+  "id": "tier3_x13_language_out_formatting_wrapper",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "Transpilation with single quotes, pretty print, and wrapper",
+  "description": "Transpiles ES_NEXT to ES5 while applying SINGLE_QUOTES, PRETTY_PRINT, and output wrapper",
+  "args": [
+    "--language_in",
+    "ECMASCRIPT_NEXT",
+    "--language_out",
+    "ECMASCRIPT5",
+    "--formatting",
+    "SINGLE_QUOTES",
+    "--formatting",
+    "PRETTY_PRINT",
+    "--output_wrapper",
+    "// banner\n%output%",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "const greeting = \"hello\"; const getGreeting = () => `${greeting} world`; window['g'] = getGreeting();"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "// banner\nvar $jscomp = $jscomp || {};\n$jscomp.scope = {};\n$jscomp.createTemplateTagFirstArg = function(a) {\n  return $jscomp.createTemplateTagFirstArgWithRaw(a, a);\n};\n$jscomp.createTemplateTagFirstArgWithRaw = function(a, b) {\n  a.raw = b;\n  Object.freeze && (Object.freeze(a), Object.freeze(b));\n  return a;\n};\nvar greeting = 'hello', getGreeting = function() {\n  return greeting + ' world';\n};\nwindow.g = getGreeting();\n\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

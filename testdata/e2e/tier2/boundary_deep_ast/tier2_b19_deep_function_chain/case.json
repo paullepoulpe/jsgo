@@ -1,0 +1,23 @@
+{
+  "id": "tier2_b19_deep_function_chain",
+  "tier": 2,
+  "feature": "boundary_deep_ast",
+  "name": "Deeply nested method invocation chain",
+  "description": "Compiles 80 levels of chained method invocations",
+  "args": [
+    "--compilation_level",
+    "SIMPLE",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var builder = { step: function() { return this; }, done: function() { return 1; } };\nvar res = builder.step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().done();\nwindow['b'] = res;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var builder={step:function(){return this},done:function(){return 1}},res=builder.step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().step().done();\nwindow.b=res;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

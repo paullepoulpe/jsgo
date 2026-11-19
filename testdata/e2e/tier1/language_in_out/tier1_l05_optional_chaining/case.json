@@ -1,0 +1,25 @@
+{
+  "id": "tier1_l05_optional_chaining",
+  "tier": 1,
+  "feature": "language_in_out",
+  "name": "Optional chaining transpilation",
+  "description": "Verifies ES2020 optional chaining transpiled down to ES5 safe conditional access",
+  "args": [
+    "--language_in",
+    "ECMASCRIPT_2020",
+    "--language_out",
+    "ECMASCRIPT5",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var result = window?.config?.settings?.getVal?.();"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var $jscomp$optchain$tmp100294322$0,$jscomp$optchain$tmp100294322$1,$jscomp$optchain$tmp100294322$2,$jscomp$optchain$tmp100294322$3,$jscomp$optchain$tmp100294322$4,result=($jscomp$optchain$tmp100294322$0=window)==null?void 0:($jscomp$optchain$tmp100294322$1=$jscomp$optchain$tmp100294322$0.config)==null?void 0:($jscomp$optchain$tmp100294322$2=$jscomp$optchain$tmp100294322$1.settings)==null?void 0:($jscomp$optchain$tmp100294322$4=($jscomp$optchain$tmp100294322$3=$jscomp$optchain$tmp100294322$2).getVal)==\nnull?void 0:$jscomp$optchain$tmp100294322$4.call($jscomp$optchain$tmp100294322$3);\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

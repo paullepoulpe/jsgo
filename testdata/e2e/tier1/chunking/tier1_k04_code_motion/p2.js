@@ -1,0 +1,1 @@
+window['p2'] = helper(20);

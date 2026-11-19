@@ -1,0 +1,23 @@
+{
+  "id": "tier1_c03_advanced",
+  "tier": 1,
+  "feature": "compilation_level",
+  "name": "Advanced optimizations",
+  "description": "Verifies that ADVANCED performs global renaming, function inlining, and aggressive DCE",
+  "args": [
+    "--compilation_level",
+    "ADVANCED",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "function deadFunc() { return 42; } function multiply(x, y) { return x * y; } window['output'] = multiply(6, 7);"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "window.output=42;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

@@ -1,0 +1,1 @@
+/** @type {{ logMessage: function(string): void }} */ var externalLogger;

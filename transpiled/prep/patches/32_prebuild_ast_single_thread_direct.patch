@@ -1,0 +1,32 @@
+diff --git a/com/google/javascript/jscomp/PrebuildAst.java b/com/google/javascript/jscomp/PrebuildAst.java
+--- a/com/google/javascript/jscomp/PrebuildAst.java
++++ b/com/google/javascript/jscomp/PrebuildAst.java
+@@ -45,6 +45,12 @@
+   }
+ 
+   void prebuild(Iterable<CompilerInput> allInputs) {
++    if (this.numParallelThreads <= 1) {
++      for (CompilerInput input : allInputs) {
++        input.getAstRoot(compiler);
++      }
++      return;
++    }
+     ThreadFactory threadFactory =
+         r -> {
+           Thread t =
+diff --git a/com/google/javascript/jscomp/PrebuildDependencyInfo.java b/com/google/javascript/jscomp/PrebuildDependencyInfo.java
+--- a/com/google/javascript/jscomp/PrebuildDependencyInfo.java
++++ b/com/google/javascript/jscomp/PrebuildDependencyInfo.java
+@@ -44,6 +44,12 @@
+   }
+ 
+   void prebuild(Iterable<CompilerInput> allInputs) {
++    if (this.numParallelThreads <= 1) {
++      for (CompilerInput input : allInputs) {
++        input.getDependencyInfo();
++      }
++      return;
++    }
+     ThreadFactory threadFactory =
+         new ThreadFactory() {
+           @Override

@@ -1,0 +1,24 @@
+{
+  "id": "tier3_x14_defines_inlining_deadcode",
+  "tier": 3,
+  "feature": "cross_combinations",
+  "name": "Defines driving complete dead code elimination",
+  "description": "Verifies false boolean define causes dead branch and its functions to be completely removed",
+  "args": [
+    "--define=ENABLE_LEGACY=false",
+    "--compilation_level",
+    "ADVANCED",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "/** @define {boolean} */ var ENABLE_LEGACY = true; function legacyCode() { return 'bloat_function_content'; } if (ENABLE_LEGACY) { window['out'] = legacyCode(); } else { window['out'] = 'modern'; }"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "window.out=\"modern\";\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

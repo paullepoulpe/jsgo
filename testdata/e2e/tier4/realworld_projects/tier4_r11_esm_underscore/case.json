@@ -1,0 +1,23 @@
+{
+  "id": "tier4_r11_esm_underscore",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "Underscore collection utility scenario",
+  "description": "Compiles functional map/filter collection pipeline under ADVANCED",
+  "args": [
+    "--compilation_level",
+    "ADVANCED",
+    "--js",
+    "utils.js"
+  ],
+  "stdin": "",
+  "files": {
+    "utils.js": "function map(arr, fn) { var res = []; for (var i = 0; i < arr.length; i++) res.push(fn(arr[i])); return res; }\nfunction square(n) { return n * n; }\nwindow['squared'] = map([1, 2, 3, 4], square);\n"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "for(var a=window,b=[1,2,3,4],c=[],d=0;d<b.length;d++){var e=c,f=b[d];e.push.call(e,f*f)}a.squared=c;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

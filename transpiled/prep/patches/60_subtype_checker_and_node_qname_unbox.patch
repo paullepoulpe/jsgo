@@ -1,0 +1,798 @@
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+index 32a4c8be..793a0586 100644
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -3296,38 +3296,124 @@ public class Node {
+               + "."
+               + p1;
+         }
+-        StringBuilder builder =
+-            n8.getQualifiedNameForGetProp(
+-                8
+-                    + p8.length()
+-                    + p7.length()
+-                    + p6.length()
+-                    + p5.length()
+-                    + p4.length()
+-                    + p3.length()
+-                    + p2.length()
+-                    + p1.length());
+-        if (builder == null) {
++        String p9 = n8.getString();
++        Node n9 = n8.first;
++        if (!n9.isGetProp()) {
++          String left = n9.getQualifiedName();
++          if (left == null) {
++            yield null;
++          }
++          yield left
++              + "."
++              + p9
++              + "."
++              + p8
++              + "."
++              + p7
++              + "."
++              + p6
++              + "."
++              + p5
++              + "."
++              + p4
++              + "."
++              + p3
++              + "."
++              + p2
++              + "."
++              + p1;
++        }
++        String p10 = n9.getString();
++        Node n10 = n9.first;
++        if (!n10.isGetProp()) {
++          String left = n10.getQualifiedName();
++          if (left == null) {
++            yield null;
++          }
++          yield left
++              + "."
++              + p10
++              + "."
++              + p9
++              + "."
++              + p8
++              + "."
++              + p7
++              + "."
++              + p6
++              + "."
++              + p5
++              + "."
++              + p4
++              + "."
++              + p3
++              + "."
++              + p2
++              + "."
++              + p1;
++        }
++        String p11 = n10.getString();
++        Node n11 = n10.first;
++        if (!n11.isGetProp()) {
++          String left = n11.getQualifiedName();
++          if (left == null) {
++            yield null;
++          }
++          yield left
++              + "."
++              + p11
++              + "."
++              + p10
++              + "."
++              + p9
++              + "."
++              + p8
++              + "."
++              + p7
++              + "."
++              + p6
++              + "."
++              + p5
++              + "."
++              + p4
++              + "."
++              + p3
++              + "."
++              + p2
++              + "."
++              + p1;
++        }
++        String p12 = n11.getString();
++        Node n12 = n11.first;
++        String left = n12.getQualifiedName();
++        if (left == null) {
+           yield null;
+         }
+-        builder
+-            .append('.')
+-            .append(p8)
+-            .append('.')
+-            .append(p7)
+-            .append('.')
+-            .append(p6)
+-            .append('.')
+-            .append(p5)
+-            .append('.')
+-            .append(p4)
+-            .append('.')
+-            .append(p3)
+-            .append('.')
+-            .append(p2)
+-            .append('.')
+-            .append(p1);
+-        yield builder.toString();
++        yield left
++            + "."
++            + p12
++            + "."
++            + p11
++            + "."
++            + p10
++            + "."
++            + p9
++            + "."
++            + p8
++            + "."
++            + p7
++            + "."
++            + p6
++            + "."
++            + p5
++            + "."
++            + p4
++            + "."
++            + p3
++            + "."
++            + p2
++            + "."
++            + p1;
+       }
+       case THIS -> "this";
+       case SUPER -> "super";
+@@ -3339,34 +3425,6 @@ public class Node {
+     return isQualifiedName() ? new QualifiedName.NodeQname(this) : null;
+   }
+ 
+-  /**
+-   * Helper method for {@link #getQualifiedName} to handle GETPROP nodes.
+-   *
+-   * @param reserve The number of characters of space to reserve in the StringBuilder
+-   * @return {@code null} if this is not a qualified name or a StringBuilder if it is a complex
+-   *     qualified name.
+-   */
+-  private @Nullable StringBuilder getQualifiedNameForGetProp(int reserve) {
+-    String propName = this.getString();
+-    reserve += 1 + propName.length(); // +1 for the '.'
+-    StringBuilder builder;
+-    if (first.isGetProp()) {
+-      builder = first.getQualifiedNameForGetProp(reserve);
+-      if (builder == null) {
+-        return null;
+-      }
+-    } else {
+-      String left = first.getQualifiedName();
+-      if (left == null) {
+-        return null;
+-      }
+-      builder = new StringBuilder(left.length() + reserve);
+-      builder.append(left);
+-    }
+-    builder.append('.').append(propName);
+-    return builder;
+-  }
+-
+   /**
+    * This function takes a set of GETPROP nodes and produces a string that is each property
+    * separated by dots. If the node ultimately under the left sub-tree is not a simple name, this is
+diff --git a/com/google/javascript/rhino/jstype/EqualityChecker.java b/com/google/javascript/rhino/jstype/EqualityChecker.java
+index 6aedded8..06898f97 100644
+--- a/com/google/javascript/rhino/jstype/EqualityChecker.java
++++ b/com/google/javascript/rhino/jstype/EqualityChecker.java
+@@ -46,8 +46,7 @@ import static com.google.javascript.jscomp.base.JSCompObjects.identical;
+ import com.google.common.collect.ImmutableList;
+ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+ import com.google.javascript.rhino.jstype.FunctionType.Parameter;
+-import com.google.javascript.rhino.jstype.JSType.MatchStatus;
+-import java.util.LinkedHashMap;
++import java.util.Arrays;
+ import java.util.Objects;
+ import java.util.Set;
+ import org.jspecify.annotations.Nullable;
+@@ -98,10 +97,18 @@ final class EqualityChecker {
+    * (short of stack overflow) and we should get the same result.
+    */
+   private static final int POTENTIALLY_CYCLIC_RECURSION_DEPTH = 20;
++  private static final byte STATUS_PROCESSING = 1;
++  private static final byte STATUS_MATCH = 2;
++  private static final byte STATUS_NOT_MATCH = 3;
+ 
+   private EqMethod eqMethod;
+ 
+-  private LinkedHashMap<CacheKey, MatchStatus> eqCache;
++  private JSType @Nullable [] cacheLeft;
++  private JSType @Nullable [] cacheRight;
++  private byte @Nullable [] cacheStatus;
++  private int @Nullable [] cacheHash;
++  private int @Nullable [] cacheTable;
++  private int cacheSize = 0;
+   private int recursionDepth = 0;
+   private boolean hasRun = false;
+ 
+@@ -124,7 +131,50 @@ final class EqualityChecker {
+     this.hasRun = true;
+   }
+ 
++  private static boolean isWildcardOrProxyOrUnion(JSTypeClass c) {
++    return switch (c) {
++      case PROXY_OBJECT, NAMED, TEMPLATIZED, TEMPLATE, UNION -> true;
++      default -> false;
++    };
++  }
++
++  private static boolean canNonIdenticalTypesEqual(JSType left, JSType right) {
++    JSTypeClass lc = left.getTypeClass();
++    JSTypeClass rc = right.getTypeClass();
++    if (isWildcardOrProxyOrUnion(lc) || isWildcardOrProxyOrUnion(rc)) {
++      return true;
++    }
++    return switch (lc) {
++      case NO_RESOLVED -> rc == JSTypeClass.NO_RESOLVED;
++      case RECORD -> rc == JSTypeClass.RECORD;
++      case FUNCTION ->
++          rc == JSTypeClass.FUNCTION
++              && ((FunctionType) left).getKind() == FunctionType.Kind.ORDINARY
++              && ((FunctionType) right).getKind() == FunctionType.Kind.ORDINARY;
++      case INSTANCE_OBJECT, ENUM_ELEMENT ->
++          (rc == JSTypeClass.INSTANCE_OBJECT || rc == JSTypeClass.ENUM_ELEMENT)
++              && (!left.isResolved() || !right.isResolved());
++      default -> false;
++    };
++  }
++
+   static boolean check(EqMethod eqMethod, JSType left, JSType right) {
++    if (identical(left, right)) {
++      return true;
++    }
++    if (left == null || right == null) {
++      return false;
++    }
++    if (eqMethod == EqMethod.DATA_FLOW) {
++      boolean leftUnknown = left.isUnknownType();
++      boolean rightUnknown = right.isUnknownType();
++      if (leftUnknown || rightUnknown) {
++        return leftUnknown && rightUnknown;
++      }
++    }
++    if (!canNonIdenticalTypesEqual(left, right)) {
++      return false;
++    }
+     EqualityChecker checker = new EqualityChecker(eqMethod);
+     return checker.areEqualCaching(left, right);
+   }
+@@ -154,6 +204,22 @@ final class EqualityChecker {
+   boolean check(JSType left, JSType right) {
+     this.checkHasNotRun();
+     this.hasRun = true;
++    if (identical(left, right)) {
++      return true;
++    }
++    if (left == null || right == null) {
++      return false;
++    }
++    if (this.eqMethod == EqMethod.DATA_FLOW) {
++      boolean leftUnknown = left.isUnknownType();
++      boolean rightUnknown = right.isUnknownType();
++      if (leftUnknown || rightUnknown) {
++        return leftUnknown && rightUnknown;
++      }
++    }
++    if (!canNonIdenticalTypesEqual(left, right)) {
++      return false;
++    }
+     return this.areEqualCaching(left, right);
+   }
+ 
+@@ -165,36 +231,132 @@ final class EqualityChecker {
+   }
+ 
+   private boolean areEqualCaching(JSType left, JSType right) {
++    if (identical(left, right)) {
++      return true;
++    }
++    if (left == null || right == null) {
++      return false;
++    }
++
+     // Wait to instantiate/use the cache until we have some hint that there may be recursion.
+-    if (this.recursionDepth > POTENTIALLY_CYCLIC_RECURSION_DEPTH) {
+-      if (this.eqCache == null) {
+-        this.eqCache = new LinkedHashMap<>();
+-      }
++    if (this.recursionDepth > POTENTIALLY_CYCLIC_RECURSION_DEPTH && this.cacheLeft == null) {
++      this.cacheLeft = new JSType[8];
++      this.cacheRight = new JSType[8];
++      this.cacheStatus = new byte[8];
+     }
+ 
+     // Once the cache exists, use it consistently.
+-    if (this.eqCache == null) {
++    if (this.cacheLeft == null) {
+       this.recursionDepth++;
+       boolean result = this.areEqualInternal(left, right);
+       this.recursionDepth--;
+       return result;
+     }
+ 
+-    CacheKey key = new CacheKey(left, right);
+-    @Nullable MatchStatus cached = this.eqCache.putIfAbsent(key, MatchStatus.PROCESSING);
++    int existingIdx = findCachedEntry(left, right);
++    if (existingIdx >= 0) {
++      byte st = this.cacheStatus[existingIdx];
++      if (st == STATUS_PROCESSING) {
++        this.cacheStatus[existingIdx] = STATUS_MATCH;
++        return true;
++      }
++      return st == STATUS_MATCH;
++    }
++
++    int idx = insertCachedEntry(left, right);
++    boolean result = this.areEqualInternal(left, right);
++    this.cacheStatus[idx] = result ? STATUS_MATCH : STATUS_NOT_MATCH;
++    return result;
++  }
++
++  private boolean matchesCachedPair(int idx, JSType left, JSType right) {
++    JSType aL = this.cacheLeft[idx];
++    JSType aR = this.cacheRight[idx];
++    return (identical(aL, left) && identical(aR, right))
++        || (identical(aL, right) && identical(aR, left));
++  }
+ 
+-    if (cached == null) {
+-      boolean result = this.areEqualInternal(left, right);
+-      this.eqCache.put(key, MatchStatus.valueOf(result));
+-      return result;
++  private int findCachedEntry(JSType left, JSType right) {
++    int[] table = this.cacheTable;
++    if (table == null) {
++      for (int i = 0, n = this.cacheSize; i < n; i++) {
++        if (matchesCachedPair(i, left, right)) {
++          return i;
++        }
++      }
++      return -1;
++    }
++    int h = System.identityHashCode(left) ^ System.identityHashCode(right);
++    int mask = table.length - 1;
++    int slot = (h ^ (h >>> 16)) & mask;
++    while (true) {
++      int entry = table[slot];
++      if (entry == 0) {
++        return -1;
++      }
++      int i = entry - 1;
++      if (this.cacheHash[i] == h && matchesCachedPair(i, left, right)) {
++        return i;
++      }
++      slot = (slot + 1) & mask;
+     }
++  }
+ 
+-    if (cached == MatchStatus.PROCESSING) {
+-      this.eqCache.put(key, MatchStatus.MATCH);
+-      return true;
++  private int insertCachedEntry(JSType left, JSType right) {
++    int idx = this.cacheSize;
++    if (idx == this.cacheLeft.length) {
++      int newCap = idx * 2;
++      this.cacheLeft = Arrays.copyOf(this.cacheLeft, newCap);
++      this.cacheRight = Arrays.copyOf(this.cacheRight, newCap);
++      this.cacheStatus = Arrays.copyOf(this.cacheStatus, newCap);
++      if (this.cacheHash != null) {
++        this.cacheHash = Arrays.copyOf(this.cacheHash, newCap);
++      }
+     }
++    this.cacheLeft[idx] = left;
++    this.cacheRight[idx] = right;
++    this.cacheStatus[idx] = STATUS_PROCESSING;
++    this.cacheSize = idx + 1;
++
++    if (this.cacheSize > 8) {
++      if (this.cacheTable == null) {
++        this.cacheHash = new int[this.cacheLeft.length];
++        for (int i = 0; i < this.cacheSize; i++) {
++          this.cacheHash[i] =
++              System.identityHashCode(this.cacheLeft[i])
++                  ^ System.identityHashCode(this.cacheRight[i]);
++        }
++        rehashCacheTable(32);
++      } else {
++        int h = System.identityHashCode(left) ^ System.identityHashCode(right);
++        this.cacheHash[idx] = h;
++        if (this.cacheSize * 4 >= this.cacheTable.length * 3) {
++          rehashCacheTable(this.cacheTable.length * 2);
++        } else {
++          int mask = this.cacheTable.length - 1;
++          int slot = (h ^ (h >>> 16)) & mask;
++          while (this.cacheTable[slot] != 0) {
++            slot = (slot + 1) & mask;
++          }
++          this.cacheTable[slot] = idx + 1;
++        }
++      }
++    }
++    return idx;
++  }
+ 
+-    return cached.subtypeValue();
++  private void rehashCacheTable(int newTableLen) {
++    int[] newTable = new int[newTableLen];
++    int mask = newTableLen - 1;
++    for (int i = 0, n = this.cacheSize; i < n; i++) {
++      int h = this.cacheHash[i];
++      int slot = (h ^ (h >>> 16)) & mask;
++      while (newTable[slot] != 0) {
++        slot = (slot + 1) & mask;
++      }
++      newTable[slot] = i + 1;
++    }
++    this.cacheTable = newTable;
+   }
+ 
+   private boolean areEqualInternal(JSType left, JSType right) {
+@@ -225,17 +387,21 @@ final class EqualityChecker {
+       }
+     }
+ 
++    if (!canNonIdenticalTypesEqual(left, right)) {
++      return false;
++    }
++
+     if (left.isUnionType() && right.isUnionType()) {
+       return this.areUnionEqual(left.toMaybeUnionType(), right.toMaybeUnionType());
+     } else if (left.isUnionType()) {
+-      ImmutableList<JSType> leftAlts = left.toMaybeUnionType().getAlternates();
+-      if (leftAlts.size() == 1) {
+-        return this.areEqualInternal(leftAlts.get(0), right);
++      UnionType leftUnion = left.toMaybeUnionType();
++      if (leftUnion.getAlternatesCount() == 1) {
++        return this.areEqualInternal(leftUnion.getAlternateAt(0), right);
+       }
+     } else if (right.isUnionType()) {
+-      ImmutableList<JSType> rightAlts = right.toMaybeUnionType().getAlternates();
+-      if (rightAlts.size() == 1) {
+-        return this.areEqualInternal(left, rightAlts.get(0));
++      UnionType rightUnion = right.toMaybeUnionType();
++      if (rightUnion.getAlternatesCount() == 1) {
++        return this.areEqualInternal(left, rightUnion.getAlternateAt(0));
+       }
+     }
+ 
+@@ -293,18 +459,18 @@ final class EqualityChecker {
+    * alternates and all alternates are equal.
+    */
+   private boolean areUnionEqual(UnionType left, UnionType right) {
+-    ImmutableList<JSType> leftAlternates = left.getAlternates();
+-    ImmutableList<JSType> rightAlternates = right.getAlternates();
+-    if (this.eqMethod == EqMethod.IDENTITY && leftAlternates.size() != rightAlternates.size()) {
++    int leftSize = left.getAlternatesCount();
++    int rightSize = right.getAlternatesCount();
++    if (this.eqMethod == EqMethod.IDENTITY && leftSize != rightSize) {
+       return false;
+     }
+ 
+     outer:
+-    for (int i = 0; i < rightAlternates.size(); i++) {
+-      JSType rightAlt = rightAlternates.get(i);
++    for (int i = 0; i < rightSize; i++) {
++      JSType rightAlt = right.getAlternateAt(i);
+ 
+-      for (int k = 0; k < leftAlternates.size(); k++) {
+-        JSType leftAlt = leftAlternates.get(k);
++      for (int k = 0; k < leftSize; k++) {
++        JSType leftAlt = left.getAlternateAt(k);
+         if (this.areEqualCaching(leftAlt, rightAlt)) {
+           continue outer;
+         }
+@@ -465,48 +631,6 @@ final class EqualityChecker {
+     return true;
+   }
+ 
+-  private static final class CacheKey {
+-    private final JSType left;
+-    private final JSType right;
+-    private final int hashCode; // Cache this calculation because it is made often.
+-
+-    @Override
+-    public int hashCode() {
+-      return hashCode;
+-    }
+-
+-    @Override
+-    @SuppressWarnings({"ShortCircuitBoolean", "EqualsBrokenForNull", "EqualsUnsafeCast"})
+-    public boolean equals(Object other) {
+-      // Calling left with `null` or not a `Key` should cause a crash.
+-      CacheKey right = (CacheKey) other;
+-      if (identical(this, other)) {
+-        return true;
+-      }
+-
+-      // Recall right `Key` implements identity equality on `left` and `right`.
+-      //
+-      // Recall right `left` and `right` are not ordered.
+-      //
+-      // Use non-short circuiting operators to eliminate branches. Equality checks are
+-      // side-effect-free and less expensive than branches.
+-      return (identical(this.left, right.left) & identical(this.right, right.right))
+-          | (identical(this.left, right.right) & identical(this.right, right.left));
+-    }
+-
+-    CacheKey(JSType left, JSType right) {
+-      this.left = left;
+-      this.right = right;
+-
+-      // XOR the component hashcodes because:
+-      //   - It's a symmetric operator, so we don't have to worry about order.
+-      //   - It's assumed the inputs are already uniformly distributed and unrelated.
+-      //     - `left` and `right` should never be identical.
+-      // Recall right `Key` implements identity equality on `left` and `right`.
+-      this.hashCode = System.identityHashCode(left) ^ System.identityHashCode(right);
+-    }
+-  }
+-
+   private static ObjectType unwrapNominalTypeProxies(ObjectType objType) {
+     if (!objType.isResolved() || (!objType.isNamedType() && !objType.isTemplatizedType())) {
+       // Don't unwrap TemplateTypes, as they should use identity semantics even if their bounds
+diff --git a/com/google/javascript/rhino/jstype/SubtypeChecker.java b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+index 14174544..b211dc33 100644
+--- a/com/google/javascript/rhino/jstype/SubtypeChecker.java
++++ b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+@@ -46,10 +46,8 @@ import static com.google.javascript.jscomp.base.JSCompObjects.identical;
+ import com.google.common.collect.ImmutableList;
+ import com.google.common.collect.ImmutableSet;
+ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+-import com.google.javascript.rhino.jstype.JSType.MatchStatus;
+ import com.google.javascript.rhino.jstype.JSType.SubtypingMode;
+-import java.util.LinkedHashMap;
+-import java.util.Objects;
++import java.util.Arrays;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -83,7 +81,16 @@ final class SubtypeChecker {
+   private boolean hasUsingStructuralTyping;
+   private SubtypingMode subtypingMode;
+ 
+-  private LinkedHashMap<CacheKey, MatchStatus> subtypeCache;
++  private static final byte STATUS_PROCESSING = 1;
++  private static final byte STATUS_MATCH = 2;
++  private static final byte STATUS_NOT_MATCH = 3;
++
++  private JSType @Nullable [] cacheSub;
++  private JSType @Nullable [] cacheSup;
++  private int @Nullable [] cacheHash;
++  private byte @Nullable [] cacheStatus;
++  private int @Nullable [] cacheTable;
++  private int cacheSize = 0;
+ 
+   private boolean hasRun = false;
+   private int recursionDepth = 0;
+@@ -172,35 +179,114 @@ final class SubtypeChecker {
+     checkNotNull(supertype);
+ 
+     // Wait to instantiate/use the cache until we have some hint that there may be recursion.
+-    if (this.recursionDepth > POTENTIALLY_CYCLIC_RECURSION_DEPTH) {
+-      if (this.subtypeCache == null) {
+-        this.subtypeCache = new LinkedHashMap<>();
+-      }
++    if (this.recursionDepth > POTENTIALLY_CYCLIC_RECURSION_DEPTH && this.cacheSub == null) {
++      this.cacheSub = new JSType[8];
++      this.cacheSup = new JSType[8];
++      this.cacheHash = new int[8];
++      this.cacheStatus = new byte[8];
+     }
+ 
+     // Once the cache exists, use it consistently.
+-    if (this.subtypeCache == null) {
++    if (this.cacheSub == null) {
+       this.recursionDepth++;
+       boolean result = this.isSubtypeDispatching(subtype, supertype);
+       this.recursionDepth--;
+       return result;
+     }
+ 
+-    CacheKey key = new CacheKey(subtype, supertype);
+-    @Nullable MatchStatus cached = this.subtypeCache.putIfAbsent(key, MatchStatus.PROCESSING);
+-
+-    if (cached == null) {
+-      boolean result = this.isSubtypeDispatching(subtype, supertype);
+-      this.subtypeCache.put(key, MatchStatus.valueOf(result));
+-      return result;
++    int h = 31 * subtype.hashCode() + supertype.hashCode();
++    int existingIdx = findCachedEntry(subtype, supertype, h);
++    if (existingIdx >= 0) {
++      byte st = this.cacheStatus[existingIdx];
++      if (st == STATUS_PROCESSING) {
++        this.cacheStatus[existingIdx] = STATUS_MATCH;
++        return true;
++      }
++      return st == STATUS_MATCH;
+     }
+ 
+-    if (cached == MatchStatus.PROCESSING) {
+-      this.subtypeCache.put(key, MatchStatus.MATCH);
+-      return true;
++    int idx = insertCachedEntry(subtype, supertype, h);
++    boolean result = this.isSubtypeDispatching(subtype, supertype);
++    this.cacheStatus[idx] = result ? STATUS_MATCH : STATUS_NOT_MATCH;
++    return result;
++  }
++
++  private boolean matchesCachedKey(int idx, JSType subtype, JSType supertype) {
++    JSType left = this.cacheSub[idx];
++    JSType right = this.cacheSup[idx];
++    return (identical(left, subtype) && identical(right, supertype))
++        || (subtype.equals(left) && supertype.equals(right));
++  }
++
++  private int findCachedEntry(JSType subtype, JSType supertype, int h) {
++    int[] table = this.cacheTable;
++    if (table == null) {
++      for (int i = 0, n = this.cacheSize; i < n; i++) {
++        if (this.cacheHash[i] == h && matchesCachedKey(i, subtype, supertype)) {
++          return i;
++        }
++      }
++      return -1;
++    }
++    int mask = table.length - 1;
++    int slot = (h ^ (h >>> 16)) & mask;
++    while (true) {
++      int entry = table[slot];
++      if (entry == 0) {
++        return -1;
++      }
++      int i = entry - 1;
++      if (this.cacheHash[i] == h && matchesCachedKey(i, subtype, supertype)) {
++        return i;
++      }
++      slot = (slot + 1) & mask;
++    }
++  }
++
++  private int insertCachedEntry(JSType subtype, JSType supertype, int h) {
++    int idx = this.cacheSize;
++    if (idx == this.cacheSub.length) {
++      int newCap = idx * 2;
++      this.cacheSub = Arrays.copyOf(this.cacheSub, newCap);
++      this.cacheSup = Arrays.copyOf(this.cacheSup, newCap);
++      this.cacheHash = Arrays.copyOf(this.cacheHash, newCap);
++      this.cacheStatus = Arrays.copyOf(this.cacheStatus, newCap);
++    }
++    this.cacheSub[idx] = subtype;
++    this.cacheSup[idx] = supertype;
++    this.cacheHash[idx] = h;
++    this.cacheStatus[idx] = STATUS_PROCESSING;
++    this.cacheSize = idx + 1;
++
++    if (this.cacheSize > 8) {
++      if (this.cacheTable == null) {
++        rehashCacheTable(32);
++      } else if (this.cacheSize * 4 >= this.cacheTable.length * 3) {
++        rehashCacheTable(this.cacheTable.length * 2);
++      } else {
++        int mask = this.cacheTable.length - 1;
++        int slot = (h ^ (h >>> 16)) & mask;
++        while (this.cacheTable[slot] != 0) {
++          slot = (slot + 1) & mask;
++        }
++        this.cacheTable[slot] = idx + 1;
++      }
+     }
++    return idx;
++  }
+ 
+-    return cached.subtypeValue();
++  private void rehashCacheTable(int newTableLen) {
++    int[] newTable = new int[newTableLen];
++    int mask = newTableLen - 1;
++    for (int i = 0, n = this.cacheSize; i < n; i++) {
++      int h = this.cacheHash[i];
++      int slot = (h ^ (h >>> 16)) & mask;
++      while (newTable[slot] != 0) {
++        slot = (slot + 1) & mask;
++      }
++      newTable[slot] = i + 1;
++    }
++    this.cacheTable = newTable;
+   }
+ 
+   /**
+@@ -251,7 +337,7 @@ final class SubtypeChecker {
+     }
+ 
+     // Reflexive case.
+-    if (Objects.equals(subtype, supertype)) {
++    if (subtype.equals(supertype)) {
+       return true;
+     }
+ 
+@@ -273,18 +359,20 @@ final class SubtypeChecker {
+     // Union decomposition.
+     if (subtype.isUnionType()) {
+       // All alternates must be subtypes.
+-      ImmutableList<JSType> alternates = subtype.toMaybeUnionType().getAlternates();
+-      for (int i = 0; i < alternates.size(); i++) {
+-        if (!this.isSubtypeCaching(alternates.get(i), supertype)) {
++      UnionType subUnion = subtype.toMaybeUnionType();
++      int n = subUnion.getAlternatesCount();
++      for (int i = 0; i < n; i++) {
++        if (!this.isSubtypeCaching(subUnion.getAlternateAt(i), supertype)) {
+           return false;
+         }
+       }
+       return true;
+     } else if (supertype.isUnionType()) {
+       // Some alternate must be a supertype.
+-      ImmutableList<JSType> alternates = supertype.toMaybeUnionType().getAlternates();
+-      for (int i = 0; i < alternates.size(); i++) {
+-        if (this.isSubtypeCaching(subtype, alternates.get(i))) {
++      UnionType superUnion = supertype.toMaybeUnionType();
++      int n = superUnion.getAlternatesCount();
++      for (int i = 0; i < n; i++) {
++        if (this.isSubtypeCaching(subtype, superUnion.getAlternateAt(i))) {
+           return true;
+         }
+       }
+@@ -776,43 +864,4 @@ final class SubtypeChecker {
+     BIVARIANT,
+     INVARIANT
+   }
+-
+-  private static final class CacheKey {
+-    final JSType left;
+-    final JSType right;
+-    final int hashCode; // Cache this calculation because it is made often.
+-
+-    @Override
+-    public int hashCode() {
+-      return hashCode;
+-    }
+-
+-    @Override
+-    @SuppressWarnings({"EqualsBrokenForNull", "EqualsUnsafeCast"})
+-    public boolean equals(Object other) {
+-      // Calling this with `null` or not a `Key` should never happen, so it's fine to crash.
+-      CacheKey that = (CacheKey) other;
+-      if (identical(this.left, that.left) && identical(this.right, that.right)) {
+-        return true;
+-      }
+-
+-      /*
+-       * The vast majority of cases will have already returned by now, since equality isn't even
+-       * checked unless the hash code matches, and in most cases there's only one instance of any
+-       * equivalent JSType floating around. The remainder only occurs for cyclic (or otherwise
+-       * complicated) data structures where equivalent types are being synthesized by recursive
+-       * application of type parameters, or (even more rarely) for hash collisions. Identity is
+-       * insufficient in the case of recursive parameterized types because new equivalent copies of
+-       * the type are generated on-the-fly to compute the types of various properties.
+-       */
+-      return Objects.equals(this.left, that.left) && Objects.equals(this.right, that.right);
+-    }
+-
+-    CacheKey(JSType left, JSType right) {
+-      this.left = left;
+-      this.right = right;
+-      // NOTE: order matters here, since we're expressing an asymmetric relationship.
+-      this.hashCode = 31 * left.hashCode() + right.hashCode();
+-    }
+-  }
+ }

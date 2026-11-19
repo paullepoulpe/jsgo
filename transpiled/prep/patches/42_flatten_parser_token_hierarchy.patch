@@ -1,0 +1,1539 @@
+diff --git a/com/google/javascript/jscomp/parsing/IRFactory.java b/com/google/javascript/jscomp/parsing/IRFactory.java
+--- a/com/google/javascript/jscomp/parsing/IRFactory.java
++++ b/com/google/javascript/jscomp/parsing/IRFactory.java
+@@ -35,10 +35,7 @@
+ import com.google.javascript.jscomp.parsing.Config.LanguageMode;
+ import com.google.javascript.jscomp.parsing.parser.FeatureSet;
+ import com.google.javascript.jscomp.parsing.parser.FeatureSet.Feature;
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
+-import com.google.javascript.jscomp.parsing.parser.LiteralToken;
+ import com.google.javascript.jscomp.parsing.parser.SourceFile;
+-import com.google.javascript.jscomp.parsing.parser.TemplateLiteralToken;
+ import com.google.javascript.jscomp.parsing.parser.TokenType;
+ import com.google.javascript.jscomp.parsing.parser.trees.ArgumentListTree;
+ import com.google.javascript.jscomp.parsing.parser.trees.ArrayLiteralExpressionTree;
+@@ -1402,12 +1399,14 @@
+     }
+ 
+     /**
+-     * Creates a StringNode using the value of an IdentifierToken. Reports an error if the
++     * Creates a StringNode using the value of an identifier Token. Reports an error if the
+      * identifier value is private and the identifier type is STANDARD or the identifier is not
+      * within the scope of a class.
+      */
+     Node newStringNodeFromIdentifier(
+-        Token type, IdentifierType identifierType, IdentifierToken identifierToken) {
++        Token type,
++        IdentifierType identifierType,
++        com.google.javascript.jscomp.parsing.parser.Token identifierToken) {
+       // Private properties can only ever be referenced from within the scope of a class. If we're
+       // not in a class, we always use STANDARD rules.
+       if (!classScope.inScope()) {
+@@ -1458,10 +1457,10 @@
+       }
+ 
+       if (input.type == TokenType.IDENTIFIER) {
+-        return processName((IdentifierToken) input, output, identifierType);
+-      }
+-
+-      LiteralToken literal = (LiteralToken) input;
++        return processName(input, output, identifierType);
++      }
++
++      com.google.javascript.jscomp.parsing.parser.Token literal = input;
+       JSDocInfo jsDocInfo = parseJSDocInfoOnToken(literal);
+       NonJSDocComment comment = parseNonJSDocCommentAt(literal.getStart(), true);
+ 
+@@ -1599,7 +1598,7 @@
+         // The key is also the target name.
+         valueNode =
+             processNameWithInlineComments(
+-                (IdentifierToken) propertyNameAssignment.name, IdentifierType.STANDARD);
++                propertyNameAssignment.name, IdentifierType.STANDARD);
+         key.setShorthandProperty(true);
+       } else {
+         valueNode = processDestructuringElementTarget(targetTree);
+@@ -1745,7 +1744,7 @@
+       return node;
+     }
+ 
+-    Node transformLabelName(IdentifierToken token) {
++    Node transformLabelName(com.google.javascript.jscomp.parsing.parser.Token token) {
+       Node label =
+           maybeAddNonJsDocComment(
+               newStringNodeFromIdentifier(Token.LABEL_NAME, IdentifierType.STANDARD, token),
+@@ -1846,7 +1845,7 @@
+       return transform(tree);
+     }
+ 
+-    Node transformOrEmpty(IdentifierToken token, ParseTree parent) {
++    Node transformOrEmpty(com.google.javascript.jscomp.parsing.parser.Token token, ParseTree parent) {
+       if (token == null) {
+         Node n = newNode(Token.EMPTY);
+         setSourceInfo(n, parent);
+@@ -2095,7 +2094,7 @@
+         maybeWarnForFeature(functionTree, Feature.ASYNC_GENERATORS);
+       }
+ 
+-      IdentifierToken name = functionTree.name;
++      com.google.javascript.jscomp.parsing.parser.Token name = functionTree.name;
+       Node newName;
+       if (name != null) {
+         newName = processNameWithInlineComments(name, identifierType);
+@@ -2411,7 +2410,10 @@
+       return processName(nameNode.identifierToken, Token.NAME, identifierType);
+     }
+ 
+-    Node processName(IdentifierToken identifierToken, Token output, IdentifierType identifierType) {
++    Node processName(
++        com.google.javascript.jscomp.parsing.parser.Token identifierToken,
++        Token output,
++        IdentifierType identifierType) {
+       NonJSDocComment comment = parseNonJSDocCommentAt(identifierToken.getStart(), true);
+ 
+       Node node = newStringNodeFromIdentifier(output, identifierType, identifierToken);
+@@ -2432,7 +2434,7 @@
+       return node;
+     }
+ 
+-    Node processString(LiteralToken token) {
++    Node processString(com.google.javascript.jscomp.parsing.parser.Token token) {
+       checkArgument(token.type == TokenType.STRING);
+       NonJSDocComment comment = parseNonJSDocCommentAt(token.getStart(), true);
+ 
+@@ -2445,7 +2447,7 @@
+       return node;
+     }
+ 
+-    Node processTemplateLiteralToken(TemplateLiteralToken token) {
++    Node processTemplateLiteralToken(com.google.javascript.jscomp.parsing.parser.Token token) {
+       checkArgument(
+           token.type == TokenType.NO_SUBSTITUTION_TEMPLATE
+               || token.type == TokenType.TEMPLATE_HEAD
+@@ -2467,7 +2469,8 @@
+     }
+ 
+     Node processNameWithInlineComments(
+-        IdentifierToken identifierToken, IdentifierType identifierType) {
++        com.google.javascript.jscomp.parsing.parser.Token identifierToken,
++        IdentifierType identifierType) {
+       JSDocInfo info = parseInlineJSDocAt(identifierToken.getStart());
+       NonJSDocComment comment = parseNonJSDocCommentAt(identifierToken.getStart(), false);
+ 
+@@ -2499,7 +2502,7 @@
+       }
+     }
+ 
+-    private void maybeWarnReservedKeyword(IdentifierToken token) {
++    private void maybeWarnReservedKeyword(com.google.javascript.jscomp.parsing.parser.Token token) {
+       // We're just checking for keywords here, not actually using the identifier so we don't care
+       // about potentially running into a misplaced private identifier.
+       String identifier = token.getMaybePrivateValue();
+@@ -2533,7 +2536,7 @@
+     }
+ 
+     Node processNumberLiteral(LiteralExpressionTree literalNode) {
+-      double value = normalizeNumber((LiteralToken) literalNode.literalToken);
++      double value = normalizeNumber(literalNode.literalToken);
+       Node number = newNumberNode(value);
+       setSourceInfo(number, literalNode);
+       return number;
+@@ -2541,7 +2544,7 @@
+ 
+     Node processBigIntLiteral(LiteralExpressionTree literalNode) {
+       maybeWarnForFeature(literalNode, Feature.BIGINT);
+-      BigInteger value = normalizeBigInt((LiteralToken) literalNode.literalToken);
++      BigInteger value = normalizeBigInt(literalNode.literalToken);
+       Node bigint = newBigIntNode(value);
+       setSourceInfo(bigint, literalNode);
+       return bigint;
+@@ -2713,7 +2716,7 @@
+ 
+     Node processPropertyGet(MemberExpressionTree getNode) {
+       Node leftChild = transform(getNode.operand);
+-      IdentifierToken propName = getNode.memberName;
++      com.google.javascript.jscomp.parsing.parser.Token propName = getNode.memberName;
+       if (propName == null) {
+         return leftChild;
+       }
+@@ -2735,7 +2738,7 @@
+       maybeWarnForFeature(getNode, Feature.OPTIONAL_CHAINING);
+ 
+       Node leftChild = transform(getNode.operand);
+-      IdentifierToken propName = getNode.memberName;
++      com.google.javascript.jscomp.parsing.parser.Token propName = getNode.memberName;
+       if (propName == null) {
+         return leftChild;
+       }
+@@ -2755,7 +2758,7 @@
+     }
+ 
+     Node processRegExpLiteral(LiteralExpressionTree literalTree) {
+-      LiteralToken token = (LiteralToken) literalTree.literalToken;
++      com.google.javascript.jscomp.parsing.parser.Token token = literalTree.literalToken;
+       Node literalStringNode = newStringNode(normalizeRegex(token));
+       // TODO(johnlenz): fix the source location.
+       setSourceInfo(literalStringNode, token);
+@@ -2804,8 +2807,7 @@
+     }
+ 
+     Node processStringLiteral(LiteralExpressionTree literalTree) {
+-      LiteralToken token = (LiteralToken) literalTree.literalToken;
+-      return processString(token);
++      return processString(literalTree.literalToken);
+     }
+ 
+     Node processTemplateLiteral(TemplateLiteralExpressionTree tree) {
+@@ -2826,7 +2828,7 @@
+     }
+ 
+     Node processTemplateLiteralPortion(TemplateLiteralPortionTree tree) {
+-      return processTemplateLiteralToken((TemplateLiteralToken) tree.value);
++      return processTemplateLiteralToken(tree.value);
+     }
+ 
+     Node processTemplateSubstitution(TemplateSubstitutionTree tree) {
+@@ -3347,7 +3349,7 @@
+       }
+ 
+       if (!memberName.type.equals(TokenType.IDENTIFIER)
+-          || !((IdentifierToken) memberName).valueEquals("constructor")) {
++          || !memberName.valueEquals("constructor")) {
+         // There's only a potential issue if the member is named "constructor".
+         // TODO(b/123769080): Also check for quoted string literals with the value "constructor".
+         return false;
+@@ -3834,7 +3836,7 @@
+     return null;
+   }
+ 
+-  String normalizeRegex(LiteralToken token) {
++  String normalizeRegex(com.google.javascript.jscomp.parsing.parser.Token token) {
+     String value = token.value;
+     final int lastSlash = value.lastIndexOf('/');
+     int cur = value.indexOf('\\');
+@@ -3910,7 +3912,8 @@
+     return result.toString();
+   }
+ 
+-  String normalizeString(LiteralToken token, boolean templateLiteral) {
++  String normalizeString(
++      com.google.javascript.jscomp.parsing.parser.Token token, boolean templateLiteral) {
+     String value = token.value;
+     // <CR><LF> and <CR> are normalized as <LF>. For raw template literal string values: this is the
+     // spec behaviour. For regular string literals: they can only be part of a line continuation,
+@@ -4067,7 +4070,7 @@
+     return config.strictMode().isStrict();
+   }
+ 
+-  double normalizeNumber(LiteralToken token) {
++  double normalizeNumber(com.google.javascript.jscomp.parsing.parser.Token token) {
+     String value = token.value;
+     if (value.contains("_")) {
+       value = removeNumericSeparators(value, token);
+@@ -4149,7 +4152,7 @@
+     }
+   }
+ 
+-  BigInteger normalizeBigInt(LiteralToken token) {
++  BigInteger normalizeBigInt(com.google.javascript.jscomp.parsing.parser.Token token) {
+     String value = token.value;
+     value = value.substring(0, value.indexOf('n'));
+     if (value.contains("_")) {
+@@ -4180,7 +4183,8 @@
+     }
+   }
+ 
+-  private String removeNumericSeparators(String value, LiteralToken token) {
++  private String removeNumericSeparators(
++      String value, com.google.javascript.jscomp.parsing.parser.Token token) {
+     maybeWarnForFeature(token, Feature.NUMERIC_SEPARATOR);
+     return value.replace("_", "");
+   }
+diff --git a/com/google/javascript/jscomp/parsing/parser/ClassOrObjectElementInfo.java b/com/google/javascript/jscomp/parsing/parser/ClassOrObjectElementInfo.java
+--- a/com/google/javascript/jscomp/parsing/parser/ClassOrObjectElementInfo.java
++++ b/com/google/javascript/jscomp/parsing/parser/ClassOrObjectElementInfo.java
+@@ -21,13 +21,13 @@
+ 
+ import com.google.javascript.jscomp.parsing.parser.trees.ParseTree;
+ import com.google.javascript.jscomp.parsing.parser.util.SourcePosition;
++import org.jspecify.annotations.Nullable;
+ 
+ /**
+  * Gathers information for ES6 class / Object literal methods, getters, setters and fields.
+  *
+  * <p>Gathers: the start position, whether it is a class element (false for object literal), whether
+- * it is static (only for class elements), and, after construction, the name IdentifierToken or
+- * ParseTree.
++ * it is static (only for class elements), and, after construction, the name Token or ParseTree.
+  *
+  * <p>Used by {@link Parser} but separated out to enforce visibility.
+  */
+@@ -41,7 +41,7 @@
+   /** Whether this class element is static. Can only be true if {@link #isClassMember} is true. */
+   final boolean isStatic;
+ 
+-  private IdentifierToken name;
++  private @Nullable Token name;
+   private ParseTree nameExpr;
+ 
+   private ClassOrObjectElementInfo(SourcePosition start, boolean isClassMember, boolean isStatic) {
+@@ -58,7 +58,7 @@
+     return new ClassOrObjectElementInfo(start, /* isClassMember= */ false, /* isStatic= */ false);
+   }
+ 
+-  void setName(IdentifierToken name) {
++  void setName(Token name) {
+     checkState(nameExpr == null);
+     this.name = name;
+   }
+@@ -67,8 +67,11 @@
+     return name != null;
+   }
+ 
+-  IdentifierToken getName() {
+-    return checkNotNull(name);
++  Token getName() {
++    if (name == null) {
++      throw new NullPointerException();
++    }
++    return name;
+   }
+ 
+   void setNameExpr(ParseTree nameExpr) {
+diff --git a/com/google/javascript/jscomp/parsing/parser/IdentifierToken.java b/com/google/javascript/jscomp/parsing/parser/IdentifierToken.java
+--- a/com/google/javascript/jscomp/parsing/parser/IdentifierToken.java
++++ b/com/google/javascript/jscomp/parsing/parser/IdentifierToken.java
+@@ -16,55 +16,7 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser;
+ 
+-import static com.google.common.base.Preconditions.checkState;
+-
+-import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+-
+-/** A token representing an identifier. */
+-public final class IdentifierToken extends Token {
+-  private final String value;
+-  private final boolean privateIdentifier;
+-
+-  public IdentifierToken(SourceRange location, String value) {
+-    super(TokenType.IDENTIFIER, location);
+-    this.value = value;
+-    privateIdentifier = value.startsWith("#");
+-  }
+-
+-  @Override
+-  public String toString() {
+-    return value;
+-  }
+-
+-  public boolean isKeyword() {
+-    return Keywords.isKeyword(value);
+-  }
+-
+-  public boolean valueEquals(String str) {
+-    return value.equals(str);
+-  }
+-
+-  /**
+-   * Gets the value of the identifier assuring that it is not a private identifier.
+-   *
+-   * <p>You must verify privateIdentifier is false (and presumably error if it is true) before
+-   * calling this method.
+-   *
+-   * <p>Prefer calling {@link #isKeyword()} or {@link #valueEquals(String)} if those methods meet
+-   * your needs.
+-   */
+-  public String getValue() {
+-    checkState(!privateIdentifier);
+-    return value;
+-  }
+-
+-  /** Gets the value of the identifier, allowing it to be a private identifier. */
+-  public String getMaybePrivateValue() {
+-    return value;
+-  }
+-
+-  /** Whether the value starts with a #. */
+-  public boolean isPrivateIdentifier() {
+-    return privateIdentifier;
+-  }
++/** Flattened into {@link Token}. */
++final class IdentifierToken {
++  private IdentifierToken() {}
+ }
+diff --git a/com/google/javascript/jscomp/parsing/parser/LiteralToken.java b/com/google/javascript/jscomp/parsing/parser/LiteralToken.java
+--- a/com/google/javascript/jscomp/parsing/parser/LiteralToken.java
++++ b/com/google/javascript/jscomp/parsing/parser/LiteralToken.java
+@@ -16,29 +16,7 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser;
+ 
+-import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+-
+-/**
+- * A token representing a javascript literal. Includes string, regexp, and number literals.
+- * Boolean and null literals are represented as regular keyword tokens.
+- *
+- * The value just includes the raw lexeme. For string literals it includes the beginning and ending
+- * delimiters.
+- *
+- * TODO: Regexp literals should have their own token type.
+- * TODO: A way to get the processed value, rather than the raw value.
+- */
+-public class LiteralToken extends Token {
+-
+-  public final String value;
+-
+-  public LiteralToken(TokenType type, String value, SourceRange location) {
+-    super(type, location);
+-    this.value = value;
+-  }
+-
+-  @Override
+-  public String toString() {
+-    return value;
+-  }
++/** Flattened into {@link Token}. */
++final class LiteralToken {
++  private LiteralToken() {}
+ }
+diff --git a/com/google/javascript/jscomp/parsing/parser/Parser.java b/com/google/javascript/jscomp/parsing/parser/Parser.java
+--- a/com/google/javascript/jscomp/parsing/parser/Parser.java
++++ b/com/google/javascript/jscomp/parsing/parser/Parser.java
+@@ -311,7 +311,7 @@
+ 
+     // import ModuleSpecifier ;
+     if (peek(TokenType.STRING)) {
+-      LiteralToken moduleSpecifier = (LiteralToken) eat(TokenType.STRING);
++      Token moduleSpecifier = eat(TokenType.STRING);
+       eatPossiblyImplicitSemiColon();
+ 
+       return new ImportDeclarationTree(getTreeLocation(start), null, null, null, moduleSpecifier);
+@@ -322,8 +322,8 @@
+     // import NamedImports from ModuleSpecifier ;
+     // import ImportedDefaultBinding , NameSpaceImport from ModuleSpecifier ;
+     // import ImportedDefaultBinding , NamedImports from ModuleSpecifier ;
+-    IdentifierToken defaultBindingIdentifier = null;
+-    IdentifierToken nameSpaceImportIdentifier = null;
++    Token defaultBindingIdentifier = null;
++    Token nameSpaceImportIdentifier = null;
+     ImmutableList<ParseTree> identifierSet = null;
+ 
+     boolean parseExplicitNames = true;
+@@ -350,8 +350,7 @@
+     }
+ 
+     eatPredefinedString(PredefinedName.FROM);
+-    Token moduleStr = eat(TokenType.STRING);
+-    LiteralToken moduleSpecifier = (moduleStr == null) ? null : (LiteralToken) moduleStr;
++    Token moduleSpecifier = eat(TokenType.STRING);
+     eatPossiblyImplicitSemiColon();
+ 
+     return new ImportDeclarationTree(
+@@ -379,8 +378,8 @@
+   //  ImportSpecifier ::= Identifier ('as' Identifier)?
+   private ParseTree parseImportSpecifier() {
+     SourcePosition start = getTreeStartLocation();
+-    IdentifierToken importedName = eatIdOrKeywordAsId();
+-    IdentifierToken destinationName = null;
++    Token importedName = eatIdOrKeywordAsId();
++    Token destinationName = null;
+     if (peekPredefinedString(PredefinedName.AS)) {
+       eatPredefinedString(PredefinedName.AS);
+       destinationName = eatId();
+@@ -464,13 +463,13 @@
+         break;
+     }
+ 
+-    LiteralToken moduleSpecifier = null;
++    Token moduleSpecifier = null;
+     if (isExportAll || (isExportSpecifier && peekPredefinedString(PredefinedName.FROM))) {
+       eatPredefinedString(PredefinedName.FROM);
+-      moduleSpecifier = (LiteralToken) eat(TokenType.STRING);
++      moduleSpecifier = eat(TokenType.STRING);
+     } else if (isExportSpecifier) {
+       for (ParseTree tree : exportSpecifierList) {
+-        IdentifierToken importedName = tree.asExportSpecifier().importedName;
++        Token importedName = tree.asExportSpecifier().importedName;
+         if (importedName.isKeyword()) {
+           reportError(importedName, "cannot use keyword '%s' here.", importedName);
+         }
+@@ -507,8 +506,8 @@
+   //  ExportSpecifier ::= Identifier ('as' Identifier)?
+   private ParseTree parseExportSpecifier() {
+     SourcePosition start = getTreeStartLocation();
+-    IdentifierToken importedName = eatIdOrKeywordAsId();
+-    IdentifierToken destinationName = null;
++    Token importedName = eatIdOrKeywordAsId();
++    Token destinationName = null;
+     if (peekPredefinedString(PredefinedName.AS)) {
+       eatPredefinedString(PredefinedName.AS);
+       destinationName = eatIdOrKeywordAsId();
+@@ -531,7 +530,7 @@
+   private ParseTree parseClass(boolean isExpression) {
+     SourcePosition start = getTreeStartLocation();
+     eat(TokenType.CLASS);
+-    IdentifierToken name = null;
++    Token name = null;
+     if (!isExpression || peekId()) {
+       name = eatId();
+     }
+@@ -729,7 +728,7 @@
+     }
+     if (peekPropertyName(0)) {
+       if (peekIdOrKeyword()) {
+-        IdentifierToken name = eatIdOrKeywordAsId();
++        Token name = eatIdOrKeywordAsId();
+         FunctionDeclarationTree.Builder builder =
+             FunctionDeclarationTree.builder(FunctionDeclarationTree.Kind.MEMBER)
+                 .setAsync(true)
+@@ -1434,7 +1433,7 @@
+   private ParseTree parseContinueStatement() {
+     SourcePosition start = getTreeStartLocation();
+     eat(TokenType.CONTINUE);
+-    IdentifierToken name = null;
++    Token name = null;
+     if (!peekImplicitSemiColon()) {
+       name = eatIdOpt();
+     }
+@@ -1446,7 +1445,7 @@
+   private ParseTree parseBreakStatement() {
+     SourcePosition start = getTreeStartLocation();
+     eat(TokenType.BREAK);
+-    IdentifierToken name = null;
++    Token name = null;
+     if (!peekImplicitSemiColon()) {
+       name = eatIdOpt();
+     }
+@@ -1528,7 +1527,7 @@
+   // 12.12 Labelled Statement
+   private ParseTree parseLabelledStatement() {
+     SourcePosition start = getTreeStartLocation();
+-    IdentifierToken name = eatId();
++    Token name = eatId();
+     eat(TokenType.COLON);
+     return new LabelledStatementTree(getTreeLocation(start), name, parseStatement());
+   }
+@@ -1658,7 +1657,7 @@
+ 
+   private IdentifierExpressionTree parseIdentifierExpression() {
+     SourcePosition start = getTreeStartLocation();
+-    IdentifierToken identifier = eatId();
++    Token identifier = eatId();
+     return new IdentifierExpressionTree(getTreeLocation(start), identifier);
+   }
+ 
+@@ -1667,7 +1666,7 @@
+     Token literal = nextLiteralToken();
+ 
+     if (literal.type == TokenType.STRING
+-        && ((StringLiteralToken) literal).hasUnescapedUnicodeLineOrParagraphSeparator()) {
++        && literal.hasUnescapedUnicodeLineOrParagraphSeparator()) {
+       recordFeatureUsed(Feature.UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP);
+     }
+ 
+@@ -1697,11 +1696,11 @@
+   private TemplateLiteralExpressionTree parseTemplateLiteral(@Nullable ParseTree operand) {
+     SourcePosition start = operand == null ? getTreeStartLocation() : operand.location.start;
+     Token token = nextToken();
+-    if (!(token instanceof TemplateLiteralToken)) {
++    if (!token.isTemplateLiteralToken()) {
+       reportError(token, "Unexpected template literal token %s.", token.type.toString());
+     }
+     boolean isTaggedTemplate = operand != null;
+-    TemplateLiteralToken templateToken = (TemplateLiteralToken) token;
++    Token templateToken = token;
+     if (!isTaggedTemplate) {
+       reportTemplateErrorIfPresent(templateToken);
+     }
+@@ -1740,7 +1739,7 @@
+ 
+   private ParseTree parseRegularExpressionLiteral() {
+     SourcePosition start = getTreeStartLocation();
+-    LiteralToken literal = nextRegularExpressionLiteralToken();
++    Token literal = nextRegularExpressionLiteralToken();
+     recordFeatureUsed(Feature.REGEXP_SYNTAX);
+     return new LiteralExpressionTree(getTreeLocation(start), literal);
+   }
+@@ -1925,7 +1924,7 @@
+   }
+ 
+   private @Nullable Token eatPredefinedString(String string) {
+-    IdentifierToken token = eatId();
++    Token token = eatId();
+     if (token == null || !token.valueEquals(string)) {
+       reportExpectedError(token, string);
+       return null;
+@@ -1934,8 +1933,7 @@
+   }
+ 
+   private boolean peekPredefinedString(int index, String string) {
+-    return peek(index, TokenType.IDENTIFIER)
+-        && ((IdentifierToken) peekToken(index)).valueEquals(string);
++    return peek(index, TokenType.IDENTIFIER) && peekToken(index).valueEquals(string);
+   }
+ 
+   private ParseTree parseObjectLiteralGetAccessor() {
+@@ -2010,11 +2008,11 @@
+     if (colon == null) {
+       if (name.type != TokenType.IDENTIFIER) {
+         reportExpectedError(peekToken(), TokenType.COLON);
+-      } else if (((IdentifierToken) name).isKeyword()) {
++      } else if (name.isKeyword()) {
+         reportError(name, "Cannot use keyword in short object literal");
+       } else if (peek(TokenType.EQUAL)) {
+         IdentifierExpressionTree idTree =
+-            new IdentifierExpressionTree(getTreeLocation(start), (IdentifierToken) name);
++            new IdentifierExpressionTree(getTreeLocation(start), name);
+         eat(TokenType.EQUAL);
+         ParseTree defaultValue = parseAssignmentExpression();
+         return new DefaultParameterTree(getTreeLocation(start), idTree, defaultValue);
+@@ -2224,7 +2222,7 @@
+ 
+   private boolean isStartOfAsyncArrowFunction(ParseTree partialExpression) {
+     if (partialExpression.type == ParseTreeType.IDENTIFIER_EXPRESSION) {
+-      final IdentifierToken identifierToken =
++      final Token identifierToken =
+           partialExpression.asIdentifierExpression().identifierToken;
+       // partialExpression is `async`
+       // followed by `[no newline] bindingIdentifier [no newline] =>`
+@@ -2795,7 +2793,7 @@
+           }
+           case PERIOD -> {
+             eat(TokenType.PERIOD);
+-            IdentifierToken id = eatIdOrKeywordAsId();
++            Token id = eatIdOrKeywordAsId();
+             operand = new MemberExpressionTree(getTreeLocation(start), operand, id);
+           }
+           case NO_SUBSTITUTION_TEMPLATE, TEMPLATE_HEAD -> operand = parseTemplateLiteral(operand);
+@@ -2851,7 +2849,7 @@
+             reportError("template literal cannot be used within optional chaining");
+         default -> {
+           if (peekIdOrKeyword()) {
+-            IdentifierToken id = eatIdOrKeywordAsId();
++            Token id = eatIdOrKeywordAsId();
+             operand =
+                 new OptionalMemberExpressionTree(
+                     getTreeLocation(start), operand, id, /* isStartOfOptionalChain= */ true);
+@@ -2886,7 +2884,7 @@
+       switch (peekType()) {
+         case PERIOD -> {
+           eat(TokenType.PERIOD);
+-          IdentifierToken id = eatIdOrKeywordAsId();
++          Token id = eatIdOrKeywordAsId();
+           optionalExpression =
+               new OptionalMemberExpressionTree(
+                   getTreeLocation(start),
+@@ -2958,7 +2956,7 @@
+         }
+         case PERIOD -> {
+           eat(TokenType.PERIOD);
+-          IdentifierToken id = eatIdOrKeywordAsId();
++          Token id = eatIdOrKeywordAsId();
+           operand = new MemberExpressionTree(getTreeLocation(start), operand, id);
+         }
+         case NO_SUBSTITUTION_TEMPLATE, TEMPLATE_HEAD -> operand = parseTemplateLiteral(operand);
+@@ -3194,7 +3192,7 @@
+ 
+     Token name;
+     if (peekIdOrKeyword()) {
+-      IdentifierToken idToken = eatIdOrKeywordAsId();
++      Token idToken = eatIdOrKeywordAsId();
+       if (!peek(TokenType.COLON)) {
+         if (idToken.isKeyword()) {
+           reportError("cannot use keyword '%s' here.", idToken);
+@@ -3349,7 +3347,7 @@
+     TokenType typeToCheck = token.type;
+ 
+     if (typeToCheck == TokenType.IDENTIFIER) {
+-      String value = ((IdentifierToken) token).getMaybePrivateValue();
++      String value = token.getMaybePrivateValue();
+       Keywords k = Keywords.get(value);
+       if (k == null) {
+         return true;
+@@ -3373,7 +3371,7 @@
+   }
+ 
+   /** Shorthand for eatOpt(TokenType.IDENTIFIER) */
+-  private @Nullable IdentifierToken eatIdOpt() {
++  private @Nullable Token eatIdOpt() {
+     return (peekId()) ? eatIdOrKeywordAsId() : null;
+   }
+ 
+@@ -3382,7 +3380,7 @@
+    *
+    * @see "http://www.ecma-international.org/ecma-262/5.1/#sec-7.6"
+    */
+-  private @Nullable IdentifierToken eatId() {
++  private @Nullable Token eatId() {
+     if (peekId()) {
+       return eatIdOrKeywordAsId();
+     } else {
+@@ -3414,12 +3412,12 @@
+    *
+    * @see "http://www.ecma-international.org/ecma-262/5.1/#sec-7.6"
+    */
+-  private @Nullable IdentifierToken eatIdOrKeywordAsId() {
++  private @Nullable Token eatIdOrKeywordAsId() {
+     Token token = nextToken();
+     if (token.type == TokenType.IDENTIFIER) {
+-      return (IdentifierToken) token;
++      return token;
+     } else if (Keywords.isKeyword(token.type)) {
+-      return new IdentifierToken(token.location, Keywords.get(token.type).toString());
++      return Token.identifier(token.location, Keywords.get(token.type).toString());
+     } else {
+       reportExpectedError(token, TokenType.IDENTIFIER);
+     }
+@@ -3481,15 +3479,15 @@
+   }
+ 
+   /** Consumes a regular expression literal token and returns it. */
+-  private LiteralToken nextRegularExpressionLiteralToken() {
+-    LiteralToken token = scanner.nextRegularExpressionLiteralToken();
++  private Token nextRegularExpressionLiteralToken() {
++    Token token = scanner.nextRegularExpressionLiteralToken();
+     lastSourcePosition = token.location.end;
+     return token;
+   }
+ 
+   /** Consumes a template literal token and returns it. */
+-  private TemplateLiteralToken nextTemplateLiteralToken() {
+-    TemplateLiteralToken token = scanner.nextTemplateLiteralToken();
++  private Token nextTemplateLiteralToken() {
++    Token token = scanner.nextTemplateLiteralToken();
+     lastSourcePosition = token.location.end;
+     return token;
+   }
+@@ -3582,17 +3580,18 @@
+     errorReporter.reportError(position, message, arguments);
+   }
+ 
+-  private void reportTemplateErrorIfPresent(TemplateLiteralToken templateToken) {
+-    if (templateToken.errorMessage == null) {
++  private void reportTemplateErrorIfPresent(Token templateToken) {
++    String errorMessage = templateToken.getErrorMessage();
++    if (errorMessage == null) {
+       return;
+     }
+-    switch (templateToken.errorLevel) {
++    switch (templateToken.getErrorLevel()) {
+       case WARNING -> {
+-        errorReporter.reportWarning(templateToken.errorPosition, "%s", templateToken.errorMessage);
++        errorReporter.reportWarning(templateToken.getErrorPosition(), "%s", errorMessage);
+         return;
+       }
+       case ERROR -> {
+-        reportError(templateToken.errorPosition, "%s", templateToken.errorMessage);
++        reportError(templateToken.getErrorPosition(), "%s", errorMessage);
+         return;
+       }
+     }
+diff --git a/com/google/javascript/jscomp/parsing/parser/Scanner.java b/com/google/javascript/jscomp/parsing/parser/Scanner.java
+--- a/com/google/javascript/jscomp/parsing/parser/Scanner.java
++++ b/com/google/javascript/jscomp/parsing/parser/Scanner.java
+@@ -111,7 +111,7 @@
+     }
+   }
+ 
+-  public LiteralToken nextRegularExpressionLiteralToken() {
++  public Token nextRegularExpressionLiteralToken() {
+     clearTokenLookahead();
+ 
+     int beginToken = index;
+@@ -121,14 +121,14 @@
+ 
+     // body
+     if (!skipRegularExpressionBody()) {
+-      return new LiteralToken(
++      return Token.literal(
+           TokenType.REGULAR_EXPRESSION, getTokenString(beginToken), getTokenRange(beginToken));
+     }
+ 
+     // separating '/'
+     if (peekChar() != '/') {
+       reportError("Expected '/' in regular expression literal");
+-      return new LiteralToken(
++      return Token.literal(
+           TokenType.REGULAR_EXPRESSION, getTokenString(beginToken), getTokenRange(beginToken));
+     }
+     nextChar();
+@@ -138,11 +138,11 @@
+       nextChar();
+     }
+ 
+-    return new LiteralToken(
++    return Token.literal(
+         TokenType.REGULAR_EXPRESSION, getTokenString(beginToken), getTokenRange(beginToken));
+   }
+ 
+-  public TemplateLiteralToken nextTemplateLiteralToken() {
++  public Token nextTemplateLiteralToken() {
+     Token token = nextToken();
+     if (isAtEnd() || token.type != TokenType.CLOSE_CURLY) {
+       reportError(getPosition(index), "Expected '}' after expression in template literal");
+@@ -680,7 +680,7 @@
+     skipDecimalDigits();
+     if (peek('n')) {
+       nextChar();
+-      return new LiteralToken(
++      return Token.literal(
+           TokenType.BIGINT, getTokenString(beginToken), getTokenRange(beginToken));
+     }
+     return scanFractionalNumericLiteral(beginToken);
+@@ -700,7 +700,7 @@
+         if (isBigInt) {
+           nextChar();
+         }
+-        yield new LiteralToken(
++        yield Token.literal(
+             isBigInt ? TokenType.BIGINT : TokenType.NUMBER,
+             getTokenString(beginToken),
+             getTokenRange(beginToken));
+@@ -719,7 +719,7 @@
+         if (isBigInt) {
+           nextChar();
+         }
+-        yield new LiteralToken(
++        yield Token.literal(
+             isBigInt ? TokenType.BIGINT : TokenType.NUMBER,
+             getTokenString(beginToken),
+             getTokenRange(beginToken));
+@@ -734,7 +734,7 @@
+         if (isBigInt) {
+           nextChar();
+         }
+-        yield new LiteralToken(
++        yield Token.literal(
+             isBigInt ? TokenType.BIGINT : TokenType.NUMBER,
+             getTokenString(beginToken),
+             getTokenRange(beginToken));
+@@ -750,16 +750,16 @@
+         if (peek('n')) {
+           reportError("SyntaxError: nonzero BigInt can't have leading zero");
+         }
+-        yield new LiteralToken(
++        yield Token.literal(
+             TokenType.NUMBER, getTokenString(beginToken), getTokenRange(beginToken));
+       }
+       case 'n' -> {
+         nextChar();
+-        yield new LiteralToken(
++        yield Token.literal(
+             TokenType.BIGINT, getTokenString(beginToken), getTokenRange(beginToken));
+       }
+       default ->
+-          new LiteralToken(TokenType.NUMBER, getTokenString(beginToken), getTokenRange(beginToken));
++          Token.literal(TokenType.NUMBER, getTokenString(beginToken), getTokenRange(beginToken));
+     };
+   }
+ 
+@@ -839,13 +839,13 @@
+     }
+ 
+     Keywords k = Keywords.get(value);
+-    // Keywords containing unicode escape sequences are treated as IdentifierTokens rather than
++    // Keywords containing unicode escape sequences are treated as identifier Tokens rather than
+     // keyword Tokens (ECMA-262 11.6.2).
+     if (k != null && !containsUnicodeEscape) {
+       return new Token(k.type, getTokenRange(beginToken));
+     }
+ 
+-    return new IdentifierToken(getTokenRange(beginToken), value);
++    return Token.identifier(getTokenRange(beginToken), value);
+   }
+ 
+   /**
+@@ -916,7 +916,7 @@
+       hasUnescapedUnicodeLineOrParagraphSeparator =
+           hasUnescapedUnicodeLineOrParagraphSeparator || c == '\u2028' || c == '\u2029';
+       if (!skipStringLiteralChar()) {
+-        return new StringLiteralToken(
++        return Token.stringLiteral(
+             getTokenString(beginIndex),
+             getTokenRange(startingPosition),
+             hasUnescapedUnicodeLineOrParagraphSeparator);
+@@ -927,7 +927,7 @@
+     } else {
+       nextChar();
+     }
+-    return new StringLiteralToken(
++    return Token.stringLiteral(
+         getTokenString(beginIndex),
+         getTokenRange(startingPosition),
+         hasUnescapedUnicodeLineOrParagraphSeparator);
+@@ -942,7 +942,7 @@
+         TokenType.NO_SUBSTITUTION_TEMPLATE, TokenType.TEMPLATE_HEAD);
+   }
+ 
+-  private TemplateLiteralToken nextTemplateLiteralTokenShared(
++  private Token nextTemplateLiteralTokenShared(
+       TokenType endType, TokenType middleType) {
+     int beginIndex = index;
+     // Save the starting position to use with the multi-line safe version of getTokenRange().
+@@ -956,7 +956,7 @@
+     return switch (peekChar()) {
+       case '`' -> {
+         nextChar();
+-        yield new TemplateLiteralToken(
++        yield Token.templateLiteral(
+             endType,
+             value,
+             skipTemplateCharactersResult.getErrorMessage(),
+@@ -967,7 +967,7 @@
+       case '$' -> {
+         nextChar(); // $
+         nextChar(); // {
+-        yield new TemplateLiteralToken(
++        yield Token.templateLiteral(
+             middleType,
+             value,
+             skipTemplateCharactersResult.getErrorMessage(),
+@@ -977,7 +977,7 @@
+       }
+       default ->
+           // Should have reported error already
+-          new TemplateLiteralToken(
++          Token.templateLiteral(
+               endType,
+               value,
+               skipTemplateCharactersResult.getErrorMessage(),
+@@ -1180,7 +1180,7 @@
+     }
+   }
+ 
+-  private LiteralToken scanFractionalNumericLiteral(int beginToken) {
++  private Token scanFractionalNumericLiteral(int beginToken) {
+     if (peek('.')) {
+       nextChar();
+       skipDecimalDigits(/* hasLeadingDigit= */ false);
+@@ -1188,7 +1188,7 @@
+     return scanExponentOfNumericLiteral(beginToken);
+   }
+ 
+-  private LiteralToken scanExponentOfNumericLiteral(int beginToken) {
++  private Token scanExponentOfNumericLiteral(int beginToken) {
+     switch (peekChar()) {
+       case 'e', 'E' -> {
+         nextChar();
+@@ -1206,7 +1206,7 @@
+       }
+       default -> {}
+     }
+-    return new LiteralToken(
++    return Token.literal(
+         TokenType.NUMBER, getTokenString(beginToken), getTokenRange(beginToken));
+   }
+ 
+diff --git a/com/google/javascript/jscomp/parsing/parser/StringLiteralToken.java b/com/google/javascript/jscomp/parsing/parser/StringLiteralToken.java
+--- a/com/google/javascript/jscomp/parsing/parser/StringLiteralToken.java
++++ b/com/google/javascript/jscomp/parsing/parser/StringLiteralToken.java
+@@ -16,19 +16,7 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser;
+ 
+-import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+-
+-/** A single or double quoted JavaScript string literal. */
+-public final class StringLiteralToken extends LiteralToken {
+-  private final boolean hasUnescapedUnicodeLineOrParagraphSeparator;
+-
+-  public StringLiteralToken(
+-      String value, SourceRange location, boolean hasUnescapedUnicodeLineOrParagraphSeparator) {
+-    super(TokenType.STRING, value, location);
+-    this.hasUnescapedUnicodeLineOrParagraphSeparator = hasUnescapedUnicodeLineOrParagraphSeparator;
+-  }
+-
+-  public boolean hasUnescapedUnicodeLineOrParagraphSeparator() {
+-    return hasUnescapedUnicodeLineOrParagraphSeparator;
+-  }
++/** Flattened into {@link Token}. */
++final class StringLiteralToken {
++  private StringLiteralToken() {}
+ }
+diff --git a/com/google/javascript/jscomp/parsing/parser/TemplateLiteralToken.java b/com/google/javascript/jscomp/parsing/parser/TemplateLiteralToken.java
+--- a/com/google/javascript/jscomp/parsing/parser/TemplateLiteralToken.java
++++ b/com/google/javascript/jscomp/parsing/parser/TemplateLiteralToken.java
+@@ -17,46 +17,26 @@
+ package com.google.javascript.jscomp.parsing.parser;
+ 
+ import com.google.javascript.jscomp.parsing.parser.util.SourcePosition;
+-import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+- * A token representing a javascript template literal substring.
+- *
+- * <p>The value of the Token is the raw string. The token also stores whether this token contains
+- * any error messages that should be passed to the parser due to invalid escapes or unnecessary
+- * escapes. The parser, not the scanner, reports these errors because the errors are suppressed in
+- * tagged template literals. The scanner does not know if it's in a tagged or untagged template lit.
++ * Cold diagnostic payload for a template literal {@link Token} when the scanner encountered an
++ * invalid or unnecessary escape sequence.
+  */
+-public final class TemplateLiteralToken extends LiteralToken {
++public final class TemplateLiteralToken {
+   public final @Nullable String errorMessage;
+   public final SourcePosition errorPosition;
+-  public final ErrorLevel errorLevel;
++  public final @Nullable ErrorLevel errorLevel;
+ 
+-  enum ErrorLevel {
++  public enum ErrorLevel {
+     WARNING,
+     ERROR
+   }
+ 
+   public TemplateLiteralToken(
+-      TokenType type,
+-      String value,
+-      String errorMsg,
+-      ErrorLevel errorLevel,
+-      SourcePosition position,
+-      SourceRange location) {
+-    super(type, value, location);
++      @Nullable String errorMsg, @Nullable ErrorLevel errorLevel, SourcePosition position) {
+     this.errorMessage = errorMsg;
+     this.errorLevel = errorLevel;
+     this.errorPosition = position;
+   }
+-
+-  @Override
+-  public String toString() {
+-    return value;
+-  }
+-
+-  public boolean hasError() {
+-    return ErrorLevel.ERROR.equals(errorLevel);
+-  }
+ }
+diff --git a/com/google/javascript/jscomp/parsing/parser/Token.java b/com/google/javascript/jscomp/parsing/parser/Token.java
+--- a/com/google/javascript/jscomp/parsing/parser/Token.java
++++ b/com/google/javascript/jscomp/parsing/parser/Token.java
+@@ -16,30 +16,179 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser;
+ 
++import static com.google.common.base.Preconditions.checkNotNull;
++import static com.google.common.base.Preconditions.checkState;
++
+ import com.google.javascript.jscomp.parsing.parser.util.SourcePosition;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
++import org.jspecify.annotations.Nullable;
+ 
+ /**
+  * A Token in a javascript file.
+  * Immutable.
+  * A plain old data structure. Should contain data members and simple accessors only.
+  */
+-public class Token {
++public final class Token {
++
++  private static final byte FLAG_IDENTIFIER = 1 << 0;
++  private static final byte FLAG_LITERAL = 1 << 1;
++  private static final byte FLAG_STRING_LITERAL = 1 << 2;
++  private static final byte FLAG_TEMPLATE_LITERAL = 1 << 3;
++  private static final byte FLAG_PRIVATE_IDENTIFIER = 1 << 4;
++  private static final byte FLAG_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP = 1 << 5;
+ 
+   public final SourceRange location;
+   public final TokenType type;
++  public final String value;
++  public final @Nullable TemplateLiteralToken templateError;
++  private final byte tokenFlags;
+ 
+   public Token(TokenType type, SourceRange location) {
+-    this.type = type;
++    this.type = checkNotNull(type);
+     this.location = location;
++    this.value = "";
++    this.templateError = null;
++    this.tokenFlags = 0;
++  }
++
++  private Token(
++      TokenType type,
++      SourceRange location,
++      String value,
++      @Nullable TemplateLiteralToken templateError,
++      byte tokenFlags) {
++    this.type = checkNotNull(type);
++    this.location = location;
++    this.value = checkNotNull(value);
++    this.templateError = templateError;
++    this.tokenFlags = tokenFlags;
++  }
++
++  public static Token identifier(SourceRange location, String value) {
++    byte flags =
++        (byte) (FLAG_IDENTIFIER | (value.startsWith("#") ? FLAG_PRIVATE_IDENTIFIER : 0));
++    return new Token(TokenType.IDENTIFIER, location, value, null, flags);
++  }
++
++  public static Token literal(TokenType type, String value, SourceRange location) {
++    return new Token(type, location, value, null, FLAG_LITERAL);
++  }
++
++  public static Token stringLiteral(
++      String value, SourceRange location, boolean hasUnescapedUnicodeLineOrParagraphSeparator) {
++    byte flags =
++        (byte)
++            (FLAG_LITERAL
++                | FLAG_STRING_LITERAL
++                | (hasUnescapedUnicodeLineOrParagraphSeparator
++                    ? FLAG_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP
++                    : 0));
++    return new Token(TokenType.STRING, location, value, null, flags);
++  }
++
++  public static Token templateLiteral(
++      TokenType type,
++      String value,
++      @Nullable String errorMsg,
++      TemplateLiteralToken.@Nullable ErrorLevel errorLevel,
++      SourcePosition position,
++      SourceRange location) {
++    TemplateLiteralToken templateError =
++        (errorMsg == null && errorLevel == null)
++            ? null
++            : new TemplateLiteralToken(errorMsg, errorLevel, position);
++    return new Token(
++        type, location, value, templateError, (byte) (FLAG_LITERAL | FLAG_TEMPLATE_LITERAL));
+   }
+ 
+   public SourcePosition getStart() {
+     return location.start;
+   }
+ 
++  public boolean isIdentifierToken() {
++    return (tokenFlags & FLAG_IDENTIFIER) != 0;
++  }
++
++  public boolean isLiteralToken() {
++    return (tokenFlags & FLAG_LITERAL) != 0;
++  }
++
++  public boolean isStringLiteralToken() {
++    return (tokenFlags & FLAG_STRING_LITERAL) != 0;
++  }
++
++  public boolean isTemplateLiteralToken() {
++    return (tokenFlags & FLAG_TEMPLATE_LITERAL) != 0;
++  }
++
++  public Token asIdentifier() {
++    checkState((tokenFlags & FLAG_IDENTIFIER) != 0);
++    return this;
++  }
++
++  public Token asLiteral() {
++    checkState((tokenFlags & FLAG_LITERAL) != 0);
++    return this;
++  }
++
++  public boolean isKeyword() {
++    return Keywords.isKeyword(value);
++  }
++
++  public boolean valueEquals(String str) {
++    return value.equals(str);
++  }
++
++  /**
++   * Gets the value of the identifier assuring that it is not a private identifier.
++   *
++   * <p>You must verify privateIdentifier is false (and presumably error if it is true) before
++   * calling this method.
++   *
++   * <p>Prefer calling {@link #isKeyword()} or {@link #valueEquals(String)} if those methods meet
++   * your needs.
++   */
++  public String getValue() {
++    checkState((tokenFlags & FLAG_PRIVATE_IDENTIFIER) == 0);
++    return value;
++  }
++
++  /** Gets the value of the identifier, allowing it to be a private identifier. */
++  public String getMaybePrivateValue() {
++    return value;
++  }
++
++  /** Whether the value starts with a #. */
++  public boolean isPrivateIdentifier() {
++    return (tokenFlags & FLAG_PRIVATE_IDENTIFIER) != 0;
++  }
++
++  public boolean hasUnescapedUnicodeLineOrParagraphSeparator() {
++    return (tokenFlags & FLAG_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP) != 0;
++  }
++
++  public boolean hasError() {
++    return templateError != null
++        && TemplateLiteralToken.ErrorLevel.ERROR.equals(templateError.errorLevel);
++  }
++
++  public @Nullable String getErrorMessage() {
++    return templateError == null ? null : templateError.errorMessage;
++  }
++
++  public @Nullable SourcePosition getErrorPosition() {
++    return templateError == null ? null : templateError.errorPosition;
++  }
++
++  public TemplateLiteralToken.@Nullable ErrorLevel getErrorLevel() {
++    return templateError == null ? null : templateError.errorLevel;
++  }
++
+   @Override
+   public String toString() {
+-    return type.toString();
++    if ((tokenFlags & (FLAG_IDENTIFIER | FLAG_LITERAL)) != 0) {
++      return value;
++    }
++    return type == null ? "null" : type.toString();
+   }
+ }
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/BreakStatementTree.java b/com/google/javascript/jscomp/parsing/parser/trees/BreakStatementTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/BreakStatementTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/BreakStatementTree.java
+@@ -16,15 +16,15 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser.trees;
+ 
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ import org.jspecify.annotations.Nullable;
+ 
+ public class BreakStatementTree extends ParseTree {
+ 
+-  public final IdentifierToken name;
++  public final Token name;
+ 
+-  public BreakStatementTree(SourceRange location, @Nullable IdentifierToken name) {
++  public BreakStatementTree(SourceRange location, @Nullable Token name) {
+     super(ParseTreeType.BREAK_STATEMENT, location);
+ 
+     this.name = name;
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/ClassDeclarationTree.java b/com/google/javascript/jscomp/parsing/parser/trees/ClassDeclarationTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/ClassDeclarationTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/ClassDeclarationTree.java
+@@ -17,17 +17,17 @@
+ package com.google.javascript.jscomp.parsing.parser.trees;
+ 
+ import com.google.common.collect.ImmutableList;
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ 
+ public class ClassDeclarationTree extends ParseTree {
+-  public final IdentifierToken name;
++  public final Token name;
+   public final ParseTree superClass;
+   public final ImmutableList<ParseTree> elements;
+ 
+   public ClassDeclarationTree(
+       SourceRange location,
+-      IdentifierToken name,
++      Token name,
+       ParseTree superClass,
+       ImmutableList<ParseTree> elements) {
+     super(ParseTreeType.CLASS_DECLARATION, location);
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/ContinueStatementTree.java b/com/google/javascript/jscomp/parsing/parser/trees/ContinueStatementTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/ContinueStatementTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/ContinueStatementTree.java
+@@ -16,15 +16,15 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser.trees;
+ 
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ import org.jspecify.annotations.Nullable;
+ 
+ public class ContinueStatementTree extends ParseTree {
+ 
+-  public final IdentifierToken name;
++  public final Token name;
+ 
+-  public ContinueStatementTree(SourceRange location, @Nullable IdentifierToken name) {
++  public ContinueStatementTree(SourceRange location, @Nullable Token name) {
+     super(ParseTreeType.CONTINUE_STATEMENT, location);
+ 
+     this.name = name;
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/ExportDeclarationTree.java b/com/google/javascript/jscomp/parsing/parser/trees/ExportDeclarationTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/ExportDeclarationTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/ExportDeclarationTree.java
+@@ -17,7 +17,7 @@
+ package com.google.javascript.jscomp.parsing.parser.trees;
+ 
+ import com.google.common.collect.ImmutableList;
+-import com.google.javascript.jscomp.parsing.parser.LiteralToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ 
+ public class ExportDeclarationTree extends ParseTree {
+@@ -28,14 +28,14 @@
+   public final boolean isExportAll;
+   public final ParseTree declaration;
+   public final ImmutableList<ParseTree> exportSpecifierList;
+-  public final LiteralToken from;
++  public final Token from;
+ 
+   public ExportDeclarationTree(SourceRange location,
+       boolean isDefault,
+       boolean isExportAll,
+       ParseTree declaration,
+       ImmutableList<ParseTree> exportSpecifierList,
+-      LiteralToken from) {
++      Token from) {
+     super(ParseTreeType.EXPORT_DECLARATION, location);
+     this.isDefault = isDefault;
+     this.isExportAll = isExportAll;
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/ExportSpecifierTree.java b/com/google/javascript/jscomp/parsing/parser/trees/ExportSpecifierTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/ExportSpecifierTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/ExportSpecifierTree.java
+@@ -16,16 +16,16 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser.trees;
+ 
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ 
+ public class ExportSpecifierTree extends ParseTree {
+ 
+-  public final IdentifierToken importedName;
+-  public final IdentifierToken destinationName;
++  public final Token importedName;
++  public final Token destinationName;
+ 
+   public ExportSpecifierTree(SourceRange location,
+-      IdentifierToken importedName, IdentifierToken destinationName) {
++      Token importedName, Token destinationName) {
+     super(ParseTreeType.EXPORT_SPECIFIER, location);
+     this.importedName = importedName;
+     this.destinationName = destinationName;
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/FieldDeclarationTree.java b/com/google/javascript/jscomp/parsing/parser/trees/FieldDeclarationTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/FieldDeclarationTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/FieldDeclarationTree.java
+@@ -16,18 +16,18 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser.trees;
+ 
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ import org.jspecify.annotations.Nullable;
+ 
+ /** Tree for public property fields */
+ public class FieldDeclarationTree extends ParseTree {
+-  public final IdentifierToken name;
++  public final Token name;
+   public final boolean isStatic;
+   public final @Nullable ParseTree initializer;
+ 
+   public FieldDeclarationTree(
+-      SourceRange location, IdentifierToken name, boolean isStatic, ParseTree initializer) {
++      SourceRange location, Token name, boolean isStatic, ParseTree initializer) {
+     super(ParseTreeType.FIELD_DECLARATION, location);
+     this.name = name;
+     this.isStatic = isStatic;
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/FunctionDeclarationTree.java b/com/google/javascript/jscomp/parsing/parser/trees/FunctionDeclarationTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/FunctionDeclarationTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/FunctionDeclarationTree.java
+@@ -19,7 +19,7 @@
+ import static com.google.common.base.Preconditions.checkNotNull;
+ 
+ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ import org.jspecify.annotations.Nullable;
+ 
+@@ -32,7 +32,7 @@
+     ARROW
+   }
+ 
+-  public final @Nullable IdentifierToken name;
++  public final @Nullable Token name;
+   public final FormalParameterListTree formalParameterList;
+   public final ParseTree functionBody;
+   public final boolean isClassMember;
+@@ -64,7 +64,7 @@
+   public static class Builder {
+     private final Kind kind;
+ 
+-    private @Nullable IdentifierToken name = null;
++    private @Nullable Token name = null;
+     private @Nullable FormalParameterListTree formalParameterList = null;
+     private @Nullable ParseTree functionBody = null;
+     private boolean isClassMember = false;
+@@ -84,7 +84,7 @@
+      * <p>Default is {@code null}.
+      */
+     @CanIgnoreReturnValue
+-    public Builder setName(IdentifierToken name) {
++    public Builder setName(Token name) {
+       this.name = name;
+       return this;
+     }
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/IdentifierExpressionTree.java b/com/google/javascript/jscomp/parsing/parser/trees/IdentifierExpressionTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/IdentifierExpressionTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/IdentifierExpressionTree.java
+@@ -16,14 +16,14 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser.trees;
+ 
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ 
+ public class IdentifierExpressionTree extends ParseTree {
+ 
+-  public final IdentifierToken identifierToken;
++  public final Token identifierToken;
+ 
+-  public IdentifierExpressionTree(SourceRange location, IdentifierToken identifierToken) {
++  public IdentifierExpressionTree(SourceRange location, Token identifierToken) {
+     super(ParseTreeType.IDENTIFIER_EXPRESSION, location);
+ 
+     this.identifierToken = identifierToken;
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/ImportDeclarationTree.java b/com/google/javascript/jscomp/parsing/parser/trees/ImportDeclarationTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/ImportDeclarationTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/ImportDeclarationTree.java
+@@ -17,13 +17,12 @@
+ package com.google.javascript.jscomp.parsing.parser.trees;
+ 
+ import com.google.common.collect.ImmutableList;
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
+-import com.google.javascript.jscomp.parsing.parser.LiteralToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ 
+ public class ImportDeclarationTree extends ParseTree {
+   // The identifier for the "default" import from the module.
+-  public final IdentifierToken defaultBindingIdentifier;
++  public final Token defaultBindingIdentifier;
+ 
+   // The list of names imported from the module when using the
+   // `import {...} from 'specifier'` form.
+@@ -31,16 +30,16 @@
+ 
+   // The namespace into which imported names are put when using the
+   // `import * as nameSpaceImportIdentifier from 'specifier'` form.
+-  public final IdentifierToken nameSpaceImportIdentifier;
++  public final Token nameSpaceImportIdentifier;
+ 
+   // The string identifying the module.
+-  public final LiteralToken moduleSpecifier;
++  public final Token moduleSpecifier;
+ 
+   public ImportDeclarationTree(SourceRange location,
+-      IdentifierToken defaultBindingIdentifier,
++      Token defaultBindingIdentifier,
+       ImmutableList<ParseTree> importSpecifierList,
+-      IdentifierToken nameSpaceImportIdentifier,
+-      LiteralToken moduleSpecifier) {
++      Token nameSpaceImportIdentifier,
++      Token moduleSpecifier) {
+     super(ParseTreeType.IMPORT_DECLARATION, location);
+     this.defaultBindingIdentifier = defaultBindingIdentifier;
+     this.importSpecifierList = importSpecifierList;
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/ImportSpecifierTree.java b/com/google/javascript/jscomp/parsing/parser/trees/ImportSpecifierTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/ImportSpecifierTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/ImportSpecifierTree.java
+@@ -16,16 +16,16 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser.trees;
+ 
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ 
+ public class ImportSpecifierTree extends ParseTree {
+ 
+-  public final IdentifierToken importedName;
+-  public final IdentifierToken destinationName;
++  public final Token importedName;
++  public final Token destinationName;
+ 
+   public ImportSpecifierTree(SourceRange location,
+-      IdentifierToken importedName, IdentifierToken destinationName) {
++      Token importedName, Token destinationName) {
+     super(ParseTreeType.IMPORT_SPECIFIER, location);
+     this.importedName = importedName;
+     this.destinationName = destinationName;
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/LabelledStatementTree.java b/com/google/javascript/jscomp/parsing/parser/trees/LabelledStatementTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/LabelledStatementTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/LabelledStatementTree.java
+@@ -16,15 +16,15 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser.trees;
+ 
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ 
+ public class LabelledStatementTree extends ParseTree {
+ 
+-  public final IdentifierToken name;
++  public final Token name;
+   public final ParseTree statement;
+ 
+-  public LabelledStatementTree(SourceRange location, IdentifierToken name, ParseTree statement) {
++  public LabelledStatementTree(SourceRange location, Token name, ParseTree statement) {
+     super(ParseTreeType.LABELLED_STATEMENT, location);
+ 
+     this.name = name;
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/MemberExpressionTree.java b/com/google/javascript/jscomp/parsing/parser/trees/MemberExpressionTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/MemberExpressionTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/MemberExpressionTree.java
+@@ -16,15 +16,15 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser.trees;
+ 
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ 
+ public class MemberExpressionTree extends ParseTree {
+ 
+   public final ParseTree operand;
+-  public final IdentifierToken memberName;
++  public final Token memberName;
+ 
+-  public MemberExpressionTree(SourceRange location, ParseTree operand, IdentifierToken memberName) {
++  public MemberExpressionTree(SourceRange location, ParseTree operand, Token memberName) {
+     super(ParseTreeType.MEMBER_EXPRESSION, location);
+ 
+     this.operand = operand;
+diff --git a/com/google/javascript/jscomp/parsing/parser/trees/OptionalMemberExpressionTree.java b/com/google/javascript/jscomp/parsing/parser/trees/OptionalMemberExpressionTree.java
+--- a/com/google/javascript/jscomp/parsing/parser/trees/OptionalMemberExpressionTree.java
++++ b/com/google/javascript/jscomp/parsing/parser/trees/OptionalMemberExpressionTree.java
+@@ -16,7 +16,7 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser.trees;
+ 
+-import com.google.javascript.jscomp.parsing.parser.IdentifierToken;
++import com.google.javascript.jscomp.parsing.parser.Token;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+ 
+ /**
+@@ -27,13 +27,13 @@
+ public class OptionalMemberExpressionTree extends ParseTree {
+ 
+   public final ParseTree operand;
+-  public final IdentifierToken memberName;
++  public final Token memberName;
+   public final boolean isStartOfOptionalChain;
+ 
+   public OptionalMemberExpressionTree(
+       SourceRange location,
+       ParseTree operand,
+-      IdentifierToken memberName,
++      Token memberName,
+       boolean isStartOfOptionalChain) {
+     super(ParseTreeType.OPT_CHAIN_MEMBER_EXPRESSION, location);
+ 

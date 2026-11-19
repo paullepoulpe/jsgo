@@ -1,0 +1,18 @@
+{
+  "id": "tier1_m05_missing_arg",
+  "tier": 1,
+  "feature": "cli_meta",
+  "name": "Missing flag argument error",
+  "description": "Verifies passing flag requiring value without argument produces error",
+  "args": [
+    "--js_output_file"
+  ],
+  "stdin": "",
+  "files": {},
+  "expected": {
+    "exit_code": 255,
+    "stdout": "",
+    "stderr": "Option \"--js_output_file\" takes an operand\nSample usage: --compilation_level (-O) VAL --externs VAL --js VAL --js_output_file VAL --warning_level (-W) [QUIET | DEFAULT | VERBOSE]\nRun with --help for all options and details\n",
+    "output_files": {}
+  }
+}

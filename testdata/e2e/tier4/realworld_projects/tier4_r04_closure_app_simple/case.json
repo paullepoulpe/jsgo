@@ -1,0 +1,26 @@
+{
+  "id": "tier4_r04_closure_app_simple",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "Closure Library application SIMPLE compile",
+  "description": "Closure Library goog.provide/goog.require modular compilation under SIMPLE",
+  "args": [
+    "--compilation_level",
+    "SIMPLE",
+    "--js",
+    "base.js",
+    "--js",
+    "app.js"
+  ],
+  "stdin": "",
+  "files": {
+    "base.js": "var goog = goog || {}; goog.provide = function(ns) {}; goog.require = function(ns) {};",
+    "app.js": "goog.provide('my.app'); my.app.init = function() { return 'app ready'; }; window['init'] = my.app.init;"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "var goog=goog||{};goog.provide=function(a){};goog.require=function(a){};var my={app:{}};my.app.init=function(){return\"app ready\"};window.init=my.app.init;\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

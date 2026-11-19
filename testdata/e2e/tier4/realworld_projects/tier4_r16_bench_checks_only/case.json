@@ -1,0 +1,24 @@
+{
+  "id": "tier4_r16_bench_checks_only",
+  "tier": 4,
+  "feature": "realworld_projects",
+  "name": "Benchmark task: checks-only",
+  "description": "Benchmark checks-only task verifying fast checking pass without code emission",
+  "args": [
+    "--checks_only",
+    "--language_in",
+    "ECMASCRIPT_NEXT",
+    "--js",
+    "service.js"
+  ],
+  "stdin": "",
+  "files": {
+    "service.js": "class DataService { async fetchData(url) { return url ? { status: 200 } : null; } }\nconst svc = new DataService();\n"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": "",
+    "output_files": {}
+  }
+}

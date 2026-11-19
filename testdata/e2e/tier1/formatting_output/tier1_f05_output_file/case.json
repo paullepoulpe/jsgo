@@ -1,0 +1,25 @@
+{
+  "id": "tier1_f05_output_file",
+  "tier": 1,
+  "feature": "formatting_output",
+  "name": "File output option",
+  "description": "Verifies --js_output_file writes compiled output to the target file path",
+  "args": [
+    "--js_output_file",
+    "dist/app.js",
+    "--js",
+    "in.js"
+  ],
+  "stdin": "",
+  "files": {
+    "in.js": "var app = { version: 1 };"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": "",
+    "output_files": {
+      "dist/app.js": "var app={version:1};\n"
+    }
+  }
+}

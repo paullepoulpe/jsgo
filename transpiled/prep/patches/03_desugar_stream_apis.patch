@@ -1,0 +1,48 @@
+diff --git aa/com/google/javascript/jscomp/DevirtualizeMethods.java bb/com/google/javascript/jscomp/DevirtualizeMethods.java
+index f16218e2..1a9d4195 100644
+--- aa/com/google/javascript/jscomp/DevirtualizeMethods.java
++++ bb/com/google/javascript/jscomp/DevirtualizeMethods.java
+@@ -388,7 +388,12 @@ class DevirtualizeMethods implements OptimizeCalls.CallGraphCompilerPass {
+     Node definition = Iterables.get(definitions, 0);
+     checkArgument(definition.isFunction(), definition);
+ 
+-    return definitions.stream().allMatch((d) -> compiler.areNodesEqualForInlining(d, definition));
++    for (Node d : definitions) {
++      if (!compiler.areNodesEqualForInlining(d, definition)) {
++        return false;
++      }
++    }
++    return true;
+   }
+ 
+   /**
+diff --git aa/com/google/javascript/jscomp/PolymerClassDefinition.java bb/com/google/javascript/jscomp/PolymerClassDefinition.java
+index a0febec2..224699a0 100644
+--- aa/com/google/javascript/jscomp/PolymerClassDefinition.java
++++ bb/com/google/javascript/jscomp/PolymerClassDefinition.java
+@@ -480,8 +480,10 @@ final class PolymerClassDefinition {
+     if (behaviorProps == null) {
+       return;
+     }
+-    Set<String> elementPropNames =
+-        polymerElementProps.stream().map(x -> x.name.getString()).collect(Collectors.toSet());
++    Set<String> elementPropNames = new LinkedHashSet<>();
++    for (MemberDefinition x : polymerElementProps) {
++      elementPropNames.add(x.name.getString());
++    }
+     Iterator<Map.Entry<MemberDefinition, BehaviorDefinition>> behaviorsItr =
+         behaviorProps.entrySet().iterator();
+     while (behaviorsItr.hasNext()) {
+diff --git aa/com/google/javascript/jscomp/lint/CheckProvidesSorted.java bb/com/google/javascript/jscomp/lint/CheckProvidesSorted.java
+index 5fb1be9c..dd5561c6 100644
+--- aa/com/google/javascript/jscomp/lint/CheckProvidesSorted.java
++++ bb/com/google/javascript/jscomp/lint/CheckProvidesSorted.java
+@@ -133,7 +133,7 @@ public final class CheckProvidesSorted implements NodeTraversal.Callback {
+ 
+   private void checkCanonical(NodeTraversal t) {
+     @Nullable ImmutableList<String> canonicalProvides =
+-        originalProvides.stream().sorted().distinct().collect(toImmutableList());
++        ImmutableList.copyOf(new java.util.TreeSet<>(originalProvides));
+     if (!originalProvides.equals(canonicalProvides)) {
+       needsFix = true;
+       replacement =

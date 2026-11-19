@@ -1,0 +1,1 @@
+/** @type {number} */ var num = 'not_a_number';

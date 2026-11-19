@@ -1,0 +1,21 @@
+{
+  "id": "tier2_b03_comments_only",
+  "tier": 2,
+  "feature": "boundary_empty",
+  "name": "Comments only input",
+  "description": "Compiles input containing only single-line and multiline comments",
+  "args": [
+    "--js",
+    "comments.js"
+  ],
+  "stdin": "",
+  "files": {
+    "comments.js": "// line comment 1\n/* block comment\n * line 2\n */\n// line comment 3\n"
+  },
+  "expected": {
+    "exit_code": 0,
+    "stdout": "\n",
+    "stderr": "",
+    "output_files": {}
+  }
+}

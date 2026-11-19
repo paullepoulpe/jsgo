@@ -1,0 +1,28 @@
+diff --git a/com/google/javascript/rhino/InputId.java b/com/google/javascript/rhino/InputId.java
+index b0d86f6c..28af6f9e 100644
+--- a/com/google/javascript/rhino/InputId.java
++++ b/com/google/javascript/rhino/InputId.java
+@@ -47,9 +47,11 @@ import java.io.Serializable;
+ public class InputId implements Serializable {
+   public static final long serialVersionUID = 1L;
+   private final String id;
++  private final transient int hashCode;
+ 
+   public InputId(String id) {
+     this.id = id;
++    this.hashCode = id != null ? id.hashCode() : 0;
+   }
+ 
+   public String getIdName() {
+@@ -58,7 +60,10 @@ public class InputId implements Serializable {
+ 
+   @Override
+   public int hashCode() {
+-    return id.hashCode();
++    if (id == null) {
++      throw new NullPointerException();
++    }
++    return hashCode;
+   }
+ 
+   @Override

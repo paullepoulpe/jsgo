@@ -1,0 +1,1 @@
+var coreAPI = { version: 1 };
