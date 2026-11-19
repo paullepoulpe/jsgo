@@ -21451,6 +21451,9 @@ public final class RuntimeCollectionsBindings {
         \t} else if cap(m.entries) == 0 && allocCap > 0 {
         \t\tm.entries = make([]OrderedMapEntry[K, V], 0, allocCap)
         \t}
+        \tif m.idx == nil && allocCap > orderedMapIndexThreshold {
+        \t\tm.idx = make(map[K]int32, allocCap)
+        \t}
         \treturn m
         }
 
@@ -21606,6 +21609,9 @@ public final class RuntimeCollectionsBindings {
         \t\tm.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](allocCap)
         \t} else if allocCap > 8 {
         \t\tm.entries = make([]OrderedMapEntry[K, V], 0, allocCap)
+        \t}
+        \tif allocCap > orderedMapIndexThreshold {
+        \t\tm.idx = make(map[K]int32, allocCap)
         \t}
         \treturn m
         }
@@ -21818,7 +21824,7 @@ public final class RuntimeCollectionsBindings {
         \t}
         \tm.appendEntry(OrderedMapEntry[K, V]{Key: k, Val: v})
         \tif len(m.entries) > orderedMapIndexThreshold {
-        \t\tidx := make(map[K]int32, min(max(24, cap(m.entries)), 256))
+        \t\tidx := make(map[K]int32, max(24, cap(m.entries)))
         \t\tfor i := range m.entries {
         \t\t\tidx[m.entries[i].Key] = int32(i + 1)
         \t\t}

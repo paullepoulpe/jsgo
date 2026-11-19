@@ -18101,6 +18101,9 @@ func AcquireOrderedMapPtrCap[K comparable, V any](capHint int32) *OrderedMap[K, 
 	} else if cap(m.entries) == 0 && allocCap > 0 {
 		m.entries = make([]OrderedMapEntry[K, V], 0, allocCap)
 	}
+	if m.idx == nil && allocCap > orderedMapIndexThreshold {
+		m.idx = make(map[K]int32, allocCap)
+	}
 	return m
 }
 
@@ -18256,6 +18259,9 @@ func NewOrderedMapCap[K comparable, V any](cap int32) OrderedMap[K, V] {
 		m.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](allocCap)
 	} else if allocCap > 8 {
 		m.entries = make([]OrderedMapEntry[K, V], 0, allocCap)
+	}
+	if allocCap > orderedMapIndexThreshold {
+		m.idx = make(map[K]int32, allocCap)
 	}
 	return m
 }
@@ -18468,7 +18474,7 @@ func (m *OrderedMap[K, V]) PutOk(k K, v V) (V, bool) {
 	}
 	m.appendEntry(OrderedMapEntry[K, V]{Key: k, Val: v})
 	if len(m.entries) > orderedMapIndexThreshold {
-		idx := make(map[K]int32, min(max(24, cap(m.entries)), 256))
+		idx := make(map[K]int32, max(24, cap(m.entries)))
 		for i := range m.entries {
 			idx[m.entries[i].Key] = int32(i + 1)
 		}

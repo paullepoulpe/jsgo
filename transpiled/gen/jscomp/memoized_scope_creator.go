@@ -26,8 +26,8 @@ import (
 
 // Java class: com.google.javascript.jscomp.MemoizedScopeCreator
 type MemoizedScopeCreator struct {
-	scopesByScopeRoot j2gort.PlainMap[pkg_rhino.Node, AbstractScope] `gson:"scopesByScopeRoot"`
-	delegate          ScopeCreator                                   `gson:"delegate"`
+	scopesByScopeRoot j2gort.OrderedMap[pkg_rhino.Node, AbstractScope] `gson:"scopesByScopeRoot"`
+	delegate          ScopeCreator                                     `gson:"delegate"`
 	idHash_           atomic.Int32
 }
 
@@ -82,7 +82,7 @@ func InitMemoizedScopeCreator_2(this_ *MemoizedScopeCreator, delegate ScopeCreat
 	_ = delegate
 	_ = expectedScopes
 	this_.initFields_MemoizedScopeCreator()
-	this_.scopesByScopeRoot = j2gort.NewPlainMapCap[pkg_rhino.Node, AbstractScope](expectedScopes)
+	this_.scopesByScopeRoot = j2gort.AcquireOrderedMapCap[pkg_rhino.Node, AbstractScope](expectedScopes)
 	this_.delegate = delegate
 }
 
@@ -94,7 +94,7 @@ func (this_ *MemoizedScopeCreator) CreateScope_2_Node_AbstractScope(n pkg_rhino.
 	_ = scope
 	if scope == nil || scope.IsJavaNil_() {
 		scope = j2gort.AsIface[AbstractScope](this_.delegate.CreateScope_2_Node_AbstractScope(n, parent))
-		this_.scopesByScopeRoot.PutVoid(n, scope)
+		this_.scopesByScopeRoot.Put(n, scope)
 	} else {
 		if !(j2gort.IfaceEquals[AbstractScope](parent, j2gort.AsIface[AbstractScope](scope.GetParent()))) {
 			j2gort.CheckState(false)
@@ -111,5 +111,5 @@ func (this_ *MemoizedScopeCreator) ReleaseSlabs_() {
 			r_.ReleaseSlabs_()
 		}
 	}
-	this_.scopesByScopeRoot = j2gort.PlainMap[pkg_rhino.Node, AbstractScope]{}
+	this_.scopesByScopeRoot.ReleaseToPool()
 }

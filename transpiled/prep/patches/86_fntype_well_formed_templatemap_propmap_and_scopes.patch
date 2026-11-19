@@ -692,38 +692,6 @@ index 6710d5b..38c687a 100644
      int n = allVarsInFn.size();
      this.numVars = n;
      this.varNames = new String[n];
-diff --git a/com/google/javascript/jscomp/MemoizedScopeCreator.java b/com/google/javascript/jscomp/MemoizedScopeCreator.java
-index c5909d9..61826b5 100644
---- a/com/google/javascript/jscomp/MemoizedScopeCreator.java
-+++ b/com/google/javascript/jscomp/MemoizedScopeCreator.java
-@@ -19,8 +19,7 @@ package com.google.javascript.jscomp;
- import static com.google.common.base.Preconditions.checkState;
- 
- import com.google.javascript.rhino.Node;
--import java.util.LinkedHashMap;
--import java.util.Map;
-+import java.util.HashMap;
- 
- /**
-  * Memoize a scope creator.
-@@ -34,7 +33,7 @@ import java.util.Map;
-  */
- class MemoizedScopeCreator implements ScopeCreator {
- 
--  private final Map<Node, AbstractScope<?, ?>> scopesByScopeRoot;
-+  private final HashMap<Node, AbstractScope<?, ?>> scopesByScopeRoot;
-   private final ScopeCreator delegate;
- 
-   /**
-@@ -45,7 +44,7 @@ class MemoizedScopeCreator implements ScopeCreator {
-   }
- 
-   MemoizedScopeCreator(ScopeCreator delegate, int expectedScopes) {
--    this.scopesByScopeRoot = new LinkedHashMap<>(expectedScopes);
-+    this.scopesByScopeRoot = new HashMap<>(expectedScopes);
-     this.delegate = delegate;
-   }
- 
 diff --git a/com/google/javascript/jscomp/MustBeReachingVariableDef.java b/com/google/javascript/jscomp/MustBeReachingVariableDef.java
 index 6020524..0a21a59 100644
 --- a/com/google/javascript/jscomp/MustBeReachingVariableDef.java
