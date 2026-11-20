@@ -174,6 +174,16 @@ func (this_ *Scope) GetParent() any {
 	return j2gort.PtrToAny(this_.parent)
 }
 
+// Java method: Scope.isGlobal()
+func (this_ *Scope) IsGlobal() bool {
+	return (this_.parent == nil)
+}
+
+// Java method: Scope.isLocal()
+func (this_ *Scope) IsLocal() bool {
+	return (this_.parent != nil)
+}
+
 // Java method: Scope.declare(java.lang.String name, com.google.javascript.rhino.Node nameNode, com.google.javascript.jscomp.CompilerInput input)
 func (this_ *Scope) Declare(name string, nameNode pkg_rhino.Node, input *CompilerInput) *Var {
 	_ = name

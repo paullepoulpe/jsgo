@@ -112,58 +112,8 @@ func clinitSlow_ErrorReporter() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_ErrorReporter, &clinitDone_ErrorReporter)
-	static_ErrorReporter_NULL_INSTANCE = NewErrorReporter__Anon_152()
-	static_ErrorReporter_ALWAYS_THROWS_INSTANCE = NewErrorReporter__Anon_153()
-}
-
-// Java class:
-type ErrorReporter__Anon_152 struct {
-	idHash_ atomic.Int32
-}
-
-func (this_ *ErrorReporter__Anon_152) BindSelf_(s any) {
-	_ = s
-}
-func (this_ *ErrorReporter__Anon_152) IsJavaNil_() bool { return this_ == nil }
-func (*ErrorReporter__Anon_152) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.rhino.ErrorReporter$1", ""
-}
-func (this_ *ErrorReporter__Anon_152) IdentityHash_() int32 {
-	if this_ == nil {
-		return 0
-	}
-	if h := this_.idHash_.Load(); h != 0 {
-		return h
-	}
-	return j2gort.AssignIdentHash(&this_.idHash_)
-}
-func (*ErrorReporter__Anon_152) HasIdentityEquals_()             {}
-func (*ErrorReporter__Anon_152) Implements_rhino_ErrorReporter() {}
-
-func (this_ *ErrorReporter__Anon_152) initFields_ErrorReporter__Anon_152() {
-	_ = this_
-}
-
-func NewErrorReporter__Anon_152() *ErrorReporter__Anon_152 {
-	this_ := &ErrorReporter__Anon_152{}
-	this_.initFields_ErrorReporter__Anon_152()
-	return this_
-}
-
-// Java method: .warning(java.lang.String message, java.lang.String sourceName, int line, int lineOffset)
-func (this_ *ErrorReporter__Anon_152) Warning(message string, sourceName string, line int32, lineOffset int32) {
-	_ = message
-	_ = sourceName
-	_ = line
-	_ = lineOffset
-}
-
-// Java method: .error(java.lang.String message, java.lang.String sourceName, int line, int lineOffset)
-func (this_ *ErrorReporter__Anon_152) M_Error(message string, sourceName string, line int32, lineOffset int32) {
-	_ = message
-	_ = sourceName
-	_ = line
-	_ = lineOffset
+	static_ErrorReporter_NULL_INSTANCE = NewErrorReporter__Anon_153()
+	static_ErrorReporter_ALWAYS_THROWS_INSTANCE = NewErrorReporter__Anon_154()
 }
 
 // Java class:
@@ -176,7 +126,7 @@ func (this_ *ErrorReporter__Anon_153) BindSelf_(s any) {
 }
 func (this_ *ErrorReporter__Anon_153) IsJavaNil_() bool { return this_ == nil }
 func (*ErrorReporter__Anon_153) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.rhino.ErrorReporter$2", ""
+	return "com.google.javascript.rhino.ErrorReporter$1", ""
 }
 func (this_ *ErrorReporter__Anon_153) IdentityHash_() int32 {
 	if this_ == nil {
@@ -206,11 +156,61 @@ func (this_ *ErrorReporter__Anon_153) Warning(message string, sourceName string,
 	_ = sourceName
 	_ = line
 	_ = lineOffset
-	panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(message))))
 }
 
 // Java method: .error(java.lang.String message, java.lang.String sourceName, int line, int lineOffset)
 func (this_ *ErrorReporter__Anon_153) M_Error(message string, sourceName string, line int32, lineOffset int32) {
+	_ = message
+	_ = sourceName
+	_ = line
+	_ = lineOffset
+}
+
+// Java class:
+type ErrorReporter__Anon_154 struct {
+	idHash_ atomic.Int32
+}
+
+func (this_ *ErrorReporter__Anon_154) BindSelf_(s any) {
+	_ = s
+}
+func (this_ *ErrorReporter__Anon_154) IsJavaNil_() bool { return this_ == nil }
+func (*ErrorReporter__Anon_154) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.rhino.ErrorReporter$2", ""
+}
+func (this_ *ErrorReporter__Anon_154) IdentityHash_() int32 {
+	if this_ == nil {
+		return 0
+	}
+	if h := this_.idHash_.Load(); h != 0 {
+		return h
+	}
+	return j2gort.AssignIdentHash(&this_.idHash_)
+}
+func (*ErrorReporter__Anon_154) HasIdentityEquals_()             {}
+func (*ErrorReporter__Anon_154) Implements_rhino_ErrorReporter() {}
+
+func (this_ *ErrorReporter__Anon_154) initFields_ErrorReporter__Anon_154() {
+	_ = this_
+}
+
+func NewErrorReporter__Anon_154() *ErrorReporter__Anon_154 {
+	this_ := &ErrorReporter__Anon_154{}
+	this_.initFields_ErrorReporter__Anon_154()
+	return this_
+}
+
+// Java method: .warning(java.lang.String message, java.lang.String sourceName, int line, int lineOffset)
+func (this_ *ErrorReporter__Anon_154) Warning(message string, sourceName string, line int32, lineOffset int32) {
+	_ = message
+	_ = sourceName
+	_ = line
+	_ = lineOffset
+	panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(message))))
+}
+
+// Java method: .error(java.lang.String message, java.lang.String sourceName, int line, int lineOffset)
+func (this_ *ErrorReporter__Anon_154) M_Error(message string, sourceName string, line int32, lineOffset int32) {
 	_ = message
 	_ = sourceName
 	_ = line

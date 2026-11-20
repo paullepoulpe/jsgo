@@ -546,7 +546,7 @@ func (this_ *ObjectTypeBase) GetImplicitPrototypeChain() j2gort.Ext_java_lang_It
 	var self ObjectType = this_.self_ObjectType_()
 	_ = self
 	return j2gort.NewLambda_Ext_java_lang_Iterable(func() any {
-		return NewObjectType__Anon_159(this_.self_ObjectType_(), self)
+		return NewObjectType__Anon_160(this_.self_ObjectType_(), self)
 	})
 }
 
@@ -818,7 +818,7 @@ func (this_ *ObjectTypeBase) GetPropertyType_1_string(propertyName string) JSTyp
 	var ok_9 bool
 	templatized, ok_9 = j2gort.TryCast[*TemplatizedType](this_.self_ObjectType_())
 	if ok_9 {
-		var result JSType = this_.priv_ObjectType_getPropertyTypeFromSlot_9410(this_.GetSlot_1_string(propertyName))
+		var result JSType = this_.priv_ObjectType_getPropertyTypeFromSlot_9412(this_.GetSlot_1_string(propertyName))
 		_ = result
 		if result == nil || result.IsJavaNil_() {
 			return nil
@@ -837,7 +837,7 @@ func (this_ *ObjectTypeBase) GetPropertyType_1_string(propertyName string) JSTyp
 			return this_.self_ObjectType_().GetPropertyType_1_Property_Key(ToIface_Property_Key(StaticGet_ObjectType_APPLY_KEY()))
 		}
 	}
-	return this_.priv_ObjectType_getPropertyTypeFromSlot_9410(this_.GetSlot_1_string(propertyName))
+	return this_.priv_ObjectType_getPropertyTypeFromSlot_9412(this_.GetSlot_1_string(propertyName))
 }
 
 // Java method: ObjectType.getPropertyType(com.google.javascript.rhino.jstype.Property.Key propertyName)
@@ -845,11 +845,11 @@ func (this_ *ObjectTypeBase) GetPropertyType_1_Property_Key(propertyName Propert
 	_ = propertyName
 	var slot *Property = this_.self_ObjectType_().GetSlot_1_Property_Key(propertyName)
 	_ = slot
-	return this_.priv_ObjectType_getPropertyTypeFromSlot_9410(slot)
+	return this_.priv_ObjectType_getPropertyTypeFromSlot_9412(slot)
 }
 
 // Java method: ObjectType.getPropertyTypeFromSlot(com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable Property slot)
-func (this_ *ObjectTypeBase) priv_ObjectType_getPropertyTypeFromSlot_9410(slot *Property) JSType {
+func (this_ *ObjectTypeBase) priv_ObjectType_getPropertyTypeFromSlot_9412(slot *Property) JSType {
 	_ = slot
 	if slot == nil {
 		if this_.IsNoResolvedType() || this_.IsCheckedUnknownType() {
@@ -1290,7 +1290,7 @@ func (this_ *ObjectTypeBase) GetEnumeratedTypeOfEnumObject() JSType {
 }
 
 // Java class:
-type ObjectType__Anon_159 struct {
+type ObjectType__Anon_160 struct {
 	j2gort.Ext_com_google_common_collect_AbstractIteratorBase
 	outer_     ObjectType
 	cap_0_self ObjectType
@@ -1298,15 +1298,15 @@ type ObjectType__Anon_159 struct {
 	idHash_    atomic.Int32
 }
 
-func (this_ *ObjectType__Anon_159) BindSelf_(s any) {
+func (this_ *ObjectType__Anon_160) BindSelf_(s any) {
 	_ = s
 	this_.Ext_com_google_common_collect_AbstractIteratorBase.BindExtSelf_(s)
 }
-func (this_ *ObjectType__Anon_159) IsJavaNil_() bool { return this_ == nil }
-func (*ObjectType__Anon_159) JavaClassInfo_() (string, string) {
+func (this_ *ObjectType__Anon_160) IsJavaNil_() bool { return this_ == nil }
+func (*ObjectType__Anon_160) JavaClassInfo_() (string, string) {
 	return "com.google.javascript.rhino.jstype.ObjectType$1", ""
 }
-func (this_ *ObjectType__Anon_159) IdentityHash_() int32 {
+func (this_ *ObjectType__Anon_160) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
 	}
@@ -1315,29 +1315,29 @@ func (this_ *ObjectType__Anon_159) IdentityHash_() int32 {
 	}
 	return j2gort.AssignIdentHash(&this_.idHash_)
 }
-func (this_ *ObjectType__Anon_159) SetOuter_(o ObjectType)                                          { this_.outer_ = o }
-func (this_ *ObjectType__Anon_159) GetOuter_() ObjectType                                           { return this_.outer_ }
-func (*ObjectType__Anon_159) Implements_j2gort_Ext_com_google_common_collect_AbstractIterator()     {}
-func (*ObjectType__Anon_159) Implements_j2gort_Ext_com_google_common_collect_UnmodifiableIterator() {}
-func (*ObjectType__Anon_159) Implements_j2gort_Ext_java_util_Iterator()                             {}
+func (this_ *ObjectType__Anon_160) SetOuter_(o ObjectType)                                          { this_.outer_ = o }
+func (this_ *ObjectType__Anon_160) GetOuter_() ObjectType                                           { return this_.outer_ }
+func (*ObjectType__Anon_160) Implements_j2gort_Ext_com_google_common_collect_AbstractIterator()     {}
+func (*ObjectType__Anon_160) Implements_j2gort_Ext_com_google_common_collect_UnmodifiableIterator() {}
+func (*ObjectType__Anon_160) Implements_j2gort_Ext_java_util_Iterator()                             {}
 
-func (this_ *ObjectType__Anon_159) initFields_ObjectType__Anon_159() {
+func (this_ *ObjectType__Anon_160) initFields_ObjectType__Anon_160() {
 	_ = this_
 	this_.next = this_.cap_0_self
 }
 
-func NewObjectType__Anon_159(outer_ ObjectType, cap_p_self ObjectType) *ObjectType__Anon_159 {
-	this_ := &ObjectType__Anon_159{}
+func NewObjectType__Anon_160(outer_ ObjectType, cap_p_self ObjectType) *ObjectType__Anon_160 {
+	this_ := &ObjectType__Anon_160{}
 	this_.BindSelf_(this_)
 	this_.outer_ = outer_
 	this_.cap_0_self = cap_p_self
 	j2gort.InitExt_com_google_common_collect_AbstractIterator(&this_.Ext_com_google_common_collect_AbstractIteratorBase)
-	this_.initFields_ObjectType__Anon_159()
+	this_.initFields_ObjectType__Anon_160()
 	return this_
 }
 
 // Java method: .computeNext()
-func (this_ *ObjectType__Anon_159) ComputeNext() any {
+func (this_ *ObjectType__Anon_160) ComputeNext() any {
 	this_.next = this_.next.GetImplicitPrototype()
 	if this_.next != nil && !this_.next.IsJavaNil_() {
 		return this_.next

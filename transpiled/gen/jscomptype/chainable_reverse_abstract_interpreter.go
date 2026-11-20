@@ -102,8 +102,8 @@ func (*ChainableReverseAbstractInterpreterBase) Implements_jscomptype_ReverseAbs
 
 func (this_ *ChainableReverseAbstractInterpreterBase) initFields_ChainableReverseAbstractInterpreter() {
 	_ = this_
-	this_.restrictToArrayVisitor = NewChainableReverseAbstractInterpreter__Anon_129(this_.self_, this_.self_)
-	this_.restrictToNotArrayVisitor = NewChainableReverseAbstractInterpreter__Anon_130(this_.self_, this_.self_)
+	this_.restrictToArrayVisitor = NewChainableReverseAbstractInterpreter__Anon_130(this_.self_, this_.self_)
+	this_.restrictToNotArrayVisitor = NewChainableReverseAbstractInterpreter__Anon_131(this_.self_, this_.self_)
 }
 
 func InitChainableReverseAbstractInterpreter(this_ *ChainableReverseAbstractInterpreterBase, typeRegistry *pkg_rhino.JSTypeRegistry) {
@@ -230,7 +230,7 @@ func (this_ *ChainableReverseAbstractInterpreterBase) GetRestrictedByTypeOfResul
 	_ = resultEqualsValue
 	if type_ == nil || type_.IsJavaNil_() {
 		if resultEqualsValue {
-			var result pkg_rhino.JSType = this_.priv_ChainableReverseAbstractInterpreter_getNativeTypeForTypeOf_7885(value)
+			var result pkg_rhino.JSType = this_.priv_ChainableReverseAbstractInterpreter_getNativeTypeForTypeOf_7887(value)
 			_ = result
 			if result == nil || result.IsJavaNil_() {
 				return this_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_CHECKED_UNKNOWN_TYPE())
@@ -251,7 +251,7 @@ func (this_ *ChainableReverseAbstractInterpreterBase) GetNativeType(typeId pkg_r
 }
 
 // Java method: ChainableReverseAbstractInterpreter.getNativeTypeForTypeOf(java.lang.String value)
-func (this_ *ChainableReverseAbstractInterpreterBase) priv_ChainableReverseAbstractInterpreter_getNativeTypeForTypeOf_7885(value string) pkg_rhino.JSType {
+func (this_ *ChainableReverseAbstractInterpreterBase) priv_ChainableReverseAbstractInterpreter_getNativeTypeForTypeOf_7887(value string) pkg_rhino.JSType {
 	_ = value
 	switch j2gort.CheckNotNullString(value) {
 	case "number":
@@ -776,7 +776,7 @@ func InitChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor(th
 }
 
 // Java method: RestrictByOneTypeOfResultVisitor.matchesExpectation(java.lang.String result)
-func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7906(result string) bool {
+func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7908(result string) bool {
 	_ = result
 	return (func() bool { sr_2 := result; se_3 := this_.value; return j2gort.CheckNotNullString(sr_2) == se_3 }() == this_.resultEqualsValue)
 }
@@ -787,7 +787,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 	var result pkg_rhino.JSType = topType
 	_ = result
 	if this_.resultEqualsValue {
-		var typeByName pkg_rhino.JSType = this_.outer_.GetChainableReverseAbstractInterpreterBase().priv_ChainableReverseAbstractInterpreter_getNativeTypeForTypeOf_7885(this_.value)
+		var typeByName pkg_rhino.JSType = this_.outer_.GetChainableReverseAbstractInterpreterBase().priv_ChainableReverseAbstractInterpreter_getNativeTypeForTypeOf_7887(this_.value)
 		_ = typeByName
 		if typeByName != nil && !typeByName.IsJavaNil_() {
 			result = typeByName
@@ -807,7 +807,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 
 // Java method: RestrictByOneTypeOfResultVisitor.caseBooleanType()
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseBooleanType() any {
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7906("boolean") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7908("boolean") {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
 	} else {
 		return nil
@@ -817,7 +817,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 // Java method: RestrictByOneTypeOfResultVisitor.caseFunctionType(com.google.javascript.rhino.jstype.FunctionType type)
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseFunctionType(type_ *pkg_rhino.FunctionType) any {
 	_ = type_
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7906("function") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7908("function") {
 		return pkg_rhino.ToIface_JSType(type_)
 	} else {
 		return nil
@@ -826,7 +826,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 
 // Java method: RestrictByOneTypeOfResultVisitor.caseNullType()
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseNullType() any {
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7906("object") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7908("object") {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_NULL_TYPE())
 	} else {
 		return nil
@@ -835,7 +835,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 
 // Java method: RestrictByOneTypeOfResultVisitor.caseNumberType()
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseNumberType() any {
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7906("number") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7908("number") {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
 	} else {
 		return nil
@@ -844,7 +844,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 
 // Java method: RestrictByOneTypeOfResultVisitor.caseBigIntType()
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseBigIntType() any {
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7906("bigint") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7908("bigint") {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_BIGINT_TYPE())
 	} else {
 		return nil
@@ -867,7 +867,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 			}
 		}
 	}
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7906("object") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7908("object") {
 		return pkg_rhino.Upcast_JSType(type_)
 	} else {
 		return nil
@@ -876,7 +876,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 
 // Java method: RestrictByOneTypeOfResultVisitor.caseStringType()
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseStringType() any {
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7906("string") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7908("string") {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
 	} else {
 		return nil
@@ -886,7 +886,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 // Java method: RestrictByOneTypeOfResultVisitor.caseSymbolType(com.google.javascript.rhino.jstype.SymbolType type)
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseSymbolType(type_ pkg_rhino.SymbolType) any {
 	_ = type_
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7906("symbol") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7908("symbol") {
 		return pkg_rhino.Upcast_JSType(type_)
 	} else {
 		return nil
@@ -895,7 +895,7 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 
 // Java method: RestrictByOneTypeOfResultVisitor.caseVoidType()
 func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisitor) CaseVoidType() any {
-	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7906("undefined") {
+	if this_.priv_RestrictByOneTypeOfResultVisitor_matchesExpectation_7908("undefined") {
 		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 	} else {
 		return nil
@@ -903,93 +903,24 @@ func (this_ *ChainableReverseAbstractInterpreter_RestrictByOneTypeOfResultVisito
 }
 
 // Java class:
-type ChainableReverseAbstractInterpreter__Anon_129 struct {
-	ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase
-	outer_ ChainableReverseAbstractInterpreter
-}
-
-func (this_ *ChainableReverseAbstractInterpreter__Anon_129) BindSelf_(s any) {
-	_ = s
-	this_.ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase.BindSelf_(s)
-}
-func (this_ *ChainableReverseAbstractInterpreter__Anon_129) IsJavaNil_() bool { return this_ == nil }
-func (*ChainableReverseAbstractInterpreter__Anon_129) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.jscomp.type.ChainableReverseAbstractInterpreter$1", ""
-}
-func (this_ *ChainableReverseAbstractInterpreter__Anon_129) IdentityHash_() int32 {
-	if this_ == nil {
-		return 0
-	}
-	return this_.ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase.IdentityHash_()
-}
-func (*ChainableReverseAbstractInterpreter__Anon_129) HasIdentityEquals_() {}
-func (this_ *ChainableReverseAbstractInterpreter__Anon_129) SetOuter_(o ChainableReverseAbstractInterpreter) {
-	this_.outer_ = o
-}
-func (this_ *ChainableReverseAbstractInterpreter__Anon_129) GetOuter_() ChainableReverseAbstractInterpreter {
-	return this_.outer_
-}
-func (*ChainableReverseAbstractInterpreter__Anon_129) Implements_jscomptype_ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitor() {
-}
-func (*ChainableReverseAbstractInterpreter__Anon_129) Implements_jscomptype_ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor() {
-}
-func (*ChainableReverseAbstractInterpreter__Anon_129) Implements_rhino_Visitor() {}
-
-func (this_ *ChainableReverseAbstractInterpreter__Anon_129) initFields_ChainableReverseAbstractInterpreter__Anon_129() {
-	_ = this_
-}
-
-func NewChainableReverseAbstractInterpreter__Anon_129(outer_ ChainableReverseAbstractInterpreter, superOuter_ ChainableReverseAbstractInterpreter) *ChainableReverseAbstractInterpreter__Anon_129 {
-	this_ := &ChainableReverseAbstractInterpreter__Anon_129{}
-	this_.BindSelf_(this_)
-	this_.outer_ = outer_
-	this_.ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase.outer_ = superOuter_
-	InitChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitor(&this_.ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase)
-	this_.initFields_ChainableReverseAbstractInterpreter__Anon_129()
-	return this_
-}
-
-// Java method: .caseTopType(com.google.javascript.rhino.jstype.JSType topType)
-func (this_ *ChainableReverseAbstractInterpreter__Anon_129) CaseTopType(topType pkg_rhino.JSType) pkg_rhino.JSType {
-	_ = topType
-	if topType.GetJSTypeBase().IsAllType() {
-		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE())
-	} else {
-		return topType
-	}
-}
-
-// Java method: .caseObjectType(com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *ChainableReverseAbstractInterpreter__Anon_129) CaseObjectType(type_ pkg_rhino.ObjectType) any {
-	_ = type_
-	var arrayType pkg_rhino.JSType = this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE())
-	_ = arrayType
-	if arrayType.GetJSTypeBase().IsSubtypeOf_1(pkg_rhino.Upcast_JSType(type_)) {
-		return arrayType
-	} else {
-		return nil
-	}
-}
-
-// Java class:
 type ChainableReverseAbstractInterpreter__Anon_130 struct {
-	ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase
+	ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase
 	outer_ ChainableReverseAbstractInterpreter
 }
 
 func (this_ *ChainableReverseAbstractInterpreter__Anon_130) BindSelf_(s any) {
 	_ = s
-	this_.ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase.BindSelf_(s)
+	this_.ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase.BindSelf_(s)
 }
 func (this_ *ChainableReverseAbstractInterpreter__Anon_130) IsJavaNil_() bool { return this_ == nil }
 func (*ChainableReverseAbstractInterpreter__Anon_130) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.jscomp.type.ChainableReverseAbstractInterpreter$2", ""
+	return "com.google.javascript.jscomp.type.ChainableReverseAbstractInterpreter$1", ""
 }
 func (this_ *ChainableReverseAbstractInterpreter__Anon_130) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
 	}
-	return this_.ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase.IdentityHash_()
+	return this_.ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase.IdentityHash_()
 }
 func (*ChainableReverseAbstractInterpreter__Anon_130) HasIdentityEquals_() {}
 func (this_ *ChainableReverseAbstractInterpreter__Anon_130) SetOuter_(o ChainableReverseAbstractInterpreter) {
@@ -998,7 +929,7 @@ func (this_ *ChainableReverseAbstractInterpreter__Anon_130) SetOuter_(o Chainabl
 func (this_ *ChainableReverseAbstractInterpreter__Anon_130) GetOuter_() ChainableReverseAbstractInterpreter {
 	return this_.outer_
 }
-func (*ChainableReverseAbstractInterpreter__Anon_130) Implements_jscomptype_ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitor() {
+func (*ChainableReverseAbstractInterpreter__Anon_130) Implements_jscomptype_ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitor() {
 }
 func (*ChainableReverseAbstractInterpreter__Anon_130) Implements_jscomptype_ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor() {
 }
@@ -1012,14 +943,83 @@ func NewChainableReverseAbstractInterpreter__Anon_130(outer_ ChainableReverseAbs
 	this_ := &ChainableReverseAbstractInterpreter__Anon_130{}
 	this_.BindSelf_(this_)
 	this_.outer_ = outer_
-	this_.ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase.outer_ = superOuter_
-	InitChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitor(&this_.ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase)
+	this_.ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase.outer_ = superOuter_
+	InitChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitor(&this_.ChainableReverseAbstractInterpreter_RestrictByTrueTypeOfResultVisitorBase)
 	this_.initFields_ChainableReverseAbstractInterpreter__Anon_130()
 	return this_
 }
 
+// Java method: .caseTopType(com.google.javascript.rhino.jstype.JSType topType)
+func (this_ *ChainableReverseAbstractInterpreter__Anon_130) CaseTopType(topType pkg_rhino.JSType) pkg_rhino.JSType {
+	_ = topType
+	if topType.GetJSTypeBase().IsAllType() {
+		return this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE())
+	} else {
+		return topType
+	}
+}
+
 // Java method: .caseObjectType(com.google.javascript.rhino.jstype.ObjectType type)
 func (this_ *ChainableReverseAbstractInterpreter__Anon_130) CaseObjectType(type_ pkg_rhino.ObjectType) any {
+	_ = type_
+	var arrayType pkg_rhino.JSType = this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE())
+	_ = arrayType
+	if arrayType.GetJSTypeBase().IsSubtypeOf_1(pkg_rhino.Upcast_JSType(type_)) {
+		return arrayType
+	} else {
+		return nil
+	}
+}
+
+// Java class:
+type ChainableReverseAbstractInterpreter__Anon_131 struct {
+	ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase
+	outer_ ChainableReverseAbstractInterpreter
+}
+
+func (this_ *ChainableReverseAbstractInterpreter__Anon_131) BindSelf_(s any) {
+	_ = s
+	this_.ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase.BindSelf_(s)
+}
+func (this_ *ChainableReverseAbstractInterpreter__Anon_131) IsJavaNil_() bool { return this_ == nil }
+func (*ChainableReverseAbstractInterpreter__Anon_131) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.type.ChainableReverseAbstractInterpreter$2", ""
+}
+func (this_ *ChainableReverseAbstractInterpreter__Anon_131) IdentityHash_() int32 {
+	if this_ == nil {
+		return 0
+	}
+	return this_.ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase.IdentityHash_()
+}
+func (*ChainableReverseAbstractInterpreter__Anon_131) HasIdentityEquals_() {}
+func (this_ *ChainableReverseAbstractInterpreter__Anon_131) SetOuter_(o ChainableReverseAbstractInterpreter) {
+	this_.outer_ = o
+}
+func (this_ *ChainableReverseAbstractInterpreter__Anon_131) GetOuter_() ChainableReverseAbstractInterpreter {
+	return this_.outer_
+}
+func (*ChainableReverseAbstractInterpreter__Anon_131) Implements_jscomptype_ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitor() {
+}
+func (*ChainableReverseAbstractInterpreter__Anon_131) Implements_jscomptype_ChainableReverseAbstractInterpreter_RestrictByTypeOfResultVisitor() {
+}
+func (*ChainableReverseAbstractInterpreter__Anon_131) Implements_rhino_Visitor() {}
+
+func (this_ *ChainableReverseAbstractInterpreter__Anon_131) initFields_ChainableReverseAbstractInterpreter__Anon_131() {
+	_ = this_
+}
+
+func NewChainableReverseAbstractInterpreter__Anon_131(outer_ ChainableReverseAbstractInterpreter, superOuter_ ChainableReverseAbstractInterpreter) *ChainableReverseAbstractInterpreter__Anon_131 {
+	this_ := &ChainableReverseAbstractInterpreter__Anon_131{}
+	this_.BindSelf_(this_)
+	this_.outer_ = outer_
+	this_.ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase.outer_ = superOuter_
+	InitChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitor(&this_.ChainableReverseAbstractInterpreter_RestrictByFalseTypeOfResultVisitorBase)
+	this_.initFields_ChainableReverseAbstractInterpreter__Anon_131()
+	return this_
+}
+
+// Java method: .caseObjectType(com.google.javascript.rhino.jstype.ObjectType type)
+func (this_ *ChainableReverseAbstractInterpreter__Anon_131) CaseObjectType(type_ pkg_rhino.ObjectType) any {
 	_ = type_
 	if type_.GetObjectTypeBase().IsSubtypeOf_1(this_.outer_.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE())) {
 		return nil

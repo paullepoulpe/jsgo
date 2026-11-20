@@ -122,7 +122,7 @@ func InitUnionType(this_ *UnionType, builder *UnionType_Builder) {
 	_ = builder
 	InitJSType_3(&this_.JSTypeBase, builder.registry, nil, int32(64))
 	this_.initFields_UnionType()
-	this_.priv_UnionType_fillFromBuilder_9630(builder)
+	this_.priv_UnionType_fillFromBuilder_9632(builder)
 	this_.GetJSTypeBase().registry.GetResolver().ResolveIfClosed(ToIface_JSType(this_), StaticGet_UnionType_TYPE_CLASS())
 }
 
@@ -145,7 +145,7 @@ func UnionType_CreatePooledBuilder(registry *JSTypeRegistry) *UnionType_Builder 
 
 // Java method: UnionType.getAlternates()
 func (this_ *UnionType) GetAlternates() j2gort.Ext_com_google_common_collect_ImmutableList {
-	this_.priv_UnionType_ensureAlternatesUpToDate_9628()
+	this_.priv_UnionType_ensureAlternatesUpToDate_9630()
 	switch this_.alternateCount {
 	case int32(0):
 		return j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()
@@ -179,7 +179,7 @@ func (this_ *UnionType) GetAlternates() j2gort.Ext_com_google_common_collect_Imm
 
 // Java method: UnionType.getAlternatesCount()
 func (this_ *UnionType) GetAlternatesCount() int32 {
-	this_.priv_UnionType_ensureAlternatesUpToDate_9628()
+	this_.priv_UnionType_ensureAlternatesUpToDate_9630()
 	return this_.alternateCount
 }
 
@@ -200,9 +200,9 @@ func (this_ *UnionType) GetAlternateAt(index int32) JSType {
 }
 
 // Java method: UnionType.ensureAlternatesUpToDate()
-func (this_ *UnionType) priv_UnionType_ensureAlternatesUpToDate_9628() {
+func (this_ *UnionType) priv_UnionType_ensureAlternatesUpToDate_9630() {
 	if !(this_.IsResolved()) && !(this_.alternatesResolvedBeforeBuild) {
-		var resolvedAlternatesPlusOne int32 = (this_.priv_UnionType_countResolvedAlternates_9629() + int32(1))
+		var resolvedAlternatesPlusOne int32 = (this_.priv_UnionType_countResolvedAlternates_9631() + int32(1))
 		_ = resolvedAlternatesPlusOne
 		if resolvedAlternatesPlusOne != this_.resolvedAlternatesAtLastBuildPlusOne {
 			this_.resolvedAlternatesAtLastBuildPlusOne = resolvedAlternatesPlusOne
@@ -240,7 +240,7 @@ func (this_ *UnionType) priv_UnionType_ensureAlternatesUpToDate_9628() {
 				}
 				if !(this_.IsResolved()) && !(this_.alternatesResolvedBeforeBuild) {
 					b.Build()
-					this_.resolvedAlternatesAtLastBuildPlusOne = (this_.priv_UnionType_countResolvedAlternates_9629() + int32(1))
+					this_.resolvedAlternatesAtLastBuildPlusOne = (this_.priv_UnionType_countResolvedAlternates_9631() + int32(1))
 				}
 			}
 		}
@@ -248,7 +248,7 @@ func (this_ *UnionType) priv_UnionType_ensureAlternatesUpToDate_9628() {
 }
 
 // Java method: UnionType.countResolvedAlternates()
-func (this_ *UnionType) priv_UnionType_countResolvedAlternates_9629() int32 {
+func (this_ *UnionType) priv_UnionType_countResolvedAlternates_9631() int32 {
 	var count int32 = int32(0)
 	_ = count
 	{
@@ -266,7 +266,7 @@ func (this_ *UnionType) priv_UnionType_countResolvedAlternates_9629() int32 {
 }
 
 // Java method: UnionType.fillFromBuilder(com.google.javascript.rhino.jstype.UnionType.Builder builder)
-func (this_ *UnionType) priv_UnionType_fillFromBuilder_9630(builder *UnionType_Builder) {
+func (this_ *UnionType) priv_UnionType_fillFromBuilder_9632(builder *UnionType_Builder) {
 	_ = builder
 	if !(!(this_.alternatesResolvedBeforeBuild)) {
 		j2gort.CheckState(false)
@@ -300,7 +300,7 @@ func (this_ *UnionType) priv_UnionType_fillFromBuilder_9630(builder *UnionType_B
 				{
 					a_1 := rest
 					i_2 := (i - int32(3))
-					a_1[i_2] = builder.priv_Builder_getAlternateAtInternal_9637(i)
+					a_1[i_2] = builder.priv_Builder_getAlternateAtInternal_9639(i)
 				}
 			}
 		}
@@ -545,7 +545,7 @@ func (this_ *UnionType) Autobox() JSType {
 }
 
 // Java method: UnionType.tryFastRestrict2(com.google.javascript.rhino.jstype.JSType a0, com.google.javascript.rhino.jstype.JSType a1, com.google.javascript.rhino.jstype.JSType r0, com.google.javascript.rhino.jstype.JSType r1)
-func (this_ *UnionType) priv_UnionType_tryFastRestrict2_9631(a0 JSType, a1 JSType, r0 JSType, r1 JSType) JSType {
+func (this_ *UnionType) priv_UnionType_tryFastRestrict2_9633(a0 JSType, a1 JSType, r0 JSType, r1 JSType) JSType {
 	_ = a0
 	_ = a1
 	_ = r0
@@ -569,7 +569,7 @@ func (this_ *UnionType) priv_UnionType_tryFastRestrict2_9631(a0 JSType, a1 JSTyp
 }
 
 // Java method: UnionType.tryFastRestrict3(com.google.javascript.rhino.jstype.JSType a0, com.google.javascript.rhino.jstype.JSType a1, com.google.javascript.rhino.jstype.JSType a2, com.google.javascript.rhino.jstype.JSType r0, com.google.javascript.rhino.jstype.JSType r1, com.google.javascript.rhino.jstype.JSType r2)
-func (this_ *UnionType) priv_UnionType_tryFastRestrict3_9632(a0 JSType, a1 JSType, a2 JSType, r0 JSType, r1 JSType, r2 JSType) JSType {
+func (this_ *UnionType) priv_UnionType_tryFastRestrict3_9634(a0 JSType, a1 JSType, a2 JSType, r0 JSType, r1 JSType, r2 JSType) JSType {
 	_ = a0
 	_ = a1
 	_ = a2
@@ -622,7 +622,7 @@ func (this_ *UnionType) RestrictByNotNullOrUndefined() JSType {
 			_ = a0
 			var a1 JSType = this_.alt1
 			_ = a1
-			var fast JSType = this_.priv_UnionType_tryFastRestrict2_9631(a0, a1, a0.RestrictByNotNullOrUndefined(), a1.RestrictByNotNullOrUndefined())
+			var fast JSType = this_.priv_UnionType_tryFastRestrict2_9633(a0, a1, a0.RestrictByNotNullOrUndefined(), a1.RestrictByNotNullOrUndefined())
 			_ = fast
 			if fast != nil && !fast.IsJavaNil_() {
 				return fast
@@ -634,7 +634,7 @@ func (this_ *UnionType) RestrictByNotNullOrUndefined() JSType {
 			_ = a1_2
 			var a2 JSType = this_.alt2
 			_ = a2
-			var fast_2 JSType = this_.priv_UnionType_tryFastRestrict3_9632(a0_2, a1_2, a2, a0_2.RestrictByNotNullOrUndefined(), a1_2.RestrictByNotNullOrUndefined(), a2.RestrictByNotNullOrUndefined())
+			var fast_2 JSType = this_.priv_UnionType_tryFastRestrict3_9634(a0_2, a1_2, a2, a0_2.RestrictByNotNullOrUndefined(), a1_2.RestrictByNotNullOrUndefined(), a2.RestrictByNotNullOrUndefined())
 			_ = fast_2
 			if fast_2 != nil && !fast_2.IsJavaNil_() {
 				return fast_2
@@ -669,7 +669,7 @@ func (this_ *UnionType) RestrictByNotUndefined() JSType {
 			_ = a0
 			var a1 JSType = this_.alt1
 			_ = a1
-			var fast JSType = this_.priv_UnionType_tryFastRestrict2_9631(a0, a1, a0.RestrictByNotUndefined(), a1.RestrictByNotUndefined())
+			var fast JSType = this_.priv_UnionType_tryFastRestrict2_9633(a0, a1, a0.RestrictByNotUndefined(), a1.RestrictByNotUndefined())
 			_ = fast
 			if fast != nil && !fast.IsJavaNil_() {
 				return fast
@@ -681,7 +681,7 @@ func (this_ *UnionType) RestrictByNotUndefined() JSType {
 			_ = a1_2
 			var a2 JSType = this_.alt2
 			_ = a2
-			var fast_2 JSType = this_.priv_UnionType_tryFastRestrict3_9632(a0_2, a1_2, a2, a0_2.RestrictByNotUndefined(), a1_2.RestrictByNotUndefined(), a2.RestrictByNotUndefined())
+			var fast_2 JSType = this_.priv_UnionType_tryFastRestrict3_9634(a0_2, a1_2, a2, a0_2.RestrictByNotUndefined(), a1_2.RestrictByNotUndefined(), a2.RestrictByNotUndefined())
 			_ = fast_2
 			if fast_2 != nil && !fast_2.IsJavaNil_() {
 				return fast_2
@@ -716,7 +716,7 @@ func (this_ *UnionType) RestrictByNotNull() JSType {
 			_ = a0
 			var a1 JSType = this_.alt1
 			_ = a1
-			var fast JSType = this_.priv_UnionType_tryFastRestrict2_9631(a0, a1, a0.RestrictByNotNull(), a1.RestrictByNotNull())
+			var fast JSType = this_.priv_UnionType_tryFastRestrict2_9633(a0, a1, a0.RestrictByNotNull(), a1.RestrictByNotNull())
 			_ = fast
 			if fast != nil && !fast.IsJavaNil_() {
 				return fast
@@ -728,7 +728,7 @@ func (this_ *UnionType) RestrictByNotNull() JSType {
 			_ = a1_2
 			var a2 JSType = this_.alt2
 			_ = a2
-			var fast_2 JSType = this_.priv_UnionType_tryFastRestrict3_9632(a0_2, a1_2, a2, a0_2.RestrictByNotNull(), a1_2.RestrictByNotNull(), a2.RestrictByNotNull())
+			var fast_2 JSType = this_.priv_UnionType_tryFastRestrict3_9634(a0_2, a1_2, a2, a0_2.RestrictByNotNull(), a1_2.RestrictByNotNull(), a2.RestrictByNotNull())
 			_ = fast_2
 			if fast_2 != nil && !fast_2.IsJavaNil_() {
 				return fast_2
@@ -1560,7 +1560,7 @@ func (this_ *UnionType_Builder) ResetForPool() {
 }
 
 // Java method: Builder.getAlternateAtInternal(int index)
-func (this_ *UnionType_Builder) priv_Builder_getAlternateAtInternal_9637(index int32) JSType {
+func (this_ *UnionType_Builder) priv_Builder_getAlternateAtInternal_9639(index int32) JSType {
 	_ = index
 	switch index {
 	case int32(0):
@@ -1582,7 +1582,7 @@ func (this_ *UnionType_Builder) priv_Builder_getAlternateAtInternal_9637(index i
 }
 
 // Java method: Builder.setAlternateAtInternal(int index, com.google.javascript.rhino.jstype.JSType value)
-func (this_ *UnionType_Builder) priv_Builder_setAlternateAtInternal_9638(index int32, value JSType) {
+func (this_ *UnionType_Builder) priv_Builder_setAlternateAtInternal_9640(index int32, value JSType) {
 	_ = index
 	_ = value
 	switch index {
@@ -1604,7 +1604,7 @@ func (this_ *UnionType_Builder) priv_Builder_setAlternateAtInternal_9638(index i
 }
 
 // Java method: Builder.appendAlternateInternal(com.google.javascript.rhino.jstype.JSType value)
-func (this_ *UnionType_Builder) priv_Builder_appendAlternateInternal_9639(value JSType) {
+func (this_ *UnionType_Builder) priv_Builder_appendAlternateInternal_9641(value JSType) {
 	_ = value
 	switch this_.altCount {
 	case int32(0):
@@ -1629,7 +1629,7 @@ func (this_ *UnionType_Builder) priv_Builder_appendAlternateInternal_9639(value 
 }
 
 // Java method: Builder.removeAlternateAtInternal(int index)
-func (this_ *UnionType_Builder) priv_Builder_removeAlternateAtInternal_9640(index int32) {
+func (this_ *UnionType_Builder) priv_Builder_removeAlternateAtInternal_9642(index int32) {
 	_ = index
 	if index >= int32(6) {
 		this_.restAlternates.Remove_1_int32((index - int32(6)))
@@ -1697,7 +1697,7 @@ func (this_ *UnionType_Builder) AddAlternates_1_Ext_java_util_List(list j2gort.E
 // Java method: Builder.addAlternate(com.google.javascript.rhino.jstype.JSType alternate)
 func (this_ *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builder {
 	_ = alternate
-	this_.priv_Builder_checkHasNotBuilt_9648()
+	this_.priv_Builder_checkHasNotBuilt_9650()
 	if alternate.GetJSTypeBase().IsUnionType() {
 		var union *UnionType = alternate.ToMaybeUnionType()
 		_ = union
@@ -1723,12 +1723,12 @@ func (this_ *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builde
 			var n_2 int32 = this_.altCount
 			_ = n_2
 			for ; i_2 < n_2; i_2 = i_2 + 1 {
-				if j2gort.IfaceEquals[JSType](this_.priv_Builder_getAlternateAtInternal_9637(i_2), alternate) {
+				if j2gort.IfaceEquals[JSType](this_.priv_Builder_getAlternateAtInternal_9639(i_2), alternate) {
 					return this_
 				}
 			}
 		}
-		this_.priv_Builder_appendAlternateInternal_9639(alternate)
+		this_.priv_Builder_appendAlternateInternal_9641(alternate)
 		return this_
 	}
 	if alternate.GetJSTypeBase().IsNoType() {
@@ -1746,11 +1746,11 @@ func (this_ *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builde
 		return this_
 	}
 	if alternate.GetJSTypeBase().IsFunctionType() && (this_.functionTypePosition != int32(-1)) {
-		var other *FunctionType = this_.priv_Builder_getAlternateAtInternal_9637(this_.functionTypePosition).ToMaybeFunctionType()
+		var other *FunctionType = this_.priv_Builder_getAlternateAtInternal_9639(this_.functionTypePosition).ToMaybeFunctionType()
 		_ = other
 		var supremum *FunctionType = alternate.ToMaybeFunctionType().SupAndInfHelper(other, true)
 		_ = supremum
-		this_.priv_Builder_setAlternateAtInternal_9638(this_.functionTypePosition, ToIface_JSType(supremum))
+		this_.priv_Builder_setAlternateAtInternal_9640(this_.functionTypePosition, ToIface_JSType(supremum))
 		return this_
 	}
 	var altMask int32 = alternate.GetJSTypeBase().typeKindMask
@@ -1761,7 +1761,7 @@ func (this_ *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builde
 		for ; index < this_.altCount; index = index + 1 {
 			var removeCurrent bool = false
 			_ = removeCurrent
-			var current JSType = this_.priv_Builder_getAlternateAtInternal_9637(index)
+			var current JSType = this_.priv_Builder_getAlternateAtInternal_9639(index)
 			_ = current
 			if alternate == current || ((alternate == nil || alternate.IsJavaNil_()) && (current == nil || current.IsJavaNil_())) {
 				return this_
@@ -1812,15 +1812,15 @@ func (this_ *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builde
 					continue
 				}
 				if UnionType_Builder_IsSubtype(alternate, current) {
-					this_.priv_Builder_mayRegisterDroppedProperties_9644(alternate, current)
+					this_.priv_Builder_mayRegisterDroppedProperties_9646(alternate, current)
 					return this_
 				} else if UnionType_Builder_IsSubtype(current, alternate) {
-					this_.priv_Builder_mayRegisterDroppedProperties_9644(current, alternate)
+					this_.priv_Builder_mayRegisterDroppedProperties_9646(current, alternate)
 					removeCurrent = true
 				}
 			}
 			if removeCurrent {
-				this_.priv_Builder_removeAlternateAtInternal_9640(index)
+				this_.priv_Builder_removeAlternateAtInternal_9642(index)
 				if index == this_.functionTypePosition {
 					this_.functionTypePosition = int32(-1)
 				} else if index < this_.functionTypePosition {
@@ -1836,12 +1836,12 @@ func (this_ *UnionType_Builder) AddAlternate(alternate JSType) *UnionType_Builde
 		}
 		this_.functionTypePosition = this_.altCount
 	}
-	this_.priv_Builder_appendAlternateInternal_9639(alternate)
+	this_.priv_Builder_appendAlternateInternal_9641(alternate)
 	return this_
 }
 
 // Java method: Builder.mayRegisterDroppedProperties(com.google.javascript.rhino.jstype.JSType subtype, com.google.javascript.rhino.jstype.JSType supertype)
-func (this_ *UnionType_Builder) priv_Builder_mayRegisterDroppedProperties_9644(subtype JSType, supertype JSType) {
+func (this_ *UnionType_Builder) priv_Builder_mayRegisterDroppedProperties_9646(subtype JSType, supertype JSType) {
 	_ = subtype
 	_ = supertype
 	if subtype.GetJSTypeBase().IsRecordType() && supertype.GetJSTypeBase().IsRecordType() {
@@ -1851,12 +1851,12 @@ func (this_ *UnionType_Builder) priv_Builder_mayRegisterDroppedProperties_9644(s
 
 // Java method: Builder.build()
 func (this_ *UnionType_Builder) Build() JSType {
-	this_.priv_Builder_checkHasNotBuilt_9648()
+	this_.priv_Builder_checkHasNotBuilt_9650()
 	this_.hasBuilt = true
 	if this_.rebuildTarget != nil {
-		return this_.priv_Builder_buildForRebuildTarget_9646()
+		return this_.priv_Builder_buildForRebuildTarget_9648()
 	}
-	var wildcard JSType = this_.priv_Builder_getNativeWildcardType_9647()
+	var wildcard JSType = this_.priv_Builder_getNativeWildcardType_9649()
 	_ = wildcard
 	if wildcard != nil && !wildcard.IsJavaNil_() {
 		if this_.containsVoidType {
@@ -1882,8 +1882,8 @@ func (this_ *UnionType_Builder) Build() JSType {
 		slab_UnionType, this_))
 }
 
-func (this_ *UnionType_Builder) priv_Builder_buildForRebuildTarget_9646() JSType {
-	var wildcard JSType = this_.priv_Builder_getNativeWildcardType_9647()
+func (this_ *UnionType_Builder) priv_Builder_buildForRebuildTarget_9648() JSType {
+	var wildcard JSType = this_.priv_Builder_getNativeWildcardType_9649()
 	_ = wildcard
 	if wildcard != nil && !wildcard.IsJavaNil_() {
 		if this_.containsVoidType {
@@ -1901,7 +1901,7 @@ func (this_ *UnionType_Builder) priv_Builder_buildForRebuildTarget_9646() JSType
 		this_.altCount = int32(1)
 		this_.alt0 = this_.registry.GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	}
-	this_.rebuildTarget.priv_UnionType_fillFromBuilder_9630(this_)
+	this_.rebuildTarget.priv_UnionType_fillFromBuilder_9632(this_)
 	if this_.altCount == int32(1) {
 		return this_.alt0
 	}
@@ -1909,7 +1909,7 @@ func (this_ *UnionType_Builder) priv_Builder_buildForRebuildTarget_9646() JSType
 }
 
 // Java method: Builder.getNativeWildcardType()
-func (this_ *UnionType_Builder) priv_Builder_getNativeWildcardType_9647() JSType {
+func (this_ *UnionType_Builder) priv_Builder_getNativeWildcardType_9649() JSType {
 	if this_.isAllType {
 		return this_.registry.GetNativeType(StaticGet_JSTypeNative_ALL_TYPE())
 	} else if this_.isNativeUnknownType {
@@ -1923,7 +1923,7 @@ func (this_ *UnionType_Builder) priv_Builder_getNativeWildcardType_9647() JSType
 }
 
 // Java method: Builder.checkHasNotBuilt()
-func (this_ *UnionType_Builder) priv_Builder_checkHasNotBuilt_9648() {
+func (this_ *UnionType_Builder) priv_Builder_checkHasNotBuilt_9650() {
 	if !(!(this_.hasBuilt)) {
 		j2gort.CheckStateStr(false, "Cannot reuse a `UnionType.Builder` that has already built.")
 	}

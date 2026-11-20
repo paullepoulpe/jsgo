@@ -921,7 +921,7 @@ func (this_ *CheckRequiresSorted_ImportStatement) priv_ImportStatement_formatWit
 	if !(this_.IsStandalone()) {
 		sb.Append_1_string(" = ")
 	}
-	sb.Append_1_any_9926(j2gort.BoxNullableVal(this_.Primitive()))
+	sb.Append_1_any_9928(j2gort.BoxNullableVal(this_.Primitive()))
 	sb.Append_1_string("('")
 	sb.Append_1_string(this_.Namespace())
 	sb.Append_1_string("');")

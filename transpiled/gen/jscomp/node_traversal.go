@@ -313,8 +313,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_formatNodePosition_3979(n pkg_rhi
 func (this_ *NodeTraversal) priv_NodeTraversal_traverseWithScope_3980(root pkg_rhino.Node, s AbstractScope) {
 	_ = root
 	_ = s
-	base_s_ := s.GetAbstractScopeBase()
-	if !(base_s_.IsGlobal() || base_s_.IsModuleScope()) {
+	if !(s.IsGlobal() || s.GetAbstractScopeBase().IsModuleScope()) {
 		j2gort.CheckStateMsg(false, s)
 	}
 	func() {
@@ -427,7 +426,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseAtScope_3981(s AbstractSc
 			this_.callback.Visit_3(this_, n, pkg_rhino.Node(0))
 		}
 	default:
-		if !(base_s_.IsGlobal() || base_s_.IsModuleScope()) {
+		if !(s.IsGlobal() || base_s_.IsModuleScope()) {
 			j2gort.CheckStateFmt(false, "Expected global or module scope. Got: (%s)", s)
 		}
 		this_.priv_NodeTraversal_traverseWithScope_3980(n, s)
@@ -634,129 +633,11 @@ func (this_ *NodeTraversal) priv_NodeTraversal_createsBlockScope_3992(n pkg_rhin
 
 // Java method: NodeTraversal.traverseBranch(com.google.javascript.rhino.Node n, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node parent)
 func (this_ *NodeTraversal) priv_NodeTraversal_traverseBranch_3993(n pkg_rhino.Node, parent pkg_rhino.Node) {
-	_ = n
-	_ = parent
-	_, _, tok_ := n.FirstNextTok_()
-	if tok_ == 0xFF {
-		_ = n.TokenSwitchOrd_()
-	}
+	curBlkIdx_ := uint32(n) >> nodestore.BlockShift
+	curBlk_ := nodestore.BlockOf(nodestore.Node(n))
+	f_, _, tok_ := curBlk_.FirstNextTok(nodestore.Node(n))
+	this_.traverseBranchBlk_(n, parent, pkg_rhino.Node(f_), tok_, curBlkIdx_, curBlk_)
 
-	switch int32(tok_) {
-	case int32(94) /* Token.SCRIPT */ :
-		this_.priv_NodeTraversal_handleScript_3988(n, parent)
-		return
-	case int32(73) /* Token.FUNCTION */ :
-		this_.priv_NodeTraversal_handleFunction_3989(n, parent)
-		return
-	case int32(123) /* Token.MODULE_BODY */ :
-		this_.priv_NodeTraversal_handleModule_3990(n, parent)
-		return
-	case int32(105) /* Token.CLASS */ :
-		this_.priv_NodeTraversal_handleClass_3995(n, parent)
-		return
-	case int32(106) /* Token.CLASS_MEMBERS */ :
-		this_.priv_NodeTraversal_handleClassMembers_3996(n, parent)
-		return
-	case int32(134) /* Token.DEFAULT_VALUE */, int32(104) /* Token.DESTRUCTURING_LHS */ :
-		if this_.obeyDestructuringAndDefaultValueExecutionOrder {
-			this_.priv_NodeTraversal_handleDestructuringOrDefaultValue_3991(n, parent)
-			return
-		}
-	default:
-	}
-	this_.currentNode = n
-	if !this_.
-		alwaysTraverse_ {
-
-		if !(this_.callback.ShouldTraverse_3(this_, n, parent)) {
-			return
-		}
-	}
-	var createsBlockScope bool
-	if nodeTraversalBlockScopeTok_[tok_] {
-		createsBlockScope = this_.priv_NodeTraversal_createsBlockScope_3992(n)
-	}
-
-	_ = createsBlockScope
-	var previousHoistScopeRoot pkg_rhino.Node = this_.currentHoistScopeRoot
-	_ = previousHoistScopeRoot
-	if createsBlockScope {
-		this_.priv_NodeTraversal_pushScope_4001(n)
-		if NodeUtil_IsClassStaticBlock(n) {
-			this_.currentHoistScopeRoot = n
-		}
-	}
-	var curBlkIdx_ uint32 = 0xFFFFFFFF
-	var curBlk_ *nodestore.NodeBlock
-	for child_ := n.GetFirstChild(); child_ != 0; {
-		var cFirst_, next_ pkg_rhino.Node
-		var cTok_ uint8
-		if idx_ := uint32(child_) >> nodestore.BlockShift; idx_ == curBlkIdx_ {
-			f_, nx_, t_ := curBlk_.FirstNextTok(nodestore.Node(child_))
-			cFirst_, next_, cTok_ = pkg_rhino.Node(f_), pkg_rhino.Node(nx_), t_
-		} else {
-			curBlk_ = nodestore.BlockOf(nodestore.Node(child_))
-			curBlkIdx_ = idx_
-			f_, nx_, t_ := curBlk_.FirstNextTok(nodestore.Node(child_))
-			cFirst_, next_, cTok_ = pkg_rhino.Node(f_), pkg_rhino.Node(nx_), t_
-		}
-		if cFirst_ == 0 && cTok_ != 0xFF && !nodeTraversalSpecialOrBlockTok_[cTok_] {
-			if this_.alwaysTraverse_ {
-				this_.currentNode = child_
-				if !this_.noOpVisit_ {
-					this_.callback.Visit_3(this_, child_, n)
-				}
-				child_ = next_
-				continue
-			}
-			this_.currentNode = child_
-			if !this_.callback.ShouldTraverse_3(this_, child_, n) {
-				child_ = next_
-				continue
-			}
-			if child_.GetFirstChild() == 0 {
-				this_.currentNode = child_
-				if !this_.noOpVisit_ {
-					this_.callback.Visit_3(this_, child_, n)
-				}
-				child_ = next_
-				continue
-			}
-			for gc_ := child_.GetFirstChild(); gc_ != 0; {
-				var gNext_ pkg_rhino.Node
-				if gIdx_ := uint32(gc_) >> nodestore.BlockShift; gIdx_ == curBlkIdx_ {
-					_, gnx_, _ := curBlk_.FirstNextTok(nodestore.Node(gc_))
-					gNext_ = pkg_rhino.Node(gnx_)
-				} else {
-					curBlk_ = nodestore.BlockOf(nodestore.Node(gc_))
-					curBlkIdx_ = gIdx_
-					_, gnx_, _ := curBlk_.FirstNextTok(nodestore.Node(gc_))
-					gNext_ = pkg_rhino.Node(gnx_)
-				}
-				this_.priv_NodeTraversal_traverseBranch_3993(gc_, child_)
-				gc_ = gNext_
-			}
-			this_.currentNode = child_
-			if !this_.noOpVisit_ {
-				this_.callback.Visit_3(this_, child_, n)
-			}
-			child_ = next_
-			continue
-		}
-		this_.priv_NodeTraversal_traverseBranch_3993(child_, n)
-		child_ = next_
-	}
-
-	if createsBlockScope {
-		this_.priv_NodeTraversal_popScope_4004()
-		this_.currentHoistScopeRoot = previousHoistScopeRoot
-	}
-	this_.currentNode = n
-	if !this_.
-		noOpVisit_ {
-
-		this_.callback.Visit_3(this_, n, parent)
-	}
 }
 
 // Java method: NodeTraversal.traverseFunction(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
@@ -902,9 +783,10 @@ func (this_ *NodeTraversal) priv_NodeTraversal_handleMemberFieldDef_3997(n pkg_r
 // Java method: NodeTraversal.traverseChildren(com.google.javascript.rhino.Node n)
 func (this_ *NodeTraversal) priv_NodeTraversal_traverseChildren_3998(n pkg_rhino.Node) {
 	_ = n
-	var curBlkIdx_ uint32 = 0xFFFFFFFF
-	var curBlk_ *nodestore.NodeBlock
-	for child_ := n.GetFirstChild(); child_ != 0; {
+	curBlkIdx_ := uint32(n) >> nodestore.BlockShift
+	curBlk_ := nodestore.BlockOf(nodestore.Node(n))
+	nFirst_, _, _ := curBlk_.FirstNextTok(nodestore.Node(n))
+	for child_ := pkg_rhino.Node(nFirst_); child_ != 0; {
 		var cFirst_, next_ pkg_rhino.Node
 		var cTok_ uint8
 		if idx_ := uint32(child_) >> nodestore.BlockShift; idx_ == curBlkIdx_ {
@@ -930,7 +812,17 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseChildren_3998(n pkg_rhino
 				child_ = next_
 				continue
 			}
-			if child_.GetFirstChild() == 0 {
+			var gc_ pkg_rhino.Node
+			if cIdx_ := uint32(child_) >> nodestore.BlockShift; cIdx_ == curBlkIdx_ {
+				gf_, _, _ := curBlk_.FirstNextTok(nodestore.Node(child_))
+				gc_ = pkg_rhino.Node(gf_)
+			} else {
+				curBlk_ = nodestore.BlockOf(nodestore.Node(child_))
+				curBlkIdx_ = cIdx_
+				gf_, _, _ := curBlk_.FirstNextTok(nodestore.Node(child_))
+				gc_ = pkg_rhino.Node(gf_)
+			}
+			if gc_ == 0 {
 				this_.currentNode = child_
 				if !this_.noOpVisit_ {
 					this_.callback.Visit_3(this_, child_, n)
@@ -938,18 +830,19 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseChildren_3998(n pkg_rhino
 				child_ = next_
 				continue
 			}
-			for gc_ := child_.GetFirstChild(); gc_ != 0; {
-				var gNext_ pkg_rhino.Node
+			for gc_ != 0 {
+				var gFirst_, gNext_ pkg_rhino.Node
+				var gTok_ uint8
 				if gIdx_ := uint32(gc_) >> nodestore.BlockShift; gIdx_ == curBlkIdx_ {
-					_, gnx_, _ := curBlk_.FirstNextTok(nodestore.Node(gc_))
-					gNext_ = pkg_rhino.Node(gnx_)
+					gf_, gnx_, gt_ := curBlk_.FirstNextTok(nodestore.Node(gc_))
+					gFirst_, gNext_, gTok_ = pkg_rhino.Node(gf_), pkg_rhino.Node(gnx_), gt_
 				} else {
 					curBlk_ = nodestore.BlockOf(nodestore.Node(gc_))
 					curBlkIdx_ = gIdx_
-					_, gnx_, _ := curBlk_.FirstNextTok(nodestore.Node(gc_))
-					gNext_ = pkg_rhino.Node(gnx_)
+					gf_, gnx_, gt_ := curBlk_.FirstNextTok(nodestore.Node(gc_))
+					gFirst_, gNext_, gTok_ = pkg_rhino.Node(gf_), pkg_rhino.Node(gnx_), gt_
 				}
-				this_.priv_NodeTraversal_traverseBranch_3993(gc_, child_)
+				this_.traverseBranchBlk_(gc_, child_, gFirst_, gTok_, curBlkIdx_, curBlk_)
 				gc_ = gNext_
 			}
 			this_.currentNode = child_
@@ -959,7 +852,7 @@ func (this_ *NodeTraversal) priv_NodeTraversal_traverseChildren_3998(n pkg_rhino
 			child_ = next_
 			continue
 		}
-		this_.priv_NodeTraversal_traverseBranch_3993(child_, n)
+		this_.traverseBranchBlk_(child_, n, cFirst_, cTok_, curBlkIdx_, curBlk_)
 		child_ = next_
 	}
 
@@ -2843,3 +2736,150 @@ func traverseScopeRootPooled_(compiler AbstractCompiler, callback NodeTraversal_
 var nodeTraversalBlockScopeTok_ = [256]bool{80: true, 81: true, 90: true, 91: true, 105: true, 112: true, 113: true}
 
 var nodeTraversalSpecialOrBlockTok_ = [256]bool{73: true, 80: true, 81: true, 90: true, 91: true, 94: true, 104: true, 105: true, 106: true, 112: true, 113: true, 123: true, 134: true, 255: true}
+
+func (this_ *NodeTraversal) traverseBranchBlk_(n, parent, nFirst pkg_rhino.Node, nTok uint8, curBlkIdx_ uint32, curBlk_ *nodestore.NodeBlock) {
+
+	_ = n
+	_ = parent
+	if nTok == 0xFF {
+		_ = n.TokenSwitchOrd_()
+	}
+
+	switch int32(nTok) {
+	case int32(94):
+		this_.priv_NodeTraversal_handleScript_3988(n, parent)
+		return
+	case int32(73):
+		this_.priv_NodeTraversal_handleFunction_3989(n, parent)
+		return
+	case int32(123):
+		this_.priv_NodeTraversal_handleModule_3990(n, parent)
+		return
+	case int32(105):
+		this_.priv_NodeTraversal_handleClass_3995(n, parent)
+		return
+	case int32(106):
+		this_.priv_NodeTraversal_handleClassMembers_3996(n, parent)
+		return
+	case int32(134), int32(104):
+		if this_.obeyDestructuringAndDefaultValueExecutionOrder {
+			this_.priv_NodeTraversal_handleDestructuringOrDefaultValue_3991(n, parent)
+			return
+		}
+	default:
+	}
+	this_.currentNode = n
+	if !this_.
+		alwaysTraverse_ {
+
+		if !(this_.callback.ShouldTraverse_3(this_, n, parent)) {
+			return
+		}
+	}
+	var createsBlockScope bool
+	if nodeTraversalBlockScopeTok_[nTok] {
+		createsBlockScope = this_.priv_NodeTraversal_createsBlockScope_3992(n)
+	}
+
+	_ = createsBlockScope
+	var previousHoistScopeRoot pkg_rhino.Node = this_.currentHoistScopeRoot
+	_ = previousHoistScopeRoot
+	if createsBlockScope {
+		this_.priv_NodeTraversal_pushScope_4001(n)
+		if NodeUtil_IsClassStaticBlock(n) {
+			this_.currentHoistScopeRoot = n
+		}
+	}
+	var child_ pkg_rhino.Node
+	if this_.alwaysTraverse_ && !createsBlockScope {
+		child_ = nFirst
+	} else if nIdx_ := uint32(n) >> nodestore.BlockShift; nIdx_ == curBlkIdx_ {
+		f_, _, _ := curBlk_.FirstNextTok(nodestore.Node(n))
+		child_ = pkg_rhino.Node(f_)
+	} else {
+		curBlk_ = nodestore.BlockOf(nodestore.Node(n))
+		curBlkIdx_ = nIdx_
+		f_, _, _ := curBlk_.FirstNextTok(nodestore.Node(n))
+		child_ = pkg_rhino.Node(f_)
+	}
+	for child_ != 0 {
+		var cFirst_, next_ pkg_rhino.Node
+		var cTok_ uint8
+		if idx_ := uint32(child_) >> nodestore.BlockShift; idx_ == curBlkIdx_ {
+			f_, nx_, t_ := curBlk_.FirstNextTok(nodestore.Node(child_))
+			cFirst_, next_, cTok_ = pkg_rhino.Node(f_), pkg_rhino.Node(nx_), t_
+		} else {
+			curBlk_ = nodestore.BlockOf(nodestore.Node(child_))
+			curBlkIdx_ = idx_
+			f_, nx_, t_ := curBlk_.FirstNextTok(nodestore.Node(child_))
+			cFirst_, next_, cTok_ = pkg_rhino.Node(f_), pkg_rhino.Node(nx_), t_
+		}
+		if cFirst_ == 0 && cTok_ != 0xFF && !nodeTraversalSpecialOrBlockTok_[cTok_] {
+			if this_.alwaysTraverse_ {
+				this_.currentNode = child_
+				if !this_.noOpVisit_ {
+					this_.callback.Visit_3(this_, child_, n)
+				}
+				child_ = next_
+				continue
+			}
+			this_.currentNode = child_
+			if !this_.callback.ShouldTraverse_3(this_, child_, n) {
+				child_ = next_
+				continue
+			}
+			var gc_ pkg_rhino.Node
+			if cIdx_ := uint32(child_) >> nodestore.BlockShift; cIdx_ == curBlkIdx_ {
+				gf_, _, _ := curBlk_.FirstNextTok(nodestore.Node(child_))
+				gc_ = pkg_rhino.Node(gf_)
+			} else {
+				curBlk_ = nodestore.BlockOf(nodestore.Node(child_))
+				curBlkIdx_ = cIdx_
+				gf_, _, _ := curBlk_.FirstNextTok(nodestore.Node(child_))
+				gc_ = pkg_rhino.Node(gf_)
+			}
+			if gc_ == 0 {
+				this_.currentNode = child_
+				if !this_.noOpVisit_ {
+					this_.callback.Visit_3(this_, child_, n)
+				}
+				child_ = next_
+				continue
+			}
+			for gc_ != 0 {
+				var gFirst_, gNext_ pkg_rhino.Node
+				var gTok_ uint8
+				if gIdx_ := uint32(gc_) >> nodestore.BlockShift; gIdx_ == curBlkIdx_ {
+					gf_, gnx_, gt_ := curBlk_.FirstNextTok(nodestore.Node(gc_))
+					gFirst_, gNext_, gTok_ = pkg_rhino.Node(gf_), pkg_rhino.Node(gnx_), gt_
+				} else {
+					curBlk_ = nodestore.BlockOf(nodestore.Node(gc_))
+					curBlkIdx_ = gIdx_
+					gf_, gnx_, gt_ := curBlk_.FirstNextTok(nodestore.Node(gc_))
+					gFirst_, gNext_, gTok_ = pkg_rhino.Node(gf_), pkg_rhino.Node(gnx_), gt_
+				}
+				this_.traverseBranchBlk_(gc_, child_, gFirst_, gTok_, curBlkIdx_, curBlk_)
+				gc_ = gNext_
+			}
+			this_.currentNode = child_
+			if !this_.noOpVisit_ {
+				this_.callback.Visit_3(this_, child_, n)
+			}
+			child_ = next_
+			continue
+		}
+		this_.traverseBranchBlk_(child_, n, cFirst_, cTok_, curBlkIdx_, curBlk_)
+		child_ = next_
+	}
+
+	if createsBlockScope {
+		this_.priv_NodeTraversal_popScope_4004()
+		this_.currentHoistScopeRoot = previousHoistScopeRoot
+	}
+	this_.currentNode = n
+	if !this_.
+		noOpVisit_ {
+
+		this_.callback.Visit_3(this_, n, parent)
+	}
+}

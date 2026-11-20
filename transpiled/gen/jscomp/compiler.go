@@ -1701,7 +1701,7 @@ func (this_ *Compiler) GetCurrentJsSource() string {
 			}
 		}
 		if builder.Length() == int32(0) {
-			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string("// No files matched any of: ")).Append_1_any_9926(fileNameRegexList)
+			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string("// No files matched any of: ")).Append_1_any_9928(fileNameRegexList)
 		}
 	}
 	if !(chunkNameRegexList.IsEmpty()) {

@@ -20,7 +20,6 @@ package jscomp
 import (
 	"sync/atomic"
 
-	pkg_base "github.com/paullepoulpe/jsgo/transpiled/gen/base"
 	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
 	pkg_rhino "github.com/paullepoulpe/jsgo/transpiled/gen/rhino"
 	"github.com/paullepoulpe/jsgo/transpiled/shims/nodestore"
@@ -108,7 +107,7 @@ func (this_ *ConvertTypesToColors) Process_2(externs pkg_rhino.Node, root pkg_rh
 	var colorPoolBuilder *ColorPool_Builder = ColorPool_S_Builder()
 	_ = colorPoolBuilder
 	this_.compiler.InitRuntimeLibraryTypedAsts(j2gort.Ext_com_google_common_base_Optional_Of(j2gort.PtrToAny(colorPoolBuilder)))
-	var callback *ConvertTypesToColors_RemoveTypesAndApplyColors = NewConvertTypesToColors_RemoveTypesAndApplyColors(colorPoolBuilder.AddShard(typePool, stringPool), serializeJstypes.GetTypePointersByJstype())
+	var callback *ConvertTypesToColors_RemoveTypesAndApplyColors = NewConvertTypesToColors_RemoveTypesAndApplyColors(colorPoolBuilder.AddShard(typePool, stringPool), serializeJstypes)
 	_ = callback
 	var colorPool *ColorPool = colorPoolBuilder.Build()
 	_ = colorPool
@@ -210,8 +209,8 @@ func (this_ *ConvertTypesToColors_RemoveTypesBase) Visit_3(t *NodeTraversal, n p
 // Java class: com.google.javascript.jscomp.serialization.ConvertTypesToColors.RemoveTypesAndApplyColors
 type ConvertTypesToColors_RemoveTypesAndApplyColors struct {
 	ConvertTypesToColors_RemoveTypesBase
-	colorPoolShard       *ColorPool_ShardView                                              `gson:"colorPoolShard"`
-	typePointersByJstype *pkg_base.LinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt] `gson:"typePointersByJstype"`
+	colorPoolShard       *ColorPool_ShardView      `gson:"colorPoolShard"`
+	typePointersByJstype *SerializeTypesToPointers `gson:"typePointersByJstype"`
 }
 
 func (this_ *ConvertTypesToColors_RemoveTypesAndApplyColors) BindSelf_(s any) {
@@ -243,14 +242,14 @@ func (this_ *ConvertTypesToColors_RemoveTypesAndApplyColors) initFields_ConvertT
 	_ = this_
 }
 
-// Java constructor: RemoveTypesAndApplyColors(com.google.javascript.jscomp.serialization.ColorPool.ShardView colorPoolShard, com.google.javascript.jscomp.base.LinkedIdentityHashMap<com.google.javascript.rhino.jstype.JSType,java.lang.Integer> typePointersByJstype)
-func NewConvertTypesToColors_RemoveTypesAndApplyColors(colorPoolShard *ColorPool_ShardView, typePointersByJstype *pkg_base.LinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt]) *ConvertTypesToColors_RemoveTypesAndApplyColors {
+// Java constructor: RemoveTypesAndApplyColors(com.google.javascript.jscomp.serialization.ColorPool.ShardView colorPoolShard, com.google.javascript.jscomp.serialization.SerializeTypesToPointers typePointersByJstype)
+func NewConvertTypesToColors_RemoveTypesAndApplyColors(colorPoolShard *ColorPool_ShardView, typePointersByJstype *SerializeTypesToPointers) *ConvertTypesToColors_RemoveTypesAndApplyColors {
 	this_ := &ConvertTypesToColors_RemoveTypesAndApplyColors{}
 	InitConvertTypesToColors_RemoveTypesAndApplyColors(this_, colorPoolShard, typePointersByJstype)
 	return this_
 }
 
-func InitConvertTypesToColors_RemoveTypesAndApplyColors(this_ *ConvertTypesToColors_RemoveTypesAndApplyColors, colorPoolShard *ColorPool_ShardView, typePointersByJstype *pkg_base.LinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt]) {
+func InitConvertTypesToColors_RemoveTypesAndApplyColors(this_ *ConvertTypesToColors_RemoveTypesAndApplyColors, colorPoolShard *ColorPool_ShardView, typePointersByJstype *SerializeTypesToPointers) {
 	_ = colorPoolShard
 	_ = typePointersByJstype
 	InitConvertTypesToColors_RemoveTypes(&this_.ConvertTypesToColors_RemoveTypesBase)
@@ -270,10 +269,10 @@ func (this_ *ConvertTypesToColors_RemoveTypesAndApplyColors) Visit_3(t *NodeTrav
 	_ = oldTypeBeforeCast
 	this_.ConvertTypesToColors_RemoveTypesBase.Visit_3(t, n, parent)
 	if oldType != nil && !oldType.IsJavaNil_() {
-		var pointer *j2gort.BoxInt = this_.typePointersByJstype.Get(oldType)
+		var pointer int32 = this_.typePointersByJstype.GetTypePointer(oldType)
 		_ = pointer
-		if pointer != nil {
-			n.SetColor(this_.colorPoolShard.GetColor(j2gort.UnboxInt(pointer)))
+		if pointer >= int32(0) {
+			n.SetColor(this_.colorPoolShard.GetColor(pointer))
 		}
 	}
 	if oldTypeBeforeCast != nil && !oldTypeBeforeCast.IsJavaNil_() {

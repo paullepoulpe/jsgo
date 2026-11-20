@@ -148,7 +148,7 @@ func InitPropertyMap(this_ *PropertyMap) {
 }
 
 // Java method: PropertyMap.ensureExtra()
-func (this_ *PropertyMap) priv_PropertyMap_ensureExtra_9447() *PropertyMap_Extra {
+func (this_ *PropertyMap) priv_PropertyMap_ensureExtra_9449() *PropertyMap_Extra {
 	var e *PropertyMap_Extra = this_.extra
 	_ = e
 	if e == nil {
@@ -171,14 +171,14 @@ func (this_ *PropertyMap) SetParentSource(ownerType ObjectType) {
 		return
 	}
 	this_.parentSource = ownerType
-	this_.priv_PropertyMap_incrementCachedKeySetCounter_9481()
+	this_.priv_PropertyMap_incrementCachedKeySetCounter_9483()
 }
 
 // Java method: PropertyMap.setParentForTesting(com.google.javascript.rhino.jstype.PropertyMap parent)
 func (this_ *PropertyMap) SetParentForTesting(parent *PropertyMap) {
 	_ = parent
 	this_.parentSource = parent.parentSource
-	this_.priv_PropertyMap_incrementCachedKeySetCounter_9481()
+	this_.priv_PropertyMap_incrementCachedKeySetCounter_9483()
 }
 
 // Java method: PropertyMap.getPrimaryParent()
@@ -211,7 +211,7 @@ func PropertyMap_GetSecondaryParentObjects(parentSource ObjectType) j2gort.Ext_j
 }
 
 // Java method: PropertyMap.getSecondaryParentObjects()
-func (this_ *PropertyMap) priv_PropertyMap_getSecondaryParentObjects_9451() j2gort.Ext_java_lang_Iterable {
+func (this_ *PropertyMap) priv_PropertyMap_getSecondaryParentObjects_9453() j2gort.Ext_java_lang_Iterable {
 	return PropertyMap_GetSecondaryParentObjects(this_.parentSource)
 }
 
@@ -289,7 +289,7 @@ func PropertyMap_FindClosest_2_PrototypeObjectType_Property_Key(start PrototypeO
 			var ownMap *PropertyMap = curr.GetPrototypeObjectTypeBase().GetOwnPropertyMapOrNull()
 			_ = ownMap
 			if ownMap != nil {
-				var prop *Property = ownMap.priv_PropertyMap_getOwnSymbolProperty_9456(symbol)
+				var prop *Property = ownMap.priv_PropertyMap_getOwnSymbolProperty_9458(symbol)
 				_ = prop
 				if prop != nil {
 					return NewProperty_OwnedProperty(Upcast_ObjectType(curr), prop)
@@ -402,7 +402,7 @@ func PropertyMap_FindClosestProperty_2_PrototypeObjectType_Property_Key(start Pr
 			var ownMap *PropertyMap = curr.GetPrototypeObjectTypeBase().GetOwnPropertyMapOrNull()
 			_ = ownMap
 			if ownMap != nil {
-				var prop *Property = ownMap.priv_PropertyMap_getOwnSymbolProperty_9456(symbol)
+				var prop *Property = ownMap.priv_PropertyMap_getOwnSymbolProperty_9458(symbol)
 				_ = prop
 				if prop != nil {
 					return prop
@@ -442,7 +442,7 @@ func (this_ *PropertyMap) FindClosestProperty_1_Property_Key(name Property_Key) 
 }
 
 // Java method: PropertyMap.getOwnSymbolProperty(com.google.javascript.rhino.jstype.KnownSymbolType symbol)
-func (this_ *PropertyMap) priv_PropertyMap_getOwnSymbolProperty_9456(symbol *KnownSymbolType) *Property {
+func (this_ *PropertyMap) priv_PropertyMap_getOwnSymbolProperty_9458(symbol *KnownSymbolType) *Property {
 	_ = symbol
 	var e *PropertyMap_Extra = this_.extra
 	_ = e
@@ -507,7 +507,7 @@ func (this_ *PropertyMap) GetOwnProperty_1_Property_Key(propertyName Property_Ke
 	case int32(0) /* KeyKind.STRING */ :
 		return this_.GetOwnProperty_1_string(propertyName.M_String())
 	case int32(1) /* KeyKind.SYMBOL */ :
-		return this_.priv_PropertyMap_getOwnSymbolProperty_9456(propertyName.Symbol())
+		return this_.priv_PropertyMap_getOwnSymbolProperty_9458(propertyName.Symbol())
 	}
 	panic("unreachable switch expression")
 }
@@ -738,7 +738,7 @@ func (this_ *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 	}
 	var ancestors j2gort.OrderedSet[*PropertyMap] = j2gort.NewOrderedSet[*PropertyMap]()
 	_ = ancestors
-	this_.priv_PropertyMap_collectAllAncestors_9473(&ancestors)
+	this_.priv_PropertyMap_collectAllAncestors_9475(&ancestors)
 	var maxAncestorCounter int32 = int32(1)
 	_ = maxAncestorCounter
 	var ancestorHash int32 = int32(0)
@@ -782,7 +782,7 @@ func (this_ *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 				if ancestor_2 == StaticGet_PropertyMap_EMPTY_MAP() {
 					continue
 				}
-				var ae_2 *PropertyMap_Extra = ancestor_2.priv_PropertyMap_ensureExtra_9447()
+				var ae_2 *PropertyMap_Extra = ancestor_2.priv_PropertyMap_ensureExtra_9449()
 				_ = ae_2
 				{
 					r_19 := ae_2
@@ -805,7 +805,7 @@ func (this_ *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 				}
 			}
 		}
-		selfExtra = this_.priv_PropertyMap_ensureExtra_9447()
+		selfExtra = this_.priv_PropertyMap_ensureExtra_9449()
 		{
 			r_22 := selfExtra
 			r_22.cachedKeySetCounter = maxAncestorCounter
@@ -832,7 +832,7 @@ func (this_ *PropertyMap) GetAllKeys() *PropertyMap_AllKeys {
 }
 
 // Java method: PropertyMap.collectAllAncestors(java.util.LinkedHashSet<com.google.javascript.rhino.jstype.PropertyMap> ancestors)
-func (this_ *PropertyMap) priv_PropertyMap_collectAllAncestors_9473(ancestors *j2gort.OrderedSet[*PropertyMap]) {
+func (this_ *PropertyMap) priv_PropertyMap_collectAllAncestors_9475(ancestors *j2gort.OrderedSet[*PropertyMap]) {
 	_ = ancestors
 	if !(ancestors.Add(this_)) {
 		return
@@ -840,10 +840,10 @@ func (this_ *PropertyMap) priv_PropertyMap_collectAllAncestors_9473(ancestors *j
 	var primaryParent *PropertyMap = this_.GetPrimaryParent()
 	_ = primaryParent
 	if primaryParent != nil {
-		primaryParent.priv_PropertyMap_collectAllAncestors_9473(ancestors)
+		primaryParent.priv_PropertyMap_collectAllAncestors_9475(ancestors)
 	}
 	{
-		cur_26 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.priv_PropertyMap_getSecondaryParentObjects_9451()))
+		cur_26 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.priv_PropertyMap_getSecondaryParentObjects_9453()))
 		for cur_26.HasNext() {
 			rawElem_27 := cur_26.Next()
 			parentType := j2gort.AsIface[ObjectType](rawElem_27)
@@ -851,7 +851,7 @@ func (this_ *PropertyMap) priv_PropertyMap_collectAllAncestors_9473(ancestors *j
 			var parentMap *PropertyMap = parentType.GetPropertyMap()
 			_ = parentMap
 			if parentMap != nil {
-				parentMap.priv_PropertyMap_collectAllAncestors_9473(ancestors)
+				parentMap.priv_PropertyMap_collectAllAncestors_9475(ancestors)
 			}
 		}
 	}
@@ -868,7 +868,7 @@ func (this_ *PropertyMap) PutProperty_2_string_Property(name string, newProp *Pr
 		_ = p0
 		if p0 == nil {
 			this_.prop0 = newProp
-			this_.priv_PropertyMap_incrementCachedKeySetCounter_9481()
+			this_.priv_PropertyMap_incrementCachedKeySetCounter_9483()
 			return
 		}
 		var n0 string = p0.GetName()
@@ -882,7 +882,7 @@ func (this_ *PropertyMap) PutProperty_2_string_Property(name string, newProp *Pr
 		_ = p1
 		if p1 == nil {
 			this_.prop1 = newProp
-			this_.priv_PropertyMap_incrementCachedKeySetCounter_9481()
+			this_.priv_PropertyMap_incrementCachedKeySetCounter_9483()
 			return
 		}
 		var n1 string = p1.GetName()
@@ -895,7 +895,7 @@ func (this_ *PropertyMap) PutProperty_2_string_Property(name string, newProp *Pr
 		this_.store = NewPropertyMap_PropStore(p0, p1, newProp)
 		this_.prop0 = nil
 		this_.prop1 = nil
-		this_.priv_PropertyMap_incrementCachedKeySetCounter_9481()
+		this_.priv_PropertyMap_incrementCachedKeySetCounter_9483()
 		return
 	}
 	if s.map_ != nil {
@@ -959,7 +959,7 @@ func (this_ *PropertyMap) PutProperty_2_string_Property(name string, newProp *Pr
 				r_40 := s
 				r_40.size = (n + int32(1))
 			}
-			this_.priv_PropertyMap_incrementCachedKeySetCounter_9481()
+			this_.priv_PropertyMap_incrementCachedKeySetCounter_9483()
 		} else {
 			newProp.SetJSDocInfo(oldProp.GetJSDocInfo())
 			var items_2 []*Property = s.items
@@ -1076,7 +1076,7 @@ func (this_ *PropertyMap) PutProperty_2_string_Property(name string, newProp *Pr
 			r_58.map_ = m
 		}
 	}
-	this_.priv_PropertyMap_incrementCachedKeySetCounter_9481()
+	this_.priv_PropertyMap_incrementCachedKeySetCounter_9483()
 }
 
 // Java method: PropertyMap.removeProperty(java.lang.String name)
@@ -1095,7 +1095,7 @@ func (this_ *PropertyMap) RemoveProperty(name string) bool {
 		if (n0 == name) || (j2gort.CheckNotNullString(n0) == name) {
 			this_.prop0 = this_.prop1
 			this_.prop1 = nil
-			this_.priv_PropertyMap_incrementCachedKeySetCounter_9481()
+			this_.priv_PropertyMap_incrementCachedKeySetCounter_9483()
 			return true
 		}
 		var p1 *Property = this_.prop1
@@ -1105,7 +1105,7 @@ func (this_ *PropertyMap) RemoveProperty(name string) bool {
 			_ = n1
 			if (n1 == name) || (j2gort.CheckNotNullString(n1) == name) {
 				this_.prop1 = nil
-				this_.priv_PropertyMap_incrementCachedKeySetCounter_9481()
+				this_.priv_PropertyMap_incrementCachedKeySetCounter_9483()
 				return true
 			}
 		}
@@ -1175,7 +1175,7 @@ func (this_ *PropertyMap) RemoveProperty(name string) bool {
 				}
 			}
 		}
-		this_.priv_PropertyMap_incrementCachedKeySetCounter_9481()
+		this_.priv_PropertyMap_incrementCachedKeySetCounter_9483()
 		return true
 	}
 	var names_2 []string = s.names
@@ -1228,7 +1228,7 @@ func (this_ *PropertyMap) RemoveProperty(name string) bool {
 					this_.prop1 = items_2[int32(1)]
 					this_.store = nil
 				}
-				this_.priv_PropertyMap_incrementCachedKeySetCounter_9481()
+				this_.priv_PropertyMap_incrementCachedKeySetCounter_9483()
 				return true
 			}
 		}
@@ -1240,7 +1240,7 @@ func (this_ *PropertyMap) RemoveProperty(name string) bool {
 func (this_ *PropertyMap) PutProperty_2_KnownSymbolType_Property(symbol *KnownSymbolType, newProp *Property) {
 	_ = symbol
 	_ = newProp
-	var e *PropertyMap_Extra = this_.priv_PropertyMap_ensureExtra_9447()
+	var e *PropertyMap_Extra = this_.priv_PropertyMap_ensureExtra_9449()
 	_ = e
 	var oldProp *Property
 	_ = oldProp
@@ -1250,7 +1250,7 @@ func (this_ *PropertyMap) PutProperty_2_KnownSymbolType_Property(symbol *KnownSy
 		oldProp = nil
 	}
 	if oldProp == nil {
-		this_.priv_PropertyMap_incrementCachedKeySetCounter_9481()
+		this_.priv_PropertyMap_incrementCachedKeySetCounter_9483()
 	}
 	if e.knownSymbols == nil {
 		{
@@ -1372,7 +1372,7 @@ func (this_ *PropertyMap) HashCode() int32 {
 }
 
 // Java method: PropertyMap.incrementCachedKeySetCounter()
-func (this_ *PropertyMap) priv_PropertyMap_incrementCachedKeySetCounter_9481() {
+func (this_ *PropertyMap) priv_PropertyMap_incrementCachedKeySetCounter_9483() {
 	var e *PropertyMap_Extra = this_.extra
 	_ = e
 	if e != nil {

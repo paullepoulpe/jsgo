@@ -13,6 +13,7 @@ import (
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javaio"
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javanio"
+	"github.com/paullepoulpe/jsgo/transpiled/shims/javazip"
 )
 
 // ---------------------------------------------------------------------------
@@ -3618,7 +3619,7 @@ type protoStreamWriter struct {
 
 func isAlreadyBufferedWriter(w io.Writer) bool {
 	switch w.(type) {
-	case *javaio.BufferedOutputStream, *bufio.Writer, *bytes.Buffer:
+	case *javaio.BufferedOutputStream, *javaio.ByteArrayOutputStream, *javazip.GZIPOutputStream, *bufio.Writer, *bytes.Buffer:
 		return true
 	}
 	return false
@@ -4058,10 +4059,24 @@ func streamProtoMessageTo(m ProtoSerializable, out io.Writer, delimited bool) (i
 		}
 		return 0, nil
 	}
+	for {
+		bos, ok := out.(*javaio.BufferedOutputStream)
+		if !ok {
+			break
+		}
+		raw, err := bos.UnwrapUnderlying()
+		if err != nil {
+			return 0, err
+		}
+		if raw == nil {
+			break
+		}
+		out = raw
+	}
 	bp := protoStreamBufPool.Get().(*[]byte)
 	directThreshold := protoStreamBufSize / 2
 	if isAlreadyBufferedWriter(out) {
-		directThreshold = 256
+		directThreshold = 1024
 	}
 	w := protoStreamWriter{
 		out:             out,

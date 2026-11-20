@@ -1,0 +1,388 @@
+--- a/com/google/javascript/jscomp/AbstractScope.java
++++ b/com/google/javascript/jscomp/AbstractScope.java
+@@ -363,12 +363,12 @@
+   public abstract int getVarCount();
+ 
+   /** Returns whether this is the global scope. */
+-  public final boolean isGlobal() {
++  public boolean isGlobal() {
+     return getParent() == null;
+   }
+ 
+   /** Returns whether this is a local scope (i.e. not the global scope). */
+-  public final boolean isLocal() {
++  public boolean isLocal() {
+     return getParent() != null;
+   }
+ 
+--- a/com/google/javascript/jscomp/AbstractVar.java
++++ b/com/google/javascript/jscomp/AbstractVar.java
+@@ -211,15 +211,27 @@
+   }
+ 
+   public final boolean isArguments() {
+-    return Var.ARGUMENTS.equals(name) && scope.isFunctionScope();
++    String n = this.name;
++    if (!"arguments".equals(n)) {
++      return false;
++    }
++    return scope.isFunctionScope();
+   }
+ 
+   final boolean isGoogModuleExports() {
+-    return scope.isModuleScope() && "exports".equals(name) && isImplicit();
++    String n = this.name;
++    if (!"exports".equals(n)) {
++      return false;
++    }
++    return scope.isModuleScope() && isImplicit();
+   }
+ 
+   public final boolean isThis() {
+-    return "this".equals(name) && scope.isFunctionScope();
++    String n = this.name;
++    if (!"this".equals(n)) {
++      return false;
++    }
++    return scope.isFunctionScope();
+   }
+ 
+   private boolean isImplicit() {
+--- a/com/google/javascript/jscomp/RemoveUnusedCode.java
++++ b/com/google/javascript/jscomp/RemoveUnusedCode.java
+@@ -1666,18 +1666,21 @@
+    */
+   private VarInfo getVarInfo(Var var) {
+     checkNotNull(var);
+-    boolean isGlobal = var.isGlobal();
+     if (var.isExtern()) {
+       if (unremovableLog.isLogging()) {
+         unremovableLog.log(() -> String.format("%s: extern", var.getName()));
+       }
+       return canonicalUnremovableVarInfo;
+-    } else if (codingConvention.isExported(var.getName(), /* local= */ !isGlobal)) {
++    }
++    Scope scope = var.getScope();
++    boolean isGlobal = scope.isGlobal();
++    String varName = var.getName();
++    if (codingConvention.isExported(varName, /* local= */ !isGlobal)) {
+       if (unremovableLog.isLogging()) {
+-        unremovableLog.log(() -> String.format("%s: exported by convention", var.getName()));
++        unremovableLog.log(() -> String.format("%s: exported by convention", varName));
+       }
+       return canonicalUnremovableVarInfo;
+-    } else if (var.isArguments()) {
++    } else if ("arguments".equals(varName) && scope.isFunctionScope()) {
+       // No point in logging that we cannot remove "arguments"
+       return canonicalUnremovableVarInfo;
+     } else {
+@@ -1685,6 +1688,7 @@
+       int[] table = this.varInfoTable;
+       int mask = table.length - 1;
+       int slot = (h ^ (h >>> 16)) & mask;
++      Node varScopeRoot = var.scopeRoot;
+       while (true) {
+         int entry = table[slot];
+         if (entry == 0) {
+@@ -1692,13 +1696,19 @@
+         }
+         int idx = entry - 1;
+         Var k = this.varInfoKeys[idx];
+-        if (k == var || (k.scopeRoot == var.scopeRoot && k.name.equals(var.name))) {
++        if (k == var) {
+           return this.varInfoVals[idx];
++        }
++        if (k.scopeRoot == varScopeRoot) {
++          String kn = k.name;
++          if (kn.equals(varName)) {
++            return this.varInfoVals[idx];
++          }
+         }
+         slot = (slot + 1) & mask;
+       }
+ 
+-      VarInfo varInfo = new VarInfo(var.getName());
++      VarInfo varInfo = new VarInfo(varName);
+       if (var.getParentNode().isParamList()) {
+         varInfo.setHasNonLocalOrNonLiteralValue();
+       }
+--- a/com/google/javascript/jscomp/Scope.java
++++ b/com/google/javascript/jscomp/Scope.java
+@@ -81,6 +81,16 @@
+   @Override
+   public Scope getParent() {
+     return parent;
++  }
++
++  @Override
++  public boolean isGlobal() {
++    return parent == null;
++  }
++
++  @Override
++  public boolean isLocal() {
++    return parent != null;
+   }
+ 
+   /**
+--- a/com/google/javascript/jscomp/TypedScope.java
++++ b/com/google/javascript/jscomp/TypedScope.java
+@@ -355,6 +355,16 @@
+   @Override
+   public TypedScope getParent() {
+     return parent;
++  }
++
++  @Override
++  public boolean isGlobal() {
++    return parent == null;
++  }
++
++  @Override
++  public boolean isLocal() {
++    return parent != null;
+   }
+ 
+   /** Gets the type of {@code this} in the current scope. */
+--- a/com/google/javascript/jscomp/serialization/ConvertTypesToColors.java
++++ b/com/google/javascript/jscomp/serialization/ConvertTypesToColors.java
+@@ -23,7 +23,6 @@
+ import com.google.javascript.jscomp.CompilerPass;
+ import com.google.javascript.jscomp.NodeTraversal;
+ import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
+-import com.google.javascript.jscomp.base.LinkedIdentityHashMap;
+ import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.Node;
+ import com.google.javascript.rhino.jstype.JSType;
+@@ -66,11 +65,11 @@
+ 
+   private static class RemoveTypesAndApplyColors extends RemoveTypes {
+     private final ColorPool.ShardView colorPoolShard;
+-    private final LinkedIdentityHashMap<JSType, Integer> typePointersByJstype;
++    private final SerializeTypesToPointers typePointersByJstype;
+ 
+     RemoveTypesAndApplyColors(
+         ColorPool.ShardView colorPoolShard,
+-        LinkedIdentityHashMap<JSType, Integer> typePointersByJstype) {
++        SerializeTypesToPointers typePointersByJstype) {
+       super();
+       this.colorPoolShard = colorPoolShard;
+       this.typePointersByJstype = typePointersByJstype;
+@@ -84,8 +83,8 @@
+       super.visit(t, n, parent);
+ 
+       if (oldType != null) {
+-        Integer pointer = typePointersByJstype.get(oldType);
+-        if (pointer != null) {
++        int pointer = typePointersByJstype.getTypePointer(oldType);
++        if (pointer >= 0) {
+           n.setColor(colorPoolShard.getColor(pointer));
+         }
+       }
+@@ -132,7 +131,7 @@
+     RemoveTypesAndApplyColors callback =
+         new RemoveTypesAndApplyColors(
+             colorPoolBuilder.addShard(typePool, stringPool),
+-            serializeJstypes.getTypePointersByJstype());
++            serializeJstypes);
+ 
+     ColorPool colorPool = colorPoolBuilder.build();
+     NodeTraversal.traverse(compiler, externsAndJsRoot, callback);
+--- a/com/google/javascript/jscomp/serialization/SerializeTypesToPointers.java
++++ b/com/google/javascript/jscomp/serialization/SerializeTypesToPointers.java
+@@ -41,6 +41,7 @@
+ import com.google.javascript.rhino.jstype.JSType;
+ import java.io.IOException;
+ import java.util.ArrayList;
++import java.util.Arrays;
+ import java.util.Collection;
+ import java.util.Collections;
+ import java.util.LinkedHashSet;
+@@ -124,8 +125,10 @@
+   private final AbstractCompiler compiler;
+   private final JSTypeReconserializer jstypeReconserializer;
+   private final AstPropertySet propertiesReferencedInAst;
+-  private final LinkedIdentityHashMap<JSType, Integer> typePointersByJstype =
+-      new LinkedIdentityHashMap<>();
++  private int[] typePointersById;
++  private @Nullable LinkedIdentityHashMap<JSType, Integer> fallbackTypePointersByJstype = null;
++  private @Nullable LinkedIdentityHashMap<JSType, Integer> lazyTypePointersByJstype = null;
++  private @Nullable Node gatheredRoot = null;
+   private static final Gson GSON = new Gson();
+   private @Nullable TypePool typePool = null;
+ 
+@@ -136,6 +139,8 @@
+     this.compiler = compiler;
+     this.jstypeReconserializer = jstypeReconserializer;
+     this.propertiesReferencedInAst = propertiesReferencedInAst;
++    this.typePointersById =
++        new int[Math.max(16384, compiler.getTypeRegistry().getNextTypeId() + 64)];
+   }
+ 
+   static SerializeTypesToPointers create(
+@@ -161,6 +166,7 @@
+ 
+   void gatherTypesOnAst(Node root) {
+     checkState(this.typePool == null, "Cannot call process() twice");
++    this.gatheredRoot = root;
+     NodeTraversal.traverse(this.compiler, root, new PropertySearchCallback());
+     NodeTraversal.traverse(this.compiler, root, new TypeSearchCallback());
+ 
+@@ -225,9 +231,24 @@
+       }
+       JSType type = n.getJSType();
+       if (type != null) {
+-        Integer existing = typePointersByJstype.get(type);
+-        if (existing == null) {
+-          typePointersByJstype.put(type, jstypeReconserializer.serializeType(type));
++        int typeId = type.getTypeId();
++        if (typeId > 0) {
++          int[] pointers = typePointersById;
++          if (typeId >= pointers.length || pointers[typeId] == 0) {
++            int pointer = jstypeReconserializer.serializeType(type);
++            pointers = typePointersById;
++            if (typeId >= pointers.length) {
++              int nextCap = pointers.length * 2;
++              while (nextCap <= typeId) {
++                nextCap *= 2;
++              }
++              pointers = Arrays.copyOf(pointers, nextCap);
++              typePointersById = pointers;
++            }
++            pointers[typeId] = pointer + 1;
++          }
++        } else {
++          recordFallbackTypePointer(type);
+         }
+       }
+       Node shadow = n.getClosureUnawareShadow();
+@@ -235,12 +256,75 @@
+         // Shadow roots are structured as
+         // ROOT -> SCRIPT -> EXPR_RESULT -> FUNCTION
+         NodeTraversal.traverse(compiler, shadow.getFirstFirstChild().getFirstChild(), this);
++      }
++    }
++  }
++
++  private void recordFallbackTypePointer(JSType type) {
++    LinkedIdentityHashMap<JSType, Integer> fallback = this.fallbackTypePointersByJstype;
++    if (fallback == null) {
++      fallback = new LinkedIdentityHashMap<>();
++      this.fallbackTypePointersByJstype = fallback;
++    }
++    if (fallback.get(type) == null) {
++      fallback.put(type, jstypeReconserializer.serializeType(type));
++    }
++  }
++
++  /** Returns the serialized TypePool pointer for {@code type}, or {@code -1} if absent. */
++  int getTypePointer(JSType type) {
++    int typeId = type.getTypeId();
++    if (typeId > 0) {
++      int[] pointers = this.typePointersById;
++      if (typeId < pointers.length) {
++        return pointers[typeId] - 1;
+       }
++      return -1;
+     }
++    LinkedIdentityHashMap<JSType, Integer> fallback = this.fallbackTypePointersByJstype;
++    if (fallback != null) {
++      Integer ptr = fallback.get(type);
++      return ptr != null ? ptr : -1;
++    }
++    return -1;
+   }
+ 
+   LinkedIdentityHashMap<JSType, Integer> getTypePointersByJstype() {
+-    return typePointersByJstype;
++    if (this.lazyTypePointersByJstype == null) {
++      LinkedIdentityHashMap<JSType, Integer> map = new LinkedIdentityHashMap<>();
++      if (this.gatheredRoot != null) {
++        NodeTraversal.traverse(
++            this.compiler,
++            this.gatheredRoot,
++            new NodeTraversal.Callback() {
++              @Override
++              public boolean shouldTraverse(NodeTraversal t, Node n, Node parent) {
++                return !n.isScript() || !NodeUtil.isFromTypeSummary(n);
++              }
++
++              @Override
++              public void visit(NodeTraversal t, Node n, Node parent) {
++                if (n.isRoot()) {
++                  return;
++                }
++                JSType type = n.getJSType();
++                if (type != null && map.get(type) == null) {
++                  int pointer = getTypePointer(type);
++                  if (pointer >= 0) {
++                    map.put(type, pointer);
++                  }
++                }
++                Node shadow = n.getClosureUnawareShadow();
++                if (shadow != null) {
++                  NodeTraversal.traverse(
++                      compiler, shadow.getFirstFirstChild().getFirstChild(), this);
++                }
++              }
++            });
++      }
++      this.lazyTypePointersByJstype = map;
++    }
++    return this.lazyTypePointersByJstype;
+   }
+ 
+   TypePool getTypePool() {
+--- a/com/google/javascript/jscomp/serialization/TypedAstSerializer.java
++++ b/com/google/javascript/jscomp/serialization/TypedAstSerializer.java
+@@ -17,7 +17,6 @@
+ package com.google.javascript.jscomp.serialization;
+ 
+ import static com.google.common.base.Preconditions.checkArgument;
+-import static com.google.common.base.Preconditions.checkNotNull;
+ import static com.google.common.base.Preconditions.checkState;
+ import static com.google.common.collect.ImmutableList.toImmutableList;
+ 
+@@ -27,7 +26,6 @@
+ import com.google.javascript.jscomp.NodeTraversal;
+ import com.google.javascript.jscomp.NodeUtil;
+ import com.google.javascript.jscomp.SourceFile;
+-import com.google.javascript.jscomp.base.LinkedIdentityHashMap;
+ import com.google.javascript.jscomp.colors.Color;
+ import com.google.javascript.jscomp.colors.ColorId;
+ import com.google.javascript.jscomp.colors.ColorRegistry;
+@@ -781,17 +779,17 @@
+     // Gather and serialize all the types now.
+     serializeTypesToPointers.gatherTypesOnAst(compiler.getRoot());
+     return new JSTypeSerializer(
+-        serializeTypesToPointers.getTypePointersByJstype(), serializeTypesToPointers.getTypePool());
++        serializeTypesToPointers, serializeTypesToPointers.getTypePool());
+   }
+ 
+   /** Used when the AST's JSTypes have not been converted to Colors */
+   private static class JSTypeSerializer implements TypeSerializer {
+     // Everything is pre-calculated with this form of serialization.
+-    private final LinkedIdentityHashMap<JSType, Integer> typesToPointers;
++    private final SerializeTypesToPointers typesToPointers;
+     private final TypePool typePool;
+ 
+     private JSTypeSerializer(
+-        LinkedIdentityHashMap<JSType, Integer> typesToPointers, TypePool typePool) {
++        SerializeTypesToPointers typesToPointers, TypePool typePool) {
+       this.typesToPointers = typesToPointers;
+       this.typePool = typePool;
+     }
+@@ -800,8 +798,11 @@
+     public void addTypeForNode(Node node, AstNode.Builder astNodeBuilder) {
+       JSType type = node.getJSType();
+       if (type != null) {
+-        astNodeBuilder.setType(
+-            checkNotNull(typesToPointers.get(type), "cannot find pointer for %s", type));
++        int pointer = typesToPointers.getTypePointer(type);
++        if (pointer < 0) {
++          throw new NullPointerException("cannot find pointer for " + type);
++        }
++        astNodeBuilder.setType(pointer);
+       }
+     }
+ 

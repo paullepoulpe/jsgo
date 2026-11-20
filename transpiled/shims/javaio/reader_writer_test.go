@@ -2,6 +2,7 @@ package javaio
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -460,4 +461,211 @@ func TestWave42CRawUnixFDFileOutputStreamAnd64KiBBufferedStreams(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+type sizeRecordingReader struct {
+	data      []byte
+	pos       int
+	readSizes []int
+	maxChunk  int
+}
+
+func (r *sizeRecordingReader) Read(p []byte) (int, error) {
+	r.readSizes = append(r.readSizes, len(p))
+	if r.pos >= len(r.data) {
+		return 0, io.EOF
+	}
+	want := len(p)
+	if r.maxChunk > 0 && want > r.maxChunk {
+		want = r.maxChunk
+	}
+	n := copy(p[:want], r.data[r.pos:])
+	r.pos += n
+	return n, nil
+}
+
+type errAfterBytesReader struct {
+	data  []byte
+	err   error
+	calls int
+}
+
+func (r *errAfterBytesReader) Read(p []byte) (int, error) {
+	r.calls++
+	if r.calls == 1 {
+		n := copy(p, r.data)
+		return n, r.err
+	}
+	return 0, errors.New("unexpected second Read after deferred error")
+}
+
+type failOnSecondWriteSink struct {
+	buf    bytes.Buffer
+	writes int
+	err    error
+}
+
+func (s *failOnSecondWriteSink) Write(p []byte) (int, error) {
+	s.writes++
+	if s.writes >= 2 {
+		return 0, s.err
+	}
+	return s.buf.Write(p)
+}
+
+func TestWave47BufferedStreamDirectBypassAndUnwrap(t *testing.T) {
+	// 1. Direct-read bypass when BufferedInputStream buffer is empty and len(p) >= 4096.
+	payload := make([]byte, 200*1024+137)
+	for i := range payload {
+		payload[i] = byte((i*31 + 7) & 0xff)
+	}
+	src := &sizeRecordingReader{data: payload, maxChunk: 16384}
+	bis := NewBufferedInputStream(src)
+	defer bis.Close()
+
+	// First read of 8192 bytes on empty buffer must bypass the 64 KiB bufio.Reader.
+	firstBuf := make([]byte, 8192)
+	n, err := bis.Read(firstBuf)
+	if err != nil || n != 8192 || !bytes.Equal(firstBuf, payload[:8192]) {
+		t.Fatalf("direct read failed: n=%d err=%v", n, err)
+	}
+	if bis.Available() != 0 {
+		t.Fatalf("expected 0 buffered bytes after direct bypass, got %d", bis.Available())
+	}
+	if len(src.readSizes) != 1 || src.readSizes[0] != 8192 {
+		t.Fatalf("expected underlying Read(8192), got %v", src.readSizes)
+	}
+
+	// Interleave small ReadByte, small Read, Skip, and large Reads across the rest of payload.
+	var got []byte
+	got = append(got, firstBuf...)
+	pos := 8192
+
+	// Small ReadByte fills 64 KiB buffer (capped at maxChunk=16384 by src).
+	b0, err := bis.ReadByte()
+	if err != nil || b0 != payload[pos] {
+		t.Fatalf("ReadByte at %d: got %d err=%v", pos, b0, err)
+	}
+	got = append(got, b0)
+	pos++
+	if bis.Available() == 0 {
+		t.Fatal("expected buffered bytes after ReadByte")
+	}
+
+	// Skip 123 bytes inside buffer, record expected bytes for verification.
+	skipped, err := bis.Skip(123)
+	if err != nil || skipped != 123 {
+		t.Fatalf("Skip(123) = (%d, %v)", skipped, err)
+	}
+	got = append(got, payload[pos:pos+123]...)
+	pos += 123
+
+	// Mix of small and large reads until EOF.
+	sizes := []int{37, 4096, 511, 20000, 1, 4095, 4096, 65536, 17, 12000}
+	step := 0
+	for {
+		sz := sizes[step%len(sizes)]
+		step++
+		chunk := make([]byte, sz)
+		rn, rerr := bis.Read(chunk)
+		if rn > 0 {
+			got = append(got, chunk[:rn]...)
+		}
+		if rerr == io.EOF {
+			break
+		}
+		if rerr != nil {
+			t.Fatalf("interleaved Read(sz=%d) failed: %v", sz, rerr)
+		}
+	}
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("interleaved round-trip mismatch: got len=%d want len=%d", len(got), len(payload))
+	}
+
+	// Verify at least one >=4096 read hit direct bypass after the buffer drained.
+	sawDirectAfterDrain := false
+	for _, rs := range src.readSizes[2:] {
+		if rs == 4096 || rs == 20000 || rs == 12000 {
+			sawDirectAfterDrain = true
+			break
+		}
+	}
+	if !sawDirectAfterDrain {
+		t.Fatalf("expected direct bypass reads after draining buffer, saw read sizes: %v", src.readSizes)
+	}
+
+	// 2. Deferred error stored inside bufio.Reader must be surfaced on subsequent large Read
+	// without invoking src.Read again.
+	sentinelErr := errors.New("boom-io-error")
+	errSrc := &errAfterBytesReader{data: []byte("0123456789"), err: sentinelErr}
+	errBis := NewBufferedInputStream(errSrc)
+	defer errBis.Close()
+	small := make([]byte, 10)
+	if rn, rerr := io.ReadFull(errBis, small); rerr != nil || rn != 10 || string(small) != "0123456789" {
+		t.Fatalf("initial small read failed: n=%d err=%v got=%q", rn, rerr, string(small))
+	}
+	if errBis.Available() != 0 {
+		t.Fatalf("expected 0 buffered bytes, got %d", errBis.Available())
+	}
+	large := make([]byte, 8192)
+	if rn, rerr := errBis.Read(large); rn != 0 || !errors.Is(rerr, sentinelErr) {
+		t.Fatalf("expected deferred sentinel error on large Read, got n=%d err=%v", rn, rerr)
+	}
+	if errSrc.calls != 1 {
+		t.Fatalf("expected exactly 1 underlying Read call, got %d", errSrc.calls)
+	}
+
+	// 3. BufferedOutputStream.UnwrapUnderlying flushes buffered prefix, allows direct write,
+	// and preserves exact ordering with subsequent buffered writes + Close().
+	sink := &writeCountingSink{}
+	bos := NewBufferedOutputStream(sink)
+	if _, err := bos.Write([]byte("prefix-")); err != nil {
+		t.Fatal(err)
+	}
+	if sink.writes != 0 {
+		t.Fatalf("expected prefix buffered, got %d writes", sink.writes)
+	}
+	raw, err := bos.UnwrapUnderlying()
+	if err != nil {
+		t.Fatalf("UnwrapUnderlying failed: %v", err)
+	}
+	if raw != sink {
+		t.Fatalf("UnwrapUnderlying returned %T, want original sink", raw)
+	}
+	if sink.writes != 1 || sink.buf.String() != "prefix-" {
+		t.Fatalf("expected prefix flushed on UnwrapUnderlying, got writes=%d buf=%q", sink.writes, sink.buf.String())
+	}
+	if _, err := raw.Write([]byte("direct-middle-")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bos.Write([]byte("suffix")); err != nil {
+		t.Fatal(err)
+	}
+	if err := bos.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if sink.buf.String() != "prefix-direct-middle-suffix" || sink.closes != 1 {
+		t.Fatalf("unexpected final sink state: buf=%q closes=%d", sink.buf.String(), sink.closes)
+	}
+	if _, err := bos.UnwrapUnderlying(); !errors.Is(err, os.ErrClosed) {
+		t.Fatalf("expected os.ErrClosed on closed BufferedOutputStream.UnwrapUnderlying, got %v", err)
+	}
+
+	// Sticky error on BufferedOutputStream must be returned by UnwrapUnderlying.
+	failErr := errors.New("disk-full")
+	failSink := &failOnSecondWriteSink{err: failErr}
+	failBos := NewBufferedOutputStream(failSink)
+	// First flush succeeds.
+	if _, err := failBos.Write([]byte("ok")); err != nil {
+		t.Fatal(err)
+	}
+	if err := failBos.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	// Trigger second write failure inside bw (64 KiB + 1 bytes).
+	_, _ = failBos.Write(bytes.Repeat([]byte{'x'}, defaultStreamBufSize+1))
+	if _, err := failBos.UnwrapUnderlying(); !errors.Is(err, failErr) {
+		t.Fatalf("expected sticky error %v from UnwrapUnderlying, got %v", failErr, err)
+	}
+	_ = failBos.Close()
 }

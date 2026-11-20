@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	defaultStreamBufSize = 64 * 1024
-	rawWriteScratchSize  = 256 * 1024
+	defaultStreamBufSize        = 64 * 1024
+	bufferedDirectReadThreshold = 4 * 1024
+	rawWriteScratchSize         = 256 * 1024
 )
 
 var (
@@ -356,6 +357,12 @@ func (b *BufferedInputStream) Read(p []byte) (int, error) {
 	if b == nil || b.closed.Load() || b.br == nil {
 		return 0, os.ErrClosed
 	}
+	if len(p) >= bufferedDirectReadThreshold && b.br.Buffered() == 0 {
+		if _, err := b.br.Read(nil); err != nil {
+			return 0, err
+		}
+		return b.src.Read(p)
+	}
 	return b.br.Read(p)
 }
 
@@ -622,6 +629,7 @@ func (s *FileOutputStream) Close() error {
 // BufferedOutputStream buffers writes to an underlying io.Writer using a pooled 64 KiB buffer.
 type BufferedOutputStream struct {
 	bw     *bufio.Writer
+	dst    io.Writer
 	closer io.Closer
 	closed atomic.Bool
 }
@@ -634,7 +642,20 @@ func NewBufferedOutputStream(w io.Writer) *BufferedOutputStream {
 	}
 	bw := bufferedWriterPool.Get().(*bufio.Writer)
 	bw.Reset(w)
-	return &BufferedOutputStream{bw: bw, closer: c}
+	return &BufferedOutputStream{bw: bw, dst: w, closer: c}
+}
+
+// UnwrapUnderlying flushes any buffered bytes and returns the underlying io.Writer
+// so callers that maintain their own large write buffer (e.g. protobuf stream writers)
+// can write directly without double-copying through BufferedOutputStream's bufio.Writer.
+func (b *BufferedOutputStream) UnwrapUnderlying() (io.Writer, error) {
+	if b == nil || b.closed.Load() || b.bw == nil {
+		return nil, os.ErrClosed
+	}
+	if err := b.bw.Flush(); err != nil {
+		return nil, err
+	}
+	return b.dst, nil
 }
 
 func (b *BufferedOutputStream) Write(p []byte) (int, error) {

@@ -232,19 +232,15 @@ func (this_ *AbstractVarBase) GetIndex() int32 {
 
 // Java method: AbstractVar.isGlobal()
 func (this_ *AbstractVarBase) IsGlobal() bool {
-	return this_.scope.GetAbstractScopeBase(
-
-	// Java method: AbstractVar.isLocal()
-	).IsGlobal()
+	return this_.scope.IsGlobal()
 }
 
+// Java method: AbstractVar.isLocal()
 func (this_ *AbstractVarBase) IsLocal() bool {
-	return this_.scope.GetAbstractScopeBase(
-
-	// Java method: AbstractVar.isExtern()
-	).IsLocal()
+	return this_.scope.IsLocal()
 }
 
+// Java method: AbstractVar.isExtern()
 func (this_ *AbstractVarBase) IsExtern() bool {
 	return ((this_.input == nil) || this_.input.IsExtern())
 }
@@ -338,29 +334,32 @@ func (this_ *AbstractVarBase) IsImport() bool {
 
 // Java method: AbstractVar.isArguments()
 func (this_ *AbstractVarBase) IsArguments() bool {
-	return (func() bool {
-		sr_1 := "arguments"
-		se_2 := this_.GetScopedNameBase().name
-		return j2gort.CheckNotNullString(sr_1) == se_2
-	}() && this_.scope.GetAbstractScopeBase().IsFunctionScope())
+	var n string = this_.GetScopedNameBase().name
+	_ = n
+	if !("arguments" == n) {
+		return false
+	}
+	return this_.scope.GetAbstractScopeBase().IsFunctionScope()
 }
 
 // Java method: AbstractVar.isGoogModuleExports()
 func (this_ *AbstractVarBase) IsGoogModuleExports() bool {
-	return ((this_.scope.GetAbstractScopeBase().IsModuleScope() && func() bool {
-		sr_3 := "exports"
-		se_4 := this_.GetScopedNameBase().name
-		return j2gort.CheckNotNullString(sr_3) == se_4
-	}()) && this_.priv_AbstractVar_isImplicit_528())
+	var n string = this_.GetScopedNameBase().name
+	_ = n
+	if !("exports" == n) {
+		return false
+	}
+	return (this_.scope.GetAbstractScopeBase().IsModuleScope() && this_.priv_AbstractVar_isImplicit_528())
 }
 
 // Java method: AbstractVar.isThis()
 func (this_ *AbstractVarBase) IsThis() bool {
-	return (func() bool {
-		sr_5 := "this"
-		se_6 := this_.GetScopedNameBase().name
-		return j2gort.CheckNotNullString(sr_5) == se_6
-	}() && this_.scope.GetAbstractScopeBase().IsFunctionScope())
+	var n string = this_.GetScopedNameBase().name
+	_ = n
+	if !("this" == n) {
+		return false
+	}
+	return this_.scope.GetAbstractScopeBase().IsFunctionScope()
 }
 
 // Java method: AbstractVar.isImplicit()
@@ -439,40 +438,40 @@ func AbstractVar_StrongerOf(left pkg_rhino.StaticSourceFile_SourceKind, right pk
 		var iifeCond_2 bool
 		{
 
-			re_7 := left
-			ae_8 := pkg_rhino.StaticGet_StaticSourceFile_SourceKind_STRONG()
-			if re_7 == 0 {
+			re_1 := left
+			ae_2 := pkg_rhino.StaticGet_StaticSourceFile_SourceKind_STRONG()
+			if re_1 == 0 {
 				j2gort.ThrowNPE()
 			}
-			iifeCond_2 = re_7 == ae_8
+			iifeCond_2 = re_1 == ae_2
 		}
 		if iifeCond_2 || func() bool {
-			re_9 := right
-			ae_10 := pkg_rhino.StaticGet_StaticSourceFile_SourceKind_STRONG()
-			if re_9 == 0 {
+			re_3 := right
+			ae_4 := pkg_rhino.StaticGet_StaticSourceFile_SourceKind_STRONG()
+			if re_3 == 0 {
 				j2gort.ThrowNPE()
 			}
-			return re_9 == ae_10
+			return re_3 == ae_4
 		}() {
 			return pkg_rhino.StaticGet_StaticSourceFile_SourceKind_STRONG()
 		} else {
 			var iifeCond_1 bool
 			{
 
-				re_11 := left
-				ae_12 := pkg_rhino.StaticGet_StaticSourceFile_SourceKind_EXTERN()
-				if re_11 == 0 {
+				re_5 := left
+				ae_6 := pkg_rhino.StaticGet_StaticSourceFile_SourceKind_EXTERN()
+				if re_5 == 0 {
 					j2gort.ThrowNPE()
 				}
-				iifeCond_1 = re_11 == ae_12
+				iifeCond_1 = re_5 == ae_6
 			}
 			if iifeCond_1 || func() bool {
-				re_13 := right
-				ae_14 := pkg_rhino.StaticGet_StaticSourceFile_SourceKind_EXTERN()
-				if re_13 == 0 {
+				re_7 := right
+				ae_8 := pkg_rhino.StaticGet_StaticSourceFile_SourceKind_EXTERN()
+				if re_7 == 0 {
 					j2gort.ThrowNPE()
 				}
-				return re_13 == ae_14
+				return re_7 == ae_8
 			}() {
 				return pkg_rhino.StaticGet_StaticSourceFile_SourceKind_EXTERN()
 			}

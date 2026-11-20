@@ -1596,7 +1596,7 @@ func (this_ *JSTypeBase) GetTypesUnderInequality(that JSType) JSType_TypePair {
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if this_.priv_JSType_isNullTypeOrVoidType_9188() && base_that_.priv_JSType_isNullTypeOrVoidType_9188() {
+	if this_.priv_JSType_isNullTypeOrVoidType_9190() && base_that_.priv_JSType_isNullTypeOrVoidType_9190() {
 		var noType JSType = this_.registry.GetNativeType(StaticGet_JSTypeNative_NO_TYPE())
 		_ = noType
 		return NewJSType_TypePair(noType, noType)
@@ -1620,14 +1620,14 @@ func (this_ *JSTypeBase) GetTypesUnderShallowInequality(that JSType) JSType_Type
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9188() {
+	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9190() {
 		return NewJSType_TypePair(nil, nil)
 	}
 	return NewJSType_TypePair(this_.self_, that)
 }
 
 // Java method: JSType.isNullTypeOrVoidType()
-func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9188() bool {
+func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9190() bool {
 	return ((this_.typeKindMask & (int32(131072) | int32(262144))) != int32(0))
 }
 

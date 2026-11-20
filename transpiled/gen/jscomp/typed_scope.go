@@ -297,6 +297,16 @@ func (this_ *TypedScope) GetParent() any {
 	return j2gort.PtrToAny(this_.parent)
 }
 
+// Java method: TypedScope.isGlobal()
+func (this_ *TypedScope) IsGlobal() bool {
+	return (this_.parent == nil)
+}
+
+// Java method: TypedScope.isLocal()
+func (this_ *TypedScope) IsLocal() bool {
+	return (this_.parent != nil)
+}
+
 // Java method: TypedScope.getTypeOfThis()
 func (this_ *TypedScope) GetTypeOfThis() pkg_rhino.JSType {
 	var root pkg_rhino.Node = this_.GetRootNode_0()

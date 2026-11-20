@@ -1625,8 +1625,6 @@ func RemoveUnusedCode_NameOfParam(param pkg_rhino.Node) pkg_rhino.Node {
 func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_getVarInfo_4748(var_ *Var) *RemoveUnusedCode_VarInfo {
 	_ = var_
 	j2gort.CheckNotNullPtr(var_)
-	var isGlobal bool = var_.IsGlobal()
-	_ = isGlobal
 	if var_.IsExtern() {
 		if this_.unremovableLog.IsLogging() {
 			this_.unremovableLog.Log_1_Ext_java_util_function_Supplier(j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
@@ -1634,14 +1632,21 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_getVarInfo_4748(var_ *Var) 
 			}))
 		}
 		return this_.canonicalUnremovableVarInfo
-	} else if this_.codingConvention.IsExported_2(var_.GetName(), !(isGlobal)) {
+	}
+	var scope *Scope = j2gort.CastPtr[Scope](var_.GetScope())
+	_ = scope
+	var isGlobal bool = scope.IsGlobal()
+	_ = isGlobal
+	var varName string = var_.GetName()
+	_ = varName
+	if this_.codingConvention.IsExported_2(varName, !(isGlobal)) {
 		if this_.unremovableLog.IsLogging() {
 			this_.unremovableLog.Log_1_Ext_java_util_function_Supplier(j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
-				return j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("%s: exported by convention", []any{j2gort.BoxString(var_.GetName())}))
+				return j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("%s: exported by convention", []any{j2gort.BoxString(varName)}))
 			}))
 		}
 		return this_.canonicalUnremovableVarInfo
-	} else if var_.IsArguments() {
+	} else if ("arguments" == varName) && scope.IsFunctionScope() {
 		return this_.canonicalUnremovableVarInfo
 	} else {
 		var h int32 = var_.HashCode()
@@ -1652,6 +1657,8 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_getVarInfo_4748(var_ *Var) 
 		_ = mask
 		var slot int32 = ((h ^ (javalang.Ushr32(h, int(int32(16))))) & mask)
 		_ = slot
+		var varScopeRoot pkg_rhino.Node = var_.GetScopedNameBase().scopeRoot
+		_ = varScopeRoot
 		for {
 			var entry int32 = table[slot]
 			_ = entry
@@ -1662,21 +1669,24 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_getVarInfo_4748(var_ *Var) 
 			_ = idx
 			var k *Var = this_.varInfoKeys[idx]
 			_ = k
-			if (k == var_) || ((k.GetScopedNameBase().scopeRoot == var_.GetScopedNameBase().scopeRoot) && func() bool {
-				sr_12 := k.GetScopedNameBase().name
-				se_13 := var_.GetScopedNameBase().name
-				return j2gort.CheckNotNullString(sr_12) == se_13
-			}()) {
+			if k == var_ {
 				return this_.varInfoVals[idx]
+			}
+			if k.GetScopedNameBase().scopeRoot == varScopeRoot {
+				var kn string = k.GetScopedNameBase().name
+				_ = kn
+				if j2gort.CheckNotNullString(kn) == varName {
+					return this_.varInfoVals[idx]
+				}
 			}
 			slot = ((slot + int32(1)) & mask)
 		}
-		val_14 := this_.slab_RemoveUnusedCode_VarInfo.Alloc()
+		val_12 := this_.slab_RemoveUnusedCode_VarInfo.Alloc()
 
-		val_14.outer_ = this_
-		val_14.varName = var_.GetName()
-		val_14.isEntirelyRemovable = true
-		var varInfo *RemoveUnusedCode_VarInfo = val_14
+		val_12.outer_ = this_
+		val_12.varName = varName
+		val_12.isEntirelyRemovable = true
+		var varInfo *RemoveUnusedCode_VarInfo = val_12
 		_ = varInfo
 		if var_.GetParentNode().IsParamList() {
 			varInfo.SetHasNonLocalOrNonLiteralValue()
@@ -1692,45 +1702,45 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_getVarInfo_4748(var_ *Var) 
 			var newCap int32 = (newIdx * int32(2))
 			_ = newCap
 			this_.varInfoKeys = func() []*Var {
-				arrSrc_15 := this_.varInfoKeys
-				arrLen_16 := newCap
-				j2gort.CheckNotNullSlice(arrSrc_15)
-				if arrLen_16 < 0 {
+				arrSrc_13 := this_.varInfoKeys
+				arrLen_14 := newCap
+				j2gort.CheckNotNullSlice(arrSrc_13)
+				if arrLen_14 < 0 {
 					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
 				}
-				arrOut_17 := j2gort.AcquirePooledSlice[*Var](int(arrLen_16))[:arrLen_16]
-				copy(arrOut_17, arrSrc_15)
-				j2gort.ReleasePooledSlice(arrSrc_15)
-				return arrOut_17
+				arrOut_15 := j2gort.AcquirePooledSlice[*Var](int(arrLen_14))[:arrLen_14]
+				copy(arrOut_15, arrSrc_13)
+				j2gort.ReleasePooledSlice(arrSrc_13)
+				return arrOut_15
 			}()
 			this_.varInfoVals = func() []*RemoveUnusedCode_VarInfo {
-				arrSrc_18 := this_.varInfoVals
-				arrLen_19 := newCap
-				j2gort.CheckNotNullSlice(arrSrc_18)
-				if arrLen_19 < 0 {
+				arrSrc_16 := this_.varInfoVals
+				arrLen_17 := newCap
+				j2gort.CheckNotNullSlice(arrSrc_16)
+				if arrLen_17 < 0 {
 					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
 				}
-				arrOut_20 := j2gort.AcquirePooledSlice[*RemoveUnusedCode_VarInfo](int(arrLen_19))[:arrLen_19]
-				copy(arrOut_20, arrSrc_18)
-				j2gort.ReleasePooledSlice(arrSrc_18)
-				return arrOut_20
+				arrOut_18 := j2gort.AcquirePooledSlice[*RemoveUnusedCode_VarInfo](int(arrLen_17))[:arrLen_17]
+				copy(arrOut_18, arrSrc_16)
+				j2gort.ReleasePooledSlice(arrSrc_16)
+				return arrOut_18
 			}()
 		}
 		{
-			a_21 := this_.varInfoKeys
-			i_22 := newIdx
-			a_21[i_22] = var_
+			a_19 := this_.varInfoKeys
+			i_20 := newIdx
+			a_19[i_20] = var_
 		}
 		{
-			a_23 := this_.varInfoVals
-			i_24 := newIdx
-			a_23[i_24] = varInfo
+			a_21 := this_.varInfoVals
+			i_22 := newIdx
+			a_21[i_22] = varInfo
 		}
 		this_.varInfoSize = (newIdx + int32(1))
 		{
-			a_25 := table
-			i_26 := slot
-			a_25[i_26] = (newIdx + int32(1))
+			a_23 := table
+			i_24 := slot
+			a_23[i_24] = (newIdx + int32(1))
 		}
 		if (this_.varInfoSize * int32(4)) >= (int32(len(table)) * int32(3)) {
 			this_.priv_RemoveUnusedCode_rehashVarInfoTable_4749((int32(len(table)) * int32(2)))
@@ -1760,9 +1770,9 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_rehashVarInfoTable_4749(new
 				slot = ((slot + int32(1)) & mask)
 			}
 			{
-				a_27 := newTable
-				i_28 := slot
-				a_27[i_28] = (i + int32(1))
+				a_25 := newTable
+				i_26 := slot
+				a_25[i_26] = (i + int32(1))
 			}
 		}
 	}
@@ -2156,8 +2166,8 @@ func RemoveUnusedCode_RemovalLogRecord_ForVar(var_ *Var) *RemoveUnusedCode_Remov
 		Ext_java_util_function_Supplier
 	{
 
-		bound_29 := var_
-		iifeArg_3 = j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxString(bound_29.GetName()) })
+		bound_27 := var_
+		iifeArg_3 = j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxString(bound_27.GetName()) })
 	}
 	return NewRemoveUnusedCode_RemovalLogRecord_2("var", iifeArg_3)
 }
@@ -2169,8 +2179,8 @@ func RemoveUnusedCode_RemovalLogRecord_ForPolyfill(polyfillInfo RemoveUnusedCode
 		Ext_java_util_function_Supplier
 	{
 
-		bound_30 := polyfillInfo
-		iifeArg_4 = j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxString(bound_30.GetName()) })
+		bound_28 := polyfillInfo
+		iifeArg_4 = j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxString(bound_28.GetName()) })
 	}
 	return NewRemoveUnusedCode_RemovalLogRecord_2("poly", iifeArg_4)
 }
@@ -2183,8 +2193,8 @@ func RemoveUnusedCode_RemovalLogRecord_ForNamedArg(nameNode pkg_rhino.Node, argL
 		Ext_java_util_function_Supplier
 	{
 
-		bound_31 := nameNode
-		iifeArg_5 = j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxString(bound_31.GetString()) })
+		bound_29 := nameNode
+		iifeArg_5 = j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxString(bound_29.GetString()) })
 	}
 	return NewRemoveUnusedCode_RemovalLogRecord_3("arg", iifeArg_5,
 
@@ -2205,8 +2215,8 @@ func RemoveUnusedCode_RemovalLogRecord_ForMarkingNamedArg(nameNode pkg_rhino.Nod
 		Ext_java_util_function_Supplier
 	{
 
-		bound_32 := nameNode
-		iifeArg_6 = j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxString(bound_32.GetString()) })
+		bound_30 := nameNode
+		iifeArg_6 = j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxString(bound_30.GetString()) })
 	}
 	return NewRemoveUnusedCode_RemovalLogRecord_3("argmark", iifeArg_6,
 
@@ -2249,10 +2259,10 @@ func (this_ RemoveUnusedCode_Continuation) IdentityHash_() int32 {
 	var h_ int32 = 1
 	h_ = 31*h_ + int32(this_.node)
 	{
-		hp_33 := this_.scope
+		hp_31 := this_.scope
 		h_ = 31 * h_
-		if hp_33 != nil {
-			h_ += j2gort.IdentityHash(hp_33)
+		if hp_31 != nil {
+			h_ += j2gort.IdentityHash(hp_31)
 		}
 	}
 	return h_

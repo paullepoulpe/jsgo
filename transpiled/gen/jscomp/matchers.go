@@ -69,25 +69,25 @@ func InitMatchers(this_ *Matchers) {
 
 // Java static method: Matchers.anything()
 func Matchers_Anything() Matcher {
-	return NewMatchers__Anon_135()
+	return NewMatchers__Anon_136()
 }
 
 // Java static method: Matchers.allOf(com.google.javascript.refactoring.Matcher[] matchers)
 func Matchers_AllOf(matchers []Matcher) Matcher {
 	_ = matchers
-	return NewMatchers__Anon_136(matchers)
+	return NewMatchers__Anon_137(matchers)
 }
 
 // Java static method: Matchers.anyOf(com.google.javascript.refactoring.Matcher[] matchers)
 func Matchers_AnyOf(matchers []Matcher) Matcher {
 	_ = matchers
-	return NewMatchers__Anon_137(matchers)
+	return NewMatchers__Anon_138(matchers)
 }
 
 // Java static method: Matchers.not(com.google.javascript.refactoring.Matcher matcher)
 func Matchers_Not(matcher Matcher) Matcher {
 	_ = matcher
-	return NewMatchers__Anon_138(matcher)
+	return NewMatchers__Anon_139(matcher)
 }
 
 // Java static method: Matchers.constructor()
@@ -98,18 +98,18 @@ func Matchers_Constructor_0() Matcher {
 // Java static method: Matchers.constructor(java.lang.@org.jspecify.annotations.Nullable String name)
 func Matchers_Constructor_1(name string) Matcher {
 	_ = name
-	return NewMatchers__Anon_139(name)
+	return NewMatchers__Anon_140(name)
 }
 
 // Java static method: Matchers.newClass()
 func Matchers_NewClass_0() Matcher {
-	return NewMatchers__Anon_140()
+	return NewMatchers__Anon_141()
 }
 
 // Java static method: Matchers.newClass(java.lang.String className)
 func Matchers_NewClass_1(className string) Matcher {
 	_ = className
-	return NewMatchers__Anon_141(className)
+	return NewMatchers__Anon_142(className)
 }
 
 // Java static method: Matchers.functionCall()
@@ -120,13 +120,13 @@ func Matchers_FunctionCall_0() Matcher {
 // Java static method: Matchers.functionCall(java.lang.@org.jspecify.annotations.Nullable String name)
 func Matchers_FunctionCall_1(name string) Matcher {
 	_ = name
-	return NewMatchers__Anon_142(name)
+	return NewMatchers__Anon_143(name)
 }
 
 // Java static method: Matchers.functionCallWithNumArgs(int numArgs)
 func Matchers_FunctionCallWithNumArgs_1(numArgs int32) Matcher {
 	_ = numArgs
-	return NewMatchers__Anon_143(numArgs)
+	return NewMatchers__Anon_144(numArgs)
 }
 
 // Java static method: Matchers.functionCallWithNumArgs(java.lang.String name, int numArgs)
@@ -184,24 +184,24 @@ func Matchers_PropertyAccess_0() Matcher {
 // Java static method: Matchers.propertyAccess(java.lang.@org.jspecify.annotations.Nullable String name)
 func Matchers_PropertyAccess_1(name string) Matcher {
 	_ = name
-	return NewMatchers__Anon_144(name)
+	return NewMatchers__Anon_145(name)
 }
 
 // Java static method: Matchers.enumDefinition()
 func Matchers_EnumDefinition() Matcher {
-	return NewMatchers__Anon_145()
+	return NewMatchers__Anon_146()
 }
 
 // Java static method: Matchers.enumDefinitionOfType(java.lang.String type)
 func Matchers_EnumDefinitionOfType(type_ string) Matcher {
 	_ = type_
-	return NewMatchers__Anon_146(type_)
+	return NewMatchers__Anon_147(type_)
 }
 
 // Java static method: Matchers.assignmentWithRhs(com.google.javascript.refactoring.Matcher rhsMatcher)
 func Matchers_AssignmentWithRhs(rhsMatcher Matcher) Matcher {
 	_ = rhsMatcher
-	return NewMatchers__Anon_147(rhsMatcher)
+	return NewMatchers__Anon_148(rhsMatcher)
 }
 
 // Java static method: Matchers.prototypeVariableDeclaration()
@@ -217,17 +217,17 @@ func Matchers_PrototypeMethodDeclaration() Matcher {
 // Java static method: Matchers.jsDocType(java.lang.String type)
 func Matchers_JsDocType(type_ string) Matcher {
 	_ = type_
-	return NewMatchers__Anon_148(type_)
+	return NewMatchers__Anon_149(type_)
 }
 
 // Java static method: Matchers.constructorPropertyDeclaration()
 func Matchers_ConstructorPropertyDeclaration() Matcher {
-	return NewMatchers__Anon_149()
+	return NewMatchers__Anon_150()
 }
 
 // Java static method: Matchers.isPrivate()
 func Matchers_IsPrivate() Matcher {
-	return NewMatchers__Anon_150()
+	return NewMatchers__Anon_151()
 }
 
 // Java static method: Matchers.getJsType(com.google.javascript.refactoring.NodeMetadata metadata, java.lang.String type)
@@ -306,54 +306,12 @@ func Matchers_MatchesPrototypeInstanceVar(node pkg_rhino.Node, metadata *NodeMet
 // Java static method: Matchers.matcherForPrototypeDeclaration(boolean requireFunctionType)
 func Matchers_MatcherForPrototypeDeclaration(requireFunctionType bool) Matcher {
 	_ = requireFunctionType
-	return NewMatchers__Anon_151(requireFunctionType)
-}
-
-// Java class:
-type Matchers__Anon_135 struct {
-	idHash_ atomic.Int32
-}
-
-func (this_ *Matchers__Anon_135) BindSelf_(s any) {
-	_ = s
-}
-func (this_ *Matchers__Anon_135) IsJavaNil_() bool { return this_ == nil }
-func (*Matchers__Anon_135) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$1", ""
-}
-func (this_ *Matchers__Anon_135) IdentityHash_() int32 {
-	if this_ == nil {
-		return 0
-	}
-	if h := this_.idHash_.Load(); h != 0 {
-		return h
-	}
-	return j2gort.AssignIdentHash(&this_.idHash_)
-}
-func (*Matchers__Anon_135) HasIdentityEquals_()        {}
-func (*Matchers__Anon_135) Implements_jscomp_Matcher() {}
-
-func (this_ *Matchers__Anon_135) initFields_Matchers__Anon_135() {
-	_ = this_
-}
-
-func NewMatchers__Anon_135() *Matchers__Anon_135 {
-	this_ := &Matchers__Anon_135{}
-	this_.initFields_Matchers__Anon_135()
-	return this_
-}
-
-// Java method: .matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata metadata)
-func (this_ *Matchers__Anon_135) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
-	_ = node
-	_ = metadata
-	return true
+	return NewMatchers__Anon_152(requireFunctionType)
 }
 
 // Java class:
 type Matchers__Anon_136 struct {
-	cap_0_matchers []Matcher
-	idHash_        atomic.Int32
+	idHash_ atomic.Int32
 }
 
 func (this_ *Matchers__Anon_136) BindSelf_(s any) {
@@ -361,7 +319,7 @@ func (this_ *Matchers__Anon_136) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_136) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_136) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$2", ""
+	return "com.google.javascript.refactoring.Matchers$1", ""
 }
 func (this_ *Matchers__Anon_136) IdentityHash_() int32 {
 	if this_ == nil {
@@ -379,9 +337,8 @@ func (this_ *Matchers__Anon_136) initFields_Matchers__Anon_136() {
 	_ = this_
 }
 
-func NewMatchers__Anon_136(cap_p_matchers []Matcher) *Matchers__Anon_136 {
+func NewMatchers__Anon_136() *Matchers__Anon_136 {
 	this_ := &Matchers__Anon_136{}
-	this_.cap_0_matchers = cap_p_matchers
 	this_.initFields_Matchers__Anon_136()
 	return this_
 }
@@ -390,13 +347,6 @@ func NewMatchers__Anon_136(cap_p_matchers []Matcher) *Matchers__Anon_136 {
 func (this_ *Matchers__Anon_136) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
-	for _, el_5 := range j2gort.CheckNotNullSlice(this_.cap_0_matchers) {
-		m := el_5
-		_ = m
-		if !(m.Matches(node, metadata)) {
-			return false
-		}
-	}
 	return true
 }
 
@@ -411,7 +361,7 @@ func (this_ *Matchers__Anon_137) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_137) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_137) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$3", ""
+	return "com.google.javascript.refactoring.Matchers$2", ""
 }
 func (this_ *Matchers__Anon_137) IdentityHash_() int32 {
 	if this_ == nil {
@@ -440,20 +390,20 @@ func NewMatchers__Anon_137(cap_p_matchers []Matcher) *Matchers__Anon_137 {
 func (this_ *Matchers__Anon_137) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
-	for _, el_6 := range j2gort.CheckNotNullSlice(this_.cap_0_matchers) {
-		m := el_6
+	for _, el_5 := range j2gort.CheckNotNullSlice(this_.cap_0_matchers) {
+		m := el_5
 		_ = m
-		if m.Matches(node, metadata) {
-			return true
+		if !(m.Matches(node, metadata)) {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 // Java class:
 type Matchers__Anon_138 struct {
-	cap_0_matcher Matcher
-	idHash_       atomic.Int32
+	cap_0_matchers []Matcher
+	idHash_        atomic.Int32
 }
 
 func (this_ *Matchers__Anon_138) BindSelf_(s any) {
@@ -461,7 +411,7 @@ func (this_ *Matchers__Anon_138) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_138) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_138) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$4", ""
+	return "com.google.javascript.refactoring.Matchers$3", ""
 }
 func (this_ *Matchers__Anon_138) IdentityHash_() int32 {
 	if this_ == nil {
@@ -479,9 +429,9 @@ func (this_ *Matchers__Anon_138) initFields_Matchers__Anon_138() {
 	_ = this_
 }
 
-func NewMatchers__Anon_138(cap_p_matcher Matcher) *Matchers__Anon_138 {
+func NewMatchers__Anon_138(cap_p_matchers []Matcher) *Matchers__Anon_138 {
 	this_ := &Matchers__Anon_138{}
-	this_.cap_0_matcher = cap_p_matcher
+	this_.cap_0_matchers = cap_p_matchers
 	this_.initFields_Matchers__Anon_138()
 	return this_
 }
@@ -490,13 +440,20 @@ func NewMatchers__Anon_138(cap_p_matcher Matcher) *Matchers__Anon_138 {
 func (this_ *Matchers__Anon_138) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
-	return !(this_.cap_0_matcher.Matches(node, metadata))
+	for _, el_6 := range j2gort.CheckNotNullSlice(this_.cap_0_matchers) {
+		m := el_6
+		_ = m
+		if m.Matches(node, metadata) {
+			return true
+		}
+	}
+	return false
 }
 
 // Java class:
 type Matchers__Anon_139 struct {
-	cap_0_name string
-	idHash_    atomic.Int32
+	cap_0_matcher Matcher
+	idHash_       atomic.Int32
 }
 
 func (this_ *Matchers__Anon_139) BindSelf_(s any) {
@@ -504,7 +461,7 @@ func (this_ *Matchers__Anon_139) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_139) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_139) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$5", ""
+	return "com.google.javascript.refactoring.Matchers$4", ""
 }
 func (this_ *Matchers__Anon_139) IdentityHash_() int32 {
 	if this_ == nil {
@@ -522,15 +479,58 @@ func (this_ *Matchers__Anon_139) initFields_Matchers__Anon_139() {
 	_ = this_
 }
 
-func NewMatchers__Anon_139(cap_p_name string) *Matchers__Anon_139 {
+func NewMatchers__Anon_139(cap_p_matcher Matcher) *Matchers__Anon_139 {
 	this_ := &Matchers__Anon_139{}
-	this_.cap_0_name = cap_p_name
+	this_.cap_0_matcher = cap_p_matcher
 	this_.initFields_Matchers__Anon_139()
 	return this_
 }
 
 // Java method: .matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata metadata)
 func (this_ *Matchers__Anon_139) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
+	_ = node
+	_ = metadata
+	return !(this_.cap_0_matcher.Matches(node, metadata))
+}
+
+// Java class:
+type Matchers__Anon_140 struct {
+	cap_0_name string
+	idHash_    atomic.Int32
+}
+
+func (this_ *Matchers__Anon_140) BindSelf_(s any) {
+	_ = s
+}
+func (this_ *Matchers__Anon_140) IsJavaNil_() bool { return this_ == nil }
+func (*Matchers__Anon_140) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.refactoring.Matchers$5", ""
+}
+func (this_ *Matchers__Anon_140) IdentityHash_() int32 {
+	if this_ == nil {
+		return 0
+	}
+	if h := this_.idHash_.Load(); h != 0 {
+		return h
+	}
+	return j2gort.AssignIdentHash(&this_.idHash_)
+}
+func (*Matchers__Anon_140) HasIdentityEquals_()        {}
+func (*Matchers__Anon_140) Implements_jscomp_Matcher() {}
+
+func (this_ *Matchers__Anon_140) initFields_Matchers__Anon_140() {
+	_ = this_
+}
+
+func NewMatchers__Anon_140(cap_p_name string) *Matchers__Anon_140 {
+	this_ := &Matchers__Anon_140{}
+	this_.cap_0_name = cap_p_name
+	this_.initFields_Matchers__Anon_140()
+	return this_
+}
+
+// Java method: .matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata metadata)
+func (this_ *Matchers__Anon_140) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
 	var info *pkg_rhino.JSDocInfo = node.GetJSDocInfo()
@@ -549,50 +549,8 @@ func (this_ *Matchers__Anon_139) Matches(node pkg_rhino.Node, metadata *NodeMeta
 }
 
 // Java class:
-type Matchers__Anon_140 struct {
-	idHash_ atomic.Int32
-}
-
-func (this_ *Matchers__Anon_140) BindSelf_(s any) {
-	_ = s
-}
-func (this_ *Matchers__Anon_140) IsJavaNil_() bool { return this_ == nil }
-func (*Matchers__Anon_140) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$6", ""
-}
-func (this_ *Matchers__Anon_140) IdentityHash_() int32 {
-	if this_ == nil {
-		return 0
-	}
-	if h := this_.idHash_.Load(); h != 0 {
-		return h
-	}
-	return j2gort.AssignIdentHash(&this_.idHash_)
-}
-func (*Matchers__Anon_140) HasIdentityEquals_()        {}
-func (*Matchers__Anon_140) Implements_jscomp_Matcher() {}
-
-func (this_ *Matchers__Anon_140) initFields_Matchers__Anon_140() {
-	_ = this_
-}
-
-func NewMatchers__Anon_140() *Matchers__Anon_140 {
-	this_ := &Matchers__Anon_140{}
-	this_.initFields_Matchers__Anon_140()
-	return this_
-}
-
-// Java method: .matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata metadata)
-func (this_ *Matchers__Anon_140) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
-	_ = node
-	_ = metadata
-	return node.IsNew()
-}
-
-// Java class:
 type Matchers__Anon_141 struct {
-	cap_0_className string
-	idHash_         atomic.Int32
+	idHash_ atomic.Int32
 }
 
 func (this_ *Matchers__Anon_141) BindSelf_(s any) {
@@ -600,7 +558,7 @@ func (this_ *Matchers__Anon_141) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_141) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_141) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$7", ""
+	return "com.google.javascript.refactoring.Matchers$6", ""
 }
 func (this_ *Matchers__Anon_141) IdentityHash_() int32 {
 	if this_ == nil {
@@ -618,15 +576,57 @@ func (this_ *Matchers__Anon_141) initFields_Matchers__Anon_141() {
 	_ = this_
 }
 
-func NewMatchers__Anon_141(cap_p_className string) *Matchers__Anon_141 {
+func NewMatchers__Anon_141() *Matchers__Anon_141 {
 	this_ := &Matchers__Anon_141{}
-	this_.cap_0_className = cap_p_className
 	this_.initFields_Matchers__Anon_141()
 	return this_
 }
 
 // Java method: .matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata metadata)
 func (this_ *Matchers__Anon_141) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
+	_ = node
+	_ = metadata
+	return node.IsNew()
+}
+
+// Java class:
+type Matchers__Anon_142 struct {
+	cap_0_className string
+	idHash_         atomic.Int32
+}
+
+func (this_ *Matchers__Anon_142) BindSelf_(s any) {
+	_ = s
+}
+func (this_ *Matchers__Anon_142) IsJavaNil_() bool { return this_ == nil }
+func (*Matchers__Anon_142) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.refactoring.Matchers$7", ""
+}
+func (this_ *Matchers__Anon_142) IdentityHash_() int32 {
+	if this_ == nil {
+		return 0
+	}
+	if h := this_.idHash_.Load(); h != 0 {
+		return h
+	}
+	return j2gort.AssignIdentHash(&this_.idHash_)
+}
+func (*Matchers__Anon_142) HasIdentityEquals_()        {}
+func (*Matchers__Anon_142) Implements_jscomp_Matcher() {}
+
+func (this_ *Matchers__Anon_142) initFields_Matchers__Anon_142() {
+	_ = this_
+}
+
+func NewMatchers__Anon_142(cap_p_className string) *Matchers__Anon_142 {
+	this_ := &Matchers__Anon_142{}
+	this_.cap_0_className = cap_p_className
+	this_.initFields_Matchers__Anon_142()
+	return this_
+}
+
+// Java method: .matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata metadata)
+func (this_ *Matchers__Anon_142) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
 	if !(node.IsNew()) {
@@ -647,52 +647,9 @@ func (this_ *Matchers__Anon_141) Matches(node pkg_rhino.Node, metadata *NodeMeta
 }
 
 // Java class:
-type Matchers__Anon_142 struct {
+type Matchers__Anon_143 struct {
 	cap_0_name string
 	idHash_    atomic.Int32
-}
-
-func (this_ *Matchers__Anon_142) BindSelf_(s any) {
-	_ = s
-}
-func (this_ *Matchers__Anon_142) IsJavaNil_() bool { return this_ == nil }
-func (*Matchers__Anon_142) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$8", ""
-}
-func (this_ *Matchers__Anon_142) IdentityHash_() int32 {
-	if this_ == nil {
-		return 0
-	}
-	if h := this_.idHash_.Load(); h != 0 {
-		return h
-	}
-	return j2gort.AssignIdentHash(&this_.idHash_)
-}
-func (*Matchers__Anon_142) HasIdentityEquals_()        {}
-func (*Matchers__Anon_142) Implements_jscomp_Matcher() {}
-
-func (this_ *Matchers__Anon_142) initFields_Matchers__Anon_142() {
-	_ = this_
-}
-
-func NewMatchers__Anon_142(cap_p_name string) *Matchers__Anon_142 {
-	this_ := &Matchers__Anon_142{}
-	this_.cap_0_name = cap_p_name
-	this_.initFields_Matchers__Anon_142()
-	return this_
-}
-
-// Java method: .matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata metadata)
-func (this_ *Matchers__Anon_142) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
-	_ = node
-	_ = metadata
-	return (node.IsCall() && Matchers_PropertyAccess_1(this_.cap_0_name).Matches(node.GetFirstChild(), metadata))
-}
-
-// Java class:
-type Matchers__Anon_143 struct {
-	cap_0_numArgs int32
-	idHash_       atomic.Int32
 }
 
 func (this_ *Matchers__Anon_143) BindSelf_(s any) {
@@ -700,7 +657,7 @@ func (this_ *Matchers__Anon_143) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_143) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_143) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$9", ""
+	return "com.google.javascript.refactoring.Matchers$8", ""
 }
 func (this_ *Matchers__Anon_143) IdentityHash_() int32 {
 	if this_ == nil {
@@ -718,9 +675,9 @@ func (this_ *Matchers__Anon_143) initFields_Matchers__Anon_143() {
 	_ = this_
 }
 
-func NewMatchers__Anon_143(cap_p_numArgs int32) *Matchers__Anon_143 {
+func NewMatchers__Anon_143(cap_p_name string) *Matchers__Anon_143 {
 	this_ := &Matchers__Anon_143{}
-	this_.cap_0_numArgs = cap_p_numArgs
+	this_.cap_0_name = cap_p_name
 	this_.initFields_Matchers__Anon_143()
 	return this_
 }
@@ -729,13 +686,13 @@ func NewMatchers__Anon_143(cap_p_numArgs int32) *Matchers__Anon_143 {
 func (this_ *Matchers__Anon_143) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
-	return (node.IsCall() && node.HasXChildren((this_.cap_0_numArgs + int32(1))))
+	return (node.IsCall() && Matchers_PropertyAccess_1(this_.cap_0_name).Matches(node.GetFirstChild(), metadata))
 }
 
 // Java class:
 type Matchers__Anon_144 struct {
-	cap_0_name string
-	idHash_    atomic.Int32
+	cap_0_numArgs int32
+	idHash_       atomic.Int32
 }
 
 func (this_ *Matchers__Anon_144) BindSelf_(s any) {
@@ -743,7 +700,7 @@ func (this_ *Matchers__Anon_144) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_144) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_144) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$10", ""
+	return "com.google.javascript.refactoring.Matchers$9", ""
 }
 func (this_ *Matchers__Anon_144) IdentityHash_() int32 {
 	if this_ == nil {
@@ -761,9 +718,9 @@ func (this_ *Matchers__Anon_144) initFields_Matchers__Anon_144() {
 	_ = this_
 }
 
-func NewMatchers__Anon_144(cap_p_name string) *Matchers__Anon_144 {
+func NewMatchers__Anon_144(cap_p_numArgs int32) *Matchers__Anon_144 {
 	this_ := &Matchers__Anon_144{}
-	this_.cap_0_name = cap_p_name
+	this_.cap_0_numArgs = cap_p_numArgs
 	this_.initFields_Matchers__Anon_144()
 	return this_
 }
@@ -772,22 +729,13 @@ func NewMatchers__Anon_144(cap_p_name string) *Matchers__Anon_144 {
 func (this_ *Matchers__Anon_144) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
-	if node.IsGetProp() {
-		if this_.cap_0_name == j2gort.NullString {
-			return true
-		}
-		if node.MatchesQualifiedName_1_string(this_.cap_0_name) {
-			return true
-		} else if j2gort.JStrIndexOf(this_.cap_0_name, ".prototype.") >= 0 {
-			return Matchers_MatchesPrototypeInstanceVar(node, metadata, this_.cap_0_name)
-		}
-	}
-	return false
+	return (node.IsCall() && node.HasXChildren((this_.cap_0_numArgs + int32(1))))
 }
 
 // Java class:
 type Matchers__Anon_145 struct {
-	idHash_ atomic.Int32
+	cap_0_name string
+	idHash_    atomic.Int32
 }
 
 func (this_ *Matchers__Anon_145) BindSelf_(s any) {
@@ -795,7 +743,7 @@ func (this_ *Matchers__Anon_145) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_145) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_145) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$11", ""
+	return "com.google.javascript.refactoring.Matchers$10", ""
 }
 func (this_ *Matchers__Anon_145) IdentityHash_() int32 {
 	if this_ == nil {
@@ -813,8 +761,9 @@ func (this_ *Matchers__Anon_145) initFields_Matchers__Anon_145() {
 	_ = this_
 }
 
-func NewMatchers__Anon_145() *Matchers__Anon_145 {
+func NewMatchers__Anon_145(cap_p_name string) *Matchers__Anon_145 {
 	this_ := &Matchers__Anon_145{}
+	this_.cap_0_name = cap_p_name
 	this_.initFields_Matchers__Anon_145()
 	return this_
 }
@@ -823,15 +772,22 @@ func NewMatchers__Anon_145() *Matchers__Anon_145 {
 func (this_ *Matchers__Anon_145) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
-	var jsType pkg_rhino.JSType = node.GetJSType()
-	_ = jsType
-	return ((jsType != nil && !jsType.IsJavaNil_()) && jsType.GetJSTypeBase().IsEnumType())
+	if node.IsGetProp() {
+		if this_.cap_0_name == j2gort.NullString {
+			return true
+		}
+		if node.MatchesQualifiedName_1_string(this_.cap_0_name) {
+			return true
+		} else if j2gort.JStrIndexOf(this_.cap_0_name, ".prototype.") >= 0 {
+			return Matchers_MatchesPrototypeInstanceVar(node, metadata, this_.cap_0_name)
+		}
+	}
+	return false
 }
 
 // Java class:
 type Matchers__Anon_146 struct {
-	cap_0_type string
-	idHash_    atomic.Int32
+	idHash_ atomic.Int32
 }
 
 func (this_ *Matchers__Anon_146) BindSelf_(s any) {
@@ -839,7 +795,7 @@ func (this_ *Matchers__Anon_146) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_146) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_146) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$12", ""
+	return "com.google.javascript.refactoring.Matchers$11", ""
 }
 func (this_ *Matchers__Anon_146) IdentityHash_() int32 {
 	if this_ == nil {
@@ -857,9 +813,8 @@ func (this_ *Matchers__Anon_146) initFields_Matchers__Anon_146() {
 	_ = this_
 }
 
-func NewMatchers__Anon_146(cap_p_type string) *Matchers__Anon_146 {
+func NewMatchers__Anon_146() *Matchers__Anon_146 {
 	this_ := &Matchers__Anon_146{}
-	this_.cap_0_type = cap_p_type
 	this_.initFields_Matchers__Anon_146()
 	return this_
 }
@@ -868,21 +823,15 @@ func NewMatchers__Anon_146(cap_p_type string) *Matchers__Anon_146 {
 func (this_ *Matchers__Anon_146) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
-	var providedJsType pkg_rhino.JSType = Matchers_GetJsType_2_NodeMetadata_string(metadata, this_.cap_0_type)
-	_ = providedJsType
-	if providedJsType == nil || providedJsType.IsJavaNil_() {
-		return false
-	}
-	providedJsType = providedJsType.RestrictByNotNullOrUndefined()
 	var jsType pkg_rhino.JSType = node.GetJSType()
 	_ = jsType
-	return (((jsType != nil && !jsType.IsJavaNil_()) && jsType.GetJSTypeBase().IsEnumType()) && providedJsType.GetJSTypeBase().EqualsJSType(jsType.ToMaybeEnumType().GetElementsType().GetPrimitiveType()))
+	return ((jsType != nil && !jsType.IsJavaNil_()) && jsType.GetJSTypeBase().IsEnumType())
 }
 
 // Java class:
 type Matchers__Anon_147 struct {
-	cap_0_rhsMatcher Matcher
-	idHash_          atomic.Int32
+	cap_0_type string
+	idHash_    atomic.Int32
 }
 
 func (this_ *Matchers__Anon_147) BindSelf_(s any) {
@@ -890,7 +839,7 @@ func (this_ *Matchers__Anon_147) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_147) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_147) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$13", ""
+	return "com.google.javascript.refactoring.Matchers$12", ""
 }
 func (this_ *Matchers__Anon_147) IdentityHash_() int32 {
 	if this_ == nil {
@@ -908,9 +857,9 @@ func (this_ *Matchers__Anon_147) initFields_Matchers__Anon_147() {
 	_ = this_
 }
 
-func NewMatchers__Anon_147(cap_p_rhsMatcher Matcher) *Matchers__Anon_147 {
+func NewMatchers__Anon_147(cap_p_type string) *Matchers__Anon_147 {
 	this_ := &Matchers__Anon_147{}
-	this_.cap_0_rhsMatcher = cap_p_rhsMatcher
+	this_.cap_0_type = cap_p_type
 	this_.initFields_Matchers__Anon_147()
 	return this_
 }
@@ -919,13 +868,21 @@ func NewMatchers__Anon_147(cap_p_rhsMatcher Matcher) *Matchers__Anon_147 {
 func (this_ *Matchers__Anon_147) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
-	return (node.IsAssign() && this_.cap_0_rhsMatcher.Matches(node.GetLastChild(), metadata))
+	var providedJsType pkg_rhino.JSType = Matchers_GetJsType_2_NodeMetadata_string(metadata, this_.cap_0_type)
+	_ = providedJsType
+	if providedJsType == nil || providedJsType.IsJavaNil_() {
+		return false
+	}
+	providedJsType = providedJsType.RestrictByNotNullOrUndefined()
+	var jsType pkg_rhino.JSType = node.GetJSType()
+	_ = jsType
+	return (((jsType != nil && !jsType.IsJavaNil_()) && jsType.GetJSTypeBase().IsEnumType()) && providedJsType.GetJSTypeBase().EqualsJSType(jsType.ToMaybeEnumType().GetElementsType().GetPrimitiveType()))
 }
 
 // Java class:
 type Matchers__Anon_148 struct {
-	cap_0_type string
-	idHash_    atomic.Int32
+	cap_0_rhsMatcher Matcher
+	idHash_          atomic.Int32
 }
 
 func (this_ *Matchers__Anon_148) BindSelf_(s any) {
@@ -933,7 +890,7 @@ func (this_ *Matchers__Anon_148) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_148) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_148) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$14", ""
+	return "com.google.javascript.refactoring.Matchers$13", ""
 }
 func (this_ *Matchers__Anon_148) IdentityHash_() int32 {
 	if this_ == nil {
@@ -951,15 +908,58 @@ func (this_ *Matchers__Anon_148) initFields_Matchers__Anon_148() {
 	_ = this_
 }
 
-func NewMatchers__Anon_148(cap_p_type string) *Matchers__Anon_148 {
+func NewMatchers__Anon_148(cap_p_rhsMatcher Matcher) *Matchers__Anon_148 {
 	this_ := &Matchers__Anon_148{}
-	this_.cap_0_type = cap_p_type
+	this_.cap_0_rhsMatcher = cap_p_rhsMatcher
 	this_.initFields_Matchers__Anon_148()
 	return this_
 }
 
 // Java method: .matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata metadata)
 func (this_ *Matchers__Anon_148) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
+	_ = node
+	_ = metadata
+	return (node.IsAssign() && this_.cap_0_rhsMatcher.Matches(node.GetLastChild(), metadata))
+}
+
+// Java class:
+type Matchers__Anon_149 struct {
+	cap_0_type string
+	idHash_    atomic.Int32
+}
+
+func (this_ *Matchers__Anon_149) BindSelf_(s any) {
+	_ = s
+}
+func (this_ *Matchers__Anon_149) IsJavaNil_() bool { return this_ == nil }
+func (*Matchers__Anon_149) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.refactoring.Matchers$14", ""
+}
+func (this_ *Matchers__Anon_149) IdentityHash_() int32 {
+	if this_ == nil {
+		return 0
+	}
+	if h := this_.idHash_.Load(); h != 0 {
+		return h
+	}
+	return j2gort.AssignIdentHash(&this_.idHash_)
+}
+func (*Matchers__Anon_149) HasIdentityEquals_()        {}
+func (*Matchers__Anon_149) Implements_jscomp_Matcher() {}
+
+func (this_ *Matchers__Anon_149) initFields_Matchers__Anon_149() {
+	_ = this_
+}
+
+func NewMatchers__Anon_149(cap_p_type string) *Matchers__Anon_149 {
+	this_ := &Matchers__Anon_149{}
+	this_.cap_0_type = cap_p_type
+	this_.initFields_Matchers__Anon_149()
+	return this_
+}
+
+// Java method: .matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata metadata)
+func (this_ *Matchers__Anon_149) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
 	var providedJsType pkg_rhino.JSType = Matchers_GetJsType_2_NodeMetadata_string(metadata, this_.cap_0_type)
@@ -981,60 +981,6 @@ func (this_ *Matchers__Anon_148) Matches(node pkg_rhino.Node, metadata *NodeMeta
 }
 
 // Java class:
-type Matchers__Anon_149 struct {
-	idHash_ atomic.Int32
-}
-
-func (this_ *Matchers__Anon_149) BindSelf_(s any) {
-	_ = s
-}
-func (this_ *Matchers__Anon_149) IsJavaNil_() bool { return this_ == nil }
-func (*Matchers__Anon_149) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$15", ""
-}
-func (this_ *Matchers__Anon_149) IdentityHash_() int32 {
-	if this_ == nil {
-		return 0
-	}
-	if h := this_.idHash_.Load(); h != 0 {
-		return h
-	}
-	return j2gort.AssignIdentHash(&this_.idHash_)
-}
-func (*Matchers__Anon_149) HasIdentityEquals_()        {}
-func (*Matchers__Anon_149) Implements_jscomp_Matcher() {}
-
-func (this_ *Matchers__Anon_149) initFields_Matchers__Anon_149() {
-	_ = this_
-}
-
-func NewMatchers__Anon_149() *Matchers__Anon_149 {
-	this_ := &Matchers__Anon_149{}
-	this_.initFields_Matchers__Anon_149()
-	return this_
-}
-
-// Java method: .matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata metadata)
-func (this_ *Matchers__Anon_149) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
-	_ = node
-	_ = metadata
-	if (!(node.IsAssign()) || !(node.GetFirstChild().IsGetProp())) || !(node.GetFirstFirstChild().IsThis()) {
-		return false
-	}
-	for (node != 0) && !(node.IsFunction()) {
-		node = node.GetParent()
-	}
-	if (node != 0) && node.IsFunction() {
-		var jsDoc *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(node)
-		_ = jsDoc
-		if jsDoc != nil {
-			return jsDoc.IsConstructor()
-		}
-	}
-	return false
-}
-
-// Java class:
 type Matchers__Anon_150 struct {
 	idHash_ atomic.Int32
 }
@@ -1044,7 +990,7 @@ func (this_ *Matchers__Anon_150) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_150) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_150) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$16", ""
+	return "com.google.javascript.refactoring.Matchers$15", ""
 }
 func (this_ *Matchers__Anon_150) IdentityHash_() int32 {
 	if this_ == nil {
@@ -1072,18 +1018,25 @@ func NewMatchers__Anon_150() *Matchers__Anon_150 {
 func (this_ *Matchers__Anon_150) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
-	var jsDoc *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(node)
-	_ = jsDoc
-	if jsDoc != nil {
-		return (jsDoc.GetVisibility() == pkg_rhino.StaticGet_JSDocInfo_Visibility_PRIVATE())
+	if (!(node.IsAssign()) || !(node.GetFirstChild().IsGetProp())) || !(node.GetFirstFirstChild().IsThis()) {
+		return false
+	}
+	for (node != 0) && !(node.IsFunction()) {
+		node = node.GetParent()
+	}
+	if (node != 0) && node.IsFunction() {
+		var jsDoc *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(node)
+		_ = jsDoc
+		if jsDoc != nil {
+			return jsDoc.IsConstructor()
+		}
 	}
 	return false
 }
 
 // Java class:
 type Matchers__Anon_151 struct {
-	idHash_                   atomic.Int32
-	cap_0_requireFunctionType bool
+	idHash_ atomic.Int32
 }
 
 func (this_ *Matchers__Anon_151) BindSelf_(s any) {
@@ -1091,7 +1044,7 @@ func (this_ *Matchers__Anon_151) BindSelf_(s any) {
 }
 func (this_ *Matchers__Anon_151) IsJavaNil_() bool { return this_ == nil }
 func (*Matchers__Anon_151) JavaClassInfo_() (string, string) {
-	return "com.google.javascript.refactoring.Matchers$17", ""
+	return "com.google.javascript.refactoring.Matchers$16", ""
 }
 func (this_ *Matchers__Anon_151) IdentityHash_() int32 {
 	if this_ == nil {
@@ -1109,15 +1062,62 @@ func (this_ *Matchers__Anon_151) initFields_Matchers__Anon_151() {
 	_ = this_
 }
 
-func NewMatchers__Anon_151(cap_p_requireFunctionType bool) *Matchers__Anon_151 {
+func NewMatchers__Anon_151() *Matchers__Anon_151 {
 	this_ := &Matchers__Anon_151{}
-	this_.cap_0_requireFunctionType = cap_p_requireFunctionType
 	this_.initFields_Matchers__Anon_151()
 	return this_
 }
 
 // Java method: .matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata metadata)
 func (this_ *Matchers__Anon_151) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
+	_ = node
+	_ = metadata
+	var jsDoc *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(node)
+	_ = jsDoc
+	if jsDoc != nil {
+		return (jsDoc.GetVisibility() == pkg_rhino.StaticGet_JSDocInfo_Visibility_PRIVATE())
+	}
+	return false
+}
+
+// Java class:
+type Matchers__Anon_152 struct {
+	idHash_                   atomic.Int32
+	cap_0_requireFunctionType bool
+}
+
+func (this_ *Matchers__Anon_152) BindSelf_(s any) {
+	_ = s
+}
+func (this_ *Matchers__Anon_152) IsJavaNil_() bool { return this_ == nil }
+func (*Matchers__Anon_152) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.refactoring.Matchers$17", ""
+}
+func (this_ *Matchers__Anon_152) IdentityHash_() int32 {
+	if this_ == nil {
+		return 0
+	}
+	if h := this_.idHash_.Load(); h != 0 {
+		return h
+	}
+	return j2gort.AssignIdentHash(&this_.idHash_)
+}
+func (*Matchers__Anon_152) HasIdentityEquals_()        {}
+func (*Matchers__Anon_152) Implements_jscomp_Matcher() {}
+
+func (this_ *Matchers__Anon_152) initFields_Matchers__Anon_152() {
+	_ = this_
+}
+
+func NewMatchers__Anon_152(cap_p_requireFunctionType bool) *Matchers__Anon_152 {
+	this_ := &Matchers__Anon_152{}
+	this_.cap_0_requireFunctionType = cap_p_requireFunctionType
+	this_.initFields_Matchers__Anon_152()
+	return this_
+}
+
+// Java method: .matches(com.google.javascript.rhino.Node node, com.google.javascript.refactoring.NodeMetadata metadata)
+func (this_ *Matchers__Anon_152) Matches(node pkg_rhino.Node, metadata *NodeMetadata) bool {
 	_ = node
 	_ = metadata
 	var firstChild pkg_rhino.Node = node.GetFirstChild()

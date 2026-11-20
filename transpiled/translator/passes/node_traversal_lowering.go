@@ -4175,6 +4175,7 @@ func (p *NodeTraversalLoweringPass) rewriteTraverseBranchAndChildren(
 
 	var (
 		traverseBranchFD    *ast.FuncDecl
+		traverseBranchBlkFD *ast.FuncDecl
 		traverseChildrenFD  *ast.FuncDecl
 		createsBlockScopeFD *ast.FuncDecl
 		hasPushScope        bool
@@ -4190,6 +4191,8 @@ func (p *NodeTraversalLoweringPass) rewriteTraverseBranchAndChildren(
 			switch {
 			case hasPrivMethodPrefix(name, "priv_NodeTraversal_traverseBranch_"):
 				traverseBranchFD = fd
+			case name == "traverseBranchBlk_":
+				traverseBranchBlkFD = fd
 			case hasPrivMethodPrefix(name, "priv_NodeTraversal_traverseChildren_"):
 				traverseChildrenFD = fd
 			case hasPrivMethodPrefix(name, "priv_NodeTraversal_createsBlockScope_"):
@@ -4212,23 +4215,29 @@ func (p *NodeTraversalLoweringPass) rewriteTraverseBranchAndChildren(
 	}
 
 	branchHasFirstNext := ntContainsIdent(traverseBranchFD.Body, "FirstNextTok_")
-	branchHasBlockOf := ntContainsIdent(traverseBranchFD.Body, "BlockOf")
+	branchCallsBlk := ntContainsIdent(traverseBranchFD.Body, "traverseBranchBlk_")
+	hasBranchBlk := traverseBranchBlkFD != nil
 	childrenHasFirstNext := traverseChildrenFD == nil || ntContainsIdent(traverseChildrenFD.Body, "FirstNextTok_")
-	childrenHasBlockOf := traverseChildrenFD == nil || ntContainsIdent(traverseChildrenFD.Body, "BlockOf")
+	childrenCallsBlk := traverseChildrenFD == nil || ntContainsIdent(traverseChildrenFD.Body, "traverseBranchBlk_")
 
-	branchDone := branchHasFirstNext && (!hasBlockOf || branchHasBlockOf)
-	childrenDone := (childrenHasFirstNext || childrenHasBlockOf) && (!hasBlockOf || childrenHasBlockOf)
+	wantBranchBlk := hasBlockOf && nodeTypeSrc != ""
+	branchDone := (wantBranchBlk && hasBranchBlk && branchCallsBlk) || (!wantBranchBlk && branchHasFirstNext)
+	childrenDone := (wantBranchBlk && childrenCallsBlk) || (!wantBranchBlk && childrenHasFirstNext)
 	if branchDone && childrenDone {
 		return 0, nil
 	}
 
 	nsQual := ""
-	if hasBlockOf {
+	if wantBranchBlk {
 		var ok bool
 		nsQual, ok = ensurePkgImportInFile(file, nodestorePkg.Path(), "nodestore", ctx)
 		if !ok {
 			nsQual = ""
 		}
+	}
+	useBranchBlk := nsQual != "" && nodeTypeSrc != ""
+	if !useBranchBlk && branchHasFirstNext && childrenHasFirstNext {
+		return 0, nil
 	}
 
 	blockScopeToks, ok := extractCreatesBlockScopeTokens(createsBlockScopeFD, ctx.Info)
@@ -4237,7 +4246,7 @@ func (p *NodeTraversalLoweringPass) rewriteTraverseBranchAndChildren(
 	}
 
 	sites := 0
-	if !branchHasFirstNext {
+	if !branchHasFirstNext && !branchCallsBlk {
 		specialToks, rewrittenStmts, err := buildLoweredTraverseBranchStmts(
 			ctx.Fset,
 			ctx.Info,
@@ -4246,6 +4255,7 @@ func (p *NodeTraversalLoweringPass) rewriteTraverseBranchAndChildren(
 			traverseChildrenFD,
 			nsQual,
 			nodeTypeSrc,
+			useBranchBlk,
 		)
 		if err != nil {
 			return 0, err
@@ -4262,32 +4272,74 @@ func (p *NodeTraversalLoweringPass) rewriteTraverseBranchAndChildren(
 			file.Decls = append(file.Decls, tableDecls...)
 		}
 
-		traverseBranchFD.Body.List = rewrittenStmts
-		sites++
-	} else if nsQual != "" && !branchHasBlockOf && fileHasTopLevelVar(file, "nodeTraversalSpecialOrBlockTok_") {
-		recvName := singleParamOrRecvName(traverseBranchFD.Recv)
-		if recvName != "" {
-			rewrote, err := rewriteChildLoopsInBlock(
+		if useBranchBlk {
+			recvName := singleParamOrRecvName(traverseBranchFD.Recv)
+			params := flatParamNames(traverseBranchFD.Type.Params)
+			if recvName == "" || len(params) != 2 {
+				return sites, nil
+			}
+			if !hasBranchBlk {
+				blkDecl, err := buildTraverseBranchBlkDecl(
+					ctx.Fset,
+					recvName,
+					params[0],
+					params[1],
+					nodeTypeSrc,
+					nsQual,
+					rewrittenStmts,
+				)
+				if err != nil {
+					return sites, err
+				}
+				file.Decls = append(file.Decls, blkDecl)
+				hasBranchBlk = true
+			}
+			trampolineStmts, err := buildTraverseBranchTrampolineStmts(
 				ctx.Fset,
-				traverseBranchFD.Body,
 				recvName,
-				traverseBranchFD.Name.Name,
-				"",
-				nsQual,
+				params[0],
+				params[1],
 				nodeTypeSrc,
+				nsQual,
 			)
 			if err != nil {
 				return sites, err
 			}
-			if rewrote > 0 {
-				sites++
+			pruneCommentsInRange(file, traverseBranchFD.Body.Lbrace, traverseBranchFD.Body.Rbrace)
+			traverseBranchFD.Body.List = trampolineStmts
+			sites++
+		} else {
+			traverseBranchFD.Body.List = rewrittenStmts
+			sites++
+		}
+	} else if useBranchBlk && branchHasFirstNext && !branchCallsBlk && fileHasTopLevelVar(file, "nodeTraversalSpecialOrBlockTok_") {
+		blkDecl, trampolineStmts, err := upgradeLoweredTraverseBranchToBlk(
+			ctx.Fset,
+			traverseBranchFD,
+			nsQual,
+			nodeTypeSrc,
+		)
+		if err != nil {
+			return sites, err
+		}
+		if blkDecl != nil && trampolineStmts != nil {
+			if !hasBranchBlk {
+				file.Decls = append(file.Decls, blkDecl)
+				hasBranchBlk = true
 			}
+			pruneCommentsInRange(file, traverseBranchFD.Body.Lbrace, traverseBranchFD.Body.Rbrace)
+			traverseBranchFD.Body.List = trampolineStmts
+			sites++
 		}
 	}
 
 	if traverseChildrenFD != nil && !childrenDone && fileHasTopLevelVar(file, "nodeTraversalSpecialOrBlockTok_") {
 		recvName := singleParamOrRecvName(traverseChildrenFD.Recv)
 		if recvName != "" {
+			mode := childLoopModeLegacy
+			if useBranchBlk && hasBranchBlk {
+				mode = childLoopModeTraverseChildrenBlk
+			}
 			rewrote, err := rewriteChildLoopsInBlock(
 				ctx.Fset,
 				traverseChildrenFD.Body,
@@ -4296,6 +4348,7 @@ func (p *NodeTraversalLoweringPass) rewriteTraverseBranchAndChildren(
 				"",
 				nsQual,
 				nodeTypeSrc,
+				mode,
 			)
 			if err != nil {
 				return sites, err
@@ -4426,6 +4479,14 @@ func extractCreatesBlockScopeTokens(fd *ast.FuncDecl, info *types.Info) ([]int, 
 	return sortDedupInts(toks), len(toks) > 0
 }
 
+type childLoopMode int
+
+const (
+	childLoopModeLegacy childLoopMode = iota
+	childLoopModeTraverseBranchBlk
+	childLoopModeTraverseChildrenBlk
+)
+
 func buildLoweredTraverseBranchStmts(
 	fset *token.FileSet,
 	info *types.Info,
@@ -4434,6 +4495,7 @@ func buildLoweredTraverseBranchStmts(
 	traverseChildrenFD *ast.FuncDecl,
 	nsQual string,
 	nodeTypeSrc string,
+	useBranchBlk bool,
 ) ([]int, []ast.Stmt, error) {
 	recvName := singleParamOrRecvName(fd.Recv)
 	params := flatParamNames(fd.Type.Params)
@@ -4532,7 +4594,11 @@ func buildLoweredTraverseBranchStmts(
 	if traverseChildrenFD != nil && traverseChildrenFD.Name != nil {
 		traverseChildrenName = traverseChildrenFD.Name.Name
 	}
-	rewroteLoops, err := rewriteChildLoopsInBlock(fset, midBlock, recvName, fd.Name.Name, traverseChildrenName, nsQual, nodeTypeSrc)
+	loopMode := childLoopModeLegacy
+	if useBranchBlk {
+		loopMode = childLoopModeTraverseBranchBlk
+	}
+	rewroteLoops, err := rewriteChildLoopsInBlock(fset, midBlock, recvName, fd.Name.Name, traverseChildrenName, nsQual, nodeTypeSrc, loopMode)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -4541,20 +4607,34 @@ func buildLoweredTraverseBranchStmts(
 	}
 
 	// Construct replacement fragments!
-	entryBlock, err := parseFuncBodySnippet(fset, fmt.Sprintf(`package p
+	tokIdent := "tok_"
+	var entrySrc string
+	if useBranchBlk {
+		tokIdent = "nTok"
+		entrySrc = fmt.Sprintf(`package p
+func f() {
+	if nTok == 0xFF {
+		_ = %[1]s.TokenSwitchOrd_()
+	}
+}
+`, nParam)
+	} else {
+		entrySrc = fmt.Sprintf(`package p
 func f() {
 	_, _, tok_ := %[1]s.FirstNextTok_()
 	if tok_ == 0xFF {
 		_ = %[1]s.TokenSwitchOrd_()
 	}
 }
-`, nParam))
+`, nParam)
+	}
+	entryBlock, err := parseFuncBodySnippet(fset, entrySrc)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	newSwitch := *origSwitch
-	tagExpr, err := parser.ParseExpr("int32(tok_)")
+	tagExpr, err := parser.ParseExpr(fmt.Sprintf("int32(%s)", tokIdent))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -4568,11 +4648,11 @@ func f() {
 	cbsGateBlock, err := parseFuncBodySnippet(fset, fmt.Sprintf(`package p
 func f() {
 	var createsBlockScope bool
-	if nodeTraversalBlockScopeTok_[tok_] {
-		createsBlockScope = %s
+	if nodeTraversalBlockScopeTok_[%[1]s] {
+		createsBlockScope = %[2]s
 	}
 }
-`, cbsCallSrc))
+`, tokIdent, cbsCallSrc))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -4596,6 +4676,174 @@ func f() {
 	out = append(out, stmts[endLen:]...)
 
 	return specialToks, out, nil
+}
+
+func upgradeLoweredTraverseBranchToBlk(
+	fset *token.FileSet,
+	fd *ast.FuncDecl,
+	nsQual string,
+	nodeTypeSrc string,
+) (ast.Decl, []ast.Stmt, error) {
+	if fd == nil || fd.Body == nil || nsQual == "" || nodeTypeSrc == "" {
+		return nil, nil, nil
+	}
+	recvName := singleParamOrRecvName(fd.Recv)
+	params := flatParamNames(fd.Type.Params)
+	if recvName == "" || len(params) != 2 {
+		return nil, nil, nil
+	}
+	nParam, parentParam := params[0], params[1]
+	stmts := fd.Body.List
+	fntIdx := skipPreambleStmts(stmts)
+	if fntIdx >= len(stmts) {
+		return nil, nil, nil
+	}
+	tokVar, ok := matchFirstNextTokEntryStmt(stmts[fntIdx], nParam)
+	if !ok {
+		return nil, nil, nil
+	}
+	if !ntContainsIdent(fd.Body, "createsBlockScope") ||
+		!ntContainsIdent(fd.Body, "nodeTraversalBlockScopeTok_") ||
+		!ntContainsIdent(fd.Body, "alwaysTraverse_") {
+		return nil, nil, nil
+	}
+
+	blkStmts := make([]ast.Stmt, 0, len(stmts)-1)
+	blkStmts = append(blkStmts, stmts[:fntIdx]...)
+	blkStmts = append(blkStmts, stmts[fntIdx+1:]...)
+	blkBlock := &ast.BlockStmt{List: blkStmts}
+
+	rewrote, err := rewriteChildLoopsInBlock(
+		fset,
+		blkBlock,
+		recvName,
+		fd.Name.Name,
+		"",
+		nsQual,
+		nodeTypeSrc,
+		childLoopModeTraverseBranchBlk,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	if rewrote != 1 {
+		return nil, nil, nil
+	}
+	replaceIdentNameInAST(blkBlock, tokVar, "nTok")
+
+	blkDecl, err := buildTraverseBranchBlkDecl(fset, recvName, nParam, parentParam, nodeTypeSrc, nsQual, blkBlock.List)
+	if err != nil {
+		return nil, nil, err
+	}
+	trampolineStmts, err := buildTraverseBranchTrampolineStmts(fset, recvName, nParam, parentParam, nodeTypeSrc, nsQual)
+	if err != nil {
+		return nil, nil, err
+	}
+	return blkDecl, trampolineStmts, nil
+}
+
+func buildTraverseBranchBlkDecl(
+	fset *token.FileSet,
+	recvName string,
+	nParam string,
+	parentParam string,
+	nodeTypeSrc string,
+	nsQual string,
+	bodyStmts []ast.Stmt,
+) (ast.Decl, error) {
+	var bodyBuf bytes.Buffer
+	if err := printer.Fprint(&bodyBuf, fset, &ast.BlockStmt{List: bodyStmts}); err != nil {
+		return nil, err
+	}
+	src := fmt.Sprintf(
+		"package p\nfunc (%[1]s *NodeTraversal) traverseBranchBlk_(%[2]s, %[3]s, nFirst %[4]s, nTok uint8, curBlkIdx_ uint32, curBlk_ *%[5]s.NodeBlock) %[6]s\n",
+		recvName, nParam, parentParam, nodeTypeSrc, nsQual, bodyBuf.String(),
+	)
+	decls, err := parseDeclsSnippet(fset, src)
+	if err != nil {
+		return nil, err
+	}
+	if len(decls) != 1 {
+		return nil, fmt.Errorf("expected 1 decl for traverseBranchBlk_, got %d", len(decls))
+	}
+	return decls[0], nil
+}
+
+func buildTraverseBranchTrampolineStmts(
+	fset *token.FileSet,
+	recvName string,
+	nParam string,
+	parentParam string,
+	nodeTypeSrc string,
+	nsQual string,
+) ([]ast.Stmt, error) {
+	body, err := parseFuncBodySnippet(fset, fmt.Sprintf(`package p
+func f() {
+	curBlkIdx_ := uint32(%[2]s) >> %[5]s.BlockShift
+	curBlk_ := %[5]s.BlockOf(%[5]s.Node(%[2]s))
+	f_, _, tok_ := curBlk_.FirstNextTok(%[5]s.Node(%[2]s))
+	%[1]s.traverseBranchBlk_(%[2]s, %[3]s, %[4]s(f_), tok_, curBlkIdx_, curBlk_)
+}
+`, recvName, nParam, parentParam, nodeTypeSrc, nsQual))
+	if err != nil {
+		return nil, err
+	}
+	return body.List, nil
+}
+
+func matchFirstNextTokEntryStmt(stmt ast.Stmt, nParam string) (string, bool) {
+	as, ok := stmt.(*ast.AssignStmt)
+	if !ok || as.Tok != token.DEFINE || len(as.Lhs) != 3 || len(as.Rhs) != 1 {
+		return "", false
+	}
+	if !isIdentNamed(as.Lhs[0], "_") || !isIdentNamed(as.Lhs[1], "_") {
+		return "", false
+	}
+	tokID, ok := stripParens(as.Lhs[2]).(*ast.Ident)
+	if !ok || tokID.Name == "" || tokID.Name == "_" {
+		return "", false
+	}
+	recv, ok := matchMethod0ArgOnIdent(as.Rhs[0], "FirstNextTok_")
+	if !ok || recv != nParam {
+		return "", false
+	}
+	return tokID.Name, true
+}
+
+func pruneCommentsInRange(file *ast.File, start, end token.Pos) {
+	if file == nil || !start.IsValid() || !end.IsValid() || end <= start {
+		return
+	}
+	kept := file.Comments[:0]
+	for _, cg := range file.Comments {
+		if cg == nil {
+			continue
+		}
+		if cg.Pos() >= start && cg.End() <= end {
+			continue
+		}
+		kept = append(kept, cg)
+	}
+	file.Comments = kept
+}
+
+func replaceIdentNameInAST(node ast.Node, oldName, newName string) {
+	if node == nil || oldName == "" || oldName == newName {
+		return
+	}
+	ast.Inspect(node, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.SelectorExpr:
+			replaceIdentNameInAST(x.X, oldName, newName)
+			return false
+		case *ast.Ident:
+			if x.Name == oldName {
+				x.Name = newName
+			}
+			return false
+		}
+		return true
+	})
 }
 
 func verifyAndExtractTraverseBranchSwitch(sw *ast.SwitchStmt, recvName string, info *types.Info) ([]int, bool) {
@@ -4671,6 +4919,7 @@ func rewriteChildLoopsInBlock(
 	traverseChildrenMethod string,
 	nsQual string,
 	nodeTypeSrc string,
+	mode childLoopMode,
 ) (int, error) {
 	if block == nil {
 		return 0, nil
@@ -4679,10 +4928,24 @@ func rewriteChildLoopsInBlock(
 	var newList []ast.Stmt
 	stmts := block.List
 	for i := 0; i < len(stmts); i++ {
+		// Pattern 6: upgrade Wave 22C BlockOf-cached child loop to Wave 47B traverseBranchBlk_ loop.
+		if mode != childLoopModeLegacy && nsQual != "" {
+			if parentVar, consumed, ok := matchExistingBlockCachedChildLoop(stmts, i, recvName, traverseBranchMethod); ok {
+				repl, err := buildUnrolledChildLoopStmts(fset, recvName, parentVar, traverseBranchMethod, nsQual, nodeTypeSrc, mode)
+				if err != nil {
+					return rewrote, err
+				}
+				newList = append(newList, repl...)
+				rewrote++
+				i += consumed - 1
+				continue
+			}
+		}
+
 		// Pattern 1: direct `for child := parent.GetFirstChild(); child != 0; { ... }`
 		if fs, ok := stmts[i].(*ast.ForStmt); ok {
 			if parentVar, ok := matchForStmtWithInit(fs, recvName, traverseBranchMethod); ok {
-				repl, err := buildUnrolledChildLoopStmts(fset, recvName, parentVar, traverseBranchMethod, nsQual, nodeTypeSrc)
+				repl, err := buildUnrolledChildLoopStmts(fset, recvName, parentVar, traverseBranchMethod, nsQual, nodeTypeSrc, mode)
 				if err != nil {
 					return rewrote, err
 				}
@@ -4690,10 +4953,10 @@ func rewriteChildLoopsInBlock(
 				rewrote++
 				continue
 			}
-			// Pattern 5: upgrade pre-lowered FirstNextTok_() child loop to BlockOf-cached child loop.
+			// Pattern 5: upgrade pre-lowered FirstNextTok_() child loop to BlockOf-cached / traverseBranchBlk_ child loop.
 			if nsQual != "" {
 				if parentVar, ok := matchExistingUnrolledChildLoop(fs, recvName, traverseBranchMethod); ok {
-					repl, err := buildUnrolledChildLoopStmts(fset, recvName, parentVar, traverseBranchMethod, nsQual, nodeTypeSrc)
+					repl, err := buildUnrolledChildLoopStmts(fset, recvName, parentVar, traverseBranchMethod, nsQual, nodeTypeSrc, mode)
 					if err != nil {
 						return rewrote, err
 					}
@@ -4707,7 +4970,7 @@ func rewriteChildLoopsInBlock(
 		// Pattern 2: block `{ var child ... = parent.GetFirstChild(); _ = child; for child != 0 { ... } }`
 		if bs, ok := stmts[i].(*ast.BlockStmt); ok {
 			if parentVar, ok := matchScopedChildLoopBlock(bs, recvName, traverseBranchMethod); ok {
-				repl, err := buildUnrolledChildLoopStmts(fset, recvName, parentVar, traverseBranchMethod, nsQual, nodeTypeSrc)
+				repl, err := buildUnrolledChildLoopStmts(fset, recvName, parentVar, traverseBranchMethod, nsQual, nodeTypeSrc, mode)
 				if err != nil {
 					return rewrote, err
 				}
@@ -4723,7 +4986,7 @@ func rewriteChildLoopsInBlock(
 			if nextIdx < len(stmts) {
 				if fs, isFor := stmts[nextIdx].(*ast.ForStmt); isFor && fs.Init == nil &&
 					matchChildLoopForBody(fs, childVar, parentVar, recvName, traverseBranchMethod) {
-					repl, err := buildUnrolledChildLoopStmts(fset, recvName, parentVar, traverseBranchMethod, nsQual, nodeTypeSrc)
+					repl, err := buildUnrolledChildLoopStmts(fset, recvName, parentVar, traverseBranchMethod, nsQual, nodeTypeSrc, mode)
 					if err != nil {
 						return rewrote, err
 					}
@@ -4738,7 +5001,7 @@ func rewriteChildLoopsInBlock(
 		// Pattern 4: direct call `this_.priv_NodeTraversal_traverseChildren_*(parentVar)` inside traverseBranch
 		if traverseChildrenMethod != "" {
 			if parentVar, ok := matchDirectMethod1ArgCallStmt(stmts[i], recvName, traverseChildrenMethod); ok {
-				repl, err := buildUnrolledChildLoopStmts(fset, recvName, parentVar, traverseBranchMethod, nsQual, nodeTypeSrc)
+				repl, err := buildUnrolledChildLoopStmts(fset, recvName, parentVar, traverseBranchMethod, nsQual, nodeTypeSrc, mode)
 				if err != nil {
 					return rewrote, err
 				}
@@ -4752,6 +5015,51 @@ func rewriteChildLoopsInBlock(
 	}
 	block.List = newList
 	return rewrote, nil
+}
+
+func matchExistingBlockCachedChildLoop(
+	stmts []ast.Stmt,
+	idx int,
+	recvName string,
+	traverseBranchMethod string,
+) (string, int, bool) {
+	if idx+2 >= len(stmts) {
+		return "", 0, false
+	}
+	if !isVarDeclNamed(stmts[idx], "curBlkIdx_") || !isVarDeclNamed(stmts[idx+1], "curBlk_") {
+		return "", 0, false
+	}
+	fs, ok := stmts[idx+2].(*ast.ForStmt)
+	if !ok || fs.Init == nil || fs.Post != nil || fs.Body == nil || len(fs.Body.List) != 6 {
+		return "", 0, false
+	}
+	childVar, parentVar, ok := matchFirstChildLocalInit(fs.Init)
+	if !ok || childVar != "child_" || !isNodeNonZeroCond(fs.Cond, "child_") {
+		return "", 0, false
+	}
+	if !ntContainsIdent(fs.Body.List[2], "BlockOf") || !ntContainsIdent(fs.Body.List[2], "FirstNextTok") {
+		return "", 0, false
+	}
+	if !isTraverseBranchCallStmt(fs.Body.List[4], recvName, traverseBranchMethod, "child_", parentVar) {
+		return "", 0, false
+	}
+	if !isSimpleIdentAssign(fs.Body.List[5], "child_", "next_") {
+		return "", 0, false
+	}
+	return parentVar, 3, true
+}
+
+func isVarDeclNamed(stmt ast.Stmt, name string) bool {
+	ds, ok := stmt.(*ast.DeclStmt)
+	if !ok {
+		return false
+	}
+	gd, ok := ds.Decl.(*ast.GenDecl)
+	if !ok || gd.Tok != token.VAR || len(gd.Specs) != 1 {
+		return false
+	}
+	vs, ok := gd.Specs[0].(*ast.ValueSpec)
+	return ok && len(vs.Names) == 1 && vs.Names[0].Name == name
 }
 
 func matchExistingUnrolledChildLoop(fs *ast.ForStmt, recvName, traverseBranchMethod string) (string, bool) {
@@ -4785,23 +5093,43 @@ func buildUnrolledChildLoopStmts(
 	traverseBranchMethod string,
 	nsQual string,
 	nodeTypeSrc string,
+	mode childLoopMode,
 ) ([]ast.Stmt, error) {
-	if nsQual != "" && nodeTypeSrc != "" {
+	if nsQual != "" && nodeTypeSrc != "" && (mode == childLoopModeTraverseBranchBlk || mode == childLoopModeTraverseChildrenBlk) {
+		var initSrc string
+		if mode == childLoopModeTraverseBranchBlk {
+			initSrc = fmt.Sprintf(`	var child_ %[4]s
+	if %[1]s.alwaysTraverse_ && !createsBlockScope {
+		child_ = nFirst
+	} else if nIdx_ := uint32(%[2]s) >> %[3]s.BlockShift; nIdx_ == curBlkIdx_ {
+		f_, _, _ := curBlk_.FirstNextTok(%[3]s.Node(%[2]s))
+		child_ = %[4]s(f_)
+	} else {
+		curBlk_ = %[3]s.BlockOf(%[3]s.Node(%[2]s))
+		curBlkIdx_ = nIdx_
+		f_, _, _ := curBlk_.FirstNextTok(%[3]s.Node(%[2]s))
+		child_ = %[4]s(f_)
+	}
+	for child_ != 0 {`, recvName, parentVar, nsQual, nodeTypeSrc)
+		} else {
+			initSrc = fmt.Sprintf(`	curBlkIdx_ := uint32(%[2]s) >> %[3]s.BlockShift
+	curBlk_ := %[3]s.BlockOf(%[3]s.Node(%[2]s))
+	nFirst_, _, _ := curBlk_.FirstNextTok(%[3]s.Node(%[2]s))
+	for child_ := %[4]s(nFirst_); child_ != 0; {`, recvName, parentVar, nsQual, nodeTypeSrc)
+		}
 		body, err := parseFuncBodySnippet(fset, fmt.Sprintf(`package p
 func f() {
-	var curBlkIdx_ uint32 = 0xFFFFFFFF
-	var curBlk_ *%[4]s.NodeBlock
-	for child_ := %[2]s.GetFirstChild(); child_ != 0; {
-		var cFirst_, next_ %[5]s
+%[5]s
+		var cFirst_, next_ %[4]s
 		var cTok_ uint8
-		if idx_ := uint32(child_) >> %[4]s.BlockShift; idx_ == curBlkIdx_ {
-			f_, nx_, t_ := curBlk_.FirstNextTok(%[4]s.Node(child_))
-			cFirst_, next_, cTok_ = %[5]s(f_), %[5]s(nx_), t_
+		if idx_ := uint32(child_) >> %[3]s.BlockShift; idx_ == curBlkIdx_ {
+			f_, nx_, t_ := curBlk_.FirstNextTok(%[3]s.Node(child_))
+			cFirst_, next_, cTok_ = %[4]s(f_), %[4]s(nx_), t_
 		} else {
-			curBlk_ = %[4]s.BlockOf(%[4]s.Node(child_))
+			curBlk_ = %[3]s.BlockOf(%[3]s.Node(child_))
 			curBlkIdx_ = idx_
-			f_, nx_, t_ := curBlk_.FirstNextTok(%[4]s.Node(child_))
-			cFirst_, next_, cTok_ = %[5]s(f_), %[5]s(nx_), t_
+			f_, nx_, t_ := curBlk_.FirstNextTok(%[3]s.Node(child_))
+			cFirst_, next_, cTok_ = %[4]s(f_), %[4]s(nx_), t_
 		}
 		if cFirst_ == 0 && cTok_ != 0xFF && !nodeTraversalSpecialOrBlockTok_[cTok_] {
 			if %[1]s.alwaysTraverse_ {
@@ -4817,7 +5145,17 @@ func f() {
 				child_ = next_
 				continue
 			}
-			if child_.GetFirstChild() == 0 {
+			var gc_ %[4]s
+			if cIdx_ := uint32(child_) >> %[3]s.BlockShift; cIdx_ == curBlkIdx_ {
+				gf_, _, _ := curBlk_.FirstNextTok(%[3]s.Node(child_))
+				gc_ = %[4]s(gf_)
+			} else {
+				curBlk_ = %[3]s.BlockOf(%[3]s.Node(child_))
+				curBlkIdx_ = cIdx_
+				gf_, _, _ := curBlk_.FirstNextTok(%[3]s.Node(child_))
+				gc_ = %[4]s(gf_)
+			}
+			if gc_ == 0 {
 				%[1]s.currentNode = child_
 				if !%[1]s.noOpVisit_ {
 					%[1]s.callback.Visit_3(%[1]s, child_, %[2]s)
@@ -4825,18 +5163,19 @@ func f() {
 				child_ = next_
 				continue
 			}
-			for gc_ := child_.GetFirstChild(); gc_ != 0; {
-				var gNext_ %[5]s
-				if gIdx_ := uint32(gc_) >> %[4]s.BlockShift; gIdx_ == curBlkIdx_ {
-					_, gnx_, _ := curBlk_.FirstNextTok(%[4]s.Node(gc_))
-					gNext_ = %[5]s(gnx_)
+			for gc_ != 0 {
+				var gFirst_, gNext_ %[4]s
+				var gTok_ uint8
+				if gIdx_ := uint32(gc_) >> %[3]s.BlockShift; gIdx_ == curBlkIdx_ {
+					gf_, gnx_, gt_ := curBlk_.FirstNextTok(%[3]s.Node(gc_))
+					gFirst_, gNext_, gTok_ = %[4]s(gf_), %[4]s(gnx_), gt_
 				} else {
-					curBlk_ = %[4]s.BlockOf(%[4]s.Node(gc_))
+					curBlk_ = %[3]s.BlockOf(%[3]s.Node(gc_))
 					curBlkIdx_ = gIdx_
-					_, gnx_, _ := curBlk_.FirstNextTok(%[4]s.Node(gc_))
-					gNext_ = %[5]s(gnx_)
+					gf_, gnx_, gt_ := curBlk_.FirstNextTok(%[3]s.Node(gc_))
+					gFirst_, gNext_, gTok_ = %[4]s(gf_), %[4]s(gnx_), gt_
 				}
-				%[1]s.%[3]s(gc_, child_)
+				%[1]s.traverseBranchBlk_(gc_, child_, gFirst_, gTok_, curBlkIdx_, curBlk_)
 				gc_ = gNext_
 			}
 			%[1]s.currentNode = child_
@@ -4846,11 +5185,11 @@ func f() {
 			child_ = next_
 			continue
 		}
-		%[1]s.%[3]s(child_, %[2]s)
+		%[1]s.traverseBranchBlk_(child_, %[2]s, cFirst_, cTok_, curBlkIdx_, curBlk_)
 		child_ = next_
 	}
 }
-`, recvName, parentVar, traverseBranchMethod, nsQual, nodeTypeSrc))
+`, recvName, parentVar, nsQual, nodeTypeSrc, initSrc))
 		if err != nil {
 			return nil, err
 		}

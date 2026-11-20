@@ -14,6 +14,7 @@ import (
 	"testing/iotest"
 
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javaio"
+	"github.com/paullepoulpe/jsgo/transpiled/shims/javazip"
 	"github.com/paullepoulpe/jsgo/transpiled/shims/protobuf"
 )
 
@@ -2300,5 +2301,196 @@ func TestWave45ProtoFastPaths(t *testing.T) {
 	ncList := dstNC.GetStringPool().GetStringsByteStringList()
 	if len(ncList) != 3 || ncList[0].ToStringUtf8() != "ok" || ncList[1].ToStringUtf8() != "" || ncList[2].ToStringUtf8() != "!" || dstNC.GetStringPool().GetMaxLength() != 7 {
 		t.Fatalf("non-canonical StringPoolProto mismatch: len=%d max=%d", len(ncList), dstNC.GetStringPool().GetMaxLength())
+	}
+}
+
+type trackingStreamReader struct {
+	r         io.Reader
+	readSizes []int
+}
+
+func (t *trackingStreamReader) Read(p []byte) (int, error) {
+	t.readSizes = append(t.readSizes, len(p))
+	return t.r.Read(p)
+}
+
+func TestWave47BufferedStreamUnwrapAndDirectReadRoundTrip(t *testing.T) {
+	// Build two distinct JSCompilerStateProto messages + a large TypedAst_List
+	// spanning small (<1KiB), medium (1KiB..4KiB), mid (4KiB..64KiB), and >64KiB LazyAst scripts.
+	state1 := protobuf.JSCompilerStateProto_NewBuilder().
+		SetTypeCheckingHasRun(true).
+		SetUniqueNameId(42).
+		AddExportedNames("goog.exportSymbol").
+		AddAllInjectedLibraries([]string{"es6/util/arrayfrom"}).
+		Build()
+	state2 := protobuf.JSCompilerStateProto_NewBuilder().
+		SetHasRegExpGlobalReferences(true).
+		SetUniqueNameId(99).
+		AddExportedNames("my.app.main").
+		AddExterns("externs.js").
+		Build()
+
+	sp := protobuf.StringPoolProto_NewBuilder().SetMaxLength(2048)
+	for i := 0; i < 300; i++ {
+		sp.AddStrings(protobuf.ByteString_CopyFromUtf8(fmt.Sprintf("symbol_%04d", i)))
+	}
+	scriptSizes := []int{120, 512, 1024, 2500, 4096, 8192, 16384, 32768, 50000, 70000, 1500, 9000}
+	taBuilder := protobuf.TypedAst_NewBuilder().SetStringPool(sp.Build())
+	wantScripts := make([][]byte, len(scriptSizes))
+	for i, sz := range scriptSizes {
+		buf := make([]byte, sz)
+		for j := range buf {
+			buf[j] = byte((i*17 + j*13 + 3) & 0xff)
+		}
+		wantScripts[i] = buf
+		taBuilder.AddCodeAst(protobuf.LazyAst_NewBuilder().
+			SetScriptBytes(buf).
+			SetSourceFile(int32(i + 1)).
+			SetSourceMappingUrl(fmt.Sprintf("file_%d.js.map", i)).
+			Build())
+	}
+	list := protobuf.TypedAst_List_NewBuilder().AddTypedAsts(taBuilder.Build()).Build()
+
+	// Reference uncompressed bytes for exact identity check.
+	var wantStream bytes.Buffer
+	protobuf.WriteMessageDelimitedTo(state1, &wantStream)
+	protobuf.WriteMessageDelimitedTo(state2, &wantStream)
+	if _, err := list.WriteTo(&wantStream); err != nil {
+		t.Fatalf("reference WriteTo failed: %v", err)
+	}
+
+	// 1. Exact SaveState/RestoreState stack:
+	//    BufferedOutputStream -> FastGzipOutputStream -> BufferedOutputStream -> bytes.Buffer
+	//    and BufferedInputStream -> GZIPInputStream -> BufferedInputStream -> bytes.Reader
+	var gzBuf bytes.Buffer
+	fileBOS := javaio.NewBufferedOutputStream(&gzBuf)
+	gzOut, err := javazip.NewFastGzipOutputStream(fileBOS)
+	if err != nil {
+		t.Fatalf("NewFastGzipOutputStream failed: %v", err)
+	}
+	compBOS := javaio.NewBufferedOutputStream(gzOut)
+
+	// Write a small buffered byte prefix? No, write back-to-back delimited protos + TypedAst_List!
+	protobuf.WriteMessageDelimitedTo(state1, compBOS)
+	protobuf.WriteMessageDelimitedTo(state2, compBOS)
+	if _, err := list.WriteTo(compBOS); err != nil {
+		t.Fatalf("list.WriteTo(compBOS) failed: %v", err)
+	}
+	if err := compBOS.Close(); err != nil {
+		t.Fatalf("compBOS.Close failed: %v", err)
+	}
+
+	// Decompress and verify exact uncompressed byte stream first.
+	gzCheck, err := javazip.NewGZIPInputStream(bytes.NewReader(gzBuf.Bytes()))
+	if err != nil {
+		t.Fatalf("NewGZIPInputStream check failed: %v", err)
+	}
+	plainGot, err := io.ReadAll(gzCheck)
+	_ = gzCheck.Close()
+	if err != nil {
+		t.Fatalf("ReadAll decompressed failed: %v", err)
+	}
+	if !bytes.Equal(plainGot, wantStream.Bytes()) {
+		t.Fatalf("gzipped BufferedOutputStream wire mismatch: got len=%d want len=%d", len(plainGot), wantStream.Len())
+	}
+
+	// Now read back through the exact RestoreState stack:
+	// two back-to-back ParseDelimitedFrom + CodedInputStream_NewInstance on the SAME BufferedInputStream!
+	fileBIS := javaio.NewBufferedInputStream(bytes.NewReader(gzBuf.Bytes()))
+	gzIn, err := javazip.NewGZIPInputStream(fileBIS)
+	if err != nil {
+		t.Fatalf("NewGZIPInputStream failed: %v", err)
+	}
+	decompBIS := javaio.NewBufferedInputStream(gzIn)
+	defer decompBIS.Close()
+
+	gotState1 := protobuf.JSCompilerStateProto_ParseDelimitedFrom(decompBIS)
+	if gotState1 == nil || !gotState1.GetTypeCheckingHasRun() || gotState1.GetUniqueNameId() != 42 {
+		t.Fatalf("state1 round-trip mismatch: %+v", gotState1)
+	}
+	gotState2 := protobuf.JSCompilerStateProto_ParseDelimitedFrom(decompBIS)
+	if gotState2 == nil || !gotState2.GetHasRegExpGlobalReferences() || gotState2.GetUniqueNameId() != 99 {
+		t.Fatalf("state2 round-trip mismatch: %+v", gotState2)
+	}
+
+	cis, err := protobuf.CodedInputStream_NewInstance(decompBIS)
+	if err != nil {
+		t.Fatalf("CodedInputStream_NewInstance failed: %v", err)
+	}
+	tag, err := cis.ReadTag()
+	if err != nil || tag != 10 {
+		t.Fatalf("ReadTag = (%d, %v), want (10, nil)", tag, err)
+	}
+	gotTA := protobuf.TypedAst_NewBuilder()
+	if err := cis.ReadMessage(gotTA, nil); err != nil {
+		t.Fatalf("ReadMessage failed: %v", err)
+	}
+	if !cis.IsAtEnd() {
+		t.Fatal("expected IsAtEnd after TypedAst_List")
+	}
+	gotCode := gotTA.GetCodeAstList()
+	if len(gotCode) != len(wantScripts) {
+		t.Fatalf("codeAst count = %d, want %d", len(gotCode), len(wantScripts))
+	}
+	for i, want := range wantScripts {
+		if !bytes.Equal(gotCode[i].GetScript(), want) {
+			t.Fatalf("script[%d] mismatch: got len=%d want len=%d", i, len(gotCode[i].GetScript()), len(want))
+		}
+		if gotCode[i].GetSourceFile() != int32(i+1) {
+			t.Fatalf("script[%d] sourceFile = %d, want %d", i, gotCode[i].GetSourceFile(), i+1)
+		}
+	}
+
+	// 2. Verify CodedInputStream over BufferedInputStream bypasses the 64 KiB buffer
+	//    for >= 4096 reads (zero 64 KiB refills after buffer is empty!).
+	tracker := &trackingStreamReader{r: bytes.NewReader(list.ToByteArray())}
+	trackedBIS := javaio.NewBufferedInputStream(tracker)
+	defer trackedBIS.Close()
+	cis2, err := protobuf.CodedInputStream_NewInstance(trackedBIS)
+	if err != nil {
+		t.Fatalf("CodedInputStream_NewInstance(trackedBIS) failed: %v", err)
+	}
+	tag2, err := cis2.ReadTag()
+	if err != nil || tag2 != 10 {
+		t.Fatalf("ReadTag(trackedBIS) = (%d, %v)", tag2, err)
+	}
+	gotTA2 := protobuf.TypedAst_NewBuilder()
+	if err := cis2.ReadMessage(gotTA2, nil); err != nil {
+		t.Fatalf("ReadMessage(trackedBIS) failed: %v", err)
+	}
+	if !cis2.IsAtEnd() {
+		t.Fatal("expected IsAtEnd on trackedBIS")
+	}
+	if trackedBIS.Available() != 0 {
+		t.Fatalf("expected 0 buffered bytes in trackedBIS, got %d", trackedBIS.Available())
+	}
+	// None of the underlying Read calls should have been 65536 (BufferedInputStream's 64 KiB buffer):
+	// CodedInputStream's 4 KiB buffer fills at 4096 and large LazyAst payloads bypass directly!
+	for _, sz := range tracker.readSizes {
+		if sz == 65536 {
+			t.Fatalf("BufferedInputStream filled its 64 KiB buffer unexpectedly; readSizes=%v", tracker.readSizes)
+		}
+	}
+
+	// 3. Verify double-wrapped BufferedOutputStream with buffered prefix still preserves exact byte order.
+	var rawOut bytes.Buffer
+	innerBOS := javaio.NewBufferedOutputStream(&rawOut)
+	outerBOS := javaio.NewBufferedOutputStream(innerBOS)
+	if _, err := outerBOS.Write([]byte("HDR")); err != nil {
+		t.Fatal(err)
+	}
+	protobuf.WriteMessageDelimitedTo(state1, outerBOS)
+	if _, err := outerBOS.Write([]byte("TRL")); err != nil {
+		t.Fatal(err)
+	}
+	if err := outerBOS.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var wantFramed bytes.Buffer
+	wantFramed.WriteString("HDR")
+	protobuf.WriteMessageDelimitedTo(state1, &wantFramed)
+	wantFramed.WriteString("TRL")
+	if !bytes.Equal(rawOut.Bytes(), wantFramed.Bytes()) {
+		t.Fatalf("double-wrapped BufferedOutputStream framing mismatch: got=%x want=%x", rawOut.Bytes(), wantFramed.Bytes())
 	}
 }

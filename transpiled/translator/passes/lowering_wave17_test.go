@@ -1972,7 +1972,8 @@ func (this_ *MutatingLeafCallback) Visit_3(t *NodeTraversal, n Node, parent Node
 	for _, want := range []string{
 		"alwaysTraverse_",
 		"noOpVisit_",
-		"FirstNextTok_()",
+		"curBlk_.FirstNextTok",
+		"traverseBranchBlk_",
 		"nodeTraversalBlockScopeTok_",
 		"nodeTraversalSpecialOrBlockTok_",
 	} {

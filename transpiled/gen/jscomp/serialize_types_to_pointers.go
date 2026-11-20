@@ -30,12 +30,15 @@ import (
 
 // Java class: com.google.javascript.jscomp.serialization.SerializeTypesToPointers
 type SerializeTypesToPointers struct {
-	compiler                  AbstractCompiler                                                  `gson:"compiler"`
-	jstypeReconserializer     *JSTypeReconserializer                                            `gson:"jstypeReconserializer"`
-	propertiesReferencedInAst *SerializeTypesToPointers_AstPropertySet                          `gson:"propertiesReferencedInAst"`
-	typePointersByJstype      *pkg_base.LinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt] `gson:"typePointersByJstype"`
-	typePool                  *j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool   `gson:"typePool"`
-	idHash_                   atomic.Int32
+	compiler                     AbstractCompiler                                                  `gson:"compiler"`
+	jstypeReconserializer        *JSTypeReconserializer                                            `gson:"jstypeReconserializer"`
+	propertiesReferencedInAst    *SerializeTypesToPointers_AstPropertySet                          `gson:"propertiesReferencedInAst"`
+	typePointersById             []int32                                                           `gson:"typePointersById"`
+	fallbackTypePointersByJstype *pkg_base.LinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt] `gson:"fallbackTypePointersByJstype"`
+	lazyTypePointersByJstype     *pkg_base.LinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt] `gson:"lazyTypePointersByJstype"`
+	typePool                     *j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool   `gson:"typePool"`
+	gatheredRoot                 pkg_rhino.Node                                                    `gson:"gatheredRoot"`
+	idHash_                      atomic.Int32
 }
 
 func (this_ *SerializeTypesToPointers) BindSelf_(s any) {
@@ -92,7 +95,6 @@ func clinitSlow_SerializeTypesToPointers() {
 
 func (this_ *SerializeTypesToPointers) initFields_SerializeTypesToPointers() {
 	_ = this_
-	this_.typePointersByJstype = pkg_base.NewLinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt]()
 
 }
 
@@ -112,6 +114,7 @@ func InitSerializeTypesToPointers(this_ *SerializeTypesToPointers, compiler Abst
 	this_.compiler = compiler
 	this_.jstypeReconserializer = jstypeReconserializer
 	this_.propertiesReferencedInAst = propertiesReferencedInAst
+	this_.typePointersById = make([]int32, max(int32(16384), (compiler.GetTypeRegistry().GetNextTypeId()+int32(64))))
 }
 
 // Java static method: SerializeTypesToPointers.create(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.serialization.StringPool.Builder stringPoolBuilder, com.google.javascript.jscomp.serialization.SerializationOptions serializationOptions)
@@ -137,6 +140,7 @@ func (this_ *SerializeTypesToPointers) GatherTypesOnAst(root pkg_rhino.Node) {
 	if !(this_.typePool == nil) {
 		j2gort.CheckStateStr(false, "Cannot call process() twice")
 	}
+	this_.gatheredRoot = root
 	NodeTraversal_Traverse(this_.compiler, root, NewSerializeTypesToPointers_PropertySearchCallback(this_))
 	NodeTraversal_Traverse(this_.compiler, root, NewSerializeTypesToPointers_TypeSearchCallback(this_))
 	{
@@ -150,12 +154,61 @@ func (this_ *SerializeTypesToPointers) GatherTypesOnAst(root pkg_rhino.Node) {
 		}
 	}
 	this_.typePool = this_.jstypeReconserializer.GenerateTypePool()
-	this_.priv_SerializeTypesToPointers_logSerializationDebugInfo_7817(this_.jstypeReconserializer, this_.typePool)
+	this_.priv_SerializeTypesToPointers_logSerializationDebugInfo_7819(this_.jstypeReconserializer, this_.typePool)
+}
+
+// Java method: SerializeTypesToPointers.recordFallbackTypePointer(com.google.javascript.rhino.jstype.JSType type)
+func (this_ *SerializeTypesToPointers) priv_SerializeTypesToPointers_recordFallbackTypePointer_7815(type_ pkg_rhino.JSType) {
+	_ = type_
+	var fallback *pkg_base.LinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt] = this_.fallbackTypePointersByJstype
+	_ = fallback
+	if fallback == nil {
+		fallback = pkg_base.NewLinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt]()
+		this_.fallbackTypePointersByJstype = fallback
+	}
+	if fallback.Get(type_) == nil {
+		fallback.Put(type_, j2gort.ValueOfInt(this_.jstypeReconserializer.SerializeType(type_)))
+	}
+}
+
+// Java method: SerializeTypesToPointers.getTypePointer(com.google.javascript.rhino.jstype.JSType type)
+func (this_ *SerializeTypesToPointers) GetTypePointer(type_ pkg_rhino.JSType) int32 {
+	_ = type_
+	var typeId int32 = type_.GetJSTypeBase().GetTypeId()
+	_ = typeId
+	if typeId > int32(0) {
+		var pointers []int32 = this_.typePointersById
+		_ = pointers
+		if typeId < int32(len(pointers)) {
+			return (pointers[typeId] - int32(1))
+		}
+		return int32(-1)
+	}
+	var fallback *pkg_base.LinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt] = this_.fallbackTypePointersByJstype
+	_ = fallback
+	if fallback != nil {
+		var ptr *j2gort.BoxInt = fallback.Get(type_)
+		_ = ptr
+		if ptr != nil {
+			return j2gort.UnboxInt(ptr)
+		} else {
+			return int32(-1)
+		}
+	}
+	return int32(-1)
 }
 
 // Java method: SerializeTypesToPointers.getTypePointersByJstype()
 func (this_ *SerializeTypesToPointers) GetTypePointersByJstype() *pkg_base.LinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt] {
-	return this_.typePointersByJstype
+	if this_.lazyTypePointersByJstype == nil {
+		var map_ *pkg_base.LinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt] = pkg_base.NewLinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt]()
+		_ = map_
+		if this_.gatheredRoot != 0 {
+			NodeTraversal_Traverse(this_.compiler, this_.gatheredRoot, NewSerializeTypesToPointers__Anon_126(this_, map_))
+		}
+		this_.lazyTypePointersByJstype = map_
+	}
+	return this_.lazyTypePointersByJstype
 }
 
 // Java method: SerializeTypesToPointers.getTypePool()
@@ -164,7 +217,7 @@ func (this_ *SerializeTypesToPointers) GetTypePool() *j2gort.Ext_com_google_java
 }
 
 // Java method: SerializeTypesToPointers.logSerializationDebugInfo(com.google.javascript.jscomp.serialization.JSTypeReconserializer serializer, com.google.javascript.jscomp.serialization.TypePool typePool)
-func (this_ *SerializeTypesToPointers) priv_SerializeTypesToPointers_logSerializationDebugInfo_7817(serializer *JSTypeReconserializer, typePool *j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool) {
+func (this_ *SerializeTypesToPointers) priv_SerializeTypesToPointers_logSerializationDebugInfo_7819(serializer *JSTypeReconserializer, typePool *j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool) {
 	_ = serializer
 	_ = typePool
 	func() {
@@ -183,14 +236,14 @@ func (this_ *SerializeTypesToPointers) priv_SerializeTypesToPointers_logSerializ
 		defer j2gort.CloseResource(log_2)
 		if log_2.IsLogging() {
 			log_2.Log_1_Ext_java_util_function_Supplier(j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
-				return j2gort.BoxString(StaticGet_SerializeTypesToPointers_GSON().ToJson_1_any(this_.priv_SerializeTypesToPointers_logTypeMismatches_7818(this_.compiler.GetTypeMismatches(), serializer, typePool)))
+				return j2gort.BoxString(StaticGet_SerializeTypesToPointers_GSON().ToJson_1_any(this_.priv_SerializeTypesToPointers_logTypeMismatches_7820(this_.compiler.GetTypeMismatches(), serializer, typePool)))
 			}))
 		}
 	}()
 }
 
 // Java method: SerializeTypesToPointers.logTypeMismatches(java.lang.Iterable<com.google.javascript.jscomp.TypeMismatch> typeMismatches, com.google.javascript.jscomp.serialization.JSTypeReconserializer serializer, com.google.javascript.jscomp.serialization.TypePool typePool)
-func (this_ *SerializeTypesToPointers) priv_SerializeTypesToPointers_logTypeMismatches_7818(typeMismatches j2gort.Ext_java_lang_Iterable, serializer *JSTypeReconserializer, typePool *j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool) j2gort.Ext_com_google_common_collect_ImmutableSortedSet {
+func (this_ *SerializeTypesToPointers) priv_SerializeTypesToPointers_logTypeMismatches_7820(typeMismatches j2gort.Ext_java_lang_Iterable, serializer *JSTypeReconserializer, typePool *j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool) j2gort.Ext_com_google_common_collect_ImmutableSortedSet {
 	_ = typeMismatches
 	_ = serializer
 	_ = typePool
@@ -273,7 +326,7 @@ func (this_ *SerializeTypesToPointers_AstPropertySet) Add(name string) {
 			}
 			this_.size = this_.size + 1
 			if (this_.size * int32(4)) >= (int32(len(table)) * int32(3)) {
-				this_.priv_AstPropertySet_rehash_7821((int32(len(table)) * int32(2)))
+				this_.priv_AstPropertySet_rehash_7823((int32(len(table)) * int32(2)))
 			}
 			return
 		}
@@ -313,7 +366,7 @@ func (this_ *SerializeTypesToPointers_AstPropertySet) Contains(name string) bool
 }
 
 // Java method: AstPropertySet.rehash(int newCap)
-func (this_ *SerializeTypesToPointers_AstPropertySet) priv_AstPropertySet_rehash_7821(newCap int32) {
+func (this_ *SerializeTypesToPointers_AstPropertySet) priv_AstPropertySet_rehash_7823(newCap int32) {
 	_ = newCap
 	var oldTable []string = this_.keys
 	_ = oldTable
@@ -495,10 +548,44 @@ func (this_ *SerializeTypesToPointers_TypeSearchCallback) Visit_3(t *NodeTravers
 	var type_ pkg_rhino.JSType = n.GetJSType()
 	_ = type_
 	if type_ != nil && !type_.IsJavaNil_() {
-		var existing *j2gort.BoxInt = this_.outer_.typePointersByJstype.Get(type_)
-		_ = existing
-		if existing == nil {
-			this_.outer_.typePointersByJstype.Put(type_, j2gort.ValueOfInt(this_.outer_.jstypeReconserializer.SerializeType(type_)))
+		var typeId int32 = type_.GetJSTypeBase().GetTypeId()
+		_ = typeId
+		if typeId > int32(0) {
+			var pointers []int32 = this_.outer_.typePointersById
+			_ = pointers
+			if (typeId >= int32(len(pointers))) || (pointers[typeId] == int32(0)) {
+				var pointer int32 = this_.outer_.jstypeReconserializer.SerializeType(type_)
+				_ = pointer
+				pointers = this_.outer_.typePointersById
+				if typeId >= int32(len(pointers)) {
+					var nextCap int32 = (int32(len(pointers)) * int32(2))
+					_ = nextCap
+					for nextCap <= typeId {
+						nextCap = (nextCap * int32(2))
+					}
+					{
+
+						arrSrc_9 := pointers
+						arrLen_10 := nextCap
+						j2gort.CheckNotNullSlice(arrSrc_9)
+						if arrLen_10 < 0 {
+							panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+						}
+						arrOut_11 := make([]int32, arrLen_10)
+						copy(arrOut_11, arrSrc_9)
+						pointers = arrOut_11
+					}
+
+					this_.outer_.typePointersById = pointers
+				}
+				{
+					a_12 := pointers
+					i_13 := typeId
+					a_12[i_13] = (pointer + int32(1))
+				}
+			}
+		} else {
+			this_.outer_.priv_SerializeTypesToPointers_recordFallbackTypePointer_7815(type_)
 		}
 	}
 	var shadow pkg_rhino.Node = n.GetClosureUnawareShadow()
@@ -561,17 +648,17 @@ func (this_ *SerializeTypesToPointers_StreamObjectUuidsJson) WriteJson(jsonWrite
 	_ = jsonWriter
 	jsonWriter.BeginObject()
 	{
-		cur_9 := j2gort.NewMapEntryCursor(this_.allSerializedTypes)
-		for cur_9.NextEntry() {
-			jsonWriter.Name(cur_9.KeyStr())
+		cur_14 := j2gort.NewMapEntryCursor(this_.allSerializedTypes)
+		for cur_14.NextEntry() {
+			jsonWriter.Name(cur_14.KeyStr())
 			jsonWriter.BeginArray()
 			var jstypes []string = []string{}
 			_ = jstypes
 			{
-				cur_10 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Collection](cur_9.GetValue())))
-				for cur_10.HasNext() {
-					rawElem_11 := cur_10.Next()
-					jstype := j2gort.AsIface[pkg_rhino.JSType](rawElem_11)
+				cur_15 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Collection](cur_14.GetValue())))
+				for cur_15.HasNext() {
+					rawElem_16 := cur_15.Next()
+					jstype := j2gort.AsIface[pkg_rhino.JSType](rawElem_16)
 					_ = jstype
 					jstypes = append(jstypes, jstype.GetJSTypeBase().String())
 				}
@@ -666,8 +753,8 @@ func SerializeTypesToPointers_TypeMismatchJson_TypePointerToId(poolOffset int32,
 	_ = typeProto
 	switch j2gort.CheckNotNullPtr(typeProto.GetKindCase()).Ordinal() {
 	case int32(1) /* KindCase.UNION */ :
-		return pkg_colors.ColorId_Union(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](typeProto.GetUnion().GetUnionMemberList().Stream().Map(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_13 any) any {
-			pointer := j2gort.CastPtr[j2gort.BoxInt](lp_13)
+		return pkg_colors.ColorId_Union(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](typeProto.GetUnion().GetUnionMemberList().Stream().Map(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_18 any) any {
+			pointer := j2gort.CastPtr[j2gort.BoxInt](lp_18)
 			_ = pointer
 			return j2gort.BoxNullableVal(SerializeTypesToPointers_TypeMismatchJson_TypePointerToId(j2gort.UnboxInt(pointer), typePool))
 		})).Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSet_ToImmutableSet())))
@@ -679,10 +766,87 @@ func SerializeTypesToPointers_TypeMismatchJson_TypePointerToId(poolOffset int32,
 }
 
 // Java method: TypeMismatchJson.compareTo(com.google.javascript.jscomp.serialization.SerializeTypesToPointers.TypeMismatchJson x)
-func (this_ *SerializeTypesToPointers_TypeMismatchJson) CompareTo(arg_14 any) int32 {
-	x := j2gort.CastPtr[SerializeTypesToPointers_TypeMismatchJson](arg_14)
+func (this_ *SerializeTypesToPointers_TypeMismatchJson) CompareTo(arg_19 any) int32 {
+	x := j2gort.CastPtr[SerializeTypesToPointers_TypeMismatchJson](arg_19)
 	_ = x
 	return j2gort.Ext_com_google_common_collect_ComparisonChain_Start().Compare_2_any_any(j2gort.BoxString(this_.foundColorId), j2gort.BoxString(x.foundColorId)).Compare_2_any_any(j2gort.BoxString(this_.requiredColorId), j2gort.BoxString(x.requiredColorId)).Compare_2_any_any(j2gort.BoxString(this_.location), j2gort.BoxString(x.location)).Result()
 }
+
+// Java class:
+type SerializeTypesToPointers__Anon_126 struct {
+	outer_    *SerializeTypesToPointers
+	cap_0_map *pkg_base.LinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt]
+	idHash_   atomic.Int32
+}
+
+func (this_ *SerializeTypesToPointers__Anon_126) BindSelf_(s any) {
+	_ = s
+}
+func (this_ *SerializeTypesToPointers__Anon_126) IsJavaNil_() bool { return this_ == nil }
+func (*SerializeTypesToPointers__Anon_126) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.serialization.SerializeTypesToPointers$1", ""
+}
+func (this_ *SerializeTypesToPointers__Anon_126) IdentityHash_() int32 {
+	if this_ == nil {
+		return 0
+	}
+	if h := this_.idHash_.Load(); h != 0 {
+		return h
+	}
+	return j2gort.AssignIdentHash(&this_.idHash_)
+}
+func (*SerializeTypesToPointers__Anon_126) HasIdentityEquals_() {}
+func (this_ *SerializeTypesToPointers__Anon_126) SetOuter_(o *SerializeTypesToPointers) {
+	this_.outer_ = o
+}
+func (this_ *SerializeTypesToPointers__Anon_126) GetOuter_() *SerializeTypesToPointers {
+	return this_.outer_
+}
+func (*SerializeTypesToPointers__Anon_126) Implements_jscomp_NodeTraversal_Callback() {}
+
+func (this_ *SerializeTypesToPointers__Anon_126) initFields_SerializeTypesToPointers__Anon_126() {
+	_ = this_
+}
+
+func NewSerializeTypesToPointers__Anon_126(outer_ *SerializeTypesToPointers, cap_p_map *pkg_base.LinkedIdentityHashMap[pkg_rhino.JSType, *j2gort.BoxInt]) *SerializeTypesToPointers__Anon_126 {
+	this_ := &SerializeTypesToPointers__Anon_126{}
+	this_.outer_ = outer_
+	this_.cap_0_map = cap_p_map
+	this_.initFields_SerializeTypesToPointers__Anon_126()
+	return this_
+}
+
+// Java method: .shouldTraverse(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
+func (this_ *SerializeTypesToPointers__Anon_126) ShouldTraverse_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) bool {
+	_ = t
+	_ = n
+	_ = parent
+	return (!(n.IsScript()) || !(NodeUtil_IsFromTypeSummary(n)))
+}
+
+// Java method: .visit(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
+func (this_ *SerializeTypesToPointers__Anon_126) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
+	_ = t
+	_ = n
+	_ = parent
+	if n.IsRoot() {
+		return
+	}
+	var type_ pkg_rhino.JSType = n.GetJSType()
+	_ = type_
+	if (type_ != nil && !type_.IsJavaNil_()) && (this_.cap_0_map.Get(type_) == nil) {
+		var pointer int32 = this_.outer_.GetTypePointer(type_)
+		_ = pointer
+		if pointer >= int32(0) {
+			this_.cap_0_map.Put(type_, j2gort.ValueOfInt(pointer))
+		}
+	}
+	var shadow pkg_rhino.Node = n.GetClosureUnawareShadow()
+	_ = shadow
+	if shadow != 0 {
+		NodeTraversal_Traverse(this_.outer_.compiler, shadow.GetFirstFirstChild().GetFirstChild(), this_)
+	}
+}
 func (*SerializeTypesToPointers_PropertySearchCallback) CanReleaseSyntacticScopes_() {}
 func (*SerializeTypesToPointers_TypeSearchCallback) CanReleaseSyntacticScopes_()     {}
+func (*SerializeTypesToPointers__Anon_126) CanReleaseSyntacticScopes_()              {}

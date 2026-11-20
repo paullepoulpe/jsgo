@@ -548,7 +548,7 @@ func (this_ *AbstractScopeBase) IsCfgRootScope() bool {
 
 // Java method: AbstractScope.isHoistScope()
 func (this_ *AbstractScopeBase) IsHoistScope() bool {
-	return ((((this_.IsFunctionScope() || this_.IsFunctionBlockScope()) || this_.IsGlobal()) || this_.IsModuleScope()) || this_.IsStaticBlockScope())
+	return ((((this_.IsFunctionScope() || this_.IsFunctionBlockScope()) || this_.self_.IsGlobal()) || this_.IsModuleScope()) || this_.IsStaticBlockScope())
 }
 
 // Java method: AbstractScope.getClosestHoistScope()
@@ -646,7 +646,7 @@ func (this_ *AbstractScopeBase) HasSameContainerScope(other AbstractScope) bool 
 func (this_ *AbstractScopeBase) GetScopeOfThis() AbstractScope {
 	var scope AbstractScope = this_.GetClosestContainerScope()
 	_ = scope
-	for !(scope.GetAbstractScopeBase().IsGlobal()) && !(NodeUtil_IsNonArrowFunction(scope.GetAbstractScopeBase().GetRootNode_0())) {
+	for !(scope.IsGlobal()) && !(NodeUtil_IsNonArrowFunction(scope.GetAbstractScopeBase().GetRootNode_0())) {
 		scope = j2gort.AsIface[AbstractScope](scope.GetParent()).GetAbstractScopeBase().GetClosestContainerScope()
 	}
 	return scope

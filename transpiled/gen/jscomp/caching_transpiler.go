@@ -71,7 +71,7 @@ func InitCachingTranspiler(this_ *CachingTranspiler, delegate Transpile_Transpil
 	_ = builder
 	this_.initFields_CachingTranspiler()
 	j2gort.CheckNotNullIface(delegate)
-	this_.cache = builder.Build_1(NewCachingTranspiler__Anon_127(this_, delegate))
+	this_.cache = builder.Build_1(NewCachingTranspiler__Anon_128(this_, delegate))
 	this_.runtime = j2gort.Ext_com_google_common_base_Suppliers_Memoize(func() j2gort.Ext_com_google_common_base_Supplier {
 		bound_1 := delegate
 		return j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any { return j2gort.BoxString(bound_1.Runtime()) })
@@ -184,22 +184,22 @@ func (this_ *CachingTranspiler_Key) HashCode() int32 {
 }
 
 // Java class:
-type CachingTranspiler__Anon_127 struct {
+type CachingTranspiler__Anon_128 struct {
 	j2gort.Ext_com_google_common_cache_CacheLoaderBase
 	outer_         *CachingTranspiler
 	cap_0_delegate Transpile_Transpiler
 	idHash_        atomic.Int32
 }
 
-func (this_ *CachingTranspiler__Anon_127) BindSelf_(s any) {
+func (this_ *CachingTranspiler__Anon_128) BindSelf_(s any) {
 	_ = s
 	this_.Ext_com_google_common_cache_CacheLoaderBase.BindExtSelf_(s)
 }
-func (this_ *CachingTranspiler__Anon_127) IsJavaNil_() bool { return this_ == nil }
-func (*CachingTranspiler__Anon_127) JavaClassInfo_() (string, string) {
+func (this_ *CachingTranspiler__Anon_128) IsJavaNil_() bool { return this_ == nil }
+func (*CachingTranspiler__Anon_128) JavaClassInfo_() (string, string) {
 	return "com.google.javascript.jscomp.transpile.CachingTranspiler$1", ""
 }
-func (this_ *CachingTranspiler__Anon_127) IdentityHash_() int32 {
+func (this_ *CachingTranspiler__Anon_128) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
 	}
@@ -208,26 +208,26 @@ func (this_ *CachingTranspiler__Anon_127) IdentityHash_() int32 {
 	}
 	return j2gort.AssignIdentHash(&this_.idHash_)
 }
-func (this_ *CachingTranspiler__Anon_127) SetOuter_(o *CachingTranspiler)                       { this_.outer_ = o }
-func (this_ *CachingTranspiler__Anon_127) GetOuter_() *CachingTranspiler                        { return this_.outer_ }
-func (*CachingTranspiler__Anon_127) Implements_j2gort_Ext_com_google_common_cache_CacheLoader() {}
+func (this_ *CachingTranspiler__Anon_128) SetOuter_(o *CachingTranspiler)                       { this_.outer_ = o }
+func (this_ *CachingTranspiler__Anon_128) GetOuter_() *CachingTranspiler                        { return this_.outer_ }
+func (*CachingTranspiler__Anon_128) Implements_j2gort_Ext_com_google_common_cache_CacheLoader() {}
 
-func (this_ *CachingTranspiler__Anon_127) initFields_CachingTranspiler__Anon_127() {
+func (this_ *CachingTranspiler__Anon_128) initFields_CachingTranspiler__Anon_128() {
 	_ = this_
 }
 
-func NewCachingTranspiler__Anon_127(outer_ *CachingTranspiler, cap_p_delegate Transpile_Transpiler) *CachingTranspiler__Anon_127 {
-	this_ := &CachingTranspiler__Anon_127{}
+func NewCachingTranspiler__Anon_128(outer_ *CachingTranspiler, cap_p_delegate Transpile_Transpiler) *CachingTranspiler__Anon_128 {
+	this_ := &CachingTranspiler__Anon_128{}
 	this_.BindSelf_(this_)
 	this_.outer_ = outer_
 	this_.cap_0_delegate = cap_p_delegate
 	j2gort.InitExt_com_google_common_cache_CacheLoader(&this_.Ext_com_google_common_cache_CacheLoaderBase)
-	this_.initFields_CachingTranspiler__Anon_127()
+	this_.initFields_CachingTranspiler__Anon_128()
 	return this_
 }
 
 // Java method: .load(com.google.javascript.jscomp.transpile.CachingTranspiler.Key key)
-func (this_ *CachingTranspiler__Anon_127) Load(arg_12 any) any {
+func (this_ *CachingTranspiler__Anon_128) Load(arg_12 any) any {
 	key := j2gort.CastPtr[CachingTranspiler_Key](arg_12)
 	_ = key
 	return j2gort.PtrToAny(this_.cap_0_delegate.Transpile(key.path, key.code))

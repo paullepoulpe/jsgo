@@ -2542,7 +2542,7 @@ func (this_ *RegExpTree_Charset) AppendSourceCode(sb *j2gort.Ext_java_lang_Strin
 // Java method: Charset.appendDebugInfo(java.lang.StringBuilder sb)
 func (this_ *RegExpTree_Charset) AppendDebugInfo(sb *j2gort.Ext_java_lang_StringBuilder) {
 	_ = sb
-	sb.Append_1_any_9926(j2gort.PtrToAny(this_.ranges))
+	sb.Append_1_any_9928(j2gort.PtrToAny(this_.ranges))
 }
 
 // Java method: Charset.equals(java.lang.Object o)
