@@ -148,7 +148,7 @@ func (this_ *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 	_ = t
 	var n pkg_rhino.Node = t.GetScopeRoot()
 	_ = n
-	var returnType pkg_rhino.JSType = this_.priv_CheckMissingReturn_getExplicitReturnTypeIfExpected_1103(n)
+	var returnType pkg_rhino.JSType = this_.priv_CheckMissingReturn_getExplicitReturnTypeIfExpected_1104(n)
 	_ = returnType
 	if returnType == nil || returnType.IsJavaNil_() {
 		return
@@ -162,7 +162,7 @@ func (this_ *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 	}
 	var cfg ControlFlowGraph[pkg_rhino.Node] = this_.GetControlFlowGraph(this_.compiler)
 	_ = cfg
-	if this_.priv_CheckMissingReturn_fastAllPathsReturnCheck_1102(cfg) {
+	if this_.priv_CheckMissingReturn_fastAllPathsReturnCheck_1103(cfg) {
 		return
 	}
 	var test *pkg_graph.CheckPathsBetweenNodes[pkg_rhino.Node, ControlFlowGraph_Branch] = pkg_graph.NewCheckPathsBetweenNodes_5[pkg_rhino.Node, ControlFlowGraph_Branch](j2gort.AsIface[pkg_graph.DiGraph[pkg_rhino.Node, ControlFlowGraph_Branch]](cfg), cfg.GetEntry(), cfg.GetImplicitReturn(), lambdaSingleton_check_missing_return_1, lambdaSingleton_check_missing_return_2)
@@ -173,7 +173,7 @@ func (this_ *CheckMissingReturn) EnterScopeWithCfg(t *NodeTraversal) {
 }
 
 // Java method: CheckMissingReturn.fastAllPathsReturnCheck(com.google.javascript.jscomp.ControlFlowGraph<com.google.javascript.rhino.Node> cfg)
-func (this_ *CheckMissingReturn) priv_CheckMissingReturn_fastAllPathsReturnCheck_1102(cfg ControlFlowGraph[pkg_rhino.Node]) bool {
+func (this_ *CheckMissingReturn) priv_CheckMissingReturn_fastAllPathsReturnCheck_1103(cfg ControlFlowGraph[pkg_rhino.Node]) bool {
 	_ = cfg
 	{
 		cur_2 := j2gort.NewIterCursor(j2gort.CheckNotNull(cfg.GetImplicitReturn().GetInEdges()))
@@ -207,7 +207,7 @@ func (this_ *CheckMissingReturn) Visit_3(t *NodeTraversal, n pkg_rhino.Node, par
 }
 
 // Java method: CheckMissingReturn.getExplicitReturnTypeIfExpected(com.google.javascript.rhino.Node scopeRoot)
-func (this_ *CheckMissingReturn) priv_CheckMissingReturn_getExplicitReturnTypeIfExpected_1103(scopeRoot pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *CheckMissingReturn) priv_CheckMissingReturn_getExplicitReturnTypeIfExpected_1104(scopeRoot pkg_rhino.Node) pkg_rhino.JSType {
 	_ = scopeRoot
 	if !(scopeRoot.IsFunction()) {
 		return nil
@@ -233,7 +233,7 @@ func (this_ *CheckMissingReturn) priv_CheckMissingReturn_getExplicitReturnTypeIf
 	} else if scopeRoot.IsGeneratorFunction() {
 		returnType = JsIterables_GetReturnElementType(returnType, this_.compiler.GetTypeRegistry())
 	}
-	if !(this_.priv_CheckMissingReturn_isVoidOrUnknown_1104(returnType)) {
+	if !(this_.priv_CheckMissingReturn_isVoidOrUnknown_1105(returnType)) {
 		return returnType
 	}
 	return nil
@@ -247,7 +247,7 @@ func CheckMissingReturn_IsEmptyFunction(function pkg_rhino.Node) bool {
 }
 
 // Java method: CheckMissingReturn.isVoidOrUnknown(com.google.javascript.rhino.jstype.JSType returnType)
-func (this_ *CheckMissingReturn) priv_CheckMissingReturn_isVoidOrUnknown_1104(returnType pkg_rhino.JSType) bool {
+func (this_ *CheckMissingReturn) priv_CheckMissingReturn_isVoidOrUnknown_1105(returnType pkg_rhino.JSType) bool {
 	_ = returnType
 	var voidType pkg_rhino.JSType = this_.compiler.GetTypeRegistry().GetNativeType(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 	_ = voidType

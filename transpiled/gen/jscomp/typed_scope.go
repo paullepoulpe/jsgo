@@ -221,7 +221,7 @@ func InitTypedScope_2_Node_bool(this_ *TypedScope, rootNode pkg_rhino.Node, isBo
 }
 
 // Java method: TypedScope.ensureOverflow()
-func (this_ *TypedScope) priv_TypedScope_ensureOverflow_5714() *TypedScope_Overflow {
+func (this_ *TypedScope) priv_TypedScope_ensureOverflow_5724() *TypedScope_Overflow {
 	var o *TypedScope_Overflow = this_.overflow
 	_ = o
 	if o == nil {
@@ -251,10 +251,6 @@ func allocPooledVia_TypedScope_CreateGlobalScope(slab_ *j2gort.PooledSlab[TypedS
 func TypedScope_CreateLatticeBottom(rootNode pkg_rhino.Node) *TypedScope {
 	_ = rootNode
 	return NewTypedScope_2_Node_bool(rootNode, true)
-}
-func allocPooledVia_TypedScope_CreateLatticeBottom(slab_ *j2gort.PooledSlab[TypedScope], rootNode pkg_rhino.Node) *TypedScope {
-	_ = rootNode
-	return allocPooled_TypedScope_2_Node_bool(slab_, rootNode, true)
 }
 
 // Java method: TypedScope.typed()
@@ -361,7 +357,7 @@ func (this_ *TypedScope) Declare(name string, nameNode pkg_rhino.Node, type_ pkg
 	var dot int32 = j2gort.JStrIndexOfCp(name, int32(uint16(46)))
 	_ = dot
 	if dot >= int32(0) {
-		var qo *TypedScope_Overflow = this_.priv_TypedScope_ensureOverflow_5714()
+		var qo *TypedScope_Overflow = this_.priv_TypedScope_ensureOverflow_5724()
 		_ = qo
 		if qo.qualifiedRootNames == nil {
 			{
@@ -533,7 +529,7 @@ func (this_ *TypedScope) MayHaveQualifiedVarForRoot(rootName string) bool {
 }
 
 // Java method: TypedScope.findOwnDeclaredVar(java.lang.String name)
-func (this_ *TypedScope) priv_TypedScope_findOwnDeclaredVar_5726(name string) *TypedVar {
+func (this_ *TypedScope) priv_TypedScope_findOwnDeclaredVar_5736(name string) *TypedVar {
 	_ = name
 	var o *TypedScope_Overflow = this_.overflow
 	_ = o
@@ -574,7 +570,7 @@ func (this_ *TypedScope) priv_TypedScope_findOwnDeclaredVar_5726(name string) *T
 // Java method: TypedScope.getOwnDeclaredVar(java.lang.String name)
 func (this_ *TypedScope) GetOwnDeclaredVar(name string) any {
 	_ = name
-	return j2gort.PtrToAny(this_.priv_TypedScope_findOwnDeclaredVar_5726(name))
+	return j2gort.PtrToAny(this_.priv_TypedScope_findOwnDeclaredVar_5736(name))
 }
 
 // Java method: TypedScope.putOwnDeclaredVar(java.lang.String name, com.google.javascript.jscomp.TypedVar var)
@@ -597,7 +593,7 @@ func (this_ *TypedScope) PutOwnDeclaredVar(name string, arg_12 any) {
 		return
 	}
 	if o == nil {
-		o = this_.priv_TypedScope_ensureOverflow_5714()
+		o = this_.priv_TypedScope_ensureOverflow_5724()
 	}
 	if (o.var2 == nil) || (j2gort.CheckNotNullString(o.var2.GetName()) == name) {
 		{
@@ -978,6 +974,54 @@ func (this_ *TypedScope) AddVarsTo(dst j2gort.Ext_java_util_ArrayList) {
 	}
 }
 
+// Java method: TypedScope.normalizeNullVarTypes(com.google.javascript.rhino.jstype.JSType unknownType)
+func (this_ *TypedScope) NormalizeNullVarTypes(unknownType pkg_rhino.JSType) {
+	_ = unknownType
+	var o *TypedScope_Overflow = this_.overflow
+	_ = o
+	if (o != nil) && (o.vars != nil) {
+		{
+			cur_54 := o.vars.IterValues()
+			for cur_54.HasNext() {
+
+				v := cur_54.
+					Next()
+				_ = v
+				if j2gort.IfaceEquals[pkg_rhino.JSType](v.GetType(), nil) {
+					v.SetType(unknownType)
+				}
+			}
+		}
+	} else if this_.var0 != nil {
+		if j2gort.IfaceEquals[pkg_rhino.JSType](this_.var0.GetType(), nil) {
+			this_.var0.SetType(unknownType)
+		}
+		if this_.var1 != nil {
+			if j2gort.IfaceEquals[pkg_rhino.JSType](this_.var1.GetType(), nil) {
+				this_.var1.SetType(unknownType)
+			}
+			if (o != nil) && (o.var2 != nil) {
+				if j2gort.IfaceEquals[pkg_rhino.JSType](o.var2.GetType(), nil) {
+					o.var2.SetType(unknownType)
+				}
+				if o.var3 != nil {
+					if j2gort.IfaceEquals[pkg_rhino.JSType](o.var3.GetType(), nil) {
+						o.var3.SetType(unknownType)
+					}
+					if o.var4 != nil {
+						if j2gort.IfaceEquals[pkg_rhino.JSType](o.var4.GetType(), nil) {
+							o.var4.SetType(unknownType)
+						}
+						if (o.var5 != nil) && j2gort.IfaceEquals[pkg_rhino.JSType](o.var5.GetType(), nil) {
+							o.var5.SetType(unknownType)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 // Java method: TypedScope.addVarNamesTo(java.util.LinkedHashSet<java.lang.String> dst)
 func (this_ *TypedScope) AddVarNamesTo(dst *j2gort.Ext_java_util_LinkedHashSet) {
 	_ = dst
@@ -985,9 +1029,9 @@ func (this_ *TypedScope) AddVarNamesTo(dst *j2gort.Ext_java_util_LinkedHashSet) 
 	_ = o
 	if (o != nil) && (o.vars != nil) {
 		{
-			cur_54 := o.vars.IterKeys()
-			for cur_54.HasNext() {
-				name := cur_54.
+			cur_56 := o.vars.IterKeys()
+			for cur_56.HasNext() {
+				name := cur_56.
 					Next()
 				_ = name
 				j2gort.SetAddStr(dst, name)
@@ -1051,40 +1095,35 @@ func (this_ *TypedScope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) any {
 		var iifeCond_1 bool
 		{
 
-			re_55 := var_
-			ae_56 := StaticGet_AbstractScope_ImplicitVar_EXPORTS()
-			if re_55 == 0 {
+			re_57 := var_
+			ae_58 := StaticGet_AbstractScope_ImplicitVar_EXPORTS()
+			if re_57 == 0 {
 				j2gort.ThrowNPE()
 			}
-			iifeCond_1 = re_55 == ae_56
+			iifeCond_1 = re_57 == ae_58
 		}
 		if iifeCond_1 {
 			return nil
 		}
 	}
-	if this_.tsArena_ != nil {
-		return allocPooled_TypedVar(&this_.tsArena_.slab_TypedVar, false, var_.FieldGet_name(), pkg_rhino.
-			Node(0), this_.priv_TypedScope_getImplicitVarType_5728(var_), this_, int32(-1), nil)
-	}
-	return NewTypedVar(false, var_.FieldGet_name(), pkg_rhino.Node(0), this_.priv_TypedScope_getImplicitVarType_5728(var_), this_, int32(-1), nil)
-
+	return NewTypedVar(false, var_.FieldGet_name(), pkg_rhino.Node(0), this_.priv_TypedScope_getImplicitVarType_5739(var_), this_, int32(-1), nil)
 }
 
 // Java method: TypedScope.hasOwnImplicitSlot(com.google.javascript.jscomp.AbstractScope.@org.jspecify.annotations.Nullable ImplicitVar name)
 func (this_ *TypedScope) HasOwnImplicitSlot(name AbstractScope_ImplicitVar) bool {
 	_ = name
 	return (((name != 0) && !(func() bool {
-		re_57 := name
-		ae_58 := StaticGet_AbstractScope_ImplicitVar_EXPORTS()
-		if re_57 == 0 {
+		re_59 := name
+		ae_60 := StaticGet_AbstractScope_ImplicitVar_EXPORTS()
+		if re_59 == 0 {
 			j2gort.ThrowNPE()
 		}
-		return re_57 == ae_58
+		return re_59 == ae_60
 	}())) && name.IsMadeByScope(this_))
 }
 
 // Java method: TypedScope.getImplicitVarType(com.google.javascript.jscomp.AbstractScope.ImplicitVar var)
-func (this_ *TypedScope) priv_TypedScope_getImplicitVarType_5728(var_ AbstractScope_ImplicitVar) pkg_rhino.JSType {
+func (this_ *TypedScope) priv_TypedScope_getImplicitVarType_5739(var_ AbstractScope_ImplicitVar) pkg_rhino.JSType {
 	_ = var_
 	switch (var_).Ordinal() {
 	case int32(0) /* ImplicitVar.ARGUMENTS */ :
@@ -1127,13 +1166,13 @@ func (this_ *TypedScope) GetDeclarativelyUnboundVarsWithoutTypes() j2gort.Ext_ja
 	_ = o
 	if (o != nil) && (o.vars != nil) {
 		{
-			cur_59 := o.vars.IterValues()
-			for cur_59.HasNext() {
+			cur_61 := o.vars.IterValues()
+			for cur_61.HasNext() {
 
-				var_ := cur_59.
+				var_ := cur_61.
 					Next()
 				_ = var_
-				if this_.priv_TypedScope_isDeclarativelyUnboundVarWithoutType_5731(var_) {
+				if this_.priv_TypedScope_isDeclarativelyUnboundVarWithoutType_5742(var_) {
 					if result == nil {
 						result = j2gort.NewExt_java_util_ArrayList()
 					}
@@ -1142,17 +1181,17 @@ func (this_ *TypedScope) GetDeclarativelyUnboundVarsWithoutTypes() j2gort.Ext_ja
 			}
 		}
 	} else if this_.var0 != nil {
-		result = this_.priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5730(this_.var0, result)
+		result = this_.priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5741(this_.var0, result)
 		if this_.var1 != nil {
-			result = this_.priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5730(this_.var1, result)
+			result = this_.priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5741(this_.var1, result)
 			if (o != nil) && (o.var2 != nil) {
-				result = this_.priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5730(o.var2, result)
+				result = this_.priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5741(o.var2, result)
 				if o.var3 != nil {
-					result = this_.priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5730(o.var3, result)
+					result = this_.priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5741(o.var3, result)
 					if o.var4 != nil {
-						result = this_.priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5730(o.var4, result)
+						result = this_.priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5741(o.var4, result)
 						if o.var5 != nil {
-							result = this_.priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5730(o.var5, result)
+							result = this_.priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5741(o.var5, result)
 						}
 					}
 				}
@@ -1167,10 +1206,10 @@ func (this_ *TypedScope) GetDeclarativelyUnboundVarsWithoutTypes() j2gort.Ext_ja
 }
 
 // Java method: TypedScope.addIfDeclarativelyUnboundWithoutType(com.google.javascript.jscomp.TypedVar var, java.util.@org.jspecify.annotations.Nullable ArrayList<com.google.javascript.jscomp.TypedVar> result)
-func (this_ *TypedScope) priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5730(var_ *TypedVar, result j2gort.Ext_java_util_ArrayList) j2gort.Ext_java_util_ArrayList {
+func (this_ *TypedScope) priv_TypedScope_addIfDeclarativelyUnboundWithoutType_5741(var_ *TypedVar, result j2gort.Ext_java_util_ArrayList) j2gort.Ext_java_util_ArrayList {
 	_ = var_
 	_ = result
-	if this_.priv_TypedScope_isDeclarativelyUnboundVarWithoutType_5731(var_) {
+	if this_.priv_TypedScope_isDeclarativelyUnboundVarWithoutType_5742(var_) {
 		if result == nil {
 			result = j2gort.NewExt_java_util_ArrayList()
 		}
@@ -1180,7 +1219,7 @@ func (this_ *TypedScope) priv_TypedScope_addIfDeclarativelyUnboundWithoutType_57
 }
 
 // Java method: TypedScope.isDeclarativelyUnboundVarWithoutType(com.google.javascript.jscomp.TypedVar var)
-func (this_ *TypedScope) priv_TypedScope_isDeclarativelyUnboundVarWithoutType_5731(var_ *TypedVar) bool {
+func (this_ *TypedScope) priv_TypedScope_isDeclarativelyUnboundVarWithoutType_5742(var_ *TypedVar) bool {
 	_ = var_
 	return ((((var_.GetParentNode() != 0) && j2gort.IfaceEquals[pkg_rhino.JSType](var_.GetType(), nil)) && var_.GetParentNode().IsVar()) && !(var_.IsExtern()))
 }
@@ -1196,7 +1235,7 @@ func (this_ *TypedScope) GetGlobalTypedScope() *TypedScope {
 }
 
 // Java method: TypedScope.findRootVar(java.lang.String name)
-func (this_ *TypedScope) priv_TypedScope_findRootVar_5733(name string) *TypedVar {
+func (this_ *TypedScope) priv_TypedScope_findRootVar_5744(name string) *TypedVar {
 	_ = name
 	var implicit AbstractScope_ImplicitVar = AbstractScope_ImplicitVar_Of(name)
 	_ = implicit
@@ -1205,7 +1244,7 @@ func (this_ *TypedScope) priv_TypedScope_findRootVar_5733(name string) *TypedVar
 			var scope *TypedScope = this_
 			_ = scope
 			for ; scope != nil; scope = scope.parent {
-				var var_ *TypedVar = scope.priv_TypedScope_findOwnDeclaredVar_5726(name)
+				var var_ *TypedVar = scope.priv_TypedScope_findOwnDeclaredVar_5736(name)
 				_ = var_
 				if var_ != nil {
 					return var_
@@ -1218,7 +1257,7 @@ func (this_ *TypedScope) priv_TypedScope_findRootVar_5733(name string) *TypedVar
 		var scope_2 *TypedScope = this_
 		_ = scope_2
 		for ; scope_2 != nil; scope_2 = scope_2.parent {
-			var var__2 *TypedVar = scope_2.priv_TypedScope_findOwnDeclaredVar_5726(name)
+			var var__2 *TypedVar = scope_2.priv_TypedScope_findOwnDeclaredVar_5736(name)
 			_ = var__2
 			if var__2 != nil {
 				return var__2
@@ -1242,7 +1281,7 @@ func (this_ *TypedScope) FindScopeForRootName(name string) *TypedScope {
 			var scope *TypedScope = this_
 			_ = scope
 			for ; scope != nil; scope = scope.parent {
-				if scope.priv_TypedScope_findOwnDeclaredVar_5726(name) != nil {
+				if scope.priv_TypedScope_findOwnDeclaredVar_5736(name) != nil {
 					return scope
 				}
 			}
@@ -1253,7 +1292,7 @@ func (this_ *TypedScope) FindScopeForRootName(name string) *TypedScope {
 		var scope_2 *TypedScope = this_
 		_ = scope_2
 		for ; scope_2 != nil; scope_2 = scope_2.parent {
-			if scope_2.priv_TypedScope_findOwnDeclaredVar_5726(name) != nil {
+			if scope_2.priv_TypedScope_findOwnDeclaredVar_5736(name) != nil {
 				return scope_2
 			}
 			if !(scope_2.IsGlobal()) && scope_2.HasOwnImplicitSlot(implicit) {
@@ -1270,12 +1309,12 @@ func (this_ *TypedScope) LookupTypedVar(name string) *TypedVar {
 	var dot int32 = j2gort.JStrIndexOfCp(name, int32(uint16(46)))
 	_ = dot
 	if dot < int32(0) {
-		return this_.priv_TypedScope_findRootVar_5733(name)
+		return this_.priv_TypedScope_findRootVar_5744(name)
 	}
 	var o *TypedScope_Overflow = this_.overflow
 	_ = o
 	if (o != nil) && (o.qualifiedRootNames != nil) {
-		var ownSlot *TypedVar = this_.priv_TypedScope_findOwnDeclaredVar_5726(name)
+		var ownSlot *TypedVar = this_.priv_TypedScope_findOwnDeclaredVar_5736(name)
 		_ = ownSlot
 		if ownSlot != nil {
 			return ownSlot
@@ -1286,13 +1325,13 @@ func (this_ *TypedScope) LookupTypedVar(name string) *TypedVar {
 	}
 	var rootName string = j2gort.JStrSub(name, int32(0), dot)
 	_ = rootName
-	var rootVar *TypedVar = this_.priv_TypedScope_findRootVar_5733(rootName)
+	var rootVar *TypedVar = this_.priv_TypedScope_findRootVar_5744(rootName)
 	_ = rootVar
 	if rootVar == nil {
 		var global *TypedScope = this_.parent.GetGlobalTypedScope()
 		_ = global
 		if global.HasQualifiedOwnVarWithRoot(rootName) {
-			return global.priv_TypedScope_findOwnDeclaredVar_5726(name)
+			return global.priv_TypedScope_findOwnDeclaredVar_5736(name)
 		} else {
 			return nil
 		}
@@ -1300,7 +1339,7 @@ func (this_ *TypedScope) LookupTypedVar(name string) *TypedVar {
 	var rootScope *TypedScope = j2gort.CastPtr[TypedScope](rootVar.GetScope())
 	_ = rootScope
 	if rootScope.HasQualifiedOwnVarWithRoot(rootName) {
-		return rootScope.priv_TypedScope_findOwnDeclaredVar_5726(name)
+		return rootScope.priv_TypedScope_findOwnDeclaredVar_5736(name)
 	} else {
 		return nil
 	}
@@ -1464,21 +1503,21 @@ func (this_ *TypedScope_Overflow) InitReservedSet(set j2gort.Ext_java_util_Set) 
 		var i int32 = int32(0)
 		_ = i
 		{
-			cur_61 := j2gort.NewIterCursor(j2gort.CheckNotNull(set))
-			for cur_61.HasNext() {
-				s := cur_61.NextStr()
+			cur_63 := j2gort.NewIterCursor(j2gort.CheckNotNull(set))
+			for cur_63.HasNext() {
+				s := cur_63.NextStr()
 				_ = s
 				{
-					a_62 := arr
-					var i_63 int32
+					a_64 := arr
+					var i_65 int32
 					{
 
-						old_64 := i
-						nw_65 := old_64 + 1
-						i = nw_65
-						i_63 = old_64
+						old_66 := i
+						nw_67 := old_66 + 1
+						i = nw_67
+						i_65 = old_66
 					}
-					a_62[i_63] = s
+					a_64[i_65] = s
 				}
 			}
 		}
@@ -1518,9 +1557,9 @@ func (this_ *TypedScope_Overflow) ContainsReservedName(name string) bool {
 			var iifeCond_1 bool
 			{
 
-				sr_66 := name
-				se_67 := arr[idx]
-				iifeCond_1 = j2gort.CheckNotNullString(sr_66) == se_67
+				sr_68 := name
+				se_69 := arr[idx]
+				iifeCond_1 = j2gort.CheckNotNullString(sr_68) == se_69
 			}
 			if iifeCond_1 {
 				return true
@@ -1559,9 +1598,9 @@ func (this_ *TypedScope_Overflow) RemoveReservedAndCheckEmpty(name string) bool 
 			var iifeCond_1 bool
 			{
 
-				sr_68 := name
-				se_69 := arr[idx]
-				iifeCond_1 = j2gort.CheckNotNullString(sr_68) == se_69
+				sr_70 := name
+				se_71 := arr[idx]
+				iifeCond_1 = j2gort.CheckNotNullString(sr_70) == se_71
 			}
 			if iifeCond_1 {
 				var next_2 int32 = (this_.reservedMask & ^(bit))

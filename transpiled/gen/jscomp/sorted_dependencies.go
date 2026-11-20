@@ -100,7 +100,7 @@ func InitSortedDependencies(this_ *SortedDependencies, userOrderedInputs j2gort.
 			this_.userOrderedInputs = append(this_.userOrderedInputs, j2gort.AsIface[DependencyInfo](userOrderedInputs.Get(i)))
 		}
 	}
-	this_.priv_SortedDependencies_processInputs_6190()
+	this_.priv_SortedDependencies_processInputs_6203()
 }
 
 // Java static method: SortedDependencies.tryAcquireStrongScratch(com.google.javascript.jscomp.deps.SortedDependencies<?> self)
@@ -163,7 +163,7 @@ func SortedDependencies_MixHash(h int32) int32 {
 }
 
 // Java method: SortedDependencies.registerOrGetInputId(InputT input)
-func (this_ *SortedDependencies) priv_SortedDependencies_registerOrGetInputId_6178(input DependencyInfo) int32 {
+func (this_ *SortedDependencies) priv_SortedDependencies_registerOrGetInputId_6191(input DependencyInfo) int32 {
 	_ = input
 	var h int32 = javalang.ObjectHashCode(j2gort.CheckNotNull(input))
 	_ = h
@@ -214,7 +214,7 @@ func (this_ *SortedDependencies) priv_SortedDependencies_registerOrGetInputId_61
 }
 
 // Java method: SortedDependencies.findInputId(InputT input)
-func (this_ *SortedDependencies) priv_SortedDependencies_findInputId_6179(input DependencyInfo) int32 {
+func (this_ *SortedDependencies) priv_SortedDependencies_findInputId_6192(input DependencyInfo) int32 {
 	_ = input
 	if (this_.uniqueInputCount == int32(0)) || (input == nil || input.IsJavaNil_()) {
 		return int32(-1)
@@ -293,7 +293,7 @@ func (this_ *SortedDependencies) GetStrongDependenciesOf(rootInputs j2gort.Ext_j
 		for !(worklist.IsEmpty()) {
 			var input DependencyInfo = worklist.Pop()
 			_ = input
-			var id int32 = this_.priv_SortedDependencies_findInputId_6179(input)
+			var id int32 = this_.priv_SortedDependencies_findInputId_6192(input)
 			_ = id
 			var added bool = false
 			_ = added
@@ -436,7 +436,7 @@ func (this_ *SortedDependencies) GetSortedWeakDependenciesOf(rootInputs j2gort.E
 			for ; i < size; i = i + 1 {
 				var strongInput DependencyInfo = strongList[i]
 				_ = strongInput
-				var sId int32 = this_.priv_SortedDependencies_findInputId_6179(strongInput)
+				var sId int32 = this_.priv_SortedDependencies_findInputId_6192(strongInput)
 				_ = sId
 				if !(strongById[sId]) {
 					{
@@ -451,7 +451,7 @@ func (this_ *SortedDependencies) GetSortedWeakDependenciesOf(rootInputs j2gort.E
 		for !(worklist.IsEmpty()) {
 			var input DependencyInfo = worklist.Pop()
 			_ = input
-			var id int32 = this_.priv_SortedDependencies_findInputId_6179(input)
+			var id int32 = this_.priv_SortedDependencies_findInputId_6192(input)
 			_ = id
 			var isStrong bool = strongById[id]
 			_ = isStrong
@@ -464,9 +464,9 @@ func (this_ *SortedDependencies) GetSortedWeakDependenciesOf(rootInputs j2gort.E
 					i_18 := id
 					a_17[i_18] = true
 				}
-				this_.priv_SortedDependencies_enqueueWeakRequireEdges_6185(input.GetRequires(), strongById, weakById, worklist)
+				this_.priv_SortedDependencies_enqueueWeakRequireEdges_6198(input.GetRequires(), strongById, weakById, worklist)
 			}
-			this_.priv_SortedDependencies_enqueueWeakEdges_6186(input.GetTypeRequires(), strongById, weakById, worklist)
+			this_.priv_SortedDependencies_enqueueWeakEdges_6199(input.GetTypeRequires(), strongById, weakById, worklist)
 		}
 		var builder []DependencyInfo = []DependencyInfo{}
 		_ = builder
@@ -487,7 +487,7 @@ func (this_ *SortedDependencies) GetSortedWeakDependenciesOf(rootInputs j2gort.E
 }
 
 // Java method: SortedDependencies.enqueueWeakRequireEdges(com.google.common.collect.ImmutableList<com.google.javascript.jscomp.deps.DependencyInfo.Require> requires, boolean[] strongById, boolean[] weakById, java.util.ArrayDeque<InputT> worklist)
-func (this_ *SortedDependencies) priv_SortedDependencies_enqueueWeakRequireEdges_6185(requires j2gort.Ext_com_google_common_collect_ImmutableList, strongById []bool, weakById []bool, worklist *j2gort.Deque[DependencyInfo]) {
+func (this_ *SortedDependencies) priv_SortedDependencies_enqueueWeakRequireEdges_6198(requires j2gort.Ext_com_google_common_collect_ImmutableList, strongById []bool, weakById []bool, worklist *j2gort.Deque[DependencyInfo]) {
 	_ = requires
 	_ = strongById
 	_ = weakById
@@ -501,7 +501,7 @@ func (this_ *SortedDependencies) priv_SortedDependencies_enqueueWeakRequireEdges
 			var importedSymbolName DependencyInfo = this_.exportingInputBySymbolName.Get(j2gort.CastPtr[DependencyInfo_Require](requires.Get(i)).GetSymbol())
 			_ = importedSymbolName
 			if importedSymbolName != nil && !importedSymbolName.IsJavaNil_() {
-				var impId int32 = this_.priv_SortedDependencies_findInputId_6179(importedSymbolName)
+				var impId int32 = this_.priv_SortedDependencies_findInputId_6192(importedSymbolName)
 				_ = impId
 				if !(strongById[impId]) && !(weakById[impId]) {
 					worklist.AddLast(importedSymbolName)
@@ -512,7 +512,7 @@ func (this_ *SortedDependencies) priv_SortedDependencies_enqueueWeakRequireEdges
 }
 
 // Java method: SortedDependencies.enqueueWeakEdges(com.google.common.collect.ImmutableList<java.lang.String> symbols, boolean[] strongById, boolean[] weakById, java.util.ArrayDeque<InputT> worklist)
-func (this_ *SortedDependencies) priv_SortedDependencies_enqueueWeakEdges_6186(symbols j2gort.Ext_com_google_common_collect_ImmutableList, strongById []bool, weakById []bool, worklist *j2gort.Deque[DependencyInfo]) {
+func (this_ *SortedDependencies) priv_SortedDependencies_enqueueWeakEdges_6199(symbols j2gort.Ext_com_google_common_collect_ImmutableList, strongById []bool, weakById []bool, worklist *j2gort.Deque[DependencyInfo]) {
 	_ = symbols
 	_ = strongById
 	_ = weakById
@@ -526,7 +526,7 @@ func (this_ *SortedDependencies) priv_SortedDependencies_enqueueWeakEdges_6186(s
 			var importedSymbolName DependencyInfo = this_.exportingInputBySymbolName.Get(j2gort.ListGetStr(symbols, i))
 			_ = importedSymbolName
 			if importedSymbolName != nil && !importedSymbolName.IsJavaNil_() {
-				var impId int32 = this_.priv_SortedDependencies_findInputId_6179(importedSymbolName)
+				var impId int32 = this_.priv_SortedDependencies_findInputId_6192(importedSymbolName)
 				_ = impId
 				if !(strongById[impId]) && !(weakById[impId]) {
 					worklist.AddLast(importedSymbolName)
@@ -568,7 +568,7 @@ func (this_ *SortedDependencies) MaybeGetInputProviding(symbol string) Dependenc
 }
 
 // Java method: SortedDependencies.orderInput(InputT input, int id, boolean[] completedById, java.util.ArrayList<InputT>[] importedById, int[][] importedIdsById, int[] importedCounts)
-func (this_ *SortedDependencies) priv_SortedDependencies_orderInput_6189(input DependencyInfo, id int32, completedById []bool, importedById []j2gort.Ext_java_util_ArrayList, importedIdsById [][]int32, importedCounts []int32) {
+func (this_ *SortedDependencies) priv_SortedDependencies_orderInput_6202(input DependencyInfo, id int32, completedById []bool, importedById []j2gort.Ext_java_util_ArrayList, importedIdsById [][]int32, importedCounts []int32) {
 	_ = input
 	_ = id
 	_ = completedById
@@ -594,7 +594,7 @@ func (this_ *SortedDependencies) priv_SortedDependencies_orderInput_6189(input D
 			var i int32 = int32(0)
 			_ = i
 			for ; i < depCount; i = i + 1 {
-				this_.priv_SortedDependencies_orderInput_6189(j2gort.AsIface[DependencyInfo](deps.Get(i)), depIds[i], completedById, importedById, importedIdsById, importedCounts)
+				this_.priv_SortedDependencies_orderInput_6202(j2gort.AsIface[DependencyInfo](deps.Get(i)), depIds[i], completedById, importedById, importedIdsById, importedCounts)
 			}
 		}
 	}
@@ -602,7 +602,7 @@ func (this_ *SortedDependencies) priv_SortedDependencies_orderInput_6189(input D
 }
 
 // Java method: SortedDependencies.processInputs()
-func (this_ *SortedDependencies) priv_SortedDependencies_processInputs_6190() {
+func (this_ *SortedDependencies) priv_SortedDependencies_processInputs_6203() {
 	var inputCount int32 = int32(len(this_.userOrderedInputs))
 	_ = inputCount
 	if inputCount == int32(0) {
@@ -632,7 +632,7 @@ func (this_ *SortedDependencies) priv_SortedDependencies_processInputs_6190() {
 			{
 				a_21 := this_.userInputIds
 				i_22 := i
-				a_21[i_22] = this_.priv_SortedDependencies_registerOrGetInputId_6178(userOrderedInput)
+				a_21[i_22] = this_.priv_SortedDependencies_registerOrGetInputId_6191(userOrderedInput)
 			}
 			var provides []string = j2gort.ImmListToSliceNullable[string](userOrderedInput.GetProvides())
 			_ = provides
@@ -681,7 +681,7 @@ func (this_ *SortedDependencies) priv_SortedDependencies_processInputs_6190() {
 					var importedInput DependencyInfo = this_.exportingInputBySymbolName.Get(requires[r].GetSymbol())
 					_ = importedInput
 					if importedInput != nil && !importedInput.IsJavaNil_() {
-						var dstId int32 = this_.priv_SortedDependencies_findInputId_6179(importedInput)
+						var dstId int32 = this_.priv_SortedDependencies_findInputId_6192(importedInput)
 						_ = dstId
 						var count int32 = importedCounts[srcId]
 						_ = count
@@ -757,7 +757,7 @@ func (this_ *SortedDependencies) priv_SortedDependencies_processInputs_6190() {
 		var i_3 int32 = int32(0)
 		_ = i_3
 		for ; i_3 < inputCount; i_3 = i_3 + 1 {
-			this_.priv_SortedDependencies_orderInput_6189(this_.userOrderedInputs[i_3], this_.userInputIds[i_3], completedById, importedById, importedIdsById, importedCounts)
+			this_.priv_SortedDependencies_orderInput_6202(this_.userOrderedInputs[i_3], this_.userInputIds[i_3], completedById, importedById, importedIdsById, importedCounts)
 		}
 	}
 	var importCount int32 = int32(len(this_.importOrderedInputs))
@@ -770,7 +770,7 @@ func (this_ *SortedDependencies) priv_SortedDependencies_processInputs_6190() {
 			{
 				a_37 := this_.importInputIds
 				i_38 := i_4
-				a_37[i_38] = this_.priv_SortedDependencies_findInputId_6179(this_.importOrderedInputs[i_4])
+				a_37[i_38] = this_.priv_SortedDependencies_findInputId_6192(this_.importOrderedInputs[i_4])
 			}
 		}
 	}

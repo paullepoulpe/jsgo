@@ -174,7 +174,7 @@ func (this_ *DepsFileRegexParser) ParseLine(line string) bool {
 			_ = path
 			var provides j2gort.Ext_java_util_List = this_.ParseJsStringArray(this_.depArgsMatch.Group_1_int32(int32(2)))
 			_ = provides
-			var loadFlags j2gort.Ext_java_util_Map = this_.priv_DepsFileRegexParser_parseLoadFlags_6111(this_.depArgsMatch.Group_1_int32(int32(4)))
+			var loadFlags j2gort.Ext_java_util_Map = this_.priv_DepsFileRegexParser_parseLoadFlags_6124(this_.depArgsMatch.Group_1_int32(int32(4)))
 			_ = loadFlags
 			{
 				var iifeCond_1 bool
@@ -200,7 +200,7 @@ func (this_ *DepsFileRegexParser) ParseLine(line string) bool {
 }
 
 // Java method: DepsFileRegexParser.parseLoadFlags(java.lang.String loadFlags)
-func (this_ *DepsFileRegexParser) priv_DepsFileRegexParser_parseLoadFlags_6111(loadFlags string) j2gort.Ext_java_util_Map {
+func (this_ *DepsFileRegexParser) priv_DepsFileRegexParser_parseLoadFlags_6124(loadFlags string) j2gort.Ext_java_util_Map {
 	_ = loadFlags
 	if (loadFlags == j2gort.NullString) || (j2gort.CheckNotNullString(loadFlags) == "false") {
 		return j2gort.AsIface[j2gort.Ext_java_util_Map](j2gort.Ext_com_google_common_collect_ImmutableMap_Of_0())

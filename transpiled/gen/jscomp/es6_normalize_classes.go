@@ -187,31 +187,31 @@ func InitEs6NormalizeClasses(this_ *Es6NormalizeClasses, compiler AbstractCompil
 }
 
 // Java method: Es6NormalizeClasses.generateUniqueTmpVarName(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateUniqueTmpVarName_2494(t *NodeTraversal) string {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateUniqueTmpVarName_2504(t *NodeTraversal) string {
 	_ = t
 	return ("$jscomp$tmp$" + j2gort.StrValString(this_.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())))
 }
 
 // Java method: Es6NormalizeClasses.generateUniqueClassDeclVarName(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateUniqueClassDeclVarName_2495(t *NodeTraversal) string {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateUniqueClassDeclVarName_2505(t *NodeTraversal) string {
 	_ = t
 	return ("$jscomp$classDecl$" + j2gort.StrValString(this_.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())))
 }
 
 // Java method: Es6NormalizeClasses.generateUniqueClassExtendsVarName(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateUniqueClassExtendsVarName_2496(t *NodeTraversal) string {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateUniqueClassExtendsVarName_2506(t *NodeTraversal) string {
 	_ = t
 	return ("$jscomp$classExtends$" + j2gort.StrValString(this_.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())))
 }
 
 // Java method: Es6NormalizeClasses.generateUniqueCompFieldVarName(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateUniqueCompFieldVarName_2497(t *NodeTraversal) string {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateUniqueCompFieldVarName_2507(t *NodeTraversal) string {
 	_ = t
 	return ("$jscomp$compField$" + j2gort.StrValString(this_.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())))
 }
 
 // Java method: Es6NormalizeClasses.generateUniqueStaticInitMethodName(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateUniqueStaticInitMethodName_2498(t *NodeTraversal) string {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateUniqueStaticInitMethodName_2508(t *NodeTraversal) string {
 	_ = t
 	return ("$jscomp$staticInit$" + j2gort.StrValString(this_.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())))
 }
@@ -297,7 +297,7 @@ func (this_ *Es6NormalizeClasses) ShouldTraverse_3(t *NodeTraversal, n pkg_rhino
 		} else {
 			bindingIdentifier = j2gort.Ext_java_util_Optional_Empty()
 		}
-		var normalized *Es6NormalizeClasses_NormalizedNames = this_.priv_Es6NormalizeClasses_generateNormalizedClassNames_2536(t, n)
+		var normalized *Es6NormalizeClasses_NormalizedNames = this_.priv_Es6NormalizeClasses_generateNormalizedClassNames_2546(t, n)
 		_ = normalized
 		var val_1 Es6NormalizeClasses_ClassRecord
 		InitEs6NormalizeClasses_ClassRecord(&val_1, normalized, bindingIdentifier, n)
@@ -364,7 +364,7 @@ func (this_ *Es6NormalizeClasses) ShouldTraverse_3(t *NodeTraversal, n pkg_rhino
 }
 
 // Java method: Es6NormalizeClasses.shouldExtractExtends(com.google.javascript.rhino.Node classNode)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_shouldExtractExtends_2499(classNode pkg_rhino.Node) bool {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_shouldExtractExtends_2509(classNode pkg_rhino.Node) bool {
 	_ = classNode
 	if !(classNode.IsClass()) {
 		j2gort.CheckArgument(false)
@@ -375,7 +375,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_shouldExtractExtends_
 }
 
 // Java method: Es6NormalizeClasses.canExtractExtendsSimply(com.google.javascript.rhino.Node classNode)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_canExtractExtendsSimply_2500(classNode pkg_rhino.Node) bool {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_canExtractExtendsSimply_2510(classNode pkg_rhino.Node) bool {
 	_ = classNode
 	var enclosingStatement pkg_rhino.Node = j2gort.CheckNotNullNode(NodeUtil_GetEnclosingStatement(classNode))
 	_ = enclosingStatement
@@ -396,7 +396,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_canExtractExtendsSimp
 }
 
 // Java method: Es6NormalizeClasses.extractExtends(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.Es6NormalizeClasses.ClassRecord classRecord)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractExtends_2501(t *NodeTraversal, classRecord *Es6NormalizeClasses_ClassRecord) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractExtends_2511(t *NodeTraversal, classRecord *Es6NormalizeClasses_ClassRecord) {
 	_ = t
 	_ = classRecord
 	var classNode pkg_rhino.Node = classRecord.classNode
@@ -419,7 +419,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractExtends_2501(t
 }
 
 // Java method: Es6NormalizeClasses.pushDownNodeIntoNewIife(com.google.javascript.rhino.Node n)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_pushDownNodeIntoNewIife_2502(n pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_pushDownNodeIntoNewIife_2512(n pkg_rhino.Node) {
 	_ = n
 	var functionBody pkg_rhino.Node = pkg_rhino.IR_Block_0()
 	_ = functionBody
@@ -435,7 +435,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_pushDownNodeIntoNewIi
 }
 
 // Java method: Es6NormalizeClasses.shouldExtractClass(com.google.javascript.rhino.Node classNode)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_shouldExtractClass_2503(classNode pkg_rhino.Node) bool {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_shouldExtractClass_2513(classNode pkg_rhino.Node) bool {
 	_ = classNode
 	var parent pkg_rhino.Node = classNode.GetParent()
 	_ = parent
@@ -446,7 +446,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_shouldExtractClass_25
 }
 
 // Java method: Es6NormalizeClasses.extractClass(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.Es6NormalizeClasses.ClassRecord classRecord)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractClass_2504(t *NodeTraversal, classRecord *Es6NormalizeClasses_ClassRecord) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractClass_2514(t *NodeTraversal, classRecord *Es6NormalizeClasses_ClassRecord) {
 	_ = t
 	_ = classRecord
 	var classNode pkg_rhino.Node = classRecord.classNode
@@ -468,19 +468,19 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractClass_2504(t *
 	classDeclaration.SetJSDocInfo(pkg_rhino.JSDocInfo_Builder_MaybeCopyFrom(info).Build_0())
 	classDeclaration.InsertBefore(statement)
 	if (NodeUtil_IsNameDeclaration(statement) && statement.HasOneChild()) && (statement.GetOnlyChild() == parent) {
-		this_.priv_Es6NormalizeClasses_addAtConstructor_2505(statement)
+		this_.priv_Es6NormalizeClasses_addAtConstructor_2515(statement)
 	} else if statement.IsExprResult() {
 		var expr pkg_rhino.Node = statement.GetOnlyChild()
 		_ = expr
 		if (expr.IsAssign() && expr.GetFirstChild().IsQualifiedName()) && (expr.GetSecondChild() == classNameRhs) {
-			this_.priv_Es6NormalizeClasses_addAtConstructor_2505(expr)
+			this_.priv_Es6NormalizeClasses_addAtConstructor_2515(expr)
 		}
 	}
 	this_.compiler.ReportChangeToEnclosingScope(classDeclaration)
 }
 
 // Java method: Es6NormalizeClasses.addAtConstructor(com.google.javascript.rhino.Node node)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_addAtConstructor_2505(node pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_addAtConstructor_2515(node pkg_rhino.Node) {
 	_ = node
 	var builder *pkg_rhino.JSDocInfo_Builder = pkg_rhino.JSDocInfo_Builder_MaybeCopyFrom(node.GetJSDocInfo())
 	_ = builder
@@ -489,7 +489,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_addAtConstructor_2505
 }
 
 // Java method: Es6NormalizeClasses.getStatementDeclaringClass(com.google.javascript.rhino.Node classNode, com.google.javascript.rhino.Node classNameNode)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_getStatementDeclaringClass_2506(classNode pkg_rhino.Node, classNameNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_getStatementDeclaringClass_2516(classNode pkg_rhino.Node, classNameNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = classNode
 	_ = classNameNode
 	if NodeUtil_IsClassDeclaration(classNode) {
@@ -541,11 +541,11 @@ func (this_ *Es6NormalizeClasses) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 	switch n.TokenSwitchOrd_() {
 	case int32(44) /* Token.IN */ :
 		if this_.transpilePrivateClassFields && n.GetFirstChild().IsPrivateIdentifier() {
-			this_.priv_Es6NormalizeClasses_rewritePrivateIn_2509(t, n)
+			this_.priv_Es6NormalizeClasses_rewritePrivateIn_2519(t, n)
 		}
 	case int32(26) /* Token.GETPROP */, int32(29) /* Token.OPTCHAIN_GETPROP */ :
 		if this_.transpilePrivateClassFields && n.IsPrivateIdentifier() {
-			this_.priv_Es6NormalizeClasses_rewritePrivateGetProp_2510(t, n)
+			this_.priv_Es6NormalizeClasses_rewritePrivateGetProp_2520(t, n)
 		}
 	case int32(105) /* Token.CLASS */ :
 		var currClassRecord *Es6NormalizeClasses_ClassRecord = this_.classStack.RemoveFirst()
@@ -554,17 +554,17 @@ func (this_ *Es6NormalizeClasses) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 			j2gort.CheckStateFmt(false, "unexpected node: %s", j2gort.BoxNode(n))
 		}
 		if currClassRecord.normalizedNames.shouldExtractExtends {
-			if !(this_.priv_Es6NormalizeClasses_canExtractExtendsSimply_2500(n)) {
-				this_.priv_Es6NormalizeClasses_pushDownNodeIntoNewIife_2502(n)
+			if !(this_.priv_Es6NormalizeClasses_canExtractExtendsSimply_2510(n)) {
+				this_.priv_Es6NormalizeClasses_pushDownNodeIntoNewIife_2512(n)
 				parent = n.GetParent()
 			}
-			this_.priv_Es6NormalizeClasses_extractExtends_2501(t, currClassRecord)
+			this_.priv_Es6NormalizeClasses_extractExtends_2511(t, currClassRecord)
 		}
 		if currClassRecord.normalizedNames.shouldExtractClass {
 			if this_.expressionDecomposer.CanExposeExpression(n) != StaticGet_ExpressionDecomposer_DecompositionType_MOVABLE() {
-				this_.priv_Es6NormalizeClasses_pushDownNodeIntoNewIife_2502(n)
+				this_.priv_Es6NormalizeClasses_pushDownNodeIntoNewIife_2512(n)
 			}
-			this_.priv_Es6NormalizeClasses_extractClass_2504(t, currClassRecord)
+			this_.priv_Es6NormalizeClasses_extractClass_2514(t, currClassRecord)
 			parent = n.GetParent()
 		}
 		var classNameNode pkg_rhino.Node = NodeUtil_GetNameNode(n)
@@ -572,7 +572,7 @@ func (this_ *Es6NormalizeClasses) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 		if !(classNameNode != 0) {
 			j2gort.CheckStateFmt(false, "Class missing a name: %s", j2gort.BoxNode(n))
 		}
-		var classInsertionPoint pkg_rhino.Node = this_.priv_Es6NormalizeClasses_getStatementDeclaringClass_2506(n, classNameNode)
+		var classInsertionPoint pkg_rhino.Node = this_.priv_Es6NormalizeClasses_getStatementDeclaringClass_2516(n, classNameNode)
 		_ = classInsertionPoint
 		if !(classInsertionPoint != 0) {
 			j2gort.CheckStateFmt(false, "Class was not extracted: %s", j2gort.BoxNode(n))
@@ -582,23 +582,23 @@ func (this_ *Es6NormalizeClasses) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 			this_.compiler.ReportChangeToEnclosingScope(n)
 		}
 		if this_.transpilePrivateClassFields && (currClassRecord.hasInstancePrivateMembers || currClassRecord.hasStaticPrivateMembers) {
-			this_.priv_Es6NormalizeClasses_insertPrivateDeclarations_2507(t, currClassRecord, classInsertionPoint)
+			this_.priv_Es6NormalizeClasses_insertPrivateDeclarations_2517(t, currClassRecord, classInsertionPoint)
 		}
-		this_.priv_Es6NormalizeClasses_rewriteSideEffectedComputedProps_2518(t, currClassRecord, classInsertionPoint)
+		this_.priv_Es6NormalizeClasses_rewriteSideEffectedComputedProps_2528(t, currClassRecord, classInsertionPoint)
 		if this_.transpileClassFields || (this_.transpilePrivateClassFields && currClassRecord.hasInstancePrivateMembers) {
-			this_.priv_Es6NormalizeClasses_rewriteInstanceMembers_2520(t, currClassRecord)
+			this_.priv_Es6NormalizeClasses_rewriteInstanceMembers_2530(t, currClassRecord)
 		}
-		this_.priv_Es6NormalizeClasses_rewriteStaticMembers_2532(t, currClassRecord, classInsertionPoint)
+		this_.priv_Es6NormalizeClasses_rewriteStaticMembers_2542(t, currClassRecord, classInsertionPoint)
 	case int32(32) /* Token.NAME */ :
-		this_.priv_Es6NormalizeClasses_maybeUpdateClassSelfRef_2534(t, n)
+		this_.priv_Es6NormalizeClasses_maybeUpdateClassSelfRef_2544(t, n)
 	case int32(37) /* Token.THIS */, int32(110) /* Token.SUPER */ :
-		this_.priv_Es6NormalizeClasses_visitThisAndSuper_2535(t, n)
+		this_.priv_Es6NormalizeClasses_visitThisAndSuper_2545(t, n)
 	default:
 	}
 }
 
 // Java method: Es6NormalizeClasses.insertPrivateDeclarations(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.Es6NormalizeClasses.ClassRecord record, com.google.javascript.rhino.Node classInsertionPoint)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_insertPrivateDeclarations_2507(t *NodeTraversal, record *Es6NormalizeClasses_ClassRecord, classInsertionPoint pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_insertPrivateDeclarations_2517(t *NodeTraversal, record *Es6NormalizeClasses_ClassRecord, classInsertionPoint pkg_rhino.Node) {
 	_ = t
 	_ = record
 	_ = classInsertionPoint
@@ -615,7 +615,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_insertPrivateDeclarat
 				_ = pm
 				if !(pm.isStatic) {
 					if ((pm.kind == StaticGet_Es6NormalizeClasses_ClassRecord_PrivateMemberKind_METHOD()) && (pm.methodNode != 0)) && pm.methodNode.HasChildren() {
-						this_.priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2517(pm.methodNode, record)
+						this_.priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2527(pm.methodNode, record)
 						var fnNode pkg_rhino.Node = pm.methodNode.GetFirstChild().Detach()
 						_ = fnNode
 						pm.methodNode.Detach()
@@ -630,11 +630,11 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_insertPrivateDeclarat
 						var descriptorLit_2 pkg_rhino.Node = this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{})
 						_ = descriptorLit_2
 						if (pm.getterNode != 0) && pm.getterNode.HasChildren() {
-							this_.priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2517(pm.getterNode, record)
+							this_.priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2527(pm.getterNode, record)
 							var getFn pkg_rhino.Node = pm.getterNode.GetFirstChild().Detach()
 							_ = getFn
 							pm.getterNode.Detach()
-							if this_.priv_Es6NormalizeClasses_rewriteThisToThisDotSelf_2515(getFn) {
+							if this_.priv_Es6NormalizeClasses_rewriteThisToThisDotSelf_2525(getFn) {
 								{
 									r_4 := record
 									r_4.needsInstanceSelf = true
@@ -645,11 +645,11 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_insertPrivateDeclarat
 							descriptorLit_2.AddChildToBack(getProp)
 						}
 						if (pm.setterNode != 0) && pm.setterNode.HasChildren() {
-							this_.priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2517(pm.setterNode, record)
+							this_.priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2527(pm.setterNode, record)
 							var setFn pkg_rhino.Node = pm.setterNode.GetFirstChild().Detach()
 							_ = setFn
 							pm.setterNode.Detach()
-							if this_.priv_Es6NormalizeClasses_rewriteThisToThisDotSelf_2515(setFn) {
+							if this_.priv_Es6NormalizeClasses_rewriteThisToThisDotSelf_2525(setFn) {
 								{
 									r_5 := record
 									r_5.needsInstanceSelf = true
@@ -686,7 +686,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_insertPrivateDeclarat
 }
 
 // Java method: Es6NormalizeClasses.findPrivateMember(java.lang.String name)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_findPrivateMember_2508(name string) *Es6NormalizeClasses_ResolvedPrivateMember {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_findPrivateMember_2518(name string) *Es6NormalizeClasses_ResolvedPrivateMember {
 	_ = name
 	{
 		cur_6 := this_.classStack.Iter()
@@ -703,7 +703,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_findPrivateMember_250
 }
 
 // Java method: Es6NormalizeClasses.rewritePrivateIn(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node inNode)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateIn_2509(t *NodeTraversal, inNode pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateIn_2519(t *NodeTraversal, inNode pkg_rhino.Node) {
 	_ = t
 	_ = inNode
 	if !(inNode.IsIn()) {
@@ -713,10 +713,10 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateIn_2509
 	_ = left
 	var name string = left.GetString()
 	_ = name
-	var resolved *Es6NormalizeClasses_ResolvedPrivateMember = this_.priv_Es6NormalizeClasses_findPrivateMember_2508(name)
+	var resolved *Es6NormalizeClasses_ResolvedPrivateMember = this_.priv_Es6NormalizeClasses_findPrivateMember_2518(name)
 	_ = resolved
 	if resolved == nil {
-		this_.priv_Es6NormalizeClasses_maybeReportPrivatePropertiesCannotConvertYet_2525(left)
+		this_.priv_Es6NormalizeClasses_maybeReportPrivatePropertiesCannotConvertYet_2535(left)
 		return
 	}
 	var right pkg_rhino.Node = inNode.GetLastChild().Detach()
@@ -743,15 +743,15 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateIn_2509
 }
 
 // Java method: Es6NormalizeClasses.rewritePrivateGetProp(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node getPropNode)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateGetProp_2510(t *NodeTraversal, getPropNode pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateGetProp_2520(t *NodeTraversal, getPropNode pkg_rhino.Node) {
 	_ = t
 	_ = getPropNode
 	var name string = getPropNode.GetString()
 	_ = name
-	var resolved *Es6NormalizeClasses_ResolvedPrivateMember = this_.priv_Es6NormalizeClasses_findPrivateMember_2508(name)
+	var resolved *Es6NormalizeClasses_ResolvedPrivateMember = this_.priv_Es6NormalizeClasses_findPrivateMember_2518(name)
 	_ = resolved
 	if resolved == nil {
-		this_.priv_Es6NormalizeClasses_maybeReportPrivatePropertiesCannotConvertYet_2525(getPropNode)
+		this_.priv_Es6NormalizeClasses_maybeReportPrivatePropertiesCannotConvertYet_2535(getPropNode)
 		return
 	}
 	var record *Es6NormalizeClasses_ClassRecord = resolved.ClassRecord()
@@ -764,11 +764,11 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateGetProp
 	}
 	var parent pkg_rhino.Node = getPropNode.GetParent()
 	_ = parent
-	this_.priv_Es6NormalizeClasses_rewritePrivateMemberAccess_2511(t, getPropNode, record, pm, parent)
+	this_.priv_Es6NormalizeClasses_rewritePrivateMemberAccess_2521(t, getPropNode, record, pm, parent)
 }
 
 // Java method: Es6NormalizeClasses.rewritePrivateMemberAccess(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node getPropNode, com.google.javascript.jscomp.Es6NormalizeClasses.ClassRecord record, com.google.javascript.jscomp.Es6NormalizeClasses.ClassRecord.PrivateMember pm, com.google.javascript.rhino.Node parent)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateMemberAccess_2511(t *NodeTraversal, getPropNode pkg_rhino.Node, record *Es6NormalizeClasses_ClassRecord, pm *Es6NormalizeClasses_ClassRecord_PrivateMember, parent pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateMemberAccess_2521(t *NodeTraversal, getPropNode pkg_rhino.Node, record *Es6NormalizeClasses_ClassRecord, pm *Es6NormalizeClasses_ClassRecord_PrivateMember, parent pkg_rhino.Node) {
 	_ = t
 	_ = getPropNode
 	_ = record
@@ -806,10 +806,10 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateMemberA
 		var isOptionalCall bool = (parent.IsOptChainCall() && parent.IsOptionalChainStart())
 		_ = isOptionalCall
 		parent.SetIsOptionalChainStart(false)
-		if this_.priv_Es6NormalizeClasses_receiverNeedsTempVar_2537(receiver) {
-			var tempName string = this_.priv_Es6NormalizeClasses_generateUniqueTmpVarName_2494(t)
+		if this_.priv_Es6NormalizeClasses_receiverNeedsTempVar_2547(receiver) {
+			var tempName string = this_.priv_Es6NormalizeClasses_generateUniqueTmpVarName_2504(t)
 			_ = tempName
-			var insertionBlock pkg_rhino.Node = this_.priv_Es6NormalizeClasses_getDeclarationInsertionPoint_2538(getPropNode, t)
+			var insertionBlock pkg_rhino.Node = this_.priv_Es6NormalizeClasses_getDeclarationInsertionPoint_2548(getPropNode, t)
 			_ = insertionBlock
 			var decl pkg_rhino.Node = this_.astFactory.CreateSingleLetNameDeclaration_1(tempName)
 			_ = decl
@@ -828,7 +828,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateMemberA
 			_ = getCall
 			var methodGetProp pkg_rhino.Node = this_.astFactory.CreateGetPropWithUnknownType(getCall, memberPropName)
 			_ = methodGetProp
-			var callCallee pkg_rhino.Node = this_.priv_Es6NormalizeClasses_createCallCallee_2514(methodGetProp, isOptionalCall, getPropNode)
+			var callCallee pkg_rhino.Node = this_.priv_Es6NormalizeClasses_createCallCallee_2524(methodGetProp, isOptionalCall, getPropNode)
 			_ = callCallee
 			parent.SetToken(func() pkg_rhino.Token {
 				if callCallee.IsOptChainGetProp() {
@@ -841,7 +841,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateMemberA
 			getPropNode.Detach()
 			parent.AddChildToFront(callCallee)
 			tempNameNode3.InsertAfter(callCallee)
-			var resultExpr pkg_rhino.Node = this_.priv_Es6NormalizeClasses_wrapOptionalChainStartIfNecessary_2513(receiver, parent, endOfSegment, isOptChain)
+			var resultExpr pkg_rhino.Node = this_.priv_Es6NormalizeClasses_wrapOptionalChainStartIfNecessary_2523(receiver, parent, endOfSegment, isOptChain)
 			_ = resultExpr
 			var placeholder pkg_rhino.Node = pkg_rhino.IR_Empty()
 			_ = placeholder
@@ -859,7 +859,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateMemberA
 			_ = receiverArg
 			receiverArg.SrcrefTree(getPropNode)
 			getPropNode.Detach()
-			var callCallee_2 pkg_rhino.Node = this_.priv_Es6NormalizeClasses_createCallCallee_2514(methodGetProp_2, isOptionalCall, getPropNode)
+			var callCallee_2 pkg_rhino.Node = this_.priv_Es6NormalizeClasses_createCallCallee_2524(methodGetProp_2, isOptionalCall, getPropNode)
 			_ = callCallee_2
 			parent.SetToken(func() pkg_rhino.Token {
 				if callCallee_2.IsOptChainGetProp() {
@@ -870,11 +870,11 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateMemberA
 			callCallee_2.SrcrefTreeIfMissing(getPropNode)
 			parent.AddChildToFront(callCallee_2)
 			receiverArg.InsertAfter(callCallee_2)
-			this_.priv_Es6NormalizeClasses_wrapOptionalChainStartIfNecessary_2513(receiver, parent, endOfSegment, isOptChain)
+			this_.priv_Es6NormalizeClasses_wrapOptionalChainStartIfNecessary_2523(receiver, parent, endOfSegment, isOptChain)
 			t.ReportCodeChange_0()
 		}
 	} else {
-		var assignComma pkg_rhino.Node = this_.priv_Es6NormalizeClasses_extractReceiverTmpIfNecessary_2512(t, receiver, getPropNode, isOptChain)
+		var assignComma pkg_rhino.Node = this_.priv_Es6NormalizeClasses_extractReceiverTmpIfNecessary_2522(t, receiver, getPropNode, isOptChain)
 		_ = assignComma
 		if assignComma != 0 {
 			receiver = assignComma.GetFirstChild().CloneTree_0()
@@ -884,7 +884,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateMemberA
 		var methodGetProp_3 pkg_rhino.Node = this_.astFactory.CreateGetPropWithUnknownType(getCall_3, memberPropName)
 		_ = methodGetProp_3
 		getPropNode.ReplaceWith(methodGetProp_3.SrcrefTree(getPropNode))
-		var result pkg_rhino.Node = this_.priv_Es6NormalizeClasses_wrapOptionalChainStartIfNecessary_2513(receiver, methodGetProp_3, endOfSegment, isOptChain)
+		var result pkg_rhino.Node = this_.priv_Es6NormalizeClasses_wrapOptionalChainStartIfNecessary_2523(receiver, methodGetProp_3, endOfSegment, isOptChain)
 		_ = result
 		if assignComma != 0 {
 			var placeholder_2 pkg_rhino.Node = pkg_rhino.IR_Empty()
@@ -899,17 +899,17 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewritePrivateMemberA
 }
 
 // Java method: Es6NormalizeClasses.extractReceiverTmpIfNecessary(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node receiver, com.google.javascript.rhino.Node getPropNode, boolean isOptChain)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractReceiverTmpIfNecessary_2512(t *NodeTraversal, receiver pkg_rhino.Node, getPropNode pkg_rhino.Node, isOptChain bool) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractReceiverTmpIfNecessary_2522(t *NodeTraversal, receiver pkg_rhino.Node, getPropNode pkg_rhino.Node, isOptChain bool) pkg_rhino.Node {
 	_ = t
 	_ = receiver
 	_ = getPropNode
 	_ = isOptChain
-	if !(isOptChain) || !(this_.priv_Es6NormalizeClasses_receiverNeedsTempVar_2537(receiver)) {
+	if !(isOptChain) || !(this_.priv_Es6NormalizeClasses_receiverNeedsTempVar_2547(receiver)) {
 		return pkg_rhino.Node(0)
 	}
-	var tempName string = this_.priv_Es6NormalizeClasses_generateUniqueTmpVarName_2494(t)
+	var tempName string = this_.priv_Es6NormalizeClasses_generateUniqueTmpVarName_2504(t)
 	_ = tempName
-	var insertionBlock pkg_rhino.Node = this_.priv_Es6NormalizeClasses_getDeclarationInsertionPoint_2538(getPropNode, t)
+	var insertionBlock pkg_rhino.Node = this_.priv_Es6NormalizeClasses_getDeclarationInsertionPoint_2548(getPropNode, t)
 	_ = insertionBlock
 	var decl pkg_rhino.Node = this_.astFactory.CreateSingleLetNameDeclaration_1(tempName)
 	_ = decl
@@ -921,7 +921,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractReceiverTmpIfN
 }
 
 // Java method: Es6NormalizeClasses.wrapOptionalChainStartIfNecessary(com.google.javascript.rhino.Node receiver, com.google.javascript.rhino.Node accessExpr, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node endOfSegment, boolean isOptChain)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_wrapOptionalChainStartIfNecessary_2513(receiver pkg_rhino.Node, accessExpr pkg_rhino.Node, endOfSegment pkg_rhino.Node, isOptChain bool) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_wrapOptionalChainStartIfNecessary_2523(receiver pkg_rhino.Node, accessExpr pkg_rhino.Node, endOfSegment pkg_rhino.Node, isOptChain bool) pkg_rhino.Node {
 	_ = receiver
 	_ = accessExpr
 	_ = endOfSegment
@@ -961,7 +961,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_wrapOptionalChainStar
 }
 
 // Java method: Es6NormalizeClasses.createCallCallee(com.google.javascript.rhino.Node methodGetProp, boolean isOptionalCall, com.google.javascript.rhino.Node getPropNode)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createCallCallee_2514(methodGetProp pkg_rhino.Node, isOptionalCall bool, getPropNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createCallCallee_2524(methodGetProp pkg_rhino.Node, isOptionalCall bool, getPropNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = methodGetProp
 	_ = isOptionalCall
 	_ = getPropNode
@@ -973,7 +973,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createCallCallee_2514
 }
 
 // Java method: Es6NormalizeClasses.rewriteThisToThisDotSelf(com.google.javascript.rhino.Node fn)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteThisToThisDotSelf_2515(fn pkg_rhino.Node) bool {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteThisToThisDotSelf_2525(fn pkg_rhino.Node) bool {
 	_ = fn
 	var fnBody pkg_rhino.Node = NodeUtil_GetFunctionBody(fn)
 	_ = fnBody
@@ -1000,7 +1000,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteThisToThisDotS
 }
 
 // Java method: Es6NormalizeClasses.hasThisReference(com.google.javascript.rhino.Node fn)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_hasThisReference_2516(fn pkg_rhino.Node) bool {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_hasThisReference_2526(fn pkg_rhino.Node) bool {
 	_ = fn
 	var fnBody pkg_rhino.Node = NodeUtil_GetFunctionBody(fn)
 	_ = fnBody
@@ -1023,7 +1023,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_hasThisReference_2516
 }
 
 // Java method: Es6NormalizeClasses.rewriteSuperReferencesInPrivateMember(com.google.javascript.rhino.Node memberNode, com.google.javascript.jscomp.Es6NormalizeClasses.ClassRecord record)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2517(memberNode pkg_rhino.Node, record *Es6NormalizeClasses_ClassRecord) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2527(memberNode pkg_rhino.Node, record *Es6NormalizeClasses_ClassRecord) {
 	_ = memberNode
 	_ = record
 	if record.normalizedNames.SuperClassNode().IsEmpty() {
@@ -1095,7 +1095,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteSuperReference
 }
 
 // Java method: Es6NormalizeClasses.rewriteSideEffectedComputedProps(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.Es6NormalizeClasses.ClassRecord record, com.google.javascript.rhino.Node insertionPoint)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteSideEffectedComputedProps_2518(t *NodeTraversal, record *Es6NormalizeClasses_ClassRecord, insertionPoint pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteSideEffectedComputedProps_2528(t *NodeTraversal, record *Es6NormalizeClasses_ClassRecord, insertionPoint pkg_rhino.Node) {
 	_ = t
 	_ = record
 	_ = insertionPoint
@@ -1107,13 +1107,13 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteSideEffectedCo
 	for !(computedPropsWithSideEffects.IsEmpty()) {
 		var computedPropMember pkg_rhino.Node = computedPropsWithSideEffects.Pop()
 		_ = computedPropMember
-		this_.priv_Es6NormalizeClasses_extractExpressionFromCompField_2519(t, record, computedPropMember, insertionPoint)
+		this_.priv_Es6NormalizeClasses_extractExpressionFromCompField_2529(t, record, computedPropMember, insertionPoint)
 	}
 	t.ReportCodeChange_0()
 }
 
 // Java method: Es6NormalizeClasses.extractExpressionFromCompField(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.Es6NormalizeClasses.ClassRecord record, com.google.javascript.rhino.Node memberField, com.google.javascript.rhino.Node insertionPoint)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractExpressionFromCompField_2519(t *NodeTraversal, record *Es6NormalizeClasses_ClassRecord, memberField pkg_rhino.Node, insertionPoint pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractExpressionFromCompField_2529(t *NodeTraversal, record *Es6NormalizeClasses_ClassRecord, memberField pkg_rhino.Node, insertionPoint pkg_rhino.Node) {
 	_ = t
 	_ = record
 	_ = memberField
@@ -1123,7 +1123,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractExpressionFrom
 	}
 	var compExpression pkg_rhino.Node = memberField.RemoveFirstChild()
 	_ = compExpression
-	var compFieldVar pkg_rhino.Node = this_.astFactory.CreateSingleVarNameDeclaration_2(this_.priv_Es6NormalizeClasses_generateUniqueCompFieldVarName_2497(t), compExpression).SrcrefTreeIfMissing(record.classNode)
+	var compFieldVar pkg_rhino.Node = this_.astFactory.CreateSingleVarNameDeclaration_2(this_.priv_Es6NormalizeClasses_generateUniqueCompFieldVarName_2507(t), compExpression).SrcrefTreeIfMissing(record.classNode)
 	_ = compFieldVar
 	var compFieldName pkg_rhino.Node = compFieldVar.GetFirstChild()
 	_ = compFieldName
@@ -1133,7 +1133,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_extractExpressionFrom
 }
 
 // Java method: Es6NormalizeClasses.rewriteInstanceMembers(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.Es6NormalizeClasses.ClassRecord record)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteInstanceMembers_2520(t *NodeTraversal, record *Es6NormalizeClasses_ClassRecord) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteInstanceMembers_2530(t *NodeTraversal, record *Es6NormalizeClasses_ClassRecord) {
 	_ = t
 	_ = record
 	var instanceMembers *j2gort.Deque[pkg_rhino.Node] = record.instanceMembers
@@ -1152,7 +1152,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteInstanceMember
 	_ = ctorBlock
 	var isDerived bool = !(record.classNode.GetSecondChild().IsEmpty())
 	_ = isDerived
-	var insertionPoint pkg_rhino.Node = this_.priv_Es6NormalizeClasses_addTemporaryInsertionPoint_2523(ctorBlock, record)
+	var insertionPoint pkg_rhino.Node = this_.priv_Es6NormalizeClasses_addTemporaryInsertionPoint_2533(ctorBlock, record)
 	_ = insertionPoint
 	if hasPriv {
 		var mapName string = record.GetPrivateMapVarName(this_.compiler, t)
@@ -1225,9 +1225,9 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteInstanceMember
 			var transpiledNode pkg_rhino.Node
 			_ = transpiledNode
 			if instanceMember.IsMemberFieldDef() {
-				transpiledNode = this_.priv_Es6NormalizeClasses_convNonCompFieldToGetProp_2527(thisNode, instanceMember, false)
+				transpiledNode = this_.priv_Es6NormalizeClasses_convNonCompFieldToGetProp_2537(thisNode, instanceMember, false)
 			} else {
-				transpiledNode = this_.priv_Es6NormalizeClasses_convCompFieldToGetElem_2528(thisNode, instanceMember, false)
+				transpiledNode = this_.priv_Es6NormalizeClasses_convCompFieldToGetElem_2538(thisNode, instanceMember, false)
 			}
 			if transpiledNode != 0 {
 				transpiledNode.InsertBefore(insertionPoint)
@@ -1253,7 +1253,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteInstanceMember
 
 	}
 	if !(isDerived) && NodeUtil_ReferencesEnclosingReceiver(ctorFn.GetSecondChild()) {
-		this_.priv_Es6NormalizeClasses_moveConstructorParamDefaultsAfterFields_2521(t, ctorFn, insertionPoint)
+		this_.priv_Es6NormalizeClasses_moveConstructorParamDefaultsAfterFields_2531(t, ctorFn, insertionPoint)
 	}
 	insertionPoint.Detach()
 	t.ReportCodeChange_0()
@@ -1261,7 +1261,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteInstanceMember
 }
 
 // Java method: Es6NormalizeClasses.moveConstructorParamDefaultsAfterFields(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node ctorFn, com.google.javascript.rhino.Node insertionPoint)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_moveConstructorParamDefaultsAfterFields_2521(t *NodeTraversal, ctorFn pkg_rhino.Node, insertionPoint pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_moveConstructorParamDefaultsAfterFields_2531(t *NodeTraversal, ctorFn pkg_rhino.Node, insertionPoint pkg_rhino.Node) {
 	_ = t
 	_ = ctorFn
 	_ = insertionPoint
@@ -1282,7 +1282,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_moveConstructorParamD
 				var defaultValue pkg_rhino.Node = param.RemoveFirstChild()
 				_ = defaultValue
 				if lhs.IsName() {
-					var rhs pkg_rhino.Node = this_.priv_Es6NormalizeClasses_createDefaultValueHook_2522(lhs, defaultValue)
+					var rhs pkg_rhino.Node = this_.priv_Es6NormalizeClasses_createDefaultValueHook_2532(lhs, defaultValue)
 					_ = rhs
 					var assignStmt pkg_rhino.Node = this_.astFactory.CreateAssignStatement(lhs.CloneNode_0(), rhs).SrcrefTreeIfMissing(param)
 					_ = assignStmt
@@ -1293,9 +1293,9 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_moveConstructorParamD
 					if !(lhs.IsDestructuringPattern()) {
 						j2gort.CheckStateMsg(false, j2gort.BoxNode(lhs))
 					}
-					var tempParam pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(this_.priv_Es6NormalizeClasses_generateUniqueTmpVarName_2494(t), AstFactory_S_Type_1_Node(lhs))
+					var tempParam pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(this_.priv_Es6NormalizeClasses_generateUniqueTmpVarName_2504(t), AstFactory_S_Type_1_Node(lhs))
 					_ = tempParam
-					var rhs_2 pkg_rhino.Node = this_.priv_Es6NormalizeClasses_createDefaultValueHook_2522(tempParam, defaultValue)
+					var rhs_2 pkg_rhino.Node = this_.priv_Es6NormalizeClasses_createDefaultValueHook_2532(tempParam, defaultValue)
 					_ = rhs_2
 					var letStmt pkg_rhino.Node = pkg_rhino.IR_Let_2(lhs, rhs_2).SrcrefTreeIfMissing(param)
 					_ = letStmt
@@ -1315,7 +1315,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_moveConstructorParamD
 				var jsDoc_2 *pkg_rhino.JSDocInfo = pattern.GetJSDocInfo()
 				_ = jsDoc_2
 				pattern.SetJSDocInfo(nil)
-				var tempParam_2 pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(this_.priv_Es6NormalizeClasses_generateUniqueTmpVarName_2494(t), AstFactory_S_Type_1_Node(pattern))
+				var tempParam_2 pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(this_.priv_Es6NormalizeClasses_generateUniqueTmpVarName_2504(t), AstFactory_S_Type_1_Node(pattern))
 				_ = tempParam_2
 				pattern.ReplaceWith(tempParam_2)
 				tempParam_2.SetJSDocInfo(jsDoc_2)
@@ -1330,7 +1330,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_moveConstructorParamD
 }
 
 // Java method: Es6NormalizeClasses.createDefaultValueHook(com.google.javascript.rhino.Node paramName, com.google.javascript.rhino.Node defaultValue)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createDefaultValueHook_2522(paramName pkg_rhino.Node, defaultValue pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createDefaultValueHook_2532(paramName pkg_rhino.Node, defaultValue pkg_rhino.Node) pkg_rhino.Node {
 	_ = paramName
 	_ = defaultValue
 	var undefined pkg_rhino.Node = this_.astFactory.CreateUndefinedValue()
@@ -1340,7 +1340,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createDefaultValueHoo
 }
 
 // Java method: Es6NormalizeClasses.addTemporaryInsertionPoint(com.google.javascript.rhino.Node ctorBlock, com.google.javascript.jscomp.Es6NormalizeClasses.ClassRecord classRecord)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_addTemporaryInsertionPoint_2523(ctorBlock pkg_rhino.Node, classRecord *Es6NormalizeClasses_ClassRecord) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_addTemporaryInsertionPoint_2533(ctorBlock pkg_rhino.Node, classRecord *Es6NormalizeClasses_ClassRecord) pkg_rhino.Node {
 	_ = ctorBlock
 	_ = classRecord
 	if !(int32(len(classRecord.superCalls)) <= int32(1)) {
@@ -1349,7 +1349,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_addTemporaryInsertion
 	var tempNode pkg_rhino.Node = pkg_rhino.IR_Empty()
 	_ = tempNode
 	if int32(len(classRecord.superCalls)) == int32(1) {
-		var stmt pkg_rhino.Node = this_.priv_Es6NormalizeClasses_ensureSuperCallIsOwnStatement_2524(classRecord.superCalls[int32(0)])
+		var stmt pkg_rhino.Node = this_.priv_Es6NormalizeClasses_ensureSuperCallIsOwnStatement_2534(classRecord.superCalls[int32(0)])
 		_ = stmt
 		tempNode.InsertAfter(stmt)
 		return tempNode
@@ -1375,7 +1375,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_addTemporaryInsertion
 }
 
 // Java method: Es6NormalizeClasses.ensureSuperCallIsOwnStatement(com.google.javascript.rhino.Node superCall)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_ensureSuperCallIsOwnStatement_2524(superCall pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_ensureSuperCallIsOwnStatement_2534(superCall pkg_rhino.Node) pkg_rhino.Node {
 	_ = superCall
 	var parent pkg_rhino.Node = superCall.GetParent()
 	_ = parent
@@ -1391,7 +1391,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_ensureSuperCallIsOwnS
 }
 
 // Java method: Es6NormalizeClasses.maybeReportPrivatePropertiesCannotConvertYet(com.google.javascript.rhino.Node n)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_maybeReportPrivatePropertiesCannotConvertYet_2525(n pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_maybeReportPrivatePropertiesCannotConvertYet_2535(n pkg_rhino.Node) {
 	_ = n
 	if this_.transpilePrivateClassFields && n.IsPrivateIdentifier() {
 		TranspilationUtil_CannotConvertYet(this_.compiler, n, "Private elements")
@@ -1399,7 +1399,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_maybeReportPrivatePro
 }
 
 // Java method: Es6NormalizeClasses.createObjectDotDefineProperty()
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createObjectDotDefineProperty_2526() pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createObjectDotDefineProperty_2536() pkg_rhino.Node {
 	this_.compiler.GetRuntimeJsLibManager().InjectLibForField("$jscomp.global")
 	var global RuntimeJsLibManager_JsLibField = this_.compiler.GetRuntimeJsLibManager().GetJsLibField("$jscomp.global")
 	_ = global
@@ -1411,7 +1411,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createObjectDotDefine
 }
 
 // Java method: Es6NormalizeClasses.convNonCompFieldToGetProp(com.google.javascript.rhino.Node receiver, com.google.javascript.rhino.Node noncomputedField, boolean isStatic)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_convNonCompFieldToGetProp_2527(receiver pkg_rhino.Node, noncomputedField pkg_rhino.Node, isStatic bool) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_convNonCompFieldToGetProp_2537(receiver pkg_rhino.Node, noncomputedField pkg_rhino.Node, isStatic bool) pkg_rhino.Node {
 	_ = receiver
 	_ = noncomputedField
 	_ = isStatic
@@ -1429,15 +1429,15 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_convNonCompFieldToGet
 	var propName string = noncomputedField.GetString()
 	_ = propName
 	if propName == "__proto__" {
-		return this_.priv_Es6NormalizeClasses_createFieldDefineProperty_2529(noncomputedField, fieldValue, receiver, this_.astFactory.CreateString(propName))
+		return this_.priv_Es6NormalizeClasses_createFieldDefineProperty_2539(noncomputedField, fieldValue, receiver, this_.astFactory.CreateString(propName))
 	}
-	return this_.priv_Es6NormalizeClasses_createFieldAssignment_2530(noncomputedField, fieldValue, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
+	return this_.priv_Es6NormalizeClasses_createFieldAssignment_2540(noncomputedField, fieldValue, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 		return j2gort.BoxNode(this_.astFactory.CreateGetProp(receiver, propName, AstFactory_S_Type_1_Node(noncomputedField)))
 	}))
 }
 
 // Java method: Es6NormalizeClasses.convCompFieldToGetElem(com.google.javascript.rhino.Node receiver, com.google.javascript.rhino.Node computedField, boolean isStatic)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_convCompFieldToGetElem_2528(receiver pkg_rhino.Node, computedField pkg_rhino.Node, isStatic bool) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_convCompFieldToGetElem_2538(receiver pkg_rhino.Node, computedField pkg_rhino.Node, isStatic bool) pkg_rhino.Node {
 	_ = receiver
 	_ = computedField
 	_ = isStatic
@@ -1460,36 +1460,36 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_convCompFieldToGetEle
 		compFieldNameExpr = computedField.GetFirstChild().CloneTree_0()
 	}
 	if NodeUtil_GetStringValue(compFieldNameExpr) == "__proto__" {
-		return this_.priv_Es6NormalizeClasses_createFieldDefineProperty_2529(computedField, fieldValue, receiver, compFieldNameExpr)
+		return this_.priv_Es6NormalizeClasses_createFieldDefineProperty_2539(computedField, fieldValue, receiver, compFieldNameExpr)
 	}
-	return this_.priv_Es6NormalizeClasses_createFieldAssignment_2530(computedField, fieldValue, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
+	return this_.priv_Es6NormalizeClasses_createFieldAssignment_2540(computedField, fieldValue, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 		return j2gort.BoxNode(this_.astFactory.CreateGetElem(receiver, compFieldNameExpr))
 	}))
 }
 
 // Java method: Es6NormalizeClasses.createFieldDefineProperty(com.google.javascript.rhino.Node field, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node fieldValue, com.google.javascript.rhino.Node receiver, com.google.javascript.rhino.Node keyNode)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createFieldDefineProperty_2529(field pkg_rhino.Node, fieldValue pkg_rhino.Node, receiver pkg_rhino.Node, keyNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createFieldDefineProperty_2539(field pkg_rhino.Node, fieldValue pkg_rhino.Node, receiver pkg_rhino.Node, keyNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = field
 	_ = fieldValue
 	_ = receiver
 	_ = keyNode
-	return this_.priv_Es6NormalizeClasses_createFieldInitializationStatement_2531(field, fieldValue, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_18 any) any {
+	return this_.priv_Es6NormalizeClasses_createFieldInitializationStatement_2541(field, fieldValue, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_18 any) any {
 		val := j2gort.CastNode[pkg_rhino.Node](lp_18)
 		_ = val
 		var descriptor pkg_rhino.Node = this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{this_.astFactory.CreateStringKey("configurable", this_.astFactory.CreateBoolean(true)), this_.astFactory.CreateStringKey("enumerable", this_.astFactory.CreateBoolean(true)), this_.astFactory.CreateStringKey("writable", this_.astFactory.CreateBoolean(true)), this_.astFactory.CreateStringKey("value", val)})
 		_ = descriptor
-		var definePropertyCall pkg_rhino.Node = this_.astFactory.CreateCallWithUnknownType(this_.priv_Es6NormalizeClasses_createObjectDotDefineProperty_2526(), []pkg_rhino.Node{receiver, keyNode, descriptor})
+		var definePropertyCall pkg_rhino.Node = this_.astFactory.CreateCallWithUnknownType(this_.priv_Es6NormalizeClasses_createObjectDotDefineProperty_2536(), []pkg_rhino.Node{receiver, keyNode, descriptor})
 		_ = definePropertyCall
 		return j2gort.BoxNode(this_.astFactory.ExprResult(definePropertyCall))
 	}))
 }
 
 // Java method: Es6NormalizeClasses.createFieldAssignment(com.google.javascript.rhino.Node field, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node fieldValue, java.util.function.Supplier<com.google.javascript.rhino.Node> createAssignLhs)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createFieldAssignment_2530(field pkg_rhino.Node, fieldValue pkg_rhino.Node, createAssignLhs j2gort.Ext_java_util_function_Supplier) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createFieldAssignment_2540(field pkg_rhino.Node, fieldValue pkg_rhino.Node, createAssignLhs j2gort.Ext_java_util_function_Supplier) pkg_rhino.Node {
 	_ = field
 	_ = fieldValue
 	_ = createAssignLhs
-	return this_.priv_Es6NormalizeClasses_createFieldInitializationStatement_2531(field, fieldValue, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_19 any) any {
+	return this_.priv_Es6NormalizeClasses_createFieldInitializationStatement_2541(field, fieldValue, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_19 any) any {
 		val := j2gort.CastNode[pkg_rhino.Node](lp_19)
 		_ = val
 		return j2gort.BoxNode(this_.astFactory.CreateAssignStatement(j2gort.CastNode[pkg_rhino.Node](createAssignLhs.Get()), val))
@@ -1497,7 +1497,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createFieldAssignment
 }
 
 // Java method: Es6NormalizeClasses.createFieldInitializationStatement(com.google.javascript.rhino.Node field, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node fieldValue, java.util.function.Function<com.google.javascript.rhino.Node,com.google.javascript.rhino.Node> createStatement)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createFieldInitializationStatement_2531(field pkg_rhino.Node, fieldValue pkg_rhino.Node, createStatement j2gort.Ext_java_util_function_Function) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createFieldInitializationStatement_2541(field pkg_rhino.Node, fieldValue pkg_rhino.Node, createStatement j2gort.Ext_java_util_function_Function) pkg_rhino.Node {
 	_ = field
 	_ = fieldValue
 	_ = createStatement
@@ -1522,7 +1522,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_createFieldInitializa
 }
 
 // Java method: Es6NormalizeClasses.rewriteStaticMembers(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.Es6NormalizeClasses.ClassRecord record, com.google.javascript.rhino.Node insertionPoint)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteStaticMembers_2532(t *NodeTraversal, record *Es6NormalizeClasses_ClassRecord, insertionPoint pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteStaticMembers_2542(t *NodeTraversal, record *Es6NormalizeClasses_ClassRecord, insertionPoint pkg_rhino.Node) {
 	_ = t
 	_ = record
 	_ = insertionPoint
@@ -1543,13 +1543,13 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteStaticMembers_
 		for _, pm := range record.privateMembers {
 			_ = pm
 			if pm.isStatic && (pm.kind == StaticGet_Es6NormalizeClasses_ClassRecord_PrivateMemberKind_ACCESSOR()) {
-				if ((pm.getterNode != 0) && pm.getterNode.HasChildren()) && this_.priv_Es6NormalizeClasses_hasThisReference_2516(pm.getterNode.GetFirstChild()) {
+				if ((pm.getterNode != 0) && pm.getterNode.HasChildren()) && this_.priv_Es6NormalizeClasses_hasThisReference_2526(pm.getterNode.GetFirstChild()) {
 					{
 						r_22 := record
 						r_22.needsStaticSelf = true
 					}
 				}
-				if ((pm.setterNode != 0) && pm.setterNode.HasChildren()) && this_.priv_Es6NormalizeClasses_hasThisReference_2516(pm.setterNode.GetFirstChild()) {
+				if ((pm.setterNode != 0) && pm.setterNode.HasChildren()) && this_.priv_Es6NormalizeClasses_hasThisReference_2526(pm.setterNode.GetFirstChild()) {
 					{
 						r_23 := record
 						r_23.needsStaticSelf = true
@@ -1581,7 +1581,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteStaticMembers_
 		var mapSetStmt pkg_rhino.Node = this_.astFactory.ExprResult(mapSetCall).SrcrefTreeIfMissing(record.classNode)
 		_ = mapSetStmt
 		staticInitTempParent.AddChildToBack(mapSetStmt)
-		this_.priv_Es6NormalizeClasses_addStaticPrivateMembers_2533(record, privName, staticInitTempParent)
+		this_.priv_Es6NormalizeClasses_addStaticPrivateMembers_2543(record, privName, staticInitTempParent)
 	}
 	for !(staticMembers.IsEmpty()) {
 		var staticMember pkg_rhino.Node = staticMembers.Pop()
@@ -1630,10 +1630,10 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteStaticMembers_
 					}
 
 				case int32(108) /* Token.MEMBER_FIELD_DEF */ :
-					transpiledNode = this_.priv_Es6NormalizeClasses_convNonCompFieldToGetProp_2527(nameToUse, staticMember, true)
+					transpiledNode = this_.priv_Es6NormalizeClasses_convNonCompFieldToGetProp_2537(nameToUse, staticMember, true)
 					break iifeSwitch_1
 				case int32(109) /* Token.COMPUTED_FIELD_DEF */ :
-					transpiledNode = this_.priv_Es6NormalizeClasses_convCompFieldToGetElem_2528(nameToUse, staticMember, true)
+					transpiledNode = this_.priv_Es6NormalizeClasses_convCompFieldToGetElem_2538(nameToUse, staticMember, true)
 					break iifeSwitch_1
 				default:
 					panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.StrVal(staticMember))))
@@ -1675,7 +1675,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteStaticMembers_
 		t.ReportCodeChange_1(insertionPoint.GetParent())
 		return
 	}
-	var staticInitMethodName string = this_.priv_Es6NormalizeClasses_generateUniqueStaticInitMethodName_2498(t)
+	var staticInitMethodName string = this_.priv_Es6NormalizeClasses_generateUniqueStaticInitMethodName_2508(t)
 	_ = staticInitMethodName
 	var staticInitMethodFunc pkg_rhino.Node = this_.astFactory.CreateEmptyFunction(AstFactory_S_Type_2_JSTypeNative_Color(pkg_rhino.StaticGet_JSTypeNative_FUNCTION_TYPE(), pkg_colors.StaticGet_StandardColors_TOP_OBJECT()))
 	_ = staticInitMethodFunc
@@ -1700,7 +1700,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteStaticMembers_
 }
 
 // Java method: Es6NormalizeClasses.addStaticPrivateMembers(com.google.javascript.jscomp.Es6NormalizeClasses.ClassRecord record, java.lang.String privName, com.google.javascript.rhino.Node staticInitTempParent)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_addStaticPrivateMembers_2533(record *Es6NormalizeClasses_ClassRecord, privName string, staticInitTempParent pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_addStaticPrivateMembers_2543(record *Es6NormalizeClasses_ClassRecord, privName string, staticInitTempParent pkg_rhino.Node) {
 	_ = record
 	_ = privName
 	_ = staticInitTempParent
@@ -1708,7 +1708,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_addStaticPrivateMembe
 		_ = pm
 		if pm.isStatic {
 			if ((pm.kind == StaticGet_Es6NormalizeClasses_ClassRecord_PrivateMemberKind_METHOD()) && (pm.methodNode != 0)) && pm.methodNode.HasChildren() {
-				this_.priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2517(pm.methodNode, record)
+				this_.priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2527(pm.methodNode, record)
 				var fnNode pkg_rhino.Node = pm.methodNode.GetFirstChild().Detach()
 				_ = fnNode
 				pm.methodNode.Detach()
@@ -1722,19 +1722,19 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_addStaticPrivateMembe
 				var descriptorLit pkg_rhino.Node = this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{})
 				_ = descriptorLit
 				if (pm.getterNode != 0) && pm.getterNode.HasChildren() {
-					this_.priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2517(pm.getterNode, record)
+					this_.priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2527(pm.getterNode, record)
 					var getFn pkg_rhino.Node = pm.getterNode.GetFirstChild().Detach()
 					_ = getFn
 					pm.getterNode.Detach()
-					this_.priv_Es6NormalizeClasses_rewriteThisToThisDotSelf_2515(getFn)
+					this_.priv_Es6NormalizeClasses_rewriteThisToThisDotSelf_2525(getFn)
 					descriptorLit.AddChildToBack(this_.astFactory.CreateStringKey("get", getFn))
 				}
 				if (pm.setterNode != 0) && pm.setterNode.HasChildren() {
-					this_.priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2517(pm.setterNode, record)
+					this_.priv_Es6NormalizeClasses_rewriteSuperReferencesInPrivateMember_2527(pm.setterNode, record)
 					var setFn pkg_rhino.Node = pm.setterNode.GetFirstChild().Detach()
 					_ = setFn
 					pm.setterNode.Detach()
-					this_.priv_Es6NormalizeClasses_rewriteThisToThisDotSelf_2515(setFn)
+					this_.priv_Es6NormalizeClasses_rewriteThisToThisDotSelf_2525(setFn)
 					descriptorLit.AddChildToBack(this_.astFactory.CreateStringKey("set", setFn))
 				}
 				var defineProp pkg_rhino.Node = this_.astFactory.CreateGetPropWithUnknownType(this_.astFactory.CreateNameWithUnknownType("Object"), "defineProperty")
@@ -1756,7 +1756,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_addStaticPrivateMembe
 }
 
 // Java method: Es6NormalizeClasses.maybeUpdateClassSelfRef(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node nameNode)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_maybeUpdateClassSelfRef_2534(t *NodeTraversal, nameNode pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_maybeUpdateClassSelfRef_2544(t *NodeTraversal, nameNode pkg_rhino.Node) {
 	_ = t
 	_ = nameNode
 	{
@@ -1788,7 +1788,7 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_maybeUpdateClassSelfR
 }
 
 // Java method: Es6NormalizeClasses.visitThisAndSuper(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_visitThisAndSuper_2535(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_visitThisAndSuper_2545(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if Es6NormalizeClasses_IsSuperCall(n.GetParent()) {
@@ -1871,17 +1871,17 @@ func Es6NormalizeClasses_IsInStaticInitializationContext(rootNode pkg_rhino.Node
 }
 
 // Java method: Es6NormalizeClasses.generateNormalizedClassNames(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node classNode)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateNormalizedClassNames_2536(t *NodeTraversal, classNode pkg_rhino.Node) *Es6NormalizeClasses_NormalizedNames {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateNormalizedClassNames_2546(t *NodeTraversal, classNode pkg_rhino.Node) *Es6NormalizeClasses_NormalizedNames {
 	_ = t
 	_ = classNode
 	var extendsClause pkg_rhino.Node = classNode.GetSecondChild()
 	_ = extendsClause
-	var shouldExtractExtends bool = this_.priv_Es6NormalizeClasses_shouldExtractExtends_2499(classNode)
+	var shouldExtractExtends bool = this_.priv_Es6NormalizeClasses_shouldExtractExtends_2509(classNode)
 	_ = shouldExtractExtends
 	var superClass *j2gort.Ext_java_util_Optional = nil
 	_ = superClass
 	if shouldExtractExtends {
-		var name string = this_.priv_Es6NormalizeClasses_generateUniqueClassExtendsVarName_2496(t)
+		var name string = this_.priv_Es6NormalizeClasses_generateUniqueClassExtendsVarName_2506(t)
 		_ = name
 		superClass = j2gort.Ext_java_util_Optional_Of(j2gort.BoxNode(this_.astFactory.CreateName_2_string_AstFactory_Type(name, AstFactory_S_Type_1_Node(extendsClause))))
 	} else {
@@ -1891,12 +1891,12 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateNormalizedCla
 			superClass = j2gort.Ext_java_util_Optional_Of(j2gort.BoxNode(extendsClause))
 		}
 	}
-	var shouldExtractClass bool = (this_.priv_Es6NormalizeClasses_shouldExtractClass_2503(classNode) || (shouldExtractExtends && !(this_.priv_Es6NormalizeClasses_canExtractExtendsSimply_2500(classNode))))
+	var shouldExtractClass bool = (this_.priv_Es6NormalizeClasses_shouldExtractClass_2513(classNode) || (shouldExtractExtends && !(this_.priv_Es6NormalizeClasses_canExtractExtendsSimply_2510(classNode))))
 	_ = shouldExtractClass
 	var classNameNodeTemplate pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = classNameNodeTemplate
 	if shouldExtractClass {
-		var name_2 string = this_.priv_Es6NormalizeClasses_generateUniqueClassDeclVarName_2495(t)
+		var name_2 string = this_.priv_Es6NormalizeClasses_generateUniqueClassDeclVarName_2505(t)
 		_ = name_2
 		classNameNodeTemplate = this_.astFactory.CreateConstantName(name_2, AstFactory_S_Type_1_Node(classNode))
 	} else {
@@ -1906,13 +1906,13 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_generateNormalizedCla
 }
 
 // Java method: Es6NormalizeClasses.receiverNeedsTempVar(com.google.javascript.rhino.Node receiver)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_receiverNeedsTempVar_2537(receiver pkg_rhino.Node) bool {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_receiverNeedsTempVar_2547(receiver pkg_rhino.Node) bool {
 	_ = receiver
 	return (!(receiver.IsThis()) && !(receiver.IsName()))
 }
 
 // Java method: Es6NormalizeClasses.getDeclarationInsertionPoint(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_getDeclarationInsertionPoint_2538(n pkg_rhino.Node, t *NodeTraversal) pkg_rhino.Node {
+func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_getDeclarationInsertionPoint_2548(n pkg_rhino.Node, t *NodeTraversal) pkg_rhino.Node {
 	_ = n
 	_ = t
 	var enclosingStmt pkg_rhino.Node = NodeUtil_GetEnclosingStatement(n)

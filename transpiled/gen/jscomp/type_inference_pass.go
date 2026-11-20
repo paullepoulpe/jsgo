@@ -34,8 +34,8 @@ func init() {
 	lambdaSingleton_type_inference_pass_1 = j2gort.NewLambda_Ext_java_util_function_ToIntFunction(func(mrp0_ any) int32 {
 		return j2gort.AsIface[j2gort.Ext_com_google_common_collect_Multiset_Entry](mrp0_).GetCount()
 	})
-	lambdaSingleton_type_inference_pass_2 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_15 any) any {
-		k := j2gort.CastPtr[j2gort.BoxInt](lp_15)
+	lambdaSingleton_type_inference_pass_2 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_13 any) any {
+		k := j2gort.CastPtr[j2gort.BoxInt](lp_13)
 		_ = k
 		return j2gort.PtrToAny(j2gort.Ext_com_google_common_collect_HashMultiset_Create_0())
 	})
@@ -148,17 +148,7 @@ func (this_ *TypeInferencePass) InferAllScopes(inferenceRoot pkg_rhino.Node) *Ty
 	}
 	var unknownType pkg_rhino.JSType = this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	_ = unknownType
-	{
-		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.scopeCreator.GetAllSymbols())))
-		for cur_1.HasNext() {
-			rawElem_2 := cur_1.Next()
-			var_ := j2gort.CastPtr[TypedVar](rawElem_2)
-			_ = var_
-			if j2gort.IfaceEquals[pkg_rhino.JSType](var_.GetType(), nil) {
-				var_.SetType(unknownType)
-			}
-		}
-	}
+	this_.scopeCreator.NormalizeNullVarTypes(unknownType)
 	if this_.stepCountHistogram != nil {
 		func() {
 			var histogram pkg_diagnostic.LogFile = this_.compiler.CreateOrReopenLog(j2gort.GetObjectClass(this_), "step_histogram.log", []string{})
@@ -167,18 +157,18 @@ func (this_ *TypeInferencePass) InferAllScopes(inferenceRoot pkg_rhino.Node) *Ty
 			histogram.Log_1_string("step_count token population")
 			var totals []int32 = []int32{int32(0), int32(0)}
 			_ = totals
-			j2gort.AsIface[j2gort.Ext_java_util_Set](this_.stepCountHistogram.KeySet_0()).Stream().Sorted_1(j2gort.Ext_java_util_Comparator_NaturalOrder().Reversed()).ForEach(j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_3 any) {
-				stepCount := j2gort.CastPtr[j2gort.BoxInt](lp_3)
+			j2gort.AsIface[j2gort.Ext_java_util_Set](this_.stepCountHistogram.KeySet_0()).Stream().Sorted_1(j2gort.Ext_java_util_Comparator_NaturalOrder().Reversed()).ForEach(j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_1 any) {
+				stepCount := j2gort.CastPtr[j2gort.BoxInt](lp_1)
 				_ = stepCount
-				j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.CastPtr[j2gort.Ext_com_google_common_collect_HashMultiset](this_.stepCountHistogram.Get(j2gort.PtrToAny(stepCount))).EntrySet()).Stream().Sorted_1(j2gort.Ext_java_util_Comparator_ComparingInt(lambdaSingleton_type_inference_pass_1)).ForEach(j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_4 any) {
-					e := j2gort.AsIface[j2gort.Ext_com_google_common_collect_Multiset_Entry](lp_4)
+				j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.CastPtr[j2gort.Ext_com_google_common_collect_HashMultiset](this_.stepCountHistogram.Get(j2gort.PtrToAny(stepCount))).EntrySet()).Stream().Sorted_1(j2gort.Ext_java_util_Comparator_ComparingInt(lambdaSingleton_type_inference_pass_1)).ForEach(j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_2 any) {
+					e := j2gort.AsIface[j2gort.Ext_com_google_common_collect_Multiset_Entry](lp_2)
 					_ = e
+					a_3 := totals
+					i_4 := int32(0)
+					a_3[i_4] = (a_3[i_4] + (j2gort.UnboxInt(stepCount) * e.GetCount()))
 					a_5 := totals
-					i_6 := int32(0)
-					a_5[i_6] = (a_5[i_6] + (j2gort.UnboxInt(stepCount) * e.GetCount()))
-					a_7 := totals
-					i_8 := int32(1)
-					a_7[i_8] = (a_7[i_8] + e.GetCount())
+					i_6 := int32(1)
+					a_5[i_6] = (a_5[i_6] + e.GetCount())
 					histogram.Log_2("%s %s %s", []any{j2gort.PtrToAny(stepCount), j2gort.BoxNullableVal(j2gort.Cast[pkg_rhino.Token](e.GetElement())), j2gort.ValueOfInt(e.GetCount())})
 				}))
 			}))
@@ -192,10 +182,10 @@ func (this_ *TypeInferencePass) InferAllScopes(inferenceRoot pkg_rhino.Node) *Ty
 }
 
 // Java method: TypeInferencePass.inferScope(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.TypedScope scope)
-func (this_ *TypeInferencePass) priv_TypeInferencePass_inferScope_5584(n pkg_rhino.Node, scope *TypedScope) {
+func (this_ *TypeInferencePass) priv_TypeInferencePass_inferScope_5594(n pkg_rhino.Node, scope *TypedScope) {
 	_ = n
 	_ = scope
-	var cfg ControlFlowGraph[pkg_rhino.Node] = this_.priv_TypeInferencePass_computeCfg_5585(n)
+	var cfg ControlFlowGraph[pkg_rhino.Node] = this_.priv_TypeInferencePass_computeCfg_5595(n)
 	_ = cfg
 	var usedReusable bool = false
 	_ = usedReusable
@@ -225,10 +215,10 @@ func (this_ *TypeInferencePass) priv_TypeInferencePass_inferScope_5584(n pkg_rhi
 		typeInference.Analyze()
 		if this_.stepCountHistogram != nil {
 			{
-				cur_9 := j2gort.NewIterCursor(j2gort.CheckNotNull(cfg.GetNodes()))
-				for cur_9.HasNext() {
-					rawElem_10 := cur_9.Next()
-					node := j2gort.AsIface[pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](rawElem_10)
+				cur_7 := j2gort.NewIterCursor(j2gort.CheckNotNull(cfg.GetNodes()))
+				for cur_7.HasNext() {
+					rawElem_8 := cur_7.Next()
+					node := j2gort.AsIface[pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](rawElem_8)
 					_ = node
 					if j2gort.IfaceEquals[pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](node, cfg.GetImplicitReturn()) {
 						continue
@@ -236,12 +226,12 @@ func (this_ *TypeInferencePass) priv_TypeInferencePass_inferScope_5584(n pkg_rhi
 					var state *DataFlowAnalysis_LinearFlowState = j2gort.CastPtr[DataFlowAnalysis_LinearFlowState](node.GetAnnotation())
 					_ = state
 					func() *j2gort.Ext_com_google_common_collect_HashMultiset {
-						m_11 := this_.stepCountHistogram
-						k_12 := j2gort.ValueOfInt(state.GetStepCount())
-						if v_13, ok_14 := j2gort.MapTryGetComputeAny(m_11, k_12); ok_14 {
-							return j2gort.CastPtr[j2gort.Ext_com_google_common_collect_HashMultiset](v_13)
+						m_9 := this_.stepCountHistogram
+						k_10 := j2gort.ValueOfInt(state.GetStepCount())
+						if v_11, ok_12 := j2gort.MapTryGetComputeAny(m_9, k_10); ok_12 {
+							return j2gort.CastPtr[j2gort.Ext_com_google_common_collect_HashMultiset](v_11)
 						}
-						return j2gort.CastPtr[j2gort.Ext_com_google_common_collect_HashMultiset](m_11.ComputeIfAbsent(k_12, lambdaSingleton_type_inference_pass_2))
+						return j2gort.CastPtr[j2gort.Ext_com_google_common_collect_HashMultiset](m_9.ComputeIfAbsent(k_10, lambdaSingleton_type_inference_pass_2))
 					}().Add_1(j2gort.BoxNullableVal(node.GetValue().GetToken()))
 				}
 			}
@@ -250,7 +240,7 @@ func (this_ *TypeInferencePass) priv_TypeInferencePass_inferScope_5584(n pkg_rhi
 }
 
 // Java method: TypeInferencePass.computeCfg(com.google.javascript.rhino.Node n)
-func (this_ *TypeInferencePass) priv_TypeInferencePass_computeCfg_5585(n pkg_rhino.Node) ControlFlowGraph[pkg_rhino.Node] {
+func (this_ *TypeInferencePass) priv_TypeInferencePass_computeCfg_5595(n pkg_rhino.Node) ControlFlowGraph[pkg_rhino.Node] {
 	_ = n
 	return ControlFlowAnalysis_ComputeCfgDirect(this_.compiler, n, false, true)
 }
@@ -374,7 +364,7 @@ func (this_ *TypeInferencePass_SecondScopeBuildingCallback) EnterScope(t *NodeTr
 	var scope *TypedScope = t.GetTypedScope()
 	_ = scope
 	if scope.IsCfgRootScope() && !(scope.IsModuleScope()) {
-		this_.outer_.priv_TypeInferencePass_inferScope_5584(t.GetCurrentNode(), scope)
+		this_.outer_.priv_TypeInferencePass_inferScope_5594(t.GetCurrentNode(), scope)
 	}
 }
 

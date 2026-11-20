@@ -155,7 +155,7 @@ func InitGatherGetterAndSetterProperties_GatherCallback(this_ *GatherGetterAndSe
 }
 
 // Java method: GatherCallback.record(java.lang.String property, com.google.javascript.jscomp.AccessorSummary.PropertyAccessKind kind)
-func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback_record_3013(property string, kind *AccessorSummary_PropertyAccessKind) {
+func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback_record_3023(property string, kind *AccessorSummary_PropertyAccessKind) {
 	_ = property
 	_ = kind
 	var existing *AccessorSummary_PropertyAccessKind = this_.properties.Get(property)
@@ -175,43 +175,43 @@ func (this_ *GatherGetterAndSetterProperties_GatherCallback) Visit_3(t *NodeTrav
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(95) /* Token.GETTER_DEF */ :
-		this_.priv_GatherCallback_recordGetterDef_3014(n)
+		this_.priv_GatherCallback_recordGetterDef_3024(n)
 	case int32(96) /* Token.SETTER_DEF */ :
-		this_.priv_GatherCallback_recordSetterDef_3015(n)
+		this_.priv_GatherCallback_recordSetterDef_3025(n)
 	case int32(28) /* Token.CALL */ :
 		if NodeUtil_IsObjectDefinePropertyDefinition(n) {
-			this_.priv_GatherCallback_visitDefineProperty_3017(n)
+			this_.priv_GatherCallback_visitDefineProperty_3027(n)
 		} else if NodeUtil_IsObjectDefinePropertiesDefinition(n) || NodeUtil_IsObjectCreateWithPropertiesDefinition(n) {
-			this_.priv_GatherCallback_visitDefineProperties_3018(n)
+			this_.priv_GatherCallback_visitDefineProperties_3028(n)
 		}
 	default:
 	}
 }
 
 // Java method: GatherCallback.recordGetterDef(com.google.javascript.rhino.Node getterDef)
-func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback_recordGetterDef_3014(getterDef pkg_rhino.Node) {
+func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback_recordGetterDef_3024(getterDef pkg_rhino.Node) {
 	_ = getterDef
 	if !(getterDef.IsGetterDef()) {
 		j2gort.CheckState(false)
 	}
 	var name string = getterDef.GetString()
 	_ = name
-	this_.priv_GatherCallback_record_3013(name, StaticGet_AccessorSummary_PropertyAccessKind_GETTER_ONLY())
+	this_.priv_GatherCallback_record_3023(name, StaticGet_AccessorSummary_PropertyAccessKind_GETTER_ONLY())
 }
 
 // Java method: GatherCallback.recordSetterDef(com.google.javascript.rhino.Node setterDef)
-func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback_recordSetterDef_3015(setterDef pkg_rhino.Node) {
+func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback_recordSetterDef_3025(setterDef pkg_rhino.Node) {
 	_ = setterDef
 	if !(setterDef.IsSetterDef()) {
 		j2gort.CheckState(false)
 	}
 	var name string = setterDef.GetString()
 	_ = name
-	this_.priv_GatherCallback_record_3013(name, StaticGet_AccessorSummary_PropertyAccessKind_SETTER_ONLY())
+	this_.priv_GatherCallback_record_3023(name, StaticGet_AccessorSummary_PropertyAccessKind_SETTER_ONLY())
 }
 
 // Java method: GatherCallback.visitDescriptor(java.lang.String propertyName, com.google.javascript.rhino.Node descriptor)
-func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback_visitDescriptor_3016(propertyName string, descriptor pkg_rhino.Node) {
+func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback_visitDescriptor_3026(propertyName string, descriptor pkg_rhino.Node) {
 	_ = propertyName
 	_ = descriptor
 	{
@@ -228,7 +228,7 @@ func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback
 						iifeCond_2 = j2gort.CheckNotNullString(sr_1) == se_2
 					}
 					if iifeCond_2 {
-						this_.priv_GatherCallback_record_3013(propertyName, StaticGet_AccessorSummary_PropertyAccessKind_GETTER_ONLY())
+						this_.priv_GatherCallback_record_3023(propertyName, StaticGet_AccessorSummary_PropertyAccessKind_GETTER_ONLY())
 					} else {
 						var iifeCond_1 bool
 						{
@@ -238,7 +238,7 @@ func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback
 							iifeCond_1 = j2gort.CheckNotNullString(sr_3) == se_4
 						}
 						if iifeCond_1 {
-							this_.priv_GatherCallback_record_3013(propertyName, StaticGet_AccessorSummary_PropertyAccessKind_SETTER_ONLY())
+							this_.priv_GatherCallback_record_3023(propertyName, StaticGet_AccessorSummary_PropertyAccessKind_SETTER_ONLY())
 						}
 					}
 				}
@@ -248,7 +248,7 @@ func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback
 }
 
 // Java method: GatherCallback.visitDefineProperty(com.google.javascript.rhino.Node definePropertyCall)
-func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback_visitDefineProperty_3017(definePropertyCall pkg_rhino.Node) {
+func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback_visitDefineProperty_3027(definePropertyCall pkg_rhino.Node) {
 	_ = definePropertyCall
 	var propertyNameNode pkg_rhino.Node = definePropertyCall.GetChildAtIndex(int32(2))
 	_ = propertyNameNode
@@ -259,11 +259,11 @@ func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback
 	}
 	var propertyName string = propertyNameNode.GetString()
 	_ = propertyName
-	this_.priv_GatherCallback_visitDescriptor_3016(propertyName, descriptor)
+	this_.priv_GatherCallback_visitDescriptor_3026(propertyName, descriptor)
 }
 
 // Java method: GatherCallback.visitDefineProperties(com.google.javascript.rhino.Node definePropertiesCall)
-func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback_visitDefineProperties_3018(definePropertiesCall pkg_rhino.Node) {
+func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback_visitDefineProperties_3028(definePropertiesCall pkg_rhino.Node) {
 	_ = definePropertiesCall
 	var props pkg_rhino.Node = definePropertiesCall.GetChildAtIndex(int32(2))
 	_ = props
@@ -279,7 +279,7 @@ func (this_ *GatherGetterAndSetterProperties_GatherCallback) priv_GatherCallback
 				_ = propertyName
 				var descriptor pkg_rhino.Node = prop.GetFirstChild()
 				_ = descriptor
-				this_.priv_GatherCallback_visitDescriptor_3016(propertyName, descriptor)
+				this_.priv_GatherCallback_visitDescriptor_3026(propertyName, descriptor)
 			}
 		}
 	}

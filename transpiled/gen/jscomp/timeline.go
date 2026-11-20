@@ -92,7 +92,7 @@ func (this_ *Timeline) Add(value any) {
 	if this_.eventsByValue == nil {
 		this_.eventsByValue = j2gort.NewExt_java_util_LinkedHashMap()
 	}
-	this_.priv_Timeline_addEvent_5370(value, this_.eventsByValue)
+	this_.priv_Timeline_addEvent_5380(value, this_.eventsByValue)
 
 }
 
@@ -170,7 +170,7 @@ func (this_ *Timeline) GetSince(timeName string) j2gort.Ext_java_util_List {
 }
 
 // Java method: Timeline.addEvent(V value, java.util.Map<V,com.google.javascript.jscomp.Timeline.Event<V>> eventsByKey)
-func (this_ *Timeline) priv_Timeline_addEvent_5370(value any, eventsByKey j2gort.Ext_java_util_Map) {
+func (this_ *Timeline) priv_Timeline_addEvent_5380(value any, eventsByKey j2gort.Ext_java_util_Map) {
 	event, _ := eventsByKey.Get(value).(*Timeline_Event)
 	if this_.headEvent == event {
 		return

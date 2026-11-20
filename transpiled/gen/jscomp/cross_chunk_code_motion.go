@@ -23,11 +23,13 @@ import (
 	pkg_diagnostic "github.com/paullepoulpe/jsgo/transpiled/gen/diagnostic"
 	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
 	pkg_rhino "github.com/paullepoulpe/jsgo/transpiled/gen/rhino"
+	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
 )
 
 // Java class: com.google.javascript.jscomp.CrossChunkCodeMotion
 type CrossChunkCodeMotion struct {
 	cccmLog                                    pkg_diagnostic.LogFile                      `gson:"cccmLog"`
+	currentReferenceCollector                  *CrossChunkReferenceCollector               `gson:"currentReferenceCollector"`
 	compiler                                   AbstractCompiler                            `gson:"compiler"`
 	graph                                      *JSChunkGraph                               `gson:"graph"`
 	chunkInsertionPointMap                     j2gort.OrderedMap[*JSChunk, pkg_rhino.Node] `gson:"chunkInsertionPointMap"`
@@ -96,6 +98,7 @@ func (this_ *CrossChunkCodeMotion) Process_2(externs pkg_rhino.Node, root pkg_rh
 	func() {
 		defer func() {
 			this_.cccmLog = nil
+			this_.currentReferenceCollector = nil
 		}()
 		var logFile pkg_diagnostic.LogFile = this_.compiler.CreateOrReopenIndexedLog(j2gort.GetObjectClass(this_), "cccm.log", []string{})
 		_ = logFile
@@ -107,9 +110,7 @@ func (this_ *CrossChunkCodeMotion) Process_2(externs pkg_rhino.Node, root pkg_rh
 			InitCrossChunkReferenceCollector(&val_1, this_.compiler, NewSyntacticScopeCreator_1(this_.compiler))
 			var referenceCollector *CrossChunkReferenceCollector = &val_1
 			_ = referenceCollector
-			referenceCollector.ownsScopeCreator_ = true
-			defer referenceCollector.ReleaseSlabs_()
-
+			this_.currentReferenceCollector = referenceCollector
 			referenceCollector.Process_1(root)
 			var val_2 CrossChunkCodeMotion_GlobalSymbolCollector
 			val_2.outer_ = this_
@@ -117,8 +118,8 @@ func (this_ *CrossChunkCodeMotion) Process_2(externs pkg_rhino.Node, root pkg_rh
 			var collector *CrossChunkCodeMotion_GlobalSymbolCollector = &val_2
 			_ = collector
 			collector.CollectGlobalSymbols(referenceCollector)
-			this_.priv_CrossChunkCodeMotion_moveGlobalSymbols_2238(collector)
-			this_.priv_CrossChunkCodeMotion_addInstanceofGuards_2237(collector)
+			this_.priv_CrossChunkCodeMotion_moveGlobalSymbols_2239(collector)
+			this_.priv_CrossChunkCodeMotion_addInstanceofGuards_2238(collector)
 		} else {
 			this_.cccmLog.Log_1_string("only one chunk exists")
 		}
@@ -126,7 +127,7 @@ func (this_ *CrossChunkCodeMotion) Process_2(externs pkg_rhino.Node, root pkg_rh
 }
 
 // Java method: CrossChunkCodeMotion.addInstanceofGuards(com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbolCollector collector)
-func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_addInstanceofGuards_2237(collector *CrossChunkCodeMotion_GlobalSymbolCollector) {
+func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_addInstanceofGuards_2238(collector *CrossChunkCodeMotion_GlobalSymbolCollector) {
 	_ = collector
 	{
 		cur_3 := collector.symbolStack.Iter()
@@ -134,14 +135,18 @@ func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_addInstanceofGuards
 
 			globalSymbol := cur_3.Next()
 			_ = globalSymbol
-			{
-				cur_5 := globalSymbol.instanceofReferencesToGuard.Iter()
-				for cur_5.HasNext() {
+			var guards *j2gort.Deque[*CrossChunkCodeMotion_InstanceofReference] = globalSymbol.instanceofReferencesToGuard
+			_ = guards
+			if guards != nil {
+				{
+					cur_5 := guards.Iter()
+					for cur_5.HasNext() {
 
-					instanceofReference := cur_5.Next()
-					_ = instanceofReference
-					if !(globalSymbol.DeclarationsCoverChunk(instanceofReference.GetChunk())) {
-						this_.priv_CrossChunkCodeMotion_addGuardToInstanceofReference_2239(instanceofReference.GetReference().GetNode())
+						instanceofReference := cur_5.Next()
+						_ = instanceofReference
+						if !(globalSymbol.DeclarationsCoverChunk(instanceofReference.GetChunk())) {
+							this_.priv_CrossChunkCodeMotion_addGuardToInstanceofReference_2240(instanceofReference.GetReference().GetNode())
+						}
 					}
 				}
 			}
@@ -150,7 +155,7 @@ func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_addInstanceofGuards
 }
 
 // Java method: CrossChunkCodeMotion.moveGlobalSymbols(com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbolCollector collector)
-func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_moveGlobalSymbols_2238(collector *CrossChunkCodeMotion_GlobalSymbolCollector) {
+func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_moveGlobalSymbols_2239(collector *CrossChunkCodeMotion_GlobalSymbolCollector) {
 	_ = collector
 	var val_7 CrossChunkCodeMotion_OrderAndCombineGlobalSymbols
 	val_7.outer_ = this_
@@ -170,9 +175,9 @@ func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_moveGlobalSymbols_2
 }
 
 // Java method: CrossChunkCodeMotion.addGuardToInstanceofReference(com.google.javascript.rhino.Node referenceNode)
-func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_addGuardToInstanceofReference_2239(referenceNode pkg_rhino.Node) {
+func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_addGuardToInstanceofReference_2240(referenceNode pkg_rhino.Node) {
 	_ = referenceNode
-	if !(this_.priv_CrossChunkCodeMotion_isUnguardedInstanceofReference_2243(referenceNode)) {
+	if !(this_.priv_CrossChunkCodeMotion_isUnguardedInstanceofReference_2245(referenceNode)) {
 		j2gort.CheckStateFmt(false, "instanceof Reference is already guarded: %s", j2gort.BoxNode(referenceNode))
 	}
 	var instanceofNode pkg_rhino.Node = j2gort.CheckNotNullNode(referenceNode.GetParent())
@@ -189,22 +194,35 @@ func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_addGuardToInstanceo
 	this_.compiler.ReportChangeToEnclosingScope(and)
 }
 
+// Java method: CrossChunkCodeMotion.moveStatementNodeToDest(com.google.javascript.rhino.Node statementNode, com.google.javascript.rhino.Node destParent)
+func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_moveStatementNodeToDest_2241(statementNode pkg_rhino.Node, destParent pkg_rhino.Node) {
+	_ = statementNode
+	_ = destParent
+	this_.compiler.ReportChangeToEnclosingScope(statementNode)
+	var originalScript pkg_rhino.Node = NodeUtil_GetEnclosingScript(statementNode)
+	_ = originalScript
+	statementNode.Detach()
+	destParent.AddChildToFront(statementNode)
+	NodeUtil_AddFeaturesToScript(destParent, NodeUtil_GetFeatureSetOfScript(originalScript), this_.compiler)
+	this_.compiler.ReportChangeToEnclosingScope(statementNode)
+}
+
 // Java method: CrossChunkCodeMotion.isUndefinedTypeofGuardReference(com.google.javascript.rhino.Node reference)
-func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_isUndefinedTypeofGuardReference_2240(reference pkg_rhino.Node) bool {
+func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_isUndefinedTypeofGuardReference_2242(reference pkg_rhino.Node) bool {
 	_ = reference
 	var maybeTypeofGuard pkg_rhino.Node = reference.GetGrandparent()
 	_ = maybeTypeofGuard
-	if (maybeTypeofGuard != 0) && this_.priv_CrossChunkCodeMotion_isExistenceTypeofGuardFor_2241(maybeTypeofGuard, reference) {
+	if (maybeTypeofGuard != 0) && this_.priv_CrossChunkCodeMotion_isExistenceTypeofGuardFor_2243(maybeTypeofGuard, reference) {
 		var andNode pkg_rhino.Node = maybeTypeofGuard.GetParent()
 		_ = andNode
-		return (((andNode != 0) && andNode.IsAnd()) && this_.priv_CrossChunkCodeMotion_isInstanceofFor_2244(andNode.GetLastChild(), reference))
+		return (((andNode != 0) && andNode.IsAnd()) && this_.priv_CrossChunkCodeMotion_isInstanceofFor_2246(andNode.GetLastChild(), reference))
 	} else {
 		return false
 	}
 }
 
 // Java method: CrossChunkCodeMotion.isExistenceTypeofGuardFor(com.google.javascript.rhino.Node expression, com.google.javascript.rhino.Node reference)
-func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_isExistenceTypeofGuardFor_2241(expression pkg_rhino.Node, reference pkg_rhino.Node) bool {
+func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_isExistenceTypeofGuardFor_2243(expression pkg_rhino.Node, reference pkg_rhino.Node) bool {
 	_ = expression
 	_ = reference
 	if expression.IsNE() || expression.IsSHNE() {
@@ -225,36 +243,36 @@ func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_isExistenceTypeofGu
 }
 
 // Java method: CrossChunkCodeMotion.isGuardedInstanceofReference(com.google.javascript.rhino.Node reference)
-func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_isGuardedInstanceofReference_2242(reference pkg_rhino.Node) bool {
+func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_isGuardedInstanceofReference_2244(reference pkg_rhino.Node) bool {
 	_ = reference
 	var instanceofNode pkg_rhino.Node = reference.GetParent()
 	_ = instanceofNode
-	if this_.priv_CrossChunkCodeMotion_isInstanceofFor_2244(instanceofNode, reference) {
+	if this_.priv_CrossChunkCodeMotion_isInstanceofFor_2246(instanceofNode, reference) {
 		var andNode pkg_rhino.Node = instanceofNode.GetParent()
 		_ = andNode
-		return (((andNode != 0) && andNode.IsAnd()) && this_.priv_CrossChunkCodeMotion_isExistenceTypeofGuardFor_2241(andNode.GetFirstChild(), reference))
+		return (((andNode != 0) && andNode.IsAnd()) && this_.priv_CrossChunkCodeMotion_isExistenceTypeofGuardFor_2243(andNode.GetFirstChild(), reference))
 	} else {
 		return false
 	}
 }
 
 // Java method: CrossChunkCodeMotion.isUnguardedInstanceofReference(com.google.javascript.rhino.Node reference)
-func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_isUnguardedInstanceofReference_2243(reference pkg_rhino.Node) bool {
+func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_isUnguardedInstanceofReference_2245(reference pkg_rhino.Node) bool {
 	_ = reference
 	var instanceofNode pkg_rhino.Node = reference.GetParent()
 	_ = instanceofNode
-	if this_.priv_CrossChunkCodeMotion_isInstanceofFor_2244(instanceofNode, reference) {
+	if this_.priv_CrossChunkCodeMotion_isInstanceofFor_2246(instanceofNode, reference) {
 		if this_.compiler.GetAstAnalyzer().MayHaveSideEffects(instanceofNode.GetFirstChild()) {
 			return false
 		}
-		return !(this_.priv_CrossChunkCodeMotion_isGuardedInstanceofReference_2242(reference))
+		return !(this_.priv_CrossChunkCodeMotion_isGuardedInstanceofReference_2244(reference))
 	} else {
 		return false
 	}
 }
 
 // Java method: CrossChunkCodeMotion.isInstanceofFor(com.google.javascript.rhino.Node expression, com.google.javascript.rhino.Node reference)
-func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_isInstanceofFor_2244(expression pkg_rhino.Node, reference pkg_rhino.Node) bool {
+func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_isInstanceofFor_2246(expression pkg_rhino.Node, reference pkg_rhino.Node) bool {
 	_ = expression
 	_ = reference
 	return (expression.IsInstanceOf() && expression.GetLastChild().IsEquivalentTo_1(reference))
@@ -263,8 +281,8 @@ func (this_ *CrossChunkCodeMotion) priv_CrossChunkCodeMotion_isInstanceofFor_224
 // Java class: com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbolCollector
 type CrossChunkCodeMotion_GlobalSymbolCollector struct {
 	outer_             *CrossChunkCodeMotion
-	globalSymbolforVar j2gort.CustomOrderedMap[*Var, *CrossChunkCodeMotion_GlobalSymbol] `gson:"globalSymbolforVar"`
-	symbolStack        j2gort.Deque[*CrossChunkCodeMotion_GlobalSymbol]                  `gson:"symbolStack"`
+	globalSymbolforVar j2gort.OrderedMap[*Var, *CrossChunkCodeMotion_GlobalSymbol] `gson:"globalSymbolforVar"`
+	symbolStack        j2gort.Deque[*CrossChunkCodeMotion_GlobalSymbol]            `gson:"symbolStack"`
 	idHash_            atomic.Int32
 }
 
@@ -299,7 +317,7 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) GetOuter_() *CrossChunk
 
 func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) initFields_CrossChunkCodeMotion_GlobalSymbolCollector() {
 	_ = this_
-	this_.globalSymbolforVar = j2gort.NewCustomOrderedMap[*Var, *CrossChunkCodeMotion_GlobalSymbol]()
+	this_.globalSymbolforVar = j2gort.NewOrderedMap[*Var, *CrossChunkCodeMotion_GlobalSymbol]()
 	this_.symbolStack = j2gort.Deque[*CrossChunkCodeMotion_GlobalSymbol]{}
 }
 
@@ -327,16 +345,16 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) CollectGlobalSymbols(re
 			var statement *CrossChunkReferenceCollector_TopLevelStatement = referenceCollector.GetTopLevelStatement(i)
 			_ = statement
 			if statement.IsDeclarationStatement() {
-				this_.priv_GlobalSymbolCollector_processDeclarationStatement_2248(statement)
+				this_.priv_GlobalSymbolCollector_processDeclarationStatement_2250(statement)
 			} else {
-				this_.priv_GlobalSymbolCollector_processImmovableStatement_2246(statement)
+				this_.priv_GlobalSymbolCollector_processImmovableStatement_2248(statement)
 			}
 		}
 	}
 }
 
 // Java method: GlobalSymbolCollector.processImmovableStatement(com.google.javascript.jscomp.CrossChunkReferenceCollector.TopLevelStatement statement)
-func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollector_processImmovableStatement_2246(statement *CrossChunkReferenceCollector_TopLevelStatement) {
+func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollector_processImmovableStatement_2248(statement *CrossChunkReferenceCollector_TopLevelStatement) {
 	_ = statement
 	var chunk *JSChunk = statement.GetChunk()
 	_ = chunk
@@ -346,24 +364,24 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollec
 		var count int32 = statement.GetNonDeclarationReferenceCount()
 		_ = count
 		for ; i < count; i = i + 1 {
-			this_.priv_GlobalSymbolCollector_processImmovableReference_2247(statement.GetNonDeclarationReference(i), chunk)
+			this_.priv_GlobalSymbolCollector_processImmovableReference_2249(statement.GetNonDeclarationReference(i), chunk)
 		}
 	}
 }
 
 // Java method: GlobalSymbolCollector.processImmovableReference(com.google.javascript.jscomp.Reference ref, com.google.javascript.jscomp.JSChunk chunk)
-func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollector_processImmovableReference_2247(ref *Reference, chunk *JSChunk) {
+func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollector_processImmovableReference_2249(ref *Reference, chunk *JSChunk) {
 	_ = ref
 	_ = chunk
-	var globalSymbol *CrossChunkCodeMotion_GlobalSymbol = this_.priv_GlobalSymbolCollector_getGlobalSymbol_2250(j2gort.CastPtr[Var](ref.GetSymbol()))
+	var globalSymbol *CrossChunkCodeMotion_GlobalSymbol = this_.priv_GlobalSymbolCollector_getGlobalSymbol_2252(j2gort.CastPtr[Var](ref.GetSymbol()))
 	_ = globalSymbol
 	if this_.outer_.parentChunkCanSeeSymbolsDeclaredInChildren {
 		var n pkg_rhino.Node = ref.GetNode()
 		_ = n
-		if this_.outer_.priv_CrossChunkCodeMotion_isGuardedInstanceofReference_2242(n) || this_.outer_.priv_CrossChunkCodeMotion_isUndefinedTypeofGuardReference_2240(n) {
+		if this_.outer_.priv_CrossChunkCodeMotion_isGuardedInstanceofReference_2244(n) || this_.outer_.priv_CrossChunkCodeMotion_isUndefinedTypeofGuardReference_2242(n) {
 			return
-		} else if this_.outer_.priv_CrossChunkCodeMotion_isUnguardedInstanceofReference_2243(n) {
-			globalSymbol.instanceofReferencesToGuard.Push(allocPooledVia_CrossChunkCodeMotion_InstanceofReference_Immovable(&this_.outer_.slab_InstanceofReference, chunk, ref))
+		} else if this_.outer_.priv_CrossChunkCodeMotion_isUnguardedInstanceofReference_2245(n) {
+			globalSymbol.AddInstanceofReferenceToGuard(allocPooledVia_CrossChunkCodeMotion_InstanceofReference_Immovable(&this_.outer_.slab_InstanceofReference, chunk, ref))
 			return
 		}
 	}
@@ -371,17 +389,17 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollec
 }
 
 // Java method: GlobalSymbolCollector.processDeclarationStatement(com.google.javascript.jscomp.CrossChunkReferenceCollector.TopLevelStatement statement)
-func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollector_processDeclarationStatement_2248(statement *CrossChunkReferenceCollector_TopLevelStatement) {
+func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollector_processDeclarationStatement_2250(statement *CrossChunkReferenceCollector_TopLevelStatement) {
 	_ = statement
-	var declaredSymbol *CrossChunkCodeMotion_GlobalSymbol = this_.priv_GlobalSymbolCollector_getGlobalSymbol_2250(j2gort.CastPtr[Var](statement.GetDeclaredNameReference().GetSymbol()))
+	var declaredSymbol *CrossChunkCodeMotion_GlobalSymbol = this_.priv_GlobalSymbolCollector_getGlobalSymbol_2252(j2gort.CastPtr[Var](statement.GetDeclaredNameReference().GetSymbol()))
 	_ = declaredSymbol
 	var dsg *CrossChunkCodeMotion_DeclarationStatementGroup = declaredSymbol.AddDeclarationStatement(statement)
 	_ = dsg
-	this_.priv_GlobalSymbolCollector_processDeclarationStatementContainedReferences_2249(statement, declaredSymbol, dsg)
+	this_.priv_GlobalSymbolCollector_processDeclarationStatementContainedReferences_2251(statement, declaredSymbol, dsg)
 }
 
 // Java method: GlobalSymbolCollector.processDeclarationStatementContainedReferences(com.google.javascript.jscomp.CrossChunkReferenceCollector.TopLevelStatement statement, com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbol declaredSymbol, com.google.javascript.jscomp.CrossChunkCodeMotion.DeclarationStatementGroup dsg)
-func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollector_processDeclarationStatementContainedReferences_2249(statement *CrossChunkReferenceCollector_TopLevelStatement, declaredSymbol *CrossChunkCodeMotion_GlobalSymbol, dsg *CrossChunkCodeMotion_DeclarationStatementGroup) {
+func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollector_processDeclarationStatementContainedReferences_2251(statement *CrossChunkReferenceCollector_TopLevelStatement, declaredSymbol *CrossChunkCodeMotion_GlobalSymbol, dsg *CrossChunkCodeMotion_DeclarationStatementGroup) {
 	_ = statement
 	_ = declaredSymbol
 	_ = dsg
@@ -393,7 +411,7 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollec
 		for ; i < count; i = i + 1 {
 			var ref *Reference = statement.GetNonDeclarationReference(i)
 			_ = ref
-			var refSymbol *CrossChunkCodeMotion_GlobalSymbol = this_.priv_GlobalSymbolCollector_getGlobalSymbol_2250(j2gort.CastPtr[Var](ref.GetSymbol()))
+			var refSymbol *CrossChunkCodeMotion_GlobalSymbol = this_.priv_GlobalSymbolCollector_getGlobalSymbol_2252(j2gort.CastPtr[Var](ref.GetSymbol()))
 			_ = refSymbol
 			if j2gort.CheckNotNullPtr(refSymbol) == declaredSymbol {
 				continue
@@ -401,10 +419,10 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollec
 			if this_.outer_.parentChunkCanSeeSymbolsDeclaredInChildren {
 				var n pkg_rhino.Node = ref.GetNode()
 				_ = n
-				if this_.outer_.priv_CrossChunkCodeMotion_isGuardedInstanceofReference_2242(n) || this_.outer_.priv_CrossChunkCodeMotion_isUndefinedTypeofGuardReference_2240(n) {
+				if this_.outer_.priv_CrossChunkCodeMotion_isGuardedInstanceofReference_2244(n) || this_.outer_.priv_CrossChunkCodeMotion_isUndefinedTypeofGuardReference_2242(n) {
 					continue
-				} else if this_.outer_.priv_CrossChunkCodeMotion_isUnguardedInstanceofReference_2243(n) {
-					refSymbol.instanceofReferencesToGuard.Push(allocPooledVia_CrossChunkCodeMotion_InstanceofReference_Movable(&this_.outer_.slab_InstanceofReference, dsg, ref))
+				} else if this_.outer_.priv_CrossChunkCodeMotion_isUnguardedInstanceofReference_2245(n) {
+					refSymbol.AddInstanceofReferenceToGuard(allocPooledVia_CrossChunkCodeMotion_InstanceofReference_Movable(&this_.outer_.slab_InstanceofReference, dsg, ref))
 					continue
 				}
 			}
@@ -415,7 +433,7 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollec
 }
 
 // Java method: GlobalSymbolCollector.getGlobalSymbol(com.google.javascript.jscomp.Var var)
-func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollector_getGlobalSymbol_2250(var_ *Var) *CrossChunkCodeMotion_GlobalSymbol {
+func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollector_getGlobalSymbol_2252(var_ *Var) *CrossChunkCodeMotion_GlobalSymbol {
 	_ = var_
 	var globalSymbol *CrossChunkCodeMotion_GlobalSymbol = this_.globalSymbolforVar.Get(var_)
 	_ = globalSymbol
@@ -430,12 +448,16 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollec
 // Java class: com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbol
 type CrossChunkCodeMotion_GlobalSymbol struct {
 	outer_                                       *CrossChunkCodeMotion
-	var_                                         *Var                                                          `gson:"var"`
-	dsgStack                                     j2gort.Deque[*CrossChunkCodeMotion_DeclarationStatementGroup] `gson:"dsgStack"`
-	chunksWithImmovableReferences                *j2gort.Ext_java_util_BitSet                                  `gson:"chunksWithImmovableReferences"`
-	referencingGlobalSymbols                     j2gort.OrderedSet[*CrossChunkCodeMotion_GlobalSymbol]         `gson:"referencingGlobalSymbols"`
-	instanceofReferencesToGuard                  j2gort.Deque[*CrossChunkCodeMotion_InstanceofReference]       `gson:"instanceofReferencesToGuard"`
-	preorderNumber                               int32                                                         `gson:"preorderNumber"`
+	var_                                         *Var                                                           `gson:"var"`
+	firstDsg                                     *CrossChunkCodeMotion_DeclarationStatementGroup                `gson:"firstDsg"`
+	dsgStack                                     *j2gort.Deque[*CrossChunkCodeMotion_DeclarationStatementGroup] `gson:"dsgStack"`
+	chunksWithImmovableReferences                *j2gort.Ext_java_util_BitSet                                   `gson:"chunksWithImmovableReferences"`
+	refSym0                                      *CrossChunkCodeMotion_GlobalSymbol                             `gson:"refSym0"`
+	refSym1                                      *CrossChunkCodeMotion_GlobalSymbol                             `gson:"refSym1"`
+	referencingGlobalSymbols                     *j2gort.Ext_java_util_LinkedHashSet                            `gson:"referencingGlobalSymbols"`
+	instanceofReferencesToGuard                  *j2gort.Deque[*CrossChunkCodeMotion_InstanceofReference]       `gson:"instanceofReferencesToGuard"`
+	immovableChunksLow                           int64                                                          `gson:"immovableChunksLow"`
+	preorderNumber                               int32                                                          `gson:"preorderNumber"`
 	idHash_                                      atomic.Int32
 	hasBeenAssignedToAStronglyConnectedComponent bool `gson:"hasBeenAssignedToAStronglyConnectedComponent"`
 	isMoveDeclarationStatementsDone              bool `gson:"isMoveDeclarationStatementsDone"`
@@ -470,10 +492,7 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbol) GetOuter_() *CrossChunkCodeMotio
 
 func (this_ *CrossChunkCodeMotion_GlobalSymbol) initFields_CrossChunkCodeMotion_GlobalSymbol() {
 	_ = this_
-	this_.dsgStack = j2gort.Deque[*CrossChunkCodeMotion_DeclarationStatementGroup]{}
-	this_.chunksWithImmovableReferences = j2gort.NewExt_java_util_BitSet_1(this_.outer_.graph.GetChunkCount())
-	this_.referencingGlobalSymbols = j2gort.NewOrderedSet[*CrossChunkCodeMotion_GlobalSymbol]()
-	this_.instanceofReferencesToGuard = j2gort.Deque[*CrossChunkCodeMotion_InstanceofReference]{}
+
 	this_.preorderNumber = int32(-1)
 
 }
@@ -506,7 +525,47 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbol) String() string {
 // Java method: GlobalSymbol.addImmovableReference(com.google.javascript.jscomp.JSChunk chunk)
 func (this_ *CrossChunkCodeMotion_GlobalSymbol) AddImmovableReference(chunk *JSChunk) {
 	_ = chunk
-	this_.chunksWithImmovableReferences.Set_1(chunk.GetIndex())
+	var idx int32 = chunk.GetIndex()
+	_ = idx
+	if (idx >= int32(0)) && (idx < int32(64)) {
+		this_.immovableChunksLow = (this_.immovableChunksLow | (javalang.Shl64(int64(1), int(idx))))
+	} else {
+		var bs *j2gort.Ext_java_util_BitSet = this_.chunksWithImmovableReferences
+		_ = bs
+		if bs == nil {
+			bs = j2gort.NewExt_java_util_BitSet_1(this_.outer_.graph.GetChunkCount())
+			this_.chunksWithImmovableReferences = bs
+		}
+		bs.Set_1(idx)
+	}
+}
+
+// Java method: GlobalSymbol.orImmovableChunksInto(java.util.BitSet dst)
+func (this_ *CrossChunkCodeMotion_GlobalSymbol) OrImmovableChunksInto(dst *j2gort.Ext_java_util_BitSet) {
+	_ = dst
+	var low int64 = this_.immovableChunksLow
+	_ = low
+	for low != int64(0) {
+		var bit int32 = j2gort.BoxLong_NumberOfTrailingZeros(low)
+		_ = bit
+		dst.Set_1(bit)
+		low = (low & (low - int64(int32(1))))
+	}
+	if this_.chunksWithImmovableReferences != nil {
+		dst.Or(this_.chunksWithImmovableReferences)
+	}
+}
+
+// Java method: GlobalSymbol.addInstanceofReferenceToGuard(com.google.javascript.jscomp.CrossChunkCodeMotion.InstanceofReference ref)
+func (this_ *CrossChunkCodeMotion_GlobalSymbol) AddInstanceofReferenceToGuard(ref *CrossChunkCodeMotion_InstanceofReference) {
+	_ = ref
+	var guardList *j2gort.Deque[*CrossChunkCodeMotion_InstanceofReference] = this_.instanceofReferencesToGuard
+	_ = guardList
+	if guardList == nil {
+		guardList = j2gort.NewDequePtrCap[*CrossChunkCodeMotion_InstanceofReference](int32(4))
+		this_.instanceofReferencesToGuard = guardList
+	}
+	guardList.Push(ref)
 }
 
 // Java method: GlobalSymbol.addDeclarationStatement(com.google.javascript.jscomp.CrossChunkReferenceCollector.TopLevelStatement statement)
@@ -514,15 +573,19 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbol) AddDeclarationStatement(statemen
 	_ = statement
 	var chunk *JSChunk = statement.GetChunk()
 	_ = chunk
-	var lastDsg *CrossChunkCodeMotion_DeclarationStatementGroup = this_.dsgStack.Peek()
+	var lastDsg *CrossChunkCodeMotion_DeclarationStatementGroup
 	_ = lastDsg
-	if lastDsg == nil {
-		lastDsg = allocPooled_CrossChunkCodeMotion_DeclarationStatementGroup(&this_.outer_.slab_DeclarationStatementGroup, this_, chunk)
-		this_.dsgStack.Push(lastDsg)
+	if this_.dsgStack != nil {
+		lastDsg = this_.dsgStack.Peek()
+	} else {
+		lastDsg = this_.firstDsg
 	}
 	var statementDsg *CrossChunkCodeMotion_DeclarationStatementGroup = nil
 	_ = statementDsg
-	{
+	if lastDsg == nil {
+		statementDsg = allocPooled_CrossChunkCodeMotion_DeclarationStatementGroup(&this_.outer_.slab_DeclarationStatementGroup, this_, chunk)
+		this_.firstDsg = statementDsg
+	} else {
 		var iifeCond_1 bool
 		{
 
@@ -534,50 +597,93 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbol) AddDeclarationStatement(statemen
 			statementDsg = lastDsg
 		} else {
 			statementDsg = allocPooled_CrossChunkCodeMotion_DeclarationStatementGroup(&this_.outer_.slab_DeclarationStatementGroup, this_, chunk)
+			if this_.dsgStack == nil {
+				this_.dsgStack = j2gort.NewDequePtrCap[*CrossChunkCodeMotion_DeclarationStatementGroup](int32(4))
+				this_.dsgStack.Push(this_.firstDsg)
+				this_.firstDsg = nil
+			}
 			this_.dsgStack.Push(statementDsg)
 		}
 	}
-	statementDsg.statementStack.Push(statement)
+	statementDsg.PushStatement(statement)
 	return statementDsg
 }
 
 // Java method: GlobalSymbol.addReferringGlobalSymbol(com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbol declaredSymbol)
 func (this_ *CrossChunkCodeMotion_GlobalSymbol) AddReferringGlobalSymbol(declaredSymbol *CrossChunkCodeMotion_GlobalSymbol) {
 	_ = declaredSymbol
-	this_.referencingGlobalSymbols.Add(declaredSymbol)
+	var set *j2gort.Ext_java_util_LinkedHashSet = this_.referencingGlobalSymbols
+	_ = set
+	if set != nil {
+		set.Add_1(j2gort.PtrToAny(declaredSymbol))
+		return
+	}
+	var r0 *CrossChunkCodeMotion_GlobalSymbol = this_.refSym0
+	_ = r0
+	if r0 == nil {
+		this_.refSym0 = declaredSymbol
+		return
+	}
+	if r0 == declaredSymbol {
+		return
+	}
+	var r1 *CrossChunkCodeMotion_GlobalSymbol = this_.refSym1
+	_ = r1
+	if r1 == nil {
+		this_.refSym1 = declaredSymbol
+		return
+	}
+	if r1 == declaredSymbol {
+		return
+	}
+	set = j2gort.NewExt_java_util_LinkedHashSet_1_int32(int32(8))
+	set.Add_1(j2gort.PtrToAny(r0))
+	set.Add_1(j2gort.PtrToAny(r1))
+	set.Add_1(j2gort.PtrToAny(declaredSymbol))
+	this_.referencingGlobalSymbols = set
+	this_.refSym0 = nil
+	this_.refSym1 = nil
 }
 
 // Java method: GlobalSymbol.declarationsCoverChunk(com.google.javascript.jscomp.JSChunk chunk)
 func (this_ *CrossChunkCodeMotion_GlobalSymbol) DeclarationsCoverChunk(chunk *JSChunk) bool {
 	_ = chunk
-	{
-		cur_12 := this_.dsgStack.Iter()
-		for cur_12.HasNext() {
+	if this_.dsgStack != nil {
+		{
+			cur_12 := this_.dsgStack.Iter()
+			for cur_12.HasNext() {
 
-			dsg := cur_12.Next()
-			_ = dsg
-			{
-				var iifeCond_1 bool
+				dsg := cur_12.Next()
+				_ = dsg
 				{
+					var iifeCond_1 bool
+					{
 
-					rp_14 := chunk
-					ap_15 := dsg.currentChunk
-					iifeCond_1 = j2gort.CheckNotNullPtr(rp_14) == ap_15
-				}
-				if iifeCond_1 || this_.outer_.graph.DependsOn(chunk, dsg.currentChunk) {
-					return true
+						rp_14 := chunk
+						ap_15 := dsg.currentChunk
+						iifeCond_1 = j2gort.CheckNotNullPtr(rp_14) == ap_15
+					}
+					if iifeCond_1 || this_.outer_.graph.DependsOn(chunk, dsg.currentChunk) {
+						return true
+					}
 				}
 			}
 		}
+		return false
 	}
-	return false
+	return ((this_.firstDsg != nil) && (func() bool {
+		rp_16 := chunk
+		ap_17 := this_.firstDsg.currentChunk
+		return j2gort.CheckNotNullPtr(rp_16) == ap_17
+	}() || this_.outer_.graph.DependsOn(chunk, this_.firstDsg.currentChunk)))
 }
 
 // Java class: com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbolCycle
 type CrossChunkCodeMotion_GlobalSymbolCycle struct {
-	outer_  *CrossChunkCodeMotion
-	symbols j2gort.Deque[*CrossChunkCodeMotion_GlobalSymbol] `gson:"symbols"`
-	idHash_ atomic.Int32
+	outer_      *CrossChunkCodeMotion
+	firstSymbol *CrossChunkCodeMotion_GlobalSymbol                `gson:"firstSymbol"`
+	symbols     *j2gort.Deque[*CrossChunkCodeMotion_GlobalSymbol] `gson:"symbols"`
+	idHash_     atomic.Int32
 }
 
 func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) BindSelf_(s any) {
@@ -611,7 +717,7 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) GetOuter_() *CrossChunkCode
 
 func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) initFields_CrossChunkCodeMotion_GlobalSymbolCycle() {
 	_ = this_
-	this_.symbols = j2gort.Deque[*CrossChunkCodeMotion_GlobalSymbol]{}
+
 }
 
 // Java constructor: GlobalSymbolCycle()
@@ -635,82 +741,222 @@ func InitCrossChunkCodeMotion_GlobalSymbolCycle(this_ *CrossChunkCodeMotion_Glob
 // Java method: GlobalSymbolCycle.addSymbol(com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbol symbol)
 func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) AddSymbol(symbol *CrossChunkCodeMotion_GlobalSymbol) {
 	_ = symbol
-	this_.symbols.AddLast(symbol)
+	if this_.symbols != nil {
+		this_.symbols.AddLast(symbol)
+	} else if this_.firstSymbol == nil {
+		this_.firstSymbol = symbol
+	} else {
+		this_.symbols = j2gort.NewDequePtrCap[*CrossChunkCodeMotion_GlobalSymbol](int32(4))
+		this_.symbols.AddLast(this_.firstSymbol)
+		this_.firstSymbol = nil
+		this_.symbols.AddLast(symbol)
+	}
 }
 
 // Java method: GlobalSymbolCycle.moveDeclarationStatements()
 func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
+	if this_.symbols == nil {
+		var single *CrossChunkCodeMotion_GlobalSymbol = this_.firstSymbol
+		_ = single
+		if single == nil {
+			return
+		}
+		if !(!(single.isMoveDeclarationStatementsDone)) {
+			j2gort.CheckStateFmt(false, "duplicate attempt to move %s", j2gort.PtrToAny(single))
+		}
+		if single.dsgStack == nil {
+			var dsg *CrossChunkCodeMotion_DeclarationStatementGroup = single.firstDsg
+			_ = dsg
+			if dsg != nil {
+				var chunksWithImmovableReferences *j2gort.Ext_java_util_BitSet = this_.outer_.scratchCycleImmovableChunks
+				_ = chunksWithImmovableReferences
+				chunksWithImmovableReferences.Clear_0()
+				single.OrImmovableChunksInto(chunksWithImmovableReferences)
+				this_.priv_GlobalSymbolCycle_moveSingleDsgToPreferredChunk_2262(dsg, chunksWithImmovableReferences)
+			}
+			{
+				r_18 := single
+				r_18.isMoveDeclarationStatementsDone = true
+			}
+			return
+		}
+		var chunksWithImmovableReferences_2 *j2gort.Ext_java_util_BitSet = this_.outer_.scratchCycleImmovableChunks
+		_ = chunksWithImmovableReferences_2
+		chunksWithImmovableReferences_2.Clear_0()
+		var cyclesLatestFirst []*CrossChunkCodeMotion_DeclarationStatementGroupCycle = []*CrossChunkCodeMotion_DeclarationStatementGroupCycle{}
+		_ = cyclesLatestFirst
+		this_.priv_GlobalSymbolCycle_populateDsgCyclesLatestFirstForSymbol_2263(single, &cyclesLatestFirst)
+		{
+			var i int32 = int32(0)
+			_ = i
+			var size int32 = int32(len(cyclesLatestFirst))
+			_ = size
+			for ; i < size; i = i + 1 {
+				var dsgCycle *CrossChunkCodeMotion_DeclarationStatementGroupCycle = cyclesLatestFirst[i]
+				_ = dsgCycle
+				single.OrImmovableChunksInto(chunksWithImmovableReferences_2)
+				dsgCycle.MoveToPreferredChunk(chunksWithImmovableReferences_2)
+			}
+		}
+		{
+			r_19 := single
+			r_19.isMoveDeclarationStatementsDone = true
+		}
+		return
+	}
 	{
-		cur_16 := this_.symbols.Iter()
-		for cur_16.HasNext() {
+		cur_20 := this_.symbols.Iter()
+		for cur_20.HasNext() {
 
-			symbol := cur_16.Next()
+			symbol := cur_20.Next()
 			_ = symbol
 			if !(!(symbol.isMoveDeclarationStatementsDone)) {
 				j2gort.CheckStateFmt(false, "duplicate attempt to move %s", j2gort.PtrToAny(symbol))
 			}
 		}
 	}
-	var chunksWithImmovableReferences *j2gort.Ext_java_util_BitSet = this_.outer_.scratchCycleImmovableChunks
-	_ = chunksWithImmovableReferences
-	chunksWithImmovableReferences.Clear_0()
-	var cyclesLatestFirst []*CrossChunkCodeMotion_DeclarationStatementGroupCycle = []*CrossChunkCodeMotion_DeclarationStatementGroupCycle{}
-	_ = cyclesLatestFirst
-	this_.priv_GlobalSymbolCycle_populateDsgCyclesLatestFirst_2258(&cyclesLatestFirst)
+	var chunksWithImmovableReferences_3 *j2gort.Ext_java_util_BitSet = this_.outer_.scratchCycleImmovableChunks
+	_ = chunksWithImmovableReferences_3
+	chunksWithImmovableReferences_3.Clear_0()
+	var cyclesLatestFirst_2 []*CrossChunkCodeMotion_DeclarationStatementGroupCycle = []*CrossChunkCodeMotion_DeclarationStatementGroupCycle{}
+	_ = cyclesLatestFirst_2
+	this_.priv_GlobalSymbolCycle_populateDsgCyclesLatestFirst_2264(&cyclesLatestFirst_2)
 	{
-		var i int32 = int32(0)
-		_ = i
-		var size int32 = int32(len(cyclesLatestFirst))
-		_ = size
-		for ; i < size; i = i + 1 {
-			var dsgCycle *CrossChunkCodeMotion_DeclarationStatementGroupCycle = cyclesLatestFirst[i]
-			_ = dsgCycle
+		var i_2 int32 = int32(0)
+		_ = i_2
+		var size_2 int32 = int32(len(cyclesLatestFirst_2))
+		_ = size_2
+		for ; i_2 < size_2; i_2 = i_2 + 1 {
+			var dsgCycle_2 *CrossChunkCodeMotion_DeclarationStatementGroupCycle = cyclesLatestFirst_2[i_2]
+			_ = dsgCycle_2
 			{
-				cur_18 := this_.symbols.Iter()
-				for cur_18.HasNext() {
+				cur_22 := this_.symbols.Iter()
+				for cur_22.HasNext() {
 
-					symbol_2 := cur_18.Next()
+					symbol_2 := cur_22.Next()
 					_ = symbol_2
-					chunksWithImmovableReferences.Or(symbol_2.chunksWithImmovableReferences)
+					symbol_2.OrImmovableChunksInto(chunksWithImmovableReferences_3)
 				}
 			}
-			dsgCycle.MoveToPreferredChunk(chunksWithImmovableReferences)
+			dsgCycle_2.MoveToPreferredChunk(chunksWithImmovableReferences_3)
 		}
 	}
 	{
-		cur_20 := this_.symbols.Iter()
-		for cur_20.HasNext() {
+		cur_24 := this_.symbols.Iter()
+		for cur_24.HasNext() {
 
-			symbol_3 := cur_20.Next()
+			symbol_3 := cur_24.Next()
 			_ = symbol_3
 			{
-				r_22 := symbol_3
-				r_22.isMoveDeclarationStatementsDone = true
+				r_26 := symbol_3
+				r_26.isMoveDeclarationStatementsDone = true
 			}
 		}
 	}
 }
 
+// Java method: GlobalSymbolCycle.moveSingleDsgToPreferredChunk(com.google.javascript.jscomp.CrossChunkCodeMotion.DeclarationStatementGroup dsg, java.util.BitSet chunksWithImmovableReferences)
+func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) priv_GlobalSymbolCycle_moveSingleDsgToPreferredChunk_2262(dsg *CrossChunkCodeMotion_DeclarationStatementGroup, chunksWithImmovableReferences *j2gort.Ext_java_util_BitSet) {
+	_ = dsg
+	_ = chunksWithImmovableReferences
+	var currentChunk *JSChunk = dsg.currentChunk
+	_ = currentChunk
+	var preferredChunk *JSChunk = nil
+	_ = preferredChunk
+	if chunksWithImmovableReferences.IsEmpty() || !(dsg.AllStatementsCanMove(this_.outer_.currentReferenceCollector)) {
+		preferredChunk = currentChunk
+	} else {
+		preferredChunk = this_.outer_.graph.GetSmallestCoveringSubtree(currentChunk, chunksWithImmovableReferences)
+	}
+	if !(j2gort.CheckNotNullPtr(preferredChunk) == currentChunk) {
+		if this_.outer_.cccmLog.IsLogging() {
+			this_.outer_.cccmLog.Log_1_string("start DSG Cycle move")
+			this_.outer_.cccmLog.Log_1_Ext_java_util_function_Supplier(j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
+				return j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("Moving DSG for %s from chunk %s to chunk %s", []any{j2gort.BoxString(dsg.declaredGlobalSymbol.var_.GetName()), j2gort.PtrToAny(currentChunk), j2gort.PtrToAny(preferredChunk)}))
+			}))
+		}
+		var destParent pkg_rhino.Node
+		{
+			bound_27 := this_.outer_.compiler
+			destParent = j2gort.OrderedMapComputeIfAbsent(&this_.outer_.chunkInsertionPointMap, preferredChunk, pkg_rhino.Node(0), func(mrp0_ *JSChunk) pkg_rhino.Node {
+				return bound_27.GetNodeForCodeInsertion(mrp0_)
+			})
+		}
+
+		_ = destParent
+		if dsg.statementStack != nil {
+			{
+				cur_28 := dsg.statementStack.Iter()
+				for cur_28.HasNext() {
+
+					stmt := cur_28.Next()
+					_ = stmt
+					this_.outer_.priv_CrossChunkCodeMotion_moveStatementNodeToDest_2241(stmt.GetStatementNode(), destParent)
+				}
+			}
+		} else if dsg.firstStatement != nil {
+			this_.outer_.priv_CrossChunkCodeMotion_moveStatementNodeToDest_2241(dsg.firstStatement.GetStatementNode(), destParent)
+		}
+	}
+	{
+		r_30 := dsg
+		r_30.currentChunk = preferredChunk
+	}
+	dsg.MakeReferencesImmovable()
+}
+
+// Java method: GlobalSymbolCycle.populateDsgCyclesLatestFirstForSymbol(com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbol symbol, java.util.ArrayList<com.google.javascript.jscomp.CrossChunkCodeMotion.DeclarationStatementGroupCycle> cyclesLatestFirst)
+func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) priv_GlobalSymbolCycle_populateDsgCyclesLatestFirstForSymbol_2263(symbol *CrossChunkCodeMotion_GlobalSymbol, cyclesLatestFirst *[]*CrossChunkCodeMotion_DeclarationStatementGroupCycle) {
+	_ = symbol
+	_ = cyclesLatestFirst
+	var cycle *CrossChunkCodeMotion_DeclarationStatementGroupCycle = nil
+	_ = cycle
+	{
+		cur_31 := symbol.dsgStack.Iter()
+		for cur_31.HasNext() {
+
+			dsg := cur_31.Next()
+			_ = dsg
+			if (cycle == nil) || !(func() bool {
+				rp_33 := cycle.currentChunk
+				ap_34 := dsg.currentChunk
+				return j2gort.CheckNotNullPtr(rp_33) == ap_34
+			}()) {
+				cycle = allocPooled_CrossChunkCodeMotion_DeclarationStatementGroupCycle(&this_.outer_.slab_DeclarationStatementGroupCycle, this_.outer_, dsg.currentChunk)
+				*cyclesLatestFirst = append(*cyclesLatestFirst, cycle)
+			}
+			cycle.dsgs.AddLast(dsg)
+		}
+	}
+}
+
 // Java method: GlobalSymbolCycle.populateDsgCyclesLatestFirst(java.util.ArrayList<com.google.javascript.jscomp.CrossChunkCodeMotion.DeclarationStatementGroupCycle> cyclesLatestFirst)
-func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) priv_GlobalSymbolCycle_populateDsgCyclesLatestFirst_2258(cyclesLatestFirst *[]*CrossChunkCodeMotion_DeclarationStatementGroupCycle) {
+func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) priv_GlobalSymbolCycle_populateDsgCyclesLatestFirst_2264(cyclesLatestFirst *[]*CrossChunkCodeMotion_DeclarationStatementGroupCycle) {
 	_ = cyclesLatestFirst
 	var dsgsLatestFirst []*CrossChunkCodeMotion_DeclarationStatementGroup = []*CrossChunkCodeMotion_DeclarationStatementGroup{}
 	_ = dsgsLatestFirst
 	{
-		cur_23 := this_.symbols.Iter()
-		for cur_23.HasNext() {
+		cur_35 := this_.symbols.Iter()
+		for cur_35.HasNext() {
 
-			symbol := cur_23.Next()
+			symbol := cur_35.Next()
 			_ = symbol
+			if (symbol.dsgStack == nil) && (symbol.firstDsg == nil) {
+				continue
+			}
 			if len(dsgsLatestFirst) == 0 {
-				{
-					cur_25 := symbol.dsgStack.Iter()
-					for cur_25.HasNext() {
+				if symbol.dsgStack != nil {
+					{
+						cur_37 := symbol.dsgStack.Iter()
+						for cur_37.HasNext() {
 
-						dsg := cur_25.Next()
-						_ = dsg
-						dsgsLatestFirst = append(dsgsLatestFirst, dsg)
+							dsg := cur_37.Next()
+							_ = dsg
+							dsgsLatestFirst = append(dsgsLatestFirst, dsg)
+						}
 					}
+				} else {
+					dsgsLatestFirst = append(dsgsLatestFirst, symbol.firstDsg)
 				}
 			} else {
 				var prev []*CrossChunkCodeMotion_DeclarationStatementGroup = j2gort.CloneNonNilSlice(dsgsLatestFirst)
@@ -719,14 +965,18 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) priv_GlobalSymbolCycle_popu
 				dsgsLatestFirst = dsgsLatestFirst[:0]
 				var list2 []*CrossChunkCodeMotion_DeclarationStatementGroup = []*CrossChunkCodeMotion_DeclarationStatementGroup{}
 				_ = list2
-				{
-					cur_27 := symbol.dsgStack.Iter()
-					for cur_27.HasNext() {
+				if symbol.dsgStack != nil {
+					{
+						cur_39 := symbol.dsgStack.Iter()
+						for cur_39.HasNext() {
 
-						dsg_2 := cur_27.Next()
-						_ = dsg_2
-						list2 = append(list2, dsg_2)
+							dsg_2 := cur_39.Next()
+							_ = dsg_2
+							list2 = append(list2, dsg_2)
+						}
 					}
+				} else {
+					list2 = append(list2, symbol.firstDsg)
 				}
 				var i1 int32 = int32(0)
 				_ = i1
@@ -756,10 +1006,10 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) priv_GlobalSymbolCycle_popu
 					}
 				}
 				for i1 < n1 {
-					dsgsLatestFirst = append(dsgsLatestFirst, prev[func() int32 { old_29 := i1; nw_30 := old_29 + 1; i1 = nw_30; return old_29 }()])
+					dsgsLatestFirst = append(dsgsLatestFirst, prev[func() int32 { old_41 := i1; nw_42 := old_41 + 1; i1 = nw_42; return old_41 }()])
 				}
 				for i2 < n2 {
-					dsgsLatestFirst = append(dsgsLatestFirst, list2[func() int32 { old_31 := i2; nw_32 := old_31 + 1; i2 = nw_32; return old_31 }()])
+					dsgsLatestFirst = append(dsgsLatestFirst, list2[func() int32 { old_43 := i2; nw_44 := old_43 + 1; i2 = nw_44; return old_43 }()])
 				}
 			}
 		}
@@ -775,9 +1025,9 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) priv_GlobalSymbolCycle_popu
 			var dsg_3 *CrossChunkCodeMotion_DeclarationStatementGroup = dsgsLatestFirst[i]
 			_ = dsg_3
 			if (cycle == nil) || !(func() bool {
-				rp_33 := cycle.currentChunk
-				ap_34 := dsg_3.currentChunk
-				return j2gort.CheckNotNullPtr(rp_33) == ap_34
+				rp_45 := cycle.currentChunk
+				ap_46 := dsg_3.currentChunk
+				return j2gort.CheckNotNullPtr(rp_45) == ap_46
 			}()) {
 				cycle = allocPooled_CrossChunkCodeMotion_DeclarationStatementGroupCycle(&this_.outer_.slab_DeclarationStatementGroupCycle, this_.outer_, dsg_3.currentChunk)
 				*cyclesLatestFirst = append(*cyclesLatestFirst, cycle)
@@ -789,10 +1039,13 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) priv_GlobalSymbolCycle_popu
 
 // Java class: com.google.javascript.jscomp.CrossChunkCodeMotion.DeclarationStatementGroup
 type CrossChunkCodeMotion_DeclarationStatementGroup struct {
-	declaredGlobalSymbol    *CrossChunkCodeMotion_GlobalSymbol                            `gson:"declaredGlobalSymbol"`
-	referencedGlobalSymbols j2gort.OrderedSet[*CrossChunkCodeMotion_GlobalSymbol]         `gson:"referencedGlobalSymbols"`
-	currentChunk            *JSChunk                                                      `gson:"currentChunk"`
-	statementStack          j2gort.Deque[*CrossChunkReferenceCollector_TopLevelStatement] `gson:"statementStack"`
+	declaredGlobalSymbol    *CrossChunkCodeMotion_GlobalSymbol                             `gson:"declaredGlobalSymbol"`
+	refSym0                 *CrossChunkCodeMotion_GlobalSymbol                             `gson:"refSym0"`
+	refSym1                 *CrossChunkCodeMotion_GlobalSymbol                             `gson:"refSym1"`
+	referencedGlobalSymbols *j2gort.Ext_java_util_LinkedHashSet                            `gson:"referencedGlobalSymbols"`
+	currentChunk            *JSChunk                                                       `gson:"currentChunk"`
+	firstStatement          *CrossChunkReferenceCollector_TopLevelStatement                `gson:"firstStatement"`
+	statementStack          *j2gort.Deque[*CrossChunkReferenceCollector_TopLevelStatement] `gson:"statementStack"`
 	idHash_                 atomic.Int32
 }
 
@@ -821,8 +1074,7 @@ func init() {
 
 func (this_ *CrossChunkCodeMotion_DeclarationStatementGroup) initFields_CrossChunkCodeMotion_DeclarationStatementGroup() {
 	_ = this_
-	this_.referencedGlobalSymbols = j2gort.NewOrderedSet[*CrossChunkCodeMotion_GlobalSymbol]()
-	this_.statementStack = j2gort.Deque[*CrossChunkReferenceCollector_TopLevelStatement]{}
+
 }
 
 // Java constructor: DeclarationStatementGroup(com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbol declaredGlobalSymbol, com.google.javascript.jscomp.JSChunk currentChunk)
@@ -845,44 +1097,105 @@ func InitCrossChunkCodeMotion_DeclarationStatementGroup(this_ *CrossChunkCodeMot
 	this_.currentChunk = currentChunk
 }
 
-// Java method: DeclarationStatementGroup.allStatementsCanMove()
-func (this_ *CrossChunkCodeMotion_DeclarationStatementGroup) AllStatementsCanMove() bool {
-	{
-		cur_35 := this_.statementStack.Iter()
-		for cur_35.HasNext() {
+// Java method: DeclarationStatementGroup.pushStatement(com.google.javascript.jscomp.CrossChunkReferenceCollector.TopLevelStatement statement)
+func (this_ *CrossChunkCodeMotion_DeclarationStatementGroup) PushStatement(statement *CrossChunkReferenceCollector_TopLevelStatement) {
+	_ = statement
+	if this_.statementStack != nil {
+		this_.statementStack.Push(statement)
+	} else if this_.firstStatement == nil {
+		this_.firstStatement = statement
+	} else {
+		this_.statementStack = j2gort.NewDequePtrCap[*CrossChunkReferenceCollector_TopLevelStatement](int32(4))
+		this_.statementStack.Push(this_.firstStatement)
+		this_.firstStatement = nil
+		this_.statementStack.Push(statement)
+	}
+}
 
-			s := cur_35.Next()
-			_ = s
-			if !(s.IsMovableDeclaration()) {
-				return false
+// Java method: DeclarationStatementGroup.allStatementsCanMove(com.google.javascript.jscomp.CrossChunkReferenceCollector collector)
+func (this_ *CrossChunkCodeMotion_DeclarationStatementGroup) AllStatementsCanMove(collector *CrossChunkReferenceCollector) bool {
+	_ = collector
+	if this_.statementStack != nil {
+		{
+			cur_47 := this_.statementStack.Iter()
+			for cur_47.HasNext() {
+
+				s := cur_47.Next()
+				_ = s
+				if !(s.IsMovableDeclaration(collector)) {
+					return false
+				}
 			}
 		}
+		return true
 	}
-	return true
+	return ((this_.firstStatement == nil) || this_.firstStatement.IsMovableDeclaration(collector))
 }
 
 // Java method: DeclarationStatementGroup.addReferenceToGlobalSymbol(com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbol refSymbol)
 func (this_ *CrossChunkCodeMotion_DeclarationStatementGroup) AddReferenceToGlobalSymbol(refSymbol *CrossChunkCodeMotion_GlobalSymbol) {
 	_ = refSymbol
-	this_.referencedGlobalSymbols.Add(refSymbol)
+	var set *j2gort.Ext_java_util_LinkedHashSet = this_.referencedGlobalSymbols
+	_ = set
+	if set != nil {
+		set.Add_1(j2gort.PtrToAny(refSymbol))
+		return
+	}
+	var r0 *CrossChunkCodeMotion_GlobalSymbol = this_.refSym0
+	_ = r0
+	if r0 == nil {
+		this_.refSym0 = refSymbol
+		return
+	}
+	if r0 == refSymbol {
+		return
+	}
+	var r1 *CrossChunkCodeMotion_GlobalSymbol = this_.refSym1
+	_ = r1
+	if r1 == nil {
+		this_.refSym1 = refSymbol
+		return
+	}
+	if r1 == refSymbol {
+		return
+	}
+	set = j2gort.NewExt_java_util_LinkedHashSet_1_int32(int32(8))
+	set.Add_1(j2gort.PtrToAny(r0))
+	set.Add_1(j2gort.PtrToAny(r1))
+	set.Add_1(j2gort.PtrToAny(refSymbol))
+	this_.referencedGlobalSymbols = set
+	this_.refSym0 = nil
+	this_.refSym1 = nil
 }
 
 // Java method: DeclarationStatementGroup.makeReferencesImmovable()
 func (this_ *CrossChunkCodeMotion_DeclarationStatementGroup) MakeReferencesImmovable() {
 	this_.declaredGlobalSymbol.AddImmovableReference(this_.currentChunk)
-	{
-		cur_37 := this_.referencedGlobalSymbols.Iter()
-		for cur_37.HasNext() {
-
-			symbol := cur_37.
-				Next()
-			_ = symbol
-			if !(!(symbol.isMoveDeclarationStatementsDone)) {
-				j2gort.CheckStateFmt(false, "symbol %s moved before referring symbol %s", j2gort.PtrToAny(symbol), j2gort.PtrToAny(this_.declaredGlobalSymbol))
+	if this_.referencedGlobalSymbols != nil {
+		{
+			cur_49 := j2gort.NewIterCursor(j2gort.CheckNotNullPtr(this_.referencedGlobalSymbols))
+			for cur_49.HasNext() {
+				rawElem_50 := cur_49.Next()
+				symbol := j2gort.CastPtr[CrossChunkCodeMotion_GlobalSymbol](rawElem_50)
+				_ = symbol
+				this_.priv_DeclarationStatementGroup_markReferencedSymbolImmovable_2269(symbol)
 			}
-			symbol.AddImmovableReference(this_.currentChunk)
+		}
+	} else if this_.refSym0 != nil {
+		this_.priv_DeclarationStatementGroup_markReferencedSymbolImmovable_2269(this_.refSym0)
+		if this_.refSym1 != nil {
+			this_.priv_DeclarationStatementGroup_markReferencedSymbolImmovable_2269(this_.refSym1)
 		}
 	}
+}
+
+// Java method: DeclarationStatementGroup.markReferencedSymbolImmovable(com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbol symbol)
+func (this_ *CrossChunkCodeMotion_DeclarationStatementGroup) priv_DeclarationStatementGroup_markReferencedSymbolImmovable_2269(symbol *CrossChunkCodeMotion_GlobalSymbol) {
+	_ = symbol
+	if !(!(symbol.isMoveDeclarationStatementsDone)) {
+		j2gort.CheckStateFmt(false, "symbol %s moved before referring symbol %s", j2gort.PtrToAny(symbol), j2gort.PtrToAny(this_.declaredGlobalSymbol))
+	}
+	symbol.AddImmovableReference(this_.currentChunk)
 }
 
 // Java class: com.google.javascript.jscomp.CrossChunkCodeMotion.OrderAndCombineGlobalSymbols
@@ -952,10 +1265,10 @@ func InitCrossChunkCodeMotion_OrderAndCombineGlobalSymbols(this_ *CrossChunkCode
 // Java method: OrderAndCombineGlobalSymbols.orderAndCombine()
 func (this_ *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) OrderAndCombine() {
 	{
-		cur_39 := this_.collector.symbolStack.Iter()
-		for cur_39.HasNext() {
+		cur_51 := this_.collector.symbolStack.Iter()
+		for cur_51.HasNext() {
 
-			globalSymbol := cur_39.Next()
+			globalSymbol := cur_51.Next()
 			_ = globalSymbol
 			if globalSymbol.preorderNumber < int32(0) {
 				this_.ProcessGlobalSymbol(globalSymbol)
@@ -971,51 +1284,61 @@ func (this_ *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) ProcessGlobalSym
 		j2gort.CheckStateFmt(false, "already processed: %s", j2gort.PtrToAny(symbol))
 	}
 	{
-		r_43 := symbol
-		r_43.preorderNumber = func() int32 {
-			old_41 := this_.preorderCounter
-			nw_42 := old_41 + 1
-			this_.preorderCounter = nw_42
-			return old_41
+		r_55 := symbol
+		r_55.preorderNumber = func() int32 {
+			old_53 := this_.preorderCounter
+			nw_54 := old_53 + 1
+			this_.preorderCounter = nw_54
+			return old_53
 		}()
 	}
 	this_.componentRoots.Push(symbol)
 	this_.componentContents.Push(symbol)
-	{
-		cur_44 := symbol.referencingGlobalSymbols.Iter()
-		for cur_44.HasNext() {
-
-			referringSymbol := cur_44.
-				Next()
-			_ = referringSymbol
-			if referringSymbol.preorderNumber < int32(0) {
-				this_.ProcessGlobalSymbol(referringSymbol)
-			} else {
-				if !(referringSymbol.hasBeenAssignedToAStronglyConnectedComponent) {
-					for this_.componentRoots.Peek().preorderNumber > referringSymbol.preorderNumber {
-						this_.componentRoots.Pop()
-					}
-				}
+	if symbol.referencingGlobalSymbols != nil {
+		{
+			cur_56 := j2gort.NewIterCursor(j2gort.CheckNotNullPtr(symbol.referencingGlobalSymbols))
+			for cur_56.HasNext() {
+				rawElem_57 := cur_56.Next()
+				referringSymbol := j2gort.CastPtr[CrossChunkCodeMotion_GlobalSymbol](rawElem_57)
+				_ = referringSymbol
+				this_.priv_OrderAndCombineGlobalSymbols_visitReferringSymbol_2272(referringSymbol)
 			}
+		}
+	} else if symbol.refSym0 != nil {
+		this_.priv_OrderAndCombineGlobalSymbols_visitReferringSymbol_2272(symbol.refSym0)
+		if symbol.refSym1 != nil {
+			this_.priv_OrderAndCombineGlobalSymbols_visitReferringSymbol_2272(symbol.refSym1)
 		}
 	}
 	if j2gort.CheckNotNullPtr(this_.componentRoots.Peek()) == symbol {
 		this_.componentRoots.Pop()
-		val_46 := allocPooled_CrossChunkCodeMotion_GlobalSymbolCycle(&this_.outer_.slab_GlobalSymbolCycle, this_.outer_)
+		val_58 := allocPooled_CrossChunkCodeMotion_GlobalSymbolCycle(&this_.outer_.slab_GlobalSymbolCycle, this_.outer_)
 
-		var cycle *CrossChunkCodeMotion_GlobalSymbolCycle = val_46
+		var cycle *CrossChunkCodeMotion_GlobalSymbolCycle = val_58
 		_ = cycle
 		var connectedSymbol *CrossChunkCodeMotion_GlobalSymbol = nil
 		_ = connectedSymbol
-		for doFirst_47 := true; doFirst_47 || (!(j2gort.CheckNotNullPtr(connectedSymbol) == symbol)); doFirst_47 = false {
+		for doFirst_59 := true; doFirst_59 || (!(j2gort.CheckNotNullPtr(connectedSymbol) == symbol)); doFirst_59 = false {
 			connectedSymbol = this_.componentContents.Pop()
 			cycle.AddSymbol(connectedSymbol)
 			{
-				r_48 := connectedSymbol
-				r_48.hasBeenAssignedToAStronglyConnectedComponent = true
+				r_60 := connectedSymbol
+				r_60.hasBeenAssignedToAStronglyConnectedComponent = true
 			}
 		}
 		this_.stronglyConnectedSymbols.AddLast(cycle)
+	}
+}
+
+// Java method: OrderAndCombineGlobalSymbols.visitReferringSymbol(com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbol referringSymbol)
+func (this_ *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) priv_OrderAndCombineGlobalSymbols_visitReferringSymbol_2272(referringSymbol *CrossChunkCodeMotion_GlobalSymbol) {
+	_ = referringSymbol
+	if referringSymbol.preorderNumber < int32(0) {
+		this_.ProcessGlobalSymbol(referringSymbol)
+	} else if !(referringSymbol.hasBeenAssignedToAStronglyConnectedComponent) {
+		for this_.componentRoots.Peek().preorderNumber > referringSymbol.preorderNumber {
+			this_.componentRoots.Pop()
+		}
 	}
 }
 
@@ -1086,23 +1409,23 @@ func InitCrossChunkCodeMotion_DeclarationStatementGroupCycle(this_ *CrossChunkCo
 // Java method: DeclarationStatementGroupCycle.moveToPreferredChunk(java.util.BitSet chunksWithImmovableReferences)
 func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveToPreferredChunk(chunksWithImmovableReferences *j2gort.Ext_java_util_BitSet) {
 	_ = chunksWithImmovableReferences
-	var preferredChunk *JSChunk = this_.priv_DeclarationStatementGroupCycle_getPreferredChunk_2267(chunksWithImmovableReferences)
+	var preferredChunk *JSChunk = this_.priv_DeclarationStatementGroupCycle_getPreferredChunk_2276(chunksWithImmovableReferences)
 	_ = preferredChunk
 	{
 		var iifeCond_1 bool
 		{
 
-			rp_49 := preferredChunk
-			ap_50 := this_.currentChunk
-			iifeCond_1 = j2gort.CheckNotNullPtr(rp_49) == ap_50
+			rp_61 := preferredChunk
+			ap_62 := this_.currentChunk
+			iifeCond_1 = j2gort.CheckNotNullPtr(rp_61) == ap_62
 		}
 		if !(iifeCond_1) {
 			if this_.outer_.cccmLog.IsLogging() {
 				this_.outer_.cccmLog.Log_1_string("start DSG Cycle move")
 				{
-					cur_51 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.priv_DeclarationStatementGroupCycle_getGlobalSymbolNames_2265()))
-					for cur_51.HasNext() {
-						globalSymbolName := cur_51.NextStr()
+					cur_63 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.priv_DeclarationStatementGroupCycle_getGlobalSymbolNames_2274()))
+					for cur_63.HasNext() {
+						globalSymbolName := cur_63.NextStr()
 						_ = globalSymbolName
 						this_.outer_.cccmLog.Log_1_Ext_java_util_function_Supplier(j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 							return j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("Moving DSG for %s from chunk %s to chunk %s", []any{j2gort.BoxString(globalSymbolName), j2gort.PtrToAny(this_.currentChunk), j2gort.PtrToAny(preferredChunk)}))
@@ -1110,18 +1433,18 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveToPreferre
 					}
 				}
 			}
-			this_.priv_DeclarationStatementGroupCycle_moveStatementsToChunk_2266(preferredChunk)
+			this_.priv_DeclarationStatementGroupCycle_moveStatementsToChunk_2275(preferredChunk)
 		}
 	}
 	{
-		cur_52 := this_.dsgs.Iter()
-		for cur_52.HasNext() {
+		cur_64 := this_.dsgs.Iter()
+		for cur_64.HasNext() {
 
-			dsg := cur_52.Next()
+			dsg := cur_64.Next()
 			_ = dsg
 			{
-				r_54 := dsg
-				r_54.currentChunk = preferredChunk
+				r_66 := dsg
+				r_66.currentChunk = preferredChunk
 			}
 			dsg.MakeReferencesImmovable()
 		}
@@ -1129,14 +1452,14 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveToPreferre
 }
 
 // Java method: DeclarationStatementGroupCycle.getGlobalSymbolNames()
-func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_DeclarationStatementGroupCycle_getGlobalSymbolNames_2265() j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_DeclarationStatementGroupCycle_getGlobalSymbolNames_2274() j2gort.Ext_com_google_common_collect_ImmutableList {
 	var builder []string = []string{}
 	_ = builder
 	{
-		cur_55 := this_.dsgs.Iter()
-		for cur_55.HasNext() {
+		cur_67 := this_.dsgs.Iter()
+		for cur_67.HasNext() {
 
-			dsg := cur_55.Next()
+			dsg := cur_67.Next()
 			_ = dsg
 			builder = append(builder, j2gort.CheckNotNullString(dsg.declaredGlobalSymbol.var_.GetName()))
 		}
@@ -1145,13 +1468,13 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_Declarati
 }
 
 // Java method: DeclarationStatementGroupCycle.moveStatementsToChunk(com.google.javascript.jscomp.JSChunk preferredChunk)
-func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_DeclarationStatementGroupCycle_moveStatementsToChunk_2266(preferredChunk *JSChunk) {
+func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_DeclarationStatementGroupCycle_moveStatementsToChunk_2275(preferredChunk *JSChunk) {
 	_ = preferredChunk
 	var destParent pkg_rhino.Node
 	{
-		bound_57 := this_.outer_.compiler
+		bound_69 := this_.outer_.compiler
 		destParent = j2gort.OrderedMapComputeIfAbsent(&this_.outer_.chunkInsertionPointMap, preferredChunk, pkg_rhino.Node(0), func(mrp0_ *JSChunk) pkg_rhino.Node {
-			return bound_57.GetNodeForCodeInsertion(mrp0_)
+			return bound_69.GetNodeForCodeInsertion(mrp0_)
 		})
 	}
 
@@ -1159,32 +1482,43 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_Declarati
 	var statementsLastFirst []*CrossChunkReferenceCollector_TopLevelStatement = []*CrossChunkReferenceCollector_TopLevelStatement{}
 	_ = statementsLastFirst
 	{
-		cur_58 := this_.dsgs.Iter()
-		for cur_58.HasNext() {
+		cur_70 := this_.dsgs.Iter()
+		for cur_70.HasNext() {
 
-			dsg := cur_58.Next()
+			dsg := cur_70.Next()
 			_ = dsg
+			if (dsg.statementStack == nil) && (dsg.firstStatement == nil) {
+				continue
+			}
 			if len(statementsLastFirst) == 0 {
-				{
-					cur_60 := dsg.statementStack.Iter()
-					for cur_60.HasNext() {
+				if dsg.statementStack != nil {
+					{
+						cur_72 := dsg.statementStack.Iter()
+						for cur_72.HasNext() {
 
-						stmt := cur_60.Next()
-						_ = stmt
-						statementsLastFirst = append(statementsLastFirst, stmt)
+							stmt := cur_72.Next()
+							_ = stmt
+							statementsLastFirst = append(statementsLastFirst, stmt)
+						}
 					}
+				} else {
+					statementsLastFirst = append(statementsLastFirst, dsg.firstStatement)
 				}
 			} else {
 				var list1 []*CrossChunkReferenceCollector_TopLevelStatement = []*CrossChunkReferenceCollector_TopLevelStatement{}
 				_ = list1
-				{
-					cur_62 := dsg.statementStack.Iter()
-					for cur_62.HasNext() {
+				if dsg.statementStack != nil {
+					{
+						cur_74 := dsg.statementStack.Iter()
+						for cur_74.HasNext() {
 
-						stmt_2 := cur_62.Next()
-						_ = stmt_2
-						list1 = append(list1, stmt_2)
+							stmt_2 := cur_74.Next()
+							_ = stmt_2
+							list1 = append(list1, stmt_2)
+						}
 					}
+				} else {
+					list1 = append(list1, dsg.firstStatement)
 				}
 				var prev []*CrossChunkReferenceCollector_TopLevelStatement = j2gort.CloneNonNilSlice(statementsLastFirst)
 				_ = prev
@@ -1218,10 +1552,10 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_Declarati
 					}
 				}
 				for i1 < n1 {
-					statementsLastFirst = append(statementsLastFirst, list1[func() int32 { old_64 := i1; nw_65 := old_64 + 1; i1 = nw_65; return old_64 }()])
+					statementsLastFirst = append(statementsLastFirst, list1[func() int32 { old_76 := i1; nw_77 := old_76 + 1; i1 = nw_77; return old_76 }()])
 				}
 				for i2 < n2 {
-					statementsLastFirst = append(statementsLastFirst, prev[func() int32 { old_66 := i2; nw_67 := old_66 + 1; i2 = nw_67; return old_66 }()])
+					statementsLastFirst = append(statementsLastFirst, prev[func() int32 { old_78 := i2; nw_79 := old_78 + 1; i2 = nw_79; return old_78 }()])
 				}
 			}
 		}
@@ -1232,21 +1566,13 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_Declarati
 		var size int32 = int32(len(statementsLastFirst))
 		_ = size
 		for ; i < size; i = i + 1 {
-			var statementNode pkg_rhino.Node = statementsLastFirst[i].GetStatementNode()
-			_ = statementNode
-			this_.outer_.compiler.ReportChangeToEnclosingScope(statementNode)
-			var originalScript pkg_rhino.Node = NodeUtil_GetEnclosingScript(statementNode)
-			_ = originalScript
-			statementNode.Detach()
-			destParent.AddChildToFront(statementNode)
-			NodeUtil_AddFeaturesToScript(destParent, NodeUtil_GetFeatureSetOfScript(originalScript), this_.outer_.compiler)
-			this_.outer_.compiler.ReportChangeToEnclosingScope(statementNode)
+			this_.outer_.priv_CrossChunkCodeMotion_moveStatementNodeToDest_2241(statementsLastFirst[i].GetStatementNode(), destParent)
 		}
 	}
 }
 
 // Java method: DeclarationStatementGroupCycle.getPreferredChunk(java.util.BitSet chunksWithImmovableReferences)
-func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_DeclarationStatementGroupCycle_getPreferredChunk_2267(chunksWithImmovableReferences *j2gort.Ext_java_util_BitSet) *JSChunk {
+func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_DeclarationStatementGroupCycle_getPreferredChunk_2276(chunksWithImmovableReferences *j2gort.Ext_java_util_BitSet) *JSChunk {
 	_ = chunksWithImmovableReferences
 	if chunksWithImmovableReferences.IsEmpty() {
 		return this_.currentChunk
@@ -1260,12 +1586,12 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_Declarati
 // Java method: DeclarationStatementGroupCycle.allStatementsCanMove()
 func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) AllStatementsCanMove() bool {
 	{
-		cur_68 := this_.dsgs.Iter()
-		for cur_68.HasNext() {
+		cur_80 := this_.dsgs.Iter()
+		for cur_80.HasNext() {
 
-			dsg := cur_68.Next()
+			dsg := cur_80.Next()
 			_ = dsg
-			if !(dsg.AllStatementsCanMove()) {
+			if !(dsg.AllStatementsCanMove(this_.outer_.currentReferenceCollector)) {
 				return false
 			}
 		}

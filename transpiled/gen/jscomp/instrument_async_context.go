@@ -117,7 +117,7 @@ func (this_ *InstrumentAsyncContext) ShouldTraverse_3(t *NodeTraversal, n pkg_rh
 }
 
 // Java method: InstrumentAsyncContext.isReentrance(com.google.javascript.rhino.Node n)
-func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_isReentrance_3411(n pkg_rhino.Node) bool {
+func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_isReentrance_3421(n pkg_rhino.Node) bool {
 	_ = n
 	if n.IsYield() {
 		return true
@@ -136,8 +136,8 @@ func (this_ *InstrumentAsyncContext) Visit_3(t *NodeTraversal, n pkg_rhino.Node,
 		this_.alreadyInstrumented.Add(t.GetEnclosingFunction())
 	} else if n.IsSuper() {
 		this_.hasSuper.Add(t.GetEnclosingFunction())
-	} else if this_.priv_InstrumentAsyncContext_isReentrance_3411(n) {
-		this_.priv_InstrumentAsyncContext_instrumentReentrance_3412(t, n, parent)
+	} else if this_.priv_InstrumentAsyncContext_isReentrance_3421(n) {
+		this_.priv_InstrumentAsyncContext_instrumentReentrance_3422(t, n, parent)
 	} else {
 		var iifeCond_1 bool
 		{
@@ -157,7 +157,7 @@ func (this_ *InstrumentAsyncContext) Visit_3(t *NodeTraversal, n pkg_rhino.Node,
 				context = j2gort.OrderedMapComputeIfAbsent(&this_.needsInstrumentation, n, nil, func(lp_7 pkg_rhino.Node) *InstrumentAsyncContext_FunctionContext {
 					unused := lp_7
 					_ = unused
-					return this_.priv_InstrumentAsyncContext_createNewFunctionContext_3424(t.GetInput())
+					return this_.priv_InstrumentAsyncContext_createNewFunctionContext_3434(t.GetInput())
 				})
 			} else {
 				context = this_.needsInstrumentation.Get(n)
@@ -180,7 +180,7 @@ func (this_ *InstrumentAsyncContext) Visit_3(t *NodeTraversal, n pkg_rhino.Node,
 }
 
 // Java method: InstrumentAsyncContext.instrumentReentrance(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_instrumentReentrance_3412(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_instrumentReentrance_3422(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = n
 	_ = parent
@@ -203,7 +203,7 @@ func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_instrumentReent
 	var functionContext *InstrumentAsyncContext_FunctionContext = j2gort.OrderedMapComputeIfAbsent(&this_.needsInstrumentation, enclosingFunction, nil, func(lp_12 pkg_rhino.Node) *InstrumentAsyncContext_FunctionContext {
 		unused := lp_12
 		_ = unused
-		return this_.priv_InstrumentAsyncContext_createNewFunctionContext_3424(t.GetInput())
+		return this_.priv_InstrumentAsyncContext_createNewFunctionContext_3434(t.GetInput())
 	})
 	_ = functionContext
 	if enclosingTry != 0 {
@@ -297,9 +297,9 @@ func (this_ *InstrumentAsyncContext) InstrumentGeneratorFunction(t *NodeTraversa
 	inner.GetLastChild().ReplaceWith(generatorBody)
 	generatorBody = this_.AddFinallySuspend(generatorBody, functionContext)
 	generatorBody.AddChildToFront(pkg_rhino.IR_ExprResult(functionContext.Resume_0()))
-	var newOuterBody pkg_rhino.Node = pkg_rhino.IR_Block_1_Node_2([]pkg_rhino.Node{this_.priv_InstrumentAsyncContext_createFactorySuspendCall_3423(functionContext.FactoryName()), pkg_rhino.IR_ReturnNode_1(this_.astFactory.CreateCallWithUnknownType(inner, []pkg_rhino.Node{}))})
+	var newOuterBody pkg_rhino.Node = pkg_rhino.IR_Block_1_Node_2([]pkg_rhino.Node{this_.priv_InstrumentAsyncContext_createFactorySuspendCall_3433(functionContext.FactoryName()), pkg_rhino.IR_ReturnNode_1(this_.astFactory.CreateCallWithUnknownType(inner, []pkg_rhino.Node{}))})
 	_ = newOuterBody
-	this_.priv_InstrumentAsyncContext_addSuspendResumeVarsAfter_3420(newOuterBody.GetFirstChild(), functionContext)
+	this_.priv_InstrumentAsyncContext_addSuspendResumeVarsAfter_3430(newOuterBody.GetFirstChild(), functionContext)
 	f.AddChildToBack(newOuterBody.SrcrefTreeIfMissing(generatorBody))
 	var val_13 ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext
 	InitThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(&val_13, newOuterBody, false, this_.uniqueIdSupplier.GetUniqueId(t.GetInput()))
@@ -373,7 +373,7 @@ func (this_ *InstrumentAsyncContext) InstrumentGeneratorMethod(t *NodeTraversal,
 		var outerParam pkg_rhino.Node = outerParams.GetFirstChild()
 		_ = outerParam
 		for ; outerParam != 0; outerParam = outerParam.GetNext() {
-			var argParamPair *InstrumentAsyncContext_ArgParamPair = this_.priv_InstrumentAsyncContext_simplifyParameter_3417(outerParam.CloneTree_0(), t)
+			var argParamPair *InstrumentAsyncContext_ArgParamPair = this_.priv_InstrumentAsyncContext_simplifyParameter_3427(outerParam.CloneTree_0(), t)
 			_ = argParamPair
 			outerParam.ReplaceWith(func() pkg_rhino.Node {
 				var asgn_16 pkg_rhino.Node = argParamPair.parameter
@@ -409,8 +409,8 @@ func (this_ *InstrumentAsyncContext) InstrumentGeneratorMethod(t *NodeTraversal,
 		}
 		np.SetJSDocInfo(builder.Build_0())
 	}
-	outerBody.AddChildToBack(this_.priv_InstrumentAsyncContext_createFactorySuspendCall_3423(outerFactoryName))
-	this_.priv_InstrumentAsyncContext_addSuspendResumeVarsAtStartOf_3421(generatorBody, innerFactoryName, functionContext)
+	outerBody.AddChildToBack(this_.priv_InstrumentAsyncContext_createFactorySuspendCall_3433(outerFactoryName))
+	this_.priv_InstrumentAsyncContext_addSuspendResumeVarsAtStartOf_3431(generatorBody, innerFactoryName, functionContext)
 	outerBody.AddChildToBack(pkg_rhino.IR_ReturnNode_1(innerCall))
 	f.SrcrefTreeIfMissing(f)
 	newInnerMethod.GetParent().SrcrefTreeIfMissing(f)
@@ -422,18 +422,18 @@ func (this_ *InstrumentAsyncContext) InstrumentGeneratorMethod(t *NodeTraversal,
 }
 
 // Java method: InstrumentAsyncContext.simplifyParameter(com.google.javascript.rhino.Node param, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_simplifyParameter_3417(param pkg_rhino.Node, t *NodeTraversal) *InstrumentAsyncContext_ArgParamPair {
+func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_simplifyParameter_3427(param pkg_rhino.Node, t *NodeTraversal) *InstrumentAsyncContext_ArgParamPair {
 	_ = param
 	_ = t
 	if param.IsRest() {
 		NodeUtil_AddFeatureToScript(t.GetCurrentScript(), pkg_parser.StaticGet_FeatureSet_Feature_SPREAD_EXPRESSIONS(), this_.compiler)
 		var paramElement pkg_rhino.Node = param.RemoveFirstChild()
 		_ = paramElement
-		var simplified *InstrumentAsyncContext_ArgParamPair = this_.priv_InstrumentAsyncContext_simplifyParameter_3417(paramElement, t)
+		var simplified *InstrumentAsyncContext_ArgParamPair = this_.priv_InstrumentAsyncContext_simplifyParameter_3427(paramElement, t)
 		_ = simplified
 		return NewInstrumentAsyncContext_ArgParamPair(pkg_rhino.IR_IterSpread(simplified.argument).SrcrefTreeIfMissing(param), pkg_rhino.IR_IterRest(simplified.parameter).SrcrefTreeIfMissing(param))
 	} else if param.IsDefaultValue() {
-		return this_.priv_InstrumentAsyncContext_simplifyParameter_3417(param.RemoveFirstChild(), t)
+		return this_.priv_InstrumentAsyncContext_simplifyParameter_3427(param.RemoveFirstChild(), t)
 	} else if param.IsArrayPattern() || param.IsObjectPattern() {
 		var newParam pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(("$jscomp$param$" + j2gort.StrValString(this_.uniqueIdSupplier.GetUniqueId(t.GetInput()))), AstFactory_S_Type_1_Node(param)).SrcrefTreeIfMissing(param)
 		_ = newParam
@@ -455,8 +455,8 @@ func (this_ *InstrumentAsyncContext) InstrumentAsyncFunction(f pkg_rhino.Node, i
 	_ = block
 	var newBlock pkg_rhino.Node = this_.AddFinallySuspend(block, functionContext)
 	_ = newBlock
-	newBlock.AddChildToFront(this_.priv_InstrumentAsyncContext_createFactoryCall_3422(functionContext.factoryName, []pkg_rhino.Node{}).SrcrefTreeIfMissing(newBlock))
-	this_.priv_InstrumentAsyncContext_addSuspendResumeVarsAfter_3420(newBlock.GetFirstChild(), functionContext)
+	newBlock.AddChildToFront(this_.priv_InstrumentAsyncContext_createFactoryCall_3432(functionContext.factoryName, []pkg_rhino.Node{}).SrcrefTreeIfMissing(newBlock))
+	this_.priv_InstrumentAsyncContext_addSuspendResumeVarsAfter_3430(newBlock.GetFirstChild(), functionContext)
 	this_.compiler.ReportChangeToChangeScope(f)
 }
 
@@ -476,7 +476,7 @@ func (this_ *InstrumentAsyncContext) AddFinallySuspend(block pkg_rhino.Node, fun
 }
 
 // Java method: InstrumentAsyncContext.addSuspendResumeVarsAfter(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.InstrumentAsyncContext.FunctionContext functionContext)
-func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_addSuspendResumeVarsAfter_3420(node pkg_rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
+func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_addSuspendResumeVarsAfter_3430(node pkg_rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
 	_ = node
 	_ = functionContext
 	var resumeCall pkg_rhino.Node = this_.astFactory.CreateCallWithUnknownType(functionContext.factoryName.CloneNode_0(), []pkg_rhino.Node{this_.astFactory.CreateNumber(float64(int32(1)))})
@@ -488,7 +488,7 @@ func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_addSuspendResum
 }
 
 // Java method: InstrumentAsyncContext.addSuspendResumeVarsAtStartOf(com.google.javascript.rhino.Node node, com.google.javascript.rhino.Node factoryName, com.google.javascript.jscomp.InstrumentAsyncContext.FunctionContext functionContext)
-func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_addSuspendResumeVarsAtStartOf_3421(node pkg_rhino.Node, factoryName pkg_rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
+func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_addSuspendResumeVarsAtStartOf_3431(node pkg_rhino.Node, factoryName pkg_rhino.Node, functionContext *InstrumentAsyncContext_FunctionContext) {
 	_ = node
 	_ = factoryName
 	_ = functionContext
@@ -508,7 +508,7 @@ func InstrumentAsyncContext_CreateVar(name pkg_rhino.Node, value pkg_rhino.Node)
 }
 
 // Java method: InstrumentAsyncContext.createFactoryCall(com.google.javascript.rhino.Node factoryName, com.google.javascript.rhino.Node[] arg)
-func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_createFactoryCall_3422(factoryName pkg_rhino.Node, arg []pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_createFactoryCall_3432(factoryName pkg_rhino.Node, arg []pkg_rhino.Node) pkg_rhino.Node {
 	_ = factoryName
 	_ = arg
 	var call pkg_rhino.Node = this_.astFactory.CreateCallWithUnknownType(this_.astFactory.CreateQNameWithUnknownType_1_RuntimeJsLibManager_JsLibField(this_.start), arg)
@@ -517,13 +517,13 @@ func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_createFactoryCa
 }
 
 // Java method: InstrumentAsyncContext.createFactorySuspendCall(com.google.javascript.rhino.Node factoryName)
-func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_createFactorySuspendCall_3423(factoryName pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_createFactorySuspendCall_3433(factoryName pkg_rhino.Node) pkg_rhino.Node {
 	_ = factoryName
-	return this_.priv_InstrumentAsyncContext_createFactoryCall_3422(factoryName, []pkg_rhino.Node{this_.astFactory.CreateNumber(float64(int32(1)))})
+	return this_.priv_InstrumentAsyncContext_createFactoryCall_3432(factoryName, []pkg_rhino.Node{this_.astFactory.CreateNumber(float64(int32(1)))})
 }
 
 // Java method: InstrumentAsyncContext.createNewFunctionContext(com.google.javascript.jscomp.CompilerInput input)
-func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_createNewFunctionContext_3424(input *CompilerInput) *InstrumentAsyncContext_FunctionContext {
+func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_createNewFunctionContext_3434(input *CompilerInput) *InstrumentAsyncContext_FunctionContext {
 	_ = input
 	var uniqueSuffix string = this_.uniqueIdSupplier.GetUniqueId(input)
 	_ = uniqueSuffix

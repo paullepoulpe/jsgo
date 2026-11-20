@@ -112,7 +112,7 @@ func (this_ *InjectTranspilationRuntimeLibraries) Process_2(externs pkg_rhino.No
 
 			bound_1 := this_
 			iifeArg_1 = NewLambda_NodeUtil_Visitor(func(mrp0_ pkg_rhino.Node) {
-				bound_1.priv_InjectTranspilationRuntimeLibraries_checkForClassExtends_3214(mrp0_)
+				bound_1.priv_InjectTranspilationRuntimeLibraries_checkForClassExtends_3224(mrp0_)
 			})
 		}
 		NodeUtil_VisitPostOrder_3(root, iifeArg_1, j2gort.NewNodeLambda_Ext_com_google_common_base_Predicate(func(rawNode_2 uint32) bool {
@@ -195,7 +195,7 @@ func InjectTranspilationRuntimeLibraries_GetScriptFeatures(script pkg_rhino.Node
 }
 
 // Java method: InjectTranspilationRuntimeLibraries.checkForClassExtends(com.google.javascript.rhino.Node n)
-func (this_ *InjectTranspilationRuntimeLibraries) priv_InjectTranspilationRuntimeLibraries_checkForClassExtends_3214(n pkg_rhino.Node) {
+func (this_ *InjectTranspilationRuntimeLibraries) priv_InjectTranspilationRuntimeLibraries_checkForClassExtends_3224(n pkg_rhino.Node) {
 	_ = n
 	if !(n.IsClass()) {
 		return

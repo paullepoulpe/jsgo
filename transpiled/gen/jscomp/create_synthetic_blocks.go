@@ -152,13 +152,13 @@ func (this_ *CreateSyntheticBlocks) Process_2(externs pkg_rhino.Node, root pkg_r
 	}
 	for _, marker := range this_.validMarkers {
 		_ = marker
-		this_.priv_CreateSyntheticBlocks_addBlocks_2235(marker)
+		this_.priv_CreateSyntheticBlocks_addBlocks_2236(marker)
 	}
 
 }
 
 // Java method: CreateSyntheticBlocks.rewriteFunctionDeclaration(com.google.javascript.rhino.Node n)
-func (this_ *CreateSyntheticBlocks) priv_CreateSyntheticBlocks_rewriteFunctionDeclaration_2233(n pkg_rhino.Node) {
+func (this_ *CreateSyntheticBlocks) priv_CreateSyntheticBlocks_rewriteFunctionDeclaration_2234(n pkg_rhino.Node) {
 	_ = n
 	var oldNameNode pkg_rhino.Node = n.GetFirstChild()
 	_ = oldNameNode
@@ -177,7 +177,7 @@ func (this_ *CreateSyntheticBlocks) priv_CreateSyntheticBlocks_rewriteFunctionDe
 }
 
 // Java method: CreateSyntheticBlocks.rewriteFunctionDeclarationsInBlock(com.google.javascript.rhino.Node block)
-func (this_ *CreateSyntheticBlocks) priv_CreateSyntheticBlocks_rewriteFunctionDeclarationsInBlock_2234(block pkg_rhino.Node) {
+func (this_ *CreateSyntheticBlocks) priv_CreateSyntheticBlocks_rewriteFunctionDeclarationsInBlock_2235(block pkg_rhino.Node) {
 	_ = block
 	if !(block.IsBlock()) {
 		j2gort.CheckState(false)
@@ -190,14 +190,14 @@ func (this_ *CreateSyntheticBlocks) priv_CreateSyntheticBlocks_rewriteFunctionDe
 		for ; current != 0; current = next {
 			next = current.GetNext()
 			if NodeUtil_IsFunctionDeclaration(current) {
-				this_.priv_CreateSyntheticBlocks_rewriteFunctionDeclaration_2233(current)
+				this_.priv_CreateSyntheticBlocks_rewriteFunctionDeclaration_2234(current)
 			}
 		}
 	}
 }
 
 // Java method: CreateSyntheticBlocks.addBlocks(com.google.javascript.jscomp.CreateSyntheticBlocks.Marker marker)
-func (this_ *CreateSyntheticBlocks) priv_CreateSyntheticBlocks_addBlocks_2235(marker *CreateSyntheticBlocks_Marker) {
+func (this_ *CreateSyntheticBlocks) priv_CreateSyntheticBlocks_addBlocks_2236(marker *CreateSyntheticBlocks_Marker) {
 	_ = marker
 	var outerBlock pkg_rhino.Node = pkg_rhino.IR_Block_0().Srcref(marker.startMarker)
 	_ = outerBlock
@@ -206,11 +206,11 @@ func (this_ *CreateSyntheticBlocks) priv_CreateSyntheticBlocks_addBlocks_2235(ma
 	var innerBlock pkg_rhino.Node = pkg_rhino.IR_Block_0().Srcref(marker.startMarker)
 	_ = innerBlock
 	innerBlock.SetIsSyntheticBlock(true)
-	this_.priv_CreateSyntheticBlocks_moveSiblingExclusive_2236(innerBlock, marker.startMarker, marker.endMarker)
+	this_.priv_CreateSyntheticBlocks_moveSiblingExclusive_2237(innerBlock, marker.startMarker, marker.endMarker)
 	outerBlock.AddChildToBack(outerBlock.GetNext().Detach())
 	outerBlock.AddChildToBack(innerBlock)
 	outerBlock.AddChildToBack(outerBlock.GetNext().Detach())
-	this_.priv_CreateSyntheticBlocks_rewriteFunctionDeclarationsInBlock_2234(innerBlock)
+	this_.priv_CreateSyntheticBlocks_rewriteFunctionDeclarationsInBlock_2235(innerBlock)
 	if !(outerBlock.GetParent().IsBlock() || outerBlock.GetParent().IsScript()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(outerBlock.GetParent()))
 	}
@@ -221,7 +221,7 @@ func (this_ *CreateSyntheticBlocks) priv_CreateSyntheticBlocks_addBlocks_2235(ma
 }
 
 // Java method: CreateSyntheticBlocks.moveSiblingExclusive(com.google.javascript.rhino.Node dest, com.google.javascript.rhino.Node start, com.google.javascript.rhino.Node end)
-func (this_ *CreateSyntheticBlocks) priv_CreateSyntheticBlocks_moveSiblingExclusive_2236(dest pkg_rhino.Node, start pkg_rhino.Node, end pkg_rhino.Node) {
+func (this_ *CreateSyntheticBlocks) priv_CreateSyntheticBlocks_moveSiblingExclusive_2237(dest pkg_rhino.Node, start pkg_rhino.Node, end pkg_rhino.Node) {
 	_ = dest
 	_ = start
 	_ = end

@@ -146,18 +146,18 @@ func (this_ *DefaultDependencyResolver) GetDependencies_2(symbols j2gort.Ext_jav
 		for cur_3.HasNext() {
 			symbol := cur_3.NextStr()
 			_ = symbol
-			this_.priv_DefaultDependencyResolver_addDependency_6092(symbol, seen, list)
+			this_.priv_DefaultDependencyResolver_addDependency_6105(symbol, seen, list)
 		}
 	}
 	return list
 }
 
 // Java method: DefaultDependencyResolver.addDependency(java.lang.String symbol, java.util.Set<java.lang.String> seen, java.util.List<java.lang.String> list)
-func (this_ *DefaultDependencyResolver) priv_DefaultDependencyResolver_addDependency_6092(symbol string, seen j2gort.Ext_java_util_Set, list j2gort.Ext_java_util_List) {
+func (this_ *DefaultDependencyResolver) priv_DefaultDependencyResolver_addDependency_6105(symbol string, seen j2gort.Ext_java_util_Set, list j2gort.Ext_java_util_List) {
 	_ = symbol
 	_ = seen
 	_ = list
-	var dependency DependencyInfo = this_.priv_DefaultDependencyResolver_getDependencyInfo_6093(symbol)
+	var dependency DependencyInfo = this_.priv_DefaultDependencyResolver_getDependencyInfo_6106(symbol)
 	_ = dependency
 	if dependency == nil || dependency.IsJavaNil_() {
 		if this_.strictRequires {
@@ -173,7 +173,7 @@ func (this_ *DefaultDependencyResolver) priv_DefaultDependencyResolver_addDepend
 			var len_ int32 = reqs.Size()
 			_ = len_
 			for ; i < len_; i = i + 1 {
-				this_.priv_DefaultDependencyResolver_addDependency_6092(j2gort.CastPtr[DependencyInfo_Require](reqs.Get(i)).GetSymbol(), seen, list)
+				this_.priv_DefaultDependencyResolver_addDependency_6105(j2gort.CastPtr[DependencyInfo_Require](reqs.Get(i)).GetSymbol(), seen, list)
 			}
 		}
 		list.Add_1(j2gort.BoxString(dependency.GetPathRelativeToClosureBase()))
@@ -202,7 +202,7 @@ func DefaultDependencyResolver_ParseRequires(code string, addClosureBase bool) j
 }
 
 // Java method: DefaultDependencyResolver.getDependencyInfo(java.lang.String symbol)
-func (this_ *DefaultDependencyResolver) priv_DefaultDependencyResolver_getDependencyInfo_6093(symbol string) DependencyInfo {
+func (this_ *DefaultDependencyResolver) priv_DefaultDependencyResolver_getDependencyInfo_6106(symbol string) DependencyInfo {
 	_ = symbol
 	{
 		cur_4 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.depsFiles))

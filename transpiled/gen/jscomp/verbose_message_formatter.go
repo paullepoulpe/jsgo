@@ -68,17 +68,17 @@ func InitVerboseMessageFormatter(this_ *VerboseMessageFormatter, source SourceEx
 // Java method: VerboseMessageFormatter.formatError(com.google.javascript.jscomp.JSError error)
 func (this_ *VerboseMessageFormatter) FormatError(error_ *JSError) string {
 	_ = error_
-	return (j2gort.StrValString(this_.GetLevelName(StaticGet_CheckLevel_ERROR())) + ": " + j2gort.StrValString(this_.priv_VerboseMessageFormatter_format_5906(error_)))
+	return (j2gort.StrValString(this_.GetLevelName(StaticGet_CheckLevel_ERROR())) + ": " + j2gort.StrValString(this_.priv_VerboseMessageFormatter_format_5919(error_)))
 }
 
 // Java method: VerboseMessageFormatter.formatWarning(com.google.javascript.jscomp.JSError warning)
 func (this_ *VerboseMessageFormatter) FormatWarning(warning *JSError) string {
 	_ = warning
-	return (j2gort.StrValString(this_.GetLevelName(StaticGet_CheckLevel_WARNING())) + ": " + j2gort.StrValString(this_.priv_VerboseMessageFormatter_format_5906(warning)))
+	return (j2gort.StrValString(this_.GetLevelName(StaticGet_CheckLevel_WARNING())) + ": " + j2gort.StrValString(this_.priv_VerboseMessageFormatter_format_5919(warning)))
 }
 
 // Java method: VerboseMessageFormatter.format(com.google.javascript.jscomp.JSError message)
-func (this_ *VerboseMessageFormatter) priv_VerboseMessageFormatter_format_5906(message *JSError) string {
+func (this_ *VerboseMessageFormatter) priv_VerboseMessageFormatter_format_5919(message *JSError) string {
 	_ = message
 	var description string = message.Description()
 	_ = description

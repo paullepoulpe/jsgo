@@ -117,9 +117,17 @@ func InitJSDocSerializer(this_ *JSDocSerializer) {
 func JSDocSerializer_ConvertJSDocInfoForOptimizations(jsdoc *pkg_rhino.JSDocInfo) *pkg_rhino.JSDocInfo {
 	clinit_JSDocSerializer()
 	_ = jsdoc
-	var stringPool *StringPool_Builder = StringPool_S_Builder()
+	if jsdoc == nil {
+		return nil
+	}
+	var stringPool *StringPool_Builder = StringPool_SmallBuilder()
 	_ = stringPool
-	return JSDocSerializer_DeserializeJsdoc(JSDocSerializer_SerializeJsdoc(jsdoc, stringPool), stringPool.Build())
+	var serialized *j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc = JSDocSerializer_SerializeJsdoc(jsdoc, stringPool)
+	_ = serialized
+	if serialized == nil {
+		return nil
+	}
+	return JSDocSerializer_DeserializeJsdoc(serialized, stringPool.Build())
 }
 
 // Java static method: JSDocSerializer.addKind(com.google.javascript.jscomp.serialization.OptimizationJsdoc.@org.jspecify.annotations.Nullable Builder b, com.google.javascript.jscomp.serialization.JsdocTag tag)

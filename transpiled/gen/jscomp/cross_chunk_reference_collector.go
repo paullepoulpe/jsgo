@@ -27,13 +27,24 @@ import (
 
 // Java class: com.google.javascript.jscomp.CrossChunkReferenceCollector
 type CrossChunkReferenceCollector struct {
-	topLevelStatements     []*CrossChunkReferenceCollector_TopLevelStatement `gson:"topLevelStatements"`
-	compiler               AbstractCompiler                                  `gson:"compiler"`
-	referenceCollector     *ReferenceCollector                               `gson:"referenceCollector"`
-	topLevelStatementDraft *CrossChunkReferenceCollector_TopLevelStatement   `gson:"topLevelStatementDraft"`
-	statementCounter       int32                                             `gson:"statementCounter"`
-	idHash_                atomic.Int32
-	ownsScopeCreator_      bool
+	topLevelStatements         []*CrossChunkReferenceCollector_TopLevelStatement `gson:"topLevelStatements"`
+	compiler                   AbstractCompiler                                  `gson:"compiler"`
+	referenceCollector         *ReferenceCollector                               `gson:"referenceCollector"`
+	draftChunk                 *JSChunk                                          `gson:"draftChunk"`
+	draftDeclaredNameReference *Reference                                        `gson:"draftDeclaredNameReference"`
+	draftNonDeclRef0           *Reference                                        `gson:"draftNonDeclRef0"`
+	draftNonDeclRef1           *Reference                                        `gson:"draftNonDeclRef1"`
+	draftNonDeclRef2           *Reference                                        `gson:"draftNonDeclRef2"`
+	draftNonDeclRef3           *Reference                                        `gson:"draftNonDeclRef3"`
+	draftNonDeclRefsRest       []*Reference                                      `gson:"draftNonDeclRefsRest"`
+	statementCounter           int32                                             `gson:"statementCounter"`
+	draftOriginalOrder         int32                                             `gson:"draftOriginalOrder"`
+	draftStatementNode         pkg_rhino.Node                                    `gson:"draftStatementNode"`
+	draftDeclaredNameNode      pkg_rhino.Node                                    `gson:"draftDeclaredNameNode"`
+	draftDeclaredValueNode     pkg_rhino.Node                                    `gson:"draftDeclaredValueNode"`
+	draftNonDeclRefCount       int32                                             `gson:"draftNonDeclRefCount"`
+	idHash_                    atomic.Int32
+	ownsScopeCreator_          bool
 }
 
 func (this_ *CrossChunkReferenceCollector) BindSelf_(s any) {
@@ -81,13 +92,13 @@ func InitCrossChunkReferenceCollector(this_ *CrossChunkReferenceCollector, compi
 	this_.referenceCollector = NewReferenceCollector_5(compiler, NewCrossChunkReferenceCollector_TopLevelStatementCollectingBehavior(this_), creator, func() j2gort.Ext_com_google_common_base_Predicate {
 		bound_1 := this_
 		return j2gort.NewLambda_Ext_com_google_common_base_Predicate(func(mrp0_ any) bool {
-			return bound_1.priv_CrossChunkReferenceCollector_shouldCollectVar_2281(j2gort.CastPtr[Var](mrp0_))
+			return bound_1.priv_CrossChunkReferenceCollector_shouldCollectVar_2290(j2gort.CastPtr[Var](mrp0_))
 		})
 	}(), false)
 }
 
 // Java method: CrossChunkReferenceCollector.shouldCollectVar(com.google.javascript.jscomp.Var v)
-func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_shouldCollectVar_2281(v *Var) bool {
+func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_shouldCollectVar_2290(v *Var) bool {
 	_ = v
 	return (v.IsGlobal() && !(this_.compiler.GetCodingConvention().IsExported_2(v.GetName(), false)))
 }
@@ -133,52 +144,119 @@ func (this_ *CrossChunkReferenceCollector) GetGlobalVariableNamesMap() j2gort.Ex
 	return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](builder.BuildOrThrow())
 }
 
+// Java method: CrossChunkReferenceCollector.addDraftNonDeclarationReference(com.google.javascript.jscomp.Reference ref)
+func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_addDraftNonDeclarationReference_2294(ref *Reference) {
+	_ = ref
+	var c int32 = this_.draftNonDeclRefCount
+	_ = c
+	switch c {
+	case int32(0):
+		this_.draftNonDeclRef0 = ref
+	case int32(1):
+		this_.draftNonDeclRef1 = ref
+	case int32(2):
+		this_.draftNonDeclRef2 = ref
+	case int32(3):
+		this_.draftNonDeclRef3 = ref
+	default:
+		var rest []*Reference = this_.draftNonDeclRefsRest
+		_ = rest
+		var idx int32 = (c - int32(4))
+		_ = idx
+		if rest == nil {
+			rest = make([]*Reference, int32(8))
+			this_.draftNonDeclRefsRest = rest
+		} else if idx == int32(len(rest)) {
+			{
+
+				arrSrc_4 := rest
+				arrLen_5 := (idx * int32(2))
+				j2gort.CheckNotNullSlice(arrSrc_4)
+				if arrLen_5 < 0 {
+					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+				}
+				arrOut_6 := make([]*Reference, arrLen_5)
+				copy(arrOut_6, arrSrc_4)
+				rest = arrOut_6
+			}
+
+			this_.draftNonDeclRefsRest = rest
+		}
+		{
+			a_7 := rest
+			i_8 := idx
+			a_7[i_8] = ref
+		}
+	}
+	this_.draftNonDeclRefCount = (c + int32(1))
+}
+
+// Java method: CrossChunkReferenceCollector.finishDraftStatement()
+func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_finishDraftStatement_2295() {
+	var refCount int32 = this_.draftNonDeclRefCount
+	_ = refCount
+	var declRef *Reference = this_.draftDeclaredNameReference
+	_ = declRef
+	if (declRef != nil) || (refCount > int32(0)) {
+		var rest []*Reference = nil
+		_ = rest
+		if refCount > int32(4) {
+			var extra int32 = (refCount - int32(4))
+			_ = extra
+			{
+
+				arrSrc_9 := this_.draftNonDeclRefsRest
+				arrLen_10 := extra
+				j2gort.CheckNotNullSlice(arrSrc_9)
+				if arrLen_10 < 0 {
+					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+				}
+				arrOut_11 := make([]*Reference, arrLen_10)
+				copy(arrOut_11, arrSrc_9)
+				rest = arrOut_11
+			}
+
+			j2gort.ArraysFillRangeZero(this_.draftNonDeclRefsRest, int32(0), extra)
+		}
+		this_.topLevelStatements = append(this_.topLevelStatements, NewCrossChunkReferenceCollector_TopLevelStatement(this_.draftOriginalOrder, this_.draftChunk, this_.draftStatementNode, declRef, this_.draftDeclaredValueNode, this_.draftNonDeclRef0, this_.draftNonDeclRef1, this_.draftNonDeclRef2, this_.draftNonDeclRef3, rest, refCount))
+	}
+	this_.draftChunk = nil
+	this_.draftStatementNode = pkg_rhino.Node(0)
+	this_.draftDeclaredNameNode = pkg_rhino.Node(0)
+	this_.draftDeclaredNameReference = nil
+	this_.draftDeclaredValueNode = pkg_rhino.Node(0)
+	this_.draftNonDeclRef0 = nil
+	this_.draftNonDeclRef1 = nil
+	this_.draftNonDeclRef2 = nil
+	this_.draftNonDeclRef3 = nil
+	this_.draftNonDeclRefCount = int32(0)
+}
+
 // Java method: CrossChunkReferenceCollector.initializeDraftStatement(com.google.javascript.jscomp.JSChunk chunk, com.google.javascript.rhino.Node statementNode)
-func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_initializeDraftStatement_2285(chunk *JSChunk, statementNode pkg_rhino.Node) *CrossChunkReferenceCollector_TopLevelStatement {
+func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_initializeDraftStatement_2296(chunk *JSChunk, statementNode pkg_rhino.Node) {
 	_ = chunk
 	_ = statementNode
-	var val_4 CrossChunkReferenceCollector_TopLevelStatement
-	val_4.outer_ = this_
-	var iifeArg_1 int32
-	{
-
-		old_5 := this_.statementCounter
-		nw_6 := old_5 + 1
-		this_.statementCounter = nw_6
-		iifeArg_1 = old_5
-	}
-	InitCrossChunkReferenceCollector_TopLevelStatement(&val_4, iifeArg_1,
-
-		chunk, statementNode)
-	var draft *CrossChunkReferenceCollector_TopLevelStatement = &val_4
-	_ = draft
+	this_.draftOriginalOrder = func() int32 {
+		old_12 := this_.statementCounter
+		nw_13 := old_12 + 1
+		this_.statementCounter = nw_13
+		return old_12
+	}()
+	this_.draftChunk = chunk
+	this_.draftStatementNode = statementNode
+	this_.draftDeclaredNameNode = pkg_rhino.Node(0)
+	this_.draftDeclaredNameReference = nil
+	this_.draftDeclaredValueNode = pkg_rhino.Node(0)
+	this_.draftNonDeclRefCount = int32(0)
 	if NodeUtil_IsNameDeclaration(statementNode) {
-		{
-			r_7 := draft
-			r_7.declaredNameNode = statementNode.GetFirstChild()
-		}
-		{
-			r_8 := draft
-			r_8.declaredValueNode = statementNode.GetFirstFirstChild()
-		}
+		this_.draftDeclaredNameNode = statementNode.GetFirstChild()
+		this_.draftDeclaredValueNode = statementNode.GetFirstFirstChild()
 	} else if statementNode.IsClass() {
-		{
-			r_9 := draft
-			r_9.declaredNameNode = statementNode.GetFirstChild()
-		}
-		{
-			r_10 := draft
-			r_10.declaredValueNode = statementNode
-		}
+		this_.draftDeclaredNameNode = statementNode.GetFirstChild()
+		this_.draftDeclaredValueNode = statementNode
 	} else if statementNode.IsFunction() {
-		{
-			r_11 := draft
-			r_11.declaredNameNode = statementNode.GetFirstChild()
-		}
-		{
-			r_12 := draft
-			r_12.declaredValueNode = statementNode
-		}
+		this_.draftDeclaredNameNode = statementNode.GetFirstChild()
+		this_.draftDeclaredValueNode = statementNode
 	} else if statementNode.IsExprResult() {
 		var expr pkg_rhino.Node = j2gort.CheckNotNullNode(statementNode.GetFirstChild())
 		_ = expr
@@ -188,14 +266,8 @@ func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_ini
 			var rhs pkg_rhino.Node = j2gort.CheckNotNullNode(expr.GetSecondChild())
 			_ = rhs
 			if lhs.IsName() {
-				{
-					r_13 := draft
-					r_13.declaredNameNode = lhs
-				}
-				{
-					r_14 := draft
-					r_14.declaredValueNode = rhs
-				}
+				this_.draftDeclaredNameNode = lhs
+				this_.draftDeclaredValueNode = rhs
 			} else if lhs.IsGetProp() || CrossChunkReferenceCollector_IsPotentiallyMoveableGetElem(lhs) {
 				var nameNode pkg_rhino.Node = j2gort.CheckNotNullNode(lhs.GetFirstChild())
 				_ = nameNode
@@ -203,14 +275,8 @@ func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_ini
 					nameNode = j2gort.CheckNotNullNode(nameNode.GetFirstChild())
 				}
 				if nameNode.IsName() {
-					{
-						r_15 := draft
-						r_15.declaredNameNode = nameNode
-					}
-					{
-						r_16 := draft
-						r_16.declaredValueNode = rhs
-					}
+					this_.draftDeclaredNameNode = nameNode
+					this_.draftDeclaredValueNode = rhs
 				}
 			}
 		} else if expr.IsCall() {
@@ -228,9 +294,9 @@ func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_ini
 					_ = callArg
 					for ; callArg != 0; callArg = callArg.GetNext() {
 						if callArg.IsName() && func() bool {
-							sr_17 := declaredName
-							se_18 := callArg.GetString()
-							return j2gort.CheckNotNullString(sr_17) == se_18
+							sr_14 := declaredName
+							se_15 := callArg.GetString()
+							return j2gort.CheckNotNullString(sr_14) == se_15
 						}() {
 							nameNode_2 = callArg
 							break
@@ -248,18 +314,11 @@ func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_ini
 				valueNode = targetObject.GetNext()
 			}
 			if nameNode_2 != 0 {
-				{
-					r_19 := draft
-					r_19.declaredNameNode = nameNode_2
-				}
-				{
-					r_20 := draft
-					r_20.declaredValueNode = valueNode
-				}
+				this_.draftDeclaredNameNode = nameNode_2
+				this_.draftDeclaredValueNode = valueNode
 			}
 		}
 	}
-	return draft
 }
 
 // Java static method: CrossChunkReferenceCollector.isPotentiallyMoveableGetElem(com.google.javascript.rhino.Node maybeGetElem)
@@ -290,7 +349,7 @@ func (this_ *CrossChunkReferenceCollector) GetTopLevelStatement(index int32) *Cr
 }
 
 // Java method: CrossChunkReferenceCollector.canMoveValue(com.google.javascript.jscomp.Scope scope, com.google.javascript.rhino.Node valueNode)
-func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_canMoveValue_2288(scope *Scope, valueNode pkg_rhino.Node) bool {
+func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_canMoveValue_2299(scope *Scope, valueNode pkg_rhino.Node) bool {
 	_ = scope
 	_ = valueNode
 	if ((valueNode == 0) || NodeUtil_IsLiteralValue(valueNode, true)) || valueNode.IsFunction() {
@@ -317,17 +376,17 @@ func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_can
 					if !(method.IsFunction()) {
 						j2gort.CheckStateMsg(false, j2gort.BoxNode(method))
 					}
-					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, keyExpr)) {
+					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2299(scope, keyExpr)) {
 						return false
 					}
 				} else if member.IsComputedFieldDef() {
 					var keyExpr_2 pkg_rhino.Node = member.GetFirstChild()
 					_ = keyExpr_2
-					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, keyExpr_2)) {
+					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2299(scope, keyExpr_2)) {
 						return false
 					}
 				} else if member.IsMemberFieldDef() {
-					if member.IsStaticMember() && !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, member.GetFirstChild())) {
+					if member.IsStaticMember() && !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2299(scope, member.GetFirstChild())) {
 						return false
 					}
 				} else if member.IsBlock() {
@@ -344,16 +403,16 @@ func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_can
 		var functionName pkg_rhino.Node = j2gort.CheckNotNullNode(valueNode.GetFirstChild())
 		_ = functionName
 		return (functionName.IsName() && func() bool {
-			sr_21 := functionName.GetString()
-			se_22 := "JSCompiler_stubMethod"
-			return j2gort.CheckNotNullString(sr_21) == se_22
+			sr_16 := functionName.GetString()
+			se_17 := "JSCompiler_stubMethod"
+			return j2gort.CheckNotNullString(sr_16) == se_17
 		}())
 	case int32(46) /* Token.ARRAYLIT */ :
 		{
 			var child pkg_rhino.Node = valueNode.GetFirstChild()
 			_ = child
 			for ; child != 0; child = child.GetNext() {
-				if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, child)) {
+				if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2299(scope, child)) {
 					return false
 				}
 			}
@@ -367,11 +426,11 @@ func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_can
 				switch child_2.TokenSwitchOrd_() {
 				case int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */ :
 				case int32(129) /* Token.COMPUTED_PROP */ :
-					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, child_2.GetFirstChild())) || !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, child_2.GetLastChild())) {
+					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2299(scope, child_2.GetFirstChild())) || !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2299(scope, child_2.GetLastChild())) {
 						return false
 					}
 				case int32(100) /* Token.STRING_KEY */, int32(128) /* Token.OBJECT_SPREAD */ :
-					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, child_2.GetOnlyChild())) {
+					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2299(scope, child_2.GetOnlyChild())) {
 						return false
 					}
 				default:
@@ -396,7 +455,7 @@ func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_can
 			_ = child_3
 			for ; child_3 != 0; child_3 = child_3.GetNext() {
 				if child_3.IsTemplateLitSub() {
-					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, child_3.GetFirstChild())) {
+					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2299(scope, child_3.GetFirstChild())) {
 						return false
 					}
 				} else {
@@ -484,10 +543,10 @@ func (this_ *CrossChunkReferenceCollector_TopLevelStatementCollectingBehavior) B
 	_ = n
 	_ = parent
 	if (parent != 0) && NodeUtil_IsTopLevel(parent) {
-		if !(this_.outer_.topLevelStatementDraft == nil) {
+		if !(this_.outer_.draftStatementNode == 0) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
 		}
-		this_.outer_.topLevelStatementDraft = this_.outer_.priv_CrossChunkReferenceCollector_initializeDraftStatement_2285(t.GetChunk(), n)
+		this_.outer_.priv_CrossChunkReferenceCollector_initializeDraftStatement_2296(t.GetChunk(), n)
 	}
 }
 
@@ -497,28 +556,24 @@ func (this_ *CrossChunkReferenceCollector_TopLevelStatementCollectingBehavior) A
 	_ = n
 	_ = parent
 	_ = addedReference
-	if this_.outer_.topLevelStatementDraft == nil {
+	if this_.outer_.draftStatementNode == 0 {
 		return
 	}
 	{
 		var iifeCond_1 bool
 		{
 
-			rn_23 := n
-			an_24 := this_.outer_.topLevelStatementDraft.statementNode
-			iifeCond_1 = j2gort.CheckNotNullNode(rn_23) == an_24
+			rn_18 := n
+			an_19 := this_.outer_.draftStatementNode
+			iifeCond_1 = j2gort.CheckNotNullNode(rn_18) == an_19
 		}
 		if iifeCond_1 {
-			this_.outer_.topLevelStatements = append(this_.outer_.topLevelStatements, this_.outer_.topLevelStatementDraft)
-			this_.outer_.topLevelStatementDraft = nil
+			this_.outer_.priv_CrossChunkReferenceCollector_finishDraftStatement_2295()
 		} else if (addedReference != nil) && n.IsName() {
-			if addedReference.GetNode() == this_.outer_.topLevelStatementDraft.declaredNameNode {
-				{
-					r_25 := this_.outer_.topLevelStatementDraft
-					r_25.declaredNameReference = addedReference
-				}
+			if addedReference.GetNode() == this_.outer_.draftDeclaredNameNode {
+				this_.outer_.draftDeclaredNameReference = addedReference
 			} else {
-				this_.outer_.topLevelStatementDraft.AddNonDeclarationReference(addedReference)
+				this_.outer_.priv_CrossChunkReferenceCollector_addDraftNonDeclarationReference_2294(addedReference)
 			}
 		}
 	}
@@ -532,7 +587,6 @@ func (this_ *CrossChunkReferenceCollector_TopLevelStatementCollectingBehavior) A
 
 // Java class: com.google.javascript.jscomp.CrossChunkReferenceCollector.TopLevelStatement
 type CrossChunkReferenceCollector_TopLevelStatement struct {
-	outer_                *CrossChunkReferenceCollector
 	chunk                 *JSChunk       `gson:"chunk"`
 	nonDeclRef0           *Reference     `gson:"nonDeclRef0"`
 	nonDeclRef1           *Reference     `gson:"nonDeclRef1"`
@@ -543,7 +597,6 @@ type CrossChunkReferenceCollector_TopLevelStatement struct {
 	originalOrder         int32          `gson:"originalOrder"`
 	statementNode         pkg_rhino.Node `gson:"statementNode"`
 	nonDeclRefCount       int32          `gson:"nonDeclRefCount"`
-	declaredNameNode      pkg_rhino.Node `gson:"declaredNameNode"`
 	declaredValueNode     pkg_rhino.Node `gson:"declaredValueNode"`
 	idHash_               atomic.Int32
 }
@@ -570,81 +623,42 @@ func init() {
 		return j2gort.InstanceOf[*CrossChunkReferenceCollector_TopLevelStatement](v_)
 	})
 }
-func (this_ *CrossChunkReferenceCollector_TopLevelStatement) SetOuter_(o *CrossChunkReferenceCollector) {
-	this_.outer_ = o
-}
-func (this_ *CrossChunkReferenceCollector_TopLevelStatement) GetOuter_() *CrossChunkReferenceCollector {
-	return this_.outer_
-}
 
 func (this_ *CrossChunkReferenceCollector_TopLevelStatement) initFields_CrossChunkReferenceCollector_TopLevelStatement() {
 	_ = this_
-
 }
 
-// Java constructor: TopLevelStatement(int originalOrder, com.google.javascript.jscomp.JSChunk chunk, com.google.javascript.rhino.Node statementNode)
-func NewCrossChunkReferenceCollector_TopLevelStatement(outer_ *CrossChunkReferenceCollector, originalOrder int32, chunk *JSChunk, statementNode pkg_rhino.Node) *CrossChunkReferenceCollector_TopLevelStatement {
+// Java constructor: TopLevelStatement(int originalOrder, com.google.javascript.jscomp.JSChunk chunk, com.google.javascript.rhino.Node statementNode, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable Reference declaredNameReference, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node declaredValueNode, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable Reference nonDeclRef0, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable Reference nonDeclRef1, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable Reference nonDeclRef2, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable Reference nonDeclRef3, com.google.javascript.jscomp.Reference @org.jspecify.annotations.Nullable [] nonDeclRefsRest, int nonDeclRefCount)
+func NewCrossChunkReferenceCollector_TopLevelStatement(originalOrder int32, chunk *JSChunk, statementNode pkg_rhino.Node, declaredNameReference *Reference, declaredValueNode pkg_rhino.Node, nonDeclRef0 *Reference, nonDeclRef1 *Reference, nonDeclRef2 *Reference, nonDeclRef3 *Reference, nonDeclRefsRest []*Reference, nonDeclRefCount int32) *CrossChunkReferenceCollector_TopLevelStatement {
 	this_ := &CrossChunkReferenceCollector_TopLevelStatement{}
-	this_.outer_ = outer_
-	InitCrossChunkReferenceCollector_TopLevelStatement(this_, originalOrder, chunk, statementNode)
+	InitCrossChunkReferenceCollector_TopLevelStatement(this_, originalOrder, chunk, statementNode, declaredNameReference, declaredValueNode, nonDeclRef0, nonDeclRef1, nonDeclRef2, nonDeclRef3, nonDeclRefsRest, nonDeclRefCount)
 	return this_
 }
 
-func InitCrossChunkReferenceCollector_TopLevelStatement(this_ *CrossChunkReferenceCollector_TopLevelStatement, originalOrder int32, chunk *JSChunk, statementNode pkg_rhino.Node) {
+func InitCrossChunkReferenceCollector_TopLevelStatement(this_ *CrossChunkReferenceCollector_TopLevelStatement, originalOrder int32, chunk *JSChunk, statementNode pkg_rhino.Node, declaredNameReference *Reference, declaredValueNode pkg_rhino.Node, nonDeclRef0 *Reference, nonDeclRef1 *Reference, nonDeclRef2 *Reference, nonDeclRef3 *Reference, nonDeclRefsRest []*Reference, nonDeclRefCount int32) {
 	_ = originalOrder
 	_ = chunk
 	_ = statementNode
+	_ = declaredNameReference
+	_ = declaredValueNode
+	_ = nonDeclRef0
+	_ = nonDeclRef1
+	_ = nonDeclRef2
+	_ = nonDeclRef3
+	_ = nonDeclRefsRest
+	_ = nonDeclRefCount
 	this_.initFields_CrossChunkReferenceCollector_TopLevelStatement()
 	this_.originalOrder = originalOrder
 	this_.chunk = chunk
 	this_.statementNode = statementNode
-}
-
-// Java method: TopLevelStatement.addNonDeclarationReference(com.google.javascript.jscomp.Reference ref)
-func (this_ *CrossChunkReferenceCollector_TopLevelStatement) AddNonDeclarationReference(ref *Reference) {
-	_ = ref
-	var c int32 = this_.nonDeclRefCount
-	_ = c
-	switch c {
-	case int32(0):
-		this_.nonDeclRef0 = ref
-	case int32(1):
-		this_.nonDeclRef1 = ref
-	case int32(2):
-		this_.nonDeclRef2 = ref
-	case int32(3):
-		this_.nonDeclRef3 = ref
-	default:
-		var rest []*Reference = this_.nonDeclRefsRest
-		_ = rest
-		var idx int32 = (c - int32(4))
-		_ = idx
-		if rest == nil {
-			rest = make([]*Reference, int32(8))
-			this_.nonDeclRefsRest = rest
-		} else if idx == int32(len(rest)) {
-			{
-
-				arrSrc_26 := rest
-				arrLen_27 := (idx * int32(2))
-				j2gort.CheckNotNullSlice(arrSrc_26)
-				if arrLen_27 < 0 {
-					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
-				}
-				arrOut_28 := make([]*Reference, arrLen_27)
-				copy(arrOut_28, arrSrc_26)
-				rest = arrOut_28
-			}
-
-			this_.nonDeclRefsRest = rest
-		}
-		{
-			a_29 := rest
-			i_30 := idx
-			a_29[i_30] = ref
-		}
-	}
-	this_.nonDeclRefCount = (c + int32(1))
+	this_.declaredNameReference = declaredNameReference
+	this_.declaredValueNode = declaredValueNode
+	this_.nonDeclRef0 = nonDeclRef0
+	this_.nonDeclRef1 = nonDeclRef1
+	this_.nonDeclRef2 = nonDeclRef2
+	this_.nonDeclRef3 = nonDeclRef3
+	this_.nonDeclRefsRest = nonDeclRefsRest
+	this_.nonDeclRefCount = nonDeclRefCount
 }
 
 // Java method: TopLevelStatement.getOriginalOrder()
@@ -703,16 +717,16 @@ func (this_ *CrossChunkReferenceCollector_TopLevelStatement) GetDeclaredValueNod
 	return this_.declaredValueNode
 }
 
-// Java method: TopLevelStatement.isMovableDeclaration()
-func (this_ *CrossChunkReferenceCollector_TopLevelStatement) IsMovableDeclaration() bool {
-	return (this_.IsDeclarationStatement() && this_.outer_.priv_CrossChunkReferenceCollector_canMoveValue_2288(this_.declaredNameReference.GetScope(), this_.declaredValueNode))
+// Java method: TopLevelStatement.isMovableDeclaration(com.google.javascript.jscomp.CrossChunkReferenceCollector collector)
+func (this_ *CrossChunkReferenceCollector_TopLevelStatement) IsMovableDeclaration(collector *CrossChunkReferenceCollector) bool {
+	_ = collector
+	return (this_.IsDeclarationStatement() && collector.priv_CrossChunkReferenceCollector_canMoveValue_2299(this_.declaredNameReference.GetScope(), this_.declaredValueNode))
 }
 func (this_ *CrossChunkReferenceCollector) ReleaseSlabs_() {
 	if this_ == nil {
 		return
 	}
 	this_.topLevelStatements = nil
-	this_.topLevelStatementDraft = nil
 	if this_.referenceCollector != nil {
 		if this_.ownsScopeCreator_ {
 			this_.referenceCollector.ownsScopeCreator_ = true

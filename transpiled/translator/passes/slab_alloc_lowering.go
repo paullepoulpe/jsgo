@@ -835,6 +835,11 @@ func (p *SlabAllocLoweringPass) Apply(ctx *PassContext) (int, error) {
 		return count, err
 	}
 	count += w44Count
+	w45Count, err := applyWave45SlabLowerings(ctx, structByNamed, parentsByFile, valueCopied, singletonStructs, existingPkgFuncs)
+	if err != nil {
+		return count, err
+	}
+	count += w45Count
 
 	return count, nil
 }
@@ -1635,6 +1640,7 @@ func isSynthesizedSlabHelperFuncName(name string) bool {
 		strings.HasPrefix(name, "allocLazy_") ||
 		strings.HasPrefix(name, "allocFastScope") ||
 		strings.HasPrefix(name, "initReuse_") ||
+		name == "reinitBottomTypedScope_" ||
 		name == "promoteIvScratchVarExpert_" ||
 		name == "isSafeToInlineAliasesIv_" ||
 		name == "acquirePooledParser_" ||
@@ -13920,14 +13926,17 @@ func buildGlobalNamespaceReleaseSlabsLines(
 	if globalNamespaceHasRefSlab(file, gnNamed) {
 		relLines = append(relLines, recv+".slab_GlobalNamespace_Ref.Release()")
 	}
+	if globalNamespaceHasNameSlab(file, gnNamed) {
+		relLines = append(relLines, recv+".slab_GlobalNamespace_Name.Release()")
+	}
 	if hasScopeCreator {
 		relLines = append(relLines, recv+".scopeCreator_.ReleaseSlabs_()")
 	}
 	return relLines
 }
 
-func globalNamespaceHasRefSlab(file *ast.File, gnNamed *types.Named) bool {
-	if gnNamed != nil && structHasFieldNamed(gnNamed, "slab_GlobalNamespace_Ref") {
+func globalNamespaceHasSlabField(file *ast.File, gnNamed *types.Named, fieldName string) bool {
+	if gnNamed != nil && structHasFieldNamed(gnNamed, fieldName) {
 		return true
 	}
 	if file == nil {
@@ -13943,12 +13952,20 @@ func globalNamespaceHasRefSlab(file *ast.File, gnNamed *types.Named) bool {
 			if !ok || ts.Name == nil || ts.Name.Name != "GlobalNamespace" {
 				continue
 			}
-			if st, ok := ts.Type.(*ast.StructType); ok && hasASTFieldNamed(st, "slab_GlobalNamespace_Ref") {
+			if st, ok := ts.Type.(*ast.StructType); ok && hasASTFieldNamed(st, fieldName) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func globalNamespaceHasRefSlab(file *ast.File, gnNamed *types.Named) bool {
+	return globalNamespaceHasSlabField(file, gnNamed, "slab_GlobalNamespace_Ref")
+}
+
+func globalNamespaceHasNameSlab(file *ast.File, gnNamed *types.Named) bool {
+	return globalNamespaceHasSlabField(file, gnNamed, "slab_GlobalNamespace_Name")
 }
 
 func buildInlineFunctionsDeferCleanupLines(
@@ -14195,11 +14212,13 @@ func applyWave28MapAndSlicePoolReleases(
 					canRelNameMap = true
 				}
 				hasRefSlab := globalNamespaceHasRefSlab(gnMeta.file, gnNamed)
+				hasNameSlab := globalNamespaceHasNameSlab(gnMeta.file, gnNamed)
 				hasSC := hasASTFieldNamed(gnMeta.structAST, "scopeCreator_") || structHasFieldNamed(gnNamed, "scopeCreator_") ||
 					slabASTContainsIdent(relFn.Body, "scopeCreator_")
 				needUpgrade := (canRelNameMap && slabASTContainsSelectorName(relFn.Body, "Clear")) ||
 					(canRelRefs && !slabASTContainsIdent(relFn.Body, "ReleaseOrderedMap")) ||
 					(hasRefSlab && !slabASTContainsIdent(relFn.Body, "slab_GlobalNamespace_Ref")) ||
+					(hasNameSlab && !slabASTContainsIdent(relFn.Body, "slab_GlobalNamespace_Name")) ||
 					(hasSC && !slabASTContainsIdent(relFn.Body, "scopeCreator_"))
 				if needUpgrade {
 					relLines := buildGlobalNamespaceReleaseSlabsLines(ctx, gnMeta.file, gnNamed, relRecv, hasSC)
@@ -28645,10 +28664,11 @@ func (a_ *typedScopeArena_) release_() {
 		}
 	}
 
-	// Also pool `TypedScope_CreateLatticeBottom` / `NewTypedScope_2_Node_bool` inside `TypeInference` (`InitTypeInference*` & `ResetForScope`).
+	// Also pool `TypedScope_CreateLatticeBottom` / `NewTypedScope_2_Node_bool` inside `TypeInference` (`InitTypeInference*` & `ResetForScope`),
+	// unless Wave 45 embedded `bottomTypedScope_` reuse applies on this TypeInference.
 	if tiNamed != nil && ptrNamedOrigin(structLookupFieldType(tiNamed, ctx.Pkg, "scopeCreator")) == tscNamed {
 		tiMeta := structByNamed[tiNamed]
-		if tiMeta != nil && ctx.ShouldTransform(tiMeta.file) {
+		if tiMeta != nil && ctx.ShouldTransform(tiMeta.file) && !w45TypeInferenceCanReuseBottomTypedScope(ctx, tiMeta, tiNamed, tsNamed) {
 			for _, decl := range tiMeta.file.Decls {
 				fn, ok := decl.(*ast.FuncDecl)
 				if !ok || fn.Name == nil || fn.Body == nil {
@@ -33898,6 +33918,7 @@ func w44ReorderScopeFieldsContiguousPtrs(st *ast.StructType) bool {
 	ptrFrontOrder := []string{
 		"AbstractScopeBase",
 		"parent",
+		"varSlab_",
 		"var0",
 		"var1",
 		"var2",
@@ -33905,7 +33926,6 @@ func w44ReorderScopeFieldsContiguousPtrs(st *ast.StructType) bool {
 		"var4",
 		"var5",
 		"vars",
-		"varSlab_",
 	}
 	out := make([]*ast.Field, 0, len(fields))
 	picked := make(map[*ast.Field]bool, len(fields))
@@ -34781,4 +34801,930 @@ func f() *BasicBlock {
 	allocFn.Body.List = pf.Decls[0].(*ast.FuncDecl).Body.List
 	ctx.MarkFileModified(bbMeta.file)
 	return 1, nil
+}
+
+// -----------------------------------------------------------------------------
+// Wave 45B:
+//   1) TypeInference embedded `bottomTypedScope_ TypedScope` reuse (eliminates
+//      75.24 MB of per-function lattice-bottom TypedScope slab allocations
+//      leaked into whole-typecheck tsArena_.slab_TypedScope).
+//   2) GlobalNamespace_Name PooledSlab on GlobalNamespace (eliminates ~199 MB
+//      OPT + ~102 MB CHECKS heap allocations in GlobalNamespace_Name.AddProperty).
+//   3) Direct zeroed-slab init for RemoveUnusedCode_NameDeclarationStatement
+//      in BuildNameDeclarationStatement & allocPooled_RemoveUnusedCode_NameDeclarationStatement.
+// -----------------------------------------------------------------------------
+
+func applyWave45SlabLowerings(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	parentsByFile map[*ast.File]map[ast.Node]ast.Node,
+	valueCopied, singletonStructs map[*types.Named]bool,
+	existingPkgFuncs map[string]bool,
+) (int, error) {
+	if ctx == nil || ctx.Pkg == nil || ctx.Pkg.Name() != "jscomp" || ctx.Info == nil {
+		return 0, nil
+	}
+	count := 0
+
+	cTI, err := w45ApplyTypeInferenceBottomScopeReuse(ctx, structByNamed, existingPkgFuncs)
+	if err != nil {
+		return count, err
+	}
+	count += cTI
+
+	cGN, err := w45ApplyGlobalNamespaceNameSlabLowering(ctx, structByNamed, parentsByFile, valueCopied, singletonStructs, existingPkgFuncs)
+	if err != nil {
+		return count, err
+	}
+	count += cGN
+
+	cNDS, err := w45ApplyFastNameDeclarationStatementInitLowering(ctx, structByNamed)
+	if err != nil {
+		return count, err
+	}
+	count += cNDS
+
+	return count, nil
+}
+
+func w45TypeInferenceCanReuseBottomTypedScope(
+	ctx *PassContext,
+	tiMeta *slabStructMeta,
+	tiNamed, tsNamed *types.Named,
+) bool {
+	if ctx == nil || ctx.Pkg == nil || tiMeta == nil || tiNamed == nil || tsNamed == nil || !ctx.ShouldTransform(tiMeta.file) {
+		return false
+	}
+	if !structHasFieldNamed(tiNamed, "bottomScope") || !structHasFieldNamed(tiNamed, "flowScopePool") {
+		return false
+	}
+	finFn, finRecv := findPtrMethodDeclBySyntax(tiMeta.file, "TypeInference", "FinishScope")
+	if finFn == nil || finFn.Body == nil || finRecv == "" {
+		return false
+	}
+	clearsBottom := false
+	for _, st := range finFn.Body.List {
+		as, ok := st.(*ast.AssignStmt)
+		if ok && as.Tok == token.ASSIGN && len(as.Lhs) == 1 && len(as.Rhs) == 1 &&
+			w41IsRecvFieldSel(as.Lhs[0], finRecv, "bottomScope") && isIdentNamed(as.Rhs[0], "nil") {
+			clearsBottom = true
+			break
+		}
+	}
+	if !clearsBottom {
+		return false
+	}
+	initObj, okI := ctx.Pkg.Scope().Lookup("InitTypedScope_2_Node_bool").(*types.Func)
+	if !okI || initObj == nil {
+		return false
+	}
+	initSig, okIS := initObj.Type().(*types.Signature)
+	if !okIS || initSig.Params() == nil || initSig.Params().Len() != 3 ||
+		ptrNamedOrigin(initSig.Params().At(0).Type()) != tsNamed ||
+		!types.Identical(initSig.Params().At(2).Type(), types.Typ[types.Bool]) {
+		return false
+	}
+	lbObj, okL := ctx.Pkg.Scope().Lookup("TypedScope_CreateLatticeBottom").(*types.Func)
+	if !okL || lbObj == nil {
+		return false
+	}
+	lbSig, okLS := lbObj.Type().(*types.Signature)
+	if !okLS || lbSig.Params() == nil || lbSig.Params().Len() != 1 ||
+		lbSig.Results() == nil || lbSig.Results().Len() != 1 ||
+		ptrNamedOrigin(lbSig.Results().At(0).Type()) != tsNamed {
+		return false
+	}
+	return hasMethodNamed(types.NewPointer(tsNamed), ctx.Pkg, "BindSelf_")
+}
+
+func w45ApplyTypeInferenceBottomScopeReuse(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	existingPkgFuncs map[string]bool,
+) (int, error) {
+	var tiNamed, tsNamed *types.Named
+	for n := range structByNamed {
+		if n == nil || n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "TypeInference":
+			tiNamed = n
+		case "TypedScope":
+			tsNamed = n
+		}
+	}
+	if tiNamed == nil || tsNamed == nil {
+		return 0, nil
+	}
+	tiMeta := structByNamed[tiNamed]
+	if !w45TypeInferenceCanReuseBottomTypedScope(ctx, tiMeta, tiNamed, tsNamed) {
+		return 0, nil
+	}
+	lbObj, _ := ctx.Pkg.Scope().Lookup("TypedScope_CreateLatticeBottom").(*types.Func)
+	lbSig := lbObj.Type().(*types.Signature)
+	nodeNamed := namedOrigin(lbSig.Params().At(0).Type())
+	if nodeNamed == nil || nodeNamed.Obj() == nil || nodeNamed.Obj().Pkg() == nil {
+		return 0, nil
+	}
+	rhinoQual, okR := ensurePkgImportInFile(tiMeta.file, nodeNamed.Obj().Pkg().Path(), "pkg_rhino", ctx)
+	if !okR || rhinoQual == "" {
+		return 0, nil
+	}
+
+	info := ctx.Info
+	type bottomCallSite struct {
+		call     *ast.CallExpr
+		tiName   string
+		rootExpr ast.Expr
+	}
+	var sites []bottomCallSite
+
+	for _, decl := range tiMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name == nil || fn.Body == nil {
+			continue
+		}
+		var tiVar *types.Var
+		var tiName string
+		if fn.Recv != nil && len(fn.Recv.List) == 1 && len(fn.Recv.List[0].Names) == 1 && fn.Name.Name == "ResetForScope" {
+			rId := fn.Recv.List[0].Names[0]
+			if rv := varFromObj(info.Defs[rId]); rv != nil && ptrNamedOrigin(rv.Type()) == tiNamed && rId.Name != "_" && !isVarReassignedInBody(fn.Body, rv, info) {
+				tiVar = rv
+				tiName = rId.Name
+			}
+		} else if fn.Recv == nil && strings.HasPrefix(fn.Name.Name, "InitTypeInference") &&
+			fn.Type.Params != nil && len(fn.Type.Params.List) >= 1 && len(fn.Type.Params.List[0].Names) == 1 {
+			pId := fn.Type.Params.List[0].Names[0]
+			if pv := varFromObj(info.Defs[pId]); pv != nil && ptrNamedOrigin(pv.Type()) == tiNamed && pId.Name != "_" && !isVarReassignedInBody(fn.Body, pv, info) {
+				tiVar = pv
+				tiName = pId.Name
+			}
+		}
+		if tiVar == nil {
+			continue
+		}
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			if n == nil {
+				return false
+			}
+			if _, isFL := n.(*ast.FuncLit); isFL {
+				return false
+			}
+			call, isC := n.(*ast.CallExpr)
+			if !isC || call.Ellipsis.IsValid() || !isRecvUnshadowedAt(tiVar, tiName, call.Pos(), ctx.Pkg) {
+				return true
+			}
+			funId, isId := stripParens(call.Fun).(*ast.Ident)
+			if !isId {
+				return true
+			}
+			switch funId.Name {
+			case "TypedScope_CreateLatticeBottom":
+				if len(call.Args) == 1 {
+					sites = append(sites, bottomCallSite{call: call, tiName: tiName, rootExpr: call.Args[0]})
+				}
+			case "allocPooledVia_TypedScope_CreateLatticeBottom":
+				if len(call.Args) == 2 {
+					sites = append(sites, bottomCallSite{call: call, tiName: tiName, rootExpr: call.Args[1]})
+				}
+			}
+			return true
+		})
+	}
+
+	finFn, finRecv := findPtrMethodDeclBySyntax(tiMeta.file, "TypeInference", "FinishScope")
+	hasField := hasASTFieldNamed(tiMeta.structAST, "bottomTypedScope_")
+	needFinClear := (hasField || len(sites) > 0) && finFn != nil && finRecv != "" && !slabASTContainsIdent(finFn.Body, "bottomTypedScope_")
+	if len(sites) == 0 && !needFinClear {
+		return 0, nil
+	}
+
+	count := 0
+	if !hasField {
+		tiMeta.structAST.Fields.List = append(tiMeta.structAST.Fields.List, &ast.Field{
+			Names: []*ast.Ident{{Name: "bottomTypedScope_"}},
+			Type:  &ast.Ident{Name: "TypedScope"},
+		})
+		ctx.MarkFileModified(tiMeta.file)
+	}
+
+	const helperName = "reinitBottomTypedScope_"
+	if !existingPkgFuncs[helperName] {
+		helperSrc := fmt.Sprintf(`package p
+func %[1]s(s_ *TypedScope, rootNode %[2]s.%[3]s) *TypedScope {
+	*s_ = TypedScope{}
+	s_.BindSelf_(s_)
+	InitTypedScope_2_Node_bool(s_, rootNode, true)
+	return s_
+}
+`, helperName, rhinoQual, nodeNamed.Obj().Name())
+		pf, err := parser.ParseFile(ctx.Fset, "", helperSrc, 0)
+		if err != nil {
+			return count, err
+		}
+		tiMeta.file.Decls = append(tiMeta.file.Decls, pf.Decls[0])
+		existingPkgFuncs[helperName] = true
+		ctx.MarkFileModified(tiMeta.file)
+	}
+
+	for _, s := range sites {
+		s.call.Fun = &ast.Ident{NamePos: s.call.Fun.Pos(), Name: helperName}
+		s.call.Args = []ast.Expr{
+			&ast.UnaryExpr{
+				Op: token.AND,
+				X:  &ast.SelectorExpr{X: &ast.Ident{Name: s.tiName}, Sel: &ast.Ident{Name: "bottomTypedScope_"}},
+			},
+			s.rootExpr,
+		}
+		ctx.MarkFileModified(tiMeta.file)
+		count++
+	}
+
+	if needFinClear {
+		clearSrc := fmt.Sprintf("package p\nfunc f() {\n\t%s.bottomTypedScope_ = TypedScope{}\n}\n", finRecv)
+		pf, err := parser.ParseFile(ctx.Fset, "", clearSrc, 0)
+		if err != nil {
+			return count, err
+		}
+		finFn.Body.List = append(finFn.Body.List, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+		ctx.MarkFileModified(tiMeta.file)
+		if count == 0 {
+			count++
+		}
+	}
+
+	return count, nil
+}
+
+func w45ApplyGlobalNamespaceNameSlabLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	parentsByFile map[*ast.File]map[ast.Node]ast.Node,
+	valueCopied, singletonStructs map[*types.Named]bool,
+	existingPkgFuncs map[string]bool,
+) (int, error) {
+	if !j2gortPooledSlabHasRelease(ctx) {
+		return 0, nil
+	}
+	var gnNamed, gnNameNamed *types.Named
+	for n := range structByNamed {
+		if n == nil || n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "GlobalNamespace":
+			gnNamed = n
+		case "GlobalNamespace_Name":
+			gnNameNamed = n
+		}
+	}
+	if gnNamed == nil || gnNameNamed == nil {
+		return 0, nil
+	}
+	gnMeta := structByNamed[gnNamed]
+	gnNameMeta := structByNamed[gnNameNamed]
+	if gnMeta == nil || gnNameMeta == nil || gnMeta.file != gnNameMeta.file || !ctx.ShouldTransform(gnMeta.file) ||
+		valueCopied[gnNamed] || valueCopied[gnNameNamed] || singletonStructs[gnNamed] || singletonStructs[gnNameNamed] ||
+		gnNameNamed.TypeParams() != nil || !canEnsureJ2gortInFile(gnMeta.file, ctx) {
+		return 0, nil
+	}
+	if ptrNamedOrigin(structFieldType(gnNameNamed, "outer_")) != gnNamed {
+		return 0, nil
+	}
+	gnHasRel := hasMethodNamed(types.NewPointer(gnNamed), ctx.Pkg, "ReleaseSlabs_") ||
+		slabFileHasPtrMethod(gnMeta.file, "GlobalNamespace", "ReleaseSlabs_")
+	if !gnHasRel {
+		return 0, nil
+	}
+
+	info := ctx.Info
+	var nameCtorFn *ast.FuncDecl
+	var nameCtorObj, nameInitObj *types.Func
+	var outerParamName string
+	for _, decl := range gnMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Body == nil || fn.Name == nil {
+			continue
+		}
+		switch fn.Name.Name {
+		case "NewGlobalNamespace_Name":
+			if fObj, okF := info.Defs[fn.Name].(*types.Func); okF && fObj != nil {
+				fOrig := funcOrigin(fObj)
+				if opName, okC := w45MatchGlobalNamespaceNameCtor(fn, fOrig, gnNamed, gnNameNamed, info); okC {
+					nameCtorFn = fn
+					nameCtorObj = fOrig
+					outerParamName = opName
+				}
+			}
+		case "InitGlobalNamespace_Name":
+			if fObj, okF := info.Defs[fn.Name].(*types.Func); okF && fObj != nil {
+				nameInitObj = funcOrigin(fObj)
+			}
+		}
+	}
+	if nameCtorFn == nil || nameCtorObj == nil || nameInitObj == nil || outerParamName == "" {
+		return 0, nil
+	}
+
+	type gnNameCtorSite struct {
+		file *ast.File
+		call *ast.CallExpr
+	}
+	type gnNameStackSite struct {
+		file           *ast.File
+		blk            *ast.BlockStmt
+		declIdx        int
+		tmpName        string
+		outerExpr      ast.Expr
+		initArgs       []ast.Expr
+		otherAddrExprs []*ast.UnaryExpr
+	}
+	var ctorSites []gnNameCtorSite
+	var stackSites []gnNameStackSite
+
+	for _, file := range ctx.Files {
+		if !ctx.ShouldTransform(file) {
+			continue
+		}
+		parents := parentsByFile[file]
+		if parents == nil {
+			continue
+		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil || fn == nameCtorFn {
+				continue
+			}
+			if fn.Name != nil && isSynthesizedSlabHelperFuncName(fn.Name.Name) {
+				continue
+			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				switch x := n.(type) {
+				case *ast.CallExpr:
+					if x.Ellipsis.IsValid() || !isDirectIdentOrIndexedCall(x) {
+						return true
+					}
+					if callee, _ := calleeFunc(x, info); callee != nil && funcOrigin(callee) == nameCtorObj {
+						ctorSites = append(ctorSites, gnNameCtorSite{file: file, call: x})
+					}
+				case *ast.BlockStmt:
+					for i := 0; i+2 < len(x.List); i++ {
+						// 0: var val_X GlobalNamespace_Name
+						ds, okDS := x.List[i].(*ast.DeclStmt)
+						if !okDS {
+							continue
+						}
+						gd, okGD := ds.Decl.(*ast.GenDecl)
+						if !okGD || gd.Tok != token.VAR || len(gd.Specs) != 1 {
+							continue
+						}
+						vs, okVS := gd.Specs[0].(*ast.ValueSpec)
+						if !okVS || len(vs.Names) != 1 || len(vs.Values) != 0 {
+							continue
+						}
+						tmpId := vs.Names[0]
+						tmpVar := varFromObj(info.Defs[tmpId])
+						if tmpVar == nil || namedOrigin(tmpVar.Type()) != gnNameNamed {
+							continue
+						}
+						// 1: val_X.outer_ = <outerExpr>
+						asOuter, okAO := x.List[i+1].(*ast.AssignStmt)
+						if !okAO || asOuter.Tok != token.ASSIGN || len(asOuter.Lhs) != 1 || len(asOuter.Rhs) != 1 {
+							continue
+						}
+						outerSel, okOS := stripParens(asOuter.Lhs[0]).(*ast.SelectorExpr)
+						if !okOS || outerSel.Sel == nil || outerSel.Sel.Name != "outer_" {
+							continue
+						}
+						outerXId, okOX := stripParens(outerSel.X).(*ast.Ident)
+						if !okOX || varFromObj(info.Uses[outerXId]) != tmpVar {
+							continue
+						}
+						// 2: InitGlobalNamespace_Name(&val_X, ...)
+						es, okES := x.List[i+2].(*ast.ExprStmt)
+						if !okES {
+							continue
+						}
+						initCall, okC := stripParens(es.X).(*ast.CallExpr)
+						if !okC || initCall.Ellipsis.IsValid() || len(initCall.Args) < 1 {
+							continue
+						}
+						callee, _ := calleeFunc(initCall, info)
+						if callee == nil || funcOrigin(callee) != nameInitObj {
+							continue
+						}
+						a0, okU := stripParens(initCall.Args[0]).(*ast.UnaryExpr)
+						if !okU || a0.Op != token.AND {
+							continue
+						}
+						a0Id, okI := stripParens(a0.X).(*ast.Ident)
+						if !okI || varFromObj(info.Uses[a0Id]) != tmpVar {
+							continue
+						}
+						var otherAddrs []*ast.UnaryExpr
+						allAddr := true
+						ast.Inspect(fn.Body, func(m ast.Node) bool {
+							if !allAddr || m == nil {
+								return false
+							}
+							id, isId := m.(*ast.Ident)
+							if !isId || id == tmpId || id == outerXId || id == a0Id || varFromObj(info.Uses[id]) != tmpVar {
+								return true
+							}
+							par, okP := parents[id].(*ast.UnaryExpr)
+							if !okP || par.Op != token.AND || par.X != id {
+								allAddr = false
+								return false
+							}
+							otherAddrs = append(otherAddrs, par)
+							return true
+						})
+						if !allAddr {
+							continue
+						}
+						stackSites = append(stackSites, gnNameStackSite{
+							file:           file,
+							blk:            x,
+							declIdx:        i,
+							tmpName:        tmpId.Name,
+							outerExpr:      asOuter.Rhs[0],
+							initArgs:       initCall.Args[1:],
+							otherAddrExprs: otherAddrs,
+						})
+					}
+				}
+				return true
+			})
+		}
+	}
+
+	relFn, relRecv := findPtrMethodDeclBySyntax(gnMeta.file, "GlobalNamespace", "ReleaseSlabs_")
+	needRelUpgrade := gnMeta.slabFields["slab_GlobalNamespace_Name"] &&
+		relFn != nil && relRecv != "" && !slabASTContainsIdent(relFn.Body, "slab_GlobalNamespace_Name")
+
+	if len(ctorSites) == 0 && len(stackSites) == 0 && !needRelUpgrade {
+		return 0, nil
+	}
+
+	j2Qual, okQ := ensureJ2gortImportInFile(gnMeta.file, ctx)
+	if !okQ {
+		return 0, nil
+	}
+
+	count := 0
+	if !gnMeta.slabFields["slab_GlobalNamespace_Name"] {
+		gnMeta.structAST.Fields.List = append(gnMeta.structAST.Fields.List, &ast.Field{
+			Names: []*ast.Ident{{Name: "slab_GlobalNamespace_Name"}},
+			Type: &ast.IndexExpr{
+				X:     &ast.SelectorExpr{X: &ast.Ident{Name: j2Qual}, Sel: &ast.Ident{Name: "PooledSlab"}},
+				Index: &ast.Ident{Name: "GlobalNamespace_Name"},
+			},
+		})
+		gnMeta.slabFields["slab_GlobalNamespace_Name"] = true
+		ctx.MarkFileModified(gnMeta.file)
+	}
+
+	const helperName = "allocPooled_GlobalNamespace_Name"
+	if (len(ctorSites) > 0 || len(stackSites) > 0) && !existingPkgFuncs[helperName] {
+		synth, err := w45SynthesizeGlobalNamespaceNameHelper(ctx.Fset, nameCtorFn, helperName, outerParamName)
+		if err != nil {
+			return count, err
+		}
+		spliceSynthesizedDecls(gnMeta.file, []funcInsertSpec{{after: nameCtorFn, decl: synth}})
+		existingPkgFuncs[helperName] = true
+		ctx.MarkFileModified(gnMeta.file)
+	}
+
+	for _, cs := range ctorSites {
+		rewriteDirectCalleeIdent(cs.call, helperName)
+		ctx.MarkFileModified(cs.file)
+		count++
+	}
+
+	for i := len(stackSites) - 1; i >= 0; i-- {
+		ss := stackSites[i]
+		argStrs := make([]string, 0, 1+len(ss.initArgs))
+		var argBuf bytes.Buffer
+		_ = printer.Fprint(&argBuf, ctx.Fset, ss.outerExpr)
+		argStrs = append(argStrs, argBuf.String())
+		for _, a := range ss.initArgs {
+			argBuf.Reset()
+			_ = printer.Fprint(&argBuf, ctx.Fset, a)
+			argStrs = append(argStrs, argBuf.String())
+		}
+		stmtSrc := fmt.Sprintf("package p\nfunc f() {\n\t%s := %s(%s)\n}\n", ss.tmpName, helperName, strings.Join(argStrs, ", "))
+		pf, pErr := parser.ParseFile(ctx.Fset, "", stmtSrc, 0)
+		if pErr != nil {
+			return count, pErr
+		}
+		newStmt := pf.Decls[0].(*ast.FuncDecl).Body.List[0]
+		ss.blk.List = slices.Replace(ss.blk.List, ss.declIdx, ss.declIdx+3, newStmt)
+		parents := parentsByFile[ss.file]
+		for _, ue := range ss.otherAddrExprs {
+			up := parents[ue]
+			replaceExprInParent(up, ue, &ast.Ident{Name: ss.tmpName}, parents)
+		}
+		ctx.MarkFileModified(ss.file)
+		count++
+	}
+
+	if relFn != nil && relRecv != "" && !slabASTContainsIdent(relFn.Body, "slab_GlobalNamespace_Name") {
+		hasSC := hasASTFieldNamed(gnMeta.structAST, "scopeCreator_") || structHasFieldNamed(gnNamed, "scopeCreator_") ||
+			slabASTContainsIdent(relFn.Body, "scopeCreator_")
+		relLines := buildGlobalNamespaceReleaseSlabsLines(ctx, gnMeta.file, gnNamed, relRecv, hasSC)
+		relPF, err := parser.ParseFile(ctx.Fset, "", "package p\nfunc f() {\n"+strings.Join(relLines, "\n")+"\n}\n", 0)
+		if err != nil {
+			return count, err
+		}
+		relFn.Body.List = relPF.Decls[0].(*ast.FuncDecl).Body.List
+		ctx.MarkFileModified(gnMeta.file)
+		if count == 0 {
+			count++
+		}
+	}
+
+	return count, nil
+}
+
+func w45MatchGlobalNamespaceNameCtor(
+	fn *ast.FuncDecl,
+	fnOrig *types.Func,
+	gnNamed, gnNameNamed *types.Named,
+	info *types.Info,
+) (string, bool) {
+	sig, ok := fnOrig.Type().(*types.Signature)
+	if !ok || sig.Recv() != nil || sig.Variadic() || sig.Params() == nil || sig.Params().Len() < 1 ||
+		sig.Results() == nil || sig.Results().Len() != 1 {
+		return "", false
+	}
+	if ptrNamedOrigin(sig.Params().At(0).Type()) != gnNamed || ptrNamedOrigin(sig.Results().At(0).Type()) != gnNameNamed {
+		return "", false
+	}
+	pNames := extractFlatParamNames(fn.Type.Params)
+	if len(pNames) != sig.Params().Len() || pNames[0] == "" || pNames[0] == "_" {
+		return "", false
+	}
+	outerParamName := pNames[0]
+	stmts := fn.Body.List
+	idx := 0
+	for idx < len(stmts) && (isClinitCallStmt(stmts[idx]) || isBlankDiscardStmt(stmts[idx])) {
+		idx++
+	}
+	if idx+3 >= len(stmts) {
+		return "", false
+	}
+	// 0: this_ := &GlobalNamespace_Name{}
+	allocAs, ok := stmts[idx].(*ast.AssignStmt)
+	if !ok || allocAs.Tok != token.DEFINE || len(allocAs.Lhs) != 1 || len(allocAs.Rhs) != 1 {
+		return "", false
+	}
+	thisId, ok := allocAs.Lhs[0].(*ast.Ident)
+	if !ok || thisId.Name == "_" {
+		return "", false
+	}
+	thisVar := varFromObj(info.Defs[thisId])
+	if thisVar == nil || ptrNamedOrigin(thisVar.Type()) != gnNameNamed {
+		return "", false
+	}
+	un, ok := stripParens(allocAs.Rhs[0]).(*ast.UnaryExpr)
+	if !ok || un.Op != token.AND {
+		return "", false
+	}
+	comp, ok := stripParens(un.X).(*ast.CompositeLit)
+	if !ok || len(comp.Elts) != 0 {
+		return "", false
+	}
+	idx++
+	// 1: this_.outer_ = outer_
+	outerAs, ok := stmts[idx].(*ast.AssignStmt)
+	if !ok || outerAs.Tok != token.ASSIGN || len(outerAs.Lhs) != 1 || len(outerAs.Rhs) != 1 ||
+		!w41IsRecvFieldSel(outerAs.Lhs[0], thisId.Name, "outer_") || !isIdentNamed(outerAs.Rhs[0], outerParamName) {
+		return "", false
+	}
+	idx++
+	// 2: InitGlobalNamespace_Name(this_, ...)
+	es, ok := stmts[idx].(*ast.ExprStmt)
+	if !ok {
+		return "", false
+	}
+	call, ok := stripParens(es.X).(*ast.CallExpr)
+	if !ok || len(call.Args) < 1 || !isIdentNamed(call.Fun, "InitGlobalNamespace_Name") || !isIdentNamed(call.Args[0], thisId.Name) {
+		return "", false
+	}
+	idx++
+	// 3: return this_
+	if idx != len(stmts)-1 {
+		return "", false
+	}
+	ret, ok := stmts[idx].(*ast.ReturnStmt)
+	if !ok || len(ret.Results) != 1 || !isIdentNamed(ret.Results[0], thisId.Name) {
+		return "", false
+	}
+	return outerParamName, true
+}
+
+func w45SynthesizeGlobalNamespaceNameHelper(fset *token.FileSet, ctorDecl *ast.FuncDecl, helperName, outerParamName string) (*ast.FuncDecl, error) {
+	cloned, err := cloneFuncDeclFresh(fset, ctorDecl)
+	if err != nil {
+		return nil, err
+	}
+	cloned.Name.Name = helperName
+	for i, stmt := range cloned.Body.List {
+		as, ok := stmt.(*ast.AssignStmt)
+		if !ok || as.Tok != token.DEFINE || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+			continue
+		}
+		thisId, okI := as.Lhs[0].(*ast.Ident)
+		if !okI {
+			continue
+		}
+		if un, okU := stripParens(as.Rhs[0]).(*ast.UnaryExpr); okU && un.Op == token.AND {
+			if _, okC := stripParens(un.X).(*ast.CompositeLit); okC {
+				pf, pErr := parser.ParseFile(fset, "", fmt.Sprintf(
+					"package p\nfunc f() {\nvar %[1]s *GlobalNamespace_Name\nif %[2]s != nil {\n\t%[1]s = %[2]s.slab_GlobalNamespace_Name.Alloc()\n} else {\n\t%[1]s = &GlobalNamespace_Name{}\n}\n}\n",
+					thisId.Name, outerParamName,
+				), 0)
+				if pErr != nil {
+					return nil, pErr
+				}
+				cloned.Body.List = slices.Replace(cloned.Body.List, i, i+1, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+				break
+			}
+		}
+	}
+	return cloned, nil
+}
+
+func w45IsCheckArgumentBoxNodeStmt(st ast.Stmt, j2Qual, nodeIdent string) bool {
+	es, ok := st.(*ast.ExprStmt)
+	if !ok {
+		return false
+	}
+	c, ok := stripParens(es.X).(*ast.CallExpr)
+	if !ok || len(c.Args) != 2 || !w41IsRecvFieldSel(c.Fun, j2Qual, "CheckArgumentMsg") || !isIdentNamed(c.Args[0], "false") {
+		return false
+	}
+	boxC, okB := stripParens(c.Args[1]).(*ast.CallExpr)
+	return okB && len(boxC.Args) == 1 && w41IsRecvFieldSel(boxC.Fun, j2Qual, "BoxNode") && isIdentNamed(boxC.Args[0], nodeIdent)
+}
+
+func w45MatchesStandardInitNameDeclStmtBody(body *ast.BlockStmt, selfName, builderName, declName, j2Qual string) bool {
+	if body == nil {
+		return false
+	}
+	var stmts []ast.Stmt
+	for _, st := range body.List {
+		if !isBlankDiscardStmt(st) {
+			stmts = append(stmts, st)
+		}
+	}
+	if len(stmts) != 5 {
+		return false
+	}
+	// 0: this_.RemoveUnusedCode_RemovableBase.outer_ = this_.outer_
+	as0, ok0 := stmts[0].(*ast.AssignStmt)
+	if !ok0 || as0.Tok != token.ASSIGN || len(as0.Lhs) != 1 || len(as0.Rhs) != 1 {
+		return false
+	}
+	lhs0Sel, ok0S := stripParens(as0.Lhs[0]).(*ast.SelectorExpr)
+	if !ok0S || lhs0Sel.Sel == nil || lhs0Sel.Sel.Name != "outer_" ||
+		!w41IsRecvFieldSel(lhs0Sel.X, selfName, "RemoveUnusedCode_RemovableBase") ||
+		!w41IsRecvFieldSel(as0.Rhs[0], selfName, "outer_") {
+		return false
+	}
+	// 1: InitRemoveUnusedCode_Removable(&this_.RemoveUnusedCode_RemovableBase, declarationStatement.GetOnlyChild(), builder)
+	es1, ok1 := stmts[1].(*ast.ExprStmt)
+	if !ok1 {
+		return false
+	}
+	c1, ok1C := stripParens(es1.X).(*ast.CallExpr)
+	if !ok1C || len(c1.Args) != 3 || !isIdentNamed(c1.Fun, "InitRemoveUnusedCode_Removable") {
+		return false
+	}
+	u1, ok1U := stripParens(c1.Args[0]).(*ast.UnaryExpr)
+	if !ok1U || u1.Op != token.AND || !w41IsRecvFieldSel(u1.X, selfName, "RemoveUnusedCode_RemovableBase") ||
+		!w44IsZeroArgMethodCallOnIdent(c1.Args[1], declName, "GetOnlyChild") ||
+		!isIdentNamed(c1.Args[2], builderName) {
+		return false
+	}
+	// 2: this_.initFields_RemoveUnusedCode_NameDeclarationStatement()
+	es2, ok2 := stmts[2].(*ast.ExprStmt)
+	if !ok2 {
+		return false
+	}
+	c2, ok2C := stripParens(es2.X).(*ast.CallExpr)
+	if !ok2C || len(c2.Args) != 0 || !w41IsRecvFieldSel(c2.Fun, selfName, "initFields_RemoveUnusedCode_NameDeclarationStatement") {
+		return false
+	}
+	// 3: if !(NodeUtil_IsNameDeclaration(declarationStatement)) { j2gort.CheckArgumentMsg(false, j2gort.BoxNode(declarationStatement)) }
+	if3, ok3 := stmts[3].(*ast.IfStmt)
+	if !ok3 || if3.Init != nil || if3.Else != nil || if3.Body == nil || len(if3.Body.List) != 1 {
+		return false
+	}
+	u3, ok3U := stripParens(if3.Cond).(*ast.UnaryExpr)
+	if !ok3U || u3.Op != token.NOT {
+		return false
+	}
+	c3, ok3C := stripParens(u3.X).(*ast.CallExpr)
+	if !ok3C || len(c3.Args) != 1 || !isIdentNamed(c3.Fun, "NodeUtil_IsNameDeclaration") || !isIdentNamed(c3.Args[0], declName) {
+		return false
+	}
+	if !w45IsCheckArgumentBoxNodeStmt(if3.Body.List[0], j2Qual, declName) {
+		return false
+	}
+	// 4: this_.declarationStatement = declarationStatement
+	as4, ok4 := stmts[4].(*ast.AssignStmt)
+	return ok4 && as4.Tok == token.ASSIGN && len(as4.Lhs) == 1 && len(as4.Rhs) == 1 &&
+		w41IsRecvFieldSel(as4.Lhs[0], selfName, "declarationStatement") && isIdentNamed(as4.Rhs[0], declName)
+}
+
+func w45ApplyFastNameDeclarationStatementInitLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+) (int, error) {
+	var rucNamed, rbNamed, remBaseNamed, ndsNamed *types.Named
+	for n := range structByNamed {
+		if n == nil || n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "RemoveUnusedCode":
+			rucNamed = n
+		case "RemoveUnusedCode_RemovableBuilder":
+			rbNamed = n
+		case "RemoveUnusedCode_RemovableBase":
+			remBaseNamed = n
+		case "RemoveUnusedCode_NameDeclarationStatement":
+			ndsNamed = n
+		}
+	}
+	if rucNamed == nil || rbNamed == nil || remBaseNamed == nil || ndsNamed == nil {
+		return 0, nil
+	}
+	rucMeta := structByNamed[rucNamed]
+	ndsMeta := structByNamed[ndsNamed]
+	if rucMeta == nil || ndsMeta == nil || rucMeta.file != ndsMeta.file || !ctx.ShouldTransform(rucMeta.file) {
+		return 0, nil
+	}
+	if !w42StructEmbedsNamed(ndsNamed, remBaseNamed) || !structHasFieldNamed(ndsNamed, "declarationStatement") || !structHasFieldNamed(ndsNamed, "outer_") {
+		return 0, nil
+	}
+	cont0T := structFieldType(remBaseNamed, "continuation0")
+	contZeroExpr := w42ContinuationZeroExpr(cont0T)
+	if contZeroExpr == "" ||
+		!types.Identical(cont0T, structFieldType(rbNamed, "continuation0")) ||
+		!types.Identical(cont0T, structFieldType(remBaseNamed, "continuation1")) ||
+		!types.Identical(cont0T, structFieldType(rbNamed, "continuation1")) ||
+		!structHasFieldNamed(remBaseNamed, "restContinuations") ||
+		!structHasFieldNamed(rbNamed, "restContinuations") ||
+		!types.Identical(structFieldType(remBaseNamed, "propertyName"), types.Typ[types.String]) ||
+		!types.Identical(structFieldType(rbNamed, "propertyName"), types.Typ[types.String]) ||
+		!types.Identical(structFieldType(remBaseNamed, "isPrototypeDotPropertyReference"), types.Typ[types.Bool]) ||
+		!types.Identical(structFieldType(rbNamed, "isPrototypeDotPropertyReference"), types.Typ[types.Bool]) ||
+		!types.Identical(structFieldType(remBaseNamed, "isThisDotPropertyReference"), types.Typ[types.Bool]) ||
+		!types.Identical(structFieldType(rbNamed, "isThisDotPropertyReference"), types.Typ[types.Bool]) {
+		return 0, nil
+	}
+	if !w43InitFieldsOnlyZeroOrNil(ctx, rucMeta.file, "initFields_RemoveUnusedCode_NameDeclarationStatement", nil) {
+		return 0, nil
+	}
+	j2Qual, okQ := ensureJ2gortImportInFile(rucMeta.file, ctx)
+	if !okQ {
+		return 0, nil
+	}
+	initFieldsRemFn, initFieldsRemRecv := findPtrMethodDeclBySyntax(rucMeta.file, "RemoveUnusedCode_RemovableBase", "initFields_RemoveUnusedCode_Removable")
+	if initFieldsRemFn == nil || !w42InitFieldsOnlySetsNullPropertyName(initFieldsRemFn, initFieldsRemRecv, j2Qual) {
+		return 0, nil
+	}
+	var initRemFn, initNDSFn *ast.FuncDecl
+	for _, decl := range rucMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Name == nil || fn.Body == nil {
+			continue
+		}
+		switch fn.Name.Name {
+		case "InitRemoveUnusedCode_Removable":
+			initRemFn = fn
+		case "InitRemoveUnusedCode_NameDeclarationStatement":
+			initNDSFn = fn
+		}
+	}
+	if initRemFn == nil || initNDSFn == nil {
+		return 0, nil
+	}
+	remP := extractFlatParamNames(initRemFn.Type.Params)
+	if len(remP) != 3 || remP[0] == "" || remP[1] == "" || remP[2] == "" ||
+		(!w42MatchesStandardInitRemovableBody(initRemFn.Body, remP[0], remP[1], remP[2]) &&
+			!w44MatchesZeroGuardedInitRemovableBody(initRemFn.Body, remP[0], remP[1], remP[2])) {
+		return 0, nil
+	}
+	ndsP := extractFlatParamNames(initNDSFn.Type.Params)
+	if len(ndsP) != 3 || ndsP[0] == "" || ndsP[1] == "" || ndsP[2] == "" ||
+		!w45MatchesStandardInitNameDeclStmtBody(initNDSFn.Body, ndsP[0], ndsP[1], ndsP[2], j2Qual) {
+		return 0, nil
+	}
+
+	buildFastStmts := func(objName, outerName, builderName, declSrc string) ([]ast.Stmt, error) {
+		src := fmt.Sprintf(`package p
+func f() {
+	%[1]s.RemoveUnusedCode_RemovableBase.outer_ = %[2]s
+	targetNode_ := %[4]s.GetOnlyChild()
+	if %[3]s.continuation0 != %[5]s {
+		%[1]s.continuation0 = %[3]s.continuation0
+		if %[3]s.continuation1 != %[5]s {
+			%[1]s.continuation1 = %[3]s.continuation1
+			if %[3]s.restContinuations != nil {
+				%[1]s.restContinuations = %[3]s.restContinuations
+			}
+		}
+	}
+	%[1]s.propertyName = %[3]s.propertyName
+	if %[3]s.isPrototypeDotPropertyReference {
+		%[1]s.isPrototypeDotPropertyReference = true
+	}
+	if %[3]s.isThisDotPropertyReference {
+		%[1]s.isThisDotPropertyReference = true
+	}
+	%[1]s.targetNode = targetNode_
+	if !(NodeUtil_IsNameDeclaration(%[4]s)) {
+		%[6]s.CheckArgumentMsg(false, %[6]s.BoxNode(%[4]s))
+	}
+	%[1]s.declarationStatement = %[4]s
+}
+`, objName, outerName, builderName, declSrc, contZeroExpr, j2Qual)
+		pf, err := parser.ParseFile(ctx.Fset, "", src, 0)
+		if err != nil {
+			return nil, err
+		}
+		return pf.Decls[0].(*ast.FuncDecl).Body.List, nil
+	}
+
+	count := 0
+	for _, decl := range rucMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name == nil || fn.Body == nil {
+			continue
+		}
+		isBuildNDS := fn.Recv != nil && len(fn.Recv.List) == 1 && len(fn.Recv.List[0].Names) == 1 &&
+			recvStructTypeName(fn.Recv.List[0].Type) == "RemoveUnusedCode_RemovableBuilder" &&
+			fn.Name.Name == "BuildNameDeclarationStatement"
+		isAllocPooledNDS := fn.Recv == nil && fn.Name.Name == "allocPooled_RemoveUnusedCode_NameDeclarationStatement"
+		if !isBuildNDS && !isAllocPooledNDS {
+			continue
+		}
+		stmts := fn.Body.List
+		for i := 0; i < len(stmts); i++ {
+			es, okE := stmts[i].(*ast.ExprStmt)
+			if !okE {
+				continue
+			}
+			call, okC := stripParens(es.X).(*ast.CallExpr)
+			if !okC || len(call.Args) != 3 || !isIdentNamed(call.Fun, "InitRemoveUnusedCode_NameDeclarationStatement") {
+				continue
+			}
+			objId, okObj := stripParens(call.Args[0]).(*ast.Ident)
+			bldId, okBld := stripParens(call.Args[1]).(*ast.Ident)
+			declId, okDecl := stripParens(call.Args[2]).(*ast.Ident)
+			if !okObj || !okBld || !okDecl {
+				continue
+			}
+			outerName := ""
+			sawSlabAlloc := false
+			for j := i - 1; j >= 0; j-- {
+				as, okA := stmts[j].(*ast.AssignStmt)
+				if !okA || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+					continue
+				}
+				if as.Tok == token.ASSIGN && w41IsRecvFieldSel(as.Lhs[0], objId.Name, "outer_") {
+					if rId, okR := stripParens(as.Rhs[0]).(*ast.Ident); okR {
+						outerName = rId.Name
+					}
+				}
+				if as.Tok == token.DEFINE && isIdentNamed(as.Lhs[0], objId.Name) {
+					if ac, okAC := stripParens(as.Rhs[0]).(*ast.CallExpr); okAC && len(ac.Args) == 0 {
+						if sel, okS := stripParens(ac.Fun).(*ast.SelectorExpr); okS && sel.Sel != nil && sel.Sel.Name == "Alloc" {
+							if s2, okS2 := stripParens(sel.X).(*ast.SelectorExpr); okS2 && s2.Sel != nil && s2.Sel.Name == "slab_RemoveUnusedCode_NameDeclarationStatement" {
+								sawSlabAlloc = true
+							}
+						}
+					}
+					break
+				}
+			}
+			if !sawSlabAlloc || outerName == "" {
+				continue
+			}
+			repl, err := buildFastStmts(objId.Name, outerName, bldId.Name, declId.Name)
+			if err != nil {
+				return count, err
+			}
+			fn.Body.List = slices.Replace(fn.Body.List, i, i+1, repl...)
+			ctx.MarkFileModified(rucMeta.file)
+			count++
+			break
+		}
+	}
+
+	return count, nil
 }

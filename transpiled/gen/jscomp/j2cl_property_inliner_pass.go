@@ -83,7 +83,7 @@ func (this_ *J2clPropertyInlinerPass) Process_2(externs pkg_rhino.Node, root pkg
 		var val_1 J2clPropertyInlinerPass_StaticFieldGetterSetterInliner
 		val_1.outer_ = this_
 		InitJ2clPropertyInlinerPass_StaticFieldGetterSetterInliner(&val_1, root)
-		(&val_1).priv_StaticFieldGetterSetterInliner_run_3491()
+		(&val_1).priv_StaticFieldGetterSetterInliner_run_3501()
 	}
 	GatherGetterAndSetterProperties_Update(this_.compiler, externs, root)
 }
@@ -145,18 +145,18 @@ func InitJ2clPropertyInlinerPass_StaticFieldGetterSetterInliner(this_ *J2clPrope
 }
 
 // Java method: StaticFieldGetterSetterInliner.run()
-func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) priv_StaticFieldGetterSetterInliner_run_3491() {
+func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) priv_StaticFieldGetterSetterInliner_run_3501() {
 	var gatherer *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters = NewJ2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters(this_)
 	_ = gatherer
 	NodeTraversal_Traverse(this_.outer_.compiler, this_.root, gatherer)
-	var result j2gort.Ext_java_util_Map = gatherer.priv_GatherJ2CLClassGetterSetters_getResults_3497()
+	var result j2gort.Ext_java_util_Map = gatherer.priv_GatherJ2CLClassGetterSetters_getResults_3507()
 	_ = result
 	NodeTraversal_Traverse(this_.outer_.compiler, this_.root, NewJ2clPropertyInlinerPass_StaticFieldGetterSetterInliner_DetermineInlinableProperties(result))
-	NewJ2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlinePropertiesPass(this_, result).priv_InlinePropertiesPass_run_3500()
+	NewJ2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlinePropertiesPass(this_, result).priv_InlinePropertiesPass_run_3510()
 }
 
 // Java method: StaticFieldGetterSetterInliner.matchesJ2clGetKeySignature(java.lang.String className, com.google.javascript.rhino.Node getKey)
-func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) priv_StaticFieldGetterSetterInliner_matchesJ2clGetKeySignature_3492(className string, getKey pkg_rhino.Node) bool {
+func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) priv_StaticFieldGetterSetterInliner_matchesJ2clGetKeySignature_3502(className string, getKey pkg_rhino.Node) bool {
 	_ = className
 	_ = getKey
 	if !(getKey.GetFirstChild().IsFunction()) {
@@ -211,7 +211,7 @@ func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) priv_Static
 }
 
 // Java method: StaticFieldGetterSetterInliner.matchesJ2clSetKeySignature(java.lang.String className, com.google.javascript.rhino.Node setKey)
-func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) priv_StaticFieldGetterSetterInliner_matchesJ2clSetKeySignature_3493(className string, setKey pkg_rhino.Node) bool {
+func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner) priv_StaticFieldGetterSetterInliner_matchesJ2clSetKeySignature_3503(className string, setKey pkg_rhino.Node) bool {
 	_ = className
 	_ = setKey
 	if !(setKey.GetFirstChild().IsFunction()) {
@@ -593,7 +593,7 @@ func InitJ2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassG
 }
 
 // Java method: GatherJ2CLClassGetterSetters.getResults()
-func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters) priv_GatherJ2CLClassGetterSetters_getResults_3497() j2gort.Ext_java_util_Map {
+func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLClassGetterSetters) priv_GatherJ2CLClassGetterSetters_getResults_3507() j2gort.Ext_java_util_Map {
 	return this_.j2clPropertiesByName
 }
 
@@ -643,12 +643,12 @@ func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLCl
 					}
 					switch j2gort.CheckNotNullString(innerKey.GetString()) {
 					case "get":
-						if this_.outer_.priv_StaticFieldGetterSetterInliner_matchesJ2clGetKeySignature_3492(classNameString, innerKey) {
+						if this_.outer_.priv_StaticFieldGetterSetterInliner_matchesJ2clGetKeySignature_3502(classNameString, innerKey) {
 							getKey = innerKey
 						}
 					case "set":
 						hasSetter = true
-						if this_.outer_.priv_StaticFieldGetterSetterInliner_matchesJ2clSetKeySignature_3493(classNameString, innerKey) {
+						if this_.outer_.priv_StaticFieldGetterSetterInliner_matchesJ2clSetKeySignature_3503(classNameString, innerKey) {
 							setKey = innerKey
 						}
 					default:
@@ -699,7 +699,7 @@ func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_GatherJ2CLCl
 			_ = getterDef
 			var setterDef pkg_rhino.Node = setterDefByName.Get(propertyName)
 			_ = setterDef
-			if this_.outer_.priv_StaticFieldGetterSetterInliner_matchesJ2clGetKeySignature_3492(className, getterDef) && ((setterDef == 0) || this_.outer_.priv_StaticFieldGetterSetterInliner_matchesJ2clSetKeySignature_3493(className, setterDef)) {
+			if this_.outer_.priv_StaticFieldGetterSetterInliner_matchesJ2clGetKeySignature_3502(className, getterDef) && ((setterDef == 0) || this_.outer_.priv_StaticFieldGetterSetterInliner_matchesJ2clSetKeySignature_3503(className, setterDef)) {
 				j2gort.MapPutStr(this_.j2clPropertiesByName, (j2gort.StrValString(className) + "." + j2gort.StrValString(propertyName)), NewJ2clPropertyInlinerPass_StaticFieldGetterSetterInliner_J2clPropertyEs6(this_.outer_, getterDef, setterDef))
 			}
 		}
@@ -840,7 +840,7 @@ func InitJ2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlineProperties
 }
 
 // Java method: InlinePropertiesPass.run()
-func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlinePropertiesPass) priv_InlinePropertiesPass_run_3500() {
+func (this_ *J2clPropertyInlinerPass_StaticFieldGetterSetterInliner_InlinePropertiesPass) priv_InlinePropertiesPass_run_3510() {
 	NodeTraversal_Traverse(this_.outer_.outer_.compiler, this_.outer_.root, this_)
 	{
 		cur_5 := j2gort.NewMapValCursor(this_.propertiesByName)

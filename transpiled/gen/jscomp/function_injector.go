@@ -240,7 +240,7 @@ func (this_ *FunctionInjector) CanInlineReferenceToFunction(ref FunctionInjector
 	base_ref_ := ref.GetFunctionInjector_ReferenceBase()
 	var callNode pkg_rhino.Node = base_ref_.callNode
 	_ = callNode
-	if !(this_.priv_FunctionInjector_isSupportedCallType_2927(callNode, fnNode)) {
+	if !(this_.priv_FunctionInjector_isSupportedCallType_2937(callNode, fnNode)) {
 		return StaticGet_FunctionInjector_CanInlineResult_NO()
 	}
 	if FunctionInjector_HasSpreadCallArgument(callNode) {
@@ -257,14 +257,14 @@ func (this_ *FunctionInjector) CanInlineReferenceToFunction(ref FunctionInjector
 		return StaticGet_FunctionInjector_CanInlineResult_NO()
 	}
 	if base_ref_.mode == StaticGet_FunctionInjector_InliningMode_DIRECT() {
-		return this_.priv_FunctionInjector_canInlineReferenceDirectly_2940(ref, fnNode, needAliases)
+		return this_.priv_FunctionInjector_canInlineReferenceDirectly_2950(ref, fnNode, needAliases)
 	} else {
-		return this_.priv_FunctionInjector_canInlineReferenceAsStatementBlock_2936(ref, fnNode, needAliases)
+		return this_.priv_FunctionInjector_canInlineReferenceAsStatementBlock_2946(ref, fnNode, needAliases)
 	}
 }
 
 // Java method: FunctionInjector.isSupportedCallType(com.google.javascript.rhino.Node callNode, com.google.javascript.rhino.Node fnNode)
-func (this_ *FunctionInjector) priv_FunctionInjector_isSupportedCallType_2927(callNode pkg_rhino.Node, fnNode pkg_rhino.Node) bool {
+func (this_ *FunctionInjector) priv_FunctionInjector_isSupportedCallType_2937(callNode pkg_rhino.Node, fnNode pkg_rhino.Node) bool {
 	_ = callNode
 	_ = fnNode
 	if !(callNode.GetFirstChild().IsName()) {
@@ -310,7 +310,7 @@ func (this_ *FunctionInjector) Inline(ref FunctionInjector_Reference, fnName str
 	if !(this_.compiler.GetLifeCycleStage().IsNormalized()) {
 		j2gort.CheckState(false)
 	}
-	return this_.priv_FunctionInjector_internalInline_2930(ref, fnName, fnNode)
+	return this_.priv_FunctionInjector_internalInline_2940(ref, fnName, fnNode)
 }
 
 // Java method: FunctionInjector.unsafeInline(com.google.javascript.jscomp.FunctionInjector.Reference ref, java.lang.String fnName, com.google.javascript.rhino.Node fnNode)
@@ -318,27 +318,27 @@ func (this_ *FunctionInjector) UnsafeInline(ref FunctionInjector_Reference, fnNa
 	_ = ref
 	_ = fnName
 	_ = fnNode
-	return this_.priv_FunctionInjector_internalInline_2930(ref, fnName, fnNode)
+	return this_.priv_FunctionInjector_internalInline_2940(ref, fnName, fnNode)
 }
 
 // Java method: FunctionInjector.internalInline(com.google.javascript.jscomp.FunctionInjector.Reference ref, java.lang.String fnName, com.google.javascript.rhino.Node fnNode)
-func (this_ *FunctionInjector) priv_FunctionInjector_internalInline_2930(ref FunctionInjector_Reference, fnName string, fnNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *FunctionInjector) priv_FunctionInjector_internalInline_2940(ref FunctionInjector_Reference, fnName string, fnNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = ref
 	_ = fnName
 	_ = fnNode
 	var result pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = result
 	if ref.GetFunctionInjector_ReferenceBase().mode == StaticGet_FunctionInjector_InliningMode_DIRECT() {
-		result = this_.priv_FunctionInjector_inlineReturnValue_2931(ref, fnNode)
+		result = this_.priv_FunctionInjector_inlineReturnValue_2941(ref, fnNode)
 	} else {
-		result = this_.priv_FunctionInjector_inlineFunction_2935(ref, fnNode, fnName)
+		result = this_.priv_FunctionInjector_inlineFunction_2945(ref, fnNode, fnName)
 	}
 	this_.compiler.ReportChangeToEnclosingScope(result)
 	return result
 }
 
 // Java method: FunctionInjector.inlineReturnValue(com.google.javascript.jscomp.FunctionInjector.Reference ref, com.google.javascript.rhino.Node fnNode)
-func (this_ *FunctionInjector) priv_FunctionInjector_inlineReturnValue_2931(ref FunctionInjector_Reference, fnNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *FunctionInjector) priv_FunctionInjector_inlineReturnValue_2941(ref FunctionInjector_Reference, fnNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = ref
 	_ = fnNode
 	var callNode pkg_rhino.Node = ref.GetFunctionInjector_ReferenceBase().callNode
@@ -390,7 +390,7 @@ func (this_ *FunctionInjector) priv_FunctionInjector_inlineReturnValue_2931(ref 
 }
 
 // Java method: FunctionInjector.classifyCallSite(com.google.javascript.jscomp.FunctionInjector.Reference ref)
-func (this_ *FunctionInjector) priv_FunctionInjector_classifyCallSite_2932(ref FunctionInjector_Reference) *FunctionInjector_CallSiteType {
+func (this_ *FunctionInjector) priv_FunctionInjector_classifyCallSite_2942(ref FunctionInjector_Reference) *FunctionInjector_CallSiteType {
 	_ = ref
 	base_ref_ := ref.GetFunctionInjector_ReferenceBase()
 	var callNode pkg_rhino.Node = base_ref_.callNode
@@ -406,7 +406,7 @@ func (this_ *FunctionInjector) priv_FunctionInjector_classifyCallSite_2932(ref F
 	} else if ((parent.IsName() && !(NodeUtil_IsConstantName(parent))) && grandParent.IsVar()) && grandParent.HasOneChild() {
 		return StaticGet_FunctionInjector_CallSiteType_VAR_DECL_SIMPLE_ASSIGNMENT()
 	} else {
-		var decomposer *ExpressionDecomposer = this_.priv_FunctionInjector_getDecomposer_2933(base_ref_.scope)
+		var decomposer *ExpressionDecomposer = this_.priv_FunctionInjector_getDecomposer_2943(base_ref_.scope)
 		_ = decomposer
 		switch (decomposer.CanExposeExpression(callNode)).Ordinal() {
 		case int32(1) /* DecompositionType.MOVABLE */ :
@@ -420,7 +420,7 @@ func (this_ *FunctionInjector) priv_FunctionInjector_classifyCallSite_2932(ref F
 }
 
 // Java method: FunctionInjector.getDecomposer(com.google.javascript.jscomp.Scope scope)
-func (this_ *FunctionInjector) priv_FunctionInjector_getDecomposer_2933(scope *Scope) *ExpressionDecomposer {
+func (this_ *FunctionInjector) priv_FunctionInjector_getDecomposer_2943(scope *Scope) *ExpressionDecomposer {
 	_ = scope
 	var decomposer *ExpressionDecomposer = this_.reusableDecomposer
 	_ = decomposer
@@ -436,13 +436,13 @@ func (this_ *FunctionInjector) priv_FunctionInjector_getDecomposer_2933(scope *S
 // Java method: FunctionInjector.maybePrepareCall(com.google.javascript.jscomp.FunctionInjector.Reference ref)
 func (this_ *FunctionInjector) MaybePrepareCall(ref FunctionInjector_Reference) {
 	_ = ref
-	var callSiteType *FunctionInjector_CallSiteType = this_.priv_FunctionInjector_classifyCallSite_2932(ref)
+	var callSiteType *FunctionInjector_CallSiteType = this_.priv_FunctionInjector_classifyCallSite_2942(ref)
 	_ = callSiteType
 	callSiteType.Prepare(this_, ref)
 }
 
 // Java method: FunctionInjector.inlineFunction(com.google.javascript.jscomp.FunctionInjector.Reference ref, com.google.javascript.rhino.Node fnNode, java.lang.String fnName)
-func (this_ *FunctionInjector) priv_FunctionInjector_inlineFunction_2935(ref FunctionInjector_Reference, fnNode pkg_rhino.Node, fnName string) pkg_rhino.Node {
+func (this_ *FunctionInjector) priv_FunctionInjector_inlineFunction_2945(ref FunctionInjector_Reference, fnNode pkg_rhino.Node, fnName string) pkg_rhino.Node {
 	_ = ref
 	_ = fnNode
 	_ = fnName
@@ -453,7 +453,7 @@ func (this_ *FunctionInjector) priv_FunctionInjector_inlineFunction_2935(ref Fun
 	_ = parent
 	var grandParent pkg_rhino.Node = parent.GetParent()
 	_ = grandParent
-	var callSiteType *FunctionInjector_CallSiteType = this_.priv_FunctionInjector_classifyCallSite_2932(ref)
+	var callSiteType *FunctionInjector_CallSiteType = this_.priv_FunctionInjector_classifyCallSite_2942(ref)
 	_ = callSiteType
 	if !(callSiteType != StaticGet_FunctionInjector_CallSiteType_UNSUPPORTED()) {
 		j2gort.CheckArgument(false)
@@ -550,11 +550,11 @@ func FunctionInjector_IsDirectCallNodeReplacementPossible(fnNode pkg_rhino.Node)
 }
 
 // Java method: FunctionInjector.canInlineReferenceAsStatementBlock(com.google.javascript.jscomp.FunctionInjector.Reference ref, com.google.javascript.rhino.Node fnNode, com.google.common.collect.ImmutableSet<java.lang.String> namesToAlias)
-func (this_ *FunctionInjector) priv_FunctionInjector_canInlineReferenceAsStatementBlock_2936(ref FunctionInjector_Reference, fnNode pkg_rhino.Node, namesToAlias j2gort.Ext_com_google_common_collect_ImmutableSet) FunctionInjector_CanInlineResult {
+func (this_ *FunctionInjector) priv_FunctionInjector_canInlineReferenceAsStatementBlock_2946(ref FunctionInjector_Reference, fnNode pkg_rhino.Node, namesToAlias j2gort.Ext_com_google_common_collect_ImmutableSet) FunctionInjector_CanInlineResult {
 	_ = ref
 	_ = fnNode
 	_ = namesToAlias
-	var callSiteType *FunctionInjector_CallSiteType = this_.priv_FunctionInjector_classifyCallSite_2932(ref)
+	var callSiteType *FunctionInjector_CallSiteType = this_.priv_FunctionInjector_classifyCallSite_2942(ref)
 	_ = callSiteType
 	if callSiteType == StaticGet_FunctionInjector_CallSiteType_UNSUPPORTED() {
 		return StaticGet_FunctionInjector_CanInlineResult_NO()
@@ -562,7 +562,7 @@ func (this_ *FunctionInjector) priv_FunctionInjector_canInlineReferenceAsStateme
 	if !(this_.allowDecomposition) && ((callSiteType == StaticGet_FunctionInjector_CallSiteType_DECOMPOSABLE_EXPRESSION()) || (callSiteType == StaticGet_FunctionInjector_CallSiteType_EXPRESSION())) {
 		return StaticGet_FunctionInjector_CanInlineResult_NO()
 	}
-	if !(this_.priv_FunctionInjector_callMeetsBlockInliningRequirements_2939(ref, fnNode, namesToAlias)) {
+	if !(this_.priv_FunctionInjector_callMeetsBlockInliningRequirements_2949(ref, fnNode, namesToAlias)) {
 		return StaticGet_FunctionInjector_CanInlineResult_NO()
 	}
 	if (callSiteType == StaticGet_FunctionInjector_CallSiteType_DECOMPOSABLE_EXPRESSION()) || (callSiteType == StaticGet_FunctionInjector_CallSiteType_EXPRESSION()) {
@@ -592,7 +592,7 @@ func FunctionInjector_ContainsShallowEval(n pkg_rhino.Node) bool {
 }
 
 // Java method: FunctionInjector.scanInnerFunctions(com.google.javascript.rhino.Node n)
-func (this_ *FunctionInjector) priv_FunctionInjector_scanInnerFunctions_2937(n pkg_rhino.Node) {
+func (this_ *FunctionInjector) priv_FunctionInjector_scanInnerFunctions_2947(n pkg_rhino.Node) {
 	_ = n
 	{
 		var c pkg_rhino.Node = n.GetFirstChild()
@@ -607,7 +607,7 @@ func (this_ *FunctionInjector) priv_FunctionInjector_scanInnerFunctions_2937(n p
 					return
 				}
 			}
-			this_.priv_FunctionInjector_scanInnerFunctions_2937(c)
+			this_.priv_FunctionInjector_scanInnerFunctions_2947(c)
 			if this_.foundInnerFnCount > int32(1) {
 				return
 			}
@@ -616,7 +616,7 @@ func (this_ *FunctionInjector) priv_FunctionInjector_scanInnerFunctions_2937(n p
 }
 
 // Java method: FunctionInjector.getCallerFnState(com.google.javascript.rhino.Node callerFn)
-func (this_ *FunctionInjector) priv_FunctionInjector_getCallerFnState_2938(callerFn pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *FunctionInjector) priv_FunctionInjector_getCallerFnState_2948(callerFn pkg_rhino.Node) pkg_rhino.Node {
 	_ = callerFn
 	if !(callerFn.IsFunction()) {
 		j2gort.CheckState(false)
@@ -631,7 +631,7 @@ func (this_ *FunctionInjector) priv_FunctionInjector_getCallerFnState_2938(calle
 	} else {
 		this_.foundInnerFn = pkg_rhino.Node(0)
 		this_.foundInnerFnCount = int32(0)
-		this_.priv_FunctionInjector_scanInnerFunctions_2937(callerFn)
+		this_.priv_FunctionInjector_scanInnerFunctions_2947(callerFn)
 	iifeSwitch_1:
 		switch {
 		default:
@@ -661,7 +661,7 @@ func (this_ *FunctionInjector) priv_FunctionInjector_getCallerFnState_2938(calle
 }
 
 // Java method: FunctionInjector.callMeetsBlockInliningRequirements(com.google.javascript.jscomp.FunctionInjector.Reference callRef, com.google.javascript.rhino.Node calleeFn, com.google.common.collect.ImmutableSet<java.lang.String> namesToAlias)
-func (this_ *FunctionInjector) priv_FunctionInjector_callMeetsBlockInliningRequirements_2939(callRef FunctionInjector_Reference, calleeFn pkg_rhino.Node, namesToAlias j2gort.Ext_com_google_common_collect_ImmutableSet) bool {
+func (this_ *FunctionInjector) priv_FunctionInjector_callMeetsBlockInliningRequirements_2949(callRef FunctionInjector_Reference, calleeFn pkg_rhino.Node, namesToAlias j2gort.Ext_com_google_common_collect_ImmutableSet) bool {
 	_ = callRef
 	_ = calleeFn
 	_ = namesToAlias
@@ -672,7 +672,7 @@ func (this_ *FunctionInjector) priv_FunctionInjector_callMeetsBlockInliningRequi
 	if !(j2gort.CastPtr[Scope](callRef.GetFunctionInjector_ReferenceBase().scope.GetClosestHoistScope()).IsGlobal()) {
 		var callerFn pkg_rhino.Node = j2gort.CastPtr[Scope](callRef.GetFunctionInjector_ReferenceBase().scope.GetClosestHoistScope()).GetRootNode_0().GetParent()
 		_ = callerFn
-		var callerState pkg_rhino.Node = this_.priv_FunctionInjector_getCallerFnState_2938(callerFn)
+		var callerState pkg_rhino.Node = this_.priv_FunctionInjector_getCallerFnState_2948(callerFn)
 		_ = callerState
 		forbidTemps = ((callerState == StaticGet_FunctionInjector_REFERENCES_EVAL()) || !((callerState == StaticGet_FunctionInjector_NO_FUNCTIONS()) || (callerState == calleeFn)))
 	}
@@ -713,7 +713,7 @@ func (this_ *FunctionInjector) priv_FunctionInjector_callMeetsBlockInliningRequi
 }
 
 // Java method: FunctionInjector.canInlineReferenceDirectly(com.google.javascript.jscomp.FunctionInjector.Reference ref, com.google.javascript.rhino.Node fnNode, com.google.common.collect.ImmutableSet<java.lang.String> namesToAlias)
-func (this_ *FunctionInjector) priv_FunctionInjector_canInlineReferenceDirectly_2940(ref FunctionInjector_Reference, fnNode pkg_rhino.Node, namesToAlias j2gort.Ext_com_google_common_collect_ImmutableSet) FunctionInjector_CanInlineResult {
+func (this_ *FunctionInjector) priv_FunctionInjector_canInlineReferenceDirectly_2950(ref FunctionInjector_Reference, fnNode pkg_rhino.Node, namesToAlias j2gort.Ext_com_google_common_collect_ImmutableSet) FunctionInjector_CanInlineResult {
 	_ = ref
 	_ = fnNode
 	_ = namesToAlias
@@ -805,7 +805,7 @@ func (this_ *FunctionInjector) InliningLowersCost(fnChunk *JSChunk, fnNode pkg_r
 	}
 	var referencesUsingDirectInlining int32 = (referenceCount - referencesUsingBlockInlining)
 	_ = referencesUsingDirectInlining
-	return this_.priv_FunctionInjector_inliningLowersCostForCounts_2943(fnNode, referenceCount, referencesUsingDirectInlining, referencesUsingBlockInlining, namesToAlias, isRemovable, referencesThis)
+	return this_.priv_FunctionInjector_inliningLowersCostForCounts_2953(fnNode, referenceCount, referencesUsingDirectInlining, referencesUsingBlockInlining, namesToAlias, isRemovable, referencesThis)
 }
 
 // Java method: FunctionInjector.inliningLowersCostInline(com.google.javascript.jscomp.JSChunk fnChunk, com.google.javascript.rhino.Node fnNode, com.google.javascript.jscomp.FunctionInjector.@org.jspecify.annotations.Nullable Reference ref0, com.google.javascript.jscomp.FunctionInjector.@org.jspecify.annotations.Nullable Reference ref1, java.util.Set<java.lang.String> namesToAlias, boolean isRemovable, boolean referencesThis)
@@ -847,11 +847,11 @@ func (this_ *FunctionInjector) InliningLowersCostInline(fnChunk *JSChunk, fnNode
 	}
 	var referencesUsingDirectInlining int32 = (referenceCount - referencesUsingBlockInlining)
 	_ = referencesUsingDirectInlining
-	return this_.priv_FunctionInjector_inliningLowersCostForCounts_2943(fnNode, referenceCount, referencesUsingDirectInlining, referencesUsingBlockInlining, namesToAlias, isRemovable, referencesThis)
+	return this_.priv_FunctionInjector_inliningLowersCostForCounts_2953(fnNode, referenceCount, referencesUsingDirectInlining, referencesUsingBlockInlining, namesToAlias, isRemovable, referencesThis)
 }
 
 // Java method: FunctionInjector.inliningLowersCostForCounts(com.google.javascript.rhino.Node fnNode, int referenceCount, int referencesUsingDirectInlining, int referencesUsingBlockInlining, java.util.Set<java.lang.String> namesToAlias, boolean isRemovable, boolean referencesThis)
-func (this_ *FunctionInjector) priv_FunctionInjector_inliningLowersCostForCounts_2943(fnNode pkg_rhino.Node, referenceCount int32, referencesUsingDirectInlining int32, referencesUsingBlockInlining int32, namesToAlias j2gort.Ext_java_util_Set, isRemovable bool, referencesThis bool) bool {
+func (this_ *FunctionInjector) priv_FunctionInjector_inliningLowersCostForCounts_2953(fnNode pkg_rhino.Node, referenceCount int32, referencesUsingDirectInlining int32, referencesUsingBlockInlining int32, namesToAlias j2gort.Ext_java_util_Set, isRemovable bool, referencesThis bool) bool {
 	_ = fnNode
 	_ = referenceCount
 	_ = referencesUsingDirectInlining
@@ -1395,8 +1395,8 @@ func clinitSlow_FunctionInjector_CallSiteType() {
 		base_ref_ := ref.GetFunctionInjector_ReferenceBase()
 		var callNode pkg_rhino.Node = base_ref_.callNode
 		_ = callNode
-		injector.priv_FunctionInjector_getDecomposer_2933(base_ref_.scope).MoveExpression(callNode)
-		var callSiteType *FunctionInjector_CallSiteType = injector.priv_FunctionInjector_classifyCallSite_2932(ref)
+		injector.priv_FunctionInjector_getDecomposer_2943(base_ref_.scope).MoveExpression(callNode)
+		var callSiteType *FunctionInjector_CallSiteType = injector.priv_FunctionInjector_classifyCallSite_2942(ref)
 		_ = callSiteType
 		if !(this_ != callSiteType) {
 			j2gort.CheckState(false)
@@ -1411,8 +1411,8 @@ func clinitSlow_FunctionInjector_CallSiteType() {
 		base_ref_ := ref.GetFunctionInjector_ReferenceBase()
 		var callNode pkg_rhino.Node = base_ref_.callNode
 		_ = callNode
-		injector.priv_FunctionInjector_getDecomposer_2933(base_ref_.scope).MaybeExposeExpression(callNode)
-		var callSiteType *FunctionInjector_CallSiteType = injector.priv_FunctionInjector_classifyCallSite_2932(ref)
+		injector.priv_FunctionInjector_getDecomposer_2943(base_ref_.scope).MaybeExposeExpression(callNode)
+		var callSiteType *FunctionInjector_CallSiteType = injector.priv_FunctionInjector_classifyCallSite_2942(ref)
 		_ = callSiteType
 		if !(this_ != callSiteType) {
 			j2gort.CheckState(false)

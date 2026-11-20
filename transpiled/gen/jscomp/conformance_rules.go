@@ -918,7 +918,7 @@ func (this_ *ConformanceRules_AbstractRuleBase) CheckConformance_2(t *NodeTraver
 }
 
 // Java method: AbstractRule.findAllowListForPath(java.lang.String path)
-func (this_ *ConformanceRules_AbstractRuleBase) priv_AbstractRule_findAllowListForPath_2140(path string) *ConformanceRules_AllowList {
+func (this_ *ConformanceRules_AbstractRuleBase) priv_AbstractRule_findAllowListForPath_2141(path string) *ConformanceRules_AllowList {
 	_ = path
 	var pathRegex j2gort.Ext_com_google_common_base_Optional = this_.compiler.GetOptions().GetConformanceRemoveRegexFromPath()
 	_ = pathRegex
@@ -980,7 +980,7 @@ func (this_ *ConformanceRules_AbstractRuleBase) Report_3(n pkg_rhino.Node, resul
 	var allowlist *ConformanceRules_AllowList
 	_ = allowlist
 	if path != j2gort.NullString {
-		allowlist = this_.priv_AbstractRule_findAllowListForPath_2140(path)
+		allowlist = this_.priv_AbstractRule_findAllowListForPath_2141(path)
 	} else {
 		allowlist = nil
 	}
@@ -1727,12 +1727,12 @@ func (this_ *ConformanceRules_BannedProperty) GetPrecondition() CheckConformance
 func (this_ *ConformanceRules_BannedProperty) CheckConformance_2(t *NodeTraversal, n pkg_rhino.Node) *ConformanceRules_ConformanceResult {
 	_ = t
 	_ = n
-	var checkTypes j2gort.Ext_com_google_common_collect_ImmutableSet = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](j2gort.MultimapGetStr(this_.props, this_.priv_BannedProperty_extractName_2151(n)))
+	var checkTypes j2gort.Ext_com_google_common_collect_ImmutableSet = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](j2gort.MultimapGetStr(this_.props, this_.priv_BannedProperty_extractName_2152(n)))
 	_ = checkTypes
 	if checkTypes.IsEmpty() {
 		return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 	}
-	var foundType pkg_rhino.JSType = this_.priv_BannedProperty_extractType_2150(n)
+	var foundType pkg_rhino.JSType = this_.priv_BannedProperty_extractType_2151(n)
 	_ = foundType
 	if foundType == nil || foundType.IsJavaNil_() {
 		return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
@@ -1744,7 +1744,7 @@ func (this_ *ConformanceRules_BannedProperty) CheckConformance_2(t *NodeTraversa
 			rawElem_25 := cur_24.Next()
 			checkType := j2gort.AsIface[pkg_rhino.JSType](rawElem_25)
 			_ = checkType
-			var result *ConformanceRules_ConformanceResult = this_.priv_BannedProperty_matchTypes_2148(foundType, checkType)
+			var result *ConformanceRules_ConformanceResult = this_.priv_BannedProperty_matchTypes_2149(foundType, checkType)
 			_ = result
 			if result.level != StaticGet_ConformanceRules_ConformanceLevel_CONFORMANCE() {
 				return result
@@ -1755,7 +1755,7 @@ func (this_ *ConformanceRules_BannedProperty) CheckConformance_2(t *NodeTraversa
 }
 
 // Java method: BannedProperty.matchTypes(com.google.javascript.rhino.jstype.JSType foundType, com.google.javascript.rhino.jstype.JSType checkType)
-func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_matchTypes_2148(foundType pkg_rhino.JSType, checkType pkg_rhino.JSType) *ConformanceRules_ConformanceResult {
+func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_matchTypes_2149(foundType pkg_rhino.JSType, checkType pkg_rhino.JSType) *ConformanceRules_ConformanceResult {
 	_ = foundType
 	_ = checkType
 	var foundObj pkg_rhino.ObjectType = foundType.GetJSTypeBase().ToMaybeObjectType()
@@ -1778,7 +1778,7 @@ func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_matchTypes_214
 	} else if foundType.GetJSTypeBase().IsSubtypeOf_1(checkType) {
 		return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
 	} else if checkType.GetJSTypeBase().IsSubtypeWithoutStructuralTyping(foundType) {
-		if this_.priv_BannedProperty_matchesPrototype_2149(checkType, foundType) {
+		if this_.priv_BannedProperty_matchesPrototype_2150(checkType, foundType) {
 			return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
 		} else if this_.GetConformanceRules_AbstractRuleBase().reportLooseTypeViolations {
 			return StaticGet_ConformanceRules_ConformanceResult_POSSIBLE_VIOLATION_DUE_TO_LOOSE_TYPES()
@@ -1788,7 +1788,7 @@ func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_matchTypes_214
 }
 
 // Java method: BannedProperty.matchesPrototype(com.google.javascript.rhino.jstype.JSType type, com.google.javascript.rhino.jstype.JSType maybePrototype)
-func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_matchesPrototype_2149(type_ pkg_rhino.JSType, maybePrototype pkg_rhino.JSType) bool {
+func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_matchesPrototype_2150(type_ pkg_rhino.JSType, maybePrototype pkg_rhino.JSType) bool {
 	_ = type_
 	_ = maybePrototype
 	var methodClassObjectType pkg_rhino.ObjectType = type_.GetJSTypeBase().ToMaybeObjectType()
@@ -1802,7 +1802,7 @@ func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_matchesPrototy
 }
 
 // Java method: BannedProperty.extractType(com.google.javascript.rhino.Node n)
-func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_extractType_2150(n pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_extractType_2151(n pkg_rhino.Node) pkg_rhino.JSType {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(27) /* Token.GETELEM */, int32(26) /* Token.GETPROP */ :
@@ -1830,7 +1830,7 @@ func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_extractType_21
 }
 
 // Java method: BannedProperty.extractName(com.google.javascript.rhino.Node n)
-func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_extractName_2151(n pkg_rhino.Node) string {
+func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_extractName_2152(n pkg_rhino.Node) string {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(26) /* Token.GETPROP */, int32(100) /* Token.STRING_KEY */ :
@@ -2683,10 +2683,10 @@ func (this_ *ConformanceRules_RestrictedMethodCall) CheckConformance_2(t *NodeTr
 			_ = r
 			var result *ConformanceRules_ConformanceResult = StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 			_ = result
-			if this_.priv_RestrictedMethodCall_matchesProp_2153(n, r) {
-				result = this_.priv_RestrictedMethodCall_checkConformance_2152(t, n, r, false)
-			} else if (j2gort.CheckNotNullString(n.GetString()) == "call") && this_.priv_RestrictedMethodCall_matchesProp_2153(n.GetFirstChild(), r) {
-				result = this_.priv_RestrictedMethodCall_checkConformance_2152(t, n, r, true)
+			if this_.priv_RestrictedMethodCall_matchesProp_2154(n, r) {
+				result = this_.priv_RestrictedMethodCall_checkConformance_2153(t, n, r, false)
+			} else if (j2gort.CheckNotNullString(n.GetString()) == "call") && this_.priv_RestrictedMethodCall_matchesProp_2154(n.GetFirstChild(), r) {
+				result = this_.priv_RestrictedMethodCall_checkConformance_2153(t, n, r, true)
 			}
 			if result.level != StaticGet_ConformanceRules_ConformanceLevel_CONFORMANCE() {
 				return result
@@ -2697,7 +2697,7 @@ func (this_ *ConformanceRules_RestrictedMethodCall) CheckConformance_2(t *NodeTr
 }
 
 // Java method: RestrictedMethodCall.checkConformance(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.ConformanceRules.RestrictedMethodCall.Restriction r, boolean isCallInvocation)
-func (this_ *ConformanceRules_RestrictedMethodCall) priv_RestrictedMethodCall_checkConformance_2152(t *NodeTraversal, n pkg_rhino.Node, r *ConformanceRules_RestrictedMethodCall_Restriction, isCallInvocation bool) *ConformanceRules_ConformanceResult {
+func (this_ *ConformanceRules_RestrictedMethodCall) priv_RestrictedMethodCall_checkConformance_2153(t *NodeTraversal, n pkg_rhino.Node, r *ConformanceRules_RestrictedMethodCall_Restriction, isCallInvocation bool) *ConformanceRules_ConformanceResult {
 	_ = t
 	_ = n
 	_ = r
@@ -2730,7 +2730,7 @@ func (this_ *ConformanceRules_RestrictedMethodCall) priv_RestrictedMethodCall_ch
 }
 
 // Java method: RestrictedMethodCall.matchesProp(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.ConformanceRules.RestrictedMethodCall.Restriction r)
-func (this_ *ConformanceRules_RestrictedMethodCall) priv_RestrictedMethodCall_matchesProp_2153(n pkg_rhino.Node, r *ConformanceRules_RestrictedMethodCall_Restriction) bool {
+func (this_ *ConformanceRules_RestrictedMethodCall) priv_RestrictedMethodCall_matchesProp_2154(n pkg_rhino.Node, r *ConformanceRules_RestrictedMethodCall_Restriction) bool {
 	_ = n
 	_ = r
 	return (n.IsGetProp() && func() bool {
@@ -3151,7 +3151,7 @@ func InitConformanceRules_CustomRuleProxy(this_ *ConformanceRules_CustomRuleProx
 	if !(requirement.HasJavaClass()) {
 		panic(NewCheckConformance_InvalidRequirementSpec_1("missing java_class"))
 	}
-	this_.customRule = this_.priv_CustomRuleProxy_createRule_2154(compiler, requirement)
+	this_.customRule = this_.priv_CustomRuleProxy_createRule_2155(compiler, requirement)
 }
 
 // Java method: CustomRuleProxy.getPrecondition()
@@ -3168,7 +3168,7 @@ func (this_ *ConformanceRules_CustomRuleProxy) Check(t *NodeTraversal, n pkg_rhi
 }
 
 // Java method: CustomRuleProxy.createRule(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.Requirement requirement)
-func (this_ *ConformanceRules_CustomRuleProxy) priv_CustomRuleProxy_createRule_2154(compiler AbstractCompiler, requirement *j2gort.Ext_com_google_javascript_jscomp_Requirement) CheckConformance_Rule {
+func (this_ *ConformanceRules_CustomRuleProxy) priv_CustomRuleProxy_createRule_2155(compiler AbstractCompiler, requirement *j2gort.Ext_com_google_javascript_jscomp_Requirement) CheckConformance_Rule {
 	_ = compiler
 	_ = requirement
 	var factory ConformanceRules_CustomRuleProxy_CustomRuleFactory = j2gort.AsIface[ConformanceRules_CustomRuleProxy_CustomRuleFactory](j2gort.MapGetStr(StaticGet_ConformanceRules_CustomRuleProxy_CUSTOM_RULE_REGISTRY(), requirement.GetJavaClass()))
@@ -3495,11 +3495,11 @@ func (this_ *ConformanceRules_BanNullDeref) CheckConformance_2(t *NodeTraversal,
 // Java method: BanNullDeref.report(com.google.javascript.rhino.Node n)
 func (this_ *ConformanceRules_BanNullDeref) Report_1(n pkg_rhino.Node) bool {
 	_ = n
-	return (((!(j2gort.IfaceEquals[pkg_rhino.JSType](n.GetJSType(), nil)) && ConformanceRules_AbstractTypeRestrictionRule_IsKnown(n)) && this_.priv_BanNullDeref_invalidDeref_2157(n)) && !(this_.IsAllowlistedType(n)))
+	return (((!(j2gort.IfaceEquals[pkg_rhino.JSType](n.GetJSType(), nil)) && ConformanceRules_AbstractTypeRestrictionRule_IsKnown(n)) && this_.priv_BanNullDeref_invalidDeref_2158(n)) && !(this_.IsAllowlistedType(n)))
 }
 
 // Java method: BanNullDeref.invalidDeref(com.google.javascript.rhino.Node n)
-func (this_ *ConformanceRules_BanNullDeref) priv_BanNullDeref_invalidDeref_2157(n pkg_rhino.Node) bool {
+func (this_ *ConformanceRules_BanNullDeref) priv_BanNullDeref_invalidDeref_2158(n pkg_rhino.Node) bool {
 	_ = n
 	var type_ pkg_rhino.JSType = n.GetJSType()
 	_ = type_
@@ -3727,7 +3727,7 @@ func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) TsIsAllowlist
 func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) CheckConformance_2(t *NodeTraversal, getprop pkg_rhino.Node) *ConformanceRules_ConformanceResult {
 	_ = t
 	_ = getprop
-	if (((((getprop.IsGetProp() && ConformanceRules_AbstractTypeRestrictionRule_IsUnknown(getprop)) && this_.IsUsed(getprop)) && !(this_.IsTypeImmediatelyTightened(getprop))) && this_.priv_BanUnknownTypedClassPropsReferences_isCheckablePropertySource_2158(getprop.GetFirstChild())) && !(ConformanceRules_AbstractTypeRestrictionRule_IsTemplateType(getprop))) && !(this_.priv_BanUnknownTypedClassPropsReferences_isDeclaredUnknown_2160(getprop)) {
+	if (((((getprop.IsGetProp() && ConformanceRules_AbstractTypeRestrictionRule_IsUnknown(getprop)) && this_.IsUsed(getprop)) && !(this_.IsTypeImmediatelyTightened(getprop))) && this_.priv_BanUnknownTypedClassPropsReferences_isCheckablePropertySource_2159(getprop.GetFirstChild())) && !(ConformanceRules_AbstractTypeRestrictionRule_IsTemplateType(getprop))) && !(this_.priv_BanUnknownTypedClassPropsReferences_isDeclaredUnknown_2161(getprop)) {
 		var propName string = getprop.GetString()
 		_ = propName
 		var typeName string = getprop.GetFirstChild().GetJSType().GetJSTypeBase().String()
@@ -3738,13 +3738,13 @@ func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) CheckConforma
 }
 
 // Java method: BanUnknownTypedClassPropsReferences.isCheckablePropertySource(com.google.javascript.rhino.Node n)
-func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) priv_BanUnknownTypedClassPropsReferences_isCheckablePropertySource_2158(n pkg_rhino.Node) bool {
+func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) priv_BanUnknownTypedClassPropsReferences_isCheckablePropertySource_2159(n pkg_rhino.Node) bool {
 	_ = n
-	return ((((ConformanceRules_AbstractTypeRestrictionRule_IsKnown(n) && !(ConformanceRules_AbstractTypeRestrictionRule_IsTop(n))) && this_.priv_BanUnknownTypedClassPropsReferences_isClassType_2159(n)) && !(this_.IsNativeObjectType(n))) && !(this_.IsAllowlistedType(n)))
+	return ((((ConformanceRules_AbstractTypeRestrictionRule_IsKnown(n) && !(ConformanceRules_AbstractTypeRestrictionRule_IsTop(n))) && this_.priv_BanUnknownTypedClassPropsReferences_isClassType_2160(n)) && !(this_.IsNativeObjectType(n))) && !(this_.IsAllowlistedType(n)))
 }
 
 // Java method: BanUnknownTypedClassPropsReferences.isClassType(com.google.javascript.rhino.Node n)
-func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) priv_BanUnknownTypedClassPropsReferences_isClassType_2159(n pkg_rhino.Node) bool {
+func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) priv_BanUnknownTypedClassPropsReferences_isClassType_2160(n pkg_rhino.Node) bool {
 	_ = n
 	var type_ pkg_rhino.ObjectType = n.GetJSType().RestrictByNotNullOrUndefined().GetJSTypeBase().ToMaybeObjectType()
 	_ = type_
@@ -3764,7 +3764,7 @@ func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) priv_BanUnkno
 }
 
 // Java method: BanUnknownTypedClassPropsReferences.isDeclaredUnknown(com.google.javascript.rhino.Node n)
-func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) priv_BanUnknownTypedClassPropsReferences_isDeclaredUnknown_2160(n pkg_rhino.Node) bool {
+func (this_ *ConformanceRules_BanUnknownTypedClassPropsReferences) priv_BanUnknownTypedClassPropsReferences_isDeclaredUnknown_2161(n pkg_rhino.Node) bool {
 	_ = n
 	var target pkg_rhino.Node = n.GetFirstChild()
 	_ = target
@@ -4018,7 +4018,7 @@ func InitConformanceRules_BanGlobalVars(this_ *ConformanceRules_BanGlobalVars, c
 func (this_ *ConformanceRules_BanGlobalVars) CheckConformance_2(t *NodeTraversal, n pkg_rhino.Node) *ConformanceRules_ConformanceResult {
 	_ = t
 	_ = n
-	if ((t.InGlobalScope() && NodeUtil_IsDeclaration(n)) && !(n.GetBooleanProp(pkg_rhino.StaticGet_Node_IS_NAMESPACE()))) && !(this_.priv_BanGlobalVars_isAllowlisted_2161(n)) {
+	if ((t.InGlobalScope() && NodeUtil_IsDeclaration(n)) && !(n.GetBooleanProp(pkg_rhino.StaticGet_Node_IS_NAMESPACE()))) && !(this_.priv_BanGlobalVars_isAllowlisted_2162(n)) {
 		var enclosingScript pkg_rhino.Node = NodeUtil_GetEnclosingScript(n)
 		_ = enclosingScript
 		if (enclosingScript != 0) && ((enclosingScript.GetBooleanProp(pkg_rhino.StaticGet_Node_GOOG_MODULE()) || enclosingScript.GetBooleanProp(pkg_rhino.StaticGet_Node_ES6_MODULE())) || enclosingScript.GetInputId().Equals(j2gort.PtrToAny(this_.GetConformanceRules_AbstractRuleBase().compiler.GetSyntheticCodeInputId()))) {
@@ -4030,13 +4030,13 @@ func (this_ *ConformanceRules_BanGlobalVars) CheckConformance_2(t *NodeTraversal
 }
 
 // Java method: BanGlobalVars.isAllowlisted(com.google.javascript.rhino.Node n)
-func (this_ *ConformanceRules_BanGlobalVars) priv_BanGlobalVars_isAllowlisted_2161(n pkg_rhino.Node) bool {
+func (this_ *ConformanceRules_BanGlobalVars) priv_BanGlobalVars_isAllowlisted_2162(n pkg_rhino.Node) bool {
 	_ = n
 	if n.IsFromExterns() {
 		return true
 	}
 	if n.IsFunction() {
-		return this_.priv_BanGlobalVars_isAllowlistedName_2162(n.GetFirstChild().GetString())
+		return this_.priv_BanGlobalVars_isAllowlistedName_2163(n.GetFirstChild().GetString())
 	}
 	if NodeUtil_IsNameDeclaration(n) {
 		var allowlisted []bool = []bool{true}
@@ -4044,7 +4044,7 @@ func (this_ *ConformanceRules_BanGlobalVars) priv_BanGlobalVars_isAllowlisted_21
 		NodeUtil_VisitLhsNodesInNode(n, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_39 any) {
 			name := j2gort.CastNode[pkg_rhino.Node](lp_39)
 			_ = name
-			if !(this_.priv_BanGlobalVars_isAllowlistedName_2162(name.GetString())) {
+			if !(this_.priv_BanGlobalVars_isAllowlistedName_2163(name.GetString())) {
 				{
 					a_40 := allowlisted
 					i_41 := int32(0)
@@ -4058,7 +4058,7 @@ func (this_ *ConformanceRules_BanGlobalVars) priv_BanGlobalVars_isAllowlisted_21
 }
 
 // Java method: BanGlobalVars.isAllowlistedName(java.lang.String name)
-func (this_ *ConformanceRules_BanGlobalVars) priv_BanGlobalVars_isAllowlistedName_2162(name string) bool {
+func (this_ *ConformanceRules_BanGlobalVars) priv_BanGlobalVars_isAllowlistedName_2163(name string) bool {
 	_ = name
 	if j2gort.SetContainsStr(this_.allowlistedNames, name) {
 		return true
@@ -4291,14 +4291,14 @@ func (this_ *ConformanceRules_BanCreateElement) CheckConformance_2(t *NodeTraver
 		var tag pkg_rhino.Node = n.GetSecondChild()
 		_ = tag
 		if ((tag != 0) && tag.IsStringLit()) && this_.bannedTags.Contains(j2gort.Ext_com_google_common_base_Ascii_ToLowerCase_1_string(tag.GetString())) {
-			return this_.priv_BanCreateElement_checkCreateElement_2163(n)
+			return this_.priv_BanCreateElement_checkCreateElement_2164(n)
 		}
 	}
 	return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 }
 
 // Java method: BanCreateElement.checkCreateElement(com.google.javascript.rhino.Node n)
-func (this_ *ConformanceRules_BanCreateElement) priv_BanCreateElement_checkCreateElement_2163(n pkg_rhino.Node) *ConformanceRules_ConformanceResult {
+func (this_ *ConformanceRules_BanCreateElement) priv_BanCreateElement_checkCreateElement_2164(n pkg_rhino.Node) *ConformanceRules_ConformanceResult {
 	_ = n
 	var target pkg_rhino.Node = n.GetFirstChild()
 	_ = target
@@ -4437,13 +4437,13 @@ func InitConformanceRules_BanCreateDom(this_ *ConformanceRules_BanCreateDom, com
 func (this_ *ConformanceRules_BanCreateDom) CheckConformance_2(t *NodeTraversal, n pkg_rhino.Node) *ConformanceRules_ConformanceResult {
 	_ = t
 	_ = n
-	if !(this_.priv_BanCreateDom_isCreateDomCall_2165(n)) {
+	if !(this_.priv_BanCreateDom_isCreateDomCall_2166(n)) {
 		return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 	}
 	if n.GetChildCount() < int32(3) {
 		return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 	}
-	var tagNames j2gort.Ext_com_google_common_collect_ImmutableCollection = this_.priv_BanCreateDom_getTagNames_2164(n.GetSecondChild())
+	var tagNames j2gort.Ext_com_google_common_collect_ImmutableCollection = this_.priv_BanCreateDom_getTagNames_2165(n.GetSecondChild())
 	_ = tagNames
 	var attrs pkg_rhino.Node = n.GetChildAtIndex(int32(2))
 	_ = attrs
@@ -4518,7 +4518,7 @@ func (this_ *ConformanceRules_BanCreateDom) CheckConformance_2(t *NodeTraversal,
 }
 
 // Java method: BanCreateDom.getTagNames(com.google.javascript.rhino.Node tag)
-func (this_ *ConformanceRules_BanCreateDom) priv_BanCreateDom_getTagNames_2164(tag pkg_rhino.Node) j2gort.Ext_com_google_common_collect_ImmutableCollection {
+func (this_ *ConformanceRules_BanCreateDom) priv_BanCreateDom_getTagNames_2165(tag pkg_rhino.Node) j2gort.Ext_com_google_common_collect_ImmutableCollection {
 	_ = tag
 	if tag.IsStringLit() {
 		return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](j2gort.ImmSetOfStr1(javalang.StringToLowerCaseASCII(tag.GetString())))
@@ -4541,7 +4541,7 @@ func (this_ *ConformanceRules_BanCreateDom) priv_BanCreateDom_getTagNames_2164(t
 }
 
 // Java method: BanCreateDom.isCreateDomCall(com.google.javascript.rhino.Node n)
-func (this_ *ConformanceRules_BanCreateDom) priv_BanCreateDom_isCreateDomCall_2165(n pkg_rhino.Node) bool {
+func (this_ *ConformanceRules_BanCreateDom) priv_BanCreateDom_isCreateDomCall_2166(n pkg_rhino.Node) bool {
 	_ = n
 	if !(n.IsCall()) {
 		return false
@@ -4858,18 +4858,18 @@ func (this_ *ConformanceRules_BanElementSetAttribute) CheckConformance_2(travers
 	_ = traversal
 	_ = node
 	if node.IsCall() {
-		return this_.priv_BanElementSetAttribute_checkConformanceOnPropertyCall_2170(traversal, node)
+		return this_.priv_BanElementSetAttribute_checkConformanceOnPropertyCall_2171(traversal, node)
 	} else if node.IsGetElem() && NodeUtil_IsLValue(node) {
-		return this_.priv_BanElementSetAttribute_checkConformanceOnGetElement_2172(traversal, node)
+		return this_.priv_BanElementSetAttribute_checkConformanceOnGetElement_2173(traversal, node)
 	}
 	return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 }
 
 // Java method: BanElementSetAttribute.checkConformanceOnPropertyCall(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node callNode)
-func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribute_checkConformanceOnPropertyCall_2170(traversal *NodeTraversal, callNode pkg_rhino.Node) *ConformanceRules_ConformanceResult {
+func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribute_checkConformanceOnPropertyCall_2171(traversal *NodeTraversal, callNode pkg_rhino.Node) *ConformanceRules_ConformanceResult {
 	_ = traversal
 	_ = callNode
-	var calledProperty j2gort.Ext_com_google_common_base_Optional = this_.priv_BanElementSetAttribute_getBannedPropertyName_2171(callNode)
+	var calledProperty j2gort.Ext_com_google_common_base_Optional = this_.priv_BanElementSetAttribute_getBannedPropertyName_2172(callNode)
 	_ = calledProperty
 	if !(calledProperty.IsPresent()) {
 		return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
@@ -4918,7 +4918,7 @@ func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribut
 }
 
 // Java method: BanElementSetAttribute.getBannedPropertyName(com.google.javascript.rhino.Node callNode)
-func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribute_getBannedPropertyName_2171(callNode pkg_rhino.Node) j2gort.Ext_com_google_common_base_Optional {
+func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribute_getBannedPropertyName_2172(callNode pkg_rhino.Node) j2gort.Ext_com_google_common_base_Optional {
 	_ = callNode
 	var target pkg_rhino.Node = callNode.GetFirstChild()
 	_ = target
@@ -4942,7 +4942,7 @@ func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribut
 }
 
 // Java method: BanElementSetAttribute.checkConformanceOnGetElement(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node getElementNode)
-func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribute_checkConformanceOnGetElement_2172(traversal *NodeTraversal, getElementNode pkg_rhino.Node) *ConformanceRules_ConformanceResult {
+func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribute_checkConformanceOnGetElement_2173(traversal *NodeTraversal, getElementNode pkg_rhino.Node) *ConformanceRules_ConformanceResult {
 	_ = traversal
 	_ = getElementNode
 	var key pkg_rhino.Node = getElementNode.GetSecondChild()
@@ -4954,7 +4954,7 @@ func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribut
 	_ = keyName
 	if keyName != j2gort.NullString {
 		if this_.securitySensitiveAttributes.Contains(javalang.StringToLowerCaseASCII(keyName)) || (this_.GetConformanceRules_AbstractRuleBase().requirement.GetReportLooseTypeViolations() && ((j2gort.CheckNotNullString(keyName) == "innerHTML") || (j2gort.CheckNotNullString(keyName) == "outerHTML"))) {
-			if this_.priv_BanElementSetAttribute_hasElementType_2173(getElementNode) {
+			if this_.priv_BanElementSetAttribute_hasElementType_2174(getElementNode) {
 				return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
 			}
 		}
@@ -4969,7 +4969,7 @@ func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribut
 		return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 	}
 	base_keyType_ := keyType.GetJSTypeBase()
-	if this_.priv_BanElementSetAttribute_hasElementType_2173(getElementNode) {
+	if this_.priv_BanElementSetAttribute_hasElementType_2174(getElementNode) {
 		if base_keyType_.IsString() {
 			return StaticGet_ConformanceRules_ConformanceResult_VIOLATION()
 		} else if base_keyType_.IsUnionType() {
@@ -4992,7 +4992,7 @@ func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribut
 }
 
 // Java method: BanElementSetAttribute.hasElementType(com.google.javascript.rhino.Node getElementNode)
-func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribute_hasElementType_2173(getElementNode pkg_rhino.Node) bool {
+func (this_ *ConformanceRules_BanElementSetAttribute) priv_BanElementSetAttribute_hasElementType_2174(getElementNode pkg_rhino.Node) bool {
 	_ = getElementNode
 	var objType pkg_rhino.JSType = getElementNode.GetFirstChild().GetJSType()
 	_ = objType
@@ -5112,16 +5112,16 @@ func (this_ *ConformanceRules_BanSettingAttributes) CheckConformance_2(traversal
 	_ = traversal
 	_ = node
 	if node.IsCall() {
-		return this_.priv_BanSettingAttributes_checkConformanceOnPropertyCall_2174(traversal, node)
+		return this_.priv_BanSettingAttributes_checkConformanceOnPropertyCall_2175(traversal, node)
 	}
 	return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 }
 
 // Java method: BanSettingAttributes.checkConformanceOnPropertyCall(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node node)
-func (this_ *ConformanceRules_BanSettingAttributes) priv_BanSettingAttributes_checkConformanceOnPropertyCall_2174(traversal *NodeTraversal, node pkg_rhino.Node) *ConformanceRules_ConformanceResult {
+func (this_ *ConformanceRules_BanSettingAttributes) priv_BanSettingAttributes_checkConformanceOnPropertyCall_2175(traversal *NodeTraversal, node pkg_rhino.Node) *ConformanceRules_ConformanceResult {
 	_ = traversal
 	_ = node
-	var calledProperty j2gort.Ext_com_google_common_base_Optional = this_.priv_BanSettingAttributes_getBannedPropertyName_2175(node)
+	var calledProperty j2gort.Ext_com_google_common_base_Optional = this_.priv_BanSettingAttributes_getBannedPropertyName_2176(node)
 	_ = calledProperty
 	if !(calledProperty.IsPresent()) {
 		return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
@@ -5133,7 +5133,7 @@ func (this_ *ConformanceRules_BanSettingAttributes) priv_BanSettingAttributes_ch
 }
 
 // Java method: BanSettingAttributes.getBannedPropertyName(com.google.javascript.rhino.Node node)
-func (this_ *ConformanceRules_BanSettingAttributes) priv_BanSettingAttributes_getBannedPropertyName_2175(node pkg_rhino.Node) j2gort.Ext_com_google_common_base_Optional {
+func (this_ *ConformanceRules_BanSettingAttributes) priv_BanSettingAttributes_getBannedPropertyName_2176(node pkg_rhino.Node) j2gort.Ext_com_google_common_base_Optional {
 	_ = node
 	var target pkg_rhino.Node = node.GetFirstChild()
 	_ = target
@@ -5274,7 +5274,7 @@ func InitConformanceRules_BanExecCommand(this_ *ConformanceRules_BanExecCommand,
 func (this_ *ConformanceRules_BanExecCommand) CheckConformance_2(traversal *NodeTraversal, node pkg_rhino.Node) *ConformanceRules_ConformanceResult {
 	_ = traversal
 	_ = node
-	if !(this_.priv_BanExecCommand_isBannedProperty_2176(node)) {
+	if !(this_.priv_BanExecCommand_isBannedProperty_2177(node)) {
 		return StaticGet_ConformanceRules_ConformanceResult_CONFORMANCE()
 	}
 	if node.GetChildCount() < int32(2) {
@@ -5294,7 +5294,7 @@ func (this_ *ConformanceRules_BanExecCommand) CheckConformance_2(traversal *Node
 }
 
 // Java method: BanExecCommand.isBannedProperty(com.google.javascript.rhino.Node node)
-func (this_ *ConformanceRules_BanExecCommand) priv_BanExecCommand_isBannedProperty_2176(node pkg_rhino.Node) bool {
+func (this_ *ConformanceRules_BanExecCommand) priv_BanExecCommand_isBannedProperty_2177(node pkg_rhino.Node) bool {
 	_ = node
 	if !(node.IsCall()) {
 		return false

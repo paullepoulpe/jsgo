@@ -96,8 +96,8 @@ func (this_ *ChangeTracker) GetRecentChange() *RecentChange {
 // Java method: ChangeTracker.reportChangeToEnclosingScope(com.google.javascript.rhino.Node n)
 func (this_ *ChangeTracker) ReportChangeToEnclosingScope(n pkg_rhino.Node) {
 	_ = n
-	this_.priv_ChangeTracker_recordChange_973(this_.priv_ChangeTracker_getChangeScopeForNode_972(n))
-	this_.priv_ChangeTracker_notifyChangeHandlers_971()
+	this_.priv_ChangeTracker_recordChange_974(this_.priv_ChangeTracker_getChangeScopeForNode_973(n))
+	this_.priv_ChangeTracker_notifyChangeHandlers_972()
 }
 
 // Java method: ChangeTracker.reportChangeToChangeScope(com.google.javascript.rhino.Node changeScopeRoot)
@@ -106,8 +106,8 @@ func (this_ *ChangeTracker) ReportChangeToChangeScope(changeScopeRoot pkg_rhino.
 	if !(changeScopeRoot.IsScript() || changeScopeRoot.IsFunction()) {
 		j2gort.CheckState(false)
 	}
-	this_.priv_ChangeTracker_recordChange_973(changeScopeRoot)
-	this_.priv_ChangeTracker_notifyChangeHandlers_971()
+	this_.priv_ChangeTracker_recordChange_974(changeScopeRoot)
+	this_.priv_ChangeTracker_notifyChangeHandlers_972()
 }
 
 // Java method: ChangeTracker.markNewScopesChanged(com.google.javascript.rhino.Node node)
@@ -175,7 +175,7 @@ func ChangeTracker_GetEnclosingChangeScopeRoot(n pkg_rhino.Node) pkg_rhino.Node 
 }
 
 // Java method: ChangeTracker.notifyChangeHandlers()
-func (this_ *ChangeTracker) priv_ChangeTracker_notifyChangeHandlers_971() {
+func (this_ *ChangeTracker) priv_ChangeTracker_notifyChangeHandlers_972() {
 	{
 		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.codeChangeHandlers))
 		for cur_1.HasNext() {
@@ -188,7 +188,7 @@ func (this_ *ChangeTracker) priv_ChangeTracker_notifyChangeHandlers_971() {
 }
 
 // Java method: ChangeTracker.getChangeScopeForNode(com.google.javascript.rhino.Node n)
-func (this_ *ChangeTracker) priv_ChangeTracker_getChangeScopeForNode_972(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ChangeTracker) priv_ChangeTracker_getChangeScopeForNode_973(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if n.IsScript() {
 		return n
@@ -202,7 +202,7 @@ func (this_ *ChangeTracker) priv_ChangeTracker_getChangeScopeForNode_972(n pkg_r
 }
 
 // Java method: ChangeTracker.recordChange(com.google.javascript.rhino.Node n)
-func (this_ *ChangeTracker) priv_ChangeTracker_recordChange_973(n pkg_rhino.Node) {
+func (this_ *ChangeTracker) priv_ChangeTracker_recordChange_974(n pkg_rhino.Node) {
 	_ = n
 	if n.IsDeleted() {
 		return

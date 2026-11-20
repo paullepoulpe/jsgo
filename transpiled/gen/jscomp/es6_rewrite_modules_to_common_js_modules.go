@@ -321,19 +321,19 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) Visit_3(t *NodeTravers
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(116) /* Token.IMPORT */ :
-		this_.priv_Rewriter_visitImport_2766(t.GetInput().GetPath(), n)
+		this_.priv_Rewriter_visitImport_2776(t.GetInput().GetPath(), n)
 	case int32(120) /* Token.EXPORT */ :
-		this_.priv_Rewriter_visitExport_2774(t, n, parent)
+		this_.priv_Rewriter_visitExport_2784(t, n, parent)
 	case int32(94) /* Token.SCRIPT */ :
-		this_.priv_Rewriter_visitScript_2761(t, n)
+		this_.priv_Rewriter_visitScript_2771(t, n)
 	case int32(32) /* Token.NAME */ :
-		this_.priv_Rewriter_maybeRenameImportedValue_2760(t, n)
+		this_.priv_Rewriter_maybeRenameImportedValue_2770(t, n)
 	default:
 	}
 }
 
 // Java method: Rewriter.getVarNameOfImport(com.google.javascript.rhino.Node importDecl)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_getVarNameOfImport_2756(importDecl pkg_rhino.Node) string {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_getVarNameOfImport_2766(importDecl pkg_rhino.Node) string {
 	_ = importDecl
 	if !(importDecl.IsImport()) {
 		j2gort.CheckState(false)
@@ -341,24 +341,24 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_getVarNa
 	if importDecl.GetSecondChild().IsImportStar() {
 		return importDecl.GetSecondChild().GetString()
 	}
-	return this_.priv_Rewriter_getVarNameOfImport_2757(importDecl.GetLastChild().GetString())
+	return this_.priv_Rewriter_getVarNameOfImport_2767(importDecl.GetLastChild().GetString())
 }
 
 // Java method: Rewriter.getVarNameOfImport(java.lang.String importRequest)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_getVarNameOfImport_2757(importRequest string) string {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_getVarNameOfImport_2767(importRequest string) string {
 	_ = importRequest
 	return this_.modulePath.ResolveModuleAsPath(importRequest).ToModuleName()
 }
 
 // Java method: Rewriter.getNameOfImportedValue(com.google.javascript.rhino.Node nameNode)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_getNameOfImportedValue_2758(nameNode pkg_rhino.Node) string {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_getNameOfImportedValue_2768(nameNode pkg_rhino.Node) string {
 	_ = nameNode
 	var importDecl pkg_rhino.Node = nameNode
 	_ = importDecl
 	for !(importDecl.IsImport()) {
 		importDecl = importDecl.GetParent()
 	}
-	var moduleName string = this_.priv_Rewriter_getVarNameOfImport_2756(importDecl)
+	var moduleName string = this_.priv_Rewriter_getVarNameOfImport_2766(importDecl)
 	_ = moduleName
 	if nameNode.GetParent().IsImportSpec() {
 		return (j2gort.StrValString(moduleName) + "." + j2gort.StrValString(nameNode.GetParent().GetFirstChild().GetString()))
@@ -373,7 +373,7 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_getNameO
 }
 
 // Java method: Rewriter.maybeGetNameOfImportedValue(com.google.javascript.jscomp.Scope s, com.google.javascript.rhino.Node nameNode)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_maybeGetNameOfImportedValue_2759(s *Scope, nameNode pkg_rhino.Node) string {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_maybeGetNameOfImportedValue_2769(s *Scope, nameNode pkg_rhino.Node) string {
 	_ = s
 	_ = nameNode
 	if !(nameNode.IsName()) {
@@ -382,13 +382,13 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_maybeGet
 	var var_ *Var = j2gort.CastPtr[Var](s.GetVar(nameNode.GetString()))
 	_ = var_
 	if (((var_ != nil) && (var_.GetNameNode() != 0)) && NodeUtil_IsImportedName(var_.GetNameNode())) && (nameNode != var_.GetNameNode()) {
-		return this_.priv_Rewriter_getNameOfImportedValue_2758(var_.GetNameNode())
+		return this_.priv_Rewriter_getNameOfImportedValue_2768(var_.GetNameNode())
 	}
 	return j2gort.NullString
 }
 
 // Java method: Rewriter.maybeRenameImportedValue(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_maybeRenameImportedValue_2760(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_maybeRenameImportedValue_2770(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if !(n.IsName()) {
@@ -399,7 +399,7 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_maybeRen
 	if ((parent.IsExport() || parent.IsExportSpec()) || parent.IsImport()) || parent.IsImportSpec() {
 		return
 	}
-	var qName string = this_.priv_Rewriter_maybeGetNameOfImportedValue_2759(t.GetScope(), n)
+	var qName string = this_.priv_Rewriter_maybeGetNameOfImportedValue_2769(t.GetScope(), n)
 	_ = qName
 	if qName != j2gort.NullString {
 		n.ReplaceWith(NodeUtil_NewQName_2_AbstractCompiler_string(this_.compiler, qName))
@@ -408,7 +408,7 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_maybeRen
 }
 
 // Java method: Rewriter.visitScript(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node script)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitScript_2761(t *NodeTraversal, script pkg_rhino.Node) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitScript_2771(t *NodeTraversal, script pkg_rhino.Node) {
 	_ = t
 	_ = script
 	if !(this_.script == script) {
@@ -421,13 +421,13 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitScr
 	}
 	moduleNode.Detach()
 	script.AddChildrenToFront(moduleNode.RemoveChildren())
-	this_.priv_Rewriter_addRequireCalls_2762()
-	this_.priv_Rewriter_addExportDef_2764()
-	this_.priv_Rewriter_registerAndLoadModule_2763(t)
+	this_.priv_Rewriter_addRequireCalls_2772()
+	this_.priv_Rewriter_addExportDef_2774()
+	this_.priv_Rewriter_registerAndLoadModule_2773(t)
 }
 
 // Java method: Rewriter.addRequireCalls()
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_addRequireCalls_2762() {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_addRequireCalls_2772() {
 	if !(this_.importRequests.IsEmpty()) {
 		{
 			cur_1 := this_.imports.Iter()
@@ -469,7 +469,7 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_addRequi
 }
 
 // Java method: Rewriter.registerAndLoadModule(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_registerAndLoadModule_2763(t *NodeTraversal) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_registerAndLoadModule_2773(t *NodeTraversal) {
 	_ = t
 	var block pkg_rhino.Node = pkg_rhino.IR_Block_0()
 	_ = block
@@ -497,14 +497,14 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_register
 }
 
 // Java method: Rewriter.addExportDef()
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_addExportDef_2764() {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_addExportDef_2774() {
 	if !(this_.exportedNameToLocalQName.IsEmpty()) {
 		var definePropertiesLit pkg_rhino.Node = pkg_rhino.IR_Objectlit([]pkg_rhino.Node{})
 		_ = definePropertiesLit
 		{
 			cur_6 := j2gort.NewMapEntryCursor(this_.exportedNameToLocalQName)
 			for cur_6.NextEntry() {
-				this_.priv_Rewriter_addExport_2765(definePropertiesLit, cur_6.KeyStr(), j2gort.CastPtr[Es6RewriteModulesToCommonJsModules_LocalQName](cur_6.GetValue()))
+				this_.priv_Rewriter_addExport_2775(definePropertiesLit, cur_6.KeyStr(), j2gort.CastPtr[Es6RewriteModulesToCommonJsModules_LocalQName](cur_6.GetValue()))
 			}
 		}
 		this_.script.AddChildToFront(pkg_rhino.IR_ExprResult(pkg_rhino.IR_Call(NodeUtil_NewQName_2_AbstractCompiler_string(this_.compiler, "Object.defineProperties"), []pkg_rhino.Node{pkg_rhino.IR_Name("$$exports"), definePropertiesLit})).SrcrefTreeIfMissing(this_.script))
@@ -512,7 +512,7 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_addExpor
 }
 
 // Java method: Rewriter.addExport(com.google.javascript.rhino.Node definePropertiesLit, java.lang.String exportedName, com.google.javascript.jscomp.Es6RewriteModulesToCommonJsModules.LocalQName localQName)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_addExport_2765(definePropertiesLit pkg_rhino.Node, exportedName string, localQName *Es6RewriteModulesToCommonJsModules_LocalQName) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_addExport_2775(definePropertiesLit pkg_rhino.Node, exportedName string, localQName *Es6RewriteModulesToCommonJsModules_LocalQName) {
 	_ = definePropertiesLit
 	_ = exportedName
 	_ = localQName
@@ -528,18 +528,18 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_addExpor
 }
 
 // Java method: Rewriter.visitImport(com.google.javascript.jscomp.deps.ModuleLoader.ModulePath path, com.google.javascript.rhino.Node importDecl)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitImport_2766(path *ModuleLoader_ModulePath, importDecl pkg_rhino.Node) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitImport_2776(path *ModuleLoader_ModulePath, importDecl pkg_rhino.Node) {
 	_ = path
 	_ = importDecl
 	if j2gort.JStrIndexOf(importDecl.GetLastChild().GetString(), "://") >= 0 {
 		this_.compiler.Report_1(JSError_Make_3(importDecl, StaticGet_TranspilationUtil_CANNOT_CONVERT(), []string{"Module requests with protocols."}))
 	}
-	this_.importRequests.Add(Es6RewriteModulesToCommonJsModules_ModuleRequest_Create(Es6RewriteModulesToCommonJsModules_NormalizePath(path.ResolveModuleAsPath(importDecl.GetLastChild().GetString()).String()), this_.priv_Rewriter_getVarNameOfImport_2756(importDecl)))
+	this_.importRequests.Add(Es6RewriteModulesToCommonJsModules_ModuleRequest_Create(Es6RewriteModulesToCommonJsModules_NormalizePath(path.ResolveModuleAsPath(importDecl.GetLastChild().GetString()).String()), this_.priv_Rewriter_getVarNameOfImport_2766(importDecl)))
 	this_.imports.Add(importDecl)
 }
 
 // Java method: Rewriter.visitExportDefault(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExportDefault_2767(t *NodeTraversal, export pkg_rhino.Node) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExportDefault_2777(t *NodeTraversal, export pkg_rhino.Node) {
 	_ = t
 	_ = export
 	var child pkg_rhino.Node = export.GetFirstChild()
@@ -565,7 +565,7 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExp
 }
 
 // Java method: Rewriter.visitExportFrom(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export, com.google.javascript.rhino.Node parent)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExportFrom_2768(t *NodeTraversal, export pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExportFrom_2778(t *NodeTraversal, export pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = export
 	_ = parent
@@ -576,7 +576,7 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExp
 	importNode.Srcref(export)
 	importNode.InsertBefore(export)
 	this_.Visit_3(t, importNode, parent)
-	var moduleName string = this_.priv_Rewriter_getVarNameOfImport_2757(moduleIdentifier.GetString())
+	var moduleName string = this_.priv_Rewriter_getVarNameOfImport_2767(moduleIdentifier.GetString())
 	_ = moduleName
 	{
 		var exportSpec pkg_rhino.Node = export.GetFirstFirstChild()
@@ -590,7 +590,7 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExp
 }
 
 // Java method: Rewriter.visitExportSpecs(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExportSpecs_2769(t *NodeTraversal, export pkg_rhino.Node) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExportSpecs_2779(t *NodeTraversal, export pkg_rhino.Node) {
 	_ = t
 	_ = export
 	{
@@ -602,7 +602,7 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExp
 			var var_ *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(localName))
 			_ = var_
 			if (var_ != nil) && NodeUtil_IsImportedName(var_.GetNameNode()) {
-				localName = this_.priv_Rewriter_maybeGetNameOfImportedValue_2759(t.GetScope(), exportSpec.GetFirstChild())
+				localName = this_.priv_Rewriter_maybeGetNameOfImportedValue_2769(t.GetScope(), exportSpec.GetFirstChild())
 				j2gort.CheckNotNullString(localName)
 			}
 			j2gort.MapPutStr(this_.exportedNameToLocalQName, exportSpec.GetLastChild().GetString(), NewEs6RewriteModulesToCommonJsModules_LocalQName(localName, exportSpec))
@@ -613,20 +613,20 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExp
 }
 
 // Java method: Rewriter.visitExportNameDeclaration(com.google.javascript.rhino.Node declaration)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExportNameDeclaration_2770(declaration pkg_rhino.Node) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExportNameDeclaration_2780(declaration pkg_rhino.Node) {
 	_ = declaration
 	var iifeArg_1 j2gort.
 		Ext_java_util_function_Consumer
 	{
 
 		bound_7 := this_
-		iifeArg_1 = j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) { bound_7.priv_Rewriter_addExportedName_2771(j2gort.CastNode[pkg_rhino.Node](mrp0_)) })
+		iifeArg_1 = j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) { bound_7.priv_Rewriter_addExportedName_2781(j2gort.CastNode[pkg_rhino.Node](mrp0_)) })
 	}
 	NodeUtil_VisitLhsNodesInNode(declaration, iifeArg_1)
 }
 
 // Java method: Rewriter.addExportedName(com.google.javascript.rhino.Node lhs)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_addExportedName_2771(lhs pkg_rhino.Node) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_addExportedName_2781(lhs pkg_rhino.Node) {
 	_ = lhs
 	if !(lhs.IsName()) {
 		j2gort.CheckState(false)
@@ -637,13 +637,13 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_addExpor
 }
 
 // Java method: Rewriter.visitExportDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExportDeclaration_2772(t *NodeTraversal, export pkg_rhino.Node) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExportDeclaration_2782(t *NodeTraversal, export pkg_rhino.Node) {
 	_ = t
 	_ = export
 	var declaration pkg_rhino.Node = export.GetFirstChild()
 	_ = declaration
 	if NodeUtil_IsNameDeclaration(declaration) {
-		this_.priv_Rewriter_visitExportNameDeclaration_2770(declaration)
+		this_.priv_Rewriter_visitExportNameDeclaration_2780(declaration)
 	} else {
 		if !(declaration.IsFunction() || declaration.IsClass()) {
 			j2gort.CheckState(false)
@@ -657,7 +657,7 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExp
 }
 
 // Java method: Rewriter.visitExportStar(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export, com.google.javascript.rhino.Node parent)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExportStar_2773(t *NodeTraversal, export pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExportStar_2783(t *NodeTraversal, export pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = export
 	_ = parent
@@ -668,28 +668,28 @@ func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExp
 	importNode.Srcref(export)
 	importNode.InsertBefore(export)
 	this_.Visit_3(t, importNode, parent)
-	var moduleName string = this_.priv_Rewriter_getVarNameOfImport_2757(moduleIdentifier.GetString())
+	var moduleName string = this_.priv_Rewriter_getVarNameOfImport_2767(moduleIdentifier.GetString())
 	_ = moduleName
 	export.ReplaceWith(pkg_rhino.IR_ExprResult(pkg_rhino.IR_Call(pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Name("$$module"), "exportAllFrom"), []pkg_rhino.Node{pkg_rhino.IR_Name(moduleName)})).SrcrefTree(export))
 	t.ReportCodeChange_0()
 }
 
 // Java method: Rewriter.visitExport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node export, com.google.javascript.rhino.Node parent)
-func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExport_2774(t *NodeTraversal, export pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6RewriteModulesToCommonJsModules_Rewriter) priv_Rewriter_visitExport_2784(t *NodeTraversal, export pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = export
 	_ = parent
 	if export.GetBooleanProp(pkg_rhino.StaticGet_Node_EXPORT_DEFAULT()) {
-		this_.priv_Rewriter_visitExportDefault_2767(t, export)
+		this_.priv_Rewriter_visitExportDefault_2777(t, export)
 	} else if export.GetBooleanProp(pkg_rhino.StaticGet_Node_EXPORT_ALL_FROM()) {
-		this_.priv_Rewriter_visitExportStar_2773(t, export, parent)
+		this_.priv_Rewriter_visitExportStar_2783(t, export, parent)
 	} else if export.HasTwoChildren() {
-		this_.priv_Rewriter_visitExportFrom_2768(t, export, parent)
+		this_.priv_Rewriter_visitExportFrom_2778(t, export, parent)
 	} else {
 		if export.GetFirstChild().IsExportSpecs() {
-			this_.priv_Rewriter_visitExportSpecs_2769(t, export)
+			this_.priv_Rewriter_visitExportSpecs_2779(t, export)
 		} else {
-			this_.priv_Rewriter_visitExportDeclaration_2772(t, export)
+			this_.priv_Rewriter_visitExportDeclaration_2782(t, export)
 		}
 	}
 }

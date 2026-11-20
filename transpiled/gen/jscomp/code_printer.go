@@ -1234,7 +1234,7 @@ func InitCodePrinter_Builder(this_ *CodePrinter_Builder, node pkg_rhino.Node) {
 }
 
 // Java method: Builder.getOptions()
-func (this_ *CodePrinter_Builder) priv_Builder_getOptions_1363() *CompilerOptions {
+func (this_ *CodePrinter_Builder) priv_Builder_getOptions_1364() *CompilerOptions {
 	if this_.options == nil {
 		this_.options = NewCompilerOptions()
 	}
@@ -1308,21 +1308,21 @@ func (this_ *CodePrinter_Builder) SetCodeGeneratorFactory(factory CodePrinter_Bu
 
 // Java method: Builder.build()
 func (this_ *CodePrinter_Builder) Build() string {
-	return this_.priv_Builder_buildInternal_1375(false).source
+	return this_.priv_Builder_buildInternal_1376(false).source
 }
 
 // Java method: Builder.buildWithSourceMappings()
 func (this_ *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMappings {
-	return this_.priv_Builder_buildInternal_1375(true)
+	return this_.priv_Builder_buildInternal_1376(true)
 }
 
 // Java method: Builder.buildInternal(boolean allowSourceMap)
-func (this_ *CodePrinter_Builder) priv_Builder_buildInternal_1375(allowSourceMap bool) *CodePrinter_SourceAndMappings {
+func (this_ *CodePrinter_Builder) priv_Builder_buildInternal_1376(allowSourceMap bool) *CodePrinter_SourceAndMappings {
 	_ = allowSourceMap
 	if this_.root == 0 {
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Cannot build without root node being specified")))
 	}
-	var opts *CompilerOptions = this_.priv_Builder_getOptions_1363()
+	var opts *CompilerOptions = this_.priv_Builder_getOptions_1364()
 	_ = opts
 	return CodePrinter_ToSource(this_.root, CodePrinter_Format_FromOptions(opts, this_.outputTypes, this_.prettyPrint), opts, (allowSourceMap && opts.ShouldGatherSourceMapInfo()), this_.licenseTracker, this_.tagAsTypeSummary, this_.tagAsStrict, this_.lineBreak, this_.codeGeneratorFactory)
 }
@@ -1577,7 +1577,7 @@ func NewCodePrinter__Anon_10(outer_ *CodePrinter_Builder) *CodePrinter__Anon_10 
 func (this_ *CodePrinter__Anon_10) GetCodeGenerator(outputFormat CodePrinter_Format, cc CodeConsumer) CodeGenerator {
 	_ = outputFormat
 	_ = cc
-	var opts *CompilerOptions = this_.outer_.priv_Builder_getOptions_1363()
+	var opts *CompilerOptions = this_.outer_.priv_Builder_getOptions_1364()
 	_ = opts
 	if outputFormat == StaticGet_CodePrinter_Format_TYPED() {
 		return NewTypedCodeGenerator(cc, opts, this_.outer_.registry)

@@ -119,10 +119,10 @@ func (this_ *OptionalChainRewriter) Rewrite() {
 	if !(!(startNodeStack.IsEmpty())) {
 		j2gort.CheckState(false)
 	}
-	var optChainReplacement pkg_rhino.Node = this_.priv_OptionalChainRewriter_rewriteInitialSegment_4152(startNodeStack.Pop(), this_.wholeChain)
+	var optChainReplacement pkg_rhino.Node = this_.priv_OptionalChainRewriter_rewriteInitialSegment_4162(startNodeStack.Pop(), this_.wholeChain)
 	_ = optChainReplacement
 	for !(startNodeStack.IsEmpty()) {
-		this_.priv_OptionalChainRewriter_rewriteInitialSegment_4152(startNodeStack.Pop(), this_.wholeChain)
+		this_.priv_OptionalChainRewriter_rewriteInitialSegment_4162(startNodeStack.Pop(), this_.wholeChain)
 	}
 	if ((this_.chainParent.IsCall() && !(this_.chainParent.GetBooleanProp(pkg_rhino.StaticGet_Node_FREE_CALL()))) && optChainReplacement.IsFirstChildOf(this_.chainParent)) && NodeUtil_IsNormalGet(this_.wholeChain) {
 		var thisValue pkg_rhino.Node = this_.wholeChain.GetFirstChild()
@@ -156,7 +156,7 @@ func (this_ *OptionalChainRewriter) Rewrite() {
 }
 
 // Java method: OptionalChainRewriter.rewriteInitialSegment(com.google.javascript.rhino.Node fullChainStart, com.google.javascript.rhino.Node fullChainEnd)
-func (this_ *OptionalChainRewriter) priv_OptionalChainRewriter_rewriteInitialSegment_4152(fullChainStart pkg_rhino.Node, fullChainEnd pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *OptionalChainRewriter) priv_OptionalChainRewriter_rewriteInitialSegment_4162(fullChainStart pkg_rhino.Node, fullChainEnd pkg_rhino.Node) pkg_rhino.Node {
 	_ = fullChainStart
 	_ = fullChainEnd
 	var receiverNode pkg_rhino.Node = fullChainStart.GetFirstChild()

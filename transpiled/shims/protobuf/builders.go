@@ -1,6 +1,8 @@
 package protobuf
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/binary"
 	"io"
 	"math"
@@ -1908,6 +1910,29 @@ func putTag1VarintFast(dst []byte, pos int, v uint64, wide func([]byte, int, uin
 	return wide(dst, pos, v)
 }
 
+func putTag1Varint12(dst []byte, pos int, tag byte, v uint64) int {
+	dst[pos] = tag
+	if v < 0x80 {
+		dst[pos+1] = byte(v)
+		return pos + 2
+	}
+	dst[pos+2], dst[pos+1] = byte(v>>7), byte(v)|0x80
+	return pos + 3
+}
+
+func putTag1Varint3(dst []byte, pos int, tag byte, v uint64) int {
+	dst[pos] = tag
+	return putTag1Varint3Fast(dst, pos, v, putTag1VarintWide)
+}
+
+func putTag1Varint3Fast(dst []byte, pos int, v uint64, wide func([]byte, int, uint64) int) int {
+	if v < 0x200000 {
+		dst[pos+3], dst[pos+2], dst[pos+1] = byte(v>>14), byte(v>>7)|0x80, byte(v)|0x80
+		return pos + 4
+	}
+	return wide(dst, pos, v)
+}
+
 //go:noinline
 func putTag1VarintWide(dst []byte, pos int, v uint64) int {
 	if v < 0x200000 {
@@ -1937,10 +1962,9 @@ func (s *astNodeSlab) putRecTo(idx uint32, dst []byte, pos int) int {
 	if k := rec.kind; k != 0 {
 		if k < uint8(NodeKind_UNRECOGNIZED) {
 			kn := uint32(nodeKind_numbers[k])
-			_ = dst[pos+2]
-			dst[pos] = 0x08
-			dst[pos+1] = byte(kn) | 0x80
-			dst[pos+2] = byte(kn >> 7)
+			s := dst[pos : pos+3]
+			binary.LittleEndian.PutUint16(s, uint16(0x08)|uint16(byte(kn)|0x80)<<8)
+			s[2] = byte(kn >> 7)
 			pos += 3
 		} else {
 			pos = putTag1Varint(dst, pos, 0x08, math.MaxUint64)
@@ -1951,12 +1975,22 @@ func (s *astNodeSlab) putRecTo(idx uint32, dst []byte, pos int) int {
 		if !s.mutated {
 			sizes := s.cachedSizes
 			for _, cIdx := range sub {
-				pos = putTag1Varint(dst, pos, 0x12, uint64(sizes[cIdx]))
+				v := uint64(sizes[cIdx])
+				if v < 0x4000 {
+					pos = putTag1Varint12(dst, pos, 0x12, v)
+				} else {
+					pos = putTag1Varint3(dst, pos, 0x12, v)
+				}
 				pos = s.putRecTo(cIdx, dst, pos)
 			}
 		} else {
 			for _, cIdx := range sub {
-				pos = putTag1Varint(dst, pos, 0x12, uint64(s.recSerializedSize(cIdx)))
+				v := uint64(s.recSerializedSize(cIdx))
+				if v < 0x4000 {
+					pos = putTag1Varint12(dst, pos, 0x12, v)
+				} else {
+					pos = putTag1Varint3(dst, pos, 0x12, v)
+				}
 				pos = s.putRecTo(cIdx, dst, pos)
 			}
 		}
@@ -1964,7 +1998,12 @@ func (s *astNodeSlab) putRecTo(idx uint32, dst []byte, pos int) int {
 	vc := rec.valueCase()
 	switch vc {
 	case AstNode_ValueCase_STRING_VALUE_POINTER:
-		pos = putTag1Varint(dst, pos, 0x18, uint64(rec.value32))
+		v := uint64(rec.value32)
+		if v < 0x4000 {
+			pos = putTag1Varint12(dst, pos, 0x18, v)
+		} else {
+			pos = putTag1Varint3(dst, pos, 0x18, v)
+		}
 	case AstNode_ValueCase_DOUBLE_VALUE:
 		dst[pos] = 0x21
 		binary.LittleEndian.PutUint64(dst[pos+1:], s.vals64[rec.value32])
@@ -2002,13 +2041,23 @@ func (s *astNodeSlab) putRecTo(idx uint32, dst []byte, pos int) int {
 		}
 	}
 	if a.originalNamePointer != 0 {
-		pos = putTag1Varint(dst, pos, 0x48, uint64(uint32(a.originalNamePointer)))
+		v := uint64(uint32(a.originalNamePointer))
+		if v < 0x4000 {
+			pos = putTag1Varint12(dst, pos, 0x48, v)
+		} else {
+			pos = putTag1Varint3(dst, pos, 0x48, v)
+		}
 	}
 	if bp := uint64(rec.boolProps()); bp != 0 {
 		pos = putTag1Varint(dst, pos, 0x70, bp)
 	}
 	if rec.flags&astNodeFlagHasType != 0 {
-		pos = putTag1Varint(dst, pos, 0x78, uint64(uint32(rec.type_)))
+		v := uint64(uint32(rec.type_))
+		if v < 0x4000 {
+			pos = putTag1Varint12(dst, pos, 0x78, v)
+		} else {
+			pos = putTag1Varint3(dst, pos, 0x78, v)
+		}
 	}
 	if a.sourceFile != 0 {
 		dst[pos] = 0x80
@@ -2022,10 +2071,9 @@ func (d *astNodeData) putDataTo(dst []byte, pos int) int {
 	if k := d.kind_; k != 0 {
 		if k < uint8(NodeKind_UNRECOGNIZED) {
 			kn := uint32(nodeKind_numbers[k])
-			_ = dst[pos+2]
-			dst[pos] = 0x08
-			dst[pos+1] = byte(kn) | 0x80
-			dst[pos+2] = byte(kn >> 7)
+			s := dst[pos : pos+3]
+			binary.LittleEndian.PutUint16(s, uint16(0x08)|uint16(byte(kn)|0x80)<<8)
+			s[2] = byte(kn >> 7)
 			pos += 3
 		} else {
 			pos = putTag1Varint(dst, pos, 0x08, math.MaxUint64)
@@ -2042,19 +2090,34 @@ func (d *astNodeData) putDataTo(dst []byte, pos int) int {
 					cs = c.dataSerializedSize()
 				}
 			}
-			pos = putTag1Varint(dst, pos, 0x12, uint64(cs))
+			v := uint64(cs)
+			if v < 0x4000 {
+				pos = putTag1Varint12(dst, pos, 0x12, v)
+			} else {
+				pos = putTag1Varint3(dst, pos, 0x12, v)
+			}
 			pos = c.putDataTo(dst, pos)
 		}
 	} else {
 		for _, c := range d.child_ {
-			pos = putTag1Varint(dst, pos, 0x12, uint64(c.serializedSize()))
+			v := uint64(c.serializedSize())
+			if v < 0x4000 {
+				pos = putTag1Varint12(dst, pos, 0x12, v)
+			} else {
+				pos = putTag1Varint3(dst, pos, 0x12, v)
+			}
 			pos = c.putTo(dst, pos)
 		}
 	}
 	vc := d.valueCase()
 	switch vc {
 	case AstNode_ValueCase_STRING_VALUE_POINTER:
-		pos = putTag1Varint(dst, pos, 0x18, uint64(uint32(d.valueBits_)))
+		v := uint64(uint32(d.valueBits_))
+		if v < 0x4000 {
+			pos = putTag1Varint12(dst, pos, 0x18, v)
+		} else {
+			pos = putTag1Varint3(dst, pos, 0x18, v)
+		}
 	case AstNode_ValueCase_DOUBLE_VALUE:
 		dst[pos] = 0x21
 		binary.LittleEndian.PutUint64(dst[pos+1:], d.valueBits_)
@@ -2086,13 +2149,23 @@ func (d *astNodeData) putDataTo(dst []byte, pos int) int {
 		}
 	}
 	if d.originalNamePointer_ != 0 {
-		pos = putTag1Varint(dst, pos, 0x48, uint64(uint32(d.originalNamePointer_)))
+		v := uint64(uint32(d.originalNamePointer_))
+		if v < 0x4000 {
+			pos = putTag1Varint12(dst, pos, 0x48, v)
+		} else {
+			pos = putTag1Varint3(dst, pos, 0x48, v)
+		}
 	}
 	if d.booleanProperties_ != 0 {
 		pos = putTag1Varint(dst, pos, 0x70, uint64(d.booleanProperties_))
 	}
 	if d.flags_&astNodeFlagHasType != 0 {
-		pos = putTag1Varint(dst, pos, 0x78, uint64(uint32(d.type_)))
+		v := uint64(uint32(d.type_))
+		if v < 0x4000 {
+			pos = putTag1Varint12(dst, pos, 0x78, v)
+		} else {
+			pos = putTag1Varint3(dst, pos, 0x78, v)
+		}
 	}
 	if d.sourceFile_ != 0 {
 		dst[pos] = 0x80
@@ -2237,6 +2310,15 @@ func (d *astNodeData) mergeIntoBuilder(r *protoReader, slab *astNodeSlab) {
 }
 
 func (s *astNodeSlab) mergeRec(idx uint32, r *protoReader) {
+	limit := r.limit
+	if limit == 0 {
+		limit = protoDefaultRecursionLimit
+	}
+	s.mergeRecSlice(idx, r.b[r.pos:], r.depth, limit)
+	r.pos = len(r.b)
+}
+
+func (s *astNodeSlab) mergeRecSlice(idx uint32, b []byte, depth, limit int) {
 	cur := s.recs[idx]
 	var localChildren [16]uint32
 	nLocal := 0
@@ -2246,33 +2328,43 @@ func (s *astNodeSlab) mergeRec(idx uint32, r *protoReader) {
 		existing := s.childIdxs[cur.childOff : cur.childOff+cur.childCount]
 		s.scratch = append(s.scratch, existing...)
 	}
-	for {
-		tag := r.readTag()
-		switch tag {
-		case 0:
-			if scratchStart >= 0 {
-				ids := s.scratch[scratchStart:]
-				cur.childOff = s.appendChildIdxs(ids)
-				cur.childCount = uint32(len(ids))
-				s.scratch = s.scratch[:scratchStart]
-			} else if nLocal > 0 {
-				cur.childOff = s.appendChildIdxs(localChildren[:nLocal])
-				cur.childCount = uint32(nLocal)
+	pos := 0
+	for pos < len(b) {
+		tagByte := b[pos]
+		var tag int
+		if tagByte < 0x80 {
+			tag = int(tagByte)
+			pos++
+			if tag>>3 == 0 {
+				panic(protoInvalidTag())
 			}
-			s.recs[idx] = cur
-			return
+		} else {
+			var n int
+			tag, n = decodeTagSlow(b[pos:])
+			pos += n
+		}
+		switch tag {
 		case 8:
-			cur.kind = uint8(nodeKind_fromNumber(r.readInt32()))
+			v, n := decodeVarintFast(b[pos:], decodeVarintSlow)
+			pos += n
+			cur.kind = uint8(nodeKind_fromNumber(int32(v)))
 		case 18:
-			data := r.readMessageBytes()
-			r.checkRecursionLimit()
+			rawSize, n := decodeVarintFast(b[pos:], decodeVarintSlow)
+			pos += n
+			size := int32(rawSize)
+			if size < 0 {
+				panic(protoNegativeSize())
+			}
+			if int(size) > len(b)-pos {
+				panic(protoTruncatedMessage())
+			}
+			if depth >= limit {
+				panic(protoRecursionLimitExceeded())
+			}
+			end := pos + int(size)
 			cIdx := s.allocRec()
-			origB, origPos := r.b, r.pos
-			r.b, r.pos = data, 0
-			r.depth++
-			s.mergeRec(cIdx, r)
-			r.depth--
-			r.b, r.pos = origB, origPos
+			s.mergeRecSlice(cIdx, b[pos:end:end], depth+1, limit)
+			pos = end
 			if scratchStart >= 0 {
 				s.scratch = append(s.scratch, cIdx)
 			} else if nLocal < len(localChildren) {
@@ -2284,49 +2376,96 @@ func (s *astNodeSlab) mergeRec(idx uint32, r *protoReader) {
 				s.scratch = append(s.scratch, cIdx)
 			}
 		case 24:
-			cur.value32 = uint32(r.readUint32())
+			v, n := decodeVarintFast(b[pos:], decodeVarintSlow)
+			pos += n
+			cur.value32 = uint32(v)
 			cur.setValueCase(AstNode_ValueCase_STRING_VALUE_POINTER, false)
 		case 33:
-			s.setRecDoubleBits(&cur, r.readFixed64())
+			if len(b)-pos < 8 {
+				panic(protoTruncatedMessage())
+			}
+			s.setRecDoubleBits(&cur, binary.LittleEndian.Uint64(b[pos:]))
+			pos += 8
 			cur.setValueCase(AstNode_ValueCase_DOUBLE_VALUE, false)
 		case 40:
-			cur.relativeLine = r.readSint32()
+			v, n := decodeVarintFast(b[pos:], decodeVarintSlow)
+			pos += n
+			u := uint32(v)
+			cur.relativeLine = int32(u>>1) ^ -int32(u&1)
 		case 48:
-			cur.relativeColumn = r.readSint32()
+			v, n := decodeVarintFast(b[pos:], decodeVarintSlow)
+			pos += n
+			u := uint32(v)
+			cur.relativeColumn = int32(u>>1) ^ -int32(u&1)
 		case 58:
-			data := r.readMessageBytes()
-			r.checkRecursionLimit()
-			origB, origPos := r.b, r.pos
-			r.b, r.pos = data, 0
-			r.depth++
-			s.mergeAuxJsdoc(idx, &cur, r)
-			r.depth--
-			r.b, r.pos = origB, origPos
+			rawSize, n := decodeVarintFast(b[pos:], decodeVarintSlow)
+			pos += n
+			size := int32(rawSize)
+			if size < 0 {
+				panic(protoNegativeSize())
+			}
+			if int(size) > len(b)-pos {
+				panic(protoTruncatedMessage())
+			}
+			if depth >= limit {
+				panic(protoRecursionLimitExceeded())
+			}
+			end := pos + int(size)
+			sub := protoReader{b: b[pos:end:end], depth: depth + 1, limit: limit}
+			s.mergeAuxJsdoc(idx, &cur, &sub)
+			pos = end
 		case 66:
-			data := r.readMessageBytes()
-			r.checkRecursionLimit()
-			origB, origPos := r.b, r.pos
-			r.b, r.pos = data, 0
-			r.depth++
-			s.mergeRecTemplateString(&cur, r)
-			r.depth--
-			r.b, r.pos = origB, origPos
+			rawSize, n := decodeVarintFast(b[pos:], decodeVarintSlow)
+			pos += n
+			size := int32(rawSize)
+			if size < 0 {
+				panic(protoNegativeSize())
+			}
+			if int(size) > len(b)-pos {
+				panic(protoTruncatedMessage())
+			}
+			if depth >= limit {
+				panic(protoRecursionLimitExceeded())
+			}
+			end := pos + int(size)
+			sub := protoReader{b: b[pos:end:end], depth: depth + 1, limit: limit}
+			s.mergeRecTemplateString(&cur, &sub)
+			pos = end
 			cur.setValueCase(AstNode_ValueCase_TEMPLATE_STRING_VALUE, true)
 		case 72:
-			s.setAuxOrigName(idx, &cur, r.readUint32())
+			v, n := decodeVarintFast(b[pos:], decodeVarintSlow)
+			pos += n
+			s.setAuxOrigName(idx, &cur, int32(v))
 		case 112:
-			bp := uint64(r.readInt64())
+			bp, n := decodeVarintFast(b[pos:], decodeVarintSlow)
+			pos += n
 			cur.boolPropsLo = uint32(bp)
 			cur.boolPropsHi = uint32(bp >> 32)
 		case 120:
-			cur.type_ = r.readUint32()
+			v, n := decodeVarintFast(b[pos:], decodeVarintSlow)
+			pos += n
+			cur.type_ = int32(v)
 			cur.flags |= astNodeFlagHasType
 		case 128:
-			s.setAuxSourceFile(idx, &cur, r.readUint32())
+			v, n := decodeVarintFast(b[pos:], decodeVarintSlow)
+			pos += n
+			s.setAuxSourceFile(idx, &cur, int32(v))
 		default:
-			r.skipField(tag)
+			sub := protoReader{b: b, pos: pos, depth: depth, limit: limit}
+			sub.skipField(tag)
+			pos = sub.pos
 		}
 	}
+	if scratchStart >= 0 {
+		ids := s.scratch[scratchStart:]
+		cur.childOff = s.appendChildIdxs(ids)
+		cur.childCount = uint32(len(ids))
+		s.scratch = s.scratch[:scratchStart]
+	} else if nLocal > 0 {
+		cur.childOff = s.appendChildIdxs(localChildren[:nLocal])
+		cur.childCount = uint32(nLocal)
+	}
+	s.recs[idx] = cur
 }
 
 func (m *AstNode) ToByteArray() []byte {
@@ -2613,7 +2752,12 @@ type StringPoolProto_Builder = StringPoolProto
 func StringPoolProto_NewBuilder() *StringPoolProto_Builder { return &StringPoolProto{} }
 
 func (m *StringPoolProto) addWireString(v []byte) {
-	entryLen := 1 + protoVarintLen(uint64(len(v))) + len(v)
+	n := len(v)
+	vLen := 1
+	if n >= 0x80 {
+		vLen = protoVarintLen(uint64(n))
+	}
+	entryLen := 1 + vLen + n
 	nc := len(m.wireChunks_)
 	if nc == 0 || cap(m.wireChunks_[nc-1])-len(m.wireChunks_[nc-1]) < entryLen {
 		chunkCap := min(4096<<min(nc, 8), 1048576)
@@ -2624,9 +2768,17 @@ func (m *StringPoolProto) addWireString(v []byte) {
 		nc++
 	}
 	b := m.wireChunks_[nc-1]
-	b = append(b, 0x0A)
-	b = protoAppendVarint(b, uint64(len(v)))
-	b = append(b, v...)
+	off := len(b)
+	b = b[:off+entryLen]
+	dst := b[off:]
+	dst[0] = 0x0A
+	if n < 0x80 {
+		dst[1] = byte(n)
+		copy(dst[2:], v)
+	} else {
+		k := protoPutVarint(dst[1:], uint64(n))
+		copy(dst[1+k:], v)
+	}
 	m.wireChunks_[nc-1] = b
 	m.wireStringsSize_ += entryLen
 	m.wireStringsCnt_++
@@ -2634,7 +2786,12 @@ func (m *StringPoolProto) addWireString(v []byte) {
 }
 
 func (m *StringPoolProto) addWireStringStr(s string) {
-	entryLen := 1 + protoVarintLen(uint64(len(s))) + len(s)
+	n := len(s)
+	vLen := 1
+	if n >= 0x80 {
+		vLen = protoVarintLen(uint64(n))
+	}
+	entryLen := 1 + vLen + n
 	nc := len(m.wireChunks_)
 	if nc == 0 || cap(m.wireChunks_[nc-1])-len(m.wireChunks_[nc-1]) < entryLen {
 		chunkCap := min(4096<<min(nc, 8), 1048576)
@@ -2645,9 +2802,17 @@ func (m *StringPoolProto) addWireStringStr(s string) {
 		nc++
 	}
 	b := m.wireChunks_[nc-1]
-	b = append(b, 0x0A)
-	b = protoAppendVarint(b, uint64(len(s)))
-	b = append(b, s...)
+	off := len(b)
+	b = b[:off+entryLen]
+	dst := b[off:]
+	dst[0] = 0x0A
+	if n < 0x80 {
+		dst[1] = byte(n)
+		copy(dst[2:], s)
+	} else {
+		k := protoPutVarint(dst[1:], uint64(n))
+		copy(dst[1+k:], s)
+	}
 	m.wireChunks_[nc-1] = b
 	m.wireStringsSize_ += entryLen
 	m.wireStringsCnt_++
@@ -3444,10 +3609,19 @@ type protoStreamWritable interface {
 }
 
 type protoStreamWriter struct {
-	out     io.Writer
-	buf     []byte
-	written int64
-	err     error
+	out             io.Writer
+	buf             []byte
+	written         int64
+	err             error
+	directThreshold int
+}
+
+func isAlreadyBufferedWriter(w io.Writer) bool {
+	switch w.(type) {
+	case *javaio.BufferedOutputStream, *bufio.Writer, *bytes.Buffer:
+		return true
+	}
+	return false
 }
 
 func (w *protoStreamWriter) flush() {
@@ -3472,20 +3646,26 @@ func (w *protoStreamWriter) writeRawBytes(p []byte) {
 	if w.err != nil || len(p) == 0 {
 		return
 	}
+	if len(p) >= w.directThreshold {
+		if len(w.buf) > 0 {
+			w.flush()
+			if w.err != nil {
+				return
+			}
+		}
+		n, err := w.out.Write(p)
+		w.written += int64(n)
+		if err != nil {
+			w.err = err
+		}
+		return
+	}
 	if len(p) <= cap(w.buf)-len(w.buf) {
 		w.buf = append(w.buf, p...)
 		return
 	}
 	w.flush()
 	if w.err != nil {
-		return
-	}
-	if len(p) >= protoStreamBufSize/2 {
-		n, err := w.out.Write(p)
-		w.written += int64(n)
-		if err != nil {
-			w.err = err
-		}
 		return
 	}
 	w.buf = append(w.buf, p...)
@@ -3879,9 +4059,14 @@ func streamProtoMessageTo(m ProtoSerializable, out io.Writer, delimited bool) (i
 		return 0, nil
 	}
 	bp := protoStreamBufPool.Get().(*[]byte)
+	directThreshold := protoStreamBufSize / 2
+	if isAlreadyBufferedWriter(out) {
+		directThreshold = 256
+	}
 	w := protoStreamWriter{
-		out: out,
-		buf: (*bp)[:0],
+		out:             out,
+		buf:             (*bp)[:0],
+		directThreshold: directThreshold,
 	}
 	if delimited {
 		sz := m.serializedSize()

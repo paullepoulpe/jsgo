@@ -90,7 +90,7 @@ func (this_ *ChangeVerifier) Snapshot(root pkg_rhino.Node) *ChangeVerifier {
 	this_.snapshotChange = this_.changeTracker.GetChangeStamp()
 	var snapshot pkg_rhino.Node = root.CloneTree_0()
 	_ = snapshot
-	this_.priv_ChangeVerifier_associateClones_977(root, snapshot)
+	this_.priv_ChangeVerifier_associateClones_978(root, snapshot)
 	return this_
 }
 
@@ -104,11 +104,11 @@ func (this_ *ChangeVerifier) CheckRecordedChanges_1(current pkg_rhino.Node) {
 func (this_ *ChangeVerifier) CheckRecordedChanges_2(passName string, root pkg_rhino.Node) {
 	_ = passName
 	_ = root
-	this_.priv_ChangeVerifier_verifyScopeChangesHaveBeenRecorded_978(passName, root)
+	this_.priv_ChangeVerifier_verifyScopeChangesHaveBeenRecorded_979(passName, root)
 }
 
 // Java method: ChangeVerifier.associateClones(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node snapshot)
-func (this_ *ChangeVerifier) priv_ChangeVerifier_associateClones_977(n pkg_rhino.Node, snapshot pkg_rhino.Node) {
+func (this_ *ChangeVerifier) priv_ChangeVerifier_associateClones_978(n pkg_rhino.Node, snapshot pkg_rhino.Node) {
 	_ = n
 	_ = snapshot
 	if n.IsRoot() || ChangeTracker_IsChangeScopeRoot(n) {
@@ -119,14 +119,14 @@ func (this_ *ChangeVerifier) priv_ChangeVerifier_associateClones_977(n pkg_rhino
 	var snapshotChild pkg_rhino.Node = snapshot.GetFirstChild()
 	_ = snapshotChild
 	for child != 0 {
-		this_.priv_ChangeVerifier_associateClones_977(child, snapshotChild)
+		this_.priv_ChangeVerifier_associateClones_978(child, snapshotChild)
 		child = child.GetNext()
 		snapshotChild = snapshotChild.GetNext()
 	}
 }
 
 // Java method: ChangeVerifier.verifyScopeChangesHaveBeenRecorded(java.lang.String passName, com.google.javascript.rhino.Node root)
-func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyScopeChangesHaveBeenRecorded_978(passName string, root pkg_rhino.Node) {
+func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyScopeChangesHaveBeenRecorded_979(passName string, root pkg_rhino.Node) {
 	_ = passName
 	_ = root
 	var passNameMsg string
@@ -140,11 +140,11 @@ func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyScopeChangesHaveBeenRecor
 	_ = snapshotScopeNodes
 	NodeUtil_VisitPreOrder_2(j2gort.CastNode[pkg_rhino.Node](j2gort.MapGetNode(this_.clonesByCurrent, root)), NewChangeVerifier__Anon_3(this_, snapshotScopeNodes))
 	NodeUtil_VisitPreOrder_2(root, NewChangeVerifier__Anon_4(this_, snapshotScopeNodes, passNameMsg))
-	this_.priv_ChangeVerifier_verifyDeletedScopeNodes_979(passNameMsg, snapshotScopeNodes)
+	this_.priv_ChangeVerifier_verifyDeletedScopeNodes_980(passNameMsg, snapshotScopeNodes)
 }
 
 // Java method: ChangeVerifier.verifyDeletedScopeNodes(java.lang.String passNameMsg, java.util.Set<com.google.javascript.rhino.Node> deletedScopeNodes)
-func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyDeletedScopeNodes_979(passNameMsg string, deletedScopeNodes j2gort.Ext_java_util_Set) {
+func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyDeletedScopeNodes_980(passNameMsg string, deletedScopeNodes j2gort.Ext_java_util_Set) {
 	_ = passNameMsg
 	_ = deletedScopeNodes
 	{
@@ -163,7 +163,7 @@ func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyDeletedScopeNodes_979(pas
 }
 
 // Java method: ChangeVerifier.verifyNode(java.lang.String passNameMsg, com.google.javascript.rhino.Node n)
-func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyNode_980(passNameMsg string, n pkg_rhino.Node) {
+func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyNode_981(passNameMsg string, n pkg_rhino.Node) {
 	_ = passNameMsg
 	_ = n
 	if n.IsDeleted() {
@@ -172,7 +172,7 @@ func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyNode_980(passNameMsg stri
 }
 
 // Java method: ChangeVerifier.verifyNewNode(java.lang.String passNameMsg, com.google.javascript.rhino.Node n)
-func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyNewNode_981(passNameMsg string, n pkg_rhino.Node) {
+func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyNewNode_982(passNameMsg string, n pkg_rhino.Node) {
 	_ = passNameMsg
 	_ = n
 	var changeTime int32 = n.GetChangeTime()
@@ -183,7 +183,7 @@ func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyNewNode_981(passNameMsg s
 }
 
 // Java method: ChangeVerifier.verifyRoot(com.google.javascript.rhino.Node root)
-func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyRoot_982(root pkg_rhino.Node) {
+func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyRoot_983(root pkg_rhino.Node) {
 	_ = root
 	if !(root.IsRoot()) {
 		j2gort.CheckState(false)
@@ -194,7 +194,7 @@ func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyRoot_982(root pkg_rhino.N
 }
 
 // Java method: ChangeVerifier.verifyNodeChange(java.lang.String passNameMsg, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node snapshot)
-func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyNodeChange_983(passNameMsg string, n pkg_rhino.Node, snapshot pkg_rhino.Node) {
+func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyNodeChange_984(passNameMsg string, n pkg_rhino.Node, snapshot pkg_rhino.Node) {
 	_ = passNameMsg
 	_ = n
 	_ = snapshot
@@ -209,7 +209,7 @@ func (this_ *ChangeVerifier) priv_ChangeVerifier_verifyNodeChange_983(passNameMs
 		}
 	} else {
 		if !(result.M_Equals_0()) {
-			panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("\"%schanged scope not marked as changed: %s.\n%s\nAncestor nodes:\n%s\n", []any{j2gort.BoxString(passNameMsg), j2gort.BoxString(this_.GetNameForNode(n)), j2gort.BoxString(j2gort.CastString(result.errorMessage.Get())), j2gort.BoxString(this_.priv_ChangeVerifier_path_985(n, result.ErrorNode()))})))))
+			panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("\"%schanged scope not marked as changed: %s.\n%s\nAncestor nodes:\n%s\n", []any{j2gort.BoxString(passNameMsg), j2gort.BoxString(this_.GetNameForNode(n)), j2gort.BoxString(j2gort.CastString(result.errorMessage.Get())), j2gort.BoxString(this_.priv_ChangeVerifier_path_986(n, result.ErrorNode()))})))))
 		}
 	}
 }
@@ -236,7 +236,7 @@ func (this_ *ChangeVerifier) GetNameForNode(n pkg_rhino.Node) string {
 }
 
 // Java method: ChangeVerifier.path(com.google.javascript.rhino.Node ancestor, com.google.javascript.rhino.Node child)
-func (this_ *ChangeVerifier) priv_ChangeVerifier_path_985(ancestor pkg_rhino.Node, child pkg_rhino.Node) string {
+func (this_ *ChangeVerifier) priv_ChangeVerifier_path_986(ancestor pkg_rhino.Node, child pkg_rhino.Node) string {
 	_ = ancestor
 	_ = child
 	var childToAncestor j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList()
@@ -504,16 +504,16 @@ func NewChangeVerifier__Anon_4(outer_ *ChangeVerifier, cap_p_snapshotScopeNodes 
 func (this_ *ChangeVerifier__Anon_4) Visit(n pkg_rhino.Node) {
 	_ = n
 	if n.IsRoot() {
-		this_.outer_.priv_ChangeVerifier_verifyRoot_982(n)
+		this_.outer_.priv_ChangeVerifier_verifyRoot_983(n)
 	} else if ChangeTracker_IsChangeScopeRoot(n) {
 		var clone pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](j2gort.MapGetNode(this_.outer_.clonesByCurrent, n))
 		_ = clone
 		j2gort.SetRemoveNode(this_.cap_0_snapshotScopeNodes, clone)
-		this_.outer_.priv_ChangeVerifier_verifyNode_980(this_.cap_1_passNameMsg, n)
+		this_.outer_.priv_ChangeVerifier_verifyNode_981(this_.cap_1_passNameMsg, n)
 		if clone == 0 {
-			this_.outer_.priv_ChangeVerifier_verifyNewNode_981(this_.cap_1_passNameMsg, n)
+			this_.outer_.priv_ChangeVerifier_verifyNewNode_982(this_.cap_1_passNameMsg, n)
 		} else {
-			this_.outer_.priv_ChangeVerifier_verifyNodeChange_983(this_.cap_1_passNameMsg, n, clone)
+			this_.outer_.priv_ChangeVerifier_verifyNodeChange_984(this_.cap_1_passNameMsg, n, clone)
 		}
 	}
 }

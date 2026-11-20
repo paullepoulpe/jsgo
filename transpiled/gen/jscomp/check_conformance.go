@@ -186,7 +186,7 @@ func InitCheckConformance_3(this_ *CheckConformance, compiler AbstractCompiler, 
 	_ = reportingMode
 	this_.initFields_CheckConformance()
 	this_.compiler = compiler
-	this_.categories = j2gort.ImmListToSliceNullable[*CheckConformance_Category](this_.priv_CheckConformance_initRules_1048(compiler, configs, reportingMode))
+	this_.categories = j2gort.ImmListToSliceNullable[*CheckConformance_Category](this_.priv_CheckConformance_initRules_1049(compiler, configs, reportingMode))
 }
 
 // Java method: CheckConformance.process(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
@@ -203,11 +203,11 @@ func (this_ *CheckConformance) ShouldTraverse_3(t *NodeTraversal, n pkg_rhino.No
 	_ = t
 	_ = n
 	_ = parent
-	return (!(n.IsScript()) || (this_.priv_CheckConformance_isScriptOfInterest_1047(t.GetInput().GetSourceFile()) && !(javalang.StringEndsWith(j2gort.CheckNotNullString(t.GetSourceName()), "tsmes.closure.js"))))
+	return (!(n.IsScript()) || (this_.priv_CheckConformance_isScriptOfInterest_1048(t.GetInput().GetSourceFile()) && !(javalang.StringEndsWith(j2gort.CheckNotNullString(t.GetSourceName()), "tsmes.closure.js"))))
 }
 
 // Java method: CheckConformance.isScriptOfInterest(com.google.javascript.jscomp.SourceFile sf)
-func (this_ *CheckConformance) priv_CheckConformance_isScriptOfInterest_1047(sf *SourceFile) bool {
+func (this_ *CheckConformance) priv_CheckConformance_isScriptOfInterest_1048(sf *SourceFile) bool {
 	_ = sf
 	return (!(sf.IsWeak()) && !(sf.IsExtern()))
 }
@@ -241,7 +241,7 @@ func (this_ *CheckConformance) Visit_3(t *NodeTraversal, n pkg_rhino.Node, paren
 }
 
 // Java method: CheckConformance.initRules(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.common.collect.ImmutableList<com.google.javascript.jscomp.ConformanceConfig> configs, com.google.javascript.jscomp.CompilerOptions.ConformanceReportingMode reportingMode)
-func (this_ *CheckConformance) priv_CheckConformance_initRules_1048(compiler AbstractCompiler, configs j2gort.Ext_com_google_common_collect_ImmutableList, reportingMode CompilerOptions_ConformanceReportingMode) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *CheckConformance) priv_CheckConformance_initRules_1049(compiler AbstractCompiler, configs j2gort.Ext_com_google_common_collect_ImmutableList, reportingMode CompilerOptions_ConformanceReportingMode) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = compiler
 	_ = configs
 	_ = reportingMode

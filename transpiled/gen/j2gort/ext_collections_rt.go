@@ -63,6 +63,7 @@ func FlushCompilationPools() {
 		fn()
 	}
 	slabGlobalPooledBytes.Store(0)
+	pooledSliceGlobalBytes.Store(0)
 }
 
 func ResetCompilationPools() {
@@ -70,6 +71,9 @@ func ResetCompilationPools() {
 }
 
 func init() {
+	for i := 1; i < 256; i++ {
+		singleU8Tabs_[i][i] = true
+	}
 	nodestore.RegisterStoreResetHook(FlushCompilationPools)
 	RegisterTypePredicate("com.google.common.collect.Multimap", "com.google.common.collect.Multimap", func(v any) bool {
 		_, ok := v.(Ext_com_google_common_collect_Multimap)
@@ -1853,6 +1857,55 @@ type immSetIdx struct {
 	hasEnumBits bool
 }
 
+var singleU8Tabs_ [256][256]bool
+
+type immU8EnumTypeCache struct {
+	ptrNil  any
+	singles [256]atomic.Pointer[Ext_com_google_common_collect_ImmutableSetBase]
+}
+
+var immU8EnumCaches sync.Map
+
+func getImmU8EnumTypeCache(rt reflect.Type) *immU8EnumTypeCache {
+	if v, ok := immU8EnumCaches.Load(rt); ok {
+		return v.(*immU8EnumTypeCache)
+	}
+	c := &immU8EnumTypeCache{
+		ptrNil: reflect.Zero(reflect.PointerTo(rt)).Interface(),
+	}
+	actual, _ := immU8EnumCaches.LoadOrStore(rt, c)
+	return actual.(*immU8EnumTypeCache)
+}
+
+func tryGetOrCreateImmEnumSingle(e0 any) *Ext_com_google_common_collect_ImmutableSetBase {
+	if e0 == nil {
+		return nil
+	}
+	rt0 := reflect.TypeOf(e0)
+	if rt0.Kind() != reflect.Uint8 {
+		return nil
+	}
+	u := uint8(reflect.ValueOf(e0).Uint())
+	if u == 0 {
+		return nil
+	}
+	tc := getImmU8EnumTypeCache(rt0)
+	if cached := tc.singles[u].Load(); cached != nil {
+		return cached
+	}
+	c := &immAnySet1_{}
+	c.buf[0] = e0
+	c.set.elems_ = c.buf[:1:1]
+	c.set.u8Tab_ = &singleU8Tabs_[u]
+	c.set.u8PtrNil_ = tc.ptrNil
+	c.set.hasU8Bits_ = true
+	c.set.BindExtSelf_(&c.set)
+	if tc.singles[u].CompareAndSwap(nil, &c.set) {
+		return &c.set
+	}
+	return tc.singles[u].Load()
+}
+
 func tryInitImmEnumSingle(obj *Ext_com_google_common_collect_ImmutableSetBase, e0 any) {
 	if e0 == nil {
 		return
@@ -1861,10 +1914,8 @@ func tryInitImmEnumSingle(obj *Ext_com_google_common_collect_ImmutableSetBase, e
 	if rt0.Kind() == reflect.Uint8 {
 		u := uint8(reflect.ValueOf(e0).Uint())
 		if u != 0 {
-			tab := new([256]bool)
-			tab[u] = true
-			obj.u8Tab_ = tab
-			obj.u8PtrNil_ = reflect.Zero(reflect.PointerTo(rt0)).Interface()
+			obj.u8Tab_ = &singleU8Tabs_[u]
+			obj.u8PtrNil_ = getImmU8EnumTypeCache(rt0).ptrNil
 			obj.hasU8Bits_ = true
 		}
 	}
@@ -1894,7 +1945,7 @@ func tryInitImmEnumMulti(obj *Ext_com_google_common_collect_ImmutableSetBase, el
 			tab[u] = true
 		}
 		obj.u8Tab_ = tab
-		obj.u8PtrNil_ = reflect.Zero(reflect.PointerTo(rt0)).Interface()
+		obj.u8PtrNil_ = getImmU8EnumTypeCache(rt0).ptrNil
 		obj.hasU8Bits_ = true
 		return true
 	}
@@ -12581,10 +12632,10 @@ func pqOp_toString_0(pq *jPriorityQueue) string    { return sliceJavaString(pq.i
 func pqOp_equals_1(pq *jPriorityQueue, o any) bool { return RefEquals(pq, o) }
 func pqOp_hashCode_0(pq *jPriorityQueue) int32     { return javalang.IdentityHashCode(pq) }
 
-// --- BitSet (inline [16]uint64 = 1024 dense bits + [8]int32 = 8 sparse high bits inside Ext_java_util_BitSet) ---
+// --- BitSet (inline [2]uint64 = 128 dense bits + [8]int32 = 8 sparse high bits inside 80-byte Ext_java_util_BitSet) ---
 
 const (
-	bsInlineWords = 16
+	bsInlineWords = 2
 	bsInlineBits  = bsInlineWords * 64
 	bsSparseCap   = 8
 )
@@ -12707,7 +12758,7 @@ func (b *Ext_java_util_BitSet) bsPromoteToHeap(minWords int) {
 	if minWords < bsInlineWords {
 		minWords = bsInlineWords
 	}
-	newCap := max(minWords, max(16, int(b.initW)))
+	newCap := max(minWords, max(4, int(b.initW)))
 	w := make([]uint64, minWords, newCap)
 	copy(w[:bsInlineWords], b.buf[:])
 	b.buf = [bsInlineWords]uint64{}
@@ -17073,10 +17124,58 @@ func (s *OrderedSet[T]) AddAllSet(other OrderedSet[T]) bool {
 	if s == nil {
 		ThrowNPE()
 	}
-	if other.IsEmpty() {
+	n := int(other.Size())
+	if n == 0 {
 		return false
 	}
+	if len(s.order) == 0 && s.holes == 0 && other.holes == 0 {
+		if cap(s.order) >= n {
+			s.order = s.order[:n]
+		} else {
+			s.order = make([]T, n)
+		}
+		copy(s.order, other.order)
+		if s.idx != nil || n > orderedSetIndexThreshold {
+			if s.idx == nil {
+				s.idx = make(map[T]int32, n)
+			}
+			m := s.idx
+			for i, v := range s.order {
+				m[v] = int32(i + 1)
+			}
+		}
+		return true
+	}
+	s.order = slices.Grow(s.order, n)
+	if s.idx == nil && len(s.order)+n > orderedSetIndexThreshold {
+		m := make(map[T]int32, len(s.order)+n)
+		for i, x := range s.order {
+			m[x] = int32(i + 1)
+		}
+		s.idx = m
+	}
 	changed := false
+	if m := s.idx; m != nil {
+		if other.holes > 0 {
+			for i := int(other.firstIdx); i < len(other.order); i++ {
+				v := other.order[i]
+				if other.idx[v] == int32(i+1) && m[v] == 0 {
+					s.order = append(s.order, v)
+					m[v] = int32(len(s.order))
+					changed = true
+				}
+			}
+			return changed
+		}
+		for _, v := range other.order {
+			if m[v] == 0 {
+				s.order = append(s.order, v)
+				m[v] = int32(len(s.order))
+				changed = true
+			}
+		}
+		return changed
+	}
 	if other.holes > 0 {
 		for i := int(other.firstIdx); i < len(other.order); i++ {
 			v := other.order[i]
@@ -17106,9 +17205,52 @@ func OrderedSetAddAllStr(s *OrderedSet[string], col any) bool {
 		ThrowNPE()
 	}
 	CheckNotNull(col)
-	changed := false
 	if ssi, ok := col.(StrSliceIterable); ok {
 		if ss, ok2 := ssi.IterStrSlice_(); ok2 {
+			n := len(ss)
+			if n == 0 {
+				return false
+			}
+			if len(s.order) == 0 && s.holes == 0 {
+				if _, isSet := col.(Ext_java_util_Set); isSet {
+					if cap(s.order) >= n {
+						s.order = s.order[:n]
+					} else {
+						s.order = make([]string, n)
+					}
+					copy(s.order, ss)
+					if s.idx != nil || n > orderedSetIndexThreshold {
+						if s.idx == nil {
+							s.idx = make(map[string]int32, n)
+						}
+						m := s.idx
+						for i, k := range s.order {
+							m[k] = int32(i + 1)
+						}
+					}
+					return true
+				}
+			}
+			wantTotal := len(s.order) + n
+			s.order = slices.Grow(s.order, n)
+			if s.idx == nil && wantTotal > orderedSetIndexThreshold {
+				m := make(map[string]int32, wantTotal)
+				for i, x := range s.order {
+					m[x] = int32(i + 1)
+				}
+				s.idx = m
+			}
+			changed := false
+			if m := s.idx; m != nil {
+				for _, k := range ss {
+					if m[k] == 0 {
+						s.order = append(s.order, k)
+						m[k] = int32(len(s.order))
+						changed = true
+					}
+				}
+				return changed
+			}
 			for _, k := range ss {
 				if s.Add(k) {
 					changed = true
@@ -17116,6 +17258,37 @@ func OrderedSetAddAllStr(s *OrderedSet[string], col any) bool {
 			}
 			return changed
 		}
+	}
+	if c, ok := col.(Ext_java_util_Collection); ok {
+		n := int(c.Size())
+		if n == 0 {
+			return false
+		}
+		if n > 0 {
+			if n > 262144 {
+				n = 262144
+			}
+			s.order = slices.Grow(s.order, n)
+			if s.idx == nil && len(s.order)+n > orderedSetIndexThreshold {
+				m := make(map[string]int32, len(s.order)+n)
+				for i, x := range s.order {
+					m[x] = int32(i + 1)
+				}
+				s.idx = m
+			}
+		}
+	}
+	changed := false
+	if m := s.idx; m != nil {
+		for cur := NewIterCursor(col); cur.HasNext(); {
+			k := cur.NextStr()
+			if m[k] == 0 {
+				s.order = append(s.order, k)
+				m[k] = int32(len(s.order))
+				changed = true
+			}
+		}
+		return changed
 	}
 	for cur := NewIterCursor(col); cur.HasNext(); {
 		if s.Add(cur.NextStr()) {
@@ -17578,9 +17751,28 @@ func LocalOrderedSetAddAllStr(s *LocalOrderedSet[string], col any) bool {
 		ThrowNPE()
 	}
 	CheckNotNull(col)
-	changed := false
 	if ssi, ok := col.(StrSliceIterable); ok {
 		if ss, ok2 := ssi.IterStrSlice_(); ok2 {
+			n := len(ss)
+			if n == 0 {
+				return false
+			}
+			if s.live == 0 && s.items == nil && n > 4 {
+				if _, isSet := col.(Ext_java_util_Set); isSet {
+					s.items = make([]string, n)
+					copy(s.items, ss)
+					s.live = int32(n)
+					if n > orderedSetIndexThreshold {
+						m := make(map[string]int32, n)
+						for i, k := range s.items {
+							m[k] = int32(i + 1)
+						}
+						s.idx = m
+					}
+					return true
+				}
+			}
+			changed := false
 			for _, k := range ss {
 				if s.Add(k) {
 					changed = true
@@ -17589,6 +17781,7 @@ func LocalOrderedSetAddAllStr(s *LocalOrderedSet[string], col any) bool {
 			return changed
 		}
 	}
+	changed := false
 	for cur := NewIterCursor(col); cur.HasNext(); {
 		if s.Add(cur.NextStr()) {
 			changed = true
@@ -19034,11 +19227,107 @@ func (m *OrderedMap[K, V]) KeysToImmutableSet() Ext_com_google_common_collect_Im
 	if live == 0 {
 		return emptyImmutableSet_
 	}
-	s := NewOrderedSetCap[K](live)
-	m.ForEach(func(k K, _ V) {
-		s.Add(k)
-	})
-	return s.ToImmutableSet()
+	var zero K
+	if _, isStr := any(zero).(string); isStr {
+		if live == 1 {
+			if m.holes > 0 {
+				for i := int(m.firstIdx); i < len(m.entries); i++ {
+					if m.isEntryActive(i) {
+						return ImmSetOfStr1(any(m.entries[i].Key).(string))
+					}
+				}
+			}
+			return ImmSetOfStr1(any(m.entries[m.firstIdx].Key).(string))
+		}
+		if live <= 8 {
+			var sbuf [8]string
+			w := 0
+			if m.holes > 0 {
+				for i := int(m.firstIdx); i < len(m.entries); i++ {
+					if m.isEntryActive(i) {
+						ks := any(m.entries[i].Key).(string)
+						if ks == NullString {
+							ThrowNPE()
+						}
+						sbuf[w] = ks
+						w++
+					}
+				}
+			} else {
+				for i := int(m.firstIdx); i < len(m.entries); i++ {
+					ks := any(m.entries[i].Key).(string)
+					if ks == NullString {
+						ThrowNPE()
+					}
+					sbuf[w] = ks
+					w++
+				}
+			}
+			return finishImmStrSetSmall(sbuf[:w])
+		}
+		strs := make([]string, 0, live)
+		if m.holes > 0 {
+			for i := int(m.firstIdx); i < len(m.entries); i++ {
+				if m.isEntryActive(i) {
+					ks := any(m.entries[i].Key).(string)
+					if ks == NullString {
+						ThrowNPE()
+					}
+					strs = append(strs, ks)
+				}
+			}
+		} else {
+			for i := int(m.firstIdx); i < len(m.entries); i++ {
+				ks := any(m.entries[i].Key).(string)
+				if ks == NullString {
+					ThrowNPE()
+				}
+				strs = append(strs, ks)
+			}
+		}
+		return finishImmStrSetOwn(strs, nil)
+	}
+	if live == 1 {
+		if m.holes > 0 {
+			for i := int(m.firstIdx); i < len(m.entries); i++ {
+				if m.isEntryActive(i) {
+					return newImmSet1(boxJavaElem(m.entries[i].Key))
+				}
+			}
+		}
+		return newImmSet1(boxJavaElem(m.entries[m.firstIdx].Key))
+	}
+	if live <= 8 {
+		var buf [8]any
+		w := 0
+		if m.holes > 0 {
+			for i := int(m.firstIdx); i < len(m.entries); i++ {
+				if m.isEntryActive(i) {
+					buf[w] = CheckNotNull(boxJavaElem(m.entries[i].Key))
+					w++
+				}
+			}
+		} else {
+			for i := int(m.firstIdx); i < len(m.entries); i++ {
+				buf[w] = CheckNotNull(boxJavaElem(m.entries[i].Key))
+				w++
+			}
+		}
+		return finishImmSetSmall(buf[:w])
+	}
+	elems := make([]any, 0, live)
+	if m.holes > 0 {
+		for i := int(m.firstIdx); i < len(m.entries); i++ {
+			if m.isEntryActive(i) {
+				elems = append(elems, CheckNotNull(boxJavaElem(m.entries[i].Key)))
+			}
+		}
+	} else {
+		for i := int(m.firstIdx); i < len(m.entries); i++ {
+			elems = append(elems, CheckNotNull(boxJavaElem(m.entries[i].Key)))
+		}
+	}
+	return finishImmSetMulti(elems, nil)
 }
 
 func (m *OrderedMap[K, V]) ValuesToImmutableList() Ext_com_google_common_collect_ImmutableList {
@@ -24572,8 +24861,8 @@ const (
 	slabSmallChunkSize = 16
 	slabChunkSize      = 256
 	slabPoolMaxBytes   = 384 << 20
-	slabSmallPoolMaxB  = 32 << 20
-	slabGlobalMaxBytes = 1024 << 20
+	slabSmallPoolMaxB  = 48 << 20
+	slabGlobalMaxBytes = 1280 << 20
 	slabTrimMinBytes   = 96 << 20
 	slabMinEvictBytes  = 256 << 10
 )
@@ -24800,44 +25089,161 @@ const (
 	pooledSliceMaxShift        = 22
 	pooledSliceMaxCap          = 1 << pooledSliceMaxShift                      // 4194304
 	pooledSliceTiers           = pooledSliceMaxShift - pooledSliceMinShift + 1 // 20
-	pooledSliceTierBudgetBytes = 4 << 20                                       // 4 MB max per tier per type
-	pooledSliceTierMaxCount    = 65536
+	pooledSliceTierBudgetBytes = 16 << 20                                      // 16 MB max per tier per type
+	pooledSliceTierMaxCount    = 262144
+	pooledSliceGlobalMaxBytes  = 256 << 20 // 256 MB strict global cap across all slice pools
+	pooledSliceMinEvictBytes   = 256 << 10
 )
 
+type pooledSliceEvictable interface {
+	lastTouchVal() uint64
+	pooledBytesApprox() int64
+	evictBytes(maxBytes int64) int64
+}
+
+type pooledSliceEvictCand struct {
+	pool  pooledSliceEvictable
+	touch uint64
+	bytes int64
+}
+
 type pooledSliceTier[T any] struct {
-	mu      sync.Mutex
-	free    [][]T
-	maxKeep int
+	mu         sync.Mutex
+	free       [][]T
+	freeLen    atomic.Int32
+	maxKeep    int
+	sliceBytes int64
 }
 
 type pooledSliceTypePool[T any] struct {
-	tiers [pooledSliceTiers]pooledSliceTier[T]
+	tiers       [pooledSliceTiers]pooledSliceTier[T]
+	pooledBytes atomic.Int64
+	lastTouch   atomic.Uint64
 }
 
-var pooledSlicePools sync.Map
+var (
+	pooledSlicePools       sync.Map
+	pooledSliceGlobalBytes atomic.Int64
+	pooledSliceClock       atomic.Uint64
+)
+
+func (p *pooledSliceTypePool[T]) lastTouchVal() uint64 {
+	return p.lastTouch.Load()
+}
+
+func (p *pooledSliceTypePool[T]) pooledBytesApprox() int64 {
+	return p.pooledBytes.Load()
+}
+
+func (p *pooledSliceTypePool[T]) touch() {
+	if cur := pooledSliceClock.Load(); p.lastTouch.Load() != cur {
+		p.lastTouch.Store(pooledSliceClock.Add(1))
+	}
+}
+
+func (p *pooledSliceTypePool[T]) evictBytes(maxBytes int64) int64 {
+	if maxBytes <= 0 || p.pooledBytes.Load() <= 0 {
+		return 0
+	}
+	var freed int64
+	for i := pooledSliceTiers - 1; i >= 0 && freed < maxBytes; i-- {
+		t := &p.tiers[i]
+		if t.freeLen.Load() == 0 {
+			continue
+		}
+		t.mu.Lock()
+		if nFree := len(t.free); nFree > 0 {
+			rem := maxBytes - freed
+			sb := t.sliceBytes
+			var drop int
+			if rem >= int64(nFree)*sb {
+				drop = nFree
+			} else {
+				drop = int((rem + sb - 1) / sb)
+			}
+			if drop > 0 {
+				newLen := nFree - drop
+				clear(t.free[newLen:])
+				if newLen == 0 {
+					t.free = nil
+				} else {
+					t.free = t.free[:newLen]
+				}
+				t.freeLen.Store(int32(newLen))
+				df := int64(drop) * sb
+				freed += df
+				p.pooledBytes.Add(-df)
+				pooledSliceGlobalBytes.Add(-df)
+			}
+		}
+		t.mu.Unlock()
+	}
+	return freed
+}
+
+func pooledSliceEvictColdestPools(exclude pooledSliceEvictable, needBytes int64) int64 {
+	if needBytes <= 0 {
+		return 0
+	}
+	var cands []pooledSliceEvictCand
+	pooledSlicePools.Range(func(_, v any) bool {
+		ep, ok := v.(pooledSliceEvictable)
+		if !ok || ep == exclude {
+			return true
+		}
+		if b := ep.pooledBytesApprox(); b > 0 {
+			cands = append(cands, pooledSliceEvictCand{
+				pool:  ep,
+				touch: ep.lastTouchVal(),
+				bytes: b,
+			})
+		}
+		return true
+	})
+	if len(cands) == 0 {
+		return 0
+	}
+	sort.Slice(cands, func(i, j int) bool {
+		return cands[i].touch < cands[j].touch
+	})
+	var freed int64
+	for i := range cands {
+		stillNeeded := needBytes - freed
+		if stillNeeded <= 0 {
+			break
+		}
+		freed += cands[i].pool.evictBytes(stillNeeded)
+	}
+	return freed
+}
 
 func newPooledSliceTypePool[T any]() *pooledSliceTypePool[T] {
 	p := &pooledSliceTypePool[T]{}
 	elemBytes := max(1, int(reflect.TypeFor[T]().Size()))
 	for i := 0; i < pooledSliceTiers; i++ {
 		tierCap := pooledSliceMinCap << i
-		sliceBytes := tierCap * elemBytes
+		sliceBytes := int64(tierCap) * int64(elemBytes)
 		var maxKeep int
-		if sliceBytes <= 262144 {
-			maxKeep = min(pooledSliceTierMaxCount, max(2, pooledSliceTierBudgetBytes/sliceBytes))
+		if sliceBytes <= 1<<20 {
+			maxKeep = min(pooledSliceTierMaxCount, max(4, int(int64(pooledSliceTierBudgetBytes)/sliceBytes)))
 		} else {
-			maxKeep = 2
+			maxKeep = 4
 		}
 		p.tiers[i].maxKeep = maxKeep
+		p.tiers[i].sliceBytes = sliceBytes
 	}
+	p.lastTouch.Store(pooledSliceClock.Add(1))
 	return p
 }
 
 func (p *pooledSliceTypePool[T]) purge() {
+	p.evictBytes(int64(^uint64(0) >> 1))
 	for i := 0; i < pooledSliceTiers; i++ {
 		t := &p.tiers[i]
 		t.mu.Lock()
-		t.free = nil
+		if len(t.free) == 0 {
+			t.free = nil
+		}
 		t.mu.Unlock()
 	}
 }
@@ -24873,12 +25279,20 @@ func AcquirePooledSlice[T any](capHint int) []T {
 		tierIdx = shift - pooledSliceMinShift
 		allocCap = 1 << shift
 	}
-	t := &getPooledSlicePool[T]().tiers[tierIdx]
+	p := getPooledSlicePool[T]()
+	p.touch()
+	t := &p.tiers[tierIdx]
+	if t.freeLen.Load() == 0 {
+		return make([]T, 0, allocCap)
+	}
 	t.mu.Lock()
 	if n := len(t.free); n > 0 {
 		s := t.free[n-1]
 		t.free[n-1] = nil
 		t.free = t.free[:n-1]
+		t.freeLen.Store(int32(n - 1))
+		p.pooledBytes.Add(-t.sliceBytes)
+		pooledSliceGlobalBytes.Add(-t.sliceBytes)
 		t.mu.Unlock()
 		return s[:0]
 	}
@@ -24920,12 +25334,32 @@ func ReleasePooledSlice[T any](s []T) {
 	if c < pooledSliceMinCap || c > pooledSliceMaxCap {
 		return
 	}
-	clear(s[:c])
 	tierIdx := bits.Len(uint(c)) - 1 - pooledSliceMinShift
-	t := &getPooledSlicePool[T]().tiers[tierIdx]
+	p := getPooledSlicePool[T]()
+	p.touch()
+	t := &p.tiers[tierIdx]
+	if int(t.freeLen.Load()) >= t.maxKeep {
+		return
+	}
+	sb := t.sliceBytes
+	if curGlobal := pooledSliceGlobalBytes.Load(); curGlobal+sb > pooledSliceGlobalMaxBytes {
+		need := (curGlobal + sb) - pooledSliceGlobalMaxBytes
+		pooledSliceEvictColdestPools(p, max(need, int64(pooledSliceMinEvictBytes)))
+		if pooledSliceGlobalBytes.Load()+sb > pooledSliceGlobalMaxBytes {
+			return
+		}
+	}
+	clear(s[:c])
 	t.mu.Lock()
 	if len(t.free) < t.maxKeep {
-		t.free = append(t.free, s[:0])
+		if tot := pooledSliceGlobalBytes.Add(sb); tot <= pooledSliceGlobalMaxBytes {
+			t.free = append(t.free, s[:0])
+			t.freeLen.Store(int32(len(t.free)))
+			p.pooledBytes.Add(sb)
+			t.mu.Unlock()
+			return
+		}
+		pooledSliceGlobalBytes.Add(-sb)
 	}
 	t.mu.Unlock()
 }
@@ -25942,6 +26376,9 @@ func getSlabChunkPool[T any]() *slabChunkPool[T] {
 
 func (p *slabChunkPool[T]) alloc() *slabChunk[T] {
 	p.lastTouch.Store(slabClock.Add(1))
+	if p.freeLen.Load() == 0 {
+		return new(slabChunk[T])
+	}
 	p.mu.Lock()
 	if n := len(p.free); n > 0 {
 		c := p.free[n-1]
@@ -25959,6 +26396,9 @@ func (p *slabChunkPool[T]) alloc() *slabChunk[T] {
 
 func (p *slabChunkPool[T]) allocSmall() *slabSmallChunk[T] {
 	p.lastTouch.Store(slabClock.Add(1))
+	if p.smallLen.Load() == 0 {
+		return new(slabSmallChunk[T])
+	}
 	p.mu.Lock()
 	if n := len(p.smallFree); n > 0 {
 		sc := p.smallFree[n-1]

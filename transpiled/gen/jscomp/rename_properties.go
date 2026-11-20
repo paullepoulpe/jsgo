@@ -225,9 +225,9 @@ func (this_ *RenameProperties) Process_2(externs pkg_rhino.Node, root pkg_rhino.
 	_ = propsByFreq
 	propsByFreq.AddAll_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.propertyMap.LiveValues()))
 	if this_.prevUsedPropertyMap != nil {
-		this_.priv_RenameProperties_reusePropertyNames_4824(reservedNames, propsByFreq)
+		this_.priv_RenameProperties_reusePropertyNames_4834(reservedNames, propsByFreq)
 	}
-	this_.priv_RenameProperties_generateNames_4825(propsByFreq, reservedNames)
+	this_.priv_RenameProperties_generateNames_4835(propsByFreq, reservedNames)
 	for _, n := range this_.stringNodesToRename {
 		_ = n
 		var oldName string = n.GetString()
@@ -323,7 +323,7 @@ func (this_ *RenameProperties) Process_2(externs pkg_rhino.Node, root pkg_rhino.
 }
 
 // Java method: RenameProperties.reusePropertyNames(java.util.Set<java.lang.String> reservedNames, java.util.Collection<com.google.javascript.jscomp.RenameProperties.Property> allProps)
-func (this_ *RenameProperties) priv_RenameProperties_reusePropertyNames_4824(reservedNames j2gort.Ext_java_util_Set, allProps j2gort.Ext_java_util_Collection) {
+func (this_ *RenameProperties) priv_RenameProperties_reusePropertyNames_4834(reservedNames j2gort.Ext_java_util_Set, allProps j2gort.Ext_java_util_Collection) {
 	_ = reservedNames
 	_ = allProps
 	{
@@ -349,7 +349,7 @@ func (this_ *RenameProperties) priv_RenameProperties_reusePropertyNames_4824(res
 }
 
 // Java method: RenameProperties.generateNames(java.util.Set<com.google.javascript.jscomp.RenameProperties.Property> props, java.util.Set<java.lang.String> reservedNames)
-func (this_ *RenameProperties) priv_RenameProperties_generateNames_4825(props j2gort.Ext_java_util_Set, reservedNames j2gort.Ext_java_util_Set) {
+func (this_ *RenameProperties) priv_RenameProperties_generateNames_4835(props j2gort.Ext_java_util_Set, reservedNames j2gort.Ext_java_util_Set) {
 	_ = props
 	_ = reservedNames
 	this_.nameGenerator.Reset_4(reservedNames, "", this_.reservedFirstCharacters, this_.reservedNonFirstCharacters)
@@ -451,7 +451,7 @@ func (this_ *RenameProperties_ProcessProperties) Visit_3(t *NodeTraversal, n pkg
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(26) /* Token.GETPROP */, int32(29) /* Token.OPTCHAIN_GETPROP */, int32(108) /* Token.MEMBER_FIELD_DEF */ :
-		this_.priv_ProcessProperties_maybeMarkCandidate_4827(n)
+		this_.priv_ProcessProperties_maybeMarkCandidate_4837(n)
 	case int32(27) /* Token.GETELEM */, int32(30) /* Token.OPTCHAIN_GETELEM */ :
 		var child pkg_rhino.Node = n.GetLastChild()
 		_ = child
@@ -463,7 +463,7 @@ func (this_ *RenameProperties_ProcessProperties) Visit_3(t *NodeTraversal, n pkg
 		_ = fnName
 		if this_.outer_.compiler.GetCodingConvention().IsPropertyRenameFunction(fnName) {
 			this_.outer_.callNodeToParentMap.Put(n, parent)
-			this_.priv_ProcessProperties_countCallCandidates_4828(t, n)
+			this_.priv_ProcessProperties_countCallCandidates_4838(t, n)
 			var stringArgument pkg_rhino.Node = n.GetSecondChild()
 			_ = stringArgument
 			if !(j2gort.PredTestNode(this_.outer_.propertyRenameEligibilityFilter, uint32(n))) {
@@ -484,13 +484,13 @@ func (this_ *RenameProperties_ProcessProperties) Visit_3(t *NodeTraversal, n pkg
 		if NodeUtil_IsEs6ConstructorMemberFunctionDef(n) {
 			j2gort.SetAddStr(this_.outer_.externedNames, n.GetString())
 		} else {
-			this_.priv_ProcessProperties_maybeMarkCandidate_4827(n)
+			this_.priv_ProcessProperties_maybeMarkCandidate_4837(n)
 		}
 	case int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */, int32(100) /* Token.STRING_KEY */ :
 		if n.IsQuotedStringKey() {
 			j2gort.SetAddStr(this_.outer_.quotedNames, n.GetString())
 		} else {
-			this_.priv_ProcessProperties_maybeMarkCandidate_4827(n)
+			this_.priv_ProcessProperties_maybeMarkCandidate_4837(n)
 		}
 	case int32(73) /* Token.FUNCTION */ :
 		if NodeUtil_IsFunctionDeclaration(n) {
@@ -521,7 +521,7 @@ func (this_ *RenameProperties_ProcessProperties) Visit_3(t *NodeTraversal, n pkg
 }
 
 // Java method: ProcessProperties.maybeMarkCandidate(com.google.javascript.rhino.Node n)
-func (this_ *RenameProperties_ProcessProperties) priv_ProcessProperties_maybeMarkCandidate_4827(n pkg_rhino.Node) {
+func (this_ *RenameProperties_ProcessProperties) priv_ProcessProperties_maybeMarkCandidate_4837(n pkg_rhino.Node) {
 	_ = n
 	var name string = n.GetString()
 	_ = name
@@ -530,12 +530,12 @@ func (this_ *RenameProperties_ProcessProperties) priv_ProcessProperties_maybeMar
 			this_.outer_.filteredOutNames.Add(n.GetString())
 		}
 		this_.outer_.stringNodesToRename = append(this_.outer_.stringNodesToRename, n)
-		this_.priv_ProcessProperties_countPropertyOccurrence_4829(name)
+		this_.priv_ProcessProperties_countPropertyOccurrence_4839(name)
 	}
 }
 
 // Java method: ProcessProperties.countCallCandidates(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node callNode)
-func (this_ *RenameProperties_ProcessProperties) priv_ProcessProperties_countCallCandidates_4828(t *NodeTraversal, callNode pkg_rhino.Node) {
+func (this_ *RenameProperties_ProcessProperties) priv_ProcessProperties_countCallCandidates_4838(t *NodeTraversal, callNode pkg_rhino.Node) {
 	_ = t
 	_ = callNode
 	var fnName string = callNode.GetFirstChild().GetString()
@@ -556,14 +556,14 @@ func (this_ *RenameProperties_ProcessProperties) priv_ProcessProperties_countCal
 				continue
 			}
 			if !(j2gort.SetContainsStr(this_.outer_.externedNames, name)) {
-				this_.priv_ProcessProperties_countPropertyOccurrence_4829(name)
+				this_.priv_ProcessProperties_countPropertyOccurrence_4839(name)
 			}
 		}
 	}
 }
 
 // Java method: ProcessProperties.countPropertyOccurrence(java.lang.String name)
-func (this_ *RenameProperties_ProcessProperties) priv_ProcessProperties_countPropertyOccurrence_4829(name string) {
+func (this_ *RenameProperties_ProcessProperties) priv_ProcessProperties_countPropertyOccurrence_4839(name string) {
 	_ = name
 	var prop *RenameProperties_Property = this_.outer_.propertyMap.Get(name)
 	_ = prop

@@ -87,12 +87,12 @@ func (this_ *CollapseVariableDeclarations) Process_2(externs pkg_rhino.Node, roo
 	this_.nodesToCollapse.Clear()
 	NodeTraversal_Traverse(this_.compiler, root, NewCollapseVariableDeclarations_GatherCollapses(this_))
 	if len(this_.collapses) != 0 {
-		this_.priv_CollapseVariableDeclarations_applyCollapses_1395()
+		this_.priv_CollapseVariableDeclarations_applyCollapses_1396()
 	}
 }
 
 // Java method: CollapseVariableDeclarations.applyCollapses()
-func (this_ *CollapseVariableDeclarations) priv_CollapseVariableDeclarations_applyCollapses_1395() {
+func (this_ *CollapseVariableDeclarations) priv_CollapseVariableDeclarations_applyCollapses_1396() {
 	for _, collapse := range this_.collapses {
 		_ = collapse
 		var var_ pkg_rhino.Node = collapse.startNode

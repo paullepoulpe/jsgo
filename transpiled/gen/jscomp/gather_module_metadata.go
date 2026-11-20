@@ -615,13 +615,13 @@ func (this_ *GatherModuleMetadata_Finder) ShouldTraverse_3(t *NodeTraversal, n p
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(94) /* Token.SCRIPT */ :
-		this_.priv_Finder_enterModule_3026(t, n, t.GetInput().GetPath())
+		this_.priv_Finder_enterModule_3036(t, n, t.GetInput().GetPath())
 	case int32(116) /* Token.IMPORT */, int32(120) /* Token.EXPORT */ :
-		this_.priv_Finder_visitImportOrExport_3024(t, n)
+		this_.priv_Finder_visitImportOrExport_3034(t, n)
 	case int32(28) /* Token.CALL */ :
 		if n.IsCall() && StaticGet_GatherModuleMetadata_GOOG_LOADMODULE().Matches(n.GetFirstChild()) {
 			this_.outer_.loadModuleCall = n
-			this_.priv_Finder_enterModule_3026(t, n, nil)
+			this_.priv_Finder_enterModule_3036(t, n, nil)
 		}
 	case int32(123) /* Token.MODULE_BODY */ :
 		{
@@ -629,14 +629,14 @@ func (this_ *GatherModuleMetadata_Finder) ShouldTraverse_3(t *NodeTraversal, n p
 			r_1.hasModuleBody = true
 		}
 	case int32(124) /* Token.DYNAMIC_IMPORT */ :
-		this_.priv_Finder_visitDynamicImport_3025(n)
+		this_.priv_Finder_visitDynamicImport_3035(n)
 	default:
 	}
 	return true
 }
 
 // Java method: Finder.visitImportOrExport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node importOrExport)
-func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitImportOrExport_3024(t *NodeTraversal, importOrExport pkg_rhino.Node) {
+func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitImportOrExport_3034(t *NodeTraversal, importOrExport pkg_rhino.Node) {
 	_ = t
 	_ = importOrExport
 	j2gort.CheckNotNullPtr(this_.outer_.currentModule)
@@ -647,7 +647,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitImportOrExport_3024(t
 }
 
 // Java method: Finder.visitDynamicImport(com.google.javascript.rhino.Node dynamicImport)
-func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitDynamicImport_3025(dynamicImport pkg_rhino.Node) {
+func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitDynamicImport_3035(dynamicImport pkg_rhino.Node) {
 	_ = dynamicImport
 	if dynamicImport.GetFirstChild().IsStringLit() {
 		this_.outer_.currentModule.metadataBuilder.Es6ImportSpecifiersBuilder().Add_1_any(j2gort.BoxString(dynamicImport.GetFirstChild().GetString()))
@@ -655,7 +655,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitDynamicImport_3025(dy
 }
 
 // Java method: Finder.enterModule(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.deps.ModuleLoader.@org.jspecify.annotations.Nullable ModulePath path)
-func (this_ *GatherModuleMetadata_Finder) priv_Finder_enterModule_3026(t *NodeTraversal, n pkg_rhino.Node, path *ModuleLoader_ModulePath) {
+func (this_ *GatherModuleMetadata_Finder) priv_Finder_enterModule_3036(t *NodeTraversal, n pkg_rhino.Node, path *ModuleLoader_ModulePath) {
 	_ = t
 	_ = n
 	_ = path
@@ -674,7 +674,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_enterModule_3026(t *NodeTr
 }
 
 // Java method: Finder.leaveModule()
-func (this_ *GatherModuleMetadata_Finder) priv_Finder_leaveModule_3027() {
+func (this_ *GatherModuleMetadata_Finder) priv_Finder_leaveModule_3037() {
 	j2gort.CheckNotNullPtr(this_.outer_.currentModule)
 	var module ModuleMetadataMap_ModuleMetadata = this_.outer_.currentModule.Build()
 	_ = module
@@ -709,22 +709,22 @@ func (this_ *GatherModuleMetadata_Finder) Visit_3(t *NodeTraversal, n pkg_rhino.
 	}
 	switch n.TokenSwitchOrd_() {
 	case int32(94) /* Token.SCRIPT */ :
-		this_.priv_Finder_leaveModule_3027()
+		this_.priv_Finder_leaveModule_3037()
 	case int32(32) /* Token.NAME */ :
-		this_.priv_Finder_visitName_3029(t, n)
+		this_.priv_Finder_visitName_3039(t, n)
 	case int32(28) /* Token.CALL */ :
 		if this_.outer_.loadModuleCall == n {
-			this_.priv_Finder_leaveModule_3027()
+			this_.priv_Finder_leaveModule_3037()
 			this_.outer_.loadModuleCall = pkg_rhino.Node(0)
 		} else {
-			this_.priv_Finder_visitGoogCall_3030(t, n)
+			this_.priv_Finder_visitGoogCall_3040(t, n)
 		}
 	default:
 	}
 }
 
 // Java method: Finder.isFromGoogImport(com.google.javascript.jscomp.Var goog)
-func (this_ *GatherModuleMetadata_Finder) priv_Finder_isFromGoogImport_3028(goog *Var) bool {
+func (this_ *GatherModuleMetadata_Finder) priv_Finder_isFromGoogImport_3038(goog *Var) bool {
 	_ = goog
 	var nameNode pkg_rhino.Node = goog.GetNameNode()
 	_ = nameNode
@@ -732,7 +732,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_isFromGoogImport_3028(goog
 }
 
 // Java method: Finder.visitName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitName_3029(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitName_3039(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	var name string = n.GetString()
@@ -744,7 +744,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitName_3029(t *NodeTrav
 			var parent pkg_rhino.Node = n.GetParent()
 			_ = parent
 			if parent.IsGetProp() {
-				this_.priv_Finder_addToggle_3031(t, n, parent.GetString())
+				this_.priv_Finder_addToggle_3041(t, n, parent.GetString())
 			} else if !(NodeUtil_IsNameDeclaration(parent)) {
 				t.Report_3(n, StaticGet_GatherModuleMetadata_INVALID_TOGGLE_USAGE(), []string{"toggle modules may not be used other than looking up properties"})
 			}
@@ -755,14 +755,14 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitName_3029(t *NodeTrav
 	}
 	var root *Var = j2gort.CastPtr[Var](t.GetScope().GetVar("goog"))
 	_ = root
-	if (root != nil) && !(this_.priv_Finder_isFromGoogImport_3028(root)) {
+	if (root != nil) && !(this_.priv_Finder_isFromGoogImport_3038(root)) {
 		return
 	}
 	this_.outer_.currentModule.metadataBuilder.UsesClosure(true)
 }
 
 // Java method: Finder.visitGoogCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitGoogCall_3030(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitGoogCall_3040(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if (!(n.HasChildren()) || !(n.GetFirstChild().IsGetProp())) || !(n.GetFirstChild().IsQualifiedName()) {
@@ -783,7 +783,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitGoogCall_3030(t *Node
 	if ((root != nil) && root.IsLocal()) && !(j2gort.CastPtr[Scope](root.GetScope()).IsModuleScope()) {
 		return
 	}
-	if ((root != nil) && j2gort.CastPtr[Scope](root.GetScope()).IsModuleScope()) && !(this_.priv_Finder_isFromGoogImport_3028(root)) {
+	if ((root != nil) && j2gort.CastPtr[Scope](root.GetScope()).IsModuleScope()) && !(this_.priv_Finder_isFromGoogImport_3038(root)) {
 		return
 	}
 	if (root == nil) || (NodeUtil_GetEnclosingScript(root.GetNameNode()) != NodeUtil_GetEnclosingScript(n)) {
@@ -794,7 +794,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitGoogCall_3030(t *Node
 		if n.HasTwoChildren() && n.GetLastChild().IsStringLit() {
 			var namespace string = n.GetLastChild().GetString()
 			_ = namespace
-			this_.priv_Finder_addNamespace_3032(this_.outer_.currentModule, StaticGet_ModuleMetadataMap_ModuleType_GOOG_PROVIDE(), namespace, t, n)
+			this_.priv_Finder_addNamespace_3042(this_.outer_.currentModule, StaticGet_ModuleMetadataMap_ModuleType_GOOG_PROVIDE(), namespace, t, n)
 		} else {
 			t.Report_3(n, StaticGet_ClosureRewriteModule_INVALID_PROVIDE_NAMESPACE(), []string{})
 			this_.outer_.currentModule.metadataBuilder.UsesClosure(false)
@@ -804,7 +804,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitGoogCall_3030(t *Node
 		if n.HasTwoChildren() && n.GetLastChild().IsStringLit() {
 			var namespace_2 string = n.GetLastChild().GetString()
 			_ = namespace_2
-			this_.priv_Finder_addNamespace_3032(this_.outer_.currentModule, StaticGet_ModuleMetadataMap_ModuleType_GOOG_MODULE(), namespace_2, t, n)
+			this_.priv_Finder_addNamespace_3042(this_.outer_.currentModule, StaticGet_ModuleMetadataMap_ModuleType_GOOG_MODULE(), namespace_2, t, n)
 		} else {
 			t.Report_3(n, StaticGet_ClosureRewriteModule_INVALID_MODULE_ID_ARG(), []string{})
 			this_.outer_.currentModule.metadataBuilder.UsesClosure(false)
@@ -819,7 +819,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitGoogCall_3030(t *Node
 			t.Report_3(n, StaticGet_GatherModuleMetadata_INVALID_TOGGLE_USAGE(), []string{"goog.module.get of toggles module must immediately look up a single toggle"})
 			return
 		}
-		this_.priv_Finder_addToggle_3031(t, parent, parent.GetString())
+		this_.priv_Finder_addToggle_3041(t, parent, parent.GetString())
 	} else if getprop.MatchesQualifiedName_1_Node(StaticGet_GatherModuleMetadata_GOOG_MODULE_DECLARELEGACYNAMESPACE()) {
 		this_.outer_.currentModule.RecordDeclareLegacyNamespace(n)
 	} else if getprop.MatchesQualifiedName_1_Node(StaticGet_GatherModuleMetadata_GOOG_DECLARE_MODULE_ID()) || getprop.MatchesQualifiedName_1_Node(StaticGet_GatherModuleMetadata_GOOG_MODULE_DECLARNAMESPACE()) {
@@ -830,7 +830,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitGoogCall_3030(t *Node
 			this_.outer_.currentModule.RecordDeclareModuleId(n)
 			var namespace_3 string = n.GetLastChild().GetString()
 			_ = namespace_3
-			this_.priv_Finder_addNamespace_3032(this_.outer_.currentModule, StaticGet_ModuleMetadataMap_ModuleType_GOOG_MODULE(), namespace_3, t, n)
+			this_.priv_Finder_addNamespace_3042(this_.outer_.currentModule, StaticGet_ModuleMetadataMap_ModuleType_GOOG_MODULE(), namespace_3, t, n)
 		} else {
 			t.Report_3(n, StaticGet_GatherModuleMetadata_INVALID_DECLARE_MODULE_ID_CALL(), []string{})
 		}
@@ -851,7 +851,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitGoogCall_3030(t *Node
 							key := pkg_rhino.Node(cur_4.NextNode())
 							_ = key
 							if key.IsStringKey() {
-								this_.priv_Finder_addToggle_3031(t, n, key.GetString())
+								this_.priv_Finder_addToggle_3041(t, n, key.GetString())
 							} else {
 								t.Report_3(n, StaticGet_GatherModuleMetadata_INVALID_TOGGLE_USAGE(), []string{"must be destructured with string keys"})
 							}
@@ -899,7 +899,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_visitGoogCall_3030(t *Node
 }
 
 // Java method: Finder.addToggle(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, java.lang.String name)
-func (this_ *GatherModuleMetadata_Finder) priv_Finder_addToggle_3031(t *NodeTraversal, n pkg_rhino.Node, name string) {
+func (this_ *GatherModuleMetadata_Finder) priv_Finder_addToggle_3041(t *NodeTraversal, n pkg_rhino.Node, name string) {
 	_ = t
 	_ = n
 	_ = name
@@ -913,7 +913,7 @@ func (this_ *GatherModuleMetadata_Finder) priv_Finder_addToggle_3031(t *NodeTrav
 }
 
 // Java method: Finder.addNamespace(com.google.javascript.jscomp.GatherModuleMetadata.ModuleMetadataBuilder module, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleType moduleType, java.lang.String namespace, com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *GatherModuleMetadata_Finder) priv_Finder_addNamespace_3032(module *GatherModuleMetadata_ModuleMetadataBuilder, moduleType ModuleMetadataMap_ModuleType, namespace string, t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *GatherModuleMetadata_Finder) priv_Finder_addNamespace_3042(module *GatherModuleMetadata_ModuleMetadataBuilder, moduleType ModuleMetadataMap_ModuleType, namespace string, t *NodeTraversal, n pkg_rhino.Node) {
 	_ = module
 	_ = moduleType
 	_ = namespace

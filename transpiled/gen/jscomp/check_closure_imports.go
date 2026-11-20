@@ -262,7 +262,7 @@ func (this_ *CheckClosureImports) Process_2(externs pkg_rhino.Node, root pkg_rhi
 }
 
 // Java method: CheckClosureImports.verifyRequireOrder(java.lang.String namespace, com.google.javascript.rhino.Node call, com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata requiredModule)
-func (this_ *CheckClosureImports) priv_CheckClosureImports_verifyRequireOrder_1034(namespace string, call pkg_rhino.Node, t *NodeTraversal, requiredModule ModuleMetadataMap_ModuleMetadata) {
+func (this_ *CheckClosureImports) priv_CheckClosureImports_verifyRequireOrder_1035(namespace string, call pkg_rhino.Node, t *NodeTraversal, requiredModule ModuleMetadataMap_ModuleMetadata) {
 	_ = namespace
 	_ = call
 	_ = t
@@ -578,20 +578,20 @@ func (this_ *CheckClosureImports_Checker) Visit_4(t *NodeTraversal, n pkg_rhino.
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
 	if n.IsCall() {
-		var kindOfCall *CheckClosureImports_ClosureImport = this_.priv_Checker_kindOfCall_1041(n)
+		var kindOfCall *CheckClosureImports_ClosureImport = this_.priv_Checker_kindOfCall_1042(n)
 		_ = kindOfCall
 		if kindOfCall != nil {
-			this_.priv_Checker_checkImport_1046(t, n, parent, currentModule, kindOfCall)
+			this_.priv_Checker_checkImport_1047(t, n, parent, currentModule, kindOfCall)
 		} else if n.GetFirstChild().MatchesQualifiedName_1_Node(StaticGet_CheckClosureImports_GOOG_MODULE_GET()) {
-			this_.priv_Checker_checkGoogModuleGet_1043(t, n, currentModule)
+			this_.priv_Checker_checkGoogModuleGet_1044(t, n, currentModule)
 		}
 	} else if n.IsName() {
-		this_.priv_Checker_checkValidImportCodeReference_1042(t, n)
+		this_.priv_Checker_checkValidImportCodeReference_1043(t, n)
 	}
 }
 
 // Java method: Checker.kindOfCall(com.google.javascript.rhino.Node callNode)
-func (this_ *CheckClosureImports_Checker) priv_Checker_kindOfCall_1041(callNode pkg_rhino.Node) *CheckClosureImports_ClosureImport {
+func (this_ *CheckClosureImports_Checker) priv_Checker_kindOfCall_1042(callNode pkg_rhino.Node) *CheckClosureImports_ClosureImport {
 	_ = callNode
 	if !(callNode.IsCall()) {
 		j2gort.CheckState(false)
@@ -609,7 +609,7 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_kindOfCall_1041(callNode 
 }
 
 // Java method: Checker.checkValidImportCodeReference(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node nameNode)
-func (this_ *CheckClosureImports_Checker) priv_Checker_checkValidImportCodeReference_1042(t *NodeTraversal, nameNode pkg_rhino.Node) {
+func (this_ *CheckClosureImports_Checker) priv_Checker_checkValidImportCodeReference_1043(t *NodeTraversal, nameNode pkg_rhino.Node) {
 	_ = t
 	_ = nameNode
 	var var_ *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(nameNode.GetString()))
@@ -632,7 +632,7 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_checkValidImportCodeRefer
 	if ((!(NodeUtil_IsNameDeclaration(decl)) || !(decl.HasOneChild())) || !(decl.GetFirstChild().HasChildren())) || !(decl.GetFirstChild().GetLastChild().IsCall()) {
 		return
 	}
-	var kindOfCall *CheckClosureImports_ClosureImport = this_.priv_Checker_kindOfCall_1041(decl.GetFirstChild().GetLastChild())
+	var kindOfCall *CheckClosureImports_ClosureImport = this_.priv_Checker_kindOfCall_1042(decl.GetFirstChild().GetLastChild())
 	_ = kindOfCall
 	if kindOfCall == nil {
 		return
@@ -640,7 +640,7 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_checkValidImportCodeRefer
 }
 
 // Java method: Checker.checkGoogModuleGet(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentModule)
-func (this_ *CheckClosureImports_Checker) priv_Checker_checkGoogModuleGet_1043(t *NodeTraversal, call pkg_rhino.Node, currentModule ModuleMetadataMap_ModuleMetadata) {
+func (this_ *CheckClosureImports_Checker) priv_Checker_checkGoogModuleGet_1044(t *NodeTraversal, call pkg_rhino.Node, currentModule ModuleMetadataMap_ModuleMetadata) {
 	_ = t
 	_ = call
 	_ = currentModule
@@ -724,7 +724,7 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_checkGoogModuleGet_1043(t
 }
 
 // Java method: Checker.isValidDestructuringImport(com.google.javascript.rhino.Node destructuringLhs)
-func (this_ *CheckClosureImports_Checker) priv_Checker_isValidDestructuringImport_1044(destructuringLhs pkg_rhino.Node) bool {
+func (this_ *CheckClosureImports_Checker) priv_Checker_isValidDestructuringImport_1045(destructuringLhs pkg_rhino.Node) bool {
 	_ = destructuringLhs
 	if !(destructuringLhs.IsDestructuringLhs()) {
 		j2gort.CheckArgument(false)
@@ -750,7 +750,7 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_isValidDestructuringImpor
 }
 
 // Java method: Checker.checkShortName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node shortNameNode, java.lang.String namespace)
-func (this_ *CheckClosureImports_Checker) priv_Checker_checkShortName_1045(t *NodeTraversal, shortNameNode pkg_rhino.Node, namespace string) {
+func (this_ *CheckClosureImports_Checker) priv_Checker_checkShortName_1046(t *NodeTraversal, shortNameNode pkg_rhino.Node, namespace string) {
 	_ = t
 	_ = shortNameNode
 	_ = namespace
@@ -776,7 +776,7 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_checkShortName_1045(t *No
 }
 
 // Java method: Checker.checkImport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call, com.google.javascript.rhino.Node parent, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentModule, com.google.javascript.jscomp.CheckClosureImports.ClosureImport importType)
-func (this_ *CheckClosureImports_Checker) priv_Checker_checkImport_1046(t *NodeTraversal, call pkg_rhino.Node, parent pkg_rhino.Node, currentModule ModuleMetadataMap_ModuleMetadata, importType *CheckClosureImports_ClosureImport) {
+func (this_ *CheckClosureImports_Checker) priv_Checker_checkImport_1047(t *NodeTraversal, call pkg_rhino.Node, parent pkg_rhino.Node, currentModule ModuleMetadataMap_ModuleMetadata, importType *CheckClosureImports_ClosureImport) {
 	_ = t
 	_ = call
 	_ = parent
@@ -817,14 +817,14 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_checkImport_1046(t *NodeT
 		_ = lhs
 		if lhs.IsDestructuringLhs() {
 			if importType.AllowDestructuring() {
-				if !(this_.priv_Checker_isValidDestructuringImport_1044(lhs)) {
+				if !(this_.priv_Checker_isValidDestructuringImport_1045(lhs)) {
 					t.Report_3(declaration, StaticGet_CheckClosureImports_INVALID_CLOSURE_IMPORT_DESTRUCTURING(), []string{importType.CallName()})
 				}
 			} else {
 				t.Report_3(declaration, StaticGet_CheckClosureImports_NO_CLOSURE_IMPORT_DESTRUCTURING(), []string{importType.CallName()})
 			}
 		} else if lhs.IsName() {
-			this_.priv_Checker_checkShortName_1045(t, lhs, call.GetLastChild().GetString())
+			this_.priv_Checker_checkShortName_1046(t, lhs, call.GetLastChild().GetString())
 		}
 	}
 	var namespace string = call.GetSecondChild().GetString()
@@ -842,7 +842,7 @@ func (this_ *CheckClosureImports_Checker) priv_Checker_checkImport_1046(t *NodeT
 		return
 	}
 	if importType.MustBeOrdered() {
-		this_.outer_.priv_CheckClosureImports_verifyRequireOrder_1034(namespace, call, t, requiredModule)
+		this_.outer_.priv_CheckClosureImports_verifyRequireOrder_1035(namespace, call, t, requiredModule)
 	}
 	if ((importType == StaticGet_CheckClosureImports_ClosureImport_REQUIRE()) && base_currentModule_.IsEs6Module()) && requiredModule.GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module() {
 		t.Report_3(call, StaticGet_Es6RewriteModules_SHOULD_IMPORT_ES6_MODULE(), []string{})

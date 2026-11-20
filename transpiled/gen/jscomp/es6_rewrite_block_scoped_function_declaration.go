@@ -117,12 +117,12 @@ func (this_ *Es6RewriteBlockScopedFunctionDeclaration) Visit_3(t *NodeTraversal,
 	_ = n
 	_ = parent
 	if ((n.IsFunction() && (parent != 0)) && parent.IsBlock()) && !(parent.GetParent().IsFunction()) {
-		this_.priv_Es6RewriteBlockScopedFunctionDeclaration_visitBlockScopedFunctionDeclaration_2594(t, n, parent)
+		this_.priv_Es6RewriteBlockScopedFunctionDeclaration_visitBlockScopedFunctionDeclaration_2604(t, n, parent)
 	}
 }
 
 // Java method: Es6RewriteBlockScopedFunctionDeclaration.visitBlockScopedFunctionDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *Es6RewriteBlockScopedFunctionDeclaration) priv_Es6RewriteBlockScopedFunctionDeclaration_visitBlockScopedFunctionDeclaration_2594(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6RewriteBlockScopedFunctionDeclaration) priv_Es6RewriteBlockScopedFunctionDeclaration_visitBlockScopedFunctionDeclaration_2604(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = n
 	_ = parent

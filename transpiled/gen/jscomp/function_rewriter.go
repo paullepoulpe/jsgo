@@ -617,7 +617,7 @@ func (this_ *FunctionRewriter_IdentityReducer) Reduce(node pkg_rhino.Node) pkg_r
 	if !(FunctionRewriter_IsReduceableFunctionExpression(node)) {
 		return node
 	}
-	if this_.priv_IdentityReducer_isIdentityFunction_2960(node) {
+	if this_.priv_IdentityReducer_isIdentityFunction_2970(node) {
 		return this_.BuildCallNode("JSCompiler_identityFn", pkg_rhino.Node(0), node)
 	} else {
 		return node
@@ -625,7 +625,7 @@ func (this_ *FunctionRewriter_IdentityReducer) Reduce(node pkg_rhino.Node) pkg_r
 }
 
 // Java method: IdentityReducer.isIdentityFunction(com.google.javascript.rhino.Node functionNode)
-func (this_ *FunctionRewriter_IdentityReducer) priv_IdentityReducer_isIdentityFunction_2960(functionNode pkg_rhino.Node) bool {
+func (this_ *FunctionRewriter_IdentityReducer) priv_IdentityReducer_isIdentityFunction_2970(functionNode pkg_rhino.Node) bool {
 	_ = functionNode
 	var argList pkg_rhino.Node = functionNode.GetSecondChild()
 	_ = argList
@@ -704,7 +704,7 @@ func (this_ *FunctionRewriter_ReturnConstantReducer) Reduce(node pkg_rhino.Node)
 	if !(FunctionRewriter_IsReduceableFunctionExpression(node)) {
 		return node
 	}
-	var valueNode pkg_rhino.Node = this_.priv_ReturnConstantReducer_getValueNode_2961(node)
+	var valueNode pkg_rhino.Node = this_.priv_ReturnConstantReducer_getValueNode_2971(node)
 	_ = valueNode
 	if valueNode != 0 {
 		return this_.BuildCallNode("JSCompiler_returnArg", valueNode, node)
@@ -714,7 +714,7 @@ func (this_ *FunctionRewriter_ReturnConstantReducer) Reduce(node pkg_rhino.Node)
 }
 
 // Java method: ReturnConstantReducer.getValueNode(com.google.javascript.rhino.Node functionNode)
-func (this_ *FunctionRewriter_ReturnConstantReducer) priv_ReturnConstantReducer_getValueNode_2961(functionNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *FunctionRewriter_ReturnConstantReducer) priv_ReturnConstantReducer_getValueNode_2971(functionNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = functionNode
 	var value pkg_rhino.Node = this_.MaybeGetSingleReturnRValue(functionNode)
 	_ = value
@@ -783,7 +783,7 @@ func (this_ *FunctionRewriter_GetterReducer) Reduce(node pkg_rhino.Node) pkg_rhi
 	if !(FunctionRewriter_IsReduceableFunctionExpression(node)) || node.IsArrowFunction() {
 		return node
 	}
-	var getprop pkg_rhino.Node = this_.priv_GetterReducer_getGetPropertyName_2962(node)
+	var getprop pkg_rhino.Node = this_.priv_GetterReducer_getGetPropertyName_2972(node)
 	_ = getprop
 	if getprop != 0 {
 		if !(getprop.IsGetProp()) {
@@ -798,7 +798,7 @@ func (this_ *FunctionRewriter_GetterReducer) Reduce(node pkg_rhino.Node) pkg_rhi
 }
 
 // Java method: GetterReducer.getGetPropertyName(com.google.javascript.rhino.Node functionNode)
-func (this_ *FunctionRewriter_GetterReducer) priv_GetterReducer_getGetPropertyName_2962(functionNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *FunctionRewriter_GetterReducer) priv_GetterReducer_getGetPropertyName_2972(functionNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = functionNode
 	var value pkg_rhino.Node = this_.MaybeGetSingleReturnRValue(functionNode)
 	_ = value
@@ -865,7 +865,7 @@ func (this_ *FunctionRewriter_SetterReducer) Reduce(node pkg_rhino.Node) pkg_rhi
 	if !(FunctionRewriter_IsReduceableFunctionExpression(node)) || node.IsArrowFunction() {
 		return node
 	}
-	var propName pkg_rhino.Node = this_.priv_SetterReducer_getSetPropertyName_2963(node)
+	var propName pkg_rhino.Node = this_.priv_SetterReducer_getSetPropertyName_2973(node)
 	_ = propName
 	if propName != 0 {
 		if !(propName.IsStringLit()) {
@@ -878,7 +878,7 @@ func (this_ *FunctionRewriter_SetterReducer) Reduce(node pkg_rhino.Node) pkg_rhi
 }
 
 // Java method: SetterReducer.getSetPropertyName(com.google.javascript.rhino.Node functionNode)
-func (this_ *FunctionRewriter_SetterReducer) priv_SetterReducer_getSetPropertyName_2963(functionNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *FunctionRewriter_SetterReducer) priv_SetterReducer_getSetPropertyName_2973(functionNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = functionNode
 	var body pkg_rhino.Node = functionNode.GetLastChild()
 	_ = body

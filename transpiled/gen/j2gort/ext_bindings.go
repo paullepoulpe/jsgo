@@ -22950,7 +22950,7 @@ type Ext_java_lang_AbstractStringBuilder interface {
 	SetLength(int32)
 	CharAt(int32) uint16
 	SetCharAt(int32, uint16)
-	Append_1_any_9908(any) any
+	Append_1_any_9925(any) any
 	Append_1_string(string) any
 	Append_1_slice_uint16([]uint16) any
 	Append_1_int32(int32) any
@@ -23013,7 +23013,7 @@ func (this_ *Ext_java_lang_AbstractStringBuilderBase) CharAt(arg0 int32) uint16 
 func (this_ *Ext_java_lang_AbstractStringBuilderBase) SetCharAt(arg0 int32, arg1 uint16) {
 	this_.sbCore().setCharAt(arg0, arg1)
 }
-func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9908(arg0 any) any {
+func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9925(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	if this_.Self_ != nil {
 		return this_.Self_
@@ -23751,7 +23751,7 @@ func init() {
 }
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_AbstractStringBuilder() {}
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_Appendable()            {}
-func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9908(arg0 any) any {
+func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9925(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	return this_
 }
@@ -33556,12 +33556,12 @@ func Ext_com_google_common_collect_ImmutableSet_CopyOf_1_Ext_java_util_Collectio
 	return immSetCopyOfIterable(arg0)
 }
 
-func Ext_com_google_common_collect_ImmutableSet_CopyOf_1_slice_any(arg0 []any) Ext_com_google_common_collect_ImmutableSet {
-	return immSetCopyOfSlice(arg0)
-}
-
 func Ext_com_google_common_collect_ImmutableSet_CopyOf_1_Ext_java_lang_Iterable(arg0 Ext_java_lang_Iterable) Ext_com_google_common_collect_ImmutableSet {
 	return immSetCopyOfIterable(arg0)
+}
+
+func Ext_com_google_common_collect_ImmutableSet_CopyOf_1_slice_any(arg0 []any) Ext_com_google_common_collect_ImmutableSet {
+	return immSetCopyOfSlice(arg0)
 }
 
 func Ext_com_google_common_collect_ImmutableSet_Of_0() Ext_com_google_common_collect_ImmutableSet {
@@ -41919,12 +41919,14 @@ func finishImmStrSetOwn(strs []string, _ *JSetCore) *Ext_com_google_common_colle
 }
 
 func finishImmSetSingleRaw(e0 any) *Ext_com_google_common_collect_ImmutableSetBase {
+	if cached := tryGetOrCreateImmEnumSingle(e0); cached != nil {
+		return cached
+	}
 	c := &immAnySet1_{}
 	c.set.u8Tab_ = &emptyU8Tab_
 	c.set.BindExtSelf_(&c.set)
 	c.buf[0] = e0
 	c.set.elems_ = c.buf[:1:1]
-	tryInitImmEnumSingle(&c.set, e0)
 	return &c.set
 }
 

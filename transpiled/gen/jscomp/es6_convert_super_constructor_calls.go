@@ -131,12 +131,12 @@ func (this_ *Es6ConvertSuperConstructorCalls) Visit_3(t *NodeTraversal, n pkg_rh
 	_ = constructorData
 	if (constructorData != nil) && (n == constructorData.constructor) {
 		this_.constructorDataStack.Pop()
-		this_.priv_Es6ConvertSuperConstructorCalls_visitSuper_2472(t, constructorData)
+		this_.priv_Es6ConvertSuperConstructorCalls_visitSuper_2482(t, constructorData)
 	}
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.visitSuper(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.Es6ConvertSuperConstructorCalls.ConstructorData constructorData)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_visitSuper_2472(t *NodeTraversal, constructorData *Es6ConvertSuperConstructorCalls_ConstructorData) {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_visitSuper_2482(t *NodeTraversal, constructorData *Es6ConvertSuperConstructorCalls_ConstructorData) {
 	_ = t
 	_ = constructorData
 	var constructor pkg_rhino.Node = constructorData.constructor
@@ -164,27 +164,27 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 	}
 	var uniqueSuperThisName string = ("$jscomp$super$this" + "$" + j2gort.StrValString(this_.uniqueIdSupplier.GetUniqueId(this_.compiler.GetInput(NodeUtil_GetInputId(constructor)))))
 	_ = uniqueSuperThisName
-	var superClassNameNode pkg_rhino.Node = this_.priv_Es6ConvertSuperConstructorCalls_getSuperClassQNameNode_2489(constructor)
+	var superClassNameNode pkg_rhino.Node = this_.priv_Es6ConvertSuperConstructorCalls_getSuperClassQNameNode_2499(constructor)
 	_ = superClassNameNode
 	var superClassQName string = superClassNameNode.GetQualifiedName()
 	_ = superClassQName
-	var thisType AstFactory_Type = this_.priv_Es6ConvertSuperConstructorCalls_getTypeOfThisForConstructor_2488(constructorData.constructor)
+	var thisType AstFactory_Type = this_.priv_Es6ConvertSuperConstructorCalls_getTypeOfThisForConstructor_2498(constructorData.constructor)
 	_ = thisType
-	if this_.priv_Es6ConvertSuperConstructorCalls_isNativeObjectClass_2483(t, superClassQName) {
-		this_.priv_Es6ConvertSuperConstructorCalls_replaceSuperCallsWithThis_2473(superCalls, thisType)
-	} else if this_.priv_Es6ConvertSuperConstructorCalls_isKnownNativeClass_2485(t, superClassQName) {
-		this_.priv_Es6ConvertSuperConstructorCalls_rewriteSuperCallsToJsCompConstructCalls_2474(constructor, superCalls, superClassNameNode, thisType, uniqueSuperThisName)
-	} else if this_.priv_Es6ConvertSuperConstructorCalls_isNativeErrorClass_2484(t, superClassQName) {
-		this_.priv_Es6ConvertSuperConstructorCalls_rewriteNativeErrorSuperCalls_2475(t, superCalls, superClassNameNode, thisType)
-	} else if this_.priv_Es6ConvertSuperConstructorCalls_isKnownToReturnOnlyUndefined_2478(superClassQName) {
-		this_.priv_Es6ConvertSuperConstructorCalls_rewriteSuperCalls_2476(superCalls, superClassNameNode, thisType)
+	if this_.priv_Es6ConvertSuperConstructorCalls_isNativeObjectClass_2493(t, superClassQName) {
+		this_.priv_Es6ConvertSuperConstructorCalls_replaceSuperCallsWithThis_2483(superCalls, thisType)
+	} else if this_.priv_Es6ConvertSuperConstructorCalls_isKnownNativeClass_2495(t, superClassQName) {
+		this_.priv_Es6ConvertSuperConstructorCalls_rewriteSuperCallsToJsCompConstructCalls_2484(constructor, superCalls, superClassNameNode, thisType, uniqueSuperThisName)
+	} else if this_.priv_Es6ConvertSuperConstructorCalls_isNativeErrorClass_2494(t, superClassQName) {
+		this_.priv_Es6ConvertSuperConstructorCalls_rewriteNativeErrorSuperCalls_2485(t, superCalls, superClassNameNode, thisType)
+	} else if this_.priv_Es6ConvertSuperConstructorCalls_isKnownToReturnOnlyUndefined_2488(superClassQName) {
+		this_.priv_Es6ConvertSuperConstructorCalls_rewriteSuperCalls_2486(superCalls, superClassNameNode, thisType)
 	} else {
-		this_.priv_Es6ConvertSuperConstructorCalls_rewriteSuperAndPreserveReturnedThis_2477(constructor, superCalls, superClassNameNode, thisType, uniqueSuperThisName)
+		this_.priv_Es6ConvertSuperConstructorCalls_rewriteSuperAndPreserveReturnedThis_2487(constructor, superCalls, superClassNameNode, thisType, uniqueSuperThisName)
 	}
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.replaceSuperCallsWithThis(java.util.List<com.google.javascript.rhino.Node> superCalls, com.google.javascript.jscomp.AstFactory.Type thisType)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_replaceSuperCallsWithThis_2473(superCalls j2gort.Ext_java_util_List, thisType AstFactory_Type) {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_replaceSuperCallsWithThis_2483(superCalls j2gort.Ext_java_util_List, thisType AstFactory_Type) {
 	_ = superCalls
 	_ = thisType
 	{
@@ -230,7 +230,7 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.rewriteSuperCallsToJsCompConstructCalls(com.google.javascript.rhino.Node constructor, java.util.List<com.google.javascript.rhino.Node> superCalls, com.google.javascript.rhino.Node superClassNameNode, com.google.javascript.jscomp.AstFactory.Type thisType, java.lang.String uniqueSuperThisName)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_rewriteSuperCallsToJsCompConstructCalls_2474(constructor pkg_rhino.Node, superCalls j2gort.Ext_java_util_List, superClassNameNode pkg_rhino.Node, thisType AstFactory_Type, uniqueSuperThisName string) {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_rewriteSuperCallsToJsCompConstructCalls_2484(constructor pkg_rhino.Node, superCalls j2gort.Ext_java_util_List, superClassNameNode pkg_rhino.Node, thisType AstFactory_Type, uniqueSuperThisName string) {
 	_ = constructor
 	_ = superCalls
 	_ = superClassNameNode
@@ -247,11 +247,11 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 		if !(superCalls.Size() == int32(1)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(constructor))
 		}
-		firstStatement.ReplaceWith(this_.astFactory.CreateReturn(this_.priv_Es6ConvertSuperConstructorCalls_createJSCompConstructorCall_2481(superClassNameNode, firstSuperCall, thisType)))
+		firstStatement.ReplaceWith(this_.astFactory.CreateReturn(this_.priv_Es6ConvertSuperConstructorCalls_createJSCompConstructorCall_2491(superClassNameNode, firstSuperCall, thisType)))
 	} else {
-		var typeOfThis AstFactory_Type = this_.priv_Es6ConvertSuperConstructorCalls_getTypeOfThisForConstructor_2488(constructor)
+		var typeOfThis AstFactory_Type = this_.priv_Es6ConvertSuperConstructorCalls_getTypeOfThisForConstructor_2498(constructor)
 		_ = typeOfThis
-		this_.priv_Es6ConvertSuperConstructorCalls_updateThisToSuperThis_2487(typeOfThis, constructorBody, superCalls, uniqueSuperThisName)
+		this_.priv_Es6ConvertSuperConstructorCalls_updateThisToSuperThis_2497(typeOfThis, constructorBody, superCalls, uniqueSuperThisName)
 		var declaration pkg_rhino.Node = this_.astFactory.CreateSingleVarNameDeclaration_1(uniqueSuperThisName).SrcrefTree(constructorBody)
 		_ = declaration
 		var insertBeforePoint pkg_rhino.Node = NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(constructorBody)
@@ -267,7 +267,7 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 			for cur_3.HasNext() {
 				superCall := pkg_rhino.Node(cur_3.NextNode())
 				_ = superCall
-				superCall.ReplaceWith(this_.astFactory.CreateAssign_2_Node_Node(this_.astFactory.CreateName_2_string_AstFactory_Type(uniqueSuperThisName, typeOfThis).Srcref(superCall), this_.priv_Es6ConvertSuperConstructorCalls_createJSCompConstructorCall_2481(superClassNameNode, superCall, thisType)).Srcref(superCall))
+				superCall.ReplaceWith(this_.astFactory.CreateAssign_2_Node_Node(this_.astFactory.CreateName_2_string_AstFactory_Type(uniqueSuperThisName, typeOfThis).Srcref(superCall), this_.priv_Es6ConvertSuperConstructorCalls_createJSCompConstructorCall_2491(superClassNameNode, superCall, thisType)).Srcref(superCall))
 			}
 		}
 	}
@@ -275,7 +275,7 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.rewriteNativeErrorSuperCalls(com.google.javascript.jscomp.NodeTraversal t, java.util.List<com.google.javascript.rhino.Node> superCalls, com.google.javascript.rhino.Node superClassNameNode, com.google.javascript.jscomp.AstFactory.Type thisType)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_rewriteNativeErrorSuperCalls_2475(t *NodeTraversal, superCalls j2gort.Ext_java_util_List, superClassNameNode pkg_rhino.Node, thisType AstFactory_Type) {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_rewriteNativeErrorSuperCalls_2485(t *NodeTraversal, superCalls j2gort.Ext_java_util_List, superClassNameNode pkg_rhino.Node, thisType AstFactory_Type) {
 	_ = t
 	_ = superCalls
 	_ = superClassNameNode
@@ -285,15 +285,15 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 		for cur_4.HasNext() {
 			superCall := pkg_rhino.Node(cur_4.NextNode())
 			_ = superCall
-			var newSuperCall pkg_rhino.Node = this_.priv_Es6ConvertSuperConstructorCalls_createNewSuperCall_2480(superClassNameNode, superCall, thisType, AstFactory_S_Type_1_Node(superCall))
+			var newSuperCall pkg_rhino.Node = this_.priv_Es6ConvertSuperConstructorCalls_createNewSuperCall_2490(superClassNameNode, superCall, thisType, AstFactory_S_Type_1_Node(superCall))
 			_ = newSuperCall
-			this_.priv_Es6ConvertSuperConstructorCalls_replaceNativeErrorSuperCall_2482(superCall, newSuperCall, t.GetInput())
+			this_.priv_Es6ConvertSuperConstructorCalls_replaceNativeErrorSuperCall_2492(superCall, newSuperCall, t.GetInput())
 		}
 	}
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.rewriteSuperCalls(java.util.List<com.google.javascript.rhino.Node> superCalls, com.google.javascript.rhino.Node superClassNameNode, com.google.javascript.jscomp.AstFactory.Type thisType)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_rewriteSuperCalls_2476(superCalls j2gort.Ext_java_util_List, superClassNameNode pkg_rhino.Node, thisType AstFactory_Type) {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_rewriteSuperCalls_2486(superCalls j2gort.Ext_java_util_List, superClassNameNode pkg_rhino.Node, thisType AstFactory_Type) {
 	_ = superCalls
 	_ = superClassNameNode
 	_ = thisType
@@ -302,7 +302,7 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 		for cur_5.HasNext() {
 			superCall := pkg_rhino.Node(cur_5.NextNode())
 			_ = superCall
-			var newSuperCall pkg_rhino.Node = this_.priv_Es6ConvertSuperConstructorCalls_createNewSuperCall_2480(superClassNameNode, superCall, thisType, AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_NULL_OR_VOID()))
+			var newSuperCall pkg_rhino.Node = this_.priv_Es6ConvertSuperConstructorCalls_createNewSuperCall_2490(superClassNameNode, superCall, thisType, AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_NULL_OR_VOID()))
 			_ = newSuperCall
 			var superCallParent pkg_rhino.Node = superCall.GetParent()
 			_ = superCallParent
@@ -317,14 +317,14 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.rewriteSuperAndPreserveReturnedThis(com.google.javascript.rhino.Node constructor, java.util.List<com.google.javascript.rhino.Node> superCalls, com.google.javascript.rhino.Node superClassNameNode, com.google.javascript.jscomp.AstFactory.Type thisType, java.lang.String uniqueSuperThisName)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_rewriteSuperAndPreserveReturnedThis_2477(constructor pkg_rhino.Node, superCalls j2gort.Ext_java_util_List, superClassNameNode pkg_rhino.Node, thisType AstFactory_Type, uniqueSuperThisName string) {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_rewriteSuperAndPreserveReturnedThis_2487(constructor pkg_rhino.Node, superCalls j2gort.Ext_java_util_List, superClassNameNode pkg_rhino.Node, thisType AstFactory_Type, uniqueSuperThisName string) {
 	_ = constructor
 	_ = superCalls
 	_ = superClassNameNode
 	_ = thisType
 	_ = uniqueSuperThisName
 	if this_.es6SubclassTranspilation == StaticGet_CompilerOptions_Es6SubclassTranspilation_SAFE_REFLECT_CONSTRUCT() {
-		this_.priv_Es6ConvertSuperConstructorCalls_rewriteSuperCallsToJsCompConstructCalls_2474(constructor, superCalls, superClassNameNode, thisType, uniqueSuperThisName)
+		this_.priv_Es6ConvertSuperConstructorCalls_rewriteSuperCallsToJsCompConstructCalls_2484(constructor, superCalls, superClassNameNode, thisType, uniqueSuperThisName)
 		return
 	}
 	var constructorBody pkg_rhino.Node = j2gort.CheckNotNullNode(constructor.GetChildAtIndex(int32(2)))
@@ -337,11 +337,11 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 		if !(superCalls.Size() == int32(1)) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(constructor))
 		}
-		var newReturn pkg_rhino.Node = this_.astFactory.CreateOr(this_.priv_Es6ConvertSuperConstructorCalls_createNewSuperCall_2480(superClassNameNode, j2gort.CastNode[pkg_rhino.Node](superCalls.Get(int32(0))), AstFactory_S_Type_1_Node(j2gort.CastNode[pkg_rhino.Node](superCalls.Get(int32(0)))), AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_UNKNOWN())), this_.astFactory.CreateThis(thisType))
+		var newReturn pkg_rhino.Node = this_.astFactory.CreateOr(this_.priv_Es6ConvertSuperConstructorCalls_createNewSuperCall_2490(superClassNameNode, j2gort.CastNode[pkg_rhino.Node](superCalls.Get(int32(0))), AstFactory_S_Type_1_Node(j2gort.CastNode[pkg_rhino.Node](superCalls.Get(int32(0)))), AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_UNKNOWN())), this_.astFactory.CreateThis(thisType))
 		_ = newReturn
 		firstStatement.ReplaceWith(pkg_rhino.IR_ReturnNode_1(newReturn).SrcrefTreeIfMissing(firstStatement))
 	} else {
-		var typeOfThis AstFactory_Type = this_.priv_Es6ConvertSuperConstructorCalls_getTypeOfThisForConstructor_2488(constructor)
+		var typeOfThis AstFactory_Type = this_.priv_Es6ConvertSuperConstructorCalls_getTypeOfThisForConstructor_2498(constructor)
 		_ = typeOfThis
 		var declaration pkg_rhino.Node = pkg_rhino.IR_Var_1(this_.astFactory.CreateName_2_string_AstFactory_Type(uniqueSuperThisName, typeOfThis)).SrcrefTree(constructorBody)
 		_ = declaration
@@ -353,13 +353,13 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 			constructorBody.AddChildToBack(declaration)
 		}
 		constructorBody.AddChildToBack(pkg_rhino.IR_ReturnNode_1(this_.astFactory.CreateName_2_string_AstFactory_Type(uniqueSuperThisName, typeOfThis)).SrcrefTree(constructorBody))
-		this_.priv_Es6ConvertSuperConstructorCalls_updateThisToSuperThis_2487(typeOfThis, constructorBody, superCalls, uniqueSuperThisName)
+		this_.priv_Es6ConvertSuperConstructorCalls_updateThisToSuperThis_2497(typeOfThis, constructorBody, superCalls, uniqueSuperThisName)
 		{
 			cur_6 := j2gort.NewIterCursor(j2gort.CheckNotNull(superCalls))
 			for cur_6.HasNext() {
 				superCall := pkg_rhino.Node(cur_6.NextNode())
 				_ = superCall
-				var newSuperCall pkg_rhino.Node = this_.priv_Es6ConvertSuperConstructorCalls_createNewSuperCall_2480(superClassNameNode, superCall, typeOfThis, AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_UNKNOWN()))
+				var newSuperCall pkg_rhino.Node = this_.priv_Es6ConvertSuperConstructorCalls_createNewSuperCall_2490(superClassNameNode, superCall, typeOfThis, AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_UNKNOWN()))
 				_ = newSuperCall
 				superCall.ReplaceWith(this_.astFactory.CreateAssign_2_Node_Node(this_.astFactory.CreateName_2_string_AstFactory_Type(uniqueSuperThisName, typeOfThis), this_.astFactory.CreateOr(newSuperCall, this_.astFactory.CreateThis(typeOfThis))).SrcrefTreeIfMissing(superCall))
 			}
@@ -369,7 +369,7 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.isKnownToReturnOnlyUndefined(java.lang.String functionQName)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_isKnownToReturnOnlyUndefined_2478(functionQName string) bool {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_isKnownToReturnOnlyUndefined_2488(functionQName string) bool {
 	_ = functionQName
 	if this_.globalNamespace == nil {
 		return false
@@ -421,31 +421,31 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 	} else {
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Unexpected declaration format:\n"+j2gort.StrValString(declaration.ToStringTree()))))
 	}
-	return this_.priv_Es6ConvertSuperConstructorCalls_isNodeKnownToOnlyReturnUndefined_2479(declaredValue)
+	return this_.priv_Es6ConvertSuperConstructorCalls_isNodeKnownToOnlyReturnUndefined_2489(declaredValue)
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.isNodeKnownToOnlyReturnUndefined(com.google.javascript.rhino.Node node)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_isNodeKnownToOnlyReturnUndefined_2479(node pkg_rhino.Node) bool {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_isNodeKnownToOnlyReturnUndefined_2489(node pkg_rhino.Node) bool {
 	_ = node
 	if node.IsFunction() {
 		var functionBody pkg_rhino.Node = j2gort.CheckNotNullNode(node.GetChildAtIndex(int32(2)))
 		_ = functionBody
 		return !(NewEs6ConvertSuperConstructorCalls_UndefinedReturnValueCheck(this_).MayReturnDefinedValue(functionBody))
 	} else if node.IsQualifiedName() {
-		return this_.priv_Es6ConvertSuperConstructorCalls_isKnownToReturnOnlyUndefined_2478(node.GetQualifiedName())
+		return this_.priv_Es6ConvertSuperConstructorCalls_isKnownToReturnOnlyUndefined_2488(node.GetQualifiedName())
 	} else if node.IsHook() {
 		var left pkg_rhino.Node = node.GetSecondChild()
 		_ = left
 		var right pkg_rhino.Node = node.GetLastChild()
 		_ = right
-		return (this_.priv_Es6ConvertSuperConstructorCalls_isNodeKnownToOnlyReturnUndefined_2479(left) && this_.priv_Es6ConvertSuperConstructorCalls_isNodeKnownToOnlyReturnUndefined_2479(right))
+		return (this_.priv_Es6ConvertSuperConstructorCalls_isNodeKnownToOnlyReturnUndefined_2489(left) && this_.priv_Es6ConvertSuperConstructorCalls_isNodeKnownToOnlyReturnUndefined_2489(right))
 	} else {
 		return false
 	}
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.createNewSuperCall(com.google.javascript.rhino.Node superClassQNameNode, com.google.javascript.rhino.Node superCall, com.google.javascript.jscomp.AstFactory.Type thisType, com.google.javascript.jscomp.AstFactory.Type resultType)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_createNewSuperCall_2480(superClassQNameNode pkg_rhino.Node, superCall pkg_rhino.Node, thisType AstFactory_Type, resultType AstFactory_Type) pkg_rhino.Node {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_createNewSuperCall_2490(superClassQNameNode pkg_rhino.Node, superCall pkg_rhino.Node, thisType AstFactory_Type, resultType AstFactory_Type) pkg_rhino.Node {
 	_ = superClassQNameNode
 	_ = superCall
 	_ = thisType
@@ -504,7 +504,7 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.createJSCompConstructorCall(com.google.javascript.rhino.Node superClassQNameNode, com.google.javascript.rhino.Node superCall, com.google.javascript.jscomp.AstFactory.Type thisType)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_createJSCompConstructorCall_2481(superClassQNameNode pkg_rhino.Node, superCall pkg_rhino.Node, thisType AstFactory_Type) pkg_rhino.Node {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_createJSCompConstructorCall_2491(superClassQNameNode pkg_rhino.Node, superCall pkg_rhino.Node, thisType AstFactory_Type) pkg_rhino.Node {
 	_ = superClassQNameNode
 	_ = superCall
 	_ = thisType
@@ -553,7 +553,7 @@ func Es6ConvertSuperConstructorCalls_IsSpreadOfArguments(node pkg_rhino.Node) bo
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.replaceNativeErrorSuperCall(com.google.javascript.rhino.Node superCall, com.google.javascript.rhino.Node newSuperCall, com.google.javascript.jscomp.CompilerInput compilerInput)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_replaceNativeErrorSuperCall_2482(superCall pkg_rhino.Node, newSuperCall pkg_rhino.Node, compilerInput *CompilerInput) {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_replaceNativeErrorSuperCall_2492(superCall pkg_rhino.Node, newSuperCall pkg_rhino.Node, compilerInput *CompilerInput) {
 	_ = superCall
 	_ = newSuperCall
 	_ = compilerInput
@@ -584,19 +584,19 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.isNativeObjectClass(com.google.javascript.jscomp.NodeTraversal t, java.lang.String className)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_isNativeObjectClass_2483(t *NodeTraversal, className string) bool {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_isNativeObjectClass_2493(t *NodeTraversal, className string) bool {
 	_ = t
 	_ = className
-	return ((j2gort.CheckNotNullString(className) == "Object") && !(this_.priv_Es6ConvertSuperConstructorCalls_isDefinedInSources_2486(t, className)))
+	return ((j2gort.CheckNotNullString(className) == "Object") && !(this_.priv_Es6ConvertSuperConstructorCalls_isDefinedInSources_2496(t, className)))
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.isNativeErrorClass(com.google.javascript.jscomp.NodeTraversal t, java.lang.String superClassName)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_isNativeErrorClass_2484(t *NodeTraversal, superClassName string) bool {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_isNativeErrorClass_2494(t *NodeTraversal, superClassName string) bool {
 	_ = t
 	_ = superClassName
 	switch j2gort.CheckNotNullString(superClassName) {
 	case "AggregateError", "Error", "EvalError", "RangeError", "ReferenceError", "SyntaxError", "TypeError", "URIError":
-		return !(this_.priv_Es6ConvertSuperConstructorCalls_isDefinedInSources_2486(t, superClassName))
+		return !(this_.priv_Es6ConvertSuperConstructorCalls_isDefinedInSources_2496(t, superClassName))
 	default:
 		return false
 	}
@@ -604,12 +604,12 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.isKnownNativeClass(com.google.javascript.jscomp.NodeTraversal t, java.lang.String className)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_isKnownNativeClass_2485(t *NodeTraversal, className string) bool {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_isKnownNativeClass_2495(t *NodeTraversal, className string) bool {
 	_ = t
 	_ = className
 	switch j2gort.CheckNotNullString(className) {
 	case "Array", "ArrayBuffer", "Boolean", "DataView", "Date", "Float32Array", "Function", "Generator", "GeneratorFunction", "Int16Array", "Int32Array", "Int8Array", "InternalError", "Iterator", "Map", "Number", "Object", "Promise", "Proxy", "RegExp", "Set", "String", "Symbol", "TypedArray", "Uint16Array", "Uint32Array", "Uint8Array", "Uint8ClampedArray", "WeakMap", "WeakSet":
-		return !(this_.priv_Es6ConvertSuperConstructorCalls_isDefinedInSources_2486(t, className))
+		return !(this_.priv_Es6ConvertSuperConstructorCalls_isDefinedInSources_2496(t, className))
 	default:
 		return false
 	}
@@ -617,7 +617,7 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.isDefinedInSources(com.google.javascript.jscomp.NodeTraversal t, java.lang.String varName)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_isDefinedInSources_2486(t *NodeTraversal, varName string) bool {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_isDefinedInSources_2496(t *NodeTraversal, varName string) bool {
 	_ = t
 	_ = varName
 	var objectVar *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(varName))
@@ -626,7 +626,7 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.updateThisToSuperThis(com.google.javascript.jscomp.AstFactory.Type typeOfThis, com.google.javascript.rhino.Node constructorBody, java.util.List<com.google.javascript.rhino.Node> superCalls, java.lang.String uniqueSuperThisName)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_updateThisToSuperThis_2487(typeOfThis AstFactory_Type, constructorBody pkg_rhino.Node, superCalls j2gort.Ext_java_util_List, uniqueSuperThisName string) {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_updateThisToSuperThis_2497(typeOfThis AstFactory_Type, constructorBody pkg_rhino.Node, superCalls j2gort.Ext_java_util_List, uniqueSuperThisName string) {
 	_ = typeOfThis
 	_ = constructorBody
 	_ = superCalls
@@ -637,7 +637,7 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.getTypeOfThisForConstructor(com.google.javascript.rhino.Node constructor)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_getTypeOfThisForConstructor_2488(constructor pkg_rhino.Node) AstFactory_Type {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_getTypeOfThisForConstructor_2498(constructor pkg_rhino.Node) AstFactory_Type {
 	_ = constructor
 	if !(constructor.IsFunction()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(constructor))
@@ -652,7 +652,7 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.getSuperClassQNameNode(com.google.javascript.rhino.Node constructor)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_getSuperClassQNameNode_2489(constructor pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_getSuperClassQNameNode_2499(constructor pkg_rhino.Node) pkg_rhino.Node {
 	_ = constructor
 	var className string = NodeUtil_GetNameNode(constructor).GetQualifiedName()
 	_ = className
@@ -664,7 +664,7 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 		var statement pkg_rhino.Node = constructorStatement.GetNext()
 		_ = statement
 		for ; statement != 0; statement = statement.GetNext() {
-			superClassNameNode = this_.priv_Es6ConvertSuperConstructorCalls_getSuperClassNameNodeIfIsInheritsStatement_2490(statement, className)
+			superClassNameNode = this_.priv_Es6ConvertSuperConstructorCalls_getSuperClassNameNodeIfIsInheritsStatement_2500(statement, className)
 			if superClassNameNode != 0 {
 				break
 			}
@@ -674,7 +674,7 @@ func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCal
 }
 
 // Java method: Es6ConvertSuperConstructorCalls.getSuperClassNameNodeIfIsInheritsStatement(com.google.javascript.rhino.Node statement, java.lang.String className)
-func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_getSuperClassNameNodeIfIsInheritsStatement_2490(statement pkg_rhino.Node, className string) pkg_rhino.Node {
+func (this_ *Es6ConvertSuperConstructorCalls) priv_Es6ConvertSuperConstructorCalls_getSuperClassNameNodeIfIsInheritsStatement_2500(statement pkg_rhino.Node, className string) pkg_rhino.Node {
 	_ = statement
 	_ = className
 	if !(statement.IsExprResult()) {

@@ -84,7 +84,7 @@ func (this_ *J2clStringValueOfRewriterPass) OptimizeSubtree(node pkg_rhino.Node)
 	if !(this_.shouldRunJ2clPasses) || !(J2clStringValueOfRewriterPass_IsStringValueOfCall(node)) {
 		return node
 	}
-	var replacement pkg_rhino.Node = this_.priv_J2clStringValueOfRewriterPass_tryRewriteStringValueOfCall_3501(node)
+	var replacement pkg_rhino.Node = this_.priv_J2clStringValueOfRewriterPass_tryRewriteStringValueOfCall_3511(node)
 	_ = replacement
 	if replacement != node {
 		replacement = replacement.SrcrefIfMissing(node)
@@ -95,7 +95,7 @@ func (this_ *J2clStringValueOfRewriterPass) OptimizeSubtree(node pkg_rhino.Node)
 }
 
 // Java method: J2clStringValueOfRewriterPass.tryRewriteStringValueOfCall(com.google.javascript.rhino.Node n)
-func (this_ *J2clStringValueOfRewriterPass) priv_J2clStringValueOfRewriterPass_tryRewriteStringValueOfCall_3501(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *J2clStringValueOfRewriterPass) priv_J2clStringValueOfRewriterPass_tryRewriteStringValueOfCall_3511(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var param pkg_rhino.Node = n.GetSecondChild()
 	_ = param

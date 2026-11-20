@@ -130,7 +130,7 @@ func InitRewriteDynamicImports(this_ *RewriteDynamicImports, compiler AbstractCo
 }
 
 // Java method: RewriteDynamicImports.aliasIsValid()
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_aliasIsValid_5003() bool {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_aliasIsValid_5013() bool {
 	return ((this_.alias != j2gort.NullString) && ((j2gort.CheckNotNullString(this_.alias) == "import") || NodeUtil_IsValidQualifiedName_2_FeatureSet_string(this_.compiler.GetAllowableFeatures(), this_.alias)))
 }
 
@@ -147,12 +147,12 @@ func (this_ *RewriteDynamicImports) Process_2(externs pkg_rhino.Node, root pkg_r
 	}
 	NodeTraversal_Traverse(this_.compiler, root, this_)
 	if this_.wrappedDynamicImportCallback {
-		this_.priv_RewriteDynamicImports_injectWrappingFunctionExtern_5009()
+		this_.priv_RewriteDynamicImports_injectWrappingFunctionExtern_5019()
 	}
 	if this_.dynamicImportsRemoved {
 		this_.compiler.MarkFeatureNotAllowed(pkg_parser.StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT())
 		NodeUtil_RemoveFeatureFromAllScripts(root, pkg_parser.StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT(), this_.compiler)
-		if this_.requiresAliasing && this_.priv_RewriteDynamicImports_aliasIsValid_5003() {
+		if this_.requiresAliasing && this_.priv_RewriteDynamicImports_aliasIsValid_5013() {
 			NodeTraversal_Traverse(this_.compiler, externs, NewRewriteDynamicImports_AliasInjectingTraversal(this_))
 		}
 	}
@@ -198,18 +198,18 @@ func (this_ *RewriteDynamicImports) Visit_3(t *NodeTraversal, n pkg_rhino.Node, 
 			var targetChunk *JSChunk = targetModuleNS.GetInput().GetChunk()
 			_ = targetChunk
 			if t.GetChunk() == targetChunk {
-				this_.priv_RewriteDynamicImports_replaceDynamicImportWithPromise_5004(t, n, targetModuleNS)
+				this_.priv_RewriteDynamicImports_replaceDynamicImportWithPromise_5014(t, n, targetModuleNS)
 				return
 			} else {
-				this_.priv_RewriteDynamicImports_retargetImportSpecifier_5005(t, n, targetChunk)
+				this_.priv_RewriteDynamicImports_retargetImportSpecifier_5015(t, n, targetChunk)
 				if NodeUtil_IsExpressionResultUsed(n) {
-					this_.priv_RewriteDynamicImports_addChainedThen_5006(t, n, targetModuleNS)
+					this_.priv_RewriteDynamicImports_addChainedThen_5016(t, n, targetModuleNS)
 				}
 			}
 		}
 	}
-	if this_.priv_RewriteDynamicImports_aliasIsValid_5003() {
-		this_.priv_RewriteDynamicImports_aliasDynamicImport_5007(t, n)
+	if this_.priv_RewriteDynamicImports_aliasIsValid_5013() {
+		this_.priv_RewriteDynamicImports_aliasDynamicImport_5017(t, n)
 	} else if this_.alias != j2gort.NullString {
 		t.Report_3(n, StaticGet_RewriteDynamicImports_DYNAMIC_IMPORT_INVALID_ALIAS(), []string{})
 	} else if this_.requiresAliasing {
@@ -218,7 +218,7 @@ func (this_ *RewriteDynamicImports) Visit_3(t *NodeTraversal, n pkg_rhino.Node, 
 }
 
 // Java method: RewriteDynamicImports.replaceDynamicImportWithPromise(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node dynamicImport, com.google.javascript.jscomp.Var targetModuleNS)
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_replaceDynamicImportWithPromise_5004(t *NodeTraversal, dynamicImport pkg_rhino.Node, targetModuleNS *Var) {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_replaceDynamicImportWithPromise_5014(t *NodeTraversal, dynamicImport pkg_rhino.Node, targetModuleNS *Var) {
 	_ = t
 	_ = dynamicImport
 	_ = targetModuleNS
@@ -241,7 +241,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_replaceDynamicImp
 			moduleNamespaceType = registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 		}
 		promiseDotResolve.SetJSType(pkg_rhino.ToIface_JSType(registry.CreateFunctionType_2_JSType_JSType(pkg_rhino.ToIface_JSType(registry.CreateTemplatizedType_2_ObjectType_JSType(registry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_PROMISE_TYPE()), []pkg_rhino.JSType{moduleNamespaceType})), []pkg_rhino.JSType{registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ALL_TYPE())})))
-		promiseResolveCall.AddChildToBack(this_.priv_RewriteDynamicImports_createModuleNamespaceNode_5008(targetModuleNS))
+		promiseResolveCall.AddChildToBack(this_.priv_RewriteDynamicImports_createModuleNamespaceNode_5018(targetModuleNS))
 		promiseResolveCall.CopyTypeFrom(dynamicImport)
 	} else {
 		promiseDotResolve.SetJSType(pkg_rhino.ToIface_JSType(registry.CreateFunctionType_2_JSType_JSType(pkg_rhino.ToIface_JSType(registry.CreateTemplatizedType_2_ObjectType_JSType(registry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_PROMISE_TYPE()), []pkg_rhino.JSType{registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())})), []pkg_rhino.JSType{registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_ALL_TYPE())})))
@@ -263,7 +263,7 @@ func RewriteDynamicImports_GetChunkFileName(chunk *JSChunk) string {
 }
 
 // Java method: RewriteDynamicImports.retargetImportSpecifier(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node dynamicImport, com.google.javascript.jscomp.JSChunk targetChunk)
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_retargetImportSpecifier_5005(t *NodeTraversal, dynamicImport pkg_rhino.Node, targetChunk *JSChunk) {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_retargetImportSpecifier_5015(t *NodeTraversal, dynamicImport pkg_rhino.Node, targetChunk *JSChunk) {
 	_ = t
 	_ = dynamicImport
 	_ = targetChunk
@@ -304,7 +304,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_retargetImportSpe
 }
 
 // Java method: RewriteDynamicImports.addChainedThen(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node dynamicImport, com.google.javascript.jscomp.Var targetModuleNs)
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_addChainedThen_5006(t *NodeTraversal, dynamicImport pkg_rhino.Node, targetModuleNs *Var) {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_addChainedThen_5016(t *NodeTraversal, dynamicImport pkg_rhino.Node, targetModuleNs *Var) {
 	_ = t
 	_ = dynamicImport
 	_ = targetModuleNs
@@ -315,7 +315,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_addChainedThen_50
 	var placeholder pkg_rhino.Node = pkg_rhino.IR_Empty()
 	_ = placeholder
 	dynamicImport.ReplaceWith(placeholder)
-	var moduleNamespaceNode pkg_rhino.Node = this_.priv_RewriteDynamicImports_createModuleNamespaceNode_5008(targetModuleNs)
+	var moduleNamespaceNode pkg_rhino.Node = this_.priv_RewriteDynamicImports_createModuleNamespaceNode_5018(targetModuleNs)
 	_ = moduleNamespaceNode
 	var callbackFn pkg_rhino.Node = this_.astFactory.CreateZeroArgArrowFunctionForExpression(moduleNamespaceNode)
 	_ = callbackFn
@@ -341,7 +341,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_addChainedThen_50
 }
 
 // Java method: RewriteDynamicImports.aliasDynamicImport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node dynamicImport)
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_aliasDynamicImport_5007(t *NodeTraversal, dynamicImport pkg_rhino.Node) {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_aliasDynamicImport_5017(t *NodeTraversal, dynamicImport pkg_rhino.Node) {
 	_ = t
 	_ = dynamicImport
 	j2gort.CheckNotNullString(this_.alias)
@@ -361,7 +361,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_aliasDynamicImpor
 }
 
 // Java method: RewriteDynamicImports.createModuleNamespaceNode(com.google.javascript.jscomp.Var moduleVar)
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_createModuleNamespaceNode_5008(moduleVar *Var) pkg_rhino.Node {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_createModuleNamespaceNode_5018(moduleVar *Var) pkg_rhino.Node {
 	_ = moduleVar
 	var moduleVarNode pkg_rhino.Node = moduleVar.GetNode()
 	_ = moduleVarNode
@@ -372,7 +372,7 @@ func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_createModuleNames
 }
 
 // Java method: RewriteDynamicImports.injectWrappingFunctionExtern()
-func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_injectWrappingFunctionExtern_5009() {
+func (this_ *RewriteDynamicImports) priv_RewriteDynamicImports_injectWrappingFunctionExtern_5019() {
 	var registry *pkg_rhino.JSTypeRegistry = this_.compiler.GetTypeRegistry()
 	_ = registry
 	var templateT *pkg_rhino.TemplateType = registry.CreateTemplateType_1("T")
@@ -443,7 +443,7 @@ func (this_ *RewriteDynamicImports_AliasInjectingTraversal) ShouldTraverse_3(t *
 	_ = t
 	_ = n
 	_ = parent
-	if !(this_.outer_.priv_RewriteDynamicImports_aliasIsValid_5003()) {
+	if !(this_.outer_.priv_RewriteDynamicImports_aliasIsValid_5013()) {
 		j2gort.CheckState(false)
 	}
 	if NodeUtil_IsValidSimpleName(this_.outer_.alias) && (j2gort.CastPtr[Var](t.GetScope().GetVar(this_.outer_.alias)) != nil) {

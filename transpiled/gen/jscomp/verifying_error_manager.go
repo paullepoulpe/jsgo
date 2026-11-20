@@ -85,7 +85,7 @@ func (this_ *VerifyingErrorManager) Report_2(level *CheckLevel, error_ *JSError)
 	defer unlock_()
 	_ = level
 	_ = error_
-	var formattedError string = this_.priv_VerifyingErrorManager_formatErrorForMatching_5908(level, error_)
+	var formattedError string = this_.priv_VerifyingErrorManager_formatErrorForMatching_5921(level, error_)
 	_ = formattedError
 	var matchedPattern *j2gort.Ext_java_util_regex_Pattern = nil
 	_ = matchedPattern
@@ -125,12 +125,12 @@ func (this_ *VerifyingErrorManager) Report_2(level *CheckLevel, error_ *JSError)
 func (this_ *VerifyingErrorManager) GenerateReport() {
 	unlock_ := j2gort.LockMonitor(this_)
 	defer unlock_()
-	this_.priv_VerifyingErrorManager_reportMissingExpectations_5907()
+	this_.priv_VerifyingErrorManager_reportMissingExpectations_5920()
 	this_.ThreadSafeDelegatingErrorManagerBase.GenerateReport()
 }
 
 // Java method: VerifyingErrorManager.reportMissingExpectations()
-func (this_ *VerifyingErrorManager) priv_VerifyingErrorManager_reportMissingExpectations_5907() {
+func (this_ *VerifyingErrorManager) priv_VerifyingErrorManager_reportMissingExpectations_5920() {
 	unlock_ := j2gort.LockMonitor(this_)
 	defer unlock_()
 	{
@@ -146,7 +146,7 @@ func (this_ *VerifyingErrorManager) priv_VerifyingErrorManager_reportMissingExpe
 }
 
 // Java method: VerifyingErrorManager.formatErrorForMatching(com.google.javascript.jscomp.CheckLevel level, com.google.javascript.jscomp.JSError error)
-func (this_ *VerifyingErrorManager) priv_VerifyingErrorManager_formatErrorForMatching_5908(level *CheckLevel, error_ *JSError) string {
+func (this_ *VerifyingErrorManager) priv_VerifyingErrorManager_formatErrorForMatching_5921(level *CheckLevel, error_ *JSError) string {
 	_ = level
 	_ = error_
 	if level == StaticGet_CheckLevel_ERROR() {

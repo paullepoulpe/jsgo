@@ -1273,10 +1273,10 @@ func (p *customSlowPred) Apply(v any) bool { return v.(uint32) == p.want }
 func (p *customSlowPred) Test(v any) bool  { return v.(uint32) == p.want }
 
 func TestWave44BRuntimeParity(t *testing.T) {
-	// 1. Scope zero internal padding + contiguous pointers before depth int32
+	// 1. Scope zero internal padding + contiguous pointers before depth int32 (varSlab_ in Cache Line 0 right after parent)
 	scopeT := reflect.TypeFor[Scope]()
 	if reflect.TypeFor[*Scope]().Size() == 8 {
-		order := []string{"AbstractScopeBase", "parent", "var0", "var1", "var2", "var3", "var4", "var5", "vars", "varSlab_", "depth"}
+		order := []string{"AbstractScopeBase", "parent", "varSlab_", "var0", "var1", "var2", "var3", "var4", "var5", "vars", "depth"}
 		var prevEnd uintptr
 		for i, fname := range order {
 			sf, ok := scopeT.FieldByName(fname)

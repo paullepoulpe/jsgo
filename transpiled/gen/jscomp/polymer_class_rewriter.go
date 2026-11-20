@@ -160,13 +160,13 @@ func PolymerClassRewriter_IsFunctionArgInGoogLoadModule(n pkg_rhino.Node) bool {
 }
 
 // Java method: PolymerClassRewriter.insertGeneratedDeclarationCodeToGlobalScope(com.google.javascript.rhino.Node enclosingNode, com.google.javascript.rhino.Node declarationCode)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_insertGeneratedDeclarationCodeToGlobalScope_4403(enclosingNode pkg_rhino.Node, declarationCode pkg_rhino.Node) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_insertGeneratedDeclarationCodeToGlobalScope_4413(enclosingNode pkg_rhino.Node, declarationCode pkg_rhino.Node) {
 	_ = enclosingNode
 	_ = declarationCode
 	switch enclosingNode.TokenSwitchOrd_() {
 	case int32(123) /* Token.MODULE_BODY */ :
 		{
-			var insertionPoint pkg_rhino.Node = this_.priv_PolymerClassRewriter_getNodeForInsertion_4404(enclosingNode.GetParent())
+			var insertionPoint pkg_rhino.Node = this_.priv_PolymerClassRewriter_getNodeForInsertion_4414(enclosingNode.GetParent())
 			_ = insertionPoint
 			insertionPoint.AddChildToFront(declarationCode)
 			this_.compiler.ReportChangeToChangeScope(NodeUtil_GetEnclosingScript(insertionPoint))
@@ -190,7 +190,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_insertGeneratedDecl
 				if !(enclosingNodeForIIFE.IsModuleBody()) {
 					j2gort.CheckState(false)
 				}
-				var insertionPoint_2 pkg_rhino.Node = this_.priv_PolymerClassRewriter_getNodeForInsertion_4404(enclosingNodeForIIFE.GetParent())
+				var insertionPoint_2 pkg_rhino.Node = this_.priv_PolymerClassRewriter_getNodeForInsertion_4414(enclosingNodeForIIFE.GetParent())
 				_ = insertionPoint_2
 				insertionPoint_2.AddChildToFront(declarationCode)
 				this_.compiler.ReportChangeToChangeScope(NodeUtil_GetEnclosingScript(insertionPoint_2))
@@ -203,7 +203,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_insertGeneratedDecl
 			}
 			var enclosingScript pkg_rhino.Node = NodeUtil_GetEnclosingScript(enclosingNode)
 			_ = enclosingScript
-			var insertionPoint_3 pkg_rhino.Node = this_.priv_PolymerClassRewriter_getNodeForInsertion_4404(enclosingScript)
+			var insertionPoint_3 pkg_rhino.Node = this_.priv_PolymerClassRewriter_getNodeForInsertion_4414(enclosingScript)
 			_ = insertionPoint_3
 			insertionPoint_3.AddChildToFront(declarationCode)
 			this_.compiler.ReportChangeToChangeScope(insertionPoint_3)
@@ -214,7 +214,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_insertGeneratedDecl
 }
 
 // Java method: PolymerClassRewriter.getNodeForInsertion(com.google.javascript.rhino.Node enclosingScript)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_getNodeForInsertion_4404(enclosingScript pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_getNodeForInsertion_4414(enclosingScript pkg_rhino.Node) pkg_rhino.Node {
 	_ = enclosingScript
 	if NodeUtil_IsFromTypeSummary(enclosingScript) {
 		return this_.compiler.GetSynthesizedTypeSummaryInput().GetAstRoot(this_.compiler)
@@ -224,7 +224,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_getNodeForInsertion
 }
 
 // Java method: PolymerClassRewriter.insertGeneratedPropsAndBehaviorCode(com.google.javascript.rhino.Node enclosingNode, com.google.javascript.rhino.Node statements)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_insertGeneratedPropsAndBehaviorCode_4405(enclosingNode pkg_rhino.Node, statements pkg_rhino.Node) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_insertGeneratedPropsAndBehaviorCode_4415(enclosingNode pkg_rhino.Node, statements pkg_rhino.Node) {
 	_ = enclosingNode
 	_ = statements
 	switch enclosingNode.TokenSwitchOrd_() {
@@ -291,7 +291,7 @@ func (this_ *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinitio
 	_ = jsTypeExpression
 	objLitDoc.RecordLends(jsTypeExpression)
 	objLit.SetJSDocInfo(objLitDoc.Build_0())
-	this_.priv_PolymerClassRewriter_addTypesToFunctions_4409(objLit, cls.target.GetQualifiedName(), cls.defType)
+	this_.priv_PolymerClassRewriter_addTypesToFunctions_4419(objLit, cls.target.GetQualifiedName(), cls.defType)
 	PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(objLit, this_.compiler)
 	PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(objLit, this_.compiler)
 	PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys(objLit)
@@ -308,7 +308,7 @@ func (this_ *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinitio
 	}
 	var propsAndBehaviorBlock pkg_rhino.Node = pkg_rhino.IR_Block_0()
 	_ = propsAndBehaviorBlock
-	var constructorDoc *pkg_rhino.JSDocInfo_Builder = this_.priv_PolymerClassRewriter_getConstructorDoc_4411(cls)
+	var constructorDoc *pkg_rhino.JSDocInfo_Builder = this_.priv_PolymerClassRewriter_getConstructorDoc_4421(cls)
 	_ = constructorDoc
 	var ctorKey pkg_rhino.Node = cls.constructor.value.GetParent()
 	_ = ctorKey
@@ -324,17 +324,17 @@ func (this_ *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinitio
 			this_.compiler.Report_1(JSError_Make_3(cls.constructor.value, StaticGet_PolymerClassRewriter_POLYMER_ELEMENT_CONFLICT(), []string{nameNode.GetSourceFileName(), strconv.FormatInt(int64(nameNode.GetLineno()), 10), strconv.FormatInt(int64(nameNode.GetCharno()), 10)}))
 		}
 	}
-	var declarationCode pkg_rhino.Node = this_.priv_PolymerClassRewriter_generateDeclarationCode_4412(exprRoot, cls, constructorDoc, traversal)
+	var declarationCode pkg_rhino.Node = this_.priv_PolymerClassRewriter_generateDeclarationCode_4422(exprRoot, cls, constructorDoc, traversal)
 	_ = declarationCode
 	var basePath string = (j2gort.StrValString(cls.target.GetQualifiedName()) + ".prototype.")
 	_ = basePath
-	this_.priv_PolymerClassRewriter_appendBehaviorPropertiesToBlock_4415(cls, propsAndBehaviorBlock, basePath, false)
-	this_.priv_PolymerClassRewriter_appendPropertiesToBlock_4416(cls.props, propsAndBehaviorBlock, basePath, false)
-	this_.priv_PolymerClassRewriter_appendBehaviorMembersToBlock_4420(cls, propsAndBehaviorBlock)
-	var readOnlyPropsAll j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_PolymerClassRewriter_parseReadOnlyProperties_4410(cls, propsAndBehaviorBlock)
+	this_.priv_PolymerClassRewriter_appendBehaviorPropertiesToBlock_4425(cls, propsAndBehaviorBlock, basePath, false)
+	this_.priv_PolymerClassRewriter_appendPropertiesToBlock_4426(cls.props, propsAndBehaviorBlock, basePath, false)
+	this_.priv_PolymerClassRewriter_appendBehaviorMembersToBlock_4430(cls, propsAndBehaviorBlock)
+	var readOnlyPropsAll j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_PolymerClassRewriter_parseReadOnlyProperties_4420(cls, propsAndBehaviorBlock)
 	_ = readOnlyPropsAll
-	this_.priv_PolymerClassRewriter_createExportsAndExterns_4422(cls, j2gort.AsIface[j2gort.Ext_java_util_List](readOnlyPropsAll))
-	this_.priv_PolymerClassRewriter_removePropertyDocs_4418(objLit, cls.defType)
+	this_.priv_PolymerClassRewriter_createExportsAndExterns_4432(cls, j2gort.AsIface[j2gort.Ext_java_util_List](readOnlyPropsAll))
+	this_.priv_PolymerClassRewriter_removePropertyDocs_4428(objLit, cls.defType)
 	var propsAndBehaviorCode pkg_rhino.Node = propsAndBehaviorBlock.RemoveChildren()
 	_ = propsAndBehaviorCode
 	var parent pkg_rhino.Node = exprRoot.GetParent()
@@ -342,9 +342,9 @@ func (this_ *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinitio
 	if (!(traversal.InGlobalScope()) && cls.hasGeneratedLhs) && !(cls.target.IsGetProp()) {
 		var enclosingNode pkg_rhino.Node = NodeUtil_GetEnclosingNode(parent, lambdaSingleton_polymer_class_rewriter_2)
 		_ = enclosingNode
-		this_.priv_PolymerClassRewriter_insertGeneratedDeclarationCodeToGlobalScope_4403(enclosingNode, declarationCode)
+		this_.priv_PolymerClassRewriter_insertGeneratedDeclarationCodeToGlobalScope_4413(enclosingNode, declarationCode)
 		if propsAndBehaviorCode != 0 {
-			this_.priv_PolymerClassRewriter_insertGeneratedPropsAndBehaviorCode_4405(enclosingNode, propsAndBehaviorCode)
+			this_.priv_PolymerClassRewriter_insertGeneratedPropsAndBehaviorCode_4415(enclosingNode, propsAndBehaviorCode)
 		}
 	} else {
 		var beforeRoot pkg_rhino.Node = exprRoot.GetPrevious()
@@ -387,7 +387,7 @@ func (this_ *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinitio
 		var props pkg_rhino.Node = NodeUtil_GetFirstPropMatchingKey(cls.descriptor, "properties")
 		_ = props
 		if (props != 0) && props.IsObjectLit() {
-			this_.priv_PolymerClassRewriter_addPropertiesConfigObjectReflection_4408(cls, props)
+			this_.priv_PolymerClassRewriter_addPropertiesConfigObjectReflection_4418(cls, props)
 		}
 	}
 }
@@ -398,7 +398,7 @@ func (this_ *PolymerClassRewriter) RewritePolymerClassDeclaration(clazz pkg_rhin
 	_ = traversal
 	_ = cls
 	if cls.descriptor != 0 {
-		this_.priv_PolymerClassRewriter_addTypesToFunctions_4409(cls.descriptor, cls.target.GetQualifiedName(), cls.defType)
+		this_.priv_PolymerClassRewriter_addTypesToFunctions_4419(cls.descriptor, cls.target.GetQualifiedName(), cls.defType)
 	}
 	PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(NodeUtil_GetClassMembers(clazz), this_.compiler)
 	{
@@ -414,11 +414,11 @@ func (this_ *PolymerClassRewriter) RewritePolymerClassDeclaration(clazz pkg_rhin
 	}
 	var block pkg_rhino.Node = pkg_rhino.IR_Block_0()
 	_ = block
-	this_.priv_PolymerClassRewriter_appendBehaviorPropertiesToBlock_4415(cls, block, (j2gort.StrValString(cls.target.GetQualifiedName()) + ".prototype."), false)
-	this_.priv_PolymerClassRewriter_appendPropertiesToBlock_4416(cls.props, block, (j2gort.StrValString(cls.target.GetQualifiedName()) + ".prototype."), false)
-	var readOnlyProps j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_PolymerClassRewriter_parseReadOnlyProperties_4410(cls, block)
+	this_.priv_PolymerClassRewriter_appendBehaviorPropertiesToBlock_4425(cls, block, (j2gort.StrValString(cls.target.GetQualifiedName()) + ".prototype."), false)
+	this_.priv_PolymerClassRewriter_appendPropertiesToBlock_4426(cls.props, block, (j2gort.StrValString(cls.target.GetQualifiedName()) + ".prototype."), false)
+	var readOnlyProps j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_PolymerClassRewriter_parseReadOnlyProperties_4420(cls, block)
 	_ = readOnlyProps
-	this_.priv_PolymerClassRewriter_createExportsAndExterns_4422(cls, j2gort.AsIface[j2gort.Ext_java_util_List](readOnlyProps))
+	this_.priv_PolymerClassRewriter_createExportsAndExterns_4432(cls, j2gort.AsIface[j2gort.Ext_java_util_List](readOnlyProps))
 	var jsDocInfoNode pkg_rhino.Node = NodeUtil_GetBestJSDocInfoNode(clazz)
 	_ = jsDocInfoNode
 	var classInfo *pkg_rhino.JSDocInfo_Builder = pkg_rhino.JSDocInfo_Builder_MaybeCopyFrom(jsDocInfoNode.GetJSDocInfo())
@@ -432,7 +432,7 @@ func (this_ *PolymerClassRewriter) RewritePolymerClassDeclaration(clazz pkg_rhin
 	var insertAfterReference pkg_rhino.Node = NodeUtil_GetEnclosingStatement(clazz)
 	_ = insertAfterReference
 	if block.HasChildren() {
-		this_.priv_PolymerClassRewriter_removePropertyDocs_4418(cls.descriptor, cls.defType)
+		this_.priv_PolymerClassRewriter_removePropertyDocs_4428(cls.descriptor, cls.defType)
 		var newInsertAfterReference pkg_rhino.Node = block.GetLastChild()
 		_ = newInsertAfterReference
 		insertAfterReference.GetParent().AddChildrenAfter(block.RemoveChildren(), insertAfterReference)
@@ -451,12 +451,12 @@ func (this_ *PolymerClassRewriter) RewritePolymerClassDeclaration(clazz pkg_rhin
 	PolymerClassRewriter_AddReturnTypeIfMissing(cls, "observers", pkg_rhino.NewJSTypeExpression(type_, "<PolymerClassRewriter.java>"))
 	PolymerClassRewriter_AddReturnTypeIfMissing(cls, "properties", pkg_rhino.NewJSTypeExpression(pkg_rhino.IR_String("PolymerElementProperties"), "<PolymerClassRewriter.java>"))
 	if cls.descriptor != 0 {
-		this_.priv_PolymerClassRewriter_convertSimpleObserverStringsToReferences_4424(cls)
-		this_.priv_PolymerClassRewriter_addPropertiesConfigObjectReflection_4408(cls, cls.descriptor)
+		this_.priv_PolymerClassRewriter_convertSimpleObserverStringsToReferences_4434(cls)
+		this_.priv_PolymerClassRewriter_addPropertiesConfigObjectReflection_4418(cls, cls.descriptor)
 	}
 	if cls.descriptor != 0 {
-		this_.priv_PolymerClassRewriter_validateComputedPropertiesReflectionCalls_4425(cls)
-		this_.priv_PolymerClassRewriter_validateComplexObserverReflectionCalls_4426(cls)
+		this_.priv_PolymerClassRewriter_validateComputedPropertiesReflectionCalls_4435(cls)
+		this_.priv_PolymerClassRewriter_validateComplexObserverReflectionCalls_4436(cls)
 	}
 }
 
@@ -484,7 +484,7 @@ func PolymerClassRewriter_AddReturnTypeIfMissing(cls *PolymerClassDefinition, ge
 }
 
 // Java method: PolymerClassRewriter.addPropertiesConfigObjectReflection(com.google.javascript.jscomp.PolymerClassDefinition cls, com.google.javascript.rhino.Node propertiesLiteral)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_addPropertiesConfigObjectReflection_4408(cls *PolymerClassDefinition, propertiesLiteral pkg_rhino.Node) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_addPropertiesConfigObjectReflection_4418(cls *PolymerClassDefinition, propertiesLiteral pkg_rhino.Node) {
 	_ = cls
 	_ = propertiesLiteral
 	j2gort.CheckNotNullNode(propertiesLiteral)
@@ -501,7 +501,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_addPropertiesConfig
 }
 
 // Java method: PolymerClassRewriter.addTypesToFunctions(com.google.javascript.rhino.Node objLit, java.lang.String thisType, com.google.javascript.jscomp.PolymerClassDefinition.DefinitionType defType)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_addTypesToFunctions_4409(objLit pkg_rhino.Node, thisType string, defType PolymerClassDefinition_DefinitionType) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_addTypesToFunctions_4419(objLit pkg_rhino.Node, thisType string, defType PolymerClassDefinition_DefinitionType) {
 	_ = objLit
 	_ = thisType
 	_ = defType
@@ -548,7 +548,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_addTypesToFunctions
 }
 
 // Java method: PolymerClassRewriter.parseReadOnlyProperties(com.google.javascript.jscomp.PolymerClassDefinition cls, com.google.javascript.rhino.Node block)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_parseReadOnlyProperties_4410(cls *PolymerClassDefinition, block pkg_rhino.Node) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_parseReadOnlyProperties_4420(cls *PolymerClassDefinition, block pkg_rhino.Node) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = cls
 	_ = block
 	var qualifiedPath string = (j2gort.StrValString(cls.target.GetQualifiedName()) + ".prototype.")
@@ -565,7 +565,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_parseReadOnlyProper
 				var readOnlyValue pkg_rhino.Node = NodeUtil_GetFirstPropMatchingKey(prop.value, "readOnly")
 				_ = readOnlyValue
 				if (readOnlyValue != 0) && readOnlyValue.IsTrue() {
-					var setter pkg_rhino.Node = this_.priv_PolymerClassRewriter_makeReadOnlySetter_4421(prop, qualifiedPath)
+					var setter pkg_rhino.Node = this_.priv_PolymerClassRewriter_makeReadOnlySetter_4431(prop, qualifiedPath)
 					_ = setter
 					setter.SrcrefTreeIfMissing(prop.name)
 					block.AddChildToBack(setter)
@@ -585,7 +585,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_parseReadOnlyProper
 					var readOnlyValue_2 pkg_rhino.Node = NodeUtil_GetFirstPropMatchingKey(prop_2.value, "readOnly")
 					_ = readOnlyValue_2
 					if (readOnlyValue_2 != 0) && readOnlyValue_2.IsTrue() {
-						var setter_2 pkg_rhino.Node = this_.priv_PolymerClassRewriter_makeReadOnlySetter_4421(prop_2, qualifiedPath)
+						var setter_2 pkg_rhino.Node = this_.priv_PolymerClassRewriter_makeReadOnlySetter_4431(prop_2, qualifiedPath)
 						_ = setter_2
 						setter_2.SrcrefTreeIfMissing(prop_2.name)
 						block.AddChildToBack(setter_2)
@@ -599,7 +599,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_parseReadOnlyProper
 }
 
 // Java method: PolymerClassRewriter.getConstructorDoc(com.google.javascript.jscomp.PolymerClassDefinition cls)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_getConstructorDoc_4411(cls *PolymerClassDefinition) *pkg_rhino.JSDocInfo_Builder {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_getConstructorDoc_4421(cls *PolymerClassDefinition) *pkg_rhino.JSDocInfo_Builder {
 	_ = cls
 	var constructorDoc *pkg_rhino.JSDocInfo_Builder = pkg_rhino.JSDocInfo_Builder_MaybeCopyFrom(cls.constructor.info)
 	_ = constructorDoc
@@ -616,7 +616,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_getConstructorDoc_4
 }
 
 // Java method: PolymerClassRewriter.generateDeclarationCode(com.google.javascript.rhino.Node exprRoot, com.google.javascript.jscomp.PolymerClassDefinition cls, com.google.javascript.rhino.JSDocInfo.Builder constructorDoc, com.google.javascript.jscomp.NodeTraversal traversal)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_generateDeclarationCode_4412(exprRoot pkg_rhino.Node, cls *PolymerClassDefinition, constructorDoc *pkg_rhino.JSDocInfo_Builder, traversal *NodeTraversal) pkg_rhino.Node {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_generateDeclarationCode_4422(exprRoot pkg_rhino.Node, cls *PolymerClassDefinition, constructorDoc *pkg_rhino.JSDocInfo_Builder, traversal *NodeTraversal) pkg_rhino.Node {
 	_ = exprRoot
 	_ = cls
 	_ = constructorDoc
@@ -648,7 +648,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_generateDeclaration
 }
 
 // Java method: PolymerClassRewriter.replaceJSDocAndAddNewVars(com.google.javascript.jscomp.PolymerPass.MemberDefinition prop, com.google.javascript.rhino.JSTypeExpression propType, com.google.javascript.rhino.Node block)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_replaceJSDocAndAddNewVars_4413(prop *PolymerPass_MemberDefinition, propType pkg_rhino.JSTypeExpression, block pkg_rhino.Node) *pkg_rhino.JSDocInfo {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_replaceJSDocAndAddNewVars_4423(prop *PolymerPass_MemberDefinition, propType pkg_rhino.JSTypeExpression, block pkg_rhino.Node) *pkg_rhino.JSDocInfo {
 	_ = prop
 	_ = propType
 	_ = block
@@ -659,7 +659,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_replaceJSDocAndAddN
 	_ = origInfo
 	var propertyNames j2gort.Ext_com_google_common_collect_ImmutableSet = propType.GetRecordPropertyNames()
 	_ = propertyNames
-	this_.priv_PolymerClassRewriter_createVarsInExternsBlock_4417(block, propertyNames, propType, prop)
+	this_.priv_PolymerClassRewriter_createVarsInExternsBlock_4427(block, propertyNames, propType, prop)
 	var unknown pkg_rhino.JSTypeExpression = pkg_rhino.NewJSTypeExpression(pkg_rhino.NewNode_1(pkg_rhino.StaticGet_Token_QMARK()), propType.GetSourceName())
 	_ = unknown
 	var newInfoBuilder *pkg_rhino.JSDocInfo_Builder = pkg_rhino.JSDocInfo_Builder_MaybeCopyFromWithNewType(origInfo, unknown)
@@ -668,7 +668,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_replaceJSDocAndAddN
 }
 
 // Java method: PolymerClassRewriter.getPropertyNode(com.google.javascript.jscomp.PolymerPass.MemberDefinition prop, java.lang.String basePath)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_getPropertyNode_4414(prop *PolymerPass_MemberDefinition, basePath string) pkg_rhino.Node {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_getPropertyNode_4424(prop *PolymerPass_MemberDefinition, basePath string) pkg_rhino.Node {
 	_ = prop
 	_ = basePath
 	if prop.name.IsQuotedStringKey() {
@@ -681,7 +681,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_getPropertyNode_441
 }
 
 // Java method: PolymerClassRewriter.appendBehaviorPropertiesToBlock(com.google.javascript.jscomp.PolymerClassDefinition cls, com.google.javascript.rhino.Node block, java.lang.String basePath, boolean isExternsBlock)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendBehaviorPropertiesToBlock_4415(cls *PolymerClassDefinition, block pkg_rhino.Node, basePath string, isExternsBlock bool) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendBehaviorPropertiesToBlock_4425(cls *PolymerClassDefinition, block pkg_rhino.Node, basePath string, isExternsBlock bool) {
 	_ = cls
 	_ = block
 	_ = basePath
@@ -696,7 +696,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendBehaviorPrope
 			_ = behavior
 			var prop *PolymerPass_MemberDefinition = j2gort.CastPtr[PolymerPass_MemberDefinition](cur_13.GetKey())
 			_ = prop
-			var propertyNode pkg_rhino.Node = this_.priv_PolymerClassRewriter_getPropertyNode_4414(prop, basePath)
+			var propertyNode pkg_rhino.Node = this_.priv_PolymerClassRewriter_getPropertyNode_4424(prop, basePath)
 			_ = propertyNode
 			if propertyNode == 0 {
 				continue
@@ -709,9 +709,9 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendBehaviorPrope
 			var info *pkg_rhino.JSDocInfo = nil
 			_ = info
 			if isExternsBlock {
-				info = this_.priv_PolymerClassRewriter_replaceJSDocAndAddNewVars_4413(prop, propType, block)
+				info = this_.priv_PolymerClassRewriter_replaceJSDocAndAddNewVars_4423(prop, propType, block)
 			} else {
-				var infoBuilder *pkg_rhino.JSDocInfo_Builder = this_.priv_PolymerClassRewriter_getJSDocInfoBuilderForBehavior_4419(behavior, prop)
+				var infoBuilder *pkg_rhino.JSDocInfo_Builder = this_.priv_PolymerClassRewriter_getJSDocInfoBuilderForBehavior_4429(behavior, prop)
 				_ = infoBuilder
 				infoBuilder.RecordType(propType)
 				info = infoBuilder.Build_0()
@@ -723,7 +723,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendBehaviorPrope
 }
 
 // Java method: PolymerClassRewriter.appendPropertiesToBlock(java.util.List<com.google.javascript.jscomp.PolymerPass.MemberDefinition> props, com.google.javascript.rhino.Node block, java.lang.String basePath, boolean isExternsBlock)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendPropertiesToBlock_4416(props j2gort.Ext_java_util_List, block pkg_rhino.Node, basePath string, isExternsBlock bool) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendPropertiesToBlock_4426(props j2gort.Ext_java_util_List, block pkg_rhino.Node, basePath string, isExternsBlock bool) {
 	_ = props
 	_ = block
 	_ = basePath
@@ -734,7 +734,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendPropertiesToB
 			rawElem_15 := cur_14.Next()
 			prop := j2gort.CastPtr[PolymerPass_MemberDefinition](rawElem_15)
 			_ = prop
-			var propertyNode pkg_rhino.Node = this_.priv_PolymerClassRewriter_getPropertyNode_4414(prop, basePath)
+			var propertyNode pkg_rhino.Node = this_.priv_PolymerClassRewriter_getPropertyNode_4424(prop, basePath)
 			_ = propertyNode
 			if propertyNode == 0 {
 				continue
@@ -747,7 +747,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendPropertiesToB
 			var info *pkg_rhino.JSDocInfo = nil
 			_ = info
 			if isExternsBlock {
-				info = this_.priv_PolymerClassRewriter_replaceJSDocAndAddNewVars_4413(prop, propType, block)
+				info = this_.priv_PolymerClassRewriter_replaceJSDocAndAddNewVars_4423(prop, propType, block)
 			} else {
 				var infoBuilder *pkg_rhino.JSDocInfo_Builder = pkg_rhino.JSDocInfo_Builder_MaybeCopyFrom(prop.info)
 				_ = infoBuilder
@@ -761,7 +761,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendPropertiesToB
 }
 
 // Java method: PolymerClassRewriter.createVarsInExternsBlock(com.google.javascript.rhino.Node block, com.google.common.collect.ImmutableSet<java.lang.String> propertyNames, com.google.javascript.rhino.JSTypeExpression propType, com.google.javascript.jscomp.PolymerPass.MemberDefinition prop)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_createVarsInExternsBlock_4417(block pkg_rhino.Node, propertyNames j2gort.Ext_com_google_common_collect_ImmutableSet, propType pkg_rhino.JSTypeExpression, prop *PolymerPass_MemberDefinition) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_createVarsInExternsBlock_4427(block pkg_rhino.Node, propertyNames j2gort.Ext_com_google_common_collect_ImmutableSet, propType pkg_rhino.JSTypeExpression, prop *PolymerPass_MemberDefinition) {
 	_ = block
 	_ = propertyNames
 	_ = propType
@@ -818,7 +818,7 @@ func PolymerClassRewriter_CreateNewTypeExpressionForExtern(propName string, sour
 }
 
 // Java method: PolymerClassRewriter.removePropertyDocs(com.google.javascript.rhino.Node objLit, com.google.javascript.jscomp.PolymerClassDefinition.DefinitionType defType)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_removePropertyDocs_4418(objLit pkg_rhino.Node, defType PolymerClassDefinition_DefinitionType) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_removePropertyDocs_4428(objLit pkg_rhino.Node, defType PolymerClassDefinition_DefinitionType) {
 	_ = objLit
 	_ = defType
 	{
@@ -833,7 +833,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_removePropertyDocs_
 }
 
 // Java method: PolymerClassRewriter.getJSDocInfoBuilderForBehavior(com.google.javascript.jscomp.PolymerBehaviorExtractor.BehaviorDefinition behavior, com.google.javascript.jscomp.PolymerPass.MemberDefinition behaviorFunctionOrProp)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_getJSDocInfoBuilderForBehavior_4419(behavior *PolymerBehaviorExtractor_BehaviorDefinition, behaviorFunctionOrProp *PolymerPass_MemberDefinition) *pkg_rhino.JSDocInfo_Builder {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_getJSDocInfoBuilderForBehavior_4429(behavior *PolymerBehaviorExtractor_BehaviorDefinition, behaviorFunctionOrProp *PolymerPass_MemberDefinition) *pkg_rhino.JSDocInfo_Builder {
 	_ = behavior
 	_ = behaviorFunctionOrProp
 	var info *pkg_rhino.JSDocInfo_Builder = nil
@@ -851,7 +851,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_getJSDocInfoBuilder
 }
 
 // Java method: PolymerClassRewriter.appendBehaviorMembersToBlock(com.google.javascript.jscomp.PolymerClassDefinition cls, com.google.javascript.rhino.Node block)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendBehaviorMembersToBlock_4420(cls *PolymerClassDefinition, block pkg_rhino.Node) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendBehaviorMembersToBlock_4430(cls *PolymerClassDefinition, block pkg_rhino.Node) {
 	_ = cls
 	_ = block
 	var qualifiedPath string = (j2gort.StrValString(cls.target.GetQualifiedName()) + ".prototype.")
@@ -883,7 +883,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendBehaviorMembe
 					var exprResult pkg_rhino.Node = pkg_rhino.IR_ExprResult(pkg_rhino.IR_Assign(NodeUtil_NewQName_2_AbstractCompiler_string(this_.compiler, (j2gort.StrValString(qualifiedPath)+j2gort.StrValString(fnName))), fnValue))
 					_ = exprResult
 					exprResult.SrcrefTreeIfMissing(behaviorFunction.name)
-					var info *pkg_rhino.JSDocInfo_Builder = this_.priv_PolymerClassRewriter_getJSDocInfoBuilderForBehavior_4419(behavior, behaviorFunction)
+					var info *pkg_rhino.JSDocInfo_Builder = this_.priv_PolymerClassRewriter_getJSDocInfoBuilderForBehavior_4429(behavior, behaviorFunction)
 					_ = info
 					if (behaviorFunction.info != nil) && (behaviorFunction.info.GetVisibility() == pkg_rhino.StaticGet_JSDocInfo_Visibility_PROTECTED()) {
 						info.OverwriteVisibility(pkg_rhino.StaticGet_JSDocInfo_Visibility_PUBLIC())
@@ -939,7 +939,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendBehaviorMembe
 					var exprResult_2 pkg_rhino.Node = pkg_rhino.IR_ExprResult(NodeUtil_NewQName_2_AbstractCompiler_string(this_.compiler, (j2gort.StrValString(qualifiedPath) + j2gort.StrValString(propName))))
 					_ = exprResult_2
 					exprResult_2.SrcrefTree(behaviorProp.name)
-					var info_2 *pkg_rhino.JSDocInfo_Builder = this_.priv_PolymerClassRewriter_getJSDocInfoBuilderForBehavior_4419(behavior, behaviorProp)
+					var info_2 *pkg_rhino.JSDocInfo_Builder = this_.priv_PolymerClassRewriter_getJSDocInfoBuilderForBehavior_4429(behavior, behaviorProp)
 					_ = info_2
 					if behaviorProp.name.IsGetterDef() {
 						info_2 = pkg_rhino.JSDocInfo_S_Builder().ParseDocumentation()
@@ -978,7 +978,7 @@ func PolymerClassRewriter_MakeParamSafe(param pkg_rhino.Node, index int32) {
 }
 
 // Java method: PolymerClassRewriter.makeReadOnlySetter(com.google.javascript.jscomp.PolymerPass.MemberDefinition prop, java.lang.String qualifiedPath)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_makeReadOnlySetter_4421(prop *PolymerPass_MemberDefinition, qualifiedPath string) pkg_rhino.Node {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_makeReadOnlySetter_4431(prop *PolymerPass_MemberDefinition, qualifiedPath string) pkg_rhino.Node {
 	_ = prop
 	_ = qualifiedPath
 	var propName string = prop.name.GetString()
@@ -1001,7 +1001,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_makeReadOnlySetter_
 }
 
 // Java method: PolymerClassRewriter.createExportsAndExterns(com.google.javascript.jscomp.PolymerClassDefinition cls, java.util.List<com.google.javascript.jscomp.PolymerPass.MemberDefinition> readOnlyProps)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_createExportsAndExterns_4422(cls *PolymerClassDefinition, readOnlyProps j2gort.Ext_java_util_List) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_createExportsAndExterns_4432(cls *PolymerClassDefinition, readOnlyProps j2gort.Ext_java_util_List) {
 	_ = cls
 	_ = readOnlyProps
 	var block pkg_rhino.Node = pkg_rhino.IR_Block_0()
@@ -1020,8 +1020,8 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_createExportsAndExt
 	block.AddChildToBack(varNode)
 	var interfaceBasePath string = (j2gort.StrValString(interfaceName) + ".prototype.")
 	_ = interfaceBasePath
-	this_.priv_PolymerClassRewriter_appendBehaviorPropertiesToBlock_4415(cls, block, interfaceBasePath, true)
-	this_.priv_PolymerClassRewriter_appendPropertiesToBlock_4416(cls.props, block, interfaceBasePath, true)
+	this_.priv_PolymerClassRewriter_appendBehaviorPropertiesToBlock_4425(cls, block, interfaceBasePath, true)
+	this_.priv_PolymerClassRewriter_appendPropertiesToBlock_4426(cls.props, block, interfaceBasePath, true)
 	var uniqueMethods j2gort.OrderedMap[string, *PolymerPass_MemberDefinition] = j2gort.NewOrderedMap[string, *PolymerPass_MemberDefinition]()
 	_ = uniqueMethods
 	if cls.behaviors != nil {
@@ -1058,7 +1058,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_createExportsAndExt
 			method_3 := cur_33.
 				Next()
 			_ = method_3
-			this_.priv_PolymerClassRewriter_addMethodToObjectExternsUsingExportAnnotation_4423(cls, method_3)
+			this_.priv_PolymerClassRewriter_addMethodToObjectExternsUsingExportAnnotation_4433(cls, method_3)
 		}
 	}
 	{
@@ -1101,7 +1101,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_createExportsAndExt
 }
 
 // Java method: PolymerClassRewriter.addMethodToObjectExternsUsingExportAnnotation(com.google.javascript.jscomp.PolymerClassDefinition cls, com.google.javascript.jscomp.PolymerPass.MemberDefinition method)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_addMethodToObjectExternsUsingExportAnnotation_4423(cls *PolymerClassDefinition, method *PolymerPass_MemberDefinition) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_addMethodToObjectExternsUsingExportAnnotation_4433(cls *PolymerClassDefinition, method *PolymerPass_MemberDefinition) {
 	_ = cls
 	_ = method
 	var getprop pkg_rhino.Node = NodeUtil_NewQName_2_AbstractCompiler_string(this_.compiler, (j2gort.StrValString(cls.target.GetQualifiedName()) + ".prototype." + j2gort.StrValString(method.name.GetString())))
@@ -1134,7 +1134,7 @@ func PolymerClassRewriter_VarToAssign(var_ pkg_rhino.Node) pkg_rhino.Node {
 }
 
 // Java method: PolymerClassRewriter.convertSimpleObserverStringsToReferences(com.google.javascript.jscomp.PolymerClassDefinition cls)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_convertSimpleObserverStringsToReferences_4424(cls *PolymerClassDefinition) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_convertSimpleObserverStringsToReferences_4434(cls *PolymerClassDefinition) {
 	_ = cls
 	{
 		cur_37 := j2gort.NewIterCursor(j2gort.CheckNotNull(cls.props))
@@ -1157,7 +1157,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_convertSimpleObserv
 }
 
 // Java method: PolymerClassRewriter.validateComputedPropertiesReflectionCalls(com.google.javascript.jscomp.PolymerClassDefinition cls)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_validateComputedPropertiesReflectionCalls_4425(cls *PolymerClassDefinition) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_validateComputedPropertiesReflectionCalls_4435(cls *PolymerClassDefinition) {
 	_ = cls
 	{
 		cur_39 := j2gort.NewIterCursor(j2gort.CheckNotNull(cls.props))
@@ -1169,7 +1169,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_validateComputedPro
 				var computed pkg_rhino.Node = NodeUtil_GetFirstPropMatchingKey(prop.value, "computed")
 				_ = computed
 				if (computed != 0) && computed.IsStringLit() {
-					this_.priv_PolymerClassRewriter_validateReflectedString_4427(computed)
+					this_.priv_PolymerClassRewriter_validateReflectedString_4437(computed)
 				}
 			}
 		}
@@ -1177,7 +1177,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_validateComputedPro
 }
 
 // Java method: PolymerClassRewriter.validateComplexObserverReflectionCalls(com.google.javascript.jscomp.PolymerClassDefinition cls)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_validateComplexObserverReflectionCalls_4426(cls *PolymerClassDefinition) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_validateComplexObserverReflectionCalls_4436(cls *PolymerClassDefinition) {
 	_ = cls
 	var classMembers pkg_rhino.Node = NodeUtil_GetClassMembers(cls.definition)
 	_ = classMembers
@@ -1206,7 +1206,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_validateComplexObse
 					var next pkg_rhino.Node = complexObserver.GetNext()
 					_ = next
 					if complexObserver.IsStringLit() {
-						this_.priv_PolymerClassRewriter_validateReflectedString_4427(complexObserver)
+						this_.priv_PolymerClassRewriter_validateReflectedString_4437(complexObserver)
 					}
 					complexObserver = next
 				}
@@ -1216,7 +1216,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_validateComplexObse
 }
 
 // Java method: PolymerClassRewriter.validateReflectedString(com.google.javascript.rhino.Node methodSignature)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_validateReflectedString_4427(methodSignature pkg_rhino.Node) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_validateReflectedString_4437(methodSignature pkg_rhino.Node) {
 	_ = methodSignature
 	if !(methodSignature.IsStringLit()) {
 		j2gort.CheckArgument(false)
@@ -1232,12 +1232,12 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_validateReflectedSt
 	if openParenIndex < (j2gort.JStrLen(methodSignatureString) - int32(2)) {
 		var methodParamsString string = javalang.StringTrim(j2gort.CheckNotNullString(j2gort.JStrSub(methodSignatureString, (openParenIndex + int32(1)), (j2gort.JStrLen(methodSignatureString) - int32(1)))))
 		_ = methodParamsString
-		this_.priv_PolymerClassRewriter_parseMethodParams_4428(methodParamsString, methodSignature)
+		this_.priv_PolymerClassRewriter_parseMethodParams_4438(methodParamsString, methodSignature)
 	}
 }
 
 // Java method: PolymerClassRewriter.parseMethodParams(java.lang.String methodParameters, com.google.javascript.rhino.Node methodSignature)
-func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_parseMethodParams_4428(methodParameters string, methodSignature pkg_rhino.Node) {
+func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_parseMethodParams_4438(methodParameters string, methodSignature pkg_rhino.Node) {
 	_ = methodParameters
 	_ = methodSignature
 	var nextDelimeter uint16 = uint16(44)

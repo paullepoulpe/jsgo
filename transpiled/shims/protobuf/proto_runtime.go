@@ -281,27 +281,104 @@ func (e protoErrKind) exception() *InvalidProtocolBufferException {
 }
 
 func protoDecodeSliceVarint64(b []byte, pos *int) (uint64, protoErrKind) {
-	if *pos >= len(b) {
+	p := *pos
+	if p >= len(b) {
 		return 0, protoErrTruncated
 	}
-	first := b[*pos]
-	*pos++
+	first := b[p]
 	if first < 0x80 {
+		*pos = p + 1
 		return uint64(first), protoErrNone
 	}
+	if p+1 < len(b) {
+		c1 := b[p+1]
+		if c1 < 0x80 {
+			*pos = p + 2
+			return uint64(first&0x7f) | uint64(c1)<<7, protoErrNone
+		}
+		if p+2 < len(b) {
+			c2 := b[p+2]
+			if c2 < 0x80 {
+				*pos = p + 3
+				return uint64(first&0x7f) | uint64(c1&0x7f)<<7 | uint64(c2)<<14, protoErrNone
+			}
+		}
+	}
+	p++
 	x := uint64(first & 0x7f)
 	for shift := uint(7); shift < 64; shift += 7 {
-		if *pos >= len(b) {
+		if p >= len(b) {
+			*pos = p
 			return 0, protoErrTruncated
 		}
-		c := b[*pos]
-		*pos++
+		c := b[p]
+		p++
 		x |= uint64(c&0x7f) << shift
 		if c < 0x80 {
+			*pos = p
 			return x, protoErrNone
 		}
 	}
+	*pos = p
 	return 0, protoErrMalformedVarint
+}
+
+func decodeVarintFast(s []byte, slow func([]byte) (uint64, int)) (uint64, int) {
+	if len(s) > 0 {
+		c0 := s[0]
+		if c0 < 0x80 {
+			return uint64(c0), 1
+		}
+		if len(s) > 1 && s[1] < 0x80 {
+			return uint64(c0&0x7f) | uint64(s[1])<<7, 2
+		}
+	}
+	return slow(s)
+}
+
+//go:noinline
+func decodeVarintSlow(s []byte) (uint64, int) {
+	if len(s) == 0 {
+		panic(protoTruncatedMessage())
+	}
+	c0 := s[0]
+	if c0 < 0x80 {
+		return uint64(c0), 1
+	}
+	if len(s) < 2 {
+		panic(protoTruncatedMessage())
+	}
+	c1 := s[1]
+	if c1 < 0x80 {
+		return uint64(c0&0x7f) | uint64(c1)<<7, 2
+	}
+	if len(s) >= 3 && s[2] < 0x80 {
+		return uint64(c0&0x7f) | uint64(c1&0x7f)<<7 | uint64(s[2])<<14, 3
+	}
+	x := uint64(c0&0x7f) | uint64(c1&0x7f)<<7
+	pos := 2
+	for shift := uint(14); shift < 64; shift += 7 {
+		if pos >= len(s) {
+			panic(protoTruncatedMessage())
+		}
+		c := s[pos]
+		pos++
+		x |= uint64(c&0x7f) << shift
+		if c < 0x80 {
+			return x, pos
+		}
+	}
+	panic(protoMalformedVarint())
+}
+
+//go:noinline
+func decodeTagSlow(s []byte) (int, int) {
+	raw, n := decodeVarintSlow(s)
+	tag := int32(raw)
+	if uint32(tag)>>3 == 0 {
+		panic(protoInvalidTag())
+	}
+	return int(tag), n
 }
 
 func protoReadSliceVarint64(b []byte, pos *int, allowEOF bool) (uint64, bool, javalang.Throwable) {
@@ -362,10 +439,8 @@ func protoReadFull(r io.Reader, dst []byte) javalang.Throwable {
 }
 
 func (r *protoReader) readRawVarint64() uint64 {
-	v, ek := protoDecodeSliceVarint64(r.b, &r.pos)
-	if ek != protoErrNone {
-		panic(ek.exception())
-	}
+	v, n := decodeVarintFast(r.b[r.pos:], decodeVarintSlow)
+	r.pos += n
 	return v
 }
 

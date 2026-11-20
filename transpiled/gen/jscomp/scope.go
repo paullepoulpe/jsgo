@@ -25,7 +25,8 @@ import (
 // Java class: com.google.javascript.jscomp.Scope
 type Scope struct {
 	AbstractScopeBase
-	parent   *Scope                           `gson:"parent"`
+	parent   *Scope `gson:"parent"`
+	varSlab_ *j2gort.PooledSlab[Var]
 	var0     *Var                             `gson:"var0"`
 	var1     *Var                             `gson:"var1"`
 	var2     *Var                             `gson:"var2"`
@@ -33,8 +34,7 @@ type Scope struct {
 	var4     *Var                             `gson:"var4"`
 	var5     *Var                             `gson:"var5"`
 	vars     *j2gort.OrderedMap[string, *Var] `gson:"vars"`
-	varSlab_ *j2gort.PooledSlab[Var]
-	depth    int32 `gson:"depth"`
+	depth    int32                            `gson:"depth"`
 }
 
 func (this_ *Scope) BindSelf_(s any) {
@@ -219,7 +219,7 @@ func (this_ *Scope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) any {
 }
 
 // Java method: Scope.findOwnDeclaredVar(java.lang.String name)
-func (this_ *Scope) priv_Scope_findOwnDeclaredVar_5036(name string) *Var {
+func (this_ *Scope) priv_Scope_findOwnDeclaredVar_5046(name string) *Var {
 	_ = name
 	if this_.vars != nil {
 		return this_.vars.Get(name)
@@ -258,7 +258,7 @@ func (this_ *Scope) priv_Scope_findOwnDeclaredVar_5036(name string) *Var {
 // Java method: Scope.getOwnDeclaredVar(java.lang.String name)
 func (this_ *Scope) GetOwnDeclaredVar(name string) any {
 	_ = name
-	return j2gort.PtrToAny(this_.priv_Scope_findOwnDeclaredVar_5036(name))
+	return j2gort.PtrToAny(this_.priv_Scope_findOwnDeclaredVar_5046(name))
 }
 
 // Java method: Scope.putOwnDeclaredVar(java.lang.String name, com.google.javascript.jscomp.Var var)
@@ -395,7 +395,7 @@ func (this_ *Scope) LookupVar(name string) *Var {
 			var scope *Scope = this_
 			_ = scope
 			for ; scope != nil; scope = scope.parent {
-				var var_ *Var = scope.priv_Scope_findOwnDeclaredVar_5036(name)
+				var var_ *Var = scope.priv_Scope_findOwnDeclaredVar_5046(name)
 				_ = var_
 				if var_ != nil {
 					return var_
@@ -408,7 +408,7 @@ func (this_ *Scope) LookupVar(name string) *Var {
 		var scope_2 *Scope = this_
 		_ = scope_2
 		for ; scope_2 != nil; scope_2 = scope_2.parent {
-			var var__2 *Var = scope_2.priv_Scope_findOwnDeclaredVar_5036(name)
+			var var__2 *Var = scope_2.priv_Scope_findOwnDeclaredVar_5046(name)
 			_ = var__2
 			if var__2 != nil {
 				return var__2

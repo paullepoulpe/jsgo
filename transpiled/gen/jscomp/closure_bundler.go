@@ -220,11 +220,11 @@ func (this_ *ClosureBundler) AppendTo_3_Ext_java_lang_Appendable_DependencyInfo_
 	var code string = content.Read()
 	_ = code
 	if info.IsGoogModule() {
-		this_.mode.AppendGoogModule(this_.priv_ClosureBundler_transpile_6083(code), out, this_.sourceUrl)
+		this_.mode.AppendGoogModule(this_.priv_ClosureBundler_transpile_6096(code), out, this_.sourceUrl)
 	} else if info.IsEs6Module() && j2gort.IfaceEquals[Transpile_Transpiler](this_.transpiler, StaticGet_Transpile_Transpiler_NULL()) {
-		this_.mode.AppendTraditional(this_.priv_ClosureBundler_transpileEs6Module_6084(code), out, this_.sourceUrl)
+		this_.mode.AppendTraditional(this_.priv_ClosureBundler_transpileEs6Module_6097(code), out, this_.sourceUrl)
 	} else {
-		this_.mode.AppendTraditional(this_.priv_ClosureBundler_transpile_6083(code), out, this_.sourceUrl)
+		this_.mode.AppendTraditional(this_.priv_ClosureBundler_transpile_6096(code), out, this_.sourceUrl)
 	}
 }
 
@@ -255,7 +255,7 @@ func (this_ *ClosureBundler) GetSourceMap(path string) string {
 }
 
 // Java method: ClosureBundler.transpile(java.lang.String s, com.google.javascript.jscomp.transpile.Transpiler t)
-func (this_ *ClosureBundler) priv_ClosureBundler_transpile_6082(s string, t Transpile_Transpiler) string {
+func (this_ *ClosureBundler) priv_ClosureBundler_transpile_6095(s string, t Transpile_Transpiler) string {
 	_ = s
 	_ = t
 	var result *TranspileResult = nil
@@ -285,15 +285,15 @@ func (this_ *ClosureBundler) priv_ClosureBundler_transpile_6082(s string, t Tran
 }
 
 // Java method: ClosureBundler.transpile(java.lang.String s)
-func (this_ *ClosureBundler) priv_ClosureBundler_transpile_6083(s string) string {
+func (this_ *ClosureBundler) priv_ClosureBundler_transpile_6096(s string) string {
 	_ = s
-	return this_.priv_ClosureBundler_transpile_6082(s, this_.transpiler)
+	return this_.priv_ClosureBundler_transpile_6095(s, this_.transpiler)
 }
 
 // Java method: ClosureBundler.transpileEs6Module(java.lang.String s)
-func (this_ *ClosureBundler) priv_ClosureBundler_transpileEs6Module_6084(s string) string {
+func (this_ *ClosureBundler) priv_ClosureBundler_transpileEs6Module_6097(s string) string {
 	_ = s
-	return this_.priv_ClosureBundler_transpile_6082(s, this_.es6ModuleTranspiler)
+	return this_.priv_ClosureBundler_transpile_6095(s, this_.es6ModuleTranspiler)
 }
 
 // Java static method: ClosureBundler.appendSourceUrl(java.lang.Appendable out, com.google.javascript.jscomp.deps.ClosureBundler.EscapeMode mode, java.lang.String sourceUrl)

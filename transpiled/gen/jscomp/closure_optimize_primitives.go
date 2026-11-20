@@ -140,11 +140,11 @@ func (this_ *ClosureOptimizePrimitives) Process_2(externs pkg_rhino.Node, root p
 }
 
 // Java method: ClosureOptimizePrimitives.processObjectCreateCall(com.google.javascript.rhino.Node callNode)
-func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_processObjectCreateCall_1175(callNode pkg_rhino.Node) {
+func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_processObjectCreateCall_1176(callNode pkg_rhino.Node) {
 	_ = callNode
 	var curParam pkg_rhino.Node = callNode.GetSecondChild()
 	_ = curParam
-	if this_.priv_ClosureOptimizePrimitives_canOptimizeObjectCreate_1177(curParam) {
+	if this_.priv_ClosureOptimizePrimitives_canOptimizeObjectCreate_1178(curParam) {
 		var objNode pkg_rhino.Node = pkg_rhino.IR_Objectlit([]pkg_rhino.Node{}).Srcref(callNode)
 		_ = objNode
 		for curParam != 0 {
@@ -155,7 +155,7 @@ func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_processOb
 			curParam = valueNode.GetNext()
 			keyNode.Detach()
 			valueNode.Detach()
-			this_.priv_ClosureOptimizePrimitives_addKeyValueToObjLit_1180(objNode, keyNode, valueNode, NodeUtil_GetEnclosingScript(callNode))
+			this_.priv_ClosureOptimizePrimitives_addKeyValueToObjLit_1181(objNode, keyNode, valueNode, NodeUtil_GetEnclosingScript(callNode))
 		}
 		callNode.ReplaceWith(objNode)
 		this_.compiler.ReportChangeToEnclosingScope(objNode)
@@ -163,7 +163,7 @@ func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_processOb
 }
 
 // Java method: ClosureOptimizePrimitives.processRenamePropertyCall(com.google.javascript.rhino.Node callNode)
-func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_processRenamePropertyCall_1176(callNode pkg_rhino.Node) {
+func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_processRenamePropertyCall_1177(callNode pkg_rhino.Node) {
 	_ = callNode
 	var nameNode pkg_rhino.Node = callNode.GetFirstChild()
 	_ = nameNode
@@ -179,12 +179,12 @@ func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_processRe
 }
 
 // Java method: ClosureOptimizePrimitives.canOptimizeObjectCreate(com.google.javascript.rhino.Node firstParam)
-func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_canOptimizeObjectCreate_1177(firstParam pkg_rhino.Node) bool {
+func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_canOptimizeObjectCreate_1178(firstParam pkg_rhino.Node) bool {
 	_ = firstParam
 	var curParam pkg_rhino.Node = firstParam
 	_ = curParam
 	for curParam != 0 {
-		if !(this_.priv_ClosureOptimizePrimitives_isOptimizableKey_1181(curParam)) {
+		if !(this_.priv_ClosureOptimizePrimitives_isOptimizableKey_1182(curParam)) {
 			return false
 		}
 		curParam = curParam.GetNext()
@@ -197,11 +197,11 @@ func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_canOptimi
 }
 
 // Java method: ClosureOptimizePrimitives.processObjectCreateSetCall(com.google.javascript.rhino.Node callNode)
-func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_processObjectCreateSetCall_1178(callNode pkg_rhino.Node) {
+func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_processObjectCreateSetCall_1179(callNode pkg_rhino.Node) {
 	_ = callNode
 	var curParam pkg_rhino.Node = callNode.GetSecondChild()
 	_ = curParam
-	if this_.priv_ClosureOptimizePrimitives_canOptimizeObjectCreateSet_1179(curParam) {
+	if this_.priv_ClosureOptimizePrimitives_canOptimizeObjectCreateSet_1180(curParam) {
 		var objNode pkg_rhino.Node = pkg_rhino.IR_Objectlit([]pkg_rhino.Node{}).Srcref(callNode)
 		_ = objNode
 		for curParam != 0 {
@@ -211,7 +211,7 @@ func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_processOb
 			_ = valueNode
 			curParam = curParam.GetNext()
 			keyNode.Detach()
-			this_.priv_ClosureOptimizePrimitives_addKeyValueToObjLit_1180(objNode, keyNode, valueNode, NodeUtil_GetEnclosingScript(callNode))
+			this_.priv_ClosureOptimizePrimitives_addKeyValueToObjLit_1181(objNode, keyNode, valueNode, NodeUtil_GetEnclosingScript(callNode))
 		}
 		callNode.ReplaceWith(objNode)
 		this_.compiler.ReportChangeToEnclosingScope(objNode)
@@ -219,7 +219,7 @@ func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_processOb
 }
 
 // Java method: ClosureOptimizePrimitives.canOptimizeObjectCreateSet(com.google.javascript.rhino.Node firstParam)
-func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_canOptimizeObjectCreateSet_1179(firstParam pkg_rhino.Node) bool {
+func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_canOptimizeObjectCreateSet_1180(firstParam pkg_rhino.Node) bool {
 	_ = firstParam
 	if ((firstParam != 0) && (firstParam.GetNext() == 0)) && !(firstParam.IsNumber() || firstParam.IsStringLit()) {
 		return false
@@ -229,7 +229,7 @@ func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_canOptimi
 	var keys j2gort.LocalOrderedSet[string] = j2gort.NewLocalOrderedSet[string]()
 	_ = keys
 	for curParam != 0 {
-		if !(this_.priv_ClosureOptimizePrimitives_isOptimizableKey_1181(curParam)) {
+		if !(this_.priv_ClosureOptimizePrimitives_isOptimizableKey_1182(curParam)) {
 			return false
 		}
 		if curParam.IsStringLit() || curParam.IsNumber() {
@@ -251,7 +251,7 @@ func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_canOptimi
 }
 
 // Java method: ClosureOptimizePrimitives.addKeyValueToObjLit(com.google.javascript.rhino.Node objNode, com.google.javascript.rhino.Node keyNode, com.google.javascript.rhino.Node valueNode, com.google.javascript.rhino.Node scriptNode)
-func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_addKeyValueToObjLit_1180(objNode pkg_rhino.Node, keyNode pkg_rhino.Node, valueNode pkg_rhino.Node, scriptNode pkg_rhino.Node) {
+func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_addKeyValueToObjLit_1181(objNode pkg_rhino.Node, keyNode pkg_rhino.Node, valueNode pkg_rhino.Node, scriptNode pkg_rhino.Node) {
 	_ = objNode
 	_ = keyNode
 	_ = valueNode
@@ -271,7 +271,7 @@ func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_addKeyVal
 }
 
 // Java method: ClosureOptimizePrimitives.isOptimizableKey(com.google.javascript.rhino.Node curParam)
-func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_isOptimizableKey_1181(curParam pkg_rhino.Node) bool {
+func (this_ *ClosureOptimizePrimitives) priv_ClosureOptimizePrimitives_isOptimizableKey_1182(curParam pkg_rhino.Node) bool {
 	_ = curParam
 	if this_.canUseEs6Syntax {
 		return !(NodeUtil_IsStatement(curParam))
@@ -341,11 +341,11 @@ func (this_ *ClosureOptimizePrimitives_FindPrimitives) Visit_3(t *NodeTraversal,
 		var fn pkg_rhino.Node = n.GetFirstChild()
 		_ = fn
 		if this_.outer_.compiler.GetCodingConvention().IsPropertyRenameFunction(fn) {
-			this_.outer_.priv_ClosureOptimizePrimitives_processRenamePropertyCall_1176(n)
+			this_.outer_.priv_ClosureOptimizePrimitives_processRenamePropertyCall_1177(n)
 		} else if (fn.MatchesName_1_string("goog$object$create") || fn.MatchesName_1_string("module$contents$goog$object_create")) || StaticGet_ClosureOptimizePrimitives_GOOG_OBJECT_CREATE().Matches(fn) {
-			this_.outer_.priv_ClosureOptimizePrimitives_processObjectCreateCall_1175(n)
+			this_.outer_.priv_ClosureOptimizePrimitives_processObjectCreateCall_1176(n)
 		} else if (fn.MatchesName_1_string("goog$object$createSet") || fn.MatchesName_1_string("module$contents$goog$object_createSet")) || StaticGet_ClosureOptimizePrimitives_GOOG_OBJECT_CREATESET().Matches(fn) {
-			this_.outer_.priv_ClosureOptimizePrimitives_processObjectCreateSetCall_1178(n)
+			this_.outer_.priv_ClosureOptimizePrimitives_processObjectCreateSetCall_1179(n)
 		}
 	}
 }

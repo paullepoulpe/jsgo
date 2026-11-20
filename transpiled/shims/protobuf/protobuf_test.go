@@ -2146,3 +2146,159 @@ func TestWave42CZeroAllocByteStringCopyFromUtf8AndSlabScriptIsolation(t *testing
 		t.Fatalf("StringPoolProto roundtrip mismatch: %v", strs)
 	}
 }
+
+func TestWave45ProtoFastPaths(t *testing.T) {
+	// 1. AstNode putDataTo / putRecTo / mergeRecSlice roundtrip across 1-, 2-, 3-, and 4-byte varints.
+	root := protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_SOURCE_FILE).SetSourceFile(123456)
+	ptrVals := []int32{0, 1, 127, 128, 16383, 16384, 200000, 2097151, 2097152, 50000000}
+	for i, pv := range ptrVals {
+		child := protobuf.AstNode_NewBuilder().
+			SetKind(protobuf.NodeKind_IDENTIFIER).
+			SetStringValuePointer(pv).
+			SetOriginalNamePointer(pv + 7).
+			SetType(pv + 13).
+			SetRelativeLine(int32(i*100 - 300)).
+			SetRelativeColumn(int32(i*50 - 150)).
+			SetBooleanProperties(int64(1)<<uint(i%40) | int64(pv)).
+			Build()
+		root.AddChild(child)
+	}
+	root.AddChild(protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_NUMBER_LITERAL).SetDoubleValue(3.141592653589793).Build())
+	root.AddChild(protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_TEMPLATELIT_STRING).
+		SetTemplateStringValue(protobuf.TemplateStringValue_NewBuilder().SetRawStringPointer(25000).SetCookedStringPointer(30000).Build()).Build())
+
+	built := root.Build()
+	wireFromData := built.ToByteArray()
+	parsed, err := protobuf.AstNode_ParseFrom(wireFromData)
+	if err != nil {
+		t.Fatalf("AstNode_ParseFrom failed: %v", err)
+	}
+	wireFromSlab := parsed.ToByteArray()
+	if !bytes.Equal(wireFromData, wireFromSlab) {
+		t.Fatalf("wire mismatch between putDataTo (%d B) and putRecTo (%d B)", len(wireFromData), len(wireFromSlab))
+	}
+	if parsed.GetSourceFile() != 123456 || parsed.GetChildCount() != len(ptrVals)+2 {
+		t.Fatalf("parsed root mismatch: sf=%d children=%d", parsed.GetSourceFile(), parsed.GetChildCount())
+	}
+	for i, pv := range ptrVals {
+		c := parsed.GetChild(i)
+		if c.GetStringValuePointer() != pv || c.GetOriginalNamePointer() != pv+7 || c.GetType() != pv+13 {
+			t.Fatalf("child %d mismatch: str=%d orig=%d type=%d want %d/%d/%d",
+				i, c.GetStringValuePointer(), c.GetOriginalNamePointer(), c.GetType(), pv, pv+7, pv+13)
+		}
+		if c.GetRelativeLine() != int32(i*100-300) || c.GetRelativeColumn() != int32(i*50-150) {
+			t.Fatalf("child %d pos mismatch: line=%d col=%d", i, c.GetRelativeLine(), c.GetRelativeColumn())
+		}
+	}
+	if parsed.GetChild(len(ptrVals)).GetDoubleValue() != 3.141592653589793 {
+		t.Fatalf("double mismatch: %v", parsed.GetChild(len(ptrVals)).GetDoubleValue())
+	}
+	ts := parsed.GetChild(len(ptrVals) + 1).GetTemplateStringValue()
+	if ts.GetRawStringPointer() != 25000 || ts.GetCookedStringPointer() != 30000 {
+		t.Fatalf("template string mismatch: %d/%d", ts.GetRawStringPointer(), ts.GetCookedStringPointer())
+	}
+
+	// 2. Truncated / malformed varint error handling in mergeRecSlice.
+	if _, err := protobuf.AstNode_ParseFrom([]byte{0x08, 0x80}); err == nil {
+		t.Fatal("expected error for truncated 2-byte varint")
+	}
+	if _, err := protobuf.AstNode_ParseFrom([]byte{0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}); err == nil {
+		t.Fatal("expected error for >10-byte malformed varint")
+	}
+	if _, err := protobuf.AstNode_ParseFrom([]byte{0x00}); err == nil {
+		t.Fatal("expected error for zero tag")
+	}
+
+	// 3. StringPoolProto.mergeFromStream batch Peek fast path + BufferedOutputStream direct write.
+	sp := protobuf.StringPoolProto_NewBuilder().SetMaxLength(20000)
+	wantStrs := make([]string, 0, 520)
+	for i := 0; i < 500; i++ {
+		s := fmt.Sprintf("goog.protobuf.ident_%04d", i)
+		if i%50 == 0 {
+			s = ""
+		} else if i%37 == 0 {
+			s = strings.Repeat("m", 300+i)
+		}
+		wantStrs = append(wantStrs, s)
+		sp.AddStrings(protobuf.ByteString_CopyFromUtf8(s))
+	}
+	bigStr := strings.Repeat("Z", 18000)
+	wantStrs = append(wantStrs, bigStr)
+	sp.AddStrings(protobuf.ByteString_CopyFromUtf8(bigStr))
+
+	taBuilder := protobuf.TypedAst_NewBuilder().SetStringPool(sp.Build())
+	for i := 0; i < 12; i++ {
+		sz := 200 + i*2500
+		payload := bytes.Repeat([]byte{0x08, byte(100 + i)}, sz/2)
+		taBuilder.AddCodeAst(protobuf.LazyAst_NewBuilder().SetScriptBytes(payload).SetSourceFile(int32(i + 1)).Build())
+	}
+	list := protobuf.TypedAst_List_NewBuilder().AddTypedAsts(taBuilder.Build()).Build()
+
+	wantWire := list.ToByteArray()
+	var bufOut bytes.Buffer
+	bos := javaio.NewBufferedOutputStream(&bufOut)
+	nWritten, err := list.WriteTo(bos)
+	if err != nil {
+		t.Fatalf("WriteTo(BufferedOutputStream) failed: %v", err)
+	}
+	if err := bos.Flush(); err != nil {
+		t.Fatalf("Flush failed: %v", err)
+	}
+	_ = bos.Close()
+	if int(nWritten) != len(wantWire) || !bytes.Equal(bufOut.Bytes(), wantWire) {
+		t.Fatalf("BufferedOutputStream WriteTo mismatch: n=%d got=%d want=%d", nWritten, bufOut.Len(), len(wantWire))
+	}
+
+	// Stream-parse via BufferedInputStream (unhinted) to exercise 4KiB CodedInputStream + batch StringPoolProto Peek.
+	bis := javaio.NewBufferedInputStream(&unhintedStreamReader{r: bytes.NewReader(wantWire)})
+	defer bis.Close()
+	cis, err := protobuf.CodedInputStream_NewInstance(bis)
+	if err != nil {
+		t.Fatalf("CodedInputStream_NewInstance failed: %v", err)
+	}
+	tag, err := cis.ReadTag()
+	if err != nil || tag != 10 {
+		t.Fatalf("ReadTag = %d, err = %v", tag, err)
+	}
+	dstTA := protobuf.TypedAst_NewBuilder()
+	if err := cis.ReadMessage(dstTA, nil); err != nil {
+		t.Fatalf("ReadMessage failed: %v", err)
+	}
+	if !cis.IsAtEnd() {
+		t.Fatal("expected IsAtEnd")
+	}
+	gotSP := dstTA.GetStringPool()
+	if gotSP.GetMaxLength() != 20000 {
+		t.Fatalf("max_length = %d, want 20000", gotSP.GetMaxLength())
+	}
+	gotStrs := gotSP.GetStringsByteStringList()
+	if len(gotStrs) != len(wantStrs) {
+		t.Fatalf("string pool count = %d, want %d", len(gotStrs), len(wantStrs))
+	}
+	for i, w := range wantStrs {
+		if gotStrs[i].ToStringUtf8() != w {
+			t.Fatalf("string[%d] mismatch: got len=%d want len=%d", i, gotStrs[i].Size(), len(w))
+		}
+	}
+	if len(dstTA.GetCodeAstList()) != 12 {
+		t.Fatalf("codeAst count = %d, want 12", len(dstTA.GetCodeAstList()))
+	}
+
+	// Non-canonical 2-byte varint length in StringPoolProto stream (0x0A, 0x80, 0x00 -> empty string) must canonicalize cleanly.
+	nonCanonSP := []byte{0x0A, 0x02, 'o', 'k', 0x0A, 0x80, 0x00, 0x0A, 0x01, '!', 0x10, 0x07}
+	taWire := append([]byte{0x12, byte(len(nonCanonSP))}, nonCanonSP...)
+	listWire := append([]byte{0x0A, byte(len(taWire))}, taWire...)
+	cisNC, err := protobuf.CodedInputStream_NewInstance(&unhintedStreamReader{r: bytes.NewReader(listWire)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = cisNC.ReadTag()
+	dstNC := protobuf.TypedAst_NewBuilder()
+	if err := cisNC.ReadMessage(dstNC, nil); err != nil {
+		t.Fatalf("non-canonical StringPoolProto stream failed: %v", err)
+	}
+	ncList := dstNC.GetStringPool().GetStringsByteStringList()
+	if len(ncList) != 3 || ncList[0].ToStringUtf8() != "ok" || ncList[1].ToStringUtf8() != "" || ncList[2].ToStringUtf8() != "!" || dstNC.GetStringPool().GetMaxLength() != 7 {
+		t.Fatalf("non-canonical StringPoolProto mismatch: len=%d max=%d", len(ncList), dstNC.GetStringPool().GetMaxLength())
+	}
+}

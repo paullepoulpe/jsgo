@@ -220,7 +220,7 @@ func InitControlFlowAnalysis(this_ *ControlFlowAnalysis, compiler AbstractCompil
 }
 
 // Java method: ControlFlowAnalysis.putFinallyEdge(com.google.javascript.rhino.Node from, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node to)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_putFinallyEdge_2179(from pkg_rhino.Node, to pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_putFinallyEdge_2180(from pkg_rhino.Node, to pkg_rhino.Node) {
 	_ = from
 	_ = to
 	if this_.finallyMap == nil {
@@ -242,7 +242,7 @@ func ControlFlowAnalysis_ComputeCfgDirect(compiler AbstractCompiler, cfgRoot pkg
 		ControlFlowAnalysis_ReleaseCfa(cfa)
 	}()
 	{
-		cfa.priv_ControlFlowAnalysis_computeCfg_2185(cfgRoot)
+		cfa.priv_ControlFlowAnalysis_computeCfg_2186(cfgRoot)
 		return cfa.cfg
 	}
 	panic("unreachable")
@@ -520,7 +520,7 @@ func ControlFlowAnalysis_MixNodeHash(h int32) int32 {
 }
 
 // Java method: ControlFlowAnalysis.putAstPosition(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node n, int pos)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_putAstPosition_2181(n pkg_rhino.Node, pos int32) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_putAstPosition_2182(n pkg_rhino.Node, pos int32) {
 	_ = n
 	_ = pos
 	if n == 0 {
@@ -535,7 +535,7 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_putAstPosition_2181(n
 		this_.astPosValues = make([]int32, int32(64))
 		this_.astPosEpochs = make([]int32, int32(64))
 	} else if (this_.astPosSize * int32(4)) >= (int32(len(keys)) * int32(3)) {
-		this_.priv_ControlFlowAnalysis_rehashAstPositions_2182((int32(len(keys)) * int32(2)))
+		this_.priv_ControlFlowAnalysis_rehashAstPositions_2183((int32(len(keys)) * int32(2)))
 		keys = this_.astPosKeys
 	}
 	var epochs []int32 = this_.astPosEpochs
@@ -595,7 +595,7 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_putAstPosition_2181(n
 }
 
 // Java method: ControlFlowAnalysis.rehashAstPositions(int newCap)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_rehashAstPositions_2182(newCap int32) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_rehashAstPositions_2183(newCap int32) {
 	_ = newCap
 	var oldKeys []pkg_rhino.Node = this_.astPosKeys
 	_ = oldKeys
@@ -653,7 +653,7 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_rehashAstPositions_21
 }
 
 // Java method: ControlFlowAnalysis.getAstPosition(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node n)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_getAstPosition_2183(n pkg_rhino.Node) int32 {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_getAstPosition_2184(n pkg_rhino.Node) int32 {
 	_ = n
 	if n == 0 {
 		if this_.nullAstPos >= int32(0) {
@@ -688,19 +688,19 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_getAstPosition_2183(n
 }
 
 // Java method: ControlFlowAnalysis.resolveAstPosition(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<com.google.javascript.rhino.Node,com.google.javascript.jscomp.ControlFlowGraph.Branch> dNode)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_resolveAstPosition_2184(dNode pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]) int32 {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_resolveAstPosition_2185(dNode pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]) int32 {
 	_ = dNode
 	var pos int32 = dNode.GetAstPosition()
 	_ = pos
 	if pos < int32(0) {
-		pos = this_.priv_ControlFlowAnalysis_getAstPosition_2183(dNode.GetValue())
+		pos = this_.priv_ControlFlowAnalysis_getAstPosition_2184(dNode.GetValue())
 		dNode.SetAstPosition(pos)
 	}
 	return pos
 }
 
 // Java method: ControlFlowAnalysis.computeCfg(com.google.javascript.rhino.Node root)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_computeCfg_2185(root pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_computeCfg_2186(root pkg_rhino.Node) {
 	_ = root
 	if !(NodeUtil_IsValidCfgRoot(root)) {
 		j2gort.CheckArgumentFmt(false, "Unexpected control flow graph root %s", j2gort.BoxNode(root))
@@ -719,11 +719,11 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_computeCfg_2185(root 
 		this_.astPositionCounter = nw_59
 		iifeArg_1 = nw_59
 	}
-	this_.priv_ControlFlowAnalysis_putAstPosition_2181(pkg_rhino.Node(0), iifeArg_1)
+	this_.priv_ControlFlowAnalysis_putAstPosition_2182(pkg_rhino.Node(0), iifeArg_1)
 	this_.priorityCounter = int32(0)
 	var entry pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = this_.cfg.GetEntry()
 	_ = entry
-	this_.priv_ControlFlowAnalysis_prioritizeFromEntryNode_2186(entry)
+	this_.priv_ControlFlowAnalysis_prioritizeFromEntryNode_2187(entry)
 	if this_.shouldTraverseFunctions {
 		{
 			cur_60 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.cfg.GetNodes()))
@@ -734,7 +734,7 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_computeCfg_2185(root 
 				var value pkg_rhino.Node = candidate.GetValue()
 				_ = value
 				if (value != 0) && value.IsFunction() {
-					this_.priv_ControlFlowAnalysis_prioritizeFromEntryNode_2186(candidate)
+					this_.priv_ControlFlowAnalysis_prioritizeFromEntryNode_2187(candidate)
 				}
 			}
 		}
@@ -764,7 +764,7 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_computeCfg_2185(root 
 }
 
 // Java method: ControlFlowAnalysis.prioritizeFromEntryNode(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<com.google.javascript.rhino.Node,com.google.javascript.jscomp.ControlFlowGraph.Branch> entry)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_prioritizeFromEntryNode_2186(entry pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_prioritizeFromEntryNode_2187(entry pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]) {
 	_ = entry
 	var heap []pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = this_.workHeap
 	_ = heap
@@ -804,7 +804,7 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_prioritizeFromEntryNo
 			_ = half
 			var k int32 = int32(0)
 			_ = k
-			var xPos int32 = this_.priv_ControlFlowAnalysis_resolveAstPosition_2184(x)
+			var xPos int32 = this_.priv_ControlFlowAnalysis_resolveAstPosition_2185(x)
 			_ = xPos
 			for k < half {
 				var child int32 = ((javalang.Shl32(k, int(int32(1)))) + int32(1))
@@ -813,12 +813,12 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_prioritizeFromEntryNo
 				_ = c
 				var right int32 = (child + int32(1))
 				_ = right
-				var cPos int32 = this_.priv_ControlFlowAnalysis_resolveAstPosition_2184(c)
+				var cPos int32 = this_.priv_ControlFlowAnalysis_resolveAstPosition_2185(c)
 				_ = cPos
 				if right < n {
 					var r pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = heap[right]
 					_ = r
-					var rPos int32 = this_.priv_ControlFlowAnalysis_resolveAstPosition_2184(r)
+					var rPos int32 = this_.priv_ControlFlowAnalysis_resolveAstPosition_2185(r)
 					_ = rPos
 					if cPos > rPos {
 						child = right
@@ -891,14 +891,14 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_prioritizeFromEntryNo
 						k_2 = old_85
 					}
 					_ = k_2
-					var succPos int32 = this_.priv_ControlFlowAnalysis_resolveAstPosition_2184(succ)
+					var succPos int32 = this_.priv_ControlFlowAnalysis_resolveAstPosition_2185(succ)
 					_ = succPos
 					for k_2 > int32(0) {
 						var parent int32 = javalang.Ushr32((k_2 - int32(1)), int(int32(1)))
 						_ = parent
 						var e pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = heap[parent]
 						_ = e
-						if succPos >= this_.priv_ControlFlowAnalysis_resolveAstPosition_2184(e) {
+						if succPos >= this_.priv_ControlFlowAnalysis_resolveAstPosition_2185(e) {
 							break
 						}
 						{
@@ -929,7 +929,7 @@ func (this_ *ControlFlowAnalysis) ShouldTraverse_3(nodeTraversal *NodeTraversal,
 	_ = nodeTraversal
 	_ = n
 	_ = parent
-	if this_.priv_ControlFlowAnalysis_shouldTraverseIntoChildren_2187(n, parent) {
+	if this_.priv_ControlFlowAnalysis_shouldTraverseIntoChildren_2188(n, parent) {
 		var iifeArg_2 int32
 		{
 
@@ -938,14 +938,14 @@ func (this_ *ControlFlowAnalysis) ShouldTraverse_3(nodeTraversal *NodeTraversal,
 			this_.astPositionCounter = nw_92
 			iifeArg_2 = old_91
 		}
-		this_.priv_ControlFlowAnalysis_putAstPosition_2181(n, iifeArg_2)
+		this_.priv_ControlFlowAnalysis_putAstPosition_2182(n, iifeArg_2)
 		return true
 	}
 	return false
 }
 
 // Java method: ControlFlowAnalysis.shouldTraverseIntoChildren(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_shouldTraverseIntoChildren_2187(n pkg_rhino.Node, parent pkg_rhino.Node) bool {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_shouldTraverseIntoChildren_2188(n pkg_rhino.Node, parent pkg_rhino.Node) bool {
 	_ = n
 	_ = parent
 	switch n.TokenSwitchOrd_() {
@@ -974,7 +974,7 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_shouldTraverseIntoChi
 					this_.astPositionCounter = nw_94
 					iifeArg_3 = old_93
 				}
-				this_.priv_ControlFlowAnalysis_putAstPosition_2181(n, iifeArg_3)
+				this_.priv_ControlFlowAnalysis_putAstPosition_2182(n, iifeArg_3)
 			}
 			return shouldTraverseForChild
 		case int32(79) /* Token.DO */ :
@@ -1010,91 +1010,91 @@ func (this_ *ControlFlowAnalysis) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(74) /* Token.IF */ :
-		this_.priv_ControlFlowAnalysis_handleIf_2188(n)
+		this_.priv_ControlFlowAnalysis_handleIf_2189(n)
 	case int32(78) /* Token.WHILE */ :
-		this_.priv_ControlFlowAnalysis_handleWhile_2189(n)
+		this_.priv_ControlFlowAnalysis_handleWhile_2190(n)
 	case int32(79) /* Token.DO */ :
-		this_.priv_ControlFlowAnalysis_handleDo_2190(n)
+		this_.priv_ControlFlowAnalysis_handleDo_2191(n)
 	case int32(80) /* Token.FOR */ :
-		this_.priv_ControlFlowAnalysis_handleFor_2192(n)
+		this_.priv_ControlFlowAnalysis_handleFor_2193(n)
 	case int32(112) /* Token.FOR_OF */, int32(81) /* Token.FOR_IN */, int32(113) /* Token.FOR_AWAIT_OF */ :
-		this_.priv_ControlFlowAnalysis_handleEnhancedFor_2191(n)
+		this_.priv_ControlFlowAnalysis_handleEnhancedFor_2192(n)
 	case int32(75) /* Token.SWITCH */ :
-		this_.priv_ControlFlowAnalysis_handleSwitch_2193(n)
+		this_.priv_ControlFlowAnalysis_handleSwitch_2194(n)
 	case int32(76) /* Token.CASE */ :
-		this_.priv_ControlFlowAnalysis_handleCase_2194(n)
+		this_.priv_ControlFlowAnalysis_handleCase_2195(n)
 	case int32(77) /* Token.DEFAULT_CASE */ :
-		this_.priv_ControlFlowAnalysis_handleDefault_2195(n)
+		this_.priv_ControlFlowAnalysis_handleDefault_2196(n)
 	case int32(90) /* Token.BLOCK */, int32(89) /* Token.ROOT */, int32(94) /* Token.SCRIPT */, int32(123) /* Token.MODULE_BODY */ :
-		this_.priv_ControlFlowAnalysis_handleStmtList_2197(n)
+		this_.priv_ControlFlowAnalysis_handleStmtList_2198(n)
 	case int32(73) /* Token.FUNCTION */ :
-		this_.priv_ControlFlowAnalysis_handleFunction_2198(n)
+		this_.priv_ControlFlowAnalysis_handleFunction_2199(n)
 	case int32(93) /* Token.EXPR_RESULT */ :
-		this_.priv_ControlFlowAnalysis_handleExpr_2199(n)
+		this_.priv_ControlFlowAnalysis_handleExpr_2200(n)
 	case int32(43) /* Token.THROW */ :
-		this_.priv_ControlFlowAnalysis_handleThrow_2200(n)
+		this_.priv_ControlFlowAnalysis_handleThrow_2201(n)
 	case int32(48) /* Token.TRY */ :
-		this_.priv_ControlFlowAnalysis_handleTry_2201(n)
+		this_.priv_ControlFlowAnalysis_handleTry_2202(n)
 	case int32(86) /* Token.CATCH */ :
-		this_.priv_ControlFlowAnalysis_handleCatch_2202(n)
+		this_.priv_ControlFlowAnalysis_handleCatch_2203(n)
 	case int32(82) /* Token.BREAK */ :
-		this_.priv_ControlFlowAnalysis_handleBreak_2203(n)
+		this_.priv_ControlFlowAnalysis_handleBreak_2204(n)
 	case int32(83) /* Token.CONTINUE */ :
-		this_.priv_ControlFlowAnalysis_handleContinue_2204(n)
+		this_.priv_ControlFlowAnalysis_handleContinue_2205(n)
 	case int32(0) /* Token.RETURN */ :
-		this_.priv_ControlFlowAnalysis_handleReturn_2205(n)
+		this_.priv_ControlFlowAnalysis_handleReturn_2206(n)
 	case int32(85) /* Token.WITH */ :
-		this_.priv_ControlFlowAnalysis_handleWith_2196(n)
+		this_.priv_ControlFlowAnalysis_handleWith_2197(n)
 	case int32(91) /* Token.SWITCH_BODY */, int32(92) /* Token.LABEL */, int32(106) /* Token.CLASS_MEMBERS */, int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(108) /* Token.MEMBER_FIELD_DEF */, int32(109) /* Token.COMPUTED_FIELD_DEF */ :
 	default:
-		this_.priv_ControlFlowAnalysis_handleStmt_2206(n)
+		this_.priv_ControlFlowAnalysis_handleStmt_2207(n)
 	}
 }
 
 // Java method: ControlFlowAnalysis.handleIf(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleIf_2188(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleIf_2189(node pkg_rhino.Node) {
 	_ = node
 	var thenBlock pkg_rhino.Node = node.GetSecondChild()
 	_ = thenBlock
 	var elseBlock pkg_rhino.Node = thenBlock.GetNext()
 	_ = elseBlock
-	this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_ON_TRUE(), ControlFlowAnalysis_ComputeFallThrough(thenBlock))
+	this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_ON_TRUE(), ControlFlowAnalysis_ComputeFallThrough(thenBlock))
 	if elseBlock == 0 {
-		this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
+		this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
 	} else {
-		this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFallThrough(elseBlock))
+		this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFallThrough(elseBlock))
 	}
-	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(node, NodeUtil_GetConditionExpression(node))
+	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(node, NodeUtil_GetConditionExpression(node))
 }
 
 // Java method: ControlFlowAnalysis.handleWhile(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleWhile_2189(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleWhile_2190(node pkg_rhino.Node) {
 	_ = node
 	var cond pkg_rhino.Node = node.GetFirstChild()
 	_ = cond
-	this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_ON_TRUE(), ControlFlowAnalysis_ComputeFallThrough(cond.GetNext()))
+	this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_ON_TRUE(), ControlFlowAnalysis_ComputeFallThrough(cond.GetNext()))
 	if !(cond.IsTrue()) {
-		this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
+		this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
 	}
-	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(node, NodeUtil_GetConditionExpression(node))
+	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(node, NodeUtil_GetConditionExpression(node))
 }
 
 // Java method: ControlFlowAnalysis.handleDo(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleDo_2190(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleDo_2191(node pkg_rhino.Node) {
 	_ = node
 	var body pkg_rhino.Node = node.GetFirstChild()
 	_ = body
-	this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_ON_TRUE(), ControlFlowAnalysis_ComputeFallThrough(body))
+	this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_ON_TRUE(), ControlFlowAnalysis_ComputeFallThrough(body))
 	var cond pkg_rhino.Node = body.GetNext()
 	_ = cond
 	if !(cond.IsTrue()) {
-		this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
+		this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
 	}
-	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(node, NodeUtil_GetConditionExpression(node))
+	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(node, NodeUtil_GetConditionExpression(node))
 }
 
 // Java method: ControlFlowAnalysis.handleEnhancedFor(com.google.javascript.rhino.Node forNode)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleEnhancedFor_2191(forNode pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleEnhancedFor_2192(forNode pkg_rhino.Node) {
 	_ = forNode
 	var item pkg_rhino.Node = forNode.GetFirstChild()
 	_ = item
@@ -1102,18 +1102,18 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleEnhancedFor_219
 	_ = collection
 	var body pkg_rhino.Node = collection.GetNext()
 	_ = body
-	this_.priv_ControlFlowAnalysis_createEdge_2207(collection, StaticGet_ControlFlowGraph_Branch_UNCOND(), forNode)
-	this_.priv_ControlFlowAnalysis_createEdge_2207(forNode, StaticGet_ControlFlowGraph_Branch_ON_TRUE(), ControlFlowAnalysis_ComputeFallThrough(body))
-	this_.priv_ControlFlowAnalysis_createEdge_2207(forNode, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFollowNode_2(forNode, this_))
+	this_.priv_ControlFlowAnalysis_createEdge_2208(collection, StaticGet_ControlFlowGraph_Branch_UNCOND(), forNode)
+	this_.priv_ControlFlowAnalysis_createEdge_2208(forNode, StaticGet_ControlFlowGraph_Branch_ON_TRUE(), ControlFlowAnalysis_ComputeFallThrough(body))
+	this_.priv_ControlFlowAnalysis_createEdge_2208(forNode, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFollowNode_2(forNode, this_))
 	if forNode.IsForOf() || forNode.IsForAwaitOf() {
-		this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandlerUnconditionally_2209(forNode)
+		this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandlerUnconditionally_2210(forNode)
 	} else {
-		this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(forNode, collection)
+		this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(forNode, collection)
 	}
 }
 
 // Java method: ControlFlowAnalysis.handleFor(com.google.javascript.rhino.Node forNode)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleFor_2192(forNode pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleFor_2193(forNode pkg_rhino.Node) {
 	_ = forNode
 	var init pkg_rhino.Node = forNode.GetFirstChild()
 	_ = init
@@ -1123,77 +1123,77 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleFor_2192(forNod
 	_ = iter
 	var body pkg_rhino.Node = iter.GetNext()
 	_ = body
-	this_.priv_ControlFlowAnalysis_createEdge_2207(init, StaticGet_ControlFlowGraph_Branch_UNCOND(), forNode)
-	this_.priv_ControlFlowAnalysis_createEdge_2207(forNode, StaticGet_ControlFlowGraph_Branch_ON_TRUE(), ControlFlowAnalysis_ComputeFallThrough(body))
+	this_.priv_ControlFlowAnalysis_createEdge_2208(init, StaticGet_ControlFlowGraph_Branch_UNCOND(), forNode)
+	this_.priv_ControlFlowAnalysis_createEdge_2208(forNode, StaticGet_ControlFlowGraph_Branch_ON_TRUE(), ControlFlowAnalysis_ComputeFallThrough(body))
 	if !(cond.IsEmpty()) && !(cond.IsTrue()) {
-		this_.priv_ControlFlowAnalysis_createEdge_2207(forNode, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFollowNode_2(forNode, this_))
+		this_.priv_ControlFlowAnalysis_createEdge_2208(forNode, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFollowNode_2(forNode, this_))
 	}
-	this_.priv_ControlFlowAnalysis_createEdge_2207(iter, StaticGet_ControlFlowGraph_Branch_UNCOND(), forNode)
-	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(init, init)
-	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(forNode, cond)
-	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(iter, iter)
+	this_.priv_ControlFlowAnalysis_createEdge_2208(iter, StaticGet_ControlFlowGraph_Branch_UNCOND(), forNode)
+	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(init, init)
+	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(forNode, cond)
+	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(iter, iter)
 }
 
 // Java method: ControlFlowAnalysis.handleSwitch(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleSwitch_2193(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleSwitch_2194(node pkg_rhino.Node) {
 	_ = node
 	var switchBody pkg_rhino.Node = node.GetLastChild()
 	_ = switchBody
-	this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), switchBody)
+	this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), switchBody)
 	var next pkg_rhino.Node = ControlFlowAnalysis_GetNextSiblingOfType(switchBody.GetFirstChild(), []pkg_rhino.Token{pkg_rhino.StaticGet_Token_CASE(), pkg_rhino.StaticGet_Token_EMPTY()})
 	_ = next
 	if next != 0 {
-		this_.priv_ControlFlowAnalysis_createEdge_2207(switchBody, StaticGet_ControlFlowGraph_Branch_UNCOND(), next)
+		this_.priv_ControlFlowAnalysis_createEdge_2208(switchBody, StaticGet_ControlFlowGraph_Branch_UNCOND(), next)
 	} else {
 		if switchBody.HasChildren() {
-			this_.priv_ControlFlowAnalysis_createEdge_2207(switchBody, StaticGet_ControlFlowGraph_Branch_UNCOND(), switchBody.GetFirstChild())
+			this_.priv_ControlFlowAnalysis_createEdge_2208(switchBody, StaticGet_ControlFlowGraph_Branch_UNCOND(), switchBody.GetFirstChild())
 		} else {
-			this_.priv_ControlFlowAnalysis_createEdge_2207(switchBody, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
+			this_.priv_ControlFlowAnalysis_createEdge_2208(switchBody, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
 		}
 	}
-	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(node, node.GetFirstChild())
+	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(node, node.GetFirstChild())
 }
 
 // Java method: ControlFlowAnalysis.handleCase(com.google.javascript.rhino.Node caseNode)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleCase_2194(caseNode pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleCase_2195(caseNode pkg_rhino.Node) {
 	_ = caseNode
-	this_.priv_ControlFlowAnalysis_createEdge_2207(caseNode, StaticGet_ControlFlowGraph_Branch_ON_TRUE(), caseNode.GetSecondChild())
+	this_.priv_ControlFlowAnalysis_createEdge_2208(caseNode, StaticGet_ControlFlowGraph_Branch_ON_TRUE(), caseNode.GetSecondChild())
 	var next pkg_rhino.Node = ControlFlowAnalysis_GetNextSiblingOfType(caseNode.GetNext(), []pkg_rhino.Token{pkg_rhino.StaticGet_Token_CASE()})
 	_ = next
 	if next != 0 {
 		if !(next.IsCase()) {
 			j2gort.CheckState(false)
 		}
-		this_.priv_ControlFlowAnalysis_createEdge_2207(caseNode, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), next)
+		this_.priv_ControlFlowAnalysis_createEdge_2208(caseNode, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), next)
 	} else {
 		var switchBody pkg_rhino.Node = caseNode.GetParent()
 		_ = switchBody
 		var deflt pkg_rhino.Node = ControlFlowAnalysis_GetNextSiblingOfType(switchBody.GetFirstChild(), []pkg_rhino.Token{pkg_rhino.StaticGet_Token_DEFAULT_CASE()})
 		_ = deflt
 		if deflt != 0 {
-			this_.priv_ControlFlowAnalysis_createEdge_2207(caseNode, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), deflt)
+			this_.priv_ControlFlowAnalysis_createEdge_2208(caseNode, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), deflt)
 		} else {
-			this_.priv_ControlFlowAnalysis_createEdge_2207(caseNode, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFollowNode_2(caseNode, this_))
+			this_.priv_ControlFlowAnalysis_createEdge_2208(caseNode, StaticGet_ControlFlowGraph_Branch_ON_FALSE(), ControlFlowAnalysis_ComputeFollowNode_2(caseNode, this_))
 		}
 	}
-	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(caseNode, caseNode.GetFirstChild())
+	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(caseNode, caseNode.GetFirstChild())
 }
 
 // Java method: ControlFlowAnalysis.handleDefault(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleDefault_2195(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleDefault_2196(node pkg_rhino.Node) {
 	_ = node
-	this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), node.GetFirstChild())
+	this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), node.GetFirstChild())
 }
 
 // Java method: ControlFlowAnalysis.handleWith(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleWith_2196(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleWith_2197(node pkg_rhino.Node) {
 	_ = node
-	this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), node.GetLastChild())
-	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(node, node.GetFirstChild())
+	this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), node.GetLastChild())
+	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(node, node.GetFirstChild())
 }
 
 // Java method: ControlFlowAnalysis.handleStmtList(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleStmtList_2197(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleStmtList_2198(node pkg_rhino.Node) {
 	_ = node
 	var parent pkg_rhino.Node = node.GetParent()
 	_ = parent
@@ -1206,27 +1206,27 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleStmtList_2197(n
 		child = child.GetNext()
 	}
 	if child != 0 {
-		this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFallThrough(child))
+		this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFallThrough(child))
 	} else {
-		this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
+		this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
 	}
 	if parent != 0 {
 		switch parent.TokenSwitchOrd_() {
 		case int32(77) /* Token.DEFAULT_CASE */, int32(76) /* Token.CASE */, int32(48) /* Token.TRY */ :
 		case int32(89) /* Token.ROOT */ :
 			if node.IsRoot() && (node.GetNext() != 0) {
-				this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), node.GetNext())
+				this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), node.GetNext())
 			}
 		default:
 			if node.IsBlock() && node.IsSyntheticBlock() {
-				this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_SYN_BLOCK(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
+				this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_SYN_BLOCK(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
 			}
 		}
 	}
 }
 
 // Java method: ControlFlowAnalysis.handleFunction(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleFunction_2198(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleFunction_2199(node pkg_rhino.Node) {
 	_ = node
 	if !(node.IsFunction()) {
 		j2gort.CheckState(false)
@@ -1234,7 +1234,7 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleFunction_2198(n
 	if !(node.HasXChildren(int32(3))) {
 		j2gort.CheckState(false)
 	}
-	this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFallThrough(node.GetLastChild()))
+	this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFallThrough(node.GetLastChild()))
 	if !(this_.exceptionHandler.PeekFirst() == node) {
 		j2gort.CheckState(false)
 	}
@@ -1242,32 +1242,32 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleFunction_2198(n
 }
 
 // Java method: ControlFlowAnalysis.handleExpr(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleExpr_2199(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleExpr_2200(node pkg_rhino.Node) {
 	_ = node
-	this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
-	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(node, node)
+	this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
+	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(node, node)
 }
 
 // Java method: ControlFlowAnalysis.handleThrow(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleThrow_2200(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleThrow_2201(node pkg_rhino.Node) {
 	_ = node
-	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(node, node)
+	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(node, node)
 }
 
 // Java method: ControlFlowAnalysis.handleTry(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleTry_2201(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleTry_2202(node pkg_rhino.Node) {
 	_ = node
-	this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), node.GetFirstChild())
+	this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), node.GetFirstChild())
 }
 
 // Java method: ControlFlowAnalysis.handleCatch(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleCatch_2202(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleCatch_2203(node pkg_rhino.Node) {
 	_ = node
-	this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), node.GetLastChild())
+	this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), node.GetLastChild())
 }
 
 // Java method: ControlFlowAnalysis.handleBreak(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleBreak_2203(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleBreak_2204(node pkg_rhino.Node) {
 	_ = node
 	var label string = j2gort.NullString
 	_ = label
@@ -1288,9 +1288,9 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleBreak_2203(node
 		for ; !(ControlFlowAnalysis_IsBreakTarget(cur, label)); func() { cur = parent; parent = parent.GetParent() }() {
 			if (cur.IsTry() && NodeUtil_HasFinally(cur)) && (cur.GetLastChild() != previous) {
 				if lastJump == node {
-					this_.priv_ControlFlowAnalysis_createEdge_2207(lastJump, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFallThrough(cur.GetLastChild()))
+					this_.priv_ControlFlowAnalysis_createEdge_2208(lastJump, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFallThrough(cur.GetLastChild()))
 				} else {
-					this_.priv_ControlFlowAnalysis_putFinallyEdge_2179(lastJump, ControlFlowAnalysis_ComputeFallThrough(cur.GetLastChild()))
+					this_.priv_ControlFlowAnalysis_putFinallyEdge_2180(lastJump, ControlFlowAnalysis_ComputeFallThrough(cur.GetLastChild()))
 				}
 				lastJump = cur
 			}
@@ -1305,14 +1305,14 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleBreak_2203(node
 		}
 	}
 	if lastJump == node {
-		this_.priv_ControlFlowAnalysis_createEdge_2207(lastJump, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFollowNode_2(cur, this_))
+		this_.priv_ControlFlowAnalysis_createEdge_2208(lastJump, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFollowNode_2(cur, this_))
 	} else {
-		this_.priv_ControlFlowAnalysis_putFinallyEdge_2179(lastJump, ControlFlowAnalysis_ComputeFollowNode_2(cur, this_))
+		this_.priv_ControlFlowAnalysis_putFinallyEdge_2180(lastJump, ControlFlowAnalysis_ComputeFollowNode_2(cur, this_))
 	}
 }
 
 // Java method: ControlFlowAnalysis.handleContinue(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleContinue_2204(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleContinue_2205(node pkg_rhino.Node) {
 	_ = node
 	var label string = j2gort.NullString
 	_ = label
@@ -1331,9 +1331,9 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleContinue_2204(n
 		for ; !(ControlFlowAnalysis_IsContinueTarget(cur, label)); cur = cur.GetParent() {
 			if (cur.IsTry() && NodeUtil_HasFinally(cur)) && (cur.GetLastChild() != previous) {
 				if lastJump == node {
-					this_.priv_ControlFlowAnalysis_createEdge_2207(lastJump, StaticGet_ControlFlowGraph_Branch_UNCOND(), cur.GetLastChild())
+					this_.priv_ControlFlowAnalysis_createEdge_2208(lastJump, StaticGet_ControlFlowGraph_Branch_UNCOND(), cur.GetLastChild())
 				} else {
-					this_.priv_ControlFlowAnalysis_putFinallyEdge_2179(lastJump, ControlFlowAnalysis_ComputeFallThrough(cur.GetLastChild()))
+					this_.priv_ControlFlowAnalysis_putFinallyEdge_2180(lastJump, ControlFlowAnalysis_ComputeFallThrough(cur.GetLastChild()))
 				}
 				lastJump = cur
 			}
@@ -1349,14 +1349,14 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleContinue_2204(n
 		iter = cur.GetChildAtIndex(int32(2))
 	}
 	if lastJump == node {
-		this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), iter)
+		this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), iter)
 	} else {
-		this_.priv_ControlFlowAnalysis_putFinallyEdge_2179(lastJump, iter)
+		this_.priv_ControlFlowAnalysis_putFinallyEdge_2180(lastJump, iter)
 	}
 }
 
 // Java method: ControlFlowAnalysis.handleReturn(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleReturn_2205(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleReturn_2206(node pkg_rhino.Node) {
 	_ = node
 	var lastJump pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = lastJump
@@ -1370,29 +1370,29 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleReturn_2205(nod
 			}
 			if NodeUtil_HasFinally(curHandler) {
 				if lastJump == 0 {
-					this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), curHandler.GetLastChild())
+					this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), curHandler.GetLastChild())
 				} else {
-					this_.priv_ControlFlowAnalysis_putFinallyEdge_2179(lastJump, ControlFlowAnalysis_ComputeFallThrough(curHandler.GetLastChild()))
+					this_.priv_ControlFlowAnalysis_putFinallyEdge_2180(lastJump, ControlFlowAnalysis_ComputeFallThrough(curHandler.GetLastChild()))
 				}
 				lastJump = curHandler
 			}
 		}
 	}
 	if node.HasChildren() {
-		this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(node, node.GetFirstChild())
+		this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(node, node.GetFirstChild())
 	}
 	if lastJump == 0 {
-		this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), pkg_rhino.Node(0))
+		this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), pkg_rhino.Node(0))
 	} else {
-		this_.priv_ControlFlowAnalysis_putFinallyEdge_2179(lastJump, pkg_rhino.Node(0))
+		this_.priv_ControlFlowAnalysis_putFinallyEdge_2180(lastJump, pkg_rhino.Node(0))
 	}
 }
 
 // Java method: ControlFlowAnalysis.handleStmt(com.google.javascript.rhino.Node node)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleStmt_2206(node pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_handleStmt_2207(node pkg_rhino.Node) {
 	_ = node
-	this_.priv_ControlFlowAnalysis_createEdge_2207(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
-	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(node, node)
+	this_.priv_ControlFlowAnalysis_createEdge_2208(node, StaticGet_ControlFlowGraph_Branch_UNCOND(), ControlFlowAnalysis_ComputeFollowNode_2(node, this_))
+	this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(node, node)
 }
 
 // Java static method: ControlFlowAnalysis.computeFollowNode(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.ControlFlowAnalysis cfa)
@@ -1460,7 +1460,7 @@ func ControlFlowAnalysis_ComputeFollowNode_3(fromNode pkg_rhino.Node, node pkg_r
 					for cur_96.HasNext() {
 						finallyNode := pkg_rhino.Node(cur_96.NextNode())
 						_ = finallyNode
-						cfa.priv_ControlFlowAnalysis_createEdge_2207(fromNode, StaticGet_ControlFlowGraph_Branch_ON_EX(), finallyNode)
+						cfa.priv_ControlFlowAnalysis_createEdge_2208(fromNode, StaticGet_ControlFlowGraph_Branch_ON_EX(), finallyNode)
 					}
 				}
 			}
@@ -1499,7 +1499,7 @@ func ControlFlowAnalysis_ComputeFallThrough(n pkg_rhino.Node) pkg_rhino.Node {
 }
 
 // Java method: ControlFlowAnalysis.createEdge(com.google.javascript.rhino.Node fromNode, com.google.javascript.jscomp.ControlFlowGraph.Branch branch, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node toNode)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_createEdge_2207(fromNode pkg_rhino.Node, branch ControlFlowGraph_Branch, toNode pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_createEdge_2208(fromNode pkg_rhino.Node, branch ControlFlowGraph_Branch, toNode pkg_rhino.Node) {
 	_ = fromNode
 	_ = branch
 	_ = toNode
@@ -1509,16 +1509,16 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_createEdge_2207(fromN
 }
 
 // Java method: ControlFlowAnalysis.connectToPossibleExceptionHandler(com.google.javascript.rhino.Node cfgNode, com.google.javascript.rhino.Node target)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2208(cfgNode pkg_rhino.Node, target pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_connectToPossibleExceptionHandler_2209(cfgNode pkg_rhino.Node, target pkg_rhino.Node) {
 	_ = cfgNode
 	_ = target
 	if ControlFlowAnalysis_MayThrowException(target) {
-		this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandlerUnconditionally_2209(cfgNode)
+		this_.priv_ControlFlowAnalysis_connectToPossibleExceptionHandlerUnconditionally_2210(cfgNode)
 	}
 }
 
 // Java method: ControlFlowAnalysis.connectToPossibleExceptionHandlerUnconditionally(com.google.javascript.rhino.Node cfgNode)
-func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_connectToPossibleExceptionHandlerUnconditionally_2209(cfgNode pkg_rhino.Node) {
+func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_connectToPossibleExceptionHandlerUnconditionally_2210(cfgNode pkg_rhino.Node) {
 	_ = cfgNode
 	if this_.exceptionHandler.IsEmpty() {
 		return
@@ -1561,16 +1561,16 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_connectToPossibleExce
 			}
 			if !(NodeUtil_HasCatchHandler(catchBlock)) || lastJumpInCatchBlock {
 				if lastJump == cfgNode {
-					this_.priv_ControlFlowAnalysis_createEdge_2207(cfgNode, StaticGet_ControlFlowGraph_Branch_ON_EX(), handler.GetLastChild())
+					this_.priv_ControlFlowAnalysis_createEdge_2208(cfgNode, StaticGet_ControlFlowGraph_Branch_ON_EX(), handler.GetLastChild())
 				} else {
-					this_.priv_ControlFlowAnalysis_putFinallyEdge_2179(lastJump, handler.GetLastChild())
+					this_.priv_ControlFlowAnalysis_putFinallyEdge_2180(lastJump, handler.GetLastChild())
 				}
 			} else {
 				if lastJump == cfgNode {
-					this_.priv_ControlFlowAnalysis_createEdge_2207(cfgNode, StaticGet_ControlFlowGraph_Branch_ON_EX(), catchBlock)
+					this_.priv_ControlFlowAnalysis_createEdge_2208(cfgNode, StaticGet_ControlFlowGraph_Branch_ON_EX(), catchBlock)
 					return
 				} else {
-					this_.priv_ControlFlowAnalysis_putFinallyEdge_2179(lastJump, catchBlock)
+					this_.priv_ControlFlowAnalysis_putFinallyEdge_2180(lastJump, catchBlock)
 				}
 			}
 			lastJump = handler

@@ -158,17 +158,17 @@ func (this_ *LightweightMessageFormatter) SetIncludeLevel(includeLevel bool) *Li
 // Java method: LightweightMessageFormatter.formatError(com.google.javascript.jscomp.JSError error)
 func (this_ *LightweightMessageFormatter) FormatError(error_ *JSError) string {
 	_ = error_
-	return this_.priv_LightweightMessageFormatter_format_3734(error_, false)
+	return this_.priv_LightweightMessageFormatter_format_3744(error_, false)
 }
 
 // Java method: LightweightMessageFormatter.formatWarning(com.google.javascript.jscomp.JSError warning)
 func (this_ *LightweightMessageFormatter) FormatWarning(warning *JSError) string {
 	_ = warning
-	return this_.priv_LightweightMessageFormatter_format_3734(warning, true)
+	return this_.priv_LightweightMessageFormatter_format_3744(warning, true)
 }
 
 // Java method: LightweightMessageFormatter.format(com.google.javascript.jscomp.JSError error, boolean warning)
-func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_format_3734(error_ *JSError, warning bool) string {
+func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_format_3744(error_ *JSError, warning bool) string {
 	_ = error_
 	_ = warning
 	var source SourceExcerptProvider = this_.GetSource()
@@ -226,7 +226,7 @@ iifeSwitch_1:
 		iifeArg_1 = this_.defaultFormat
 		break iifeSwitch_1
 	}
-	var sourceExcerptWithPosition string = this_.priv_LightweightMessageFormatter_getExcerptWithPosition_3736(error_, sourceName, lineNumber, charno, iifeArg_1)
+	var sourceExcerptWithPosition string = this_.priv_LightweightMessageFormatter_getExcerptWithPosition_3746(error_, sourceName, lineNumber, charno, iifeArg_1)
 	_ = sourceExcerptWithPosition
 	if sourceExcerptWithPosition != j2gort.NullString {
 		b.Append_1_string(sourceExcerptWithPosition)
@@ -237,11 +237,11 @@ iifeSwitch_1:
 // Java method: LightweightMessageFormatter.getExcerptWithPosition(com.google.javascript.jscomp.JSError error)
 func (this_ *LightweightMessageFormatter) GetExcerptWithPosition_1(error_ *JSError) string {
 	_ = error_
-	return this_.priv_LightweightMessageFormatter_getExcerptWithPosition_3737(error_, error_.SourceName(), error_.GetLineNumber(), error_.Charno(), error_.Length(), this_.defaultFormat)
+	return this_.priv_LightweightMessageFormatter_getExcerptWithPosition_3747(error_, error_.SourceName(), error_.GetLineNumber(), error_.Charno(), error_.Length(), this_.defaultFormat)
 }
 
 // Java method: LightweightMessageFormatter.getExcerptWithPosition(com.google.javascript.jscomp.JSError error, java.lang.String sourceName, int lineNumber, int charno, com.google.javascript.jscomp.SourceExcerptProvider.SourceExcerpt format)
-func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_getExcerptWithPosition_3736(error_ *JSError, sourceName string, lineNumber int32, charno int32, format *SourceExcerptProvider_SourceExcerpt) string {
+func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_getExcerptWithPosition_3746(error_ *JSError, sourceName string, lineNumber int32, charno int32, format *SourceExcerptProvider_SourceExcerpt) string {
 	_ = error_
 	_ = sourceName
 	_ = lineNumber
@@ -249,11 +249,11 @@ func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_getEx
 	_ = format
 	var nodeLength int32 = error_.Length()
 	_ = nodeLength
-	return this_.priv_LightweightMessageFormatter_getExcerptWithPosition_3737(error_, sourceName, lineNumber, charno, nodeLength, format)
+	return this_.priv_LightweightMessageFormatter_getExcerptWithPosition_3747(error_, sourceName, lineNumber, charno, nodeLength, format)
 }
 
 // Java method: LightweightMessageFormatter.getExcerptWithPosition(com.google.javascript.jscomp.JSError error, java.lang.String sourceName, int lineNumber, int charno, int length, com.google.javascript.jscomp.SourceExcerptProvider.SourceExcerpt format)
-func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_getExcerptWithPosition_3737(error_ *JSError, sourceName string, lineNumber int32, charno int32, length int32, format *SourceExcerptProvider_SourceExcerpt) string {
+func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_getExcerptWithPosition_3747(error_ *JSError, sourceName string, lineNumber int32, charno int32, length int32, format *SourceExcerptProvider_SourceExcerpt) string {
 	_ = error_
 	_ = sourceName
 	_ = lineNumber
@@ -281,7 +281,7 @@ func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_getEx
 	if sourceExcerpt == j2gort.NullString {
 		return ""
 	}
-	var success bool = this_.priv_LightweightMessageFormatter_padSourceExcerpt_3738(error_, sourceExcerpt, charno, length, format, b)
+	var success bool = this_.priv_LightweightMessageFormatter_padSourceExcerpt_3748(error_, sourceExcerpt, charno, length, format, b)
 	_ = success
 	if success {
 		return b.String()
@@ -292,7 +292,7 @@ func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_getEx
 }
 
 // Java method: LightweightMessageFormatter.padSourceExcerpt(com.google.javascript.jscomp.JSError error, java.lang.String sourceExcerpt, int charno, int length, com.google.javascript.jscomp.SourceExcerptProvider.SourceExcerpt format, java.lang.StringBuilder b)
-func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_padSourceExcerpt_3738(error_ *JSError, sourceExcerpt string, charno int32, length int32, format *SourceExcerptProvider_SourceExcerpt, b *j2gort.Ext_java_lang_StringBuilder) bool {
+func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_padSourceExcerpt_3748(error_ *JSError, sourceExcerpt string, charno int32, length int32, format *SourceExcerptProvider_SourceExcerpt, b *j2gort.Ext_java_lang_StringBuilder) bool {
 	_ = error_
 	_ = sourceExcerpt
 	_ = charno
@@ -301,7 +301,7 @@ func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_padSo
 	_ = b
 	if j2gort.RefEquals(format, StaticGet_SourceExcerptProvider_SourceExcerpt_FULL()) {
 		if charno >= int32(0) {
-			var success bool = this_.priv_LightweightMessageFormatter_padMultipleLines_3740(charno, sourceExcerpt, b, error_.Node())
+			var success bool = this_.priv_LightweightMessageFormatter_padMultipleLines_3750(charno, sourceExcerpt, b, error_.Node())
 			_ = success
 			if !(success) {
 				return false
@@ -314,7 +314,7 @@ func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_padSo
 		b.Append_1_string(sourceExcerpt)
 		b.Append_1_uint16(uint16(10))
 		if (j2gort.RefEquals(format, StaticGet_SourceExcerptProvider_SourceExcerpt_LINE()) && (int32(0) <= charno)) && (charno <= j2gort.JStrLen(sourceExcerpt)) {
-			var success_2 bool = this_.priv_LightweightMessageFormatter_padLine_3739(charno, sourceExcerpt, b, length, error_.Node())
+			var success_2 bool = this_.priv_LightweightMessageFormatter_padLine_3749(charno, sourceExcerpt, b, length, error_.Node())
 			_ = success_2
 			if !(success_2) {
 				return false
@@ -344,7 +344,7 @@ func LightweightMessageFormatter_AppendPosition(b *j2gort.Ext_java_lang_StringBu
 }
 
 // Java method: LightweightMessageFormatter.padLine(int charno, java.lang.String sourceExcerpt, java.lang.StringBuilder b, int errLength, com.google.javascript.rhino.Node errorNode)
-func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_padLine_3739(charno int32, sourceExcerpt string, b *j2gort.Ext_java_lang_StringBuilder, errLength int32, errorNode pkg_rhino.Node) bool {
+func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_padLine_3749(charno int32, sourceExcerpt string, b *j2gort.Ext_java_lang_StringBuilder, errLength int32, errorNode pkg_rhino.Node) bool {
 	_ = charno
 	_ = sourceExcerpt
 	_ = b
@@ -384,7 +384,7 @@ func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_padLi
 }
 
 // Java method: LightweightMessageFormatter.padMultipleLines(int startCharno, java.lang.String sourceExcerpt, java.lang.StringBuilder b, com.google.javascript.rhino.Node errorNode)
-func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_padMultipleLines_3740(startCharno int32, sourceExcerpt string, b *j2gort.Ext_java_lang_StringBuilder, errorNode pkg_rhino.Node) bool {
+func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_padMultipleLines_3750(startCharno int32, sourceExcerpt string, b *j2gort.Ext_java_lang_StringBuilder, errorNode pkg_rhino.Node) bool {
 	_ = startCharno
 	_ = sourceExcerpt
 	_ = b
@@ -394,7 +394,7 @@ func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_padMu
 		b.Append_1_string("\n")
 		var charWithLineNumberOffset int32 = ((startCharno + j2gort.JStrIndexOfCp(sourceExcerpt, int32(uint16(124)))) + int32(2))
 		_ = charWithLineNumberOffset
-		return this_.priv_LightweightMessageFormatter_padLine_3739(charWithLineNumberOffset, sourceExcerpt, b, int32(-1), pkg_rhino.Node(0))
+		return this_.priv_LightweightMessageFormatter_padLine_3749(charWithLineNumberOffset, sourceExcerpt, b, int32(-1), pkg_rhino.Node(0))
 	}
 	var lines j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(10)), sourceExcerpt)
 	_ = lines
@@ -424,7 +424,7 @@ func (this_ *LightweightMessageFormatter) priv_LightweightMessageFormatter_padMu
 			if shouldPrintLine {
 				b.Append_1_string(line)
 				b.Append_1_string("\n")
-				var success bool = this_.priv_LightweightMessageFormatter_padLine_3739(charWithLineNumberOffset_2, line, b, remainingLength, errorNode)
+				var success bool = this_.priv_LightweightMessageFormatter_padLine_3749(charWithLineNumberOffset_2, line, b, remainingLength, errorNode)
 				_ = success
 				if !(success) {
 					return false

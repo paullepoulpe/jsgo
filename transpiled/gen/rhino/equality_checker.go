@@ -116,7 +116,7 @@ func InitEqualityChecker_1(this_ *EqualityChecker, eqMethod EqualityChecker_EqMe
 // Java method: EqualityChecker.setEqMethod(com.google.javascript.rhino.jstype.EqualityChecker.EqMethod x)
 func (this_ *EqualityChecker) SetEqMethod(x EqualityChecker_EqMethod) *EqualityChecker {
 	_ = x
-	this_.priv_EqualityChecker_checkHasNotRun_8918()
+	this_.priv_EqualityChecker_checkHasNotRun_8935()
 	if !(this_.eqMethod == 0) {
 		j2gort.CheckState(false)
 	}
@@ -125,7 +125,7 @@ func (this_ *EqualityChecker) SetEqMethod(x EqualityChecker_EqMethod) *EqualityC
 }
 
 // Java method: EqualityChecker.checkHasNotRun()
-func (this_ *EqualityChecker) priv_EqualityChecker_checkHasNotRun_8918() {
+func (this_ *EqualityChecker) priv_EqualityChecker_checkHasNotRun_8935() {
 	if !(!(this_.hasRun)) {
 		j2gort.CheckState(false)
 	}
@@ -189,7 +189,7 @@ func EqualityChecker_CheckNonIdenticalIdentity(left JSType, right JSType) bool {
 	InitEqualityChecker_1(&val_1, StaticGet_EqualityChecker_EqMethod_IDENTITY())
 	var checker *EqualityChecker = &val_1
 	_ = checker
-	return checker.priv_EqualityChecker_areEqualTopLevel_8927(left, right)
+	return checker.priv_EqualityChecker_areEqualTopLevel_8944(left, right)
 }
 
 // Java static method: EqualityChecker.check(com.google.javascript.rhino.jstype.EqualityChecker.EqMethod eqMethod, com.google.javascript.rhino.jstype.JSType left, com.google.javascript.rhino.jstype.JSType right)
@@ -219,7 +219,7 @@ func EqualityChecker_Check(eqMethod EqualityChecker_EqMethod, left JSType, right
 	InitEqualityChecker_1(&val_2, eqMethod)
 	var checker *EqualityChecker = &val_2
 	_ = checker
-	return checker.priv_EqualityChecker_areEqualTopLevel_8927(left, right)
+	return checker.priv_EqualityChecker_areEqualTopLevel_8944(left, right)
 }
 
 // Java static method: EqualityChecker.checkCallType(com.google.javascript.rhino.jstype.EqualityChecker.EqMethod eqMethod, com.google.javascript.rhino.jstype.FunctionType left, com.google.javascript.rhino.jstype.FunctionType right)
@@ -239,7 +239,7 @@ func EqualityChecker_CheckCallType(eqMethod EqualityChecker_EqMethod, left *Func
 	_ = checker
 	r_4 := checker
 	r_4.recursionDepth = r_4.recursionDepth + 1
-	var result bool = checker.priv_EqualityChecker_areCallTypeEqual_8931(left, right)
+	var result bool = checker.priv_EqualityChecker_areCallTypeEqual_8948(left, right)
 	_ = result
 	r_5 := checker
 	r_5.recursionDepth = r_5.recursionDepth - 1
@@ -258,14 +258,14 @@ func EqualityChecker_CheckParameters(eqMethod EqualityChecker_EqMethod, left *Fu
 	InitEqualityChecker_1(&val_6, eqMethod)
 	var checker *EqualityChecker = &val_6
 	_ = checker
-	return checker.priv_EqualityChecker_areParametersEqual_8932(left, right)
+	return checker.priv_EqualityChecker_areParametersEqual_8949(left, right)
 }
 
 // Java method: EqualityChecker.check(com.google.javascript.rhino.jstype.JSType left, com.google.javascript.rhino.jstype.JSType right)
 func (this_ *EqualityChecker) Check(left JSType, right JSType) bool {
 	_ = left
 	_ = right
-	this_.priv_EqualityChecker_checkHasNotRun_8918()
+	this_.priv_EqualityChecker_checkHasNotRun_8935()
 	this_.hasRun = true
 	if left == right || ((left == nil || left.IsJavaNil_()) && (right == nil || right.IsJavaNil_())) {
 		return true
@@ -285,20 +285,20 @@ func (this_ *EqualityChecker) Check(left JSType, right JSType) bool {
 	if !(EqualityChecker_CanNonIdenticalTypesEqual(left, right)) {
 		return false
 	}
-	return this_.priv_EqualityChecker_areEqualTopLevel_8927(left, right)
+	return this_.priv_EqualityChecker_areEqualTopLevel_8944(left, right)
 }
 
 // Java method: EqualityChecker.checkParameters(com.google.javascript.rhino.jstype.FunctionType left, com.google.javascript.rhino.jstype.FunctionType right)
 func (this_ *EqualityChecker) CheckParameters(left *FunctionType, right *FunctionType) bool {
 	_ = left
 	_ = right
-	this_.priv_EqualityChecker_checkHasNotRun_8918()
+	this_.priv_EqualityChecker_checkHasNotRun_8935()
 	this_.hasRun = true
-	return ((left == right) || this_.priv_EqualityChecker_areParametersEqual_8932(left, right))
+	return ((left == right) || this_.priv_EqualityChecker_areParametersEqual_8949(left, right))
 }
 
 // Java method: EqualityChecker.areEqualCaching(com.google.javascript.rhino.jstype.JSType left, com.google.javascript.rhino.jstype.JSType right)
-func (this_ *EqualityChecker) priv_EqualityChecker_areEqualCaching_8921(left JSType, right JSType) bool {
+func (this_ *EqualityChecker) priv_EqualityChecker_areEqualCaching_8938(left JSType, right JSType) bool {
 	_ = left
 	_ = right
 	if left == right || ((left == nil || left.IsJavaNil_()) && (right == nil || right.IsJavaNil_())) {
@@ -314,12 +314,12 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areEqualCaching_8921(left JST
 	}
 	if this_.cacheLeft == nil {
 		this_.recursionDepth = this_.recursionDepth + 1
-		var result bool = this_.priv_EqualityChecker_areEqualInternal_8926(left, right)
+		var result bool = this_.priv_EqualityChecker_areEqualInternal_8943(left, right)
 		_ = result
 		this_.recursionDepth = this_.recursionDepth - 1
 		return result
 	}
-	var existingIdx int32 = this_.priv_EqualityChecker_findCachedEntry_8923(left, right)
+	var existingIdx int32 = this_.priv_EqualityChecker_findCachedEntry_8940(left, right)
 	_ = existingIdx
 	if existingIdx >= int32(0) {
 		var st int8 = this_.cacheStatus[existingIdx]
@@ -334,9 +334,9 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areEqualCaching_8921(left JST
 		}
 		return (int32(st) == int32(int8(2)))
 	}
-	var idx int32 = this_.priv_EqualityChecker_insertCachedEntry_8924(left, right)
+	var idx int32 = this_.priv_EqualityChecker_insertCachedEntry_8941(left, right)
 	_ = idx
-	var result_2 bool = this_.priv_EqualityChecker_areEqualInternal_8926(left, right)
+	var result_2 bool = this_.priv_EqualityChecker_areEqualInternal_8943(left, right)
 	_ = result_2
 	{
 		a_9 := this_.cacheStatus
@@ -352,7 +352,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areEqualCaching_8921(left JST
 }
 
 // Java method: EqualityChecker.matchesCachedPair(int idx, com.google.javascript.rhino.jstype.JSType left, com.google.javascript.rhino.jstype.JSType right)
-func (this_ *EqualityChecker) priv_EqualityChecker_matchesCachedPair_8922(idx int32, left JSType, right JSType) bool {
+func (this_ *EqualityChecker) priv_EqualityChecker_matchesCachedPair_8939(idx int32, left JSType, right JSType) bool {
 	_ = idx
 	_ = left
 	_ = right
@@ -366,7 +366,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_matchesCachedPair_8922(idx in
 		nil || left.IsJavaNil_())))))
 }
 
-func (this_ *EqualityChecker) priv_EqualityChecker_findCachedEntry_8923(left JSType, right JSType) int32 {
+func (this_ *EqualityChecker) priv_EqualityChecker_findCachedEntry_8940(left JSType, right JSType) int32 {
 	_ = left
 	_ = right
 	var table []int32 = this_.cacheTable
@@ -378,7 +378,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_findCachedEntry_8923(left JST
 			var n int32 = this_.cacheSize
 			_ = n
 			for ; i < n; i = i + 1 {
-				if this_.priv_EqualityChecker_matchesCachedPair_8922(i, left, right) {
+				if this_.priv_EqualityChecker_matchesCachedPair_8939(i, left, right) {
 					return i
 				}
 			}
@@ -399,7 +399,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_findCachedEntry_8923(left JST
 		}
 		var i_2 int32 = (entry - int32(1))
 		_ = i_2
-		if (this_.cacheHash[i_2] == h) && this_.priv_EqualityChecker_matchesCachedPair_8922(i_2, left, right) {
+		if (this_.cacheHash[i_2] == h) && this_.priv_EqualityChecker_matchesCachedPair_8939(i_2, left, right) {
 			return i_2
 		}
 		slot = ((slot + int32(1)) & mask)
@@ -408,7 +408,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_findCachedEntry_8923(left JST
 }
 
 // Java method: EqualityChecker.insertCachedEntry(com.google.javascript.rhino.jstype.JSType left, com.google.javascript.rhino.jstype.JSType right)
-func (this_ *EqualityChecker) priv_EqualityChecker_insertCachedEntry_8924(left JSType, right JSType) int32 {
+func (this_ *EqualityChecker) priv_EqualityChecker_insertCachedEntry_8941(left JSType, right JSType) int32 {
 	_ = left
 	_ = right
 	var idx int32 = this_.cacheSize
@@ -493,7 +493,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_insertCachedEntry_8924(left J
 					}
 				}
 			}
-			this_.priv_EqualityChecker_rehashCacheTable_8925(int32(32))
+			this_.priv_EqualityChecker_rehashCacheTable_8942(int32(32))
 		} else {
 			var h int32 = (j2gort.IdentityHash(left) ^ j2gort.IdentityHash(right))
 			_ = h
@@ -503,7 +503,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_insertCachedEntry_8924(left J
 				a_31[i_32] = h
 			}
 			if (this_.cacheSize * int32(4)) >= (int32(len(this_.cacheTable)) * int32(3)) {
-				this_.priv_EqualityChecker_rehashCacheTable_8925((int32(len(this_.cacheTable)) * int32(2)))
+				this_.priv_EqualityChecker_rehashCacheTable_8942((int32(len(this_.cacheTable)) * int32(2)))
 			} else {
 				var mask int32 = (int32(len(this_.cacheTable)) - int32(1))
 				_ = mask
@@ -524,7 +524,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_insertCachedEntry_8924(left J
 }
 
 // Java method: EqualityChecker.rehashCacheTable(int newTableLen)
-func (this_ *EqualityChecker) priv_EqualityChecker_rehashCacheTable_8925(newTableLen int32) {
+func (this_ *EqualityChecker) priv_EqualityChecker_rehashCacheTable_8942(newTableLen int32) {
 	_ = newTableLen
 	var newTable []int32 = make([]int32, newTableLen)
 	_ = newTable
@@ -554,7 +554,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_rehashCacheTable_8925(newTabl
 }
 
 // Java method: EqualityChecker.areEqualInternal(com.google.javascript.rhino.jstype.JSType left, com.google.javascript.rhino.jstype.JSType right)
-func (this_ *EqualityChecker) priv_EqualityChecker_areEqualInternal_8926(left JSType, right JSType) bool {
+func (this_ *EqualityChecker) priv_EqualityChecker_areEqualInternal_8943(left JSType, right JSType) bool {
 	_ = left
 	_ = right
 	if left == right || ((left == nil || left.IsJavaNil_()) && (right == nil || right.IsJavaNil_())) {
@@ -581,11 +581,11 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areEqualInternal_8926(left JS
 	if !(EqualityChecker_CanNonIdenticalTypesEqual(left, right)) {
 		return false
 	}
-	return this_.priv_EqualityChecker_areEqualBody_8928(left, right)
+	return this_.priv_EqualityChecker_areEqualBody_8945(left, right)
 }
 
 // Java method: EqualityChecker.areEqualTopLevel(com.google.javascript.rhino.jstype.JSType left, com.google.javascript.rhino.jstype.JSType right)
-func (this_ *EqualityChecker) priv_EqualityChecker_areEqualTopLevel_8927(left JSType, right JSType) bool {
+func (this_ *EqualityChecker) priv_EqualityChecker_areEqualTopLevel_8944(left JSType, right JSType) bool {
 	_ = left
 	_ = right
 	base_left_ := left.GetJSTypeBase()
@@ -596,34 +596,34 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areEqualTopLevel_8927(left JS
 		return false
 	}
 	this_.recursionDepth = int32(1)
-	var result bool = this_.priv_EqualityChecker_areEqualBody_8928(left, right)
+	var result bool = this_.priv_EqualityChecker_areEqualBody_8945(left, right)
 	_ = result
 	this_.recursionDepth = int32(0)
 	return result
 }
 
 // Java method: EqualityChecker.areEqualBody(com.google.javascript.rhino.jstype.JSType left, com.google.javascript.rhino.jstype.JSType right)
-func (this_ *EqualityChecker) priv_EqualityChecker_areEqualBody_8928(left JSType, right JSType) bool {
+func (this_ *EqualityChecker) priv_EqualityChecker_areEqualBody_8945(left JSType, right JSType) bool {
 	_ = left
 	_ = right
 	base_left_ := left.GetJSTypeBase()
 	if base_left_.IsUnionType() && right.GetJSTypeBase().IsUnionType() {
-		return this_.priv_EqualityChecker_areUnionEqual_8929(left.ToMaybeUnionType(), right.ToMaybeUnionType())
+		return this_.priv_EqualityChecker_areUnionEqual_8946(left.ToMaybeUnionType(), right.ToMaybeUnionType())
 	} else if base_left_.IsUnionType() {
 		var leftUnion *UnionType = left.ToMaybeUnionType()
 		_ = leftUnion
 		if leftUnion.GetAlternatesCount() == int32(1) {
-			return this_.priv_EqualityChecker_areEqualInternal_8926(leftUnion.GetAlternateAt(int32(0)), right)
+			return this_.priv_EqualityChecker_areEqualInternal_8943(leftUnion.GetAlternateAt(int32(0)), right)
 		}
 	} else if right.GetJSTypeBase().IsUnionType() {
 		var rightUnion *UnionType = right.ToMaybeUnionType()
 		_ = rightUnion
 		if rightUnion.GetAlternatesCount() == int32(1) {
-			return this_.priv_EqualityChecker_areEqualInternal_8926(left, rightUnion.GetAlternateAt(int32(0)))
+			return this_.priv_EqualityChecker_areEqualInternal_8943(left, rightUnion.GetAlternateAt(int32(0)))
 		}
 	}
 	if base_left_.IsFunctionType() && right.GetJSTypeBase().IsFunctionType() {
-		return this_.priv_EqualityChecker_areFunctionEqual_8930(left.ToMaybeFunctionType(), right.ToMaybeFunctionType())
+		return this_.priv_EqualityChecker_areFunctionEqual_8947(left.ToMaybeFunctionType(), right.ToMaybeFunctionType())
 	}
 	if left.IsNominalType() && right.IsNominalType() {
 		var leftUnwrapped ObjectType = EqualityChecker_UnwrapNominalTypeProxies(base_left_.ToObjectType())
@@ -650,33 +650,33 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areEqualBody_8928(left JSType
 				return false
 			}
 		}
-		return (((base_left_.typeKindMask & int32(67108865)) == int32(0)) || this_.priv_EqualityChecker_areTypeMapEqual_8934(left.GetTemplateTypeMap(), right.GetTemplateTypeMap()))
+		return (((base_left_.typeKindMask & int32(67108865)) == int32(0)) || this_.priv_EqualityChecker_areTypeMapEqual_8951(left.GetTemplateTypeMap(), right.GetTemplateTypeMap()))
 	}
-	if ((base_left_.typeKindMask & int32(67108865)) != int32(0)) && !(this_.priv_EqualityChecker_areTypeMapEqual_8934(left.GetTemplateTypeMap(), right.GetTemplateTypeMap())) {
+	if ((base_left_.typeKindMask & int32(67108865)) != int32(0)) && !(this_.priv_EqualityChecker_areTypeMapEqual_8951(left.GetTemplateTypeMap(), right.GetTemplateTypeMap())) {
 		return false
 	}
 	if base_left_.IsRecordType() && right.GetJSTypeBase().IsRecordType() {
-		return this_.priv_EqualityChecker_areRecordEqual_8933(left.ToMaybeRecordType(), right.ToMaybeRecordType())
+		return this_.priv_EqualityChecker_areRecordEqual_8950(left.ToMaybeRecordType(), right.ToMaybeRecordType())
 	}
 	var proxyObjectType ProxyObjectType
 	_ = proxyObjectType
 	var ok_37 bool
 	proxyObjectType, ok_37 = j2gort.TryCast[ProxyObjectType](left)
 	if ok_37 && (!(j2gort.InstanceOf[*TemplateType](left))) {
-		return this_.priv_EqualityChecker_areEqualCaching_8921(proxyObjectType.GetProxyObjectTypeBase().GetReferencedTypeInternal(), right)
+		return this_.priv_EqualityChecker_areEqualCaching_8938(proxyObjectType.GetProxyObjectTypeBase().GetReferencedTypeInternal(), right)
 	}
 	var proxyObjectType_2 ProxyObjectType
 	_ = proxyObjectType_2
 	var ok_38 bool
 	proxyObjectType_2, ok_38 = j2gort.TryCast[ProxyObjectType](right)
 	if ok_38 && (!(j2gort.InstanceOf[*TemplateType](right))) {
-		return this_.priv_EqualityChecker_areEqualCaching_8921(left, proxyObjectType_2.GetProxyObjectTypeBase().GetReferencedTypeInternal())
+		return this_.priv_EqualityChecker_areEqualCaching_8938(left, proxyObjectType_2.GetProxyObjectTypeBase().GetReferencedTypeInternal())
 	}
 	return false
 }
 
 // Java method: EqualityChecker.areUnionEqual(com.google.javascript.rhino.jstype.UnionType left, com.google.javascript.rhino.jstype.UnionType right)
-func (this_ *EqualityChecker) priv_EqualityChecker_areUnionEqual_8929(left *UnionType, right *UnionType) bool {
+func (this_ *EqualityChecker) priv_EqualityChecker_areUnionEqual_8946(left *UnionType, right *UnionType) bool {
 	_ = left
 	_ = right
 	var leftSize int32 = left.GetAlternatesCount()
@@ -699,7 +699,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areUnionEqual_8929(left *Unio
 				for ; k < leftSize; k = k + 1 {
 					var leftAlt JSType = left.GetAlternateAt(k)
 					_ = leftAlt
-					if this_.priv_EqualityChecker_areEqualCaching_8921(leftAlt, rightAlt) {
+					if this_.priv_EqualityChecker_areEqualCaching_8938(leftAlt, rightAlt) {
 						continue outer
 					}
 				}
@@ -727,7 +727,7 @@ func EqualityChecker_GetGoogModuleId(type_ ObjectType) string {
 }
 
 // Java method: EqualityChecker.areFunctionEqual(com.google.javascript.rhino.jstype.FunctionType left, com.google.javascript.rhino.jstype.FunctionType right)
-func (this_ *EqualityChecker) priv_EqualityChecker_areFunctionEqual_8930(left *FunctionType, right *FunctionType) bool {
+func (this_ *EqualityChecker) priv_EqualityChecker_areFunctionEqual_8947(left *FunctionType, right *FunctionType) bool {
 	_ = left
 	_ = right
 	if left == right {
@@ -740,7 +740,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areFunctionEqual_8930(left *F
 	case int32(1) /* Kind.CONSTRUCTOR */, int32(2) /* Kind.INTERFACE */ :
 		return false
 	case int32(0) /* Kind.ORDINARY */ :
-		return ((this_.priv_EqualityChecker_areEqualCaching_8921(left.GetTypeOfThis(), right.GetTypeOfThis()) && this_.priv_EqualityChecker_areCallTypeEqual_8931(left, right)) && (left.GetClosurePrimitive() == right.GetClosurePrimitive()))
+		return ((this_.priv_EqualityChecker_areEqualCaching_8938(left.GetTypeOfThis(), right.GetTypeOfThis()) && this_.priv_EqualityChecker_areCallTypeEqual_8948(left, right)) && (left.GetClosurePrimitive() == right.GetClosurePrimitive()))
 	default:
 		panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError")))
 	}
@@ -748,14 +748,14 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areFunctionEqual_8930(left *F
 }
 
 // Java method: EqualityChecker.areCallTypeEqual(com.google.javascript.rhino.jstype.FunctionType left, com.google.javascript.rhino.jstype.FunctionType right)
-func (this_ *EqualityChecker) priv_EqualityChecker_areCallTypeEqual_8931(left *FunctionType, right *FunctionType) bool {
+func (this_ *EqualityChecker) priv_EqualityChecker_areCallTypeEqual_8948(left *FunctionType, right *FunctionType) bool {
 	_ = left
 	_ = right
-	return (this_.priv_EqualityChecker_areEqualCaching_8921(left.GetReturnType(), right.GetReturnType()) && this_.priv_EqualityChecker_areParametersEqual_8932(left, right))
+	return (this_.priv_EqualityChecker_areEqualCaching_8938(left.GetReturnType(), right.GetReturnType()) && this_.priv_EqualityChecker_areParametersEqual_8949(left, right))
 }
 
 // Java method: EqualityChecker.areParametersEqual(com.google.javascript.rhino.jstype.FunctionType left, com.google.javascript.rhino.jstype.FunctionType right)
-func (this_ *EqualityChecker) priv_EqualityChecker_areParametersEqual_8932(left *FunctionType, right *FunctionType) bool {
+func (this_ *EqualityChecker) priv_EqualityChecker_areParametersEqual_8949(left *FunctionType, right *FunctionType) bool {
 	_ = left
 	_ = right
 	var leftParams []FunctionType_Parameter = left.GetParameterArray()
@@ -783,7 +783,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areParametersEqual_8932(left 
 			var rightParamType JSType = rightParam.GetJSType()
 			_ = rightParamType
 			if leftParamType != nil && !leftParamType.IsJavaNil_() {
-				if (rightParamType != nil && !rightParamType.IsJavaNil_()) && !(this_.priv_EqualityChecker_areEqualCaching_8921(leftParamType, rightParamType)) {
+				if (rightParamType != nil && !rightParamType.IsJavaNil_()) && !(this_.priv_EqualityChecker_areEqualCaching_8938(leftParamType, rightParamType)) {
 					return false
 				}
 			} else {
@@ -803,7 +803,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areParametersEqual_8932(left 
 }
 
 // Java method: EqualityChecker.areRecordEqual(com.google.javascript.rhino.jstype.RecordType left, com.google.javascript.rhino.jstype.RecordType right)
-func (this_ *EqualityChecker) priv_EqualityChecker_areRecordEqual_8933(left *RecordType, right *RecordType) bool {
+func (this_ *EqualityChecker) priv_EqualityChecker_areRecordEqual_8950(left *RecordType, right *RecordType) bool {
 	_ = left
 	_ = right
 	var leftMap *PropertyMap = left.GetOwnPropertyMapOrNull()
@@ -838,7 +838,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areRecordEqual_8933(left *Rec
 		if (lp0 != nil) && (rp0 != nil) {
 			var k string = lp0.GetName()
 			_ = k
-			return (func() bool { sr_40 := k; se_41 := rp0.GetName(); return j2gort.CheckNotNullString(sr_40) == se_41 }() && this_.priv_EqualityChecker_areEqualCaching_8921(left.GetPropertyType_1_string(k), right.GetPropertyType_1_string(k)))
+			return (func() bool { sr_40 := k; se_41 := rp0.GetName(); return j2gort.CheckNotNullString(sr_40) == se_41 }() && this_.priv_EqualityChecker_areEqualCaching_8938(left.GetPropertyType_1_string(k), right.GetPropertyType_1_string(k)))
 		}
 	} else if leftCount == int32(2) {
 		var lp0_2 *Property = leftMap.GetInlineProp0()
@@ -859,7 +859,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areRecordEqual_8933(left *Rec
 			var rk1 string = rp1.GetName()
 			_ = rk1
 			if ((j2gort.CheckNotNullString(lk0) == rk0) && (j2gort.CheckNotNullString(lk1) == rk1)) || ((j2gort.CheckNotNullString(lk0) == rk1) && (j2gort.CheckNotNullString(lk1) == rk0)) {
-				return (this_.priv_EqualityChecker_areEqualCaching_8921(left.GetPropertyType_1_string(lk0), right.GetPropertyType_1_string(lk0)) && this_.priv_EqualityChecker_areEqualCaching_8921(left.GetPropertyType_1_string(lk1), right.GetPropertyType_1_string(lk1)))
+				return (this_.priv_EqualityChecker_areEqualCaching_8938(left.GetPropertyType_1_string(lk0), right.GetPropertyType_1_string(lk0)) && this_.priv_EqualityChecker_areEqualCaching_8938(left.GetPropertyType_1_string(lk1), right.GetPropertyType_1_string(lk1)))
 			}
 			return false
 		}
@@ -880,7 +880,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areRecordEqual_8933(left *Rec
 			for ; i_2 < leftCount; i_2 = i_2 + 1 {
 				var key string = leftMap.GetFlatPropNameAt(i_2)
 				_ = key
-				if !(this_.priv_EqualityChecker_areEqualCaching_8921(left.GetPropertyType_1_string(key), right.GetPropertyType_1_string(key))) {
+				if !(this_.priv_EqualityChecker_areEqualCaching_8938(left.GetPropertyType_1_string(key), right.GetPropertyType_1_string(key))) {
 					return false
 				}
 			}
@@ -899,7 +899,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areRecordEqual_8933(left *Rec
 		for cur_42.HasNext() {
 			key_2 := cur_42.NextStr()
 			_ = key_2
-			if !(this_.priv_EqualityChecker_areEqualCaching_8921(left.GetPropertyType_1_string(key_2), right.GetPropertyType_1_string(key_2))) {
+			if !(this_.priv_EqualityChecker_areEqualCaching_8938(left.GetPropertyType_1_string(key_2), right.GetPropertyType_1_string(key_2))) {
 				return false
 			}
 		}
@@ -908,7 +908,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areRecordEqual_8933(left *Rec
 }
 
 // Java method: EqualityChecker.areTypeMapEqual(com.google.javascript.rhino.jstype.TemplateTypeMap left, com.google.javascript.rhino.jstype.TemplateTypeMap right)
-func (this_ *EqualityChecker) priv_EqualityChecker_areTypeMapEqual_8934(left *TemplateTypeMap, right *TemplateTypeMap) bool {
+func (this_ *EqualityChecker) priv_EqualityChecker_areTypeMapEqual_8951(left *TemplateTypeMap, right *TemplateTypeMap) bool {
 	_ = left
 	_ = right
 	if left == right {
@@ -959,7 +959,7 @@ func (this_ *EqualityChecker) priv_EqualityChecker_areTypeMapEqual_8934(left *Te
 					} else {
 						rightValue = right.DefaultValueType(rightKey)
 					}
-					if this_.priv_EqualityChecker_areEqualCaching_8921(leftValue, rightValue) {
+					if this_.priv_EqualityChecker_areEqualCaching_8938(leftValue, rightValue) {
 						continue outer
 					}
 				}

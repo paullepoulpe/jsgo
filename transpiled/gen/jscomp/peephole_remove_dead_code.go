@@ -134,26 +134,26 @@ func (this_ *PeepholeRemoveDeadCode) OptimizeSubtree(subtree pkg_rhino.Node) pkg
 	_ = subtree
 	switch subtree.TokenSwitchOrd_() {
 	case int32(51) /* Token.ASSIGN */ :
-		return this_.priv_PeepholeRemoveDeadCode_tryFoldAssignment_4249(subtree)
+		return this_.priv_PeepholeRemoveDeadCode_tryFoldAssignment_4259(subtree)
 	case int32(50) /* Token.COMMA */ :
-		return this_.priv_PeepholeRemoveDeadCode_tryFoldComma_4263(subtree)
+		return this_.priv_PeepholeRemoveDeadCode_tryFoldComma_4273(subtree)
 	case int32(94) /* Token.SCRIPT */, int32(90) /* Token.BLOCK */ :
 		return this_.TryOptimizeBlock(subtree)
 	case int32(93) /* Token.EXPR_RESULT */ :
-		return this_.priv_PeepholeRemoveDeadCode_tryFoldExpr_4251(subtree)
+		return this_.priv_PeepholeRemoveDeadCode_tryFoldExpr_4261(subtree)
 	case int32(67) /* Token.HOOK */ :
-		return this_.priv_PeepholeRemoveDeadCode_tryFoldHook_4273(subtree)
+		return this_.priv_PeepholeRemoveDeadCode_tryFoldHook_4283(subtree)
 	case int32(75) /* Token.SWITCH */ :
-		return this_.priv_PeepholeRemoveDeadCode_tryOptimizeSwitch_4257(subtree)
+		return this_.priv_PeepholeRemoveDeadCode_tryOptimizeSwitch_4267(subtree)
 	case int32(74) /* Token.IF */ :
-		return this_.priv_PeepholeRemoveDeadCode_tryFoldIf_4272(subtree)
+		return this_.priv_PeepholeRemoveDeadCode_tryFoldIf_4282(subtree)
 	case int32(78) /* Token.WHILE */ :
 		return subtree
 	case int32(80) /* Token.FOR */ :
 		var condition pkg_rhino.Node = NodeUtil_GetConditionExpression(subtree)
 		_ = condition
 		if condition != 0 {
-			this_.priv_PeepholeRemoveDeadCode_tryFoldForCondition_4280(condition)
+			this_.priv_PeepholeRemoveDeadCode_tryFoldForCondition_4290(condition)
 		}
 		return this_.TryFoldFor(subtree)
 	case int32(79) /* Token.DO */ :
@@ -164,19 +164,19 @@ func (this_ *PeepholeRemoveDeadCode) OptimizeSubtree(subtree pkg_rhino.Node) pkg
 		}
 		return foldedDo
 	case int32(48) /* Token.TRY */ :
-		return this_.priv_PeepholeRemoveDeadCode_tryFoldTry_4248(subtree)
+		return this_.priv_PeepholeRemoveDeadCode_tryFoldTry_4258(subtree)
 	case int32(92) /* Token.LABEL */ :
-		return this_.priv_PeepholeRemoveDeadCode_tryFoldLabel_4247(subtree)
+		return this_.priv_PeepholeRemoveDeadCode_tryFoldLabel_4257(subtree)
 	case int32(102) /* Token.ARRAY_PATTERN */ :
 		return this_.TryOptimizeArrayPattern(subtree)
 	case int32(103) /* Token.OBJECT_PATTERN */ :
 		return this_.TryOptimizeObjectPattern(subtree)
 	case int32(84) /* Token.VAR */, int32(97) /* Token.CONST */, int32(111) /* Token.LET */ :
-		return this_.priv_PeepholeRemoveDeadCode_tryOptimizeNameDeclaration_4250(subtree)
+		return this_.priv_PeepholeRemoveDeadCode_tryOptimizeNameDeclaration_4260(subtree)
 	case int32(134) /* Token.DEFAULT_VALUE */ :
-		return this_.priv_PeepholeRemoveDeadCode_tryRemoveDefaultValue_4246(subtree)
+		return this_.priv_PeepholeRemoveDeadCode_tryRemoveDefaultValue_4256(subtree)
 	case int32(29) /* Token.OPTCHAIN_GETPROP */, int32(31) /* Token.OPTCHAIN_CALL */, int32(30) /* Token.OPTCHAIN_GETELEM */ :
-		return this_.priv_PeepholeRemoveDeadCode_tryRemoveOptionalChaining_4281(subtree)
+		return this_.priv_PeepholeRemoveDeadCode_tryRemoveOptionalChaining_4291(subtree)
 	default:
 		return subtree
 	}
@@ -184,7 +184,7 @@ func (this_ *PeepholeRemoveDeadCode) OptimizeSubtree(subtree pkg_rhino.Node) pkg
 }
 
 // Java method: PeepholeRemoveDeadCode.tryRemoveDefaultValue(com.google.javascript.rhino.Node defaultValue)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryRemoveDefaultValue_4246(defaultValue pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryRemoveDefaultValue_4256(defaultValue pkg_rhino.Node) pkg_rhino.Node {
 	_ = defaultValue
 	if !(defaultValue.IsDefaultValue()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(defaultValue))
@@ -212,7 +212,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryRemoveDefaul
 }
 
 // Java method: PeepholeRemoveDeadCode.tryFoldLabel(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldLabel_4247(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldLabel_4257(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var labelName string = n.GetFirstChild().GetString()
 	_ = labelName
@@ -283,7 +283,7 @@ func PeepholeRemoveDeadCode_GetOnlyInterestingChild(block pkg_rhino.Node) pkg_rh
 }
 
 // Java method: PeepholeRemoveDeadCode.tryFoldTry(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldTry_4248(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldTry_4258(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsTry()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
@@ -325,7 +325,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldTry_4248
 }
 
 // Java method: PeepholeRemoveDeadCode.tryFoldAssignment(com.google.javascript.rhino.Node subtree)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldAssignment_4249(subtree pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldAssignment_4259(subtree pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
 	if !(subtree.IsAssign()) {
 		j2gort.CheckState(false)
@@ -351,7 +351,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldAssignme
 }
 
 // Java method: PeepholeRemoveDeadCode.tryOptimizeNameDeclaration(com.google.javascript.rhino.Node subtree)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeNameDeclaration_4250(subtree pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeNameDeclaration_4260(subtree pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
 	if !(NodeUtil_IsNameDeclaration(subtree)) {
 		j2gort.CheckState(false)
@@ -372,9 +372,9 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeName
 }
 
 // Java method: PeepholeRemoveDeadCode.tryFoldExpr(com.google.javascript.rhino.Node subtree)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldExpr_4251(subtree pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldExpr_4261(subtree pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
-	var result pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4252(subtree.GetFirstChild())
+	var result pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4262(subtree.GetFirstChild())
 	_ = result
 	if result == 0 {
 		var parent pkg_rhino.Node = subtree.GetParent()
@@ -393,11 +393,11 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldExpr_425
 }
 
 // Java method: PeepholeRemoveDeadCode.trySimplifyUnusedResult(com.google.javascript.rhino.Node expression)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4252(expression pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4262(expression pkg_rhino.Node) pkg_rhino.Node {
 	_ = expression
 	var sideEffectRoots j2gort.Deque[pkg_rhino.Node]
 	_ = sideEffectRoots
-	var atFixedPoint bool = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4253(expression, &sideEffectRoots)
+	var atFixedPoint bool = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4263(expression, &sideEffectRoots)
 	_ = atFixedPoint
 	if atFixedPoint {
 		return expression
@@ -425,7 +425,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_trySimplifyUnus
 }
 
 // Java method: PeepholeRemoveDeadCode.trySimplifyUnusedResultInternal(com.google.javascript.rhino.Node tree, java.util.ArrayDeque<com.google.javascript.rhino.Node> sideEffectRoots)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4253(tree pkg_rhino.Node, sideEffectRoots *j2gort.Deque[pkg_rhino.Node]) bool {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4263(tree pkg_rhino.Node, sideEffectRoots *j2gort.Deque[pkg_rhino.Node]) bool {
 	_ = tree
 	_ = sideEffectRoots
 	switch tree.TokenSwitchOrd_() {
@@ -437,9 +437,9 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_trySimplifyUnus
 			return false
 		}
 	case int32(67) /* Token.HOOK */ :
-		var trueNode pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4252(tree.GetSecondChild())
+		var trueNode pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4262(tree.GetSecondChild())
 		_ = trueNode
-		var falseNode pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4252(tree.GetLastChild())
+		var falseNode pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4262(tree.GetLastChild())
 		_ = falseNode
 		if (trueNode == 0) && (falseNode != 0) {
 			if !(tree.HasTwoChildren()) {
@@ -456,17 +456,17 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_trySimplifyUnus
 			sideEffectRoots.AddLast(j2gort.CheckNotNullNode(tree))
 			return false
 		} else if (trueNode == 0) && (falseNode == 0) {
-			this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4253(tree.GetOnlyChild(), sideEffectRoots)
+			this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4263(tree.GetOnlyChild(), sideEffectRoots)
 			return false
 		} else {
 			sideEffectRoots.AddLast(j2gort.CheckNotNullNode(tree))
 			return PeepholeRemoveDeadCode_HasFixedPointParent(tree)
 		}
 	case int32(69) /* Token.AND */, int32(68) /* Token.OR */, int32(70) /* Token.COALESCE */ :
-		var conditionalResultNode pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4252(tree.GetLastChild())
+		var conditionalResultNode pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4262(tree.GetLastChild())
 		_ = conditionalResultNode
 		if conditionalResultNode == 0 {
-			this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4253(tree.GetOnlyChild(), sideEffectRoots)
+			this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4263(tree.GetOnlyChild(), sideEffectRoots)
 			return false
 		} else {
 			sideEffectRoots.AddLast(j2gort.CheckNotNullNode(tree))
@@ -475,12 +475,12 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_trySimplifyUnus
 	case int32(73) /* Token.FUNCTION */ :
 	case int32(108) /* Token.MEMBER_FIELD_DEF */ :
 		if tree.IsStaticMember() && tree.HasChildren() {
-			this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4253(tree.GetFirstChild(), sideEffectRoots)
+			this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4263(tree.GetFirstChild(), sideEffectRoots)
 		}
 	case int32(109) /* Token.COMPUTED_FIELD_DEF */ :
-		this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4253(tree.GetFirstChild(), sideEffectRoots)
+		this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4263(tree.GetFirstChild(), sideEffectRoots)
 		if tree.IsStaticMember() && tree.HasTwoChildren() {
-			this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4253(tree.GetLastChild(), sideEffectRoots)
+			this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4263(tree.GetLastChild(), sideEffectRoots)
 		}
 	default:
 		if this_.NodeTypeMayHaveSideEffects(tree) {
@@ -498,7 +498,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_trySimplifyUnus
 				{
 
 					ba_3 := atFixedPoint
-					bb_4 := this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4253(child, sideEffectRoots)
+					bb_4 := this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4263(child, sideEffectRoots)
 					atFixedPoint = ba_3 && bb_4
 				}
 
@@ -550,7 +550,7 @@ func PeepholeRemoveDeadCode_HasFixedPointParent(expr pkg_rhino.Node) bool {
 }
 
 // Java method: PeepholeRemoveDeadCode.removeIfUnnamedBreak(com.google.javascript.rhino.Node maybeBreak)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_removeIfUnnamedBreak_4254(maybeBreak pkg_rhino.Node) {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_removeIfUnnamedBreak_4264(maybeBreak pkg_rhino.Node) {
 	_ = maybeBreak
 	if ((maybeBreak != 0) && maybeBreak.IsBreak()) && !(maybeBreak.HasChildren()) {
 		this_.ReportChangeToEnclosingScope(maybeBreak)
@@ -559,14 +559,14 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_removeIfUnnamed
 }
 
 // Java method: PeepholeRemoveDeadCode.tryRemoveSwitchWithSingleCase(com.google.javascript.rhino.Node switchNode, boolean shouldHoistCondition)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryRemoveSwitchWithSingleCase_4255(switchNode pkg_rhino.Node, shouldHoistCondition bool) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryRemoveSwitchWithSingleCase_4265(switchNode pkg_rhino.Node, shouldHoistCondition bool) pkg_rhino.Node {
 	_ = switchNode
 	_ = shouldHoistCondition
 	var switchBody pkg_rhino.Node = switchNode.GetSecondChild()
 	_ = switchBody
 	var caseBlock pkg_rhino.Node = switchBody.GetOnlyChild().GetLastChild()
 	_ = caseBlock
-	this_.priv_PeepholeRemoveDeadCode_removeIfUnnamedBreak_4254(caseBlock.GetLastChild())
+	this_.priv_PeepholeRemoveDeadCode_removeIfUnnamedBreak_4264(caseBlock.GetLastChild())
 	if NodeUtil_Has(caseBlock, StaticGet_PeepholeRemoveDeadCode_MATCH_UNNAMED_BREAK(), StaticGet_NodeUtil_MATCH_NOT_FUNCTION()) {
 		return switchNode
 	}
@@ -579,7 +579,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryRemoveSwitch
 }
 
 // Java method: PeepholeRemoveDeadCode.tryRemoveSwitch(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryRemoveSwitch_4256(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryRemoveSwitch_4266(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var switchBody pkg_rhino.Node = n.GetSecondChild()
 	_ = switchBody
@@ -593,9 +593,9 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryRemoveSwitch
 		return replacement
 	} else if switchBody.HasOneChild() && switchBody.GetOnlyChild().IsDefaultCase() {
 		if this_.MayHaveSideEffects(n.GetFirstChild()) {
-			return this_.priv_PeepholeRemoveDeadCode_tryRemoveSwitchWithSingleCase_4255(n, true)
+			return this_.priv_PeepholeRemoveDeadCode_tryRemoveSwitchWithSingleCase_4265(n, true)
 		} else {
-			return this_.priv_PeepholeRemoveDeadCode_tryRemoveSwitchWithSingleCase_4255(n, false)
+			return this_.priv_PeepholeRemoveDeadCode_tryRemoveSwitchWithSingleCase_4265(n, false)
 		}
 	} else {
 		return n
@@ -603,16 +603,16 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryRemoveSwitch
 }
 
 // Java method: PeepholeRemoveDeadCode.tryOptimizeSwitch(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeSwitch_4257(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeSwitch_4267(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsSwitch()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
 	}
 	var switchBody pkg_rhino.Node = n.GetSecondChild()
 	_ = switchBody
-	var defaultCase pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_tryOptimizeDefaultCase_4258(n)
+	var defaultCase pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_tryOptimizeDefaultCase_4268(n)
 	_ = defaultCase
-	if ((defaultCase == 0) || switchBody.GetLastChild().IsDefaultCase()) && this_.priv_PeepholeRemoveDeadCode_areAllCaseTagsLiterals_4262(switchBody) {
+	if ((defaultCase == 0) || switchBody.GetLastChild().IsDefaultCase()) && this_.priv_PeepholeRemoveDeadCode_areAllCaseTagsLiterals_4272(switchBody) {
 		var cond pkg_rhino.Node = n.GetFirstChild()
 		_ = cond
 		var prev pkg_rhino.Node = pkg_rhino.Node(0)
@@ -629,9 +629,9 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeSwit
 				next = cur.GetNext()
 				var firstChild pkg_rhino.Node = cur.GetFirstChild()
 				_ = firstChild
-				foundMatchingCase = this_.priv_PeepholeRemoveDeadCode_isFirstSwitchMatch_4261(foundMatchingCase, cond, firstChild)
-				if (!(foundMatchingCase) && !(this_.MayHaveSideEffects(firstChild))) && this_.priv_PeepholeRemoveDeadCode_isUselessCase_4260(cur, prev, defaultCase) {
-					this_.priv_PeepholeRemoveDeadCode_removeCase_4259(n, cur)
+				foundMatchingCase = this_.priv_PeepholeRemoveDeadCode_isFirstSwitchMatch_4271(foundMatchingCase, cond, firstChild)
+				if (!(foundMatchingCase) && !(this_.MayHaveSideEffects(firstChild))) && this_.priv_PeepholeRemoveDeadCode_isUselessCase_4270(cur, prev, defaultCase) {
+					this_.priv_PeepholeRemoveDeadCode_removeCase_4269(n, cur)
 				} else {
 					prev = cur
 				}
@@ -653,7 +653,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeSwit
 					} else if caseMatches == pkg_base.StaticGet_Tri_UNKNOWN() {
 						break
 					} else {
-						this_.priv_PeepholeRemoveDeadCode_removeCase_4259(n, cur)
+						this_.priv_PeepholeRemoveDeadCode_removeCase_4269(n, cur)
 					}
 				}
 			}
@@ -670,7 +670,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeSwit
 					var isLastStmRemovableBreak bool = false
 					_ = isLastStmRemovableBreak
 					if (lastStm != 0) && PeepholeRemoveDeadCode_IsExit(lastStm) {
-						this_.priv_PeepholeRemoveDeadCode_removeIfUnnamedBreak_4254(lastStm)
+						this_.priv_PeepholeRemoveDeadCode_removeIfUnnamedBreak_4264(lastStm)
 						isLastStmRemovableBreak = true
 					}
 					next = cur.GetNext()
@@ -688,20 +688,20 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeSwit
 				}
 				for ; cur != 0; cur = next {
 					next = cur.GetNext()
-					this_.priv_PeepholeRemoveDeadCode_removeCase_4259(n, cur)
+					this_.priv_PeepholeRemoveDeadCode_removeCase_4269(n, cur)
 				}
 				cur = cond.GetNext()
 				if (cur != 0) && (cur.GetNext() == 0) {
-					return this_.priv_PeepholeRemoveDeadCode_tryRemoveSwitchWithSingleCase_4255(n, false)
+					return this_.priv_PeepholeRemoveDeadCode_tryRemoveSwitchWithSingleCase_4265(n, false)
 				}
 			}
 		}
 	}
-	return this_.priv_PeepholeRemoveDeadCode_tryRemoveSwitch_4256(n)
+	return this_.priv_PeepholeRemoveDeadCode_tryRemoveSwitch_4266(n)
 }
 
 // Java method: PeepholeRemoveDeadCode.tryOptimizeDefaultCase(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeDefaultCase_4258(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeDefaultCase_4268(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsSwitch()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
@@ -727,11 +727,11 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeDefa
 					_ = next
 					for ; caseToRemove != c; caseToRemove = next {
 						next = caseToRemove.GetNext()
-						this_.priv_PeepholeRemoveDeadCode_removeCase_4259(n, caseToRemove)
+						this_.priv_PeepholeRemoveDeadCode_removeCase_4269(n, caseToRemove)
 					}
 				}
-				if this_.priv_PeepholeRemoveDeadCode_isUselessCase_4260(c, lastNonRemovable, c) {
-					this_.priv_PeepholeRemoveDeadCode_removeCase_4259(n, c)
+				if this_.priv_PeepholeRemoveDeadCode_isUselessCase_4270(c, lastNonRemovable, c) {
+					this_.priv_PeepholeRemoveDeadCode_removeCase_4269(n, c)
 					return pkg_rhino.Node(0)
 				}
 				return c
@@ -749,7 +749,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeDefa
 }
 
 // Java method: PeepholeRemoveDeadCode.removeCase(com.google.javascript.rhino.Node switchNode, com.google.javascript.rhino.Node caseNode)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_removeCase_4259(switchNode pkg_rhino.Node, caseNode pkg_rhino.Node) {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_removeCase_4269(switchNode pkg_rhino.Node, caseNode pkg_rhino.Node) {
 	_ = switchNode
 	_ = caseNode
 	NodeUtil_RedeclareVarsInsideBranch(caseNode)
@@ -758,7 +758,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_removeCase_4259
 }
 
 // Java method: PeepholeRemoveDeadCode.isUselessCase(com.google.javascript.rhino.Node caseNode, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node previousCase, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node defaultCase)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_isUselessCase_4260(caseNode pkg_rhino.Node, previousCase pkg_rhino.Node, defaultCase pkg_rhino.Node) bool {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_isUselessCase_4270(caseNode pkg_rhino.Node, previousCase pkg_rhino.Node, defaultCase pkg_rhino.Node) bool {
 	_ = caseNode
 	_ = previousCase
 	_ = defaultCase
@@ -816,7 +816,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_isUselessCase_4
 }
 
 // Java method: PeepholeRemoveDeadCode.isFirstSwitchMatch(boolean foundMatchingCase, com.google.javascript.rhino.Node condition, com.google.javascript.rhino.Node tag)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_isFirstSwitchMatch_4261(foundMatchingCase bool, condition pkg_rhino.Node, tag pkg_rhino.Node) bool {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_isFirstSwitchMatch_4271(foundMatchingCase bool, condition pkg_rhino.Node, tag pkg_rhino.Node) bool {
 	_ = foundMatchingCase
 	_ = condition
 	_ = tag
@@ -827,7 +827,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_isFirstSwitchMa
 }
 
 // Java method: PeepholeRemoveDeadCode.areAllCaseTagsLiterals(com.google.javascript.rhino.Node switchBody)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_areAllCaseTagsLiterals_4262(switchBody pkg_rhino.Node) bool {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_areAllCaseTagsLiterals_4272(switchBody pkg_rhino.Node) bool {
 	_ = switchBody
 	{
 		var caseNode pkg_rhino.Node = switchBody.GetFirstChild()
@@ -954,7 +954,7 @@ func PeepholeRemoveDeadCode_IsTryExit(n pkg_rhino.Node) bool {
 }
 
 // Java method: PeepholeRemoveDeadCode.tryFoldComma(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldComma_4263(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldComma_4273(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -962,7 +962,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldComma_42
 	_ = left
 	var right pkg_rhino.Node = left.GetNext()
 	_ = right
-	left = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4252(left)
+	left = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4262(left)
 	if (left == 0) || !(this_.MayHaveSideEffects(left)) {
 		right.Detach()
 		n.ReplaceWith(right)
@@ -986,10 +986,10 @@ func (this_ *PeepholeRemoveDeadCode) TryOptimizeBlock(n pkg_rhino.Node) pkg_rhin
 				this_.ReportChangeToEnclosingScope(n)
 				this_.MarkFunctionsDeleted(c)
 			} else if PeepholeRemoveDeadCode_IsExit(c) {
-				this_.priv_PeepholeRemoveDeadCode_removeFollowingNodes_4265(c)
+				this_.priv_PeepholeRemoveDeadCode_removeFollowingNodes_4275(c)
 				break
 			} else {
-				this_.priv_PeepholeRemoveDeadCode_tryOptimizeConditionalAfterAssign_4267(c)
+				this_.priv_PeepholeRemoveDeadCode_tryOptimizeConditionalAfterAssign_4277(c)
 			}
 			c = next
 		}
@@ -1011,7 +1011,7 @@ func (this_ *PeepholeRemoveDeadCode) TryOptimizeBlock(n pkg_rhino.Node) pkg_rhin
 }
 
 // Java method: PeepholeRemoveDeadCode.removeFollowingNodes(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_removeFollowingNodes_4265(n pkg_rhino.Node) {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_removeFollowingNodes_4275(n pkg_rhino.Node) {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -1027,7 +1027,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_removeFollowing
 			}
 			changed = true
 			NodeUtil_RedeclareVarsInsideBranch(dead)
-			this_.priv_PeepholeRemoveDeadCode_redeclareIfBlockScopedVar_4266(dead, parent)
+			this_.priv_PeepholeRemoveDeadCode_redeclareIfBlockScopedVar_4276(dead, parent)
 			dead.Detach()
 			this_.MarkFunctionsDeleted(dead)
 		}
@@ -1038,7 +1038,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_removeFollowing
 }
 
 // Java method: PeepholeRemoveDeadCode.redeclareIfBlockScopedVar(com.google.javascript.rhino.Node decl, com.google.javascript.rhino.Node parent)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_redeclareIfBlockScopedVar_4266(decl pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_redeclareIfBlockScopedVar_4276(decl pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = decl
 	_ = parent
 	if !(!(NodeUtil_IsFunctionDeclaration(decl))) {
@@ -1085,26 +1085,26 @@ func PeepholeRemoveDeadCode_IsUnremovableNode(n pkg_rhino.Node) bool {
 }
 
 // Java method: PeepholeRemoveDeadCode.tryOptimizeConditionalAfterAssign(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeConditionalAfterAssign_4267(n pkg_rhino.Node) {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryOptimizeConditionalAfterAssign_4277(n pkg_rhino.Node) {
 	_ = n
 	var next pkg_rhino.Node = n.GetNext()
 	_ = next
 	if !(PeepholeRemoveDeadCode_IsSimpleAssignment(n)) {
 		return
 	}
-	var conditionalRoot pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_getConditionalRoot_4270(next)
+	var conditionalRoot pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_getConditionalRoot_4280(next)
 	_ = conditionalRoot
 	if conditionalRoot == 0 {
 		return
 	}
-	var lhsAssign pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_getSimpleAssignmentName_4268(n)
+	var lhsAssign pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_getSimpleAssignmentName_4278(n)
 	_ = lhsAssign
-	var condition pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_getConditionalStatementCondition_4271(next)
+	var condition pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_getConditionalStatementCondition_4281(next)
 	_ = condition
 	if !(lhsAssign.MatchesName_1_Node(condition)) {
 		return
 	}
-	var rhsAssign pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_getSimpleAssignmentValue_4269(n)
+	var rhsAssign pkg_rhino.Node = this_.priv_PeepholeRemoveDeadCode_getSimpleAssignmentValue_4279(n)
 	_ = rhsAssign
 	switch conditionalRoot.TokenSwitchOrd_() {
 	case int32(69) /* Token.AND */, int32(68) /* Token.OR */, int32(74) /* Token.IF */, int32(67) /* Token.HOOK */ :
@@ -1148,7 +1148,7 @@ func PeepholeRemoveDeadCode_IsSimpleAssignment(n pkg_rhino.Node) bool {
 }
 
 // Java method: PeepholeRemoveDeadCode.getSimpleAssignmentName(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_getSimpleAssignmentName_4268(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_getSimpleAssignmentName_4278(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(PeepholeRemoveDeadCode_IsSimpleAssignment(n)) {
 		j2gort.CheckState(false)
@@ -1161,7 +1161,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_getSimpleAssign
 }
 
 // Java method: PeepholeRemoveDeadCode.getSimpleAssignmentValue(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_getSimpleAssignmentValue_4269(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_getSimpleAssignmentValue_4279(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(PeepholeRemoveDeadCode_IsSimpleAssignment(n)) {
 		j2gort.CheckState(false)
@@ -1170,7 +1170,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_getSimpleAssign
 }
 
 // Java method: PeepholeRemoveDeadCode.getConditionalRoot(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_getConditionalRoot_4270(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_getConditionalRoot_4280(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if n == 0 {
 		return pkg_rhino.Node(0)
@@ -1198,7 +1198,7 @@ func PeepholeRemoveDeadCode_IsExprConditional(n pkg_rhino.Node) bool {
 }
 
 // Java method: PeepholeRemoveDeadCode.getConditionalStatementCondition(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_getConditionalStatementCondition_4271(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_getConditionalStatementCondition_4281(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if n.IsIf() {
 		return NodeUtil_GetConditionExpression(n)
@@ -1211,7 +1211,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_getConditionalS
 }
 
 // Java method: PeepholeRemoveDeadCode.tryFoldIf(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldIf_4272(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldIf_4282(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsIf()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
@@ -1333,7 +1333,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldIf_4272(
 }
 
 // Java method: PeepholeRemoveDeadCode.tryFoldHook(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldHook_4273(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldHook_4283(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsHook()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
@@ -1395,14 +1395,14 @@ func (this_ *PeepholeRemoveDeadCode) TryFoldFor(n pkg_rhino.Node) pkg_rhino.Node
 	var increment pkg_rhino.Node = cond.GetNext()
 	_ = increment
 	if !(init.IsEmpty()) && !(NodeUtil_IsNameDeclaration(init)) {
-		init = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4252(init)
+		init = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4262(init)
 		if init == 0 {
 			init = pkg_rhino.IR_Empty().Srcref(n)
 			n.AddChildToFront(init)
 		}
 	}
 	if !(increment.IsEmpty()) {
-		increment = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4252(increment)
+		increment = this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResult_4262(increment)
 		if increment == 0 {
 			increment = pkg_rhino.IR_Empty().Srcref(n)
 			increment.InsertAfter(cond)
@@ -1506,7 +1506,7 @@ func (this_ *PeepholeRemoveDeadCode) TryOptimizeObjectPattern(pattern pkg_rhino.
 			if !(key.IsStringKey()) {
 				continue
 			}
-			if this_.priv_PeepholeRemoveDeadCode_isRemovableDestructuringTarget_4279(key.GetOnlyChild()) {
+			if this_.priv_PeepholeRemoveDeadCode_isRemovableDestructuringTarget_4289(key.GetOnlyChild()) {
 				key.Detach()
 				this_.ReportChangeToEnclosingScope(pattern)
 			}
@@ -1525,7 +1525,7 @@ func (this_ *PeepholeRemoveDeadCode) TryOptimizeArrayPattern(pattern pkg_rhino.N
 		var lastChild pkg_rhino.Node = pattern.GetLastChild()
 		_ = lastChild
 		for lastChild != 0 {
-			if lastChild.IsEmpty() || this_.priv_PeepholeRemoveDeadCode_isRemovableDestructuringTarget_4279(lastChild) {
+			if lastChild.IsEmpty() || this_.priv_PeepholeRemoveDeadCode_isRemovableDestructuringTarget_4289(lastChild) {
 				var prev pkg_rhino.Node = lastChild.GetPrevious()
 				_ = prev
 				lastChild.Detach()
@@ -1540,7 +1540,7 @@ func (this_ *PeepholeRemoveDeadCode) TryOptimizeArrayPattern(pattern pkg_rhino.N
 }
 
 // Java method: PeepholeRemoveDeadCode.isRemovableDestructuringTarget(com.google.javascript.rhino.Node destructruringElement)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_isRemovableDestructuringTarget_4279(destructruringElement pkg_rhino.Node) bool {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_isRemovableDestructuringTarget_4289(destructruringElement pkg_rhino.Node) bool {
 	_ = destructruringElement
 	var target pkg_rhino.Node = destructruringElement
 	_ = target
@@ -1564,7 +1564,7 @@ func PeepholeRemoveDeadCode_HasUnnamedBreakOrContinue(n pkg_rhino.Node) bool {
 }
 
 // Java method: PeepholeRemoveDeadCode.tryFoldForCondition(com.google.javascript.rhino.Node forCondition)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldForCondition_4280(forCondition pkg_rhino.Node) {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldForCondition_4290(forCondition pkg_rhino.Node) {
 	_ = forCondition
 	if this_.GetSideEffectFreeBooleanValue(forCondition) == pkg_base.StaticGet_Tri_TRUE() {
 		this_.ReportChangeToEnclosingScope(forCondition)
@@ -1573,7 +1573,7 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryFoldForCondi
 }
 
 // Java method: PeepholeRemoveDeadCode.tryRemoveOptionalChaining(com.google.javascript.rhino.Node optionalChain)
-func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryRemoveOptionalChaining_4281(optionalChain pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_tryRemoveOptionalChaining_4291(optionalChain pkg_rhino.Node) pkg_rhino.Node {
 	_ = optionalChain
 	var callee pkg_rhino.Node = optionalChain.GetFirstChild()
 	_ = callee

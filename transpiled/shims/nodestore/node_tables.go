@@ -713,11 +713,8 @@ func (s *NodeStore) setCastBit(id uint32) {
 	}
 	w := &b[(id>>6)&((blockLen>>6)-1)]
 	bit := uint64(1) << (id & 63)
-	for {
-		old := atomic.LoadUint64(w)
-		if old&bit != 0 || atomic.CompareAndSwapUint64(w, old, old|bit) {
-			return
-		}
+	if atomic.LoadUint64(w)&bit == 0 {
+		atomic.OrUint64(w, bit)
 	}
 }
 
@@ -736,11 +733,8 @@ func (s *NodeStore) clearCastBit(id uint32) {
 	}
 	w := &b[(id>>6)&((blockLen>>6)-1)]
 	bit := uint64(1) << (id & 63)
-	for {
-		old := atomic.LoadUint64(w)
-		if old&bit == 0 || atomic.CompareAndSwapUint64(w, old, old&^bit) {
-			return
-		}
+	if atomic.LoadUint64(w)&bit != 0 {
+		atomic.AndUint64(w, ^bit)
 	}
 }
 
@@ -1242,7 +1236,9 @@ func (s *NodeStore) setAuxTypeBeforeCastNonNil(id uint32, v any) {
 			if (sl.changeTime | sl.length) == 0 {
 				sh.count++
 			}
-			sh.castBloom.Store(sh.castBloom.Load() | auxCastBloomMask(id))
+			if bloom, mask := sh.castBloom.Load(), auxCastBloomMask(id); bloom&mask != mask {
+				sh.castBloom.Store(bloom | mask)
+			}
 			sh.castCount.Store(sh.castCount.Load() + 1)
 			if !s.hasExtCast.Load() {
 				s.hasExtCast.Store(true)
@@ -1259,7 +1255,9 @@ func (s *NodeStore) setAuxTypeBeforeCastNonNil(id uint32, v any) {
 				sh.used++
 			}
 			sh.count++
-			sh.castBloom.Store(sh.castBloom.Load() | auxCastBloomMask(id))
+			if bloom, mask := sh.castBloom.Load(), auxCastBloomMask(id); bloom&mask != mask {
+				sh.castBloom.Store(bloom | mask)
+			}
 			sh.castCount.Store(sh.castCount.Load() + 1)
 			if !s.hasExtCast.Load() {
 				s.hasExtCast.Store(true)
@@ -2244,14 +2242,14 @@ func setJSTypeBeforeCastSlow(n Node, v any) {
 		return
 	}
 	rec := n.Rec()
+	if rec.KindFlags&kindFlagHasTypeBeforeCast == 0 {
+		rec.KindFlags |= kindFlagHasTypeBeforeCast
+	}
 	s := current.Load()
 	if uint32(n)&staticBit != 0 {
 		s = staticStore
 	}
 	s.setAuxTypeBeforeCastNonNil(uint32(n), v)
-	if rec.KindFlags&kindFlagHasTypeBeforeCast == 0 {
-		rec.KindFlags |= kindFlagHasTypeBeforeCast
-	}
 }
 
 // ChangeTime returns the change-time stamp for node n (inline in Payload on plain nodes, or in NodeStore.aux), or 0 if unset.

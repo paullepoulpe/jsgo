@@ -400,7 +400,7 @@ func ClosureRewriteModule_GetBinaryModuleNamespace(namespaceId string) string {
 }
 
 // Java method: ClosureRewriteModule.rewriteJsdoc(com.google.javascript.rhino.JSDocInfo info, com.google.javascript.jscomp.Scope scope)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteJsdoc_1182(info *pkg_rhino.JSDocInfo, scope *Scope) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteJsdoc_1183(info *pkg_rhino.JSDocInfo, scope *Scope) {
 	_ = info
 	_ = scope
 	{
@@ -409,29 +409,29 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteJsdoc_1182(i
 		var n int32 = info.GetTypeNodeCount()
 		_ = n
 		for ; i < n; i = i + 1 {
-			this_.priv_ClosureRewriteModule_rewriteJsdocTypeNode_1183(info.GetTypeNodeAt(i), scope)
+			this_.priv_ClosureRewriteModule_rewriteJsdocTypeNode_1184(info.GetTypeNodeAt(i), scope)
 		}
 	}
 }
 
 // Java method: ClosureRewriteModule.rewriteJsdocTypeNode(com.google.javascript.rhino.Node typeRefNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteJsdocTypeNode_1183(typeRefNode pkg_rhino.Node, scope *Scope) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteJsdocTypeNode_1184(typeRefNode pkg_rhino.Node, scope *Scope) {
 	_ = typeRefNode
 	_ = scope
 	if typeRefNode.IsStringLit() {
-		this_.priv_ClosureRewriteModule_rewriteJsdocStringTypeRef_1184(typeRefNode, scope)
+		this_.priv_ClosureRewriteModule_rewriteJsdocStringTypeRef_1185(typeRefNode, scope)
 	}
 	{
 		var child pkg_rhino.Node = typeRefNode.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			this_.priv_ClosureRewriteModule_rewriteJsdocTypeNode_1183(child, scope)
+			this_.priv_ClosureRewriteModule_rewriteJsdocTypeNode_1184(child, scope)
 		}
 	}
 }
 
 // Java method: ClosureRewriteModule.rewriteJsdocStringTypeRef(com.google.javascript.rhino.Node typeRefNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteJsdocStringTypeRef_1184(typeRefNode pkg_rhino.Node, scope *Scope) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteJsdocStringTypeRef_1185(typeRefNode pkg_rhino.Node, scope *Scope) {
 	_ = typeRefNode
 	_ = scope
 	var typeName string = typeRefNode.GetString()
@@ -456,9 +456,9 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteJsdocStringT
 		if this_.preprocessorSymbolTable != nil {
 			var moduleOnlyNode pkg_rhino.Node = typeRefNode.CloneNode_0()
 			_ = moduleOnlyNode
-			this_.priv_ClosureRewriteModule_safeSetString_1228(moduleOnlyNode, rootOfType)
+			this_.priv_ClosureRewriteModule_safeSetString_1229(moduleOnlyNode, rootOfType)
 			moduleOnlyNode.SetLength(j2gort.JStrLen(rootOfType))
-			this_.priv_ClosureRewriteModule_maybeAddAliasToSymbolTable_1231(moduleOnlyNode, this_.currentScript.namespaceId)
+			this_.priv_ClosureRewriteModule_maybeAddAliasToSymbolTable_1232(moduleOnlyNode, this_.currentScript.namespaceId)
 		}
 		var aliasedNamespace string = importRecord.newName
 		_ = aliasedNamespace
@@ -469,9 +469,9 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteJsdocStringT
 		} else {
 			remainder = j2gort.JStrSubFrom(typeName, dot)
 		}
-		this_.priv_ClosureRewriteModule_safeSetString_1228(typeRefNode, (j2gort.StrValString(aliasedNamespace) + j2gort.StrValString(remainder)))
+		this_.priv_ClosureRewriteModule_safeSetString_1229(typeRefNode, (j2gort.StrValString(aliasedNamespace) + j2gort.StrValString(remainder)))
 	} else if this_.currentScript.isModule && this_.currentScript.topLevelNames.Contains(rootOfType) {
-		this_.priv_ClosureRewriteModule_safeSetString_1228(typeRefNode, (j2gort.StrValString(this_.currentScript.contentsPrefix) + j2gort.StrValString(typeName)))
+		this_.priv_ClosureRewriteModule_safeSetString_1229(typeRefNode, (j2gort.StrValString(this_.currentScript.contentsPrefix) + j2gort.StrValString(typeName)))
 	} else if this_.currentScript.isModule && (j2gort.CheckNotNullString(rootOfType) == "exports") {
 		var namespace string = this_.currentScript.GetBinaryNamespace()
 		_ = namespace
@@ -482,14 +482,14 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteJsdocStringT
 		} else {
 			remainder_2 = j2gort.JStrSubFrom(typeName, dot)
 		}
-		this_.priv_ClosureRewriteModule_safeSetString_1228(typeRefNode, (j2gort.StrValString(namespace) + j2gort.StrValString(remainder_2)))
+		this_.priv_ClosureRewriteModule_safeSetString_1229(typeRefNode, (j2gort.StrValString(namespace) + j2gort.StrValString(remainder_2)))
 	} else {
-		this_.priv_ClosureRewriteModule_rewriteIfClosureNamespaceRef_1185(typeName, typeRefNode)
+		this_.priv_ClosureRewriteModule_rewriteIfClosureNamespaceRef_1186(typeName, typeRefNode)
 	}
 }
 
 // Java method: ClosureRewriteModule.rewriteIfClosureNamespaceRef(java.lang.String typeName, com.google.javascript.rhino.Node typeRefNode)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteIfClosureNamespaceRef_1185(typeName string, typeRefNode pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteIfClosureNamespaceRef_1186(typeName string, typeRefNode pkg_rhino.Node) {
 	_ = typeName
 	_ = typeRefNode
 	var prefixTypeName string = typeName
@@ -508,7 +508,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteIfClosureNam
 			} else {
 				suffix = j2gort.JStrSubFrom(typeName, j2gort.JStrLen(prefixTypeName))
 			}
-			this_.priv_ClosureRewriteModule_safeSetString_1228(typeRefNode, (j2gort.StrValString(binaryNamespaceIfModule) + j2gort.StrValString(suffix)))
+			this_.priv_ClosureRewriteModule_safeSetString_1229(typeRefNode, (j2gort.StrValString(binaryNamespaceIfModule) + j2gort.StrValString(suffix)))
 			return
 		}
 		var lastDot int32 = j2gort.JStrLastIndexOfCp(prefixTypeName, int32(uint16(46)))
@@ -522,7 +522,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_rewriteIfClosureNam
 }
 
 // Java method: ClosureRewriteModule.isWeakNamespace(java.lang.String namespaceId)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_isWeakNamespace_1186(namespaceId string) bool {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_isWeakNamespace_1187(namespaceId string) bool {
 	_ = namespaceId
 	var metadata ModuleMetadataMap_ModuleMetadata = j2gort.AsIface[ModuleMetadataMap_ModuleMetadata](j2gort.MapGetStr(this_.compiler.GetModuleMetadataMap().GetModulesByGoogNamespace(), namespaceId))
 	_ = metadata
@@ -530,10 +530,10 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_isWeakNamespace_118
 }
 
 // Java method: ClosureRewriteModule.isUnrequiredWeakNamespace(com.google.javascript.rhino.Node call, java.lang.String namespaceId)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_isUnrequiredWeakNamespace_1187(call pkg_rhino.Node, namespaceId string) bool {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_isUnrequiredWeakNamespace_1188(call pkg_rhino.Node, namespaceId string) bool {
 	_ = call
 	_ = namespaceId
-	if call.GetStaticSourceFile().IsWeak() || !(this_.priv_ClosureRewriteModule_isWeakNamespace_1186(namespaceId)) {
+	if call.GetStaticSourceFile().IsWeak() || !(this_.priv_ClosureRewriteModule_isWeakNamespace_1187(namespaceId)) {
 		return false
 	}
 	var callerMetadata ModuleMetadataMap_ModuleMetadata = j2gort.AsIface[ModuleMetadataMap_ModuleMetadata](j2gort.MapGetStr(this_.compiler.GetModuleMetadataMap().GetModulesByPath(), call.GetSourceFileName()))
@@ -576,7 +576,7 @@ func (this_ *ClosureRewriteModule) Process_2(externs pkg_rhino.Node, root pkg_rh
 						j2gort.CheckStateMsg(false, j2gort.BoxNode(script))
 					}
 					NodeTraversal_Traverse(this_.compiler, script, NewClosureRewriteModule_UnwrapGoogLoadModule(this_))
-					this_.priv_ClosureRewriteModule_pushScript_1222(allocPooled_ClosureRewriteModule_ScriptDescription(&this_.slab_ClosureRewriteModule_ScriptDescription))
+					this_.priv_ClosureRewriteModule_pushScript_1223(allocPooled_ClosureRewriteModule_ScriptDescription(&this_.slab_ClosureRewriteModule_ScriptDescription))
 					{
 						r_2 := this_.currentScript
 						r_2.rootNode = script
@@ -593,12 +593,12 @@ func (this_ *ClosureRewriteModule) Process_2(externs pkg_rhino.Node, root pkg_rh
 						(&ntb_).Traverse(script)
 					}
 
-					this_.priv_ClosureRewriteModule_popScript_1223()
+					this_.priv_ClosureRewriteModule_popScript_1224()
 				}
 			}
 		}
 	}
-	this_.priv_ClosureRewriteModule_reportUnrecognizedRequires_1227()
+	this_.priv_ClosureRewriteModule_reportUnrecognizedRequires_1228()
 	if this_.compiler.HasHaltingErrors() {
 		return
 	}
@@ -612,30 +612,30 @@ func (this_ *ClosureRewriteModule) Process_2(externs pkg_rhino.Node, root pkg_rh
 		(&ntb_1_).TraverseRoots(externs, root)
 	}
 
-	this_.priv_ClosureRewriteModule_declareSyntheticExterns_1188()
+	this_.priv_ClosureRewriteModule_declareSyntheticExterns_1189()
 	{
 
 		bound_3 := this_
 		for _, mrp0_ := range this_.googModuleGetCalls {
 
-			bound_3.priv_ClosureRewriteModule_updateGoogModuleGetCall_1213(mrp0_)
+			bound_3.priv_ClosureRewriteModule_updateGoogModuleGetCall_1214(mrp0_)
 		}
 	}
 
 	{
 		bound_4 := this_
 		for _, mrp0_ := range this_.googRequireDynamicCalls {
-			bound_4.priv_ClosureRewriteModule_updateGoogRequireDynamicCall_1209(mrp0_)
+			bound_4.priv_ClosureRewriteModule_updateGoogRequireDynamicCall_1210(mrp0_)
 		}
 	}
 }
 
 // Java method: ClosureRewriteModule.declareSyntheticExterns()
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_declareSyntheticExterns_1188() {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_declareSyntheticExterns_1189() {
 	var vars j2gort.Ext_com_google_common_collect_ImmutableList = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableList](j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.syntheticExterns.LiveValues()).Stream().Filter(j2gort.NewNodeLambda_Ext_java_util_function_Predicate(func(rawNode_6 uint32) bool {
 		lhs := pkg_rhino.Node(rawNode_6)
 		_ = lhs
-		return !(this_.priv_ClosureRewriteModule_isNameInGlobalScope_1189(lhs.GetString()))
+		return !(this_.priv_ClosureRewriteModule_isNameInGlobalScope_1190(lhs.GetString()))
 	})).Map(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_5 any) any {
 		lhs := j2gort.CastNode[pkg_rhino.Node](lp_5)
 		_ = lhs
@@ -654,13 +654,13 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_declareSyntheticExt
 }
 
 // Java method: ClosureRewriteModule.isNameInGlobalScope(java.lang.String name)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_isNameInGlobalScope_1189(name string) bool {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_isNameInGlobalScope_1190(name string) bool {
 	_ = name
 	return (this_.legacyScriptNamespacesAndPrefixes.Contains(name) || (this_.globalScope.LookupVar(name) != nil))
 }
 
 // Java method: ClosureRewriteModule.preprocessExportDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_preprocessExportDeclaration_1190(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_preprocessExportDeclaration_1191(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if (!(ClosureRewriteModule_IsGoogModuleExportsRef(t, n)) || !(ClosureRewriteModule_IsAssignTarget(n))) || !(n.GetGrandparent().IsExprResult()) {
@@ -697,9 +697,9 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_preprocessExportDec
 }
 
 // Java method: ClosureRewriteModule.recordModuleBody(com.google.javascript.rhino.Node moduleRoot)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordModuleBody_1191(moduleRoot pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordModuleBody_1192(moduleRoot pkg_rhino.Node) {
 	_ = moduleRoot
-	this_.priv_ClosureRewriteModule_pushScript_1222(allocPooled_ClosureRewriteModule_ScriptDescription(&this_.slab_ClosureRewriteModule_ScriptDescription))
+	this_.priv_ClosureRewriteModule_pushScript_1223(allocPooled_ClosureRewriteModule_ScriptDescription(&this_.slab_ClosureRewriteModule_ScriptDescription))
 	{
 		r_8 := this_.currentScript
 		r_8.rootNode = moduleRoot
@@ -711,7 +711,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordModuleBody_11
 }
 
 // Java method: ClosureRewriteModule.recordGoogModule(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogModule_1192(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogModule_1193(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var namespaceIdNode pkg_rhino.Node = call.GetLastChild()
@@ -737,16 +737,16 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogModule_11
 }
 
 // Java method: ClosureRewriteModule.recordGoogDeclareLegacyNamespace()
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogDeclareLegacyNamespace_1193() {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogDeclareLegacyNamespace_1194() {
 	{
 		r_12 := this_.currentScript
 		r_12.declareLegacyNamespace = true
 	}
-	this_.priv_ClosureRewriteModule_updateLegacyScriptNamespacesAndPrefixes_1194(this_.currentScript.namespaceId)
+	this_.priv_ClosureRewriteModule_updateLegacyScriptNamespacesAndPrefixes_1195(this_.currentScript.namespaceId)
 }
 
 // Java method: ClosureRewriteModule.updateLegacyScriptNamespacesAndPrefixes(java.lang.String namespace)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateLegacyScriptNamespacesAndPrefixes_1194(namespace string) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateLegacyScriptNamespacesAndPrefixes_1195(namespace string) {
 	_ = namespace
 	this_.legacyScriptNamespacesAndPrefixes.Add(namespace)
 	{
@@ -760,7 +760,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateLegacyScriptN
 }
 
 // Java method: ClosureRewriteModule.recordGoogProvide(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogProvide_1195(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogProvide_1196(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var namespaceIdNode pkg_rhino.Node = call.GetLastChild()
@@ -778,11 +778,11 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogProvide_1
 	_ = scriptNode
 	this_.rewriteState.providedNamespaces.Add(namespaceId)
 	j2gort.MultimapPutNode(this_.rewriteState.namespaceIdsByScriptNode, scriptNode, j2gort.BoxString(namespaceId))
-	this_.priv_ClosureRewriteModule_updateLegacyScriptNamespacesAndPrefixes_1194(namespaceId)
+	this_.priv_ClosureRewriteModule_updateLegacyScriptNamespacesAndPrefixes_1195(namespaceId)
 }
 
 // Java method: ClosureRewriteModule.recordGoogRequire(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogRequire_1196(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogRequire_1197(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	ClosureRewriteModule_MaybeSplitMultiVar(call)
@@ -804,7 +804,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogRequire_1
 }
 
 // Java method: ClosureRewriteModule.recordGoogRequireType(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogRequireType_1197(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogRequireType_1198(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var namespaceIdNode pkg_rhino.Node = call.GetLastChild()
@@ -813,11 +813,11 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogRequireTy
 		t.Report_3(namespaceIdNode, StaticGet_ClosurePrimitiveErrors_INVALID_REQUIRE_TYPE_NAMESPACE(), []string{})
 		return
 	}
-	this_.priv_ClosureRewriteModule_recordGoogRequire_1196(t, call)
+	this_.priv_ClosureRewriteModule_recordGoogRequire_1197(t, call)
 }
 
 // Java method: ClosureRewriteModule.recordGoogForwardDeclare(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogForwardDeclare_1198(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogForwardDeclare_1199(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var namespaceNode pkg_rhino.Node = call.GetLastChild()
@@ -826,11 +826,11 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogForwardDe
 		t.Report_3(namespaceNode, StaticGet_ClosurePrimitiveErrors_INVALID_FORWARD_DECLARE_NAMESPACE(), []string{})
 		return
 	}
-	this_.priv_ClosureRewriteModule_recordGoogRequire_1196(t, call)
+	this_.priv_ClosureRewriteModule_recordGoogRequire_1197(t, call)
 }
 
 // Java method: ClosureRewriteModule.recordGoogRequireDynamic(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogRequireDynamic_1199(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogRequireDynamic_1200(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var namespaceIdNode pkg_rhino.Node = call.GetLastChild()
@@ -848,7 +848,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogRequireDy
 }
 
 // Java method: ClosureRewriteModule.recordGoogModuleGet(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogModuleGet_1200(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogModuleGet_1201(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var namespaceIdNode pkg_rhino.Node = call.GetLastChild()
@@ -886,7 +886,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogModuleGet
 	}()) {
 		return
 	}
-	if this_.priv_ClosureRewriteModule_isUnrequiredWeakNamespace_1187(call, namespaceId) {
+	if this_.priv_ClosureRewriteModule_isUnrequiredWeakNamespace_1188(call, namespaceId) {
 		return
 	}
 	this_.compiler.ReportChangeToEnclosingScope(maybeAssign)
@@ -895,7 +895,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordGoogModuleGet
 }
 
 // Java method: ClosureRewriteModule.recordTopLevelClassOrFunctionName(com.google.javascript.rhino.Node classOrFunctionNode)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordTopLevelClassOrFunctionName_1201(classOrFunctionNode pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordTopLevelClassOrFunctionName_1202(classOrFunctionNode pkg_rhino.Node) {
 	_ = classOrFunctionNode
 	var nameNode pkg_rhino.Node = classOrFunctionNode.GetFirstChild()
 	_ = nameNode
@@ -907,7 +907,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordTopLevelClass
 }
 
 // Java method: ClosureRewriteModule.recordTopLevelVarNames(com.google.javascript.rhino.Node varNode)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordTopLevelVarNames_1202(varNode pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordTopLevelVarNames_1203(varNode pkg_rhino.Node) {
 	_ = varNode
 	NodeUtil_VisitLhsNodesInNode(varNode, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_15 any) {
 		lhs := j2gort.CastNode[pkg_rhino.Node](lp_15)
@@ -917,7 +917,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordTopLevelVarNa
 }
 
 // Java method: ClosureRewriteModule.maybeRecordExportDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeRecordExportDeclaration_1203(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeRecordExportDeclaration_1204(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if (!(this_.currentScript.isModule) || !(ClosureRewriteModule_IsGoogModuleExportsRef(t, n))) || !(ClosureRewriteModule_IsAssignTarget(n)) {
@@ -958,14 +958,14 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeRecordExportDe
 			r_19 := this_.currentScript
 			r_19.defaultExportLocalName = localName_2
 		}
-		this_.priv_ClosureRewriteModule_recordExportToInline_1225(defaultExport)
+		this_.priv_ClosureRewriteModule_recordExportToInline_1226(defaultExport)
 	}
 }
 
 // Java method: ClosureRewriteModule.updateModuleBodyEarly(com.google.javascript.rhino.Node moduleScopeRoot)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateModuleBodyEarly_1204(moduleScopeRoot pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateModuleBodyEarly_1205(moduleScopeRoot pkg_rhino.Node) {
 	_ = moduleScopeRoot
-	this_.priv_ClosureRewriteModule_pushScript_1222(this_.currentScript.RemoveFirstChildScript())
+	this_.priv_ClosureRewriteModule_pushScript_1223(this_.currentScript.RemoveFirstChildScript())
 	{
 		r_20 := this_.currentScript
 		r_20.rootNode = moduleScopeRoot
@@ -973,7 +973,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateModuleBodyEar
 }
 
 // Java method: ClosureRewriteModule.updateGoogModule(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogModule_1205(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogModule_1206(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	if !(this_.currentScript.isModule) {
@@ -991,7 +991,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogModule_12
 		if !(!(this_.currentScript.hasCreatedExportObject)) {
 			j2gort.CheckStateMsg(false, j2gort.PtrToAny(this_.currentScript))
 		}
-		this_.priv_ClosureRewriteModule_exportTheEmptyBinaryNamespaceAt_1224(NodeUtil_GetEnclosingStatement(call), StaticGet_ClosureRewriteModule_AddAt_AFTER(), t)
+		this_.priv_ClosureRewriteModule_exportTheEmptyBinaryNamespaceAt_1225(NodeUtil_GetEnclosingStatement(call), StaticGet_ClosureRewriteModule_AddAt_AFTER(), t)
 	}
 	if !(this_.currentScript.declareLegacyNamespace) && !(this_.preserveSugar) {
 		this_.compiler.ReportChangeToEnclosingScope(call)
@@ -1014,7 +1014,7 @@ func ClosureRewriteModule_UpdateGoogPreventModuleExportsSealing(call pkg_rhino.N
 }
 
 // Java method: ClosureRewriteModule.updateGoogRequire(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequire_1206(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequire_1207(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var namespaceIdNode pkg_rhino.Node = call.GetLastChild()
@@ -1033,19 +1033,19 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequire_1
 	_ = currentScriptIsAModule
 	var requireDirectlyStoredInAlias bool = NodeUtil_IsNameDeclaration(call.GetGrandparent())
 	_ = requireDirectlyStoredInAlias
-	if (currentScriptIsAModule && requireDirectlyStoredInAlias) && this_.priv_ClosureRewriteModule_isTopLevel_1230(t, statementNode, StaticGet_ClosureRewriteModule_ScopeType_EXEC_CONTEXT()) {
+	if (currentScriptIsAModule && requireDirectlyStoredInAlias) && this_.priv_ClosureRewriteModule_isTopLevel_1231(t, statementNode, StaticGet_ClosureRewriteModule_ScopeType_EXEC_CONTEXT()) {
 		var lhs pkg_rhino.Node = call.GetParent()
 		_ = lhs
-		var exportedNamespace string = this_.rewriteState.priv_GlobalRewriteState_getExportedNamespaceOrScript_1245(namespaceId)
+		var exportedNamespace string = this_.rewriteState.priv_GlobalRewriteState_getExportedNamespaceOrScript_1246(namespaceId)
 		_ = exportedNamespace
 		if exportedNamespace == j2gort.NullString {
 		} else if lhs.IsName() {
 			var aliasName string = statementNode.GetFirstChild().GetString()
 			_ = aliasName
-			this_.priv_ClosureRewriteModule_recordNameToInline_1226(aliasName, exportedNamespace, namespaceId)
-			this_.priv_ClosureRewriteModule_maybeAddAliasToSymbolTable_1231(statementNode.GetFirstChild(), this_.currentScript.namespaceId)
+			this_.priv_ClosureRewriteModule_recordNameToInline_1227(aliasName, exportedNamespace, namespaceId)
+			this_.priv_ClosureRewriteModule_maybeAddAliasToSymbolTable_1232(statementNode.GetFirstChild(), this_.currentScript.namespaceId)
 		} else if lhs.IsDestructuringLhs() && lhs.GetFirstChild().IsObjectPattern() {
-			this_.priv_ClosureRewriteModule_maybeWarnForInvalidDestructuring_1207(t, lhs.GetParent(), namespaceId)
+			this_.priv_ClosureRewriteModule_maybeWarnForInvalidDestructuring_1208(t, lhs.GetParent(), namespaceId)
 			{
 				var importSpec pkg_rhino.Node = lhs.GetFirstFirstChild()
 				_ = importSpec
@@ -1061,9 +1061,9 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequire_1
 					_ = aliasName_2
 					var fullName string = (j2gort.StrValString(exportedNamespace) + "." + j2gort.StrValString(importedProperty))
 					_ = fullName
-					this_.priv_ClosureRewriteModule_recordNameToInline_1226(aliasName_2, fullName, j2gort.NullString)
-					this_.priv_ClosureRewriteModule_maybeAddAliasToSymbolTable_1231(aliasNode, this_.currentScript.namespaceId)
-					this_.priv_ClosureRewriteModule_safeSetString_1228(aliasNode, (j2gort.StrValString(this_.currentScript.contentsPrefix) + j2gort.StrValString(aliasName_2)))
+					this_.priv_ClosureRewriteModule_recordNameToInline_1227(aliasName_2, fullName, j2gort.NullString)
+					this_.priv_ClosureRewriteModule_maybeAddAliasToSymbolTable_1232(aliasNode, this_.currentScript.namespaceId)
+					this_.priv_ClosureRewriteModule_safeSetString_1229(aliasNode, (j2gort.StrValString(this_.currentScript.contentsPrefix) + j2gort.StrValString(aliasName_2)))
 				}
 			}
 		} else {
@@ -1077,7 +1077,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequire_1
 				statementNode.Detach()
 			}
 		} else if targetIsNonLegacyGoogModule {
-			if !(this_.priv_ClosureRewriteModule_isTopLevel_1230(t, statementNode, StaticGet_ClosureRewriteModule_ScopeType_EXEC_CONTEXT())) {
+			if !(this_.priv_ClosureRewriteModule_isTopLevel_1231(t, statementNode, StaticGet_ClosureRewriteModule_ScopeType_EXEC_CONTEXT())) {
 				j2gort.CheckStateFmt(false, "Unexpected non-top-level require at %s", j2gort.BoxNode(call))
 			}
 			if importHasAlias || !(this_.rewriteState.IsLegacyModule(namespaceId)) {
@@ -1095,7 +1095,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequire_1
 }
 
 // Java method: ClosureRewriteModule.maybeWarnForInvalidDestructuring(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node importNode, java.lang.String importedNamespace)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeWarnForInvalidDestructuring_1207(t *NodeTraversal, importNode pkg_rhino.Node, importedNamespace string) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeWarnForInvalidDestructuring_1208(t *NodeTraversal, importNode pkg_rhino.Node, importedNamespace string) {
 	_ = t
 	_ = importNode
 	_ = importedNamespace
@@ -1127,21 +1127,21 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeWarnForInvalid
 }
 
 // Java method: ClosureRewriteModule.updateGoogForwardDeclare(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogForwardDeclare_1208(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogForwardDeclare_1209(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var namespaceId string = call.GetLastChild().GetString()
 	_ = namespaceId
-	if this_.priv_ClosureRewriteModule_isUnrequiredWeakNamespace_1187(call, namespaceId) {
+	if this_.priv_ClosureRewriteModule_isUnrequiredWeakNamespace_1188(call, namespaceId) {
 		this_.compiler.ReportChangeToEnclosingScope(call)
 		call.ReplaceWith(this_.astFactory.CreateNull().Srcref(call))
 		return
 	}
-	this_.priv_ClosureRewriteModule_updateGoogRequire_1206(t, call)
+	this_.priv_ClosureRewriteModule_updateGoogRequire_1207(t, call)
 }
 
 // Java method: ClosureRewriteModule.updateGoogRequireDynamicCall(com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequireDynamicCall_1209(call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequireDynamicCall_1210(call pkg_rhino.Node) {
 	_ = call
 	var parent pkg_rhino.Node = call.GetParent()
 	_ = parent
@@ -1152,20 +1152,20 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequireDy
 		j2gort.CheckStateStr(false, "goog.requireDynamic() in only allowed in await/then expression")
 	}
 	if parent.IsAwait() {
-		this_.priv_ClosureRewriteModule_updateGoogRequireDynamicCallInAwait_1211(call)
+		this_.priv_ClosureRewriteModule_updateGoogRequireDynamicCallInAwait_1212(call)
 	} else {
-		this_.priv_ClosureRewriteModule_updateGoogRequireDynamicCallInThen_1210(call)
+		this_.priv_ClosureRewriteModule_updateGoogRequireDynamicCallInThen_1211(call)
 	}
 }
 
 // Java method: ClosureRewriteModule.updateGoogRequireDynamicCallInThen(com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequireDynamicCallInThen_1210(call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequireDynamicCallInThen_1211(call pkg_rhino.Node) {
 	_ = call
 	var namespaceIdNode pkg_rhino.Node = call.GetSecondChild()
 	_ = namespaceIdNode
 	var namespaceId string = namespaceIdNode.GetString()
 	_ = namespaceId
-	var exportedNamespace string = this_.rewriteState.priv_GlobalRewriteState_getExportedNamespaceOrScript_1245(namespaceId)
+	var exportedNamespace string = this_.rewriteState.priv_GlobalRewriteState_getExportedNamespaceOrScript_1246(namespaceId)
 	_ = exportedNamespace
 	if !(exportedNamespace != j2gort.NullString) {
 		j2gort.CheckStateStr(false, "Exported namespace for goog.requireDynamic() canot be null")
@@ -1177,7 +1177,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequireDy
 	if !((thenCallNode != 0) && thenCallNode.IsCall()) {
 		j2gort.CheckStateStr(false, "must be a 'then' call expression")
 	}
-	var argNode pkg_rhino.Node = this_.astFactory.CreateString(this_.priv_ClosureRewriteModule_namespaceIdToXid_1212(namespaceId)).Srcref(namespaceIdNode)
+	var argNode pkg_rhino.Node = this_.astFactory.CreateString(this_.priv_ClosureRewriteModule_namespaceIdToXid_1213(namespaceId)).Srcref(namespaceIdNode)
 	_ = argNode
 	namespaceIdNode.ReplaceWith(argNode)
 	var calleeNode pkg_rhino.Node = call.GetFirstChild()
@@ -1239,13 +1239,13 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequireDy
 }
 
 // Java method: ClosureRewriteModule.updateGoogRequireDynamicCallInAwait(com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequireDynamicCallInAwait_1211(call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequireDynamicCallInAwait_1212(call pkg_rhino.Node) {
 	_ = call
 	var namespaceIdNode pkg_rhino.Node = call.GetSecondChild()
 	_ = namespaceIdNode
 	var namespaceId string = namespaceIdNode.GetString()
 	_ = namespaceId
-	var exportedNamespace string = this_.rewriteState.priv_GlobalRewriteState_getExportedNamespaceOrScript_1245(namespaceId)
+	var exportedNamespace string = this_.rewriteState.priv_GlobalRewriteState_getExportedNamespaceOrScript_1246(namespaceId)
 	_ = exportedNamespace
 	if !(exportedNamespace != j2gort.NullString) {
 		j2gort.CheckStateStr(false, "Exported namespace for goog.requireDynamic() cannot be null")
@@ -1269,7 +1269,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequireDy
 	_ = exportedNamespaceNameNode
 	exportedNamespaceNameNode.SetJSType(this_.rewriteState.GetGoogModuleNamespaceType(namespaceId))
 	exportedNamespaceNameNode.SetOriginalName(namespaceId)
-	var argNode pkg_rhino.Node = this_.astFactory.CreateString(this_.priv_ClosureRewriteModule_namespaceIdToXid_1212(namespaceId)).Srcref(namespaceIdNode)
+	var argNode pkg_rhino.Node = this_.astFactory.CreateString(this_.priv_ClosureRewriteModule_namespaceIdToXid_1213(namespaceId)).Srcref(namespaceIdNode)
 	_ = argNode
 	namespaceIdNode.ReplaceWith(argNode)
 	var calleeNode pkg_rhino.Node = call.GetFirstChild()
@@ -1286,7 +1286,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogRequireDy
 }
 
 // Java method: ClosureRewriteModule.namespaceIdToXid(java.lang.String namespaceId)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_namespaceIdToXid_1212(namespaceId string) string {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_namespaceIdToXid_1213(namespaceId string) string {
 	_ = namespaceId
 	var hashFunction Xid_HashFunction = this_.compiler.GetOptions().GetChunkIdHashFunction()
 	_ = hashFunction
@@ -1301,13 +1301,13 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_namespaceIdToXid_12
 }
 
 // Java method: ClosureRewriteModule.updateGoogModuleGetCall(com.google.javascript.rhino.Node call)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogModuleGetCall_1213(call pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogModuleGetCall_1214(call pkg_rhino.Node) {
 	_ = call
 	var namespaceIdNode pkg_rhino.Node = call.GetSecondChild()
 	_ = namespaceIdNode
 	var namespaceId string = namespaceIdNode.GetString()
 	_ = namespaceId
-	if this_.priv_ClosureRewriteModule_isUnrequiredWeakNamespace_1187(call, namespaceId) {
+	if this_.priv_ClosureRewriteModule_isUnrequiredWeakNamespace_1188(call, namespaceId) {
 		this_.compiler.Report_1(JSError_Make_3(call, StaticGet_ClosurePrimitiveErrors_GOOG_MODULE_GET_OF_WEAK_MODULE(), []string{namespaceId}))
 		this_.compiler.ReportChangeToEnclosingScope(call)
 		var nullNode pkg_rhino.Node = this_.astFactory.CreateNull().Srcref(call)
@@ -1315,7 +1315,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogModuleGet
 		call.ReplaceWith(nullNode)
 		return
 	}
-	var exportedNamespace string = this_.rewriteState.priv_GlobalRewriteState_getExportedNamespaceOrScript_1245(namespaceId)
+	var exportedNamespace string = this_.rewriteState.priv_GlobalRewriteState_getExportedNamespaceOrScript_1246(namespaceId)
 	_ = exportedNamespace
 	if exportedNamespace != j2gort.NullString {
 		this_.compiler.ReportChangeToEnclosingScope(call)
@@ -1328,7 +1328,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateGoogModuleGet
 }
 
 // Java method: ClosureRewriteModule.recordExportsPropertyAssignment(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node getpropNode)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordExportsPropertyAssignment_1214(t *NodeTraversal, getpropNode pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordExportsPropertyAssignment_1215(t *NodeTraversal, getpropNode pkg_rhino.Node) {
 	_ = t
 	_ = getpropNode
 	if !(this_.currentScript.isModule) {
@@ -1353,14 +1353,14 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordExportsProper
 		var namedExport *ClosureRewriteModule_ExportDefinition = ClosureRewriteModule_ExportDefinition_NewNamedExport(t, exportName, exportRhs)
 		_ = namedExport
 		if (!(this_.currentScript.declareLegacyNamespace) && (this_.currentScript.defaultExport == nil)) && namedExport.HasInlinableName(j2gort.AsIface[j2gort.Ext_java_util_Set](this_.currentScript.exportsToInline.LiveKeySet())) {
-			this_.priv_ClosureRewriteModule_recordExportToInline_1225(namedExport)
+			this_.priv_ClosureRewriteModule_recordExportToInline_1226(namedExport)
 			parent.GetParent().Detach()
 		}
 	}
 }
 
 // Java method: ClosureRewriteModule.updateExportsPropertyAssignment(com.google.javascript.rhino.Node getpropNode, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateExportsPropertyAssignment_1215(getpropNode pkg_rhino.Node, t *NodeTraversal) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateExportsPropertyAssignment_1216(getpropNode pkg_rhino.Node, t *NodeTraversal) {
 	_ = getpropNode
 	_ = t
 	if !(this_.currentScript.isModule) {
@@ -1378,7 +1378,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateExportsProper
 	}
 	var exportedNamespace string = this_.currentScript.GetExportedNamespace()
 	_ = exportedNamespace
-	this_.priv_ClosureRewriteModule_safeSetMaybeQualifiedString_1229(exportsNameNode, exportedNamespace, false)
+	this_.priv_ClosureRewriteModule_safeSetMaybeQualifiedString_1230(exportsNameNode, exportedNamespace, false)
 	var jsdocNode pkg_rhino.Node
 	_ = jsdocNode
 	if parent.IsAssign() {
@@ -1388,12 +1388,12 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_updateExportsProper
 	}
 	ClosureRewriteModule_MarkConstAndCopyJsDoc(jsdocNode, jsdocNode)
 	if !(this_.currentScript.hasCreatedExportObject) {
-		this_.priv_ClosureRewriteModule_exportTheEmptyBinaryNamespaceAt_1224(NodeUtil_GetEnclosingStatement(parent), StaticGet_ClosureRewriteModule_AddAt_BEFORE(), t)
+		this_.priv_ClosureRewriteModule_exportTheEmptyBinaryNamespaceAt_1225(NodeUtil_GetEnclosingStatement(parent), StaticGet_ClosureRewriteModule_AddAt_BEFORE(), t)
 	}
 }
 
 // Java method: ClosureRewriteModule.maybeUpdateTopLevelName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node nameNode)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateTopLevelName_1216(t *NodeTraversal, nameNode pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateTopLevelName_1217(t *NodeTraversal, nameNode pkg_rhino.Node) {
 	_ = t
 	_ = nameNode
 	var name string = nameNode.GetString()
@@ -1416,7 +1416,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateTopLevel
 	var nameIsAnAlias bool = this_.currentScript.namesToInlineByAlias.ContainsKey(name)
 	_ = nameIsAnAlias
 	if nameIsAnAlias && (var_.GetNode() != nameNode) {
-		this_.priv_ClosureRewriteModule_maybeAddAliasToSymbolTable_1231(nameNode, this_.currentScript.namespaceId)
+		this_.priv_ClosureRewriteModule_maybeAddAliasToSymbolTable_1232(nameNode, this_.currentScript.namespaceId)
 		var inline *ClosureRewriteModule_AliasName = this_.currentScript.namesToInlineByAlias.Get(name)
 		_ = inline
 		var namespaceToInline string = inline.newName
@@ -1438,7 +1438,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateTopLevel
 		}
 		var isModuleNamespace bool = (((inline.namespaceId != j2gort.NullString) && this_.rewriteState.scriptDescriptionsByGoogModuleNamespace.ContainsKey(inline.namespaceId)) && !(this_.rewriteState.scriptDescriptionsByGoogModuleNamespace.Get(inline.namespaceId).willCreateExportsObject))
 		_ = isModuleNamespace
-		this_.priv_ClosureRewriteModule_safeSetMaybeQualifiedString_1229(nameNode, namespaceToInline, isModuleNamespace)
+		this_.priv_ClosureRewriteModule_safeSetMaybeQualifiedString_1230(nameNode, namespaceToInline, isModuleNamespace)
 		if j2gort.JStrIndexOfCp(namespaceToInline, int32(uint16(46))) != int32(-1) {
 			var firstQualifiedName string = j2gort.JStrSub(namespaceToInline, int32(0), j2gort.JStrIndexOfCp(namespaceToInline, int32(uint16(46))))
 			_ = firstQualifiedName
@@ -1451,11 +1451,11 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateTopLevel
 		}
 		return
 	}
-	this_.priv_ClosureRewriteModule_safeSetString_1228(nameNode, (j2gort.StrValString(this_.currentScript.contentsPrefix) + j2gort.StrValString(name)))
+	this_.priv_ClosureRewriteModule_safeSetString_1229(nameNode, (j2gort.StrValString(this_.currentScript.contentsPrefix) + j2gort.StrValString(name)))
 }
 
 // Java method: ClosureRewriteModule.maybeUpdateExportObjectLiteral(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportObjectLiteral_1217(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportObjectLiteral_1218(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if !(this_.currentScript.isModule) {
@@ -1475,7 +1475,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportOb
 				} else if c.IsStringKey() {
 					var value pkg_rhino.Node = c.GetFirstChild()
 					_ = value
-					this_.priv_ClosureRewriteModule_maybeUpdateExportDeclToNode_1218(t, c, value)
+					this_.priv_ClosureRewriteModule_maybeUpdateExportDeclToNode_1219(t, c, value)
 				}
 			}
 		}
@@ -1483,7 +1483,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportOb
 }
 
 // Java method: ClosureRewriteModule.maybeUpdateExportDeclToNode(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node target, com.google.javascript.rhino.Node value)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportDeclToNode_1218(t *NodeTraversal, target pkg_rhino.Node, value pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportDeclToNode_1219(t *NodeTraversal, target pkg_rhino.Node, value pkg_rhino.Node) {
 	_ = t
 	_ = target
 	_ = value
@@ -1514,7 +1514,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportDe
 }
 
 // Java method: ClosureRewriteModule.maybeUpdateExportDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportDeclaration_1219(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportDeclaration_1220(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if (!(this_.currentScript.isModule) || !(ClosureRewriteModule_IsGoogModuleExportsRef(t, n))) || !(ClosureRewriteModule_IsAssignTarget(n)) {
@@ -1532,7 +1532,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportDe
 		assignNode.GetParent().Detach()
 		var binaryNamespaceName pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(this_.currentScript.GetBinaryNamespace(), AstFactory_S_Type_1_Node(n))
 		_ = binaryNamespaceName
-		this_.priv_ClosureRewriteModule_declareGlobalVariable_1232(binaryNamespaceName, t)
+		this_.priv_ClosureRewriteModule_declareGlobalVariable_1233(binaryNamespaceName, t)
 		return
 	}
 	var jsdocNode pkg_rhino.Node = pkg_rhino.Node(0)
@@ -1550,7 +1550,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportDe
 		var binaryNamespaceName_2 pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(this_.currentScript.GetBinaryNamespace(), AstFactory_S_Type_1_Node(n))
 		_ = binaryNamespaceName_2
 		binaryNamespaceName_2.SetOriginalName("exports")
-		this_.priv_ClosureRewriteModule_declareGlobalVariable_1232(binaryNamespaceName_2, t)
+		this_.priv_ClosureRewriteModule_declareGlobalVariable_1233(binaryNamespaceName_2, t)
 		var exportsObjectCreationNode pkg_rhino.Node = pkg_rhino.IR_Var_2(binaryNamespaceName_2, rhs)
 		_ = exportsObjectCreationNode
 		exportsObjectCreationNode.SrcrefTreeIfMissing(exprResultNode)
@@ -1564,11 +1564,11 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportDe
 	}
 	ClosureRewriteModule_MarkConstAndCopyJsDoc(assignNode, jsdocNode)
 	this_.compiler.ReportChangeToEnclosingScope(jsdocNode)
-	this_.priv_ClosureRewriteModule_maybeUpdateExportObjectLiteral_1217(t, rhs)
+	this_.priv_ClosureRewriteModule_maybeUpdateExportObjectLiteral_1218(t, rhs)
 }
 
 // Java method: ClosureRewriteModule.maybeUpdateExportNameRef(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportNameRef_1220(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportNameRef_1221(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if (!(this_.currentScript.isModule) || !(ClosureRewriteModule_IsGoogModuleExportsRef(t, n))) || (n.GetParent() == 0) {
@@ -1585,7 +1585,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeUpdateExportNa
 		this_.compiler.ReportChangeToEnclosingScope(legacyQname)
 		return
 	}
-	this_.priv_ClosureRewriteModule_safeSetString_1228(n, this_.currentScript.GetBinaryNamespace())
+	this_.priv_ClosureRewriteModule_safeSetString_1229(n, this_.currentScript.GetBinaryNamespace())
 	if !(this_.currentScript.willCreateExportsObject || this_.currentScript.hasCreatedExportObject) {
 		j2gort.CheckState(false)
 	}
@@ -1608,7 +1608,7 @@ func (this_ *ClosureRewriteModule) UpdateModuleBody(moduleBody pkg_rhino.Node) {
 			_ = export
 			var nameNode pkg_rhino.Node = export.nameDecl.GetNameNode()
 			_ = nameNode
-			this_.priv_ClosureRewriteModule_safeSetMaybeQualifiedString_1229(nameNode, (j2gort.StrValString(this_.currentScript.GetBinaryNamespace()) + j2gort.StrValString(export.GetExportPostfix())), false)
+			this_.priv_ClosureRewriteModule_safeSetMaybeQualifiedString_1230(nameNode, (j2gort.StrValString(this_.currentScript.GetBinaryNamespace()) + j2gort.StrValString(export.GetExportPostfix())), false)
 		}
 	}
 	if !(this_.currentScript.isModule) {
@@ -1617,11 +1617,11 @@ func (this_ *ClosureRewriteModule) UpdateModuleBody(moduleBody pkg_rhino.Node) {
 	if !(this_.currentScript.declareLegacyNamespace || this_.currentScript.hasCreatedExportObject) {
 		j2gort.CheckStateMsg(false, j2gort.PtrToAny(this_.currentScript))
 	}
-	this_.priv_ClosureRewriteModule_popScript_1223()
+	this_.priv_ClosureRewriteModule_popScript_1224()
 }
 
 // Java method: ClosureRewriteModule.pushScript(com.google.javascript.jscomp.ClosureRewriteModule.ScriptDescription newCurrentScript)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_pushScript_1222(newCurrentScript *ClosureRewriteModule_ScriptDescription) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_pushScript_1223(newCurrentScript *ClosureRewriteModule_ScriptDescription) {
 	_ = newCurrentScript
 	this_.currentScript = newCurrentScript
 	if !(this_.scriptStack.IsEmpty()) {
@@ -1633,13 +1633,13 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_pushScript_1222(new
 }
 
 // Java method: ClosureRewriteModule.popScript()
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_popScript_1223() {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_popScript_1224() {
 	this_.scriptStack.RemoveFirst()
 	this_.currentScript = this_.scriptStack.PeekFirst()
 }
 
 // Java method: ClosureRewriteModule.exportTheEmptyBinaryNamespaceAt(com.google.javascript.rhino.Node atNode, com.google.javascript.jscomp.ClosureRewriteModule.AddAt addAt, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_exportTheEmptyBinaryNamespaceAt_1224(atNode pkg_rhino.Node, addAt ClosureRewriteModule_AddAt, t *NodeTraversal) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_exportTheEmptyBinaryNamespaceAt_1225(atNode pkg_rhino.Node, addAt ClosureRewriteModule_AddAt, t *NodeTraversal) {
 	_ = atNode
 	_ = addAt
 	_ = t
@@ -1653,7 +1653,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_exportTheEmptyBinar
 	var binaryNamespaceName pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(binaryNamespaceString, moduleType)
 	_ = binaryNamespaceName
 	binaryNamespaceName.SetOriginalName(this_.currentScript.namespaceId)
-	this_.priv_ClosureRewriteModule_declareGlobalVariable_1232(binaryNamespaceName, t)
+	this_.priv_ClosureRewriteModule_declareGlobalVariable_1233(binaryNamespaceName, t)
 	var binaryNamespaceExportNode pkg_rhino.Node = pkg_rhino.IR_Var_2(binaryNamespaceName, this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{}))
 	_ = binaryNamespaceExportNode
 	if addAt == StaticGet_ClosureRewriteModule_AddAt_BEFORE() {
@@ -1726,7 +1726,7 @@ func ClosureRewriteModule_MarkConstAndCopyJsDoc(from pkg_rhino.Node, target pkg_
 }
 
 // Java method: ClosureRewriteModule.recordExportToInline(com.google.javascript.jscomp.ClosureRewriteModule.ExportDefinition exportDefinition)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordExportToInline_1225(exportDefinition *ClosureRewriteModule_ExportDefinition) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordExportToInline_1226(exportDefinition *ClosureRewriteModule_ExportDefinition) {
 	_ = exportDefinition
 	j2gort.CheckStateFmt(exportDefinition.HasInlinableName(j2gort.AsIface[j2gort.Ext_java_util_Set](this_.currentScript.exportsToInline.LiveKeySet())), "exportDefinition: %s\n\nexportsToInline keys: %s", j2gort.PtrToAny(exportDefinition), j2gort.AsIface[j2gort.Ext_java_util_Set](this_.currentScript.exportsToInline.LiveKeySet()))
 	if !(this_.currentScript.exportsToInline.Put(exportDefinition.nameDecl, exportDefinition) == nil) {
@@ -1736,11 +1736,11 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordExportToInlin
 	_ = localName
 	var fullExportedName string = (j2gort.StrValString(this_.currentScript.GetBinaryNamespace()) + j2gort.StrValString(exportDefinition.GetExportPostfix()))
 	_ = fullExportedName
-	this_.priv_ClosureRewriteModule_recordNameToInline_1226(localName, fullExportedName, j2gort.NullString)
+	this_.priv_ClosureRewriteModule_recordNameToInline_1227(localName, fullExportedName, j2gort.NullString)
 }
 
 // Java method: ClosureRewriteModule.recordNameToInline(java.lang.String aliasName, java.lang.String newName, java.lang.@org.jspecify.annotations.Nullable String namespaceId)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordNameToInline_1226(aliasName string, newName string, namespaceId string) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordNameToInline_1227(aliasName string, newName string, namespaceId string) {
 	_ = aliasName
 	_ = newName
 	_ = namespaceId
@@ -1750,7 +1750,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordNameToInline_
 }
 
 // Java method: ClosureRewriteModule.reportUnrecognizedRequires()
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_reportUnrecognizedRequires_1227() {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_reportUnrecognizedRequires_1228() {
 	for _, unrecognizedRequire := range this_.unrecognizedRequires {
 		_ = unrecognizedRequire
 		var namespaceId string = unrecognizedRequire.namespaceId
@@ -1788,7 +1788,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_reportUnrecognizedR
 }
 
 // Java method: ClosureRewriteModule.safeSetString(com.google.javascript.rhino.Node n, java.lang.String newString)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_safeSetString_1228(n pkg_rhino.Node, newString string) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_safeSetString_1229(n pkg_rhino.Node, newString string) {
 	_ = n
 	_ = newString
 	if j2gort.CheckNotNullString(n.GetString()) == newString {
@@ -1808,12 +1808,12 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_safeSetString_1228(
 }
 
 // Java method: ClosureRewriteModule.safeSetMaybeQualifiedString(com.google.javascript.rhino.Node nameNode, java.lang.String newString, boolean isModuleNamespace)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_safeSetMaybeQualifiedString_1229(nameNode pkg_rhino.Node, newString string, isModuleNamespace bool) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_safeSetMaybeQualifiedString_1230(nameNode pkg_rhino.Node, newString string, isModuleNamespace bool) {
 	_ = nameNode
 	_ = newString
 	_ = isModuleNamespace
 	if !(j2gort.JStrIndexOf(newString, ".") >= 0) {
-		this_.priv_ClosureRewriteModule_safeSetString_1228(nameNode, newString)
+		this_.priv_ClosureRewriteModule_safeSetString_1229(nameNode, newString)
 		var parent pkg_rhino.Node = nameNode.GetParent()
 		_ = parent
 		if ((isModuleNamespace && parent.IsGetProp()) && nameNode.GetGrandparent().IsCall()) && parent.IsFirstChildOf(nameNode.GetGrandparent()) {
@@ -1930,7 +1930,7 @@ func ClosureRewriteModule_UpdateSourceInfoForExportedTopLevelVariable(assign pkg
 }
 
 // Java method: ClosureRewriteModule.isTopLevel(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.ClosureRewriteModule.ScopeType scopeType)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_isTopLevel_1230(t *NodeTraversal, n pkg_rhino.Node, scopeType ClosureRewriteModule_ScopeType) bool {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_isTopLevel_1231(t *NodeTraversal, n pkg_rhino.Node, scopeType ClosureRewriteModule_ScopeType) bool {
 	_ = t
 	_ = n
 	_ = scopeType
@@ -2004,7 +2004,7 @@ func ClosureRewriteModule_IsTypedefTarget(n pkg_rhino.Node) bool {
 }
 
 // Java method: ClosureRewriteModule.maybeAddAliasToSymbolTable(com.google.javascript.rhino.Node n, java.lang.String module)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeAddAliasToSymbolTable_1231(n pkg_rhino.Node, module string) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeAddAliasToSymbolTable_1232(n pkg_rhino.Node, module string) {
 	_ = n
 	_ = module
 	if this_.preprocessorSymbolTable != nil {
@@ -2023,7 +2023,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_maybeAddAliasToSymb
 }
 
 // Java method: ClosureRewriteModule.declareGlobalVariable(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_declareGlobalVariable_1232(n pkg_rhino.Node, t *NodeTraversal) {
+func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_declareGlobalVariable_1233(n pkg_rhino.Node, t *NodeTraversal) {
 	_ = n
 	_ = t
 	if !(n.IsName()) {
@@ -2685,7 +2685,7 @@ func (this_ *ClosureRewriteModule_ScriptPreprocessor) ShouldTraverse_3(t *NodeTr
 		}
 		return true
 	case int32(32) /* Token.NAME */ :
-		this_.outer_.priv_ClosureRewriteModule_preprocessExportDeclaration_1190(t, n)
+		this_.outer_.priv_ClosureRewriteModule_preprocessExportDeclaration_1191(t, n)
 		return true
 	default:
 		return !(parent.IsScript())
@@ -2752,7 +2752,7 @@ func (this_ *ClosureRewriteModule_ScriptRecorder) ShouldTraverse_3(t *NodeTraver
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(123) /* Token.MODULE_BODY */ :
-		this_.outer_.priv_ClosureRewriteModule_recordModuleBody_1191(n)
+		this_.outer_.priv_ClosureRewriteModule_recordModuleBody_1192(n)
 	case int32(28) /* Token.CALL */ :
 		var method pkg_rhino.Node = n.GetFirstChild()
 		_ = method
@@ -2760,41 +2760,41 @@ func (this_ *ClosureRewriteModule_ScriptRecorder) ShouldTraverse_3(t *NodeTraver
 			break
 		}
 		if method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_MODULE()) {
-			this_.outer_.priv_ClosureRewriteModule_recordGoogModule_1192(t, n)
+			this_.outer_.priv_ClosureRewriteModule_recordGoogModule_1193(t, n)
 		} else if method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE()) {
-			this_.outer_.priv_ClosureRewriteModule_recordGoogDeclareLegacyNamespace_1193()
+			this_.outer_.priv_ClosureRewriteModule_recordGoogDeclareLegacyNamespace_1194()
 		} else if method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_PROVIDE()) {
-			this_.outer_.priv_ClosureRewriteModule_recordGoogProvide_1195(t, n)
+			this_.outer_.priv_ClosureRewriteModule_recordGoogProvide_1196(t, n)
 		} else if method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_REQUIRE()) {
-			this_.outer_.priv_ClosureRewriteModule_recordGoogRequire_1196(t, n)
+			this_.outer_.priv_ClosureRewriteModule_recordGoogRequire_1197(t, n)
 		} else if method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_REQUIRETYPE()) {
-			this_.outer_.priv_ClosureRewriteModule_recordGoogRequireType_1197(t, n)
+			this_.outer_.priv_ClosureRewriteModule_recordGoogRequireType_1198(t, n)
 		} else if method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_REQUIREDYNAMIC()) {
-			this_.outer_.priv_ClosureRewriteModule_recordGoogRequireDynamic_1199(t, n)
+			this_.outer_.priv_ClosureRewriteModule_recordGoogRequireDynamic_1200(t, n)
 		} else if method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_FORWARDDECLARE()) && !(parent.IsExprResult()) {
-			this_.outer_.priv_ClosureRewriteModule_recordGoogForwardDeclare_1198(t, n)
+			this_.outer_.priv_ClosureRewriteModule_recordGoogForwardDeclare_1199(t, n)
 		} else if method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_MODULE_GET()) {
-			this_.outer_.priv_ClosureRewriteModule_recordGoogModuleGet_1200(t, n)
+			this_.outer_.priv_ClosureRewriteModule_recordGoogModuleGet_1201(t, n)
 		}
 	case int32(105) /* Token.CLASS */, int32(73) /* Token.FUNCTION */ :
-		if this_.outer_.priv_ClosureRewriteModule_isTopLevel_1230(t, n, StaticGet_ClosureRewriteModule_ScopeType_BLOCK()) {
-			this_.outer_.priv_ClosureRewriteModule_recordTopLevelClassOrFunctionName_1201(n)
+		if this_.outer_.priv_ClosureRewriteModule_isTopLevel_1231(t, n, StaticGet_ClosureRewriteModule_ScopeType_BLOCK()) {
+			this_.outer_.priv_ClosureRewriteModule_recordTopLevelClassOrFunctionName_1202(n)
 		}
 	case int32(97) /* Token.CONST */, int32(111) /* Token.LET */, int32(84) /* Token.VAR */ :
-		if this_.outer_.priv_ClosureRewriteModule_isTopLevel_1230(t, n, func() ClosureRewriteModule_ScopeType {
+		if this_.outer_.priv_ClosureRewriteModule_isTopLevel_1231(t, n, func() ClosureRewriteModule_ScopeType {
 			if n.IsVar() {
 				return StaticGet_ClosureRewriteModule_ScopeType_EXEC_CONTEXT()
 			}
 			return StaticGet_ClosureRewriteModule_ScopeType_BLOCK()
 		}()) {
-			this_.outer_.priv_ClosureRewriteModule_recordTopLevelVarNames_1202(n)
+			this_.outer_.priv_ClosureRewriteModule_recordTopLevelVarNames_1203(n)
 		}
 	case int32(26) /* Token.GETPROP */ :
 		if ClosureRewriteModule_IsExportPropertyAssignment(t, n) {
-			this_.outer_.priv_ClosureRewriteModule_recordExportsPropertyAssignment_1214(t, n)
+			this_.outer_.priv_ClosureRewriteModule_recordExportsPropertyAssignment_1215(t, n)
 		}
 	case int32(32) /* Token.NAME */ :
-		this_.outer_.priv_ClosureRewriteModule_maybeRecordExportDeclaration_1203(t, n)
+		this_.outer_.priv_ClosureRewriteModule_maybeRecordExportDeclaration_1204(t, n)
 	default:
 	}
 	return true
@@ -2806,7 +2806,7 @@ func (this_ *ClosureRewriteModule_ScriptRecorder) Visit_3(t *NodeTraversal, n pk
 	_ = n
 	_ = parent
 	if n.IsModuleBody() {
-		this_.outer_.priv_ClosureRewriteModule_popScript_1223()
+		this_.outer_.priv_ClosureRewriteModule_popScript_1224()
 	}
 }
 
@@ -2881,14 +2881,14 @@ func (this_ *ClosureRewriteModule_ScriptUpdater) ShouldTraverse_3(t *NodeTravers
 		if !(this_.outer_.scriptStack.IsEmpty()) {
 			j2gort.CheckState(false)
 		}
-		this_.outer_.priv_ClosureRewriteModule_pushScript_1222(currentDescription)
+		this_.outer_.priv_ClosureRewriteModule_pushScript_1223(currentDescription)
 		t.GetScope()
 		if this_.outer_.globalScope == nil {
 			this_.outer_.globalScope = j2gort.CastPtr[Scope](t.GetScope().GetGlobalScope())
 		}
 	case int32(123) /* Token.MODULE_BODY */ :
 		if parent.GetBooleanProp(pkg_rhino.StaticGet_Node_GOOG_MODULE()) {
-			this_.outer_.priv_ClosureRewriteModule_updateModuleBodyEarly_1204(n)
+			this_.outer_.priv_ClosureRewriteModule_updateModuleBodyEarly_1205(n)
 		} else {
 			return false
 		}
@@ -2899,24 +2899,24 @@ func (this_ *ClosureRewriteModule_ScriptUpdater) ShouldTraverse_3(t *NodeTravers
 			break
 		}
 		if method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_MODULE()) {
-			this_.outer_.priv_ClosureRewriteModule_updateGoogModule_1205(t, n)
+			this_.outer_.priv_ClosureRewriteModule_updateGoogModule_1206(t, n)
 		} else if method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE()) {
 			ClosureRewriteModule_UpdateGoogDeclareLegacyNamespace(n)
 		} else if method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_REQUIRE()) || method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_REQUIRETYPE()) {
-			this_.outer_.priv_ClosureRewriteModule_updateGoogRequire_1206(t, n)
+			this_.outer_.priv_ClosureRewriteModule_updateGoogRequire_1207(t, n)
 		} else if method.MatchesQualifiedName_1_Node(StaticGet_ClosureRewriteModule_GOOG_FORWARDDECLARE()) && !(parent.IsExprResult()) {
-			this_.outer_.priv_ClosureRewriteModule_updateGoogForwardDeclare_1208(t, n)
+			this_.outer_.priv_ClosureRewriteModule_updateGoogForwardDeclare_1209(t, n)
 		} else if StaticGet_ClosureRewriteModule_GOOG_MODULE_PREVENTMODULEEXPORTSEALING().Matches(method) {
 			ClosureRewriteModule_UpdateGoogPreventModuleExportsSealing(n)
 		}
 	case int32(26) /* Token.GETPROP */ :
 		if ClosureRewriteModule_IsExportPropertyAssignment(t, n) {
-			this_.outer_.priv_ClosureRewriteModule_updateExportsPropertyAssignment_1215(n, t)
+			this_.outer_.priv_ClosureRewriteModule_updateExportsPropertyAssignment_1216(n, t)
 		}
 	default:
 	}
 	if n.GetJSDocInfo() != nil {
-		this_.outer_.priv_ClosureRewriteModule_rewriteJsdoc_1182(n.GetJSDocInfo(), t.GetScope())
+		this_.outer_.priv_ClosureRewriteModule_rewriteJsdoc_1183(n.GetJSDocInfo(), t.GetScope())
 	}
 	return true
 }
@@ -2930,15 +2930,15 @@ func (this_ *ClosureRewriteModule_ScriptUpdater) Visit_3(t *NodeTraversal, n pkg
 	case int32(123) /* Token.MODULE_BODY */ :
 		this_.outer_.UpdateModuleBody(n)
 	case int32(32) /* Token.NAME */ :
-		this_.outer_.priv_ClosureRewriteModule_maybeUpdateTopLevelName_1216(t, n)
-		this_.outer_.priv_ClosureRewriteModule_maybeUpdateExportDeclaration_1219(t, n)
+		this_.outer_.priv_ClosureRewriteModule_maybeUpdateTopLevelName_1217(t, n)
+		this_.outer_.priv_ClosureRewriteModule_maybeUpdateExportDeclaration_1220(t, n)
 		t.GetScope()
-		this_.outer_.priv_ClosureRewriteModule_maybeUpdateExportNameRef_1220(t, n)
+		this_.outer_.priv_ClosureRewriteModule_maybeUpdateExportNameRef_1221(t, n)
 	case int32(94) /* Token.SCRIPT */ :
 		if !(this_.outer_.currentScript.rootNode == n) {
 			j2gort.CheckState(false)
 		}
-		this_.outer_.priv_ClosureRewriteModule_popScript_1223()
+		this_.outer_.priv_ClosureRewriteModule_popScript_1224()
 	default:
 	}
 }
@@ -3032,7 +3032,7 @@ func (this_ *ClosureRewriteModule_GlobalRewriteState) GetGoogModuleNamespaceType
 }
 
 // Java method: GlobalRewriteState.getExportedNamespaceOrScript(java.lang.String namespaceId)
-func (this_ *ClosureRewriteModule_GlobalRewriteState) priv_GlobalRewriteState_getExportedNamespaceOrScript_1245(namespaceId string) string {
+func (this_ *ClosureRewriteModule_GlobalRewriteState) priv_GlobalRewriteState_getExportedNamespaceOrScript_1246(namespaceId string) string {
 	_ = namespaceId
 	if this_.providedNamespaces.Contains(namespaceId) {
 		return namespaceId

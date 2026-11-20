@@ -666,13 +666,26 @@ func (s *limProtoStream) readInto(dst []byte) {
 	if len(dst) > s.rem {
 		panic(protoTruncatedMessage())
 	}
-	n, err := io.ReadFull(s.br, dst)
-	s.rem -= n
-	if err != nil {
-		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			panic(protoTruncatedMessage())
+	if s.br.Buffered() >= len(dst) {
+		b, _ := s.br.Peek(len(dst))
+		copy(dst, b)
+		_, _ = s.br.Discard(len(dst))
+		s.rem -= len(dst)
+		return
+	}
+	for len(dst) > 0 {
+		n, err := s.br.Read(dst)
+		s.rem -= n
+		dst = dst[n:]
+		if err != nil {
+			if len(dst) == 0 && err == io.EOF {
+				return
+			}
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				panic(protoTruncatedMessage())
+			}
+			panic(wrapInputStreamIOErr(err))
 		}
-		panic(wrapInputStreamIOErr(err))
 	}
 }
 
@@ -857,7 +870,7 @@ func CodedInputStream_NewInstanceBytes(b []byte) *CodedInputStream {
 
 var codedInputBufReaderPool = sync.Pool{
 	New: func() any {
-		return bufio.NewReaderSize(nil, 64*1024)
+		return bufio.NewReaderSize(nil, 4*1024)
 	},
 }
 

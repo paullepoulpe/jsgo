@@ -142,13 +142,13 @@ func (this_ *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback)
 		var fn pkg_rhino.Node = n.GetFirstChild()
 		_ = fn
 		if this_.outer_.compiler.GetCodingConvention().IsPropertyRenameFunction(fn) {
-			this_.priv_RemoveCompilerPropertyRenamingCallback_replacePropertyRenamingCall_4691(n)
+			this_.priv_RemoveCompilerPropertyRenamingCallback_replacePropertyRenamingCall_4701(n)
 		}
 	}
 }
 
 // Java method: RemoveCompilerPropertyRenamingCallback.replacePropertyRenamingCall(com.google.javascript.rhino.Node callNode)
-func (this_ *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) priv_RemoveCompilerPropertyRenamingCallback_replacePropertyRenamingCall_4691(callNode pkg_rhino.Node) {
+func (this_ *RemovePropertyRenamingCalls_RemoveCompilerPropertyRenamingCallback) priv_RemoveCompilerPropertyRenamingCallback_replacePropertyRenamingCall_4701(callNode pkg_rhino.Node) {
 	_ = callNode
 	var propName pkg_rhino.Node = NodeUtil_GetArgumentForCallOrNew(callNode, int32(0))
 	_ = propName

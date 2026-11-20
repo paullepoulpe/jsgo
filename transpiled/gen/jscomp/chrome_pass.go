@@ -236,15 +236,15 @@ func (this_ *ChromePass) Visit_3(t *NodeTraversal, node pkg_rhino.Node, parent p
 		var callee pkg_rhino.Node = node.GetFirstChild()
 		_ = callee
 		if callee.MatchesQualifiedName_1_string("cr.define") {
-			this_.priv_ChromePass_visitNamespaceDefinition_1135(node, parent)
+			this_.priv_ChromePass_visitNamespaceDefinition_1136(node, parent)
 		} else if callee.MatchesQualifiedName_1_string("Object.defineProperty") || callee.MatchesQualifiedName_1_string("cr.defineProperty") {
-			this_.priv_ChromePass_visitPropertyDefinition_1132(node, parent)
+			this_.priv_ChromePass_visitPropertyDefinition_1133(node, parent)
 		}
 	}
 }
 
 // Java method: ChromePass.visitPropertyDefinition(com.google.javascript.rhino.Node call, com.google.javascript.rhino.Node parent)
-func (this_ *ChromePass) priv_ChromePass_visitPropertyDefinition_1132(call pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *ChromePass) priv_ChromePass_visitPropertyDefinition_1133(call pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = call
 	_ = parent
 	var callee pkg_rhino.Node = call.GetFirstChild()
@@ -269,7 +269,7 @@ func (this_ *ChromePass) priv_ChromePass_visitPropertyDefinition_1132(call pkg_r
 	var getPropNode pkg_rhino.Node = NodeUtil_NewQName_2_AbstractCompiler_string(this_.compiler, (j2gort.StrValString(target) + "." + j2gort.StrValString(property.GetString()))).SrcrefTree(call)
 	_ = getPropNode
 	if isCrDefinePropertyCall {
-		var propertyType pkg_rhino.Node = this_.priv_ChromePass_getTypeByCrPropertyKind_1133(call.GetChildAtIndex(int32(3)))
+		var propertyType pkg_rhino.Node = this_.priv_ChromePass_getTypeByCrPropertyKind_1134(call.GetChildAtIndex(int32(3)))
 		_ = propertyType
 		if propertyType != 0 {
 			ChromePass_SetJsDocWithType(getPropNode, propertyType)
@@ -298,7 +298,7 @@ func (this_ *ChromePass) priv_ChromePass_visitPropertyDefinition_1132(call pkg_r
 }
 
 // Java method: ChromePass.getTypeByCrPropertyKind(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node propertyKind)
-func (this_ *ChromePass) priv_ChromePass_getTypeByCrPropertyKind_1133(propertyKind pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ChromePass) priv_ChromePass_getTypeByCrPropertyKind_1134(propertyKind pkg_rhino.Node) pkg_rhino.Node {
 	_ = propertyKind
 	if (propertyKind == 0) || StaticGet_ChromePass_CR_PROPERTYKIND_JS().Matches(propertyKind) {
 		return pkg_rhino.Node(0)
@@ -325,10 +325,10 @@ func ChromePass_SetJsDocWithType(target pkg_rhino.Node, type_ pkg_rhino.Node) {
 }
 
 // Java method: ChromePass.createAndInsertObjectsForQualifiedName(com.google.javascript.rhino.Node scriptChild, java.lang.String namespace)
-func (this_ *ChromePass) priv_ChromePass_createAndInsertObjectsForQualifiedName_1134(scriptChild pkg_rhino.Node, namespace string) {
+func (this_ *ChromePass) priv_ChromePass_createAndInsertObjectsForQualifiedName_1135(scriptChild pkg_rhino.Node, namespace string) {
 	_ = scriptChild
 	_ = namespace
-	var objectsForQualifiedName j2gort.Ext_java_util_List = this_.priv_ChromePass_createObjectsForQualifiedName_1136(namespace)
+	var objectsForQualifiedName j2gort.Ext_java_util_List = this_.priv_ChromePass_createObjectsForQualifiedName_1137(namespace)
 	_ = objectsForQualifiedName
 	{
 		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(objectsForQualifiedName))
@@ -344,7 +344,7 @@ func (this_ *ChromePass) priv_ChromePass_createAndInsertObjectsForQualifiedName_
 }
 
 // Java method: ChromePass.visitNamespaceDefinition(com.google.javascript.rhino.Node crDefineCallNode, com.google.javascript.rhino.Node parent)
-func (this_ *ChromePass) priv_ChromePass_visitNamespaceDefinition_1135(crDefineCallNode pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *ChromePass) priv_ChromePass_visitNamespaceDefinition_1136(crDefineCallNode pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = crDefineCallNode
 	_ = parent
 	if crDefineCallNode.GetChildCount() != int32(3) {
@@ -360,7 +360,7 @@ func (this_ *ChromePass) priv_ChromePass_visitNamespaceDefinition_1135(crDefineC
 	}
 	var namespace string = namespaceArg.GetString()
 	_ = namespace
-	this_.priv_ChromePass_createAndInsertObjectsForQualifiedName_1134(parent, namespace)
+	this_.priv_ChromePass_createAndInsertObjectsForQualifiedName_1135(parent, namespace)
 	if !(function.IsFunction()) {
 		this_.compiler.Report_1(JSError_Make_3(namespaceArg, StaticGet_ChromePass_CR_DEFINE_INVALID_SECOND_ARGUMENT(), []string{}))
 		return
@@ -419,13 +419,13 @@ func ChromePass_ObjectLitToMap(objectLit pkg_rhino.Node) j2gort.Ext_java_util_Ma
 }
 
 // Java method: ChromePass.createObjectsForQualifiedName(java.lang.String namespace)
-func (this_ *ChromePass) priv_ChromePass_createObjectsForQualifiedName_1136(namespace string) j2gort.Ext_java_util_List {
+func (this_ *ChromePass) priv_ChromePass_createObjectsForQualifiedName_1137(namespace string) j2gort.Ext_java_util_List {
 	_ = namespace
 	var objects j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList()
 	_ = objects
 	var parts []string = j2gort.JStrSplit(namespace, "\\.")
 	_ = parts
-	this_.priv_ChromePass_createObjectIfNew_1137(objects, parts[int32(0)], true)
+	this_.priv_ChromePass_createObjectIfNew_1138(objects, parts[int32(0)], true)
 	if int32(len(parts)) >= int32(2) {
 		var currPrefix j2gort.LocalStringBuilder
 		currPrefix.AppendStr(parts[int32(0)])
@@ -435,7 +435,7 @@ func (this_ *ChromePass) priv_ChromePass_createObjectsForQualifiedName_1136(name
 			_ = i
 			for ; i < int32(len(parts)); i = i + 1 {
 				currPrefix.AppendStr(".").AppendStr(parts[i])
-				this_.priv_ChromePass_createObjectIfNew_1137(objects, currPrefix.String(), false)
+				this_.priv_ChromePass_createObjectIfNew_1138(objects, currPrefix.String(), false)
 			}
 		}
 	}
@@ -443,7 +443,7 @@ func (this_ *ChromePass) priv_ChromePass_createObjectsForQualifiedName_1136(name
 }
 
 // Java method: ChromePass.createObjectIfNew(java.util.List<com.google.javascript.rhino.Node> objects, java.lang.String name, boolean needVar)
-func (this_ *ChromePass) priv_ChromePass_createObjectIfNew_1137(objects j2gort.Ext_java_util_List, name string, needVar bool) {
+func (this_ *ChromePass) priv_ChromePass_createObjectIfNew_1138(objects j2gort.Ext_java_util_List, name string, needVar bool) {
 	_ = objects
 	_ = name
 	_ = needVar
@@ -539,7 +539,7 @@ func (this_ *ChromePass_RenameInternalsToExternalsCallback) Visit_3(t *NodeTrave
 			className.ReplaceWith(pkg_rhino.IR_Empty().Srcref(className))
 		}
 		NodeUtil_MarkNewScopesChanged_2_Node_AbstractCompiler(clone, this_.outer_.compiler)
-		var exprResult pkg_rhino.Node = pkg_rhino.IR_ExprResult(pkg_rhino.IR_Assign(this_.priv_RenameInternalsToExternalsCallback_buildQualifiedName_1138(n.GetFirstChild()), clone).Srcref(n)).Srcref(n)
+		var exprResult pkg_rhino.Node = pkg_rhino.IR_ExprResult(pkg_rhino.IR_Assign(this_.priv_RenameInternalsToExternalsCallback_buildQualifiedName_1139(n.GetFirstChild()), clone).Srcref(n)).Srcref(n)
 		_ = exprResult
 		if n.GetJSDocInfo() != nil {
 			exprResult.GetFirstChild().SetJSDocInfo(n.GetJSDocInfo())
@@ -556,9 +556,9 @@ func (this_ *ChromePass_RenameInternalsToExternalsCallback) Visit_3(t *NodeTrave
 				var exprResult_2 pkg_rhino.Node = pkg_rhino.Node(0)
 				_ = exprResult_2
 				if varContent == 0 {
-					exprResult_2 = pkg_rhino.IR_ExprResult(this_.priv_RenameInternalsToExternalsCallback_buildQualifiedName_1138(n)).Srcref(parent)
+					exprResult_2 = pkg_rhino.IR_ExprResult(this_.priv_RenameInternalsToExternalsCallback_buildQualifiedName_1139(n)).Srcref(parent)
 				} else {
-					exprResult_2 = pkg_rhino.IR_ExprResult(pkg_rhino.IR_Assign(this_.priv_RenameInternalsToExternalsCallback_buildQualifiedName_1138(n), varContent).Srcref(parent)).Srcref(parent)
+					exprResult_2 = pkg_rhino.IR_ExprResult(pkg_rhino.IR_Assign(this_.priv_RenameInternalsToExternalsCallback_buildQualifiedName_1139(n), varContent).Srcref(parent)).Srcref(parent)
 				}
 				if parent.GetJSDocInfo() != nil {
 					exprResult_2.GetFirstChild().SetJSDocInfo(parent.GetJSDocInfo().Clone_0())
@@ -567,7 +567,7 @@ func (this_ *ChromePass_RenameInternalsToExternalsCallback) Visit_3(t *NodeTrave
 				this_.outer_.compiler.ReportChangeToEnclosingScope(exprResult_2)
 			}
 		} else {
-			var newNode pkg_rhino.Node = this_.priv_RenameInternalsToExternalsCallback_buildQualifiedName_1138(n)
+			var newNode pkg_rhino.Node = this_.priv_RenameInternalsToExternalsCallback_buildQualifiedName_1139(n)
 			_ = newNode
 			if n.GetJSDocInfo() != nil {
 				newNode.SetJSDocInfo(n.GetJSDocInfo().Clone_0())
@@ -582,7 +582,7 @@ func (this_ *ChromePass_RenameInternalsToExternalsCallback) Visit_3(t *NodeTrave
 }
 
 // Java method: RenameInternalsToExternalsCallback.buildQualifiedName(com.google.javascript.rhino.Node internalName)
-func (this_ *ChromePass_RenameInternalsToExternalsCallback) priv_RenameInternalsToExternalsCallback_buildQualifiedName_1138(internalName pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ChromePass_RenameInternalsToExternalsCallback) priv_RenameInternalsToExternalsCallback_buildQualifiedName_1139(internalName pkg_rhino.Node) pkg_rhino.Node {
 	_ = internalName
 	var externalName string = j2gort.CastString(j2gort.MapGetStr(this_.exports, internalName.GetString()))
 	_ = externalName

@@ -853,17 +853,13 @@ func checkDetachedAllocatorFail(c Node, rec *NodeData) {
 
 // AllocNode1Cached allocates a leaf node with token tok using the cached SetTemplate state.
 func (a *NodeAllocator) AllocNode1Cached(tok uint8) Node {
-	return allocNode1Cached(a, tok, (*NodeAllocator).allocNode1CachedSlow)
-}
-
-func allocNode1Cached(a *NodeAllocator, tok uint8, slow func(*NodeAllocator, uint8) Node) Node {
 	if id := a.next; id < a.end {
 		a.next++
 		r := &a.blk[id&blockMask]
 		r.Token, r.SourceFile16, r.PropFlags, r.LinenoCharno = tok, a.tmplSF16, a.tmplPropFlags, -1
 		return id
 	}
-	return slow(a, tok)
+	return a.allocNode1CachedSlow(tok)
 }
 
 //go:noinline
@@ -873,17 +869,13 @@ func (a *NodeAllocator) allocNode1CachedSlow(tok uint8) Node {
 
 // AllocNode1 allocates a leaf node with token tok and template properties from tmpl.
 func (a *NodeAllocator) AllocNode1(tok uint8, tmpl Node) Node {
-	return allocNode1(a, tok, tmpl, (*NodeAllocator).allocNode1Slow)
-}
-
-func allocNode1(a *NodeAllocator, tok uint8, tmpl Node, slow func(*NodeAllocator, uint8, Node) Node) Node {
 	if id := a.next; id < a.end && a.tmplNode == tmpl {
 		a.next++
 		r := &a.blk[id&blockMask]
 		r.Token, r.SourceFile16, r.PropFlags, r.LinenoCharno = tok, a.tmplSF16, a.tmplPropFlags, -1
 		return id
 	}
-	return slow(a, tok, tmpl)
+	return a.allocNode1Slow(tok, tmpl)
 }
 
 //go:noinline
@@ -1024,17 +1016,13 @@ func (a *NodeAllocator) allocNode4Slow(tok uint8, c1, c2, c3, tmpl Node) Node {
 // AllocStringNodeCached allocates a StringNode (KindFlags = 3) with token tok and interned strID
 // using the cached SetTemplate state.
 func (a *NodeAllocator) AllocStringNodeCached(tok uint8, strID StringID) Node {
-	return allocStringNodeCached(a, tok, strID, (*NodeAllocator).allocStringNodeCachedSlow)
-}
-
-func allocStringNodeCached(a *NodeAllocator, tok uint8, strID StringID, slow func(*NodeAllocator, uint8, StringID) Node) Node {
 	if id := a.next; id < a.end {
 		a.next++
 		r := &a.blk[id&blockMask]
 		r.Token, r.KindFlags, r.SourceFile16, r.Payload, r.PropFlags, r.LinenoCharno = tok, 3, a.tmplSF16, uint32(strID), a.tmplPropFlags, -1
 		return id
 	}
-	return slow(a, tok, strID)
+	return a.allocStringNodeCachedSlow(tok, strID)
 }
 
 //go:noinline
@@ -1044,23 +1032,13 @@ func (a *NodeAllocator) allocStringNodeCachedSlow(tok uint8, strID StringID) Nod
 
 // AllocStringNode allocates a StringNode (KindFlags = 3) with token tok, interned strID, and template tmpl.
 func (a *NodeAllocator) AllocStringNode(tok uint8, strID StringID, tmpl Node) Node {
-	return allocStringNode(a, tok, strID, tmpl, (*NodeAllocator).allocStringNodeSlow)
-}
-
-func allocStringNode(a *NodeAllocator, tok uint8, strID StringID, tmpl Node, slow func(*NodeAllocator, uint8, StringID, Node) Node) Node {
 	if id := a.next; id < a.end && a.tmplNode == tmpl {
 		a.next++
-		a.blk[id&blockMask] = NodeData{
-			Token:        tok,
-			KindFlags:    3,
-			SourceFile16: a.tmplSF16,
-			Payload:      uint32(strID),
-			PropFlags:    a.tmplPropFlags,
-			LinenoCharno: -1,
-		}
+		r := &a.blk[id&blockMask]
+		r.Token, r.KindFlags, r.SourceFile16, r.Payload, r.PropFlags, r.LinenoCharno = tok, 3, a.tmplSF16, uint32(strID), a.tmplPropFlags, -1
 		return id
 	}
-	return slow(a, tok, strID, tmpl)
+	return a.allocStringNodeSlow(tok, strID, tmpl)
 }
 
 //go:noinline

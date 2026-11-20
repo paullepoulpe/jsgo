@@ -100,14 +100,14 @@ func InitCoverageInstrumentationPass_2(this_ *CoverageInstrumentationPass, compi
 }
 
 // Java method: CoverageInstrumentationPass.addHeaderCode(com.google.javascript.rhino.Node script)
-func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_addHeaderCode_6490(script pkg_rhino.Node) {
+func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_addHeaderCode_6503(script pkg_rhino.Node) {
 	_ = script
-	script.AddChildToFront(this_.priv_CoverageInstrumentationPass_createConditionalObjectDecl_6493("__jscov", script))
+	script.AddChildToFront(this_.priv_CoverageInstrumentationPass_createConditionalObjectDecl_6506("__jscov", script))
 	script.AddChildToFront(this_.compiler.ParseSyntheticCode("coverage_instrumentation_header", "(function(self) { if (!self.window) { self.window = self; self.window.top = self; }})(typeof self !== 'undefined' ? self : globalThis)").RemoveFirstChild().SrcrefTreeIfMissing(script))
 }
 
 // Java method: CoverageInstrumentationPass.addProductionHeaderCode(com.google.javascript.rhino.Node script, java.lang.String arrayName)
-func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_addProductionHeaderCode_6491(script pkg_rhino.Node, arrayName string) {
+func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_addProductionHeaderCode_6504(script pkg_rhino.Node, arrayName string) {
 	_ = script
 	_ = arrayName
 	var arrayLit pkg_rhino.Node = pkg_rhino.IR_Arraylit_1_Node([]pkg_rhino.Node{})
@@ -120,7 +120,7 @@ func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_addPr
 }
 
 // Java method: CoverageInstrumentationPass.checkIfArrayNameExternDeclared(com.google.javascript.rhino.Node externsNode, java.lang.String arrayName)
-func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_checkIfArrayNameExternDeclared_6492(externsNode pkg_rhino.Node, arrayName string) {
+func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_checkIfArrayNameExternDeclared_6505(externsNode pkg_rhino.Node, arrayName string) {
 	_ = externsNode
 	_ = arrayName
 	if !(j2gort.SetContainsStr(NodeUtil_CollectExternVariableNames(this_.compiler, externsNode), arrayName)) {
@@ -141,7 +141,7 @@ func (this_ *CoverageInstrumentationPass) Process_2(externsNode pkg_rhino.Node, 
 			var productionCoverageInstrumentationCallback *ProductionCoverageInstrumentationCallback = &val_1
 			_ = productionCoverageInstrumentationCallback
 			NodeTraversal_Traverse(this_.compiler, rootNode, productionCoverageInstrumentationCallback)
-			this_.priv_CoverageInstrumentationPass_checkIfArrayNameExternDeclared_6492(externsNode, this_.productionInstrumentationArrayName)
+			this_.priv_CoverageInstrumentationPass_checkIfArrayNameExternDeclared_6505(externsNode, this_.productionInstrumentationArrayName)
 			var instrumentationMapping *VariableMap = productionCoverageInstrumentationCallback.GetInstrumentationMapping()
 			_ = instrumentationMapping
 			this_.compiler.SetInstrumentationMapping(instrumentationMapping)
@@ -157,15 +157,15 @@ func (this_ *CoverageInstrumentationPass) Process_2(externsNode pkg_rhino.Node, 
 			firstScript = firstScript.GetFirstChild()
 		}
 		if this_.instrumentOption == StaticGet_CompilerOptions_InstrumentOption_PRODUCTION() {
-			this_.priv_CoverageInstrumentationPass_addProductionHeaderCode_6491(firstScript, this_.productionInstrumentationArrayName)
+			this_.priv_CoverageInstrumentationPass_addProductionHeaderCode_6504(firstScript, this_.productionInstrumentationArrayName)
 		} else {
-			this_.priv_CoverageInstrumentationPass_addHeaderCode_6490(firstScript)
+			this_.priv_CoverageInstrumentationPass_addHeaderCode_6503(firstScript)
 		}
 	}
 }
 
 // Java method: CoverageInstrumentationPass.createConditionalObjectDecl(java.lang.String name, com.google.javascript.rhino.Node srcref)
-func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_createConditionalObjectDecl_6493(name string, srcref pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_createConditionalObjectDecl_6506(name string, srcref pkg_rhino.Node) pkg_rhino.Node {
 	_ = name
 	_ = srcref
 	var jscovData pkg_rhino.Node = pkg_rhino.Node(0)

@@ -185,18 +185,26 @@ func (this_ *StringPool) ToProto() *j2gort.Ext_com_google_javascript_jscomp_seri
 // Java static method: StringPool.builder()
 func StringPool_S_Builder() *StringPool_Builder {
 	clinit_StringPool()
-	return NewStringPool_Builder()
+	return NewStringPool_Builder(int32(1024), int32(2048))
+}
+
+// Java static method: StringPool.smallBuilder()
+func StringPool_SmallBuilder() *StringPool_Builder {
+	clinit_StringPool()
+	return NewStringPool_Builder(int32(8), int32(16))
 }
 
 // Java class: com.google.javascript.jscomp.serialization.StringPool.Builder
 type StringPool_Builder struct {
-	pool      []string `gson:"pool"`
-	table     []int64  `gson:"table"`
-	idToPool  []int32  `gson:"idToPool"`
-	maxLength int32    `gson:"maxLength"`
-	size      int32    `gson:"size"`
-	idHash_   atomic.Int32
-	built     bool `gson:"built"`
+	pool            []string `gson:"pool"`
+	table           []int64  `gson:"table"`
+	idToPool        []int32  `gson:"idToPool"`
+	initialPoolCap  int32    `gson:"initialPoolCap"`
+	initialTableCap int32    `gson:"initialTableCap"`
+	maxLength       int32    `gson:"maxLength"`
+	size            int32    `gson:"size"`
+	idHash_         atomic.Int32
+	built           bool `gson:"built"`
 }
 
 func (this_ *StringPool_Builder) BindSelf_(s any) {
@@ -225,27 +233,23 @@ func init() {
 func (this_ *StringPool_Builder) initFields_StringPool_Builder() {
 	_ = this_
 
-	this_.idToPool = make([]int32, int32(4096))
+	this_.size = int32(1)
 
 }
 
-// Java constructor: Builder()
-func NewStringPool_Builder() *StringPool_Builder {
+// Java constructor: Builder(int initialPoolCap, int initialTableCap)
+func NewStringPool_Builder(initialPoolCap int32, initialTableCap int32) *StringPool_Builder {
 	this_ := &StringPool_Builder{}
-	InitStringPool_Builder(this_)
+	InitStringPool_Builder(this_, initialPoolCap, initialTableCap)
 	return this_
 }
 
-func InitStringPool_Builder(this_ *StringPool_Builder) {
+func InitStringPool_Builder(this_ *StringPool_Builder, initialPoolCap int32, initialTableCap int32) {
+	_ = initialPoolCap
+	_ = initialTableCap
 	this_.initFields_StringPool_Builder()
-	this_.pool = j2gort.NewStringArray(int32(256))
-	{
-		a_5 := this_.pool
-		i_6 := int32(0)
-		a_5[i_6] = ""
-	}
-	this_.size = int32(1)
-	this_.table = make([]int64, int32(2048))
+	this_.initialPoolCap = initialPoolCap
+	this_.initialTableCap = initialTableCap
 }
 
 // Java method: Builder.putNodeString(com.google.javascript.rhino.Node n)
@@ -270,7 +274,15 @@ func (this_ *StringPool_Builder) PutByInternedId(id int32) int32 {
 	}
 	var map_ []int32 = this_.idToPool
 	_ = map_
-	if id < int32(len(map_)) {
+	if map_ == nil {
+		var cap_ int32 = int32(4096)
+		_ = cap_
+		for cap_ <= id {
+			cap_ = javalang.Shl32(cap_, int(int32(1)))
+		}
+		map_ = make([]int32, cap_)
+		this_.idToPool = map_
+	} else if id < int32(len(map_)) {
 		var cached int32 = map_[id]
 		_ = cached
 		if cached != int32(0) {
@@ -284,15 +296,15 @@ func (this_ *StringPool_Builder) PutByInternedId(id int32) int32 {
 		}
 		{
 
-			arrSrc_7 := map_
-			arrLen_8 := newCap
-			j2gort.CheckNotNullSlice(arrSrc_7)
-			if arrLen_8 < 0 {
+			arrSrc_5 := map_
+			arrLen_6 := newCap
+			j2gort.CheckNotNullSlice(arrSrc_5)
+			if arrLen_6 < 0 {
 				panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
 			}
-			arrOut_9 := make([]int32, arrLen_8)
-			copy(arrOut_9, arrSrc_7)
-			map_ = arrOut_9
+			arrOut_7 := make([]int32, arrLen_6)
+			copy(arrOut_7, arrSrc_5)
+			map_ = arrOut_7
 		}
 
 		this_.idToPool = map_
@@ -300,9 +312,9 @@ func (this_ *StringPool_Builder) PutByInternedId(id int32) int32 {
 	var ptr int32 = this_.Put(j2gort.CheckNotNullString(pkg_rhino.RhinoStringPool_StringById(id)))
 	_ = ptr
 	{
-		a_10 := map_
-		i_11 := id
-		a_10[i_11] = (ptr + int32(1))
+		a_8 := map_
+		i_9 := id
+		a_8[i_9] = (ptr + int32(1))
 	}
 	return ptr
 }
@@ -316,49 +328,73 @@ func (this_ *StringPool_Builder) Put(string_ string) int32 {
 	}
 	var hash int32 = j2gort.FastStrHash32(string_)
 	_ = hash
+	var poolArr []string = this_.pool
+	_ = poolArr
 	var tbl []int64 = this_.table
 	_ = tbl
-	var mask int32 = (int32(len(tbl)) - int32(1))
+	var mask int32 = int32(0)
 	_ = mask
-	var slot int32 = (hash & mask)
+	var slot int32 = int32(0)
 	_ = slot
-	var entry int64 = int64(0)
-	_ = entry
-	for (func() int64 { var asgn_12 int64 = tbl[slot]; entry = asgn_12; return asgn_12 }()) != int64(0) {
-		if (int32((javalang.Ushr64(entry, int(int32(32)))))) == hash {
-			var idx int32 = ((int32(entry)) - int32(1))
-			_ = idx
-			if j2gort.CheckNotNullString(this_.pool[idx]) == string_ {
-				return idx
-			}
+	if poolArr == nil {
+		poolArr = j2gort.NewStringArray(this_.initialPoolCap)
+		{
+			a_10 := poolArr
+			i_11 := int32(0)
+			a_10[i_11] = ""
 		}
-		slot = ((slot + int32(1)) & mask)
-	}
-	if this_.built {
-		this_.pool = func() []string {
-			arrSrc_13 := this_.pool
-			arrLen_14 := max(int32(len(this_.pool)), (this_.size + int32(16)))
-			j2gort.CheckNotNullSlice(arrSrc_13)
-			if arrLen_14 < 0 {
-				panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+		this_.pool = poolArr
+		tbl = make([]int64, this_.initialTableCap)
+		this_.table = tbl
+		mask = (int32(len(tbl)) - int32(1))
+		slot = (hash & mask)
+	} else {
+		mask = (int32(len(tbl)) - int32(1))
+		slot = (hash & mask)
+		var entry int64 = int64(0)
+		_ = entry
+		for (func() int64 { var asgn_12 int64 = tbl[slot]; entry = asgn_12; return asgn_12 }()) != int64(0) {
+			if (int32((javalang.Ushr64(entry, int(int32(32)))))) == hash {
+				var idx int32 = ((int32(entry)) - int32(1))
+				_ = idx
+				if j2gort.CheckNotNullString(poolArr[idx]) == string_ {
+					return idx
+				}
 			}
-			arrOut_15 := j2gort.NewStringArray(arrLen_14)
-			copy(arrOut_15, arrSrc_13)
-			return arrOut_15
-		}()
-		this_.built = false
-	} else if this_.size == int32(len(this_.pool)) {
-		this_.pool = func() []string {
-			arrSrc_16 := this_.pool
-			arrLen_17 := (int32(len(this_.pool)) * int32(2))
-			j2gort.CheckNotNullSlice(arrSrc_16)
-			if arrLen_17 < 0 {
-				panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+			slot = ((slot + int32(1)) & mask)
+		}
+		if this_.built {
+			{
+
+				arrSrc_13 := poolArr
+				arrLen_14 := max(int32(len(poolArr)), (this_.size + int32(16)))
+				j2gort.CheckNotNullSlice(arrSrc_13)
+				if arrLen_14 < 0 {
+					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+				}
+				arrOut_15 := j2gort.NewStringArray(arrLen_14)
+				copy(arrOut_15, arrSrc_13)
+				poolArr = arrOut_15
 			}
-			arrOut_18 := j2gort.NewStringArray(arrLen_17)
-			copy(arrOut_18, arrSrc_16)
-			return arrOut_18
-		}()
+
+			this_.pool = poolArr
+			this_.built = false
+		} else if this_.size == int32(len(poolArr)) {
+			{
+
+				arrSrc_16 := poolArr
+				arrLen_17 := (int32(len(poolArr)) * int32(2))
+				j2gort.CheckNotNullSlice(arrSrc_16)
+				if arrLen_17 < 0 {
+					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+				}
+				arrOut_18 := j2gort.NewStringArray(arrLen_17)
+				copy(arrOut_18, arrSrc_16)
+				poolArr = arrOut_18
+			}
+
+			this_.pool = poolArr
+		}
 	}
 	var len_ int32 = j2gort.JStrLen(string_)
 	_ = len_
@@ -368,7 +404,7 @@ func (this_ *StringPool_Builder) Put(string_ string) int32 {
 	var id int32 = this_.size
 	_ = id
 	{
-		a_19 := this_.pool
+		a_19 := poolArr
 		i_20 := id
 		a_19[i_20] = string_
 	}
@@ -376,7 +412,7 @@ func (this_ *StringPool_Builder) Put(string_ string) int32 {
 	_ = newSize
 	this_.size = newSize
 	if (javalang.Shl32(newSize, int(int32(2)))) > (int32(len(tbl)) * int32(3)) {
-		tbl = this_.priv_Builder_rehash_7810(javalang.Shl32(int32(len(tbl)), int(int32(1))))
+		tbl = this_.priv_Builder_rehash_7827(javalang.Shl32(int32(len(tbl)), int(int32(1))))
 		mask = (int32(len(tbl)) - int32(1))
 		slot = (hash & mask)
 		for tbl[slot] != int64(0) {
@@ -392,7 +428,7 @@ func (this_ *StringPool_Builder) Put(string_ string) int32 {
 }
 
 // Java method: Builder.rehash(int newCap)
-func (this_ *StringPool_Builder) priv_Builder_rehash_7810(newCap int32) []int64 {
+func (this_ *StringPool_Builder) priv_Builder_rehash_7827(newCap int32) []int64 {
 	_ = newCap
 	var oldTbl []int64 = this_.table
 	_ = oldTbl
@@ -435,6 +471,9 @@ func (this_ *StringPool_Builder) PutAnd(string_ string) *StringPool_Builder {
 
 // Java method: Builder.build()
 func (this_ *StringPool_Builder) Build() *StringPool {
+	if this_.pool == nil {
+		return StaticGet_StringPool_EMPTY()
+	}
 	this_.built = true
 	return NewStringPool(this_.maxLength, this_.pool, this_.size)
 }

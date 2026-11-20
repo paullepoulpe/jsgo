@@ -30,7 +30,7 @@ var lambdaSingleton_coding_convention_1 j2gort.Ext_java_util_function_Function
 
 func init() {
 	lambdaSingleton_coding_convention_1 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
-		return j2gort.AsIface[CodingConvention_AssertionFunctionSpec](mrp0_).GetCodingConvention_AssertionFunctionSpecBase().priv_AssertionFunctionSpec_getId_1389()
+		return j2gort.AsIface[CodingConvention_AssertionFunctionSpec](mrp0_).GetCodingConvention_AssertionFunctionSpecBase().priv_AssertionFunctionSpec_getId_1390()
 	})
 }
 
@@ -554,7 +554,7 @@ func CodingConvention_AssertionFunctionSpec_ForMatchesReturn() CodingConvention_
 }
 
 // Java method: AssertionFunctionSpec.getId()
-func (this_ *CodingConvention_AssertionFunctionSpecBase) priv_AssertionFunctionSpec_getId_1389() any {
+func (this_ *CodingConvention_AssertionFunctionSpecBase) priv_AssertionFunctionSpec_getId_1390() any {
 	if this_.self_.GetClosurePrimitive() != 0 {
 		return j2gort.BoxNullableVal(this_.self_.GetClosurePrimitive())
 	} else {

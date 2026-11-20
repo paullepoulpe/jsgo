@@ -7055,6 +7055,7 @@ type jSortedMapState struct {
 	root     int32
 	freeTree int32
 	natOrder bool
+	inline   [1]jTreeNode
 }
 
 type JMapEntry struct {
@@ -7289,6 +7290,14 @@ func (m *JMapCore) InitExpectedSize(expected int32) {
 	if expected < 0 {
 		panic(javalang.NewIllegalArgumentException("Illegal initial capacity: " + fmt.Sprint(expected)))
 	}
+	if expected > 1 && (m.mode == jMapModeSortedNat || m.mode == jMapModeSortedCmp) {
+		want := min(int(expected), 1<<20)
+		st := m.ensureSortedState()
+		if want > cap(st.tree) {
+			st.ensureTreeCap(want)
+		}
+		return
+	}
 	if expected > 0 && (m.mode == jMapModeEmpty || m.mode == jMapModeNullOnly || m.mode == jMapModeNode1) {
 		if expected > 262144 {
 			expected = 262144
@@ -7399,6 +7408,29 @@ func (s *jSortedMapState) avlRebalance(id int32) int32 {
 	return id
 }
 
+func (s *jSortedMapState) ensureTreeCap(want int) {
+	if want <= cap(s.tree) {
+		return
+	}
+	newCap := cap(s.tree) * 2
+	if newCap < pooledSliceMinCap {
+		newCap = pooledSliceMinCap
+	}
+	if newCap < want {
+		newCap = want
+	}
+	old := s.tree
+	next := AcquirePooledSlice[jTreeNode](newCap)
+	next = next[:len(old)]
+	copy(next, old)
+	if cap(old) >= pooledSliceMinCap {
+		ReleasePooledSlice(old)
+	} else if len(old) > 0 {
+		clear(old)
+	}
+	s.tree = next
+}
+
 func (s *jSortedMapState) avlAllocNode(isStr bool, strKey string, key, val any) int32 {
 	if s.freeTree != 0 {
 		id := s.freeTree
@@ -7408,9 +7440,12 @@ func (s *jSortedMapState) avlAllocNode(isStr bool, strKey string, key, val any) 
 	}
 	node := jTreeNode{height: 1, isStr: isStr, strKey: strKey, key: key, val: val}
 	if s.tree == nil {
-		s.tree = make([]jTreeNode, 1, 4)
+		s.tree = s.inline[:1]
 		s.tree[0] = node
 		return 1
+	}
+	if len(s.tree) == cap(s.tree) {
+		s.ensureTreeCap(len(s.tree) + 1)
 	}
 	s.tree = append(s.tree, node)
 	return int32(len(s.tree))
@@ -10399,15 +10434,21 @@ func (m *JMapCore) CopySortedFrom(src *JMapCore) {
 		return
 	}
 	sst := src.ext.(*jSortedMapState)
-	dstTree := make([]jTreeNode, len(sst.tree))
-	copy(dstTree, sst.tree)
-	m.ext = &jSortedMapState{
-		tree:     dstTree,
+	dst := &jSortedMapState{
 		root:     sst.root,
 		freeTree: sst.freeTree,
 		cmp:      sst.cmp,
 		natOrder: sst.natOrder,
 	}
+	if len(sst.tree) == 1 {
+		dst.inline[0] = sst.tree[0]
+		dst.tree = dst.inline[:1]
+	} else if len(sst.tree) > 1 {
+		dstTree := make([]jTreeNode, len(sst.tree))
+		copy(dstTree, sst.tree)
+		dst.tree = dstTree
+	}
+	m.ext = dst
 }
 
 func (m *JMapCore) ContainsKey(k any) bool {

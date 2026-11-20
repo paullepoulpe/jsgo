@@ -281,18 +281,18 @@ func (this_ *CheckMissingRequires) ShouldTraverse_4(t *NodeTraversal, n pkg_rhin
 	_ = n
 	_ = currentModule
 	_ = scopeRoot
-	if NodeUtil_IsValidCfgRoot(n) && !(this_.priv_CheckMissingRequires_isInGlobalControlFlowScope_1086(n)) {
+	if NodeUtil_IsValidCfgRoot(n) && !(this_.priv_CheckMissingRequires_isInGlobalControlFlowScope_1087(n)) {
 		this_.controlFlowScopeDepth = this_.controlFlowScopeDepth + 1
 	}
 	if currentModule == nil || currentModule.IsJavaNil_() {
 		return true
 	}
-	this_.priv_CheckMissingRequires_visitNode_1087(t, n, currentModule)
+	this_.priv_CheckMissingRequires_visitNode_1088(t, n, currentModule)
 	return true
 }
 
 // Java method: CheckMissingRequires.isInGlobalControlFlowScope(com.google.javascript.rhino.Node n)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_isInGlobalControlFlowScope_1086(n pkg_rhino.Node) bool {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_isInGlobalControlFlowScope_1087(n pkg_rhino.Node) bool {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(94) /* Token.SCRIPT */, int32(89) /* Token.ROOT */ :
@@ -326,7 +326,7 @@ func (this_ *CheckMissingRequires) Visit_4(t *NodeTraversal, n pkg_rhino.Node, c
 	_ = n
 	_ = currentModule
 	_ = scopeRoot
-	if NodeUtil_IsValidCfgRoot(n) && !(this_.priv_CheckMissingRequires_isInGlobalControlFlowScope_1086(n)) {
+	if NodeUtil_IsValidCfgRoot(n) && !(this_.priv_CheckMissingRequires_isInGlobalControlFlowScope_1087(n)) {
 		this_.controlFlowScopeDepth = this_.controlFlowScopeDepth - 1
 	}
 	if (currentModule != nil && !currentModule.IsJavaNil_()) && (n == currentModule.RootNode()) {
@@ -335,14 +335,14 @@ func (this_ *CheckMissingRequires) Visit_4(t *NodeTraversal, n pkg_rhino.Node, c
 }
 
 // Java method: CheckMissingRequires.visitNode(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentModule)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitNode_1087(t *NodeTraversal, n pkg_rhino.Node, currentModule ModuleMetadataMap_ModuleMetadata) {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitNode_1088(t *NodeTraversal, n pkg_rhino.Node, currentModule ModuleMetadataMap_ModuleMetadata) {
 	_ = t
 	_ = n
 	_ = currentModule
 	var info *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 	_ = info
 	if info != nil {
-		this_.priv_CheckMissingRequires_visitJsDocInfo_1088(t, currentModule, info)
+		this_.priv_CheckMissingRequires_visitJsDocInfo_1089(t, currentModule, info)
 	}
 	if !(n.GetParent().IsGetProp()) && n.IsQualifiedName() {
 		var qualifiedName pkg_rhino.QualifiedName = n.GetQualifiedNameObject()
@@ -352,25 +352,25 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitNode_1087(t *N
 		if (j2gort.CheckNotNullString(root) == "this") || (j2gort.CheckNotNullString(root) == "super") {
 			return
 		}
-		this_.priv_CheckMissingRequires_visitQualifiedName_1093(t, n, currentModule, qualifiedName, StaticGet_CheckMissingRequires_Strength_CODE())
+		this_.priv_CheckMissingRequires_visitQualifiedName_1094(t, n, currentModule, qualifiedName, StaticGet_CheckMissingRequires_Strength_CODE())
 	}
 	if n.IsName() && !(j2gort.CheckNotNullString(n.GetString()) == "") {
-		this_.priv_CheckMissingRequires_visitMaybeDeclaration_1091(t, n, currentModule)
+		this_.priv_CheckMissingRequires_visitMaybeDeclaration_1092(t, n, currentModule)
 	}
 	if n.IsCall() && (this_.controlFlowScopeDepth == int32(0)) {
-		this_.priv_CheckMissingRequires_visitMaybeGoogModuleGet_1090(t, n, currentModule)
+		this_.priv_CheckMissingRequires_visitMaybeGoogModuleGet_1091(t, n, currentModule)
 	}
 }
 
 // Java method: CheckMissingRequires.visitJsDocInfo(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentModule, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitJsDocInfo_1088(t *NodeTraversal, currentModule ModuleMetadataMap_ModuleMetadata, info *pkg_rhino.JSDocInfo) {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitJsDocInfo_1089(t *NodeTraversal, currentModule ModuleMetadataMap_ModuleMetadata, info *pkg_rhino.JSDocInfo) {
 	_ = t
 	_ = currentModule
 	_ = info
 	j2gort.OrderedSetAddAllStr(&this_.templateParamNames, j2gort.AsIface[j2gort.Ext_java_util_Collection](info.GetTemplateTypeNames()))
 	j2gort.OrderedSetAddAllStr(&this_.templateParamNames, j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](info.GetTypeTransformations().KeySet_0()))
 	if info.HasType() {
-		this_.priv_CheckMissingRequires_visitJsDocExpr_1089(t, currentModule, info.GetType(), StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
+		this_.priv_CheckMissingRequires_visitJsDocExpr_1090(t, currentModule, info.GetType(), StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
 	}
 	{
 		var i int32 = int32(0)
@@ -381,24 +381,24 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitJsDocInfo_1088
 			var paramType pkg_rhino.JSTypeExpression = info.GetParameterTypeAt(i)
 			_ = paramType
 			if !(paramType).IsJavaNil_() {
-				this_.priv_CheckMissingRequires_visitJsDocExpr_1089(t, currentModule, paramType, StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
+				this_.priv_CheckMissingRequires_visitJsDocExpr_1090(t, currentModule, paramType, StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
 			}
 		}
 	}
 	if info.HasReturnType() {
-		this_.priv_CheckMissingRequires_visitJsDocExpr_1089(t, currentModule, info.GetReturnType(), StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
+		this_.priv_CheckMissingRequires_visitJsDocExpr_1090(t, currentModule, info.GetReturnType(), StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
 	}
 	if info.HasEnumParameterType() {
-		this_.priv_CheckMissingRequires_visitJsDocExpr_1089(t, currentModule, info.GetEnumParameterType(), StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
+		this_.priv_CheckMissingRequires_visitJsDocExpr_1090(t, currentModule, info.GetEnumParameterType(), StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
 	}
 	if info.HasTypedefType() {
-		this_.priv_CheckMissingRequires_visitJsDocExpr_1089(t, currentModule, info.GetTypedefType(), StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
+		this_.priv_CheckMissingRequires_visitJsDocExpr_1090(t, currentModule, info.GetTypedefType(), StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
 	}
 	if info.HasThisType() {
-		this_.priv_CheckMissingRequires_visitJsDocExpr_1089(t, currentModule, info.GetThisType(), StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
+		this_.priv_CheckMissingRequires_visitJsDocExpr_1090(t, currentModule, info.GetThisType(), StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
 	}
 	if info.HasBaseType() {
-		this_.priv_CheckMissingRequires_visitJsDocExpr_1089(t, currentModule, info.GetBaseType(), StaticGet_CheckMissingRequires_Strength_IMPLEMENTS_EXTENDS())
+		this_.priv_CheckMissingRequires_visitJsDocExpr_1090(t, currentModule, info.GetBaseType(), StaticGet_CheckMissingRequires_Strength_IMPLEMENTS_EXTENDS())
 	}
 	{
 		var i_2 int32 = int32(0)
@@ -406,7 +406,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitJsDocInfo_1088
 		var n int32 = info.GetExtendedInterfacesCount()
 		_ = n
 		for ; i_2 < n; i_2 = i_2 + 1 {
-			this_.priv_CheckMissingRequires_visitJsDocExpr_1089(t, currentModule, info.GetExtendedInterfaceAt(i_2), StaticGet_CheckMissingRequires_Strength_IMPLEMENTS_EXTENDS())
+			this_.priv_CheckMissingRequires_visitJsDocExpr_1090(t, currentModule, info.GetExtendedInterfaceAt(i_2), StaticGet_CheckMissingRequires_Strength_IMPLEMENTS_EXTENDS())
 		}
 	}
 	{
@@ -415,13 +415,13 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitJsDocInfo_1088
 		var n_2 int32 = info.GetImplementedInterfaceCount()
 		_ = n_2
 		for ; i_3 < n_2; i_3 = i_3 + 1 {
-			this_.priv_CheckMissingRequires_visitJsDocExpr_1089(t, currentModule, info.GetImplementedInterfaceAt(i_3), StaticGet_CheckMissingRequires_Strength_IMPLEMENTS_EXTENDS())
+			this_.priv_CheckMissingRequires_visitJsDocExpr_1090(t, currentModule, info.GetImplementedInterfaceAt(i_3), StaticGet_CheckMissingRequires_Strength_IMPLEMENTS_EXTENDS())
 		}
 	}
 }
 
 // Java method: CheckMissingRequires.visitJsDocExpr(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentModule, com.google.javascript.rhino.JSTypeExpression expr, com.google.javascript.jscomp.CheckMissingRequires.Strength referenceStrength)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitJsDocExpr_1089(t *NodeTraversal, currentModule ModuleMetadataMap_ModuleMetadata, expr pkg_rhino.JSTypeExpression, referenceStrength CheckMissingRequires_Strength) {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitJsDocExpr_1090(t *NodeTraversal, currentModule ModuleMetadataMap_ModuleMetadata, expr pkg_rhino.JSTypeExpression, referenceStrength CheckMissingRequires_Strength) {
 	_ = t
 	_ = currentModule
 	_ = expr
@@ -431,7 +431,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitJsDocExpr_1089
 		for cur_1.HasNext() {
 			typeNode := pkg_rhino.Node(cur_1.NextNode())
 			_ = typeNode
-			this_.priv_CheckMissingRequires_visitQualifiedName_1093(t, typeNode, currentModule, pkg_rhino.QualifiedName_Of(typeNode.GetString()), referenceStrength)
+			this_.priv_CheckMissingRequires_visitQualifiedName_1094(t, typeNode, currentModule, pkg_rhino.QualifiedName_Of(typeNode.GetString()), referenceStrength)
 		}
 	}
 }
@@ -444,7 +444,7 @@ func CheckMissingRequires_IsGoogScopeBody(hoistScopeRoot pkg_rhino.Node) bool {
 }
 
 // Java method: CheckMissingRequires.visitMaybeGoogModuleGet(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node googModuleGet, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentFile)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitMaybeGoogModuleGet_1090(t *NodeTraversal, googModuleGet pkg_rhino.Node, currentFile ModuleMetadataMap_ModuleMetadata) {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitMaybeGoogModuleGet_1091(t *NodeTraversal, googModuleGet pkg_rhino.Node, currentFile ModuleMetadataMap_ModuleMetadata) {
 	_ = t
 	_ = googModuleGet
 	_ = currentFile
@@ -467,14 +467,14 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitMaybeGoogModul
 }
 
 // Java method: CheckMissingRequires.visitMaybeDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentFile)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitMaybeDeclaration_1091(t *NodeTraversal, n pkg_rhino.Node, currentFile ModuleMetadataMap_ModuleMetadata) {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitMaybeDeclaration_1092(t *NodeTraversal, n pkg_rhino.Node, currentFile ModuleMetadataMap_ModuleMetadata) {
 	_ = t
 	_ = n
 	_ = currentFile
 	if !(currentFile.GetModuleMetadataMap_ModuleMetadataBase().IsModule()) {
 		return
 	}
-	if this_.priv_CheckMissingRequires_isTypeScriptSource_1092(n) {
+	if this_.priv_CheckMissingRequires_isTypeScriptSource_1093(n) {
 		return
 	}
 	if !(n.IsName()) {
@@ -526,13 +526,13 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitMaybeDeclarati
 }
 
 // Java method: CheckMissingRequires.isTypeScriptSource(com.google.javascript.rhino.Node n)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_isTypeScriptSource_1092(n pkg_rhino.Node) bool {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_isTypeScriptSource_1093(n pkg_rhino.Node) bool {
 	_ = n
 	return n.GetStaticSourceFile().IsTypeScriptSource()
 }
 
 // Java method: CheckMissingRequires.visitQualifiedName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentFile, com.google.javascript.rhino.QualifiedName qualifiedName, com.google.javascript.jscomp.CheckMissingRequires.Strength referenceStrength)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitQualifiedName_1093(t *NodeTraversal, n pkg_rhino.Node, currentFile ModuleMetadataMap_ModuleMetadata, qualifiedName pkg_rhino.QualifiedName, referenceStrength CheckMissingRequires_Strength) {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitQualifiedName_1094(t *NodeTraversal, n pkg_rhino.Node, currentFile ModuleMetadataMap_ModuleMetadata, qualifiedName pkg_rhino.QualifiedName, referenceStrength CheckMissingRequires_Strength) {
 	_ = t
 	_ = n
 	_ = currentFile
@@ -551,21 +551,21 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitQualifiedName_
 	var var_ *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(rootName))
 	_ = var_
 	if (var_ != nil) && j2gort.CastPtr[Scope](var_.GetScope()).IsLocal() {
-		this_.priv_CheckMissingRequires_checkMissingRequireThroughShortName_1094(t, n, var_, currentFile, qualifiedName, referenceStrength)
+		this_.priv_CheckMissingRequires_checkMissingRequireThroughShortName_1095(t, n, var_, currentFile, qualifiedName, referenceStrength)
 	} else {
-		this_.priv_CheckMissingRequires_checkMissingRequireThroughFullyQualifiedName_1098(t, n, currentFile, qualifiedName, referenceStrength)
+		this_.priv_CheckMissingRequires_checkMissingRequireThroughFullyQualifiedName_1099(t, n, currentFile, qualifiedName, referenceStrength)
 	}
 }
 
 // Java method: CheckMissingRequires.checkMissingRequireThroughShortName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.Var localVar, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentFile, com.google.javascript.rhino.QualifiedName qualifiedName, com.google.javascript.jscomp.CheckMissingRequires.Strength referenceStrength)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequireThroughShortName_1094(t *NodeTraversal, n pkg_rhino.Node, localVar *Var, currentFile ModuleMetadataMap_ModuleMetadata, qualifiedName pkg_rhino.QualifiedName, referenceStrength CheckMissingRequires_Strength) {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequireThroughShortName_1095(t *NodeTraversal, n pkg_rhino.Node, localVar *Var, currentFile ModuleMetadataMap_ModuleMetadata, qualifiedName pkg_rhino.QualifiedName, referenceStrength CheckMissingRequires_Strength) {
 	_ = t
 	_ = n
 	_ = localVar
 	_ = currentFile
 	_ = qualifiedName
 	_ = referenceStrength
-	if this_.priv_CheckMissingRequires_isTypeScriptSource_1092(n) {
+	if this_.priv_CheckMissingRequires_isTypeScriptSource_1093(n) {
 		return
 	}
 	var inModule bool = currentFile.GetModuleMetadataMap_ModuleMetadataBase().IsModule()
@@ -579,14 +579,14 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequire
 		return
 	}
 	if inGoogScope {
-		this_.priv_CheckMissingRequires_checkMissingRequireThroughShortNameInGoogScope_1095(t, n, localVar, currentFile, qualifiedName, referenceStrength)
+		this_.priv_CheckMissingRequires_checkMissingRequireThroughShortNameInGoogScope_1096(t, n, localVar, currentFile, qualifiedName, referenceStrength)
 	} else {
-		this_.priv_CheckMissingRequires_checkMissingRequireThroughShortNameInModule_1096(t, n, NodeUtil_GetGoogRequireInfo_1_Var(localVar), currentFile, qualifiedName, referenceStrength)
+		this_.priv_CheckMissingRequires_checkMissingRequireThroughShortNameInModule_1097(t, n, NodeUtil_GetGoogRequireInfo_1_Var(localVar), currentFile, qualifiedName, referenceStrength)
 	}
 }
 
 // Java method: CheckMissingRequires.checkMissingRequireThroughShortNameInGoogScope(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.Var localVar, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentFile, com.google.javascript.rhino.QualifiedName qualifiedName, com.google.javascript.jscomp.CheckMissingRequires.Strength referenceStrength)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequireThroughShortNameInGoogScope_1095(t *NodeTraversal, n pkg_rhino.Node, localVar *Var, currentFile ModuleMetadataMap_ModuleMetadata, qualifiedName pkg_rhino.QualifiedName, referenceStrength CheckMissingRequires_Strength) {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequireThroughShortNameInGoogScope_1096(t *NodeTraversal, n pkg_rhino.Node, localVar *Var, currentFile ModuleMetadataMap_ModuleMetadata, qualifiedName pkg_rhino.QualifiedName, referenceStrength CheckMissingRequires_Strength) {
 	_ = t
 	_ = n
 	_ = localVar
@@ -617,7 +617,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequire
 				}
 			}
 		}
-		this_.priv_CheckMissingRequires_checkNormalizedShortNameImport_1097(t, n, currentFile, originalImport, qualifiedName, normalizedQualifiedName, referenceStrength)
+		this_.priv_CheckMissingRequires_checkNormalizedShortNameImport_1098(t, n, currentFile, originalImport, qualifiedName, normalizedQualifiedName, referenceStrength)
 		return
 	}
 	for initialValue.IsGetProp() {
@@ -644,11 +644,11 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequire
 	}
 	var normalizedQualifiedName_2 pkg_rhino.QualifiedName = CheckMissingRequires_SwapRootOfQualifiedName(qualifiedName, aliasedName_2)
 	_ = normalizedQualifiedName_2
-	this_.priv_CheckMissingRequires_checkNormalizedShortNameImport_1097(t, n, currentFile, originalImport_2, qualifiedName, normalizedQualifiedName_2, referenceStrength)
+	this_.priv_CheckMissingRequires_checkNormalizedShortNameImport_1098(t, n, currentFile, originalImport_2, qualifiedName, normalizedQualifiedName_2, referenceStrength)
 }
 
 // Java method: CheckMissingRequires.checkMissingRequireThroughShortNameInModule(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.NodeUtil.GoogRequire require, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentFile, com.google.javascript.rhino.QualifiedName qualifiedName, com.google.javascript.jscomp.CheckMissingRequires.Strength referenceStrength)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequireThroughShortNameInModule_1096(t *NodeTraversal, n pkg_rhino.Node, require *NodeUtil_GoogRequire, currentFile ModuleMetadataMap_ModuleMetadata, qualifiedName pkg_rhino.QualifiedName, referenceStrength CheckMissingRequires_Strength) {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequireThroughShortNameInModule_1097(t *NodeTraversal, n pkg_rhino.Node, require *NodeUtil_GoogRequire, currentFile ModuleMetadataMap_ModuleMetadata, qualifiedName pkg_rhino.QualifiedName, referenceStrength CheckMissingRequires_Strength) {
 	_ = t
 	_ = n
 	_ = require
@@ -663,13 +663,13 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequire
 	if (originalRequiredFile == nil || originalRequiredFile.IsJavaNil_()) || !(originalRequiredFile.GetModuleMetadataMap_ModuleMetadataBase().HasLegacyGoogNamespaces()) {
 		return
 	}
-	var normalizeQualifiedName pkg_rhino.QualifiedName = this_.priv_CheckMissingRequires_normalizeQualifiedNamePlusImport_1099(qualifiedName, require)
+	var normalizeQualifiedName pkg_rhino.QualifiedName = this_.priv_CheckMissingRequires_normalizeQualifiedNamePlusImport_1100(qualifiedName, require)
 	_ = normalizeQualifiedName
-	this_.priv_CheckMissingRequires_checkNormalizedShortNameImport_1097(t, n, currentFile, originalRequiredFile, qualifiedName, normalizeQualifiedName, referenceStrength)
+	this_.priv_CheckMissingRequires_checkNormalizedShortNameImport_1098(t, n, currentFile, originalRequiredFile, qualifiedName, normalizeQualifiedName, referenceStrength)
 }
 
 // Java method: CheckMissingRequires.checkNormalizedShortNameImport(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentFile, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata originalImport, com.google.javascript.rhino.QualifiedName originalQualifiedName, com.google.javascript.rhino.QualifiedName normalizedQualifiedName, com.google.javascript.jscomp.CheckMissingRequires.Strength referenceStrength)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkNormalizedShortNameImport_1097(t *NodeTraversal, n pkg_rhino.Node, currentFile ModuleMetadataMap_ModuleMetadata, originalImport ModuleMetadataMap_ModuleMetadata, originalQualifiedName pkg_rhino.QualifiedName, normalizedQualifiedName pkg_rhino.QualifiedName, referenceStrength CheckMissingRequires_Strength) {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkNormalizedShortNameImport_1098(t *NodeTraversal, n pkg_rhino.Node, currentFile ModuleMetadataMap_ModuleMetadata, originalImport ModuleMetadataMap_ModuleMetadata, originalQualifiedName pkg_rhino.QualifiedName, normalizedQualifiedName pkg_rhino.QualifiedName, referenceStrength CheckMissingRequires_Strength) {
 	_ = t
 	_ = n
 	_ = currentFile
@@ -745,7 +745,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkNormalizedShor
 }
 
 // Java method: CheckMissingRequires.checkMissingRequireThroughFullyQualifiedName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata currentFile, com.google.javascript.rhino.QualifiedName qualifiedName, com.google.javascript.jscomp.CheckMissingRequires.Strength referenceStrength)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequireThroughFullyQualifiedName_1098(t *NodeTraversal, n pkg_rhino.Node, currentFile ModuleMetadataMap_ModuleMetadata, qualifiedName pkg_rhino.QualifiedName, referenceStrength CheckMissingRequires_Strength) {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequireThroughFullyQualifiedName_1099(t *NodeTraversal, n pkg_rhino.Node, currentFile ModuleMetadataMap_ModuleMetadata, qualifiedName pkg_rhino.QualifiedName, referenceStrength CheckMissingRequires_Strength) {
 	_ = t
 	_ = n
 	_ = currentFile
@@ -793,7 +793,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_checkMissingRequire
 }
 
 // Java method: CheckMissingRequires.normalizeQualifiedNamePlusImport(com.google.javascript.rhino.QualifiedName qualifiedName, com.google.javascript.jscomp.NodeUtil.GoogRequire imported)
-func (this_ *CheckMissingRequires) priv_CheckMissingRequires_normalizeQualifiedNamePlusImport_1099(qualifiedName pkg_rhino.QualifiedName, imported *NodeUtil_GoogRequire) pkg_rhino.QualifiedName {
+func (this_ *CheckMissingRequires) priv_CheckMissingRequires_normalizeQualifiedNamePlusImport_1100(qualifiedName pkg_rhino.QualifiedName, imported *NodeUtil_GoogRequire) pkg_rhino.QualifiedName {
 	_ = qualifiedName
 	_ = imported
 	var newQName pkg_rhino.QualifiedName = pkg_rhino.QualifiedName_Of(imported.Namespace())

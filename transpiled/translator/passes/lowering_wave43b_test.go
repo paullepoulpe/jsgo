@@ -2244,15 +2244,15 @@ func assertPanics(t *testing.T, label string, fn func()) {
 }
 
 func TestWave43BAllOptimizationsRuntime(t *testing.T) {
-	// 1. Verify Scope contiguous pointer packing (Wave 44B): AbstractScopeBase, parent, var0..var5, vars, varSlab_
-	// are contiguous with 0 internal padding before depth int32 (and parent, var0, var1 fit in Cache Line 0 [0..64)).
+	// 1. Verify Scope contiguous pointer packing (Wave 45B): AbstractScopeBase, parent, varSlab_, var0..var5, vars
+	// are contiguous with 0 internal padding before depth int32 (and parent, varSlab_, var0 fit in Cache Line 0 [0..64)).
 	scopeT := reflect.TypeFor[Scope]()
 	if reflect.TypeFor[*Scope]().Size() == 8 {
 		depthF, okD := scopeT.FieldByName("depth")
 		if !okD {
 			t.Fatalf("missing field depth on Scope")
 		}
-		for _, fname := range []string{"AbstractScopeBase", "parent", "var0", "var1"} {
+		for _, fname := range []string{"AbstractScopeBase", "parent", "varSlab_", "var0"} {
 			sf, ok := scopeT.FieldByName(fname)
 			if !ok {
 				t.Fatalf("missing field %s on Scope", fname)
@@ -2261,7 +2261,7 @@ func TestWave43BAllOptimizationsRuntime(t *testing.T) {
 				t.Fatalf("Scope.%s ends at byte %d, want <= 64 (Cache Line 0!)", fname, sf.Offset+sf.Type.Size())
 			}
 		}
-		for _, fname := range []string{"parent", "var0", "var1", "var2", "var3", "var4", "var5", "vars", "varSlab_"} {
+		for _, fname := range []string{"parent", "varSlab_", "var0", "var1", "var2", "var3", "var4", "var5", "vars"} {
 			sf, ok := scopeT.FieldByName(fname)
 			if !ok {
 				t.Fatalf("missing field %s on Scope", fname)

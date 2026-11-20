@@ -449,7 +449,7 @@ func InitDeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal(this
 }
 
 // Java method: FindCandidateAssignmentTraversal.getOrCreateProperty(com.google.javascript.rhino.Node propNode)
-func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) priv_FindCandidateAssignmentTraversal_getOrCreateProperty_2356(propNode pkg_rhino.Node) *DeadPropertyAssignmentElimination_Property {
+func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) priv_FindCandidateAssignmentTraversal_getOrCreateProperty_2366(propNode pkg_rhino.Node) *DeadPropertyAssignmentElimination_Property {
 	_ = propNode
 	if !(propNode.IsQualifiedName()) {
 		return nil
@@ -468,7 +468,7 @@ func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal)
 		this_.propertyMap.Put(propName, property)
 	}
 	if propNode.IsGetProp() {
-		var parentProperty *DeadPropertyAssignmentElimination_Property = this_.priv_FindCandidateAssignmentTraversal_getOrCreateProperty_2356(propNode.GetFirstChild())
+		var parentProperty *DeadPropertyAssignmentElimination_Property = this_.priv_FindCandidateAssignmentTraversal_getOrCreateProperty_2366(propNode.GetFirstChild())
 		_ = parentProperty
 		if parentProperty != nil {
 			parentProperty.children.Add(property)
@@ -482,7 +482,7 @@ func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal)
 	_ = nodeTraversal
 	_ = n
 	_ = parent
-	return this_.priv_FindCandidateAssignmentTraversal_visitNode_2359(n, parent)
+	return this_.priv_FindCandidateAssignmentTraversal_visitNode_2369(n, parent)
 }
 
 // Java method: FindCandidateAssignmentTraversal.visit(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
@@ -491,24 +491,24 @@ func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal)
 	_ = n
 	_ = parent
 	if NodeUtil_IsAssignmentOp(n) {
-		this_.priv_FindCandidateAssignmentTraversal_visitAssignmentLhs_2358(n.GetFirstChild())
+		this_.priv_FindCandidateAssignmentTraversal_visitAssignmentLhs_2368(n.GetFirstChild())
 	}
 	if (NodeUtil_IsInvocation(n) || n.IsYield()) || n.IsAwait() {
-		this_.priv_FindCandidateAssignmentTraversal_markAllPropsRead_2360()
+		this_.priv_FindCandidateAssignmentTraversal_markAllPropsRead_2370()
 	}
 	if n.IsBlock() {
-		this_.priv_FindCandidateAssignmentTraversal_visitBlock_2357(n)
+		this_.priv_FindCandidateAssignmentTraversal_visitBlock_2367(n)
 	}
 }
 
 // Java method: FindCandidateAssignmentTraversal.visitBlock(com.google.javascript.rhino.Node blockNode)
-func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) priv_FindCandidateAssignmentTraversal_visitBlock_2357(blockNode pkg_rhino.Node) {
+func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) priv_FindCandidateAssignmentTraversal_visitBlock_2367(blockNode pkg_rhino.Node) {
 	_ = blockNode
 	if !(blockNode.IsBlock()) {
 		j2gort.CheckArgument(false)
 	}
 	if blockNode.HasChildren() {
-		this_.priv_FindCandidateAssignmentTraversal_markAllPropsRead_2360()
+		this_.priv_FindCandidateAssignmentTraversal_markAllPropsRead_2370()
 	}
 }
 
@@ -525,9 +525,9 @@ func DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal_IsCondit
 }
 
 // Java method: FindCandidateAssignmentTraversal.visitAssignmentLhs(com.google.javascript.rhino.Node lhs)
-func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) priv_FindCandidateAssignmentTraversal_visitAssignmentLhs_2358(lhs pkg_rhino.Node) {
+func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) priv_FindCandidateAssignmentTraversal_visitAssignmentLhs_2368(lhs pkg_rhino.Node) {
 	_ = lhs
-	var property *DeadPropertyAssignmentElimination_Property = this_.priv_FindCandidateAssignmentTraversal_getOrCreateProperty_2356(lhs)
+	var property *DeadPropertyAssignmentElimination_Property = this_.priv_FindCandidateAssignmentTraversal_getOrCreateProperty_2366(lhs)
 	_ = property
 	if property == nil {
 		return
@@ -547,7 +547,7 @@ func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal)
 	var child pkg_rhino.Node = lhs.GetFirstChild()
 	_ = child
 	for child != 0 {
-		var childProperty *DeadPropertyAssignmentElimination_Property = this_.priv_FindCandidateAssignmentTraversal_getOrCreateProperty_2356(child)
+		var childProperty *DeadPropertyAssignmentElimination_Property = this_.priv_FindCandidateAssignmentTraversal_getOrCreateProperty_2366(child)
 		_ = childProperty
 		if childProperty == nil {
 			break
@@ -558,19 +558,19 @@ func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal)
 }
 
 // Java method: FindCandidateAssignmentTraversal.visitNode(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) priv_FindCandidateAssignmentTraversal_visitNode_2359(n pkg_rhino.Node, parent pkg_rhino.Node) bool {
+func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) priv_FindCandidateAssignmentTraversal_visitNode_2369(n pkg_rhino.Node, parent pkg_rhino.Node) bool {
 	_ = n
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(26) /* Token.GETPROP */ :
 		if n.IsGetProp() && j2gort.SetContainsStr(this_.skiplistedPropNames, n.GetString()) {
-			this_.priv_FindCandidateAssignmentTraversal_markAllPropsRead_2360()
+			this_.priv_FindCandidateAssignmentTraversal_markAllPropsRead_2370()
 			return true
 		}
 		if NodeUtil_IsAssignmentOp(parent) && (parent.GetFirstChild() == n) {
 			return true
 		}
-		var property *DeadPropertyAssignmentElimination_Property = this_.priv_FindCandidateAssignmentTraversal_getOrCreateProperty_2356(n)
+		var property *DeadPropertyAssignmentElimination_Property = this_.priv_FindCandidateAssignmentTraversal_getOrCreateProperty_2366(n)
 		_ = property
 		if property != nil {
 			property.MarkLastWriteRead()
@@ -580,7 +580,7 @@ func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal)
 		}
 		return true
 	case int32(37) /* Token.THIS */, int32(32) /* Token.NAME */ :
-		var nameProp *DeadPropertyAssignmentElimination_Property = j2gort.CheckNotNullPtr(this_.priv_FindCandidateAssignmentTraversal_getOrCreateProperty_2356(n))
+		var nameProp *DeadPropertyAssignmentElimination_Property = j2gort.CheckNotNullPtr(this_.priv_FindCandidateAssignmentTraversal_getOrCreateProperty_2366(n))
 		_ = nameProp
 		nameProp.MarkLastWriteRead()
 		if !(parent.IsGetProp()) {
@@ -588,7 +588,7 @@ func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal)
 		}
 		return true
 	case int32(43) /* Token.THROW */, int32(80) /* Token.FOR */, int32(81) /* Token.FOR_IN */, int32(112) /* Token.FOR_OF */, int32(113) /* Token.FOR_AWAIT_OF */, int32(127) /* Token.ITER_SPREAD */, int32(102) /* Token.ARRAY_PATTERN */, int32(75) /* Token.SWITCH */ :
-		this_.priv_FindCandidateAssignmentTraversal_markAllPropsRead_2360()
+		this_.priv_FindCandidateAssignmentTraversal_markAllPropsRead_2370()
 		return false
 	case int32(103) /* Token.OBJECT_PATTERN */ :
 		{
@@ -605,18 +605,18 @@ func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal)
 						property_2.MarkChildrenRead()
 					}
 				} else {
-					this_.priv_FindCandidateAssignmentTraversal_markAllPropsRead_2360()
+					this_.priv_FindCandidateAssignmentTraversal_markAllPropsRead_2370()
 					break
 				}
 			}
 		}
 		return true
 	case int32(90) /* Token.BLOCK */ :
-		this_.priv_FindCandidateAssignmentTraversal_visitBlock_2357(n)
+		this_.priv_FindCandidateAssignmentTraversal_visitBlock_2367(n)
 		return true
 	default:
 		if DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal_IsConditionalExpression(n) {
-			this_.priv_FindCandidateAssignmentTraversal_markAllPropsRead_2360()
+			this_.priv_FindCandidateAssignmentTraversal_markAllPropsRead_2370()
 			return false
 		}
 		return true
@@ -625,7 +625,7 @@ func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal)
 }
 
 // Java method: FindCandidateAssignmentTraversal.markAllPropsRead()
-func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) priv_FindCandidateAssignmentTraversal_markAllPropsRead_2360() {
+func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) priv_FindCandidateAssignmentTraversal_markAllPropsRead_2370() {
 	{
 		cur_6 := this_.propertyMap.IterValues()
 		for cur_6.HasNext() {

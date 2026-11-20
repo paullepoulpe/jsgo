@@ -117,14 +117,14 @@ func (this_ *ForbidDynamicImportUsage) ShouldTraverse_3(t *NodeTraversal, n pkg_
 	_ = n
 	_ = parent
 	if n.IsScript() {
-		return this_.priv_ForbidDynamicImportUsage_getFeatureSetOfScript_2886(n).Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT())
+		return this_.priv_ForbidDynamicImportUsage_getFeatureSetOfScript_2896(n).Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT())
 	} else {
 		return true
 	}
 }
 
 // Java method: ForbidDynamicImportUsage.getFeatureSetOfScript(com.google.javascript.rhino.Node n)
-func (this_ *ForbidDynamicImportUsage) priv_ForbidDynamicImportUsage_getFeatureSetOfScript_2886(n pkg_rhino.Node) *pkg_parser.FeatureSet {
+func (this_ *ForbidDynamicImportUsage) priv_ForbidDynamicImportUsage_getFeatureSetOfScript_2896(n pkg_rhino.Node) *pkg_parser.FeatureSet {
 	_ = n
 	var featureSet *pkg_parser.FeatureSet = NodeUtil_GetFeatureSetOfScript(n)
 	_ = featureSet

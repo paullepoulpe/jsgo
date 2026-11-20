@@ -109,7 +109,7 @@ func (this_ *Linter) FixRepeatedly_2(filename string, unfixableErrors j2gort.Ext
 		var i int32 = int32(0)
 		_ = i
 		for ; i < int32(5); i = i + 1 {
-			if !(this_.priv_Linter_fix_3792(filename, unfixableErrors)) {
+			if !(this_.priv_Linter_fix_3802(filename, unfixableErrors)) {
 				break
 			}
 		}
@@ -117,7 +117,7 @@ func (this_ *Linter) FixRepeatedly_2(filename string, unfixableErrors j2gort.Ext
 }
 
 // Java method: Linter.fix(java.lang.String filename, com.google.common.collect.ImmutableSet<com.google.javascript.jscomp.DiagnosticType> unfixableErrors)
-func (this_ *Linter) priv_Linter_fix_3792(filename string, unfixableErrors j2gort.Ext_com_google_common_collect_ImmutableSet) bool {
+func (this_ *Linter) priv_Linter_fix_3802(filename string, unfixableErrors j2gort.Ext_com_google_common_collect_ImmutableSet) bool {
 	_ = filename
 	_ = unfixableErrors
 	var compiler *Compiler = NewCompiler_1_Ext_java_io_PrintStream(j2gort.Ext_java_lang_System_F_Out)

@@ -152,18 +152,18 @@ func (this_ *GenerateExports) Process_2(externs pkg_rhino.Node, root pkg_rhino.N
 		for cur_1.HasNext() {
 			export := cur_1.NextStr()
 			_ = export
-			this_.priv_GenerateExports_addExtern_3039(export)
+			this_.priv_GenerateExports_addExtern_3049(export)
 		}
 	}
 	if !(exports.IsEmpty()) || !(es6Exports.IsEmpty()) {
-		if !(this_.priv_GenerateExports_validateExportMethodsIncluded_3035(exports, es6Exports, root)) {
+		if !(this_.priv_GenerateExports_validateExportMethodsIncluded_3045(exports, es6Exports, root)) {
 			return
 		}
 	}
 	{
 		cur_2 := j2gort.NewMapEntryCursor(es6Exports)
 		for cur_2.NextEntry() {
-			this_.priv_GenerateExports_addExportForEs6Method_3041(pkg_rhino.Node(cur_2.KeyNode()), j2gort.CastString(cur_2.GetValue()))
+			this_.priv_GenerateExports_addExportForEs6Method_3051(pkg_rhino.Node(cur_2.KeyNode()), j2gort.CastString(cur_2.GetValue()))
 		}
 	}
 	{
@@ -173,13 +173,13 @@ func (this_ *GenerateExports) Process_2(externs pkg_rhino.Node, root pkg_rhino.N
 			_ = export_2
 			var context pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](cur_3.GetValue())
 			_ = context
-			this_.priv_GenerateExports_addExportMethod_3042(exports, export_2, context)
+			this_.priv_GenerateExports_addExportMethod_3052(exports, export_2, context)
 		}
 	}
 }
 
 // Java method: GenerateExports.validateExportMethodsIncluded(java.util.Map<java.lang.String,com.google.javascript.rhino.Node> exports, java.util.Map<com.google.javascript.rhino.Node,java.lang.String> es6Exports, com.google.javascript.rhino.Node root)
-func (this_ *GenerateExports) priv_GenerateExports_validateExportMethodsIncluded_3035(exports j2gort.Ext_java_util_Map, es6Exports j2gort.Ext_java_util_Map, root pkg_rhino.Node) bool {
+func (this_ *GenerateExports) priv_GenerateExports_validateExportMethodsIncluded_3045(exports j2gort.Ext_java_util_Map, es6Exports j2gort.Ext_java_util_Map, root pkg_rhino.Node) bool {
 	_ = exports
 	_ = es6Exports
 	_ = root
@@ -194,16 +194,16 @@ func (this_ *GenerateExports) priv_GenerateExports_validateExportMethodsIncluded
 		this_.compiler.Report_1(JSError_Make_3(errorLocation, StaticGet_GenerateExports_MISSING_EXPORT_CONVENTION(), []string{}))
 		return false
 	}
-	if !(this_.priv_GenerateExports_includesExportMethods_3036(root.GetParent())) {
+	if !(this_.priv_GenerateExports_includesExportMethods_3046(root.GetParent())) {
 		this_.compiler.Report_1(JSError_Make_3(errorLocation, StaticGet_GenerateExports_MISSING_GOOG_FOR_EXPORT(), []string{this_.exportSymbolFunction, this_.exportPropertyFunction}))
-		this_.priv_GenerateExports_declareExportMethodsInExterns_3037(errorLocation)
+		this_.priv_GenerateExports_declareExportMethodsInExterns_3047(errorLocation)
 		return true
 	}
 	return true
 }
 
 // Java method: GenerateExports.includesExportMethods(com.google.javascript.rhino.Node root)
-func (this_ *GenerateExports) priv_GenerateExports_includesExportMethods_3036(root pkg_rhino.Node) bool {
+func (this_ *GenerateExports) priv_GenerateExports_includesExportMethods_3046(root pkg_rhino.Node) bool {
 	_ = root
 	var globalScope *Scope = NewSyntacticScopeCreator_1(this_.compiler).CreateScope_2_Node_Scope(root, nil)
 	_ = globalScope
@@ -215,22 +215,22 @@ func (this_ *GenerateExports) priv_GenerateExports_includesExportMethods_3036(ro
 }
 
 // Java method: GenerateExports.declareExportMethodsInExterns(com.google.javascript.rhino.Node srcref)
-func (this_ *GenerateExports) priv_GenerateExports_declareExportMethodsInExterns_3037(srcref pkg_rhino.Node) {
+func (this_ *GenerateExports) priv_GenerateExports_declareExportMethodsInExterns_3047(srcref pkg_rhino.Node) {
 	_ = srcref
 	var exportPropertyRoot string = NodeUtil_GetRootOfQualifiedName_1_string(this_.exportPropertyFunction)
 	_ = exportPropertyRoot
 	var exportSymbolRoot string = NodeUtil_GetRootOfQualifiedName_1_string(this_.exportSymbolFunction)
 	_ = exportSymbolRoot
 	if j2gort.CheckNotNullString(exportPropertyRoot) == exportSymbolRoot {
-		this_.priv_GenerateExports_declareSyntheticExternsVar_3038(exportPropertyRoot, srcref)
+		this_.priv_GenerateExports_declareSyntheticExternsVar_3048(exportPropertyRoot, srcref)
 	} else {
-		this_.priv_GenerateExports_declareSyntheticExternsVar_3038(exportPropertyRoot, srcref)
-		this_.priv_GenerateExports_declareSyntheticExternsVar_3038(exportSymbolRoot, srcref)
+		this_.priv_GenerateExports_declareSyntheticExternsVar_3048(exportPropertyRoot, srcref)
+		this_.priv_GenerateExports_declareSyntheticExternsVar_3048(exportSymbolRoot, srcref)
 	}
 }
 
 // Java method: GenerateExports.declareSyntheticExternsVar(java.lang.String name, com.google.javascript.rhino.Node srcref)
-func (this_ *GenerateExports) priv_GenerateExports_declareSyntheticExternsVar_3038(name string, srcref pkg_rhino.Node) {
+func (this_ *GenerateExports) priv_GenerateExports_declareSyntheticExternsVar_3048(name string, srcref pkg_rhino.Node) {
 	_ = name
 	_ = srcref
 	var syntheticInput *CompilerInput = this_.compiler.GetSynthesizedExternsInput()
@@ -245,7 +245,7 @@ func (this_ *GenerateExports) priv_GenerateExports_declareSyntheticExternsVar_30
 }
 
 // Java method: GenerateExports.addExtern(java.lang.String export)
-func (this_ *GenerateExports) priv_GenerateExports_addExtern_3039(export string) {
+func (this_ *GenerateExports) priv_GenerateExports_addExtern_3049(export string) {
 	_ = export
 	var objectPrototype pkg_rhino.Node = NodeUtil_NewQName_2_AbstractCompiler_string(this_.compiler, "Object.prototype")
 	_ = objectPrototype
@@ -254,14 +254,14 @@ func (this_ *GenerateExports) priv_GenerateExports_addExtern_3039(export string)
 	objectPrototype.GetFirstChild().SetJSType(objCtor)
 	var propstmt pkg_rhino.Node = pkg_rhino.IR_ExprResult(pkg_rhino.IR_Getprop_2(objectPrototype, export))
 	_ = propstmt
-	propstmt.SrcrefTree(this_.priv_GenerateExports_getSynthesizedExternsRoot_3046())
+	propstmt.SrcrefTree(this_.priv_GenerateExports_getSynthesizedExternsRoot_3056())
 	propstmt.SetOriginalName(export)
-	this_.priv_GenerateExports_getSynthesizedExternsRoot_3046().AddChildToBack(propstmt)
+	this_.priv_GenerateExports_getSynthesizedExternsRoot_3056().AddChildToBack(propstmt)
 	this_.compiler.ReportChangeToEnclosingScope(propstmt)
 }
 
 // Java method: GenerateExports.recordExportSymbol(java.lang.String qname)
-func (this_ *GenerateExports) priv_GenerateExports_recordExportSymbol_3040(qname string) {
+func (this_ *GenerateExports) priv_GenerateExports_recordExportSymbol_3050(qname string) {
 	_ = qname
 	var dot int32 = j2gort.JStrIndexOfCp(qname, int32(uint16(46)))
 	_ = dot
@@ -273,7 +273,7 @@ func (this_ *GenerateExports) priv_GenerateExports_recordExportSymbol_3040(qname
 }
 
 // Java method: GenerateExports.addExportForEs6Method(com.google.javascript.rhino.Node memberFunction, java.lang.String ownerName)
-func (this_ *GenerateExports) priv_GenerateExports_addExportForEs6Method_3041(memberFunction pkg_rhino.Node, ownerName string) {
+func (this_ *GenerateExports) priv_GenerateExports_addExportForEs6Method_3051(memberFunction pkg_rhino.Node, ownerName string) {
 	_ = memberFunction
 	_ = ownerName
 	if !(memberFunction.IsMemberFunctionDef()) {
@@ -284,11 +284,11 @@ func (this_ *GenerateExports) priv_GenerateExports_addExportForEs6Method_3041(me
 	}
 	var fullExport string = (j2gort.StrValString(ownerName) + "." + j2gort.StrValString(memberFunction.GetString()))
 	_ = fullExport
-	this_.priv_GenerateExports_addExportPropertyCall_3043(ownerName, memberFunction, fullExport, memberFunction.GetString())
+	this_.priv_GenerateExports_addExportPropertyCall_3053(ownerName, memberFunction, fullExport, memberFunction.GetString())
 }
 
 // Java method: GenerateExports.addExportMethod(java.util.Map<java.lang.String,com.google.javascript.rhino.Node> exports, java.lang.String export, com.google.javascript.rhino.Node context)
-func (this_ *GenerateExports) priv_GenerateExports_addExportMethod_3042(exports j2gort.Ext_java_util_Map, export string, context pkg_rhino.Node) {
+func (this_ *GenerateExports) priv_GenerateExports_addExportMethod_3052(exports j2gort.Ext_java_util_Map, export string, context pkg_rhino.Node) {
 	_ = exports
 	_ = export
 	_ = context
@@ -323,14 +323,14 @@ func (this_ *GenerateExports) priv_GenerateExports_addExportMethod_3042(exports 
 		useExportSymbol = false
 	}
 	if useExportSymbol {
-		this_.priv_GenerateExports_addExportSymbolCall_3044(export, context)
+		this_.priv_GenerateExports_addExportSymbolCall_3054(export, context)
 	} else {
-		this_.priv_GenerateExports_addExportPropertyCall_3043(methodOwnerName, context, export, propertyName)
+		this_.priv_GenerateExports_addExportPropertyCall_3053(methodOwnerName, context, export, propertyName)
 	}
 }
 
 // Java method: GenerateExports.addExportPropertyCall(java.lang.String methodOwnerName, com.google.javascript.rhino.Node context, java.lang.String export, java.lang.String propertyName)
-func (this_ *GenerateExports) priv_GenerateExports_addExportPropertyCall_3043(methodOwnerName string, context pkg_rhino.Node, export string, propertyName string) {
+func (this_ *GenerateExports) priv_GenerateExports_addExportPropertyCall_3053(methodOwnerName string, context pkg_rhino.Node, export string, propertyName string) {
 	_ = methodOwnerName
 	_ = context
 	_ = export
@@ -340,23 +340,23 @@ func (this_ *GenerateExports) priv_GenerateExports_addExportPropertyCall_3043(me
 	_ = call
 	var expression pkg_rhino.Node = pkg_rhino.IR_ExprResult(call).SrcrefTreeIfMissing(context)
 	_ = expression
-	this_.priv_GenerateExports_addStatement_3045(context, expression)
+	this_.priv_GenerateExports_addStatement_3055(context, expression)
 }
 
 // Java method: GenerateExports.addExportSymbolCall(java.lang.String export, com.google.javascript.rhino.Node context)
-func (this_ *GenerateExports) priv_GenerateExports_addExportSymbolCall_3044(export string, context pkg_rhino.Node) {
+func (this_ *GenerateExports) priv_GenerateExports_addExportSymbolCall_3054(export string, context pkg_rhino.Node) {
 	_ = export
 	_ = context
-	this_.priv_GenerateExports_recordExportSymbol_3040(export)
+	this_.priv_GenerateExports_recordExportSymbol_3050(export)
 	var call pkg_rhino.Node = pkg_rhino.IR_Call(NodeUtil_NewQName_4_AbstractCompiler_string_Node_string(this_.compiler, this_.exportSymbolFunction, context, export), []pkg_rhino.Node{pkg_rhino.IR_String(export), NodeUtil_NewQName_4_AbstractCompiler_string_Node_string(this_.compiler, export, context, export)})
 	_ = call
 	var expression pkg_rhino.Node = pkg_rhino.IR_ExprResult(call).SrcrefTreeIfMissing(context)
 	_ = expression
-	this_.priv_GenerateExports_addStatement_3045(context, expression)
+	this_.priv_GenerateExports_addStatement_3055(context, expression)
 }
 
 // Java method: GenerateExports.addStatement(com.google.javascript.rhino.Node context, com.google.javascript.rhino.Node stmt)
-func (this_ *GenerateExports) priv_GenerateExports_addStatement_3045(context pkg_rhino.Node, stmt pkg_rhino.Node) {
+func (this_ *GenerateExports) priv_GenerateExports_addStatement_3055(context pkg_rhino.Node, stmt pkg_rhino.Node) {
 	_ = context
 	_ = stmt
 	var convention CodingConvention = this_.compiler.GetCodingConvention()
@@ -382,6 +382,6 @@ func (this_ *GenerateExports) priv_GenerateExports_addStatement_3045(context pkg
 }
 
 // Java method: GenerateExports.getSynthesizedExternsRoot()
-func (this_ *GenerateExports) priv_GenerateExports_getSynthesizedExternsRoot_3046() pkg_rhino.Node {
+func (this_ *GenerateExports) priv_GenerateExports_getSynthesizedExternsRoot_3056() pkg_rhino.Node {
 	return this_.compiler.GetSynthesizedExternsInput().GetAstRoot(this_.compiler)
 }

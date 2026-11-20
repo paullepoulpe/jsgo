@@ -7421,6 +7421,8 @@ func isCanonicalVarIdentityMapField(owner *types.Named, fieldName string, keyT, 
 		return fieldName == "referenceMap" && vNamed.Obj().Name() == "ReferenceCollection"
 	case "InlineVariables_InliningBehavior":
 		return fieldName == "currentScopeHandledVarAnalysesMap" && vNamed.Obj().Name() == "InlineVariables_InlineVarAnalysis"
+	case "CrossChunkCodeMotion_GlobalSymbolCollector":
+		return fieldName == "globalSymbolforVar" && vNamed.Obj().Name() == "CrossChunkCodeMotion_GlobalSymbol"
 	}
 	return false
 }
@@ -7477,7 +7479,9 @@ func applyCanonicalVarIdentityOrderedMapUpgrade(ctx *PassContext) int {
 				case "Scope":
 					scopeNamed = named
 				}
-				if named.Obj().Name() != "ReferenceCollector" && named.Obj().Name() != "InlineVariables_InliningBehavior" {
+				if named.Obj().Name() != "ReferenceCollector" &&
+					named.Obj().Name() != "InlineVariables_InliningBehavior" &&
+					named.Obj().Name() != "CrossChunkCodeMotion_GlobalSymbolCollector" {
 					continue
 				}
 				for _, fld := range st.Fields.List {

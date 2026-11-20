@@ -91,12 +91,12 @@ func InitInjectClosureUnawareRuntimeLibraries(this_ *InjectClosureUnawareRuntime
 func (this_ *InjectClosureUnawareRuntimeLibraries) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	this_.priv_InjectClosureUnawareRuntimeLibraries_injectLibrariesIntoMainAst_3208()
-	this_.priv_InjectClosureUnawareRuntimeLibraries_injectFieldsIntoCallSites_3209()
+	this_.priv_InjectClosureUnawareRuntimeLibraries_injectLibrariesIntoMainAst_3218()
+	this_.priv_InjectClosureUnawareRuntimeLibraries_injectFieldsIntoCallSites_3219()
 }
 
 // Java method: InjectClosureUnawareRuntimeLibraries.injectLibrariesIntoMainAst()
-func (this_ *InjectClosureUnawareRuntimeLibraries) priv_InjectClosureUnawareRuntimeLibraries_injectLibrariesIntoMainAst_3208() {
+func (this_ *InjectClosureUnawareRuntimeLibraries) priv_InjectClosureUnawareRuntimeLibraries_injectLibrariesIntoMainAst_3218() {
 	var mainManager *RuntimeJsLibManager = this_.mainCompiler.GetRuntimeJsLibManager()
 	_ = mainManager
 	var shadowManager *RuntimeJsLibManager = this_.shadowCompiler.GetRuntimeJsLibManager()
@@ -112,7 +112,7 @@ func (this_ *InjectClosureUnawareRuntimeLibraries) priv_InjectClosureUnawareRunt
 }
 
 // Java method: InjectClosureUnawareRuntimeLibraries.injectFieldsIntoCallSites()
-func (this_ *InjectClosureUnawareRuntimeLibraries) priv_InjectClosureUnawareRuntimeLibraries_injectFieldsIntoCallSites_3209() {
+func (this_ *InjectClosureUnawareRuntimeLibraries) priv_InjectClosureUnawareRuntimeLibraries_injectFieldsIntoCallSites_3219() {
 	var fieldsByName j2gort.Ext_com_google_common_collect_ImmutableMap = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](this_.shadowCompiler.GetRuntimeJsLibManager().GetExternedFields().Stream().Collect_1(j2gort.Ext_com_google_common_collect_ImmutableMap_ToImmutableMap_2(lambdaSingleton_inject_closure_unaware_runtime_libraries_1, j2gort.Ext_java_util_function_Function_Identity())))
 	_ = fieldsByName
 	{
@@ -123,13 +123,13 @@ func (this_ *InjectClosureUnawareRuntimeLibraries) priv_InjectClosureUnawareRunt
 			_ = callSite
 			var toInject j2gort.OrderedSet[RuntimeJsLibManager_ExternedField] = ordSet_InjectClosureUnawareRuntimeLibraries_GatherRuntimeFields(callSite.ClosureUnawareFunction(), fieldsByName)
 			_ = toInject
-			this_.priv_InjectClosureUnawareRuntimeLibraries_injectAll_3210(callSite, &toInject)
+			this_.priv_InjectClosureUnawareRuntimeLibraries_injectAll_3220(callSite, &toInject)
 		}
 	}
 }
 
 // Java method: InjectClosureUnawareRuntimeLibraries.injectAll(com.google.javascript.jscomp.InjectClosureUnawareRuntimeLibraries.ClosureUnawareCallSite callSite, java.util.Set<com.google.javascript.jscomp.js.RuntimeJsLibManager.ExternedField> toInject)
-func (this_ *InjectClosureUnawareRuntimeLibraries) priv_InjectClosureUnawareRuntimeLibraries_injectAll_3210(callSite *InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite, toInject *j2gort.OrderedSet[RuntimeJsLibManager_ExternedField]) {
+func (this_ *InjectClosureUnawareRuntimeLibraries) priv_InjectClosureUnawareRuntimeLibraries_injectAll_3220(callSite *InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite, toInject *j2gort.OrderedSet[RuntimeJsLibManager_ExternedField]) {
 	_ = callSite
 	_ = toInject
 	if j2gort.CheckNotNullPtr(toInject).IsEmpty() {

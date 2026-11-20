@@ -941,7 +941,61 @@ func (m *StringPoolProto) mergeFromReader(r *protoReader) {
 }
 
 func (m *StringPoolProto) mergeFromStream(s *limProtoStream) {
-	for {
+	for s.rem > 0 {
+		if avail := s.br.Buffered(); avail > 0 {
+			if avail > s.rem {
+				avail = s.rem
+			}
+			buf, _ := s.br.Peek(avail)
+			if len(buf) > 0 && buf[0] == 0x0A {
+				nc := len(m.wireChunks_)
+				if nc == 0 || cap(m.wireChunks_[nc-1])-len(m.wireChunks_[nc-1]) < 256 {
+					chunkCap := min(4096<<min(nc, 8), 1048576)
+					if s.rem >= 0 && chunkCap > s.rem {
+						chunkCap = max(s.rem, 256)
+					}
+					m.wireChunks_ = append(m.wireChunks_, make([]byte, 0, chunkCap))
+					nc++
+				}
+				chunk := m.wireChunks_[nc-1]
+				limit := min(len(buf), cap(chunk)-len(chunk))
+				pos := 0
+				cnt := 0
+				for pos+2 <= limit && buf[pos] == 0x0A {
+					c0 := buf[pos+1]
+					var strLen, hdrLen int
+					if c0 < 0x80 {
+						strLen = int(c0)
+						hdrLen = 2
+					} else if pos+3 <= limit {
+						c1 := buf[pos+2]
+						if c1 < 0x80 && c1 != 0 {
+							strLen = int(c0&0x7f) | int(c1)<<7
+							hdrLen = 3
+						} else {
+							break
+						}
+					} else {
+						break
+					}
+					end := pos + hdrLen + strLen
+					if end > limit {
+						break
+					}
+					pos = end
+					cnt++
+				}
+				if pos > 0 {
+					m.wireChunks_[nc-1] = append(chunk, buf[:pos]...)
+					_, _ = s.br.Discard(pos)
+					s.rem -= pos
+					m.wireStringsSize_ += pos
+					m.wireStringsCnt_ += cnt
+					m.cachedSize = 0
+					continue
+				}
+			}
+		}
 		tag := s.readTag()
 		switch tag {
 		case 0:

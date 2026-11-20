@@ -122,23 +122,23 @@ func (this_ *ColorFindPropertyReferences) Visit_3(t *NodeTraversal, n pkg_rhino.
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(26) /* Token.GETPROP */, int32(29) /* Token.OPTCHAIN_GETPROP */ :
-		this_.priv_ColorFindPropertyReferences_registerPropertyUse_6242(t, n, n.GetFirstChild().GetColor())
+		this_.priv_ColorFindPropertyReferences_registerPropertyUse_6255(t, n, n.GetFirstChild().GetColor())
 	case int32(47) /* Token.OBJECTLIT */ :
-		this_.priv_ColorFindPropertyReferences_handleObjectLit_6234(t, n)
+		this_.priv_ColorFindPropertyReferences_handleObjectLit_6247(t, n)
 	case int32(28) /* Token.CALL */ :
-		this_.priv_ColorFindPropertyReferences_handleCall_6235(t, n)
+		this_.priv_ColorFindPropertyReferences_handleCall_6248(t, n)
 	case int32(105) /* Token.CLASS */ :
-		this_.priv_ColorFindPropertyReferences_handleClass_6236(t, n)
+		this_.priv_ColorFindPropertyReferences_handleClass_6249(t, n)
 	case int32(103) /* Token.OBJECT_PATTERN */ :
-		this_.priv_ColorFindPropertyReferences_handleObjectPattern_6238(t, n)
+		this_.priv_ColorFindPropertyReferences_handleObjectPattern_6251(t, n)
 	case int32(73) /* Token.FUNCTION */ :
-		this_.priv_ColorFindPropertyReferences_handleFunction_6237(n)
+		this_.priv_ColorFindPropertyReferences_handleFunction_6250(n)
 	default:
 	}
 }
 
 // Java method: ColorFindPropertyReferences.handleObjectLit(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleObjectLit_6234(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleObjectLit_6247(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if n.GetParent().IsCall() && NodeUtil_IsObjectDefinePropertiesDefinition(n.GetParent()) {
@@ -146,7 +146,7 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 	}
 	var owner *pkg_colors.Color = n.GetColor()
 	_ = owner
-	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6241(t, n, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_3 any) any {
+	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6254(t, n, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_3 any) any {
 		m := j2gort.CastNode[pkg_rhino.Node](lp_3)
 		_ = m
 		return j2gort.PtrToAny(owner)
@@ -154,7 +154,7 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 }
 
 // Java method: ColorFindPropertyReferences.handleCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleCall_6235(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleCall_6248(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var target pkg_rhino.Node = call.GetFirstChild()
@@ -163,19 +163,19 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 		return
 	}
 	if this_.isPropertyReflector.Test(target) {
-		this_.priv_ColorFindPropertyReferences_handlePropertyReflectorCall_6239(t, call)
+		this_.priv_ColorFindPropertyReferences_handlePropertyReflectorCall_6252(t, call)
 	} else if NodeUtil_IsObjectDefinePropertiesDefinition(call) {
-		this_.priv_ColorFindPropertyReferences_handleObjectDefineProperties_6240(t, call)
+		this_.priv_ColorFindPropertyReferences_handleObjectDefineProperties_6253(t, call)
 	}
 }
 
 // Java method: ColorFindPropertyReferences.handleClass(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node classNode)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleClass_6236(t *NodeTraversal, classNode pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleClass_6249(t *NodeTraversal, classNode pkg_rhino.Node) {
 	_ = t
 	_ = classNode
 	var classType *pkg_colors.Color = classNode.GetColor()
 	_ = classType
-	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6241(t, NodeUtil_GetClassMembers(classNode), j2gort.NewLambda_Ext_java_util_function_Function(func(lp_4 any) any {
+	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6254(t, NodeUtil_GetClassMembers(classNode), j2gort.NewLambda_Ext_java_util_function_Function(func(lp_4 any) any {
 		m := j2gort.CastNode[pkg_rhino.Node](lp_4)
 		_ = m
 		if m.IsStaticMember() {
@@ -205,7 +205,7 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 }
 
 // Java method: ColorFindPropertyReferences.handleFunction(com.google.javascript.rhino.Node fnNode)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleFunction_6237(fnNode pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleFunction_6250(fnNode pkg_rhino.Node) {
 	_ = fnNode
 	var fnType *pkg_colors.Color = fnNode.GetColor()
 	_ = fnType
@@ -215,12 +215,12 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 }
 
 // Java method: ColorFindPropertyReferences.handleObjectPattern(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node pattern)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleObjectPattern_6238(t *NodeTraversal, pattern pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleObjectPattern_6251(t *NodeTraversal, pattern pkg_rhino.Node) {
 	_ = t
 	_ = pattern
 	var owner *pkg_colors.Color = pattern.GetColor()
 	_ = owner
-	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6241(t, pattern, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_5 any) any {
+	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6254(t, pattern, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_5 any) any {
 		m := j2gort.CastNode[pkg_rhino.Node](lp_5)
 		_ = m
 		return j2gort.PtrToAny(owner)
@@ -228,7 +228,7 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 }
 
 // Java method: ColorFindPropertyReferences.handlePropertyReflectorCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handlePropertyReflectorCall_6239(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handlePropertyReflectorCall_6252(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var name pkg_rhino.Node = call.GetSecondChild()
@@ -245,11 +245,11 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 	} else {
 		objColor = obj.GetColor()
 	}
-	this_.priv_ColorFindPropertyReferences_registerPropertyUse_6242(t, name, objColor)
+	this_.priv_ColorFindPropertyReferences_registerPropertyUse_6255(t, name, objColor)
 }
 
 // Java method: ColorFindPropertyReferences.handleObjectDefineProperties(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleObjectDefineProperties_6240(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handleObjectDefineProperties_6253(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	var typeObj pkg_rhino.Node = call.GetSecondChild()
@@ -261,7 +261,7 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 	}
 	var type_ *pkg_colors.Color = typeObj.GetColor()
 	_ = type_
-	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6241(t, objectLiteral, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_6 any) any {
+	this_.priv_ColorFindPropertyReferences_traverseObjectlitLike_6254(t, objectLiteral, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_6 any) any {
 		m := j2gort.CastNode[pkg_rhino.Node](lp_6)
 		_ = m
 		return j2gort.PtrToAny(type_)
@@ -269,7 +269,7 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_handl
 }
 
 // Java method: ColorFindPropertyReferences.traverseObjectlitLike(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, java.util.function.Function<com.google.javascript.rhino.Node,com.google.javascript.jscomp.colors.Color> memberOwnerFn)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_traverseObjectlitLike_6241(t *NodeTraversal, n pkg_rhino.Node, memberOwnerFn j2gort.Ext_java_util_function_Function) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_traverseObjectlitLike_6254(t *NodeTraversal, n pkg_rhino.Node, memberOwnerFn j2gort.Ext_java_util_function_Function) {
 	_ = t
 	_ = n
 	_ = memberOwnerFn
@@ -287,7 +287,7 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_trave
 				if child.IsQuotedStringKey() {
 					continue
 				}
-				this_.priv_ColorFindPropertyReferences_registerPropertyUse_6242(t, child, j2gort.CastPtr[pkg_colors.Color](memberOwnerFn.Apply(j2gort.BoxNode(child))))
+				this_.priv_ColorFindPropertyReferences_registerPropertyUse_6255(t, child, j2gort.CastPtr[pkg_colors.Color](memberOwnerFn.Apply(j2gort.BoxNode(child))))
 			default:
 				panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(("Unexpected child of " + j2gort.StrVal(n.GetToken()) + ": " + j2gort.StrValString(child.ToStringTree()))))))
 			}
@@ -296,7 +296,7 @@ func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_trave
 }
 
 // Java method: ColorFindPropertyReferences.registerPropertyUse(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node site, com.google.javascript.jscomp.colors.Color owner)
-func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_registerPropertyUse_6242(t *NodeTraversal, site pkg_rhino.Node, owner *pkg_colors.Color) {
+func (this_ *ColorFindPropertyReferences) priv_ColorFindPropertyReferences_registerPropertyUse_6255(t *NodeTraversal, site pkg_rhino.Node, owner *pkg_colors.Color) {
 	_ = t
 	_ = site
 	_ = owner

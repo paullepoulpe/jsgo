@@ -92,7 +92,7 @@ func ProductionInstrumentationReporter_Main(args []string) {
 		{
 			var val_3 ProductionInstrumentationReporter
 			InitProductionInstrumentationReporter(&val_3)
-			(&val_3).priv_ProductionInstrumentationReporter_doMain_6520(args)
+			(&val_3).priv_ProductionInstrumentationReporter_doMain_6533(args)
 		}
 	}()
 }
@@ -104,7 +104,7 @@ func ProductionInstrumentationReporter_ReadFile(filePath string) string {
 }
 
 // Java method: ProductionInstrumentationReporter.getAllExecutionResults(java.io.File folder)
-func (this_ *ProductionInstrumentationReporter) priv_ProductionInstrumentationReporter_getAllExecutionResults_6518(folder *j2gort.Ext_java_io_File) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *ProductionInstrumentationReporter) priv_ProductionInstrumentationReporter_getAllExecutionResults_6531(folder *j2gort.Ext_java_io_File) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = folder
 	var result []j2gort.Ext_java_util_Map = []j2gort.Ext_java_util_Map{}
 	_ = result
@@ -123,7 +123,7 @@ func (this_ *ProductionInstrumentationReporter) priv_ProductionInstrumentationRe
 }
 
 // Java method: ProductionInstrumentationReporter.createFile(java.lang.String fileName, java.lang.String fileContents)
-func (this_ *ProductionInstrumentationReporter) priv_ProductionInstrumentationReporter_createFile_6519(fileName string, fileContents string) {
+func (this_ *ProductionInstrumentationReporter) priv_ProductionInstrumentationReporter_createFile_6532(fileName string, fileContents string) {
 	_ = fileName
 	_ = fileContents
 	var fold *j2gort.Ext_java_io_File = j2gort.NewExt_java_io_File_1_string(fileName)
@@ -141,20 +141,20 @@ func (this_ *ProductionInstrumentationReporter) priv_ProductionInstrumentationRe
 }
 
 // Java method: ProductionInstrumentationReporter.doMain(java.lang.String[] args)
-func (this_ *ProductionInstrumentationReporter) priv_ProductionInstrumentationReporter_doMain_6520(args []string) {
+func (this_ *ProductionInstrumentationReporter) priv_ProductionInstrumentationReporter_doMain_6533(args []string) {
 	_ = args
-	this_.priv_ProductionInstrumentationReporter_parseCmdLineArguments_6521(args)
+	this_.priv_ProductionInstrumentationReporter_parseCmdLineArguments_6534(args)
 	var mapping j2gort.Ext_java_util_Map = ReportDecoder_ParseMappingFromFile(this_.instrumentationMappingLocation)
 	_ = mapping
 	var folder *j2gort.Ext_java_io_File = j2gort.NewExt_java_io_File_1_string(this_.instrumentationReportsDirectory)
 	_ = folder
-	var listOfExecutionResults j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_ProductionInstrumentationReporter_getAllExecutionResults_6518(folder)
+	var listOfExecutionResults j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_ProductionInstrumentationReporter_getAllExecutionResults_6531(folder)
 	_ = listOfExecutionResults
-	this_.priv_ProductionInstrumentationReporter_createFile_6519(this_.finalResultOutput, ProfilingReport_CreateTabSeparatedProfilingReport(mapping, listOfExecutionResults))
+	this_.priv_ProductionInstrumentationReporter_createFile_6532(this_.finalResultOutput, ProfilingReport_CreateTabSeparatedProfilingReport(mapping, listOfExecutionResults))
 }
 
 // Java method: ProductionInstrumentationReporter.parseCmdLineArguments(java.lang.String[] args)
-func (this_ *ProductionInstrumentationReporter) priv_ProductionInstrumentationReporter_parseCmdLineArguments_6521(args []string) {
+func (this_ *ProductionInstrumentationReporter) priv_ProductionInstrumentationReporter_parseCmdLineArguments_6534(args []string) {
 	_ = args
 	{
 		var i int32 = int32(0)

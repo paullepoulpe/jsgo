@@ -1,0 +1,1460 @@
+diff --git a/com/google/javascript/jscomp/AstValidator.java b/com/google/javascript/jscomp/AstValidator.java
+index 1b02d10..2ab0f87 100644
+--- a/com/google/javascript/jscomp/AstValidator.java
++++ b/com/google/javascript/jscomp/AstValidator.java
+@@ -21,7 +21,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
+ import static com.google.common.base.Preconditions.checkState;
+ import static com.google.common.base.Strings.isNullOrEmpty;
+ 
+-import com.google.common.collect.ImmutableSet;
+ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+ import com.google.javascript.jscomp.base.Tri;
+ import com.google.javascript.jscomp.parsing.parser.FeatureSet;
+@@ -418,17 +417,25 @@ public final class AstValidator implements CompilerPass {
+    * valid for their context. If {@code n} is a pseudoexpression, it will be considered invalid
+    * unless its token is in this set.
+    */
+-  private void validatePseudoExpression(Node n, Token... allowedPseudoexpressions) {
+-    ImmutableSet<Token> allowedTokensSet = ImmutableSet.copyOf(allowedPseudoexpressions);
++  private void validatePseudoExpression(Node n, Token allowed) {
++    validatePseudoExpression(n, allowed, null);
++  }
++
++  private void validatePseudoExpression(Node n, Token allowed1, @Nullable Token allowed2) {
+     switch (n.getToken()) {
+       case EMPTY -> {
+-        checkArgument(allowedTokensSet.contains(Token.EMPTY), "Unexpected pseudoexpression %s", n);
++        checkArgument(
++            allowed1 == Token.EMPTY || allowed2 == Token.EMPTY,
++            "Unexpected pseudoexpression %s",
++            n);
+         validateProperties(n);
+         validateChildless(n);
+       }
+       case ITER_SPREAD -> {
+         checkArgument(
+-            allowedTokensSet.contains(Token.ITER_SPREAD), "Unexpected pseudoexpression %s", n);
++            allowed1 == Token.ITER_SPREAD || allowed2 == Token.ITER_SPREAD,
++            "Unexpected pseudoexpression %s",
++            n);
+         validateProperties(n);
+         validateChildCount(n);
+         validateFeature(Feature.SPREAD_EXPRESSIONS, n);
+@@ -482,9 +489,10 @@ public final class AstValidator implements CompilerPass {
+       case JSTYPE -> {
+         // TODO(b/74537281): Shouldn't CALL nodes always have a type, even if it is unknown?
+         Node callee = callNode.getFirstChild();
+-        JSType calleeType =
+-            checkNotNull(
+-                callee.getJSType(), "Callee of\n\n%s\nhas no type.", callNode.toStringTree());
++        JSType calleeType = callee.getJSType();
++        if (calleeType == null) {
++          checkNotNull(calleeType, "Callee of\n\n%s\nhas no type.", callNode.toStringTree());
++        }
+ 
+         if (calleeType.isFunctionType()) {
+           FunctionType calleeFunctionType = calleeType.toMaybeFunctionType();
+@@ -500,7 +508,10 @@ public final class AstValidator implements CompilerPass {
+       }
+       case COLOR -> {
+         Node callee = callNode.getFirstChild();
+-        checkNotNull(callee.getColor(), "Callee of\n\n%s\nhas no color.", callNode.toStringTree());
++        if (callee.getColor() == null) {
++          checkNotNull(
++              callee.getColor(), "Callee of\n\n%s\nhas no color.", callNode.toStringTree());
++        }
+         // skip additional validation of return types, since optimization colors don't include
+         // call signature types
+       }
+@@ -2149,7 +2160,7 @@ public final class AstValidator implements CompilerPass {
+     }
+     FeatureSet scriptFeatures = NodeUtil.getFeatureSetOfScript(currentScript);
+     // Checks that feature present in the AST is recorded in the SCRIPT node's featureSet.
+-    if (scriptFeatures == null || !NodeUtil.getFeatureSetOfScript(currentScript).has(feature)) {
++    if (scriptFeatures == null || !scriptFeatures.has(feature)) {
+       violation("SCRIPT node should be marked as containing feature " + feature, currentScript);
+     }
+   }
+diff --git a/com/google/javascript/jscomp/CrossChunkCodeMotion.java b/com/google/javascript/jscomp/CrossChunkCodeMotion.java
+index 28d6f22..7861e2f 100644
+--- a/com/google/javascript/jscomp/CrossChunkCodeMotion.java
++++ b/com/google/javascript/jscomp/CrossChunkCodeMotion.java
+@@ -64,6 +64,7 @@ class CrossChunkCodeMotion implements CompilerPass {
+ 
+   // Allocated & cleaned up by process()
+   private @Nullable LogFile cccmLog;
++  private @Nullable CrossChunkReferenceCollector currentReferenceCollector;
+ 
+   private final AbstractCompiler compiler;
+   private final JSChunkGraph graph;
+@@ -101,6 +102,7 @@ class CrossChunkCodeMotion implements CompilerPass {
+       if (graph.getChunkCount() > 1) {
+         CrossChunkReferenceCollector referenceCollector =
+             new CrossChunkReferenceCollector(compiler, new SyntacticScopeCreator(compiler));
++        currentReferenceCollector = referenceCollector;
+         referenceCollector.process(root);
+         GlobalSymbolCollector collector = new GlobalSymbolCollector();
+         collector.collectGlobalSymbols(referenceCollector);
+@@ -111,14 +113,18 @@ class CrossChunkCodeMotion implements CompilerPass {
+       }
+     } finally {
+       cccmLog = null;
++      currentReferenceCollector = null;
+     }
+   }
+ 
+   private void addInstanceofGuards(GlobalSymbolCollector collector) {
+     for (GlobalSymbol globalSymbol : collector.symbolStack) {
+-      for (InstanceofReference instanceofReference : globalSymbol.instanceofReferencesToGuard) {
+-        if (!globalSymbol.declarationsCoverChunk(instanceofReference.getChunk())) {
+-          addGuardToInstanceofReference(instanceofReference.getReference().getNode());
++      ArrayDeque<InstanceofReference> guards = globalSymbol.instanceofReferencesToGuard;
++      if (guards != null) {
++        for (InstanceofReference instanceofReference : guards) {
++          if (!globalSymbol.declarationsCoverChunk(instanceofReference.getChunk())) {
++            addGuardToInstanceofReference(instanceofReference.getReference().getNode());
++          }
+         }
+       }
+     }
+@@ -163,7 +169,7 @@ class CrossChunkCodeMotion implements CompilerPass {
+         if (isGuardedInstanceofReference(n) || isUndefinedTypeofGuardReference(n)) {
+           return;
+         } else if (isUnguardedInstanceofReference(n)) {
+-          globalSymbol.instanceofReferencesToGuard.push(InstanceofReference.immovable(chunk, ref));
++          globalSymbol.addInstanceofReferenceToGuard(InstanceofReference.immovable(chunk, ref));
+           return;
+         }
+       }
+@@ -193,7 +199,7 @@ class CrossChunkCodeMotion implements CompilerPass {
+           if (isGuardedInstanceofReference(n) || isUndefinedTypeofGuardReference(n)) {
+             continue;
+           } else if (isUnguardedInstanceofReference(n)) {
+-            refSymbol.instanceofReferencesToGuard.push(InstanceofReference.movable(dsg, ref));
++            refSymbol.addInstanceofReferenceToGuard(InstanceofReference.movable(dsg, ref));
+             continue;
+           }
+         }
+@@ -233,9 +239,12 @@ class CrossChunkCodeMotion implements CompilerPass {
+      * As we traverse the statements in execution order the top of the stack represents the most
+      * recently seen DSG for the variable.
+      */
+-    final ArrayDeque<DeclarationStatementGroup> dsgStack = new ArrayDeque<>();
++    @Nullable DeclarationStatementGroup firstDsg = null;
++
++    @Nullable ArrayDeque<DeclarationStatementGroup> dsgStack = null;
+ 
+-    final BitSet chunksWithImmovableReferences = new BitSet(graph.getChunkCount());
++    private long immovableChunksLow = 0L;
++    private @Nullable BitSet chunksWithImmovableReferences = null;
+ 
+     /**
+      * Symbols whose declaration statements refer to this symbol.
+@@ -244,10 +253,13 @@ class CrossChunkCodeMotion implements CompilerPass {
+      * these to identify cycles. This guarantees that the order in which statements are moved won't
+      * depend on the arbitrary ordering of LinkedHashSet.
+      */
+-    final LinkedHashSet<GlobalSymbol> referencingGlobalSymbols = new LinkedHashSet<>();
++    @Nullable GlobalSymbol refSym0 = null;
++
++    @Nullable GlobalSymbol refSym1 = null;
++    @Nullable LinkedHashSet<GlobalSymbol> referencingGlobalSymbols = null;
+ 
+     /** Instanceof references we may need to update with a guard after moving declarations. */
+-    final ArrayDeque<InstanceofReference> instanceofReferencesToGuard = new ArrayDeque<>();
++    @Nullable ArrayDeque<InstanceofReference> instanceofReferencesToGuard = null;
+     /** Used by OrderAndCombineGlobalSymbols to find reference cycles. */
+     int preorderNumber = -1;
+     /** Used by OrderAndCombineGlobalSymbols to find reference cycles. */
+@@ -265,31 +277,93 @@ class CrossChunkCodeMotion implements CompilerPass {
+     }
+ 
+     void addImmovableReference(JSChunk chunk) {
+-      chunksWithImmovableReferences.set(chunk.getIndex());
++      int idx = chunk.getIndex();
++      if (idx >= 0 && idx < 64) {
++        immovableChunksLow |= (1L << idx);
++      } else {
++        BitSet bs = chunksWithImmovableReferences;
++        if (bs == null) {
++          bs = new BitSet(graph.getChunkCount());
++          chunksWithImmovableReferences = bs;
++        }
++        bs.set(idx);
++      }
++    }
++
++    void orImmovableChunksInto(BitSet dst) {
++      long low = immovableChunksLow;
++      while (low != 0L) {
++        int bit = Long.numberOfTrailingZeros(low);
++        dst.set(bit);
++        low &= low - 1;
++      }
++      if (chunksWithImmovableReferences != null) {
++        dst.or(chunksWithImmovableReferences);
++      }
++    }
++
++    void addInstanceofReferenceToGuard(InstanceofReference ref) {
++      ArrayDeque<InstanceofReference> guardList = instanceofReferencesToGuard;
++      if (guardList == null) {
++        guardList = new ArrayDeque<>(4);
++        instanceofReferencesToGuard = guardList;
++      }
++      guardList.push(ref);
+     }
+ 
+     /** Adds the statement to the appropriate DeclarationStatementGroup and returns it. */
+     DeclarationStatementGroup addDeclarationStatement(TopLevelStatement statement) {
+       JSChunk chunk = statement.getChunk();
+-      DeclarationStatementGroup lastDsg = dsgStack.peek();
+-      if (lastDsg == null) {
+-        lastDsg = new DeclarationStatementGroup(this, chunk);
+-        dsgStack.push(lastDsg);
+-      }
++      DeclarationStatementGroup lastDsg = dsgStack != null ? dsgStack.peek() : firstDsg;
+       DeclarationStatementGroup statementDsg;
+-      if (chunk.equals(lastDsg.currentChunk)) {
++      if (lastDsg == null) {
++        statementDsg = new DeclarationStatementGroup(this, chunk);
++        firstDsg = statementDsg;
++      } else if (chunk.equals(lastDsg.currentChunk)) {
+         statementDsg = lastDsg;
+       } else {
+         // new chunk requires a new DSG
+         statementDsg = new DeclarationStatementGroup(this, chunk);
++        if (dsgStack == null) {
++          dsgStack = new ArrayDeque<>(4);
++          dsgStack.push(firstDsg);
++          firstDsg = null;
++        }
+         dsgStack.push(statementDsg);
+       }
+-      statementDsg.statementStack.push(statement);
++      statementDsg.pushStatement(statement);
+       return statementDsg;
+     }
+ 
+     void addReferringGlobalSymbol(GlobalSymbol declaredSymbol) {
+-      referencingGlobalSymbols.add(declaredSymbol);
++      LinkedHashSet<GlobalSymbol> set = referencingGlobalSymbols;
++      if (set != null) {
++        set.add(declaredSymbol);
++        return;
++      }
++      GlobalSymbol r0 = refSym0;
++      if (r0 == null) {
++        refSym0 = declaredSymbol;
++        return;
++      }
++      if (r0 == declaredSymbol) {
++        return;
++      }
++      GlobalSymbol r1 = refSym1;
++      if (r1 == null) {
++        refSym1 = declaredSymbol;
++        return;
++      }
++      if (r1 == declaredSymbol) {
++        return;
++      }
++      set = new LinkedHashSet<>(8);
++      set.add(r0);
++      set.add(r1);
++      set.add(declaredSymbol);
++      referencingGlobalSymbols = set;
++      refSym0 = null;
++      refSym1 = null;
+     }
+ 
+     /**
+@@ -297,12 +371,17 @@ class CrossChunkCodeMotion implements CompilerPass {
+      * this symbol?
+      */
+     boolean declarationsCoverChunk(JSChunk chunk) {
+-      for (DeclarationStatementGroup dsg : dsgStack) {
+-        if (chunk.equals(dsg.currentChunk) || graph.dependsOn(chunk, dsg.currentChunk)) {
+-          return true;
++      if (dsgStack != null) {
++        for (DeclarationStatementGroup dsg : dsgStack) {
++          if (chunk.equals(dsg.currentChunk) || graph.dependsOn(chunk, dsg.currentChunk)) {
++            return true;
++          }
+         }
++        return false;
+       }
+-      return false;
++      return firstDsg != null
++          && (chunk.equals(firstDsg.currentChunk)
++              || graph.dependsOn(chunk, firstDsg.currentChunk));
+     }
+   }
+ 
+@@ -311,13 +390,52 @@ class CrossChunkCodeMotion implements CompilerPass {
+    * movement as a group.
+    */
+   private final class GlobalSymbolCycle {
+-    final ArrayDeque<GlobalSymbol> symbols = new ArrayDeque<>();
++    private @Nullable GlobalSymbol firstSymbol = null;
++    private @Nullable ArrayDeque<GlobalSymbol> symbols = null;
+ 
+     void addSymbol(GlobalSymbol symbol) {
+-      symbols.add(symbol);
++      if (symbols != null) {
++        symbols.add(symbol);
++      } else if (firstSymbol == null) {
++        firstSymbol = symbol;
++      } else {
++        symbols = new ArrayDeque<>(4);
++        symbols.add(firstSymbol);
++        firstSymbol = null;
++        symbols.add(symbol);
++      }
+     }
+ 
+     void moveDeclarationStatements() {
++      if (symbols == null) {
++        GlobalSymbol single = firstSymbol;
++        if (single == null) {
++          return;
++        }
++        checkState(!single.isMoveDeclarationStatementsDone, "duplicate attempt to move %s", single);
++        if (single.dsgStack == null) {
++          DeclarationStatementGroup dsg = single.firstDsg;
++          if (dsg != null) {
++            BitSet chunksWithImmovableReferences = scratchCycleImmovableChunks;
++            chunksWithImmovableReferences.clear();
++            single.orImmovableChunksInto(chunksWithImmovableReferences);
++            moveSingleDsgToPreferredChunk(dsg, chunksWithImmovableReferences);
++          }
++          single.isMoveDeclarationStatementsDone = true;
++          return;
++        }
++        BitSet chunksWithImmovableReferences = scratchCycleImmovableChunks;
++        chunksWithImmovableReferences.clear();
++        ArrayList<DeclarationStatementGroupCycle> cyclesLatestFirst = new ArrayList<>();
++        populateDsgCyclesLatestFirstForSymbol(single, cyclesLatestFirst);
++        for (int i = 0, size = cyclesLatestFirst.size(); i < size; i++) {
++          DeclarationStatementGroupCycle dsgCycle = cyclesLatestFirst.get(i);
++          single.orImmovableChunksInto(chunksWithImmovableReferences);
++          dsgCycle.moveToPreferredChunk(chunksWithImmovableReferences);
++        }
++        single.isMoveDeclarationStatementsDone = true;
++        return;
++      }
+       for (GlobalSymbol symbol : symbols) {
+         checkState(!symbol.isMoveDeclarationStatementsDone, "duplicate attempt to move %s", symbol);
+       }
+@@ -329,7 +447,7 @@ class CrossChunkCodeMotion implements CompilerPass {
+         DeclarationStatementGroupCycle dsgCycle = cyclesLatestFirst.get(i);
+         // Each move may change chunksWithImmovableReferences
+         for (GlobalSymbol symbol : symbols) {
+-          chunksWithImmovableReferences.or(symbol.chunksWithImmovableReferences);
++          symbol.orImmovableChunksInto(chunksWithImmovableReferences);
+         }
+         dsgCycle.moveToPreferredChunk(chunksWithImmovableReferences);
+       }
+@@ -338,20 +456,78 @@ class CrossChunkCodeMotion implements CompilerPass {
+       }
+     }
+ 
++    private void moveSingleDsgToPreferredChunk(
++        DeclarationStatementGroup dsg, BitSet chunksWithImmovableReferences) {
++      JSChunk currentChunk = dsg.currentChunk;
++      JSChunk preferredChunk;
++      if (chunksWithImmovableReferences.isEmpty()
++          || !dsg.allStatementsCanMove(currentReferenceCollector)) {
++        preferredChunk = currentChunk;
++      } else {
++        preferredChunk =
++            graph.getSmallestCoveringSubtree(currentChunk, chunksWithImmovableReferences);
++      }
++      if (!preferredChunk.equals(currentChunk)) {
++        if (cccmLog.isLogging()) {
++          cccmLog.log("start DSG Cycle move");
++          cccmLog.log(
++              () ->
++                  String.format(
++                      "Moving DSG for %s from chunk %s to chunk %s",
++                      dsg.declaredGlobalSymbol.var.getName(), currentChunk, preferredChunk));
++        }
++        Node destParent =
++            chunkInsertionPointMap.computeIfAbsent(
++                preferredChunk, compiler::getNodeForCodeInsertion);
++        if (dsg.statementStack != null) {
++          for (TopLevelStatement stmt : dsg.statementStack) {
++            moveStatementNodeToDest(stmt.getStatementNode(), destParent);
++          }
++        } else if (dsg.firstStatement != null) {
++          moveStatementNodeToDest(dsg.firstStatement.getStatementNode(), destParent);
++        }
++      }
++      dsg.currentChunk = preferredChunk;
++      dsg.makeReferencesImmovable();
++    }
++
++    private void populateDsgCyclesLatestFirstForSymbol(
++        GlobalSymbol symbol, ArrayList<DeclarationStatementGroupCycle> cyclesLatestFirst) {
++      DeclarationStatementGroupCycle cycle = null;
++      for (DeclarationStatementGroup dsg : symbol.dsgStack) {
++        if (cycle == null || !cycle.currentChunk.equals(dsg.currentChunk)) {
++          cycle = new DeclarationStatementGroupCycle(dsg.currentChunk);
++          cyclesLatestFirst.add(cycle);
++        }
++        cycle.dsgs.add(dsg);
++      }
++    }
++
+     private void populateDsgCyclesLatestFirst(
+         ArrayList<DeclarationStatementGroupCycle> cyclesLatestFirst) {
+       ArrayList<DeclarationStatementGroup> dsgsLatestFirst = new ArrayList<>();
+       for (GlobalSymbol symbol : symbols) {
++        if (symbol.dsgStack == null && symbol.firstDsg == null) {
++          continue;
++        }
+         if (dsgsLatestFirst.isEmpty()) {
+-          for (DeclarationStatementGroup dsg : symbol.dsgStack) {
+-            dsgsLatestFirst.add(dsg);
++          if (symbol.dsgStack != null) {
++            for (DeclarationStatementGroup dsg : symbol.dsgStack) {
++              dsgsLatestFirst.add(dsg);
++            }
++          } else {
++            dsgsLatestFirst.add(symbol.firstDsg);
+           }
+         } else {
+           ArrayList<DeclarationStatementGroup> prev = new ArrayList<>(dsgsLatestFirst);
+           dsgsLatestFirst.clear();
+           ArrayList<DeclarationStatementGroup> list2 = new ArrayList<>();
+-          for (DeclarationStatementGroup dsg : symbol.dsgStack) {
+-            list2.add(dsg);
++          if (symbol.dsgStack != null) {
++            for (DeclarationStatementGroup dsg : symbol.dsgStack) {
++              list2.add(dsg);
++            }
++          } else {
++            list2.add(symbol.firstDsg);
+           }
+           int i1 = 0;
+           int n1 = prev.size();
+@@ -415,6 +591,20 @@ class CrossChunkCodeMotion implements CompilerPass {
+     compiler.reportChangeToEnclosingScope(and);
+   }
+ 
++  private void moveStatementNodeToDest(Node statementNode, Node destParent) {
++    // Remove it
++    compiler.reportChangeToEnclosingScope(statementNode);
++    Node originalScript = NodeUtil.getEnclosingScript(statementNode);
++
++    statementNode.detach();
++
++    // Add it to the new spot
++    destParent.addChildToFront(statementNode);
++    NodeUtil.addFeaturesToScript(
++        destParent, NodeUtil.getFeatureSetOfScript(originalScript), compiler);
++    compiler.reportChangeToEnclosingScope(statementNode);
++  }
++
+   /**
+    * A group of declaration statements that must be moved (or not) as a group.
+    *
+@@ -424,43 +614,101 @@ class CrossChunkCodeMotion implements CompilerPass {
+   private static final class DeclarationStatementGroup {
+ 
+     final GlobalSymbol declaredGlobalSymbol;
+-    final LinkedHashSet<GlobalSymbol> referencedGlobalSymbols = new LinkedHashSet<>();
++    private @Nullable GlobalSymbol refSym0 = null;
++    private @Nullable GlobalSymbol refSym1 = null;
++    private @Nullable LinkedHashSet<GlobalSymbol> referencedGlobalSymbols = null;
+ 
+     /** chunk containing the statements */
+     JSChunk currentChunk;
+ 
+     /** statements in the group, latest first */
+-    final ArrayDeque<TopLevelStatement> statementStack = new ArrayDeque<>();
++    @Nullable TopLevelStatement firstStatement = null;
++
++    @Nullable ArrayDeque<TopLevelStatement> statementStack = null;
+ 
+     DeclarationStatementGroup(GlobalSymbol declaredGlobalSymbol, JSChunk currentChunk) {
+       this.declaredGlobalSymbol = declaredGlobalSymbol;
+       this.currentChunk = currentChunk;
+     }
+ 
+-    boolean allStatementsCanMove() {
+-      for (TopLevelStatement s : statementStack) {
+-        if (!s.isMovableDeclaration()) {
+-          return false;
++    void pushStatement(TopLevelStatement statement) {
++      if (statementStack != null) {
++        statementStack.push(statement);
++      } else if (firstStatement == null) {
++        firstStatement = statement;
++      } else {
++        statementStack = new ArrayDeque<>(4);
++        statementStack.push(firstStatement);
++        firstStatement = null;
++        statementStack.push(statement);
++      }
++    }
++
++    boolean allStatementsCanMove(CrossChunkReferenceCollector collector) {
++      if (statementStack != null) {
++        for (TopLevelStatement s : statementStack) {
++          if (!s.isMovableDeclaration(collector)) {
++            return false;
++          }
+         }
++        return true;
+       }
+-      return true;
++      return firstStatement == null || firstStatement.isMovableDeclaration(collector);
+     }
+ 
+     void addReferenceToGlobalSymbol(GlobalSymbol refSymbol) {
+-      referencedGlobalSymbols.add(refSymbol);
++      LinkedHashSet<GlobalSymbol> set = referencedGlobalSymbols;
++      if (set != null) {
++        set.add(refSymbol);
++        return;
++      }
++      GlobalSymbol r0 = refSym0;
++      if (r0 == null) {
++        refSym0 = refSymbol;
++        return;
++      }
++      if (r0 == refSymbol) {
++        return;
++      }
++      GlobalSymbol r1 = refSym1;
++      if (r1 == null) {
++        refSym1 = refSymbol;
++        return;
++      }
++      if (r1 == refSymbol) {
++        return;
++      }
++      set = new LinkedHashSet<>(8);
++      set.add(r0);
++      set.add(r1);
++      set.add(refSymbol);
++      referencedGlobalSymbols = set;
++      refSym0 = null;
++      refSym1 = null;
+     }
+ 
+     void makeReferencesImmovable() {
+       declaredGlobalSymbol.addImmovableReference(currentChunk);
+-      for (GlobalSymbol symbol : referencedGlobalSymbols) {
+-        checkState(
+-            !symbol.isMoveDeclarationStatementsDone,
+-            "symbol %s moved before referring symbol %s",
+-            symbol,
+-            declaredGlobalSymbol);
+-        symbol.addImmovableReference(currentChunk);
++      if (referencedGlobalSymbols != null) {
++        for (GlobalSymbol symbol : referencedGlobalSymbols) {
++          markReferencedSymbolImmovable(symbol);
++        }
++      } else if (refSym0 != null) {
++        markReferencedSymbolImmovable(refSym0);
++        if (refSym1 != null) {
++          markReferencedSymbolImmovable(refSym1);
++        }
+       }
+     }
++
++    private void markReferencedSymbolImmovable(GlobalSymbol symbol) {
++      checkState(
++          !symbol.isMoveDeclarationStatementsDone,
++          "symbol %s moved before referring symbol %s",
++          symbol,
++          declaredGlobalSymbol);
++      symbol.addImmovableReference(currentChunk);
++    }
+   }
+ 
+   /**
+@@ -519,18 +767,14 @@ class CrossChunkCodeMotion implements CompilerPass {
+       symbol.preorderNumber = preorderCounter++;
+       componentRoots.push(symbol); // could be the start of a new strongly connected component
+       componentContents.push(symbol); // could be part of an existing strongly connected component
+-      for (GlobalSymbol referringSymbol : symbol.referencingGlobalSymbols) {
+-        if (referringSymbol.preorderNumber < 0) {
+-          processGlobalSymbol(referringSymbol);
+-        } else {
+-          if (!referringSymbol.hasBeenAssignedToAStronglyConnectedComponent) {
+-            // This GlobalSymbol is part of a not-yet-completed strongly connected component.
+-            // Back off the potential roots stack to the earliest symbol that is part of the
+-            // component.
+-            while (componentRoots.peek().preorderNumber > referringSymbol.preorderNumber) {
+-              componentRoots.pop();
+-            }
+-          }
++      if (symbol.referencingGlobalSymbols != null) {
++        for (GlobalSymbol referringSymbol : symbol.referencingGlobalSymbols) {
++          visitReferringSymbol(referringSymbol);
++        }
++      } else if (symbol.refSym0 != null) {
++        visitReferringSymbol(symbol.refSym0);
++        if (symbol.refSym1 != null) {
++          visitReferringSymbol(symbol.refSym1);
+         }
+       }
+       if (componentRoots.peek().equals(symbol)) {
+@@ -549,6 +793,19 @@ class CrossChunkCodeMotion implements CompilerPass {
+         this.stronglyConnectedSymbols.add(cycle);
+       }
+     }
++
++    private void visitReferringSymbol(GlobalSymbol referringSymbol) {
++      if (referringSymbol.preorderNumber < 0) {
++        processGlobalSymbol(referringSymbol);
++      } else if (!referringSymbol.hasBeenAssignedToAStronglyConnectedComponent) {
++        // This GlobalSymbol is part of a not-yet-completed strongly connected component.
++        // Back off the potential roots stack to the earliest symbol that is part of the
++        // component.
++        while (componentRoots.peek().preorderNumber > referringSymbol.preorderNumber) {
++          componentRoots.pop();
++        }
++      }
++    }
+   }
+ 
+   /**
+@@ -603,14 +860,25 @@ class CrossChunkCodeMotion implements CompilerPass {
+           chunkInsertionPointMap.computeIfAbsent(preferredChunk, compiler::getNodeForCodeInsertion);
+       ArrayList<TopLevelStatement> statementsLastFirst = new ArrayList<>();
+       for (DeclarationStatementGroup dsg : dsgs) {
++        if (dsg.statementStack == null && dsg.firstStatement == null) {
++          continue;
++        }
+         if (statementsLastFirst.isEmpty()) {
+-          for (TopLevelStatement stmt : dsg.statementStack) {
+-            statementsLastFirst.add(stmt);
++          if (dsg.statementStack != null) {
++            for (TopLevelStatement stmt : dsg.statementStack) {
++              statementsLastFirst.add(stmt);
++            }
++          } else {
++            statementsLastFirst.add(dsg.firstStatement);
+           }
+         } else {
+           ArrayList<TopLevelStatement> list1 = new ArrayList<>();
+-          for (TopLevelStatement stmt : dsg.statementStack) {
+-            list1.add(stmt);
++          if (dsg.statementStack != null) {
++            for (TopLevelStatement stmt : dsg.statementStack) {
++              list1.add(stmt);
++            }
++          } else {
++            list1.add(dsg.firstStatement);
+           }
+           ArrayList<TopLevelStatement> prev = new ArrayList<>(statementsLastFirst);
+           statementsLastFirst.clear();
+@@ -644,18 +912,7 @@ class CrossChunkCodeMotion implements CompilerPass {
+         }
+       }
+       for (int i = 0, size = statementsLastFirst.size(); i < size; i++) {
+-        Node statementNode = statementsLastFirst.get(i).getStatementNode();
+-        // Remove it
+-        compiler.reportChangeToEnclosingScope(statementNode);
+-        Node originalScript = NodeUtil.getEnclosingScript(statementNode);
+-
+-        statementNode.detach();
+-
+-        // Add it to the new spot
+-        destParent.addChildToFront(statementNode);
+-        NodeUtil.addFeaturesToScript(
+-            destParent, NodeUtil.getFeatureSetOfScript(originalScript), compiler);
+-        compiler.reportChangeToEnclosingScope(statementNode);
++        moveStatementNodeToDest(statementsLastFirst.get(i).getStatementNode(), destParent);
+       }
+     }
+ 
+@@ -671,7 +928,7 @@ class CrossChunkCodeMotion implements CompilerPass {
+ 
+     boolean allStatementsCanMove() {
+       for (DeclarationStatementGroup dsg : dsgs) {
+-        if (!dsg.allStatementsCanMove()) {
++        if (!dsg.allStatementsCanMove(currentReferenceCollector)) {
+           return false;
+         }
+       }
+diff --git a/com/google/javascript/jscomp/CrossChunkReferenceCollector.java b/com/google/javascript/jscomp/CrossChunkReferenceCollector.java
+index ea1174e..a907194 100644
+--- a/com/google/javascript/jscomp/CrossChunkReferenceCollector.java
++++ b/com/google/javascript/jscomp/CrossChunkReferenceCollector.java
+@@ -41,7 +41,18 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+   private final ReferenceCollector referenceCollector;
+ 
+   private int statementCounter = 0;
+-  private @Nullable TopLevelStatement topLevelStatementDraft = null;
++  private int draftOriginalOrder = 0;
++  private @Nullable JSChunk draftChunk = null;
++  private @Nullable Node draftStatementNode = null;
++  private @Nullable Node draftDeclaredNameNode = null;
++  private @Nullable Reference draftDeclaredNameReference = null;
++  private @Nullable Node draftDeclaredValueNode = null;
++  private @Nullable Reference draftNonDeclRef0 = null;
++  private @Nullable Reference draftNonDeclRef1 = null;
++  private @Nullable Reference draftNonDeclRef2 = null;
++  private @Nullable Reference draftNonDeclRef3 = null;
++  private Reference @Nullable [] draftNonDeclRefsRest = null;
++  private int draftNonDeclRefCount = 0;
+ 
+   /** Constructor initializes reference collector. */
+   CrossChunkReferenceCollector(AbstractCompiler compiler, ScopeCreator creator) {
+@@ -92,25 +103,24 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+     @Override
+     public void beforeTraverseNode(NodeTraversal t, Node n, @Nullable Node parent) {
+       if (parent != null && NodeUtil.isTopLevel(parent)) {
+-        checkState(topLevelStatementDraft == null, n);
+-        topLevelStatementDraft = initializeDraftStatement(t.getChunk(), n);
++        checkState(draftStatementNode == null, n);
++        initializeDraftStatement(t.getChunk(), n);
+       }
+     }
+ 
+     @Override
+     public void afterVisitNode(
+         NodeTraversal t, Node n, @Nullable Node parent, @Nullable Reference addedReference) {
+-      if (topLevelStatementDraft == null) {
++      if (draftStatementNode == null) {
+         return;
+       }
+-      if (n.equals(topLevelStatementDraft.statementNode)) {
+-        topLevelStatements.add(topLevelStatementDraft);
+-        topLevelStatementDraft = null;
++      if (n.equals(draftStatementNode)) {
++        finishDraftStatement();
+       } else if (addedReference != null && n.isName()) {
+-        if (identical(addedReference.getNode(), topLevelStatementDraft.declaredNameNode)) {
+-          topLevelStatementDraft.declaredNameReference = addedReference;
++        if (identical(addedReference.getNode(), draftDeclaredNameNode)) {
++          draftDeclaredNameReference = addedReference;
+         } else {
+-          topLevelStatementDraft.addNonDeclarationReference(addedReference);
++          addDraftNonDeclarationReference(addedReference);
+         }
+       }
+     }
+@@ -119,22 +129,86 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+     public void afterExitScope(NodeTraversal t, ReferenceMap referenceMap) {}
+   }
+ 
+-  private TopLevelStatement initializeDraftStatement(JSChunk chunk, Node statementNode) {
+-    TopLevelStatement draft =
+-        new TopLevelStatement(statementCounter++, chunk, statementNode);
++  private void addDraftNonDeclarationReference(Reference ref) {
++    int c = this.draftNonDeclRefCount;
++    switch (c) {
++      case 0 -> this.draftNonDeclRef0 = ref;
++      case 1 -> this.draftNonDeclRef1 = ref;
++      case 2 -> this.draftNonDeclRef2 = ref;
++      case 3 -> this.draftNonDeclRef3 = ref;
++      default -> {
++        Reference[] rest = this.draftNonDeclRefsRest;
++        int idx = c - 4;
++        if (rest == null) {
++          rest = new Reference[8];
++          this.draftNonDeclRefsRest = rest;
++        } else if (idx == rest.length) {
++          rest = Arrays.copyOf(rest, idx * 2);
++          this.draftNonDeclRefsRest = rest;
++        }
++        rest[idx] = ref;
++      }
++    }
++    this.draftNonDeclRefCount = c + 1;
++  }
++
++  private void finishDraftStatement() {
++    int refCount = this.draftNonDeclRefCount;
++    Reference declRef = this.draftDeclaredNameReference;
++    if (declRef != null || refCount > 0) {
++      Reference[] rest = null;
++      if (refCount > 4) {
++        int extra = refCount - 4;
++        rest = Arrays.copyOf(this.draftNonDeclRefsRest, extra);
++        Arrays.fill(this.draftNonDeclRefsRest, 0, extra, null);
++      }
++      topLevelStatements.add(
++          new TopLevelStatement(
++              this.draftOriginalOrder,
++              this.draftChunk,
++              this.draftStatementNode,
++              declRef,
++              this.draftDeclaredValueNode,
++              this.draftNonDeclRef0,
++              this.draftNonDeclRef1,
++              this.draftNonDeclRef2,
++              this.draftNonDeclRef3,
++              rest,
++              refCount));
++    }
++    this.draftChunk = null;
++    this.draftStatementNode = null;
++    this.draftDeclaredNameNode = null;
++    this.draftDeclaredNameReference = null;
++    this.draftDeclaredValueNode = null;
++    this.draftNonDeclRef0 = null;
++    this.draftNonDeclRef1 = null;
++    this.draftNonDeclRef2 = null;
++    this.draftNonDeclRef3 = null;
++    this.draftNonDeclRefCount = 0;
++  }
++
++  private void initializeDraftStatement(JSChunk chunk, Node statementNode) {
++    this.draftOriginalOrder = statementCounter++;
++    this.draftChunk = chunk;
++    this.draftStatementNode = statementNode;
++    this.draftDeclaredNameNode = null;
++    this.draftDeclaredNameReference = null;
++    this.draftDeclaredValueNode = null;
++    this.draftNonDeclRefCount = 0;
+     // Determine whether this statement declares a name or not.
+     // If so, save its name node and value node, if any.
+     if (NodeUtil.isNameDeclaration(statementNode)) {
+       // variable declaration
+-      draft.declaredNameNode = statementNode.getFirstChild();
+-      draft.declaredValueNode = statementNode.getFirstFirstChild();
++      this.draftDeclaredNameNode = statementNode.getFirstChild();
++      this.draftDeclaredValueNode = statementNode.getFirstFirstChild();
+     } else if (statementNode.isClass()) {
+-      draft.declaredNameNode = statementNode.getFirstChild();
+-      draft.declaredValueNode = statementNode;
++      this.draftDeclaredNameNode = statementNode.getFirstChild();
++      this.draftDeclaredValueNode = statementNode;
+     } else if (statementNode.isFunction()) {
+       // function declaration
+-      draft.declaredNameNode = statementNode.getFirstChild();
+-      draft.declaredValueNode = statementNode;
++      this.draftDeclaredNameNode = statementNode.getFirstChild();
++      this.draftDeclaredValueNode = statementNode;
+     } else if (statementNode.isExprResult()) {
+       Node expr = checkNotNull(statementNode.getFirstChild());
+       if (expr.isAssign()) {
+@@ -142,8 +216,8 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+         Node rhs = checkNotNull(expr.getSecondChild());
+         if (lhs.isName()) {
+           // `varName = value;`
+-          draft.declaredNameNode = lhs;
+-          draft.declaredValueNode = rhs;
++          this.draftDeclaredNameNode = lhs;
++          this.draftDeclaredValueNode = rhs;
+         } else if (lhs.isGetProp() || isPotentiallyMoveableGetElem(lhs)) {
+           Node nameNode = checkNotNull(lhs.getFirstChild());
+           while (nameNode.isGetProp()) {
+@@ -153,8 +227,8 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+             // `varName.some.property = value;`
+             // OR
+             // `varName[someProperty] = value;`
+-            draft.declaredNameNode = nameNode;
+-            draft.declaredValueNode = rhs;
++            this.draftDeclaredNameNode = nameNode;
++            this.draftDeclaredValueNode = rhs;
+           }
+         }
+       } else if (expr.isCall()) {
+@@ -188,12 +262,11 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+         }
+ 
+         if (nameNode != null) {
+-          draft.declaredNameNode = nameNode;
+-          draft.declaredValueNode = valueNode;
++          this.draftDeclaredNameNode = nameNode;
++          this.draftDeclaredValueNode = valueNode;
+         }
+       }
+     }
+-    return draft;
+   }
+ 
+   private static boolean isPotentiallyMoveableGetElem(Node maybeGetElem) {
+@@ -375,50 +448,45 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+   }
+ 
+   /** Represents a top-level statement and the references to global names it contains. */
+-  final class TopLevelStatement {
++  static final class TopLevelStatement {
+ 
+     /** 0-based index indicating original order of this statement in the source. */
+     private final int originalOrder;
+ 
+     private final JSChunk chunk;
+     private final Node statementNode;
+-    private @Nullable Reference nonDeclRef0 = null;
+-    private @Nullable Reference nonDeclRef1 = null;
+-    private @Nullable Reference nonDeclRef2 = null;
+-    private @Nullable Reference nonDeclRef3 = null;
+-    private Reference @Nullable [] nonDeclRefsRest = null;
+-    private int nonDeclRefCount = 0;
+-    @Nullable Node declaredNameNode = null;
+-    @Nullable Reference declaredNameReference = null;
+-    @Nullable Node declaredValueNode = null;
+-
+-    TopLevelStatement(int originalOrder, JSChunk chunk, Node statementNode) {
++    private final @Nullable Reference nonDeclRef0;
++    private final @Nullable Reference nonDeclRef1;
++    private final @Nullable Reference nonDeclRef2;
++    private final @Nullable Reference nonDeclRef3;
++    private final Reference @Nullable [] nonDeclRefsRest;
++    private final int nonDeclRefCount;
++    final @Nullable Reference declaredNameReference;
++    final @Nullable Node declaredValueNode;
++
++    TopLevelStatement(
++        int originalOrder,
++        JSChunk chunk,
++        Node statementNode,
++        @Nullable Reference declaredNameReference,
++        @Nullable Node declaredValueNode,
++        @Nullable Reference nonDeclRef0,
++        @Nullable Reference nonDeclRef1,
++        @Nullable Reference nonDeclRef2,
++        @Nullable Reference nonDeclRef3,
++        Reference @Nullable [] nonDeclRefsRest,
++        int nonDeclRefCount) {
+       this.originalOrder = originalOrder;
+       this.chunk = chunk;
+       this.statementNode = statementNode;
+-    }
+-
+-    void addNonDeclarationReference(Reference ref) {
+-      int c = this.nonDeclRefCount;
+-      switch (c) {
+-        case 0 -> this.nonDeclRef0 = ref;
+-        case 1 -> this.nonDeclRef1 = ref;
+-        case 2 -> this.nonDeclRef2 = ref;
+-        case 3 -> this.nonDeclRef3 = ref;
+-        default -> {
+-          Reference[] rest = this.nonDeclRefsRest;
+-          int idx = c - 4;
+-          if (rest == null) {
+-            rest = new Reference[8];
+-            this.nonDeclRefsRest = rest;
+-          } else if (idx == rest.length) {
+-            rest = Arrays.copyOf(rest, idx * 2);
+-            this.nonDeclRefsRest = rest;
+-          }
+-          rest[idx] = ref;
+-        }
+-      }
+-      this.nonDeclRefCount = c + 1;
++      this.declaredNameReference = declaredNameReference;
++      this.declaredValueNode = declaredValueNode;
++      this.nonDeclRef0 = nonDeclRef0;
++      this.nonDeclRef1 = nonDeclRef1;
++      this.nonDeclRef2 = nonDeclRef2;
++      this.nonDeclRef3 = nonDeclRef3;
++      this.nonDeclRefsRest = nonDeclRefsRest;
++      this.nonDeclRefCount = nonDeclRefCount;
+     }
+ 
+     int getOriginalOrder() {
+@@ -463,9 +531,9 @@ public final class CrossChunkReferenceCollector implements CompilerPass {
+       return declaredValueNode;
+     }
+ 
+-    boolean isMovableDeclaration() {
++    boolean isMovableDeclaration(CrossChunkReferenceCollector collector) {
+       return isDeclarationStatement()
+-          && canMoveValue(declaredNameReference.getScope(), declaredValueNode);
++          && collector.canMoveValue(declaredNameReference.getScope(), declaredValueNode);
+     }
+   }
+ }
+diff --git a/com/google/javascript/jscomp/TypeInferencePass.java b/com/google/javascript/jscomp/TypeInferencePass.java
+index b2f1a1c..81b3f7c 100644
+--- a/com/google/javascript/jscomp/TypeInferencePass.java
++++ b/com/google/javascript/jscomp/TypeInferencePass.java
+@@ -120,11 +120,7 @@ class TypeInferencePass {
+     // local scopes.
+     // TODO(b/149843534): this should be a crash instead.
+     final JSType unknownType = this.registry.getNativeType(UNKNOWN_TYPE);
+-    for (TypedVar var : this.scopeCreator.getAllSymbols()) {
+-      if (var.getType() == null) {
+-        var.setType(unknownType);
+-      }
+-    }
++    this.scopeCreator.normalizeNullVarTypes(unknownType);
+ 
+     if (this.stepCountHistogram != null) {
+       try (LogFile histogram =
+diff --git a/com/google/javascript/jscomp/TypedScope.java b/com/google/javascript/jscomp/TypedScope.java
+index c30b36d..370af39 100644
+--- a/com/google/javascript/jscomp/TypedScope.java
++++ b/com/google/javascript/jscomp/TypedScope.java
+@@ -804,6 +804,44 @@ public final class TypedScope extends AbstractScope<TypedScope, TypedVar>
+     }
+   }
+ 
++  void normalizeNullVarTypes(JSType unknownType) {
++    Overflow o = this.overflow;
++    if (o != null && o.vars != null) {
++      for (TypedVar v : o.vars.values()) {
++        if (v.getType() == null) {
++          v.setType(unknownType);
++        }
++      }
++    } else if (var0 != null) {
++      if (var0.getType() == null) {
++        var0.setType(unknownType);
++      }
++      if (var1 != null) {
++        if (var1.getType() == null) {
++          var1.setType(unknownType);
++        }
++        if (o != null && o.var2 != null) {
++          if (o.var2.getType() == null) {
++            o.var2.setType(unknownType);
++          }
++          if (o.var3 != null) {
++            if (o.var3.getType() == null) {
++              o.var3.setType(unknownType);
++            }
++            if (o.var4 != null) {
++              if (o.var4.getType() == null) {
++                o.var4.setType(unknownType);
++              }
++              if (o.var5 != null && o.var5.getType() == null) {
++                o.var5.setType(unknownType);
++              }
++            }
++          }
++        }
++      }
++    }
++  }
++
+   @Override
+   void addVarNamesTo(LinkedHashSet<String> dst) {
+     Overflow o = this.overflow;
+diff --git a/com/google/javascript/jscomp/TypedScopeCreator.java b/com/google/javascript/jscomp/TypedScopeCreator.java
+index 5042843..d2b5d46 100644
+--- a/com/google/javascript/jscomp/TypedScopeCreator.java
++++ b/com/google/javascript/jscomp/TypedScopeCreator.java
+@@ -305,6 +305,15 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     private String @Nullable [] keyNames;
+     private int @Nullable [] states;
+     private int size;
++    private int initialCapacity = 256;
++
++    void setInitialCapacity(int minCapacity) {
++      int cap = 1024;
++      while (cap < minCapacity && cap < (1 << 20)) {
++        cap <<= 1;
++      }
++      this.initialCapacity = cap;
++    }
+ 
+     private static int hash(@Nullable Node rootNode, String name) {
+       int h = (rootNode != null ? rootNode.hashCode() : 0) * 31 + name.hashCode();
+@@ -322,10 +331,11 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       checkNotNull(name);
+       String[] names = this.keyNames;
+       if (names == null) {
+-        names = new String[256];
++        int cap = this.initialCapacity;
++        names = new String[cap];
+         this.keyNames = names;
+-        this.keyNodes = new Node[256];
+-        this.states = new int[256];
++        this.keyNodes = new Node[cap];
++        this.states = new int[cap];
+       }
+       int mask = names.length - 1;
+       int slot = hash(rootNode, name) & mask;
+@@ -353,10 +363,11 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       checkNotNull(name);
+       String[] names = this.keyNames;
+       if (names == null) {
+-        names = new String[256];
++        int cap = this.initialCapacity;
++        names = new String[cap];
+         this.keyNames = names;
+-        this.keyNodes = new Node[256];
+-        this.states = new int[256];
++        this.keyNodes = new Node[cap];
++        this.states = new int[cap];
+       }
+       int mask = names.length - 1;
+       int slot = hash(rootNode, name) & mask;
+@@ -577,6 +588,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+ 
+     // Reset state to pre-sized collections for building.
+     clearCommonState();
++    this.scopedVarStates.setInitialCapacity(compiler.getNumberOfInputs() * 24);
+     this.reservedNamesForScope = new HashMap<>(expectedScopes);
+     this.functionsWithNonEmptyReturns = new HashSet<>(expectedScopes / 2);
+   }
+@@ -598,13 +610,23 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+   @Override
+   public Iterable<TypedVar> getAllSymbols() {
+     int n = this.memoizedScopes.size();
+-    ArrayList<TypedVar> vars = new ArrayList<>(n * 2);
++    int totalVars = 0;
++    for (int i = 0; i < n; i++) {
++      totalVars += this.memoizedScopes.get(i).getVarCount();
++    }
++    ArrayList<TypedVar> vars = new ArrayList<>(totalVars);
+     for (int i = 0; i < n; i++) {
+       this.memoizedScopes.get(i).addVarsTo(vars);
+     }
+     return vars;
+   }
+ 
++  void normalizeNullVarTypes(JSType unknownType) {
++    for (int i = 0, n = this.memoizedScopes.size(); i < n; i++) {
++      this.memoizedScopes.get(i).normalizeNullVarTypes(unknownType);
++    }
++  }
++
+   /**
+    * Returns a function mapping a scope root node to a {@link TypedScope}.
+    *
+diff --git a/com/google/javascript/jscomp/serialization/JSDocSerializer.java b/com/google/javascript/jscomp/serialization/JSDocSerializer.java
+index ef8bbff..226de0b 100644
+--- a/com/google/javascript/jscomp/serialization/JSDocSerializer.java
++++ b/com/google/javascript/jscomp/serialization/JSDocSerializer.java
+@@ -42,8 +42,15 @@ public final class JSDocSerializer {
+    * @return a new JSDocInfo object or null if no serializable fields are found
+    */
+   public static JSDocInfo convertJSDocInfoForOptimizations(JSDocInfo jsdoc) {
+-    StringPool.Builder stringPool = StringPool.builder();
+-    return deserializeJsdoc(serializeJsdoc(jsdoc, stringPool), stringPool.build());
++    if (jsdoc == null) {
++      return null;
++    }
++    StringPool.Builder stringPool = StringPool.smallBuilder();
++    OptimizationJsdoc serialized = serializeJsdoc(jsdoc, stringPool);
++    if (serialized == null) {
++      return null;
++    }
++    return deserializeJsdoc(serialized, stringPool.build());
+   }
+ 
+   private static OptimizationJsdoc.Builder addKind(
+diff --git a/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java b/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
+index 0ed001c..dbe5f11 100644
+--- a/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
++++ b/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
+@@ -475,7 +475,7 @@ final class JSTypeReconserializer {
+       this.seenTypeRecords.put(id, record);
+     }
+     if (this.putCachedTypeRecord(jstype, record) == null) {
+-      record.jstypes.add(jstype);
++      record.addJstype(jstype);
+     }
+ 
+     return record;
+@@ -528,7 +528,8 @@ final class JSTypeReconserializer {
+     boolean isInvalidating = false;
+     boolean propertiesKeepOriginalName = false;
+ 
+-    for (JSType type : seen.jstypes) {
++    for (int j = 0, jstypeCount = seen.jstypeCount(); j < jstypeCount; j++) {
++      JSType type = seen.jstypeAt(j);
+       ObjectType objType = checkNotNull(type.toMaybeObjectType(), type);
+ 
+       if (objType.isFunctionType()) {
+@@ -774,14 +775,18 @@ final class JSTypeReconserializer {
+     ImmutableMultimap.Builder<String, JSType> colorIdToTypes =
+         ImmutableMultimap.<String, JSType>builder().orderKeysBy(naturalOrder());
+     for (SeenTypeRecord record : this.seenTypeRecords.values()) {
+-      if (!record.jstypes.isEmpty()) {
+-        colorIdToTypes.putAll(record.colorId.toString(), record.jstypes);
++      int jstypeCount = record.jstypeCount();
++      if (jstypeCount > 0) {
++        String key = record.colorId.toString();
++        for (int i = 0; i < jstypeCount; i++) {
++          colorIdToTypes.put(key, record.jstypeAt(i));
++        }
+       }
+     }
+     if (this.fallbackTypeToRecordCache != null) {
+       this.fallbackTypeToRecordCache.forEach(
+           (jstype, record) -> {
+-            if (!record.jstypes.contains(jstype)) {
++            if (!record.containsJstype(jstype)) {
+               colorIdToTypes.put(record.colorId.toString(), jstype);
+             }
+           });
+@@ -798,7 +803,9 @@ final class JSTypeReconserializer {
+      * set. The likely cause is that the caches head of these lists have low hit-rates for unions,
+      * and that union reconciliation doesn't actually look at most entries in this list.
+      */
+-    final ArrayList<JSType> jstypes = new ArrayList<>(2);
++    private @Nullable JSType firstJstype = null;
++    private JSType @Nullable [] extraJstypes = null;
++    private int extraJstypeCount = 0;
+ 
+     @Nullable ImmutableSet<SeenTypeRecord> unionMembers = null;
+ 
+@@ -806,6 +813,49 @@ final class JSTypeReconserializer {
+       this.colorId = colorId;
+       this.pointer = pointer;
+     }
++
++    void addJstype(JSType jstype) {
++      if (this.firstJstype == null) {
++        this.firstJstype = jstype;
++        return;
++      }
++      JSType[] extra = this.extraJstypes;
++      int count = this.extraJstypeCount;
++      if (extra == null) {
++        extra = new JSType[4];
++        this.extraJstypes = extra;
++      } else if (count == extra.length) {
++        extra = Arrays.copyOf(extra, count * 2);
++        this.extraJstypes = extra;
++      }
++      extra[count] = jstype;
++      this.extraJstypeCount = count + 1;
++    }
++
++    int jstypeCount() {
++      return this.firstJstype == null ? 0 : 1 + this.extraJstypeCount;
++    }
++
++    JSType jstypeAt(int index) {
++      return index == 0 ? this.firstJstype : this.extraJstypes[index - 1];
++    }
++
++    boolean containsJstype(JSType target) {
++      if (this.firstJstype == null) {
++        return false;
++      }
++      if (this.firstJstype.equals(target)) {
++        return true;
++      }
++      JSType[] extra = this.extraJstypes;
++      int count = this.extraJstypeCount;
++      for (int i = 0; i < count; i++) {
++        if (extra[i].equals(target)) {
++          return true;
++        }
++      }
++      return false;
++    }
+   }
+ 
+   /**
+diff --git a/com/google/javascript/jscomp/serialization/StringPool.java b/com/google/javascript/jscomp/serialization/StringPool.java
+index 4807119..cfa4993 100644
+--- a/com/google/javascript/jscomp/serialization/StringPool.java
++++ b/com/google/javascript/jscomp/serialization/StringPool.java
+@@ -23,6 +23,7 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+ import com.google.javascript.rhino.RhinoStringPool;
+ import com.google.protobuf.ByteString;
+ import java.util.Arrays;
++import org.jspecify.annotations.Nullable;
+ 
+ /**
+  * Aggregates strings into a {@link StringPool}
+@@ -81,23 +82,27 @@ public final class StringPool {
+   }
+ 
+   public static Builder builder() {
+-    return new Builder();
++    return new Builder(1024, 2048);
++  }
++
++  static Builder smallBuilder() {
++    return new Builder(8, 16);
+   }
+ 
+   /** Builder */
+   public static final class Builder {
++    private final int initialPoolCap;
++    private final int initialTableCap;
+     private int maxLength = 0;
+-    private String[] pool;
+-    private int size;
+-    private long[] table;
+-    private int[] idToPool = new int[4096];
++    private String @Nullable [] pool;
++    private int size = 1;
++    private long @Nullable [] table;
++    private int @Nullable [] idToPool;
+     private boolean built = false;
+ 
+-    private Builder() {
+-      this.pool = new String[256];
+-      this.pool[0] = "";
+-      this.size = 1;
+-      this.table = new long[2048];
++    private Builder(int initialPoolCap, int initialTableCap) {
++      this.initialPoolCap = initialPoolCap;
++      this.initialTableCap = initialTableCap;
+     }
+ 
+     public int putNodeString(com.google.javascript.rhino.Node n) {
+@@ -116,7 +121,14 @@ public final class StringPool {
+         return 0;
+       }
+       int[] map = this.idToPool;
+-      if (id < map.length) {
++      if (map == null) {
++        int cap = 4096;
++        while (cap <= id) {
++          cap <<= 1;
++        }
++        map = new int[cap];
++        this.idToPool = map;
++      } else if (id < map.length) {
+         int cached = map[id];
+         if (cached != 0) {
+           return cached - 1;
+@@ -142,32 +154,47 @@ public final class StringPool {
+       }
+ 
+       int hash = RhinoStringPool.fastHash32(string);
++      String[] poolArr = this.pool;
+       long[] tbl = this.table;
+-      int mask = tbl.length - 1;
+-      int slot = hash & mask;
+-      long entry;
+-      while ((entry = tbl[slot]) != 0L) {
+-        if (((int) (entry >>> 32)) == hash) {
+-          int idx = ((int) entry) - 1;
+-          if (this.pool[idx].equals(string)) {
+-            return idx;
++      int mask;
++      int slot;
++      if (poolArr == null) {
++        poolArr = new String[this.initialPoolCap];
++        poolArr[0] = "";
++        this.pool = poolArr;
++        tbl = new long[this.initialTableCap];
++        this.table = tbl;
++        mask = tbl.length - 1;
++        slot = hash & mask;
++      } else {
++        mask = tbl.length - 1;
++        slot = hash & mask;
++        long entry;
++        while ((entry = tbl[slot]) != 0L) {
++          if (((int) (entry >>> 32)) == hash) {
++            int idx = ((int) entry) - 1;
++            if (poolArr[idx].equals(string)) {
++              return idx;
++            }
+           }
++          slot = (slot + 1) & mask;
+         }
+-        slot = (slot + 1) & mask;
+-      }
+ 
+-      if (this.built) {
+-        this.pool = Arrays.copyOf(this.pool, Math.max(this.pool.length, this.size + 16));
+-        this.built = false;
+-      } else if (this.size == this.pool.length) {
+-        this.pool = Arrays.copyOf(this.pool, this.pool.length * 2);
++        if (this.built) {
++          poolArr = Arrays.copyOf(poolArr, Math.max(poolArr.length, this.size + 16));
++          this.pool = poolArr;
++          this.built = false;
++        } else if (this.size == poolArr.length) {
++          poolArr = Arrays.copyOf(poolArr, poolArr.length * 2);
++          this.pool = poolArr;
++        }
+       }
+       int len = string.length();
+       if (len > this.maxLength) {
+         this.maxLength = len;
+       }
+       int id = this.size;
+-      this.pool[id] = string;
++      poolArr[id] = string;
+       int newSize = id + 1;
+       this.size = newSize;
+       if ((newSize << 2) > tbl.length * 3) {
+@@ -207,6 +234,9 @@ public final class StringPool {
+     }
+ 
+     public StringPool build() {
++      if (this.pool == null) {
++        return EMPTY;
++      }
+       this.built = true;
+       return new StringPool(this.maxLength, this.pool, this.size);
+     }
+diff --git a/com/google/javascript/jscomp/serialization/TypedAstSerializer.java b/com/google/javascript/jscomp/serialization/TypedAstSerializer.java
+index 32df3a3..72e54dc 100644
+--- a/com/google/javascript/jscomp/serialization/TypedAstSerializer.java
++++ b/com/google/javascript/jscomp/serialization/TypedAstSerializer.java
+@@ -138,8 +138,16 @@ final class TypedAstSerializer {
+ 
+   private AstNode.Builder createWithPositionInfo(Node n) {
+     checkState(n.getLength() >= 0);
+-    int currentLine = n.getLineno();
+-    int currentColumn = n.getCharno();
++    int sourcePosition = n.getSourcePosition();
++    int currentLine;
++    int currentColumn;
++    if (sourcePosition == -1) {
++      currentLine = -1;
++      currentColumn = -1;
++    } else {
++      currentLine = sourcePosition >>> 12;
++      currentColumn = sourcePosition & Node.MAX_COLUMN_NUMBER;
++    }
+     AstNode.Builder builder =
+         AstNode.newBuilder()
+             .setRelativeLine(currentLine - previousLine)
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+index 26ca0ba..c3264ac 100644
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -2657,24 +2657,21 @@ public class Node {
+   }
+ 
+   public final int getLineno() {
+-    if (this.linenoCharno == -1) {
+-      return -1;
+-    } else {
+-      return this.linenoCharno >>> CHARNO_BITS;
+-    }
++    int pos = this.linenoCharno;
++    return pos == -1 ? -1 : pos >>> CHARNO_BITS;
+   }
+ 
+   // Returns the 0-based column number
+   public final int getCharno() {
+-    if (this.linenoCharno == -1) {
+-      return -1;
+-    } else {
+-      return this.linenoCharno & MAX_COLUMN_NUMBER;
+-    }
++    int pos = this.linenoCharno;
++    return pos == -1 ? -1 : pos & MAX_COLUMN_NUMBER;
+   }
+ 
+   public final String getLocation() {
+-    return this.getSourceFileName() + ":" + this.getLineno() + ":" + this.getCharno();
++    int pos = this.linenoCharno;
++    int lineno = pos == -1 ? -1 : pos >>> CHARNO_BITS;
++    int charno = pos == -1 ? -1 : pos & MAX_COLUMN_NUMBER;
++    return this.getSourceFileName() + ":" + lineno + ":" + charno;
+   }
+ 
+   // TODO(johnlenz): make this final
+@@ -2683,11 +2680,11 @@ public class Node {
+     if (file == null) {
+       return -1;
+     }
+-    int lineno = getLineno();
+-    if (lineno == -1) {
++    int pos = this.linenoCharno;
++    if (pos == -1) {
+       return -1;
+     }
+-    return file.getLineOffset(lineno) + getCharno();
++    return file.getLineOffset(pos >>> CHARNO_BITS) + (pos & MAX_COLUMN_NUMBER);
+   }
+ 
+   public final int getSourcePosition() {

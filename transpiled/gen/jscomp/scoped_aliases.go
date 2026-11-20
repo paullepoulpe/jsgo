@@ -267,7 +267,7 @@ func (this_ *ScopedAliases) Process_2(externs pkg_rhino.Node, root pkg_rhino.Nod
 	}
 
 	if !(traversal.HasErrors()) {
-		var aliasWorkQueue j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](traversal.priv_Traversal_getAliasUsages_5048()))
+		var aliasWorkQueue j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](traversal.priv_Traversal_getAliasUsages_5058()))
 		_ = aliasWorkQueue
 		for !(aliasWorkQueue.IsEmpty()) {
 			var newQueue j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList()
@@ -887,7 +887,7 @@ func (this_ *ScopedAliases_Traversal) GetAliasDefinitionsToDelete() j2gort.Ext_j
 }
 
 // Java method: Traversal.getAliasUsages()
-func (this_ *ScopedAliases_Traversal) priv_Traversal_getAliasUsages_5048() j2gort.Ext_java_util_List {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_getAliasUsages_5058() j2gort.Ext_java_util_List {
 	return this_.aliasUsages
 }
 
@@ -902,28 +902,28 @@ func (this_ *ScopedAliases_Traversal) HasErrors() bool {
 }
 
 // Java method: Traversal.inGoogScopeBody()
-func (this_ *ScopedAliases_Traversal) priv_Traversal_inGoogScopeBody_5051() bool {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_inGoogScopeBody_5061() bool {
 	return (this_.scopeFunctionBody != 0)
 }
 
 // Java method: Traversal.isGoogScopeFunctionBody(com.google.javascript.rhino.Node n)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_isGoogScopeFunctionBody_5052(n pkg_rhino.Node) bool {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_isGoogScopeFunctionBody_5062(n pkg_rhino.Node) bool {
 	_ = n
-	return (this_.priv_Traversal_inGoogScopeBody_5051() && (n == this_.scopeFunctionBody))
+	return (this_.priv_Traversal_inGoogScopeBody_5061() && (n == this_.scopeFunctionBody))
 }
 
 // Java method: Traversal.isCallToScopeMethod(com.google.javascript.rhino.Node n)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_isCallToScopeMethod_5053(n pkg_rhino.Node) bool {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_isCallToScopeMethod_5063(n pkg_rhino.Node) bool {
 	_ = n
 	return (n.IsCall() && n.GetFirstChild().MatchesQualifiedName_1_string("goog.scope"))
 }
 
 // Java method: Traversal.findScopeMethodCall(com.google.javascript.rhino.Node scopeRoot)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_findScopeMethodCall_5054(scopeRoot pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_findScopeMethodCall_5064(scopeRoot pkg_rhino.Node) pkg_rhino.Node {
 	_ = scopeRoot
 	var n pkg_rhino.Node = scopeRoot.GetGrandparent()
 	_ = n
-	if this_.priv_Traversal_isCallToScopeMethod_5053(n) {
+	if this_.priv_Traversal_isCallToScopeMethod_5063(n) {
 		return n
 	}
 	return pkg_rhino.Node(0)
@@ -935,10 +935,10 @@ func (this_ *ScopedAliases_Traversal) EnterScope(t *NodeTraversal) {
 	if t.InGlobalHoistScope() {
 		return
 	}
-	var scopeMethodCall pkg_rhino.Node = this_.priv_Traversal_findScopeMethodCall_5054(t.GetScopeRoot())
+	var scopeMethodCall pkg_rhino.Node = this_.priv_Traversal_findScopeMethodCall_5064(t.GetScopeRoot())
 	_ = scopeMethodCall
 	if scopeMethodCall != 0 {
-		this_.priv_Traversal_findAliases_5057(t.GetScope())
+		this_.priv_Traversal_findAliases_5067(t.GetScope())
 		this_.scopeFunctionBody = scopeMethodCall.GetLastChild().GetLastChild()
 	}
 }
@@ -946,27 +946,27 @@ func (this_ *ScopedAliases_Traversal) EnterScope(t *NodeTraversal) {
 // Java method: Traversal.exitScope(com.google.javascript.jscomp.NodeTraversal t)
 func (this_ *ScopedAliases_Traversal) ExitScope(t *NodeTraversal) {
 	_ = t
-	if this_.priv_Traversal_isGoogScopeFunctionBody_5052(t.GetScopeRoot()) {
+	if this_.priv_Traversal_isGoogScopeFunctionBody_5062(t.GetScopeRoot()) {
 		this_.scopeFunctionBody = pkg_rhino.Node(0)
-		this_.priv_Traversal_renameNamespaceShadows_5061(t)
+		this_.priv_Traversal_renameNamespaceShadows_5071(t)
 		this_.injectedDecls.Clear()
 		this_.aliases.Clear()
 		this_.forbiddenLocals.Clear()
 		this_.hasNamespaceShadows = false
-	} else if this_.priv_Traversal_inGoogScopeBody_5051() {
-		this_.priv_Traversal_findNamespaceShadows_5060(t)
-		this_.priv_Traversal_reportInvalidVariables_5055(t)
+	} else if this_.priv_Traversal_inGoogScopeBody_5061() {
+		this_.priv_Traversal_findNamespaceShadows_5070(t)
+		this_.priv_Traversal_reportInvalidVariables_5065(t)
 	}
 }
 
 // Java method: Traversal.reportInvalidVariables(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_reportInvalidVariables_5055(t *NodeTraversal) {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_reportInvalidVariables_5065(t *NodeTraversal) {
 	_ = t
 	var scopeRoot pkg_rhino.Node = t.GetScopeRoot()
 	_ = scopeRoot
 	var enclosingFunctionBody pkg_rhino.Node = t.GetEnclosingFunction().GetLastChild()
 	_ = enclosingFunctionBody
-	if (this_.priv_Traversal_isGoogScopeFunctionBody_5052(enclosingFunctionBody) && scopeRoot.IsBlock()) && !(scopeRoot.GetParent().IsFunction()) {
+	if (this_.priv_Traversal_isGoogScopeFunctionBody_5062(enclosingFunctionBody) && scopeRoot.IsBlock()) && !(scopeRoot.GetParent().IsFunction()) {
 		{
 			cur_7 := (t.GetScope()).iterVars_()
 			for cur_7.HasNext() {
@@ -977,7 +977,7 @@ func (this_ *ScopedAliases_Traversal) priv_Traversal_reportInvalidVariables_5055
 				var parent pkg_rhino.Node = v.GetNameNode().GetParent()
 				_ = parent
 				if NodeUtil_IsFunctionDeclaration(parent) {
-					this_.priv_Traversal_report_5056(v.GetNode(), StaticGet_ScopedAliases_GOOG_SCOPE_INVALID_VARIABLE(), []string{v.GetName()})
+					this_.priv_Traversal_report_5066(v.GetNode(), StaticGet_ScopedAliases_GOOG_SCOPE_INVALID_VARIABLE(), []string{v.GetName()})
 				}
 			}
 		}
@@ -985,7 +985,7 @@ func (this_ *ScopedAliases_Traversal) priv_Traversal_reportInvalidVariables_5055
 }
 
 // Java method: Traversal.report(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.DiagnosticType error, java.lang.String[] arguments)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_report_5056(n pkg_rhino.Node, error_ *DiagnosticType, arguments []string) {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_report_5066(n pkg_rhino.Node, error_ *DiagnosticType, arguments []string) {
 	_ = n
 	_ = error_
 	_ = arguments
@@ -994,7 +994,7 @@ func (this_ *ScopedAliases_Traversal) priv_Traversal_report_5056(n pkg_rhino.Nod
 }
 
 // Java method: Traversal.findAliases(com.google.javascript.jscomp.Scope scope)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_findAliases_5057(scope *Scope) {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_findAliases_5067(scope *Scope) {
 	_ = scope
 	{
 		cur_9 := (scope).iterVars_()
@@ -1012,7 +1012,7 @@ func (this_ *ScopedAliases_Traversal) priv_Traversal_findAliases_5057(scope *Sco
 			var isFunctionDecl bool = NodeUtil_IsFunctionDeclaration(parent)
 			_ = isFunctionDecl
 			if isVar && ScopedAliases_IsAliasDefinition(n) {
-				this_.priv_Traversal_recordAlias_5058(v)
+				this_.priv_Traversal_recordAlias_5068(v)
 			} else if v.IsBleedingFunction() {
 			} else if parent.IsParamList() {
 			} else if (isVar || isFunctionDecl) || NodeUtil_IsClassDeclaration(parent) {
@@ -1077,21 +1077,21 @@ func (this_ *ScopedAliases_Traversal) priv_Traversal_findAliases_5057(scope *Sco
 				}
 				this_.injectedDecls.Add(newDecl)
 				v.GetNameNode().AddChildToFront(NodeUtil_NewName_4_AbstractCompiler_string_Node_string(this_.outer_.compiler, globalName, n, name))
-				this_.priv_Traversal_recordAlias_5058(v)
+				this_.priv_Traversal_recordAlias_5068(v)
 			} else {
-				this_.priv_Traversal_report_5056(n, StaticGet_ScopedAliases_GOOG_SCOPE_NON_ALIAS_LOCAL(), []string{n.GetString()})
+				this_.priv_Traversal_report_5066(n, StaticGet_ScopedAliases_GOOG_SCOPE_NON_ALIAS_LOCAL(), []string{n.GetString()})
 			}
 		}
 	}
 }
 
 // Java method: Traversal.recordAlias(com.google.javascript.jscomp.Var aliasVar)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_recordAlias_5058(aliasVar *Var) {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_recordAlias_5068(aliasVar *Var) {
 	_ = aliasVar
 	var initialValue pkg_rhino.Node = aliasVar.GetInitialValue()
 	_ = initialValue
 	this_.aliasDefinitionsToDelete.Add_1(j2gort.BoxNode(aliasVar.GetNameNode()))
-	if this_.outer_.invalidModuleGetHandling.ShouldGiveUniqueName() && this_.priv_Traversal_containsInvalidGoogModuleGet_5059(initialValue) {
+	if this_.outer_.invalidModuleGetHandling.ShouldGiveUniqueName() && this_.priv_Traversal_containsInvalidGoogModuleGet_5069(initialValue) {
 		var name string = aliasVar.GetName()
 		_ = name
 		var fileName string = initialValue.GetSourceFileName()
@@ -1129,13 +1129,13 @@ func (this_ *ScopedAliases_Traversal) priv_Traversal_recordAlias_5058(aliasVar *
 }
 
 // Java method: Traversal.containsInvalidGoogModuleGet(com.google.javascript.rhino.Node expression)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_containsInvalidGoogModuleGet_5059(expression pkg_rhino.Node) bool {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_containsInvalidGoogModuleGet_5069(expression pkg_rhino.Node) bool {
 	_ = expression
 	switch expression.TokenSwitchOrd_() {
 	case int32(32) /* Token.NAME */ :
 		return false
 	case int32(26) /* Token.GETPROP */ :
-		return this_.priv_Traversal_containsInvalidGoogModuleGet_5059(expression.GetFirstChild())
+		return this_.priv_Traversal_containsInvalidGoogModuleGet_5069(expression.GetFirstChild())
 	case int32(28) /* Token.CALL */ :
 		var namespace string = expression.GetSecondChild().GetString()
 		_ = namespace
@@ -1147,7 +1147,7 @@ func (this_ *ScopedAliases_Traversal) priv_Traversal_containsInvalidGoogModuleGe
 }
 
 // Java method: Traversal.findNamespaceShadows(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_findNamespaceShadows_5060(t *NodeTraversal) {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_findNamespaceShadows_5070(t *NodeTraversal) {
 	_ = t
 	if this_.hasNamespaceShadows {
 		return
@@ -1170,7 +1170,7 @@ func (this_ *ScopedAliases_Traversal) priv_Traversal_findNamespaceShadows_5060(t
 }
 
 // Java method: Traversal.renameNamespaceShadows(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_renameNamespaceShadows_5061(t *NodeTraversal) {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_renameNamespaceShadows_5071(t *NodeTraversal) {
 	_ = t
 	if !(NodeUtil_IsFunctionBlock(t.GetScopeRoot())) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(t.GetScopeRoot()))
@@ -1195,7 +1195,7 @@ func (this_ *ScopedAliases_Traversal) priv_Traversal_renameNamespaceShadows_5061
 }
 
 // Java method: Traversal.renameBleedingFunctionName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node fnName)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_renameBleedingFunctionName_5062(t *NodeTraversal, fnName pkg_rhino.Node) {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_renameBleedingFunctionName_5072(t *NodeTraversal, fnName pkg_rhino.Node) {
 	_ = t
 	_ = fnName
 	var name string = fnName.GetString()
@@ -1217,7 +1217,7 @@ func (this_ *ScopedAliases_Traversal) priv_Traversal_renameBleedingFunctionName_
 }
 
 // Java method: Traversal.validateScopeCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_validateScopeCall_5063(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_validateScopeCall_5073(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = n
 	_ = parent
@@ -1225,18 +1225,18 @@ func (this_ *ScopedAliases_Traversal) priv_Traversal_validateScopeCall_5063(t *N
 		this_.outer_.preprocessorSymbolTable.AddReference_1(n.GetFirstChild())
 	}
 	if !(parent.IsExprResult()) {
-		this_.priv_Traversal_report_5056(n, StaticGet_ScopedAliases_GOOG_SCOPE_MUST_BE_ALONE(), []string{})
+		this_.priv_Traversal_report_5066(n, StaticGet_ScopedAliases_GOOG_SCOPE_MUST_BE_ALONE(), []string{})
 	}
 	if t.GetEnclosingFunction() != 0 {
-		this_.priv_Traversal_report_5056(n, StaticGet_ScopedAliases_GOOG_SCOPE_MUST_BE_IN_GLOBAL_SCOPE(), []string{})
+		this_.priv_Traversal_report_5066(n, StaticGet_ScopedAliases_GOOG_SCOPE_MUST_BE_IN_GLOBAL_SCOPE(), []string{})
 	}
 	if !(n.HasTwoChildren()) {
-		this_.priv_Traversal_report_5056(n, StaticGet_ScopedAliases_GOOG_SCOPE_HAS_BAD_PARAMETERS(), []string{})
+		this_.priv_Traversal_report_5066(n, StaticGet_ScopedAliases_GOOG_SCOPE_HAS_BAD_PARAMETERS(), []string{})
 	} else {
 		var anonymousFnNode pkg_rhino.Node = n.GetSecondChild()
 		_ = anonymousFnNode
 		if (!(anonymousFnNode.IsFunction()) || (NodeUtil_GetName(anonymousFnNode) != j2gort.NullString)) || NodeUtil_GetFunctionParameters(anonymousFnNode).HasChildren() {
-			this_.priv_Traversal_report_5056(anonymousFnNode, StaticGet_ScopedAliases_GOOG_SCOPE_HAS_BAD_PARAMETERS(), []string{})
+			this_.priv_Traversal_report_5066(anonymousFnNode, StaticGet_ScopedAliases_GOOG_SCOPE_HAS_BAD_PARAMETERS(), []string{})
 		} else {
 			this_.scopeCalls.Add_1(j2gort.BoxNode(n))
 		}
@@ -1249,10 +1249,10 @@ func (this_ *ScopedAliases_Traversal) Visit_3(t *NodeTraversal, n pkg_rhino.Node
 	_ = n
 	_ = parent
 	this_.outer_.uniqueIdInput = t.GetInput()
-	if this_.priv_Traversal_isCallToScopeMethod_5053(n) {
-		this_.priv_Traversal_validateScopeCall_5063(t, n, n.GetParent())
+	if this_.priv_Traversal_isCallToScopeMethod_5063(n) {
+		this_.priv_Traversal_validateScopeCall_5073(t, n, n.GetParent())
 	}
-	if !(this_.priv_Traversal_inGoogScopeBody_5051()) {
+	if !(this_.priv_Traversal_inGoogScopeBody_5061()) {
 		return
 	}
 	var type_ pkg_rhino.Token = n.GetToken()
@@ -1271,26 +1271,26 @@ func (this_ *ScopedAliases_Traversal) Visit_3(t *NodeTraversal, n pkg_rhino.Node
 			}
 		}
 	}
-	if this_.priv_Traversal_isGoogScopeFunctionBody_5052(t.GetEnclosingFunction().GetLastChild()) {
+	if this_.priv_Traversal_isGoogScopeFunctionBody_5062(t.GetEnclosingFunction().GetLastChild()) {
 		if (aliasVar != nil) && NodeUtil_IsLValue(n) {
 			if aliasVar.GetNode() == n {
 				return
 			} else {
-				this_.priv_Traversal_report_5056(n, StaticGet_ScopedAliases_GOOG_SCOPE_ALIAS_REDEFINED(), []string{n.GetString()})
+				this_.priv_Traversal_report_5066(n, StaticGet_ScopedAliases_GOOG_SCOPE_ALIAS_REDEFINED(), []string{n.GetString()})
 			}
 		}
 		switch (type_).Ordinal() {
 		case int32(0) /* Token.RETURN */ :
-			this_.priv_Traversal_report_5056(n, StaticGet_ScopedAliases_GOOG_SCOPE_USES_RETURN(), []string{})
+			this_.priv_Traversal_report_5066(n, StaticGet_ScopedAliases_GOOG_SCOPE_USES_RETURN(), []string{})
 		case int32(37) /* Token.THIS */ :
-			this_.priv_Traversal_report_5056(n, StaticGet_ScopedAliases_GOOG_SCOPE_REFERENCES_THIS(), []string{})
+			this_.priv_Traversal_report_5066(n, StaticGet_ScopedAliases_GOOG_SCOPE_REFERENCES_THIS(), []string{})
 		case int32(43) /* Token.THROW */ :
-			this_.priv_Traversal_report_5056(n, StaticGet_ScopedAliases_GOOG_SCOPE_USES_THROW(), []string{})
+			this_.priv_Traversal_report_5066(n, StaticGet_ScopedAliases_GOOG_SCOPE_USES_THROW(), []string{})
 		default:
 		}
 	}
 	if NodeUtil_IsBleedingFunctionName(n) {
-		this_.priv_Traversal_renameBleedingFunctionName_5062(t, n)
+		this_.priv_Traversal_renameBleedingFunctionName_5072(t, n)
 	}
 	if aliasVar != nil {
 		this_.aliasUsages.Add_1(NewScopedAliases_AliasedNode(aliasVar, n))
@@ -1304,14 +1304,14 @@ func (this_ *ScopedAliases_Traversal) Visit_3(t *NodeTraversal, n pkg_rhino.Node
 			var count int32 = info.GetTypeNodeCount()
 			_ = count
 			for ; i < count; i = i + 1 {
-				this_.priv_Traversal_fixTypeNode_5064(info.GetTypeNodeAt(i))
+				this_.priv_Traversal_fixTypeNode_5074(info.GetTypeNodeAt(i))
 			}
 		}
 	}
 }
 
 // Java method: Traversal.fixTypeNode(com.google.javascript.rhino.Node typeNode)
-func (this_ *ScopedAliases_Traversal) priv_Traversal_fixTypeNode_5064(typeNode pkg_rhino.Node) {
+func (this_ *ScopedAliases_Traversal) priv_Traversal_fixTypeNode_5074(typeNode pkg_rhino.Node) {
 	_ = typeNode
 	if typeNode.IsStringLit() {
 		var name string = typeNode.GetString()
@@ -1336,7 +1336,7 @@ func (this_ *ScopedAliases_Traversal) priv_Traversal_fixTypeNode_5064(typeNode p
 		var child pkg_rhino.Node = typeNode.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			this_.priv_Traversal_fixTypeNode_5064(child)
+			this_.priv_Traversal_fixTypeNode_5074(child)
 		}
 	}
 }

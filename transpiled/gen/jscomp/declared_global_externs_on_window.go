@@ -80,11 +80,11 @@ func (this_ *DeclaredGlobalExternsOnWindow) Process_2(externs pkg_rhino.Node, ro
 	_ = externs
 	_ = root
 	NodeTraversal_Traverse(this_.compiler, externs, this_)
-	this_.priv_DeclaredGlobalExternsOnWindow_addWindowProperties_2361()
+	this_.priv_DeclaredGlobalExternsOnWindow_addWindowProperties_2371()
 }
 
 // Java method: DeclaredGlobalExternsOnWindow.addWindowProperties()
-func (this_ *DeclaredGlobalExternsOnWindow) priv_DeclaredGlobalExternsOnWindow_addWindowProperties_2361() {
+func (this_ *DeclaredGlobalExternsOnWindow) priv_DeclaredGlobalExternsOnWindow_addWindowProperties_2371() {
 	if !(this_.nodes.IsEmpty()) {
 		{
 			cur_1 := this_.nodes.Iter()

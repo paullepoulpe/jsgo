@@ -7671,6 +7671,7 @@ public final class RuntimeBindings {
         \troot     int32
         \tfreeTree int32
         \tnatOrder bool
+        \tinline   [1]jTreeNode
         }
 
         type JMapEntry struct {
@@ -7905,6 +7906,14 @@ public final class RuntimeBindings {
         \tif expected < 0 {
         \t\tpanic(javalang.NewIllegalArgumentException("Illegal initial capacity: " + fmt.Sprint(expected)))
         \t}
+        \tif expected > 1 && (m.mode == jMapModeSortedNat || m.mode == jMapModeSortedCmp) {
+        \t\twant := min(int(expected), 1<<20)
+        \t\tst := m.ensureSortedState()
+        \t\tif want > cap(st.tree) {
+        \t\t\tst.ensureTreeCap(want)
+        \t\t}
+        \t\treturn
+        \t}
         \tif expected > 0 && (m.mode == jMapModeEmpty || m.mode == jMapModeNullOnly || m.mode == jMapModeNode1) {
         \t\tif expected > 262144 {
         \t\t\texpected = 262144
@@ -8015,6 +8024,29 @@ public final class RuntimeBindings {
         \treturn id
         }
 
+        func (s *jSortedMapState) ensureTreeCap(want int) {
+        \tif want <= cap(s.tree) {
+        \t\treturn
+        \t}
+        \tnewCap := cap(s.tree) * 2
+        \tif newCap < pooledSliceMinCap {
+        \t\tnewCap = pooledSliceMinCap
+        \t}
+        \tif newCap < want {
+        \t\tnewCap = want
+        \t}
+        \told := s.tree
+        \tnext := AcquirePooledSlice[jTreeNode](newCap)
+        \tnext = next[:len(old)]
+        \tcopy(next, old)
+        \tif cap(old) >= pooledSliceMinCap {
+        \t\tReleasePooledSlice(old)
+        \t} else if len(old) > 0 {
+        \t\tclear(old)
+        \t}
+        \ts.tree = next
+        }
+
         func (s *jSortedMapState) avlAllocNode(isStr bool, strKey string, key, val any) int32 {
         \tif s.freeTree != 0 {
         \t\tid := s.freeTree
@@ -8024,9 +8056,12 @@ public final class RuntimeBindings {
         \t}
         \tnode := jTreeNode{height: 1, isStr: isStr, strKey: strKey, key: key, val: val}
         \tif s.tree == nil {
-        \t\ts.tree = make([]jTreeNode, 1, 4)
+        \t\ts.tree = s.inline[:1]
         \t\ts.tree[0] = node
         \t\treturn 1
+        \t}
+        \tif len(s.tree) == cap(s.tree) {
+        \t\ts.ensureTreeCap(len(s.tree) + 1)
         \t}
         \ts.tree = append(s.tree, node)
         \treturn int32(len(s.tree))
@@ -11025,15 +11060,21 @@ public final class RuntimeBindings {
         \t\treturn
         \t}
         \tsst := src.ext.(*jSortedMapState)
-        \tdstTree := make([]jTreeNode, len(sst.tree))
-        \tcopy(dstTree, sst.tree)
-        \tm.ext = &jSortedMapState{
-        \t\ttree:     dstTree,
+        \tdst := &jSortedMapState{
         \t\troot:     sst.root,
         \t\tfreeTree: sst.freeTree,
         \t\tcmp:      sst.cmp,
         \t\tnatOrder: sst.natOrder,
         \t}
+        \tif len(sst.tree) == 1 {
+        \t\tdst.inline[0] = sst.tree[0]
+        \t\tdst.tree = dst.inline[:1]
+        \t} else if len(sst.tree) > 1 {
+        \t\tdstTree := make([]jTreeNode, len(sst.tree))
+        \t\tcopy(dstTree, sst.tree)
+        \t\tdst.tree = dstTree
+        \t}
+        \tm.ext = dst
         }
 
         func (m *JMapCore) ContainsKey(k any) bool {
@@ -14833,12 +14874,14 @@ public final class RuntimeBindings {
       out.append("\tobj := &").append(st).append("{strs_: strs[:len(strs):len(strs)], u8Tab_: &emptyU8Tab_}\n\tobj.BindExtSelf_(obj)\n");
       out.append("\treturn obj\n}\n\n");
       out.append("func finishImmSetSingleRaw(e0 any) *").append(st).append(" {\n");
+      out.append("\tif cached := tryGetOrCreateImmEnumSingle(e0); cached != nil {\n");
+      out.append("\t\treturn cached\n");
+      out.append("\t}\n");
       out.append("\tc := &immAnySet1_{}\n");
       out.append("\tc.set.u8Tab_ = &emptyU8Tab_\n");
       out.append("\tc.set.BindExtSelf_(&c.set)\n");
       out.append("\tc.buf[0] = e0\n");
       out.append("\tc.set.elems_ = c.buf[:1:1]\n");
-      out.append("\ttryInitImmEnumSingle(&c.set, e0)\n");
       out.append("\treturn &c.set\n}\n\n");
       out.append("func finishImmSetSmall(src []any) *").append(st).append(" {\n");
       out.append("\tn := len(src)\n");

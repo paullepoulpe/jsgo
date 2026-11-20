@@ -82,13 +82,13 @@ func (this_ *CollectFileOverviewVisibility) Process_2(externs pkg_rhino.Node, ro
 			if !(script.IsScript()) {
 				j2gort.CheckState(false)
 			}
-			this_.priv_CollectFileOverviewVisibility_visit_1396(script)
+			this_.priv_CollectFileOverviewVisibility_visit_1397(script)
 		}
 	}
 }
 
 // Java method: CollectFileOverviewVisibility.visit(com.google.javascript.rhino.Node scriptNode)
-func (this_ *CollectFileOverviewVisibility) priv_CollectFileOverviewVisibility_visit_1396(scriptNode pkg_rhino.Node) {
+func (this_ *CollectFileOverviewVisibility) priv_CollectFileOverviewVisibility_visit_1397(scriptNode pkg_rhino.Node) {
 	_ = scriptNode
 	var jsDocInfo *pkg_rhino.JSDocInfo = scriptNode.GetJSDocInfo()
 	_ = jsDocInfo

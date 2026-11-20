@@ -4148,6 +4148,7 @@ public final class RuntimeCollectionsBindings {
         \t\tfn()
         \t}
         \tslabGlobalPooledBytes.Store(0)
+        \tpooledSliceGlobalBytes.Store(0)
         }
 
         func ResetCompilationPools() {
@@ -4155,6 +4156,9 @@ public final class RuntimeCollectionsBindings {
         }
 
         func init() {
+        \tfor i := 1; i < 256; i++ {
+        \t\tsingleU8Tabs_[i][i] = true
+        \t}
         \tnodestore.RegisterStoreResetHook(FlushCompilationPools)
         \tRegisterTypePredicate("com.google.common.collect.Multimap", "com.google.common.collect.Multimap", func(v any) bool {
         \t\t_, ok := v.(Ext_com_google_common_collect_Multimap)
@@ -5930,6 +5934,55 @@ public final class RuntimeCollectionsBindings {
         \thasEnumBits bool
         }
 
+        var singleU8Tabs_ [256][256]bool
+
+        type immU8EnumTypeCache struct {
+        \tptrNil  any
+        \tsingles [256]atomic.Pointer[Ext_com_google_common_collect_ImmutableSetBase]
+        }
+
+        var immU8EnumCaches sync.Map
+
+        func getImmU8EnumTypeCache(rt reflect.Type) *immU8EnumTypeCache {
+        \tif v, ok := immU8EnumCaches.Load(rt); ok {
+        \t\treturn v.(*immU8EnumTypeCache)
+        \t}
+        \tc := &immU8EnumTypeCache{
+        \t\tptrNil: reflect.Zero(reflect.PointerTo(rt)).Interface(),
+        \t}
+        \tactual, _ := immU8EnumCaches.LoadOrStore(rt, c)
+        \treturn actual.(*immU8EnumTypeCache)
+        }
+
+        func tryGetOrCreateImmEnumSingle(e0 any) *Ext_com_google_common_collect_ImmutableSetBase {
+        \tif e0 == nil {
+        \t\treturn nil
+        \t}
+        \trt0 := reflect.TypeOf(e0)
+        \tif rt0.Kind() != reflect.Uint8 {
+        \t\treturn nil
+        \t}
+        \tu := uint8(reflect.ValueOf(e0).Uint())
+        \tif u == 0 {
+        \t\treturn nil
+        \t}
+        \ttc := getImmU8EnumTypeCache(rt0)
+        \tif cached := tc.singles[u].Load(); cached != nil {
+        \t\treturn cached
+        \t}
+        \tc := &immAnySet1_{}
+        \tc.buf[0] = e0
+        \tc.set.elems_ = c.buf[:1:1]
+        \tc.set.u8Tab_ = &singleU8Tabs_[u]
+        \tc.set.u8PtrNil_ = tc.ptrNil
+        \tc.set.hasU8Bits_ = true
+        \tc.set.BindExtSelf_(&c.set)
+        \tif tc.singles[u].CompareAndSwap(nil, &c.set) {
+        \t\treturn &c.set
+        \t}
+        \treturn tc.singles[u].Load()
+        }
+
         func tryInitImmEnumSingle(obj *Ext_com_google_common_collect_ImmutableSetBase, e0 any) {
         \tif e0 == nil {
         \t\treturn
@@ -5938,10 +5991,8 @@ public final class RuntimeCollectionsBindings {
         \tif rt0.Kind() == reflect.Uint8 {
         \t\tu := uint8(reflect.ValueOf(e0).Uint())
         \t\tif u != 0 {
-        \t\t\ttab := new([256]bool)
-        \t\t\ttab[u] = true
-        \t\t\tobj.u8Tab_ = tab
-        \t\t\tobj.u8PtrNil_ = reflect.Zero(reflect.PointerTo(rt0)).Interface()
+        \t\t\tobj.u8Tab_ = &singleU8Tabs_[u]
+        \t\t\tobj.u8PtrNil_ = getImmU8EnumTypeCache(rt0).ptrNil
         \t\t\tobj.hasU8Bits_ = true
         \t\t}
         \t}
@@ -5971,7 +6022,7 @@ public final class RuntimeCollectionsBindings {
         \t\t\ttab[u] = true
         \t\t}
         \t\tobj.u8Tab_ = tab
-        \t\tobj.u8PtrNil_ = reflect.Zero(reflect.PointerTo(rt0)).Interface()
+        \t\tobj.u8PtrNil_ = getImmU8EnumTypeCache(rt0).ptrNil
         \t\tobj.hasU8Bits_ = true
         \t\treturn true
         \t}
@@ -16060,10 +16111,10 @@ public final class RuntimeCollectionsBindings {
         func pqOp_equals_1(pq *jPriorityQueue, o any) bool    { return RefEquals(pq, o) }
         func pqOp_hashCode_0(pq *jPriorityQueue) int32        { return javalang.IdentityHashCode(pq) }
 
-        // --- BitSet (inline [16]uint64 = 1024 dense bits + [8]int32 = 8 sparse high bits inside Ext_java_util_BitSet) ---
+        // --- BitSet (inline [2]uint64 = 128 dense bits + [8]int32 = 8 sparse high bits inside 80-byte Ext_java_util_BitSet) ---
 
         const (
-        \tbsInlineWords = 16
+        \tbsInlineWords = 2
         \tbsInlineBits  = bsInlineWords * 64
         \tbsSparseCap   = 8
         )
@@ -16186,7 +16237,7 @@ public final class RuntimeCollectionsBindings {
         \tif minWords < bsInlineWords {
         \t\tminWords = bsInlineWords
         \t}
-        \tnewCap := max(minWords, max(16, int(b.initW)))
+        \tnewCap := max(minWords, max(4, int(b.initW)))
         \tw := make([]uint64, minWords, newCap)
         \tcopy(w[:bsInlineWords], b.buf[:])
         \tb.buf = [bsInlineWords]uint64{}
@@ -20418,10 +20469,58 @@ public final class RuntimeCollectionsBindings {
         \tif s == nil {
         \t\tThrowNPE()
         \t}
-        \tif other.IsEmpty() {
+        \tn := int(other.Size())
+        \tif n == 0 {
         \t\treturn false
         \t}
+        \tif len(s.order) == 0 && s.holes == 0 && other.holes == 0 {
+        \t\tif cap(s.order) >= n {
+        \t\t\ts.order = s.order[:n]
+        \t\t} else {
+        \t\t\ts.order = make([]T, n)
+        \t\t}
+        \t\tcopy(s.order, other.order)
+        \t\tif s.idx != nil || n > orderedSetIndexThreshold {
+        \t\t\tif s.idx == nil {
+        \t\t\t\ts.idx = make(map[T]int32, n)
+        \t\t\t}
+        \t\t\tm := s.idx
+        \t\t\tfor i, v := range s.order {
+        \t\t\t\tm[v] = int32(i + 1)
+        \t\t\t}
+        \t\t}
+        \t\treturn true
+        \t}
+        \ts.order = slices.Grow(s.order, n)
+        \tif s.idx == nil && len(s.order)+n > orderedSetIndexThreshold {
+        \t\tm := make(map[T]int32, len(s.order)+n)
+        \t\tfor i, x := range s.order {
+        \t\t\tm[x] = int32(i + 1)
+        \t\t}
+        \t\ts.idx = m
+        \t}
         \tchanged := false
+        \tif m := s.idx; m != nil {
+        \t\tif other.holes > 0 {
+        \t\t\tfor i := int(other.firstIdx); i < len(other.order); i++ {
+        \t\t\t\tv := other.order[i]
+        \t\t\t\tif other.idx[v] == int32(i+1) && m[v] == 0 {
+        \t\t\t\t\ts.order = append(s.order, v)
+        \t\t\t\t\tm[v] = int32(len(s.order))
+        \t\t\t\t\tchanged = true
+        \t\t\t\t}
+        \t\t\t}
+        \t\t\treturn changed
+        \t\t}
+        \t\tfor _, v := range other.order {
+        \t\t\tif m[v] == 0 {
+        \t\t\t\ts.order = append(s.order, v)
+        \t\t\t\tm[v] = int32(len(s.order))
+        \t\t\t\tchanged = true
+        \t\t\t}
+        \t\t}
+        \t\treturn changed
+        \t}
         \tif other.holes > 0 {
         \t\tfor i := int(other.firstIdx); i < len(other.order); i++ {
         \t\t\tv := other.order[i]
@@ -20451,9 +20550,52 @@ public final class RuntimeCollectionsBindings {
         \t\tThrowNPE()
         \t}
         \tCheckNotNull(col)
-        \tchanged := false
         \tif ssi, ok := col.(StrSliceIterable); ok {
         \t\tif ss, ok2 := ssi.IterStrSlice_(); ok2 {
+        \t\t\tn := len(ss)
+        \t\t\tif n == 0 {
+        \t\t\t\treturn false
+        \t\t\t}
+        \t\t\tif len(s.order) == 0 && s.holes == 0 {
+        \t\t\t\tif _, isSet := col.(Ext_java_util_Set); isSet {
+        \t\t\t\t\tif cap(s.order) >= n {
+        \t\t\t\t\t\ts.order = s.order[:n]
+        \t\t\t\t\t} else {
+        \t\t\t\t\t\ts.order = make([]string, n)
+        \t\t\t\t\t}
+        \t\t\t\t\tcopy(s.order, ss)
+        \t\t\t\t\tif s.idx != nil || n > orderedSetIndexThreshold {
+        \t\t\t\t\t\tif s.idx == nil {
+        \t\t\t\t\t\t\ts.idx = make(map[string]int32, n)
+        \t\t\t\t\t\t}
+        \t\t\t\t\t\tm := s.idx
+        \t\t\t\t\t\tfor i, k := range s.order {
+        \t\t\t\t\t\t\tm[k] = int32(i + 1)
+        \t\t\t\t\t\t}
+        \t\t\t\t\t}
+        \t\t\t\t\treturn true
+        \t\t\t\t}
+        \t\t\t}
+        \t\t\twantTotal := len(s.order) + n
+        \t\t\ts.order = slices.Grow(s.order, n)
+        \t\t\tif s.idx == nil && wantTotal > orderedSetIndexThreshold {
+        \t\t\t\tm := make(map[string]int32, wantTotal)
+        \t\t\t\tfor i, x := range s.order {
+        \t\t\t\t\tm[x] = int32(i + 1)
+        \t\t\t\t}
+        \t\t\t\ts.idx = m
+        \t\t\t}
+        \t\t\tchanged := false
+        \t\t\tif m := s.idx; m != nil {
+        \t\t\t\tfor _, k := range ss {
+        \t\t\t\t\tif m[k] == 0 {
+        \t\t\t\t\t\ts.order = append(s.order, k)
+        \t\t\t\t\t\tm[k] = int32(len(s.order))
+        \t\t\t\t\t\tchanged = true
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t\treturn changed
+        \t\t\t}
         \t\t\tfor _, k := range ss {
         \t\t\t\tif s.Add(k) {
         \t\t\t\t\tchanged = true
@@ -20461,6 +20603,37 @@ public final class RuntimeCollectionsBindings {
         \t\t\t}
         \t\t\treturn changed
         \t\t}
+        \t}
+        \tif c, ok := col.(Ext_java_util_Collection); ok {
+        \t\tn := int(c.Size())
+        \t\tif n == 0 {
+        \t\t\treturn false
+        \t\t}
+        \t\tif n > 0 {
+        \t\t\tif n > 262144 {
+        \t\t\t\tn = 262144
+        \t\t\t}
+        \t\t\ts.order = slices.Grow(s.order, n)
+        \t\t\tif s.idx == nil && len(s.order)+n > orderedSetIndexThreshold {
+        \t\t\t\tm := make(map[string]int32, len(s.order)+n)
+        \t\t\t\tfor i, x := range s.order {
+        \t\t\t\t\tm[x] = int32(i + 1)
+        \t\t\t\t}
+        \t\t\t\ts.idx = m
+        \t\t\t}
+        \t\t}
+        \t}
+        \tchanged := false
+        \tif m := s.idx; m != nil {
+        \t\tfor cur := NewIterCursor(col); cur.HasNext(); {
+        \t\t\tk := cur.NextStr()
+        \t\t\tif m[k] == 0 {
+        \t\t\t\ts.order = append(s.order, k)
+        \t\t\t\tm[k] = int32(len(s.order))
+        \t\t\t\tchanged = true
+        \t\t\t}
+        \t\t}
+        \t\treturn changed
         \t}
         \tfor cur := NewIterCursor(col); cur.HasNext(); {
         \t\tif s.Add(cur.NextStr()) {
@@ -20923,9 +21096,28 @@ public final class RuntimeCollectionsBindings {
         \t\tThrowNPE()
         \t}
         \tCheckNotNull(col)
-        \tchanged := false
         \tif ssi, ok := col.(StrSliceIterable); ok {
         \t\tif ss, ok2 := ssi.IterStrSlice_(); ok2 {
+        \t\t\tn := len(ss)
+        \t\t\tif n == 0 {
+        \t\t\t\treturn false
+        \t\t\t}
+        \t\t\tif s.live == 0 && s.items == nil && n > 4 {
+        \t\t\t\tif _, isSet := col.(Ext_java_util_Set); isSet {
+        \t\t\t\t\ts.items = make([]string, n)
+        \t\t\t\t\tcopy(s.items, ss)
+        \t\t\t\t\ts.live = int32(n)
+        \t\t\t\t\tif n > orderedSetIndexThreshold {
+        \t\t\t\t\t\tm := make(map[string]int32, n)
+        \t\t\t\t\t\tfor i, k := range s.items {
+        \t\t\t\t\t\t\tm[k] = int32(i + 1)
+        \t\t\t\t\t\t}
+        \t\t\t\t\t\ts.idx = m
+        \t\t\t\t\t}
+        \t\t\t\t\treturn true
+        \t\t\t\t}
+        \t\t\t}
+        \t\t\tchanged := false
         \t\t\tfor _, k := range ss {
         \t\t\t\tif s.Add(k) {
         \t\t\t\t\tchanged = true
@@ -20934,6 +21126,7 @@ public final class RuntimeCollectionsBindings {
         \t\t\treturn changed
         \t\t}
         \t}
+        \tchanged := false
         \tfor cur := NewIterCursor(col); cur.HasNext(); {
         \t\tif s.Add(cur.NextStr()) {
         \t\t\tchanged = true
@@ -22384,11 +22577,107 @@ public final class RuntimeCollectionsBindings {
         \tif live == 0 {
         \t\treturn emptyImmutableSet_
         \t}
-        \ts := NewOrderedSetCap[K](live)
-        \tm.ForEach(func(k K, _ V) {
-        \t\ts.Add(k)
-        \t})
-        \treturn s.ToImmutableSet()
+        \tvar zero K
+        \tif _, isStr := any(zero).(string); isStr {
+        \t\tif live == 1 {
+        \t\t\tif m.holes > 0 {
+        \t\t\t\tfor i := int(m.firstIdx); i < len(m.entries); i++ {
+        \t\t\t\t\tif m.isEntryActive(i) {
+        \t\t\t\t\t\treturn ImmSetOfStr1(any(m.entries[i].Key).(string))
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t}
+        \t\t\treturn ImmSetOfStr1(any(m.entries[m.firstIdx].Key).(string))
+        \t\t}
+        \t\tif live <= 8 {
+        \t\t\tvar sbuf [8]string
+        \t\t\tw := 0
+        \t\t\tif m.holes > 0 {
+        \t\t\t\tfor i := int(m.firstIdx); i < len(m.entries); i++ {
+        \t\t\t\t\tif m.isEntryActive(i) {
+        \t\t\t\t\t\tks := any(m.entries[i].Key).(string)
+        \t\t\t\t\t\tif ks == NullString {
+        \t\t\t\t\t\t\tThrowNPE()
+        \t\t\t\t\t\t}
+        \t\t\t\t\t\tsbuf[w] = ks
+        \t\t\t\t\t\tw++
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t} else {
+        \t\t\t\tfor i := int(m.firstIdx); i < len(m.entries); i++ {
+        \t\t\t\t\tks := any(m.entries[i].Key).(string)
+        \t\t\t\t\tif ks == NullString {
+        \t\t\t\t\t\tThrowNPE()
+        \t\t\t\t\t}
+        \t\t\t\t\tsbuf[w] = ks
+        \t\t\t\t\tw++
+        \t\t\t\t}
+        \t\t\t}
+        \t\t\treturn finishImmStrSetSmall(sbuf[:w])
+        \t\t}
+        \t\tstrs := make([]string, 0, live)
+        \t\tif m.holes > 0 {
+        \t\t\tfor i := int(m.firstIdx); i < len(m.entries); i++ {
+        \t\t\t\tif m.isEntryActive(i) {
+        \t\t\t\t\tks := any(m.entries[i].Key).(string)
+        \t\t\t\t\tif ks == NullString {
+        \t\t\t\t\t\tThrowNPE()
+        \t\t\t\t\t}
+        \t\t\t\t\tstrs = append(strs, ks)
+        \t\t\t\t}
+        \t\t\t}
+        \t\t} else {
+        \t\t\tfor i := int(m.firstIdx); i < len(m.entries); i++ {
+        \t\t\t\tks := any(m.entries[i].Key).(string)
+        \t\t\t\tif ks == NullString {
+        \t\t\t\t\tThrowNPE()
+        \t\t\t\t}
+        \t\t\t\tstrs = append(strs, ks)
+        \t\t\t}
+        \t\t}
+        \t\treturn finishImmStrSetOwn(strs, nil)
+        \t}
+        \tif live == 1 {
+        \t\tif m.holes > 0 {
+        \t\t\tfor i := int(m.firstIdx); i < len(m.entries); i++ {
+        \t\t\t\tif m.isEntryActive(i) {
+        \t\t\t\t\treturn newImmSet1(boxJavaElem(m.entries[i].Key))
+        \t\t\t\t}
+        \t\t\t}
+        \t\t}
+        \t\treturn newImmSet1(boxJavaElem(m.entries[m.firstIdx].Key))
+        \t}
+        \tif live <= 8 {
+        \t\tvar buf [8]any
+        \t\tw := 0
+        \t\tif m.holes > 0 {
+        \t\t\tfor i := int(m.firstIdx); i < len(m.entries); i++ {
+        \t\t\t\tif m.isEntryActive(i) {
+        \t\t\t\t\tbuf[w] = CheckNotNull(boxJavaElem(m.entries[i].Key))
+        \t\t\t\t\tw++
+        \t\t\t\t}
+        \t\t\t}
+        \t\t} else {
+        \t\t\tfor i := int(m.firstIdx); i < len(m.entries); i++ {
+        \t\t\t\tbuf[w] = CheckNotNull(boxJavaElem(m.entries[i].Key))
+        \t\t\t\tw++
+        \t\t\t}
+        \t\t}
+        \t\treturn finishImmSetSmall(buf[:w])
+        \t}
+        \telems := make([]any, 0, live)
+        \tif m.holes > 0 {
+        \t\tfor i := int(m.firstIdx); i < len(m.entries); i++ {
+        \t\t\tif m.isEntryActive(i) {
+        \t\t\t\telems = append(elems, CheckNotNull(boxJavaElem(m.entries[i].Key)))
+        \t\t\t}
+        \t\t}
+        \t} else {
+        \t\tfor i := int(m.firstIdx); i < len(m.entries); i++ {
+        \t\t\telems = append(elems, CheckNotNull(boxJavaElem(m.entries[i].Key)))
+        \t\t}
+        \t}
+        \treturn finishImmSetMulti(elems, nil)
         }
 
         func (m *OrderedMap[K, V]) ValuesToImmutableList() Ext_com_google_common_collect_ImmutableList {
@@ -27390,8 +27679,8 @@ public final class RuntimeCollectionsBindings {
         \tslabSmallChunkSize = 16
         \tslabChunkSize      = 256
         \tslabPoolMaxBytes   = 384 << 20
-        \tslabSmallPoolMaxB  = 32 << 20
-        \tslabGlobalMaxBytes = 1024 << 20
+        \tslabSmallPoolMaxB  = 48 << 20
+        \tslabGlobalMaxBytes = 1280 << 20
         \tslabTrimMinBytes   = 96 << 20
         \tslabMinEvictBytes  = 256 << 10
         )
@@ -27618,44 +27907,161 @@ public final class RuntimeCollectionsBindings {
         \tpooledSliceMaxShift        = 22
         \tpooledSliceMaxCap          = 1 << pooledSliceMaxShift               // 4194304
         \tpooledSliceTiers           = pooledSliceMaxShift - pooledSliceMinShift + 1 // 20
-        \tpooledSliceTierBudgetBytes = 4 << 20                                // 4 MB max per tier per type
-        \tpooledSliceTierMaxCount    = 65536
+        \tpooledSliceTierBudgetBytes = 16 << 20                               // 16 MB max per tier per type
+        \tpooledSliceTierMaxCount    = 262144
+        \tpooledSliceGlobalMaxBytes  = 256 << 20                              // 256 MB strict global cap across all slice pools
+        \tpooledSliceMinEvictBytes   = 256 << 10
         )
 
+        type pooledSliceEvictable interface {
+        \tlastTouchVal() uint64
+        \tpooledBytesApprox() int64
+        \tevictBytes(maxBytes int64) int64
+        }
+
+        type pooledSliceEvictCand struct {
+        \tpool  pooledSliceEvictable
+        \ttouch uint64
+        \tbytes int64
+        }
+
         type pooledSliceTier[T any] struct {
-        \tmu      sync.Mutex
-        \tfree    [][]T
-        \tmaxKeep int
+        \tmu         sync.Mutex
+        \tfree       [][]T
+        \tfreeLen    atomic.Int32
+        \tmaxKeep    int
+        \tsliceBytes int64
         }
 
         type pooledSliceTypePool[T any] struct {
-        \ttiers [pooledSliceTiers]pooledSliceTier[T]
+        \ttiers       [pooledSliceTiers]pooledSliceTier[T]
+        \tpooledBytes atomic.Int64
+        \tlastTouch   atomic.Uint64
         }
 
-        var pooledSlicePools sync.Map
+        var (
+        \tpooledSlicePools       sync.Map
+        \tpooledSliceGlobalBytes atomic.Int64
+        \tpooledSliceClock       atomic.Uint64
+        )
+
+        func (p *pooledSliceTypePool[T]) lastTouchVal() uint64 {
+        \treturn p.lastTouch.Load()
+        }
+
+        func (p *pooledSliceTypePool[T]) pooledBytesApprox() int64 {
+        \treturn p.pooledBytes.Load()
+        }
+
+        func (p *pooledSliceTypePool[T]) touch() {
+        \tif cur := pooledSliceClock.Load(); p.lastTouch.Load() != cur {
+        \t\tp.lastTouch.Store(pooledSliceClock.Add(1))
+        \t}
+        }
+
+        func (p *pooledSliceTypePool[T]) evictBytes(maxBytes int64) int64 {
+        \tif maxBytes <= 0 || p.pooledBytes.Load() <= 0 {
+        \t\treturn 0
+        \t}
+        \tvar freed int64
+        \tfor i := pooledSliceTiers - 1; i >= 0 && freed < maxBytes; i-- {
+        \t\tt := &p.tiers[i]
+        \t\tif t.freeLen.Load() == 0 {
+        \t\t\tcontinue
+        \t\t}
+        \t\tt.mu.Lock()
+        \t\tif nFree := len(t.free); nFree > 0 {
+        \t\t\trem := maxBytes - freed
+        \t\t\tsb := t.sliceBytes
+        \t\t\tvar drop int
+        \t\t\tif rem >= int64(nFree)*sb {
+        \t\t\t\tdrop = nFree
+        \t\t\t} else {
+        \t\t\t\tdrop = int((rem + sb - 1) / sb)
+        \t\t\t}
+        \t\t\tif drop > 0 {
+        \t\t\t\tnewLen := nFree - drop
+        \t\t\t\tclear(t.free[newLen:])
+        \t\t\t\tif newLen == 0 {
+        \t\t\t\t\tt.free = nil
+        \t\t\t\t} else {
+        \t\t\t\t\tt.free = t.free[:newLen]
+        \t\t\t\t}
+        \t\t\t\tt.freeLen.Store(int32(newLen))
+        \t\t\t\tdf := int64(drop) * sb
+        \t\t\t\tfreed += df
+        \t\t\t\tp.pooledBytes.Add(-df)
+        \t\t\t\tpooledSliceGlobalBytes.Add(-df)
+        \t\t\t}
+        \t\t}
+        \t\tt.mu.Unlock()
+        \t}
+        \treturn freed
+        }
+
+        func pooledSliceEvictColdestPools(exclude pooledSliceEvictable, needBytes int64) int64 {
+        \tif needBytes <= 0 {
+        \t\treturn 0
+        \t}
+        \tvar cands []pooledSliceEvictCand
+        \tpooledSlicePools.Range(func(_, v any) bool {
+        \t\tep, ok := v.(pooledSliceEvictable)
+        \t\tif !ok || ep == exclude {
+        \t\t\treturn true
+        \t\t}
+        \t\tif b := ep.pooledBytesApprox(); b > 0 {
+        \t\t\tcands = append(cands, pooledSliceEvictCand{
+        \t\t\t\tpool:  ep,
+        \t\t\t\ttouch: ep.lastTouchVal(),
+        \t\t\t\tbytes: b,
+        \t\t\t})
+        \t\t}
+        \t\treturn true
+        \t})
+        \tif len(cands) == 0 {
+        \t\treturn 0
+        \t}
+        \tsort.Slice(cands, func(i, j int) bool {
+        \t\treturn cands[i].touch < cands[j].touch
+        \t})
+        \tvar freed int64
+        \tfor i := range cands {
+        \t\tstillNeeded := needBytes - freed
+        \t\tif stillNeeded <= 0 {
+        \t\t\tbreak
+        \t\t}
+        \t\tfreed += cands[i].pool.evictBytes(stillNeeded)
+        \t}
+        \treturn freed
+        }
 
         func newPooledSliceTypePool[T any]() *pooledSliceTypePool[T] {
         \tp := &pooledSliceTypePool[T]{}
         \telemBytes := max(1, int(reflect.TypeFor[T]().Size()))
         \tfor i := 0; i < pooledSliceTiers; i++ {
         \t\ttierCap := pooledSliceMinCap << i
-        \t\tsliceBytes := tierCap * elemBytes
+        \t\tsliceBytes := int64(tierCap) * int64(elemBytes)
         \t\tvar maxKeep int
-        \t\tif sliceBytes <= 262144 {
-        \t\t\tmaxKeep = min(pooledSliceTierMaxCount, max(2, pooledSliceTierBudgetBytes/sliceBytes))
+        \t\tif sliceBytes <= 1<<20 {
+        \t\t\tmaxKeep = min(pooledSliceTierMaxCount, max(4, int(int64(pooledSliceTierBudgetBytes)/sliceBytes)))
         \t\t} else {
-        \t\t\tmaxKeep = 2
+        \t\t\tmaxKeep = 4
         \t\t}
         \t\tp.tiers[i].maxKeep = maxKeep
+        \t\tp.tiers[i].sliceBytes = sliceBytes
         \t}
+        \tp.lastTouch.Store(pooledSliceClock.Add(1))
         \treturn p
         }
 
         func (p *pooledSliceTypePool[T]) purge() {
+        \tp.evictBytes(int64(^uint64(0) >> 1))
         \tfor i := 0; i < pooledSliceTiers; i++ {
         \t\tt := &p.tiers[i]
         \t\tt.mu.Lock()
-        \t\tt.free = nil
+        \t\tif len(t.free) == 0 {
+        \t\t\tt.free = nil
+        \t\t}
         \t\tt.mu.Unlock()
         \t}
         }
@@ -27691,12 +28097,20 @@ public final class RuntimeCollectionsBindings {
         \t\ttierIdx = shift - pooledSliceMinShift
         \t\tallocCap = 1 << shift
         \t}
-        \tt := &getPooledSlicePool[T]().tiers[tierIdx]
+        \tp := getPooledSlicePool[T]()
+        \tp.touch()
+        \tt := &p.tiers[tierIdx]
+        \tif t.freeLen.Load() == 0 {
+        \t\treturn make([]T, 0, allocCap)
+        \t}
         \tt.mu.Lock()
         \tif n := len(t.free); n > 0 {
         \t\ts := t.free[n-1]
         \t\tt.free[n-1] = nil
         \t\tt.free = t.free[:n-1]
+        \t\tt.freeLen.Store(int32(n - 1))
+        \t\tp.pooledBytes.Add(-t.sliceBytes)
+        \t\tpooledSliceGlobalBytes.Add(-t.sliceBytes)
         \t\tt.mu.Unlock()
         \t\treturn s[:0]
         \t}
@@ -27738,12 +28152,32 @@ public final class RuntimeCollectionsBindings {
         \tif c < pooledSliceMinCap || c > pooledSliceMaxCap {
         \t\treturn
         \t}
-        \tclear(s[:c])
         \ttierIdx := bits.Len(uint(c)) - 1 - pooledSliceMinShift
-        \tt := &getPooledSlicePool[T]().tiers[tierIdx]
+        \tp := getPooledSlicePool[T]()
+        \tp.touch()
+        \tt := &p.tiers[tierIdx]
+        \tif int(t.freeLen.Load()) >= t.maxKeep {
+        \t\treturn
+        \t}
+        \tsb := t.sliceBytes
+        \tif curGlobal := pooledSliceGlobalBytes.Load(); curGlobal+sb > pooledSliceGlobalMaxBytes {
+        \t\tneed := (curGlobal + sb) - pooledSliceGlobalMaxBytes
+        \t\tpooledSliceEvictColdestPools(p, max(need, int64(pooledSliceMinEvictBytes)))
+        \t\tif pooledSliceGlobalBytes.Load()+sb > pooledSliceGlobalMaxBytes {
+        \t\t\treturn
+        \t\t}
+        \t}
+        \tclear(s[:c])
         \tt.mu.Lock()
         \tif len(t.free) < t.maxKeep {
-        \t\tt.free = append(t.free, s[:0])
+        \t\tif tot := pooledSliceGlobalBytes.Add(sb); tot <= pooledSliceGlobalMaxBytes {
+        \t\t\tt.free = append(t.free, s[:0])
+        \t\t\tt.freeLen.Store(int32(len(t.free)))
+        \t\t\tp.pooledBytes.Add(sb)
+        \t\t\tt.mu.Unlock()
+        \t\t\treturn
+        \t\t}
+        \t\tpooledSliceGlobalBytes.Add(-sb)
         \t}
         \tt.mu.Unlock()
         }
@@ -28765,6 +29199,9 @@ public final class RuntimeCollectionsBindings {
 
         func (p *slabChunkPool[T]) alloc() *slabChunk[T] {
         \tp.lastTouch.Store(slabClock.Add(1))
+        \tif p.freeLen.Load() == 0 {
+        \t\treturn new(slabChunk[T])
+        \t}
         \tp.mu.Lock()
         \tif n := len(p.free); n > 0 {
         \t\tc := p.free[n-1]
@@ -28782,6 +29219,9 @@ public final class RuntimeCollectionsBindings {
 
         func (p *slabChunkPool[T]) allocSmall() *slabSmallChunk[T] {
         \tp.lastTouch.Store(slabClock.Add(1))
+        \tif p.smallLen.Load() == 0 {
+        \t\treturn new(slabSmallChunk[T])
+        \t}
         \tp.mu.Lock()
         \tif n := len(p.smallFree); n > 0 {
         \t\tsc := p.smallFree[n-1]
