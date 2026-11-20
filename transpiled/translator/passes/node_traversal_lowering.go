@@ -2418,12 +2418,20 @@ func callbackClearsTransientScopeFieldsOnExit(
 	var cleanerMethodPrefix string
 	switch name {
 	case "FlowSensitiveInlineVariables":
-		transientFields = map[string]bool{
-			"cfg":            true,
-			"candidates":     true,
-			"reachingDef":    true,
-			"reachingUses":   true,
-			"slab_Candidate": true,
+		transientFields = make(map[string]bool, 8)
+		for _, cf := range []string{
+			"cfg",
+			"candidates",
+			"reachingDef",
+			"reachingUses",
+			"slab_Candidate",
+			"reusableReachingDef",
+			"reusableReachingUses",
+			"reusableEscaped",
+		} {
+			if ntStructHasFieldNamed(instNamed, cf) {
+				transientFields[cf] = true
+			}
 		}
 		cleanerMethodPrefix = "EnterScope"
 	case "DeadAssignmentsElimination":
@@ -2497,6 +2505,10 @@ func callbackClearsTransientScopeFieldsOnExit(
 				return false
 			}
 			foundCleaner = true
+		} else if strings.HasPrefix(fn.Name(), "initFields_") {
+			if methodAssignsNonNilNonEmptyCtorToAnyField(fd.Body, recvName, transientFields, info) {
+				return false
+			}
 		} else {
 			if methodAssignsNonNilToAnyField(fd.Body, recvName, transientFields, info) {
 				return false
@@ -2506,28 +2518,202 @@ func callbackClearsTransientScopeFieldsOnExit(
 	return foundCleaner
 }
 
+func ntStructHasFieldNamed(named *types.Named, fieldName string) bool {
+	if named == nil {
+		return false
+	}
+	st, ok := named.Underlying().(*types.Struct)
+	if !ok {
+		return false
+	}
+	for i := 0; i < st.NumFields(); i++ {
+		if st.Field(i).Name() == fieldName {
+			return true
+		}
+	}
+	return false
+}
+
 func deferIfStmtClearsRecvField(ifSt *ast.IfStmt, recvName string, fields map[string]bool, info *types.Info) string {
 	if ifSt == nil || ifSt.Init != nil || ifSt.Else != nil || ifSt.Body == nil {
 		return ""
 	}
-	fieldName := matchRecvFieldNonNilGuardCond(ifSt.Cond, recvName, fields, info)
-	if fieldName == "" {
-		return ""
+	if fieldName := matchRecvFieldNonNilGuardCond(ifSt.Cond, recvName, fields, info); fieldName != "" {
+		for _, st := range ifSt.Body.List {
+			if _, isRet := st.(*ast.ReturnStmt); isRet {
+				return ""
+			}
+			if as, isAs := st.(*ast.AssignStmt); isAs && as.Tok == token.ASSIGN && len(as.Lhs) == 1 && len(as.Rhs) == 1 && ntIsNilIdent(as.Rhs[0], info) {
+				if sel, isS := stripParens(as.Lhs[0]).(*ast.SelectorExpr); isS && sel.Sel != nil &&
+					isIdentNamed(sel.X, recvName) && sel.Sel.Name == fieldName {
+					return fieldName
+				}
+			}
+			if fCleared := matchZeroArgClearCallOnRecvField(st, recvName, fields); fCleared == fieldName {
+				return fieldName
+			}
+		}
 	}
-	for _, st := range ifSt.Body.List {
-		if _, isRet := st.(*ast.ReturnStmt); isRet {
-			return ""
-		}
-		as, isAs := st.(*ast.AssignStmt)
-		if !isAs || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 || !ntIsNilIdent(as.Rhs[0], info) {
-			continue
-		}
-		if sel, isS := stripParens(as.Lhs[0]).(*ast.SelectorExpr); isS && sel.Sel != nil &&
-			isIdentNamed(sel.X, recvName) && sel.Sel.Name == fieldName {
-			return fieldName
+	// Also recognize `if !(this_.reusableEscaped.IsEmpty()) { this_.reusableEscaped.Clear() }`.
+	if fieldName := matchNegatedIsEmptyGuardCond(ifSt.Cond, recvName, fields); fieldName != "" {
+		for _, st := range ifSt.Body.List {
+			if _, isRet := st.(*ast.ReturnStmt); isRet {
+				return ""
+			}
+			if fCleared := matchZeroArgClearCallOnRecvField(st, recvName, fields); fCleared == fieldName {
+				return fieldName
+			}
 		}
 	}
 	return ""
+}
+
+func matchNegatedIsEmptyGuardCond(cond ast.Expr, recvName string, fields map[string]bool) string {
+	un, ok := stripParens(cond).(*ast.UnaryExpr)
+	if !ok || un.Op != token.NOT {
+		return ""
+	}
+	call, okC := stripParens(un.X).(*ast.CallExpr)
+	if !okC || len(call.Args) != 0 {
+		return ""
+	}
+	mSel, okM := stripParens(call.Fun).(*ast.SelectorExpr)
+	if !okM || mSel.Sel == nil || mSel.Sel.Name != "IsEmpty" {
+		return ""
+	}
+	fSel, okF := stripParens(mSel.X).(*ast.SelectorExpr)
+	if !okF || fSel.Sel == nil || !isIdentNamed(fSel.X, recvName) || !fields[fSel.Sel.Name] {
+		return ""
+	}
+	return fSel.Sel.Name
+}
+
+func matchZeroArgClearCallOnRecvField(st ast.Stmt, recvName string, fields map[string]bool) string {
+	es, isEs := st.(*ast.ExprStmt)
+	if !isEs {
+		return ""
+	}
+	call, isC := stripParens(es.X).(*ast.CallExpr)
+	if !isC || len(call.Args) != 0 {
+		return ""
+	}
+	mSel, isMS := stripParens(call.Fun).(*ast.SelectorExpr)
+	if !isMS || mSel.Sel == nil {
+		return ""
+	}
+	fSel, isFS := stripParens(mSel.X).(*ast.SelectorExpr)
+	if !isFS || fSel.Sel == nil || !isIdentNamed(fSel.X, recvName) || !fields[fSel.Sel.Name] {
+		return ""
+	}
+	switch mSel.Sel.Name {
+	case "Reset", "Release":
+		if strings.HasPrefix(fSel.Sel.Name, "slab_") {
+			return fSel.Sel.Name
+		}
+	case "ClearScopeState", "Clear":
+		return fSel.Sel.Name
+	}
+	return ""
+}
+
+func matchReusableInitOrResetIfStmt(st ast.Stmt, recvName string, fields map[string]bool, info *types.Info) string {
+	ifSt, ok := st.(*ast.IfStmt)
+	if !ok || ifSt.Init != nil || ifSt.Body == nil || ifSt.Else == nil {
+		return ""
+	}
+	bin, okB := stripParens(ifSt.Cond).(*ast.BinaryExpr)
+	if !okB || bin.Op != token.EQL {
+		return ""
+	}
+	var target ast.Expr
+	if ntIsNilIdent(bin.Y, info) {
+		target = bin.X
+	} else if ntIsNilIdent(bin.X, info) {
+		target = bin.Y
+	}
+	fSel, okF := stripParens(target).(*ast.SelectorExpr)
+	if !okF || fSel.Sel == nil || !isIdentNamed(fSel.X, recvName) || !fields[fSel.Sel.Name] {
+		return ""
+	}
+	elseBlk, okE := ifSt.Else.(*ast.BlockStmt)
+	if !okE || len(ifSt.Body.List) != 1 || len(elseBlk.List) != 1 {
+		return ""
+	}
+	as, okA := ifSt.Body.List[0].(*ast.AssignStmt)
+	if !okA || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+		return ""
+	}
+	lhsSel, okLS := stripParens(as.Lhs[0]).(*ast.SelectorExpr)
+	if !okLS || lhsSel.Sel == nil || !isIdentNamed(lhsSel.X, recvName) || lhsSel.Sel.Name != fSel.Sel.Name {
+		return ""
+	}
+	es, okES := elseBlk.List[0].(*ast.ExprStmt)
+	if !okES {
+		return ""
+	}
+	call, okC := stripParens(es.X).(*ast.CallExpr)
+	if !okC {
+		return ""
+	}
+	rSel, okRS := stripParens(call.Fun).(*ast.SelectorExpr)
+	if !okRS || rSel.Sel == nil || rSel.Sel.Name != "ResetForScope" {
+		return ""
+	}
+	rfSel, okRFS := stripParens(rSel.X).(*ast.SelectorExpr)
+	if !okRFS || rfSel.Sel == nil || !isIdentNamed(rfSel.X, recvName) || rfSel.Sel.Name != fSel.Sel.Name {
+		return ""
+	}
+	return fSel.Sel.Name
+}
+
+func bodyAliasesReusableFieldToClearedField(body *ast.BlockStmt, recvName, reusableField, aliasField string) bool {
+	foundAlias := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		as, ok := n.(*ast.AssignStmt)
+		if !ok || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+			return true
+		}
+		lSel, okL := stripParens(as.Lhs[0]).(*ast.SelectorExpr)
+		rSel, okR := stripParens(as.Rhs[0]).(*ast.SelectorExpr)
+		if okL && okR && lSel.Sel != nil && rSel.Sel != nil &&
+			isIdentNamed(lSel.X, recvName) && lSel.Sel.Name == aliasField &&
+			isIdentNamed(rSel.X, recvName) && rSel.Sel.Name == reusableField {
+			foundAlias = true
+		}
+		return true
+	})
+	return foundAlias
+}
+
+func methodAssignsNonNilNonEmptyCtorToAnyField(body *ast.BlockStmt, recvName string, fields map[string]bool, info *types.Info) bool {
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		if found || n == nil {
+			return false
+		}
+		as, isAs := n.(*ast.AssignStmt)
+		if !isAs || len(as.Lhs) != len(as.Rhs) {
+			return true
+		}
+		for i, lhs := range as.Lhs {
+			sel, isS := stripParens(lhs).(*ast.SelectorExpr)
+			if !isS || sel.Sel == nil || !isIdentNamed(sel.X, recvName) || !fields[sel.Sel.Name] {
+				continue
+			}
+			rhs := stripParens(as.Rhs[i])
+			if ntIsNilIdent(rhs, info) {
+				continue
+			}
+			// Allow zero-argument empty container constructors in initFields_* (e.g. NewExt_java_util_HashSet()).
+			if call, isC := rhs.(*ast.CallExpr); isC && len(call.Args) == 0 {
+				continue
+			}
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 func matchRecvFieldNonNilGuardCond(cond ast.Expr, recvName string, fields map[string]bool, info *types.Info) string {
@@ -2584,6 +2770,7 @@ func methodDeferClearsTransientFieldsBeforeWrite(
 		return false
 	}
 	clearedInDefer := make(map[string]bool, len(fields))
+	clearedViaScopeState := make(map[string]bool, len(fields))
 	for _, st := range body.List {
 		if ds, isDef := st.(*ast.DeferStmt); isDef && ds.Call != nil {
 			if fl, isFL := stripParens(ds.Call.Fun).(*ast.FuncLit); isFL && fl.Body != nil && len(ds.Call.Args) == 0 {
@@ -2591,19 +2778,17 @@ func methodDeferClearsTransientFieldsBeforeWrite(
 					if ifSt, isIf := dst.(*ast.IfStmt); isIf {
 						if fName := deferIfStmtClearsRecvField(ifSt, recvName, fields, info); fName != "" {
 							clearedInDefer[fName] = true
-						}
-						continue
-					}
-					if es, isEs := dst.(*ast.ExprStmt); isEs {
-						if call, isC := stripParens(es.X).(*ast.CallExpr); isC && len(call.Args) == 0 {
-							if mSel, isMS := stripParens(call.Fun).(*ast.SelectorExpr); isMS && mSel.Sel != nil &&
-								(mSel.Sel.Name == "Reset" || mSel.Sel.Name == "Release") {
-								if fSel, isFS := stripParens(mSel.X).(*ast.SelectorExpr); isFS && fSel.Sel != nil &&
-									isIdentNamed(fSel.X, recvName) && strings.HasPrefix(fSel.Sel.Name, "slab_") && fields[fSel.Sel.Name] {
-									clearedInDefer[fSel.Sel.Name] = true
+							for _, bst := range ifSt.Body.List {
+								if fc := matchZeroArgClearCallOnRecvField(bst, recvName, fields); fc == fName {
+									clearedViaScopeState[fName] = true
 								}
 							}
 						}
+						continue
+					}
+					if fCleared := matchZeroArgClearCallOnRecvField(dst, recvName, fields); fCleared != "" {
+						clearedInDefer[fCleared] = true
+						clearedViaScopeState[fCleared] = true
 						continue
 					}
 					as, isAs := dst.(*ast.AssignStmt)
@@ -2614,6 +2799,17 @@ func methodDeferClearsTransientFieldsBeforeWrite(
 						isIdentNamed(sel.X, recvName) && fields[sel.Sel.Name] {
 						clearedInDefer[sel.Sel.Name] = true
 					}
+				}
+				// Patch 86 reusable alias fields (FlowSensitiveInlineVariables):
+				// `reachingDef` aliases `reusableReachingDef` and calls `reachingDef.ClearScopeState()` on exit;
+				// `reachingUses` aliases `reusableReachingUses` and calls `reachingUses.ClearScopeState()` on exit.
+				if fields["reusableReachingDef"] && clearedViaScopeState["reachingDef"] &&
+					bodyAliasesReusableFieldToClearedField(body, recvName, "reusableReachingDef", "reachingDef") {
+					clearedInDefer["reusableReachingDef"] = true
+				}
+				if fields["reusableReachingUses"] && clearedViaScopeState["reachingUses"] &&
+					bodyAliasesReusableFieldToClearedField(body, recvName, "reusableReachingUses", "reachingUses") {
+					clearedInDefer["reusableReachingUses"] = true
 				}
 				allCleared := true
 				// order-independent: universal conjunction over fields with no side effects
@@ -2627,6 +2823,11 @@ func methodDeferClearsTransientFieldsBeforeWrite(
 					return true
 				}
 			}
+		}
+		// Allow Patch 86 `if this_.liveness == nil { this_.liveness = New... } else { this_.liveness.ResetForScope(...) }`
+		// immediately preceding its `defer func() { this_.liveness.ClearScopeState() }()`.
+		if matchReusableInitOrResetIfStmt(st, recvName, fields, info) != "" {
+			continue
 		}
 		if stmtAssignsNonNilToAnyField(st, recvName, fields, info) {
 			return false

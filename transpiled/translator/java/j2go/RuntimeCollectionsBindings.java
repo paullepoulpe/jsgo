@@ -20077,7 +20077,7 @@ public final class RuntimeCollectionsBindings {
         }
 
         const orderedMapIndexThreshold = 12
-        const orderedSetIndexThreshold = 8
+        const orderedSetIndexThreshold = 16
 
         // OrderedSet is a slim value struct preserving Java LinkedHashSet insertion order
         // with zero inline array bloat and lazy backing-slice allocation on first Add.
@@ -20124,7 +20124,19 @@ public final class RuntimeCollectionsBindings {
         \t\treturn OrderedSet[T]{}
         \t}
         \tvar dst OrderedSet[T]
-        \tdst.order = make([]T, 0, max(4, int(n)))
+        \tif src.holes == 0 {
+        \t\tdst.order = make([]T, len(src.order))
+        \t\tcopy(dst.order, src.order)
+        \t\tif len(dst.order) > orderedSetIndexThreshold {
+        \t\t\tm := make(map[T]int32, len(dst.order))
+        \t\t\tfor i, x := range dst.order {
+        \t\t\t\tm[x] = int32(i + 1)
+        \t\t\t}
+        \t\t\tdst.idx = m
+        \t\t}
+        \t\treturn dst
+        \t}
+        \tdst.order = make([]T, 0, int(n))
         \tdst.AddAllSet(src)
         \treturn dst
         }
@@ -20241,7 +20253,7 @@ public final class RuntimeCollectionsBindings {
         \t}
         \ts.order = append(s.order, v)
         \tif len(s.order) > orderedSetIndexThreshold {
-        \t\tm := make(map[T]int32, min(max(16, cap(s.order)), 256))
+        \t\tm := make(map[T]int32, min(max(32, cap(s.order)), 256))
         \t\tfor i, x := range s.order {
         \t\t\tm[x] = int32(i + 1)
         \t\t}
@@ -20802,7 +20814,7 @@ public final class RuntimeCollectionsBindings {
         \ts.items = append(s.items, v)
         \ts.live++
         \tif len(s.items) > orderedSetIndexThreshold {
-        \t\tm := make(map[T]int32, 16)
+        \t\tm := make(map[T]int32, min(max(32, cap(s.items)), 256))
         \t\tfor i, x := range s.items {
         \t\t\tm[x] = int32(i + 1)
         \t\t}
@@ -21090,18 +21102,37 @@ public final class RuntimeCollectionsBindings {
 
         //go:noinline
         func checkNotNullGeneric[T any](v T) {
-        \tif isJavaNullGeneric(v) {
+        \tif isJavaNullGenericFast(v) {
         \t\tThrowNPE()
         \t}
         }
 
         //go:noinline
         func isJavaNullGeneric[V any](v V) bool {
-        \treturn any(v) == nil || isJavaNullMapValNonNil(v)
+        \treturn isJavaNullGenericFast(v)
+        }
+
+        func isJavaNullGenericFast[V any](v V) bool {
+        \tx := any(v)
+        \tif x == nil {
+        \t\treturn true
+        \t}
+        \tif s, ok := x.(string); ok {
+        \t\treturn s == NullString
+        \t}
+        \tif nc, ok := x.(jJavaNilChecker); ok {
+        \t\treturn nc.IsJavaNil_()
+        \t}
+        \treturn isJavaNullMapValNonNil(v)
         }
 
         func isJavaNullMapVal[V any](v V) bool {
         \treturn any(v) == nil || isJavaNullMapValNonNil(v)
+        }
+
+        //go:noinline
+        func isJavaNullReflectedNil(x any) bool {
+        \treturn reflect.ValueOf(x).IsNil()
         }
 
         func isJavaNullMapValNonNil[V any](v V) bool {
@@ -21130,7 +21161,7 @@ public final class RuntimeCollectionsBindings {
         \t\t}
         \t\treturn false
         \tcase reflect.Slice, reflect.Map, reflect.Func, reflect.Chan:
-        \t\treturn reflect.ValueOf(&v).Elem().IsNil()
+        \t\treturn isJavaNullReflectedNil(v)
         \tcase reflect.Bool,
         \t\treflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
         \t\treflect.Uint, reflect.Uint64, reflect.Uintptr,
@@ -25127,7 +25158,7 @@ public final class RuntimeCollectionsBindings {
         }
 
         // IdentityOrderedSet is a slim 40-byte insertion-ordered set always using Go == reference identity
-        // with lazy slice allocation and orderedSetIndexThreshold = 8 before allocating the Go map index.
+        // with lazy slice allocation and orderedSetIndexThreshold = 16 before allocating the Go map index.
         type IdentityOrderedSet[T comparable] struct {
         \traw OrderedSet[T]
         }

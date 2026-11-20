@@ -163,7 +163,7 @@ func (this_ *CheckNullabilityModifiers) Visit_3(t *NodeTraversal, n pkg_rhino.No
 		j2gort.OrderedSetAddAllStr(&this_.templateTypeNames, j2gort.AsIface[j2gort.Ext_java_util_Collection](info.GetTemplateTypeNames()))
 		j2gort.OrderedSetAddAllStr(&this_.templateTypeNames, j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](info.GetTypeTransformations().KeySet_0()))
 		if info.HasType() {
-			this_.priv_CheckNullabilityModifiers_handleHasType_6591(info.GetType(), n)
+			this_.priv_CheckNullabilityModifiers_handleHasType_6596(info.GetType(), n)
 		}
 		{
 			var i int32 = int32(0)
@@ -174,25 +174,25 @@ func (this_ *CheckNullabilityModifiers) Visit_3(t *NodeTraversal, n pkg_rhino.No
 				var paramType pkg_rhino.JSTypeExpression = info.GetParameterTypeAt(i)
 				_ = paramType
 				if !(paramType).IsJavaNil_() {
-					this_.priv_CheckNullabilityModifiers_visitTypeExpression_6594(paramType, false)
+					this_.priv_CheckNullabilityModifiers_visitTypeExpression_6599(paramType, false)
 				}
 			}
 		}
 		if info.HasReturnType() {
-			this_.priv_CheckNullabilityModifiers_visitTypeExpression_6594(info.GetReturnType(), false)
+			this_.priv_CheckNullabilityModifiers_visitTypeExpression_6599(info.GetReturnType(), false)
 		}
 		if info.HasEnumParameterType() {
-			this_.priv_CheckNullabilityModifiers_visitTypeExpression_6594(info.GetEnumParameterType(), false)
+			this_.priv_CheckNullabilityModifiers_visitTypeExpression_6599(info.GetEnumParameterType(), false)
 		}
 		if info.HasTypedefType() {
-			this_.priv_CheckNullabilityModifiers_visitTypeExpression_6594(info.GetTypedefType(), false)
+			this_.priv_CheckNullabilityModifiers_visitTypeExpression_6599(info.GetTypedefType(), false)
 		}
 		if info.HasThisType() {
-			this_.priv_CheckNullabilityModifiers_visitTypeExpression_6594(info.GetThisType(), true)
+			this_.priv_CheckNullabilityModifiers_visitTypeExpression_6599(info.GetThisType(), true)
 		}
 	}
 	if n.IsScript() {
-		this_.priv_CheckNullabilityModifiers_report_6592(t)
+		this_.priv_CheckNullabilityModifiers_report_6597(t)
 		this_.redundantCandidates.Clear()
 		this_.missingCandidates.Clear()
 		this_.nullMissingCandidates.Clear()
@@ -202,22 +202,22 @@ func (this_ *CheckNullabilityModifiers) Visit_3(t *NodeTraversal, n pkg_rhino.No
 }
 
 // Java method: CheckNullabilityModifiers.handleHasType(com.google.javascript.rhino.JSTypeExpression expr, com.google.javascript.rhino.Node n)
-func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_handleHasType_6591(expr pkg_rhino.JSTypeExpression, n pkg_rhino.Node) {
+func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_handleHasType_6596(expr pkg_rhino.JSTypeExpression, n pkg_rhino.Node) {
 	_ = expr
 	_ = n
 	if NodeUtil_IsNameDeclOrSimpleAssignLhs(n.GetFirstChild(), n) {
 		var rValue pkg_rhino.Node = NodeUtil_GetRValueOfLValue(n.GetFirstChild())
 		_ = rValue
 		if (rValue != 0) && rValue.IsNull() {
-			this_.priv_CheckNullabilityModifiers_visitTypeExpression_6595(expr, false, rValue)
+			this_.priv_CheckNullabilityModifiers_visitTypeExpression_6600(expr, false, rValue)
 			return
 		}
 	}
-	this_.priv_CheckNullabilityModifiers_visitTypeExpression_6594(expr, false)
+	this_.priv_CheckNullabilityModifiers_visitTypeExpression_6599(expr, false)
 }
 
 // Java method: CheckNullabilityModifiers.report(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_report_6592(t *NodeTraversal) {
+func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_report_6597(t *NodeTraversal) {
 	_ = t
 	{
 		cur_1 := this_.missingCandidates.Iter()
@@ -225,7 +225,7 @@ func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_report_65
 			n := cur_1.
 				Next()
 			_ = n
-			if this_.priv_CheckNullabilityModifiers_shouldReport_6593(n) {
+			if this_.priv_CheckNullabilityModifiers_shouldReport_6598(n) {
 				t.Report_3(n, StaticGet_CheckNullabilityModifiers_MISSING_NULLABILITY_MODIFIER_JSDOC(), []string{CheckNullabilityModifiers_GetReportedTypeName(n)})
 			}
 		}
@@ -236,7 +236,7 @@ func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_report_65
 			n_2 := cur_2.
 				Next()
 			_ = n_2
-			if this_.priv_CheckNullabilityModifiers_shouldReport_6593(n_2) {
+			if this_.priv_CheckNullabilityModifiers_shouldReport_6598(n_2) {
 				t.Report_3(n_2, StaticGet_CheckNullabilityModifiers_NULL_MISSING_NULLABILITY_MODIFIER_JSDOC(), []string{CheckNullabilityModifiers_GetReportedTypeName(n_2)})
 			}
 		}
@@ -247,7 +247,7 @@ func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_report_65
 			n_3 := cur_3.
 				Next()
 			_ = n_3
-			if this_.priv_CheckNullabilityModifiers_shouldReport_6593(n_3) {
+			if this_.priv_CheckNullabilityModifiers_shouldReport_6598(n_3) {
 				t.Report_3(n_3.GetParent(), StaticGet_CheckNullabilityModifiers_REDUNDANT_NULLABILITY_MODIFIER_JSDOC(), []string{CheckNullabilityModifiers_GetReportedTypeName(n_3)})
 			}
 		}
@@ -255,20 +255,20 @@ func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_report_65
 }
 
 // Java method: CheckNullabilityModifiers.shouldReport(com.google.javascript.rhino.Node n)
-func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_shouldReport_6593(n pkg_rhino.Node) bool {
+func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_shouldReport_6598(n pkg_rhino.Node) bool {
 	_ = n
 	return (!(n.IsStringLit()) || !(this_.templateTypeNames.Contains(n.GetString())))
 }
 
 // Java method: CheckNullabilityModifiers.visitTypeExpression(com.google.javascript.rhino.JSTypeExpression expr, boolean hasArtificialTopLevelBang)
-func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_visitTypeExpression_6594(expr pkg_rhino.JSTypeExpression, hasArtificialTopLevelBang bool) {
+func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_visitTypeExpression_6599(expr pkg_rhino.JSTypeExpression, hasArtificialTopLevelBang bool) {
 	_ = expr
 	_ = hasArtificialTopLevelBang
-	this_.priv_CheckNullabilityModifiers_visitTypeExpression_6595(expr, hasArtificialTopLevelBang, pkg_rhino.Node(0))
+	this_.priv_CheckNullabilityModifiers_visitTypeExpression_6600(expr, hasArtificialTopLevelBang, pkg_rhino.Node(0))
 }
 
 // Java method: CheckNullabilityModifiers.visitTypeExpression(com.google.javascript.rhino.JSTypeExpression expr, boolean hasArtificialTopLevelBang, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node rValue)
-func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_visitTypeExpression_6595(expr pkg_rhino.JSTypeExpression, hasArtificialTopLevelBang bool, rValue pkg_rhino.Node) {
+func (this_ *CheckNullabilityModifiers) priv_CheckNullabilityModifiers_visitTypeExpression_6600(expr pkg_rhino.JSTypeExpression, hasArtificialTopLevelBang bool, rValue pkg_rhino.Node) {
 	_ = expr
 	_ = hasArtificialTopLevelBang
 	_ = rValue

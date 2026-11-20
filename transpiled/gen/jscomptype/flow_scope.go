@@ -31,9 +31,9 @@ type FlowScope interface {
 	pkg_rhino.StaticTypedScope
 	pkg_graph.LatticeElement
 	WithSyntacticScope(pkg_rhino.StaticTypedScope) FlowScope
-	InferSlotType(string, pkg_rhino.JSType) any
-	InferQualifiedSlot(pkg_rhino.Node, string, pkg_rhino.JSType, pkg_rhino.JSType, bool) any
-	GetDeclarationScope() any
+	InferSlotType(string, pkg_rhino.JSType) FlowScope
+	InferQualifiedSlot(pkg_rhino.Node, string, pkg_rhino.JSType, pkg_rhino.JSType, bool) FlowScope
+	GetDeclarationScope() pkg_rhino.StaticTypedScope
 	EqualsFlowScope(FlowScope) bool
 }
 

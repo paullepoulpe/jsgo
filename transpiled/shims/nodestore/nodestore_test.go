@@ -5250,47 +5250,21 @@ func TestWave43COrigNameFlatColumnSlabBundlingAndConcurrentRace(t *testing.T) {
 		firstN[b].SetStringPayload(idRen)
 	}
 
-	// Touch block 0 (< 2): single NodeColumn, slab remains empty.
+	// Touch block 0 and blocks 2..5 lazily (single 64 KiB NodeColumn per touched block);
+	// untouched block 1 must remain nil without over-allocating a 4-column bundle.
 	firstN[0].SetOrigNameID(idOrig)
 	firstN[0].SetTC(100)
-	if len(sSlab.origNameSlab) != 0 || len(sSlab.tcSlab) != 0 {
-		t.Fatalf("k=0 should not pre-allocate [4]NodeColumn slab: origSlab=%d tcSlab=%d",
-			len(sSlab.origNameSlab), len(sSlab.tcSlab))
-	}
-
-	// Leave block 1 untouched; touch block 2 (>= 2): allocates [4]NodeColumn slab -> 3 free columns in slab!
-	// Pre-grow slice capacities so blocks 3..5 test pure 0-alloc slab consumption.
-	sSlab.mu.Lock()
-	for len(sSlab.origNames) < numBlocksTest {
-		sSlab.origNames = append(sSlab.origNames, nil)
-	}
-	for len(sSlab.tcs) < numBlocksTest {
-		sSlab.tcs = append(sSlab.tcs, nil)
-	}
-	sSlab.mu.Unlock()
-
-	firstN[2].SetOrigNameID(idOrig)
-	firstN[2].SetTC(200)
-	if len(sSlab.origNameSlab) != 3 || len(sSlab.tcSlab) != 3 {
-		t.Fatalf("k=2 expected 3 remaining columns in [4]NodeColumn slab, got orig=%d tc=%d",
-			len(sSlab.origNameSlab), len(sSlab.tcSlab))
-	}
-
-	slabAllocs := testing.AllocsPerRun(1, func() {
-		for b := 3; b <= 5; b++ {
-			firstN[b].SetOrigNameID(idOrig)
-			firstN[b].SetTC(uint32(b * 100))
-		}
-	})
-	if slabAllocs != 0 {
-		t.Fatalf("blocks 3..5 should consume [4]NodeColumn slab with 0 heap allocs, got %v", slabAllocs)
-	}
-	if len(sSlab.origNameSlab) != 0 || len(sSlab.tcSlab) != 0 {
-		t.Fatalf("expected [4]NodeColumn slab fully consumed after blocks 2..5, got orig=%d tc=%d",
-			len(sSlab.origNameSlab), len(sSlab.tcSlab))
+	for b := 2; b <= 5; b++ {
+		firstN[b].SetOrigNameID(idOrig)
+		firstN[b].SetTC(uint32(b * 100))
 	}
 	if sSlab.origNames[1] != nil || sSlab.tcs[1] != nil {
 		t.Fatalf("untouched block 1 must remain nil: orig=%p tc=%p", sSlab.origNames[1], sSlab.tcs[1])
+	}
+	for _, b := range []int{0, 2, 3, 4, 5} {
+		if firstN[b].OrigNameID() != idOrig || firstN[b].TC() != uint32(max(b, 1)*100) {
+			t.Fatalf("block %d mismatch: orig=%d tc=%d", b, firstN[b].OrigNameID(), firstN[b].TC())
+		}
 	}
 
 	// 2. Concurrent writers + concurrent readers across 6 blocks (98,304 nodes) under -race.

@@ -264,7 +264,7 @@ func InitRemoveUnusedCode(this_ *RemoveUnusedCode, builder *RemoveUnusedCode_Bui
 }
 
 // Java method: RemoveUnusedCode.acquireBuilder()
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_acquireBuilder_4687() *RemoveUnusedCode_RemovableBuilder {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_acquireBuilder_4692() *RemoveUnusedCode_RemovableBuilder {
 	var b *RemoveUnusedCode_RemovableBuilder = this_.freeBuilder
 	_ = b
 	if b != nil {
@@ -303,12 +303,12 @@ func (this_ *RemoveUnusedCode) Process_2(externs pkg_rhino.Node, root pkg_rhino.
 		defer j2gort.CloseResource(keepLogFile)
 		this_.removalLog = removalLogFile
 		this_.unremovableLog = keepLogFile
-		this_.priv_RemoveUnusedCode_traverseAndRemoveUnusedReferences_4688(root)
+		this_.priv_RemoveUnusedCode_traverseAndRemoveUnusedReferences_4693(root)
 	}()
 }
 
 // Java method: RemoveUnusedCode.traverseAndRemoveUnusedReferences(com.google.javascript.rhino.Node root)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseAndRemoveUnusedReferences_4688(root pkg_rhino.Node) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseAndRemoveUnusedReferences_4693(root pkg_rhino.Node) {
 	_ = root
 	var scope *Scope = this_.scopeCreator.CreateScope_2_Node_Scope(root.GetParent(), nil)
 	_ = scope
@@ -321,7 +321,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseAndRemoveUnusedRefe
 
 		bound_3 := this_
 		iifeArg_1 = j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) {
-			bound_3.priv_RemoveUnusedCode_storePolyfill_4689(j2gort.CastPtr[PolyfillUsageFinder_PolyfillUsage](mrp0_))
+			bound_3.priv_RemoveUnusedCode_storePolyfill_4694(j2gort.CastPtr[PolyfillUsageFinder_PolyfillUsage](mrp0_))
 		})
 	}
 	this_.polyfillUsageFinder.TraverseOnlyGuarded(root, iifeArg_1)
@@ -331,23 +331,23 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseAndRemoveUnusedRefe
 		_ = continuation
 		continuation.Apply(this_)
 	}
-	this_.priv_RemoveUnusedCode_removeUnreferencedVarsAndPolyfills_4734()
-	this_.priv_RemoveUnusedCode_removeIndependentlyRemovableProperties_4690()
+	this_.priv_RemoveUnusedCode_removeUnreferencedVarsAndPolyfills_4739()
+	this_.priv_RemoveUnusedCode_removeIndependentlyRemovableProperties_4695()
 	for _, fparamScope := range this_.allFunctionParamScopes {
 		_ = fparamScope
-		this_.priv_RemoveUnusedCode_removeUnreferencedFunctionArgs_4724(fparamScope)
+		this_.priv_RemoveUnusedCode_removeUnreferencedFunctionArgs_4729(fparamScope)
 	}
 
 }
 
 // Java method: RemoveUnusedCode.storePolyfill(com.google.javascript.jscomp.PolyfillUsageFinder.PolyfillUsage polyfillUsage)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_storePolyfill_4689(polyfillUsage *PolyfillUsageFinder_PolyfillUsage) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_storePolyfill_4694(polyfillUsage *PolyfillUsageFinder_PolyfillUsage) {
 	_ = polyfillUsage
 	this_.guardedUsages.Add(polyfillUsage.Node())
 }
 
 // Java method: RemoveUnusedCode.removeIndependentlyRemovableProperties()
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_removeIndependentlyRemovableProperties_4690() {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_removeIndependentlyRemovableProperties_4695() {
 	{
 		cur_6 := this_.removablesForPropertyNames.IterEntries()
 		for cur_6.NextEntry() {
@@ -372,7 +372,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_removeIndependentlyRemovabl
 }
 
 // Java method: RemoveUnusedCode.traverseNode(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNode_4691(n pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNode_4696(n pkg_rhino.Node, scope *Scope) {
 	_ = n
 	_ = scope
 	var parent pkg_rhino.Node = n.GetParent()
@@ -380,31 +380,31 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNode_4691(n pkg_rhi
 	var type_ int32 = n.TokenSwitchOrd_()
 	switch type_ {
 	case int32(86) /* Token.CATCH */ :
-		this_.priv_RemoveUnusedCode_traverseCatch_4706(n, scope)
+		this_.priv_RemoveUnusedCode_traverseCatch_4711(n, scope)
 	case int32(73) /* Token.FUNCTION */ :
 		{
 			var varInfo *RemoveUnusedCode_VarInfo = nil
 			_ = varInfo
 			if NodeUtil_IsFunctionDeclaration(n) {
-				varInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(n.GetFirstChild(), scope)
-				var functionDeclaration *RemoveUnusedCode_FunctionDeclaration = this_.priv_RemoveUnusedCode_acquireBuilder_4687().AddContinuation(NewRemoveUnusedCode_Continuation(n, scope)).BuildFunctionDeclaration(n)
+				varInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(n.GetFirstChild(), scope)
+				var functionDeclaration *RemoveUnusedCode_FunctionDeclaration = this_.priv_RemoveUnusedCode_acquireBuilder_4692().AddContinuation(NewRemoveUnusedCode_Continuation(n, scope)).BuildFunctionDeclaration(n)
 				_ = functionDeclaration
 				varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(functionDeclaration))
 				if parent.IsExport() {
 					varInfo.SetIsExplicitlyNotRemovable(lambdaSingleton_remove_unused_code_2)
 				}
 			} else {
-				this_.priv_RemoveUnusedCode_traverseFunction_4722(n, scope)
+				this_.priv_RemoveUnusedCode_traverseFunction_4727(n, scope)
 			}
 		}
 	case int32(51) /* Token.ASSIGN */ :
-		this_.priv_RemoveUnusedCode_traverseAssign_4711(n, scope)
+		this_.priv_RemoveUnusedCode_traverseAssign_4716(n, scope)
 	case int32(52) /* Token.ASSIGN_BITOR */, int32(53) /* Token.ASSIGN_BITXOR */, int32(54) /* Token.ASSIGN_BITAND */, int32(55) /* Token.ASSIGN_LSH */, int32(56) /* Token.ASSIGN_RSH */, int32(57) /* Token.ASSIGN_URSH */, int32(58) /* Token.ASSIGN_ADD */, int32(59) /* Token.ASSIGN_SUB */, int32(60) /* Token.ASSIGN_MUL */, int32(63) /* Token.ASSIGN_EXPONENT */, int32(61) /* Token.ASSIGN_DIV */, int32(62) /* Token.ASSIGN_MOD */ :
-		this_.priv_RemoveUnusedCode_traverseCompoundAssign_4695(n, scope)
+		this_.priv_RemoveUnusedCode_traverseCompoundAssign_4700(n, scope)
 	case int32(71) /* Token.INC */, int32(72) /* Token.DEC */ :
-		this_.priv_RemoveUnusedCode_traverseIncrementOrDecrementOp_4694(n, scope)
+		this_.priv_RemoveUnusedCode_traverseIncrementOrDecrementOp_4699(n, scope)
 	case int32(28) /* Token.CALL */, int32(31) /* Token.OPTCHAIN_CALL */ :
-		this_.priv_RemoveUnusedCode_traverseCall_4697(n, scope)
+		this_.priv_RemoveUnusedCode_traverseCall_4702(n, scope)
 	case int32(91) /* Token.SWITCH_BODY */, int32(90) /* Token.BLOCK */ :
 		var iifeArg_2 *Scope
 	iifeSwitch_1:
@@ -418,30 +418,30 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNode_4691(n pkg_rhi
 			iifeArg_2 = scope
 			break iifeSwitch_1
 		}
-		this_.priv_RemoveUnusedCode_traverseChildren_4717(n, iifeArg_2)
+		this_.priv_RemoveUnusedCode_traverseChildren_4722(n, iifeArg_2)
 	case int32(123) /* Token.MODULE_BODY */ :
-		this_.priv_RemoveUnusedCode_traverseChildren_4717(n, this_.scopeCreator.CreateScope_2_Node_Scope(n, scope))
+		this_.priv_RemoveUnusedCode_traverseChildren_4722(n, this_.scopeCreator.CreateScope_2_Node_Scope(n, scope))
 	case int32(105) /* Token.CLASS */ :
-		this_.priv_RemoveUnusedCode_traverseClass_4718(n, scope)
+		this_.priv_RemoveUnusedCode_traverseClass_4723(n, scope)
 	case int32(106) /* Token.CLASS_MEMBERS */ :
-		this_.priv_RemoveUnusedCode_traverseClassMembers_4721(n, scope)
+		this_.priv_RemoveUnusedCode_traverseClassMembers_4726(n, scope)
 	case int32(102) /* Token.ARRAY_PATTERN */, int32(49) /* Token.PARAM_LIST */ :
-		this_.priv_RemoveUnusedCode_traverseIndirectAssignmentList_4715(n, scope)
+		this_.priv_RemoveUnusedCode_traverseIndirectAssignmentList_4720(n, scope)
 	case int32(103) /* Token.OBJECT_PATTERN */ :
-		this_.priv_RemoveUnusedCode_traverseObjectPattern_4714(n, scope)
+		this_.priv_RemoveUnusedCode_traverseObjectPattern_4719(n, scope)
 	case int32(47) /* Token.OBJECTLIT */ :
-		this_.priv_RemoveUnusedCode_traverseObjectLiteral_4701(n, scope)
+		this_.priv_RemoveUnusedCode_traverseObjectLiteral_4706(n, scope)
 	case int32(80) /* Token.FOR */ :
-		this_.priv_RemoveUnusedCode_traverseVanillaFor_4708(n, scope)
+		this_.priv_RemoveUnusedCode_traverseVanillaFor_4713(n, scope)
 	case int32(81) /* Token.FOR_IN */, int32(112) /* Token.FOR_OF */, int32(113) /* Token.FOR_AWAIT_OF */ :
-		this_.priv_RemoveUnusedCode_traverseEnhancedFor_4707(n, scope)
+		this_.priv_RemoveUnusedCode_traverseEnhancedFor_4712(n, scope)
 	case int32(111) /* Token.LET */, int32(97) /* Token.CONST */, int32(84) /* Token.VAR */ :
 		if !(NodeUtil_IsStatement(n)) {
 			j2gort.CheckState(false)
 		}
-		this_.priv_RemoveUnusedCode_traverseDeclarationStatement_4710(n, scope)
+		this_.priv_RemoveUnusedCode_traverseDeclarationStatement_4715(n, scope)
 	case int32(45) /* Token.INSTANCEOF */ :
-		this_.priv_RemoveUnusedCode_traverseInstanceof_4692(n, scope)
+		this_.priv_RemoveUnusedCode_traverseInstanceof_4697(n, scope)
 	case int32(32) /* Token.NAME */ :
 		if !(!(n.HasChildren())) {
 			j2gort.CheckState(false)
@@ -453,7 +453,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNode_4691(n pkg_rhi
 			if !(!((parent.IsFunction() || parent.IsClass()) && (parent.GetFirstChild() == n))) {
 				j2gort.CheckState(false)
 			}
-			this_.priv_RemoveUnusedCode_traverseNameNode_4696(n, scope).SetIsExplicitlyNotRemovable(func() j2gort.Ext_java_util_function_Supplier {
+			this_.priv_RemoveUnusedCode_traverseNameNode_4701(n, scope).SetIsExplicitlyNotRemovable(func() j2gort.Ext_java_util_function_Supplier {
 				if this_.unremovableLog.IsLogging() {
 					return j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 						return j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("reference found: %s", []any{j2gort.BoxString(n.GetLocation())}))
@@ -463,14 +463,14 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNode_4691(n pkg_rhi
 			}())
 		}
 	case int32(26) /* Token.GETPROP */, int32(29) /* Token.OPTCHAIN_GETPROP */ :
-		this_.priv_RemoveUnusedCode_traverseNormalOrOptChainGetProp_4693(n, scope)
+		this_.priv_RemoveUnusedCode_traverseNormalOrOptChainGetProp_4698(n, scope)
 	default:
-		this_.priv_RemoveUnusedCode_traverseChildren_4717(n, scope)
+		this_.priv_RemoveUnusedCode_traverseChildren_4722(n, scope)
 	}
 }
 
 // Java method: RemoveUnusedCode.traverseInstanceof(com.google.javascript.rhino.Node instanceofNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseInstanceof_4692(instanceofNode pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseInstanceof_4697(instanceofNode pkg_rhino.Node, scope *Scope) {
 	_ = instanceofNode
 	_ = scope
 	if !(instanceofNode.IsInstanceOf()) {
@@ -480,20 +480,20 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseInstanceof_4692(ins
 	_ = lhs
 	var rhs pkg_rhino.Node = lhs.GetNext()
 	_ = rhs
-	this_.priv_RemoveUnusedCode_traverseNode_4691(lhs, scope)
+	this_.priv_RemoveUnusedCode_traverseNode_4696(lhs, scope)
 	if rhs.IsName() {
-		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(rhs, scope)
+		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(rhs, scope)
 		_ = varInfo
-		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687()
+		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692()
 		_ = builder
 		varInfo.AddRemovable(builder.BuildInstanceofName(instanceofNode))
 	} else {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(rhs, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(rhs, scope)
 	}
 }
 
 // Java method: RemoveUnusedCode.traverseNormalOrOptChainGetProp(com.google.javascript.rhino.Node getProp, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNormalOrOptChainGetProp_4693(getProp pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNormalOrOptChainGetProp_4698(getProp pkg_rhino.Node, scope *Scope) {
 	_ = getProp
 	_ = scope
 	if !(NodeUtil_IsNormalOrOptChainGetProp(getProp)) {
@@ -516,38 +516,38 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNormalOrOptChainGet
 			}
 		}
 	}
-	if NodeUtil_IsExpressionResultUsed(getProp) || this_.priv_RemoveUnusedCode_considerForAccessorSideEffects_4727(getProp, StaticGet_AccessorSummary_PropertyAccessKind_GETTER_ONLY()) {
-		this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4725(propertyName)
-		this_.priv_RemoveUnusedCode_traverseNode_4691(objectNode, scope)
+	if NodeUtil_IsExpressionResultUsed(getProp) || this_.priv_RemoveUnusedCode_considerForAccessorSideEffects_4732(getProp, StaticGet_AccessorSummary_PropertyAccessKind_GETTER_ONLY()) {
+		this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4730(propertyName)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(objectNode, scope)
 	} else if objectNode.IsThis() {
-		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687().SetIsThisDotPropertyReference(true)
+		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692().SetIsThisDotPropertyReference(true)
 		_ = builder
-		this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(ToIface_RemoveUnusedCode_Removable(builder.BuildUnusedReadReference(getProp, getProp)))
+		this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(ToIface_RemoveUnusedCode_Removable(builder.BuildUnusedReadReference(getProp, getProp)))
 	} else if RemoveUnusedCode_IsDotPrototype(objectNode) {
-		var builder_2 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687().SetIsPrototypeDotPropertyReference(true)
+		var builder_2 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692().SetIsPrototypeDotPropertyReference(true)
 		_ = builder_2
 		var objExpression pkg_rhino.Node = objectNode.GetFirstChild()
 		_ = objExpression
 		if objExpression.IsName() {
-			var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(objExpression, scope)
+			var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(objExpression, scope)
 			_ = varInfo
 			varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(builder_2.BuildUnusedReadReference(getProp, getProp)))
 		} else {
-			if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(objExpression) {
-				this_.priv_RemoveUnusedCode_traverseNode_4691(objExpression, scope)
+			if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(objExpression) {
+				this_.priv_RemoveUnusedCode_traverseNode_4696(objExpression, scope)
 			} else {
 				builder_2.AddContinuation(NewRemoveUnusedCode_Continuation(objExpression, scope))
 			}
-			this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(ToIface_RemoveUnusedCode_Removable(builder_2.BuildUnusedReadReference(getProp, getProp)))
+			this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(ToIface_RemoveUnusedCode_Removable(builder_2.BuildUnusedReadReference(getProp, getProp)))
 		}
 	} else {
-		this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4725(propertyName)
-		this_.priv_RemoveUnusedCode_traverseNode_4691(objectNode, scope)
+		this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4730(propertyName)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(objectNode, scope)
 	}
 }
 
 // Java method: RemoveUnusedCode.traverseIncrementOrDecrementOp(com.google.javascript.rhino.Node incOrDecOp, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseIncrementOrDecrementOp_4694(incOrDecOp pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseIncrementOrDecrementOp_4699(incOrDecOp pkg_rhino.Node, scope *Scope) {
 	_ = incOrDecOp
 	_ = scope
 	if !(incOrDecOp.IsInc() || incOrDecOp.IsDec()) {
@@ -556,46 +556,46 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseIncrementOrDecremen
 	var arg pkg_rhino.Node = incOrDecOp.GetOnlyChild()
 	_ = arg
 	if NodeUtil_IsExpressionResultUsed(incOrDecOp) {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(arg, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(arg, scope)
 	} else if arg.IsGetProp() {
 		var getPropObj pkg_rhino.Node = arg.GetFirstChild()
 		_ = getPropObj
-		if this_.priv_RemoveUnusedCode_considerForAccessorSideEffects_4727(arg, StaticGet_AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER()) {
-			this_.priv_RemoveUnusedCode_traverseNode_4691(getPropObj, scope)
+		if this_.priv_RemoveUnusedCode_considerForAccessorSideEffects_4732(arg, StaticGet_AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER()) {
+			this_.priv_RemoveUnusedCode_traverseNode_4696(getPropObj, scope)
 		} else if getPropObj.IsThis() {
-			var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687().SetIsThisDotPropertyReference(true)
+			var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692().SetIsThisDotPropertyReference(true)
 			_ = builder
-			this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(ToIface_RemoveUnusedCode_Removable(builder.BuildIncOrDepOp(incOrDecOp, arg, pkg_rhino.Node(0))))
+			this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(ToIface_RemoveUnusedCode_Removable(builder.BuildIncOrDepOp(incOrDecOp, arg, pkg_rhino.Node(0))))
 		} else if RemoveUnusedCode_IsDotPrototype(getPropObj) {
 			var exprObj pkg_rhino.Node = getPropObj.GetFirstChild()
 			_ = exprObj
-			var builder_2 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687().SetIsPrototypeDotPropertyReference(true)
+			var builder_2 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692().SetIsPrototypeDotPropertyReference(true)
 			_ = builder_2
 			if exprObj.IsName() {
-				var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(exprObj, scope)
+				var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(exprObj, scope)
 				_ = varInfo
 				varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(builder_2.BuildIncOrDepOp(incOrDecOp, arg, pkg_rhino.Node(0))))
 			} else {
 				var toPreserve pkg_rhino.Node = pkg_rhino.Node(0)
 				_ = toPreserve
-				if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(exprObj) {
+				if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(exprObj) {
 					toPreserve = exprObj
-					this_.priv_RemoveUnusedCode_traverseNode_4691(exprObj, scope)
+					this_.priv_RemoveUnusedCode_traverseNode_4696(exprObj, scope)
 				} else {
 					builder_2.AddContinuation(NewRemoveUnusedCode_Continuation(exprObj, scope))
 				}
-				this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(ToIface_RemoveUnusedCode_Removable(builder_2.BuildIncOrDepOp(incOrDecOp, arg, toPreserve)))
+				this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(ToIface_RemoveUnusedCode_Removable(builder_2.BuildIncOrDepOp(incOrDecOp, arg, toPreserve)))
 			}
 		} else {
-			this_.priv_RemoveUnusedCode_traverseNode_4691(arg, scope)
+			this_.priv_RemoveUnusedCode_traverseNode_4696(arg, scope)
 		}
 	} else {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(arg, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(arg, scope)
 	}
 }
 
 // Java method: RemoveUnusedCode.traverseCompoundAssign(com.google.javascript.rhino.Node compoundAssignNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseCompoundAssign_4695(compoundAssignNode pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseCompoundAssign_4700(compoundAssignNode pkg_rhino.Node, scope *Scope) {
 	_ = compoundAssignNode
 	_ = scope
 	var targetNode pkg_rhino.Node = compoundAssignNode.GetFirstChild()
@@ -603,26 +603,26 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseCompoundAssign_4695
 	var valueNode pkg_rhino.Node = compoundAssignNode.GetLastChild()
 	_ = valueNode
 	if targetNode.IsGetProp() {
-		if this_.priv_RemoveUnusedCode_considerForAccessorSideEffects_4727(targetNode, StaticGet_AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER()) {
-			this_.priv_RemoveUnusedCode_traverseNode_4691(targetNode.GetFirstChild(), scope)
-			this_.priv_RemoveUnusedCode_traverseNode_4691(valueNode, scope)
+		if this_.priv_RemoveUnusedCode_considerForAccessorSideEffects_4732(targetNode, StaticGet_AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER()) {
+			this_.priv_RemoveUnusedCode_traverseNode_4696(targetNode.GetFirstChild(), scope)
+			this_.priv_RemoveUnusedCode_traverseNode_4696(valueNode, scope)
 		} else if targetNode.GetFirstChild().IsThis() && !(NodeUtil_IsExpressionResultUsed(compoundAssignNode)) {
-			var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687().SetIsThisDotPropertyReference(true)
+			var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692().SetIsThisDotPropertyReference(true)
 			_ = builder
-			this_.priv_RemoveUnusedCode_traverseRemovableAssignValue_4712(valueNode, builder, scope)
-			this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(ToIface_RemoveUnusedCode_Removable(builder.BuildNamedPropertyAssign_2(compoundAssignNode, targetNode)))
+			this_.priv_RemoveUnusedCode_traverseRemovableAssignValue_4717(valueNode, builder, scope)
+			this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(ToIface_RemoveUnusedCode_Removable(builder.BuildNamedPropertyAssign_2(compoundAssignNode, targetNode)))
 		} else {
-			this_.priv_RemoveUnusedCode_traverseNode_4691(targetNode, scope)
-			this_.priv_RemoveUnusedCode_traverseNode_4691(valueNode, scope)
+			this_.priv_RemoveUnusedCode_traverseNode_4696(targetNode, scope)
+			this_.priv_RemoveUnusedCode_traverseNode_4696(valueNode, scope)
 		}
 	} else {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(targetNode, scope)
-		this_.priv_RemoveUnusedCode_traverseNode_4691(valueNode, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(targetNode, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(valueNode, scope)
 	}
 }
 
 // Java method: RemoveUnusedCode.traverseNameNode(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNameNode_4696(n pkg_rhino.Node, scope *Scope) *RemoveUnusedCode_VarInfo {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNameNode_4701(n pkg_rhino.Node, scope *Scope) *RemoveUnusedCode_VarInfo {
 	_ = n
 	_ = scope
 	if j2gort.MultimapContainsKeyStr(this_.polyfills, n.GetString()) {
@@ -638,11 +638,11 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNameNode_4696(n pkg
 			}
 		}
 	}
-	return this_.priv_RemoveUnusedCode_traverseVar_4731(this_.priv_RemoveUnusedCode_getVarForNameNode_4700(n, scope))
+	return this_.priv_RemoveUnusedCode_traverseVar_4736(this_.priv_RemoveUnusedCode_getVarForNameNode_4705(n, scope))
 }
 
 // Java method: RemoveUnusedCode.traverseCall(com.google.javascript.rhino.Node callNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseCall_4697(callNode pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseCall_4702(callNode pkg_rhino.Node, scope *Scope) {
 	_ = callNode
 	_ = scope
 	var callee pkg_rhino.Node = callNode.GetFirstChild()
@@ -651,11 +651,11 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseCall_4697(callNode 
 		var propertyNameNode pkg_rhino.Node = callee.GetNext()
 		_ = propertyNameNode
 		if (propertyNameNode != 0) && propertyNameNode.IsStringLit() {
-			this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4725(propertyNameNode.GetString())
+			this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4730(propertyNameNode.GetString())
 		}
-		this_.priv_RemoveUnusedCode_traverseChildren_4717(callNode, scope)
+		this_.priv_RemoveUnusedCode_traverseChildren_4722(callNode, scope)
 	} else if NodeUtil_IsObjectDefinePropertiesDefinition(callNode) {
-		this_.priv_RemoveUnusedCode_traverseObjectDefinePropertiesCall_4698(callNode, scope)
+		this_.priv_RemoveUnusedCode_traverseObjectDefinePropertiesCall_4703(callNode, scope)
 	} else if this_.removeUnusedPolyfills && RemoveUnusedCode_IsJscompPolyfill(callee) {
 		var firstArg pkg_rhino.Node = callee.GetNext()
 		_ = firstArg
@@ -664,17 +664,17 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseCall_4697(callNode 
 		if javalang.StringEndsWith(j2gort.CheckNotNullString(callee.GetString()), "polyfillTypedArrayMethod") {
 			polyfillName = ("TypedArray.prototype." + j2gort.StrValString(polyfillName))
 		}
-		var info RemoveUnusedCode_PolyfillInfo = this_.priv_RemoveUnusedCode_createPolyfillInfo_4736(callNode, scope, polyfillName)
+		var info RemoveUnusedCode_PolyfillInfo = this_.priv_RemoveUnusedCode_createPolyfillInfo_4741(callNode, scope, polyfillName)
 		_ = info
 		j2gort.MultimapPutStr(this_.polyfills, info.GetRemoveUnusedCode_PolyfillInfoBase().key, info)
-		this_.priv_RemoveUnusedCode_traverseNode_4691(callNode.GetFirstChild(), scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(callNode.GetFirstChild(), scope)
 	} else if (NodeUtil_IsGoogWeakUsageCall(callNode) && callNode.HasTwoChildren()) && callNode.GetSecondChild().IsName() {
-		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(callNode.GetSecondChild(), scope)
+		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(callNode.GetSecondChild(), scope)
 		_ = varInfo
-		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687()
+		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692()
 		_ = builder
 		varInfo.AddRemovable(builder.BuildWeakUsageCall(callNode))
-		this_.priv_RemoveUnusedCode_traverseNode_4691(callNode.GetFirstChild(), scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(callNode.GetFirstChild(), scope)
 	} else {
 		var parent pkg_rhino.Node = callNode.GetParent()
 		_ = parent
@@ -698,9 +698,9 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseCall_4697(callNode 
 			classVar = j2gort.CheckNotNullPtr(scope.LookupVar(classVarName))
 		}
 		if (classVar == nil) || !(classVar.IsGlobal()) {
-			this_.priv_RemoveUnusedCode_traverseChildren_4717(callNode, scope)
+			this_.priv_RemoveUnusedCode_traverseChildren_4722(callNode, scope)
 		} else {
-			var builder_2 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687()
+			var builder_2 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692()
 			_ = builder_2
 			{
 				var child pkg_rhino.Node = callNode.GetFirstChild()
@@ -709,7 +709,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseCall_4697(callNode 
 					builder_2.AddContinuation(NewRemoveUnusedCode_Continuation(child, scope))
 				}
 			}
-			this_.priv_RemoveUnusedCode_traverseVar_4731(classVar).AddRemovable(ToIface_RemoveUnusedCode_Removable(builder_2.BuildClassSetupCall_2(callNode, classDefiningCall)))
+			this_.priv_RemoveUnusedCode_traverseVar_4736(classVar).AddRemovable(ToIface_RemoveUnusedCode_Removable(builder_2.BuildClassSetupCall_2(callNode, classDefiningCall)))
 		}
 	}
 }
@@ -733,7 +733,7 @@ func RemoveUnusedCode_IsJscompPolyfill(n pkg_rhino.Node) bool {
 }
 
 // Java method: RemoveUnusedCode.traverseObjectDefinePropertiesCall(com.google.javascript.rhino.Node callNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectDefinePropertiesCall_4698(callNode pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectDefinePropertiesCall_4703(callNode pkg_rhino.Node, scope *Scope) {
 	_ = callNode
 	_ = scope
 	var callee pkg_rhino.Node = callNode.GetFirstChild()
@@ -742,7 +742,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectDefinePropert
 	_ = targetObject
 	var propertyDefinitions pkg_rhino.Node = targetObject.GetNext()
 	_ = propertyDefinitions
-	if (targetObject.IsName() || this_.priv_RemoveUnusedCode_isNameDotPrototype_4713(targetObject)) && !(NodeUtil_IsExpressionResultUsed(callNode)) {
+	if (targetObject.IsName() || this_.priv_RemoveUnusedCode_isNameDotPrototype_4718(targetObject)) && !(NodeUtil_IsExpressionResultUsed(callNode)) {
 		var nameNode pkg_rhino.Node
 		_ = nameNode
 		if targetObject.IsName() {
@@ -750,26 +750,26 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectDefinePropert
 		} else {
 			nameNode = targetObject.GetFirstChild()
 		}
-		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(nameNode, scope)
+		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(nameNode, scope)
 		_ = varInfo
-		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687()
+		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692()
 		_ = builder
 		builder.AddContinuation(NewRemoveUnusedCode_Continuation(callee, scope))
-		if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(propertyDefinitions) {
-			this_.priv_RemoveUnusedCode_traverseNode_4691(propertyDefinitions, scope)
+		if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(propertyDefinitions) {
+			this_.priv_RemoveUnusedCode_traverseNode_4696(propertyDefinitions, scope)
 		} else {
 			builder.AddContinuation(NewRemoveUnusedCode_Continuation(propertyDefinitions, scope))
 		}
 		varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(builder.BuildClassSetupCall_1(callNode)))
 	} else {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(callee, scope)
-		this_.priv_RemoveUnusedCode_traverseNode_4691(targetObject, scope)
-		this_.priv_RemoveUnusedCode_traverseNode_4691(propertyDefinitions, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(callee, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(targetObject, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(propertyDefinitions, scope)
 	}
 }
 
 // Java method: RemoveUnusedCode.traverseObjectDefinePropertiesLiteral(com.google.javascript.rhino.Node propertyDefinitions, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectDefinePropertiesLiteral_4699(propertyDefinitions pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectDefinePropertiesLiteral_4704(propertyDefinitions pkg_rhino.Node, scope *Scope) {
 	_ = propertyDefinitions
 	_ = scope
 	{
@@ -777,48 +777,48 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectDefinePropert
 		_ = property
 		for ; property != 0; property = property.GetNext() {
 			if property.IsQuotedStringKey() {
-				this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4725(property.GetString())
-				this_.priv_RemoveUnusedCode_traverseNode_4691(property.GetOnlyChild(), scope)
+				this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4730(property.GetString())
+				this_.priv_RemoveUnusedCode_traverseNode_4696(property.GetOnlyChild(), scope)
 			} else if property.IsStringKey() {
 				var definition pkg_rhino.Node = property.GetOnlyChild()
 				_ = definition
-				if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(definition) {
-					this_.priv_RemoveUnusedCode_traverseNode_4691(definition, scope)
+				if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(definition) {
+					this_.priv_RemoveUnusedCode_traverseNode_4696(definition, scope)
 				} else {
-					this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(ToIface_RemoveUnusedCode_Removable(this_.priv_RemoveUnusedCode_acquireBuilder_4687().AddContinuation(NewRemoveUnusedCode_Continuation(definition, scope)).BuildObjectDefinePropertiesDefinition(property)))
+					this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(ToIface_RemoveUnusedCode_Removable(this_.priv_RemoveUnusedCode_acquireBuilder_4692().AddContinuation(NewRemoveUnusedCode_Continuation(definition, scope)).BuildObjectDefinePropertiesDefinition(property)))
 				}
 			} else {
-				this_.priv_RemoveUnusedCode_traverseNode_4691(property, scope)
+				this_.priv_RemoveUnusedCode_traverseNode_4696(property, scope)
 			}
 		}
 	}
 }
 
 // Java method: RemoveUnusedCode.getVarForNameNode(com.google.javascript.rhino.Node nameNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_getVarForNameNode_4700(nameNode pkg_rhino.Node, scope *Scope) *Var {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_getVarForNameNode_4705(nameNode pkg_rhino.Node, scope *Scope) *Var {
 	_ = nameNode
 	_ = scope
 	return j2gort.CheckNotNullPtr(scope.LookupVar(nameNode.GetString()))
 }
 
 // Java method: RemoveUnusedCode.traverseObjectLiteral(com.google.javascript.rhino.Node objectLiteral, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectLiteral_4701(objectLiteral pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectLiteral_4706(objectLiteral pkg_rhino.Node, scope *Scope) {
 	_ = objectLiteral
 	_ = scope
 	if !(objectLiteral.IsObjectLit()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(objectLiteral))
 	}
-	if this_.priv_RemoveUnusedCode_isAssignmentToPrototype_4705(objectLiteral.GetParent()) {
-		this_.priv_RemoveUnusedCode_traversePrototypeLiteral_4704(objectLiteral, scope)
-	} else if this_.priv_RemoveUnusedCode_isObjectDefinePropertiesSecondArgument_4702(objectLiteral) {
-		this_.priv_RemoveUnusedCode_traverseObjectDefinePropertiesLiteral_4699(objectLiteral, scope)
+	if this_.priv_RemoveUnusedCode_isAssignmentToPrototype_4710(objectLiteral.GetParent()) {
+		this_.priv_RemoveUnusedCode_traversePrototypeLiteral_4709(objectLiteral, scope)
+	} else if this_.priv_RemoveUnusedCode_isObjectDefinePropertiesSecondArgument_4707(objectLiteral) {
+		this_.priv_RemoveUnusedCode_traverseObjectDefinePropertiesLiteral_4704(objectLiteral, scope)
 	} else {
-		this_.priv_RemoveUnusedCode_traverseNonPrototypeObjectLiteral_4703(objectLiteral, scope)
+		this_.priv_RemoveUnusedCode_traverseNonPrototypeObjectLiteral_4708(objectLiteral, scope)
 	}
 }
 
 // Java method: RemoveUnusedCode.isObjectDefinePropertiesSecondArgument(com.google.javascript.rhino.Node n)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_isObjectDefinePropertiesSecondArgument_4702(n pkg_rhino.Node) bool {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_isObjectDefinePropertiesSecondArgument_4707(n pkg_rhino.Node) bool {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -826,7 +826,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_isObjectDefinePropertiesSec
 }
 
 // Java method: RemoveUnusedCode.traverseNonPrototypeObjectLiteral(com.google.javascript.rhino.Node objectLiteral, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNonPrototypeObjectLiteral_4703(objectLiteral pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNonPrototypeObjectLiteral_4708(objectLiteral pkg_rhino.Node, scope *Scope) {
 	_ = objectLiteral
 	_ = scope
 	{
@@ -834,17 +834,17 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseNonPrototypeObjectL
 		_ = propertyNode
 		for ; propertyNode != 0; propertyNode = propertyNode.GetNext() {
 			if propertyNode.IsStringKey() {
-				this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4725(propertyNode.GetString())
-				this_.priv_RemoveUnusedCode_traverseNode_4691(propertyNode.GetFirstChild(), scope)
+				this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4730(propertyNode.GetString())
+				this_.priv_RemoveUnusedCode_traverseNode_4696(propertyNode.GetFirstChild(), scope)
 			} else {
-				this_.priv_RemoveUnusedCode_traverseNode_4691(propertyNode, scope)
+				this_.priv_RemoveUnusedCode_traverseNode_4696(propertyNode, scope)
 			}
 		}
 	}
 }
 
 // Java method: RemoveUnusedCode.traversePrototypeLiteral(com.google.javascript.rhino.Node objectLiteral, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traversePrototypeLiteral_4704(objectLiteral pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traversePrototypeLiteral_4709(objectLiteral pkg_rhino.Node, scope *Scope) {
 	_ = objectLiteral
 	_ = scope
 	{
@@ -852,14 +852,14 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traversePrototypeLiteral_47
 		_ = propertyNode
 		for ; propertyNode != 0; propertyNode = propertyNode.GetNext() {
 			if propertyNode.IsComputedProp() || propertyNode.IsQuotedStringKey() {
-				this_.priv_RemoveUnusedCode_traverseChildren_4717(propertyNode, scope)
+				this_.priv_RemoveUnusedCode_traverseChildren_4722(propertyNode, scope)
 			} else {
 				var valueNode pkg_rhino.Node = propertyNode.GetOnlyChild()
 				_ = valueNode
-				if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(valueNode) {
-					this_.priv_RemoveUnusedCode_traverseNode_4691(valueNode, scope)
+				if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(valueNode) {
+					this_.priv_RemoveUnusedCode_traverseNode_4696(valueNode, scope)
 				} else {
-					this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(ToIface_RemoveUnusedCode_Removable(this_.priv_RemoveUnusedCode_acquireBuilder_4687().AddContinuation(NewRemoveUnusedCode_Continuation(valueNode, scope)).BuildClassOrPrototypeNamedProperty(propertyNode)))
+					this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(ToIface_RemoveUnusedCode_Removable(this_.priv_RemoveUnusedCode_acquireBuilder_4692().AddContinuation(NewRemoveUnusedCode_Continuation(valueNode, scope)).BuildClassOrPrototypeNamedProperty(propertyNode)))
 				}
 			}
 		}
@@ -867,7 +867,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traversePrototypeLiteral_47
 }
 
 // Java method: RemoveUnusedCode.isAssignmentToPrototype(com.google.javascript.rhino.Node n)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_isAssignmentToPrototype_4705(n pkg_rhino.Node) bool {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_isAssignmentToPrototype_4710(n pkg_rhino.Node) bool {
 	_ = n
 	return (n.IsAssign() && RemoveUnusedCode_IsDotPrototype(n.GetFirstChild()))
 }
@@ -879,7 +879,7 @@ func RemoveUnusedCode_IsDotPrototype(n pkg_rhino.Node) bool {
 }
 
 // Java method: RemoveUnusedCode.traverseCatch(com.google.javascript.rhino.Node catchNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseCatch_4706(catchNode pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseCatch_4711(catchNode pkg_rhino.Node, scope *Scope) {
 	_ = catchNode
 	_ = scope
 	var exceptionNameNode pkg_rhino.Node = catchNode.GetFirstChild()
@@ -887,17 +887,17 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseCatch_4706(catchNod
 	var block pkg_rhino.Node = exceptionNameNode.GetNext()
 	_ = block
 	if exceptionNameNode.IsName() {
-		var exceptionVarInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(exceptionNameNode, scope)
+		var exceptionVarInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(exceptionNameNode, scope)
 		_ = exceptionVarInfo
 		exceptionVarInfo.SetIsExplicitlyNotRemovable(lambdaSingleton_remove_unused_code_3)
 	} else {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(exceptionNameNode, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(exceptionNameNode, scope)
 	}
-	this_.priv_RemoveUnusedCode_traverseNode_4691(block, scope)
+	this_.priv_RemoveUnusedCode_traverseNode_4696(block, scope)
 }
 
 // Java method: RemoveUnusedCode.traverseEnhancedFor(com.google.javascript.rhino.Node enhancedFor, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseEnhancedFor_4707(enhancedFor pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseEnhancedFor_4712(enhancedFor pkg_rhino.Node, scope *Scope) {
 	_ = enhancedFor
 	_ = scope
 	var forScope *Scope = this_.scopeCreator.CreateScope_2_Node_Scope(enhancedFor, scope)
@@ -909,14 +909,14 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseEnhancedFor_4707(en
 	var body pkg_rhino.Node = collection.GetNext()
 	_ = body
 	if iterationTarget.IsName() {
-		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(iterationTarget, forScope)
+		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(iterationTarget, forScope)
 		_ = varInfo
 		varInfo.SetIsExplicitlyNotRemovable(lambdaSingleton_remove_unused_code_4)
 	} else if NodeUtil_IsNameDeclaration(iterationTarget) {
 		var declNode pkg_rhino.Node = iterationTarget.GetOnlyChild()
 		_ = declNode
 		if declNode.IsDestructuringLhs() {
-			this_.priv_RemoveUnusedCode_traverseNode_4691(declNode, forScope)
+			this_.priv_RemoveUnusedCode_traverseNode_4696(declNode, forScope)
 		} else {
 			if !(declNode.IsName()) {
 				j2gort.CheckState(false)
@@ -924,19 +924,19 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseEnhancedFor_4707(en
 			if !(!(declNode.HasChildren())) {
 				j2gort.CheckState(false)
 			}
-			var varInfo_2 *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(declNode, forScope)
+			var varInfo_2 *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(declNode, forScope)
 			_ = varInfo_2
 			varInfo_2.SetIsExplicitlyNotRemovable(lambdaSingleton_remove_unused_code_5)
 		}
 	} else {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(iterationTarget, forScope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(iterationTarget, forScope)
 	}
-	this_.priv_RemoveUnusedCode_traverseNode_4691(collection, forScope)
-	this_.priv_RemoveUnusedCode_traverseNode_4691(body, forScope)
+	this_.priv_RemoveUnusedCode_traverseNode_4696(collection, forScope)
+	this_.priv_RemoveUnusedCode_traverseNode_4696(body, forScope)
 }
 
 // Java method: RemoveUnusedCode.traverseVanillaFor(com.google.javascript.rhino.Node forNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseVanillaFor_4708(forNode pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseVanillaFor_4713(forNode pkg_rhino.Node, scope *Scope) {
 	_ = forNode
 	_ = scope
 	var forScope *Scope = this_.scopeCreator.CreateScope_2_Node_Scope(forNode, scope)
@@ -950,17 +950,17 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseVanillaFor_4708(for
 	var block pkg_rhino.Node = update.GetNext()
 	_ = block
 	if NodeUtil_IsNameDeclaration(initialization) {
-		this_.priv_RemoveUnusedCode_traverseVanillaForNameDeclarations_4709(initialization, forScope)
+		this_.priv_RemoveUnusedCode_traverseVanillaForNameDeclarations_4714(initialization, forScope)
 	} else {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(initialization, forScope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(initialization, forScope)
 	}
-	this_.priv_RemoveUnusedCode_traverseNode_4691(condition, forScope)
-	this_.priv_RemoveUnusedCode_traverseNode_4691(update, forScope)
-	this_.priv_RemoveUnusedCode_traverseNode_4691(block, forScope)
+	this_.priv_RemoveUnusedCode_traverseNode_4696(condition, forScope)
+	this_.priv_RemoveUnusedCode_traverseNode_4696(update, forScope)
+	this_.priv_RemoveUnusedCode_traverseNode_4696(block, forScope)
 }
 
 // Java method: RemoveUnusedCode.traverseVanillaForNameDeclarations(com.google.javascript.rhino.Node nameDeclaration, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseVanillaForNameDeclarations_4709(nameDeclaration pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseVanillaForNameDeclarations_4714(nameDeclaration pkg_rhino.Node, scope *Scope) {
 	_ = nameDeclaration
 	_ = scope
 	{
@@ -968,21 +968,21 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseVanillaForNameDecla
 		_ = child
 		for ; child != 0; child = child.GetNext() {
 			if !(child.IsName()) {
-				this_.priv_RemoveUnusedCode_traverseNode_4691(child, scope)
+				this_.priv_RemoveUnusedCode_traverseNode_4696(child, scope)
 			} else {
 				var nameNode pkg_rhino.Node = child
 				_ = nameNode
 				var valueNode pkg_rhino.Node = child.GetFirstChild()
 				_ = valueNode
-				var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(nameNode, scope)
+				var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(nameNode, scope)
 				_ = varInfo
 				if valueNode == 0 {
-					varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(this_.priv_RemoveUnusedCode_acquireBuilder_4687().BuildVanillaForNameDeclaration(nameNode)))
-				} else if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(valueNode) {
+					varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(this_.priv_RemoveUnusedCode_acquireBuilder_4692().BuildVanillaForNameDeclaration(nameNode)))
+				} else if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(valueNode) {
 					varInfo.SetIsExplicitlyNotRemovable(lambdaSingleton_remove_unused_code_6)
-					this_.priv_RemoveUnusedCode_traverseNode_4691(valueNode, scope)
+					this_.priv_RemoveUnusedCode_traverseNode_4696(valueNode, scope)
 				} else {
-					var vanillaForNameDeclaration *RemoveUnusedCode_VanillaForNameDeclaration = this_.priv_RemoveUnusedCode_acquireBuilder_4687().AddContinuation(NewRemoveUnusedCode_Continuation(valueNode, scope)).BuildVanillaForNameDeclaration(nameNode)
+					var vanillaForNameDeclaration *RemoveUnusedCode_VanillaForNameDeclaration = this_.priv_RemoveUnusedCode_acquireBuilder_4692().AddContinuation(NewRemoveUnusedCode_Continuation(valueNode, scope)).BuildVanillaForNameDeclaration(nameNode)
 					_ = vanillaForNameDeclaration
 					varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(vanillaForNameDeclaration))
 				}
@@ -992,25 +992,25 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseVanillaForNameDecla
 }
 
 // Java method: RemoveUnusedCode.traverseDeclarationStatement(com.google.javascript.rhino.Node declarationStatement, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseDeclarationStatement_4710(declarationStatement pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseDeclarationStatement_4715(declarationStatement pkg_rhino.Node, scope *Scope) {
 	_ = declarationStatement
 	_ = scope
 	var nameNode pkg_rhino.Node = declarationStatement.GetOnlyChild()
 	_ = nameNode
 	if !(nameNode.IsName()) {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(nameNode, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(nameNode, scope)
 	} else {
 		var valueNode pkg_rhino.Node = nameNode.GetFirstChild()
 		_ = valueNode
-		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(nameNode, scope)
+		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(nameNode, scope)
 		_ = varInfo
-		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687()
+		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692()
 		_ = builder
 		if valueNode == 0 {
 			varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(builder.BuildNameDeclarationStatement(declarationStatement)))
 		} else {
-			if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(valueNode) {
-				this_.priv_RemoveUnusedCode_traverseNode_4691(valueNode, scope)
+			if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(valueNode) {
+				this_.priv_RemoveUnusedCode_traverseNode_4696(valueNode, scope)
 			} else {
 				builder.AddContinuation(NewRemoveUnusedCode_Continuation(valueNode, scope))
 			}
@@ -1022,7 +1022,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseDeclarationStatemen
 }
 
 // Java method: RemoveUnusedCode.traverseAssign(com.google.javascript.rhino.Node assignNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseAssign_4711(assignNode pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseAssign_4716(assignNode pkg_rhino.Node, scope *Scope) {
 	_ = assignNode
 	_ = scope
 	if !(NodeUtil_IsAssignmentOp(assignNode)) {
@@ -1033,11 +1033,11 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseAssign_4711(assignN
 	var valueNode pkg_rhino.Node = assignNode.GetLastChild()
 	_ = valueNode
 	if lhs.IsName() {
-		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(lhs, scope)
+		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(lhs, scope)
 		_ = varInfo
-		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687()
+		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692()
 		_ = builder
-		this_.priv_RemoveUnusedCode_traverseRemovableAssignValue_4712(valueNode, builder, scope)
+		this_.priv_RemoveUnusedCode_traverseRemovableAssignValue_4717(valueNode, builder, scope)
 		varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(builder.BuildVariableAssign(assignNode, varInfo)))
 	} else if lhs.IsGetElem() {
 		var getElemObj pkg_rhino.Node = lhs.GetFirstChild()
@@ -1048,27 +1048,27 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseAssign_4711(assignN
 		_ = varNameNode
 		if getElemObj.IsName() {
 			varNameNode = getElemObj
-		} else if this_.priv_RemoveUnusedCode_isNameDotPrototype_4713(getElemObj) {
+		} else if this_.priv_RemoveUnusedCode_isNameDotPrototype_4718(getElemObj) {
 			varNameNode = getElemObj.GetFirstChild()
 		} else {
 			varNameNode = pkg_rhino.Node(0)
 		}
 		if varNameNode != 0 {
-			var varInfo_2 *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(varNameNode, scope)
+			var varInfo_2 *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(varNameNode, scope)
 			_ = varInfo_2
-			var builder_2 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687()
+			var builder_2 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692()
 			_ = builder_2
-			if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(getElemKey) {
-				this_.priv_RemoveUnusedCode_traverseNode_4691(getElemKey, scope)
+			if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(getElemKey) {
+				this_.priv_RemoveUnusedCode_traverseNode_4696(getElemKey, scope)
 			} else {
 				builder_2.AddContinuation(NewRemoveUnusedCode_Continuation(getElemKey, scope))
 			}
-			this_.priv_RemoveUnusedCode_traverseRemovableAssignValue_4712(valueNode, builder_2, scope)
+			this_.priv_RemoveUnusedCode_traverseRemovableAssignValue_4717(valueNode, builder_2, scope)
 			varInfo_2.AddRemovable(ToIface_RemoveUnusedCode_Removable(builder_2.BuildComputedPropertyAssign(assignNode, getElemKey, varInfo_2)))
 		} else {
-			this_.priv_RemoveUnusedCode_traverseNode_4691(getElemObj, scope)
-			this_.priv_RemoveUnusedCode_traverseNode_4691(getElemKey, scope)
-			this_.priv_RemoveUnusedCode_traverseNode_4691(valueNode, scope)
+			this_.priv_RemoveUnusedCode_traverseNode_4696(getElemObj, scope)
+			this_.priv_RemoveUnusedCode_traverseNode_4696(getElemKey, scope)
+			this_.priv_RemoveUnusedCode_traverseNode_4696(valueNode, scope)
 		}
 	} else if lhs.IsGetProp() {
 		var getPropLhs pkg_rhino.Node = lhs.GetFirstChild()
@@ -1077,69 +1077,69 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseAssign_4711(assignN
 		_ = isDotPrototypeLhs
 		var isPrototypeMethodDef bool = (isDotPrototypeLhs && valueNode.IsFunction())
 		_ = isPrototypeMethodDef
-		if !(isPrototypeMethodDef) && this_.priv_RemoveUnusedCode_considerForAccessorSideEffects_4727(lhs, StaticGet_AccessorSummary_PropertyAccessKind_SETTER_ONLY()) {
-			this_.priv_RemoveUnusedCode_traverseNode_4691(getPropLhs, scope)
-			this_.priv_RemoveUnusedCode_traverseNode_4691(valueNode, scope)
+		if !(isPrototypeMethodDef) && this_.priv_RemoveUnusedCode_considerForAccessorSideEffects_4732(lhs, StaticGet_AccessorSummary_PropertyAccessKind_SETTER_ONLY()) {
+			this_.priv_RemoveUnusedCode_traverseNode_4696(getPropLhs, scope)
+			this_.priv_RemoveUnusedCode_traverseNode_4696(valueNode, scope)
 		} else if getPropLhs.IsName() {
-			var varInfo_3 *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(getPropLhs, scope)
+			var varInfo_3 *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(getPropLhs, scope)
 			_ = varInfo_3
-			var builder_3 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687()
+			var builder_3 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692()
 			_ = builder_3
-			this_.priv_RemoveUnusedCode_traverseRemovableAssignValue_4712(valueNode, builder_3, scope)
+			this_.priv_RemoveUnusedCode_traverseRemovableAssignValue_4717(valueNode, builder_3, scope)
 			varInfo_3.AddRemovable(ToIface_RemoveUnusedCode_Removable(builder_3.BuildNamedPropertyAssign_3(assignNode, lhs, varInfo_3)))
 		} else if isDotPrototypeLhs {
 			var objExpression pkg_rhino.Node = getPropLhs.GetFirstChild()
 			_ = objExpression
-			var builder_4 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687().SetIsPrototypeDotPropertyReference(true)
+			var builder_4 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692().SetIsPrototypeDotPropertyReference(true)
 			_ = builder_4
-			this_.priv_RemoveUnusedCode_traverseRemovableAssignValue_4712(valueNode, builder_4, scope)
+			this_.priv_RemoveUnusedCode_traverseRemovableAssignValue_4717(valueNode, builder_4, scope)
 			if objExpression.IsName() {
-				var varInfo_4 *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(getPropLhs.GetFirstChild(), scope)
+				var varInfo_4 *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(getPropLhs.GetFirstChild(), scope)
 				_ = varInfo_4
 				varInfo_4.AddRemovable(ToIface_RemoveUnusedCode_Removable(builder_4.BuildNamedPropertyAssign_3(assignNode, lhs, varInfo_4)))
 			} else {
-				if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(objExpression) {
-					this_.priv_RemoveUnusedCode_traverseNode_4691(objExpression, scope)
+				if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(objExpression) {
+					this_.priv_RemoveUnusedCode_traverseNode_4696(objExpression, scope)
 				} else {
 					builder_4.AddContinuation(NewRemoveUnusedCode_Continuation(objExpression, scope))
 				}
-				this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(ToIface_RemoveUnusedCode_Removable(builder_4.BuildAnonymousPrototypeNamedPropertyAssign(assignNode, lhs.GetString())))
+				this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(ToIface_RemoveUnusedCode_Removable(builder_4.BuildAnonymousPrototypeNamedPropertyAssign(assignNode, lhs.GetString())))
 			}
 		} else if getPropLhs.IsThis() {
-			var builder_5 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687().SetIsThisDotPropertyReference(true)
+			var builder_5 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692().SetIsThisDotPropertyReference(true)
 			_ = builder_5
-			this_.priv_RemoveUnusedCode_traverseRemovableAssignValue_4712(valueNode, builder_5, scope)
-			this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(ToIface_RemoveUnusedCode_Removable(builder_5.BuildNamedPropertyAssign_2(assignNode, lhs)))
+			this_.priv_RemoveUnusedCode_traverseRemovableAssignValue_4717(valueNode, builder_5, scope)
+			this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(ToIface_RemoveUnusedCode_Removable(builder_5.BuildNamedPropertyAssign_2(assignNode, lhs)))
 		} else {
-			this_.priv_RemoveUnusedCode_traverseNode_4691(lhs, scope)
-			this_.priv_RemoveUnusedCode_traverseNode_4691(valueNode, scope)
+			this_.priv_RemoveUnusedCode_traverseNode_4696(lhs, scope)
+			this_.priv_RemoveUnusedCode_traverseNode_4696(valueNode, scope)
 		}
 	} else {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(lhs, scope)
-		this_.priv_RemoveUnusedCode_traverseNode_4691(valueNode, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(lhs, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(valueNode, scope)
 	}
 }
 
 // Java method: RemoveUnusedCode.traverseRemovableAssignValue(com.google.javascript.rhino.Node valueNode, com.google.javascript.jscomp.RemoveUnusedCode.RemovableBuilder builder, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseRemovableAssignValue_4712(valueNode pkg_rhino.Node, builder *RemoveUnusedCode_RemovableBuilder, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseRemovableAssignValue_4717(valueNode pkg_rhino.Node, builder *RemoveUnusedCode_RemovableBuilder, scope *Scope) {
 	_ = valueNode
 	_ = builder
 	_ = scope
-	if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(valueNode) || NodeUtil_IsExpressionResultUsed(valueNode.GetParent()) {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(valueNode, scope)
+	if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(valueNode) || NodeUtil_IsExpressionResultUsed(valueNode.GetParent()) {
+		this_.priv_RemoveUnusedCode_traverseNode_4696(valueNode, scope)
 	} else {
 		builder.AddContinuation(NewRemoveUnusedCode_Continuation(valueNode, scope))
 	}
 }
 
 // Java method: RemoveUnusedCode.isNameDotPrototype(com.google.javascript.rhino.Node n)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_isNameDotPrototype_4713(n pkg_rhino.Node) bool {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_isNameDotPrototype_4718(n pkg_rhino.Node) bool {
 	_ = n
 	return ((n.IsGetProp() && n.GetFirstChild().IsName()) && (j2gort.CheckNotNullString(n.GetString()) == "prototype"))
 }
 
 // Java method: RemoveUnusedCode.traverseObjectPattern(com.google.javascript.rhino.Node pattern, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectPattern_4714(pattern pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectPattern_4719(pattern pkg_rhino.Node, scope *Scope) {
 	_ = pattern
 	_ = scope
 	if !(pattern.IsObjectPattern()) {
@@ -1151,14 +1151,14 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectPattern_4714(
 		for ; elem != 0; elem = elem.GetNext() {
 			switch elem.TokenSwitchOrd_() {
 			case int32(129) /* Token.COMPUTED_PROP */ :
-				this_.priv_RemoveUnusedCode_traverseIndirectAssignment_4716(elem, elem.GetSecondChild(), scope)
+				this_.priv_RemoveUnusedCode_traverseIndirectAssignment_4721(elem, elem.GetSecondChild(), scope)
 			case int32(100) /* Token.STRING_KEY */ :
 				if !(elem.IsQuotedStringKey()) {
-					this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4725(elem.GetString())
+					this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4730(elem.GetString())
 				}
-				this_.priv_RemoveUnusedCode_traverseIndirectAssignment_4716(elem, elem.GetOnlyChild(), scope)
+				this_.priv_RemoveUnusedCode_traverseIndirectAssignment_4721(elem, elem.GetOnlyChild(), scope)
 			case int32(125) /* Token.ITER_REST */, int32(126) /* Token.OBJECT_REST */ :
-				this_.priv_RemoveUnusedCode_traverseIndirectAssignment_4716(elem, elem.GetOnlyChild(), scope)
+				this_.priv_RemoveUnusedCode_traverseIndirectAssignment_4721(elem, elem.GetOnlyChild(), scope)
 			default:
 				panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(("Unexpected child of " + j2gort.StrVal(pattern.GetToken()) + ": " + j2gort.StrValString(elem.ToStringTree()))))))
 			}
@@ -1167,7 +1167,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseObjectPattern_4714(
 }
 
 // Java method: RemoveUnusedCode.traverseIndirectAssignmentList(com.google.javascript.rhino.Node list, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseIndirectAssignmentList_4715(list pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseIndirectAssignmentList_4720(list pkg_rhino.Node, scope *Scope) {
 	_ = list
 	_ = scope
 	if !(list.IsArrayPattern() || list.IsParamList()) {
@@ -1180,9 +1180,9 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseIndirectAssignmentL
 			switch elem.TokenSwitchOrd_() {
 			case int32(88) /* Token.EMPTY */ :
 			case int32(102) /* Token.ARRAY_PATTERN */, int32(134) /* Token.DEFAULT_VALUE */, int32(27) /* Token.GETELEM */, int32(26) /* Token.GETPROP */, int32(32) /* Token.NAME */, int32(103) /* Token.OBJECT_PATTERN */ :
-				this_.priv_RemoveUnusedCode_traverseIndirectAssignment_4716(elem, elem, scope)
+				this_.priv_RemoveUnusedCode_traverseIndirectAssignment_4721(elem, elem, scope)
 			case int32(125) /* Token.ITER_REST */, int32(126) /* Token.OBJECT_REST */ :
-				this_.priv_RemoveUnusedCode_traverseIndirectAssignment_4716(elem, elem.GetOnlyChild(), scope)
+				this_.priv_RemoveUnusedCode_traverseIndirectAssignment_4721(elem, elem.GetOnlyChild(), scope)
 			default:
 				panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(("Unexpected child of " + j2gort.StrVal(list.GetToken()) + ": " + j2gort.StrValString(elem.ToStringTree()))))))
 			}
@@ -1191,7 +1191,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseIndirectAssignmentL
 }
 
 // Java method: RemoveUnusedCode.traverseIndirectAssignment(com.google.javascript.rhino.Node root, com.google.javascript.rhino.Node target, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseIndirectAssignment_4716(root pkg_rhino.Node, target pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseIndirectAssignment_4721(root pkg_rhino.Node, target pkg_rhino.Node, scope *Scope) {
 	_ = root
 	_ = target
 	_ = scope
@@ -1204,54 +1204,54 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseIndirectAssignment_
 		target = target.GetFirstChild()
 	}
 	if target.IsGetProp() {
-		this_.priv_RemoveUnusedCode_considerForAccessorSideEffects_4727(target, StaticGet_AccessorSummary_PropertyAccessKind_SETTER_ONLY())
+		this_.priv_RemoveUnusedCode_considerForAccessorSideEffects_4732(target, StaticGet_AccessorSummary_PropertyAccessKind_SETTER_ONLY())
 	}
-	if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(root) {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(root, scope)
+	if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(root) {
+		this_.priv_RemoveUnusedCode_traverseNode_4696(root, scope)
 	} else if target.IsName() {
-		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(target, scope)
+		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(target, scope)
 		_ = varInfo
-		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687().AddContinuation(NewRemoveUnusedCode_Continuation(root, scope))
+		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692().AddContinuation(NewRemoveUnusedCode_Continuation(root, scope))
 		_ = builder
 		varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(builder.BuildIndirectAssign(root, target)))
-	} else if this_.priv_RemoveUnusedCode_isNameDotPrototype_4713(target) || RemoveUnusedCode_IsThisDotProperty(target) {
-		var builder_2 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687().AddContinuation(NewRemoveUnusedCode_Continuation(root, scope))
+	} else if this_.priv_RemoveUnusedCode_isNameDotPrototype_4718(target) || RemoveUnusedCode_IsThisDotProperty(target) {
+		var builder_2 *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692().AddContinuation(NewRemoveUnusedCode_Continuation(root, scope))
 		_ = builder_2
-		this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(ToIface_RemoveUnusedCode_Removable(builder_2.BuildIndirectAssign(root, target)))
+		this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(ToIface_RemoveUnusedCode_Removable(builder_2.BuildIndirectAssign(root, target)))
 	} else {
-		this_.priv_RemoveUnusedCode_traverseNode_4691(root, scope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(root, scope)
 	}
 }
 
 // Java method: RemoveUnusedCode.traverseChildren(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseChildren_4717(n pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseChildren_4722(n pkg_rhino.Node, scope *Scope) {
 	_ = n
 	_ = scope
 	{
 		var c pkg_rhino.Node = n.GetFirstChild()
 		_ = c
 		for ; c != 0; c = c.GetNext() {
-			this_.priv_RemoveUnusedCode_traverseNode_4691(c, scope)
+			this_.priv_RemoveUnusedCode_traverseNode_4696(c, scope)
 		}
 	}
 }
 
 // Java method: RemoveUnusedCode.traverseClass(com.google.javascript.rhino.Node classNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseClass_4718(classNode pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseClass_4723(classNode pkg_rhino.Node, scope *Scope) {
 	_ = classNode
 	_ = scope
 	if !(classNode.IsClass()) {
 		j2gort.CheckArgument(false)
 	}
 	if NodeUtil_IsClassDeclaration(classNode) {
-		this_.priv_RemoveUnusedCode_traverseClassDeclaration_4719(classNode, scope)
+		this_.priv_RemoveUnusedCode_traverseClassDeclaration_4724(classNode, scope)
 	} else {
-		this_.priv_RemoveUnusedCode_traverseClassExpression_4720(classNode, scope)
+		this_.priv_RemoveUnusedCode_traverseClassExpression_4725(classNode, scope)
 	}
 }
 
 // Java method: RemoveUnusedCode.traverseClassDeclaration(com.google.javascript.rhino.Node classNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseClassDeclaration_4719(classNode pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseClassDeclaration_4724(classNode pkg_rhino.Node, scope *Scope) {
 	_ = classNode
 	_ = scope
 	if !(classNode.IsClass()) {
@@ -1265,29 +1265,29 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseClassDeclaration_47
 	_ = classBodyNode
 	var classScope *Scope = this_.scopeCreator.CreateScope_2_Node_Scope(classNode, scope)
 	_ = classScope
-	var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(classNameNode, scope)
+	var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(classNameNode, scope)
 	_ = varInfo
 	if classNode.GetParent().IsExport() {
 		varInfo.SetIsExplicitlyNotRemovable(lambdaSingleton_remove_unused_code_7)
-		this_.priv_RemoveUnusedCode_traverseNode_4691(baseClassExpression, scope)
-		this_.priv_RemoveUnusedCode_traverseChildren_4717(classBodyNode, classScope)
-	} else if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(baseClassExpression) {
+		this_.priv_RemoveUnusedCode_traverseNode_4696(baseClassExpression, scope)
+		this_.priv_RemoveUnusedCode_traverseChildren_4722(classBodyNode, classScope)
+	} else if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(baseClassExpression) {
 		varInfo.SetIsExplicitlyNotRemovable(lambdaSingleton_remove_unused_code_8)
-		this_.priv_RemoveUnusedCode_traverseNode_4691(baseClassExpression, scope)
-		this_.priv_RemoveUnusedCode_traverseClassMembers_4721(classBodyNode, classScope)
-	} else if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(classBodyNode) {
+		this_.priv_RemoveUnusedCode_traverseNode_4696(baseClassExpression, scope)
+		this_.priv_RemoveUnusedCode_traverseClassMembers_4726(classBodyNode, classScope)
+	} else if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(classBodyNode) {
 		varInfo.SetIsExplicitlyNotRemovable(lambdaSingleton_remove_unused_code_9)
-		this_.priv_RemoveUnusedCode_traverseNode_4691(baseClassExpression, scope)
-		this_.priv_RemoveUnusedCode_traverseClassMembers_4721(classBodyNode, classScope)
+		this_.priv_RemoveUnusedCode_traverseNode_4696(baseClassExpression, scope)
+		this_.priv_RemoveUnusedCode_traverseClassMembers_4726(classBodyNode, classScope)
 	} else {
-		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687().AddContinuation(NewRemoveUnusedCode_Continuation(baseClassExpression, classScope)).AddContinuation(NewRemoveUnusedCode_Continuation(classBodyNode, classScope))
+		var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692().AddContinuation(NewRemoveUnusedCode_Continuation(baseClassExpression, classScope)).AddContinuation(NewRemoveUnusedCode_Continuation(classBodyNode, classScope))
 		_ = builder
 		varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(builder.BuildClassDeclaration(classNode)))
 	}
 }
 
 // Java method: RemoveUnusedCode.traverseClassExpression(com.google.javascript.rhino.Node classNode, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseClassExpression_4720(classNode pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseClassExpression_4725(classNode pkg_rhino.Node, scope *Scope) {
 	_ = classNode
 	_ = scope
 	if !(classNode.IsClass()) {
@@ -1302,24 +1302,24 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseClassExpression_472
 	var classScope *Scope = this_.scopeCreator.CreateScope_2_Node_Scope(classNode, scope)
 	_ = classScope
 	if classNameNode.IsName() {
-		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(classNameNode, classScope)
+		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(classNameNode, classScope)
 		_ = varInfo
 		varInfo.SetHasNonLocalOrNonLiteralValue()
-		varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(this_.priv_RemoveUnusedCode_acquireBuilder_4687().BuildNamedClassExpression(classNode)))
+		varInfo.AddRemovable(ToIface_RemoveUnusedCode_Removable(this_.priv_RemoveUnusedCode_acquireBuilder_4692().BuildNamedClassExpression(classNode)))
 	}
-	this_.priv_RemoveUnusedCode_traverseNode_4691(baseClassExpression, scope)
-	this_.priv_RemoveUnusedCode_traverseClassMembers_4721(classBodyNode, classScope)
+	this_.priv_RemoveUnusedCode_traverseNode_4696(baseClassExpression, scope)
+	this_.priv_RemoveUnusedCode_traverseClassMembers_4726(classBodyNode, classScope)
 }
 
 // Java method: RemoveUnusedCode.traverseClassMembers(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.Scope scope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseClassMembers_4721(node pkg_rhino.Node, scope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseClassMembers_4726(node pkg_rhino.Node, scope *Scope) {
 	_ = node
 	_ = scope
 	if !(node.IsClassMembers()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(node))
 	}
 	if !(this_.removeUnusedPrototypeProperties) {
-		this_.priv_RemoveUnusedCode_traverseChildren_4717(node, scope)
+		this_.priv_RemoveUnusedCode_traverseChildren_4722(node, scope)
 		return
 	}
 	{
@@ -1328,18 +1328,18 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseClassMembers_4721(n
 		for ; member != 0; member = member.GetNext() {
 			switch member.TokenSwitchOrd_() {
 			case int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */, int32(107) /* Token.MEMBER_FUNCTION_DEF */ :
-				this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(ToIface_RemoveUnusedCode_Removable(this_.priv_RemoveUnusedCode_acquireBuilder_4687().AddContinuation(NewRemoveUnusedCode_Continuation(member, scope)).BuildClassOrPrototypeNamedProperty(member)))
+				this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(ToIface_RemoveUnusedCode_Removable(this_.priv_RemoveUnusedCode_acquireBuilder_4692().AddContinuation(NewRemoveUnusedCode_Continuation(member, scope)).BuildClassOrPrototypeNamedProperty(member)))
 			case int32(108) /* Token.MEMBER_FIELD_DEF */ :
-				if !(member.HasChildren()) || !(this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(member.GetFirstChild())) {
-					this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(ToIface_RemoveUnusedCode_Removable(this_.priv_RemoveUnusedCode_acquireBuilder_4687().AddContinuation(NewRemoveUnusedCode_Continuation(member, scope)).BuildClassOrPrototypeNamedProperty(member)))
+				if !(member.HasChildren()) || !(this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(member.GetFirstChild())) {
+					this_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(ToIface_RemoveUnusedCode_Removable(this_.priv_RemoveUnusedCode_acquireBuilder_4692().AddContinuation(NewRemoveUnusedCode_Continuation(member, scope)).BuildClassOrPrototypeNamedProperty(member)))
 				}
 				if member.HasChildren() {
-					this_.priv_RemoveUnusedCode_traverseChildren_4717(member, scope)
+					this_.priv_RemoveUnusedCode_traverseChildren_4722(member, scope)
 				}
 			case int32(129) /* Token.COMPUTED_PROP */, int32(109) /* Token.COMPUTED_FIELD_DEF */ :
-				this_.priv_RemoveUnusedCode_traverseChildren_4717(member, scope)
+				this_.priv_RemoveUnusedCode_traverseChildren_4722(member, scope)
 			case int32(90) /* Token.BLOCK */ :
-				this_.priv_RemoveUnusedCode_traverseChildren_4717(member, this_.scopeCreator.CreateScope_2_Node_Scope(member, scope))
+				this_.priv_RemoveUnusedCode_traverseChildren_4722(member, this_.scopeCreator.CreateScope_2_Node_Scope(member, scope))
 			default:
 				panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Unexpected child of CLASS_MEMBERS: "+j2gort.StrValString(member.ToStringTree()))))
 			}
@@ -1348,7 +1348,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseClassMembers_4721(n
 }
 
 // Java method: RemoveUnusedCode.traverseFunction(com.google.javascript.rhino.Node function, com.google.javascript.jscomp.Scope parentScope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseFunction_4722(function pkg_rhino.Node, parentScope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseFunction_4727(function pkg_rhino.Node, parentScope *Scope) {
 	_ = function
 	_ = parentScope
 	if !(function.HasXChildren(int32(3))) {
@@ -1371,19 +1371,19 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseFunction_4722(funct
 	var nameNode pkg_rhino.Node = function.GetFirstChild()
 	_ = nameNode
 	if !(j2gort.CheckNotNullString(nameNode.GetString()) == "") {
-		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(nameNode, fparamScope)
+		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(nameNode, fparamScope)
 		_ = varInfo
 		if NodeUtil_IsExpressionResultUsed(function) {
 			varInfo.SetHasNonLocalOrNonLiteralValue()
 		}
 	}
-	this_.priv_RemoveUnusedCode_traverseNode_4691(paramlist, fparamScope)
-	this_.priv_RemoveUnusedCode_traverseChildren_4717(body, fbodyScope)
+	this_.priv_RemoveUnusedCode_traverseNode_4696(paramlist, fparamScope)
+	this_.priv_RemoveUnusedCode_traverseChildren_4722(body, fbodyScope)
 	this_.allFunctionParamScopes = append(this_.allFunctionParamScopes, fparamScope)
 }
 
 // Java method: RemoveUnusedCode.canRemoveParameters(com.google.javascript.rhino.Node parameterList)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_canRemoveParameters_4723(parameterList pkg_rhino.Node) bool {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_canRemoveParameters_4728(parameterList pkg_rhino.Node) bool {
 	_ = parameterList
 	if !(parameterList.IsParamList()) {
 		j2gort.CheckState(false)
@@ -1394,7 +1394,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_canRemoveParameters_4723(pa
 }
 
 // Java method: RemoveUnusedCode.removeUnreferencedFunctionArgs(com.google.javascript.jscomp.Scope fparamScope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_removeUnreferencedFunctionArgs_4724(fparamScope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_removeUnreferencedFunctionArgs_4729(fparamScope *Scope) {
 	_ = fparamScope
 	if !(this_.removeGlobals) {
 		return
@@ -1409,12 +1409,12 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_removeUnreferencedFunctionA
 	}
 	var argList pkg_rhino.Node = NodeUtil_GetFunctionParameters(function)
 	_ = argList
-	this_.priv_RemoveUnusedCode_maybeRemoveUnusedTrailingParameters_4730(argList, fparamScope)
-	this_.priv_RemoveUnusedCode_markUnusedParameters_4729(argList, fparamScope)
+	this_.priv_RemoveUnusedCode_maybeRemoveUnusedTrailingParameters_4735(argList, fparamScope)
+	this_.priv_RemoveUnusedCode_markUnusedParameters_4734(argList, fparamScope)
 }
 
 // Java method: RemoveUnusedCode.markPropertyNameAsPinned(java.lang.String propertyName)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_markPropertyNameAsPinned_4725(propertyName string) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_markPropertyNameAsPinned_4730(propertyName string) {
 	_ = propertyName
 	if this_.pinnedPropertyNames.Add(propertyName) {
 		var removed []RemoveUnusedCode_Removable = this_.removablesForPropertyNames.Remove(propertyName)
@@ -1434,7 +1434,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_markPropertyNameAsPinned_47
 }
 
 // Java method: RemoveUnusedCode.considerForIndependentRemoval(com.google.javascript.jscomp.RemoveUnusedCode.Removable removable)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_considerForIndependentRemoval_4726(removable RemoveUnusedCode_Removable) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_considerForIndependentRemoval_4731(removable RemoveUnusedCode_Removable) {
 	_ = removable
 	base_removable_ := removable.GetRemoveUnusedCode_RemovableBase()
 	if removable.IsNamedProperty() {
@@ -1442,7 +1442,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_considerForIndependentRemov
 		_ = propertyName
 		if this_.pinnedPropertyNames.Contains(propertyName) || this_.codingConvention.IsExported_2(propertyName, false) {
 			base_removable_.ApplyContinuations()
-		} else if this_.priv_RemoveUnusedCode_isIndependentlyRemovable_4728(removable) {
+		} else if this_.priv_RemoveUnusedCode_isIndependentlyRemovable_4733(removable) {
 			var list []RemoveUnusedCode_Removable = this_.removablesForPropertyNames.Get(propertyName)
 			_ = list
 			if list == nil {
@@ -1454,7 +1454,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_considerForIndependentRemov
 				Put(propertyName, list)
 		} else {
 			base_removable_.ApplyContinuations()
-			this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4725(propertyName)
+			this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4730(propertyName)
 		}
 	} else {
 		base_removable_.ApplyContinuations()
@@ -1462,7 +1462,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_considerForIndependentRemov
 }
 
 // Java method: RemoveUnusedCode.considerForAccessorSideEffects(com.google.javascript.rhino.Node getprop, com.google.javascript.jscomp.AccessorSummary.PropertyAccessKind usage)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_considerForAccessorSideEffects_4727(getprop pkg_rhino.Node, usage *AccessorSummary_PropertyAccessKind) bool {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_considerForAccessorSideEffects_4732(getprop pkg_rhino.Node, usage *AccessorSummary_PropertyAccessKind) bool {
 	_ = getprop
 	_ = usage
 	if !(NodeUtil_IsNormalOrOptChainGetProp(getprop)) {
@@ -1473,14 +1473,14 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_considerForAccessorSideEffe
 	var recorded *AccessorSummary_PropertyAccessKind = this_.compiler.GetAccessorSummary().GetKind(propName)
 	_ = recorded
 	if ((recorded.HasGetter() && usage.HasGetter()) && !(this_.assumeGettersArePure)) || (recorded.HasSetter() && usage.HasSetter()) {
-		this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4725(propName)
+		this_.priv_RemoveUnusedCode_markPropertyNameAsPinned_4730(propName)
 		return true
 	}
 	return false
 }
 
 // Java method: RemoveUnusedCode.isIndependentlyRemovable(com.google.javascript.jscomp.RemoveUnusedCode.Removable removable)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_isIndependentlyRemovable_4728(removable RemoveUnusedCode_Removable) bool {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_isIndependentlyRemovable_4733(removable RemoveUnusedCode_Removable) bool {
 	_ = removable
 	if removable.IsPrototypeProperty() {
 		return this_.removeUnusedPrototypeProperties
@@ -1496,7 +1496,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_isIndependentlyRemovable_47
 }
 
 // Java method: RemoveUnusedCode.markUnusedParameters(com.google.javascript.rhino.Node paramList, com.google.javascript.jscomp.Scope fparamScope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_markUnusedParameters_4729(paramList pkg_rhino.Node, fparamScope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_markUnusedParameters_4734(paramList pkg_rhino.Node, fparamScope *Scope) {
 	_ = paramList
 	_ = fparamScope
 	if !(paramList.IsParamList()) {
@@ -1514,7 +1514,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_markUnusedParameters_4729(p
 			if paramNameNode == 0 {
 				continue
 			}
-			var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4696(paramNameNode, fparamScope)
+			var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_traverseNameNode_4701(paramNameNode, fparamScope)
 			_ = varInfo
 			if varInfo.IsRemovable() {
 				param.SetUnusedParameter(true)
@@ -1528,7 +1528,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_markUnusedParameters_4729(p
 }
 
 // Java method: RemoveUnusedCode.maybeRemoveUnusedTrailingParameters(com.google.javascript.rhino.Node argList, com.google.javascript.jscomp.Scope fparamScope)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_maybeRemoveUnusedTrailingParameters_4730(argList pkg_rhino.Node, fparamScope *Scope) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_maybeRemoveUnusedTrailingParameters_4735(argList pkg_rhino.Node, fparamScope *Scope) {
 	_ = argList
 	_ = fparamScope
 	if !(argList.IsParamList()) {
@@ -1545,7 +1545,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_maybeRemoveUnusedTrailingPa
 		_ = argNode
 		if lastArg.IsDefaultValue() {
 			argNode = lastArg.GetFirstChild()
-			if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(lastArg.GetLastChild()) {
+			if this_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(lastArg.GetLastChild()) {
 				break
 			}
 		}
@@ -1563,7 +1563,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_maybeRemoveUnusedTrailingPa
 				continue
 			}
 		}
-		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_getVarInfo_4732(this_.priv_RemoveUnusedCode_getVarForNameNode_4700(argNode, fparamScope))
+		var varInfo *RemoveUnusedCode_VarInfo = this_.priv_RemoveUnusedCode_getVarInfo_4737(this_.priv_RemoveUnusedCode_getVarForNameNode_4705(argNode, fparamScope))
 		_ = varInfo
 		if varInfo.IsRemovable() {
 			NodeUtil_DeleteNode(lastArg, this_.compiler)
@@ -1577,7 +1577,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_maybeRemoveUnusedTrailingPa
 }
 
 // Java method: RemoveUnusedCode.traverseVar(com.google.javascript.jscomp.Var var)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseVar_4731(var_ *Var) *RemoveUnusedCode_VarInfo {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseVar_4736(var_ *Var) *RemoveUnusedCode_VarInfo {
 	_ = var_
 	j2gort.CheckNotNullPtr(var_)
 	if this_.removeLocalVars && var_.IsArguments() {
@@ -1594,12 +1594,12 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_traverseVar_4731(var_ *Var)
 				if lValue == 0 {
 					continue
 				}
-				this_.priv_RemoveUnusedCode_getVarInfo_4732(this_.priv_RemoveUnusedCode_getVarForNameNode_4700(lValue, functionScope)).SetIsExplicitlyNotRemovable(lambdaSingleton_remove_unused_code_10)
+				this_.priv_RemoveUnusedCode_getVarInfo_4737(this_.priv_RemoveUnusedCode_getVarForNameNode_4705(lValue, functionScope)).SetIsExplicitlyNotRemovable(lambdaSingleton_remove_unused_code_10)
 			}
 		}
 		return this_.canonicalUnremovableVarInfo
 	} else {
-		return this_.priv_RemoveUnusedCode_getVarInfo_4732(var_)
+		return this_.priv_RemoveUnusedCode_getVarInfo_4737(var_)
 	}
 }
 
@@ -1622,7 +1622,7 @@ func RemoveUnusedCode_NameOfParam(param pkg_rhino.Node) pkg_rhino.Node {
 }
 
 // Java method: RemoveUnusedCode.getVarInfo(com.google.javascript.jscomp.Var var)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_getVarInfo_4732(var_ *Var) *RemoveUnusedCode_VarInfo {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_getVarInfo_4737(var_ *Var) *RemoveUnusedCode_VarInfo {
 	_ = var_
 	j2gort.CheckNotNullPtr(var_)
 	var isGlobal bool = var_.IsGlobal()
@@ -1674,7 +1674,8 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_getVarInfo_4732(var_ *Var) 
 		val_14 := this_.slab_RemoveUnusedCode_VarInfo.Alloc()
 
 		val_14.outer_ = this_
-		InitRemoveUnusedCode_VarInfo_1(val_14, var_.GetName())
+		val_14.varName = var_.GetName()
+		val_14.isEntirelyRemovable = true
 		var varInfo *RemoveUnusedCode_VarInfo = val_14
 		_ = varInfo
 		if var_.GetParentNode().IsParamList() {
@@ -1732,14 +1733,14 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_getVarInfo_4732(var_ *Var) 
 			a_25[i_26] = (newIdx + int32(1))
 		}
 		if (this_.varInfoSize * int32(4)) >= (int32(len(table)) * int32(3)) {
-			this_.priv_RemoveUnusedCode_rehashVarInfoTable_4733((int32(len(table)) * int32(2)))
+			this_.priv_RemoveUnusedCode_rehashVarInfoTable_4738((int32(len(table)) * int32(2)))
 		}
 		return varInfo
 	}
 }
 
 // Java method: RemoveUnusedCode.rehashVarInfoTable(int newTableLen)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_rehashVarInfoTable_4733(newTableLen int32) {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_rehashVarInfoTable_4738(newTableLen int32) {
 	_ = newTableLen
 	var newTable []int32 = j2gort.AcquirePooledSlice[int32](int(newTableLen))[:newTableLen]
 	_ = newTable
@@ -1770,7 +1771,7 @@ func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_rehashVarInfoTable_4733(new
 }
 
 // Java method: RemoveUnusedCode.removeUnreferencedVarsAndPolyfills()
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_removeUnreferencedVarsAndPolyfills_4734() {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_removeUnreferencedVarsAndPolyfills_4739() {
 	{
 		var i int32 = int32(0)
 		_ = i
@@ -1849,7 +1850,7 @@ func RemoveUnusedCode_MaybeUnwrapQnameOrDefaultValueNode(targetNode pkg_rhino.No
 }
 
 // Java method: RemoveUnusedCode.mayHaveSideEffects(com.google.javascript.rhino.Node node)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_mayHaveSideEffects_4735(node pkg_rhino.Node) bool {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_mayHaveSideEffects_4740(node pkg_rhino.Node) bool {
 	_ = node
 	var jsDocInfo *pkg_rhino.JSDocInfo
 	_ = jsDocInfo
@@ -1879,14 +1880,14 @@ func RemoveUnusedCode_AlreadyRemoved(n pkg_rhino.Node) bool {
 }
 
 // Java method: RemoveUnusedCode.createPolyfillInfo(com.google.javascript.rhino.Node call, com.google.javascript.jscomp.Scope scope, java.lang.String name)
-func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_createPolyfillInfo_4736(call pkg_rhino.Node, scope *Scope, name string) RemoveUnusedCode_PolyfillInfo {
+func (this_ *RemoveUnusedCode) priv_RemoveUnusedCode_createPolyfillInfo_4741(call pkg_rhino.Node, scope *Scope, name string) RemoveUnusedCode_PolyfillInfo {
 	_ = call
 	_ = scope
 	_ = name
 	if !(call.GetParent().IsExprResult()) {
 		j2gort.CheckState(false)
 	}
-	var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4687()
+	var builder *RemoveUnusedCode_RemovableBuilder = this_.priv_RemoveUnusedCode_acquireBuilder_4692()
 	_ = builder
 	{
 		var n pkg_rhino.Node = call.GetFirstChild().GetNext()
@@ -2294,9 +2295,9 @@ func (this_ RemoveUnusedCode_Continuation) Apply(pass *RemoveUnusedCode) {
 	}
 	_ = pass
 	if this_.node.IsFunction() {
-		pass.priv_RemoveUnusedCode_traverseFunction_4722(this_.node, this_.scope)
+		pass.priv_RemoveUnusedCode_traverseFunction_4727(this_.node, this_.scope)
 	} else {
-		pass.priv_RemoveUnusedCode_traverseNode_4691(this_.node, this_.scope)
+		pass.priv_RemoveUnusedCode_traverseNode_4696(this_.node, this_.scope)
 	}
 }
 
@@ -2396,16 +2397,20 @@ func (this_ *RemoveUnusedCode_RemovableBase) initFields_RemoveUnusedCode_Removab
 }
 
 func InitRemoveUnusedCode_Removable(this_ *RemoveUnusedCode_RemovableBase, targetNode pkg_rhino.Node, builder *RemoveUnusedCode_RemovableBuilder) {
-	_ = targetNode
-	_ = builder
-	this_.initFields_RemoveUnusedCode_Removable()
-	this_.continuation0 = builder.continuation0
-	this_.continuation1 = builder.continuation1
-	this_.restContinuations = builder.restContinuations
+	if builder.continuation0 != (RemoveUnusedCode_Continuation{}) {
+		this_.continuation0 = builder.continuation0
+		if builder.continuation1 != (RemoveUnusedCode_Continuation{}) {
+			this_.continuation1 = builder.continuation1
+			if builder.restContinuations != nil {
+				this_.restContinuations = builder.restContinuations
+			}
+		}
+	}
 	this_.propertyName = builder.propertyName
 	this_.isPrototypeDotPropertyReference = builder.isPrototypeDotPropertyReference
 	this_.isThisDotPropertyReference = builder.isThisDotPropertyReference
 	this_.targetNode = targetNode
+
 }
 
 // Java method: Removable.getPropertyName()
@@ -2582,7 +2587,7 @@ func InitRemoveUnusedCode_RemovableBuilder(this_ *RemoveUnusedCode_RemovableBuil
 }
 
 // Java method: RemovableBuilder.finish(T removable)
-func (this_ *RemoveUnusedCode_RemovableBuilder) priv_RemovableBuilder_finish_4767(removable RemoveUnusedCode_Removable) RemoveUnusedCode_Removable {
+func (this_ *RemoveUnusedCode_RemovableBuilder) priv_RemovableBuilder_finish_4772(removable RemoveUnusedCode_Removable) RemoveUnusedCode_Removable {
 	if this_.continuation0 != (RemoveUnusedCode_Continuation{}) {
 		this_.continuation0 = (RemoveUnusedCode_Continuation{})
 		if this_.continuation1 != (RemoveUnusedCode_Continuation{}) {
@@ -2638,8 +2643,34 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildIndirectAssign(root pkg_rhi
 	res_ := rucOuter_.slab_RemoveUnusedCode_IndirectAssign.Alloc()
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
-	InitRemoveUnusedCode_IndirectAssign(res_, this_, root, targetNode)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	res_.RemoveUnusedCode_RemovableBase.outer_ = rucOuter_
+	if this_.continuation0 != (RemoveUnusedCode_Continuation{}) {
+		res_.continuation0 = this_.continuation0
+		if this_.continuation1 != (RemoveUnusedCode_Continuation{}) {
+			res_.continuation1 = this_.continuation1
+			if this_.restContinuations != nil {
+				res_.restContinuations = this_.restContinuations
+			}
+		}
+	}
+	res_.propertyName = this_.propertyName
+	if this_.isPrototypeDotPropertyReference {
+		res_.isPrototypeDotPropertyReference = true
+	}
+	if this_.isThisDotPropertyReference {
+		res_.isThisDotPropertyReference = true
+	}
+	res_.targetNode = targetNode
+	rootParent_ := root.GetParent()
+	if !(rootParent_.IsDestructuringPattern() || rootParent_.IsParamList()) {
+		j2gort.CheckStateMsg(false, j2gort.BoxNode(rootParent_))
+	}
+	if !(targetNode.IsName() || targetNode.IsGetProp()) {
+		j2gort.CheckStateMsg(false, j2gort.BoxNode(targetNode))
+	}
+	res_.root = root
+
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2651,7 +2682,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildPolyfill(polyfillNode pkg_r
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_Polyfill(res_, this_, polyfillNode)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2663,7 +2694,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildClassDeclaration(classNode 
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_ClassDeclaration(res_, this_, classNode)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2675,7 +2706,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildNamedClassExpression(classN
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_NamedClassExpression(res_, this_, classNode)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2691,7 +2722,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildClassOrPrototypeNamedProper
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_ClassOrPrototypeNamedProperty(res_, this_, propertyNode)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2704,7 +2735,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildObjectDefinePropertiesDefin
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_ObjectDefinePropertiesDefinition(res_, this_, propertyNode)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2716,7 +2747,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildFunctionDeclaration(functio
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_FunctionDeclaration(res_, this_, functionNode)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2728,7 +2759,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildNameDeclarationStatement(de
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_NameDeclarationStatement(res_, this_, declarationStatement)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2750,7 +2781,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildNamedPropertyAssign_3(assig
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_Assign(res_, this_, assignNode, StaticGet_RemoveUnusedCode_Kind_NAMED_PROPERTY(), propertyNode, varInfo)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2764,7 +2795,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildComputedPropertyAssign(assi
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_Assign(res_, this_, assignNode, StaticGet_RemoveUnusedCode_Kind_COMPUTED_PROPERTY(), propertyNode, varInfo)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2777,7 +2808,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildVariableAssign(assignNode p
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_Assign(res_, this_, assignNode, StaticGet_RemoveUnusedCode_Kind_VARIABLE(), pkg_rhino.Node(0), varInfo)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2796,7 +2827,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildClassSetupCall_2(callNode p
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_ClassSetupCall(res_, this_, callNode, classDefiningCall)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2808,7 +2839,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildVanillaForNameDeclaration(n
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_VanillaForNameDeclaration(res_, this_, nameNode)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2822,7 +2853,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildAnonymousPrototypeNamedProp
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_AnonymousPrototypeNamedPropertyAssign(res_, this_, assignNode)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2837,7 +2868,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildIncOrDepOp(incOrDecOp pkg_r
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_IncOrDecOp(res_, this_, incOrDecOp, toPreseve)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2851,7 +2882,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildUnusedReadReference(referen
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_UnusedReadReference(res_, this_, referenceNode)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2863,7 +2894,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildInstanceofName(instanceofNo
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_InstanceofName(res_, this_, instanceofNode)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2875,7 +2906,7 @@ func (this_ *RemoveUnusedCode_RemovableBuilder) BuildWeakUsageCall(weakUsageCall
 	res_.self_ = res_
 	res_.outer_ = rucOuter_
 	InitRemoveUnusedCode_WeakUsageCall(res_, this_, weakUsageCall)
-	this_.priv_RemovableBuilder_finish_4767(nil)
+	this_.priv_RemovableBuilder_finish_4772(nil)
 	return res_
 }
 
@@ -2954,7 +2985,7 @@ func (this_ *RemoveUnusedCode_UnusedReadReference) RemoveInternal(compiler Abstr
 			}
 			var objExpression pkg_rhino.Node = this_.referenceNode.GetFirstFirstChild()
 			_ = objExpression
-			if this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(objExpression) {
+			if this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(objExpression) {
 				this_.outer_.ReplaceNodeWith(this_.referenceNode, objExpression.Detach())
 			} else {
 				this_.outer_.RemoveExpressionCompletely(this_.referenceNode)
@@ -3039,7 +3070,7 @@ func (this_ *RemoveUnusedCode_InstanceofName) RemoveInternal(compiler AbstractCo
 		_ = lhs
 		var falseNode pkg_rhino.Node = pkg_rhino.IR_FalseNode().Srcref(this_.instanceofNode)
 		_ = falseNode
-		if this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(lhs) {
+		if this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(lhs) {
 			this_.outer_.ReplaceNodeWith(this_.instanceofNode, pkg_rhino.IR_Comma(lhs.Detach(), falseNode).Srcref(this_.instanceofNode))
 		} else {
 			this_.outer_.ReplaceNodeWith(this_.instanceofNode, falseNode)
@@ -3276,7 +3307,32 @@ func allocPooled_RemoveUnusedCode_IndirectAssign(outer_ *RemoveUnusedCode, build
 	this_ := outer_.slab_RemoveUnusedCode_IndirectAssign.Alloc()
 	this_.self_ = this_
 	this_.outer_ = outer_
-	InitRemoveUnusedCode_IndirectAssign(this_, builder, root, targetNode)
+	this_.RemoveUnusedCode_RemovableBase.outer_ = outer_
+	if builder.continuation0 != (RemoveUnusedCode_Continuation{}) {
+		this_.continuation0 = builder.continuation0
+		if builder.continuation1 != (RemoveUnusedCode_Continuation{}) {
+			this_.continuation1 = builder.continuation1
+			if builder.restContinuations != nil {
+				this_.restContinuations = builder.restContinuations
+			}
+		}
+	}
+	this_.propertyName = builder.propertyName
+	if builder.isPrototypeDotPropertyReference {
+		this_.isPrototypeDotPropertyReference = true
+	}
+	if builder.isThisDotPropertyReference {
+		this_.isThisDotPropertyReference = true
+	}
+	this_.targetNode = targetNode
+	rootParent_ := root.GetParent()
+	if !(rootParent_.IsDestructuringPattern() || rootParent_.IsParamList()) {
+		j2gort.CheckStateMsg(false, j2gort.BoxNode(rootParent_))
+	}
+	if !(targetNode.IsName() || targetNode.IsGetProp()) {
+		j2gort.CheckStateMsg(false, j2gort.BoxNode(targetNode))
+	}
+	this_.root = root
 	return this_
 }
 
@@ -3318,7 +3374,7 @@ func (this_ *RemoveUnusedCode_IndirectAssign) PreventsRemovalOfVariableWithNonLo
 	if this_.GetRemoveUnusedCode_RemovableBase().targetNode.IsGetProp() {
 		var getPropLhs pkg_rhino.Node = this_.GetRemoveUnusedCode_RemovableBase().targetNode.GetFirstChild()
 		_ = getPropLhs
-		return (getPropLhs.IsName() || this_.outer_.priv_RemoveUnusedCode_isNameDotPrototype_4713(getPropLhs))
+		return (getPropLhs.IsName() || this_.outer_.priv_RemoveUnusedCode_isNameDotPrototype_4718(getPropLhs))
 	} else {
 		return false
 	}
@@ -3341,12 +3397,12 @@ func (this_ *RemoveUnusedCode_IndirectAssign) GetPropertyName() string {
 func (this_ *RemoveUnusedCode_IndirectAssign) RemoveInternal(compiler AbstractCompiler) {
 	_ = compiler
 	if !(RemoveUnusedCode_AlreadyRemoved(this_.GetRemoveUnusedCode_RemovableBase().targetNode)) {
-		this_.priv_IndirectAssign_removeRoot_4795()
+		this_.priv_IndirectAssign_removeRoot_4800()
 	}
 }
 
 // Java method: IndirectAssign.removeRoot()
-func (this_ *RemoveUnusedCode_IndirectAssign) priv_IndirectAssign_removeRoot_4795() {
+func (this_ *RemoveUnusedCode_IndirectAssign) priv_IndirectAssign_removeRoot_4800() {
 	var rootParent pkg_rhino.Node = this_.root.GetParent()
 	_ = rootParent
 	switch rootParent.TokenSwitchOrd_() {
@@ -3370,7 +3426,7 @@ func (this_ *RemoveUnusedCode_IndirectAssign) priv_IndirectAssign_removeRoot_479
 		if !(name.IsName()) {
 			j2gort.CheckState(false)
 		}
-		if ((this_.root == rootParent.GetLastChild()) && this_.outer_.removeGlobals) && this_.outer_.priv_RemoveUnusedCode_canRemoveParameters_4723(rootParent) {
+		if ((this_.root == rootParent.GetLastChild()) && this_.outer_.removeGlobals) && this_.outer_.priv_RemoveUnusedCode_canRemoveParameters_4728(rootParent) {
 			this_.root.Detach()
 		} else {
 			this_.root.ReplaceWith(name.Detach())
@@ -3951,7 +4007,7 @@ func (this_ *RemoveUnusedCode_NameDeclarationStatement) RemoveInternal(compiler 
 	_ = nameNode
 	var valueNode pkg_rhino.Node = nameNode.GetFirstChild()
 	_ = valueNode
-	if (valueNode != 0) && this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(valueNode) {
+	if (valueNode != 0) && this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(valueNode) {
 		compiler.ReportChangeToEnclosingScope(this_.declarationStatement)
 		valueNode.Detach()
 		this_.declarationStatement.ReplaceWith(pkg_rhino.IR_ExprResult(valueNode).Srcref(valueNode))
@@ -4262,9 +4318,9 @@ func (this_ *RemoveUnusedCode_Assign) RemoveInternal(compiler AbstractCompiler) 
 	_ = lhs
 	var rhs pkg_rhino.Node = this_.assignNode.GetSecondChild()
 	_ = rhs
-	var mustPreserveRhs bool = (this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(rhs) || NodeUtil_IsExpressionResultUsed(this_.assignNode))
+	var mustPreserveRhs bool = (this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(rhs) || NodeUtil_IsExpressionResultUsed(this_.assignNode))
 	_ = mustPreserveRhs
-	var mustPreserveGetElmExpr bool = (lhs.IsGetElem() && this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(lhs.GetLastChild()))
+	var mustPreserveGetElmExpr bool = (lhs.IsGetElem() && this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(lhs.GetLastChild()))
 	_ = mustPreserveGetElmExpr
 	if mustPreserveRhs && mustPreserveGetElmExpr {
 		var replacement pkg_rhino.Node = pkg_rhino.IR_Comma(lhs.GetLastChild().Detach(), rhs.Detach()).Srcref(this_.assignNode)
@@ -4381,9 +4437,9 @@ func (this_ *RemoveUnusedCode_AnonymousPrototypeNamedPropertyAssign) RemoveInter
 	if !(j2gort.CheckNotNullString(objDotPrototype.GetString()) == "prototype") {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(objDotPrototype))
 	}
-	var mustPreserveRhs bool = (this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(rhs) || NodeUtil_IsExpressionResultUsed(this_.assignNode))
+	var mustPreserveRhs bool = (this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(rhs) || NodeUtil_IsExpressionResultUsed(this_.assignNode))
 	_ = mustPreserveRhs
-	var mustPreserveObjExpression bool = this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(objExpression)
+	var mustPreserveObjExpression bool = this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(objExpression)
 	_ = mustPreserveObjExpression
 	if mustPreserveRhs && mustPreserveObjExpression {
 		var replacement pkg_rhino.Node = pkg_rhino.IR_Comma(objExpression.Detach(), rhs.Detach()).Srcref(this_.assignNode)
@@ -4484,7 +4540,7 @@ func (this_ *RemoveUnusedCode_ClassSetupCall) RemoveInternal(compiler AbstractCo
 		_ = arg
 		for ; arg != 0; arg = this_.callNode.GetLastChild() {
 			arg.Detach()
-			if !(this_.classDefiningCall) && this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4735(arg) {
+			if !(this_.classDefiningCall) && this_.outer_.priv_RemoveUnusedCode_mayHaveSideEffects_4740(arg) {
 				if replacement == 0 {
 					replacement = arg
 				} else {
@@ -4610,7 +4666,7 @@ func InitRemoveUnusedCode_VarInfo_1(this_ *RemoveUnusedCode_VarInfo, varName str
 func (this_ *RemoveUnusedCode_VarInfo) AddRemovable(removable RemoveUnusedCode_Removable) {
 	_ = removable
 	if this_.canonicalUnremovable {
-		this_.outer_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(removable)
+		this_.outer_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(removable)
 		return
 	}
 	if removable.IsVariableAssignment() {
@@ -4644,7 +4700,7 @@ func (this_ *RemoveUnusedCode_VarInfo) AddRemovable(removable RemoveUnusedCode_R
 			this_.restRemovables = append(this_.restRemovables, removable)
 		}
 	} else {
-		this_.outer_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(removable)
+		this_.outer_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(removable)
 	}
 }
 
@@ -4671,9 +4727,9 @@ func (this_ *RemoveUnusedCode_VarInfo) SetIsExplicitlyNotRemovable(reasonSupplie
 			this_.rem0 = nil
 			this_.rem1 = nil
 			this_.restRemovables = nil
-			this_.outer_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(r0)
+			this_.outer_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(r0)
 			if r1 != nil && !r1.IsJavaNil_() {
-				this_.outer_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(r1)
+				this_.outer_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(r1)
 				if rest != nil {
 					{
 						var i int32 = int32(0)
@@ -4681,7 +4737,7 @@ func (this_ *RemoveUnusedCode_VarInfo) SetIsExplicitlyNotRemovable(reasonSupplie
 						var n int32 = int32(len(rest))
 						_ = n
 						for ; i < n; i = i + 1 {
-							this_.outer_.priv_RemoveUnusedCode_considerForIndependentRemoval_4726(rest[i])
+							this_.outer_.priv_RemoveUnusedCode_considerForIndependentRemoval_4731(rest[i])
 						}
 					}
 				}

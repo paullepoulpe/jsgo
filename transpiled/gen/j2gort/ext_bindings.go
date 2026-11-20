@@ -22950,7 +22950,7 @@ type Ext_java_lang_AbstractStringBuilder interface {
 	SetLength(int32)
 	CharAt(int32) uint16
 	SetCharAt(int32, uint16)
-	Append_1_any_9903(any) any
+	Append_1_any_9908(any) any
 	Append_1_string(string) any
 	Append_1_slice_uint16([]uint16) any
 	Append_1_int32(int32) any
@@ -23013,7 +23013,7 @@ func (this_ *Ext_java_lang_AbstractStringBuilderBase) CharAt(arg0 int32) uint16 
 func (this_ *Ext_java_lang_AbstractStringBuilderBase) SetCharAt(arg0 int32, arg1 uint16) {
 	this_.sbCore().setCharAt(arg0, arg1)
 }
-func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9903(arg0 any) any {
+func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9908(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	if this_.Self_ != nil {
 		return this_.Self_
@@ -23751,7 +23751,7 @@ func init() {
 }
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_AbstractStringBuilder() {}
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_Appendable()            {}
-func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9903(arg0 any) any {
+func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9908(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	return this_
 }
@@ -37022,20 +37022,121 @@ func predColContainsAny_(col Ext_java_util_Collection, v any) bool {
 	return col.Contains(v)
 }
 
+func predAlwaysTrueNodeFn_(_ uint32) bool  { return true }
+func predAlwaysFalseNodeFn_(_ uint32) bool { return false }
+func predIsNullNodeFn_(n uint32) bool      { return n == 0 }
+func predNotNullNodeFn_(n uint32) bool     { return n != 0 }
+func predThrowNPENodeFn_(_ uint32) bool    { ThrowNPE(); return false }
+
+func IsAlwaysTruePred(p any) bool {
+	if at, ok := p.(*predAlwaysTrueType_); ok && at != nil {
+		return true
+	}
+	return p == guavaAlwaysTruePred_
+}
+
+func UnwrapNodePred(p Ext_com_google_common_base_Predicate) func(uint32) bool {
+	switch lp := p.(type) {
+	case *nodeLambda_Ext_com_google_common_base_Predicate:
+		if lp == nil {
+			return predThrowNPENodeFn_
+		}
+		return lp.fn
+	case *predAlwaysTrueType_:
+		if lp == nil {
+			return predThrowNPENodeFn_
+		}
+		return predAlwaysTrueNodeFn_
+	case *predAlwaysFalseType_:
+		if lp == nil {
+			return predThrowNPENodeFn_
+		}
+		return predAlwaysFalseNodeFn_
+	case *predIsNullType_:
+		if lp == nil {
+			return predThrowNPENodeFn_
+		}
+		return predIsNullNodeFn_
+	case *predNotNullType_:
+		if lp == nil {
+			return predThrowNPENodeFn_
+		}
+		return predNotNullNodeFn_
+	case *jGuavaPred:
+		if lp == nil {
+			return predThrowNPENodeFn_
+		}
+		if lp.nodeFn != nil {
+			return lp.nodeFn
+		}
+		return func(n uint32) bool { return lp.fn(boxNodeById(n)) }
+	case *jPredFunc:
+		if lp == nil {
+			return predThrowNPENodeFn_
+		}
+		if lp.nodeFn != nil {
+			return lp.nodeFn
+		}
+		return func(n uint32) bool { return lp.fn(boxNodeById(n)) }
+	case predEqualNode_:
+		target := uint32(lp)
+		return func(n uint32) bool { return n == target && n != 0 }
+	case nil:
+		return predThrowNPENodeFn_
+	}
+	if np, ok := p.(NodePredicate); ok {
+		return np.TestNode_
+	}
+	if isJavaNilAny(p) {
+		return predThrowNPENodeFn_
+	}
+	return func(n uint32) bool { return PredTestNode(p, n) }
+}
+
 func PredTestNode(p any, n uint32) bool {
-	if p == predAlwaysTrueAny_ {
+	if lp, ok := p.(*nodeLambda_Ext_com_google_common_base_Predicate); ok && lp != nil {
+		return lp.fn(n)
+	}
+	if at, ok := p.(*predAlwaysTrueType_); ok && at != nil {
 		return true
 	}
-	if p == guavaAlwaysTruePred_ {
-		return true
+	if lp, ok := p.(*nodeLambda_Ext_java_util_function_Predicate); ok && lp != nil {
+		return lp.fn(n)
 	}
+	return predTestNodeSlow(p, n)
+}
+
+//go:noinline
+func predTestNodeSlow(p any, n uint32) bool {
 	if p == nil {
 		ThrowNPE()
 	}
-	if np, ok := p.(NodePredicate); ok {
-		if nc, ok2 := p.(jJavaNilChecker); ok2 && nc.IsJavaNil_() {
+	switch lp := p.(type) {
+	case *predAlwaysFalseType_:
+		if lp == nil {
 			ThrowNPE()
 		}
+		return false
+	case *jGuavaPred:
+		if lp == nil {
+			ThrowNPE()
+		}
+		if lp.nodeFn != nil {
+			return lp.nodeFn(n)
+		}
+		return lp.fn(boxNodeById(n))
+	case *jPredFunc:
+		if lp == nil {
+			ThrowNPE()
+		}
+		if lp.nodeFn != nil {
+			return lp.nodeFn(n)
+		}
+		return lp.fn(boxNodeById(n))
+	case predEqualNode_:
+		return uint32(lp) == n && n != 0
+	}
+	if np, ok := p.(NodePredicate); ok {
 		return np.TestNode_(n)
 	}
 	if isJavaNilAny(p) {

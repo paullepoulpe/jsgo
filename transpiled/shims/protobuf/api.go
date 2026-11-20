@@ -855,6 +855,19 @@ func CodedInputStream_NewInstanceBytes(b []byte) *CodedInputStream {
 	return &CodedInputStream{rd: protoReader{b: b, limit: math.MaxInt32}}
 }
 
+var codedInputBufReaderPool = sync.Pool{
+	New: func() any {
+		return bufio.NewReaderSize(nil, 64*1024)
+	},
+}
+
+func putCodedInputBufReader(br *bufio.Reader) {
+	if br != nil {
+		br.Reset(nil)
+		codedInputBufReaderPool.Put(br)
+	}
+}
+
 func CodedInputStream_NewInstance(in io.Reader) (*CodedInputStream, error) {
 	if in == nil {
 		return CodedInputStream_NewInstanceBytes(nil), nil
@@ -866,8 +879,10 @@ func CodedInputStream_NewInstance(in io.Reader) (*CodedInputStream, error) {
 		}
 		return CodedInputStream_NewInstanceBytes(data), nil
 	}
-	br := bufio.NewReaderSize(in, 64*1024)
+	br := codedInputBufReaderPool.Get().(*bufio.Reader)
+	br.Reset(in)
 	if _, err := br.Peek(1); err != nil {
+		putCodedInputBufReader(br)
 		if err == io.EOF {
 			return CodedInputStream_NewInstanceBytes(nil), nil
 		}
@@ -884,6 +899,7 @@ func (c *CodedInputStream) materializeBytes() error {
 		return nil
 	}
 	data, err := readAllFromInputStream(c.br)
+	putCodedInputBufReader(c.br)
 	c.br = nil
 	if err != nil {
 		return wrapInputStreamIOErr(err)
@@ -900,6 +916,8 @@ func (c *CodedInputStream) IsAtEnd() bool {
 			return false
 		}
 		if err == io.EOF {
+			putCodedInputBufReader(c.br)
+			c.br = nil
 			c.scratch = nil
 			c.scriptSlab = nil
 			c.scriptTail = nil

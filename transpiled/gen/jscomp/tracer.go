@@ -731,7 +731,7 @@ func (this_ *Tracer_Event) ToString(prevEventTime int64, indent string, digitsCo
 		}
 	}
 	sb.Append_1_string(indent)
-	sb.Append_1_any_9903(j2gort.PtrToAny(this_.tracer))
+	sb.Append_1_any_9908(j2gort.PtrToAny(this_.tracer))
 	return sb.String()
 }
 
@@ -925,7 +925,7 @@ func (this_ *Tracer_ThreadTrace) TruncateEvents() {
 
 // Java method: ThreadTrace.toString()
 func (this_ *Tracer_ThreadTrace) String() string {
-	var numDigits int32 = this_.priv_ThreadTrace_getMaxDigits_5386()
+	var numDigits int32 = this_.priv_ThreadTrace_getMaxDigits_5391()
 	_ = numDigits
 	var sb *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 	_ = sb
@@ -967,7 +967,7 @@ func (this_ *Tracer_ThreadTrace) String() string {
 				t := cur_18.
 					Next()
 				_ = t
-				j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_string("  ")).Append_1_any_9903(j2gort.PtrToAny(t))).Append_1_string(" (")).Append_1_int64((now - t.startTimeMs))).Append_1_string(" ms, started at ")).Append_1_string(Tracer_FormatTime(t.startTimeMs))).Append_1_string(")\n")
+				j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_string("  ")).Append_1_any_9908(j2gort.PtrToAny(t))).Append_1_string(" (")).Append_1_int64((now - t.startTimeMs))).Append_1_string(" ms, started at ")).Append_1_string(Tracer_FormatTime(t.startTimeMs))).Append_1_string(")\n")
 			}
 		}
 	}
@@ -996,7 +996,7 @@ func (this_ *Tracer_ThreadTrace) String() string {
 }
 
 // Java method: ThreadTrace.getMaxDigits()
-func (this_ *Tracer_ThreadTrace) priv_ThreadTrace_getMaxDigits_5386() int32 {
+func (this_ *Tracer_ThreadTrace) priv_ThreadTrace_getMaxDigits_5391() int32 {
 	var etime int64 = int64(int32(-1))
 	_ = etime
 	var maxTime int64 = int64(int32(0))

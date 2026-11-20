@@ -231,7 +231,7 @@ func (this_ *ReplaceCssNames) Process_2(externs pkg_rhino.Node, root pkg_rhino.N
 	_ = externs
 	_ = root
 	NodeTraversal_Traverse(this_.compiler, root, NewReplaceCssNames_FindSetCssNameTraversal(this_))
-	var getCssNameInstances j2gort.Ext_java_util_List = this_.priv_ReplaceCssNames_gatherGetCssNameInstances_4838(root)
+	var getCssNameInstances j2gort.Ext_java_util_List = this_.priv_ReplaceCssNames_gatherGetCssNameInstances_4843(root)
 	_ = getCssNameInstances
 	{
 		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(getCssNameInstances))
@@ -254,7 +254,7 @@ func (this_ *ReplaceCssNames) Process_2(externs pkg_rhino.Node, root pkg_rhino.N
 }
 
 // Java method: ReplaceCssNames.gatherGetCssNameInstances(com.google.javascript.rhino.Node root)
-func (this_ *ReplaceCssNames) priv_ReplaceCssNames_gatherGetCssNameInstances_4838(root pkg_rhino.Node) j2gort.Ext_java_util_List {
+func (this_ *ReplaceCssNames) priv_ReplaceCssNames_gatherGetCssNameInstances_4843(root pkg_rhino.Node) j2gort.Ext_java_util_List {
 	_ = root
 	var val_3 ReplaceCssNames_GatherCssNamesTraversal
 	val_3.outer_ = this_
@@ -266,7 +266,7 @@ func (this_ *ReplaceCssNames) priv_ReplaceCssNames_gatherGetCssNameInstances_483
 }
 
 // Java method: ReplaceCssNames.isNotInCssClosureFile(com.google.javascript.rhino.Node node)
-func (this_ *ReplaceCssNames) priv_ReplaceCssNames_isNotInCssClosureFile_4839(node pkg_rhino.Node) bool {
+func (this_ *ReplaceCssNames) priv_ReplaceCssNames_isNotInCssClosureFile_4844(node pkg_rhino.Node) bool {
 	_ = node
 	var sourceFileName string = node.GetSourceFileName()
 	_ = sourceFileName
@@ -274,30 +274,30 @@ func (this_ *ReplaceCssNames) priv_ReplaceCssNames_isNotInCssClosureFile_4839(no
 }
 
 // Java method: ReplaceCssNames.isGetCssNameCall(com.google.javascript.rhino.Node node)
-func (this_ *ReplaceCssNames) priv_ReplaceCssNames_isGetCssNameCall_4840(node pkg_rhino.Node) bool {
+func (this_ *ReplaceCssNames) priv_ReplaceCssNames_isGetCssNameCall_4845(node pkg_rhino.Node) bool {
 	_ = node
 	return (node.IsCall() && node.GetFirstChild().MatchesQualifiedName_1_Node(StaticGet_ReplaceCssNames_GET_CSS_NAME_FUNCTION()))
 }
 
 // Java method: ReplaceCssNames.createGetCssNameInstance(com.google.javascript.rhino.Node n, java.lang.String cssClosureClassesQualifiedName)
-func (this_ *ReplaceCssNames) priv_ReplaceCssNames_createGetCssNameInstance_4841(n pkg_rhino.Node, cssClosureClassesQualifiedName string) *ReplaceCssNames_GetCssNameInstance {
+func (this_ *ReplaceCssNames) priv_ReplaceCssNames_createGetCssNameInstance_4846(n pkg_rhino.Node, cssClosureClassesQualifiedName string) *ReplaceCssNames_GetCssNameInstance {
 	_ = n
 	_ = cssClosureClassesQualifiedName
-	var validationError *JSError = this_.priv_ReplaceCssNames_validateGetCssNameCall_4842(n)
+	var validationError *JSError = this_.priv_ReplaceCssNames_validateGetCssNameCall_4847(n)
 	_ = validationError
 	return NewReplaceCssNames_GetCssNameInstance(this_, n, validationError, cssClosureClassesQualifiedName)
 }
 
 // Java method: ReplaceCssNames.validateGetCssNameCall(com.google.javascript.rhino.Node callNode)
-func (this_ *ReplaceCssNames) priv_ReplaceCssNames_validateGetCssNameCall_4842(callNode pkg_rhino.Node) *JSError {
+func (this_ *ReplaceCssNames) priv_ReplaceCssNames_validateGetCssNameCall_4847(callNode pkg_rhino.Node) *JSError {
 	_ = callNode
 	var childCount int32 = callNode.GetChildCount()
 	_ = childCount
 	switch childCount {
 	case int32(2):
-		return this_.priv_ReplaceCssNames_validateSingleArgGetCssNameCall_4843(callNode)
+		return this_.priv_ReplaceCssNames_validateSingleArgGetCssNameCall_4848(callNode)
 	case int32(3):
-		return this_.priv_ReplaceCssNames_validateTwoArgGetCssNameCall_4844(callNode)
+		return this_.priv_ReplaceCssNames_validateTwoArgGetCssNameCall_4849(callNode)
 	default:
 		return JSError_Make_3(callNode, StaticGet_ReplaceCssNames_INVALID_NUM_ARGUMENTS_ERROR(), []string{strconv.FormatInt(int64(childCount), 10)})
 	}
@@ -305,7 +305,7 @@ func (this_ *ReplaceCssNames) priv_ReplaceCssNames_validateGetCssNameCall_4842(c
 }
 
 // Java method: ReplaceCssNames.validateSingleArgGetCssNameCall(com.google.javascript.rhino.Node callNode)
-func (this_ *ReplaceCssNames) priv_ReplaceCssNames_validateSingleArgGetCssNameCall_4843(callNode pkg_rhino.Node) *JSError {
+func (this_ *ReplaceCssNames) priv_ReplaceCssNames_validateSingleArgGetCssNameCall_4848(callNode pkg_rhino.Node) *JSError {
 	_ = callNode
 	var stringLiteralArg pkg_rhino.Node = j2gort.CheckNotNullNode(callNode.GetLastChild())
 	_ = stringLiteralArg
@@ -316,7 +316,7 @@ func (this_ *ReplaceCssNames) priv_ReplaceCssNames_validateSingleArgGetCssNameCa
 }
 
 // Java method: ReplaceCssNames.validateTwoArgGetCssNameCall(com.google.javascript.rhino.Node callNode)
-func (this_ *ReplaceCssNames) priv_ReplaceCssNames_validateTwoArgGetCssNameCall_4844(callNode pkg_rhino.Node) *JSError {
+func (this_ *ReplaceCssNames) priv_ReplaceCssNames_validateTwoArgGetCssNameCall_4849(callNode pkg_rhino.Node) *JSError {
 	_ = callNode
 	var firstArg pkg_rhino.Node = j2gort.CheckNotNullNode(callNode.GetSecondChild())
 	_ = firstArg
@@ -328,14 +328,14 @@ func (this_ *ReplaceCssNames) priv_ReplaceCssNames_validateTwoArgGetCssNameCall_
 	if firstArg.IsStringLit() {
 		return JSError_Make_3(callNode, StaticGet_ReplaceCssNames_UNEXPECTED_STRING_LITERAL_ERROR(), []string{firstArg.GetString(), secondArg.GetString()})
 	}
-	if this_.priv_ReplaceCssNames_isGetCssNameCall_4840(firstArg) {
+	if this_.priv_ReplaceCssNames_isGetCssNameCall_4845(firstArg) {
 		return JSError_Make_3(firstArg, StaticGet_ReplaceCssNames_NESTED_CALL_ERROR(), []string{})
 	}
 	return nil
 }
 
 // Java method: ReplaceCssNames.processStringNode(com.google.javascript.rhino.Node n)
-func (this_ *ReplaceCssNames) priv_ReplaceCssNames_processStringNode_4845(n pkg_rhino.Node) {
+func (this_ *ReplaceCssNames) priv_ReplaceCssNames_processStringNode_4850(n pkg_rhino.Node) {
 	_ = n
 	var name string = n.GetString()
 	_ = name
@@ -606,8 +606,8 @@ func (this_ *ReplaceCssNames_GatherCssNamesTraversal) Visit_3(t *NodeTraversal, 
 	_ = t
 	_ = n
 	_ = parent
-	if this_.outer_.priv_ReplaceCssNames_isGetCssNameCall_4840(n) {
-		var getCssNameInstance *ReplaceCssNames_GetCssNameInstance = this_.outer_.priv_ReplaceCssNames_createGetCssNameInstance_4841(n, this_.traversalState.cssClosureClassesQualifiedName)
+	if this_.outer_.priv_ReplaceCssNames_isGetCssNameCall_4845(n) {
+		var getCssNameInstance *ReplaceCssNames_GetCssNameInstance = this_.outer_.priv_ReplaceCssNames_createGetCssNameInstance_4846(n, this_.traversalState.cssClosureClassesQualifiedName)
 		_ = getCssNameInstance
 		if getCssNameInstance.IsValid() {
 			this_.listOfCssNameInstances.Add_1(j2gort.PtrToAny(getCssNameInstance))
@@ -629,7 +629,7 @@ func (this_ *ReplaceCssNames_GatherCssNamesTraversal) CreateSassGeneratedCssTsEx
 	}
 	var sassGeneratedCssTsValidationError *JSError = nil
 	_ = sassGeneratedCssTsValidationError
-	if hasSassGeneratedCssTsJsDoc && (!(n.IsScript()) || this_.outer_.priv_ReplaceCssNames_isNotInCssClosureFile_4839(n)) {
+	if hasSassGeneratedCssTsJsDoc && (!(n.IsScript()) || this_.outer_.priv_ReplaceCssNames_isNotInCssClosureFile_4844(n)) {
 		sassGeneratedCssTsValidationError = JSError_Make_3(n, StaticGet_ReplaceCssNames_UNEXPECTED_SASS_GENERATED_CSS_TS_ERROR(), []string{})
 	}
 	var isCssClosureClassesAssignment bool = false
@@ -864,36 +864,36 @@ func (this_ *ReplaceCssNames_GetCssNameInstance) ReplaceWithExpression() {
 	_ = childCount
 	switch childCount {
 	case int32(2):
-		this_.priv_GetCssNameInstance_replaceWithConvertedSingleArg_4851()
+		this_.priv_GetCssNameInstance_replaceWithConvertedSingleArg_4856()
 	case int32(3):
-		this_.priv_GetCssNameInstance_replaceWithConcatenatedArgs_4852()
+		this_.priv_GetCssNameInstance_replaceWithConcatenatedArgs_4857()
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("invalid number of children: %s for: %s", []any{j2gort.ValueOfInt(childCount), j2gort.BoxNode(this_.callNode)})))))
 	}
 }
 
 // Java method: GetCssNameInstance.replaceWithConvertedSingleArg()
-func (this_ *ReplaceCssNames_GetCssNameInstance) priv_GetCssNameInstance_replaceWithConvertedSingleArg_4851() {
+func (this_ *ReplaceCssNames_GetCssNameInstance) priv_GetCssNameInstance_replaceWithConvertedSingleArg_4856() {
 	var stringLitArg pkg_rhino.Node = j2gort.CheckNotNullNode(this_.callNode.GetSecondChild())
 	_ = stringLitArg
 	if !(stringLitArg.IsStringLit()) {
 		j2gort.CheckStateFmt(false, "not a string literal: %s", j2gort.BoxNode(stringLitArg))
 	}
 	stringLitArg.Detach()
-	this_.outer_.priv_ReplaceCssNames_processStringNode_4845(stringLitArg)
+	this_.outer_.priv_ReplaceCssNames_processStringNode_4850(stringLitArg)
 	this_.callNode.ReplaceWith(stringLitArg)
 	this_.outer_.compiler.ReportChangeToEnclosingScope(stringLitArg)
 }
 
 // Java method: GetCssNameInstance.replaceWithConcatenatedArgs()
-func (this_ *ReplaceCssNames_GetCssNameInstance) priv_GetCssNameInstance_replaceWithConcatenatedArgs_4852() {
+func (this_ *ReplaceCssNames_GetCssNameInstance) priv_GetCssNameInstance_replaceWithConcatenatedArgs_4857() {
 	var firstArg pkg_rhino.Node = j2gort.CheckNotNullNode(this_.callNode.GetSecondChild())
 	_ = firstArg
 	var secondArg pkg_rhino.Node = j2gort.CheckNotNullNode(firstArg.GetNext())
 	_ = secondArg
 	firstArg.Detach()
 	secondArg.Detach()
-	this_.outer_.priv_ReplaceCssNames_processStringNode_4845(secondArg)
+	this_.outer_.priv_ReplaceCssNames_processStringNode_4850(secondArg)
 	secondArg.SetString(("-" + j2gort.StrValString(secondArg.GetString())))
 	var replacement pkg_rhino.Node = this_.outer_.astFactory.CreateAdd(firstArg, secondArg).Srcref(this_.callNode)
 	_ = replacement
@@ -1019,7 +1019,7 @@ func (this_ *ReplaceCssNames_CountCssNamesBySymbol) ShouldTraverse_3(t *NodeTrav
 	_ = n
 	_ = parent
 	if n.IsScript() {
-		return this_.outer_.priv_ReplaceCssNames_isNotInCssClosureFile_4839(n)
+		return this_.outer_.priv_ReplaceCssNames_isNotInCssClosureFile_4844(n)
 	} else {
 		return true
 	}

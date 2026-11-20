@@ -426,29 +426,29 @@ func clinitSlow_FeatureSet() {
 	if int32(len(StaticGet_FeatureSet_FEATURE_VALUES())) > int32(64) {
 		panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", "FeatureSet bitmask overflow: "+j2gort.StrValInt32(int32(len(StaticGet_FeatureSet_FEATURE_VALUES()))))))
 	}
-	static_FeatureSet_TYPESCRIPT_BITS = StaticGet_FeatureSet_LangVersion_TYPESCRIPT().priv_LangVersion_featureBits_7240()
+	static_FeatureSet_TYPESCRIPT_BITS = StaticGet_FeatureSet_LangVersion_TYPESCRIPT().priv_LangVersion_featureBits_7245()
 	static_FeatureSet_BARE_MINIMUM = NewFeatureSet(int64(0))
-	static_FeatureSet_ES3 = StaticGet_FeatureSet_BARE_MINIMUM().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES3().priv_LangVersion_featureBits_7240())
-	static_FeatureSet_ES5 = StaticGet_FeatureSet_ES3().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES5().priv_LangVersion_featureBits_7240())
-	static_FeatureSet_ES2015_MODULES = StaticGet_FeatureSet_ES5().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES2015().priv_LangVersion_featureBits_7240())
+	static_FeatureSet_ES3 = StaticGet_FeatureSet_BARE_MINIMUM().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES3().priv_LangVersion_featureBits_7245())
+	static_FeatureSet_ES5 = StaticGet_FeatureSet_ES3().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES5().priv_LangVersion_featureBits_7245())
+	static_FeatureSet_ES2015_MODULES = StaticGet_FeatureSet_ES5().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES2015().priv_LangVersion_featureBits_7245())
 	static_FeatureSet_ES2015 = StaticGet_FeatureSet_ES2015_MODULES().Without_2(StaticGet_FeatureSet_Feature_MODULES(), []*FeatureSet_Feature{})
-	static_FeatureSet_ES2016_MODULES = StaticGet_FeatureSet_ES2015_MODULES().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES2016().priv_LangVersion_featureBits_7240())
+	static_FeatureSet_ES2016_MODULES = StaticGet_FeatureSet_ES2015_MODULES().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES2016().priv_LangVersion_featureBits_7245())
 	static_FeatureSet_ES2016 = StaticGet_FeatureSet_ES2016_MODULES().Without_2(StaticGet_FeatureSet_Feature_MODULES(), []*FeatureSet_Feature{})
-	static_FeatureSet_ES2017_MODULES = StaticGet_FeatureSet_ES2016_MODULES().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES2017().priv_LangVersion_featureBits_7240())
+	static_FeatureSet_ES2017_MODULES = StaticGet_FeatureSet_ES2016_MODULES().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES2017().priv_LangVersion_featureBits_7245())
 	static_FeatureSet_ES2017 = StaticGet_FeatureSet_ES2017_MODULES().Without_2(StaticGet_FeatureSet_Feature_MODULES(), []*FeatureSet_Feature{})
-	static_FeatureSet_ES2018_MODULES = StaticGet_FeatureSet_ES2017_MODULES().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES2018().priv_LangVersion_featureBits_7240())
+	static_FeatureSet_ES2018_MODULES = StaticGet_FeatureSet_ES2017_MODULES().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES2018().priv_LangVersion_featureBits_7245())
 	static_FeatureSet_ES2018 = StaticGet_FeatureSet_ES2018_MODULES().Without_2(StaticGet_FeatureSet_Feature_MODULES(), []*FeatureSet_Feature{})
-	static_FeatureSet_ES2019_MODULES = StaticGet_FeatureSet_ES2018_MODULES().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES2019().priv_LangVersion_featureBits_7240())
+	static_FeatureSet_ES2019_MODULES = StaticGet_FeatureSet_ES2018_MODULES().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES2019().priv_LangVersion_featureBits_7245())
 	static_FeatureSet_ES2019 = StaticGet_FeatureSet_ES2019_MODULES().Without_2(StaticGet_FeatureSet_Feature_MODULES(), []*FeatureSet_Feature{})
-	static_FeatureSet_ES2020_MODULES = StaticGet_FeatureSet_ES2019_MODULES().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES2020().priv_LangVersion_featureBits_7240())
+	static_FeatureSet_ES2020_MODULES = StaticGet_FeatureSet_ES2019_MODULES().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES2020().priv_LangVersion_featureBits_7245())
 	static_FeatureSet_ES2020 = StaticGet_FeatureSet_ES2020_MODULES().Without_2(StaticGet_FeatureSet_Feature_MODULES(), []*FeatureSet_Feature{})
-	static_FeatureSet_ES2021_MODULES = StaticGet_FeatureSet_ES2020_MODULES().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES2021().priv_LangVersion_featureBits_7240())
+	static_FeatureSet_ES2021_MODULES = StaticGet_FeatureSet_ES2020_MODULES().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES2021().priv_LangVersion_featureBits_7245())
 	static_FeatureSet_ES2021 = StaticGet_FeatureSet_ES2021_MODULES().Without_2(StaticGet_FeatureSet_Feature_MODULES(), []*FeatureSet_Feature{})
-	static_FeatureSet_ES2022_MODULES = StaticGet_FeatureSet_ES2021_MODULES().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES2022().priv_LangVersion_featureBits_7240())
+	static_FeatureSet_ES2022_MODULES = StaticGet_FeatureSet_ES2021_MODULES().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES2022().priv_LangVersion_featureBits_7245())
 	static_FeatureSet_ES2022 = StaticGet_FeatureSet_ES2022_MODULES().Without_2(StaticGet_FeatureSet_Feature_MODULES(), []*FeatureSet_Feature{})
-	static_FeatureSet_ES_NEXT = StaticGet_FeatureSet_ES2022_MODULES().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES_NEXT().priv_LangVersion_featureBits_7240())
-	static_FeatureSet_ES_UNSTABLE = StaticGet_FeatureSet_ES_NEXT().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES_UNSTABLE().priv_LangVersion_featureBits_7240())
-	static_FeatureSet_ES_UNSUPPORTED = StaticGet_FeatureSet_ES_UNSTABLE().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_LangVersion_ES_UNSUPPORTED().priv_LangVersion_featureBits_7240())
+	static_FeatureSet_ES_NEXT = StaticGet_FeatureSet_ES2022_MODULES().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES_NEXT().priv_LangVersion_featureBits_7245())
+	static_FeatureSet_ES_UNSTABLE = StaticGet_FeatureSet_ES_NEXT().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES_UNSTABLE().priv_LangVersion_featureBits_7245())
+	static_FeatureSet_ES_UNSUPPORTED = StaticGet_FeatureSet_ES_UNSTABLE().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_LangVersion_ES_UNSUPPORTED().priv_LangVersion_featureBits_7245())
 	static_FeatureSet_BROWSER_2019 = StaticGet_FeatureSet_ES2018_MODULES().Without_2(StaticGet_FeatureSet_Feature_OBJECT_LITERALS_WITH_SPREAD(), []*FeatureSet_Feature{StaticGet_FeatureSet_Feature_OBJECT_PATTERN_REST(), StaticGet_FeatureSet_Feature_ASYNC_GENERATORS(), StaticGet_FeatureSet_Feature_FOR_AWAIT_OF(), StaticGet_FeatureSet_Feature_REGEXP_FLAG_S(), StaticGet_FeatureSet_Feature_REGEXP_LOOKBEHIND(), StaticGet_FeatureSet_Feature_REGEXP_NAMED_GROUPS(), StaticGet_FeatureSet_Feature_REGEXP_UNICODE_PROPERTY_ESCAPE()})
 	static_FeatureSet_BROWSER_2020 = StaticGet_FeatureSet_ES2019_MODULES().Without_2(StaticGet_FeatureSet_Feature_REGEXP_FLAG_S(), []*FeatureSet_Feature{StaticGet_FeatureSet_Feature_REGEXP_NAMED_GROUPS(), StaticGet_FeatureSet_Feature_REGEXP_UNICODE_PROPERTY_ESCAPE(), StaticGet_FeatureSet_Feature_REGEXP_LOOKBEHIND()})
 	static_FeatureSet_BROWSER_2021 = StaticGet_FeatureSet_ES2020_MODULES().Without_2(StaticGet_FeatureSet_Feature_REGEXP_LOOKBEHIND(), []*FeatureSet_Feature{})
@@ -457,7 +457,7 @@ func clinitSlow_FeatureSet() {
 	static_FeatureSet_BROWSER_2024 = StaticGet_FeatureSet_ES2022_MODULES()
 	static_FeatureSet_BROWSER_2025 = StaticGet_FeatureSet_ES2022_MODULES()
 	static_FeatureSet_BROWSER_2026 = StaticGet_FeatureSet_ES2022_MODULES()
-	static_FeatureSet_ALL = StaticGet_FeatureSet_ES_UNSUPPORTED().priv_FeatureSet_withBits_7221(StaticGet_FeatureSet_TYPESCRIPT_BITS())
+	static_FeatureSet_ALL = StaticGet_FeatureSet_ES_UNSUPPORTED().priv_FeatureSet_withBits_7226(StaticGet_FeatureSet_TYPESCRIPT_BITS())
 }
 
 func (this_ *FeatureSet) initFields_FeatureSet() {
@@ -490,7 +490,7 @@ func FeatureSet_OfBits(bits int64) *FeatureSet {
 }
 
 // Java method: FeatureSet.withBits(long extraBits)
-func (this_ *FeatureSet) priv_FeatureSet_withBits_7221(extraBits int64) *FeatureSet {
+func (this_ *FeatureSet) priv_FeatureSet_withBits_7226(extraBits int64) *FeatureSet {
 	_ = extraBits
 	var newBits int64 = (this_.bits | extraBits)
 	_ = newBits
@@ -641,7 +641,7 @@ func (this_ *FeatureSet) With_1_FeatureSet_Feature(feature *FeatureSet_Feature) 
 }
 
 // Java method: FeatureSet.with(com.google.javascript.jscomp.parsing.parser.FeatureSet.Feature[] newFeatures)
-func (this_ *FeatureSet) With_1_FeatureSet_Feature_7232(newFeatures []*FeatureSet_Feature) *FeatureSet {
+func (this_ *FeatureSet) With_1_FeatureSet_Feature_7237(newFeatures []*FeatureSet_Feature) *FeatureSet {
 	_ = newFeatures
 	var newBits int64 = this_.bits
 	_ = newBits
@@ -912,7 +912,7 @@ func FeatureSet_LangVersion_ValueOf(name string) FeatureSet_LangVersion {
 }
 
 // Java method: LangVersion.featureBits()
-func (this_ FeatureSet_LangVersion) priv_LangVersion_featureBits_7240() int64 {
+func (this_ FeatureSet_LangVersion) priv_LangVersion_featureBits_7245() int64 {
 	if this_ == 0 {
 		j2gort.ThrowNPE()
 	}

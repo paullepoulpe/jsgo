@@ -178,6 +178,13 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_elimina
 	InitSyntacticScopeCreator_1(&val_3, this_.compiler)
 	var scopeCreator *SyntacticScopeCreator = &val_3
 	_ = scopeCreator
+	defer func() {
+		if this_.liveness != nil {
+			this_.liveness.ClearScopeState()
+		}
+		scopeCreator.ReleaseSlabs_()
+	}()
+
 	var allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction = NodeUtil_GetAllVarsDeclaredInFunction(this_.compiler, scopeCreator, functionScope)
 	_ = allVarsDeclaredInFunction
 	if this_.liveness == nil {
@@ -685,4 +692,5 @@ func (this_ *DeadAssignmentsElimination) ReleaseSlabs_() {
 	}
 	this_.slab_BailoutInformation.Release()
 }
-func (*DeadAssignmentsElimination) AlwaysShouldTraverse_() {}
+func (*DeadAssignmentsElimination) AlwaysShouldTraverse_()      {}
+func (*DeadAssignmentsElimination) CanReleaseSyntacticScopes_() {}

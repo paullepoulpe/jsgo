@@ -427,10 +427,10 @@ func NewStringFromBytes(b []byte, cs *Charset) string {
 
 // --- Reader / Writer Charset Bridges ---
 
-const charsetWriterBufSize = 32768
+const charsetWriterBufSize = 256 * 1024
 
 var (
-	charsetWriterBufChan = make(chan *[charsetWriterBufSize]byte, 12)
+	charsetWriterBufChan = make(chan *[charsetWriterBufSize]byte, 4)
 	charsetWriterBufPool = sync.Pool{
 		New: func() any {
 			return new([charsetWriterBufSize]byte)
@@ -485,6 +485,35 @@ func (w *charsetWriter) flushBuf() {
 	}
 }
 
+func (w *charsetWriter) writeDirectString(s string) {
+	buf := w.ensureBuf()
+	if len(s) <= charsetWriterBufSize-w.n {
+		copy(buf[w.n:], s)
+		w.n += len(s)
+		return
+	}
+	if w.n > 0 {
+		fill := charsetWriterBufSize - w.n
+		copy(buf[w.n:], s[:fill])
+		s = s[fill:]
+		w.n = 0
+		if _, err := w.out.Write(buf[:]); err != nil {
+			panic(javaio.NewIOException(err.Error()))
+		}
+	}
+	for len(s) >= charsetWriterBufSize {
+		copy(buf[:], s[:charsetWriterBufSize])
+		if _, err := w.out.Write(buf[:]); err != nil {
+			panic(javaio.NewIOException(err.Error()))
+		}
+		s = s[charsetWriterBufSize:]
+	}
+	if len(s) > 0 {
+		copy(buf[:], s)
+		w.n = len(s)
+	}
+}
+
 func (w *charsetWriter) Write(s string) {
 	if w.closed {
 		panic(javaio.NewIOException("Stream closed"))
@@ -492,45 +521,49 @@ func (w *charsetWriter) Write(s string) {
 	if len(s) == 0 {
 		return
 	}
-	if (w.cs == StandardCharsets_UTF_8 && (javalang.IsASCII(s) || utf8.ValidString(s))) ||
-		((w.cs == StandardCharsets_US_ASCII || w.cs == StandardCharsets_ISO_8859_1) && javalang.IsASCII(s)) {
-		buf := w.ensureBuf()
-		if len(s) <= charsetWriterBufSize-w.n {
-			copy(buf[w.n:], s)
-			w.n += len(s)
+	switch w.cs {
+	case StandardCharsets_UTF_8:
+		if javalang.IsASCII(s) || utf8.ValidString(s) {
+			w.writeDirectString(s)
 			return
 		}
-		if w.n > 0 {
-			fill := charsetWriterBufSize - w.n
-			copy(buf[w.n:], s[:fill])
-			s = s[fill:]
-			w.n = 0
-			if _, err := w.out.Write(buf[:]); err != nil {
-				panic(javaio.NewIOException(err.Error()))
+		if len(s) <= charsetWriterBufSize {
+			buf := w.ensureBuf()
+			if w.n+len(s) > charsetWriterBufSize {
+				w.flushBuf()
 			}
+			out := appendUTF8NonCanonical(buf[w.n:w.n], s)
+			w.n += len(out)
+			return
 		}
-		for len(s) >= charsetWriterBufSize {
-			copy(buf[:], s[:charsetWriterBufSize])
-			if _, err := w.out.Write(buf[:]); err != nil {
-				panic(javaio.NewIOException(err.Error()))
+	case StandardCharsets_US_ASCII:
+		if javalang.IsASCII(s) {
+			w.writeDirectString(s)
+			return
+		}
+		if len(s) <= charsetWriterBufSize {
+			buf := w.ensureBuf()
+			if w.n+len(s) > charsetWriterBufSize {
+				w.flushBuf()
 			}
-			s = s[charsetWriterBufSize:]
+			out := appendASCIINonPure(buf[w.n:w.n], s)
+			w.n += len(out)
+			return
 		}
-		if len(s) > 0 {
-			copy(buf[:], s)
-			w.n = len(s)
+	case StandardCharsets_ISO_8859_1:
+		if javalang.IsASCII(s) {
+			w.writeDirectString(s)
+			return
 		}
-		return
-	}
-	if (w.cs == StandardCharsets_UTF_8 || w.cs == StandardCharsets_US_ASCII || w.cs == StandardCharsets_ISO_8859_1) &&
-		len(s) <= charsetWriterBufSize {
-		buf := w.ensureBuf()
-		if w.n+len(s) > charsetWriterBufSize {
-			w.flushBuf()
+		if len(s) <= charsetWriterBufSize {
+			buf := w.ensureBuf()
+			if w.n+len(s) > charsetWriterBufSize {
+				w.flushBuf()
+			}
+			out := appendISO88591NonPure(buf[w.n:w.n], s)
+			w.n += len(out)
+			return
 		}
-		out := w.cs.AppendEncoded(buf[w.n:w.n], s)
-		w.n += len(out)
-		return
 	}
 	enc := w.cs.Encode(s)
 	if len(enc) >= charsetWriterBufSize {
@@ -582,16 +615,24 @@ func (w *charsetWriter) WriteChars(cbuf []uint16, off, length int) {
 	sub := cbuf[off : off+length]
 	if w.cs == StandardCharsets_UTF_8 || w.cs == StandardCharsets_US_ASCII || w.cs == StandardCharsets_ISO_8859_1 {
 		buf := w.ensureBuf()
-		for i, u := range sub {
-			if u >= 0x80 {
-				w.Write(javalang.StringFromUTF16(sub[i:]))
-				return
-			}
+		i := 0
+		for i < len(sub) {
 			if w.n == charsetWriterBufSize {
 				w.flushBuf()
 			}
-			buf[w.n] = byte(u)
-			w.n++
+			chunk := min(len(sub)-i, charsetWriterBufSize-w.n)
+			dst := buf[w.n : w.n+chunk]
+			src := sub[i : i+chunk]
+			for j, u := range src {
+				if u >= 0x80 {
+					w.n += j
+					w.Write(javalang.StringFromUTF16(sub[i+j:]))
+					return
+				}
+				dst[j] = byte(u)
+			}
+			w.n += chunk
+			i += chunk
 		}
 		return
 	}
@@ -603,6 +644,9 @@ func (w *charsetWriter) Flush() {
 		panic(javaio.NewIOException("Stream closed"))
 	}
 	w.flushBuf()
+	if _, ok := w.out.(*javaio.FileOutputStream); ok {
+		return
+	}
 	if f, ok := w.out.(interface{ Flush() error }); ok {
 		if err := f.Flush(); err != nil {
 			panic(javaio.NewIOException(err.Error()))
@@ -960,6 +1004,26 @@ func (utf8Ops) canEncodeChar(uint16) bool { return true }
 type asciiOps struct{}
 
 func appendASCIINonPure(out []byte, s string) []byte {
+	if utf8.ValidString(s) {
+		start := 0
+		for i := 0; i < len(s); {
+			if s[i] < 0x80 {
+				i++
+				continue
+			}
+			if i > start {
+				out = append(out, s[start:i]...)
+			}
+			_, sz := utf8.DecodeRuneInString(s[i:])
+			out = append(out, '?')
+			i += sz
+			start = i
+		}
+		if start < len(s) {
+			out = append(out, s[start:]...)
+		}
+		return out
+	}
 	units := javalang.StringToUTF16(s)
 	for i := 0; i < len(units); i++ {
 		c := units[i]
@@ -1010,6 +1074,30 @@ func (asciiOps) canEncodeChar(ch uint16) bool { return ch < 0x80 }
 type iso88591Ops struct{}
 
 func appendISO88591NonPure(out []byte, s string) []byte {
+	if utf8.ValidString(s) {
+		start := 0
+		for i := 0; i < len(s); {
+			if s[i] < 0x80 {
+				i++
+				continue
+			}
+			if i > start {
+				out = append(out, s[start:i]...)
+			}
+			r, sz := utf8.DecodeRuneInString(s[i:])
+			if r <= 0xFF {
+				out = append(out, byte(r))
+			} else {
+				out = append(out, '?')
+			}
+			i += sz
+			start = i
+		}
+		if start < len(s) {
+			out = append(out, s[start:]...)
+		}
+		return out
+	}
 	units := javalang.StringToUTF16(s)
 	for i := 0; i < len(units); i++ {
 		c := units[i]

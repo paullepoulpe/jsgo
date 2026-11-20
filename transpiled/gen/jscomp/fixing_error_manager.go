@@ -113,7 +113,7 @@ func (this_ *FixingErrorManager) Report_2(level *CheckLevel, error_ *JSError) {
 }
 
 // Java method: FixingErrorManager.containsFixableShorthandModuleWarning()
-func (this_ *FixingErrorManager) priv_FixingErrorManager_containsFixableShorthandModuleWarning_7933() bool {
+func (this_ *FixingErrorManager) priv_FixingErrorManager_containsFixableShorthandModuleWarning_7938() bool {
 	{
 		cur_1 := this_.sureFixes.IterKeys()
 		for cur_1.HasNext() {
@@ -151,9 +151,9 @@ func (this_ *FixingErrorManager) GetFixesForJsError(error_ *JSError) j2gort.Ext_
 }
 
 // Java method: FixingErrorManager.getFixes(com.google.javascript.refactoring.FixingErrorManager.FixTypes fixTypes)
-func (this_ *FixingErrorManager) priv_FixingErrorManager_getFixes_7935(fixTypes FixingErrorManager_FixTypes) j2gort.Ext_java_util_Collection {
+func (this_ *FixingErrorManager) priv_FixingErrorManager_getFixes_7940(fixTypes FixingErrorManager_FixTypes) j2gort.Ext_java_util_Collection {
 	_ = fixTypes
-	var containsFixableShorthandModuleWarning bool = this_.priv_FixingErrorManager_containsFixableShorthandModuleWarning_7933()
+	var containsFixableShorthandModuleWarning bool = this_.priv_FixingErrorManager_containsFixableShorthandModuleWarning_7938()
 	_ = containsFixableShorthandModuleWarning
 	var fixes []*SuggestedFix = []*SuggestedFix{}
 	_ = fixes
@@ -194,12 +194,12 @@ func (this_ *FixingErrorManager) priv_FixingErrorManager_getFixes_7935(fixTypes 
 
 // Java method: FixingErrorManager.getSureFixes()
 func (this_ *FixingErrorManager) GetSureFixes() j2gort.Ext_java_util_Collection {
-	return this_.priv_FixingErrorManager_getFixes_7935(StaticGet_FixingErrorManager_FixTypes_ONE_FIX())
+	return this_.priv_FixingErrorManager_getFixes_7940(StaticGet_FixingErrorManager_FixTypes_ONE_FIX())
 }
 
 // Java method: FixingErrorManager.getAllFixes()
 func (this_ *FixingErrorManager) GetAllFixes() j2gort.Ext_java_util_Collection {
-	return this_.priv_FixingErrorManager_getFixes_7935(StaticGet_FixingErrorManager_FixTypes_ONE_FIX_AND_MULTI_FIXES())
+	return this_.priv_FixingErrorManager_getFixes_7940(StaticGet_FixingErrorManager_FixTypes_ONE_FIX_AND_MULTI_FIXES())
 }
 
 // Java method: FixingErrorManager.printSummary()

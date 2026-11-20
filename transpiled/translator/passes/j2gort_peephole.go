@@ -7409,7 +7409,8 @@ func (p *J2gortPeepholePass) rewriteNodeUtilHasNodeLambdas(ctx *PassContext) (in
 		return 0, nil
 	}
 	j2Qual := extractPredTestNodeQualifier(hasDecl.Body)
-	if j2Qual == "" || !bodyHasIdentNamed(hasDecl.Body, "GetFirstChild") || !bodyHasIdentNamed(hasDecl.Body, "GetNext") {
+	hasAlreadyUnwrapped := bodyHasIdentNamed(hasDecl.Body, "UnwrapNodePred")
+	if j2Qual == "" || (!hasAlreadyUnwrapped && (!bodyHasIdentNamed(hasDecl.Body, "GetFirstChild") || !bodyHasIdentNamed(hasDecl.Body, "GetNext"))) {
 		return 0, nil
 	}
 	var nodeTypeBuf, predTypeBuf bytes.Buffer
@@ -7427,6 +7428,8 @@ func (p *J2gortPeepholePass) rewriteNodeUtilHasNodeLambdas(ctx *PassContext) (in
 		helperPred           = "nodeUtilHasPredFn_"
 		helperTrav           = "nodeUtilHasTravFn_"
 		helperBoth           = "nodeUtilHasBothFn_"
+		helperSlowAlwaysTrue = "nodeUtilHasSlowAlwaysTrue_"
+		helperSlow           = "nodeUtilHasSlow_"
 	)
 	needHelper := make(map[string]bool)
 	total := 0
@@ -7454,6 +7457,54 @@ func (p *J2gortPeepholePass) rewriteNodeUtilHasNodeLambdas(ctx *PassContext) (in
 		}
 		if fileModified {
 			ctx.MarkFileModified(file)
+		}
+	}
+
+	// Wave 44B: Unwrap NodeLambda predicates and AlwaysTrue ONCE at NodeUtil_Has entry when j2gort
+	// exports UnwrapNodePred and IsAlwaysTruePred, eliminating per-node PredTestNode interface dispatch.
+	if !bodyHasIdentNamed(hasDecl.Body, "UnwrapNodePred") &&
+		j2gortSupportsNodePredUnwrap(ctx, predT) &&
+		len(hasDecl.Type.Params.List) == 3 &&
+		len(hasDecl.Type.Params.List[0].Names) == 1 &&
+		len(hasDecl.Type.Params.List[1].Names) == 1 &&
+		len(hasDecl.Type.Params.List[2].Names) == 1 {
+		nodeP := hasDecl.Type.Params.List[0].Names[0].Name
+		predP := hasDecl.Type.Params.List[1].Names[0].Name
+		travP := hasDecl.Type.Params.List[2].Names[0].Name
+		if nodeP != "" && nodeP != "_" && predP != "" && predP != "_" && travP != "" && travP != "_" {
+			dispatchSrc := fmt.Sprintf(`package p
+func f() bool {
+	if predFn_ := %[4]s.UnwrapNodePred(%[2]s); predFn_ != nil {
+		if %[4]s.IsAlwaysTruePred(%[3]s) {
+			return %[5]s(%[1]s, predFn_)
+		}
+		if travFn_ := %[4]s.UnwrapNodePred(%[3]s); travFn_ != nil {
+			return %[8]s(%[1]s, predFn_, travFn_)
+		}
+		return %[6]s(%[1]s, predFn_, %[3]s)
+	}
+	if %[4]s.IsAlwaysTruePred(%[3]s) {
+		return %[9]s(%[1]s, %[2]s)
+	}
+	if travFn_ := %[4]s.UnwrapNodePred(%[3]s); travFn_ != nil {
+		return %[7]s(%[1]s, %[2]s, travFn_)
+	}
+	return %[10]s(%[1]s, %[2]s, %[3]s)
+}
+`, nodeP, predP, travP, j2Qual, helperPredAlwaysTrue, helperPred, helperTrav, helperBoth, helperSlowAlwaysTrue, helperSlow)
+			pf, err := parser.ParseFile(ctx.Fset, "", dispatchSrc, 0)
+			if err != nil {
+				return total, err
+			}
+			hasDecl.Body.List = pf.Decls[0].(*ast.FuncDecl).Body.List
+			needHelper[helperPredAlwaysTrue] = true
+			needHelper[helperPred] = true
+			needHelper[helperTrav] = true
+			needHelper[helperBoth] = true
+			needHelper[helperSlowAlwaysTrue] = true
+			needHelper[helperSlow] = true
+			ctx.MarkFileModified(hasFile)
+			total++
 		}
 	}
 
@@ -7531,6 +7582,37 @@ func (p *J2gortPeepholePass) rewriteNodeUtilHasNodeLambdas(ctx *PassContext) (in
 	return false
 }`, helperBoth, nodeTypeSrc),
 		},
+		{
+			name: helperSlowAlwaysTrue,
+			code: fmt.Sprintf(`func %[1]s(node %[2]s, pred %[3]s) bool {
+	if %[4]s.PredTestNode(pred, uint32(node)) {
+		return true
+	}
+	for c := node.GetFirstChild(); c != 0; c = c.GetNext() {
+		if %[1]s(c, pred) {
+			return true
+		}
+	}
+	return false
+}`, helperSlowAlwaysTrue, nodeTypeSrc, predTypeSrc, j2Qual),
+		},
+		{
+			name: helperSlow,
+			code: fmt.Sprintf(`func %[1]s(node %[2]s, pred %[3]s, traverseChildrenPred %[3]s) bool {
+	if %[4]s.PredTestNode(pred, uint32(node)) {
+		return true
+	}
+	if !%[4]s.PredTestNode(traverseChildrenPred, uint32(node)) {
+		return false
+	}
+	for c := node.GetFirstChild(); c != 0; c = c.GetNext() {
+		if %[1]s(c, pred, traverseChildrenPred) {
+			return true
+		}
+	}
+	return false
+}`, helperSlow, nodeTypeSrc, predTypeSrc, j2Qual),
+		},
 	}
 
 	var specs []funcInsertSpec
@@ -7551,6 +7633,34 @@ func (p *J2gortPeepholePass) rewriteNodeUtilHasNodeLambdas(ctx *PassContext) (in
 	return total, nil
 }
 
+func j2gortSupportsNodePredUnwrap(ctx *PassContext, predT types.Type) bool {
+	j2Pkg := findJ2gortTypesPkg(ctx)
+	if j2Pkg == nil || j2Pkg.Scope() == nil || predT == nil {
+		return false
+	}
+	unwrapFn, okU := j2Pkg.Scope().Lookup("UnwrapNodePred").(*types.Func)
+	alwaysFn, okA := j2Pkg.Scope().Lookup("IsAlwaysTruePred").(*types.Func)
+	if !okU || unwrapFn == nil || !okA || alwaysFn == nil {
+		return false
+	}
+	uSig, okUS := unwrapFn.Type().(*types.Signature)
+	aSig, okAS := alwaysFn.Type().(*types.Signature)
+	if !okUS || !okAS || uSig.Params().Len() != 1 || uSig.Results().Len() != 1 ||
+		aSig.Params().Len() != 1 || aSig.Results().Len() != 1 {
+		return false
+	}
+	if !types.AssignableTo(predT, uSig.Params().At(0).Type()) || !types.AssignableTo(predT, aSig.Params().At(0).Type()) {
+		return false
+	}
+	if !types.Identical(aSig.Results().At(0).Type(), types.Typ[types.Bool]) {
+		return false
+	}
+	resSig, okRS := types.Unalias(uSig.Results().At(0).Type()).(*types.Signature)
+	return okRS && resSig.Params().Len() == 1 && resSig.Results().Len() == 1 &&
+		types.Identical(resSig.Params().At(0).Type(), types.Typ[types.Uint32]) &&
+		types.Identical(resSig.Results().At(0).Type(), types.Typ[types.Bool])
+}
+
 func extractPredTestNodeQualifier(body *ast.BlockStmt) string {
 	qual := ""
 	ast.Inspect(body, func(n ast.Node) bool {
@@ -7558,7 +7668,7 @@ func extractPredTestNodeQualifier(body *ast.BlockStmt) string {
 			return false
 		}
 		sel, ok := n.(*ast.SelectorExpr)
-		if !ok || sel.Sel == nil || sel.Sel.Name != "PredTestNode" {
+		if !ok || sel.Sel == nil || (sel.Sel.Name != "PredTestNode" && sel.Sel.Name != "UnwrapNodePred") {
 			return true
 		}
 		if id, okI := stripParens(sel.X).(*ast.Ident); okI {

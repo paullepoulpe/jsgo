@@ -186,37 +186,37 @@ func InitCheckPathsBetweenNodes_5[N comparable, E any](this_ *CheckPathsBetweenN
 
 // Java method: CheckPathsBetweenNodes.allPathsSatisfyPredicate()
 func (this_ *CheckPathsBetweenNodes[N, E]) AllPathsSatisfyPredicate() bool {
-	this_.priv_CheckPathsBetweenNodes_setUp_6282()
-	var result bool = this_.priv_CheckPathsBetweenNodes_checkAllPathsWithoutBackEdges_6286(this_.start, this_.end)
+	this_.priv_CheckPathsBetweenNodes_setUp_6287()
+	var result bool = this_.priv_CheckPathsBetweenNodes_checkAllPathsWithoutBackEdges_6291(this_.start, this_.end)
 	_ = result
-	this_.priv_CheckPathsBetweenNodes_tearDown_6283()
+	this_.priv_CheckPathsBetweenNodes_tearDown_6288()
 	return result
 }
 
 // Java method: CheckPathsBetweenNodes.somePathsSatisfyPredicate()
 func (this_ *CheckPathsBetweenNodes[N, E]) SomePathsSatisfyPredicate() bool {
-	this_.priv_CheckPathsBetweenNodes_setUp_6282()
-	var result bool = this_.priv_CheckPathsBetweenNodes_checkSomePathsWithoutBackEdges_6287(this_.start, this_.end)
+	this_.priv_CheckPathsBetweenNodes_setUp_6287()
+	var result bool = this_.priv_CheckPathsBetweenNodes_checkSomePathsWithoutBackEdges_6292(this_.start, this_.end)
 	_ = result
-	this_.priv_CheckPathsBetweenNodes_tearDown_6283()
+	this_.priv_CheckPathsBetweenNodes_tearDown_6288()
 	return result
 }
 
 // Java method: CheckPathsBetweenNodes.setUp()
-func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_setUp_6282() {
+func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_setUp_6287() {
 	this_.graph.PushNodeAnnotations()
 	this_.graph.PushEdgeAnnotations()
-	this_.priv_CheckPathsBetweenNodes_discoverBackEdges_6284(this_.start)
+	this_.priv_CheckPathsBetweenNodes_discoverBackEdges_6289(this_.start)
 }
 
 // Java method: CheckPathsBetweenNodes.tearDown()
-func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_tearDown_6283() {
+func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_tearDown_6288() {
 	this_.graph.PopNodeAnnotations()
 	this_.graph.PopEdgeAnnotations()
 }
 
 // Java method: CheckPathsBetweenNodes.discoverBackEdges(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E> u)
-func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_discoverBackEdges_6284(u DiGraph_DiGraphNode[N, E]) {
+func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_discoverBackEdges_6289(u DiGraph_DiGraphNode[N, E]) {
 	_ = u
 	u.SetAnnotation(StaticGet_CheckPathsBetweenNodes_GRAY())
 	{
@@ -225,13 +225,13 @@ func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_discoverB
 			rawElem_2 := cur_1.Next()
 			e := j2gort.AsIface[DiGraph_DiGraphEdge[N, E]](rawElem_2)
 			_ = e
-			if this_.priv_CheckPathsBetweenNodes_ignoreEdge_6285(e) {
+			if this_.priv_CheckPathsBetweenNodes_ignoreEdge_6290(e) {
 				continue
 			}
 			var v DiGraph_DiGraphNode[N, E] = e.GetDestination()
 			_ = v
 			if j2gort.IfaceEquals[Annotation](v.GetAnnotation(), StaticGet_CheckPathsBetweenNodes_WHITE()) {
-				this_.priv_CheckPathsBetweenNodes_discoverBackEdges_6284(v)
+				this_.priv_CheckPathsBetweenNodes_discoverBackEdges_6289(v)
 			} else if j2gort.IfaceEquals[Annotation](v.GetAnnotation(), StaticGet_CheckPathsBetweenNodes_GRAY()) {
 				e.SetAnnotation(StaticGet_CheckPathsBetweenNodes_BACK_EDGE())
 			}
@@ -241,13 +241,13 @@ func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_discoverB
 }
 
 // Java method: CheckPathsBetweenNodes.ignoreEdge(com.google.javascript.jscomp.graph.DiGraph.DiGraphEdge<N,E> e)
-func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_ignoreEdge_6285(e DiGraph_DiGraphEdge[N, E]) bool {
+func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_ignoreEdge_6290(e DiGraph_DiGraphEdge[N, E]) bool {
 	_ = e
 	return !(this_.edgePredicate.Apply(e))
 }
 
 // Java method: CheckPathsBetweenNodes.checkAllPathsWithoutBackEdges(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E> a, com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E> b)
-func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_checkAllPathsWithoutBackEdges_6286(a DiGraph_DiGraphNode[N, E], b DiGraph_DiGraphNode[N, E]) bool {
+func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_checkAllPathsWithoutBackEdges_6291(a DiGraph_DiGraphNode[N, E], b DiGraph_DiGraphNode[N, E]) bool {
 	_ = a
 	_ = b
 	if this_.nodePredicate.Apply(j2gort.ToAny(a.GetValue())) && (this_.inclusive || (!(a == this_.start || ((a == nil || a.IsJavaNil_()) && (this_.start == nil || this_.start.IsJavaNil_()))) && !(a == this_.end || ((a == nil || a.IsJavaNil_()) && (this_.end == nil || this_.end.IsJavaNil_()))))) {
@@ -265,7 +265,7 @@ func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_checkAllP
 			if j2gort.IfaceEquals[Annotation](e.GetAnnotation(), StaticGet_CheckPathsBetweenNodes_VISITED_EDGE()) {
 				continue
 			}
-			if this_.priv_CheckPathsBetweenNodes_ignoreEdge_6285(e) {
+			if this_.priv_CheckPathsBetweenNodes_ignoreEdge_6290(e) {
 				continue
 			}
 			if j2gort.IfaceEquals[Annotation](e.GetAnnotation(), StaticGet_CheckPathsBetweenNodes_BACK_EDGE()) {
@@ -274,7 +274,7 @@ func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_checkAllP
 			e.SetAnnotation(StaticGet_CheckPathsBetweenNodes_VISITED_EDGE())
 			var next DiGraph_DiGraphNode[N, E] = e.GetDestination()
 			_ = next
-			if !(this_.priv_CheckPathsBetweenNodes_checkAllPathsWithoutBackEdges_6286(next, b)) {
+			if !(this_.priv_CheckPathsBetweenNodes_checkAllPathsWithoutBackEdges_6291(next, b)) {
 				return false
 			}
 		}
@@ -283,7 +283,7 @@ func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_checkAllP
 }
 
 // Java method: CheckPathsBetweenNodes.checkSomePathsWithoutBackEdges(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E> a, com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E> b)
-func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_checkSomePathsWithoutBackEdges_6287(a DiGraph_DiGraphNode[N, E], b DiGraph_DiGraphNode[N, E]) bool {
+func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_checkSomePathsWithoutBackEdges_6292(a DiGraph_DiGraphNode[N, E], b DiGraph_DiGraphNode[N, E]) bool {
 	_ = a
 	_ = b
 	if this_.nodePredicate.Apply(j2gort.ToAny(a.GetValue())) && (this_.inclusive || (!(a == this_.start || ((a == nil || a.IsJavaNil_()) && (this_.start == nil || this_.start.IsJavaNil_()))) && !(a == this_.end || ((a == nil || a.IsJavaNil_()) && (this_.end == nil || this_.end.IsJavaNil_()))))) {
@@ -301,7 +301,7 @@ func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_checkSome
 			if j2gort.IfaceEquals[Annotation](e.GetAnnotation(), StaticGet_CheckPathsBetweenNodes_VISITED_EDGE()) {
 				continue
 			}
-			if this_.priv_CheckPathsBetweenNodes_ignoreEdge_6285(e) {
+			if this_.priv_CheckPathsBetweenNodes_ignoreEdge_6290(e) {
 				continue
 			}
 			if j2gort.IfaceEquals[Annotation](e.GetAnnotation(), StaticGet_CheckPathsBetweenNodes_BACK_EDGE()) {
@@ -310,7 +310,7 @@ func (this_ *CheckPathsBetweenNodes[N, E]) priv_CheckPathsBetweenNodes_checkSome
 			e.SetAnnotation(StaticGet_CheckPathsBetweenNodes_VISITED_EDGE())
 			var next DiGraph_DiGraphNode[N, E] = e.GetDestination()
 			_ = next
-			if this_.priv_CheckPathsBetweenNodes_checkSomePathsWithoutBackEdges_6287(next, b) {
+			if this_.priv_CheckPathsBetweenNodes_checkSomePathsWithoutBackEdges_6292(next, b) {
 				return true
 			}
 		}

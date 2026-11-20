@@ -380,18 +380,18 @@ func (this_ *SuggestedFix_Builder) InsertBefore_4(nodeToInsertBefore pkg_rhino.N
 	_ = n
 	_ = compiler
 	_ = sortKey
-	return this_.priv_Builder_insertBefore_7988(nodeToInsertBefore, this_.GenerateCode(compiler, n), sortKey)
+	return this_.priv_Builder_insertBefore_7993(nodeToInsertBefore, this_.GenerateCode(compiler, n), sortKey)
 }
 
 // Java method: Builder.insertBefore(com.google.javascript.rhino.Node nodeToInsertBefore, java.lang.String content)
 func (this_ *SuggestedFix_Builder) InsertBefore_2(nodeToInsertBefore pkg_rhino.Node, content string) *SuggestedFix_Builder {
 	_ = nodeToInsertBefore
 	_ = content
-	return this_.priv_Builder_insertBefore_7988(nodeToInsertBefore, content, "")
+	return this_.priv_Builder_insertBefore_7993(nodeToInsertBefore, content, "")
 }
 
 // Java method: Builder.insertBefore(com.google.javascript.rhino.Node nodeToInsertBefore, java.lang.String content, java.lang.String sortKey)
-func (this_ *SuggestedFix_Builder) priv_Builder_insertBefore_7988(nodeToInsertBefore pkg_rhino.Node, content string, sortKey string) *SuggestedFix_Builder {
+func (this_ *SuggestedFix_Builder) priv_Builder_insertBefore_7993(nodeToInsertBefore pkg_rhino.Node, content string, sortKey string) *SuggestedFix_Builder {
 	_ = nodeToInsertBefore
 	_ = content
 	_ = sortKey
@@ -405,11 +405,11 @@ func (this_ *SuggestedFix_Builder) priv_Builder_insertBefore_7988(nodeToInsertBe
 // Java method: Builder.delete(com.google.javascript.rhino.Node n)
 func (this_ *SuggestedFix_Builder) Delete_1(n pkg_rhino.Node) *SuggestedFix_Builder {
 	_ = n
-	return this_.priv_Builder_delete_7990(n, true)
+	return this_.priv_Builder_delete_7995(n, true)
 }
 
 // Java method: Builder.delete(com.google.javascript.rhino.Node n, boolean deleteWhitespaceBefore)
-func (this_ *SuggestedFix_Builder) priv_Builder_delete_7990(n pkg_rhino.Node, deleteWhitespaceBefore bool) *SuggestedFix_Builder {
+func (this_ *SuggestedFix_Builder) priv_Builder_delete_7995(n pkg_rhino.Node, deleteWhitespaceBefore bool) *SuggestedFix_Builder {
 	_ = n
 	_ = deleteWhitespaceBefore
 	var startPosition int32 = SuggestedFix_GetStartPositionForNodeConsideringComments(n)
@@ -466,7 +466,7 @@ func (this_ *SuggestedFix_Builder) priv_Builder_delete_7990(n pkg_rhino.Node, de
 // Java method: Builder.deleteWithoutRemovingWhitespaceBefore(com.google.javascript.rhino.Node n)
 func (this_ *SuggestedFix_Builder) DeleteWithoutRemovingWhitespaceBefore(n pkg_rhino.Node) *SuggestedFix_Builder {
 	_ = n
-	return this_.priv_Builder_delete_7990(n, false)
+	return this_.priv_Builder_delete_7995(n, false)
 }
 
 // Java method: Builder.deleteWithoutRemovingWhitespace(com.google.javascript.rhino.Node n)
@@ -643,13 +643,13 @@ func (this_ *SuggestedFix_Builder) ChangeJsDocType(n pkg_rhino.Node, compiler Ab
 	if newJsType == nil || newJsType.IsJavaNil_() {
 		panic(j2gort.AsIface[javalang.IRuntimeException](j2gort.ConstructShimThrowable("java.lang.RuntimeException", "JS Compiler does not recognize type: "+j2gort.StrValString(type_))))
 	}
-	this_.priv_Builder_replaceTypePattern_8001(n, type_, j2gort.Ext_java_util_regex_Pattern_Compile_1("@(type) *\\{?[^@\\s}]+\\}?"))
-	this_.priv_Builder_replaceTypePattern_8001(n, type_, j2gort.Ext_java_util_regex_Pattern_Compile_1("@(export|package|private|protected|public|const|return) *\\{[^}]+\\}"))
+	this_.priv_Builder_replaceTypePattern_8006(n, type_, j2gort.Ext_java_util_regex_Pattern_Compile_1("@(type) *\\{?[^@\\s}]+\\}?"))
+	this_.priv_Builder_replaceTypePattern_8006(n, type_, j2gort.Ext_java_util_regex_Pattern_Compile_1("@(export|package|private|protected|public|const|return) *\\{[^}]+\\}"))
 	return this_
 }
 
 // Java method: Builder.replaceTypePattern(com.google.javascript.rhino.Node n, java.lang.String type, java.util.regex.Pattern pattern)
-func (this_ *SuggestedFix_Builder) priv_Builder_replaceTypePattern_8001(n pkg_rhino.Node, type_ string, pattern *j2gort.Ext_java_util_regex_Pattern) {
+func (this_ *SuggestedFix_Builder) priv_Builder_replaceTypePattern_8006(n pkg_rhino.Node, type_ string, pattern *j2gort.Ext_java_util_regex_Pattern) {
 	_ = n
 	_ = type_
 	_ = pattern

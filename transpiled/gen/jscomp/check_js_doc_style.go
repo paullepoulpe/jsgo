@@ -273,25 +273,25 @@ func (this_ *CheckJSDocStyle) Visit_3(t *NodeTraversal, n pkg_rhino.Node, unused
 	_ = unused
 	switch n.TokenSwitchOrd_() {
 	case int32(73) /* Token.FUNCTION */ :
-		this_.priv_CheckJSDocStyle_visitFunction_6573(t, n)
+		this_.priv_CheckJSDocStyle_visitFunction_6578(t, n)
 	case int32(105) /* Token.CLASS */ :
-		this_.priv_CheckJSDocStyle_visitClass_6574(t, n)
+		this_.priv_CheckJSDocStyle_visitClass_6579(t, n)
 	case int32(51) /* Token.ASSIGN */ :
-		this_.priv_CheckJSDocStyle_checkStyleForPrivateProperties_6572(t, n)
+		this_.priv_CheckJSDocStyle_checkStyleForPrivateProperties_6577(t, n)
 	case int32(84) /* Token.VAR */, int32(111) /* Token.LET */, int32(97) /* Token.CONST */, int32(100) /* Token.STRING_KEY */ :
 	case int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */ :
 		if NodeUtil_GetEnclosingClass(n) != 0 {
-			this_.priv_CheckJSDocStyle_checkStyleForPrivateProperties_6572(t, n)
+			this_.priv_CheckJSDocStyle_checkStyleForPrivateProperties_6577(t, n)
 		}
 	case int32(94) /* Token.SCRIPT */ :
-		this_.priv_CheckJSDocStyle_checkLicenseComment_6584(t, n)
+		this_.priv_CheckJSDocStyle_checkLicenseComment_6589(t, n)
 	default:
-		this_.priv_CheckJSDocStyle_visitNonFunction_6571(t, n)
+		this_.priv_CheckJSDocStyle_visitNonFunction_6576(t, n)
 	}
 }
 
 // Java method: CheckJSDocStyle.checkForAtSignCodePresence(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo jsDoc)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkForAtSignCodePresence_6570(t *NodeTraversal, n pkg_rhino.Node, jsDoc *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkForAtSignCodePresence_6575(t *NodeTraversal, n pkg_rhino.Node, jsDoc *pkg_rhino.JSDocInfo) {
 	_ = t
 	_ = n
 	_ = jsDoc
@@ -304,21 +304,21 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkForAtSignCodePresence_65
 }
 
 // Java method: CheckJSDocStyle.visitNonFunction(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_visitNonFunction_6571(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_visitNonFunction_6576(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	var jsDoc *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 	_ = jsDoc
-	this_.priv_CheckJSDocStyle_checkForAtSignCodePresence_6570(t, n, jsDoc)
+	this_.priv_CheckJSDocStyle_checkForAtSignCodePresence_6575(t, n, jsDoc)
 }
 
 // Java method: CheckJSDocStyle.checkStyleForPrivateProperties(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkStyleForPrivateProperties_6572(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkStyleForPrivateProperties_6577(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	var jsDoc *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(n)
 	_ = jsDoc
-	this_.priv_CheckJSDocStyle_checkForAtSignCodePresence_6570(t, n, jsDoc)
+	this_.priv_CheckJSDocStyle_checkForAtSignCodePresence_6575(t, n, jsDoc)
 }
 
 // Java static method: CheckJSDocStyle.checkNoTypeOnGettersAndSetters(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node function, com.google.javascript.rhino.JSDocInfo jsDoc)
@@ -339,30 +339,30 @@ func CheckJSDocStyle_CheckNoTypeOnGettersAndSetters(t *NodeTraversal, function p
 }
 
 // Java method: CheckJSDocStyle.visitFunction(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node function)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_visitFunction_6573(t *NodeTraversal, function pkg_rhino.Node) {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_visitFunction_6578(t *NodeTraversal, function pkg_rhino.Node) {
 	_ = t
 	_ = function
 	var jsDoc *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(function)
 	_ = jsDoc
-	this_.priv_CheckJSDocStyle_checkForAtSignCodePresence_6570(t, function, jsDoc)
-	if (jsDoc == nil) && !(this_.priv_CheckJSDocStyle_hasAnyInlineJsDoc_6582(function)) {
-		this_.priv_CheckJSDocStyle_checkMissingJsDoc_6575(t, function)
+	this_.priv_CheckJSDocStyle_checkForAtSignCodePresence_6575(t, function, jsDoc)
+	if (jsDoc == nil) && !(this_.priv_CheckJSDocStyle_hasAnyInlineJsDoc_6587(function)) {
+		this_.priv_CheckJSDocStyle_checkMissingJsDoc_6580(t, function)
 	} else {
-		if (((t.InGlobalScope() || this_.priv_CheckJSDocStyle_hasAnyInlineJsDoc_6582(function)) || (jsDoc.GetParameterCount() > int32(0))) || jsDoc.HasReturnType()) || jsDoc.IsOverride() {
-			this_.priv_CheckJSDocStyle_checkParams_6579(t, function, jsDoc)
+		if (((t.InGlobalScope() || this_.priv_CheckJSDocStyle_hasAnyInlineJsDoc_6587(function)) || (jsDoc.GetParameterCount() > int32(0))) || jsDoc.HasReturnType()) || jsDoc.IsOverride() {
+			this_.priv_CheckJSDocStyle_checkParams_6584(t, function, jsDoc)
 		}
 		CheckJSDocStyle_CheckNoTypeOnGettersAndSetters(t, function, jsDoc)
-		this_.priv_CheckJSDocStyle_checkReturn_6583(function, jsDoc)
+		this_.priv_CheckJSDocStyle_checkReturn_6588(function, jsDoc)
 	}
 }
 
 // Java method: CheckJSDocStyle.visitClass(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node cls)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_visitClass_6574(t *NodeTraversal, cls pkg_rhino.Node) {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_visitClass_6579(t *NodeTraversal, cls pkg_rhino.Node) {
 	_ = t
 	_ = cls
 	var jsDoc *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(cls)
 	_ = jsDoc
-	this_.priv_CheckJSDocStyle_checkForAtSignCodePresence_6570(t, cls, jsDoc)
+	this_.priv_CheckJSDocStyle_checkForAtSignCodePresence_6575(t, cls, jsDoc)
 	if jsDoc == nil {
 		return
 	}
@@ -372,16 +372,16 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_visitClass_6574(t *NodeTraver
 }
 
 // Java method: CheckJSDocStyle.checkMissingJsDoc(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node function)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkMissingJsDoc_6575(t *NodeTraversal, function pkg_rhino.Node) {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkMissingJsDoc_6580(t *NodeTraversal, function pkg_rhino.Node) {
 	_ = t
 	_ = function
-	if this_.priv_CheckJSDocStyle_isFunctionThatShouldHaveJsDoc_6576(t, function) && !(this_.priv_CheckJSDocStyle_isTestMethod_6577(function)) {
+	if this_.priv_CheckJSDocStyle_isFunctionThatShouldHaveJsDoc_6581(t, function) && !(this_.priv_CheckJSDocStyle_isTestMethod_6582(function)) {
 		t.Report_3(function, StaticGet_CheckJSDocStyle_MISSING_JSDOC(), []string{})
 	}
 }
 
 // Java method: CheckJSDocStyle.isFunctionThatShouldHaveJsDoc(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node function)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_isFunctionThatShouldHaveJsDoc_6576(t *NodeTraversal, function pkg_rhino.Node) bool {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_isFunctionThatShouldHaveJsDoc_6581(t *NodeTraversal, function pkg_rhino.Node) bool {
 	_ = t
 	_ = function
 	if !(t.InGlobalHoistScope() || t.InModuleScope()) {
@@ -400,7 +400,7 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_isFunctionThatShouldHaveJsDoc
 		var memberNode pkg_rhino.Node = function.GetParent()
 		_ = memberNode
 		if memberNode.IsMemberFunctionDef() {
-			return !(this_.priv_CheckJSDocStyle_isConstructorWithoutParameters_6578(function))
+			return !(this_.priv_CheckJSDocStyle_isConstructorWithoutParameters_6583(function))
 		} else if memberNode.IsGetterDef() || memberNode.IsSetterDef() {
 			return true
 		}
@@ -409,7 +409,7 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_isFunctionThatShouldHaveJsDoc
 }
 
 // Java method: CheckJSDocStyle.isTestMethod(com.google.javascript.rhino.Node function)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_isTestMethod_6577(function pkg_rhino.Node) bool {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_isTestMethod_6582(function pkg_rhino.Node) bool {
 	_ = function
 	var bestLValue pkg_rhino.Node = NodeUtil_GetBestLValue(function)
 	_ = bestLValue
@@ -424,13 +424,13 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_isTestMethod_6577(function pk
 }
 
 // Java method: CheckJSDocStyle.isConstructorWithoutParameters(com.google.javascript.rhino.Node function)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_isConstructorWithoutParameters_6578(function pkg_rhino.Node) bool {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_isConstructorWithoutParameters_6583(function pkg_rhino.Node) bool {
 	_ = function
 	return (NodeUtil_IsEs6Constructor(function) && !(NodeUtil_GetFunctionParameters(function).HasChildren()))
 }
 
 // Java method: CheckJSDocStyle.checkParams(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node function, com.google.javascript.rhino.JSDocInfo jsDoc)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkParams_6579(t *NodeTraversal, function pkg_rhino.Node, jsDoc *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkParams_6584(t *NodeTraversal, function pkg_rhino.Node, jsDoc *pkg_rhino.JSDocInfo) {
 	_ = t
 	_ = function
 	_ = jsDoc
@@ -445,7 +445,7 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkParams_6579(t *NodeTrave
 		paramCountFromJsDoc = jsDoc.GetParameterCount()
 	}
 	if paramCountFromJsDoc == int32(0) {
-		this_.priv_CheckJSDocStyle_checkInlineParams_6580(t, function, jsDoc)
+		this_.priv_CheckJSDocStyle_checkInlineParams_6585(t, function, jsDoc)
 	} else {
 		var paramList pkg_rhino.Node = NodeUtil_GetFunctionParameters(function)
 		_ = paramList
@@ -471,7 +471,7 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkParams_6579(t *NodeTrave
 				_ = name
 				var paramType pkg_rhino.JSTypeExpression = jsDoc.GetParameterTypeAt(i)
 				_ = paramType
-				if this_.priv_CheckJSDocStyle_checkParam_6581(t, param, name, paramType) {
+				if this_.priv_CheckJSDocStyle_checkParam_6586(t, param, name, paramType) {
 					return
 				}
 				param = param.GetNext()
@@ -481,7 +481,7 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkParams_6579(t *NodeTrave
 }
 
 // Java method: CheckJSDocStyle.checkInlineParams(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node function, com.google.javascript.rhino.JSDocInfo fnJSDoc)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkInlineParams_6580(t *NodeTraversal, function pkg_rhino.Node, fnJSDoc *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkInlineParams_6585(t *NodeTraversal, function pkg_rhino.Node, fnJSDoc *pkg_rhino.JSDocInfo) {
 	_ = t
 	_ = function
 	_ = fnJSDoc
@@ -510,14 +510,14 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkInlineParams_6580(t *Nod
 				var paramType pkg_rhino.JSTypeExpression = jsDoc.GetType()
 				_ = paramType
 				j2gort.CheckNotNullVal(paramType)
-				this_.priv_CheckJSDocStyle_checkParam_6581(t, param, j2gort.NullString, paramType)
+				this_.priv_CheckJSDocStyle_checkParam_6586(t, param, j2gort.NullString, paramType)
 			}
 		}
 	}
 }
 
 // Java method: CheckJSDocStyle.checkParam(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node param, java.lang.@org.jspecify.annotations.Nullable String name, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSTypeExpression paramType)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkParam_6581(t *NodeTraversal, param pkg_rhino.Node, name string, paramType pkg_rhino.JSTypeExpression) bool {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkParam_6586(t *NodeTraversal, param pkg_rhino.Node, name string, paramType pkg_rhino.JSTypeExpression) bool {
 	_ = t
 	_ = param
 	_ = name
@@ -575,7 +575,7 @@ func CheckJSDocStyle_IsDefaultAssignedParamWithInlineJsDoc(param pkg_rhino.Node)
 }
 
 // Java method: CheckJSDocStyle.hasAnyInlineJsDoc(com.google.javascript.rhino.Node function)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_hasAnyInlineJsDoc_6582(function pkg_rhino.Node) bool {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_hasAnyInlineJsDoc_6587(function pkg_rhino.Node) bool {
 	_ = function
 	if function.GetFirstChild().GetJSDocInfo() != nil {
 		return true
@@ -593,7 +593,7 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_hasAnyInlineJsDoc_6582(functi
 }
 
 // Java method: CheckJSDocStyle.checkReturn(com.google.javascript.rhino.Node function, com.google.javascript.rhino.JSDocInfo jsDoc)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkReturn_6583(function pkg_rhino.Node, jsDoc *pkg_rhino.JSDocInfo) {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkReturn_6588(function pkg_rhino.Node, jsDoc *pkg_rhino.JSDocInfo) {
 	_ = function
 	_ = jsDoc
 	if (jsDoc != nil) && ((jsDoc.HasType() || jsDoc.IsConstructor()) || jsDoc.HasReturnType()) {
@@ -619,7 +619,7 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkReturn_6583(function pkg
 }
 
 // Java method: CheckJSDocStyle.checkLicenseComment(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkLicenseComment_6584(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkLicenseComment_6589(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if (n.GetJSDocInfo() == nil) || (n.GetJSDocInfo().GetLicense() == j2gort.NullString) {

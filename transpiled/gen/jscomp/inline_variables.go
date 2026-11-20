@@ -1101,7 +1101,7 @@ func (this_ *InlineVariables_VarExpert_InitialValueAnalysis) GetAliasedVar() *Va
 // Java class: com.google.javascript.jscomp.InlineVariables.InliningBehavior
 type InlineVariables_InliningBehavior struct {
 	outer_                            *InlineVariables
-	currentScopeHandledVarAnalysesMap j2gort.CustomOrderedMap[*Var, *InlineVariables_InlineVarAnalysis]                `gson:"currentScopeHandledVarAnalysesMap"`
+	currentScopeHandledVarAnalysesMap j2gort.OrderedMap[*Var, *InlineVariables_InlineVarAnalysis]                      `gson:"currentScopeHandledVarAnalysesMap"`
 	varToAliasRetryHandlersMap        *SimpleMultimap[*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler] `gson:"varToAliasRetryHandlersMap"`
 	idHash_                           atomic.Int32
 	scratchVarExpert_                 InlineVariables_VarExpert
@@ -1139,7 +1139,7 @@ func (*InlineVariables_InliningBehavior) Implements_jscomp_ReferenceCollector_Be
 func StaticGet_InlineVariables_InliningBehavior_MAX_MODERATE_MOTION_STEPS() int32 { return int32(5000) }
 func (this_ *InlineVariables_InliningBehavior) initFields_InlineVariables_InliningBehavior() {
 	_ = this_
-	this_.currentScopeHandledVarAnalysesMap = j2gort.NewCustomOrderedMap[*Var, *InlineVariables_InlineVarAnalysis]()
+	this_.currentScopeHandledVarAnalysesMap = j2gort.NewOrderedMap[*Var, *InlineVariables_InlineVarAnalysis]()
 	this_.varToAliasRetryHandlersMap = SimpleMultimap_Create_0[*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler]()
 }
 

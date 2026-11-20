@@ -78,9 +78,7 @@ type NodeStore struct {
 	blockAllocMu sync.Mutex
 
 	tcs              []*NodeColumn
-	tcSlab           []NodeColumn
 	origNames        []*NodeColumn
-	origNameSlab     []NodeColumn
 	len16Pages       []len16Record
 	lengthOverflows  []lenOverflowRecord
 	negLenNodes      atomic.Uint32

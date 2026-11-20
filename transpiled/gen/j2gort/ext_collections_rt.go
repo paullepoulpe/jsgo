@@ -16732,7 +16732,7 @@ func SliceUnmodifiableListLive[T any](p *[]T) Ext_java_util_List {
 }
 
 const orderedMapIndexThreshold = 12
-const orderedSetIndexThreshold = 8
+const orderedSetIndexThreshold = 16
 
 // OrderedSet is a slim value struct preserving Java LinkedHashSet insertion order
 // with zero inline array bloat and lazy backing-slice allocation on first Add.
@@ -16779,7 +16779,19 @@ func OrderedSetFromSet[T comparable](src OrderedSet[T]) OrderedSet[T] {
 		return OrderedSet[T]{}
 	}
 	var dst OrderedSet[T]
-	dst.order = make([]T, 0, max(4, int(n)))
+	if src.holes == 0 {
+		dst.order = make([]T, len(src.order))
+		copy(dst.order, src.order)
+		if len(dst.order) > orderedSetIndexThreshold {
+			m := make(map[T]int32, len(dst.order))
+			for i, x := range dst.order {
+				m[x] = int32(i + 1)
+			}
+			dst.idx = m
+		}
+		return dst
+	}
+	dst.order = make([]T, 0, int(n))
 	dst.AddAllSet(src)
 	return dst
 }
@@ -16896,7 +16908,7 @@ func (s *OrderedSet[T]) Add(v T) bool {
 	}
 	s.order = append(s.order, v)
 	if len(s.order) > orderedSetIndexThreshold {
-		m := make(map[T]int32, min(max(16, cap(s.order)), 256))
+		m := make(map[T]int32, min(max(32, cap(s.order)), 256))
 		for i, x := range s.order {
 			m[x] = int32(i + 1)
 		}
@@ -17457,7 +17469,7 @@ func (s *LocalOrderedSet[T]) Add(v T) bool {
 	s.items = append(s.items, v)
 	s.live++
 	if len(s.items) > orderedSetIndexThreshold {
-		m := make(map[T]int32, 16)
+		m := make(map[T]int32, min(max(32, cap(s.items)), 256))
 		for i, x := range s.items {
 			m[x] = int32(i + 1)
 		}
@@ -17740,18 +17752,37 @@ func nullValKindOf[V any]() uint8 {
 
 //go:noinline
 func checkNotNullGeneric[T any](v T) {
-	if isJavaNullGeneric(v) {
+	if isJavaNullGenericFast(v) {
 		ThrowNPE()
 	}
 }
 
 //go:noinline
 func isJavaNullGeneric[V any](v V) bool {
-	return any(v) == nil || isJavaNullMapValNonNil(v)
+	return isJavaNullGenericFast(v)
+}
+
+func isJavaNullGenericFast[V any](v V) bool {
+	x := any(v)
+	if x == nil {
+		return true
+	}
+	if s, ok := x.(string); ok {
+		return s == NullString
+	}
+	if nc, ok := x.(jJavaNilChecker); ok {
+		return nc.IsJavaNil_()
+	}
+	return isJavaNullMapValNonNil(v)
 }
 
 func isJavaNullMapVal[V any](v V) bool {
 	return any(v) == nil || isJavaNullMapValNonNil(v)
+}
+
+//go:noinline
+func isJavaNullReflectedNil(x any) bool {
+	return reflect.ValueOf(x).IsNil()
 }
 
 func isJavaNullMapValNonNil[V any](v V) bool {
@@ -17780,7 +17811,7 @@ func isJavaNullMapValNonNil[V any](v V) bool {
 		}
 		return false
 	case reflect.Slice, reflect.Map, reflect.Func, reflect.Chan:
-		return reflect.ValueOf(&v).Elem().IsNil()
+		return isJavaNullReflectedNil(v)
 	case reflect.Bool,
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint64, reflect.Uintptr,
@@ -22324,7 +22355,7 @@ func IdentityOrderedMapGetAny[K comparable, V any](m *IdentityOrderedMap[K, V], 
 }
 
 // IdentityOrderedSet is a slim 40-byte insertion-ordered set always using Go == reference identity
-// with lazy slice allocation and orderedSetIndexThreshold = 8 before allocating the Go map index.
+// with lazy slice allocation and orderedSetIndexThreshold = 16 before allocating the Go map index.
 type IdentityOrderedSet[T comparable] struct {
 	raw OrderedSet[T]
 }

@@ -302,10 +302,6 @@ func (f *columnField) Get(n Node) uint32 {
 }
 
 func (f *columnField) Set(n Node, v uint32) {
-	columnFieldSet(f, n, v, (*columnField).setSlow)
-}
-
-func columnFieldSet(f *columnField, n Node, v uint32, slow func(*columnField, Node, uint32)) {
 	if c := f[n>>blockShift].Load(); c != nil {
 		if v != 0 || c[n&blockMask] != 0 {
 			c[n&blockMask] = v
@@ -313,7 +309,7 @@ func columnFieldSet(f *columnField, n Node, v uint32, slow func(*columnField, No
 		return
 	}
 	if v != 0 {
-		slow(f, n, v)
+		f.setSlow(n, v)
 	}
 }
 
@@ -327,9 +323,9 @@ func (f *columnField) setSlow(n Node, v uint32) {
 		s := storeForNode(n)
 		switch f {
 		case &tcField:
-			c = s.addColumn(f, &s.tcs, &s.tcSlab, uint32(n))
+			c = s.addColumn(f, &s.tcs, uint32(n))
 		case &origNameField:
-			c = s.addColumn(f, &s.origNames, &s.origNameSlab, uint32(n))
+			c = s.addColumn(f, &s.origNames, uint32(n))
 		default:
 			panic("nodestore: unknown columnField")
 		}
@@ -337,7 +333,7 @@ func (f *columnField) setSlow(n Node, v uint32) {
 	c[n&blockMask] = v
 }
 
-func (s *NodeStore) addColumn(f *columnField, cols *[]*NodeColumn, slab *[]NodeColumn, id uint32) *NodeColumn {
+func (s *NodeStore) addColumn(f *columnField, cols *[]*NodeColumn, id uint32) *NodeColumn {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	k := int((id - s.base) >> blockShift)
@@ -345,17 +341,7 @@ func (s *NodeStore) addColumn(f *columnField, cols *[]*NodeColumn, slab *[]NodeC
 		*cols = append(*cols, nil)
 	}
 	if (*cols)[k] == nil {
-		var col *NodeColumn
-		if len(*slab) > 0 {
-			col = &(*slab)[0]
-			*slab = (*slab)[1:]
-		} else if !s.static && k >= 2 {
-			bundle := new([4]NodeColumn)
-			col = &bundle[0]
-			*slab = bundle[1:]
-		} else {
-			col = new(NodeColumn)
-		}
+		col := new(NodeColumn)
 		(*cols)[k] = col
 		f[id>>blockShift].Store(col)
 	}

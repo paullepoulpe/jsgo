@@ -143,19 +143,19 @@ func InitTemplateAstMatcher(this_ *TemplateAstMatcher, compiler AbstractCompiler
 	}
 	this_.topScope = compiler.GetTopScope()
 	this_.typeRegistry = j2gort.CheckNotNullPtr(compiler.GetTypeRegistry())
-	this_.templateStart = this_.priv_TemplateAstMatcher_initTemplate_5341(templateFunctionNode)
+	this_.templateStart = this_.priv_TemplateAstMatcher_initTemplate_5346(templateFunctionNode)
 	this_.typeMatchingStrategy = j2gort.CheckNotNullEnum(typeMatchingStrategy)
 }
 
 // Java method: TemplateAstMatcher.matches(com.google.javascript.rhino.Node n)
 func (this_ *TemplateAstMatcher) Matches(n pkg_rhino.Node) bool {
 	_ = n
-	if this_.priv_TemplateAstMatcher_matchesTemplateShape_5351(this_.templateStart, n) {
+	if this_.priv_TemplateAstMatcher_matchesTemplateShape_5356(this_.templateStart, n) {
 		if this_.paramNodeMatches.IsEmpty() && this_.localVarMatches.IsEmpty() {
 			return true
 		}
-		this_.priv_TemplateAstMatcher_reset_5345()
-		return this_.priv_TemplateAstMatcher_matchesTemplate_5353(this_.templateStart, n)
+		this_.priv_TemplateAstMatcher_reset_5350()
+		return this_.priv_TemplateAstMatcher_matchesTemplate_5358(this_.templateStart, n)
 	}
 	return false
 }
@@ -191,11 +191,11 @@ func (this_ *TemplateAstMatcher) GetTemplateNodeToMatchMap() j2gort.Ext_java_uti
 }
 
 // Java method: TemplateAstMatcher.initTemplate(com.google.javascript.rhino.Node templateFunctionNode)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_initTemplate_5341(templateFunctionNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_initTemplate_5346(templateFunctionNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = templateFunctionNode
 	var prepped pkg_rhino.Node = templateFunctionNode.CloneTree_0()
 	_ = prepped
-	this_.priv_TemplateAstMatcher_prepTemplatePlaceholders_5342(prepped)
+	this_.priv_TemplateAstMatcher_prepTemplatePlaceholders_5347(prepped)
 	var body pkg_rhino.Node = prepped.GetLastChild()
 	_ = body
 	var startNode pkg_rhino.Node = pkg_rhino.Node(0)
@@ -223,7 +223,7 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_initTemplate_5341(templ
 }
 
 // Java method: TemplateAstMatcher.prepTemplatePlaceholders(com.google.javascript.rhino.Node fn)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_prepTemplatePlaceholders_5342(fn pkg_rhino.Node) {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_prepTemplatePlaceholders_5347(fn pkg_rhino.Node) {
 	_ = fn
 	var locals j2gort.Ext_java_util_List = this_.templateLocals
 	_ = locals
@@ -257,7 +257,7 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_prepTemplatePlaceholder
 			j2gort.MapPutStr(paramTypes, name, type_)
 		}
 	}
-	this_.priv_TemplateAstMatcher_traverse_5344(fn, NewTemplateAstMatcher__Anon_97(this_, locals, params, paramTypes))
+	this_.priv_TemplateAstMatcher_traverse_5349(fn, NewTemplateAstMatcher__Anon_97(this_, locals, params, paramTypes))
 }
 
 // Java method: TemplateAstMatcher.replaceNodeInPlace(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node replacement)
@@ -273,7 +273,7 @@ func (this_ *TemplateAstMatcher) ReplaceNodeInPlace(n pkg_rhino.Node, replacemen
 }
 
 // Java method: TemplateAstMatcher.traverse(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.TemplateAstMatcher.Visitor callback)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_traverse_5344(n pkg_rhino.Node, callback TemplateAstMatcher_Visitor) {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_traverse_5349(n pkg_rhino.Node, callback TemplateAstMatcher_Visitor) {
 	_ = n
 	_ = callback
 	var next pkg_rhino.Node = pkg_rhino.Node(0)
@@ -283,14 +283,14 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_traverse_5344(n pkg_rhi
 		_ = c
 		for ; c != 0; c = next {
 			next = c.GetNext()
-			this_.priv_TemplateAstMatcher_traverse_5344(c, callback)
+			this_.priv_TemplateAstMatcher_traverse_5349(c, callback)
 		}
 	}
 	callback.Visit(n)
 }
 
 // Java method: TemplateAstMatcher.reset()
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_reset_5345() {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_reset_5350() {
 	this_.isLooseMatch = false
 	j2gort.Ext_java_util_Collections_Fill(j2gort.AsIface[j2gort.Ext_java_util_List](this_.localVarMatches), nil)
 	{
@@ -303,19 +303,19 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_reset_5345() {
 }
 
 // Java method: TemplateAstMatcher.isTemplateParameterNode(com.google.javascript.rhino.Node n)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_isTemplateParameterNode_5346(n pkg_rhino.Node) bool {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_isTemplateParameterNode_5351(n pkg_rhino.Node) bool {
 	_ = n
 	return (n.GetToken() == StaticGet_TemplateAstMatcher_TEMPLATE_TYPE_PARAM())
 }
 
 // Java method: TemplateAstMatcher.isTemplateParameterStringLiteralNode(com.google.javascript.rhino.Node n)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_isTemplateParameterStringLiteralNode_5347(n pkg_rhino.Node) bool {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_isTemplateParameterStringLiteralNode_5352(n pkg_rhino.Node) bool {
 	_ = n
 	return (n.GetToken() == StaticGet_TemplateAstMatcher_TEMPLATE_STRING_LITERAL())
 }
 
 // Java method: TemplateAstMatcher.createTemplateParameterNode(int index, com.google.javascript.rhino.jstype.JSType type, boolean isStringLiteral)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_createTemplateParameterNode_5348(index int32, type_ pkg_rhino.JSType, isStringLiteral bool) pkg_rhino.Node {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_createTemplateParameterNode_5353(index int32, type_ pkg_rhino.JSType, isStringLiteral bool) pkg_rhino.Node {
 	_ = index
 	_ = type_
 	_ = isStringLiteral
@@ -335,13 +335,13 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_createTemplateParameter
 }
 
 // Java method: TemplateAstMatcher.isTemplateLocalNameNode(com.google.javascript.rhino.Node n)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_isTemplateLocalNameNode_5349(n pkg_rhino.Node) bool {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_isTemplateLocalNameNode_5354(n pkg_rhino.Node) bool {
 	_ = n
 	return (n.GetToken() == StaticGet_TemplateAstMatcher_TEMPLATE_LOCAL_NAME())
 }
 
 // Java method: TemplateAstMatcher.createTemplateLocalNameNode(int index)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_createTemplateLocalNameNode_5350(index int32) pkg_rhino.Node {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_createTemplateLocalNameNode_5355(index int32) pkg_rhino.Node {
 	_ = index
 	if !(index >= int32(0)) {
 		j2gort.CheckState(false)
@@ -353,11 +353,11 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_createTemplateLocalName
 }
 
 // Java method: TemplateAstMatcher.matchesTemplateShape(com.google.javascript.rhino.Node template, com.google.javascript.rhino.Node ast)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesTemplateShape_5351(template pkg_rhino.Node, ast pkg_rhino.Node) bool {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesTemplateShape_5356(template pkg_rhino.Node, ast pkg_rhino.Node) bool {
 	_ = template
 	_ = ast
 	for template != 0 {
-		if (ast == 0) || !(this_.priv_TemplateAstMatcher_matchesNodeShape_5352(template, ast)) {
+		if (ast == 0) || !(this_.priv_TemplateAstMatcher_matchesNodeShape_5357(template, ast)) {
 			return false
 		}
 		template = template.GetNext()
@@ -367,16 +367,16 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesTemplateShape_53
 }
 
 // Java method: TemplateAstMatcher.matchesNodeShape(com.google.javascript.rhino.Node template, com.google.javascript.rhino.Node ast)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesNodeShape_5352(template pkg_rhino.Node, ast pkg_rhino.Node) bool {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesNodeShape_5357(template pkg_rhino.Node, ast pkg_rhino.Node) bool {
 	_ = template
 	_ = ast
-	if this_.priv_TemplateAstMatcher_isTemplateParameterNode_5346(template) {
+	if this_.priv_TemplateAstMatcher_isTemplateParameterNode_5351(template) {
 		return !(NodeUtil_IsStatement(ast))
-	} else if this_.priv_TemplateAstMatcher_isTemplateLocalNameNode_5349(template) {
+	} else if this_.priv_TemplateAstMatcher_isTemplateLocalNameNode_5354(template) {
 		if !(ast.IsName()) {
 			return false
 		}
-	} else if this_.priv_TemplateAstMatcher_isTemplateParameterStringLiteralNode_5347(template) {
+	} else if this_.priv_TemplateAstMatcher_isTemplateParameterStringLiteralNode_5352(template) {
 		return NodeUtil_IsSomeCompileTimeConstStringValue(ast)
 	} else if template.IsCall() {
 		if ((ast == 0) || !(ast.IsCall())) || !(ast.HasXChildren(template.GetChildCount())) {
@@ -390,7 +390,7 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesNodeShape_5352(t
 	var astChild pkg_rhino.Node = ast.GetFirstChild()
 	_ = astChild
 	for templateChild != 0 {
-		if !(this_.priv_TemplateAstMatcher_matchesNodeShape_5352(templateChild, astChild)) {
+		if !(this_.priv_TemplateAstMatcher_matchesNodeShape_5357(templateChild, astChild)) {
 			return false
 		}
 		templateChild = templateChild.GetNext()
@@ -400,11 +400,11 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesNodeShape_5352(t
 }
 
 // Java method: TemplateAstMatcher.matchesTemplate(com.google.javascript.rhino.Node template, com.google.javascript.rhino.Node ast)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesTemplate_5353(template pkg_rhino.Node, ast pkg_rhino.Node) bool {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesTemplate_5358(template pkg_rhino.Node, ast pkg_rhino.Node) bool {
 	_ = template
 	_ = ast
 	for template != 0 {
-		if (ast == 0) || !(this_.priv_TemplateAstMatcher_matchesNode_5354(template, ast)) {
+		if (ast == 0) || !(this_.priv_TemplateAstMatcher_matchesNode_5359(template, ast)) {
 			return false
 		}
 		template = template.GetNext()
@@ -414,10 +414,10 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesTemplate_5353(te
 }
 
 // Java method: TemplateAstMatcher.matchesNode(com.google.javascript.rhino.Node template, com.google.javascript.rhino.Node ast)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesNode_5354(template pkg_rhino.Node, ast pkg_rhino.Node) bool {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesNode_5359(template pkg_rhino.Node, ast pkg_rhino.Node) bool {
 	_ = template
 	_ = ast
-	if this_.priv_TemplateAstMatcher_isTemplateParameterNode_5346(template) {
+	if this_.priv_TemplateAstMatcher_isTemplateParameterNode_5351(template) {
 		var paramIndex int32 = javalang.D2I((template.GetDouble()))
 		_ = paramIndex
 		var previousMatch pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](this_.paramNodeMatches.Get(paramIndex))
@@ -428,7 +428,7 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesNode_5354(templa
 		var templateType pkg_rhino.JSType = template.GetJSType()
 		_ = templateType
 		j2gort.CheckNotNullIface(templateType)
-		if this_.priv_TemplateAstMatcher_isUnresolvedType_5355(templateType) {
+		if this_.priv_TemplateAstMatcher_isUnresolvedType_5360(templateType) {
 			return false
 		}
 		var matchResult TypeMatchingStrategy_MatchResult = this_.typeMatchingStrategy.Match(templateType, ast.GetJSType())
@@ -440,7 +440,7 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesNode_5354(templa
 			this_.paramNodeMatches.Set(paramIndex, j2gort.BoxNode(ast))
 		}
 		return isMatch
-	} else if this_.priv_TemplateAstMatcher_isTemplateLocalNameNode_5349(template) {
+	} else if this_.priv_TemplateAstMatcher_isTemplateLocalNameNode_5354(template) {
 		var paramIndex_2 int32 = javalang.D2I((template.GetDouble()))
 		_ = paramIndex_2
 		var previouslyMatched bool = (j2gort.ListGetStr(this_.localVarMatches, paramIndex_2) != j2gort.NullString)
@@ -465,7 +465,7 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesNode_5354(templa
 			}
 			this_.localVarMatches.Set(paramIndex_2, j2gort.BoxString(name))
 		}
-	} else if this_.priv_TemplateAstMatcher_isTemplateParameterStringLiteralNode_5347(template) {
+	} else if this_.priv_TemplateAstMatcher_isTemplateParameterStringLiteralNode_5352(template) {
 		var paramIndex_3 int32 = javalang.D2I((template.GetDouble()))
 		_ = paramIndex_3
 		var previousMatch_2 pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](this_.paramNodeMatches.Get(paramIndex_3))
@@ -484,7 +484,7 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesNode_5354(templa
 	var astChild pkg_rhino.Node = ast.GetFirstChild()
 	_ = astChild
 	for templateChild != 0 {
-		if !(this_.priv_TemplateAstMatcher_matchesNode_5354(templateChild, astChild)) {
+		if !(this_.priv_TemplateAstMatcher_matchesNode_5359(templateChild, astChild)) {
 			return false
 		}
 		templateChild = templateChild.GetNext()
@@ -494,7 +494,7 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesNode_5354(templa
 }
 
 // Java method: TemplateAstMatcher.isUnresolvedType(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_isUnresolvedType_5355(type_ pkg_rhino.JSType) bool {
+func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_isUnresolvedType_5360(type_ pkg_rhino.JSType) bool {
 	_ = type_
 	base_type__ := type_.GetJSTypeBase()
 	if base_type__.IsNoResolvedType() || (base_type__.IsNamedType() && base_type__.IsUnknownType()) {
@@ -507,7 +507,7 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_isUnresolvedType_5355(t
 				rawElem_4 := cur_3.Next()
 				alternate := j2gort.AsIface[pkg_rhino.JSType](rawElem_4)
 				_ = alternate
-				if this_.priv_TemplateAstMatcher_isUnresolvedType_5355(alternate) {
+				if this_.priv_TemplateAstMatcher_isUnresolvedType_5360(alternate) {
 					return true
 				}
 			}
@@ -608,9 +608,9 @@ func (this_ *TemplateAstMatcher__Anon_97) Visit(n pkg_rhino.Node) {
 			_ = type_
 			var isStringLiteral bool = (type_.GetJSTypeBase().IsStringValueType() && javalang.StringStartsWith(j2gort.CheckNotNullString(name), "string_literal"))
 			_ = isStringLiteral
-			this_.outer_.ReplaceNodeInPlace(n, this_.outer_.priv_TemplateAstMatcher_createTemplateParameterNode_5348(this_.cap_1_params.IndexOf_1(j2gort.BoxString(name)), type_, isStringLiteral))
+			this_.outer_.ReplaceNodeInPlace(n, this_.outer_.priv_TemplateAstMatcher_createTemplateParameterNode_5353(this_.cap_1_params.IndexOf_1(j2gort.BoxString(name)), type_, isStringLiteral))
 		} else if this_.cap_0_locals.Contains(j2gort.BoxString(name)) {
-			this_.outer_.ReplaceNodeInPlace(n, this_.outer_.priv_TemplateAstMatcher_createTemplateLocalNameNode_5350(this_.cap_0_locals.IndexOf_1(j2gort.BoxString(name))))
+			this_.outer_.ReplaceNodeInPlace(n, this_.outer_.priv_TemplateAstMatcher_createTemplateLocalNameNode_5355(this_.cap_0_locals.IndexOf_1(j2gort.BoxString(name))))
 		}
 	}
 }

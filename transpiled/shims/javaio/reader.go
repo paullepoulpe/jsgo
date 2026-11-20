@@ -571,7 +571,7 @@ func (w *OutputStreamWriter) Write(s string) {
 	if len(s) == 0 {
 		return
 	}
-	if !w.hasHigh && utf8.ValidString(s) {
+	if !w.hasHigh && (javalang.IsASCII(s) || utf8.ValidString(s)) {
 		_, _ = io.WriteString(w.w, s)
 		return
 	}

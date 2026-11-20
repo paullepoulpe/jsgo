@@ -132,43 +132,43 @@ func (this_ *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node pkg_rhino.N
 	_ = node
 	switch node.TokenSwitchOrd_() {
 	case int32(59) /* Token.ASSIGN_SUB */ :
-		return this_.priv_PeepholeSubstituteAlternateSyntax_reduceSubstractionAssignment_4319(node)
+		return this_.priv_PeepholeSubstituteAlternateSyntax_reduceSubstractionAssignment_4324(node)
 	case int32(39) /* Token.TRUE */, int32(38) /* Token.FALSE */ :
-		return this_.priv_PeepholeSubstituteAlternateSyntax_reduceTrueFalse_4320(node)
+		return this_.priv_PeepholeSubstituteAlternateSyntax_reduceTrueFalse_4325(node)
 	case int32(23) /* Token.NEW */ :
-		var result pkg_rhino.Node = this_.priv_PeepholeSubstituteAlternateSyntax_tryFoldStandardConstructors_4316(node)
+		var result pkg_rhino.Node = this_.priv_PeepholeSubstituteAlternateSyntax_tryFoldStandardConstructors_4321(node)
 		_ = result
 		if !(result.IsCall()) {
 			return result
 		}
-		return this_.priv_PeepholeSubstituteAlternateSyntax_tryReduceCall_4314(result)
+		return this_.priv_PeepholeSubstituteAlternateSyntax_tryReduceCall_4319(result)
 	case int32(28) /* Token.CALL */ :
-		return this_.priv_PeepholeSubstituteAlternateSyntax_tryReduceCall_4314(node)
+		return this_.priv_PeepholeSubstituteAlternateSyntax_tryReduceCall_4319(node)
 	case int32(0) /* Token.RETURN */ :
-		return this_.priv_PeepholeSubstituteAlternateSyntax_tryReduceReturn_4315(node)
+		return this_.priv_PeepholeSubstituteAlternateSyntax_tryReduceReturn_4320(node)
 	case int32(93) /* Token.EXPR_RESULT */ :
 		{
 			if node.GetFirstChild().IsComma() {
-				return this_.priv_PeepholeSubstituteAlternateSyntax_trySplitComma_4312(node)
+				return this_.priv_PeepholeSubstituteAlternateSyntax_trySplitComma_4317(node)
 			}
 			return node
 		}
 	case int32(32) /* Token.NAME */ :
-		return this_.priv_PeepholeSubstituteAlternateSyntax_tryReplaceUndefined_4313(node)
+		return this_.priv_PeepholeSubstituteAlternateSyntax_tryReplaceUndefined_4318(node)
 	case int32(46) /* Token.ARRAYLIT */ :
-		return this_.priv_PeepholeSubstituteAlternateSyntax_tryMinimizeArrayLiteral_4321(node)
+		return this_.priv_PeepholeSubstituteAlternateSyntax_tryMinimizeArrayLiteral_4326(node)
 	case int32(26) /* Token.GETPROP */ :
-		return this_.priv_PeepholeSubstituteAlternateSyntax_tryMinimizeWindowRefs_4306(node)
+		return this_.priv_PeepholeSubstituteAlternateSyntax_tryMinimizeWindowRefs_4311(node)
 	case int32(131) /* Token.TEMPLATELIT */ :
-		return this_.priv_PeepholeSubstituteAlternateSyntax_tryTurnTemplateStringsToStrings_4323(node)
+		return this_.priv_PeepholeSubstituteAlternateSyntax_tryTurnTemplateStringsToStrings_4328(node)
 	case int32(69) /* Token.AND */, int32(68) /* Token.OR */, int32(1) /* Token.BITOR */, int32(2) /* Token.BITXOR */, int32(3) /* Token.BITAND */, int32(70) /* Token.COALESCE */ :
-		return this_.priv_PeepholeSubstituteAlternateSyntax_tryRotateAssociativeOperator_4308(node)
+		return this_.priv_PeepholeSubstituteAlternateSyntax_tryRotateAssociativeOperator_4313(node)
 	case int32(15) /* Token.MUL */ :
 		{
 			if this_.MayHaveSideEffects(node) {
 				return node
 			}
-			return this_.priv_PeepholeSubstituteAlternateSyntax_tryRotateCommutativeOperator_4307(node)
+			return this_.priv_PeepholeSubstituteAlternateSyntax_tryRotateCommutativeOperator_4312(node)
 		}
 	default:
 		return node
@@ -177,7 +177,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node pkg_rhino.N
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryMinimizeWindowRefs(com.google.javascript.rhino.Node node)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryMinimizeWindowRefs_4306(node pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryMinimizeWindowRefs_4311(node pkg_rhino.Node) pkg_rhino.Node {
 	_ = node
 	if !(this_.IsASTNormalized()) {
 		return node
@@ -215,7 +215,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryRotateCommutativeOperator(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryRotateCommutativeOperator_4307(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryRotateCommutativeOperator_4312(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(this_.late) {
 		return n
@@ -243,7 +243,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryRotateAssociativeOperator(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryRotateAssociativeOperator_4308(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryRotateAssociativeOperator_4313(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(this_.late) {
 		return n
@@ -268,13 +268,13 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 		this_.ReportChangeToEnclosingScope(newRoot)
 		return newRoot
 	} else if NodeUtil_IsCommutative(n.GetToken()) && !(this_.MayHaveSideEffects(n)) {
-		return this_.priv_PeepholeSubstituteAlternateSyntax_tryRotateCommutativeOperator_4307(n)
+		return this_.priv_PeepholeSubstituteAlternateSyntax_tryRotateCommutativeOperator_4312(n)
 	}
 	return n
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryFoldSimpleFunctionCall(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryFoldSimpleFunctionCall_4309(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryFoldSimpleFunctionCall_4314(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsCall()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
@@ -319,7 +319,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryFoldImmediateCallToBoundFunction(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryFoldImmediateCallToBoundFunction_4310(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryFoldImmediateCallToBoundFunction_4315(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsCall()) {
 		j2gort.CheckState(false)
@@ -361,7 +361,7 @@ func PeepholeSubstituteAlternateSyntax_AddParameterAfter(parameterList pkg_rhino
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.splitComma(com.google.javascript.rhino.Node n, boolean insert, com.google.javascript.rhino.Node insertAfter)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_splitComma_4311(n pkg_rhino.Node, insert bool, insertAfter pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_splitComma_4316(n pkg_rhino.Node, insert bool, insertAfter pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = insert
 	_ = insertAfter
@@ -372,7 +372,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 		_ = right
 		n.DetachChildren()
 		if right.IsComma() {
-			this_.priv_PeepholeSubstituteAlternateSyntax_splitComma_4311(right, true, insertAfter)
+			this_.priv_PeepholeSubstituteAlternateSyntax_splitComma_4316(right, true, insertAfter)
 		} else {
 			var newStatement pkg_rhino.Node = pkg_rhino.IR_ExprResult(right)
 			_ = newStatement
@@ -392,7 +392,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.trySplitComma(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_trySplitComma_4312(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_trySplitComma_4317(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if this_.late {
 		return n
@@ -408,7 +408,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 	if !(comma.IsComma()) {
 		j2gort.CheckState(false)
 	}
-	var leftmost pkg_rhino.Node = this_.priv_PeepholeSubstituteAlternateSyntax_splitComma_4311(comma, false, n)
+	var leftmost pkg_rhino.Node = this_.priv_PeepholeSubstituteAlternateSyntax_splitComma_4316(comma, false, n)
 	_ = leftmost
 	n.RemoveChildren()
 	n.AddChildToFront(leftmost)
@@ -418,7 +418,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryReplaceUndefined(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryReplaceUndefined_4313(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryReplaceUndefined_4318(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if (this_.IsASTNormalized() && NodeUtil_IsUndefined(n)) && !(NodeUtil_IsLValue(n)) {
 		var replacement pkg_rhino.Node = NodeUtil_NewUndefinedNode(n)
@@ -431,21 +431,21 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryReduceCall(com.google.javascript.rhino.Node node)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryReduceCall_4314(node pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryReduceCall_4319(node pkg_rhino.Node) pkg_rhino.Node {
 	_ = node
-	var result pkg_rhino.Node = this_.priv_PeepholeSubstituteAlternateSyntax_tryFoldLiteralConstructor_4318(node)
+	var result pkg_rhino.Node = this_.priv_PeepholeSubstituteAlternateSyntax_tryFoldLiteralConstructor_4323(node)
 	_ = result
 	if result == node {
-		result = this_.priv_PeepholeSubstituteAlternateSyntax_tryFoldSimpleFunctionCall_4309(node)
+		result = this_.priv_PeepholeSubstituteAlternateSyntax_tryFoldSimpleFunctionCall_4314(node)
 		if result == node {
-			result = this_.priv_PeepholeSubstituteAlternateSyntax_tryFoldImmediateCallToBoundFunction_4310(node)
+			result = this_.priv_PeepholeSubstituteAlternateSyntax_tryFoldImmediateCallToBoundFunction_4315(node)
 		}
 	}
 	return result
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryReduceReturn(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryReduceReturn_4315(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryReduceReturn_4320(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var result pkg_rhino.Node = n.GetFirstChild()
 	_ = result
@@ -472,12 +472,12 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryFoldStandardConstructors(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryFoldStandardConstructors_4316(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryFoldStandardConstructors_4321(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsNew()) {
 		j2gort.CheckState(false)
 	}
-	if this_.priv_PeepholeSubstituteAlternateSyntax_canFoldStandardConstructors_4317(n) {
+	if this_.priv_PeepholeSubstituteAlternateSyntax_canFoldStandardConstructors_4322(n) {
 		n.SetToken(pkg_rhino.StaticGet_Token_CALL())
 		n.PutBooleanProp(pkg_rhino.StaticGet_Node_FREE_CALL(), true)
 		this_.ReportChangeToEnclosingScope(n)
@@ -486,7 +486,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.canFoldStandardConstructors(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_canFoldStandardConstructors_4317(n pkg_rhino.Node) bool {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_canFoldStandardConstructors_4322(n pkg_rhino.Node) bool {
 	_ = n
 	if this_.IsASTNormalized() && n.GetFirstChild().IsName() {
 		var className string = n.GetFirstChild().GetString()
@@ -504,7 +504,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryFoldLiteralConstructor(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryFoldLiteralConstructor_4318(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryFoldLiteralConstructor_4323(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsCall() || n.IsNew()) {
 		j2gort.CheckArgument(false)
@@ -571,7 +571,7 @@ func PeepholeSubstituteAlternateSyntax_IsSafeToFoldArrayConstructor(arg pkg_rhin
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.reduceSubstractionAssignment(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_reduceSubstractionAssignment_4319(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_reduceSubstractionAssignment_4324(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var right pkg_rhino.Node = n.GetLastChild()
 	_ = right
@@ -599,7 +599,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.reduceTrueFalse(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_reduceTrueFalse_4320(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_reduceTrueFalse_4325(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if this_.late {
 		switch n.GetParent().TokenSwitchOrd_() {
@@ -646,7 +646,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryMinimizeArrayLiteral(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryMinimizeArrayLiteral_4321(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryMinimizeArrayLiteral_4326(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var allStrings bool = true
 	_ = allStrings
@@ -660,14 +660,14 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 		}
 	}
 	if allStrings {
-		return this_.priv_PeepholeSubstituteAlternateSyntax_tryMinimizeStringArrayLiteral_4322(n)
+		return this_.priv_PeepholeSubstituteAlternateSyntax_tryMinimizeStringArrayLiteral_4327(n)
 	} else {
 		return n
 	}
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryMinimizeStringArrayLiteral(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryMinimizeStringArrayLiteral_4322(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryMinimizeStringArrayLiteral_4327(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(this_.late) {
 		return n
@@ -727,7 +727,7 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 }
 
 // Java method: PeepholeSubstituteAlternateSyntax.tryTurnTemplateStringsToStrings(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryTurnTemplateStringsToStrings_4323(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternateSyntax_tryTurnTemplateStringsToStrings_4328(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsTemplateLit()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))

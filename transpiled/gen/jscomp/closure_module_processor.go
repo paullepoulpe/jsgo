@@ -251,7 +251,7 @@ func (this_ *ClosureModuleProcessor_UnresolvedGoogModule) ResolveImport(moduleRe
 			var result *ResolveExportResult = requested.ResolveExport_5(moduleRequestResolver, importRecord.ModuleRequest(), importRecord.ImportName(), j2gort.NewExt_java_util_LinkedHashSet(), j2gort.NewExt_java_util_LinkedHashSet())
 			_ = result
 			if !(result.Found()) && !(result.HadError()) {
-				this_.priv_UnresolvedGoogModule_reportInvalidDestructuringRequire_6710(requested, importRecord)
+				this_.priv_UnresolvedGoogModule_reportInvalidDestructuringRequire_6715(requested, importRecord)
 				return StaticGet_ResolveExportResult_ERROR()
 			}
 			var forSourceInfo pkg_rhino.Node
@@ -290,7 +290,7 @@ func (this_ *ClosureModuleProcessor_UnresolvedGoogModule) Reset() {
 }
 
 // Java method: UnresolvedGoogModule.reportInvalidDestructuringRequire(com.google.javascript.jscomp.modules.UnresolvedModule requested, com.google.javascript.jscomp.modules.Import importRecord)
-func (this_ *ClosureModuleProcessor_UnresolvedGoogModule) priv_UnresolvedGoogModule_reportInvalidDestructuringRequire_6710(requested UnresolvedModule, importRecord *Import) {
+func (this_ *ClosureModuleProcessor_UnresolvedGoogModule) priv_UnresolvedGoogModule_reportInvalidDestructuringRequire_6715(requested UnresolvedModule, importRecord *Import) {
 	_ = requested
 	_ = importRecord
 	var additionalInfo string = ""
@@ -382,13 +382,13 @@ func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) ShouldTraverse_3(t
 		var expr pkg_rhino.Node = n.GetFirstChild()
 		_ = expr
 		if expr.IsAssign() {
-			this_.priv_ModuleProcessingCallback_maybeInitializeExports_6711(expr)
+			this_.priv_ModuleProcessingCallback_maybeInitializeExports_6716(expr)
 		} else if expr.IsGetProp() {
-			this_.priv_ModuleProcessingCallback_maybeInitializeExportsStub_6712(expr)
+			this_.priv_ModuleProcessingCallback_maybeInitializeExportsStub_6717(expr)
 		}
 		return false
 	case int32(97) /* Token.CONST */, int32(84) /* Token.VAR */, int32(111) /* Token.LET */ :
-		this_.priv_ModuleProcessingCallback_maybeInitializeRequire_6716(n)
+		this_.priv_ModuleProcessingCallback_maybeInitializeRequire_6721(n)
 		return false
 	default:
 		return false
@@ -397,7 +397,7 @@ func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) ShouldTraverse_3(t
 }
 
 // Java method: ModuleProcessingCallback.maybeInitializeExports(com.google.javascript.rhino.Node assignment)
-func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcessingCallback_maybeInitializeExports_6711(assignment pkg_rhino.Node) {
+func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcessingCallback_maybeInitializeExports_6716(assignment pkg_rhino.Node) {
 	_ = assignment
 	var lhs pkg_rhino.Node = assignment.GetFirstChild()
 	_ = lhs
@@ -405,48 +405,48 @@ func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcess
 	_ = rhs
 	if lhs.IsName() && (j2gort.CheckNotNullString(lhs.GetString()) == "exports") {
 		if NodeUtil_IsNamedExportsLiteral(rhs) {
-			this_.priv_ModuleProcessingCallback_initializeNamedExportsLiteral_6714(rhs)
+			this_.priv_ModuleProcessingCallback_initializeNamedExportsLiteral_6719(rhs)
 		} else {
 			this_.seenExportsAssignment = true
-			this_.priv_ModuleProcessingCallback_markExportsAssignmentInNamespace_6713(lhs)
+			this_.priv_ModuleProcessingCallback_markExportsAssignmentInNamespace_6718(lhs)
 		}
 	} else if (lhs.IsGetProp() && lhs.GetFirstChild().IsName()) && (j2gort.CheckNotNullString(lhs.GetFirstChild().GetString()) == "exports") {
 		var exportedId string = lhs.GetString()
 		_ = exportedId
-		this_.priv_ModuleProcessingCallback_addPropertyExport_6715(exportedId, lhs)
+		this_.priv_ModuleProcessingCallback_addPropertyExport_6720(exportedId, lhs)
 	}
 }
 
 // Java method: ModuleProcessingCallback.maybeInitializeExportsStub(com.google.javascript.rhino.Node qname)
-func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcessingCallback_maybeInitializeExportsStub_6712(qname pkg_rhino.Node) {
+func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcessingCallback_maybeInitializeExportsStub_6717(qname pkg_rhino.Node) {
 	_ = qname
 	var owner pkg_rhino.Node = qname.GetFirstChild()
 	_ = owner
 	if owner.IsName() && (j2gort.CheckNotNullString(owner.GetString()) == "exports") {
-		this_.priv_ModuleProcessingCallback_addPropertyExport_6715(qname.GetString(), qname)
+		this_.priv_ModuleProcessingCallback_addPropertyExport_6720(qname.GetString(), qname)
 	}
 }
 
 // Java method: ModuleProcessingCallback.markExportsAssignmentInNamespace(com.google.javascript.rhino.Node exportsNode)
-func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcessingCallback_markExportsAssignmentInNamespace_6713(exportsNode pkg_rhino.Node) {
+func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcessingCallback_markExportsAssignmentInNamespace_6718(exportsNode pkg_rhino.Node) {
 	_ = exportsNode
 	this_.namespace.Put("*exports*", Binding_From_2(Export_S_Builder().ExportName("*exports*").ExportNode(exportsNode).ModuleMetadata(this_.metadata).ClosureNamespace(this_.closureNamespace).ModulePath(this_.metadata.Path()).GetExport_BuilderBase().Build(), exportsNode))
 }
 
 // Java method: ModuleProcessingCallback.initializeNamedExportsLiteral(com.google.javascript.rhino.Node objectLit)
-func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcessingCallback_initializeNamedExportsLiteral_6714(objectLit pkg_rhino.Node) {
+func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcessingCallback_initializeNamedExportsLiteral_6719(objectLit pkg_rhino.Node) {
 	_ = objectLit
 	{
 		var key pkg_rhino.Node = objectLit.GetFirstChild()
 		_ = key
 		for ; key != 0; key = key.GetNext() {
-			this_.priv_ModuleProcessingCallback_addPropertyExport_6715(key.GetString(), key)
+			this_.priv_ModuleProcessingCallback_addPropertyExport_6720(key.GetString(), key)
 		}
 	}
 }
 
 // Java method: ModuleProcessingCallback.addPropertyExport(java.lang.String exportedId, com.google.javascript.rhino.Node propNode)
-func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcessingCallback_addPropertyExport_6715(exportedId string, propNode pkg_rhino.Node) {
+func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcessingCallback_addPropertyExport_6720(exportedId string, propNode pkg_rhino.Node) {
 	_ = exportedId
 	_ = propNode
 	if this_.seenExportsAssignment {
@@ -458,7 +458,7 @@ func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcess
 }
 
 // Java method: ModuleProcessingCallback.maybeInitializeRequire(com.google.javascript.rhino.Node nameDeclaration)
-func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcessingCallback_maybeInitializeRequire_6716(nameDeclaration pkg_rhino.Node) {
+func (this_ *ClosureModuleProcessor_ModuleProcessingCallback) priv_ModuleProcessingCallback_maybeInitializeRequire_6721(nameDeclaration pkg_rhino.Node) {
 	_ = nameDeclaration
 	{
 		cur_5 := j2gort.NewIterCursor(j2gort.CheckNotNull(ClosureRequireProcessor_GetAllRequires(nameDeclaration)))

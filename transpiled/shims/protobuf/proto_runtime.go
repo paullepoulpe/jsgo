@@ -115,6 +115,15 @@ func protoAppendVarintSlow(b []byte, v uint64) []byte {
 }
 
 func protoPutVarint(dst []byte, v uint64) int {
+	if v < 0x80 {
+		dst[0] = byte(v)
+		return 1
+	}
+	if v < 0x4000 {
+		_ = dst[1]
+		dst[0], dst[1] = byte(v)|0x80, byte(v>>7)
+		return 2
+	}
 	i := 0
 	for v >= 0x80 {
 		dst[i] = byte(v) | 0x80

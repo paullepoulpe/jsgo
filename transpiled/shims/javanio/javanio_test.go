@@ -609,36 +609,36 @@ func TestWave38CSyscallReadStringAndBufferedCharsetWriter(t *testing.T) {
 		t.Fatalf(">256 KiB UTF-16 read mismatch: err=%v len=%d", err, len(got))
 	}
 
-	// 4. 32 KiB buffered charsetWriter: 4,000 tiny 10-byte writes (40,000 B) coalesce into 1 32 KiB write + 1 Flush!
+	// 4. 256 KiB buffered charsetWriter: 30,000 tiny 10-byte writes (300,000 B) coalesce into 1 256 KiB write + 1 Flush!
 	cw := &countingWriteCloser{}
 	w := javanio.NewOutputStreamWriterWithCharset(cw, javanio.StandardCharsets_UTF_8)
-	for i := 0; i < 4000; i++ {
+	for i := 0; i < 30000; i++ {
 		w.Write("0123456789")
 	}
 	if cw.writes != 1 {
-		t.Fatalf("expected 1 underlying 32 KiB flush during 40,000B of 10B writes, got %d", cw.writes)
+		t.Fatalf("expected 1 underlying 256 KiB flush during 300,000B of 10B writes, got %d", cw.writes)
 	}
 	w.AppendCharacter('!')
 	w.Flush()
-	if cw.writes != 2 || cw.flushes != 1 || len(cw.buf) != 40001 {
+	if cw.writes != 2 || cw.flushes != 1 || len(cw.buf) != 300001 {
 		t.Fatalf("after Flush: writes=%d flushes=%d len=%d", cw.writes, cw.flushes, len(cw.buf))
 	}
-	// Typical <32 KiB chunk + trailing '\n' coalesces into ONE single Write call on Close()!
+	// Typical <256 KiB chunk + trailing '\n' coalesces into ONE single Write call on Close()!
 	cwChunk := &countingWriteCloser{}
 	wChunk := javanio.NewOutputStreamWriterWithCharset(cwChunk, javanio.StandardCharsets_UTF_8)
-	chunkCode := strings.Repeat("export function f() { return 42; }\n", 500) // 17,500 B (> 8 KiB, < 32 KiB!)
+	chunkCode := strings.Repeat("export function f() { return 42; }\n", 2000) // 70,000 B (< 256 KiB!)
 	wChunk.Write(chunkCode)
 	wChunk.AppendCharacter('\n')
 	if cwChunk.writes != 0 {
-		t.Fatalf("expected 0 writes before Close() for 17.5 KiB chunk + newline, got %d", cwChunk.writes)
+		t.Fatalf("expected 0 writes before Close() for 70 KiB chunk + newline, got %d", cwChunk.writes)
 	}
 	wChunk.Close()
 	if cwChunk.writes != 1 || cwChunk.closes != 1 || string(cwChunk.buf) != chunkCode+"\n" {
 		t.Fatalf("expected 1 coalesced write on Close(), got writes=%d closes=%d len=%d", cwChunk.writes, cwChunk.closes, len(cwChunk.buf))
 	}
-	// Large >32 KiB write fills aligned 32 KiB blocks and buffers tail for trailing '\n'.
+	// Large >256 KiB write fills aligned 256 KiB blocks and buffers tail for trailing '\n'.
 	w.Write("hdr:")
-	bigChunk := strings.Repeat("Z", 40000)
+	bigChunk := strings.Repeat("Z", 300000)
 	w.Write(bigChunk)
 	// Idempotent Close()
 	w.Close()
@@ -646,9 +646,27 @@ func TestWave38CSyscallReadStringAndBufferedCharsetWriter(t *testing.T) {
 	if cw.closes != 1 {
 		t.Fatalf("expected Close() to close underlying stream once, got %d", cw.closes)
 	}
-	wantWritten := strings.Repeat("0123456789", 4000) + "!hdr:" + bigChunk
+	wantWritten := strings.Repeat("0123456789", 30000) + "!hdr:" + bigChunk
 	if string(cw.buf) != wantWritten {
 		t.Fatalf("buffered charsetWriter content mismatch: len=%d want=%d", len(cw.buf), len(wantWritten))
+	}
+
+	// Non-ASCII US-ASCII & ISO-8859-1 encoding (valid UTF-8 + supplementary emoji + lone surrogate) + WriteChars.
+	mixed := "hello é Ω 😀 world"
+	cwASCII := &countingWriteCloser{}
+	wASCII := javanio.NewOutputStreamWriterWithCharset(cwASCII, javanio.StandardCharsets_US_ASCII)
+	wASCII.Write(mixed)
+	wASCII.Close()
+	if string(cwASCII.buf) != "hello ? ? ? world" {
+		t.Fatalf("US-ASCII charsetWriter got %q, want %q", string(cwASCII.buf), "hello ? ? ? world")
+	}
+	cwLatin := &countingWriteCloser{}
+	wLatin := javanio.NewOutputStreamWriterWithCharset(cwLatin, javanio.StandardCharsets_ISO_8859_1)
+	wLatin.Write(mixed)
+	wLatin.Close()
+	wantLatin := string([]byte{'h', 'e', 'l', 'l', 'o', ' ', 0xE9, ' ', '?', ' ', '?', ' ', 'w', 'o', 'r', 'l', 'd'})
+	if string(cwLatin.buf) != wantLatin {
+		t.Fatalf("ISO-8859-1 charsetWriter got %x, want %x", cwLatin.buf, wantLatin)
 	}
 
 	// Empty 0-byte chunk via BufferedWriter: 0 underlying Write calls & idempotent BufferedWriter.Close()!

@@ -236,7 +236,7 @@ func (this_ *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditio
 				if !(outcome.IsTruthy()) {
 					resultEqualsValue = !(resultEqualsValue)
 				}
-				return this_.priv_SemanticReverseAbstractInterpreter_caseTypeOf_7897(operandNode, operandType, stringNode.GetString(), resultEqualsValue, blindScope)
+				return this_.priv_SemanticReverseAbstractInterpreter_caseTypeOf_7902(operandNode, operandType, stringNode.GetString(), resultEqualsValue, blindScope)
 			}
 		}
 	default:
@@ -244,55 +244,55 @@ func (this_ *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditio
 	switch (operatorToken).Ordinal() {
 	case int32(69) /* Token.AND */ :
 		if outcome.IsTruthy() {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseAndOrNotShortCircuiting_7892(condition.GetFirstChild(), condition.GetLastChild(), blindScope, pkg_rhino.StaticGet_Outcome_TRUE())
+			return this_.priv_SemanticReverseAbstractInterpreter_caseAndOrNotShortCircuiting_7897(condition.GetFirstChild(), condition.GetLastChild(), blindScope, pkg_rhino.StaticGet_Outcome_TRUE())
 		} else {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseAndOrMaybeShortCircuiting_7893(condition.GetFirstChild(), condition.GetLastChild(), blindScope, pkg_rhino.StaticGet_Outcome_TRUE())
+			return this_.priv_SemanticReverseAbstractInterpreter_caseAndOrMaybeShortCircuiting_7898(condition.GetFirstChild(), condition.GetLastChild(), blindScope, pkg_rhino.StaticGet_Outcome_TRUE())
 		}
 	case int32(68) /* Token.OR */ :
 		if !(outcome.IsTruthy()) {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseAndOrNotShortCircuiting_7892(condition.GetFirstChild(), condition.GetLastChild(), blindScope, pkg_rhino.StaticGet_Outcome_FALSE())
+			return this_.priv_SemanticReverseAbstractInterpreter_caseAndOrNotShortCircuiting_7897(condition.GetFirstChild(), condition.GetLastChild(), blindScope, pkg_rhino.StaticGet_Outcome_FALSE())
 		} else {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseAndOrMaybeShortCircuiting_7893(condition.GetFirstChild(), condition.GetLastChild(), blindScope, pkg_rhino.StaticGet_Outcome_FALSE())
+			return this_.priv_SemanticReverseAbstractInterpreter_caseAndOrMaybeShortCircuiting_7898(condition.GetFirstChild(), condition.GetLastChild(), blindScope, pkg_rhino.StaticGet_Outcome_FALSE())
 		}
 	case int32(4) /* Token.EQ */ :
 		if outcome.IsTruthy() {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7890(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_1)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7895(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_1)
 		} else {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7890(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_2)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7895(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_2)
 		}
 	case int32(5) /* Token.NE */ :
 		if outcome.IsTruthy() {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7890(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_3)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7895(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_3)
 		} else {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7890(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_4)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7895(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_4)
 		}
 	case int32(40) /* Token.SHEQ */ :
 		if outcome.IsTruthy() {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7890(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_5)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7895(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_5)
 		} else {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7890(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_6)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7895(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_6)
 		}
 	case int32(41) /* Token.SHNE */ :
 		if outcome.IsTruthy() {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7890(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_7)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7895(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_7)
 		} else {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7890(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_8)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7895(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_8)
 		}
 	case int32(32) /* Token.NAME */, int32(26) /* Token.GETPROP */ :
-		return this_.priv_SemanticReverseAbstractInterpreter_caseNameOrGetProp_7896(condition, blindScope, outcome)
+		return this_.priv_SemanticReverseAbstractInterpreter_caseNameOrGetProp_7901(condition, blindScope, outcome)
 	case int32(51) /* Token.ASSIGN */ :
 		return this_.FirstPreciserScopeKnowingConditionOutcome(condition.GetFirstChild(), this_.FirstPreciserScopeKnowingConditionOutcome(condition.GetSecondChild(), blindScope, outcome), outcome)
 	case int32(19) /* Token.NOT */ :
 		return this_.FirstPreciserScopeKnowingConditionOutcome(condition.GetFirstChild(), blindScope, outcome.Not())
 	case int32(7) /* Token.LE */, int32(6) /* Token.LT */, int32(9) /* Token.GE */, int32(8) /* Token.GT */ :
 		if outcome.IsTruthy() {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7890(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_9)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7895(condition, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_9)
 		}
 	case int32(45) /* Token.INSTANCEOF */ :
-		return this_.priv_SemanticReverseAbstractInterpreter_caseInstanceOf_7898(condition.GetFirstChild(), condition.GetLastChild(), blindScope, outcome)
+		return this_.priv_SemanticReverseAbstractInterpreter_caseInstanceOf_7903(condition.GetFirstChild(), condition.GetLastChild(), blindScope, outcome)
 	case int32(44) /* Token.IN */ :
 		if outcome.IsTruthy() && condition.GetFirstChild().IsStringLit() {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseIn_7899(condition.GetLastChild(), condition.GetFirstChild().GetString(), blindScope)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseIn_7904(condition.GetLastChild(), condition.GetFirstChild().GetString(), blindScope)
 		}
 	case int32(76) /* Token.CASE */ :
 		var left_2 pkg_rhino.Node = condition.GetParent().GetPrevious()
@@ -300,9 +300,9 @@ func (this_ *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditio
 		var right_2 pkg_rhino.Node = condition.GetFirstChild()
 		_ = right_2
 		if outcome.IsTruthy() {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7891(left_2, right_2, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_10)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7896(left_2, right_2, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_10)
 		} else {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7891(left_2, right_2, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_11)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7896(left_2, right_2, blindScope, lambdaSingleton_semantic_reverse_abstract_interpreter_11)
 		}
 	case int32(28) /* Token.CALL */ :
 		var left_3 pkg_rhino.Node = condition.GetFirstChild()
@@ -310,7 +310,7 @@ func (this_ *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditio
 		var leftName string = left_3.GetQualifiedName()
 		_ = leftName
 		if ("Array.isArray" == leftName) && (left_3.GetNext() != 0) {
-			return this_.priv_SemanticReverseAbstractInterpreter_caseIsArray_7889(left_3.GetNext(), blindScope, outcome)
+			return this_.priv_SemanticReverseAbstractInterpreter_caseIsArray_7894(left_3.GetNext(), blindScope, outcome)
 		}
 	default:
 	}
@@ -318,7 +318,7 @@ func (this_ *SemanticReverseAbstractInterpreter) GetPreciserScopeKnowingConditio
 }
 
 // Java method: SemanticReverseAbstractInterpreter.caseIsArray(com.google.javascript.rhino.Node value, com.google.javascript.jscomp.type.FlowScope blindScope, com.google.javascript.rhino.Outcome outcome)
-func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseIsArray_7889(value pkg_rhino.Node, blindScope FlowScope, outcome *pkg_rhino.Outcome) FlowScope {
+func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseIsArray_7894(value pkg_rhino.Node, blindScope FlowScope, outcome *pkg_rhino.Outcome) FlowScope {
 	_ = value
 	_ = blindScope
 	_ = outcome
@@ -332,21 +332,21 @@ func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInt
 		} else {
 			visitor = this_.GetChainableReverseAbstractInterpreterBase().restrictToNotArrayVisitor
 		}
-		return this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7894(blindScope, value, type_, j2gort.AsIface[pkg_rhino.JSType](type_.Visit_1(visitor)))
+		return this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7899(blindScope, value, type_, j2gort.AsIface[pkg_rhino.JSType](type_.Visit_1(visitor)))
 	}
 	return blindScope
 }
 
 // Java method: SemanticReverseAbstractInterpreter.caseEquality(com.google.javascript.rhino.Node condition, com.google.javascript.jscomp.type.FlowScope blindScope, com.google.javascript.jscomp.type.SemanticReverseAbstractInterpreter.TypePairOp merging)
-func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseEquality_7890(condition pkg_rhino.Node, blindScope FlowScope, merging SemanticReverseAbstractInterpreter_TypePairOp) FlowScope {
+func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseEquality_7895(condition pkg_rhino.Node, blindScope FlowScope, merging SemanticReverseAbstractInterpreter_TypePairOp) FlowScope {
 	_ = condition
 	_ = blindScope
 	_ = merging
-	return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7891(condition.GetFirstChild(), condition.GetLastChild(), blindScope, merging)
+	return this_.priv_SemanticReverseAbstractInterpreter_caseEquality_7896(condition.GetFirstChild(), condition.GetLastChild(), blindScope, merging)
 }
 
 // Java method: SemanticReverseAbstractInterpreter.caseEquality(com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right, com.google.javascript.jscomp.type.FlowScope blindScope, com.google.javascript.jscomp.type.SemanticReverseAbstractInterpreter.TypePairOp merging)
-func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseEquality_7891(left pkg_rhino.Node, right pkg_rhino.Node, blindScope FlowScope, merging SemanticReverseAbstractInterpreter_TypePairOp) FlowScope {
+func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseEquality_7896(left pkg_rhino.Node, right pkg_rhino.Node, blindScope FlowScope, merging SemanticReverseAbstractInterpreter_TypePairOp) FlowScope {
 	_ = left
 	_ = right
 	_ = blindScope
@@ -400,7 +400,7 @@ func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInt
 			iifeArg_4 = nil
 			break iifeSwitch_4
 		}
-		return this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictTwoNames_7895(blindScope, left, leftType, iifeArg_3,
+		return this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictTwoNames_7900(blindScope, left, leftType, iifeArg_3,
 
 			right, rightType, iifeArg_4,
 		)
@@ -409,7 +409,7 @@ func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInt
 }
 
 // Java method: SemanticReverseAbstractInterpreter.caseAndOrNotShortCircuiting(com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right, com.google.javascript.jscomp.type.FlowScope blindScope, com.google.javascript.rhino.Outcome outcome)
-func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseAndOrNotShortCircuiting_7892(left pkg_rhino.Node, right pkg_rhino.Node, blindScope FlowScope, outcome *pkg_rhino.Outcome) FlowScope {
+func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseAndOrNotShortCircuiting_7897(left pkg_rhino.Node, right pkg_rhino.Node, blindScope FlowScope, outcome *pkg_rhino.Outcome) FlowScope {
 	_ = left
 	_ = right
 	_ = blindScope
@@ -448,7 +448,7 @@ iifeSwitch_6:
 		iifeArg_6 = nil
 		break iifeSwitch_6
 	}
-	blindScope = this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7894(blindScope, left, leftType, iifeArg_6)
+	blindScope = this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7899(blindScope, left, leftType, iifeArg_6)
 	var rightType pkg_rhino.JSType = this_.GetTypeIfRefinable(right, blindScope)
 	_ = rightType
 	var rightIsRefineable bool = false
@@ -481,13 +481,13 @@ iifeSwitch_6:
 			iifeArg_5 = nil
 			break iifeSwitch_5
 		}
-		return this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7894(blindScope, right, rightType, iifeArg_5)
+		return this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7899(blindScope, right, rightType, iifeArg_5)
 	}
 	return blindScope
 }
 
 // Java method: SemanticReverseAbstractInterpreter.caseAndOrMaybeShortCircuiting(com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right, com.google.javascript.jscomp.type.FlowScope blindScope, com.google.javascript.rhino.Outcome outcome)
-func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseAndOrMaybeShortCircuiting_7893(left pkg_rhino.Node, right pkg_rhino.Node, blindScope FlowScope, outcome *pkg_rhino.Outcome) FlowScope {
+func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseAndOrMaybeShortCircuiting_7898(left pkg_rhino.Node, right pkg_rhino.Node, blindScope FlowScope, outcome *pkg_rhino.Outcome) FlowScope {
 	_ = left
 	_ = right
 	_ = blindScope
@@ -527,11 +527,11 @@ func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInt
 	}
 	var type_ pkg_rhino.JSType = leftVar.GetType().GetLeastSupertype(rightVar.GetType())
 	_ = type_
-	return j2gort.AsIface[FlowScope](SemanticReverseAbstractInterpreter_Unwrap(blindScope).InferSlotType(leftVar.GetName(), type_))
+	return SemanticReverseAbstractInterpreter_Unwrap(blindScope).InferSlotType(leftVar.GetName(), type_)
 }
 
 // Java method: SemanticReverseAbstractInterpreter.maybeRestrictName(com.google.javascript.jscomp.type.FlowScope blindScope, com.google.javascript.rhino.Node node, com.google.javascript.rhino.jstype.JSType originalType, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType restrictedType)
-func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7894(blindScope FlowScope, node pkg_rhino.Node, originalType pkg_rhino.JSType, restrictedType pkg_rhino.JSType) FlowScope {
+func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7899(blindScope FlowScope, node pkg_rhino.Node, originalType pkg_rhino.JSType, restrictedType pkg_rhino.JSType) FlowScope {
 	_ = blindScope
 	_ = node
 	_ = originalType
@@ -543,7 +543,7 @@ func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInt
 }
 
 // Java method: SemanticReverseAbstractInterpreter.maybeRestrictTwoNames(com.google.javascript.jscomp.type.FlowScope blindScope, com.google.javascript.rhino.Node left, com.google.javascript.rhino.jstype.JSType originalLeftType, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType restrictedLeftType, com.google.javascript.rhino.Node right, com.google.javascript.rhino.jstype.JSType originalRightType, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType restrictedRightType)
-func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_maybeRestrictTwoNames_7895(blindScope FlowScope, left pkg_rhino.Node, originalLeftType pkg_rhino.JSType, restrictedLeftType pkg_rhino.JSType, right pkg_rhino.Node, originalRightType pkg_rhino.JSType, restrictedRightType pkg_rhino.JSType) FlowScope {
+func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_maybeRestrictTwoNames_7900(blindScope FlowScope, left pkg_rhino.Node, originalLeftType pkg_rhino.JSType, restrictedLeftType pkg_rhino.JSType, right pkg_rhino.Node, originalRightType pkg_rhino.JSType, restrictedRightType pkg_rhino.JSType) FlowScope {
 	_ = blindScope
 	_ = left
 	_ = originalLeftType
@@ -570,7 +570,7 @@ func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInt
 }
 
 // Java method: SemanticReverseAbstractInterpreter.caseNameOrGetProp(com.google.javascript.rhino.Node name, com.google.javascript.jscomp.type.FlowScope blindScope, com.google.javascript.rhino.Outcome outcome)
-func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseNameOrGetProp_7896(name pkg_rhino.Node, blindScope FlowScope, outcome *pkg_rhino.Outcome) FlowScope {
+func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseNameOrGetProp_7901(name pkg_rhino.Node, blindScope FlowScope, outcome *pkg_rhino.Outcome) FlowScope {
 	_ = name
 	_ = blindScope
 	_ = outcome
@@ -579,23 +579,23 @@ func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInt
 	if type_ != nil && !type_.IsJavaNil_() {
 		var restrictedType pkg_rhino.JSType = type_.GetRestrictedTypeGivenOutcome(outcome)
 		_ = restrictedType
-		return this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7894(blindScope, name, type_, restrictedType)
+		return this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7899(blindScope, name, type_, restrictedType)
 	}
 	return blindScope
 }
 
 // Java method: SemanticReverseAbstractInterpreter.caseTypeOf(com.google.javascript.rhino.Node node, com.google.javascript.rhino.jstype.JSType type, java.lang.String value, boolean resultEqualsValue, com.google.javascript.jscomp.type.FlowScope blindScope)
-func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseTypeOf_7897(node pkg_rhino.Node, type_ pkg_rhino.JSType, value string, resultEqualsValue bool, blindScope FlowScope) FlowScope {
+func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseTypeOf_7902(node pkg_rhino.Node, type_ pkg_rhino.JSType, value string, resultEqualsValue bool, blindScope FlowScope) FlowScope {
 	_ = node
 	_ = type_
 	_ = value
 	_ = resultEqualsValue
 	_ = blindScope
-	return this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7894(blindScope, node, type_, this_.GetRestrictedByTypeOfResult(type_, value, resultEqualsValue))
+	return this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7899(blindScope, node, type_, this_.GetRestrictedByTypeOfResult(type_, value, resultEqualsValue))
 }
 
 // Java method: SemanticReverseAbstractInterpreter.caseInstanceOf(com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node right, com.google.javascript.jscomp.type.FlowScope blindScope, com.google.javascript.rhino.Outcome outcome)
-func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseInstanceOf_7898(left pkg_rhino.Node, right pkg_rhino.Node, blindScope FlowScope, outcome *pkg_rhino.Outcome) FlowScope {
+func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseInstanceOf_7903(left pkg_rhino.Node, right pkg_rhino.Node, blindScope FlowScope, outcome *pkg_rhino.Outcome) FlowScope {
 	_ = left
 	_ = right
 	_ = blindScope
@@ -619,11 +619,11 @@ func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInt
 	} else {
 		visitor = NewSemanticReverseAbstractInterpreter_RestrictByFalseInstanceOfResultVisitor(this_, targetType)
 	}
-	return this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7894(blindScope, left, leftType, j2gort.AsIface[pkg_rhino.JSType](leftType.Visit_1(visitor)))
+	return this_.priv_SemanticReverseAbstractInterpreter_maybeRestrictName_7899(blindScope, left, leftType, j2gort.AsIface[pkg_rhino.JSType](leftType.Visit_1(visitor)))
 }
 
 // Java method: SemanticReverseAbstractInterpreter.caseIn(com.google.javascript.rhino.Node object, java.lang.String propertyName, com.google.javascript.jscomp.type.FlowScope blindScope)
-func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseIn_7899(object pkg_rhino.Node, propertyName string, blindScope FlowScope) FlowScope {
+func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInterpreter_caseIn_7904(object pkg_rhino.Node, propertyName string, blindScope FlowScope) FlowScope {
 	_ = object
 	_ = propertyName
 	_ = blindScope
@@ -650,7 +650,7 @@ func (this_ *SemanticReverseAbstractInterpreter) priv_SemanticReverseAbstractInt
 			if j2gort.IfaceEquals[pkg_rhino.StaticTypedSlot](j2gort.AsIface[pkg_rhino.StaticTypedSlot](blindScope.GetSlot(propertyQualifiedName)), nil) {
 				var unknownType pkg_rhino.JSType = this_.GetChainableReverseAbstractInterpreterBase().typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 				_ = unknownType
-				return j2gort.AsIface[FlowScope](blindScope.InferQualifiedSlot(object, propertyQualifiedName, unknownType, unknownType, false))
+				return blindScope.InferQualifiedSlot(object, propertyQualifiedName, unknownType, unknownType, false)
 			}
 		}
 	}
@@ -783,7 +783,7 @@ func InitSemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisito
 // Java method: RestrictByTrueInstanceOfResultVisitor.caseTopType(com.google.javascript.rhino.jstype.JSType type)
 func (this_ *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseTopType(type_ pkg_rhino.JSType) pkg_rhino.JSType {
 	_ = type_
-	return this_.priv_RestrictByTrueInstanceOfResultVisitor_applyCommonRestriction_7901(type_)
+	return this_.priv_RestrictByTrueInstanceOfResultVisitor_applyCommonRestriction_7906(type_)
 }
 
 // Java method: RestrictByTrueInstanceOfResultVisitor.caseUnknownType()
@@ -799,13 +799,13 @@ func (this_ *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVi
 // Java method: RestrictByTrueInstanceOfResultVisitor.caseObjectType(com.google.javascript.rhino.jstype.ObjectType type)
 func (this_ *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseObjectType(type_ pkg_rhino.ObjectType) any {
 	_ = type_
-	return this_.priv_RestrictByTrueInstanceOfResultVisitor_applyCommonRestriction_7901(pkg_rhino.Upcast_JSType(type_))
+	return this_.priv_RestrictByTrueInstanceOfResultVisitor_applyCommonRestriction_7906(pkg_rhino.Upcast_JSType(type_))
 }
 
 // Java method: RestrictByTrueInstanceOfResultVisitor.caseUnionType(com.google.javascript.rhino.jstype.UnionType type)
 func (this_ *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) CaseUnionType(type_ *pkg_rhino.UnionType) any {
 	_ = type_
-	return this_.priv_RestrictByTrueInstanceOfResultVisitor_applyCommonRestriction_7901(pkg_rhino.ToIface_JSType(type_))
+	return this_.priv_RestrictByTrueInstanceOfResultVisitor_applyCommonRestriction_7906(pkg_rhino.ToIface_JSType(type_))
 }
 
 // Java method: RestrictByTrueInstanceOfResultVisitor.caseFunctionType(com.google.javascript.rhino.jstype.FunctionType type)
@@ -815,7 +815,7 @@ func (this_ *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVi
 }
 
 // Java method: RestrictByTrueInstanceOfResultVisitor.applyCommonRestriction(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) priv_RestrictByTrueInstanceOfResultVisitor_applyCommonRestriction_7901(type_ pkg_rhino.JSType) pkg_rhino.JSType {
+func (this_ *SemanticReverseAbstractInterpreter_RestrictByTrueInstanceOfResultVisitor) priv_RestrictByTrueInstanceOfResultVisitor_applyCommonRestriction_7906(type_ pkg_rhino.JSType) pkg_rhino.JSType {
 	_ = type_
 	if this_.target.GetObjectTypeBase().IsUnknownType() {
 		return type_
@@ -997,26 +997,26 @@ func (this_ *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) Wit
 }
 
 // Java method: RefinementTrackingFlowScope.inferSlotType(java.lang.String symbol, com.google.javascript.rhino.jstype.JSType type)
-func (this_ *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) InferSlotType(symbol string, type_ pkg_rhino.JSType) any {
+func (this_ *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) InferSlotType(symbol string, type_ pkg_rhino.JSType) FlowScope {
 	_ = symbol
 	_ = type_
 	j2gort.SetAddStr(this_.refinements, symbol)
-	return this_.priv_RefinementTrackingFlowScope_wrap_7902(j2gort.AsIface[FlowScope](this_.delegate.InferSlotType(symbol, type_)))
+	return this_.priv_RefinementTrackingFlowScope_wrap_7907(this_.delegate.InferSlotType(symbol, type_))
 }
 
 // Java method: RefinementTrackingFlowScope.inferQualifiedSlot(com.google.javascript.rhino.Node node, java.lang.String symbol, com.google.javascript.rhino.jstype.JSType bottomType, com.google.javascript.rhino.jstype.JSType inferredType, boolean declare)
-func (this_ *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) InferQualifiedSlot(node pkg_rhino.Node, symbol string, bottomType pkg_rhino.JSType, inferredType pkg_rhino.JSType, declare bool) any {
+func (this_ *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) InferQualifiedSlot(node pkg_rhino.Node, symbol string, bottomType pkg_rhino.JSType, inferredType pkg_rhino.JSType, declare bool) FlowScope {
 	_ = node
 	_ = symbol
 	_ = bottomType
 	_ = inferredType
 	_ = declare
 	j2gort.SetAddStr(this_.refinements, symbol)
-	return this_.priv_RefinementTrackingFlowScope_wrap_7902(j2gort.AsIface[FlowScope](this_.delegate.InferQualifiedSlot(node, symbol, bottomType, inferredType, declare)))
+	return this_.priv_RefinementTrackingFlowScope_wrap_7907(this_.delegate.InferQualifiedSlot(node, symbol, bottomType, inferredType, declare))
 }
 
 // Java method: RefinementTrackingFlowScope.wrap(com.google.javascript.jscomp.type.FlowScope scope)
-func (this_ *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) priv_RefinementTrackingFlowScope_wrap_7902(scope FlowScope) FlowScope {
+func (this_ *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) priv_RefinementTrackingFlowScope_wrap_7907(scope FlowScope) FlowScope {
 	_ = scope
 	if !(scope == this_.delegate || ((scope == nil || scope.IsJavaNil_()) && (this_.delegate == nil || this_.delegate.IsJavaNil_()))) {
 		return NewSemanticReverseAbstractInterpreter_RefinementTrackingFlowScope(scope, this_.refinements)
@@ -1026,8 +1026,8 @@ func (this_ *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) pri
 }
 
 // Java method: RefinementTrackingFlowScope.getDeclarationScope()
-func (this_ *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) GetDeclarationScope() any {
-	return j2gort.AsIface[pkg_rhino.StaticTypedScope](this_.delegate.GetDeclarationScope())
+func (this_ *SemanticReverseAbstractInterpreter_RefinementTrackingFlowScope) GetDeclarationScope() pkg_rhino.StaticTypedScope {
+	return this_.delegate.GetDeclarationScope()
 }
 
 // Java method: RefinementTrackingFlowScope.getRootNode()

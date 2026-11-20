@@ -13900,14 +13900,96 @@ public final class RuntimeBindings {
           .append("(v)\n}\n\n");
     }
 
-    out.append("func PredTestNode(p any, n uint32) bool {\n")
-        .append("\tif p == predAlwaysTrueAny_ {\n\t\treturn true\n\t}\n");
+    out.append("func predAlwaysTrueNodeFn_(_ uint32) bool  { return true }\n")
+        .append("func predAlwaysFalseNodeFn_(_ uint32) bool { return false }\n")
+        .append("func predIsNullNodeFn_(n uint32) bool      { return n == 0 }\n")
+        .append("func predNotNullNodeFn_(n uint32) bool     { return n != 0 }\n")
+        .append("func predThrowNPENodeFn_(_ uint32) bool    { ThrowNPE(); return false }\n\n");
+
+    out.append("func IsAlwaysTruePred(p any) bool {\n")
+        .append("\tif at, ok := p.(*predAlwaysTrueType_); ok && at != nil {\n\t\treturn true\n\t}\n");
     if (hasGPred) {
-      out.append("\tif p == guavaAlwaysTruePred_ {\n\t\treturn true\n\t}\n");
+      out.append("\treturn p == guavaAlwaysTruePred_\n");
+    } else {
+      out.append("\treturn false\n");
     }
-    out.append("\tif p == nil {\n\t\tThrowNPE()\n\t}\n")
+    out.append("}\n\n");
+
+    if (hasGPred) {
+      out.append("func UnwrapNodePred(p Ext_com_google_common_base_Predicate) func(uint32) bool {\n")
+          .append("\tswitch lp := p.(type) {\n")
+          .append("\tcase *nodeLambda_Ext_com_google_common_base_Predicate:\n")
+          .append("\t\tif lp == nil {\n\t\t\treturn predThrowNPENodeFn_\n\t\t}\n")
+          .append("\t\treturn lp.fn\n")
+          .append("\tcase *predAlwaysTrueType_:\n")
+          .append("\t\tif lp == nil {\n\t\t\treturn predThrowNPENodeFn_\n\t\t}\n")
+          .append("\t\treturn predAlwaysTrueNodeFn_\n")
+          .append("\tcase *predAlwaysFalseType_:\n")
+          .append("\t\tif lp == nil {\n\t\t\treturn predThrowNPENodeFn_\n\t\t}\n")
+          .append("\t\treturn predAlwaysFalseNodeFn_\n")
+          .append("\tcase *predIsNullType_:\n")
+          .append("\t\tif lp == nil {\n\t\t\treturn predThrowNPENodeFn_\n\t\t}\n")
+          .append("\t\treturn predIsNullNodeFn_\n")
+          .append("\tcase *predNotNullType_:\n")
+          .append("\t\tif lp == nil {\n\t\t\treturn predThrowNPENodeFn_\n\t\t}\n")
+          .append("\t\treturn predNotNullNodeFn_\n")
+          .append("\tcase *jGuavaPred:\n")
+          .append("\t\tif lp == nil {\n\t\t\treturn predThrowNPENodeFn_\n\t\t}\n")
+          .append("\t\tif lp.nodeFn != nil {\n\t\t\treturn lp.nodeFn\n\t\t}\n")
+          .append("\t\treturn func(n uint32) bool { return lp.fn(boxNodeById(n)) }\n")
+          .append("\tcase *jPredFunc:\n")
+          .append("\t\tif lp == nil {\n\t\t\treturn predThrowNPENodeFn_\n\t\t}\n")
+          .append("\t\tif lp.nodeFn != nil {\n\t\t\treturn lp.nodeFn\n\t\t}\n")
+          .append("\t\treturn func(n uint32) bool { return lp.fn(boxNodeById(n)) }\n")
+          .append("\tcase predEqualNode_:\n")
+          .append("\t\ttarget := uint32(lp)\n")
+          .append("\t\treturn func(n uint32) bool { return n == target && n != 0 }\n")
+          .append("\tcase nil:\n")
+          .append("\t\treturn predThrowNPENodeFn_\n")
+          .append("\t}\n")
+          .append("\tif np, ok := p.(NodePredicate); ok {\n")
+          .append("\t\treturn np.TestNode_\n")
+          .append("\t}\n")
+          .append("\tif isJavaNilAny(p) {\n")
+          .append("\t\treturn predThrowNPENodeFn_\n")
+          .append("\t}\n")
+          .append("\treturn func(n uint32) bool { return PredTestNode(p, n) }\n")
+          .append("}\n\n");
+    }
+
+    out.append("func PredTestNode(p any, n uint32) bool {\n");
+    if (hasGPred) {
+      out.append("\tif lp, ok := p.(*nodeLambda_Ext_com_google_common_base_Predicate); ok && lp != nil {\n")
+          .append("\t\treturn lp.fn(n)\n\t}\n");
+    }
+    out.append("\tif at, ok := p.(*predAlwaysTrueType_); ok && at != nil {\n\t\treturn true\n\t}\n");
+    if (hasJPred) {
+      out.append("\tif lp, ok := p.(*nodeLambda_Ext_java_util_function_Predicate); ok && lp != nil {\n")
+          .append("\t\treturn lp.fn(n)\n\t}\n");
+    }
+    out.append("\treturn predTestNodeSlow(p, n)\n}\n\n");
+
+    out.append("//go:noinline\n")
+        .append("func predTestNodeSlow(p any, n uint32) bool {\n")
+        .append("\tif p == nil {\n\t\tThrowNPE()\n\t}\n")
+        .append("\tswitch lp := p.(type) {\n")
+        .append("\tcase *predAlwaysFalseType_:\n")
+        .append("\t\tif lp == nil {\n\t\t\tThrowNPE()\n\t\t}\n")
+        .append("\t\treturn false\n");
+    if (hasGPred) {
+      out.append("\tcase *jGuavaPred:\n")
+          .append("\t\tif lp == nil {\n\t\t\tThrowNPE()\n\t\t}\n")
+          .append("\t\tif lp.nodeFn != nil {\n\t\t\treturn lp.nodeFn(n)\n\t\t}\n")
+          .append("\t\treturn lp.fn(boxNodeById(n))\n");
+    }
+    out.append("\tcase *jPredFunc:\n")
+        .append("\t\tif lp == nil {\n\t\t\tThrowNPE()\n\t\t}\n")
+        .append("\t\tif lp.nodeFn != nil {\n\t\t\treturn lp.nodeFn(n)\n\t\t}\n")
+        .append("\t\treturn lp.fn(boxNodeById(n))\n")
+        .append("\tcase predEqualNode_:\n")
+        .append("\t\treturn uint32(lp) == n && n != 0\n")
+        .append("\t}\n")
         .append("\tif np, ok := p.(NodePredicate); ok {\n")
-        .append("\t\tif nc, ok2 := p.(jJavaNilChecker); ok2 && nc.IsJavaNil_() {\n\t\t\tThrowNPE()\n\t\t}\n")
         .append("\t\treturn np.TestNode_(n)\n\t}\n")
         .append("\tif isJavaNilAny(p) {\n\t\tThrowNPE()\n\t}\n");
     if (hasGPred) {

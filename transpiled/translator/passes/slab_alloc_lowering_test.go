@@ -1135,6 +1135,8 @@ func TestScopeVarAndRefParity(t *testing.T) {
 		cfgRealSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "control_flow_graph.go"))
 		lvaRealSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "live_variables_analysis.go"))
 		pfiRealSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "pure_function_identifier.go"))
+		bbRealSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "basic_block.go"))
+		scopeRealSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "scope.go"))
 		jscompPreLowered := strings.Contains(string(rcSrc), "slab_Reference") &&
 			!strings.Contains(string(tscRealSrc), "slab_TypedScope") &&
 			strings.Contains(string(tscRealSrc), "acquireNormalScopeBuilder_") &&
@@ -1179,7 +1181,10 @@ func TestScopeVarAndRefParity(t *testing.T) {
 			(!hasInternOwnedInNS || strings.Contains(string(spRealSrc), "InternOwned(")) &&
 			strings.Contains(string(ivSrc), "scratchVarExpert_") &&
 			strings.Contains(string(mcRealSrc), "lazyTok_") &&
-			(!hasAcquireCustomCapInGen || strings.Contains(string(rcSrc), "AcquireCustomOrderedMapCap"))
+			strings.Contains(string(bbRealSrc), "p_.GetToken()") &&
+			!strings.Contains(string(rucSrc), "InitRemoveUnusedCode_VarInfo_1(val_") &&
+			strings.Index(string(scopeRealSrc), "varSlab_") < strings.Index(string(scopeRealSrc), "depth ") &&
+			(!hasAcquireCustomCapInGen || strings.Contains(string(rcSrc), "AcquireCustomOrderedMapCap") || strings.Contains(string(rcSrc), "AcquireOrderedMapCap"))
 		dryStats, err := passes.RunOnPackageDir(realJscompDir, []passes.Pass{passes.NewSlabAllocLoweringPass()}, passes.Options{DryRun: true})
 		if err != nil {
 			t.Fatalf("DryRun slab_alloc_lowering on real gen/jscomp failed: %v", err)

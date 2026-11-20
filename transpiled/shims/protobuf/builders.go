@@ -1892,13 +1892,28 @@ func (m *AstNode) serializedSize() int {
 }
 
 func putTag1Varint(dst []byte, pos int, tag byte, v uint64) int {
+	dst[pos] = tag
+	return putTag1VarintFast(dst, pos, v, putTag1VarintWide)
+}
+
+func putTag1VarintFast(dst []byte, pos int, v uint64, wide func([]byte, int, uint64) int) int {
 	if v < 0x80 {
-		_ = dst[pos+1]
-		dst[pos] = tag
 		dst[pos+1] = byte(v)
 		return pos + 2
 	}
-	dst[pos] = tag
+	if v < 0x4000 {
+		dst[pos+2], dst[pos+1] = byte(v>>7), byte(v)|0x80
+		return pos + 3
+	}
+	return wide(dst, pos, v)
+}
+
+//go:noinline
+func putTag1VarintWide(dst []byte, pos int, v uint64) int {
+	if v < 0x200000 {
+		dst[pos+3], dst[pos+2], dst[pos+1] = byte(v>>14), byte(v>>7)|0x80, byte(v)|0x80
+		return pos + 4
+	}
 	for pos++; v >= 0x80; pos++ {
 		dst[pos] = byte(v) | 0x80
 		v >>= 7
@@ -2324,14 +2339,16 @@ func (m *AstNode) ToByteArray() []byte {
 }
 
 const (
-	wireSlabSize    = 4 * 1024 * 1024
-	wireSlabMaxItem = 1024 * 1024
+	wireSlabInitSize = 64 * 1024
+	wireSlabSize     = 4 * 1024 * 1024
+	wireSlabMaxItem  = 1024 * 1024
 )
 
 var (
 	wireSlabMu   sync.Mutex
 	wireSlabBuf  []byte
 	wireSlabTail []byte
+	wireSlabStep uint8
 )
 
 func allocWireBytes(sz int) []byte {
@@ -2358,7 +2375,11 @@ func allocWireBytes(sz int) []byte {
 		if rem >= 256 && rem > cap(wireSlabTail)-len(wireSlabTail) {
 			wireSlabTail = wireSlabBuf
 		}
-		wireSlabBuf = make([]byte, 0, wireSlabSize)
+		slabCap := min(max(wireSlabInitSize<<min(int(wireSlabStep)*2, 6), sz), wireSlabSize)
+		if wireSlabStep < 3 {
+			wireSlabStep++
+		}
+		wireSlabBuf = make([]byte, 0, slabCap)
 	}
 	off := len(wireSlabBuf)
 	end := off + sz
@@ -3823,6 +3844,32 @@ func (m *JSCompilerStateProto) writeStreamTo(w *protoStreamWriter) {
 	}
 }
 
+const protoStreamLargeScratchMax = 1024 * 1024
+
+var protoStreamLargeScratchPool = sync.Pool{}
+
+func writeStreamViaScratch(w *protoStreamWriter, m ProtoSerializable, sz int) {
+	if sz <= protoStreamLargeScratchMax {
+		var scratch []byte
+		if v := protoStreamLargeScratchPool.Get(); v != nil {
+			scratch = *(v.(*[]byte))
+		}
+		if cap(scratch) < sz {
+			scratch = make([]byte, 0, sz)
+		} else {
+			scratch = scratch[:0]
+		}
+		scratch = m.appendTo(scratch)
+		w.writeRawBytes(scratch)
+		if cap(scratch) <= protoStreamLargeScratchMax {
+			s := scratch[:0]
+			protoStreamLargeScratchPool.Put(&s)
+		}
+		return
+	}
+	w.writeRawBytes(m.appendTo(make([]byte, 0, sz)))
+}
+
 func streamProtoMessageTo(m ProtoSerializable, out io.Writer, delimited bool) (int64, error) {
 	if m == nil {
 		if delimited {
@@ -3845,7 +3892,7 @@ func streamProtoMessageTo(m ProtoSerializable, out io.Writer, delimited bool) (i
 			} else if sz <= cap(w.buf)-len(w.buf) {
 				w.buf = m.appendTo(w.buf)
 			} else {
-				w.writeRawBytes(m.appendTo(make([]byte, 0, sz)))
+				writeStreamViaScratch(&w, m, sz)
 			}
 		}
 	} else if sw, ok := m.(protoStreamWritable); ok {
@@ -3856,7 +3903,7 @@ func streamProtoMessageTo(m ProtoSerializable, out io.Writer, delimited bool) (i
 			if sz <= cap(w.buf) {
 				w.buf = m.appendTo(w.buf)
 			} else {
-				w.writeRawBytes(m.appendTo(make([]byte, 0, sz)))
+				writeStreamViaScratch(&w, m, sz)
 			}
 		}
 	}

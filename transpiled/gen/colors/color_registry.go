@@ -26,7 +26,7 @@ import (
 // Java class: com.google.javascript.jscomp.colors.ColorRegistry
 type ColorRegistry struct {
 	nativeColors                        j2gort.Ext_com_google_common_collect_ImmutableMap          `gson:"nativeColors"`
-	colorToDisambiguationSupertypeGraph *j2gort.Ext_java_util_LinkedHashMap                        `gson:"colorToDisambiguationSupertypeGraph"`
+	colorToDisambiguationSupertypeGraph *j2gort.CustomOrderedMap[*Color, []*Color]                 `gson:"colorToDisambiguationSupertypeGraph"`
 	mismatchLocations                   *j2gort.Ext_com_google_common_collect_ImmutableSetMultimap `gson:"mismatchLocations"`
 	idHash_                             atomic.Int32
 }
@@ -101,7 +101,7 @@ func InitColorRegistry(this_ *ColorRegistry, builder *ColorRegistry_Builder) {
 	this_.nativeColors = builder.nativeColors.ToImmutableMap()
 	var rawGraph *j2gort.Ext_java_util_LinkedHashMap = builder.colorToDisambiguationSupertypeGraph
 	_ = rawGraph
-	var builtGraph *j2gort.Ext_java_util_LinkedHashMap = j2gort.NewExt_java_util_LinkedHashMap_1_int32(rawGraph.Size())
+	var builtGraph *j2gort.CustomOrderedMap[*Color, []*Color] = j2gort.NewCustomOrderedMapPtrCap[*Color, []*Color](rawGraph.Size())
 	_ = builtGraph
 	{
 		cur_1 := j2gort.NewMapEntryCursor(rawGraph)
@@ -113,11 +113,11 @@ func InitColorRegistry(this_ *ColorRegistry, builder *ColorRegistry_Builder) {
 			var ok_2 bool
 			single, ok_2 = j2gort.TryCast[*Color](val)
 			if ok_2 {
-				builtGraph.Put_2(j2gort.PtrToAny(j2gort.CastPtr[Color](cur_1.GetKey())), []*Color{single})
+				builtGraph.Put(j2gort.CastPtr[Color](cur_1.GetKey()), []*Color{single})
 			} else {
 				var set *j2gort.Ext_java_util_LinkedHashSet = j2gort.CastPtr[j2gort.Ext_java_util_LinkedHashSet](val)
 				_ = set
-				builtGraph.Put_2(j2gort.PtrToAny(j2gort.CastPtr[Color](cur_1.GetKey())), j2gort.SliceToAny(j2gort.ColToPtrArray[Color](set, StaticGet_Color_EMPTY_COLORS())))
+				builtGraph.Put(j2gort.CastPtr[Color](cur_1.GetKey()), j2gort.ColToPtrArray[Color](set, StaticGet_Color_EMPTY_COLORS()))
 			}
 		}
 	}
@@ -176,7 +176,7 @@ iifeSwitch_1:
 func (this_ *ColorRegistry) GetDisambiguationSupertypesArray(x *Color) []*Color {
 	_ = x
 	j2gort.CheckNotNullPtr(x)
-	var supertypes []*Color = j2gort.Cast[[]*Color](this_.colorToDisambiguationSupertypeGraph.Get(j2gort.PtrToAny(x)))
+	var supertypes []*Color = this_.colorToDisambiguationSupertypeGraph.Get(x)
 	_ = supertypes
 	if supertypes != nil {
 		return supertypes

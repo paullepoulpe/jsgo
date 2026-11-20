@@ -42,6 +42,7 @@ func (p *NativeMapLoweringPass) Apply(ctx *PassContext) (int, error) {
 	if len(eligible) > 0 {
 		count += applyMapRewrites(ctx, eligible, parentsByFile)
 	}
+	count += applyCanonicalVarIdentityOrderedMapUpgrade(ctx)
 	tlCount, err := applyTimelineMapAndSliceLowering(ctx)
 	if err != nil {
 		return count, err
@@ -888,6 +889,10 @@ func resolveAndValidateMapGroup(members []*mapCandidate, parentsByFile map[*ast.
 	if !valOK {
 		return false
 	}
+	if flavor == mapFlavorCustom && len(members) == 1 && members[0].isField &&
+		isCanonicalVarIdentityMapField(members[0].ownerStruct, members[0].v.Name(), keyT, valT) {
+		flavor = mapFlavorOrdered
+	}
 	if hasComputeOp && !isComparableOrJavaIface(valT) {
 		return false
 	}
@@ -946,15 +951,19 @@ func resolveAndValidateMapGroup(members []*mapCandidate, parentsByFile map[*ast.
 		m.flavor = flavor
 		m.isIdentityMap = hasIdentity
 	}
-	if len(members) == 1 && flavor == mapFlavorOrdered {
-		m := members[0]
-		if m.isField && !m.isPtrAlias && !m.isCastAccessor && m.isNullable && !m.forceNullable &&
-			canPromoteLazyFieldToValueOrderedMap(m, parentsByFile, ctx.Info) {
-			m.isNullable = false
-			m.isLazyValueMap = true
+	if flavor == mapFlavorOrdered {
+		if len(members) == 1 {
+			m := members[0]
+			if m.isField && !m.isPtrAlias && !m.isCastAccessor && m.isNullable && !m.forceNullable &&
+				canPromoteLazyFieldToValueOrderedMap(m, parentsByFile, ctx.Info) {
+				m.isNullable = false
+				m.isLazyValueMap = true
+			}
 		}
-		if canPromoteToPlainMap(m, parentsByFile, ctx) {
-			m.flavor = mapFlavorPlain
+		if canPromoteGroupToPlainMap(members, parentsByFile, ctx) {
+			for _, m := range members {
+				m.flavor = mapFlavorPlain
+			}
 		}
 	}
 	return true
@@ -1799,7 +1808,7 @@ func validateMapVarUse(
 				}
 				// Pointer-alias struct field initialization (`this_.resultMap = this_.result.reachingDef`
 				// or constructor/init map parameter handoff `this_.idToColor = idToColor`).
-				if cand.isField && !cand.hasNilAssign && !cand.hasNilCheck && cand.initAssignCount == 0 {
+				if cand.isField && cand.hasInit && !cand.hasNilAssign && !cand.hasNilCheck && cand.initAssignCount == 0 {
 					if rhsSel, ok := stripParens(rhs).(*ast.SelectorExpr); ok && isIndirectStructFieldSel(rhsSel, info) {
 						if srcCand := varCands[varFromObj(info.Uses[rhsSel.Sel])]; srcCand != nil && srcCand.isField && srcCand != cand && !srcCand.isPtrAlias {
 							cand.initAssignCount++
@@ -1815,7 +1824,7 @@ func validateMapVarUse(
 						}
 					}
 					if rhsId, ok := stripParens(rhs).(*ast.Ident); ok {
-						if srcCand := varCands[varFromObj(info.Uses[rhsId])]; srcCand != nil && !srcCand.isField && !srcCand.isPtrAlias && !srcCand.isSharedPtrLocal && srcCand != cand {
+						if srcCand := varCands[varFromObj(info.Uses[rhsId])]; srcCand != nil && srcCand.isParam && !srcCand.isPtrAlias && !srcCand.isSharedPtrLocal && srcCand != cand {
 							cand.initAssignCount++
 							cand.isPtrAlias = true
 							*edges = append(*edges, [2]*mapCandidate{cand, srcCand})
@@ -1830,12 +1839,13 @@ func validateMapVarUse(
 					}
 				}
 				// Shared nullable pointer assignment between struct field and local lazy-init variable
-				// (e.g. `var map_ = this_.properties; if map_ == nil { map_ = New...(4); ...; this_.properties = map_ }`).
+				// (e.g. `var map_ = this_.properties; if map_ == nil { map_ = New...(4); ...; this_.properties = map_ }`
+				// or `var m = NewHashMap(16); ...; r.map_ = m`).
 				if j2gortHasExport(ctx, "NewOrderedMapPtr") {
 					rhsUnwrapped := unwrapMapAdaptersDown(rhs, info)
 					if cand.isField && !cand.isCastAccessor && !cand.isPtrAlias {
 						if rhsId, ok := rhsUnwrapped.(*ast.Ident); ok {
-							if srcCand := varCands[varFromObj(info.Uses[rhsId])]; srcCand != nil && srcCand.isSharedPtrLocal && !srcCand.isPtrAlias && srcCand != cand {
+							if srcCand := varCands[varFromObj(info.Uses[rhsId])]; srcCand != nil && !srcCand.isField && !srcCand.isParam && !srcCand.isPtrAlias && srcCand != cand {
 								cand.initAssignCount++
 								cand.forceNullable = true
 								srcCand.forceNullable = true
@@ -1909,7 +1919,7 @@ func validateMapValueConsumer(
 	pTop := unwrapParensUp(accessExpr, parents)
 	if as, ok := parents[pTop].(*ast.AssignStmt); ok && as.Tok == token.ASSIGN && len(as.Lhs) == 1 && len(as.Rhs) == 1 && as.Rhs[0] == pTop {
 		if lhsSel, ok := stripParens(as.Lhs[0]).(*ast.SelectorExpr); ok && isPureFieldSelector(lhsSel, info) {
-			if dstCand := varCands[varFromObj(info.Uses[lhsSel.Sel])]; dstCand != nil && dstCand.isField && dstCand != cand && !cand.isPtrAlias && !cand.isSharedPtrLocal && !dstCand.hasNilAssign && !dstCand.hasNilCheck {
+			if dstCand := varCands[varFromObj(info.Uses[lhsSel.Sel])]; dstCand != nil && dstCand.isField && dstCand.hasInit && dstCand != cand && (cand.isField || cand.isParam) && !cand.isPtrAlias && !cand.isSharedPtrLocal && !dstCand.hasNilAssign && !dstCand.hasNilCheck {
 				*edges = append(*edges, [2]*mapCandidate{cand, dstCand})
 				return
 			}
@@ -1945,7 +1955,7 @@ func validateMapValueConsumer(
 				}
 			}
 		}
-	} else if cand.isSharedPtrLocal && !cand.isPtrAlias {
+	} else if !cand.isField && !cand.isParam && !cand.isPtrAlias && j2gortHasExport(ctx, "NewOrderedMapPtr") {
 		if as, ok := parents[adaptedTop].(*ast.AssignStmt); ok && as.Tok == token.ASSIGN && len(as.Lhs) == 1 && len(as.Rhs) == 1 && as.Rhs[0] == adaptedTop {
 			if lhsSel, ok := stripParens(as.Lhs[0]).(*ast.SelectorExpr); ok && isPureFieldSelector(lhsSel, info) {
 				if dstCand := varCands[varFromObj(info.Uses[lhsSel.Sel])]; dstCand != nil && dstCand.isField && !dstCand.isCastAccessor && !dstCand.isPtrAlias && dstCand != cand {
@@ -7223,29 +7233,69 @@ func resolvePlainMapComputeHelper(j2Pkg *types.Package, wantGoFunc bool, isStrVa
 	return "", false, false
 }
 
-func canPromoteToPlainMap(m *mapCandidate, parentsByFile map[*ast.File]map[ast.Node]ast.Node, ctx *PassContext) bool {
-	_ = parentsByFile
-	if m == nil || ctx == nil || m.v == nil || m.isParam || m.isCastAccessor || m.isPtrAlias || m.isSharedPtrLocal || m.isIdentityMap {
+func canPromoteGroupToPlainMap(members []*mapCandidate, parentsByFile map[*ast.File]map[ast.Node]ast.Node, ctx *PassContext) bool {
+	if len(members) == 0 || ctx == nil {
 		return false
 	}
 	j2Pkg := findJ2gortTypesPkg(ctx)
 	if j2Pkg == nil || j2Pkg.Scope() == nil || j2Pkg.Scope().Lookup("PlainMap") == nil || j2Pkg.Scope().Lookup("NewPlainMap") == nil {
 		return false
 	}
+	inGroup := make(map[*mapCandidate]bool, len(members))
+	for _, m := range members {
+		if m == nil {
+			return false
+		}
+		inGroup[m] = true
+	}
+	sawAnyUnorderedAlloc := false
+	for _, m := range members {
+		ok, sawAlloc := canPromoteMemberToPlainMap(m, len(members) > 1, inGroup, j2Pkg, parentsByFile, ctx)
+		if !ok {
+			return false
+		}
+		if sawAlloc {
+			sawAnyUnorderedAlloc = true
+		}
+	}
+	return sawAnyUnorderedAlloc
+}
+
+func canPromoteMemberToPlainMap(
+	m *mapCandidate,
+	multiMember bool,
+	inGroup map[*mapCandidate]bool,
+	j2Pkg *types.Package,
+	parentsByFile map[*ast.File]map[ast.Node]ast.Node,
+	ctx *PassContext,
+) (ok bool, sawUnorderedAlloc bool) {
+	_ = parentsByFile
+	if m == nil || ctx == nil || m.v == nil || m.isParam || m.isCastAccessor || m.isPtrAlias || m.isIdentityMap {
+		return false, false
+	}
+	if multiMember {
+		if !m.isPtr() {
+			return false, false
+		}
+	} else if m.isSharedPtrLocal {
+		return false, false
+	}
 	if m.isField && isSlabPooledOrderedMapField(m.ownerStruct, m.v.Name()) {
-		return false
+		return false, false
+	}
+	if m.isField && isCanonicalVarIdentityMapField(m.ownerStruct, m.v.Name(), m.keyType, m.valType) {
+		return false, false
 	}
 	if isLinkedDeclaredCollectionType(m.v.Type()) || isJ2gortArrayListOrListValType(m.valType) {
-		return false
+		return false, false
 	}
 	if m.hasNilCheck && !m.isPtr() && !m.isLazyValueMap && !j2gortTypeHasMethod(ctx, "PlainMap", "IsNil") {
-		return false
+		return false, false
 	}
 
 	isStrVal := types.Identical(m.valType, types.Typ[types.String])
-	sawUnorderedAlloc := false
 
-	checkInitBranch := func(initK mapInitKind, initExpr ast.Expr, capArg ast.Expr) bool {
+	checkInitBranch := func(initK mapInitKind, initExpr ast.Expr, capArg ast.Expr, otherCand *mapCandidate) bool {
 		switch initK {
 		case mapInitNil:
 			return true
@@ -7261,6 +7311,8 @@ func canPromoteToPlainMap(m *mapCandidate, parentsByFile map[*ast.File]map[ast.N
 			}
 			sawUnorderedAlloc = true
 			return true
+		case mapInitSharedPtr:
+			return multiMember && otherCand != nil && inGroup[otherCand] && m.isPtr() && otherCand.isPtr()
 		default:
 			return false
 		}
@@ -7274,7 +7326,7 @@ func canPromoteToPlainMap(m *mapCandidate, parentsByFile map[*ast.File]map[ast.N
 		case mapOpDeclVarSpec:
 			spec, ok := op.spanNode.(*ast.ValueSpec)
 			if !ok {
-				return false
+				return false, false
 			}
 			if len(spec.Values) == 0 {
 				continue
@@ -7282,37 +7334,37 @@ func canPromoteToPlainMap(m *mapCandidate, parentsByFile map[*ast.File]map[ast.N
 			rhs := spec.Values[0]
 			if op.initKind == mapInitIIFE && op.iifeSpec != nil {
 				for _, br := range op.iifeSpec.branches {
-					if !checkInitBranch(br.initKind, br.ret.Results[0], br.otherExpr) {
-						return false
+					if !checkInitBranch(br.initKind, br.ret.Results[0], br.otherExpr, br.otherCand) {
+						return false, false
 					}
 				}
-			} else if !checkInitBranch(op.initKind, rhs, op.otherExpr) {
-				return false
+			} else if !checkInitBranch(op.initKind, rhs, op.otherExpr, op.otherCand) {
+				return false, false
 			}
 		case mapOpDeclShortVar, mapOpAssignInit:
 			as, ok := op.spanNode.(*ast.AssignStmt)
 			if !ok || len(as.Rhs) != 1 {
-				return false
+				return false, false
 			}
 			rhs := as.Rhs[0]
 			if op.initKind == mapInitIIFE && op.iifeSpec != nil {
 				for _, br := range op.iifeSpec.branches {
-					if !checkInitBranch(br.initKind, br.ret.Results[0], br.otherExpr) {
-						return false
+					if !checkInitBranch(br.initKind, br.ret.Results[0], br.otherExpr, br.otherCand) {
+						return false, false
 					}
 				}
-			} else if !checkInitBranch(op.initKind, rhs, op.otherExpr) {
-				return false
+			} else if !checkInitBranch(op.initKind, rhs, op.otherExpr, op.otherCand) {
+				return false, false
 			}
 		case mapOpNilCheck:
 			if !m.isPtr() && !m.isLazyValueMap && !j2gortTypeHasMethod(ctx, "PlainMap", "IsNil") {
-				return false
+				return false, false
 			}
 		case mapOpMethodDirect:
 			switch op.methodsSel {
 			case "Size", "IsEmpty", "Clear":
 			default:
-				return false
+				return false, false
 			}
 		case mapOpContainsKey, mapOpGetOrDefault, mapOpRawUnbox:
 			continue
@@ -7323,7 +7375,7 @@ func canPromoteToPlainMap(m *mapCandidate, parentsByFile map[*ast.File]map[ast.N
 					wantHelper = "PlainMapPtrGetStr"
 				}
 				if j2Pkg.Scope().Lookup(wantHelper) == nil {
-					return false
+					return false, false
 				}
 			}
 		case mapOpPut:
@@ -7333,24 +7385,413 @@ func canPromoteToPlainMap(m *mapCandidate, parentsByFile map[*ast.File]map[ast.N
 					wantHelper = "PlainMapPutIfAbsentStr"
 				}
 				if j2Pkg.Scope().Lookup(wantHelper) == nil {
-					return false
+					return false, false
 				}
 			}
 		case mapOpRemove:
 			if isStrVal && !op.discardRet {
 				if j2Pkg.Scope().Lookup("PlainMapRemoveStr") == nil {
-					return false
+					return false, false
 				}
 			}
 		case mapOpComputeIfAbsent:
 			wantGoFunc := op.computeSpec != nil && op.computeSpec.fnLit != nil
 			if _, _, okH := resolvePlainMapComputeHelper(j2Pkg, wantGoFunc, isStrVal); !okH {
-				return false
+				return false, false
 			}
 		default:
-			return false
+			return false, false
 		}
 	}
 
-	return sawUnorderedAlloc
+	return true, sawUnorderedAlloc
+}
+
+func isCanonicalVarIdentityMapField(owner *types.Named, fieldName string, keyT, valT types.Type) bool {
+	if owner == nil || owner.Obj() == nil || keyT == nil || valT == nil {
+		return false
+	}
+	kNamed := ptrNamedOrigin(keyT)
+	vNamed := ptrNamedOrigin(valT)
+	if kNamed == nil || kNamed.Obj() == nil || kNamed.Obj().Name() != "Var" || vNamed == nil || vNamed.Obj() == nil {
+		return false
+	}
+	switch owner.Obj().Name() {
+	case "ReferenceCollector":
+		return fieldName == "referenceMap" && vNamed.Obj().Name() == "ReferenceCollection"
+	case "InlineVariables_InliningBehavior":
+		return fieldName == "currentScopeHandledVarAnalysesMap" && vNamed.Obj().Name() == "InlineVariables_InlineVarAnalysis"
+	}
+	return false
+}
+
+// applyCanonicalVarIdentityOrderedMapUpgrade upgrades already-lowered CustomOrderedMap[*Var, ...]
+// fields on ReferenceCollector.referenceMap and InlineVariables_InliningBehavior.currentScopeHandledVarAnalysesMap
+// to pointer-keyed OrderedMap[*Var, ...], and ensures ReferenceCollector.GetReferences safely resolves
+// uncached implicit Vars (e.g. VariableReferenceCheck's scope.MakeImplicitVar(EXPORTS)) via their Scope.
+func applyCanonicalVarIdentityOrderedMapUpgrade(ctx *PassContext) int {
+	if ctx == nil || ctx.Info == nil || !j2gortHasExport(ctx, "OrderedMap") {
+		return 0
+	}
+	info := ctx.Info
+
+	type targetField struct {
+		file      *ast.File
+		owner     *types.Named
+		fld       *ast.Field
+		fldVar    *types.Var
+		isCustom  bool
+		isOrdered bool
+		typeSel   *ast.SelectorExpr
+	}
+	var targets []*targetField
+	var rcNamed, varNamed, scopeNamed *types.Named
+	var rcFile *ast.File
+
+	for _, file := range ctx.Files {
+		for _, decl := range file.Decls {
+			gd, ok := decl.(*ast.GenDecl)
+			if !ok || gd.Tok != token.TYPE {
+				continue
+			}
+			for _, s := range gd.Specs {
+				ts, ok := s.(*ast.TypeSpec)
+				if !ok || ts.Assign.IsValid() {
+					continue
+				}
+				st, stOK := ts.Type.(*ast.StructType)
+				tn, tnOK := info.Defs[ts.Name].(*types.TypeName)
+				if !stOK || !tnOK || st.Fields == nil {
+					continue
+				}
+				named := namedOrigin(tn.Type())
+				if named == nil || named.Obj() == nil {
+					continue
+				}
+				switch named.Obj().Name() {
+				case "ReferenceCollector":
+					rcNamed = named
+					rcFile = file
+				case "Var":
+					varNamed = named
+				case "Scope":
+					scopeNamed = named
+				}
+				if named.Obj().Name() != "ReferenceCollector" && named.Obj().Name() != "InlineVariables_InliningBehavior" {
+					continue
+				}
+				for _, fld := range st.Fields.List {
+					if len(fld.Names) != 1 {
+						continue
+					}
+					v := varFromObj(info.Defs[fld.Names[0]])
+					if v == nil || !v.IsField() {
+						continue
+					}
+					ft := types.Unalias(v.Type())
+					if ptr, isP := ft.(*types.Pointer); isP {
+						ft = types.Unalias(ptr.Elem())
+					}
+					var typeSel *ast.SelectorExpr
+					tExpr := stripParens(fld.Type)
+					if stE, isSt := tExpr.(*ast.StarExpr); isSt {
+						tExpr = stripParens(stE.X)
+					}
+					if ile, isIL := tExpr.(*ast.IndexListExpr); isIL {
+						if sel, isSel := stripParens(ile.X).(*ast.SelectorExpr); isSel {
+							typeSel = sel
+						}
+					}
+					// Also detect ReferenceCollector.referenceMap freshly lowered to OrderedMap in the same pass run
+					// (before ctx.Info is reloaded) so GetReferences implicit-var fallback lands on Run 1 (idempotent).
+					if named.Obj().Name() == "ReferenceCollector" && v.Name() == "referenceMap" &&
+						typeSel != nil && typeSel.Sel != nil && typeSel.Sel.Name == "OrderedMap" {
+						targets = append(targets, &targetField{
+							file:      file,
+							owner:     named,
+							fld:       fld,
+							fldVar:    v,
+							isOrdered: true,
+							typeSel:   typeSel,
+						})
+						continue
+					}
+					fNamed, okN := ft.(*types.Named)
+					if !okN || fNamed.Obj() == nil || !isJ2gortPkg(fNamed.Obj().Pkg()) {
+						continue
+					}
+					mapTypeName := fNamed.Obj().Name()
+					if mapTypeName != "CustomOrderedMap" && mapTypeName != "OrderedMap" {
+						continue
+					}
+					targs := fNamed.TypeArgs()
+					if targs == nil || targs.Len() != 2 {
+						continue
+					}
+					if !isCanonicalVarIdentityMapField(named, v.Name(), targs.At(0), targs.At(1)) {
+						continue
+					}
+					targets = append(targets, &targetField{
+						file:      file,
+						owner:     named,
+						fld:       fld,
+						fldVar:    v,
+						isCustom:  mapTypeName == "CustomOrderedMap",
+						isOrdered: mapTypeName == "OrderedMap",
+						typeSel:   typeSel,
+					})
+				}
+			}
+		}
+	}
+
+	count := 0
+	var rcHasOrderedMap bool
+	for _, tf := range targets {
+		if tf.isOrdered {
+			if tf.owner == rcNamed {
+				rcHasOrderedMap = true
+			}
+			continue
+		}
+		if !tf.isCustom || tf.typeSel == nil || !ctx.ShouldTransform(tf.file) {
+			continue
+		}
+		// Scan every reference to tf.fldVar across all files to verify all required OrderedMap symbols exist.
+		type fnRewrite struct {
+			file    *ast.File
+			sel     *ast.SelectorExpr
+			newName string
+		}
+		var fnRewrites []fnRewrite
+		canUpgrade := true
+		needMethods := make(map[string]bool)
+		needFuncs := make(map[string]bool)
+
+		for _, file := range ctx.Files {
+			parents, _ := buildParentMap(file)
+			ast.Inspect(file, func(n ast.Node) bool {
+				if !canUpgrade || n == nil {
+					return false
+				}
+				id, ok := n.(*ast.Ident)
+				if !ok || varFromObj(info.Uses[id]) != tf.fldVar {
+					return true
+				}
+				if !ctx.ShouldTransform(file) {
+					canUpgrade = false
+					return false
+				}
+				sel, okS := parents[id].(*ast.SelectorExpr)
+				if !okS || sel.Sel != id {
+					canUpgrade = false
+					return false
+				}
+				// Case 1: Assignment `this_.field = j2gort.<New|Acquire>CustomOrderedMap*[...](...)`
+				if as, okA := parents[sel].(*ast.AssignStmt); okA && as.Tok == token.ASSIGN && len(as.Lhs) == 1 && len(as.Rhs) == 1 && stripParens(as.Lhs[0]) == sel {
+					if call, okC := stripParens(as.Rhs[0]).(*ast.CallExpr); okC {
+						fun := stripParens(call.Fun)
+						if ile, okIL := fun.(*ast.IndexListExpr); okIL {
+							fun = stripParens(ile.X)
+						}
+						if cSel, okCS := fun.(*ast.SelectorExpr); okCS && cSel.Sel != nil {
+							oldN := cSel.Sel.Name
+							if strings.Contains(oldN, "CustomOrderedMap") {
+								newN := strings.Replace(oldN, "CustomOrderedMap", "OrderedMap", 1)
+								needFuncs[newN] = true
+								fnRewrites = append(fnRewrites, fnRewrite{file: file, sel: cSel, newName: newN})
+								return true
+							}
+						}
+					}
+					if isNilIdent(as.Rhs[0], info) {
+						return true
+					}
+					canUpgrade = false
+					return false
+				}
+				// Case 2: Method call `this_.field.<Method>(...)`
+				if mSel, okM := parents[sel].(*ast.SelectorExpr); okM && mSel.X == sel && mSel.Sel != nil {
+					needMethods[mSel.Sel.Name] = true
+					return true
+				}
+				// Case 3: Address-of `&this_.field` passed to `j2gort.CustomOrderedMap*(...)`
+				if un, okU := parents[sel].(*ast.UnaryExpr); okU && un.Op == token.AND && un.X == sel {
+					if call, okC := parents[un].(*ast.CallExpr); okC && len(call.Args) >= 1 && call.Args[0] == un {
+						fun := stripParens(call.Fun)
+						if ile, okIL := fun.(*ast.IndexListExpr); okIL {
+							fun = stripParens(ile.X)
+						} else if ie, okI := fun.(*ast.IndexExpr); okI {
+							fun = stripParens(ie.X)
+						}
+						if cSel, okCS := fun.(*ast.SelectorExpr); okCS && cSel.Sel != nil && strings.HasPrefix(cSel.Sel.Name, "CustomOrderedMap") {
+							newN := strings.Replace(cSel.Sel.Name, "CustomOrderedMap", "OrderedMap", 1)
+							needFuncs[newN] = true
+							fnRewrites = append(fnRewrites, fnRewrite{file: file, sel: cSel, newName: newN})
+							return true
+						}
+					}
+					canUpgrade = false
+					return false
+				}
+				// Case 4: Nil check `this_.field != nil` / `this_.field == nil`
+				if bin, okB := parents[sel].(*ast.BinaryExpr); okB && (bin.Op == token.EQL || bin.Op == token.NEQ) {
+					return true
+				}
+				canUpgrade = false
+				return false
+			})
+		}
+		if !canUpgrade {
+			continue
+		}
+		for fnName := range needFuncs {
+			if !j2gortHasExport(ctx, fnName) {
+				canUpgrade = false
+				break
+			}
+		}
+		for mName := range needMethods {
+			if !j2gortTypeHasMethod(ctx, "OrderedMap", mName) {
+				canUpgrade = false
+				break
+			}
+		}
+		if !canUpgrade {
+			continue
+		}
+		tf.typeSel.Sel = &ast.Ident{NamePos: tf.typeSel.Sel.Pos(), Name: "OrderedMap"}
+		ctx.MarkFileModified(tf.file)
+		count++
+		for _, rw := range fnRewrites {
+			rw.sel.Sel = &ast.Ident{NamePos: rw.sel.Sel.Pos(), Name: rw.newName}
+			ctx.MarkFileModified(rw.file)
+			count++
+		}
+		if tf.owner == rcNamed {
+			rcHasOrderedMap = true
+		}
+	}
+
+	// Ensure ReferenceCollector.GetReferences resolves uncached implicit Vars (index < 0, e.g. MakeImplicitVar(EXPORTS))
+	// through their Scope's cached implicit slot when referenceMap is pointer-keyed OrderedMap[*Var, *ReferenceCollection].
+	if rcHasOrderedMap && rcNamed != nil && rcFile != nil && varNamed != nil && scopeNamed != nil && ctx.ShouldTransform(rcFile) {
+		count += ensureRefCollectorGetReferencesImplicitVarFallback(ctx, rcFile, rcNamed, varNamed, scopeNamed)
+	}
+
+	return count
+}
+
+func ensureRefCollectorGetReferencesImplicitVarFallback(
+	ctx *PassContext,
+	rcFile *ast.File,
+	rcNamed, varNamed, scopeNamed *types.Named,
+) int {
+	// Verify Var has index (int32), scope (interface assignable from *Scope), name (string)
+	// and Scope has implicitVars (any) and method GetOwnSlot(string) any.
+	idxObj, _, _ := types.LookupFieldOrMethod(types.NewPointer(varNamed), true, ctx.Pkg, "index")
+	scopeObj, _, _ := types.LookupFieldOrMethod(types.NewPointer(varNamed), true, ctx.Pkg, "scope")
+	nameObj, _, _ := types.LookupFieldOrMethod(types.NewPointer(varNamed), true, ctx.Pkg, "name")
+	impObj, _, _ := types.LookupFieldOrMethod(types.NewPointer(scopeNamed), true, ctx.Pkg, "implicitVars")
+	slotObj, _, _ := types.LookupFieldOrMethod(types.NewPointer(scopeNamed), true, ctx.Pkg, "GetOwnSlot")
+	idxV, okI := idxObj.(*types.Var)
+	scopeV, okSc := scopeObj.(*types.Var)
+	nameV, okN := nameObj.(*types.Var)
+	impV, okImp := impObj.(*types.Var)
+	slotFn, okSl := slotObj.(*types.Func)
+	if !okI || !okSc || !okN || !okImp || !okSl ||
+		!types.Identical(idxV.Type(), types.Typ[types.Int32]) ||
+		!types.AssignableTo(types.NewPointer(scopeNamed), scopeV.Type()) ||
+		!types.Identical(nameV.Type(), types.Typ[types.String]) ||
+		impV.Type() == nil {
+		return 0
+	}
+	slotSig, okSS := slotFn.Type().(*types.Signature)
+	if !okSS || slotSig.Params().Len() != 1 || slotSig.Results().Len() != 1 ||
+		!types.Identical(slotSig.Params().At(0).Type(), types.Typ[types.String]) {
+		return 0
+	}
+
+	j2Qual, okQ := ensureJ2gortImportInFile(rcFile, ctx)
+	if !okQ {
+		return 0
+	}
+
+	for _, decl := range rcFile.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Name == nil || fn.Name.Name != "GetReferences" || fn.Body == nil ||
+			len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		rId := fn.Recv.List[0].Names[0]
+		rv := varFromObj(ctx.Info.Defs[rId])
+		if rv == nil || ptrNamedOrigin(rv.Type()) != rcNamed || rId.Name == "" || rId.Name == "_" {
+			continue
+		}
+		// Idempotency guard: already has implicitVars fallback.
+		hasFallback := false
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			if sel, okS := n.(*ast.SelectorExpr); okS && sel.Sel != nil && sel.Sel.Name == "implicitVars" {
+				hasFallback = true
+				return false
+			}
+			return true
+		})
+		if hasFallback || len(fn.Body.List) == 0 {
+			return 0
+		}
+		// Match final `return j2gort.PtrToAny(this_.referenceMap.Get(v))`
+		retIdx := len(fn.Body.List) - 1
+		retStmt, okR := fn.Body.List[retIdx].(*ast.ReturnStmt)
+		if !okR || len(retStmt.Results) != 1 {
+			continue
+		}
+		ptrCall, okP := stripParens(retStmt.Results[0]).(*ast.CallExpr)
+		if !okP || len(ptrCall.Args) != 1 {
+			continue
+		}
+		ptrSel, okPS := stripParens(ptrCall.Fun).(*ast.SelectorExpr)
+		if !okPS || ptrSel.Sel == nil || ptrSel.Sel.Name != "PtrToAny" {
+			continue
+		}
+		getCall, okG := stripParens(ptrCall.Args[0]).(*ast.CallExpr)
+		if !okG || len(getCall.Args) != 1 {
+			continue
+		}
+		getSel, okGS := stripParens(getCall.Fun).(*ast.SelectorExpr)
+		if !okGS || getSel.Sel == nil || getSel.Sel.Name != "Get" {
+			continue
+		}
+		rmSel, okRM := stripParens(getSel.X).(*ast.SelectorExpr)
+		if !okRM || rmSel.Sel == nil || rmSel.Sel.Name != "referenceMap" {
+			continue
+		}
+		rmX, okRX := stripParens(rmSel.X).(*ast.Ident)
+		vArg, okVA := stripParens(getCall.Args[0]).(*ast.Ident)
+		if !okRX || !okVA || rmX.Name != rId.Name || vArg.Name == "" || vArg.Name == "_" {
+			continue
+		}
+
+		src := fmt.Sprintf(`package p
+func f() any {
+	rc_ := %[1]s.referenceMap.Get(%[2]s)
+	if rc_ == nil && %[2]s != nil && %[2]s.index < 0 {
+		if sc_, ok_ := %[2]s.scope.(*Scope); ok_ && sc_ != nil && sc_.implicitVars != nil {
+			if cv_, okV_ := sc_.GetOwnSlot(%[2]s.name).(*Var); okV_ && cv_ != nil && cv_ != %[2]s {
+				rc_ = %[1]s.referenceMap.Get(cv_)
+			}
+		}
+	}
+	return %[3]s.PtrToAny(rc_)
+}
+`, rId.Name, vArg.Name, j2Qual)
+		pf, err := parser.ParseFile(ctx.Fset, "", src, 0)
+		if err != nil {
+			return 0
+		}
+		fn.Body.List = slices.Replace(fn.Body.List, retIdx, retIdx+1, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+		ctx.MarkFileModified(rcFile)
+		return 1
+	}
+	return 0
 }

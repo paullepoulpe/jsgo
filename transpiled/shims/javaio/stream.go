@@ -12,7 +12,10 @@ import (
 	"sync/atomic"
 )
 
-const defaultStreamBufSize = 64 * 1024
+const (
+	defaultStreamBufSize = 64 * 1024
+	rawWriteScratchSize  = 256 * 1024
+)
 
 var (
 	bufferedReaderPool = sync.Pool{
@@ -27,7 +30,7 @@ var (
 	}
 	rawWriteScratchPool = sync.Pool{
 		New: func() any {
-			return new([defaultStreamBufSize]byte)
+			return new([rawWriteScratchSize]byte)
 		},
 	}
 )
@@ -572,7 +575,7 @@ func (s *FileOutputStream) WriteString(str string) (int, error) {
 		n := copy(tmp[:], str)
 		return writeRawFD(fd, tmp[:n])
 	}
-	buf := rawWriteScratchPool.Get().(*[defaultStreamBufSize]byte)
+	buf := rawWriteScratchPool.Get().(*[rawWriteScratchSize]byte)
 	total := 0
 	rem := str
 	for len(rem) > 0 {

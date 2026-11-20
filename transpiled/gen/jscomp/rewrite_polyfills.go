@@ -192,7 +192,7 @@ func (this_ *RewritePolyfills) Process_2(externs pkg_rhino.Node, root pkg_rhino.
 			(&val_1).TraverseExcludingGuarded(root, func() j2gort.Ext_java_util_function_Consumer {
 				bound_2 := this_
 				return j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) {
-					bound_2.priv_RewritePolyfills_inject_5024(j2gort.CastPtr[PolyfillUsageFinder_PolyfillUsage](mrp0_))
+					bound_2.priv_RewritePolyfills_inject_5029(j2gort.CastPtr[PolyfillUsageFinder_PolyfillUsage](mrp0_))
 				})
 			}())
 		}
@@ -206,11 +206,11 @@ func (this_ *RewritePolyfills) Process_2(externs pkg_rhino.Node, root pkg_rhino.
 	} else {
 		librariesToInject = j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.libraries))
 	}
-	this_.priv_RewritePolyfills_injectAll_5021(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](librariesToInject), (this_.injectPolyfillsNewerThan != 0))
+	this_.priv_RewritePolyfills_injectAll_5026(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](librariesToInject), (this_.injectPolyfillsNewerThan != 0))
 }
 
 // Java method: RewritePolyfills.injectAll(java.lang.Iterable<java.lang.String> librariesToInject, boolean forceInjection)
-func (this_ *RewritePolyfills) priv_RewritePolyfills_injectAll_5021(librariesToInject j2gort.Ext_java_lang_Iterable, forceInjection bool) {
+func (this_ *RewritePolyfills) priv_RewritePolyfills_injectAll_5026(librariesToInject j2gort.Ext_java_lang_Iterable, forceInjection bool) {
 	_ = librariesToInject
 	_ = forceInjection
 	var lastNode pkg_rhino.Node = pkg_rhino.Node(0)
@@ -230,13 +230,13 @@ func (this_ *RewritePolyfills) priv_RewritePolyfills_injectAll_5021(librariesToI
 	if lastNode != 0 {
 		var parent pkg_rhino.Node = lastNode.GetParent()
 		_ = parent
-		this_.priv_RewritePolyfills_removeUnneededPolyfills_5022(parent, lastNode.GetNext())
+		this_.priv_RewritePolyfills_removeUnneededPolyfills_5027(parent, lastNode.GetNext())
 		this_.compiler.ReportChangeToEnclosingScope(parent)
 	}
 }
 
 // Java method: RewritePolyfills.removeUnneededPolyfills(com.google.javascript.rhino.Node parent, com.google.javascript.rhino.Node runtimeEnd)
-func (this_ *RewritePolyfills) priv_RewritePolyfills_removeUnneededPolyfills_5022(parent pkg_rhino.Node, runtimeEnd pkg_rhino.Node) {
+func (this_ *RewritePolyfills) priv_RewritePolyfills_removeUnneededPolyfills_5027(parent pkg_rhino.Node, runtimeEnd pkg_rhino.Node) {
 	_ = parent
 	_ = runtimeEnd
 	var node pkg_rhino.Node = parent.GetFirstChild()
@@ -246,7 +246,7 @@ func (this_ *RewritePolyfills) priv_RewritePolyfills_removeUnneededPolyfills_502
 	for (node != 0) && (node != runtimeEnd) {
 		var next pkg_rhino.Node = node.GetNext()
 		_ = next
-		var polyfillSupportedFeatureSet *pkg_parser.FeatureSet = this_.priv_RewritePolyfills_getPolyfillSupportedFeatureSet_5023(node)
+		var polyfillSupportedFeatureSet *pkg_parser.FeatureSet = this_.priv_RewritePolyfills_getPolyfillSupportedFeatureSet_5028(node)
 		_ = polyfillSupportedFeatureSet
 		if (polyfillSupportedFeatureSet != nil) && outputFeatureSet.Contains_1_FeatureSet(polyfillSupportedFeatureSet) {
 			NodeUtil_RemoveChild(parent, node)
@@ -257,7 +257,7 @@ func (this_ *RewritePolyfills) priv_RewritePolyfills_removeUnneededPolyfills_502
 }
 
 // Java method: RewritePolyfills.getPolyfillSupportedFeatureSet(com.google.javascript.rhino.Node maybePolyfill)
-func (this_ *RewritePolyfills) priv_RewritePolyfills_getPolyfillSupportedFeatureSet_5023(maybePolyfill pkg_rhino.Node) *pkg_parser.FeatureSet {
+func (this_ *RewritePolyfills) priv_RewritePolyfills_getPolyfillSupportedFeatureSet_5028(maybePolyfill pkg_rhino.Node) *pkg_parser.FeatureSet {
 	_ = maybePolyfill
 	var polyfillSupportFeatureSet *pkg_parser.FeatureSet = nil
 	_ = polyfillSupportFeatureSet
@@ -277,7 +277,7 @@ func (this_ *RewritePolyfills) priv_RewritePolyfills_getPolyfillSupportedFeature
 }
 
 // Java method: RewritePolyfills.inject(com.google.javascript.jscomp.PolyfillUsageFinder.PolyfillUsage polyfillUsage)
-func (this_ *RewritePolyfills) priv_RewritePolyfills_inject_5024(polyfillUsage *PolyfillUsageFinder_PolyfillUsage) {
+func (this_ *RewritePolyfills) priv_RewritePolyfills_inject_5029(polyfillUsage *PolyfillUsageFinder_PolyfillUsage) {
 	_ = polyfillUsage
 	var polyfill *PolyfillUsageFinder_Polyfill = polyfillUsage.Polyfill()
 	_ = polyfill

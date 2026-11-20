@@ -267,10 +267,10 @@ func (this_ *TypeMismatch_Accumulator) RegisterMismatch(location pkg_rhino.Node,
 			var len_ int32 = min(int32(len(paramsA)), int32(len(paramsB)))
 			_ = len_
 			for ; i_2 < len_; i_2 = i_2 + 1 {
-				this_.priv_Accumulator_registerIfMismatch_5592(location, paramsA[i_2].GetJSType(), paramsB[i_2].GetJSType())
+				this_.priv_Accumulator_registerIfMismatch_5597(location, paramsA[i_2].GetJSType(), paramsB[i_2].GetJSType())
 			}
 		}
-		this_.priv_Accumulator_registerIfMismatch_5592(location, fnTypeA.GetReturnType(), fnTypeB.GetReturnType())
+		this_.priv_Accumulator_registerIfMismatch_5597(location, fnTypeA.GetReturnType(), fnTypeB.GetReturnType())
 	}
 }
 
@@ -280,7 +280,7 @@ func (this_ *TypeMismatch_Accumulator) GetMismatches() j2gort.Ext_com_google_com
 }
 
 // Java method: Accumulator.registerIfMismatch(com.google.javascript.rhino.Node location, com.google.javascript.rhino.jstype.JSType found, com.google.javascript.rhino.jstype.JSType required)
-func (this_ *TypeMismatch_Accumulator) priv_Accumulator_registerIfMismatch_5592(location pkg_rhino.Node, found pkg_rhino.JSType, required pkg_rhino.JSType) {
+func (this_ *TypeMismatch_Accumulator) priv_Accumulator_registerIfMismatch_5597(location pkg_rhino.Node, found pkg_rhino.JSType, required pkg_rhino.JSType) {
 	_ = location
 	_ = found
 	_ = required

@@ -192,7 +192,7 @@ func (this_ *TemplateTypeReplacer) HasMadeReplacement() bool {
 }
 
 // Java method: TemplateTypeReplacer.isSeenType(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_isSeenType_9576(type_ JSType) bool {
+func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_isSeenType_9581(type_ JSType) bool {
 	_ = type_
 	var stack []JSType = this_.seenStack
 	_ = stack
@@ -214,7 +214,7 @@ func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_isSeenType_9576(typ
 }
 
 // Java method: TemplateTypeReplacer.enterSeenType(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_enterSeenType_9577(type_ JSType) bool {
+func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_enterSeenType_9582(type_ JSType) bool {
 	_ = type_
 	var stack []JSType = this_.seenStack
 	_ = stack
@@ -260,7 +260,7 @@ func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_enterSeenType_9577(
 }
 
 // Java method: TemplateTypeReplacer.exitSeenType()
-func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_exitSeenType_9578() {
+func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_exitSeenType_9583() {
 	var nextDepth int32 = (this_.seenDepth - int32(1))
 	_ = nextDepth
 	{
@@ -291,23 +291,23 @@ func (this_ *TemplateTypeReplacer) Replace(type_ JSType) JSType {
 	case int32(15) /* JSTypeClass.PROXY_OBJECT */ :
 		return j2gort.AsIface[JSType](this_.CaseProxyObjectType(j2gort.AsIface[ProxyObjectType](type_)))
 	case int32(23) /* JSTypeClass.UNKNOWN */ :
-		return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_UNKNOWN_TYPE())
+		return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	case int32(10) /* JSTypeClass.NO_OBJECT */ :
-		return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_NO_OBJECT_TYPE())
+		return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_NO_OBJECT_TYPE())
 	case int32(0) /* JSTypeClass.ALL */ :
-		return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_ALL_TYPE())
+		return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_ALL_TYPE())
 	case int32(2) /* JSTypeClass.BOOLEAN */ :
-		return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_BOOLEAN_TYPE())
+		return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_BOOLEAN_TYPE())
 	case int32(12) /* JSTypeClass.NULL */ :
-		return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_NULL_TYPE())
+		return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_NULL_TYPE())
 	case int32(13) /* JSTypeClass.NUMBER */ :
-		return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_NUMBER_TYPE())
+		return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_NUMBER_TYPE())
 	case int32(3) /* JSTypeClass.BIGINT */ :
-		return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_BIGINT_TYPE())
+		return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_BIGINT_TYPE())
 	case int32(17) /* JSTypeClass.STRING */ :
-		return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_STRING_TYPE())
+		return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_STRING_TYPE())
 	case int32(24) /* JSTypeClass.VOID */ :
-		return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_VOID_TYPE())
+		return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_VOID_TYPE())
 	case int32(9) /* JSTypeClass.NO */, int32(5) /* JSTypeClass.ENUM_ELEMENT */, int32(4) /* JSTypeClass.ENUM */, int32(7) /* JSTypeClass.INSTANCE_OBJECT */, int32(14) /* JSTypeClass.PROTOTYPE_OBJECT */, int32(11) /* JSTypeClass.NO_RESOLVED */, int32(8) /* JSTypeClass.NAMED */, int32(18) /* JSTypeClass.SYMBOL */, int32(19) /* JSTypeClass.WELL_KNOWN_SYMBOL */ :
 		return type_
 	case int32(1) /* JSTypeClass.ARROW */ :
@@ -330,45 +330,45 @@ func (this_ *TemplateTypeReplacer) CaseEnumElementType(type_ *EnumElementType) a
 
 // Java method: TemplateTypeReplacer.caseAllType()
 func (this_ *TemplateTypeReplacer) CaseAllType() any {
-	return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_ALL_TYPE())
+	return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_ALL_TYPE())
 }
 
 // Java method: TemplateTypeReplacer.caseBooleanType()
 func (this_ *TemplateTypeReplacer) CaseBooleanType() any {
-	return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_BOOLEAN_TYPE())
+	return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_BOOLEAN_TYPE())
 }
 
 // Java method: TemplateTypeReplacer.caseNoObjectType()
 func (this_ *TemplateTypeReplacer) CaseNoObjectType() any {
-	return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_NO_OBJECT_TYPE())
+	return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_NO_OBJECT_TYPE())
 }
 
 // Java method: TemplateTypeReplacer.caseFunctionType(com.google.javascript.rhino.jstype.FunctionType type)
 func (this_ *TemplateTypeReplacer) CaseFunctionType(type_ *FunctionType) any {
 	_ = type_
-	if this_.priv_TemplateTypeReplacer_isNativeFunctionType_9586(type_) || (!(type_.IsOrdinaryFunction()) && !(type_.IsConstructor())) {
+	if this_.priv_TemplateTypeReplacer_isNativeFunctionType_9591(type_) || (!(type_.IsOrdinaryFunction()) && !(type_.IsConstructor())) {
 		return j2gort.PtrToAny(type_)
 	}
-	if !(this_.priv_TemplateTypeReplacer_enterSeenType_9577(ToIface_JSType(type_))) {
+	if !(this_.priv_TemplateTypeReplacer_enterSeenType_9582(ToIface_JSType(type_))) {
 		return j2gort.PtrToAny(type_)
 	}
 	defer func() {
-		this_.priv_TemplateTypeReplacer_exitSeenType_9578()
+		this_.priv_TemplateTypeReplacer_exitSeenType_9583()
 	}()
 	{
-		return this_.priv_TemplateTypeReplacer_caseFunctionTypeUnguarded_9580(type_)
+		return this_.priv_TemplateTypeReplacer_caseFunctionTypeUnguarded_9585(type_)
 	}
 	panic("unreachable")
 }
 
 // Java method: TemplateTypeReplacer.caseFunctionTypeUnguarded(com.google.javascript.rhino.jstype.FunctionType type)
-func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseFunctionTypeUnguarded_9580(type_ *FunctionType) JSType {
+func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseFunctionTypeUnguarded_9585(type_ *FunctionType) JSType {
 	_ = type_
 	var changed bool = false
 	_ = changed
 	var beforeThis JSType = type_.GetTypeOfThis()
 	_ = beforeThis
-	var afterThis JSType = this_.priv_TemplateTypeReplacer_coerseToThisType_9581(this_.Replace(beforeThis))
+	var afterThis JSType = this_.priv_TemplateTypeReplacer_coerseToThisType_9586(this_.Replace(beforeThis))
 	_ = afterThis
 	if !(beforeThis == afterThis || ((beforeThis == nil || beforeThis.IsJavaNil_()) && (afterThis == nil || afterThis.IsJavaNil_()))) {
 		changed = true
@@ -455,7 +455,7 @@ func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseFunctionTypeUng
 }
 
 // Java method: TemplateTypeReplacer.coerseToThisType(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_coerseToThisType_9581(type_ JSType) JSType {
+func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_coerseToThisType_9586(type_ JSType) JSType {
 	_ = type_
 	if type_ != nil && !type_.IsJavaNil_() {
 		return type_
@@ -470,22 +470,22 @@ func (this_ *TemplateTypeReplacer) CaseObjectType(objType ObjectType) any {
 	if ((!(this_.visitProperties) || objType.IsNominalType()) || j2gort.InstanceOf[ProxyObjectType](objType)) || !(objType.GetObjectTypeBase().IsRecordType()) {
 		return objType
 	}
-	if !(this_.priv_TemplateTypeReplacer_enterSeenType_9577(Upcast_JSType(objType))) {
+	if !(this_.priv_TemplateTypeReplacer_enterSeenType_9582(Upcast_JSType(objType))) {
 		return objType
 	}
 	defer func() {
-		this_.priv_TemplateTypeReplacer_exitSeenType_9578()
+		this_.priv_TemplateTypeReplacer_exitSeenType_9583()
 	}()
 	{
-		return this_.priv_TemplateTypeReplacer_caseObjectTypeUnguarded_9582(objType)
+		return this_.priv_TemplateTypeReplacer_caseObjectTypeUnguarded_9587(objType)
 	}
 	panic("unreachable")
 }
 
 // Java method: TemplateTypeReplacer.caseObjectTypeUnguarded(com.google.javascript.rhino.jstype.ObjectType objType)
-func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseObjectTypeUnguarded_9582(objType ObjectType) JSType {
+func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseObjectTypeUnguarded_9587(objType ObjectType) JSType {
 	_ = objType
-	var cached JSType = this_.priv_TemplateTypeReplacer_getVisitedObjectTypeOrNull_9589(Upcast_JSType(objType))
+	var cached JSType = this_.priv_TemplateTypeReplacer_getVisitedObjectTypeOrNull_9594(Upcast_JSType(objType))
 	_ = cached
 	if cached != nil && !cached.IsJavaNil_() {
 		return cached
@@ -563,20 +563,20 @@ func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseObjectTypeUngua
 // Java method: TemplateTypeReplacer.caseTemplatizedType(com.google.javascript.rhino.jstype.TemplatizedType type)
 func (this_ *TemplateTypeReplacer) CaseTemplatizedType(type_ *TemplatizedType) any {
 	_ = type_
-	if !(this_.priv_TemplateTypeReplacer_enterSeenType_9577(ToIface_JSType(type_))) {
+	if !(this_.priv_TemplateTypeReplacer_enterSeenType_9582(ToIface_JSType(type_))) {
 		return j2gort.PtrToAny(type_)
 	}
 	defer func() {
-		this_.priv_TemplateTypeReplacer_exitSeenType_9578()
+		this_.priv_TemplateTypeReplacer_exitSeenType_9583()
 	}()
 	{
-		return this_.priv_TemplateTypeReplacer_caseTemplatizedTypeUnguarded_9583(type_)
+		return this_.priv_TemplateTypeReplacer_caseTemplatizedTypeUnguarded_9588(type_)
 	}
 	panic("unreachable")
 }
 
 // Java method: TemplateTypeReplacer.caseTemplatizedTypeUnguarded(com.google.javascript.rhino.jstype.TemplatizedType type)
-func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseTemplatizedTypeUnguarded_9583(type_ *TemplatizedType) JSType {
+func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseTemplatizedTypeUnguarded_9588(type_ *TemplatizedType) JSType {
 	_ = type_
 	var changed bool = false
 	_ = changed
@@ -659,27 +659,27 @@ func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseTemplatizedType
 
 // Java method: TemplateTypeReplacer.caseUnknownType()
 func (this_ *TemplateTypeReplacer) CaseUnknownType() any {
-	return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_UNKNOWN_TYPE())
+	return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_UNKNOWN_TYPE())
 }
 
 // Java method: TemplateTypeReplacer.caseNullType()
 func (this_ *TemplateTypeReplacer) CaseNullType() any {
-	return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_NULL_TYPE())
+	return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_NULL_TYPE())
 }
 
 // Java method: TemplateTypeReplacer.caseNumberType()
 func (this_ *TemplateTypeReplacer) CaseNumberType() any {
-	return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_NUMBER_TYPE())
+	return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_NUMBER_TYPE())
 }
 
 // Java method: TemplateTypeReplacer.caseBigIntType()
 func (this_ *TemplateTypeReplacer) CaseBigIntType() any {
-	return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_BIGINT_TYPE())
+	return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_BIGINT_TYPE())
 }
 
 // Java method: TemplateTypeReplacer.caseStringType()
 func (this_ *TemplateTypeReplacer) CaseStringType() any {
-	return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_STRING_TYPE())
+	return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_STRING_TYPE())
 }
 
 // Java method: TemplateTypeReplacer.caseSymbolType(com.google.javascript.rhino.jstype.SymbolType type)
@@ -690,26 +690,26 @@ func (this_ *TemplateTypeReplacer) CaseSymbolType(type_ SymbolType) any {
 
 // Java method: TemplateTypeReplacer.caseVoidType()
 func (this_ *TemplateTypeReplacer) CaseVoidType() any {
-	return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_VOID_TYPE())
+	return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_VOID_TYPE())
 }
 
 // Java method: TemplateTypeReplacer.caseUnionType(com.google.javascript.rhino.jstype.UnionType type)
 func (this_ *TemplateTypeReplacer) CaseUnionType(type_ *UnionType) any {
 	_ = type_
-	if !(this_.priv_TemplateTypeReplacer_enterSeenType_9577(ToIface_JSType(type_))) {
+	if !(this_.priv_TemplateTypeReplacer_enterSeenType_9582(ToIface_JSType(type_))) {
 		return j2gort.PtrToAny(type_)
 	}
 	defer func() {
-		this_.priv_TemplateTypeReplacer_exitSeenType_9578()
+		this_.priv_TemplateTypeReplacer_exitSeenType_9583()
 	}()
 	{
-		return this_.priv_TemplateTypeReplacer_caseUnionTypeUnguarded_9584(type_)
+		return this_.priv_TemplateTypeReplacer_caseUnionTypeUnguarded_9589(type_)
 	}
 	panic("unreachable")
 }
 
 // Java method: TemplateTypeReplacer.caseUnionTypeUnguarded(com.google.javascript.rhino.jstype.UnionType type)
-func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseUnionTypeUnguarded_9584(type_ *UnionType) JSType {
+func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseUnionTypeUnguarded_9589(type_ *UnionType) JSType {
 	_ = type_
 	var results *UnionType_Builder = nil
 	_ = results
@@ -758,31 +758,31 @@ func (this_ *TemplateTypeReplacer) CaseTemplateType(type_ *TemplateType) any {
 	this_.hasMadeReplacement = true
 	if !(type_ == this_.keyType) && !(this_.bindings.HasTemplateKey_2(type_, this_.ownSubMapBoundary)) {
 		if this_.useUnknownForMissingKeys {
-			return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_UNKNOWN_TYPE())
+			return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_UNKNOWN_TYPE())
 		} else {
 			return ToIface_JSType(type_)
 		}
 	}
-	if this_.priv_TemplateTypeReplacer_isSeenType_9576(ToIface_JSType(type_)) {
+	if this_.priv_TemplateTypeReplacer_isSeenType_9581(ToIface_JSType(type_)) {
 		return j2gort.PtrToAny(type_)
 	} else if !(this_.bindings.HasTemplateType(type_)) {
 		if this_.useUnknownForMissingValues {
-			return this_.priv_TemplateTypeReplacer_getNativeType_9585(StaticGet_JSTypeNative_UNKNOWN_TYPE())
+			return this_.priv_TemplateTypeReplacer_getNativeType_9590(StaticGet_JSTypeNative_UNKNOWN_TYPE())
 		} else {
 			return ToIface_JSType(type_)
 		}
 	}
 	var replacement JSType = this_.bindings.GetUnresolvedOriginalTemplateType(type_)
 	_ = replacement
-	if (replacement == this_.keyType || ((replacement == nil || replacement.IsJavaNil_()) && (this_.keyType == nil || this_.keyType.IsJavaNil_()))) || this_.priv_TemplateTypeReplacer_isSeenType_9576(replacement) {
+	if (replacement == this_.keyType || ((replacement == nil || replacement.IsJavaNil_()) && (this_.keyType == nil || this_.keyType.IsJavaNil_()))) || this_.priv_TemplateTypeReplacer_isSeenType_9581(replacement) {
 		return j2gort.PtrToAny(type_)
 	}
-	this_.priv_TemplateTypeReplacer_enterSeenType_9577(ToIface_JSType(type_))
+	this_.priv_TemplateTypeReplacer_enterSeenType_9582(ToIface_JSType(type_))
 	var visitedReplacement JSType = nil
 	_ = visitedReplacement
 	func() {
 		defer func() {
-			this_.priv_TemplateTypeReplacer_exitSeenType_9578()
+			this_.priv_TemplateTypeReplacer_exitSeenType_9583()
 		}()
 		visitedReplacement = this_.Replace(replacement)
 	}()
@@ -793,13 +793,13 @@ func (this_ *TemplateTypeReplacer) CaseTemplateType(type_ *TemplateType) any {
 }
 
 // Java method: TemplateTypeReplacer.getNativeType(com.google.javascript.rhino.jstype.JSTypeNative nativeType)
-func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_getNativeType_9585(nativeType JSTypeNative) JSType {
+func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_getNativeType_9590(nativeType JSTypeNative) JSType {
 	_ = nativeType
 	return this_.registry.GetNativeType(nativeType)
 }
 
 // Java method: TemplateTypeReplacer.isNativeFunctionType(com.google.javascript.rhino.jstype.FunctionType type)
-func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_isNativeFunctionType_9586(type_ *FunctionType) bool {
+func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_isNativeFunctionType_9591(type_ *FunctionType) bool {
 	_ = type_
 	return type_.IsNativeObjectType()
 }
@@ -813,20 +813,20 @@ func (this_ *TemplateTypeReplacer) CaseNamedType(type_ *NamedType) any {
 // Java method: TemplateTypeReplacer.caseProxyObjectType(com.google.javascript.rhino.jstype.ProxyObjectType type)
 func (this_ *TemplateTypeReplacer) CaseProxyObjectType(type_ ProxyObjectType) any {
 	_ = type_
-	if !(this_.priv_TemplateTypeReplacer_enterSeenType_9577(Upcast_JSType(type_))) {
+	if !(this_.priv_TemplateTypeReplacer_enterSeenType_9582(Upcast_JSType(type_))) {
 		return type_
 	}
 	defer func() {
-		this_.priv_TemplateTypeReplacer_exitSeenType_9578()
+		this_.priv_TemplateTypeReplacer_exitSeenType_9583()
 	}()
 	{
-		return this_.priv_TemplateTypeReplacer_caseProxyObjectTypeUnguarded_9587(type_)
+		return this_.priv_TemplateTypeReplacer_caseProxyObjectTypeUnguarded_9592(type_)
 	}
 	panic("unreachable")
 }
 
 // Java method: TemplateTypeReplacer.caseProxyObjectTypeUnguarded(com.google.javascript.rhino.jstype.ProxyObjectType type)
-func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseProxyObjectTypeUnguarded_9587(type_ ProxyObjectType) JSType {
+func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_caseProxyObjectTypeUnguarded_9592(type_ ProxyObjectType) JSType {
 	_ = type_
 	var beforeType JSType = type_.GetProxyObjectTypeBase().GetReferencedTypeInternal()
 	_ = beforeType
@@ -849,7 +849,7 @@ func (this_ *TemplateTypeReplacer) SetKeyType(keyType *TemplateType, ownSubMapBo
 }
 
 // Java method: TemplateTypeReplacer.getVisitedObjectTypeOrNull(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_getVisitedObjectTypeOrNull_9589(type_ JSType) JSType {
+func (this_ *TemplateTypeReplacer) priv_TemplateTypeReplacer_getVisitedObjectTypeOrNull_9594(type_ JSType) JSType {
 	_ = type_
 	if this_.visitedObjectTypes == nil {
 		this_.visitedObjectTypes = &j2gort.IdentityOrderedMap[JSType, JSType]{}

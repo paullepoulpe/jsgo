@@ -68,7 +68,19 @@ func NewBasicBlock(parent *BasicBlock, root pkg_rhino.Node) *BasicBlock {
 }
 func allocPooled_BasicBlock(slab_ *j2gort.PooledSlab[BasicBlock], parent *BasicBlock, root pkg_rhino.Node) *BasicBlock {
 	this_ := slab_.Alloc()
-	InitBasicBlock(this_, parent, root)
+	if parent != nil {
+		this_.parent = parent
+	}
+	this_.root = root
+	if root.IsFunction() {
+		this_.isFunction = true
+	}
+	if p_ := root.GetParent(); p_ != 0 {
+		switch p_.GetToken() {
+		case pkg_rhino.StaticGet_Token_DO(), pkg_rhino.StaticGet_Token_WHILE(), pkg_rhino.StaticGet_Token_FOR(), pkg_rhino.StaticGet_Token_FOR_OF(), pkg_rhino.StaticGet_Token_FOR_AWAIT_OF(), pkg_rhino.StaticGet_Token_FOR_IN():
+			this_.isLoop = true
+		}
+	}
 	return this_
 }
 

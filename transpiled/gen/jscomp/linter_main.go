@@ -78,12 +78,12 @@ func LinterMain_Main(args []string) {
 	{
 		var val_1 LinterMain
 		InitLinterMain(&val_1)
-		(&val_1).priv_LinterMain_run_3791(args)
+		(&val_1).priv_LinterMain_run_3796(args)
 	}
 }
 
 // Java method: LinterMain.run(java.lang.String[] args)
-func (this_ *LinterMain) priv_LinterMain_run_3791(args []string) {
+func (this_ *LinterMain) priv_LinterMain_run_3796(args []string) {
 	_ = args
 	var parser *j2gort.Ext_org_kohsuke_args4j_CmdLineParser = j2gort.NewExt_org_kohsuke_args4j_CmdLineParser_1(this_)
 	_ = parser

@@ -134,11 +134,11 @@ func (this_ *CheckArrayWithGoogObject) IsGoogObjectIterationOverArray(n pkg_rhin
 	}
 	var type_ pkg_rhino.JSType = firstArg.GetJSType()
 	_ = type_
-	return ((type_ != nil && !type_.IsJavaNil_()) && this_.priv_CheckArrayWithGoogObject_containsArray_6540(type_))
+	return ((type_ != nil && !type_.IsJavaNil_()) && this_.priv_CheckArrayWithGoogObject_containsArray_6545(type_))
 }
 
 // Java method: CheckArrayWithGoogObject.containsArray(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *CheckArrayWithGoogObject) priv_CheckArrayWithGoogObject_containsArray_6540(type_ pkg_rhino.JSType) bool {
+func (this_ *CheckArrayWithGoogObject) priv_CheckArrayWithGoogObject_containsArray_6545(type_ pkg_rhino.JSType) bool {
 	_ = type_
 	if type_.IsArrayType() {
 		return true

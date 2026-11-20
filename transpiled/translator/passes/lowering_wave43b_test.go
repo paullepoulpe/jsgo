@@ -2244,16 +2244,30 @@ func assertPanics(t *testing.T, label string, fn func()) {
 }
 
 func TestWave43BAllOptimizationsRuntime(t *testing.T) {
-	// 1. Verify Scope Cache-Line 0 field packing: AbstractScopeBase, parent, depth, varSlab_ all fit inside [0..64)!
+	// 1. Verify Scope contiguous pointer packing (Wave 44B): AbstractScopeBase, parent, var0..var5, vars, varSlab_
+	// are contiguous with 0 internal padding before depth int32 (and parent, var0, var1 fit in Cache Line 0 [0..64)).
 	scopeT := reflect.TypeFor[Scope]()
 	if reflect.TypeFor[*Scope]().Size() == 8 {
-		for _, fname := range []string{"AbstractScopeBase", "parent", "depth", "varSlab_"} {
+		depthF, okD := scopeT.FieldByName("depth")
+		if !okD {
+			t.Fatalf("missing field depth on Scope")
+		}
+		for _, fname := range []string{"AbstractScopeBase", "parent", "var0", "var1"} {
 			sf, ok := scopeT.FieldByName(fname)
 			if !ok {
 				t.Fatalf("missing field %s on Scope", fname)
 			}
 			if sf.Offset+sf.Type.Size() > 64 {
 				t.Fatalf("Scope.%s ends at byte %d, want <= 64 (Cache Line 0!)", fname, sf.Offset+sf.Type.Size())
+			}
+		}
+		for _, fname := range []string{"parent", "var0", "var1", "var2", "var3", "var4", "var5", "vars", "varSlab_"} {
+			sf, ok := scopeT.FieldByName(fname)
+			if !ok {
+				t.Fatalf("missing field %s on Scope", fname)
+			}
+			if sf.Offset >= depthF.Offset {
+				t.Fatalf("Scope.%s (offset %d) must precede Scope.depth (offset %d) to avoid internal padding", fname, sf.Offset, depthF.Offset)
 			}
 		}
 	}

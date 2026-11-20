@@ -579,7 +579,7 @@ func TranspilationPasses_AddTranspilationPasses(passes *PassListBuilder, options
 	if options.NeedsTranspilationOf(pkg_parser.StaticGet_FeatureSet_Feature_CLASSES()) {
 		passes.MaybeAdd(StaticGet_TranspilationPasses_Es6ConvertSuper())
 	}
-	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_DESTRUCTURING(), pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_DESTRUCTURING()})) {
+	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7237([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_DESTRUCTURING(), pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_DESTRUCTURING()})) {
 		passes.MaybeAdd(TranspilationPasses_GetEs6RewriteDestructuring(StaticGet_Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_ALL_OBJECT_PATTERNS()))
 	}
 	if options.NeedsTranspilationOf(pkg_parser.StaticGet_FeatureSet_Feature_ARROW_FUNCTIONS()) {
@@ -594,7 +594,7 @@ func TranspilationPasses_AddTranspilationPasses(passes *PassListBuilder, options
 	if options.NeedsTranspilationOf(pkg_parser.StaticGet_FeatureSet_Feature_SPREAD_EXPRESSIONS()) {
 		passes.MaybeAdd(StaticGet_TranspilationPasses_Es6RewriteSpreadExpressions())
 	}
-	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_COMPUTED_PROPERTIES(), pkg_parser.StaticGet_FeatureSet_Feature_MEMBER_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_TEMPLATE_LITERALS()})) {
+	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7237([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_COMPUTED_PROPERTIES(), pkg_parser.StaticGet_FeatureSet_Feature_MEMBER_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_TEMPLATE_LITERALS()})) {
 		passes.MaybeAdd(StaticGet_TranspilationPasses_LateConvertEs6ToEs3())
 	}
 	if options.NeedsTranspilationOf(pkg_parser.StaticGet_FeatureSet_Feature_FOR_OF()) {
@@ -603,7 +603,7 @@ func TranspilationPasses_AddTranspilationPasses(passes *PassListBuilder, options
 	if options.NeedsTranspilationOf(pkg_parser.StaticGet_FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION()) {
 		passes.MaybeAdd(StaticGet_TranspilationPasses_RewriteBlockScopedFunctionDeclaration())
 	}
-	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS()})) {
+	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7237([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS()})) {
 		passes.MaybeAdd(StaticGet_TranspilationPasses_RewriteBlockScopedDeclaration())
 	}
 	if options.NeedsTranspilationOf(pkg_parser.StaticGet_FeatureSet_Feature_GENERATORS()) {
@@ -764,13 +764,13 @@ func TranspilationPasses_CreateUnifiedFeatureRemovalPass(passName string, option
 		featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_IMPORT_META())
 		featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT())
 	}
-	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_BINARY_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_OCTAL_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_U(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_Y()})) {
-		featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_BINARY_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_OCTAL_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_U(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_Y()})
+	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7237([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_BINARY_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_OCTAL_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_U(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_Y()})) {
+		featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7237([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_BINARY_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_OCTAL_LITERALS(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_U(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_Y()})
 	}
 	if options.NeedsTranspilationFrom(pkg_parser.StaticGet_FeatureSet_ES5()) {
-		featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ES3_KEYWORDS_AS_IDENTIFIERS(), pkg_parser.StaticGet_FeatureSet_Feature_KEYWORDS_AS_PROPERTIES(), pkg_parser.StaticGet_FeatureSet_Feature_GETTER(), pkg_parser.StaticGet_FeatureSet_Feature_SETTER()})
+		featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7237([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ES3_KEYWORDS_AS_IDENTIFIERS(), pkg_parser.StaticGet_FeatureSet_Feature_KEYWORDS_AS_PROPERTIES(), pkg_parser.StaticGet_FeatureSet_Feature_GETTER(), pkg_parser.StaticGet_FeatureSet_Feature_SETTER()})
 	}
-	featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_STRING_CONTINUATION(), pkg_parser.StaticGet_FeatureSet_Feature_TRAILING_COMMA()})
-	featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ES_NEXT_RUNTIME(), pkg_parser.StaticGet_FeatureSet_Feature_ES_UNSTABLE_RUNTIME()})
+	featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7237([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_STRING_CONTINUATION(), pkg_parser.StaticGet_FeatureSet_Feature_TRAILING_COMMA()})
+	featuresToMarkRemoved = featuresToMarkRemoved.With_1_FeatureSet_Feature_7237([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ES_NEXT_RUNTIME(), pkg_parser.StaticGet_FeatureSet_Feature_ES_UNSTABLE_RUNTIME()})
 	return TranspilationPasses_CreateFeatureRemovalPass(passName, featuresToMarkRemoved)
 }

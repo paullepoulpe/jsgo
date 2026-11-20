@@ -4562,25 +4562,23 @@ func NodeUtil_GetNameReferenceCount(node pkg_rhino.Node, name string) int32 {
 
 // Java static method: NodeUtil.has(com.google.javascript.rhino.Node node, com.google.common.base.Predicate<com.google.javascript.rhino.Node> pred, com.google.common.base.Predicate<com.google.javascript.rhino.Node> traverseChildrenPred)
 func NodeUtil_Has(node pkg_rhino.Node, pred j2gort.Ext_com_google_common_base_Predicate, traverseChildrenPred j2gort.Ext_com_google_common_base_Predicate) bool {
-	_ = node
-	_ = pred
-	_ = traverseChildrenPred
-	if j2gort.PredTestNode(pred, uint32(node)) {
-		return true
-	}
-	if !(j2gort.PredTestNode(traverseChildrenPred, uint32(node))) {
-		return false
-	}
-	{
-		var c pkg_rhino.Node = node.GetFirstChild()
-		_ = c
-		for ; c != 0; c = c.GetNext() {
-			if NodeUtil_Has(c, pred, traverseChildrenPred) {
-				return true
-			}
+	if predFn_ := j2gort.UnwrapNodePred(pred); predFn_ != nil {
+		if j2gort.IsAlwaysTruePred(traverseChildrenPred) {
+			return nodeUtilHasPredAlwaysTrueFn_(node, predFn_)
 		}
+		if travFn_ := j2gort.UnwrapNodePred(traverseChildrenPred); travFn_ != nil {
+			return nodeUtilHasBothFn_(node, predFn_, travFn_)
+		}
+		return nodeUtilHasPredFn_(node, predFn_, traverseChildrenPred)
 	}
-	return false
+	if j2gort.IsAlwaysTruePred(traverseChildrenPred) {
+		return nodeUtilHasSlowAlwaysTrue_(node, pred)
+	}
+	if travFn_ := j2gort.UnwrapNodePred(traverseChildrenPred); travFn_ != nil {
+		return nodeUtilHasTravFn_(node, pred, travFn_)
+	}
+	return nodeUtilHasSlow_(node, pred, traverseChildrenPred)
+
 }
 func nodeUtilHasPredAlwaysTrueFn_(node pkg_rhino.Node, pred func(uint32) bool) bool {
 	if pred(uint32(node)) {
@@ -4602,6 +4600,59 @@ func nodeUtilHasPredFn_(node pkg_rhino.Node, pred func(uint32) bool, traverseChi
 	}
 	for c := node.GetFirstChild(); c != 0; c = c.GetNext() {
 		if nodeUtilHasPredFn_(c, pred, traverseChildrenPred) {
+			return true
+		}
+	}
+	return false
+}
+func nodeUtilHasTravFn_(node pkg_rhino.Node, pred j2gort.Ext_com_google_common_base_Predicate, traverseChildrenPred func(uint32) bool) bool {
+	if j2gort.PredTestNode(pred, uint32(node)) {
+		return true
+	}
+	if !traverseChildrenPred(uint32(node)) {
+		return false
+	}
+	for c := node.GetFirstChild(); c != 0; c = c.GetNext() {
+		if nodeUtilHasTravFn_(c, pred, traverseChildrenPred) {
+			return true
+		}
+	}
+	return false
+}
+func nodeUtilHasBothFn_(node pkg_rhino.Node, pred func(uint32) bool, traverseChildrenPred func(uint32) bool) bool {
+	if pred(uint32(node)) {
+		return true
+	}
+	if !traverseChildrenPred(uint32(node)) {
+		return false
+	}
+	for c := node.GetFirstChild(); c != 0; c = c.GetNext() {
+		if nodeUtilHasBothFn_(c, pred, traverseChildrenPred) {
+			return true
+		}
+	}
+	return false
+}
+func nodeUtilHasSlowAlwaysTrue_(node pkg_rhino.Node, pred j2gort.Ext_com_google_common_base_Predicate) bool {
+	if j2gort.PredTestNode(pred, uint32(node)) {
+		return true
+	}
+	for c := node.GetFirstChild(); c != 0; c = c.GetNext() {
+		if nodeUtilHasSlowAlwaysTrue_(c, pred) {
+			return true
+		}
+	}
+	return false
+}
+func nodeUtilHasSlow_(node pkg_rhino.Node, pred j2gort.Ext_com_google_common_base_Predicate, traverseChildrenPred j2gort.Ext_com_google_common_base_Predicate) bool {
+	if j2gort.PredTestNode(pred, uint32(node)) {
+		return true
+	}
+	if !j2gort.PredTestNode(traverseChildrenPred, uint32(node)) {
+		return false
+	}
+	for c := node.GetFirstChild(); c != 0; c = c.GetNext() {
+		if nodeUtilHasSlow_(c, pred, traverseChildrenPred) {
 			return true
 		}
 	}
@@ -6914,12 +6965,12 @@ func (this_ *NodeUtil_PreOrderIterator) ComputeNext() any {
 	}
 	var returnValue pkg_rhino.Node = this_.current
 	_ = returnValue
-	this_.current = this_.priv_PreOrderIterator_calculateNextNode_4034(returnValue)
+	this_.current = this_.priv_PreOrderIterator_calculateNextNode_4039(returnValue)
 	return j2gort.BoxNode(returnValue)
 }
 
 // Java method: PreOrderIterator.calculateNextNode(com.google.javascript.rhino.Node currentNode)
-func (this_ *NodeUtil_PreOrderIterator) priv_PreOrderIterator_calculateNextNode_4034(currentNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *NodeUtil_PreOrderIterator) priv_PreOrderIterator_calculateNextNode_4039(currentNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = currentNode
 	j2gort.CheckNotNullNode(currentNode)
 	if j2gort.PredTestNode(this_.traverseNodePredicate, uint32(currentNode)) {
