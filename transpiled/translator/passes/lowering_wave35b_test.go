@@ -1431,7 +1431,7 @@ func TestWave35B_RealGenRhinoParserParsingJscompCopyIdempotencyAndRace(t *testin
 	if !strings.Contains(lvaCode, "slab_LiveVariableLattice j2gort.PooledSlab[LiveVariablesAnalysis_LiveVariableLattice]") ||
 		!strings.Contains(lvaCode, "this_.slab_LiveVariableLattice.Alloc()") ||
 		!strings.Contains(daeCode, "this_.liveness.ReleaseSlabs_()") ||
-		!strings.Contains(cvnCode, "poppedLiveness_.ReleaseSlabs_()") {
+		(!strings.Contains(cvnCode, "poppedLiveness_.ReleaseSlabs_()") && !strings.Contains(cvnCode, "lv_.ReleaseSlabs_()")) {
 		t.Fatalf("expected LiveVariableLattice PooledSlab lowering + DAE/CVN releases in real jscomp")
 	}
 	pfiCode := normWS(readCopy("jscomp/pure_function_identifier.go"))

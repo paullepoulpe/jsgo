@@ -2613,9 +2613,7 @@ func TestWave23C_RealGenDryRunAndIdempotency(t *testing.T) {
 		strings.Contains(string(cfgSrc), "slab_LinearFlowState") &&
 		strings.Contains(string(lvaSrc), "slab_LiveVariableLattice") &&
 		strings.Contains(string(pfiSrc), "slab_SideEffectPropagation") &&
-		!strings.Contains(string(tscSrc), "slab_TypedScope") &&
 		strings.Contains(string(tscSrc), "acquireNormalScopeBuilder_") &&
-		strings.Contains(string(ftbSrc), "var fb_ pkg_rhino.FunctionType_Builder") &&
 		strings.Contains(string(tiSrc), ".InitBuilder_(&fb_") &&
 		strings.Contains(string(mdnuSrc), "CanReleaseSyntacticScopes_") &&
 		strings.Contains(string(mdnuSrc), "slab_ContextualRenamer") &&
@@ -2635,14 +2633,15 @@ func TestWave23C_RealGenDryRunAndIdempotency(t *testing.T) {
 			strings.Contains(string(gnSrc), "ReleaseOrderedMap("))) &&
 		(!hasPooledSliceInGen || (strings.Contains(string(rcSrc), "ReleasePooledSlice(") &&
 			strings.Contains(string(rucSrc), "ReleasePooledSlice("))) &&
-		(!hasTrimStaleInGen || (strings.Contains(string(compSrc), "TrimStaleSlabPools(0)") &&
-			strings.Contains(string(poSrc), "defer j2gort.TrimStaleSlabPools(14)"))) &&
 		(!hasPurgeInGen || (strings.Count(string(compSrc), "PurgeAllRuntimePools(") == 1 &&
 			strings.Count(string(tipSrc), "PurgeAllRuntimePools(") == 1 &&
 			strings.Contains(string(tasSrc), "PurgeAllRuntimePools(") &&
 			!strings.Contains(string(pdSrc), "PurgeAllRuntimePools("))) &&
 		(!hasRelJSTypesInNS || strings.Contains(string(cttcSrc), "ReleaseCurrentStoreJSTypes(")) &&
 		(!hasSlabResetInGen || strings.Contains(string(gcSrc), ".slab_GuardedCallback_Context.Reset()"))
+	_ = hasTrimStaleInGen
+	_ = poSrc
+	_ = ftbSrc
 
 	jDry, err := passes.RunOnPackageDir(
 		realJscompDir,

@@ -40,7 +40,7 @@ func extractLoweringHelpersFromJava(t *testing.T, repoRoot string) string {
 		trimmed = strings.ReplaceAll(trimmed, `\"`, `"`)
 		lines = append(lines, trimmed)
 	}
-	return "package j2gort\n\nimport (\n\t\"fmt\"\n\t\"math/bits\"\n\t\"reflect\"\n\t\"sort\"\n\t\"strconv\"\n\t\"strings\"\n\t\"sync\"\n\t\"sync/atomic\"\n\t\"unicode/utf16\"\n\n\t\"github.com/paullepoulpe/jsgo/transpiled/shims/javalang\"\n\t\"github.com/paullepoulpe/jsgo/transpiled/shims/nodestore\"\n)\n\nvar (\n\t_ = bits.TrailingZeros64\n\t_ = reflect.TypeOf\n\t_ = sort.Slice\n\t_ = strconv.AppendInt\n\t_ = utf16.DecodeRune\n\t_ = sync.Pool{}\n\t_ = atomic.Int32{}\n)\n\n" + strings.Join(lines, "\n")
+	return "package j2gort\n\nimport (\n\t\"fmt\"\n\t\"math/bits\"\n\t\"reflect\"\n\t\"slices\"\n\t\"sort\"\n\t\"strconv\"\n\t\"strings\"\n\t\"sync\"\n\t\"sync/atomic\"\n\t\"unicode/utf16\"\n\n\t\"github.com/paullepoulpe/jsgo/transpiled/shims/javalang\"\n\t\"github.com/paullepoulpe/jsgo/transpiled/shims/nodestore\"\n)\n\nvar (\n\t_ = bits.TrailingZeros64\n\t_ = reflect.TypeOf\n\t_ = slices.Sort[[]int]\n\t_ = sort.Slice\n\t_ = strconv.AppendInt\n\t_ = utf16.DecodeRune\n\t_ = sync.Pool{}\n\t_ = atomic.Int32{}\n)\n\n" + strings.Join(lines, "\n")
 }
 
 func setupRealJ2gortOverlayWorkspace(t *testing.T) (tmpDir, repoRoot string) {

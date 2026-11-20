@@ -491,3 +491,18 @@ To verify that skipping `>15,000` LOC of Tier 2 & Tier 3 machinery has no hidden
 11. **PR 11 — Stream-to-Loop (`93` Prod + `85` Test `.stream(` Lines), Regex RE2 Consolidation (`CoverageUtil.java:37`, `RhinoErrorReporter.java:199`, `PeepholeReplaceKnownMethods.java:45` + `String` Regex Callers), & `12` `String.format` Sites `(measured)`**.
 12. **PR 12 — Pure-Java `SimpleMultimap`, `SimpleTable`, `SimpleBiMap`, & `SimpleMultiset` (`~800` Java LOC `(measured)`)**.
 13. **PR 13 — De-reflect `args4j` (`CommandLineRunner`, `AbstractCommandLineRunner`, `WarningGuardSpec`, `Instrumentation`) & `Gson` POJOs (`SourceMapConsumerV3`, `Instrumentation`, `Stage`) `(measured)`**.
+
+### 10.5 Appendix E: Executed Mechanical Pipeline Results (`transpiled/`, Wave 47 + Patch 91)
+
+The mechanical Java-to-Go pipeline implemented in [`transpiled/`](file:///Users/damien/code/jsgo/transpiled/README.md) (`91` non-algorithmic prep patches, `j2go` transpiling `815 .java -> 815 .go` across 17 acyclic SCC packages + `j2gort`, `11` idempotent `gopasses` AST passes lowering `15,004` sites with `Run 2 == 0 sites`, and `12` clean-room shim packages with `0` `"unsafe"` imports) was verified end-to-end under stock Go (`-pgo=off`, default `GOGC`/`GOMEMLIMIT`, `--num_parallel_threads=1`):
+
+- **`googleapis-bench` (`--threads=1`, `7,460` chunks, 3/3 SHA-256 `MATCH`)**:
+  - **Pre-Flip Cold Java (`v20261104`, `-t1`)**: `237.14s` wall (`CHECKS` `124.17s`, `OPT` `92.81s`, `FIN` `20.16s`), `397.93s` CPU, `10,216 MiB` RSS.
+  - **Wave 47 (`v46`, `e311f3d3`)**: **`233.96s`** wall (`Java ÷ Go = 1.014×`; `CHECKS` `123.72s`, `OPT` `89.48s`, `FIN` `20.75s`), `235.40s` CPU (`1.690×`), `7,425 MiB` RSS (`1.376×`).
+  - **Wave 47 + Patch 91 (`e0999a69`, Final)**: **`235.52s`** wall (**`Java ÷ Go = 1.007×`**; `CHECKS` **`123.56s`** [`1.005×`], `OPT` **`91.09s`** [`1.019×`], `FIN` `20.87s` [`0.966×`]), **`236.60s`** CPU (**`1.682×`**), **`7,188 MiB`** RSS (**`1.421×`**).
+- **9-Task Standard Suite (`bench.py`, `--runs 3`, OpenJDK 27)**:
+  - **`jsgo_post`**: **`9/9 MATCH`**, **`68.82s`** median wall sum vs **`84.16s`** Cold Java (**`Java ÷ Go = 1.22×`**; beats Cold Java on 8/9 tasks; `1.63×–2.89×` lower RSS).
+  - **`jsgo_raw`** (pre-`gopasses`): **`9/9 MATCH`**, `84.66s` wall sum (`Raw ÷ Post = 1.23×` speedup from `gopasses` alone).
+- **CLI Differential Suites (`clie2e`)**:
+  - `fixtures`: **`2,974 / 2,974`** non-`StackOverflowError` exact parity (`2,974 / 2,976` total).
+  - `projects -set dev`: **`110`** multi-file project jobs (`0` panics, `0` hangs, 100% JS/sourcemap/diagnostic parity).

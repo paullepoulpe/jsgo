@@ -72,6 +72,8 @@ func setupWave16J2gortOverlayWorkspace(t *testing.T) (tmpDir, repoRoot string) {
 	wantStructFields := "words []uint64 `gson:\"-\"`\n\tbuf   [4]uint64 `gson:\"-\"`"
 	if strings.Contains(inlineBitSetGo, "bsInlineWords = 16") {
 		wantStructFields = "words []uint64   `gson:\"-\"`\n\tbuf   [16]uint64 `gson:\"-\"`\n\thi    [8]int32   `gson:\"-\"`\n\tinitW int32      `gson:\"-\"`\n\thiLen int32      `gson:\"-\"`"
+	} else if strings.Contains(inlineBitSetGo, "bsInlineWords = 2") {
+		wantStructFields = "words []uint64  `gson:\"-\"`\n\tbuf   [2]uint64 `gson:\"-\"`\n\thi    [8]int32  `gson:\"-\"`\n\tinitW int32     `gson:\"-\"`\n\thiLen int32     `gson:\"-\"`"
 	} else if strings.Contains(inlineBitSetGo, "bsSparseCap") {
 		wantStructFields = "words []uint64  `gson:\"-\"`\n\tbuf   [8]uint64 `gson:\"-\"`\n\thi    [8]int32  `gson:\"-\"`\n\tinitW int32     `gson:\"-\"`\n\thiLen int32     `gson:\"-\"`"
 	} else if strings.Contains(inlineBitSetGo, "hiBit") {
@@ -230,7 +232,7 @@ func TestIndexThreshold8AcrossAllOrderedMapsAndSets(t *testing.T) {
 	}
 
 	// 2. IdentityOrderedMap[*IdentNode, int32] (orderedMapIndexThreshold = 12)
-	nodes := make([]*IdentNode, 14)
+	nodes := make([]*IdentNode, 18)
 	for i := range nodes {
 		nodes[i] = &IdentNode{ID: 7} // identical fields, distinct pointers
 	}
@@ -271,12 +273,12 @@ func TestIndexThreshold8AcrossAllOrderedMapsAndSets(t *testing.T) {
 		t.Fatalf("CustomOrderedMap.Clear() must clear buckets and entries")
 	}
 
-	// 4. OrderedSet, IdentityOrderedSet, LocalOrderedSet (threshold = 8), CustomOrderedSet (backed by CustomOrderedMap, threshold = 12)
+	// 4. OrderedSet, IdentityOrderedSet, LocalOrderedSet (threshold = 16), CustomOrderedSet (backed by CustomOrderedMap, threshold = 12)
 	var os j2gort.OrderedSet[int32]
 	var is j2gort.IdentityOrderedSet[*IdentNode]
 	var cs j2gort.CustomOrderedSet[*CustomKey]
 	var ls j2gort.LocalOrderedSet[int32]
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 16; i++ {
 		os.Add(int32(i))
 		is.Add(nodes[i])
 		ls.Add(int32(i))
@@ -292,7 +294,7 @@ func TestIndexThreshold8AcrossAllOrderedMapsAndSets(t *testing.T) {
 		t.Fatalf("CustomOrderedSet duplicate add failed")
 	}
 	os.Add(99)
-	is.Add(nodes[8])
+	is.Add(nodes[16])
 	cs.Add(&CustomKey{Name: "s", Slot: 99})
 	ls.Add(99)
 	if fieldIsNil(&os, "idx") || fieldIsNil(&is, "raw", "idx") || fieldIsNil(&cs, "m", "buckets") || fieldIsNil(&ls, "idx") {
