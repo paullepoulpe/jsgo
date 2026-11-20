@@ -764,15 +764,18 @@ func InitMustBeReachingVariableDef_Definition(this_ *MustBeReachingVariableDef_D
 // Java method: Definition.addDependency(com.google.javascript.jscomp.Var v)
 func (this_ *MustBeReachingVariableDef_Definition) AddDependency(v *Var) {
 	_ = v
-	if (v == this_.dep0) || (v == this_.dep1) {
-		return
-	}
 	if this_.dep0 == nil {
 		this_.dep0 = v
 		return
 	}
+	if (v == this_.dep0) || v.Equals(j2gort.PtrToAny(this_.dep0)) {
+		return
+	}
 	if this_.dep1 == nil {
 		this_.dep1 = v
+		return
+	}
+	if (v == this_.dep1) || v.Equals(j2gort.PtrToAny(this_.dep1)) {
 		return
 	}
 	if this_.restDeps == nil {
@@ -792,7 +795,13 @@ func (this_ *MustBeReachingVariableDef_Definition) HasDependency(v *Var) bool {
 	if (v == nil) || (this_.dep0 == nil) {
 		return false
 	}
-	if (v == this_.dep0) || (v == this_.dep1) {
+	if (v == this_.dep0) || v.Equals(j2gort.PtrToAny(this_.dep0)) {
+		return true
+	}
+	if this_.dep1 == nil {
+		return false
+	}
+	if (v == this_.dep1) || v.Equals(j2gort.PtrToAny(this_.dep1)) {
 		return true
 	}
 	return ((this_.restDeps != nil) && this_.restDeps.Contains(v))

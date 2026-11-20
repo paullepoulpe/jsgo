@@ -1,0 +1,42 @@
+diff --git a/com/google/javascript/jscomp/MustBeReachingVariableDef.java b/com/google/javascript/jscomp/MustBeReachingVariableDef.java
+--- a/com/google/javascript/jscomp/MustBeReachingVariableDef.java
++++ b/com/google/javascript/jscomp/MustBeReachingVariableDef.java
+@@ -199,17 +199,20 @@
+     }
+ 
+     void addDependency(Var v) {
+-      if (v == dep0 || v == dep1) {
+-        return;
+-      }
+       if (dep0 == null) {
+         dep0 = v;
+         return;
+       }
++      if (v == dep0 || v.equals(dep0)) {
++        return;
++      }
+       if (dep1 == null) {
+         dep1 = v;
+         return;
+       }
++      if (v == dep1 || v.equals(dep1)) {
++        return;
++      }
+       if (this.restDeps == null) {
+         this.restDeps = new LinkedHashSet<>(4);
+       }
+@@ -224,7 +227,13 @@
+       if (v == null || dep0 == null) {
+         return false;
+       }
+-      if (v == dep0 || v == dep1) {
++      if (v == dep0 || v.equals(dep0)) {
++        return true;
++      }
++      if (dep1 == null) {
++        return false;
++      }
++      if (v == dep1 || v.equals(dep1)) {
+         return true;
+       }
+       return restDeps != null && restDeps.contains(v);
