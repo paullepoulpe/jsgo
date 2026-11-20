@@ -93,13 +93,13 @@ func (this_ *DevirtualizeMethods) Process_3(externs pkg_rhino.Node, root pkg_rhi
 	{
 		cur_1 := refMap.props.IterEntries()
 		for cur_1.NextEntry() {
-			this_.priv_DevirtualizeMethods_processReferenceList_2435(cur_1.Key(), cur_1.Value())
+			this_.priv_DevirtualizeMethods_processReferenceList_2436(cur_1.Key(), cur_1.Value())
 		}
 	}
 }
 
 // Java method: DevirtualizeMethods.processReferenceList(java.lang.String name, com.google.javascript.jscomp.OptimizeCalls.NodeList sites)
-func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_processReferenceList_2435(name string, sites *OptimizeCalls_NodeList) {
+func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_processReferenceList_2436(name string, sites *OptimizeCalls_NodeList) {
 	_ = name
 	_ = sites
 	defer this_.slab_OptimizeCalls_NodeList.Reset()
@@ -172,7 +172,7 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_processReferenceList_
 		var count_3 int32 = defSites.Size()
 		_ = count_3
 		for ; i_3 < count_3; i_3 = i_3 + 1 {
-			if !(this_.priv_DevirtualizeMethods_isEligibleDefinitionSite_2438(name, defSites.Get(i_3))) {
+			if !(this_.priv_DevirtualizeMethods_isEligibleDefinitionSite_2439(name, defSites.Get(i_3))) {
 				return
 			}
 		}
@@ -183,7 +183,7 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_processReferenceList_
 		var count_4 int32 = fns.Size()
 		_ = count_4
 		for ; i_4 < count_4; i_4 = i_4 + 1 {
-			if !(this_.priv_DevirtualizeMethods_isEligibleDefinitionFunction_2439(fns.Get(i_4))) {
+			if !(this_.priv_DevirtualizeMethods_isEligibleDefinitionFunction_2440(fns.Get(i_4))) {
 				return
 			}
 		}
@@ -194,12 +194,12 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_processReferenceList_
 		var count_5 int32 = callSites.Size()
 		_ = count_5
 		for ; i_5 < count_5; i_5 = i_5 + 1 {
-			if !(this_.priv_DevirtualizeMethods_isEligibleCallSite_2440(callSites.Get(i_5), canonicalDefinitionSite)) {
+			if !(this_.priv_DevirtualizeMethods_isEligibleCallSite_2441(callSites.Get(i_5), canonicalDefinitionSite)) {
 				return
 			}
 		}
 	}
-	if !(this_.priv_DevirtualizeMethods_allDefinitionsEquivalent_2441(fns)) {
+	if !(this_.priv_DevirtualizeMethods_allDefinitionsEquivalent_2442(fns)) {
 		return
 	}
 	var devirtualizedName string = DevirtualizeMethods_RewrittenMethodNameOf(name)
@@ -214,14 +214,14 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_processReferenceList_
 		var count_6 int32 = callSites.Size()
 		_ = count_6
 		for ; i_6 < count_6; i_6 = i_6 + 1 {
-			this_.priv_DevirtualizeMethods_rewriteCall_2442(callSites.Get(i_6), devirtualizedName, isConstantName)
+			this_.priv_DevirtualizeMethods_rewriteCall_2443(callSites.Get(i_6), devirtualizedName, isConstantName)
 		}
 	}
-	this_.priv_DevirtualizeMethods_rewriteDefinition_2443(canonicalDefinitionSite, devirtualizedName, isConstantName)
+	this_.priv_DevirtualizeMethods_rewriteDefinition_2444(canonicalDefinitionSite, devirtualizedName, isConstantName)
 }
 
 // Java method: DevirtualizeMethods.isPrototypeOrStaticMethodDefinition(com.google.javascript.rhino.Node node)
-func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isPrototypeOrStaticMethodDefinition_2436(node pkg_rhino.Node) bool {
+func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isPrototypeOrStaticMethodDefinition_2437(node pkg_rhino.Node) bool {
 	_ = node
 	var parent pkg_rhino.Node = node.GetParent()
 	_ = parent
@@ -246,7 +246,7 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isPrototypeOrStaticMe
 		if NodeUtil_IsPrototypeProperty(node) {
 			return true
 		}
-		if this_.priv_DevirtualizeMethods_isDefinitelyCtorOrInterface_2437(node.GetFirstChild()) {
+		if this_.priv_DevirtualizeMethods_isDefinitelyCtorOrInterface_2438(node.GetFirstChild()) {
 			return true
 		}
 		return false
@@ -273,7 +273,7 @@ func DevirtualizeMethods_IsPrototypeObjectLit(objectLit pkg_rhino.Node) bool {
 }
 
 // Java method: DevirtualizeMethods.isDefinitelyCtorOrInterface(com.google.javascript.rhino.Node receiver)
-func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isDefinitelyCtorOrInterface_2437(receiver pkg_rhino.Node) bool {
+func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isDefinitelyCtorOrInterface_2438(receiver pkg_rhino.Node) bool {
 	_ = receiver
 	var qname string = receiver.GetQualifiedName()
 	_ = qname
@@ -299,7 +299,7 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isDefinitelyCtorOrInt
 }
 
 // Java method: DevirtualizeMethods.isEligibleDefinitionSite(java.lang.String name, com.google.javascript.rhino.Node definitionSite)
-func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isEligibleDefinitionSite_2438(name string, definitionSite pkg_rhino.Node) bool {
+func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isEligibleDefinitionSite_2439(name string, definitionSite pkg_rhino.Node) bool {
 	_ = name
 	_ = definitionSite
 	switch definitionSite.TokenSwitchOrd_() {
@@ -312,14 +312,14 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isEligibleDefinitionS
 	if codingConvention.IsExported_2(name, false) {
 		return false
 	}
-	if !(this_.priv_DevirtualizeMethods_isPrototypeOrStaticMethodDefinition_2436(definitionSite)) {
+	if !(this_.priv_DevirtualizeMethods_isPrototypeOrStaticMethodDefinition_2437(definitionSite)) {
 		return false
 	}
 	return true
 }
 
 // Java method: DevirtualizeMethods.isEligibleDefinitionFunction(com.google.javascript.rhino.Node definitionFunction)
-func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isEligibleDefinitionFunction_2439(definitionFunction pkg_rhino.Node) bool {
+func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isEligibleDefinitionFunction_2440(definitionFunction pkg_rhino.Node) bool {
 	_ = definitionFunction
 	if !(definitionFunction.IsFunction()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(definitionFunction))
@@ -349,7 +349,7 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isEligibleDefinitionF
 }
 
 // Java method: DevirtualizeMethods.isEligibleCallSite(com.google.javascript.rhino.Node access, com.google.javascript.rhino.Node definitionSite)
-func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isEligibleCallSite_2440(access pkg_rhino.Node, definitionSite pkg_rhino.Node) bool {
+func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isEligibleCallSite_2441(access pkg_rhino.Node, definitionSite pkg_rhino.Node) bool {
 	_ = access
 	_ = definitionSite
 	var invocation pkg_rhino.Node = access.GetParent()
@@ -359,9 +359,9 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isEligibleCallSite_24
 	}
 	var chunkGraph *JSChunkGraph = this_.compiler.GetChunkGraph()
 	_ = chunkGraph
-	var definitionChunk *JSChunk = this_.priv_DevirtualizeMethods_chunkForNode_2445(definitionSite)
+	var definitionChunk *JSChunk = this_.priv_DevirtualizeMethods_chunkForNode_2446(definitionSite)
 	_ = definitionChunk
-	var callChunk *JSChunk = this_.priv_DevirtualizeMethods_chunkForNode_2445(access)
+	var callChunk *JSChunk = this_.priv_DevirtualizeMethods_chunkForNode_2446(access)
 	_ = callChunk
 	if definitionChunk == callChunk {
 	} else if callChunk == nil {
@@ -373,7 +373,7 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_isEligibleCallSite_24
 }
 
 // Java method: DevirtualizeMethods.allDefinitionsEquivalent(com.google.javascript.jscomp.OptimizeCalls.NodeList definitions)
-func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_allDefinitionsEquivalent_2441(definitions *OptimizeCalls_NodeList) bool {
+func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_allDefinitionsEquivalent_2442(definitions *OptimizeCalls_NodeList) bool {
 	_ = definitions
 	var count int32 = definitions.Size()
 	_ = count
@@ -398,7 +398,7 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_allDefinitionsEquival
 }
 
 // Java method: DevirtualizeMethods.rewriteCall(com.google.javascript.rhino.Node getprop, java.lang.String newMethodName, boolean isConstantName)
-func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_rewriteCall_2442(getprop pkg_rhino.Node, newMethodName string, isConstantName bool) {
+func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_rewriteCall_2443(getprop pkg_rhino.Node, newMethodName string, isConstantName bool) {
 	_ = getprop
 	_ = newMethodName
 	_ = isConstantName
@@ -428,7 +428,7 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_rewriteCall_2442(getp
 }
 
 // Java method: DevirtualizeMethods.rewriteDefinition(com.google.javascript.rhino.Node definitionSite, java.lang.String newMethodName, boolean isConstantName)
-func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_rewriteDefinition_2443(definitionSite pkg_rhino.Node, newMethodName string, isConstantName bool) {
+func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_rewriteDefinition_2444(definitionSite pkg_rhino.Node, newMethodName string, isConstantName bool) {
 	_ = definitionSite
 	_ = newMethodName
 	_ = isConstantName
@@ -471,14 +471,14 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_rewriteDefinition_244
 	_ = paramList
 	paramList.AddChildToFront(pkg_rhino.IR_Name(selfName).SrcrefIfMissing(function))
 	this_.compiler.ReportChangeToEnclosingScope(paramList)
-	this_.priv_DevirtualizeMethods_replaceReferencesToThis_2444(function.GetSecondChild(), selfName)
-	this_.priv_DevirtualizeMethods_replaceReferencesToThis_2444(function.GetLastChild(), selfName)
+	this_.priv_DevirtualizeMethods_replaceReferencesToThis_2445(function.GetSecondChild(), selfName)
+	this_.priv_DevirtualizeMethods_replaceReferencesToThis_2445(function.GetLastChild(), selfName)
 	NodeUtil_DeleteNode(subtreeToRemove, this_.compiler)
 	this_.compiler.ReportChangeToEnclosingScope(newVarNode)
 }
 
 // Java method: DevirtualizeMethods.replaceReferencesToThis(com.google.javascript.rhino.Node node, java.lang.String name)
-func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_replaceReferencesToThis_2444(node pkg_rhino.Node, name string) {
+func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_replaceReferencesToThis_2445(node pkg_rhino.Node, name string) {
 	_ = node
 	_ = name
 	if ((node.IsFunction() && !(node.IsArrowFunction())) || node.IsMemberFieldDef()) || NodeUtil_IsClassStaticBlock(node) {
@@ -494,7 +494,7 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_replaceReferencesToTh
 				key.ReplaceWith(newName)
 				this_.compiler.ReportChangeToEnclosingScope(newName)
 			} else {
-				this_.priv_DevirtualizeMethods_replaceReferencesToThis_2444(key, name)
+				this_.priv_DevirtualizeMethods_replaceReferencesToThis_2445(key, name)
 			}
 		}
 		return
@@ -511,7 +511,7 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_replaceReferencesToTh
 				child.ReplaceWith(newName_2)
 				this_.compiler.ReportChangeToEnclosingScope(newName_2)
 			} else {
-				this_.priv_DevirtualizeMethods_replaceReferencesToThis_2444(child, name)
+				this_.priv_DevirtualizeMethods_replaceReferencesToThis_2445(child, name)
 			}
 			child = next
 		}
@@ -519,7 +519,7 @@ func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_replaceReferencesToTh
 }
 
 // Java method: DevirtualizeMethods.chunkForNode(com.google.javascript.rhino.Node node)
-func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_chunkForNode_2445(node pkg_rhino.Node) *JSChunk {
+func (this_ *DevirtualizeMethods) priv_DevirtualizeMethods_chunkForNode_2446(node pkg_rhino.Node) *JSChunk {
 	_ = node
 	var script pkg_rhino.Node = NodeUtil_GetEnclosingScript(node)
 	_ = script

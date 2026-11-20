@@ -121,7 +121,7 @@ func (this_ *OptimizeParameters) Process_3(externs pkg_rhino.Node, root pkg_rhin
 				_ = key
 				var refs *OptimizeCalls_NodeList = cur_1.Value()
 				_ = refs
-				var candidateAnalysis *OptimizeParameters_CandidateAnalysis = this_.priv_OptimizeParameters_analyzeCandidateName_4107(key, refs)
+				var candidateAnalysis *OptimizeParameters_CandidateAnalysis = this_.priv_OptimizeParameters_analyzeCandidateName_4108(key, refs)
 				_ = candidateAnalysis
 				if candidateAnalysis.ShouldConvertTaggedTemplateLiterals() {
 					candidateAnalysis.ConvertTaggedTemplateLiterals()
@@ -139,7 +139,7 @@ func (this_ *OptimizeParameters) Process_3(externs pkg_rhino.Node, root pkg_rhin
 				_ = key_2
 				var refs_2 *OptimizeCalls_NodeList = cur_2.Value()
 				_ = refs_2
-				var candidateAnalysis_2 *OptimizeParameters_CandidateAnalysis = this_.priv_OptimizeParameters_analyzeCandidateProperty_4108(key_2, refs_2)
+				var candidateAnalysis_2 *OptimizeParameters_CandidateAnalysis = this_.priv_OptimizeParameters_analyzeCandidateProperty_4109(key_2, refs_2)
 				_ = candidateAnalysis_2
 				if candidateAnalysis_2.ShouldConvertTaggedTemplateLiterals() {
 					candidateAnalysis_2.ConvertTaggedTemplateLiterals()
@@ -156,7 +156,7 @@ func (this_ *OptimizeParameters) Process_3(externs pkg_rhino.Node, root pkg_rhin
 			var size int32 = int32(len(toOptimize))
 			_ = size
 			for ; i < size; i = i + 1 {
-				this_.priv_OptimizeParameters_tryEliminateOptionalArgs_4115(toOptimize[i])
+				this_.priv_OptimizeParameters_tryEliminateOptionalArgs_4116(toOptimize[i])
 			}
 		}
 		{
@@ -165,7 +165,7 @@ func (this_ *OptimizeParameters) Process_3(externs pkg_rhino.Node, root pkg_rhin
 			var size_2 int32 = int32(len(toOptimize))
 			_ = size_2
 			for ; i_2 < size_2; i_2 = i_2 + 1 {
-				this_.priv_OptimizeParameters_tryEliminateConstantArgs_4116(toOptimize[i_2])
+				this_.priv_OptimizeParameters_tryEliminateConstantArgs_4117(toOptimize[i_2])
 			}
 		}
 		var val_3 OptimizeParameters_UnusedParameterOptimizer
@@ -199,21 +199,21 @@ func OptimizeParameters_AlreadyRemoved(n pkg_rhino.Node) bool {
 }
 
 // Java method: OptimizeParameters.analyzeCandidateName(java.lang.String key, com.google.javascript.jscomp.OptimizeCalls.NodeList refs)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_analyzeCandidateName_4107(key string, refs *OptimizeCalls_NodeList) *OptimizeParameters_CandidateAnalysis {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_analyzeCandidateName_4108(key string, refs *OptimizeCalls_NodeList) *OptimizeParameters_CandidateAnalysis {
 	_ = key
 	_ = refs
-	return this_.priv_OptimizeParameters_analyzeCandidate_4109("name", key, refs)
+	return this_.priv_OptimizeParameters_analyzeCandidate_4110("name", key, refs)
 }
 
 // Java method: OptimizeParameters.analyzeCandidateProperty(java.lang.String key, com.google.javascript.jscomp.OptimizeCalls.NodeList refs)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_analyzeCandidateProperty_4108(key string, refs *OptimizeCalls_NodeList) *OptimizeParameters_CandidateAnalysis {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_analyzeCandidateProperty_4109(key string, refs *OptimizeCalls_NodeList) *OptimizeParameters_CandidateAnalysis {
 	_ = key
 	_ = refs
-	return this_.priv_OptimizeParameters_analyzeCandidate_4109("property", key, refs)
+	return this_.priv_OptimizeParameters_analyzeCandidate_4110("property", key, refs)
 }
 
 // Java method: OptimizeParameters.analyzeCandidate(java.lang.String refKind, java.lang.String key, com.google.javascript.jscomp.OptimizeCalls.NodeList refs)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_analyzeCandidate_4109(refKind string, key string, refs *OptimizeCalls_NodeList) *OptimizeParameters_CandidateAnalysis {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_analyzeCandidate_4110(refKind string, key string, refs *OptimizeCalls_NodeList) *OptimizeParameters_CandidateAnalysis {
 	_ = refKind
 	_ = key
 	_ = refs
@@ -247,7 +247,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_analyzeCandidate_4109(r
 				seenCandidateUse = true
 			} else if n.GetParent().IsTaggedTemplateLit() {
 				analysis.AddTaggedTemplateLiteral(n.GetParent())
-			} else if this_.priv_OptimizeParameters_isCandidateDefinition_4111(n) {
+			} else if this_.priv_OptimizeParameters_isCandidateDefinition_4112(n) {
 				definitions.Add_1(j2gort.BoxNode(n))
 			} else if !(OptimizeCalls_IsAllowedReference(n)) {
 				if this_.decisionsLog.IsLogging() {
@@ -311,7 +311,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_analyzeCandidate_4109(r
 }
 
 // Java method: OptimizeParameters.convertTaggedTemplateLiteralToNormalCall(com.google.javascript.rhino.Node ttlNode)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_convertTaggedTemplateLiteralToNormalCall_4110(ttlNode pkg_rhino.Node) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_convertTaggedTemplateLiteralToNormalCall_4111(ttlNode pkg_rhino.Node) {
 	_ = ttlNode
 	var callee pkg_rhino.Node = j2gort.CheckNotNullNode(ttlNode.GetFirstChild())
 	_ = callee
@@ -340,7 +340,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_convertTaggedTemplateLi
 }
 
 // Java method: OptimizeParameters.isCandidateDefinition(com.google.javascript.rhino.Node n)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_isCandidateDefinition_4111(n pkg_rhino.Node) bool {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_isCandidateDefinition_4112(n pkg_rhino.Node) bool {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -352,24 +352,24 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_isCandidateDefinition_4
 		functionExpr = parent.GetLastChild()
 	} else if n.IsName() && n.HasChildren() {
 		functionExpr = n.GetFirstChild()
-	} else if this_.priv_OptimizeParameters_isClassMemberDefinition_4112(n) {
+	} else if this_.priv_OptimizeParameters_isClassMemberDefinition_4113(n) {
 		functionExpr = n.GetFirstChild()
 	} else if parent.IsClass() && n.IsFirstChildOf(parent) {
 		functionExpr = parent
 	} else {
 		return false
 	}
-	return this_.priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4114(functionExpr)
+	return this_.priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4115(functionExpr)
 }
 
 // Java method: OptimizeParameters.isClassMemberDefinition(com.google.javascript.rhino.Node n)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_isClassMemberDefinition_4112(n pkg_rhino.Node) bool {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_isClassMemberDefinition_4113(n pkg_rhino.Node) bool {
 	_ = n
 	return (n.IsMemberFunctionDef() && n.GetParent().IsClassMembers())
 }
 
 // Java method: OptimizeParameters.classContainsClassFieldWithRHSSideEffects(com.google.javascript.rhino.Node classNode)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_classContainsClassFieldWithRHSSideEffects_4113(classNode pkg_rhino.Node) bool {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_classContainsClassFieldWithRHSSideEffects_4114(classNode pkg_rhino.Node) bool {
 	_ = classNode
 	var classMembersNode pkg_rhino.Node = NodeUtil_GetClassMembers(classNode)
 	_ = classMembersNode
@@ -388,7 +388,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_classContainsClassField
 }
 
 // Java method: OptimizeParameters.allDefinitionsAreCandidateFunctions(com.google.javascript.rhino.Node n)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4114(n pkg_rhino.Node) bool {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4115(n pkg_rhino.Node) bool {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(105) /* Token.CLASS */ :
@@ -399,7 +399,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_allDefinitionsAreCandid
 			_ = constructorMemberFunctionDef
 			if constructorMemberFunctionDef == 0 {
 				return false
-			} else if this_.priv_OptimizeParameters_classContainsClassFieldWithRHSSideEffects_4113(n) {
+			} else if this_.priv_OptimizeParameters_classContainsClassFieldWithRHSSideEffects_4114(n) {
 				return false
 			} else {
 				var functionNode pkg_rhino.Node = constructorMemberFunctionDef.GetOnlyChild()
@@ -410,11 +410,11 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_allDefinitionsAreCandid
 	case int32(73) /* Token.FUNCTION */ :
 		return (((!(NodeUtil_IsNamedFunctionExpression(n)) && !(NodeUtil_DoesFunctionReferenceOwnArgumentsObject(n))) && !(OptimizeParameters_MayReferenceParamBeforeBody(n))) && !(OptimizeParameters_IsUsedViaDotConstructor(n)))
 	case int32(101) /* Token.CAST */, int32(50) /* Token.COMMA */ :
-		return this_.priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4114(n.GetLastChild())
+		return this_.priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4115(n.GetLastChild())
 	case int32(67) /* Token.HOOK */ :
-		return (this_.priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4114(n.GetSecondChild()) && this_.priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4114(n.GetLastChild()))
+		return (this_.priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4115(n.GetSecondChild()) && this_.priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4115(n.GetLastChild()))
 	case int32(68) /* Token.OR */, int32(69) /* Token.AND */, int32(70) /* Token.COALESCE */ :
-		return (this_.priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4114(n.GetFirstChild()) && this_.priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4114(n.GetLastChild()))
+		return (this_.priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4115(n.GetFirstChild()) && this_.priv_OptimizeParameters_allDefinitionsAreCandidateFunctions_4115(n.GetLastChild()))
 	default:
 		return false
 	}
@@ -579,7 +579,7 @@ func allocPooledVia_OptimizeParameters_CollectParamListNames(slab_ *j2gort.Poole
 }
 
 // Java method: OptimizeParameters.tryEliminateOptionalArgs(com.google.javascript.jscomp.OptimizeCalls.NodeList refs)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_tryEliminateOptionalArgs_4115(refs *OptimizeCalls_NodeList) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_tryEliminateOptionalArgs_4116(refs *OptimizeCalls_NodeList) {
 	_ = refs
 	defer this_.slab_OptimizeCalls_NodeList.Reset()
 	var maxArgs int32 = int32(-1)
@@ -624,20 +624,20 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_tryEliminateOptionalArg
 		var fnCount int32 = fnList.Size()
 		_ = fnCount
 		for ; i_2 < fnCount; i_2 = i_2 + 1 {
-			this_.priv_OptimizeParameters_eliminateParamsAfter_4129(fnList.Get(i_2), maxArgs)
+			this_.priv_OptimizeParameters_eliminateParamsAfter_4130(fnList.Get(i_2), maxArgs)
 		}
 	}
 }
 
 // Java method: OptimizeParameters.tryEliminateConstantArgs(com.google.javascript.jscomp.OptimizeCalls.NodeList refs)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_tryEliminateConstantArgs_4116(refs *OptimizeCalls_NodeList) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_tryEliminateConstantArgs_4117(refs *OptimizeCalls_NodeList) {
 	_ = refs
 	defer func() {
 		this_.slab_ParameterList.Reset()
 		this_.slab_Parameter.Reset()
 		this_.slab_OptimizeCalls_NodeList.Reset()
 	}()
-	var parameters *OptimizeParameters_ParameterList = this_.priv_OptimizeParameters_findFixedArguments_4117(refs)
+	var parameters *OptimizeParameters_ParameterList = this_.priv_OptimizeParameters_findFixedArguments_4118(refs)
 	_ = parameters
 	if parameters == nil {
 		return
@@ -666,15 +666,15 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_tryEliminateConstantArg
 			var n pkg_rhino.Node = refs.Get(i)
 			_ = n
 			if !(OptimizeParameters_AlreadyRemoved(n)) && OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n) {
-				this_.priv_OptimizeParameters_optimizeCallSite_4122(parameters, n)
+				this_.priv_OptimizeParameters_optimizeCallSite_4123(parameters, n)
 			}
 		}
 	}
-	this_.priv_OptimizeParameters_optimizeFunctionDefinition_4121(parameters, fn)
+	this_.priv_OptimizeParameters_optimizeFunctionDefinition_4122(parameters, fn)
 }
 
 // Java method: OptimizeParameters.findFixedArguments(com.google.javascript.jscomp.OptimizeCalls.NodeList refs)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_findFixedArguments_4117(refs *OptimizeCalls_NodeList) *OptimizeParameters_ParameterList {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_findFixedArguments_4118(refs *OptimizeCalls_NodeList) *OptimizeParameters_ParameterList {
 	_ = refs
 	val_10 := this_.slab_ParameterList.Alloc()
 
@@ -701,10 +701,10 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_findFixedArguments_4117
 				var cur pkg_rhino.Node = OptimizeCalls_ReferenceMap_GetFirstArgumentForCallOrNewOrDotCall(n)
 				_ = cur
 				if firstCall {
-					continueLooking = this_.priv_OptimizeParameters_buildInitialParameterList_4119(parameters, cur)
+					continueLooking = this_.priv_OptimizeParameters_buildInitialParameterList_4120(parameters, cur)
 					firstCall = false
 				} else {
-					continueLooking = this_.priv_OptimizeParameters_findFixedParameters_4118(parameters, cur)
+					continueLooking = this_.priv_OptimizeParameters_findFixedParameters_4119(parameters, cur)
 				}
 				if !(continueLooking) {
 					break
@@ -832,7 +832,7 @@ func OptimizeParameters_AdjustForConstraints(fn pkg_rhino.Node, parameters *Opti
 }
 
 // Java method: OptimizeParameters.findFixedParameters(com.google.javascript.jscomp.OptimizeParameters.ParameterList parameters, com.google.javascript.rhino.Node cur)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_findFixedParameters_4118(parameters *OptimizeParameters_ParameterList, cur pkg_rhino.Node) bool {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_findFixedParameters_4119(parameters *OptimizeParameters_ParameterList, cur pkg_rhino.Node) bool {
 	_ = parameters
 	_ = cur
 	var anyMovable bool = false
@@ -845,7 +845,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_findFixedParameters_411
 		if index >= parameters.Size() {
 			p = allocPooled_OptimizeParameters_Parameter(&this_.slab_Parameter, cur, false)
 			parameters.Add(p)
-			this_.priv_OptimizeParameters_setParameterSideEffectInfo_4120(p, cur)
+			this_.priv_OptimizeParameters_setParameterSideEffectInfo_4121(p, cur)
 		} else {
 			p = parameters.Get(index)
 			if p.ShouldRemove() {
@@ -873,7 +873,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_findFixedParameters_411
 }
 
 // Java method: OptimizeParameters.buildInitialParameterList(com.google.javascript.jscomp.OptimizeParameters.ParameterList parameters, com.google.javascript.rhino.Node cur)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_buildInitialParameterList_4119(parameters *OptimizeParameters_ParameterList, cur pkg_rhino.Node) bool {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_buildInitialParameterList_4120(parameters *OptimizeParameters_ParameterList, cur pkg_rhino.Node) bool {
 	_ = parameters
 	_ = cur
 	var anyMovable bool = false
@@ -883,7 +883,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_buildInitialParameterLi
 		_ = movable
 		var p *OptimizeParameters_Parameter = allocPooled_OptimizeParameters_Parameter(&this_.slab_Parameter, cur, movable)
 		_ = p
-		this_.priv_OptimizeParameters_setParameterSideEffectInfo_4120(p, cur)
+		this_.priv_OptimizeParameters_setParameterSideEffectInfo_4121(p, cur)
 		parameters.Add(p)
 		if movable {
 			anyMovable = true
@@ -897,7 +897,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_buildInitialParameterLi
 }
 
 // Java method: OptimizeParameters.setParameterSideEffectInfo(com.google.javascript.jscomp.OptimizeParameters.Parameter p, com.google.javascript.rhino.Node value)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_setParameterSideEffectInfo_4120(p *OptimizeParameters_Parameter, value pkg_rhino.Node) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_setParameterSideEffectInfo_4121(p *OptimizeParameters_Parameter, value pkg_rhino.Node) {
 	_ = p
 	_ = value
 	p.SetHasSideEffects(this_.astAnalyzer.MayHaveSideEffects(value))
@@ -941,7 +941,7 @@ func OptimizeParameters_IsMovableValue(n pkg_rhino.Node, globalScope *Scope) boo
 }
 
 // Java method: OptimizeParameters.optimizeFunctionDefinition(com.google.javascript.jscomp.OptimizeParameters.ParameterList parameters, com.google.javascript.rhino.Node fn)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_optimizeFunctionDefinition_4121(parameters *OptimizeParameters_ParameterList, fn pkg_rhino.Node) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_optimizeFunctionDefinition_4122(parameters *OptimizeParameters_ParameterList, fn pkg_rhino.Node) {
 	_ = parameters
 	_ = fn
 	var paramList pkg_rhino.Node = NodeUtil_GetFunctionParameters(fn)
@@ -971,7 +971,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_optimizeFunctionDefinit
 			maybeRest.Detach()
 			var lhs pkg_rhino.Node = maybeRest.RemoveFirstChild()
 			_ = lhs
-			this_.priv_OptimizeParameters_addRestVariableToFunction_4123(fn, lhs, value)
+			this_.priv_OptimizeParameters_addRestVariableToFunction_4124(fn, lhs, value)
 		}
 		lastParameter = min((parameters.Size() - int32(1)), (restIndex - int32(1)))
 	}
@@ -996,9 +996,9 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_optimizeFunctionDefinit
 				var value_2 pkg_rhino.Node = parameters.Get(i_2).GetArg()
 				_ = value_2
 				if formalParam != 0 {
-					this_.priv_OptimizeParameters_addVariableDeclarationToFunction_4124(fn, formalParam, value_2)
+					this_.priv_OptimizeParameters_addVariableDeclarationToFunction_4125(fn, formalParam, value_2)
 				} else {
-					this_.priv_OptimizeParameters_addExpressionToFunction_4125(fn, value_2)
+					this_.priv_OptimizeParameters_addExpressionToFunction_4126(fn, value_2)
 				}
 			}
 		}
@@ -1006,7 +1006,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_optimizeFunctionDefinit
 }
 
 // Java method: OptimizeParameters.optimizeCallSite(com.google.javascript.jscomp.OptimizeParameters.ParameterList parameters, com.google.javascript.rhino.Node target)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_optimizeCallSite_4122(parameters *OptimizeParameters_ParameterList, target pkg_rhino.Node) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_optimizeCallSite_4123(parameters *OptimizeParameters_ParameterList, target pkg_rhino.Node) {
 	_ = parameters
 	_ = target
 	var call pkg_rhino.Node = OptimizeCalls_ReferenceMap_GetCallOrNewNodeForTarget(target)
@@ -1022,7 +1022,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_optimizeCallSite_4122(p
 			var p *OptimizeParameters_Parameter = parameters.Get(index)
 			_ = p
 			if p.ShouldRemove() {
-				this_.priv_OptimizeParameters_eliminateCallTargetArgAt_4132(target, index)
+				this_.priv_OptimizeParameters_eliminateCallTargetArgAt_4133(target, index)
 				if !(callMayMutateGlobalsOrThrow) && (p.HasSideEffects() || (callMayMutateArgs && !(NodeUtil_IsImmutableValue(p.GetArg())))) {
 					callMayMutateGlobalsOrThrow = true
 					call.SetSideEffectFlags_1_Node_SideEffectFlags(pkg_rhino.NewNode_SideEffectFlags_1(call.GetSideEffectFlags()).SetMutatesGlobalState())
@@ -1033,18 +1033,18 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_optimizeCallSite_4122(p
 }
 
 // Java method: OptimizeParameters.addRestVariableToFunction(com.google.javascript.rhino.Node function, com.google.javascript.rhino.Node lhs, com.google.javascript.rhino.Node value)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_addRestVariableToFunction_4123(function pkg_rhino.Node, lhs pkg_rhino.Node, value pkg_rhino.Node) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_addRestVariableToFunction_4124(function pkg_rhino.Node, lhs pkg_rhino.Node, value pkg_rhino.Node) {
 	_ = function
 	_ = lhs
 	_ = value
 	if !(lhs.GetParent() == 0) {
 		j2gort.CheckState(false)
 	}
-	this_.priv_OptimizeParameters_addVariableDeclarationToFunction_4124(function, lhs, value)
+	this_.priv_OptimizeParameters_addVariableDeclarationToFunction_4125(function, lhs, value)
 }
 
 // Java method: OptimizeParameters.addVariableDeclarationToFunction(com.google.javascript.rhino.Node function, com.google.javascript.rhino.Node lhs, com.google.javascript.rhino.Node value)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_addVariableDeclarationToFunction_4124(function pkg_rhino.Node, lhs pkg_rhino.Node, value pkg_rhino.Node) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_addVariableDeclarationToFunction_4125(function pkg_rhino.Node, lhs pkg_rhino.Node, value pkg_rhino.Node) {
 	_ = function
 	_ = lhs
 	_ = value
@@ -1060,25 +1060,25 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_addVariableDeclarationT
 	var stmts []pkg_rhino.Node = []pkg_rhino.Node{}
 	_ = stmts
 	if lhs.IsDestructuringPattern() {
-		this_.priv_OptimizeParameters_rewriteDestructuringPattern_4131(lhs, value, &stmts)
+		this_.priv_OptimizeParameters_rewriteDestructuringPattern_4132(lhs, value, &stmts)
 	} else {
 		stmts = append(stmts, NodeUtil_NewVarNode_2_Node_Node(lhs, value))
 	}
-	this_.priv_OptimizeParameters_insertStatements_4126(function, &stmts)
+	this_.priv_OptimizeParameters_insertStatements_4127(function, &stmts)
 }
 
 // Java method: OptimizeParameters.addExpressionToFunction(com.google.javascript.rhino.Node function, com.google.javascript.rhino.Node value)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_addExpressionToFunction_4125(function pkg_rhino.Node, value pkg_rhino.Node) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_addExpressionToFunction_4126(function pkg_rhino.Node, value pkg_rhino.Node) {
 	_ = function
 	_ = value
 	var stmts []pkg_rhino.Node = []pkg_rhino.Node{}
 	_ = stmts
 	stmts = append(stmts, pkg_rhino.IR_ExprResult(value).Srcref(value))
-	this_.priv_OptimizeParameters_insertStatements_4126(function, &stmts)
+	this_.priv_OptimizeParameters_insertStatements_4127(function, &stmts)
 }
 
 // Java method: OptimizeParameters.insertStatements(com.google.javascript.rhino.Node function, java.util.ArrayList<com.google.javascript.rhino.Node> stmts)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_insertStatements_4126(function pkg_rhino.Node, stmts *[]pkg_rhino.Node) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_insertStatements_4127(function pkg_rhino.Node, stmts *[]pkg_rhino.Node) {
 	_ = function
 	_ = stmts
 	if len(*stmts) == 0 {
@@ -1089,15 +1089,15 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_insertStatements_4126(f
 	var insertionPoint pkg_rhino.Node = NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(block)
 	_ = insertionPoint
 	if insertionPoint == 0 {
-		this_.priv_OptimizeParameters_addStatementsToBack_4127(block, stmts)
+		this_.priv_OptimizeParameters_addStatementsToBack_4128(block, stmts)
 	} else {
-		this_.priv_OptimizeParameters_addStatementsBefore_4128(insertionPoint, stmts)
+		this_.priv_OptimizeParameters_addStatementsBefore_4129(insertionPoint, stmts)
 	}
 	this_.compiler.ReportChangeToEnclosingScope((*stmts)[int32(0)])
 }
 
 // Java method: OptimizeParameters.addStatementsToBack(com.google.javascript.rhino.Node block, java.util.ArrayList<com.google.javascript.rhino.Node> stmts)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_addStatementsToBack_4127(block pkg_rhino.Node, stmts *[]pkg_rhino.Node) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_addStatementsToBack_4128(block pkg_rhino.Node, stmts *[]pkg_rhino.Node) {
 	_ = block
 	_ = stmts
 	{
@@ -1112,7 +1112,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_addStatementsToBack_412
 }
 
 // Java method: OptimizeParameters.addStatementsBefore(com.google.javascript.rhino.Node insertionPoint, java.util.ArrayList<com.google.javascript.rhino.Node> stmts)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_addStatementsBefore_4128(insertionPoint pkg_rhino.Node, stmts *[]pkg_rhino.Node) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_addStatementsBefore_4129(insertionPoint pkg_rhino.Node, stmts *[]pkg_rhino.Node) {
 	_ = insertionPoint
 	_ = stmts
 	{
@@ -1125,7 +1125,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_addStatementsBefore_412
 }
 
 // Java method: OptimizeParameters.eliminateParamsAfter(com.google.javascript.rhino.Node fnNode, int argIndex)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_eliminateParamsAfter_4129(fnNode pkg_rhino.Node, argIndex int32) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_eliminateParamsAfter_4130(fnNode pkg_rhino.Node, argIndex int32) {
 	_ = fnNode
 	_ = argIndex
 	var formalArgPtr pkg_rhino.Node = NodeUtil_GetFunctionParameters(fnNode).GetFirstChild()
@@ -1134,15 +1134,15 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_eliminateParamsAfter_41
 		formalArgPtr = formalArgPtr.GetNext()
 		argIndex = argIndex - 1
 	}
-	this_.priv_OptimizeParameters_eliminateParamsAfter_4130(fnNode, formalArgPtr)
+	this_.priv_OptimizeParameters_eliminateParamsAfter_4131(fnNode, formalArgPtr)
 }
 
 // Java method: OptimizeParameters.eliminateParamsAfter(com.google.javascript.rhino.Node fnNode, com.google.javascript.rhino.Node formal)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_eliminateParamsAfter_4130(fnNode pkg_rhino.Node, formal pkg_rhino.Node) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_eliminateParamsAfter_4131(fnNode pkg_rhino.Node, formal pkg_rhino.Node) {
 	_ = fnNode
 	_ = formal
 	if formal != 0 {
-		this_.priv_OptimizeParameters_eliminateParamsAfter_4130(fnNode, formal.GetNext())
+		this_.priv_OptimizeParameters_eliminateParamsAfter_4131(fnNode, formal.GetNext())
 		var stmts []pkg_rhino.Node = []pkg_rhino.Node{}
 		_ = stmts
 		formal.Detach()
@@ -1154,27 +1154,27 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_eliminateParamsAfter_41
 			_ = lhs
 			var value pkg_rhino.Node = pkg_rhino.IR_Arraylit_1_Node([]pkg_rhino.Node{}).Srcref(formal)
 			_ = value
-			this_.priv_OptimizeParameters_addVariableDeclarationToFunction_4124(fnNode, lhs, value)
+			this_.priv_OptimizeParameters_addVariableDeclarationToFunction_4125(fnNode, lhs, value)
 		} else if formal.IsDefaultValue() {
 			var lhs_2 pkg_rhino.Node = formal.RemoveFirstChild()
 			_ = lhs_2
 			var value_2 pkg_rhino.Node = formal.GetLastChild().Detach()
 			_ = value_2
-			this_.priv_OptimizeParameters_addVariableDeclarationToFunction_4124(fnNode, lhs_2, value_2)
+			this_.priv_OptimizeParameters_addVariableDeclarationToFunction_4125(fnNode, lhs_2, value_2)
 		} else if formal.IsDestructuringPattern() {
 			var value_3 pkg_rhino.Node = NodeUtil_NewUndefinedNode(formal)
 			_ = value_3
-			this_.priv_OptimizeParameters_rewriteDestructuringPattern_4131(formal, value_3, &stmts)
-			this_.priv_OptimizeParameters_insertStatements_4126(fnNode, &stmts)
+			this_.priv_OptimizeParameters_rewriteDestructuringPattern_4132(formal, value_3, &stmts)
+			this_.priv_OptimizeParameters_insertStatements_4127(fnNode, &stmts)
 		} else {
 			stmts = append(stmts, pkg_rhino.IR_Var_1(formal).SrcrefIfMissing(formal))
-			this_.priv_OptimizeParameters_insertStatements_4126(fnNode, &stmts)
+			this_.priv_OptimizeParameters_insertStatements_4127(fnNode, &stmts)
 		}
 	}
 }
 
 // Java method: OptimizeParameters.rewriteDestructuringPattern(com.google.javascript.rhino.Node destructuringPattern, com.google.javascript.rhino.Node value, java.util.ArrayList<com.google.javascript.rhino.Node> stmts)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_rewriteDestructuringPattern_4131(destructuringPattern pkg_rhino.Node, value pkg_rhino.Node, stmts *[]pkg_rhino.Node) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_rewriteDestructuringPattern_4132(destructuringPattern pkg_rhino.Node, value pkg_rhino.Node, stmts *[]pkg_rhino.Node) {
 	_ = destructuringPattern
 	_ = value
 	_ = stmts
@@ -1202,7 +1202,7 @@ func (this_ *OptimizeParameters) priv_OptimizeParameters_rewriteDestructuringPat
 }
 
 // Java method: OptimizeParameters.eliminateCallTargetArgAt(com.google.javascript.rhino.Node ref, int argIndex)
-func (this_ *OptimizeParameters) priv_OptimizeParameters_eliminateCallTargetArgAt_4132(ref pkg_rhino.Node, argIndex int32) {
+func (this_ *OptimizeParameters) priv_OptimizeParameters_eliminateCallTargetArgAt_4133(ref pkg_rhino.Node, argIndex int32) {
 	_ = ref
 	_ = argIndex
 	var callArgNode pkg_rhino.Node = OptimizeCalls_ReferenceMap_GetArgumentForCallOrNewOrDotCall(ref, argIndex)
@@ -1430,7 +1430,7 @@ func (this_ *OptimizeParameters_UnusedParameterOptimizer) RecordRemovalCallArgum
 			_ = hasSideEffects
 			if !(hasSideEffects) {
 				if unremovable.Get_1(index) {
-					this_.priv_UnusedParameterOptimizer_recordReplaceWithZero_4136(arg)
+					this_.priv_UnusedParameterOptimizer_recordReplaceWithZero_4137(arg)
 				} else {
 					this_.toRemove = append(this_.toRemove, arg)
 					return removedAllTrailing
@@ -1450,7 +1450,7 @@ func (this_ *OptimizeParameters_UnusedParameterOptimizer) RemoveFromCommaIfNoSid
 		var secondChild pkg_rhino.Node = arg.GetSecondChild()
 		_ = secondChild
 		if !(this_.outer_.astAnalyzer.MayHaveSideEffects(secondChild)) {
-			this_.priv_UnusedParameterOptimizer_recordReplaceWithZero_4136(secondChild)
+			this_.priv_UnusedParameterOptimizer_recordReplaceWithZero_4137(secondChild)
 		} else {
 			this_.RemoveFromCommaIfNoSideEffects(secondChild)
 		}
@@ -1458,7 +1458,7 @@ func (this_ *OptimizeParameters_UnusedParameterOptimizer) RemoveFromCommaIfNoSid
 }
 
 // Java method: UnusedParameterOptimizer.recordReplaceWithZero(com.google.javascript.rhino.Node arg)
-func (this_ *OptimizeParameters_UnusedParameterOptimizer) priv_UnusedParameterOptimizer_recordReplaceWithZero_4136(arg pkg_rhino.Node) {
+func (this_ *OptimizeParameters_UnusedParameterOptimizer) priv_UnusedParameterOptimizer_recordReplaceWithZero_4137(arg pkg_rhino.Node) {
 	_ = arg
 	if !(arg.IsNumber()) || (arg.GetDouble() != float64(int32(0))) {
 		this_.toReplaceWithZero = append(this_.toReplaceWithZero, arg)
@@ -1604,7 +1604,7 @@ func (this_ *OptimizeParameters_CandidateAnalysis) ConvertTaggedTemplateLiterals
 			var size int32 = int32(len(this_.taggedTemplateLiterals))
 			_ = size
 			for ; i < size; i = i + 1 {
-				this_.outer_.priv_OptimizeParameters_convertTaggedTemplateLiteralToNormalCall_4110(this_.taggedTemplateLiterals[i])
+				this_.outer_.priv_OptimizeParameters_convertTaggedTemplateLiteralToNormalCall_4111(this_.taggedTemplateLiterals[i])
 			}
 		}
 		this_.taggedTemplateLiterals = nil

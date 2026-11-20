@@ -61,6 +61,7 @@ const (
 	setInitDirectCall
 	setInitIIFE
 	setInitPtrAlias
+	setInitSharedPtr
 )
 
 type setOpKind uint8
@@ -158,6 +159,7 @@ type setCandidate struct {
 	isParam            bool
 	isFunc             bool
 	isPtrAlias         bool
+	isSharedPtr        bool // participates in shared nullable *OrderedSet[T] pointer aliasing (field <-> local)
 	hasNonInitAssign   bool
 	paramReassigned    bool
 	hasNonNilCallerArg bool
@@ -256,6 +258,7 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 	var allCands []*setCandidate
 	structFields := make(map[*types.Named][]*setCandidate)
 	var edges [][2]*setCandidate
+	var sharedPtrEdges [][2]*setCandidate
 
 	// Pass 1a: Collect candidate Set-returning functions/private methods, Set parameters on unexported
 	// functions/private methods, and unexported Set struct fields.
@@ -602,7 +605,7 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 				if !ctx.ShouldTransform(file) {
 					cand.disqualified = true
 				} else {
-					validateSetVarUse(id, file, cand, varCands, funcCands, paramCandsByFn, ctx, parents, varUseCounts, markMut, &edges)
+					validateSetVarUse(id, file, cand, varCands, funcCands, paramCandsByFn, ctx, parents, varUseCounts, markMut, hasPtrHelpers, &edges, &sharedPtrEdges)
 				}
 			}
 			if fnObj, ok := info.Uses[id].(*types.Func); ok {
@@ -611,7 +614,7 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 					if !ctx.ShouldTransform(file) {
 						fc.disqualified = true
 					} else {
-						validateSetFuncUse(id, file, fc, varCands, funcCands, paramCandsByFn, ctx, parents, varUseCounts, &edges)
+						validateSetFuncUse(id, file, fc, varCands, funcCands, paramCandsByFn, ctx, parents, varUseCounts, hasPtrHelpers, &edges)
 					}
 				}
 				if pcs := paramCandsByFn[fnOrig]; len(pcs) > 0 {
@@ -633,14 +636,46 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 		if cand.isParam {
 			continue
 		}
-		if !cand.hasInit || cand.hasNilAssign || cand.hasNilCheck || cand.hasPtrParamAssign {
+		if !cand.hasInit || cand.hasNilAssign || cand.hasNilCheck || cand.hasPtrParamAssign || cand.isSharedPtr {
 			cand.isPtr = true
 		}
 	}
 	for changed := true; changed; {
 		changed = false
+		for _, se := range sharedPtrEdges {
+			a, b := se[0], se[1]
+			if !a.isSharedPtr || !a.isPtr {
+				a.isSharedPtr = true
+				a.isPtr = true
+				a.usesOrdSetOnly = true
+				changed = true
+			}
+			if !b.isSharedPtr || !b.isPtr {
+				b.isSharedPtr = true
+				b.isPtr = true
+				b.usesOrdSetOnly = true
+				changed = true
+			}
+		}
 		for _, cand := range allCands {
-			if cand.disqualified || cand.isPtr {
+			if cand.disqualified {
+				continue
+			}
+			if hasPtrHelpers && cand.isPtrAlias && !cand.isSharedPtr && len(cand.ops) > 0 && cand.ops[0].otherCand != nil {
+				other := cand.ops[0].otherCand
+				if other.isSharedPtr || other.isPtr || other.hasNilAssign || other.hasNilCheck || other.hasNonInitAssign ||
+					cand.hasNilAssign || cand.hasNilCheck || cand.hasNonInitAssign {
+					cand.isSharedPtr = true
+					other.isSharedPtr = true
+					cand.isPtr = true
+					other.isPtr = true
+					cand.usesOrdSetOnly = true
+					other.usesOrdSetOnly = true
+					sharedPtrEdges = append(sharedPtrEdges, [2]*setCandidate{cand, other})
+					changed = true
+				}
+			}
+			if cand.isPtr {
 				continue
 			}
 			if cand.isFunc {
@@ -675,6 +710,53 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 		}
 	}
 
+	var peerEdges [][2]*setCandidate
+	peerEdges = append(peerEdges, sharedPtrEdges...)
+	for _, cand := range allCands {
+		if cand.isPtrAlias && !cand.isSharedPtr && len(cand.ops) > 0 && cand.ops[0].otherCand != nil {
+			peerEdges = append(peerEdges, [2]*setCandidate{cand, cand.ops[0].otherCand})
+		}
+	}
+	sharedPeers := make(map[*setCandidate][]*setCandidate)
+	for _, pe := range peerEdges {
+		a, b := pe[0], pe[1]
+		if !slices.Contains(sharedPeers[a], b) {
+			sharedPeers[a] = append(sharedPeers[a], b)
+		}
+		if !slices.Contains(sharedPeers[b], a) {
+			sharedPeers[b] = append(sharedPeers[b], a)
+		}
+	}
+	if len(peerEdges) > 0 {
+		for changedMut := true; changedMut; {
+			changedMut = false
+			for _, pe := range peerEdges {
+				a, b := pe[0], pe[1]
+				if a.v == nil || b.v == nil {
+					continue
+				}
+				for fn := range funcsMutating[a.v] {
+					if funcsMutating[b.v] == nil {
+						funcsMutating[b.v] = make(map[*types.Func]bool)
+					}
+					if !funcsMutating[b.v][fn] {
+						funcsMutating[b.v][fn] = true
+						changedMut = true
+					}
+				}
+				for fn := range funcsMutating[b.v] {
+					if funcsMutating[a.v] == nil {
+						funcsMutating[a.v] = make(map[*types.Func]bool)
+					}
+					if !funcsMutating[a.v][fn] {
+						funcsMutating[a.v][fn] = true
+						changedMut = true
+					}
+				}
+			}
+		}
+	}
+
 	// Check pointer constraints on ops (e.g. direct Set-returning function calls must match pointer/value representation).
 	for _, cand := range allCands {
 		if cand.disqualified || cand.defCount != 1 || !ctx.ShouldTransform(cand.declFile) {
@@ -695,12 +777,22 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 				continue
 			}
 			other := cand.ops[0].otherCand
-			if other.disqualified || other.hasNilAssign || other.hasNilCheck || other.hasNonInitAssign {
+			if other.disqualified {
+				cand.disqualified = true
+				continue
+			}
+			if !cand.isSharedPtr {
+				if other.isPtr || other.hasNilAssign || other.hasNilCheck || other.hasNonInitAssign ||
+					cand.hasNilAssign || cand.hasNilCheck || cand.hasNonInitAssign {
+					cand.disqualified = true
+					continue
+				}
+			} else if !hasPtrHelpers || !cand.isPtr || !other.isPtr {
 				cand.disqualified = true
 				continue
 			}
 		}
-		if cand.v != nil && anySetLoopMutatesCandidate(cand, funcsMutating[cand.v], info) {
+		if cand.v != nil && anySetLoopMutatesCandidate(cand, collectSetPeers(cand, sharedPeers), funcsMutating[cand.v], info) {
 			cand.disqualified = true
 			continue
 		}
@@ -713,6 +805,8 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 				return !cand.isPtr
 			case setInitPtrAlias:
 				return cand.isPtr
+			case setInitSharedPtr:
+				return hasPtrHelpers && cand.isPtr && other != nil && other.isPtr
 			case setInitCap, setInitCopyCol:
 				if cand.isPtr {
 					cand.needsPtrRtHelper = true
@@ -748,7 +842,7 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 				if cand.isPtr {
 					cand.needsPtrRtHelper = true
 				}
-			case setOpMethodDirect, setOpMethodUnbox1, setOpGetFirst, setOpImmSetCopy:
+			case setOpMethodDirect, setOpMethodUnbox1, setOpStaticHelper, setOpGetFirst, setOpImmSetCopy:
 				if cand.isPtr && op.methodsSel != "Add" && op.methodsSel != "Remove" && op.methodsSel != "Clear" {
 					if !isGuardedNonNilSetUse(op.outerExpr, op.accessExpr, cand, parentsByFile[op.file], funcCands, info) {
 						op.needsNullWrap = true
@@ -780,7 +874,7 @@ func analyzeSetCandidates(ctx *PassContext, parentsByFile map[*ast.File]map[ast.
 			}
 			if ret, ok := n.(*ast.ReturnStmt); ok && len(ret.Results) == 1 {
 				inner := unwrapCollectionAdaptersDown(ret.Results[0], info)
-				if srcCand := resolveSetSourceExpr(inner, varCands, funcCands, info); srcCand == nil || srcCand.isPtr != fc.isPtr {
+				if srcCand := resolveSetSourceExpr(inner, varCands, funcCands, info); srcCand == nil || srcCand.isPtr != fc.isPtr || (fc.isExportedFn && (srcCand.isPtrAlias || srcCand.isSharedPtr)) {
 					fc.disqualified = true
 				}
 			}
@@ -999,7 +1093,7 @@ func isGuardedNonNilSetUse(
 	funcCands map[*types.Func]*setCandidate,
 	info *types.Info,
 ) bool {
-	if cand.v == nil || cand.isPtrAlias {
+	if cand.v == nil || (cand.isPtrAlias && !cand.isSharedPtr) {
 		return true
 	}
 	return isGuardedNonNilVarUse(useNode, accessExpr, cand.v, parents, info, func(rhs ast.Expr) bool {
@@ -1300,7 +1394,9 @@ func validateSetVarUse(
 	parents map[ast.Node]ast.Node,
 	varUseCounts map[*types.Var]int,
 	markMut func(*setCandidate, ast.Node, map[ast.Node]ast.Node),
+	hasPtrHelpers bool,
 	edges *[][2]*setCandidate,
+	sharedPtrEdges *[][2]*setCandidate,
 ) {
 	info := ctx.Info
 	var accessExpr ast.Expr = id
@@ -1316,7 +1412,7 @@ func validateSetVarUse(
 	if as, ok := parents[accessExpr].(*ast.AssignStmt); ok {
 		for _, lhs := range as.Lhs {
 			if stripParens(lhs) == accessExpr {
-				if cand.isPtrAlias || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 || (cand.isField && !isPureFieldSelector(accessExpr.(*ast.SelectorExpr), info)) {
+				if (cand.isPtrAlias && !hasPtrHelpers) || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 || (cand.isField && !isPureFieldSelector(accessExpr.(*ast.SelectorExpr), info)) {
 					cand.disqualified = true
 					return
 				}
@@ -1410,17 +1506,49 @@ func validateSetVarUse(
 				}
 				if cand.isField {
 					if unwrapped := unwrapCollectionAdaptersDown(rhs, info); unwrapped != nil {
-						if sc := resolveSetVarAccess(unwrapped, varCands, info); sc != nil && sc.isParam {
-							cand.hasPtrParamAssign = true
+						if sc := resolveSetVarAccess(unwrapped, varCands, info); sc != nil && sc != cand {
+							if sc.isParam {
+								cand.hasPtrParamAssign = true
+								cand.usesOrdSetOnly = true
+								sc.usesOrdSetOnly = true
+								*edges = append(*edges, [2]*setCandidate{cand, sc})
+								cand.ops = append(cand.ops, setRewriteOp{
+									kind: setOpAssignInit, cand: cand, otherCand: sc, initKind: setInitPtrAlias, file: file, spanNode: as, stmt: as, accessExpr: accessExpr, argExpr: unwrapped,
+								})
+								if isNonInit {
+									markMut(cand, as, parents)
+								}
+								return
+							} else if !sc.isField && hasPtrHelpers {
+								cand.isSharedPtr = true
+								sc.isSharedPtr = true
+								cand.usesOrdSetOnly = true
+								sc.usesOrdSetOnly = true
+								*edges = append(*edges, [2]*setCandidate{cand, sc})
+								*sharedPtrEdges = append(*sharedPtrEdges, [2]*setCandidate{cand, sc})
+								cand.ops = append(cand.ops, setRewriteOp{
+									kind: setOpAssignInit, cand: cand, otherCand: sc, initKind: setInitSharedPtr, file: file, spanNode: as, stmt: as, accessExpr: accessExpr, argExpr: unwrapped,
+								})
+								if isNonInit {
+									markMut(cand, as, parents)
+								}
+								return
+							}
+						}
+					}
+				} else if !cand.isParam && hasPtrHelpers {
+					if unwrapped := unwrapCollectionAdaptersDown(rhs, info); unwrapped != nil {
+						if sc := resolveSetVarAccess(unwrapped, varCands, info); sc != nil && sc.isField && sc != cand {
+							cand.isSharedPtr = true
+							sc.isSharedPtr = true
 							cand.usesOrdSetOnly = true
 							sc.usesOrdSetOnly = true
 							*edges = append(*edges, [2]*setCandidate{cand, sc})
+							*sharedPtrEdges = append(*sharedPtrEdges, [2]*setCandidate{cand, sc})
 							cand.ops = append(cand.ops, setRewriteOp{
-								kind: setOpAssignInit, cand: cand, otherCand: sc, initKind: setInitPtrAlias, file: file, spanNode: as, stmt: as, accessExpr: accessExpr, argExpr: unwrapped,
+								kind: setOpAssignInit, cand: cand, otherCand: sc, initKind: setInitSharedPtr, file: file, spanNode: as, stmt: as, accessExpr: accessExpr, argExpr: unwrapped,
 							})
-							if isNonInit {
-								markMut(cand, as, parents)
-							}
+							markMut(cand, as, parents)
 							return
 						}
 					}
@@ -1436,7 +1564,7 @@ func validateSetVarUse(
 		}
 	}
 
-	validateSetValueConsumer(accessExpr, true, file, cand, varCands, funcCands, paramCandsByFn, parents, info, varUseCounts, markMut, edges)
+	validateSetValueConsumer(accessExpr, true, file, cand, varCands, funcCands, paramCandsByFn, parents, info, varUseCounts, markMut, hasPtrHelpers, edges)
 }
 
 func validateSetFuncUse(
@@ -1449,6 +1577,7 @@ func validateSetFuncUse(
 	ctx *PassContext,
 	parents map[ast.Node]ast.Node,
 	varUseCounts map[*types.Var]int,
+	hasPtrHelpers bool,
 	edges *[][2]*setCandidate,
 ) {
 	info := ctx.Info
@@ -1501,7 +1630,7 @@ func validateSetFuncUse(
 	}
 
 	nopMut := func(*setCandidate, ast.Node, map[ast.Node]ast.Node) {}
-	validateSetValueConsumer(call, false, file, fc, varCands, funcCands, paramCandsByFn, parents, info, varUseCounts, nopMut, edges)
+	validateSetValueConsumer(call, false, file, fc, varCands, funcCands, paramCandsByFn, parents, info, varUseCounts, nopMut, hasPtrHelpers, edges)
 }
 
 func validateSetValueConsumer(
@@ -1516,6 +1645,7 @@ func validateSetValueConsumer(
 	info *types.Info,
 	varUseCounts map[*types.Var]int,
 	markMut func(*setCandidate, ast.Node, map[ast.Node]ast.Node),
+	hasPtrHelpers bool,
 	edges *[][2]*setCandidate,
 ) {
 	// Allow `s == nil` / `s != nil` on var/field candidates (marks candidate as nullable pointer `*OrderedSet[T]`).
@@ -1577,10 +1707,26 @@ func validateSetValueConsumer(
 						return
 					}
 				}
-			} else if par.Tok == token.ASSIGN && cand.isParam {
-				if sel, ok := stripParens(par.Lhs[0]).(*ast.SelectorExpr); ok {
-					if dstCand := varCands[varFromObj(info.Uses[sel.Sel])]; dstCand != nil && dstCand.isField {
-						return
+			} else if par.Tok == token.ASSIGN {
+				if cand.isParam {
+					if sel, ok := stripParens(par.Lhs[0]).(*ast.SelectorExpr); ok {
+						if dstCand := varCands[varFromObj(info.Uses[sel.Sel])]; dstCand != nil && dstCand.isField {
+							return
+						}
+					}
+				} else if hasPtrHelpers && !cand.isFunc {
+					if !cand.isField {
+						if sel, ok := stripParens(par.Lhs[0]).(*ast.SelectorExpr); ok && isPureFieldSelector(sel, info) {
+							if dstCand := varCands[varFromObj(info.Uses[sel.Sel])]; dstCand != nil && dstCand.isField && dstCand != cand {
+								return
+							}
+						}
+					} else {
+						if lhsId, ok := stripParens(par.Lhs[0]).(*ast.Ident); ok {
+							if dstCand := varCands[varFromObj(info.Uses[lhsId])]; dstCand != nil && !dstCand.isField && !dstCand.isParam && dstCand != cand {
+								return
+							}
+						}
 					}
 				}
 			}
@@ -2019,7 +2165,39 @@ func validateSetIterCursorLoop(
 	})
 }
 
-func anySetLoopMutatesCandidate(cand *setCandidate, mutatingFuncs map[*types.Func]bool, info *types.Info) bool {
+func collectSetPeers(root *setCandidate, adj map[*setCandidate][]*setCandidate) []*setCandidate {
+	if len(adj[root]) == 0 {
+		return nil
+	}
+	visited := map[*setCandidate]bool{root: true}
+	queue := []*setCandidate{root}
+	var out []*setCandidate
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		for _, nxt := range adj[cur] {
+			if !visited[nxt] {
+				visited[nxt] = true
+				out = append(out, nxt)
+				queue = append(queue, nxt)
+			}
+		}
+	}
+	return out
+}
+
+func anySetLoopMutatesCandidate(cand *setCandidate, peers []*setCandidate, mutatingFuncs map[*types.Func]bool, info *types.Info) bool {
+	refsAny := func(e ast.Expr) bool {
+		if exprReferencesVar(e, cand.v, info) {
+			return true
+		}
+		for _, p := range peers {
+			if p.v != nil && exprReferencesVar(e, p.v, info) {
+				return true
+			}
+		}
+		return false
+	}
 	for _, body := range cand.loopBodies {
 		mutated := false
 		ast.Inspect(body, func(n ast.Node) bool {
@@ -2037,7 +2215,7 @@ func anySetLoopMutatesCandidate(cand *setCandidate, mutatingFuncs map[*types.Fun
 				if fnName, _, _, isJ2 := isJ2gortCall(x, info); isJ2 {
 					switch fnName {
 					case "SetAddStr", "SetRemoveStr", "SetAddNode", "SetRemoveNode":
-						if len(x.Args) >= 1 && exprReferencesVar(x.Args[0], cand.v, info) {
+						if len(x.Args) >= 1 && refsAny(x.Args[0]) {
 							mutated = true
 						}
 					}
@@ -2045,14 +2223,14 @@ func anySetLoopMutatesCandidate(cand *setCandidate, mutatingFuncs map[*types.Fun
 				if sel, ok := stripParens(x.Fun).(*ast.SelectorExpr); ok {
 					switch sel.Sel.Name {
 					case "Add_1", "AddLast", "AddAll_1", "Remove", "Remove_1_any", "Clear":
-						if exprReferencesVar(sel.X, cand.v, info) {
+						if refsAny(sel.X) {
 							mutated = true
 						}
 					}
 				}
 			case *ast.AssignStmt:
 				for _, lhs := range x.Lhs {
-					if exprReferencesVar(lhs, cand.v, info) {
+					if refsAny(lhs) {
 						mutated = true
 					}
 				}
@@ -2271,7 +2449,7 @@ func applySingleSetRewrite(ctx *PassContext, op setRewriteOp, parents map[ast.No
 			}
 		case setInitDirectCall:
 			return rhs
-		case setInitPtrAlias:
+		case setInitPtrAlias, setInitSharedPtr:
 			if otherCand != nil && otherCand.isPtr {
 				return argExpr
 			}
@@ -2331,6 +2509,9 @@ func applySingleSetRewrite(ctx *PassContext, op setRewriteOp, parents map[ast.No
 			return false
 		}
 		as := op.spanNode.(*ast.AssignStmt)
+		if op.initKind == setInitSharedPtr && as.Rhs[0] == op.argExpr {
+			return false
+		}
 		as.Rhs[0] = makeInitRhs(as.Rhs[0], inControlHeader(as, parents))
 		return true
 
@@ -3742,7 +3923,7 @@ func makePlainSetInitExpr(
 }
 
 func canPromoteToPlainSet(m *setCandidate, ctx *PassContext) bool {
-	if m == nil || ctx == nil || m.v == nil || m.isFunc || m.isParam || m.isPtrAlias || m.usesOrdSetOnly || m.hasIdentityKind {
+	if m == nil || ctx == nil || m.v == nil || m.isFunc || m.isParam || m.isPtrAlias || m.isSharedPtr || m.usesOrdSetOnly || m.hasIdentityKind {
 		return false
 	}
 	j2Pkg := findJ2gortTypesPkg(ctx)

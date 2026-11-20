@@ -768,7 +768,7 @@ func InitJSDocInfo(this_ *JSDocInfo, builder *JSDocInfo_Builder) {
 }
 
 // Java method: JSDocInfo.checkBit(com.google.javascript.rhino.JSDocInfo.Bit bit)
-func (this_ *JSDocInfo) priv_JSDocInfo_checkBit_8074(bit *JSDocInfo_Bit) bool {
+func (this_ *JSDocInfo) priv_JSDocInfo_checkBit_8075(bit *JSDocInfo_Bit) bool {
 	_ = bit
 	return ((this_.propertyBits & bit.mask) != int64(int32(0)))
 }
@@ -781,11 +781,11 @@ func JSDocInfo_S_Builder() *JSDocInfo_Builder {
 
 // Java method: JSDocInfo.toBuilder()
 func (this_ *JSDocInfo) ToBuilder_0() *JSDocInfo_Builder {
-	return this_.priv_JSDocInfo_toBuilder_8076(nil)
+	return this_.priv_JSDocInfo_toBuilder_8077(nil)
 }
 
 // Java method: JSDocInfo.toBuilder(com.google.javascript.rhino.JSDocInfo.@org.jspecify.annotations.Nullable TypeTransform transform)
-func (this_ *JSDocInfo) priv_JSDocInfo_toBuilder_8076(transform JSDocInfo_TypeTransform) *JSDocInfo_Builder {
+func (this_ *JSDocInfo) priv_JSDocInfo_toBuilder_8077(transform JSDocInfo_TypeTransform) *JSDocInfo_Builder {
 	_ = transform
 	var val_7 JSDocInfo_Builder
 	InitJSDocInfo_Builder(&val_7)
@@ -817,7 +817,7 @@ func (this_ *JSDocInfo) priv_JSDocInfo_toBuilder_8076(transform JSDocInfo_TypeTr
 			var low int32 = j2gort.BoxLong_NumberOfTrailingZeros(remSingle)
 			_ = low
 			remSingle = (remSingle & (remSingle - int64(1)))
-			var expr JSTypeExpression = this_.priv_JSDocInfo_getSingleTypeForBit_8208(low)
+			var expr JSTypeExpression = this_.priv_JSDocInfo_getSingleTypeForBit_8209(low)
 			_ = expr
 			var cloned JSTypeExpression
 			_ = cloned
@@ -860,7 +860,7 @@ func (this_ *JSDocInfo) priv_JSDocInfo_toBuilder_8076(transform JSDocInfo_TypeTr
 			objKeys = (objKeys & (objKeys - int64(1)))
 			var prop JSDocInfo_Property = StaticGet_JSDocInfo_Property_Values()[low_2]
 			_ = prop
-			var cloned_2 any = prop.Clone(this_.priv_JSDocInfo_getNonType0ValueForBit_8209(low_2), transform)
+			var cloned_2 any = prop.Clone(this_.priv_JSDocInfo_getNonType0ValueForBit_8210(low_2), transform)
 			_ = cloned_2
 			if cloned_2 != nil {
 				var iifeArg_4 int32
@@ -891,7 +891,7 @@ func (this_ *JSDocInfo) priv_JSDocInfo_toBuilder_8076(transform JSDocInfo_TypeTr
 		objKeys = (objKeys & (objKeys - int64(1)))
 		var prop_2 JSDocInfo_Property = StaticGet_JSDocInfo_Property_Values()[low_3]
 		_ = prop_2
-		var cloned_3 any = prop_2.Clone(this_.priv_JSDocInfo_getNonType0ValueForBit_8209(low_3), transform)
+		var cloned_3 any = prop_2.Clone(this_.priv_JSDocInfo_getNonType0ValueForBit_8210(low_3), transform)
 		_ = cloned_3
 		if cloned_3 != nil {
 			{
@@ -921,7 +921,7 @@ func (this_ *JSDocInfo) Clone_0() *JSDocInfo {
 // Java method: JSDocInfo.cloneAndReplaceTypeNames(java.util.Set<java.lang.String> names)
 func (this_ *JSDocInfo) CloneAndReplaceTypeNames(names j2gort.Ext_java_util_Set) *JSDocInfo {
 	_ = names
-	return this_.priv_JSDocInfo_toBuilder_8076(NewLambda_JSDocInfo_TypeTransform(func(type_ JSTypeExpression) JSTypeExpression {
+	return this_.priv_JSDocInfo_toBuilder_8077(NewLambda_JSDocInfo_TypeTransform(func(type_ JSTypeExpression) JSTypeExpression {
 		_ = type_
 		return type_.ReplaceNamesWithUnknownType(names)
 	})).Build_0()
@@ -931,7 +931,7 @@ func (this_ *JSDocInfo) CloneAndReplaceTypeNames(names j2gort.Ext_java_util_Set)
 func (this_ *JSDocInfo) Clone_1(cloneTypeNodes bool) *JSDocInfo {
 	_ = cloneTypeNodes
 	if cloneTypeNodes {
-		return this_.priv_JSDocInfo_toBuilder_8076(lambdaSingleton_js_doc_info_1).Build_0()
+		return this_.priv_JSDocInfo_toBuilder_8077(lambdaSingleton_js_doc_info_1).Build_0()
 	} else {
 		return this_.ToBuilder_0().Build_0()
 	}
@@ -959,9 +959,9 @@ func JSDocInfo_AreEquivalent(jsDoc1 *JSDocInfo, jsDoc2 *JSDocInfo) bool {
 		var low int32 = j2gort.BoxLong_NumberOfTrailingZeros(singleBits)
 		_ = low
 		singleBits = (singleBits & (singleBits - int64(1)))
-		var a JSTypeExpression = jsDoc1.priv_JSDocInfo_getSingleTypeForBit_8208(low)
+		var a JSTypeExpression = jsDoc1.priv_JSDocInfo_getSingleTypeForBit_8209(low)
 		_ = a
-		var b JSTypeExpression = jsDoc2.priv_JSDocInfo_getSingleTypeForBit_8208(low)
+		var b JSTypeExpression = jsDoc2.priv_JSDocInfo_getSingleTypeForBit_8209(low)
 		_ = b
 		if (((a).IsJavaNil_()) != ((b).IsJavaNil_())) || (!(a).IsJavaNil_() && !(a.IsEquivalentTo(b))) {
 			return false
@@ -975,9 +975,9 @@ func JSDocInfo_AreEquivalent(jsDoc1 *JSDocInfo, jsDoc2 *JSDocInfo) bool {
 		objBits = (objBits & (objBits - int64(1)))
 		var prop JSDocInfo_Property = StaticGet_JSDocInfo_Property_Values()[low_2]
 		_ = prop
-		var a_2 any = jsDoc1.priv_JSDocInfo_getNonType0ValueForBit_8209(low_2)
+		var a_2 any = jsDoc1.priv_JSDocInfo_getNonType0ValueForBit_8210(low_2)
 		_ = a_2
-		var b_2 any = jsDoc2.priv_JSDocInfo_getNonType0ValueForBit_8209(low_2)
+		var b_2 any = jsDoc2.priv_JSDocInfo_getNonType0ValueForBit_8210(low_2)
 		_ = b_2
 		if ((a_2 == nil) != (b_2 == nil)) || ((a_2 != nil) && !(prop.EqualValues(a_2, b_2))) {
 			return false
@@ -988,7 +988,7 @@ func JSDocInfo_AreEquivalent(jsDoc1 *JSDocInfo, jsDoc2 *JSDocInfo) bool {
 
 // Java method: JSDocInfo.isDocumentationIncluded()
 func (this_ *JSDocInfo) IsDocumentationIncluded() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_INCLUDE_DOCUMENTATION())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_INCLUDE_DOCUMENTATION())
 }
 
 // Java method: JSDocInfo.isAnyIdGenerator()
@@ -1028,57 +1028,57 @@ func (this_ *JSDocInfo) IsConstant() bool {
 
 // Java method: JSDocInfo.hasConstAnnotation()
 func (this_ *JSDocInfo) HasConstAnnotation() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_CONST())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_CONST())
 }
 
 // Java method: JSDocInfo.isFinal()
 func (this_ *JSDocInfo) IsFinal() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_FINAL())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_FINAL())
 }
 
 // Java method: JSDocInfo.isConstructor()
 func (this_ *JSDocInfo) IsConstructor() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_CONSTRUCTOR())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_CONSTRUCTOR())
 }
 
 // Java method: JSDocInfo.isAbstract()
 func (this_ *JSDocInfo) IsAbstract() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_ABSTRACT())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_ABSTRACT())
 }
 
 // Java method: JSDocInfo.usesImplicitMatch()
 func (this_ *JSDocInfo) UsesImplicitMatch() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_RECORD())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_RECORD())
 }
 
 // Java method: JSDocInfo.makesUnrestricted()
 func (this_ *JSDocInfo) MakesUnrestricted() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_UNRESTRICTED())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_UNRESTRICTED())
 }
 
 // Java method: JSDocInfo.makesStructs()
 func (this_ *JSDocInfo) MakesStructs() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_STRUCT())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_STRUCT())
 }
 
 // Java method: JSDocInfo.makesDicts()
 func (this_ *JSDocInfo) MakesDicts() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_DICT())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_DICT())
 }
 
 // Java method: JSDocInfo.isDefine()
 func (this_ *JSDocInfo) IsDefine() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_DEFINE())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_DEFINE())
 }
 
 // Java method: JSDocInfo.isOverride()
 func (this_ *JSDocInfo) IsOverride() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_OVERRIDE())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_OVERRIDE())
 }
 
 // Java method: JSDocInfo.isDeprecated()
 func (this_ *JSDocInfo) IsDeprecated() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_DEPRECATED())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_DEPRECATED())
 }
 
 // Java method: JSDocInfo.isInterface()
@@ -1093,87 +1093,87 @@ func (this_ *JSDocInfo) IsConstructorOrInterface() bool {
 
 // Java method: JSDocInfo.isExport()
 func (this_ *JSDocInfo) IsExport() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_EXPORT())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_EXPORT())
 }
 
 // Java method: JSDocInfo.isImplicitCast()
 func (this_ *JSDocInfo) IsImplicitCast() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_IMPLICITCAST())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_IMPLICITCAST())
 }
 
 // Java method: JSDocInfo.isNoSideEffects()
 func (this_ *JSDocInfo) IsNoSideEffects() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_NOSIDEEFFECTS())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_NOSIDEEFFECTS())
 }
 
 // Java method: JSDocInfo.isExterns()
 func (this_ *JSDocInfo) IsExterns() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_EXTERNS())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_EXTERNS())
 }
 
 // Java method: JSDocInfo.isNoCoverage()
 func (this_ *JSDocInfo) IsNoCoverage() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_NOCOVERAGE())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_NOCOVERAGE())
 }
 
 // Java method: JSDocInfo.isTypeSummary()
 func (this_ *JSDocInfo) IsTypeSummary() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_TYPE_SUMMARY())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_TYPE_SUMMARY())
 }
 
 // Java method: JSDocInfo.isNoCompile()
 func (this_ *JSDocInfo) IsNoCompile() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_NOCOMPILE())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_NOCOMPILE())
 }
 
 // Java method: JSDocInfo.isNoDts()
 func (this_ *JSDocInfo) IsNoDts() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_NODTS())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_NODTS())
 }
 
 // Java method: JSDocInfo.isLegacyNamedTsExport()
 func (this_ *JSDocInfo) IsLegacyNamedTsExport() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_LEGACY_NAMED_TS_EXPORT())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_LEGACY_NAMED_TS_EXPORT())
 }
 
 // Java method: JSDocInfo.isNoCollapse()
 func (this_ *JSDocInfo) IsNoCollapse() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_NOCOLLAPSE())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_NOCOLLAPSE())
 }
 
 // Java method: JSDocInfo.isNoInline()
 func (this_ *JSDocInfo) IsNoInline() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_NOINLINE())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_NOINLINE())
 }
 
 // Java method: JSDocInfo.isRequireInlining()
 func (this_ *JSDocInfo) IsRequireInlining() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_REQUIRE_INLINING())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_REQUIRE_INLINING())
 }
 
 // Java method: JSDocInfo.isEncourageInlining()
 func (this_ *JSDocInfo) IsEncourageInlining() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_ENCOURAGE_INLINING())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_ENCOURAGE_INLINING())
 }
 
 // Java method: JSDocInfo.isCollapsibleOrBreakMyCode()
 func (this_ *JSDocInfo) IsCollapsibleOrBreakMyCode() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_COLLAPSIBLE_OR_BREAK_MY_CODE())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_COLLAPSIBLE_OR_BREAK_MY_CODE())
 }
 
 // Java method: JSDocInfo.isPureOrBreakMyCode()
 func (this_ *JSDocInfo) IsPureOrBreakMyCode() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_PURE_OR_BREAK_MY_CODE())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_PURE_OR_BREAK_MY_CODE())
 }
 
 // Java method: JSDocInfo.isProvideGoog()
 func (this_ *JSDocInfo) IsProvideGoog() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_PROVIDE_GOOG())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_PROVIDE_GOOG())
 }
 
 // Java method: JSDocInfo.isProvideAlreadyProvided()
 func (this_ *JSDocInfo) IsProvideAlreadyProvided() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_PROVIDE_ALREADY_PROVIDED())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_PROVIDE_ALREADY_PROVIDED())
 }
 
 // Java method: JSDocInfo.containsDeclarationExcludingTypelessConst()
@@ -1188,12 +1188,12 @@ func (this_ *JSDocInfo) ContainsTypeDeclaration() bool {
 
 // Java method: JSDocInfo.containsDeclaration()
 func (this_ *JSDocInfo) ContainsDeclaration() bool {
-	return (this_.ContainsDeclarationExcludingTypelessConst() || this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_CONST()))
+	return (this_.ContainsDeclarationExcludingTypelessConst() || this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_CONST()))
 }
 
 // Java method: JSDocInfo.containsFunctionDeclaration()
 func (this_ *JSDocInfo) ContainsFunctionDeclaration() bool {
-	if this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_CONSTRUCTOR()) || ((this_.propertyKeysBitset & ((StaticGet_JSDocInfo_RETURN_TYPE().GetJSDocInfo_PropertyBase().mask | StaticGet_JSDocInfo_THIS_TYPE().GetJSDocInfo_PropertyBase().mask) | StaticGet_JSDocInfo_PARAMETERS().GetJSDocInfo_PropertyBase().mask)) != int64(int32(0))) {
+	if this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_CONSTRUCTOR()) || ((this_.propertyKeysBitset & ((StaticGet_JSDocInfo_RETURN_TYPE().GetJSDocInfo_PropertyBase().mask | StaticGet_JSDocInfo_THIS_TYPE().GetJSDocInfo_PropertyBase().mask) | StaticGet_JSDocInfo_PARAMETERS().GetJSDocInfo_PropertyBase().mask)) != int64(int32(0))) {
 		return true
 	}
 	var type_ JSTypeExpression = j2gort.Cast[JSTypeExpression](StaticGet_JSDocInfo_TYPE().Get(this_))
@@ -1201,7 +1201,7 @@ func (this_ *JSDocInfo) ContainsFunctionDeclaration() bool {
 	if !(type_).IsJavaNil_() {
 		return type_.GetRoot().IsFunction()
 	}
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_NOSIDEEFFECTS())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_NOSIDEEFFECTS())
 }
 
 // Java method: JSDocInfo.containsTypeDefinition()
@@ -1354,7 +1354,7 @@ func (this_ *JSDocInfo) HasTypeInformation() bool {
 
 // Java method: JSDocInfo.isInlineType()
 func (this_ *JSDocInfo) IsInlineType() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_INLINE_TYPE())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_INLINE_TYPE())
 }
 
 // Java method: JSDocInfo.getReturnType()
@@ -1440,47 +1440,47 @@ func (this_ *JSDocInfo) HasClosurePrimitiveId() bool {
 
 // Java method: JSDocInfo.isNgInject()
 func (this_ *JSDocInfo) IsNgInject() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_NG_INJECT())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_NG_INJECT())
 }
 
 // Java method: JSDocInfo.isWizaction()
 func (this_ *JSDocInfo) IsWizaction() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_WIZ_ACTION())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_WIZ_ACTION())
 }
 
 // Java method: JSDocInfo.isWizcallback()
 func (this_ *JSDocInfo) IsWizcallback() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_WIZ_CALLBACK())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_WIZ_CALLBACK())
 }
 
 // Java method: JSDocInfo.isPolymerBehavior()
 func (this_ *JSDocInfo) IsPolymerBehavior() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_POLYMER_BEHAVIOR())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_POLYMER_BEHAVIOR())
 }
 
 // Java method: JSDocInfo.isPolymer()
 func (this_ *JSDocInfo) IsPolymer() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_POLYMER())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_POLYMER())
 }
 
 // Java method: JSDocInfo.isCustomElement()
 func (this_ *JSDocInfo) IsCustomElement() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_CUSTOM_ELEMENT())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_CUSTOM_ELEMENT())
 }
 
 // Java method: JSDocInfo.isMixinClass()
 func (this_ *JSDocInfo) IsMixinClass() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_MIXIN_CLASS())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_MIXIN_CLASS())
 }
 
 // Java method: JSDocInfo.isMixinFunction()
 func (this_ *JSDocInfo) IsMixinFunction() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_MIXIN_FUNCTION())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_MIXIN_FUNCTION())
 }
 
 // Java method: JSDocInfo.isSassGeneratedCssTs()
 func (this_ *JSDocInfo) IsSassGeneratedCssTs() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_SASS_GENERATED_CSS_TS())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_SASS_GENERATED_CSS_TS())
 }
 
 // Java method: JSDocInfo.isClosureUnawareCode()
@@ -1495,7 +1495,7 @@ func (this_ *JSDocInfo) GetPerFileClosureUnawareMode() JSDocInfo_PerFileClosureU
 
 // Java method: JSDocInfo.isUsedViaDotConstructor()
 func (this_ *JSDocInfo) IsUsedViaDotConstructor() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_USED_VIA_DOT_CONSTRUCTOR())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_USED_VIA_DOT_CONSTRUCTOR())
 }
 
 // Java method: JSDocInfo.getLicense()
@@ -1520,7 +1520,7 @@ func (this_ *JSDocInfo) ToStringVerbose() string {
 	for _, el_20 := range j2gort.CheckNotNullSlice(JSDocInfo_Bit_Values()) {
 		b := el_20
 		_ = b
-		if this_.priv_JSDocInfo_checkBit_8074(b) {
+		if this_.priv_JSDocInfo_checkBit_8075(b) {
 			helper.Add_2_string_bool(("bit:" + j2gort.StrValString(b.name)), true)
 		}
 	}
@@ -1530,7 +1530,7 @@ func (this_ *JSDocInfo) ToStringVerbose() string {
 		var low int32 = j2gort.BoxLong_NumberOfTrailingZeros(bits)
 		_ = low
 		bits = (bits & (bits - int64(1)))
-		helper = helper.Add_2_string_any(StaticGet_JSDocInfo_Property_Values()[low].GetJSDocInfo_PropertyBase().name, this_.priv_JSDocInfo_getPropertyValueForBit_8210(low))
+		helper = helper.Add_2_string_any(StaticGet_JSDocInfo_Property_Values()[low].GetJSDocInfo_PropertyBase().name, this_.priv_JSDocInfo_getPropertyValueForBit_8211(low))
 	}
 	return helper.OmitNullValues().String()
 }
@@ -1677,7 +1677,7 @@ func (this_ *JSDocInfo) GetBlockDescription() string {
 
 // Java method: JSDocInfo.hasFileOverview()
 func (this_ *JSDocInfo) HasFileOverview() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_FILEOVERVIEW())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_FILEOVERVIEW())
 }
 
 // Java method: JSDocInfo.getFileOverview()
@@ -1687,7 +1687,7 @@ func (this_ *JSDocInfo) GetFileOverview() string {
 
 // Java method: JSDocInfo.hasEnhance()
 func (this_ *JSDocInfo) HasEnhance() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_ENHANCED_NAMESPACE())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_ENHANCED_NAMESPACE())
 }
 
 // Java method: JSDocInfo.getEnhance()
@@ -1765,7 +1765,7 @@ func (this_ *JSDocInfo) HasTypeNodes() bool {
 		typeBits = (typeBits & (typeBits - int64(1)))
 		var prop JSDocInfo_Property = StaticGet_JSDocInfo_Property_Values()[low]
 		_ = prop
-		if prop.HasAnyTypeExpression(this_.priv_JSDocInfo_getNonType0ValueForBit_8209(low)) {
+		if prop.HasAnyTypeExpression(this_.priv_JSDocInfo_getNonType0ValueForBit_8210(low)) {
 			return true
 		}
 	}
@@ -1793,7 +1793,7 @@ func (this_ *JSDocInfo) GetTypeExpressions() j2gort.Ext_java_util_Collection {
 		_ = low
 		typeBits = (typeBits & (typeBits - int64(1)))
 		if ((javalang.Shl64(int64(1), int(low))) & StaticGet_JSDocInfo_SINGLE_TYPE_EXPR_PROPERTIES_MASK()) != int64(0) {
-			var expr JSTypeExpression = this_.priv_JSDocInfo_getSingleTypeForBit_8208(low)
+			var expr JSTypeExpression = this_.priv_JSDocInfo_getSingleTypeForBit_8209(low)
 			_ = expr
 			if !(expr).IsJavaNil_() {
 				if builder == nil {
@@ -1804,7 +1804,7 @@ func (this_ *JSDocInfo) GetTypeExpressions() j2gort.Ext_java_util_Collection {
 		} else {
 			var prop JSDocInfo_Property = StaticGet_JSDocInfo_Property_Values()[low]
 			_ = prop
-			var value any = this_.priv_JSDocInfo_getNonType0ValueForBit_8209(low)
+			var value any = this_.priv_JSDocInfo_getNonType0ValueForBit_8210(low)
 			_ = value
 			if prop.HasAnyTypeExpression(value) {
 				if builder == nil {
@@ -1842,13 +1842,13 @@ func (this_ *JSDocInfo) GetTypeNodeCount() int32 {
 		_ = low
 		typeBits = (typeBits & (typeBits - int64(1)))
 		if ((javalang.Shl64(int64(1), int(low))) & StaticGet_JSDocInfo_SINGLE_TYPE_EXPR_PROPERTIES_MASK()) != int64(0) {
-			if !(this_.priv_JSDocInfo_getSingleTypeForBit_8208(low)).IsJavaNil_() {
+			if !(this_.priv_JSDocInfo_getSingleTypeForBit_8209(low)).IsJavaNil_() {
 				count = count + 1
 			}
 		} else {
 			var prop JSDocInfo_Property = StaticGet_JSDocInfo_Property_Values()[low]
 			_ = prop
-			count = (count + prop.CountTypeNodes(this_.priv_JSDocInfo_getNonType0ValueForBit_8209(low)))
+			count = (count + prop.CountTypeNodes(this_.priv_JSDocInfo_getNonType0ValueForBit_8210(low)))
 		}
 	}
 	return count
@@ -1875,7 +1875,7 @@ func (this_ *JSDocInfo) GetTypeNodeAt(index int32) Node {
 		_ = low
 		typeBits = (typeBits & (typeBits - int64(1)))
 		if ((javalang.Shl64(int64(1), int(low))) & StaticGet_JSDocInfo_SINGLE_TYPE_EXPR_PROPERTIES_MASK()) != int64(0) {
-			var expr JSTypeExpression = this_.priv_JSDocInfo_getSingleTypeForBit_8208(low)
+			var expr JSTypeExpression = this_.priv_JSDocInfo_getSingleTypeForBit_8209(low)
 			_ = expr
 			if !(expr).IsJavaNil_() {
 				if remaining == int32(0) {
@@ -1886,7 +1886,7 @@ func (this_ *JSDocInfo) GetTypeNodeAt(index int32) Node {
 		} else {
 			var prop JSDocInfo_Property = StaticGet_JSDocInfo_Property_Values()[low]
 			_ = prop
-			var val any = this_.priv_JSDocInfo_getNonType0ValueForBit_8209(low)
+			var val any = this_.priv_JSDocInfo_getNonType0ValueForBit_8210(low)
 			_ = val
 			var subCount int32 = prop.CountTypeNodes(val)
 			_ = subCount
@@ -1920,7 +1920,7 @@ func (this_ *JSDocInfo) GetTypeNodes() j2gort.Ext_java_util_Collection {
 		_ = low
 		typeBits = (typeBits & (typeBits - int64(1)))
 		if ((javalang.Shl64(int64(1), int(low))) & StaticGet_JSDocInfo_SINGLE_TYPE_EXPR_PROPERTIES_MASK()) != int64(0) {
-			var expr JSTypeExpression = this_.priv_JSDocInfo_getSingleTypeForBit_8208(low)
+			var expr JSTypeExpression = this_.priv_JSDocInfo_getSingleTypeForBit_8209(low)
 			_ = expr
 			if !(expr).IsJavaNil_() {
 				if nodes == nil {
@@ -1931,7 +1931,7 @@ func (this_ *JSDocInfo) GetTypeNodes() j2gort.Ext_java_util_Collection {
 		} else {
 			var prop JSDocInfo_Property = StaticGet_JSDocInfo_Property_Values()[low]
 			_ = prop
-			nodes = prop.CollectTypeNodes(this_.priv_JSDocInfo_getNonType0ValueForBit_8209(low), nodes)
+			nodes = prop.CollectTypeNodes(this_.priv_JSDocInfo_getNonType0ValueForBit_8210(low), nodes)
 		}
 	}
 	if nodes != nil {
@@ -1976,11 +1976,11 @@ func (this_ *JSDocInfo) HasSideEffectsArgumentsAnnotation() bool {
 
 // Java method: JSDocInfo.getLogTypeInCompiler()
 func (this_ *JSDocInfo) GetLogTypeInCompiler() bool {
-	return this_.priv_JSDocInfo_checkBit_8074(StaticGet_JSDocInfo_Bit_LOG_TYPE_IN_COMPILER())
+	return this_.priv_JSDocInfo_checkBit_8075(StaticGet_JSDocInfo_Bit_LOG_TYPE_IN_COMPILER())
 }
 
 // Java method: JSDocInfo.getSingleTypeForBit(int bit)
-func (this_ *JSDocInfo) priv_JSDocInfo_getSingleTypeForBit_8208(bit int32) JSTypeExpression {
+func (this_ *JSDocInfo) priv_JSDocInfo_getSingleTypeForBit_8209(bit int32) JSTypeExpression {
 	_ = bit
 	var mask int64 = javalang.Shl64(int64(1), int(bit))
 	_ = mask
@@ -1991,11 +1991,11 @@ func (this_ *JSDocInfo) priv_JSDocInfo_getSingleTypeForBit_8208(bit int32) JSTyp
 	}
 	var nonType0Keys int64 = (this_.propertyKeysBitset ^ (typeBits & -(typeBits)))
 	_ = nonType0Keys
-	return j2gort.Cast[JSTypeExpression](this_.priv_JSDocInfo_getNonType0ValueByIndex_8211(j2gort.BoxLong_BitCount((nonType0Keys & (mask - int64(1))))))
+	return j2gort.Cast[JSTypeExpression](this_.priv_JSDocInfo_getNonType0ValueByIndex_8212(j2gort.BoxLong_BitCount((nonType0Keys & (mask - int64(1))))))
 }
 
 // Java method: JSDocInfo.getNonType0ValueForBit(int bit)
-func (this_ *JSDocInfo) priv_JSDocInfo_getNonType0ValueForBit_8209(bit int32) any {
+func (this_ *JSDocInfo) priv_JSDocInfo_getNonType0ValueForBit_8210(bit int32) any {
 	_ = bit
 	var mask int64 = javalang.Shl64(int64(1), int(bit))
 	_ = mask
@@ -2003,20 +2003,20 @@ func (this_ *JSDocInfo) priv_JSDocInfo_getNonType0ValueForBit_8209(bit int32) an
 	_ = typeBits
 	var nonType0Keys int64 = (this_.propertyKeysBitset ^ (typeBits & -(typeBits)))
 	_ = nonType0Keys
-	return this_.priv_JSDocInfo_getNonType0ValueByIndex_8211(j2gort.BoxLong_BitCount((nonType0Keys & (mask - int64(1)))))
+	return this_.priv_JSDocInfo_getNonType0ValueByIndex_8212(j2gort.BoxLong_BitCount((nonType0Keys & (mask - int64(1)))))
 }
 
 // Java method: JSDocInfo.getPropertyValueForBit(int bit)
-func (this_ *JSDocInfo) priv_JSDocInfo_getPropertyValueForBit_8210(bit int32) any {
+func (this_ *JSDocInfo) priv_JSDocInfo_getPropertyValueForBit_8211(bit int32) any {
 	_ = bit
 	if ((javalang.Shl64(int64(1), int(bit))) & StaticGet_JSDocInfo_SINGLE_TYPE_EXPR_PROPERTIES_MASK()) != int64(0) {
-		return j2gort.BoxNullableVal(this_.priv_JSDocInfo_getSingleTypeForBit_8208(bit))
+		return j2gort.BoxNullableVal(this_.priv_JSDocInfo_getSingleTypeForBit_8209(bit))
 	}
-	return this_.priv_JSDocInfo_getNonType0ValueForBit_8209(bit)
+	return this_.priv_JSDocInfo_getNonType0ValueForBit_8210(bit)
 }
 
 // Java method: JSDocInfo.getNonType0ValueByIndex(int index)
-func (this_ *JSDocInfo) priv_JSDocInfo_getNonType0ValueByIndex_8211(index int32) any {
+func (this_ *JSDocInfo) priv_JSDocInfo_getNonType0ValueByIndex_8212(index int32) any {
 	_ = index
 	if this_.propertyValue0 == nil {
 		panic(j2gort.AsIface[javalang.IIllegalArgumentException](j2gort.ConstructShimThrowable("java.lang.IllegalArgumentException", "no property value")))
@@ -2052,7 +2052,7 @@ func (this_ *JSDocInfo) GetPropertyValueByIndex(index int32) any {
 	if rem == int64(0) {
 		panic(j2gort.AsIface[javalang.IArrayIndexOutOfBoundsException](j2gort.ConstructShimThrowable("java.lang.ArrayIndexOutOfBoundsException", j2gort.ValueOfInt(index))))
 	}
-	return this_.priv_JSDocInfo_getPropertyValueForBit_8210(j2gort.BoxLong_NumberOfTrailingZeros(rem))
+	return this_.priv_JSDocInfo_getPropertyValueForBit_8211(j2gort.BoxLong_NumberOfTrailingZeros(rem))
 }
 
 // Java static method: JSDocInfo.internSet(java.util.Set<java.lang.String> strings)
@@ -2230,7 +2230,7 @@ func (this_ *JSDocInfo_PropertyBase) Get(info *JSDocInfo) any {
 	if (info.propertyKeysBitset & this_.mask) == int64(0) {
 		return nil
 	}
-	return info.priv_JSDocInfo_getPropertyValueForBit_8210(this_.bit)
+	return info.priv_JSDocInfo_getPropertyValueForBit_8211(this_.bit)
 }
 
 // Java method: Property.clone(T arg, com.google.javascript.rhino.JSDocInfo.@org.jspecify.annotations.Nullable TypeTransform unusedTransform)
@@ -2363,7 +2363,7 @@ func (this_ *JSDocInfo_MarkerListProperty) EqualValues(arg_39 any, arg_40 any) b
 			_ = m1
 			var m2 *JSDocInfo_Marker = j2gort.CastPtr[JSDocInfo_Marker](b.Get(i))
 			_ = m2
-			if ((m1 == nil) != (m2 == nil)) || ((m1 != nil) && !(m1.priv_Marker_isEquivalentTo_8272(m2))) {
+			if ((m1 == nil) != (m2 == nil)) || ((m1 != nil) && !(m1.priv_Marker_isEquivalentTo_8273(m2))) {
 				return false
 			}
 		}
@@ -2422,7 +2422,7 @@ func (this_ *JSDocInfo_TypeProperty) GetTyped(info *JSDocInfo) JSTypeExpression 
 	if (info.propertyKeysBitset & this_.GetJSDocInfo_PropertyBase().mask) == int64(0) {
 		return (JSTypeExpression{})
 	}
-	return info.priv_JSDocInfo_getSingleTypeForBit_8208(this_.GetJSDocInfo_PropertyBase().bit)
+	return info.priv_JSDocInfo_getSingleTypeForBit_8209(this_.GetJSDocInfo_PropertyBase().bit)
 }
 
 // Java method: TypeProperty.get(com.google.javascript.rhino.JSDocInfo info)
@@ -2651,7 +2651,7 @@ func (this_ *JSDocInfo_TypeList) String() string {
 			if i > int32(0) {
 				sb.Append_1_string(", ")
 			}
-			sb.Append_1_any_9925(j2gort.BoxNullableVal(this_.values[i]))
+			sb.Append_1_any_9926(j2gort.BoxNullableVal(this_.values[i]))
 		}
 	}
 	sb.Append_1_uint16(uint16(93))
@@ -3094,7 +3094,7 @@ func (this_ *JSDocInfo_TypeMap) String() string {
 			_ = k
 			var v JSTypeExpression = this_.values[i]
 			_ = v
-			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_string(k)).Append_1_uint16(uint16(61))).Append_1_any_9925(j2gort.BoxNullableVal(v))
+			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_string(k)).Append_1_uint16(uint16(61))).Append_1_any_9926(j2gort.BoxNullableVal(v))
 		}
 	}
 	sb.Append_1_uint16(uint16(125))
@@ -3199,7 +3199,7 @@ func (this_ *JSDocInfo_TypeMapProperty) EqualValues(arg_72 any, arg_73 any) bool
 		for ; i < n; i = i + 1 {
 			var rightIdx int32 = right.IndexOfKey(left.keys[i])
 			_ = rightIdx
-			if (rightIdx < int32(0)) || !(this_.priv_TypeMapProperty_areEquivalent_8242(left.values[i], right.values[rightIdx])) {
+			if (rightIdx < int32(0)) || !(this_.priv_TypeMapProperty_areEquivalent_8243(left.values[i], right.values[rightIdx])) {
 				return false
 			}
 		}
@@ -3208,7 +3208,7 @@ func (this_ *JSDocInfo_TypeMapProperty) EqualValues(arg_72 any, arg_73 any) bool
 }
 
 // Java method: TypeMapProperty.areEquivalent(com.google.javascript.rhino.JSTypeExpression expr1, com.google.javascript.rhino.JSTypeExpression expr2)
-func (this_ *JSDocInfo_TypeMapProperty) priv_TypeMapProperty_areEquivalent_8242(expr1 JSTypeExpression, expr2 JSTypeExpression) bool {
+func (this_ *JSDocInfo_TypeMapProperty) priv_TypeMapProperty_areEquivalent_8243(expr1 JSTypeExpression, expr2 JSTypeExpression) bool {
 	_ = expr1
 	_ = expr2
 	return ((expr1 == expr2) || (!(expr1).IsJavaNil_() && expr1.IsEquivalentTo(expr2)))
@@ -3699,7 +3699,7 @@ func (this_ *JSDocInfo_NodeMap) String() string {
 			_ = k
 			var v Node = this_.values[i]
 			_ = v
-			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_string(k)).Append_1_uint16(uint16(61))).Append_1_any_9925(j2gort.BoxNode(v))
+			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_string(k)).Append_1_uint16(uint16(61))).Append_1_any_9926(j2gort.BoxNode(v))
 		}
 	}
 	sb.Append_1_uint16(uint16(125))
@@ -5150,7 +5150,7 @@ func (this_ *JSDocInfo_Marker) SetType(p *JSDocInfo_TypePosition) {
 }
 
 // Java method: Marker.isEquivalentTo(com.google.javascript.rhino.JSDocInfo.Marker that)
-func (this_ *JSDocInfo_Marker) priv_Marker_isEquivalentTo_8272(that *JSDocInfo_Marker) bool {
+func (this_ *JSDocInfo_Marker) priv_Marker_isEquivalentTo_8273(that *JSDocInfo_Marker) bool {
 	_ = that
 	return (((JSDocInfo_Marker_AreEquivalent(ToIface_JSDocInfo_ComparableSourcePosition(this_.annotation), ToIface_JSDocInfo_ComparableSourcePosition(that.annotation)) && JSDocInfo_Marker_AreEquivalent(ToIface_JSDocInfo_ComparableSourcePosition(this_.nameNode), ToIface_JSDocInfo_ComparableSourcePosition(that.nameNode))) && JSDocInfo_Marker_AreEquivalent(Upcast_JSDocInfo_ComparableSourcePosition(this_.description), Upcast_JSDocInfo_ComparableSourcePosition(that.description))) && JSDocInfo_Marker_AreEquivalent(ToIface_JSDocInfo_ComparableSourcePosition(this_.type_), ToIface_JSDocInfo_ComparableSourcePosition(that.type_)))
 }
@@ -5274,13 +5274,13 @@ func JSDocInfo_Builder_CopyFromAndReplaceNames(info *JSDocInfo, oldNames j2gort.
 
 // Java method: Builder.parseDocumentation()
 func (this_ *JSDocInfo_Builder) ParseDocumentation() *JSDocInfo_Builder {
-	this_.priv_Builder_setBit_8426(StaticGet_JSDocInfo_Bit_INCLUDE_DOCUMENTATION(), true)
+	this_.priv_Builder_setBit_8427(StaticGet_JSDocInfo_Bit_INCLUDE_DOCUMENTATION(), true)
 	return this_
 }
 
 // Java method: Builder.shouldParseDocumentation()
 func (this_ *JSDocInfo_Builder) ShouldParseDocumentation() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_INCLUDE_DOCUMENTATION())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_INCLUDE_DOCUMENTATION())
 }
 
 // Java method: Builder.recordOriginalCommentString(java.lang.String sourceComment)
@@ -5288,7 +5288,7 @@ func (this_ *JSDocInfo_Builder) RecordOriginalCommentString(sourceComment string
 	_ = sourceComment
 	if this_.ShouldParseDocumentation() {
 		this_.populated = true
-		this_.priv_Builder_setProp_8417(StaticGet_JSDocInfo_SOURCE_COMMENT(), j2gort.BoxString(sourceComment))
+		this_.priv_Builder_setProp_8418(StaticGet_JSDocInfo_SOURCE_COMMENT(), j2gort.BoxString(sourceComment))
 	}
 }
 
@@ -5297,7 +5297,7 @@ func (this_ *JSDocInfo_Builder) RecordOriginalCommentPosition(position int32) {
 	_ = position
 	if this_.ShouldParseDocumentation() {
 		this_.populated = true
-		this_.priv_Builder_setProp_8417(StaticGet_JSDocInfo_ORIGINAL_COMMENT_POSITION(), j2gort.ValueOfInt(position))
+		this_.priv_Builder_setProp_8418(StaticGet_JSDocInfo_ORIGINAL_COMMENT_POSITION(), j2gort.ValueOfInt(position))
 	}
 }
 
@@ -5308,22 +5308,22 @@ func (this_ *JSDocInfo_Builder) IsPopulatedWithFileOverview() bool {
 
 // Java method: Builder.isDescriptionRecorded()
 func (this_ *JSDocInfo_Builder) IsDescriptionRecorded() bool {
-	return (j2gort.CastString(this_.priv_Builder_getProp_8418(StaticGet_JSDocInfo_DESCRIPTION())) != j2gort.NullString)
+	return (j2gort.CastString(this_.priv_Builder_getProp_8419(StaticGet_JSDocInfo_DESCRIPTION())) != j2gort.NullString)
 }
 
 // Java method: Builder.isNoInline()
 func (this_ *JSDocInfo_Builder) IsNoInline() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_NOINLINE())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_NOINLINE())
 }
 
 // Java method: Builder.isRequireInlining()
 func (this_ *JSDocInfo_Builder) IsRequireInlining() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_REQUIRE_INLINING())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_REQUIRE_INLINING())
 }
 
 // Java method: Builder.isEncourageInlining()
 func (this_ *JSDocInfo_Builder) IsEncourageInlining() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_ENCOURAGE_INLINING())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_ENCOURAGE_INLINING())
 }
 
 // Java method: Builder.build()
@@ -5399,7 +5399,7 @@ func (this_ *JSDocInfo_Builder) MarkAnnotation(annotation string, lineno int32, 
 	_ = annotation
 	_ = lineno
 	_ = charno
-	var marker *JSDocInfo_Marker = this_.priv_Builder_addMarker_8287()
+	var marker *JSDocInfo_Marker = this_.priv_Builder_addMarker_8288()
 	_ = marker
 	if marker != nil {
 		var position *JSDocInfo_TrimmedStringPosition = NewJSDocInfo_TrimmedStringPosition()
@@ -5413,12 +5413,12 @@ func (this_ *JSDocInfo_Builder) MarkAnnotation(annotation string, lineno int32, 
 }
 
 // Java method: Builder.addMarker()
-func (this_ *JSDocInfo_Builder) priv_Builder_addMarker_8287() *JSDocInfo_Marker {
+func (this_ *JSDocInfo_Builder) priv_Builder_addMarker_8288() *JSDocInfo_Marker {
 	if this_.ShouldParseDocumentation() {
-		var markers j2gort.Ext_java_util_ArrayList = j2gort.AsIface[j2gort.Ext_java_util_ArrayList](this_.priv_Builder_getProp_8418(StaticGet_JSDocInfo_MARKERS()))
+		var markers j2gort.Ext_java_util_ArrayList = j2gort.AsIface[j2gort.Ext_java_util_ArrayList](this_.priv_Builder_getProp_8419(StaticGet_JSDocInfo_MARKERS()))
 		_ = markers
 		if markers == nil {
-			this_.priv_Builder_setProp_8417(StaticGet_JSDocInfo_MARKERS(), func() j2gort.Ext_java_util_ArrayList {
+			this_.priv_Builder_setProp_8418(StaticGet_JSDocInfo_MARKERS(), func() j2gort.Ext_java_util_ArrayList {
 				var asgn_94 j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList()
 				markers = asgn_94
 				return asgn_94
@@ -5500,15 +5500,15 @@ func (this_ *JSDocInfo_Builder) RecordBlockDescription(description string) bool 
 	if !(this_.ShouldParseDocumentation()) {
 		return true
 	}
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_BLOCK_DESCRIPTION(), j2gort.BoxString(description))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_BLOCK_DESCRIPTION(), j2gort.BoxString(description))
 }
 
 // Java method: Builder.recordVisibility(com.google.javascript.rhino.JSDocInfo.Visibility visibility)
 func (this_ *JSDocInfo_Builder) RecordVisibility(visibility JSDocInfo_Visibility) bool {
 	_ = visibility
-	if j2gort.Cast[JSDocInfo_Visibility](this_.priv_Builder_getProp_8418(StaticGet_JSDocInfo_VISIBILITY())) == 0 {
+	if j2gort.Cast[JSDocInfo_Visibility](this_.priv_Builder_getProp_8419(StaticGet_JSDocInfo_VISIBILITY())) == 0 {
 		this_.populated = true
-		this_.priv_Builder_setProp_8417(StaticGet_JSDocInfo_VISIBILITY(), j2gort.BoxNullableVal(visibility))
+		this_.priv_Builder_setProp_8418(StaticGet_JSDocInfo_VISIBILITY(), j2gort.BoxNullableVal(visibility))
 		return true
 	}
 	return false
@@ -5518,14 +5518,14 @@ func (this_ *JSDocInfo_Builder) RecordVisibility(visibility JSDocInfo_Visibility
 func (this_ *JSDocInfo_Builder) OverwriteVisibility(visibility JSDocInfo_Visibility) {
 	_ = visibility
 	this_.populated = true
-	this_.priv_Builder_setProp_8417(StaticGet_JSDocInfo_VISIBILITY(), j2gort.BoxNullableVal(visibility))
+	this_.priv_Builder_setProp_8418(StaticGet_JSDocInfo_VISIBILITY(), j2gort.BoxNullableVal(visibility))
 }
 
 // Java method: Builder.recordParameter(java.lang.String parameterName, com.google.javascript.rhino.JSTypeExpression type)
 func (this_ *JSDocInfo_Builder) RecordParameter(parameterName string, type_ JSTypeExpression) bool {
 	_ = parameterName
 	_ = type_
-	return (!(this_.priv_Builder_hasAnySingletonTypeTags_8407()) && this_.priv_Builder_populateTypePropEntry_8421(StaticGet_JSDocInfo_PARAMETERS(), RhinoStringPool_AddOrGet(parameterName), type_))
+	return (!(this_.priv_Builder_hasAnySingletonTypeTags_8408()) && this_.priv_Builder_populateTypePropEntry_8422(StaticGet_JSDocInfo_PARAMETERS(), RhinoStringPool_AddOrGet(parameterName), type_))
 }
 
 // Java method: Builder.recordParameterDescription(java.lang.String parameterName, java.lang.String description)
@@ -5535,7 +5535,7 @@ func (this_ *JSDocInfo_Builder) RecordParameterDescription(parameterName string,
 	if !(this_.ShouldParseDocumentation()) {
 		return true
 	}
-	return this_.priv_Builder_populateStringPropEntry_8422(StaticGet_JSDocInfo_PARAMETER_DESCRIPTIONS(), RhinoStringPool_AddOrGet(parameterName), description)
+	return this_.priv_Builder_populateStringPropEntry_8423(StaticGet_JSDocInfo_PARAMETER_DESCRIPTIONS(), RhinoStringPool_AddOrGet(parameterName), description)
 }
 
 // Java method: Builder.recordTemplateTypeName(java.lang.String name)
@@ -5551,35 +5551,35 @@ func (this_ *JSDocInfo_Builder) RecordTemplateTypeName_2(name string, bound JSTy
 	if (bound).IsJavaNil_() {
 		bound = StaticGet_JSTypeExpression_IMPLICIT_TEMPLATE_BOUND()
 	}
-	var transformations *JSDocInfo_NodeMap = j2gort.CastPtr[JSDocInfo_NodeMap](this_.priv_Builder_getProp_8418(ToIface_JSDocInfo_Property(StaticGet_JSDocInfo_TYPE_TRANSFORMATIONS())))
+	var transformations *JSDocInfo_NodeMap = j2gort.CastPtr[JSDocInfo_NodeMap](this_.priv_Builder_getProp_8419(ToIface_JSDocInfo_Property(StaticGet_JSDocInfo_TYPE_TRANSFORMATIONS())))
 	_ = transformations
 	if ((transformations != nil) && transformations.ContainsKey(name)) || ((this_.singleTypeKeys & StaticGet_JSDocInfo_TYPEDEF_TYPE().GetJSDocInfo_PropertyBase().mask) != int64(0)) {
 		return false
 	}
-	return this_.priv_Builder_populateTypePropEntry_8421(StaticGet_JSDocInfo_TEMPLATE_TYPE_NAMES(), RhinoStringPool_AddOrGet(name), bound)
+	return this_.priv_Builder_populateTypePropEntry_8422(StaticGet_JSDocInfo_TEMPLATE_TYPE_NAMES(), RhinoStringPool_AddOrGet(name), bound)
 }
 
 // Java method: Builder.recordTypeTransformation(java.lang.String name, com.google.javascript.rhino.Node expr)
 func (this_ *JSDocInfo_Builder) RecordTypeTransformation(name string, expr Node) bool {
 	_ = name
 	_ = expr
-	var names *JSDocInfo_TypeMap = j2gort.CastPtr[JSDocInfo_TypeMap](this_.priv_Builder_getProp_8418(ToIface_JSDocInfo_Property(StaticGet_JSDocInfo_TEMPLATE_TYPE_NAMES())))
+	var names *JSDocInfo_TypeMap = j2gort.CastPtr[JSDocInfo_TypeMap](this_.priv_Builder_getProp_8419(ToIface_JSDocInfo_Property(StaticGet_JSDocInfo_TEMPLATE_TYPE_NAMES())))
 	_ = names
 	if (names != nil) && names.ContainsKey(name) {
 		return false
 	}
-	return this_.priv_Builder_populateNodePropEntry_8423(StaticGet_JSDocInfo_TYPE_TRANSFORMATIONS(), RhinoStringPool_AddOrGet(name), expr)
+	return this_.priv_Builder_populateNodePropEntry_8424(StaticGet_JSDocInfo_TYPE_TRANSFORMATIONS(), RhinoStringPool_AddOrGet(name), expr)
 }
 
 // Java method: Builder.recordThrowsAnnotation(java.lang.String annotation)
 func (this_ *JSDocInfo_Builder) RecordThrowsAnnotation(annotation string) bool {
 	_ = annotation
 	this_.populated = true
-	if this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_NOSIDEEFFECTS()) {
+	if this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_NOSIDEEFFECTS()) {
 		return false
 	}
-	if !(this_.priv_Builder_hasAnySingletonTypeTags_8407()) {
-		var throwsAnnotations j2gort.Ext_java_util_List = this_.priv_Builder_getOrCreateStringList_8420(StaticGet_JSDocInfo_THROWS_ANNOTATIONS())
+	if !(this_.priv_Builder_hasAnySingletonTypeTags_8408()) {
+		var throwsAnnotations j2gort.Ext_java_util_List = this_.priv_Builder_getOrCreateStringList_8421(StaticGet_JSDocInfo_THROWS_ANNOTATIONS())
 		_ = throwsAnnotations
 		if this_.ShouldParseDocumentation() {
 			throwsAnnotations.Add_1(j2gort.BoxString(annotation))
@@ -5595,7 +5595,7 @@ func (this_ *JSDocInfo_Builder) RecordAuthor(author string) bool {
 	_ = author
 	this_.populated = true
 	if this_.ShouldParseDocumentation() {
-		this_.priv_Builder_getOrCreateStringList_8420(StaticGet_JSDocInfo_AUTHORS()).Add_1(j2gort.BoxString(author))
+		this_.priv_Builder_getOrCreateStringList_8421(StaticGet_JSDocInfo_AUTHORS()).Add_1(j2gort.BoxString(author))
 	}
 	return true
 }
@@ -5605,45 +5605,45 @@ func (this_ *JSDocInfo_Builder) RecordReference(reference string) bool {
 	_ = reference
 	this_.populated = true
 	if this_.ShouldParseDocumentation() {
-		this_.priv_Builder_getOrCreateStringList_8420(StaticGet_JSDocInfo_SEES()).Add_1(j2gort.BoxString(reference))
+		this_.priv_Builder_getOrCreateStringList_8421(StaticGet_JSDocInfo_SEES()).Add_1(j2gort.BoxString(reference))
 	}
 	return true
 }
 
 // Java method: Builder.recordConsistentIdGenerator()
 func (this_ *JSDocInfo_Builder) RecordConsistentIdGenerator() bool {
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_ID_GENERATOR(), j2gort.BoxNullableVal(StaticGet_JSDocInfo_IdGenerator_CONSISTENT()))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_ID_GENERATOR(), j2gort.BoxNullableVal(StaticGet_JSDocInfo_IdGenerator_CONSISTENT()))
 }
 
 // Java method: Builder.recordStableIdGenerator()
 func (this_ *JSDocInfo_Builder) RecordStableIdGenerator() bool {
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_ID_GENERATOR(), j2gort.BoxNullableVal(StaticGet_JSDocInfo_IdGenerator_STABLE()))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_ID_GENERATOR(), j2gort.BoxNullableVal(StaticGet_JSDocInfo_IdGenerator_STABLE()))
 }
 
 // Java method: Builder.recordXidGenerator()
 func (this_ *JSDocInfo_Builder) RecordXidGenerator() bool {
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_ID_GENERATOR(), j2gort.BoxNullableVal(StaticGet_JSDocInfo_IdGenerator_XID()))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_ID_GENERATOR(), j2gort.BoxNullableVal(StaticGet_JSDocInfo_IdGenerator_XID()))
 }
 
 // Java method: Builder.recordMappedIdGenerator()
 func (this_ *JSDocInfo_Builder) RecordMappedIdGenerator() bool {
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_ID_GENERATOR(), j2gort.BoxNullableVal(StaticGet_JSDocInfo_IdGenerator_MAPPED()))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_ID_GENERATOR(), j2gort.BoxNullableVal(StaticGet_JSDocInfo_IdGenerator_MAPPED()))
 }
 
 // Java method: Builder.recordIdGenerator()
 func (this_ *JSDocInfo_Builder) RecordIdGenerator() bool {
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_ID_GENERATOR(), j2gort.BoxNullableVal(StaticGet_JSDocInfo_IdGenerator_UNIQUE()))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_ID_GENERATOR(), j2gort.BoxNullableVal(StaticGet_JSDocInfo_IdGenerator_UNIQUE()))
 }
 
 // Java method: Builder.recordDeprecationReason(java.lang.String reason)
 func (this_ *JSDocInfo_Builder) RecordDeprecationReason(reason string) bool {
 	_ = reason
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_DEPRECATION_REASON(), j2gort.BoxString(reason))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_DEPRECATION_REASON(), j2gort.BoxString(reason))
 }
 
 // Java method: Builder.isDeprecationReasonRecorded()
 func (this_ *JSDocInfo_Builder) IsDeprecationReasonRecorded() bool {
-	return (j2gort.CastString(this_.priv_Builder_getProp_8418(StaticGet_JSDocInfo_DEPRECATION_REASON())) != j2gort.NullString)
+	return (j2gort.CastString(this_.priv_Builder_getProp_8419(StaticGet_JSDocInfo_DEPRECATION_REASON())) != j2gort.NullString)
 }
 
 // Java method: Builder.recordSuppressions(com.google.common.collect.ImmutableSet<java.lang.String> suppressions, java.lang.String description)
@@ -5651,10 +5651,10 @@ func (this_ *JSDocInfo_Builder) RecordSuppressions_2(suppressions j2gort.Ext_com
 	_ = suppressions
 	_ = description
 	this_.populated = true
-	var current j2gort.Ext_com_google_common_collect_ImmutableMap = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](this_.priv_Builder_getProp_8418(StaticGet_JSDocInfo_SUPPRESSIONS()))
+	var current j2gort.Ext_com_google_common_collect_ImmutableMap = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](this_.priv_Builder_getProp_8419(StaticGet_JSDocInfo_SUPPRESSIONS()))
 	_ = current
 	if current == nil {
-		this_.priv_Builder_setProp_8417(StaticGet_JSDocInfo_SUPPRESSIONS(), j2gort.Ext_com_google_common_collect_ImmutableMap_Of_2(JSDocInfo_InternSet(j2gort.AsIface[j2gort.Ext_java_util_Set](suppressions)), j2gort.BoxString(description)))
+		this_.priv_Builder_setProp_8418(StaticGet_JSDocInfo_SUPPRESSIONS(), j2gort.Ext_com_google_common_collect_ImmutableMap_Of_2(JSDocInfo_InternSet(j2gort.AsIface[j2gort.Ext_java_util_Set](suppressions)), j2gort.BoxString(description)))
 		return
 	}
 	if current.ContainsKey(suppressions) {
@@ -5664,7 +5664,7 @@ func (this_ *JSDocInfo_Builder) RecordSuppressions_2(suppressions j2gort.Ext_com
 	_ = mapBuilder
 	mapBuilder.PutAll_1_Ext_java_util_Map(j2gort.AsIface[j2gort.Ext_java_util_Map](current))
 	mapBuilder.Put_2(JSDocInfo_InternSet(j2gort.AsIface[j2gort.Ext_java_util_Set](suppressions)), j2gort.BoxString(description))
-	this_.priv_Builder_setProp_8417(StaticGet_JSDocInfo_SUPPRESSIONS(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](mapBuilder.BuildOrThrow()))
+	this_.priv_Builder_setProp_8418(StaticGet_JSDocInfo_SUPPRESSIONS(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](mapBuilder.BuildOrThrow()))
 }
 
 // Java method: Builder.recordSuppressions(java.util.Set<java.lang.String> suppressions)
@@ -5682,30 +5682,30 @@ func (this_ *JSDocInfo_Builder) RecordSuppression(suppression string) {
 // Java method: Builder.recordModifies(java.util.Set<java.lang.String> modifies)
 func (this_ *JSDocInfo_Builder) RecordModifies(modifies j2gort.Ext_java_util_Set) bool {
 	_ = modifies
-	return (!(this_.priv_Builder_hasAnySingletonSideEffectTags_8413()) && this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_MODIFIES(), JSDocInfo_InternSet(modifies)))
+	return (!(this_.priv_Builder_hasAnySingletonSideEffectTags_8414()) && this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_MODIFIES(), JSDocInfo_InternSet(modifies)))
 }
 
 // Java method: Builder.recordType(com.google.javascript.rhino.JSTypeExpression type)
 func (this_ *JSDocInfo_Builder) RecordType(type_ JSTypeExpression) bool {
 	_ = type_
-	return ((!(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnyTypeRelatedTags_8403())) && this_.priv_Builder_populateTypeProp_8412(StaticGet_JSDocInfo_TYPE(), type_))
+	return ((!(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnyTypeRelatedTags_8404())) && this_.priv_Builder_populateTypeProp_8413(StaticGet_JSDocInfo_TYPE(), type_))
 }
 
 // Java method: Builder.recordInlineType()
 func (this_ *JSDocInfo_Builder) RecordInlineType() {
-	this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_INLINE_TYPE(), true)
+	this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_INLINE_TYPE(), true)
 }
 
 // Java method: Builder.recordTypedef(com.google.javascript.rhino.JSTypeExpression type)
 func (this_ *JSDocInfo_Builder) RecordTypedef(type_ JSTypeExpression) bool {
 	_ = type_
-	return (((!(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnyTypeRelatedTags_8403())) && (j2gort.CastPtr[JSDocInfo_TypeMap](this_.priv_Builder_getProp_8418(ToIface_JSDocInfo_Property(StaticGet_JSDocInfo_TEMPLATE_TYPE_NAMES()))) == nil)) && this_.priv_Builder_populateTypeProp_8412(StaticGet_JSDocInfo_TYPEDEF_TYPE(), type_))
+	return (((!(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnyTypeRelatedTags_8404())) && (j2gort.CastPtr[JSDocInfo_TypeMap](this_.priv_Builder_getProp_8419(ToIface_JSDocInfo_Property(StaticGet_JSDocInfo_TEMPLATE_TYPE_NAMES()))) == nil)) && this_.priv_Builder_populateTypeProp_8413(StaticGet_JSDocInfo_TYPEDEF_TYPE(), type_))
 }
 
 // Java method: Builder.recordReturnType(com.google.javascript.rhino.JSTypeExpression type)
 func (this_ *JSDocInfo_Builder) RecordReturnType(type_ JSTypeExpression) bool {
 	_ = type_
-	return ((!(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnySingletonTypeTags_8407())) && this_.priv_Builder_populateTypeProp_8412(StaticGet_JSDocInfo_RETURN_TYPE(), type_))
+	return ((!(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnySingletonTypeTags_8408())) && this_.priv_Builder_populateTypeProp_8413(StaticGet_JSDocInfo_RETURN_TYPE(), type_))
 }
 
 // Java method: Builder.recordReturnDescription(java.lang.String description)
@@ -5714,14 +5714,14 @@ func (this_ *JSDocInfo_Builder) RecordReturnDescription(description string) bool
 	if !(this_.ShouldParseDocumentation()) {
 		return true
 	}
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_RETURN_DESCRIPTION(), j2gort.BoxString(description))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_RETURN_DESCRIPTION(), j2gort.BoxString(description))
 }
 
 // Java method: Builder.recordDefineType(com.google.javascript.rhino.JSTypeExpression type)
 func (this_ *JSDocInfo_Builder) RecordDefineType(type_ JSTypeExpression) bool {
 	_ = type_
-	if ((!(type_).IsJavaNil_() && !(this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_CONST()))) && !(this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_DEFINE()))) && this_.RecordType(type_) {
-		return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_DEFINE(), true)
+	if ((!(type_).IsJavaNil_() && !(this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_CONST()))) && !(this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_DEFINE()))) && this_.RecordType(type_) {
+		return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_DEFINE(), true)
 	}
 	return false
 }
@@ -5729,8 +5729,8 @@ func (this_ *JSDocInfo_Builder) RecordDefineType(type_ JSTypeExpression) bool {
 // Java method: Builder.recordEnumParameterType(com.google.javascript.rhino.JSTypeExpression type)
 func (this_ *JSDocInfo_Builder) RecordEnumParameterType(type_ JSTypeExpression) bool {
 	_ = type_
-	if !(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnyTypeRelatedTags_8403()) {
-		this_.priv_Builder_setTypeProp_8410(StaticGet_JSDocInfo_ENUM_PARAMETER_TYPE(), type_)
+	if !(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnyTypeRelatedTags_8404()) {
+		this_.priv_Builder_setTypeProp_8411(StaticGet_JSDocInfo_ENUM_PARAMETER_TYPE(), type_)
 		this_.populated = true
 		return true
 	}
@@ -5740,20 +5740,20 @@ func (this_ *JSDocInfo_Builder) RecordEnumParameterType(type_ JSTypeExpression) 
 // Java method: Builder.recordThisType(com.google.javascript.rhino.JSTypeExpression type)
 func (this_ *JSDocInfo_Builder) RecordThisType(type_ JSTypeExpression) bool {
 	_ = type_
-	return ((!(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnySingletonTypeTags_8407())) && this_.priv_Builder_populateTypeProp_8412(StaticGet_JSDocInfo_THIS_TYPE(), type_))
+	return ((!(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnySingletonTypeTags_8408())) && this_.priv_Builder_populateTypeProp_8413(StaticGet_JSDocInfo_THIS_TYPE(), type_))
 }
 
 // Java method: Builder.recordBaseType(com.google.javascript.rhino.JSTypeExpression type)
 func (this_ *JSDocInfo_Builder) RecordBaseType(type_ JSTypeExpression) bool {
 	_ = type_
-	return ((!(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnySingletonTypeTags_8407())) && this_.priv_Builder_populateTypeProp_8412(StaticGet_JSDocInfo_BASE_TYPE(), type_))
+	return ((!(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnySingletonTypeTags_8408())) && this_.priv_Builder_populateTypeProp_8413(StaticGet_JSDocInfo_BASE_TYPE(), type_))
 }
 
 // Java method: Builder.changeBaseType(com.google.javascript.rhino.JSTypeExpression type)
 func (this_ *JSDocInfo_Builder) ChangeBaseType(type_ JSTypeExpression) bool {
 	_ = type_
-	if !(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnySingletonTypeTags_8407()) {
-		this_.priv_Builder_setTypeProp_8410(StaticGet_JSDocInfo_BASE_TYPE(), type_)
+	if !(type_).IsJavaNil_() && !(this_.priv_Builder_hasAnySingletonTypeTags_8408()) {
+		this_.priv_Builder_setTypeProp_8411(StaticGet_JSDocInfo_BASE_TYPE(), type_)
 		this_.populated = true
 		return true
 	}
@@ -5762,84 +5762,84 @@ func (this_ *JSDocInfo_Builder) ChangeBaseType(type_ JSTypeExpression) bool {
 
 // Java method: Builder.recordConstancy()
 func (this_ *JSDocInfo_Builder) RecordConstancy() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_CONST(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_CONST(), true)
 }
 
 // Java method: Builder.recordMutable()
 func (this_ *JSDocInfo_Builder) RecordMutable() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_CONST(), false)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_CONST(), false)
 }
 
 // Java method: Builder.recordFinality()
 func (this_ *JSDocInfo_Builder) RecordFinality() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_FINAL(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_FINAL(), true)
 }
 
 // Java method: Builder.recordDescription(java.lang.String description)
 func (this_ *JSDocInfo_Builder) RecordDescription(description string) bool {
 	_ = description
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_DESCRIPTION(), j2gort.BoxString(description))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_DESCRIPTION(), j2gort.BoxString(description))
 }
 
 // Java method: Builder.recordTsType(java.lang.String tsType)
 func (this_ *JSDocInfo_Builder) RecordTsType(tsType string) {
 	_ = tsType
 	this_.populated = true
-	this_.priv_Builder_getOrCreateStringList_8420(StaticGet_JSDocInfo_TS_TYPES()).Add_1(j2gort.BoxString(tsType))
+	this_.priv_Builder_getOrCreateStringList_8421(StaticGet_JSDocInfo_TS_TYPES()).Add_1(j2gort.BoxString(tsType))
 }
 
 // Java method: Builder.recordMeaning(java.lang.String meaning)
 func (this_ *JSDocInfo_Builder) RecordMeaning(meaning string) bool {
 	_ = meaning
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_MEANING(), j2gort.BoxString(meaning))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_MEANING(), j2gort.BoxString(meaning))
 }
 
 // Java method: Builder.recordAlternateMessageId(java.lang.String alternateMessageId)
 func (this_ *JSDocInfo_Builder) RecordAlternateMessageId(alternateMessageId string) bool {
 	_ = alternateMessageId
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_ALTERNATE_MESSAGE_ID(), j2gort.BoxString(alternateMessageId))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_ALTERNATE_MESSAGE_ID(), j2gort.BoxString(alternateMessageId))
 }
 
 // Java method: Builder.recordClosurePrimitiveId(java.lang.String closurePrimitiveId)
 func (this_ *JSDocInfo_Builder) RecordClosurePrimitiveId(closurePrimitiveId string) bool {
 	_ = closurePrimitiveId
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_CLOSURE_PRIMITIVE_ID(), j2gort.BoxString(RhinoStringPool_AddOrGet(closurePrimitiveId)))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_CLOSURE_PRIMITIVE_ID(), j2gort.BoxString(RhinoStringPool_AddOrGet(closurePrimitiveId)))
 }
 
 // Java method: Builder.recordFileOverview(java.lang.String description)
 func (this_ *JSDocInfo_Builder) RecordFileOverview(description string) bool {
 	_ = description
-	this_.priv_Builder_setBit_8426(StaticGet_JSDocInfo_Bit_FILEOVERVIEW(), true)
+	this_.priv_Builder_setBit_8427(StaticGet_JSDocInfo_Bit_FILEOVERVIEW(), true)
 	this_.populated = true
 	if !(this_.ShouldParseDocumentation()) {
 		return true
 	}
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_FILEOVERVIEW_DESCRIPTION(), j2gort.BoxString(description))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_FILEOVERVIEW_DESCRIPTION(), j2gort.BoxString(description))
 }
 
 // Java method: Builder.recordEnhance(java.lang.String namespace)
 func (this_ *JSDocInfo_Builder) RecordEnhance(namespace string) bool {
 	_ = namespace
-	this_.priv_Builder_setBit_8426(StaticGet_JSDocInfo_Bit_ENHANCED_NAMESPACE(), true)
+	this_.priv_Builder_setBit_8427(StaticGet_JSDocInfo_Bit_ENHANCED_NAMESPACE(), true)
 	this_.populated = true
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_ENHANCED_NAMESPACE(), j2gort.BoxString(namespace))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_ENHANCED_NAMESPACE(), j2gort.BoxString(namespace))
 }
 
 // Java method: Builder.isModsRecorded()
 func (this_ *JSDocInfo_Builder) IsModsRecorded() bool {
-	return (j2gort.CastString(this_.priv_Builder_getProp_8418(StaticGet_JSDocInfo_MODS())) != j2gort.NullString)
+	return (j2gort.CastString(this_.priv_Builder_getProp_8419(StaticGet_JSDocInfo_MODS())) != j2gort.NullString)
 }
 
 // Java method: Builder.recordMods(java.lang.String namespace)
 func (this_ *JSDocInfo_Builder) RecordMods(namespace string) bool {
 	_ = namespace
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_MODS(), j2gort.BoxString(RhinoStringPool_AddOrGet(namespace)))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_MODS(), j2gort.BoxString(RhinoStringPool_AddOrGet(namespace)))
 }
 
 // Java method: Builder.recordLicense(java.lang.String license)
 func (this_ *JSDocInfo_Builder) RecordLicense(license string) bool {
 	_ = license
-	this_.priv_Builder_setProp_8417(StaticGet_JSDocInfo_LICENSE(), j2gort.BoxString(RhinoStringPool_AddOrGet(license)))
+	this_.priv_Builder_setProp_8418(StaticGet_JSDocInfo_LICENSE(), j2gort.BoxString(RhinoStringPool_AddOrGet(license)))
 	this_.populated = true
 	return true
 }
@@ -5853,190 +5853,190 @@ func (this_ *JSDocInfo_Builder) AddLicense(license string) bool {
 	if !(this_.licenseTexts.Add(license)) {
 		return false
 	}
-	var txt string = j2gort.CastString(this_.priv_Builder_getProp_8418(StaticGet_JSDocInfo_LICENSE()))
+	var txt string = j2gort.CastString(this_.priv_Builder_getProp_8419(StaticGet_JSDocInfo_LICENSE()))
 	_ = txt
 	return this_.RecordLicense(RhinoStringPool_AddOrGet((j2gort.StrValString(j2gort.Ext_com_google_common_base_Strings_NullToEmpty(txt)) + j2gort.StrValString(license))))
 }
 
 // Java method: Builder.recordNoCompile()
 func (this_ *JSDocInfo_Builder) RecordNoCompile() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_NOCOMPILE(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_NOCOMPILE(), true)
 }
 
 // Java method: Builder.recordNoDts()
 func (this_ *JSDocInfo_Builder) RecordNoDts() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_NODTS(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_NODTS(), true)
 }
 
 // Java method: Builder.recordLegacyNamedTsExport()
 func (this_ *JSDocInfo_Builder) RecordLegacyNamedTsExport() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_LEGACY_NAMED_TS_EXPORT(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_LEGACY_NAMED_TS_EXPORT(), true)
 }
 
 // Java method: Builder.recordNoCollapse()
 func (this_ *JSDocInfo_Builder) RecordNoCollapse() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_NOCOLLAPSE(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_NOCOLLAPSE(), true)
 }
 
 // Java method: Builder.recordNoInline()
 func (this_ *JSDocInfo_Builder) RecordNoInline() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_NOINLINE(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_NOINLINE(), true)
 }
 
 // Java method: Builder.recordEncourageInlining()
 func (this_ *JSDocInfo_Builder) RecordEncourageInlining() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_ENCOURAGE_INLINING(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_ENCOURAGE_INLINING(), true)
 }
 
 // Java method: Builder.recordRequireInlining()
 func (this_ *JSDocInfo_Builder) RecordRequireInlining() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_REQUIRE_INLINING(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_REQUIRE_INLINING(), true)
 }
 
 // Java method: Builder.recordPureOrBreakMyCode()
 func (this_ *JSDocInfo_Builder) RecordPureOrBreakMyCode() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_PURE_OR_BREAK_MY_CODE(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_PURE_OR_BREAK_MY_CODE(), true)
 }
 
 // Java method: Builder.recordCollapsibleOrBreakMyCode()
 func (this_ *JSDocInfo_Builder) RecordCollapsibleOrBreakMyCode() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_COLLAPSIBLE_OR_BREAK_MY_CODE(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_COLLAPSIBLE_OR_BREAK_MY_CODE(), true)
 }
 
 // Java method: Builder.recordConstructor()
 func (this_ *JSDocInfo_Builder) RecordConstructor() bool {
-	return ((!(this_.priv_Builder_hasAnySingletonTypeTags_8407()) && !(this_.priv_Builder_isConstructorOrInterface_8414())) && this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_CONSTRUCTOR(), true))
+	return ((!(this_.priv_Builder_hasAnySingletonTypeTags_8408()) && !(this_.priv_Builder_isConstructorOrInterface_8415())) && this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_CONSTRUCTOR(), true))
 }
 
 // Java method: Builder.recordImplicitMatch()
 func (this_ *JSDocInfo_Builder) RecordImplicitMatch() bool {
-	return (((!(this_.priv_Builder_hasAnySingletonTypeTags_8407()) && !(this_.priv_Builder_isConstructorOrInterface_8414())) && this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_RECORD(), true)) && this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_INTERFACE(), true))
+	return (((!(this_.priv_Builder_hasAnySingletonTypeTags_8408()) && !(this_.priv_Builder_isConstructorOrInterface_8415())) && this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_RECORD(), true)) && this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_INTERFACE(), true))
 }
 
 // Java method: Builder.recordProvideGoog()
 func (this_ *JSDocInfo_Builder) RecordProvideGoog() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_PROVIDE_GOOG(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_PROVIDE_GOOG(), true)
 }
 
 // Java method: Builder.recordProvideAlreadyProvided()
 func (this_ *JSDocInfo_Builder) RecordProvideAlreadyProvided() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_PROVIDE_ALREADY_PROVIDED(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_PROVIDE_ALREADY_PROVIDED(), true)
 }
 
 // Java method: Builder.isConstructorRecorded()
 func (this_ *JSDocInfo_Builder) IsConstructorRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_CONSTRUCTOR())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_CONSTRUCTOR())
 }
 
 // Java method: Builder.recordUnrestricted()
 func (this_ *JSDocInfo_Builder) RecordUnrestricted() bool {
-	return ((!(this_.priv_Builder_hasAnySingletonTypeTags_8407()) && ((this_.bits & ((StaticGet_JSDocInfo_Bit_INTERFACE().mask | StaticGet_JSDocInfo_Bit_DICT().mask) | StaticGet_JSDocInfo_Bit_STRUCT().mask)) == int64(int32(0)))) && this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_UNRESTRICTED(), true))
+	return ((!(this_.priv_Builder_hasAnySingletonTypeTags_8408()) && ((this_.bits & ((StaticGet_JSDocInfo_Bit_INTERFACE().mask | StaticGet_JSDocInfo_Bit_DICT().mask) | StaticGet_JSDocInfo_Bit_STRUCT().mask)) == int64(int32(0)))) && this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_UNRESTRICTED(), true))
 }
 
 // Java method: Builder.isUnrestrictedRecorded()
 func (this_ *JSDocInfo_Builder) IsUnrestrictedRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_UNRESTRICTED())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_UNRESTRICTED())
 }
 
 // Java method: Builder.recordAbstract()
 func (this_ *JSDocInfo_Builder) RecordAbstract() bool {
-	return (((!(this_.priv_Builder_hasAnySingletonTypeTags_8407()) && ((this_.bits & (StaticGet_JSDocInfo_Bit_INTERFACE().mask | StaticGet_JSDocInfo_Bit_FINAL().mask)) == int64(int32(0)))) && (j2gort.Cast[JSDocInfo_Visibility](this_.priv_Builder_getProp_8418(StaticGet_JSDocInfo_VISIBILITY())) != StaticGet_JSDocInfo_Visibility_PRIVATE())) && this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_ABSTRACT(), true))
+	return (((!(this_.priv_Builder_hasAnySingletonTypeTags_8408()) && ((this_.bits & (StaticGet_JSDocInfo_Bit_INTERFACE().mask | StaticGet_JSDocInfo_Bit_FINAL().mask)) == int64(int32(0)))) && (j2gort.Cast[JSDocInfo_Visibility](this_.priv_Builder_getProp_8419(StaticGet_JSDocInfo_VISIBILITY())) != StaticGet_JSDocInfo_Visibility_PRIVATE())) && this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_ABSTRACT(), true))
 }
 
 // Java method: Builder.recordStruct()
 func (this_ *JSDocInfo_Builder) RecordStruct() bool {
-	return ((!(this_.priv_Builder_hasAnySingletonTypeTags_8407()) && ((this_.bits & (StaticGet_JSDocInfo_Bit_DICT().mask | StaticGet_JSDocInfo_Bit_UNRESTRICTED().mask)) == int64(int32(0)))) && this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_STRUCT(), true))
+	return ((!(this_.priv_Builder_hasAnySingletonTypeTags_8408()) && ((this_.bits & (StaticGet_JSDocInfo_Bit_DICT().mask | StaticGet_JSDocInfo_Bit_UNRESTRICTED().mask)) == int64(int32(0)))) && this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_STRUCT(), true))
 }
 
 // Java method: Builder.isStructRecorded()
 func (this_ *JSDocInfo_Builder) IsStructRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_STRUCT())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_STRUCT())
 }
 
 // Java method: Builder.recordDict()
 func (this_ *JSDocInfo_Builder) RecordDict() bool {
-	return ((!(this_.priv_Builder_hasAnySingletonTypeTags_8407()) && ((this_.bits & (StaticGet_JSDocInfo_Bit_STRUCT().mask | StaticGet_JSDocInfo_Bit_UNRESTRICTED().mask)) == int64(int32(0)))) && this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_DICT(), true))
+	return ((!(this_.priv_Builder_hasAnySingletonTypeTags_8408()) && ((this_.bits & (StaticGet_JSDocInfo_Bit_STRUCT().mask | StaticGet_JSDocInfo_Bit_UNRESTRICTED().mask)) == int64(int32(0)))) && this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_DICT(), true))
 }
 
 // Java method: Builder.isDictRecorded()
 func (this_ *JSDocInfo_Builder) IsDictRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_DICT())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_DICT())
 }
 
 // Java method: Builder.recordOverride()
 func (this_ *JSDocInfo_Builder) RecordOverride() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_OVERRIDE(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_OVERRIDE(), true)
 }
 
 // Java method: Builder.recordDeprecated()
 func (this_ *JSDocInfo_Builder) RecordDeprecated() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_DEPRECATED(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_DEPRECATED(), true)
 }
 
 // Java method: Builder.recordInterface()
 func (this_ *JSDocInfo_Builder) RecordInterface() bool {
-	return ((!(this_.priv_Builder_hasAnySingletonTypeTags_8407()) && ((this_.bits & (StaticGet_JSDocInfo_Bit_CONSTRUCTOR().mask | StaticGet_JSDocInfo_Bit_ABSTRACT().mask)) == int64(int32(0)))) && this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_INTERFACE(), true))
+	return ((!(this_.priv_Builder_hasAnySingletonTypeTags_8408()) && ((this_.bits & (StaticGet_JSDocInfo_Bit_CONSTRUCTOR().mask | StaticGet_JSDocInfo_Bit_ABSTRACT().mask)) == int64(int32(0)))) && this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_INTERFACE(), true))
 }
 
 // Java method: Builder.recordExport()
 func (this_ *JSDocInfo_Builder) RecordExport() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_EXPORT(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_EXPORT(), true)
 }
 
 // Java method: Builder.removeExport()
 func (this_ *JSDocInfo_Builder) RemoveExport() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_EXPORT(), false)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_EXPORT(), false)
 }
 
 // Java method: Builder.recordImplicitCast()
 func (this_ *JSDocInfo_Builder) RecordImplicitCast() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_IMPLICITCAST(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_IMPLICITCAST(), true)
 }
 
 // Java method: Builder.recordNoSideEffects()
 func (this_ *JSDocInfo_Builder) RecordNoSideEffects() bool {
-	return ((!(this_.priv_Builder_hasAnySingletonSideEffectTags_8413()) && this_.priv_Builder_isPropEmpty_8406(StaticGet_JSDocInfo_THROWS_ANNOTATIONS())) && this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_NOSIDEEFFECTS(), true))
+	return ((!(this_.priv_Builder_hasAnySingletonSideEffectTags_8414()) && this_.priv_Builder_isPropEmpty_8407(StaticGet_JSDocInfo_THROWS_ANNOTATIONS())) && this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_NOSIDEEFFECTS(), true))
 }
 
 // Java method: Builder.isNoSideEffectsRecorded()
 func (this_ *JSDocInfo_Builder) IsNoSideEffectsRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_NOSIDEEFFECTS())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_NOSIDEEFFECTS())
 }
 
 // Java method: Builder.isModifiesRecorded()
 func (this_ *JSDocInfo_Builder) IsModifiesRecorded() bool {
-	return !(this_.priv_Builder_isPropEmpty_8406(StaticGet_JSDocInfo_MODIFIES()))
+	return !(this_.priv_Builder_isPropEmpty_8407(StaticGet_JSDocInfo_MODIFIES()))
 }
 
 // Java method: Builder.isThrowsRecorded()
 func (this_ *JSDocInfo_Builder) IsThrowsRecorded() bool {
-	return !(this_.priv_Builder_isPropEmpty_8406(StaticGet_JSDocInfo_THROWS_ANNOTATIONS()))
+	return !(this_.priv_Builder_isPropEmpty_8407(StaticGet_JSDocInfo_THROWS_ANNOTATIONS()))
 }
 
 // Java method: Builder.recordExterns()
 func (this_ *JSDocInfo_Builder) RecordExterns() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_EXTERNS(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_EXTERNS(), true)
 }
 
 // Java method: Builder.recordNoCoverage()
 func (this_ *JSDocInfo_Builder) RecordNoCoverage() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_NOCOVERAGE(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_NOCOVERAGE(), true)
 }
 
 // Java method: Builder.recordTypeSummary()
 func (this_ *JSDocInfo_Builder) RecordTypeSummary() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_TYPE_SUMMARY(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_TYPE_SUMMARY(), true)
 }
 
 // Java method: Builder.isInterfaceRecorded()
 func (this_ *JSDocInfo_Builder) IsInterfaceRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_INTERFACE())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_INTERFACE())
 }
 
 // Java method: Builder.hasParameter(java.lang.String name)
 func (this_ *JSDocInfo_Builder) HasParameter(name string) bool {
 	_ = name
-	var params *JSDocInfo_TypeMap = j2gort.CastPtr[JSDocInfo_TypeMap](this_.priv_Builder_getProp_8418(ToIface_JSDocInfo_Property(StaticGet_JSDocInfo_PARAMETERS())))
+	var params *JSDocInfo_TypeMap = j2gort.CastPtr[JSDocInfo_TypeMap](this_.priv_Builder_getProp_8419(ToIface_JSDocInfo_Property(StaticGet_JSDocInfo_PARAMETERS())))
 	_ = params
 	return ((params != nil) && params.ContainsKey(name))
 }
@@ -6044,24 +6044,24 @@ func (this_ *JSDocInfo_Builder) HasParameter(name string) bool {
 // Java method: Builder.recordImplementedInterface(com.google.javascript.rhino.JSTypeExpression interfaceType)
 func (this_ *JSDocInfo_Builder) RecordImplementedInterface(interfaceType JSTypeExpression) bool {
 	_ = interfaceType
-	return (!(interfaceType).IsJavaNil_() && this_.priv_Builder_addUnique_8375(StaticGet_JSDocInfo_IMPLEMENTED_INTERFACES(), interfaceType))
+	return (!(interfaceType).IsJavaNil_() && this_.priv_Builder_addUnique_8376(StaticGet_JSDocInfo_IMPLEMENTED_INTERFACES(), interfaceType))
 }
 
 // Java method: Builder.recordExtendedInterface(com.google.javascript.rhino.JSTypeExpression interfaceType)
 func (this_ *JSDocInfo_Builder) RecordExtendedInterface(interfaceType JSTypeExpression) bool {
 	_ = interfaceType
-	return (!(interfaceType).IsJavaNil_() && this_.priv_Builder_addUnique_8375(StaticGet_JSDocInfo_EXTENDED_INTERFACES(), interfaceType))
+	return (!(interfaceType).IsJavaNil_() && this_.priv_Builder_addUnique_8376(StaticGet_JSDocInfo_EXTENDED_INTERFACES(), interfaceType))
 }
 
 // Java method: Builder.addUnique(com.google.javascript.rhino.JSDocInfo.TypeListProperty prop, com.google.javascript.rhino.JSTypeExpression elem)
-func (this_ *JSDocInfo_Builder) priv_Builder_addUnique_8375(prop *JSDocInfo_TypeListProperty, elem JSTypeExpression) bool {
+func (this_ *JSDocInfo_Builder) priv_Builder_addUnique_8376(prop *JSDocInfo_TypeListProperty, elem JSTypeExpression) bool {
 	_ = prop
 	_ = elem
-	var list *JSDocInfo_TypeList = j2gort.CastPtr[JSDocInfo_TypeList](this_.priv_Builder_getProp_8418(ToIface_JSDocInfo_Property(prop)))
+	var list *JSDocInfo_TypeList = j2gort.CastPtr[JSDocInfo_TypeList](this_.priv_Builder_getProp_8419(ToIface_JSDocInfo_Property(prop)))
 	_ = list
 	if list == nil {
 		list = NewJSDocInfo_TypeList(int32(2))
-		this_.priv_Builder_setProp_8417(ToIface_JSDocInfo_Property(prop), j2gort.PtrToAny(list))
+		this_.priv_Builder_setProp_8418(ToIface_JSDocInfo_Property(prop), j2gort.PtrToAny(list))
 	}
 	if !(list.AddUnique(elem)) {
 		return false
@@ -6073,176 +6073,176 @@ func (this_ *JSDocInfo_Builder) priv_Builder_addUnique_8375(prop *JSDocInfo_Type
 // Java method: Builder.recordLends(com.google.javascript.rhino.JSTypeExpression name)
 func (this_ *JSDocInfo_Builder) RecordLends(name JSTypeExpression) bool {
 	_ = name
-	return (!(this_.priv_Builder_hasAnyTypeRelatedTags_8403()) && this_.priv_Builder_populateTypeProp_8412(StaticGet_JSDocInfo_LENDS_NAME(), name))
+	return (!(this_.priv_Builder_hasAnyTypeRelatedTags_8404()) && this_.priv_Builder_populateTypeProp_8413(StaticGet_JSDocInfo_LENDS_NAME(), name))
 }
 
 // Java method: Builder.isNgInjectRecorded()
 func (this_ *JSDocInfo_Builder) IsNgInjectRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_NG_INJECT())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_NG_INJECT())
 }
 
 // Java method: Builder.recordNgInject(boolean ngInject)
 func (this_ *JSDocInfo_Builder) RecordNgInject(ngInject bool) bool {
 	_ = ngInject
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_NG_INJECT(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_NG_INJECT(), true)
 }
 
 // Java method: Builder.isWizactionRecorded()
 func (this_ *JSDocInfo_Builder) IsWizactionRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_WIZ_ACTION())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_WIZ_ACTION())
 }
 
 // Java method: Builder.recordWizaction()
 func (this_ *JSDocInfo_Builder) RecordWizaction() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_WIZ_ACTION(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_WIZ_ACTION(), true)
 }
 
 // Java method: Builder.isWizcallbackRecorded()
 func (this_ *JSDocInfo_Builder) IsWizcallbackRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_WIZ_CALLBACK())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_WIZ_CALLBACK())
 }
 
 // Java method: Builder.recordWizcallback()
 func (this_ *JSDocInfo_Builder) RecordWizcallback() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_WIZ_CALLBACK(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_WIZ_CALLBACK(), true)
 }
 
 // Java method: Builder.isPolymerBehaviorRecorded()
 func (this_ *JSDocInfo_Builder) IsPolymerBehaviorRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_POLYMER_BEHAVIOR())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_POLYMER_BEHAVIOR())
 }
 
 // Java method: Builder.recordPolymerBehavior()
 func (this_ *JSDocInfo_Builder) RecordPolymerBehavior() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_POLYMER_BEHAVIOR(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_POLYMER_BEHAVIOR(), true)
 }
 
 // Java method: Builder.isPolymerRecorded()
 func (this_ *JSDocInfo_Builder) IsPolymerRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_POLYMER())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_POLYMER())
 }
 
 // Java method: Builder.recordPolymer()
 func (this_ *JSDocInfo_Builder) RecordPolymer() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_POLYMER(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_POLYMER(), true)
 }
 
 // Java method: Builder.isCustomElementRecorded()
 func (this_ *JSDocInfo_Builder) IsCustomElementRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_CUSTOM_ELEMENT())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_CUSTOM_ELEMENT())
 }
 
 // Java method: Builder.recordCustomElement()
 func (this_ *JSDocInfo_Builder) RecordCustomElement() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_CUSTOM_ELEMENT(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_CUSTOM_ELEMENT(), true)
 }
 
 // Java method: Builder.isMixinClassRecorded()
 func (this_ *JSDocInfo_Builder) IsMixinClassRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_MIXIN_CLASS())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_MIXIN_CLASS())
 }
 
 // Java method: Builder.recordMixinClass()
 func (this_ *JSDocInfo_Builder) RecordMixinClass() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_MIXIN_CLASS(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_MIXIN_CLASS(), true)
 }
 
 // Java method: Builder.isMixinFunctionRecorded()
 func (this_ *JSDocInfo_Builder) IsMixinFunctionRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_MIXIN_FUNCTION())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_MIXIN_FUNCTION())
 }
 
 // Java method: Builder.recordMixinFunction()
 func (this_ *JSDocInfo_Builder) RecordMixinFunction() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_MIXIN_FUNCTION(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_MIXIN_FUNCTION(), true)
 }
 
 // Java method: Builder.isSassGeneratedCssTsRecorded()
 func (this_ *JSDocInfo_Builder) IsSassGeneratedCssTsRecorded() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_SASS_GENERATED_CSS_TS())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_SASS_GENERATED_CSS_TS())
 }
 
 // Java method: Builder.recordSassGeneratedCssTs()
 func (this_ *JSDocInfo_Builder) RecordSassGeneratedCssTs() {
-	this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_SASS_GENERATED_CSS_TS(), true)
+	this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_SASS_GENERATED_CSS_TS(), true)
 }
 
 // Java method: Builder.logTypeInCompiler()
 func (this_ *JSDocInfo_Builder) LogTypeInCompiler() bool {
-	return this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_LOG_TYPE_IN_COMPILER())
+	return this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_LOG_TYPE_IN_COMPILER())
 }
 
 // Java method: Builder.recordLogTypeInCompiler()
 func (this_ *JSDocInfo_Builder) RecordLogTypeInCompiler() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_LOG_TYPE_IN_COMPILER(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_LOG_TYPE_IN_COMPILER(), true)
 }
 
 // Java method: Builder.isClosureUnawareCode()
 func (this_ *JSDocInfo_Builder) IsClosureUnawareCode() bool {
-	return (j2gort.Cast[JSDocInfo_PerFileClosureUnawareMode](this_.priv_Builder_getProp_8418(StaticGet_JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE())) != 0)
+	return (j2gort.Cast[JSDocInfo_PerFileClosureUnawareMode](this_.priv_Builder_getProp_8419(StaticGet_JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE())) != 0)
 }
 
 // Java method: Builder.recordClosureUnawareCode()
 func (this_ *JSDocInfo_Builder) RecordClosureUnawareCode_0() bool {
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE(), j2gort.BoxNullableVal(StaticGet_JSDocInfo_PerFileClosureUnawareMode_UNSPECIFIED()))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE(), j2gort.BoxNullableVal(StaticGet_JSDocInfo_PerFileClosureUnawareMode_UNSPECIFIED()))
 }
 
 // Java method: Builder.recordClosureUnawareCode(com.google.javascript.rhino.JSDocInfo.PerFileClosureUnawareMode mode)
 func (this_ *JSDocInfo_Builder) RecordClosureUnawareCode_1(mode JSDocInfo_PerFileClosureUnawareMode) bool {
 	_ = mode
-	return this_.priv_Builder_populateProp_8424(StaticGet_JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE(), j2gort.BoxNullableVal(mode))
+	return this_.priv_Builder_populateProp_8425(StaticGet_JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE(), j2gort.BoxNullableVal(mode))
 }
 
 // Java method: Builder.removeClosureUnawareCode()
 func (this_ *JSDocInfo_Builder) RemoveClosureUnawareCode() bool {
-	return (j2gort.Cast[JSDocInfo_PerFileClosureUnawareMode](this_.priv_Builder_removeProp_8419(StaticGet_JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE())) != 0)
+	return (j2gort.Cast[JSDocInfo_PerFileClosureUnawareMode](this_.priv_Builder_removeProp_8420(StaticGet_JSDocInfo_CLOSURE_UNAWARE_CONFIG_VALUE())) != 0)
 }
 
 // Java method: Builder.recordUsedViaDotConstructor()
 func (this_ *JSDocInfo_Builder) RecordUsedViaDotConstructor() bool {
-	return this_.priv_Builder_populateBit_8427(StaticGet_JSDocInfo_Bit_USED_VIA_DOT_CONSTRUCTOR(), true)
+	return this_.priv_Builder_populateBit_8428(StaticGet_JSDocInfo_Bit_USED_VIA_DOT_CONSTRUCTOR(), true)
 }
 
 // Java method: Builder.setType(com.google.javascript.rhino.JSTypeExpression type)
 func (this_ *JSDocInfo_Builder) SetType(type_ JSTypeExpression) *JSDocInfo_Builder {
 	_ = type_
-	this_.priv_Builder_removeTypeProp_8411(StaticGet_JSDocInfo_RETURN_TYPE())
-	this_.priv_Builder_removeTypeProp_8411(StaticGet_JSDocInfo_ENUM_PARAMETER_TYPE())
-	this_.priv_Builder_removeTypeProp_8411(StaticGet_JSDocInfo_TYPEDEF_TYPE())
-	this_.priv_Builder_setTypeProp_8410(StaticGet_JSDocInfo_TYPE(), type_)
+	this_.priv_Builder_removeTypeProp_8412(StaticGet_JSDocInfo_RETURN_TYPE())
+	this_.priv_Builder_removeTypeProp_8412(StaticGet_JSDocInfo_ENUM_PARAMETER_TYPE())
+	this_.priv_Builder_removeTypeProp_8412(StaticGet_JSDocInfo_TYPEDEF_TYPE())
+	this_.priv_Builder_setTypeProp_8411(StaticGet_JSDocInfo_TYPE(), type_)
 	return this_
 }
 
 // Java method: Builder.hasAnyTypeRelatedTags()
-func (this_ *JSDocInfo_Builder) priv_Builder_hasAnyTypeRelatedTags_8403() bool {
-	return ((((this_.singleTypeKeys != int64(0)) || ((this_.bits & ((StaticGet_JSDocInfo_Bit_CONSTRUCTOR().mask | StaticGet_JSDocInfo_Bit_INTERFACE().mask) | StaticGet_JSDocInfo_Bit_ABSTRACT().mask)) != int64(int32(0)))) || this_.priv_Builder_hasAnyParameters_8404()) || !(this_.priv_Builder_isTypeListEmpty_8405(StaticGet_JSDocInfo_EXTENDED_INTERFACES())))
+func (this_ *JSDocInfo_Builder) priv_Builder_hasAnyTypeRelatedTags_8404() bool {
+	return ((((this_.singleTypeKeys != int64(0)) || ((this_.bits & ((StaticGet_JSDocInfo_Bit_CONSTRUCTOR().mask | StaticGet_JSDocInfo_Bit_INTERFACE().mask) | StaticGet_JSDocInfo_Bit_ABSTRACT().mask)) != int64(int32(0)))) || this_.priv_Builder_hasAnyParameters_8405()) || !(this_.priv_Builder_isTypeListEmpty_8406(StaticGet_JSDocInfo_EXTENDED_INTERFACES())))
 }
 
 // Java method: Builder.hasAnyParameters()
-func (this_ *JSDocInfo_Builder) priv_Builder_hasAnyParameters_8404() bool {
-	var params *JSDocInfo_TypeMap = j2gort.CastPtr[JSDocInfo_TypeMap](this_.priv_Builder_getProp_8418(ToIface_JSDocInfo_Property(StaticGet_JSDocInfo_PARAMETERS())))
+func (this_ *JSDocInfo_Builder) priv_Builder_hasAnyParameters_8405() bool {
+	var params *JSDocInfo_TypeMap = j2gort.CastPtr[JSDocInfo_TypeMap](this_.priv_Builder_getProp_8419(ToIface_JSDocInfo_Property(StaticGet_JSDocInfo_PARAMETERS())))
 	_ = params
 	return ((params != nil) && !(params.IsEmpty()))
 }
 
 // Java method: Builder.isTypeListEmpty(com.google.javascript.rhino.JSDocInfo.TypeListProperty prop)
-func (this_ *JSDocInfo_Builder) priv_Builder_isTypeListEmpty_8405(prop *JSDocInfo_TypeListProperty) bool {
+func (this_ *JSDocInfo_Builder) priv_Builder_isTypeListEmpty_8406(prop *JSDocInfo_TypeListProperty) bool {
 	_ = prop
-	var list *JSDocInfo_TypeList = j2gort.CastPtr[JSDocInfo_TypeList](this_.priv_Builder_getProp_8418(ToIface_JSDocInfo_Property(prop)))
+	var list *JSDocInfo_TypeList = j2gort.CastPtr[JSDocInfo_TypeList](this_.priv_Builder_getProp_8419(ToIface_JSDocInfo_Property(prop)))
 	_ = list
 	return ((list == nil) || list.IsEmpty())
 }
 
 // Java method: Builder.isPropEmpty(com.google.javascript.rhino.JSDocInfo.Property<? extends java.util.Collection<?>> prop)
-func (this_ *JSDocInfo_Builder) priv_Builder_isPropEmpty_8406(prop JSDocInfo_Property) bool {
+func (this_ *JSDocInfo_Builder) priv_Builder_isPropEmpty_8407(prop JSDocInfo_Property) bool {
 	_ = prop
-	var c j2gort.Ext_java_util_Collection = j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.priv_Builder_getProp_8418(prop))
+	var c j2gort.Ext_java_util_Collection = j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.priv_Builder_getProp_8419(prop))
 	_ = c
 	return ((c == nil) || c.IsEmpty())
 }
 
 // Java method: Builder.hasAnySingletonTypeTags()
-func (this_ *JSDocInfo_Builder) priv_Builder_hasAnySingletonTypeTags_8407() bool {
+func (this_ *JSDocInfo_Builder) priv_Builder_hasAnySingletonTypeTags_8408() bool {
 	return ((this_.singleTypeKeys & ((StaticGet_JSDocInfo_TYPE().GetJSDocInfo_PropertyBase().mask | StaticGet_JSDocInfo_TYPEDEF_TYPE().GetJSDocInfo_PropertyBase().mask) | StaticGet_JSDocInfo_ENUM_PARAMETER_TYPE().GetJSDocInfo_PropertyBase().mask)) != int64(0))
 }
 
@@ -6279,11 +6279,11 @@ func (this_ *JSDocInfo_Builder) SetTypeValAt(idx int32, v JSTypeExpression) {
 }
 
 // Java method: Builder.setTypeProp(com.google.javascript.rhino.JSDocInfo.TypeProperty prop, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSTypeExpression value)
-func (this_ *JSDocInfo_Builder) priv_Builder_setTypeProp_8410(prop *JSDocInfo_TypeProperty, value JSTypeExpression) {
+func (this_ *JSDocInfo_Builder) priv_Builder_setTypeProp_8411(prop *JSDocInfo_TypeProperty, value JSTypeExpression) {
 	_ = prop
 	_ = value
 	if (value).IsJavaNil_() {
-		this_.priv_Builder_removeTypeProp_8411(prop)
+		this_.priv_Builder_removeTypeProp_8412(prop)
 		return
 	}
 	var idx int32 = j2gort.BoxLong_BitCount((this_.singleTypeKeys & (prop.GetJSDocInfo_PropertyBase().mask - int64(1))))
@@ -6309,7 +6309,7 @@ func (this_ *JSDocInfo_Builder) priv_Builder_setTypeProp_8410(prop *JSDocInfo_Ty
 }
 
 // Java method: Builder.removeTypeProp(com.google.javascript.rhino.JSDocInfo.TypeProperty prop)
-func (this_ *JSDocInfo_Builder) priv_Builder_removeTypeProp_8411(prop *JSDocInfo_TypeProperty) {
+func (this_ *JSDocInfo_Builder) priv_Builder_removeTypeProp_8412(prop *JSDocInfo_TypeProperty) {
 	_ = prop
 	if (this_.singleTypeKeys & prop.GetJSDocInfo_PropertyBase().mask) == int64(0) {
 		return
@@ -6330,24 +6330,24 @@ func (this_ *JSDocInfo_Builder) priv_Builder_removeTypeProp_8411(prop *JSDocInfo
 }
 
 // Java method: Builder.populateTypeProp(com.google.javascript.rhino.JSDocInfo.TypeProperty prop, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSTypeExpression value)
-func (this_ *JSDocInfo_Builder) priv_Builder_populateTypeProp_8412(prop *JSDocInfo_TypeProperty, value JSTypeExpression) bool {
+func (this_ *JSDocInfo_Builder) priv_Builder_populateTypeProp_8413(prop *JSDocInfo_TypeProperty, value JSTypeExpression) bool {
 	_ = prop
 	_ = value
 	this_.populated = true
 	if (this_.singleTypeKeys & prop.GetJSDocInfo_PropertyBase().mask) != int64(0) {
 		return false
 	}
-	this_.priv_Builder_setTypeProp_8410(prop, value)
+	this_.priv_Builder_setTypeProp_8411(prop, value)
 	return true
 }
 
 // Java method: Builder.hasAnySingletonSideEffectTags()
-func (this_ *JSDocInfo_Builder) priv_Builder_hasAnySingletonSideEffectTags_8413() bool {
-	return (this_.priv_Builder_checkBit_8425(StaticGet_JSDocInfo_Bit_NOSIDEEFFECTS()) || !(this_.priv_Builder_isPropEmpty_8406(StaticGet_JSDocInfo_MODIFIES())))
+func (this_ *JSDocInfo_Builder) priv_Builder_hasAnySingletonSideEffectTags_8414() bool {
+	return (this_.priv_Builder_checkBit_8426(StaticGet_JSDocInfo_Bit_NOSIDEEFFECTS()) || !(this_.priv_Builder_isPropEmpty_8407(StaticGet_JSDocInfo_MODIFIES())))
 }
 
 // Java method: Builder.isConstructorOrInterface()
-func (this_ *JSDocInfo_Builder) priv_Builder_isConstructorOrInterface_8414() bool {
+func (this_ *JSDocInfo_Builder) priv_Builder_isConstructorOrInterface_8415() bool {
 	return ((this_.bits & (StaticGet_JSDocInfo_Bit_CONSTRUCTOR().mask | StaticGet_JSDocInfo_Bit_INTERFACE().mask)) != int64(int32(0)))
 }
 
@@ -6384,11 +6384,11 @@ func (this_ *JSDocInfo_Builder) SetInlineValAt(idx int32, v any) {
 }
 
 // Java method: Builder.setProp(com.google.javascript.rhino.JSDocInfo.Property<T> prop, @org.jspecify.annotations.Nullable T value)
-func (this_ *JSDocInfo_Builder) priv_Builder_setProp_8417(prop JSDocInfo_Property, value any) {
+func (this_ *JSDocInfo_Builder) priv_Builder_setProp_8418(prop JSDocInfo_Property, value any) {
 	_ = prop
 	_ = value
 	if value == nil {
-		this_.priv_Builder_removeProp_8419(prop)
+		this_.priv_Builder_removeProp_8420(prop)
 		return
 	}
 	if this_.propValues != nil {
@@ -6452,7 +6452,7 @@ func (this_ *JSDocInfo_Builder) priv_Builder_setProp_8417(prop JSDocInfo_Propert
 }
 
 // Java method: Builder.getProp(com.google.javascript.rhino.JSDocInfo.Property<T> prop)
-func (this_ *JSDocInfo_Builder) priv_Builder_getProp_8418(prop JSDocInfo_Property) any {
+func (this_ *JSDocInfo_Builder) priv_Builder_getProp_8419(prop JSDocInfo_Property) any {
 	_ = prop
 	if (this_.propKeys & prop.GetJSDocInfo_PropertyBase().mask) == int64(0) {
 		return nil
@@ -6464,7 +6464,7 @@ func (this_ *JSDocInfo_Builder) priv_Builder_getProp_8418(prop JSDocInfo_Propert
 }
 
 // Java method: Builder.removeProp(com.google.javascript.rhino.JSDocInfo.Property<T> prop)
-func (this_ *JSDocInfo_Builder) priv_Builder_removeProp_8419(prop JSDocInfo_Property) any {
+func (this_ *JSDocInfo_Builder) priv_Builder_removeProp_8420(prop JSDocInfo_Property) any {
 	_ = prop
 	if (this_.propKeys & prop.GetJSDocInfo_PropertyBase().mask) == int64(0) {
 		return nil
@@ -6498,79 +6498,79 @@ func (this_ *JSDocInfo_Builder) priv_Builder_removeProp_8419(prop JSDocInfo_Prop
 }
 
 // Java method: Builder.getOrCreateStringList(com.google.javascript.rhino.JSDocInfo.Property<java.util.List<java.lang.String>> prop)
-func (this_ *JSDocInfo_Builder) priv_Builder_getOrCreateStringList_8420(prop JSDocInfo_Property) j2gort.Ext_java_util_List {
+func (this_ *JSDocInfo_Builder) priv_Builder_getOrCreateStringList_8421(prop JSDocInfo_Property) j2gort.Ext_java_util_List {
 	_ = prop
-	var list j2gort.Ext_java_util_List = j2gort.AsIface[j2gort.Ext_java_util_List](this_.priv_Builder_getProp_8418(prop))
+	var list j2gort.Ext_java_util_List = j2gort.AsIface[j2gort.Ext_java_util_List](this_.priv_Builder_getProp_8419(prop))
 	_ = list
 	if list == nil {
 		list = j2gort.NewExt_java_util_ArrayList()
-		this_.priv_Builder_setProp_8417(prop, list)
+		this_.priv_Builder_setProp_8418(prop, list)
 	}
 	return list
 }
 
 // Java method: Builder.populateTypePropEntry(com.google.javascript.rhino.JSDocInfo.TypeMapProperty prop, java.lang.String key, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSTypeExpression value)
-func (this_ *JSDocInfo_Builder) priv_Builder_populateTypePropEntry_8421(prop *JSDocInfo_TypeMapProperty, key string, value JSTypeExpression) bool {
+func (this_ *JSDocInfo_Builder) priv_Builder_populateTypePropEntry_8422(prop *JSDocInfo_TypeMapProperty, key string, value JSTypeExpression) bool {
 	_ = prop
 	_ = key
 	_ = value
-	var map_ *JSDocInfo_TypeMap = j2gort.CastPtr[JSDocInfo_TypeMap](this_.priv_Builder_getProp_8418(ToIface_JSDocInfo_Property(prop)))
+	var map_ *JSDocInfo_TypeMap = j2gort.CastPtr[JSDocInfo_TypeMap](this_.priv_Builder_getProp_8419(ToIface_JSDocInfo_Property(prop)))
 	_ = map_
 	if map_ == nil {
 		map_ = NewJSDocInfo_TypeMap(int32(4))
-		this_.priv_Builder_setProp_8417(ToIface_JSDocInfo_Property(prop), j2gort.PtrToAny(map_))
+		this_.priv_Builder_setProp_8418(ToIface_JSDocInfo_Property(prop), j2gort.PtrToAny(map_))
 	}
 	return (map_.PutIfAbsent(key, value) && (func() bool { var asgn_104 bool = true; this_.populated = asgn_104; return asgn_104 }()))
 }
 
 // Java method: Builder.populateStringPropEntry(com.google.javascript.rhino.JSDocInfo.StringMapProperty prop, java.lang.String key, java.lang.@org.jspecify.annotations.Nullable String value)
-func (this_ *JSDocInfo_Builder) priv_Builder_populateStringPropEntry_8422(prop *JSDocInfo_StringMapProperty, key string, value string) bool {
+func (this_ *JSDocInfo_Builder) priv_Builder_populateStringPropEntry_8423(prop *JSDocInfo_StringMapProperty, key string, value string) bool {
 	_ = prop
 	_ = key
 	_ = value
-	var map_ *JSDocInfo_StringMap = j2gort.CastPtr[JSDocInfo_StringMap](this_.priv_Builder_getProp_8418(ToIface_JSDocInfo_Property(prop)))
+	var map_ *JSDocInfo_StringMap = j2gort.CastPtr[JSDocInfo_StringMap](this_.priv_Builder_getProp_8419(ToIface_JSDocInfo_Property(prop)))
 	_ = map_
 	if map_ == nil {
 		map_ = NewJSDocInfo_StringMap()
-		this_.priv_Builder_setProp_8417(ToIface_JSDocInfo_Property(prop), j2gort.PtrToAny(map_))
+		this_.priv_Builder_setProp_8418(ToIface_JSDocInfo_Property(prop), j2gort.PtrToAny(map_))
 	}
 	return (map_.PutIfAbsent(key, value) && (func() bool { var asgn_105 bool = true; this_.populated = asgn_105; return asgn_105 }()))
 }
 
 // Java method: Builder.populateNodePropEntry(com.google.javascript.rhino.JSDocInfo.NodeMapProperty prop, java.lang.String key, com.google.javascript.rhino.Node value)
-func (this_ *JSDocInfo_Builder) priv_Builder_populateNodePropEntry_8423(prop *JSDocInfo_NodeMapProperty, key string, value Node) bool {
+func (this_ *JSDocInfo_Builder) priv_Builder_populateNodePropEntry_8424(prop *JSDocInfo_NodeMapProperty, key string, value Node) bool {
 	_ = prop
 	_ = key
 	_ = value
-	var map_ *JSDocInfo_NodeMap = j2gort.CastPtr[JSDocInfo_NodeMap](this_.priv_Builder_getProp_8418(ToIface_JSDocInfo_Property(prop)))
+	var map_ *JSDocInfo_NodeMap = j2gort.CastPtr[JSDocInfo_NodeMap](this_.priv_Builder_getProp_8419(ToIface_JSDocInfo_Property(prop)))
 	_ = map_
 	if map_ == nil {
 		map_ = NewJSDocInfo_NodeMap(int32(4))
-		this_.priv_Builder_setProp_8417(ToIface_JSDocInfo_Property(prop), j2gort.PtrToAny(map_))
+		this_.priv_Builder_setProp_8418(ToIface_JSDocInfo_Property(prop), j2gort.PtrToAny(map_))
 	}
 	return (map_.PutIfAbsent(key, value) && (func() bool { var asgn_106 bool = true; this_.populated = asgn_106; return asgn_106 }()))
 }
 
 // Java method: Builder.populateProp(com.google.javascript.rhino.JSDocInfo.Property<T> prop, T value)
-func (this_ *JSDocInfo_Builder) priv_Builder_populateProp_8424(prop JSDocInfo_Property, value any) bool {
+func (this_ *JSDocInfo_Builder) priv_Builder_populateProp_8425(prop JSDocInfo_Property, value any) bool {
 	_ = prop
 	_ = value
 	this_.populated = true
 	if (this_.propKeys & prop.GetJSDocInfo_PropertyBase().mask) != int64(0) {
 		return false
 	}
-	this_.priv_Builder_setProp_8417(prop, value)
+	this_.priv_Builder_setProp_8418(prop, value)
 	return true
 }
 
 // Java method: Builder.checkBit(com.google.javascript.rhino.JSDocInfo.Bit bit)
-func (this_ *JSDocInfo_Builder) priv_Builder_checkBit_8425(bit *JSDocInfo_Bit) bool {
+func (this_ *JSDocInfo_Builder) priv_Builder_checkBit_8426(bit *JSDocInfo_Bit) bool {
 	_ = bit
 	return ((this_.bits & bit.mask) != int64(int32(0)))
 }
 
 // Java method: Builder.setBit(com.google.javascript.rhino.JSDocInfo.Bit bit, boolean value)
-func (this_ *JSDocInfo_Builder) priv_Builder_setBit_8426(bit *JSDocInfo_Bit, value bool) {
+func (this_ *JSDocInfo_Builder) priv_Builder_setBit_8427(bit *JSDocInfo_Bit, value bool) {
 	_ = bit
 	_ = value
 	if value {
@@ -6581,11 +6581,11 @@ func (this_ *JSDocInfo_Builder) priv_Builder_setBit_8426(bit *JSDocInfo_Bit, val
 }
 
 // Java method: Builder.populateBit(com.google.javascript.rhino.JSDocInfo.Bit bit, boolean value)
-func (this_ *JSDocInfo_Builder) priv_Builder_populateBit_8427(bit *JSDocInfo_Bit, value bool) bool {
+func (this_ *JSDocInfo_Builder) priv_Builder_populateBit_8428(bit *JSDocInfo_Bit, value bool) bool {
 	_ = bit
 	_ = value
-	if this_.priv_Builder_checkBit_8425(bit) != value {
-		this_.priv_Builder_setBit_8426(bit, value)
+	if this_.priv_Builder_checkBit_8426(bit) != value {
+		this_.priv_Builder_setBit_8427(bit, value)
 		{
 			var asgn_107 bool = true
 			this_.populated = asgn_107

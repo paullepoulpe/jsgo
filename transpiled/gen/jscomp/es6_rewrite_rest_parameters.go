@@ -122,12 +122,12 @@ func (this_ *Es6RewriteRestParameters) Visit_3(traversal *NodeTraversal, current
 	_ = current
 	_ = parent
 	if current.RawToken_() == uint8(125) {
-		this_.priv_Es6RewriteRestParameters_visitRestParam_2785(traversal, current, parent)
+		this_.priv_Es6RewriteRestParameters_visitRestParam_2786(traversal, current, parent)
 	}
 }
 
 // Java method: Es6RewriteRestParameters.visitRestParam(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node restParam, com.google.javascript.rhino.Node paramList)
-func (this_ *Es6RewriteRestParameters) priv_Es6RewriteRestParameters_visitRestParam_2785(t *NodeTraversal, restParam pkg_rhino.Node, paramList pkg_rhino.Node) {
+func (this_ *Es6RewriteRestParameters) priv_Es6RewriteRestParameters_visitRestParam_2786(t *NodeTraversal, restParam pkg_rhino.Node, paramList pkg_rhino.Node) {
 	_ = t
 	_ = restParam
 	_ = paramList

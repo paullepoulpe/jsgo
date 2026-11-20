@@ -454,7 +454,7 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 	chunksWithImmovableReferences                *j2gort.Ext_java_util_BitSet                                   `gson:"chunksWithImmovableReferences"`
 	refSym0                                      *CrossChunkCodeMotion_GlobalSymbol                             `gson:"refSym0"`
 	refSym1                                      *CrossChunkCodeMotion_GlobalSymbol                             `gson:"refSym1"`
-	referencingGlobalSymbols                     *j2gort.Ext_java_util_LinkedHashSet                            `gson:"referencingGlobalSymbols"`
+	referencingGlobalSymbols                     *j2gort.OrderedSet[*CrossChunkCodeMotion_GlobalSymbol]         `gson:"referencingGlobalSymbols"`
 	instanceofReferencesToGuard                  *j2gort.Deque[*CrossChunkCodeMotion_InstanceofReference]       `gson:"instanceofReferencesToGuard"`
 	immovableChunksLow                           int64                                                          `gson:"immovableChunksLow"`
 	preorderNumber                               int32                                                          `gson:"preorderNumber"`
@@ -612,10 +612,10 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbol) AddDeclarationStatement(statemen
 // Java method: GlobalSymbol.addReferringGlobalSymbol(com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbol declaredSymbol)
 func (this_ *CrossChunkCodeMotion_GlobalSymbol) AddReferringGlobalSymbol(declaredSymbol *CrossChunkCodeMotion_GlobalSymbol) {
 	_ = declaredSymbol
-	var set *j2gort.Ext_java_util_LinkedHashSet = this_.referencingGlobalSymbols
+	var set *j2gort.OrderedSet[*CrossChunkCodeMotion_GlobalSymbol] = this_.referencingGlobalSymbols
 	_ = set
 	if set != nil {
-		set.Add_1(j2gort.PtrToAny(declaredSymbol))
+		set.Add(declaredSymbol)
 		return
 	}
 	var r0 *CrossChunkCodeMotion_GlobalSymbol = this_.refSym0
@@ -636,10 +636,10 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbol) AddReferringGlobalSymbol(declare
 	if r1 == declaredSymbol {
 		return
 	}
-	set = j2gort.NewExt_java_util_LinkedHashSet_1_int32(int32(8))
-	set.Add_1(j2gort.PtrToAny(r0))
-	set.Add_1(j2gort.PtrToAny(r1))
-	set.Add_1(j2gort.PtrToAny(declaredSymbol))
+	set = j2gort.NewOrderedSetPtrCap[*CrossChunkCodeMotion_GlobalSymbol](int32(8))
+	set.Add(r0)
+	set.Add(r1)
+	set.Add(declaredSymbol)
 	this_.referencingGlobalSymbols = set
 	this_.refSym0 = nil
 	this_.refSym1 = nil
@@ -1042,7 +1042,7 @@ type CrossChunkCodeMotion_DeclarationStatementGroup struct {
 	declaredGlobalSymbol    *CrossChunkCodeMotion_GlobalSymbol                             `gson:"declaredGlobalSymbol"`
 	refSym0                 *CrossChunkCodeMotion_GlobalSymbol                             `gson:"refSym0"`
 	refSym1                 *CrossChunkCodeMotion_GlobalSymbol                             `gson:"refSym1"`
-	referencedGlobalSymbols *j2gort.Ext_java_util_LinkedHashSet                            `gson:"referencedGlobalSymbols"`
+	referencedGlobalSymbols *j2gort.OrderedSet[*CrossChunkCodeMotion_GlobalSymbol]         `gson:"referencedGlobalSymbols"`
 	currentChunk            *JSChunk                                                       `gson:"currentChunk"`
 	firstStatement          *CrossChunkReferenceCollector_TopLevelStatement                `gson:"firstStatement"`
 	statementStack          *j2gort.Deque[*CrossChunkReferenceCollector_TopLevelStatement] `gson:"statementStack"`
@@ -1135,10 +1135,10 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroup) AllStatementsCanMov
 // Java method: DeclarationStatementGroup.addReferenceToGlobalSymbol(com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbol refSymbol)
 func (this_ *CrossChunkCodeMotion_DeclarationStatementGroup) AddReferenceToGlobalSymbol(refSymbol *CrossChunkCodeMotion_GlobalSymbol) {
 	_ = refSymbol
-	var set *j2gort.Ext_java_util_LinkedHashSet = this_.referencedGlobalSymbols
+	var set *j2gort.OrderedSet[*CrossChunkCodeMotion_GlobalSymbol] = this_.referencedGlobalSymbols
 	_ = set
 	if set != nil {
-		set.Add_1(j2gort.PtrToAny(refSymbol))
+		set.Add(refSymbol)
 		return
 	}
 	var r0 *CrossChunkCodeMotion_GlobalSymbol = this_.refSym0
@@ -1159,10 +1159,10 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroup) AddReferenceToGloba
 	if r1 == refSymbol {
 		return
 	}
-	set = j2gort.NewExt_java_util_LinkedHashSet_1_int32(int32(8))
-	set.Add_1(j2gort.PtrToAny(r0))
-	set.Add_1(j2gort.PtrToAny(r1))
-	set.Add_1(j2gort.PtrToAny(refSymbol))
+	set = j2gort.NewOrderedSetPtrCap[*CrossChunkCodeMotion_GlobalSymbol](int32(8))
+	set.Add(r0)
+	set.Add(r1)
+	set.Add(refSymbol)
 	this_.referencedGlobalSymbols = set
 	this_.refSym0 = nil
 	this_.refSym1 = nil
@@ -1173,10 +1173,11 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroup) MakeReferencesImmov
 	this_.declaredGlobalSymbol.AddImmovableReference(this_.currentChunk)
 	if this_.referencedGlobalSymbols != nil {
 		{
-			cur_49 := j2gort.NewIterCursor(j2gort.CheckNotNullPtr(this_.referencedGlobalSymbols))
+			cur_49 := this_.referencedGlobalSymbols.Iter()
 			for cur_49.HasNext() {
-				rawElem_50 := cur_49.Next()
-				symbol := j2gort.CastPtr[CrossChunkCodeMotion_GlobalSymbol](rawElem_50)
+
+				symbol := cur_49.
+					Next()
 				_ = symbol
 				this_.priv_DeclarationStatementGroup_markReferencedSymbolImmovable_2269(symbol)
 			}
@@ -1296,10 +1297,11 @@ func (this_ *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) ProcessGlobalSym
 	this_.componentContents.Push(symbol)
 	if symbol.referencingGlobalSymbols != nil {
 		{
-			cur_56 := j2gort.NewIterCursor(j2gort.CheckNotNullPtr(symbol.referencingGlobalSymbols))
+			cur_56 := symbol.referencingGlobalSymbols.Iter()
 			for cur_56.HasNext() {
-				rawElem_57 := cur_56.Next()
-				referringSymbol := j2gort.CastPtr[CrossChunkCodeMotion_GlobalSymbol](rawElem_57)
+
+				referringSymbol := cur_56.
+					Next()
 				_ = referringSymbol
 				this_.priv_OrderAndCombineGlobalSymbols_visitReferringSymbol_2272(referringSymbol)
 			}

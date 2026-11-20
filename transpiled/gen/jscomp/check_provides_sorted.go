@@ -155,7 +155,7 @@ func (this_ *CheckProvidesSorted) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 	_ = n
 	_ = parent
 	if n.IsScript() {
-		this_.priv_CheckProvidesSorted_checkCanonical_6621(t)
+		this_.priv_CheckProvidesSorted_checkCanonical_6622(t)
 		return
 	}
 	if NodeUtil_IsGoogProvideCall(n) && CheckProvidesSorted_AreProvideArgumentsValid(n.GetFirstChild()) {
@@ -197,7 +197,7 @@ func CheckProvidesSorted_FormatProvide(namespace string) string {
 }
 
 // Java method: CheckProvidesSorted.checkCanonical(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *CheckProvidesSorted) priv_CheckProvidesSorted_checkCanonical_6621(t *NodeTraversal) {
+func (this_ *CheckProvidesSorted) priv_CheckProvidesSorted_checkCanonical_6622(t *NodeTraversal) {
 	_ = t
 	var canonicalProvides j2gort.Ext_com_google_common_collect_ImmutableList = j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_Ext_java_util_Collection(j2gort.NewExt_java_util_TreeSet_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.originalProvides)))
 	_ = canonicalProvides

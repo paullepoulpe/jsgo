@@ -225,9 +225,9 @@ func InitReplaceIdGenerators(this_ *ReplaceIdGenerators, compiler AbstractCompil
 						this_.nameGenerators.Put(name, nil)
 						continue
 					case int32(0) /* RenamingToken.INCONSISTENT */ :
-						this_.nameGenerators.Put(name, this_.priv_ReplaceIdGenerators_createNameSupplier_4872(StaticGet_ReplaceIdGenerators_RenameStrategy_INCONSISTENT(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_BiMap](j2gort.MapGetStr(previousMap, name))))
+						this_.nameGenerators.Put(name, this_.priv_ReplaceIdGenerators_createNameSupplier_4873(StaticGet_ReplaceIdGenerators_RenameStrategy_INCONSISTENT(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_BiMap](j2gort.MapGetStr(previousMap, name))))
 					case int32(1) /* RenamingToken.STABLE */ :
-						this_.nameGenerators.Put(name, this_.priv_ReplaceIdGenerators_createNameSupplier_4872(StaticGet_ReplaceIdGenerators_RenameStrategy_STABLE(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_BiMap](j2gort.MapGetStr(previousMap, name))))
+						this_.nameGenerators.Put(name, this_.priv_ReplaceIdGenerators_createNameSupplier_4873(StaticGet_ReplaceIdGenerators_RenameStrategy_STABLE(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_BiMap](j2gort.MapGetStr(previousMap, name))))
 					}
 				} else {
 					this_.nameGenerators.Put(name, ReplaceIdGenerators_CreateNameSupplier(StaticGet_ReplaceIdGenerators_RenameStrategy_MAPPED(), map_))
@@ -239,7 +239,7 @@ func InitReplaceIdGenerators(this_ *ReplaceIdGenerators, compiler AbstractCompil
 }
 
 // Java method: ReplaceIdGenerators.createNameSupplier(com.google.javascript.jscomp.ReplaceIdGenerators.RenameStrategy renameStrategy, com.google.common.collect.BiMap<java.lang.String,java.lang.String> previousMappings)
-func (this_ *ReplaceIdGenerators) priv_ReplaceIdGenerators_createNameSupplier_4872(renameStrategy ReplaceIdGenerators_RenameStrategy, previousMappings j2gort.Ext_com_google_common_collect_BiMap) ReplaceIdGenerators_NameSupplier {
+func (this_ *ReplaceIdGenerators) priv_ReplaceIdGenerators_createNameSupplier_4873(renameStrategy ReplaceIdGenerators_RenameStrategy, previousMappings j2gort.Ext_com_google_common_collect_BiMap) ReplaceIdGenerators_NameSupplier {
 	_ = renameStrategy
 	_ = previousMappings
 	if previousMappings != nil {
@@ -842,13 +842,13 @@ func (this_ *ReplaceIdGenerators_GatherGenerators) Visit_3(unused *NodeTraversal
 	}
 	if doc.IsConsistentIdGenerator() {
 		this_.outer_.consistNameMap.Put(name, j2gort.NewExt_java_util_LinkedHashMap())
-		this_.outer_.nameGenerators.Put(name, this_.outer_.priv_ReplaceIdGenerators_createNameSupplier_4872(StaticGet_ReplaceIdGenerators_RenameStrategy_CONSISTENT(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_BiMap](j2gort.MapGetStr(this_.outer_.previousMap, name))))
+		this_.outer_.nameGenerators.Put(name, this_.outer_.priv_ReplaceIdGenerators_createNameSupplier_4873(StaticGet_ReplaceIdGenerators_RenameStrategy_CONSISTENT(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_BiMap](j2gort.MapGetStr(this_.outer_.previousMap, name))))
 	} else if doc.IsStableIdGenerator() {
-		this_.outer_.nameGenerators.Put(name, this_.outer_.priv_ReplaceIdGenerators_createNameSupplier_4872(StaticGet_ReplaceIdGenerators_RenameStrategy_STABLE(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_BiMap](j2gort.MapGetStr(this_.outer_.previousMap, name))))
+		this_.outer_.nameGenerators.Put(name, this_.outer_.priv_ReplaceIdGenerators_createNameSupplier_4873(StaticGet_ReplaceIdGenerators_RenameStrategy_STABLE(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_BiMap](j2gort.MapGetStr(this_.outer_.previousMap, name))))
 	} else if doc.IsXidGenerator() {
-		this_.outer_.nameGenerators.Put(name, this_.outer_.priv_ReplaceIdGenerators_createNameSupplier_4872(StaticGet_ReplaceIdGenerators_RenameStrategy_XID(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_BiMap](j2gort.MapGetStr(this_.outer_.previousMap, name))))
+		this_.outer_.nameGenerators.Put(name, this_.outer_.priv_ReplaceIdGenerators_createNameSupplier_4873(StaticGet_ReplaceIdGenerators_RenameStrategy_XID(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_BiMap](j2gort.MapGetStr(this_.outer_.previousMap, name))))
 	} else if doc.IsIdGenerator() {
-		this_.outer_.nameGenerators.Put(name, this_.outer_.priv_ReplaceIdGenerators_createNameSupplier_4872(StaticGet_ReplaceIdGenerators_RenameStrategy_INCONSISTENT(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_BiMap](j2gort.MapGetStr(this_.outer_.previousMap, name))))
+		this_.outer_.nameGenerators.Put(name, this_.outer_.priv_ReplaceIdGenerators_createNameSupplier_4873(StaticGet_ReplaceIdGenerators_RenameStrategy_INCONSISTENT(), j2gort.AsIface[j2gort.Ext_com_google_common_collect_BiMap](j2gort.MapGetStr(this_.outer_.previousMap, name))))
 	} else if doc.IsMappedIdGenerator() {
 		var supplier ReplaceIdGenerators_NameSupplier = this_.outer_.nameGenerators.Get(name)
 		_ = supplier
@@ -955,14 +955,14 @@ func (this_ *ReplaceIdGenerators_ReplaceGenerators) Visit_3(t *NodeTraversal, n 
 		}
 	}
 	if n.IsCall() {
-		this_.priv_ReplaceGenerators_maybeReplaceCall_4877(t, n, callName, nameGenerator)
+		this_.priv_ReplaceGenerators_maybeReplaceCall_4878(t, n, callName, nameGenerator)
 	} else {
-		this_.priv_ReplaceGenerators_maybeReplaceTaggedTemplateLit_4876(t, n, callName, nameGenerator)
+		this_.priv_ReplaceGenerators_maybeReplaceTaggedTemplateLit_4877(t, n, callName, nameGenerator)
 	}
 }
 
 // Java method: ReplaceGenerators.maybeReplaceTaggedTemplateLit(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, java.lang.String callName, com.google.javascript.jscomp.ReplaceIdGenerators.NameSupplier nameGenerator)
-func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybeReplaceTaggedTemplateLit_4876(t *NodeTraversal, n pkg_rhino.Node, callName string, nameGenerator ReplaceIdGenerators_NameSupplier) {
+func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybeReplaceTaggedTemplateLit_4877(t *NodeTraversal, n pkg_rhino.Node, callName string, nameGenerator ReplaceIdGenerators_NameSupplier) {
 	_ = t
 	_ = n
 	_ = callName
@@ -978,7 +978,7 @@ func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybe
 			this_.outer_.compiler.Report_1(JSError_Make_3(n, StaticGet_ReplaceIdGenerators_INVALID_TEMPLATE_LITERAL_PARAMETER(), []string{}))
 			return
 		}
-		var rename string = this_.priv_ReplaceGenerators_getObfuscatedName_4879(arg, callName, nameGenerator, cooked)
+		var rename string = this_.priv_ReplaceGenerators_getObfuscatedName_4880(arg, callName, nameGenerator, cooked)
 		_ = rename
 		n.ReplaceWith(pkg_rhino.IR_String(rename))
 		t.ReportCodeChange_0()
@@ -996,7 +996,7 @@ func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybe
 						this_.outer_.compiler.Report_1(JSError_Make_3(n, StaticGet_ReplaceIdGenerators_INVALID_TEMPLATE_LITERAL_PARAMETER(), []string{}))
 						return
 					}
-					var rename_2 string = this_.priv_ReplaceGenerators_getObfuscatedName_4879(child, callName, nameGenerator, cooked_2)
+					var rename_2 string = this_.priv_ReplaceGenerators_getObfuscatedName_4880(child, callName, nameGenerator, cooked_2)
 					_ = rename_2
 					newTemplateLit.AddChildToBack(pkg_rhino.IR_TemplateLiteralString(rename_2, rename_2).SrcrefIfMissing(child))
 				} else {
@@ -1010,7 +1010,7 @@ func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybe
 }
 
 // Java method: ReplaceGenerators.maybeReplaceCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, java.lang.String callName, com.google.javascript.jscomp.ReplaceIdGenerators.NameSupplier nameGenerator)
-func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybeReplaceCall_4877(t *NodeTraversal, n pkg_rhino.Node, callName string, nameGenerator ReplaceIdGenerators_NameSupplier) {
+func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybeReplaceCall_4878(t *NodeTraversal, n pkg_rhino.Node, callName string, nameGenerator ReplaceIdGenerators_NameSupplier) {
 	_ = t
 	_ = n
 	_ = callName
@@ -1020,7 +1020,7 @@ func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybe
 	if arg == 0 {
 		this_.outer_.compiler.Report_1(JSError_Make_3(n, StaticGet_ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER(), []string{}))
 	} else if arg.IsStringLit() {
-		var rename string = this_.priv_ReplaceGenerators_getObfuscatedName_4879(arg, callName, nameGenerator, arg.GetString())
+		var rename string = this_.priv_ReplaceGenerators_getObfuscatedName_4880(arg, callName, nameGenerator, arg.GetString())
 		_ = rename
 		n.ReplaceWith(pkg_rhino.IR_String(rename))
 		t.ReportCodeChange_0()
@@ -1030,7 +1030,7 @@ func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybe
 		if cooked == j2gort.NullString {
 			this_.outer_.compiler.Report_1(JSError_Make_3(n, StaticGet_ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER(), []string{}))
 		} else {
-			var rename_2 string = this_.priv_ReplaceGenerators_getObfuscatedName_4879(arg, callName, nameGenerator, cooked)
+			var rename_2 string = this_.priv_ReplaceGenerators_getObfuscatedName_4880(arg, callName, nameGenerator, cooked)
 			_ = rename_2
 			n.ReplaceWith(pkg_rhino.IR_String(rename_2))
 			t.ReportCodeChange_0()
@@ -1048,7 +1048,7 @@ func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybe
 					this_.outer_.compiler.Report_1(JSError_Make_3(n, StaticGet_ReplaceIdGenerators_COMPUTED_PROP_NOT_SUPPORTED_IN_ID_GEN(), []string{}))
 					return
 				}
-				var rename_3 string = this_.priv_ReplaceGenerators_getObfuscatedName_4879(key, callName, nameGenerator, key.GetString())
+				var rename_3 string = this_.priv_ReplaceGenerators_getObfuscatedName_4880(key, callName, nameGenerator, key.GetString())
 				_ = rename_3
 				key.SetString(rename_3)
 				key.PutBooleanProp(pkg_rhino.StaticGet_Node_QUOTED_PROP(), true)
@@ -1058,7 +1058,7 @@ func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybe
 		n.ReplaceWith(arg)
 		t.ReportCodeChange_0()
 	} else if this_.outer_.templateLiteralsAreTranspiled && arg.IsName() {
-		var ttlVar pkg_rhino.Node = this_.priv_ReplaceGenerators_findTtlVar_4878(t, arg)
+		var ttlVar pkg_rhino.Node = this_.priv_ReplaceGenerators_findTtlVar_4879(t, arg)
 		_ = ttlVar
 		if ttlVar == 0 {
 			this_.outer_.compiler.Report_1(JSError_Make_3(n, StaticGet_ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER(), []string{}))
@@ -1074,7 +1074,7 @@ func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybe
 		if paramsArrayLiteral.GetChildCount() == int32(1) {
 			var originalName string = paramsArrayLiteral.GetFirstChild().GetString()
 			_ = originalName
-			var rename_4 string = this_.priv_ReplaceGenerators_getObfuscatedName_4879(arg, callName, nameGenerator, originalName)
+			var rename_4 string = this_.priv_ReplaceGenerators_getObfuscatedName_4880(arg, callName, nameGenerator, originalName)
 			_ = rename_4
 			n.ReplaceWith(pkg_rhino.IR_String(rename_4))
 			t.ReportCodeChange_0()
@@ -1087,7 +1087,7 @@ func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybe
 				for ; param != 0; param = param.GetNext() {
 					var originalName_2 string = param.GetString()
 					_ = originalName_2
-					var rename_5 string = this_.priv_ReplaceGenerators_getObfuscatedName_4879(arg, callName, nameGenerator, originalName_2)
+					var rename_5 string = this_.priv_ReplaceGenerators_getObfuscatedName_4880(arg, callName, nameGenerator, originalName_2)
 					_ = rename_5
 					param.SetString(rename_5)
 				}
@@ -1100,7 +1100,7 @@ func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_maybe
 }
 
 // Java method: ReplaceGenerators.findTtlVar(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node arg)
-func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_findTtlVar_4878(t *NodeTraversal, arg pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_findTtlVar_4879(t *NodeTraversal, arg pkg_rhino.Node) pkg_rhino.Node {
 	_ = t
 	_ = arg
 	var name string = arg.GetString()
@@ -1129,7 +1129,7 @@ func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_findT
 }
 
 // Java method: ReplaceGenerators.getObfuscatedName(com.google.javascript.rhino.Node id, java.lang.String callName, com.google.javascript.jscomp.ReplaceIdGenerators.NameSupplier nameGenerator, java.lang.String name)
-func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_getObfuscatedName_4879(id pkg_rhino.Node, callName string, nameGenerator ReplaceIdGenerators_NameSupplier, name string) string {
+func (this_ *ReplaceIdGenerators_ReplaceGenerators) priv_ReplaceGenerators_getObfuscatedName_4880(id pkg_rhino.Node, callName string, nameGenerator ReplaceIdGenerators_NameSupplier, name string) string {
 	_ = id
 	_ = callName
 	_ = nameGenerator

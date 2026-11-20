@@ -92,9 +92,9 @@ func (this_ *J2clEqualitySameRewriterPass) OptimizeSubtree(node pkg_rhino.Node) 
 	var replacement pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = replacement
 	if J2clEqualitySameRewriterPass_IsStringEqualsMethod(node) {
-		replacement = this_.priv_J2clEqualitySameRewriterPass_trySubstituteStringEquals_3488(node)
+		replacement = this_.priv_J2clEqualitySameRewriterPass_trySubstituteStringEquals_3489(node)
 	} else if J2clEqualitySameRewriterPass_IsEqualitySameCall(node) {
-		replacement = this_.priv_J2clEqualitySameRewriterPass_trySubstituteEqualitySame_3489(node)
+		replacement = this_.priv_J2clEqualitySameRewriterPass_trySubstituteEqualitySame_3490(node)
 	}
 	if replacement == 0 {
 		return node
@@ -106,18 +106,18 @@ func (this_ *J2clEqualitySameRewriterPass) OptimizeSubtree(node pkg_rhino.Node) 
 }
 
 // Java method: J2clEqualitySameRewriterPass.trySubstituteStringEquals(com.google.javascript.rhino.Node callNode)
-func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_trySubstituteStringEquals_3488(callNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_trySubstituteStringEquals_3489(callNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = callNode
 	var firstExprValue J2clEqualitySameRewriterPass_NodeValue = J2clEqualitySameRewriterPass_GetKnownLiteralValue(callNode.GetSecondChild())
 	_ = firstExprValue
 	if (firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_UNKNOWN()) || (firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED()) {
 		return pkg_rhino.Node(0)
 	}
-	return this_.priv_J2clEqualitySameRewriterPass_trySubstituteEqualitySame_3489(callNode)
+	return this_.priv_J2clEqualitySameRewriterPass_trySubstituteEqualitySame_3490(callNode)
 }
 
 // Java method: J2clEqualitySameRewriterPass.trySubstituteEqualitySame(com.google.javascript.rhino.Node callNode)
-func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_trySubstituteEqualitySame_3489(callNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_trySubstituteEqualitySame_3490(callNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = callNode
 	var firstExpr pkg_rhino.Node = callNode.GetSecondChild()
 	_ = firstExpr
@@ -131,34 +131,34 @@ func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_try
 		return pkg_rhino.Node(0)
 	}
 	if firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED() {
-		return this_.priv_J2clEqualitySameRewriterPass_rewriteNullCheck_3490(secondExpr, firstExpr)
+		return this_.priv_J2clEqualitySameRewriterPass_rewriteNullCheck_3491(secondExpr, firstExpr)
 	}
 	if secondExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED() {
-		return this_.priv_J2clEqualitySameRewriterPass_rewriteNullCheck_3490(firstExpr, secondExpr)
+		return this_.priv_J2clEqualitySameRewriterPass_rewriteNullCheck_3491(firstExpr, secondExpr)
 	}
 	if (firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NON_NULL()) || (secondExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NON_NULL()) {
-		return this_.priv_J2clEqualitySameRewriterPass_rewriteAsStrictEq_3492(firstExpr, secondExpr)
+		return this_.priv_J2clEqualitySameRewriterPass_rewriteAsStrictEq_3493(firstExpr, secondExpr)
 	}
 	if !((firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NUMBER()) || (secondExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NUMBER())) {
 		j2gort.CheckState(false)
 	}
-	return this_.priv_J2clEqualitySameRewriterPass_rewriteNumberCheck_3493(firstExpr, secondExpr)
+	return this_.priv_J2clEqualitySameRewriterPass_rewriteNumberCheck_3494(firstExpr, secondExpr)
 }
 
 // Java method: J2clEqualitySameRewriterPass.rewriteNullCheck(com.google.javascript.rhino.Node expr, com.google.javascript.rhino.Node nullExpression)
-func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_rewriteNullCheck_3490(expr pkg_rhino.Node, nullExpression pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_rewriteNullCheck_3491(expr pkg_rhino.Node, nullExpression pkg_rhino.Node) pkg_rhino.Node {
 	_ = expr
 	_ = nullExpression
 	expr.Detach()
 	nullExpression.Detach()
-	if this_.useTypes && this_.priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3491(expr) {
+	if this_.useTypes && this_.priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3492(expr) {
 		return pkg_rhino.IR_Not(expr)
 	}
 	return pkg_rhino.IR_Eq(expr, nullExpression)
 }
 
 // Java method: J2clEqualitySameRewriterPass.canOnlyBeObject(com.google.javascript.rhino.Node n)
-func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3491(n pkg_rhino.Node) bool {
+func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3492(n pkg_rhino.Node) bool {
 	_ = n
 	var color *pkg_colors.Color = n.GetColor()
 	_ = color
@@ -172,7 +172,7 @@ func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_can
 }
 
 // Java method: J2clEqualitySameRewriterPass.rewriteAsStrictEq(com.google.javascript.rhino.Node firstExpr, com.google.javascript.rhino.Node secondExpr)
-func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_rewriteAsStrictEq_3492(firstExpr pkg_rhino.Node, secondExpr pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_rewriteAsStrictEq_3493(firstExpr pkg_rhino.Node, secondExpr pkg_rhino.Node) pkg_rhino.Node {
 	_ = firstExpr
 	_ = secondExpr
 	firstExpr.Detach()
@@ -181,7 +181,7 @@ func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_rew
 }
 
 // Java method: J2clEqualitySameRewriterPass.rewriteNumberCheck(com.google.javascript.rhino.Node firstExpr, com.google.javascript.rhino.Node secondExpr)
-func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_rewriteNumberCheck_3493(firstExpr pkg_rhino.Node, secondExpr pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_rewriteNumberCheck_3494(firstExpr pkg_rhino.Node, secondExpr pkg_rhino.Node) pkg_rhino.Node {
 	_ = firstExpr
 	_ = secondExpr
 	var firstValue *j2gort.BoxDouble = NodeUtil_GetNumberValue(firstExpr)
@@ -194,10 +194,10 @@ func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_rew
 		return NodeUtil_BooleanNode(firstValue.Equals(j2gort.PtrToAny(secondValue)))
 	}
 	if J2clEqualitySameRewriterPass_IsSafeNumber(firstValue) || J2clEqualitySameRewriterPass_IsSafeNumber(secondValue) {
-		return this_.priv_J2clEqualitySameRewriterPass_rewriteAsStrictEq_3492(firstExpr, secondExpr)
+		return this_.priv_J2clEqualitySameRewriterPass_rewriteAsStrictEq_3493(firstExpr, secondExpr)
 	}
-	if this_.useTypes && (this_.priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3491(firstExpr) || this_.priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3491(secondExpr)) {
-		return this_.priv_J2clEqualitySameRewriterPass_rewriteAsStrictEq_3492(firstExpr, secondExpr)
+	if this_.useTypes && (this_.priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3492(firstExpr) || this_.priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3492(secondExpr)) {
+		return this_.priv_J2clEqualitySameRewriterPass_rewriteAsStrictEq_3493(firstExpr, secondExpr)
 	}
 	return pkg_rhino.Node(0)
 }

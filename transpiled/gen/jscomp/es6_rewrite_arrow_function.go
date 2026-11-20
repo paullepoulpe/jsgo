@@ -122,10 +122,10 @@ func (this_ *Es6RewriteArrowFunction) ShouldTraverse_3(t *NodeTraversal, n pkg_r
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(94) /* Token.SCRIPT */ :
-		this_.contextStack.Push(this_.priv_Es6RewriteArrowFunction_contextForScript_2580(n, t.GetInput()))
+		this_.contextStack.Push(this_.priv_Es6RewriteArrowFunction_contextForScript_2581(n, t.GetInput()))
 	case int32(73) /* Token.FUNCTION */ :
 		if !(n.IsArrowFunction()) {
-			this_.contextStack.Push(this_.priv_Es6RewriteArrowFunction_contextForFunction_2579(n, t.GetInput()))
+			this_.contextStack.Push(this_.priv_Es6RewriteArrowFunction_contextForFunction_2580(n, t.GetInput()))
 		}
 	case int32(110) /* Token.SUPER */ :
 		var context *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext = j2gort.CheckNotNullPtr(this_.contextStack.Peek())
@@ -133,7 +133,7 @@ func (this_ *Es6RewriteArrowFunction) ShouldTraverse_3(t *NodeTraversal, n pkg_r
 		if (context.isConstructor && parent.IsCall()) && (parent.GetFirstChild() == n) {
 			{
 				r_1 := context
-				r_1.lastSuperStatement = this_.priv_Es6RewriteArrowFunction_getEnclosingStatement_2577(parent, context.scopeBody)
+				r_1.lastSuperStatement = this_.priv_Es6RewriteArrowFunction_getEnclosingStatement_2578(parent, context.scopeBody)
 			}
 		}
 	default:
@@ -142,7 +142,7 @@ func (this_ *Es6RewriteArrowFunction) ShouldTraverse_3(t *NodeTraversal, n pkg_r
 }
 
 // Java method: Es6RewriteArrowFunction.getEnclosingStatement(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node block)
-func (this_ *Es6RewriteArrowFunction) priv_Es6RewriteArrowFunction_getEnclosingStatement_2577(n pkg_rhino.Node, block pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6RewriteArrowFunction) priv_Es6RewriteArrowFunction_getEnclosingStatement_2578(n pkg_rhino.Node, block pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = block
 	for j2gort.CheckNotNullNode(n.GetParent()) != block {
@@ -159,7 +159,7 @@ func (this_ *Es6RewriteArrowFunction) Visit_3(t *NodeTraversal, n pkg_rhino.Node
 	var context *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext = this_.contextStack.Peek()
 	_ = context
 	if n.IsArrowFunction() {
-		this_.priv_Es6RewriteArrowFunction_visitArrowFunction_2578(t, n, j2gort.CheckNotNullPtr(context))
+		this_.priv_Es6RewriteArrowFunction_visitArrowFunction_2579(t, n, j2gort.CheckNotNullPtr(context))
 	} else if (context != nil) && (context.scopeBody == n) {
 		this_.contextStack.Pop()
 		context.AddVarDeclarations(this_.compiler, this_.astFactory, t.GetCurrentScript())
@@ -167,7 +167,7 @@ func (this_ *Es6RewriteArrowFunction) Visit_3(t *NodeTraversal, n pkg_rhino.Node
 }
 
 // Java method: Es6RewriteArrowFunction.visitArrowFunction(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.ThisAndArgumentsReferenceUpdater.ThisAndArgumentsContext context)
-func (this_ *Es6RewriteArrowFunction) priv_Es6RewriteArrowFunction_visitArrowFunction_2578(t *NodeTraversal, n pkg_rhino.Node, context *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) {
+func (this_ *Es6RewriteArrowFunction) priv_Es6RewriteArrowFunction_visitArrowFunction_2579(t *NodeTraversal, n pkg_rhino.Node, context *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) {
 	_ = t
 	_ = n
 	_ = context
@@ -186,7 +186,7 @@ func (this_ *Es6RewriteArrowFunction) priv_Es6RewriteArrowFunction_visitArrowFun
 }
 
 // Java method: Es6RewriteArrowFunction.contextForFunction(com.google.javascript.rhino.Node functionNode, com.google.javascript.jscomp.CompilerInput input)
-func (this_ *Es6RewriteArrowFunction) priv_Es6RewriteArrowFunction_contextForFunction_2579(functionNode pkg_rhino.Node, input *CompilerInput) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
+func (this_ *Es6RewriteArrowFunction) priv_Es6RewriteArrowFunction_contextForFunction_2580(functionNode pkg_rhino.Node, input *CompilerInput) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
 	_ = functionNode
 	_ = input
 	var scopeBody pkg_rhino.Node = functionNode.GetLastChild()
@@ -195,7 +195,7 @@ func (this_ *Es6RewriteArrowFunction) priv_Es6RewriteArrowFunction_contextForFun
 }
 
 // Java method: Es6RewriteArrowFunction.contextForScript(com.google.javascript.rhino.Node scriptNode, com.google.javascript.jscomp.CompilerInput input)
-func (this_ *Es6RewriteArrowFunction) priv_Es6RewriteArrowFunction_contextForScript_2580(scriptNode pkg_rhino.Node, input *CompilerInput) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
+func (this_ *Es6RewriteArrowFunction) priv_Es6RewriteArrowFunction_contextForScript_2581(scriptNode pkg_rhino.Node, input *CompilerInput) *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext {
 	_ = scriptNode
 	_ = input
 	return NewThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(scriptNode, false, this_.compiler.GetUniqueIdSupplier().GetUniqueId(input))

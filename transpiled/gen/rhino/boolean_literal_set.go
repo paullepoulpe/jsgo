@@ -89,7 +89,7 @@ func BooleanLiteralSet_ValueOf(name string) BooleanLiteralSet {
 }
 
 // Java method: BooleanLiteralSet.fromOrdinal(int ordinal)
-func (this_ BooleanLiteralSet) priv_BooleanLiteralSet_fromOrdinal_8883(ordinal int32) BooleanLiteralSet {
+func (this_ BooleanLiteralSet) priv_BooleanLiteralSet_fromOrdinal_8884(ordinal int32) BooleanLiteralSet {
 	if this_ == 0 {
 		j2gort.ThrowNPE()
 	}
@@ -115,7 +115,7 @@ func (this_ BooleanLiteralSet) Intersection(that BooleanLiteralSet) BooleanLiter
 		j2gort.ThrowNPE()
 	}
 	_ = that
-	return this_.priv_BooleanLiteralSet_fromOrdinal_8883(((this_).Ordinal() & (that).Ordinal()))
+	return this_.priv_BooleanLiteralSet_fromOrdinal_8884(((this_).Ordinal() & (that).Ordinal()))
 }
 
 // Java method: BooleanLiteralSet.union(com.google.javascript.rhino.jstype.BooleanLiteralSet that)
@@ -124,7 +124,7 @@ func (this_ BooleanLiteralSet) Union(that BooleanLiteralSet) BooleanLiteralSet {
 		j2gort.ThrowNPE()
 	}
 	_ = that
-	return this_.priv_BooleanLiteralSet_fromOrdinal_8883(((this_).Ordinal() | (that).Ordinal()))
+	return this_.priv_BooleanLiteralSet_fromOrdinal_8884(((this_).Ordinal() | (that).Ordinal()))
 }
 
 // Java method: BooleanLiteralSet.contains(boolean literalValue)

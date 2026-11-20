@@ -110,14 +110,14 @@ func InitValidityCheck(this_ *ValidityCheck, compiler AbstractCompiler) {
 func (this_ *ValidityCheck) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	this_.priv_ValidityCheck_checkAst_5891(externs, root)
-	this_.priv_ValidityCheck_checkNormalization_5893(externs, root)
-	this_.priv_ValidityCheck_checkVars_5892(externs, root)
-	this_.priv_ValidityCheck_checkExternProperties_5894(externs)
+	this_.priv_ValidityCheck_checkAst_5892(externs, root)
+	this_.priv_ValidityCheck_checkNormalization_5894(externs, root)
+	this_.priv_ValidityCheck_checkVars_5893(externs, root)
+	this_.priv_ValidityCheck_checkExternProperties_5895(externs)
 }
 
 // Java method: ValidityCheck.checkAst(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
-func (this_ *ValidityCheck) priv_ValidityCheck_checkAst_5891(externs pkg_rhino.Node, root pkg_rhino.Node) {
+func (this_ *ValidityCheck) priv_ValidityCheck_checkAst_5892(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
 	this_.astValidator.ValidateCodeRoot(externs)
@@ -125,7 +125,7 @@ func (this_ *ValidityCheck) priv_ValidityCheck_checkAst_5891(externs pkg_rhino.N
 }
 
 // Java method: ValidityCheck.checkVars(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
-func (this_ *ValidityCheck) priv_ValidityCheck_checkVars_5892(externs pkg_rhino.Node, root pkg_rhino.Node) {
+func (this_ *ValidityCheck) priv_ValidityCheck_checkVars_5893(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
 	if this_.compiler.GetLifeCycleStage().IsNormalized() {
@@ -139,7 +139,7 @@ func (this_ *ValidityCheck) priv_ValidityCheck_checkVars_5892(externs pkg_rhino.
 }
 
 // Java method: ValidityCheck.checkNormalization(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
-func (this_ *ValidityCheck) priv_ValidityCheck_checkNormalization_5893(externs pkg_rhino.Node, root pkg_rhino.Node) {
+func (this_ *ValidityCheck) priv_ValidityCheck_checkNormalization_5894(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
 	var handler CodeChangeHandler = NewForbiddenChange()
@@ -159,7 +159,7 @@ func (this_ *ValidityCheck) priv_ValidityCheck_checkNormalization_5893(externs p
 }
 
 // Java method: ValidityCheck.checkExternProperties(com.google.javascript.rhino.Node externs)
-func (this_ *ValidityCheck) priv_ValidityCheck_checkExternProperties_5894(externs pkg_rhino.Node) {
+func (this_ *ValidityCheck) priv_ValidityCheck_checkExternProperties_5895(externs pkg_rhino.Node) {
 	_ = externs
 	var externProperties j2gort.Ext_com_google_common_collect_ImmutableSet = this_.compiler.GetExternProperties()
 	_ = externProperties

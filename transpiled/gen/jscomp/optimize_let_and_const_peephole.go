@@ -73,9 +73,9 @@ func (this_ *OptimizeLetAndConstPeephole) OptimizeSubtree(subtree pkg_rhino.Node
 	_ = subtree
 	switch subtree.TokenSwitchOrd_() {
 	case int32(111) /* Token.LET */:
-		return this_.priv_OptimizeLetAndConstPeephole_processLet_4104(subtree)
+		return this_.priv_OptimizeLetAndConstPeephole_processLet_4105(subtree)
 	case int32(97) /* Token.CONST */:
-		return this_.priv_OptimizeLetAndConstPeephole_processConst_4105(subtree)
+		return this_.priv_OptimizeLetAndConstPeephole_processConst_4106(subtree)
 	default:
 		return subtree
 	}
@@ -83,12 +83,12 @@ func (this_ *OptimizeLetAndConstPeephole) OptimizeSubtree(subtree pkg_rhino.Node
 }
 
 // Java method: OptimizeLetAndConstPeephole.processLet(com.google.javascript.rhino.Node n)
-func (this_ *OptimizeLetAndConstPeephole) priv_OptimizeLetAndConstPeephole_processLet_4104(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *OptimizeLetAndConstPeephole) priv_OptimizeLetAndConstPeephole_processLet_4105(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if ((!(this_.assumeOutputIsWrapped) && n.GetParent().IsScript())) {
 		return n
 	}
-	if (this_.priv_OptimizeLetAndConstPeephole_isDirectlyInHoistScope_4106(n)) {
+	if (this_.priv_OptimizeLetAndConstPeephole_isDirectlyInHoistScope_4107(n)) {
 		n.SetToken(pkg_rhino.StaticGet_Token_VAR())
 		this_.ReportChangeToEnclosingScope(n)
 	}
@@ -96,12 +96,12 @@ func (this_ *OptimizeLetAndConstPeephole) priv_OptimizeLetAndConstPeephole_proce
 }
 
 // Java method: OptimizeLetAndConstPeephole.processConst(com.google.javascript.rhino.Node n)
-func (this_ *OptimizeLetAndConstPeephole) priv_OptimizeLetAndConstPeephole_processConst_4105(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *OptimizeLetAndConstPeephole) priv_OptimizeLetAndConstPeephole_processConst_4106(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if ((!(this_.assumeOutputIsWrapped) && n.GetParent().IsScript())) {
 		return n
 	}
-	if (this_.priv_OptimizeLetAndConstPeephole_isDirectlyInHoistScope_4106(n)) {
+	if (this_.priv_OptimizeLetAndConstPeephole_isDirectlyInHoistScope_4107(n)) {
 		n.SetToken(pkg_rhino.StaticGet_Token_VAR())
 	} else {
 		n.SetToken(pkg_rhino.StaticGet_Token_LET())
@@ -112,7 +112,7 @@ func (this_ *OptimizeLetAndConstPeephole) priv_OptimizeLetAndConstPeephole_proce
 }
 
 // Java method: OptimizeLetAndConstPeephole.isDirectlyInHoistScope(com.google.javascript.rhino.Node n)
-func (this_ *OptimizeLetAndConstPeephole) priv_OptimizeLetAndConstPeephole_isDirectlyInHoistScope_4106(n pkg_rhino.Node) bool {
+func (this_ *OptimizeLetAndConstPeephole) priv_OptimizeLetAndConstPeephole_isDirectlyInHoistScope_4107(n pkg_rhino.Node) bool {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent

@@ -24860,9 +24860,9 @@ func NodeDequeDescendingIterator[N ~uint32](d *NodeDeque[N]) Ext_java_util_Itera
 const (
 	slabSmallChunkSize = 16
 	slabChunkSize      = 256
-	slabPoolMaxBytes   = 384 << 20
-	slabSmallPoolMaxB  = 48 << 20
-	slabGlobalMaxBytes = 1280 << 20
+	slabPoolMaxBytes   = 256 << 20
+	slabSmallPoolMaxB  = 24 << 20
+	slabGlobalMaxBytes = 768 << 20
 	slabTrimMinBytes   = 96 << 20
 	slabMinEvictBytes  = 256 << 10
 )
@@ -25089,9 +25089,9 @@ const (
 	pooledSliceMaxShift        = 22
 	pooledSliceMaxCap          = 1 << pooledSliceMaxShift                      // 4194304
 	pooledSliceTiers           = pooledSliceMaxShift - pooledSliceMinShift + 1 // 20
-	pooledSliceTierBudgetBytes = 16 << 20                                      // 16 MB max per tier per type
-	pooledSliceTierMaxCount    = 262144
-	pooledSliceGlobalMaxBytes  = 256 << 20 // 256 MB strict global cap across all slice pools
+	pooledSliceTierBudgetBytes = 4 << 20                                       // 4 MB max per tier per type
+	pooledSliceTierMaxCount    = 65536
+	pooledSliceGlobalMaxBytes  = 64 << 20 // 64 MB strict global cap across all slice pools
 	pooledSliceMinEvictBytes   = 256 << 10
 )
 
@@ -25225,9 +25225,7 @@ func newPooledSliceTypePool[T any]() *pooledSliceTypePool[T] {
 		sliceBytes := int64(tierCap) * int64(elemBytes)
 		var maxKeep int
 		if sliceBytes <= 1<<20 {
-			maxKeep = min(pooledSliceTierMaxCount, max(4, int(int64(pooledSliceTierBudgetBytes)/sliceBytes)))
-		} else {
-			maxKeep = 4
+			maxKeep = min(pooledSliceTierMaxCount, max(2, int(int64(pooledSliceTierBudgetBytes)/sliceBytes)))
 		}
 		p.tiers[i].maxKeep = maxKeep
 		p.tiers[i].sliceBytes = sliceBytes

@@ -153,7 +153,7 @@ func InitReplaceStrings(this_ *ReplaceStrings, compiler AbstractCompiler, placeh
 		this_.placeholderToken = placeholderToken
 	}
 	this_.nameGenerator = ReplaceStrings_CreateNameGenerator()
-	this_.priv_ReplaceStrings_parseConfiguration_4925(functionsToInspect)
+	this_.priv_ReplaceStrings_parseConfiguration_4926(functionsToInspect)
 }
 
 // Java method: ReplaceStrings.getResult()
@@ -196,10 +196,10 @@ func (this_ *ReplaceStrings) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent 
 		var name string = calledFn.GetOriginalQualifiedName()
 		_ = name
 		if name != j2gort.NullString {
-			var config *ReplaceStrings_Config = this_.priv_ReplaceStrings_findMatching_4919(name, n.GetSourceFileName())
+			var config *ReplaceStrings_Config = this_.priv_ReplaceStrings_findMatching_4920(name, n.GetSourceFileName())
 			_ = config
 			if config != nil {
-				this_.priv_ReplaceStrings_doSubstitutions_4920(t, config, n)
+				this_.priv_ReplaceStrings_doSubstitutions_4921(t, config, n)
 				return
 			}
 		}
@@ -208,7 +208,7 @@ func (this_ *ReplaceStrings) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent 
 }
 
 // Java method: ReplaceStrings.findMatching(java.lang.String name, java.lang.String callsiteSourceFileName)
-func (this_ *ReplaceStrings) priv_ReplaceStrings_findMatching_4919(name string, callsiteSourceFileName string) *ReplaceStrings_Config {
+func (this_ *ReplaceStrings) priv_ReplaceStrings_findMatching_4920(name string, callsiteSourceFileName string) *ReplaceStrings_Config {
 	_ = name
 	_ = callsiteSourceFileName
 	var config *ReplaceStrings_Config = this_.functions.Get(name)
@@ -233,7 +233,7 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_findMatching_4919(name string, 
 }
 
 // Java method: ReplaceStrings.doSubstitutions(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.ReplaceStrings.Config config, com.google.javascript.rhino.Node n)
-func (this_ *ReplaceStrings) priv_ReplaceStrings_doSubstitutions_4920(t *NodeTraversal, config *ReplaceStrings_Config, n pkg_rhino.Node) {
+func (this_ *ReplaceStrings) priv_ReplaceStrings_doSubstitutions_4921(t *NodeTraversal, config *ReplaceStrings_Config, n pkg_rhino.Node) {
 	_ = t
 	_ = config
 	_ = n
@@ -254,7 +254,7 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_doSubstitutions_4920(t *NodeTra
 				var arg pkg_rhino.Node = n.GetChildAtIndex(parameter)
 				_ = arg
 				if arg != 0 {
-					this_.priv_ReplaceStrings_replaceExpression_4921(t, arg)
+					this_.priv_ReplaceStrings_replaceExpression_4922(t, arg)
 				}
 			}
 		}
@@ -265,14 +265,14 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_doSubstitutions_4920(t *NodeTra
 			var arg_2 pkg_rhino.Node = firstParam
 			_ = arg_2
 			for ; arg_2 != 0; arg_2 = arg_2.GetNext() {
-				arg_2 = this_.priv_ReplaceStrings_replaceExpression_4921(t, arg_2)
+				arg_2 = this_.priv_ReplaceStrings_replaceExpression_4922(t, arg_2)
 			}
 		}
 	}
 }
 
 // Java method: ReplaceStrings.replaceExpression(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node expr)
-func (this_ *ReplaceStrings) priv_ReplaceStrings_replaceExpression_4921(t *NodeTraversal, expr pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ReplaceStrings) priv_ReplaceStrings_replaceExpression_4922(t *NodeTraversal, expr pkg_rhino.Node) pkg_rhino.Node {
 	_ = t
 	_ = expr
 	var replacement pkg_rhino.Node = pkg_rhino.Node(0)
@@ -284,14 +284,14 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_replaceExpression_4921(t *NodeT
 	switch expr.TokenSwitchOrd_() {
 	case int32(35) /* Token.STRINGLIT */ :
 		key = expr.GetString()
-		replacementString = this_.priv_ReplaceStrings_getReplacement_4922(key)
+		replacementString = this_.priv_ReplaceStrings_getReplacement_4923(key)
 		replacement = pkg_rhino.IR_String(replacementString)
 	case int32(131) /* Token.TEMPLATELIT */, int32(13) /* Token.ADD */, int32(32) /* Token.NAME */ :
 		var keyBuilder *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 		_ = keyBuilder
 		var keyNode pkg_rhino.Node = pkg_rhino.IR_String("")
 		_ = keyNode
-		replacement = this_.priv_ReplaceStrings_buildReplacement_4924(t, expr, keyNode, keyBuilder)
+		replacement = this_.priv_ReplaceStrings_buildReplacement_4925(t, expr, keyNode, keyBuilder)
 		key = keyBuilder.String()
 		{
 			var iifeCond_1 bool
@@ -305,14 +305,14 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_replaceExpression_4921(t *NodeT
 				return expr
 			}
 		}
-		replacementString = this_.priv_ReplaceStrings_getReplacement_4922(key)
+		replacementString = this_.priv_ReplaceStrings_getReplacement_4923(key)
 		keyNode.SetString(replacementString)
 	default:
 		return expr
 	}
 	j2gort.CheckNotNullString(key)
 	j2gort.CheckNotNullString(replacementString)
-	this_.priv_ReplaceStrings_recordReplacement_4923(key)
+	this_.priv_ReplaceStrings_recordReplacement_4924(key)
 	replacement.SrcrefTreeIfMissing(expr)
 	expr.ReplaceWith(replacement)
 	t.ReportCodeChange_0()
@@ -320,7 +320,7 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_replaceExpression_4921(t *NodeT
 }
 
 // Java method: ReplaceStrings.getReplacement(java.lang.String key)
-func (this_ *ReplaceStrings) priv_ReplaceStrings_getReplacement_4922(key string) string {
+func (this_ *ReplaceStrings) priv_ReplaceStrings_getReplacement_4923(key string) string {
 	_ = key
 	var result *ReplaceStrings_Result = this_.results.Get(key)
 	_ = result
@@ -335,7 +335,7 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_getReplacement_4922(key string)
 }
 
 // Java method: ReplaceStrings.recordReplacement(java.lang.String key)
-func (this_ *ReplaceStrings) priv_ReplaceStrings_recordReplacement_4923(key string) {
+func (this_ *ReplaceStrings) priv_ReplaceStrings_recordReplacement_4924(key string) {
 	_ = key
 	var result *ReplaceStrings_Result = this_.results.Get(key)
 	_ = result
@@ -349,7 +349,7 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_recordReplacement_4923(key stri
 }
 
 // Java method: ReplaceStrings.buildReplacement(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node expr, com.google.javascript.rhino.Node prefix, java.lang.StringBuilder keyBuilder)
-func (this_ *ReplaceStrings) priv_ReplaceStrings_buildReplacement_4924(t *NodeTraversal, expr pkg_rhino.Node, prefix pkg_rhino.Node, keyBuilder *j2gort.Ext_java_lang_StringBuilder) pkg_rhino.Node {
+func (this_ *ReplaceStrings) priv_ReplaceStrings_buildReplacement_4925(t *NodeTraversal, expr pkg_rhino.Node, prefix pkg_rhino.Node, keyBuilder *j2gort.Ext_java_lang_StringBuilder) pkg_rhino.Node {
 	_ = t
 	_ = expr
 	_ = prefix
@@ -365,8 +365,8 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_buildReplacement_4924(t *NodeTr
 		case int32(13) /* Token.ADD */ :
 			left = expr.GetFirstChild()
 			right = left.GetNext()
-			prefix = this_.priv_ReplaceStrings_buildReplacement_4924(t, left, prefix, keyBuilder)
-			return this_.priv_ReplaceStrings_buildReplacement_4924(t, right, prefix, keyBuilder)
+			prefix = this_.priv_ReplaceStrings_buildReplacement_4925(t, left, prefix, keyBuilder)
+			return this_.priv_ReplaceStrings_buildReplacement_4925(t, right, prefix, keyBuilder)
 		case int32(131) /* Token.TEMPLATELIT */ :
 			{
 				var child pkg_rhino.Node = expr.GetFirstChild()
@@ -376,7 +376,7 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_buildReplacement_4924(t *NodeTr
 					case int32(133) /* Token.TEMPLATELIT_STRING */ :
 						keyBuilder.Append_1_string(child.GetCookedString())
 					case int32(132) /* Token.TEMPLATELIT_SUB */ :
-						prefix = this_.priv_ReplaceStrings_buildReplacement_4924(t, child.GetFirstChild(), prefix, keyBuilder)
+						prefix = this_.priv_ReplaceStrings_buildReplacement_4925(t, child.GetFirstChild(), prefix, keyBuilder)
 					default:
 						panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Unexpected TEMPLATELIT child: "+j2gort.StrVal(child))))
 					}
@@ -396,7 +396,7 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_buildReplacement_4924(t *NodeTr
 					_ = newKeyNode
 					var newKeyBuilder *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 					_ = newKeyBuilder
-					var replacement pkg_rhino.Node = this_.priv_ReplaceStrings_buildReplacement_4924(t, initialValue, newKeyNode, newKeyBuilder)
+					var replacement pkg_rhino.Node = this_.priv_ReplaceStrings_buildReplacement_4925(t, initialValue, newKeyNode, newKeyBuilder)
 					_ = replacement
 					if replacement == newKeyNode {
 						keyBuilder.Append_1_any(newKeyBuilder)
@@ -415,14 +415,14 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_buildReplacement_4924(t *NodeTr
 }
 
 // Java method: ReplaceStrings.parseConfiguration(java.util.List<java.lang.String> functionsToInspect)
-func (this_ *ReplaceStrings) priv_ReplaceStrings_parseConfiguration_4925(functionsToInspect j2gort.Ext_java_util_List) {
+func (this_ *ReplaceStrings) priv_ReplaceStrings_parseConfiguration_4926(functionsToInspect j2gort.Ext_java_util_List) {
 	_ = functionsToInspect
 	{
 		cur_10 := j2gort.NewIterCursor(j2gort.CheckNotNull(functionsToInspect))
 		for cur_10.HasNext() {
 			function := cur_10.NextStr()
 			_ = function
-			var config *ReplaceStrings_Config = this_.priv_ReplaceStrings_parseConfiguration_4926(function)
+			var config *ReplaceStrings_Config = this_.priv_ReplaceStrings_parseConfiguration_4927(function)
 			_ = config
 			if config != nil {
 				this_.functions.Put(config.name, config)
@@ -432,7 +432,7 @@ func (this_ *ReplaceStrings) priv_ReplaceStrings_parseConfiguration_4925(functio
 }
 
 // Java method: ReplaceStrings.parseConfiguration(java.lang.String function)
-func (this_ *ReplaceStrings) priv_ReplaceStrings_parseConfiguration_4926(function string) *ReplaceStrings_Config {
+func (this_ *ReplaceStrings) priv_ReplaceStrings_parseConfiguration_4927(function string) *ReplaceStrings_Config {
 	_ = function
 	var first int32 = j2gort.JStrIndexOfCp(function, int32(uint16(40)))
 	_ = first

@@ -111,7 +111,7 @@ func clinitSlow_Es6RewriteClass() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_Es6RewriteClass, &clinitDone_Es6RewriteClass)
-	static_Es6RewriteClass_features = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7250([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_CLASSES(), pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER(), pkg_parser.StaticGet_FeatureSet_Feature_NEW_TARGET(), pkg_parser.StaticGet_FeatureSet_Feature_SUPER()})
+	static_Es6RewriteClass_features = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7251([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_CLASSES(), pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER(), pkg_parser.StaticGet_FeatureSet_Feature_NEW_TARGET(), pkg_parser.StaticGet_FeatureSet_Feature_SUPER()})
 	static_Es6RewriteClass_CONSTRUCTOR_PRIMITIVE_RETURN = DiagnosticType_Error("JSC_CONSTRUCTOR_PRIMITIVE_RETURN", "Class constructors may only return an object or undefined")
 }
 
@@ -177,12 +177,12 @@ func (this_ *Es6RewriteClass) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent
 	_ = n
 	_ = parent
 	if n.IsClass() {
-		this_.priv_Es6RewriteClass_visitClass_2605(t, n, parent)
+		this_.priv_Es6RewriteClass_visitClass_2606(t, n, parent)
 	}
 }
 
 // Java method: Es6RewriteClass.visitClass(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node classNode, com.google.javascript.rhino.Node parent)
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_visitClass_2605(t *NodeTraversal, classNode pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_visitClass_2606(t *NodeTraversal, classNode pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = classNode
 	_ = parent
@@ -206,10 +206,10 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_visitClass_2605(t *NodeTraver
 			var next pkg_rhino.Node = member.GetNext()
 			_ = next
 			if (member.IsComputedProp() && (member.GetBooleanProp(pkg_rhino.StaticGet_Node_COMPUTED_PROP_GETTER()) || member.GetBooleanProp(pkg_rhino.StaticGet_Node_COMPUTED_PROP_SETTER()))) || (member.IsGetterDef() || member.IsSetterDef()) {
-				this_.priv_Es6RewriteClass_visitNonMethodMember_2614(member, metadata)
+				this_.priv_Es6RewriteClass_visitNonMethodMember_2615(member, metadata)
 			} else if NodeUtil_IsEs6ConstructorMemberFunctionDef(member) {
 				if !(classNode.IsFromExterns()) {
-					this_.priv_Es6RewriteClass_reportPrimitiveReturns_2606(member.GetFirstChild())
+					this_.priv_Es6RewriteClass_reportPrimitiveReturns_2607(member.GetFirstChild())
 				}
 				constructor = member.RemoveFirstChild().SetColor(classNode.GetColor())
 				if !(metadata.Anonymous()) {
@@ -223,14 +223,14 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_visitClass_2605(t *NodeTraver
 				if !(!(member.GetBooleanProp(pkg_rhino.StaticGet_Node_COMPUTED_PROP_VARIABLE()))) {
 					j2gort.CheckStateFmt(false, "Member variables should have been transpiled earlier: (%s)", j2gort.BoxNode(member))
 				}
-				this_.priv_Es6RewriteClass_visitMethod_2615(member, metadata)
+				this_.priv_Es6RewriteClass_visitMethod_2616(member, metadata)
 			}
 			member = next
 		}
 	}
 	j2gort.CheckNotNullNode(constructor)
-	this_.priv_Es6RewriteClass_flushDefinePropertiesForPrototype_2609(metadata, classNode)
-	this_.priv_Es6RewriteClass_flushDefinePropertiesForClass_2610(metadata, classNode)
+	this_.priv_Es6RewriteClass_flushDefinePropertiesForPrototype_2610(metadata, classNode)
+	this_.priv_Es6RewriteClass_flushDefinePropertiesForClass_2611(metadata, classNode)
 	var classJSDoc *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(classNode)
 	_ = classJSDoc
 	var newInfo *pkg_rhino.JSDocInfo_Builder = pkg_rhino.JSDocInfo_Builder_MaybeCopyFrom(classJSDoc)
@@ -245,7 +245,7 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_visitClass_2605(t *NodeTraver
 			inheritsCall.InsertAfter(enclosingStatement)
 		}
 	}
-	this_.priv_Es6RewriteClass_addTypeDeclarations_2616(metadata, enclosingStatement)
+	this_.priv_Es6RewriteClass_addTypeDeclarations_2617(metadata, enclosingStatement)
 	if NodeUtil_IsStatement(classNode) {
 		constructor.GetFirstChild().SetString("")
 		var ctorVar pkg_rhino.Node = pkg_rhino.IR_Let_2(metadata.ClassNameNode().CloneNode_0(), constructor)
@@ -276,7 +276,7 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_visitClass_2605(t *NodeTraver
 }
 
 // Java method: Es6RewriteClass.reportPrimitiveReturns(com.google.javascript.rhino.Node constructor)
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_reportPrimitiveReturns_2606(constructor pkg_rhino.Node) {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_reportPrimitiveReturns_2607(constructor pkg_rhino.Node) {
 	_ = constructor
 	NodeUtil_VisitPostOrder_3(NodeUtil_GetFunctionBody(constructor), NewLambda_NodeUtil_Visitor(func(n pkg_rhino.Node) {
 		_ = n
@@ -287,21 +287,21 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_reportPrimitiveReturns_2606(c
 }
 
 // Java method: Es6RewriteClass.createObjectDotDefineProperties()
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_createObjectDotDefineProperties_2607() pkg_rhino.Node {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_createObjectDotDefineProperties_2608() pkg_rhino.Node {
 	return this_.astFactory.CreateJSCompDotGlobalAccess(this_.transpilationNamespace, "Object.defineProperties")
 }
 
 // Java method: Es6RewriteClass.createObjectDotDefineProperty()
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_createObjectDotDefineProperty_2608() pkg_rhino.Node {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_createObjectDotDefineProperty_2609() pkg_rhino.Node {
 	return this_.astFactory.CreateJSCompDotGlobalAccess(this_.transpilationNamespace, "Object.defineProperty")
 }
 
 // Java method: Es6RewriteClass.flushDefinePropertiesForPrototype(com.google.javascript.jscomp.Es6RewriteClass.ClassDeclarationMetadata metadata, com.google.javascript.rhino.Node srcrefNode)
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_flushDefinePropertiesForPrototype_2609(metadata *Es6RewriteClass_ClassDeclarationMetadata, srcrefNode pkg_rhino.Node) {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_flushDefinePropertiesForPrototype_2610(metadata *Es6RewriteClass_ClassDeclarationMetadata, srcrefNode pkg_rhino.Node) {
 	_ = metadata
 	_ = srcrefNode
 	if metadata.DefinePropertiesObjForPrototype().HasChildren() {
-		var definePropsCall pkg_rhino.Node = pkg_rhino.IR_ExprResult(this_.astFactory.CreateCall(this_.priv_Es6RewriteClass_createObjectDotDefineProperties_2607(), AstFactory_S_Type_1_Node(metadata.ClassPrototypeNode()), []pkg_rhino.Node{metadata.ClassPrototypeNode().CloneTree_0(), metadata.DefinePropertiesObjForPrototype()}))
+		var definePropsCall pkg_rhino.Node = pkg_rhino.IR_ExprResult(this_.astFactory.CreateCall(this_.priv_Es6RewriteClass_createObjectDotDefineProperties_2608(), AstFactory_S_Type_1_Node(metadata.ClassPrototypeNode()), []pkg_rhino.Node{metadata.ClassPrototypeNode().CloneTree_0(), metadata.DefinePropertiesObjForPrototype()}))
 		_ = definePropsCall
 		definePropsCall.SrcrefTreeIfMissing(srcrefNode)
 		metadata.InsertNodeAndAdvance(definePropsCall)
@@ -310,11 +310,11 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_flushDefinePropertiesForProto
 }
 
 // Java method: Es6RewriteClass.flushDefinePropertiesForClass(com.google.javascript.jscomp.Es6RewriteClass.ClassDeclarationMetadata metadata, com.google.javascript.rhino.Node srcrefNode)
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_flushDefinePropertiesForClass_2610(metadata *Es6RewriteClass_ClassDeclarationMetadata, srcrefNode pkg_rhino.Node) {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_flushDefinePropertiesForClass_2611(metadata *Es6RewriteClass_ClassDeclarationMetadata, srcrefNode pkg_rhino.Node) {
 	_ = metadata
 	_ = srcrefNode
 	if metadata.DefinePropertiesObjForClass().HasChildren() {
-		var definePropsCall pkg_rhino.Node = pkg_rhino.IR_ExprResult(this_.astFactory.CreateCall(this_.priv_Es6RewriteClass_createObjectDotDefineProperties_2607(), AstFactory_S_Type_1_Node(metadata.FullClassNameNode()), []pkg_rhino.Node{metadata.FullClassNameNode().CloneTree_0(), metadata.DefinePropertiesObjForClass()}))
+		var definePropsCall pkg_rhino.Node = pkg_rhino.IR_ExprResult(this_.astFactory.CreateCall(this_.priv_Es6RewriteClass_createObjectDotDefineProperties_2608(), AstFactory_S_Type_1_Node(metadata.FullClassNameNode()), []pkg_rhino.Node{metadata.FullClassNameNode().CloneTree_0(), metadata.DefinePropertiesObjForClass()}))
 		_ = definePropsCall
 		definePropsCall.SrcrefTreeIfMissing(srcrefNode)
 		metadata.InsertNodeAndAdvance(definePropsCall)
@@ -323,19 +323,19 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_flushDefinePropertiesForClass
 }
 
 // Java method: Es6RewriteClass.flushPendingDefineProperties(com.google.javascript.jscomp.Es6RewriteClass.ClassDeclarationMetadata metadata, boolean isStatic, com.google.javascript.rhino.Node srcrefNode)
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_flushPendingDefineProperties_2611(metadata *Es6RewriteClass_ClassDeclarationMetadata, isStatic bool, srcrefNode pkg_rhino.Node) {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_flushPendingDefineProperties_2612(metadata *Es6RewriteClass_ClassDeclarationMetadata, isStatic bool, srcrefNode pkg_rhino.Node) {
 	_ = metadata
 	_ = isStatic
 	_ = srcrefNode
 	if isStatic {
-		this_.priv_Es6RewriteClass_flushDefinePropertiesForClass_2610(metadata, srcrefNode)
+		this_.priv_Es6RewriteClass_flushDefinePropertiesForClass_2611(metadata, srcrefNode)
 	} else {
-		this_.priv_Es6RewriteClass_flushDefinePropertiesForPrototype_2609(metadata, srcrefNode)
+		this_.priv_Es6RewriteClass_flushDefinePropertiesForPrototype_2610(metadata, srcrefNode)
 	}
 }
 
 // Java method: Es6RewriteClass.addToDefinePropertiesObject(com.google.javascript.jscomp.Es6RewriteClass.ClassDeclarationMetadata metadata, com.google.javascript.rhino.Node member)
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_addToDefinePropertiesObject_2612(metadata *Es6RewriteClass_ClassDeclarationMetadata, member pkg_rhino.Node) {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_addToDefinePropertiesObject_2613(metadata *Es6RewriteClass_ClassDeclarationMetadata, member pkg_rhino.Node) {
 	_ = metadata
 	_ = member
 	if !(!(member.IsComputedProp())) {
@@ -358,7 +358,7 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_addToDefinePropertiesObject_2
 		accessorKind = "set"
 	}
 	if (prop != 0) && (NodeUtil_GetFirstPropMatchingKey(prop, accessorKind) != 0) {
-		this_.priv_Es6RewriteClass_flushPendingDefineProperties_2611(metadata, member.IsStaticMember(), member)
+		this_.priv_Es6RewriteClass_flushPendingDefineProperties_2612(metadata, member.IsStaticMember(), member)
 		if member.IsStaticMember() {
 			obj = metadata.DefinePropertiesObjForClass()
 		} else {
@@ -367,7 +367,7 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_addToDefinePropertiesObject_2
 		prop = pkg_rhino.Node(0)
 	}
 	if prop == 0 {
-		prop = this_.priv_Es6RewriteClass_createPropertyDescriptor_2618()
+		prop = this_.priv_Es6RewriteClass_createPropertyDescriptor_2619()
 		if j2gort.CheckNotNullString(member.GetString()) == "__proto__" {
 			var stringKey pkg_rhino.Node = this_.astFactory.CreateComputedProperty(this_.astFactory.CreateString("__proto__"), prop)
 			_ = stringKey
@@ -398,10 +398,10 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_addToDefinePropertiesObject_2
 }
 
 // Java method: Es6RewriteClass.extractComputedProperty(com.google.javascript.rhino.Node computedMember, com.google.javascript.jscomp.Es6RewriteClass.ClassDeclarationMetadata metadata)
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_extractComputedProperty_2613(computedMember pkg_rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_extractComputedProperty_2614(computedMember pkg_rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
 	_ = computedMember
 	_ = metadata
-	this_.priv_Es6RewriteClass_flushPendingDefineProperties_2611(metadata, computedMember.IsStaticMember(), computedMember)
+	this_.priv_Es6RewriteClass_flushPendingDefineProperties_2612(metadata, computedMember.IsStaticMember(), computedMember)
 	var owner pkg_rhino.Node
 	_ = owner
 	if computedMember.IsStaticMember() {
@@ -413,7 +413,7 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_extractComputedProperty_2613(
 	_ = property
 	var propertyValue pkg_rhino.Node = computedMember.RemoveFirstChild()
 	_ = propertyValue
-	var propertyDescriptor pkg_rhino.Node = this_.priv_Es6RewriteClass_createPropertyDescriptor_2618()
+	var propertyDescriptor pkg_rhino.Node = this_.priv_Es6RewriteClass_createPropertyDescriptor_2619()
 	_ = propertyDescriptor
 	var stringKey pkg_rhino.Node = this_.astFactory.CreateStringKey(func() string {
 		if computedMember.GetBooleanProp(pkg_rhino.StaticGet_Node_COMPUTED_PROP_GETTER()) {
@@ -423,20 +423,20 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_extractComputedProperty_2613(
 	}(), propertyValue)
 	_ = stringKey
 	propertyDescriptor.AddChildToBack(stringKey)
-	var objectDefinePropertyCall pkg_rhino.Node = this_.astFactory.CreateCall(this_.priv_Es6RewriteClass_createObjectDotDefineProperty_2608(), AstFactory_S_Type_1_Node(owner), []pkg_rhino.Node{owner.CloneTree_0(), property, propertyDescriptor})
+	var objectDefinePropertyCall pkg_rhino.Node = this_.astFactory.CreateCall(this_.priv_Es6RewriteClass_createObjectDotDefineProperty_2609(), AstFactory_S_Type_1_Node(owner), []pkg_rhino.Node{owner.CloneTree_0(), property, propertyDescriptor})
 	_ = objectDefinePropertyCall
 	metadata.InsertNodeAndAdvance(pkg_rhino.IR_ExprResult(objectDefinePropertyCall).SrcrefTreeIfMissing(computedMember))
 }
 
 // Java method: Es6RewriteClass.visitNonMethodMember(com.google.javascript.rhino.Node member, com.google.javascript.jscomp.Es6RewriteClass.ClassDeclarationMetadata metadata)
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_visitNonMethodMember_2614(member pkg_rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_visitNonMethodMember_2615(member pkg_rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
 	_ = member
 	_ = metadata
 	if member.IsComputedProp() {
-		this_.priv_Es6RewriteClass_extractComputedProperty_2613(member.Detach(), metadata)
+		this_.priv_Es6RewriteClass_extractComputedProperty_2614(member.Detach(), metadata)
 		return
 	}
-	this_.priv_Es6RewriteClass_addToDefinePropertiesObject_2612(metadata, member)
+	this_.priv_Es6RewriteClass_addToDefinePropertiesObject_2613(metadata, member)
 	if !(member.IsStaticMember()) {
 		return
 	}
@@ -463,11 +463,11 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_visitNonMethodMember_2614(mem
 }
 
 // Java method: Es6RewriteClass.visitMethod(com.google.javascript.rhino.Node member, com.google.javascript.jscomp.Es6RewriteClass.ClassDeclarationMetadata metadata)
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_visitMethod_2615(member pkg_rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_visitMethod_2616(member pkg_rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) {
 	_ = member
 	_ = metadata
-	this_.priv_Es6RewriteClass_flushPendingDefineProperties_2611(metadata, member.IsStaticMember(), member)
-	var qualifiedMemberAccess pkg_rhino.Node = this_.priv_Es6RewriteClass_getQualifiedMemberAccess_2617(member, metadata)
+	this_.priv_Es6RewriteClass_flushPendingDefineProperties_2612(metadata, member.IsStaticMember(), member)
+	var qualifiedMemberAccess pkg_rhino.Node = this_.priv_Es6RewriteClass_getQualifiedMemberAccess_2618(member, metadata)
 	_ = qualifiedMemberAccess
 	var method pkg_rhino.Node = member.GetLastChild().Detach()
 	_ = method
@@ -490,7 +490,7 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_visitMethod_2615(member pkg_r
 }
 
 // Java method: Es6RewriteClass.addTypeDeclarations(com.google.javascript.jscomp.Es6RewriteClass.ClassDeclarationMetadata metadata, com.google.javascript.rhino.Node insertionPoint)
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_addTypeDeclarations_2616(metadata *Es6RewriteClass_ClassDeclarationMetadata, insertionPoint pkg_rhino.Node) {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_addTypeDeclarations_2617(metadata *Es6RewriteClass_ClassDeclarationMetadata, insertionPoint pkg_rhino.Node) {
 	_ = metadata
 	_ = insertionPoint
 	{
@@ -509,7 +509,7 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_addTypeDeclarations_2616(meta
 }
 
 // Java method: Es6RewriteClass.getQualifiedMemberAccess(com.google.javascript.rhino.Node member, com.google.javascript.jscomp.Es6RewriteClass.ClassDeclarationMetadata metadata)
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_getQualifiedMemberAccess_2617(member pkg_rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) pkg_rhino.Node {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_getQualifiedMemberAccess_2618(member pkg_rhino.Node, metadata *Es6RewriteClass_ClassDeclarationMetadata) pkg_rhino.Node {
 	_ = member
 	_ = metadata
 	var context pkg_rhino.Node
@@ -530,7 +530,7 @@ func (this_ *Es6RewriteClass) priv_Es6RewriteClass_getQualifiedMemberAccess_2617
 }
 
 // Java method: Es6RewriteClass.createPropertyDescriptor()
-func (this_ *Es6RewriteClass) priv_Es6RewriteClass_createPropertyDescriptor_2618() pkg_rhino.Node {
+func (this_ *Es6RewriteClass) priv_Es6RewriteClass_createPropertyDescriptor_2619() pkg_rhino.Node {
 	return this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{this_.astFactory.CreateStringKey("configurable", this_.astFactory.CreateBoolean(true)), this_.astFactory.CreateStringKey("enumerable", this_.astFactory.CreateBoolean(true))})
 }
 

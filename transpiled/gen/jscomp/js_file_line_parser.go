@@ -262,10 +262,10 @@ func (this_ *JsFileLineParserBase) DoParse(filePath string, fileContents j2gort.
 							revisedLine = j2gort.JStrSub(revisedLine, int32(0), startOfLineComment)
 							break
 						} else if startOfMultilineComment != int32(-1) {
-							if this_.priv_JsFileLineParser_isCommentQuoted_6147(revisedLine, startOfMultilineComment, uint16(39)) {
+							if this_.priv_JsFileLineParser_isCommentQuoted_6148(revisedLine, startOfMultilineComment, uint16(39)) {
 								break
 							}
-							if this_.priv_JsFileLineParser_isCommentQuoted_6147(revisedLine, startOfMultilineComment, uint16(34)) {
+							if this_.priv_JsFileLineParser_isCommentQuoted_6148(revisedLine, startOfMultilineComment, uint16(34)) {
 								break
 							}
 							if startOfMultilineComment == j2gort.JStrIndexOf(revisedLine, "/**") {
@@ -317,7 +317,7 @@ func (this_ *JsFileLineParserBase) DoParse(filePath string, fileContents j2gort.
 }
 
 // Java method: JsFileLineParser.isCommentQuoted(java.lang.String line, int startOfMultilineComment, char quoteChar)
-func (this_ *JsFileLineParserBase) priv_JsFileLineParser_isCommentQuoted_6147(line string, startOfMultilineComment int32, quoteChar uint16) bool {
+func (this_ *JsFileLineParserBase) priv_JsFileLineParser_isCommentQuoted_6148(line string, startOfMultilineComment int32, quoteChar uint16) bool {
 	_ = line
 	_ = startOfMultilineComment
 	_ = quoteChar
@@ -329,7 +329,7 @@ func (this_ *JsFileLineParserBase) priv_JsFileLineParser_isCommentQuoted_6147(li
 		if closingQuoteIndex == int32(-1) {
 			return false
 		}
-		for this_.priv_JsFileLineParser_isEscaped_6148(line, closingQuoteIndex) {
+		for this_.priv_JsFileLineParser_isEscaped_6149(line, closingQuoteIndex) {
 			closingQuoteIndex = j2gort.JStrIndexOfCpFrom(line, int32(quoteChar), (closingQuoteIndex + int32(1)))
 			if closingQuoteIndex == int32(-1) {
 				return false
@@ -344,7 +344,7 @@ func (this_ *JsFileLineParserBase) priv_JsFileLineParser_isCommentQuoted_6147(li
 }
 
 // Java method: JsFileLineParser.isEscaped(java.lang.String line, int closingQuoteIndex)
-func (this_ *JsFileLineParserBase) priv_JsFileLineParser_isEscaped_6148(line string, closingQuoteIndex int32) bool {
+func (this_ *JsFileLineParserBase) priv_JsFileLineParser_isEscaped_6149(line string, closingQuoteIndex int32) bool {
 	_ = line
 	_ = closingQuoteIndex
 	var escapeCharCount int32 = int32(0)

@@ -108,7 +108,7 @@ func (this_ *PeepholeCollectPropertyAssignments) OptimizeSubtree(subtree pkg_rhi
 				propertyCandidate = asgn_1
 				return asgn_1
 			}()) != 0 {
-				if !(this_.priv_PeepholeCollectPropertyAssignments_collectProperty_4190(propertyCandidate, name.GetString(), value)) {
+				if !(this_.priv_PeepholeCollectPropertyAssignments_collectProperty_4191(propertyCandidate, name.GetString(), value)) {
 					break
 				}
 				codeChanged = true
@@ -171,7 +171,7 @@ func PeepholeCollectPropertyAssignments_IsPropertyAssignmentToName(propertyCandi
 }
 
 // Java method: PeepholeCollectPropertyAssignments.collectProperty(com.google.javascript.rhino.Node propertyCandidate, java.lang.String name, com.google.javascript.rhino.Node value)
-func (this_ *PeepholeCollectPropertyAssignments) priv_PeepholeCollectPropertyAssignments_collectProperty_4190(propertyCandidate pkg_rhino.Node, name string, value pkg_rhino.Node) bool {
+func (this_ *PeepholeCollectPropertyAssignments) priv_PeepholeCollectPropertyAssignments_collectProperty_4191(propertyCandidate pkg_rhino.Node, name string, value pkg_rhino.Node) bool {
 	_ = propertyCandidate
 	_ = name
 	_ = value
@@ -206,7 +206,7 @@ func (this_ *PeepholeCollectPropertyAssignments) priv_PeepholeCollectPropertyAss
 			return false
 		}
 	case int32(47) /* Token.OBJECTLIT */ :
-		if !(this_.priv_PeepholeCollectPropertyAssignments_collectObjectProperty_4191(value, propertyCandidate)) {
+		if !(this_.priv_PeepholeCollectPropertyAssignments_collectObjectProperty_4192(value, propertyCandidate)) {
 			return false
 		}
 	default:
@@ -303,7 +303,7 @@ func PeepholeCollectPropertyAssignments_ArrayLiteralHasSpread(arrayLiteral pkg_r
 }
 
 // Java method: PeepholeCollectPropertyAssignments.collectObjectProperty(com.google.javascript.rhino.Node objectLiteral, com.google.javascript.rhino.Node propertyCandidate)
-func (this_ *PeepholeCollectPropertyAssignments) priv_PeepholeCollectPropertyAssignments_collectObjectProperty_4191(objectLiteral pkg_rhino.Node, propertyCandidate pkg_rhino.Node) bool {
+func (this_ *PeepholeCollectPropertyAssignments) priv_PeepholeCollectPropertyAssignments_collectObjectProperty_4192(objectLiteral pkg_rhino.Node, propertyCandidate pkg_rhino.Node) bool {
 	_ = objectLiteral
 	_ = propertyCandidate
 	var assignment pkg_rhino.Node = propertyCandidate.GetFirstChild()

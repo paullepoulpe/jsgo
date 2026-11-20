@@ -176,7 +176,7 @@ func (this_ *RewriteAsyncFunctions) Visit_3(t *NodeTraversal, n pkg_rhino.Node, 
 }
 
 // Java method: RewriteAsyncFunctions.convertAsyncFunction(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.RewriteAsyncFunctions.FunctionContext functionContext)
-func (this_ *RewriteAsyncFunctions) priv_RewriteAsyncFunctions_convertAsyncFunction_4972(t *NodeTraversal, functionContext *RewriteAsyncFunctions_FunctionContext) {
+func (this_ *RewriteAsyncFunctions) priv_RewriteAsyncFunctions_convertAsyncFunction_4973(t *NodeTraversal, functionContext *RewriteAsyncFunctions_FunctionContext) {
 	_ = t
 	_ = functionContext
 	var originalFunction pkg_rhino.Node = functionContext.GetContextRootNode()
@@ -207,12 +207,12 @@ func (this_ *RewriteAsyncFunctions) priv_RewriteAsyncFunctions_convertAsyncFunct
 		NodeUtil_AddFeatureToScript(t.GetCurrentScript(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS(), this_.compiler)
 	}
 	{
-		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(functionContext.superPropertyWrappers.priv_SuperPropertyWrappers_asCollection_4978()))
+		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(functionContext.superPropertyWrappers.priv_SuperPropertyWrappers_asCollection_4979()))
 		for cur_1.HasNext() {
 			rawElem_2 := cur_1.Next()
 			superPropertyWrapperInfo := j2gort.CastPtr[RewriteAsyncFunctions_SuperPropertyWrapperInfo](rawElem_2)
 			_ = superPropertyWrapperInfo
-			var arrowFunction pkg_rhino.Node = functionContext.priv_FunctionContext_createWrapperArrowFunction_4989(superPropertyWrapperInfo)
+			var arrowFunction pkg_rhino.Node = functionContext.priv_FunctionContext_createWrapperArrowFunction_4990(superPropertyWrapperInfo)
 			_ = arrowFunction
 			var arrowFunctionDeclarationStatement pkg_rhino.Node = this_.astFactory.CreateSingleConstNameDeclaration(superPropertyWrapperInfo.wrapperFunctionName, arrowFunction)
 			_ = arrowFunctionDeclarationStatement
@@ -298,18 +298,18 @@ func InitRewriteAsyncFunctions_SuperPropertyWrapperInfo(this_ *RewriteAsyncFunct
 }
 
 // Java method: SuperPropertyWrapperInfo.getPropertyType()
-func (this_ *RewriteAsyncFunctions_SuperPropertyWrapperInfo) priv_SuperPropertyWrapperInfo_getPropertyType_4973() *pkg_colors.Color {
+func (this_ *RewriteAsyncFunctions_SuperPropertyWrapperInfo) priv_SuperPropertyWrapperInfo_getPropertyType_4974() *pkg_colors.Color {
 	return this_.firstInstanceOfSuperDotProperty.GetColor()
 }
 
 // Java method: SuperPropertyWrapperInfo.createWrapperFunctionNameNode()
-func (this_ *RewriteAsyncFunctions_SuperPropertyWrapperInfo) priv_SuperPropertyWrapperInfo_createWrapperFunctionNameNode_4974() pkg_rhino.Node {
+func (this_ *RewriteAsyncFunctions_SuperPropertyWrapperInfo) priv_SuperPropertyWrapperInfo_createWrapperFunctionNameNode_4975() pkg_rhino.Node {
 	return this_.outer_.astFactory.CreateName_2_string_AstFactory_Type(this_.wrapperFunctionName, AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_TOP_OBJECT()))
 }
 
 // Java method: SuperPropertyWrapperInfo.createWrapperFunctionCallNode()
-func (this_ *RewriteAsyncFunctions_SuperPropertyWrapperInfo) priv_SuperPropertyWrapperInfo_createWrapperFunctionCallNode_4975() pkg_rhino.Node {
-	return this_.outer_.astFactory.CreateCall(this_.priv_SuperPropertyWrapperInfo_createWrapperFunctionNameNode_4974(), this_.wrapperFunctionReturnType, []pkg_rhino.Node{})
+func (this_ *RewriteAsyncFunctions_SuperPropertyWrapperInfo) priv_SuperPropertyWrapperInfo_createWrapperFunctionCallNode_4976() pkg_rhino.Node {
+	return this_.outer_.astFactory.CreateCall(this_.priv_SuperPropertyWrapperInfo_createWrapperFunctionNameNode_4975(), this_.wrapperFunctionReturnType, []pkg_rhino.Node{})
 }
 
 // Java class: com.google.javascript.jscomp.RewriteAsyncFunctions.SuperPropertyWrappers
@@ -366,7 +366,7 @@ func InitRewriteAsyncFunctions_SuperPropertyWrappers(this_ *RewriteAsyncFunction
 }
 
 // Java method: SuperPropertyWrappers.getOrCreateSuperPropertyWrapperInfo(com.google.javascript.rhino.Node superDotPropertyNode)
-func (this_ *RewriteAsyncFunctions_SuperPropertyWrappers) priv_SuperPropertyWrappers_getOrCreateSuperPropertyWrapperInfo_4976(superDotPropertyNode pkg_rhino.Node) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
+func (this_ *RewriteAsyncFunctions_SuperPropertyWrappers) priv_SuperPropertyWrappers_getOrCreateSuperPropertyWrapperInfo_4977(superDotPropertyNode pkg_rhino.Node) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
 	_ = superDotPropertyNode
 	if !(superDotPropertyNode.IsGetProp()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(superDotPropertyNode))
@@ -384,20 +384,20 @@ func (this_ *RewriteAsyncFunctions_SuperPropertyWrappers) priv_SuperPropertyWrap
 	_ = superPropertyWrapperInfo
 	if this_.propertyNameToTypeMap.ContainsKey(propertyName) {
 		superPropertyWrapperInfo = this_.propertyNameToTypeMap.Get(propertyName)
-		var existingColor *pkg_colors.Color = superPropertyWrapperInfo.priv_SuperPropertyWrapperInfo_getPropertyType_4973()
+		var existingColor *pkg_colors.Color = superPropertyWrapperInfo.priv_SuperPropertyWrapperInfo_getPropertyType_4974()
 		_ = existingColor
 		if !(j2gort.ObjEqCustomPtr(existingColor, propertyType)) {
 			j2gort.CheckStateFmt(false, "Previous reference type: %s differs from current reference type: %s", j2gort.PtrToAny(existingColor), j2gort.PtrToAny(propertyType))
 		}
 	} else {
-		superPropertyWrapperInfo = this_.priv_SuperPropertyWrappers_createNewInfo_4977(superDotPropertyNode)
+		superPropertyWrapperInfo = this_.priv_SuperPropertyWrappers_createNewInfo_4978(superDotPropertyNode)
 		this_.propertyNameToTypeMap.Put(propertyName, superPropertyWrapperInfo)
 	}
 	return superPropertyWrapperInfo
 }
 
 // Java method: SuperPropertyWrappers.createNewInfo(com.google.javascript.rhino.Node firstSuperDotPropertyNode)
-func (this_ *RewriteAsyncFunctions_SuperPropertyWrappers) priv_SuperPropertyWrappers_createNewInfo_4977(firstSuperDotPropertyNode pkg_rhino.Node) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
+func (this_ *RewriteAsyncFunctions_SuperPropertyWrappers) priv_SuperPropertyWrappers_createNewInfo_4978(firstSuperDotPropertyNode pkg_rhino.Node) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
 	_ = firstSuperDotPropertyNode
 	if !(firstSuperDotPropertyNode.IsGetProp()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(firstSuperDotPropertyNode))
@@ -410,7 +410,7 @@ func (this_ *RewriteAsyncFunctions_SuperPropertyWrappers) priv_SuperPropertyWrap
 }
 
 // Java method: SuperPropertyWrappers.asCollection()
-func (this_ *RewriteAsyncFunctions_SuperPropertyWrappers) priv_SuperPropertyWrappers_asCollection_4978() j2gort.Ext_java_util_Collection {
+func (this_ *RewriteAsyncFunctions_SuperPropertyWrappers) priv_SuperPropertyWrappers_asCollection_4979() j2gort.Ext_java_util_Collection {
 	return j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.propertyNameToTypeMap.LiveValues())
 }
 
@@ -641,14 +641,14 @@ func (this_ *RewriteAsyncFunctions_ParameterListContext) GetContextForNode(t *No
 	if n.IsFunction() {
 		var uniqueId string = this_.outer_.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
 		_ = uniqueId
-		return NewRewriteAsyncFunctions_FunctionContext_3(this_.outer_, this_.priv_ParameterListContext_getAsyncContextForParameterList_4982(), n, uniqueId)
+		return NewRewriteAsyncFunctions_FunctionContext_3(this_.outer_, this_.priv_ParameterListContext_getAsyncContextForParameterList_4983(), n, uniqueId)
 	} else {
 		return this_
 	}
 }
 
 // Java method: ParameterListContext.getAsyncContextForParameterList()
-func (this_ *RewriteAsyncFunctions_ParameterListContext) priv_ParameterListContext_getAsyncContextForParameterList_4982() *RewriteAsyncFunctions_FunctionContext {
+func (this_ *RewriteAsyncFunctions_ParameterListContext) priv_ParameterListContext_getAsyncContextForParameterList_4983() *RewriteAsyncFunctions_FunctionContext {
 	var asyncContext *RewriteAsyncFunctions_FunctionContext = this_.functionContext.asyncThisAndArgumentsContext
 	_ = asyncContext
 	if asyncContext == this_.functionContext {
@@ -662,7 +662,7 @@ func (this_ *RewriteAsyncFunctions_ParameterListContext) priv_ParameterListConte
 func (this_ *RewriteAsyncFunctions_ParameterListContext) Visit(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
-	if this_.priv_ParameterListContext_getAsyncContextForParameterList_4982() != nil {
+	if this_.priv_ParameterListContext_getAsyncContextForParameterList_4983() != nil {
 		this_.functionContext.Visit(t, n)
 	}
 }
@@ -790,7 +790,7 @@ func (this_ *RewriteAsyncFunctions_FunctionContext) GetContextForNode(t *NodeTra
 }
 
 // Java method: FunctionContext.recordAsyncThisReplacementWasDone(com.google.javascript.jscomp.AstFactory.Type typeOfThis)
-func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_recordAsyncThisReplacementWasDone_4983(typeOfThis AstFactory_Type) {
+func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_recordAsyncThisReplacementWasDone_4984(typeOfThis AstFactory_Type) {
 	_ = typeOfThis
 	{
 		r_3 := this_.asyncThisAndArgumentsContext
@@ -803,13 +803,13 @@ func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_recordA
 }
 
 // Java method: FunctionContext.getOrCreateSuperPropertyWrapperInfo(com.google.javascript.rhino.Node superDotPropertyNode)
-func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_getOrCreateSuperPropertyWrapperInfo_4984(superDotPropertyNode pkg_rhino.Node) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
+func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_getOrCreateSuperPropertyWrapperInfo_4985(superDotPropertyNode pkg_rhino.Node) *RewriteAsyncFunctions_SuperPropertyWrapperInfo {
 	_ = superDotPropertyNode
-	return this_.asyncThisAndArgumentsContext.superPropertyWrappers.priv_SuperPropertyWrappers_getOrCreateSuperPropertyWrapperInfo_4976(superDotPropertyNode)
+	return this_.asyncThisAndArgumentsContext.superPropertyWrappers.priv_SuperPropertyWrappers_getOrCreateSuperPropertyWrapperInfo_4977(superDotPropertyNode)
 }
 
 // Java method: FunctionContext.recordAsyncArgumentsReplacementWasDone()
-func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_recordAsyncArgumentsReplacementWasDone_4985() {
+func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_recordAsyncArgumentsReplacementWasDone_4986() {
 	{
 		r_5 := this_.asyncThisAndArgumentsContext
 		r_5.mustAddAsyncArgumentsVariable = true
@@ -817,7 +817,7 @@ func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_recordA
 }
 
 // Java method: FunctionContext.recordAsyncNewTargetReplacementWasDone(com.google.javascript.jscomp.AstFactory.Type typeOfNewTarget)
-func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_recordAsyncNewTargetReplacementWasDone_4986(typeOfNewTarget AstFactory_Type) {
+func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_recordAsyncNewTargetReplacementWasDone_4987(typeOfNewTarget AstFactory_Type) {
 	_ = typeOfNewTarget
 	{
 		r_6 := this_.asyncThisAndArgumentsContext
@@ -830,21 +830,21 @@ func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_recordA
 }
 
 // Java method: FunctionContext.createThisVariableReference(com.google.javascript.jscomp.AstFactory.Type typeOfThis)
-func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_createThisVariableReference_4987(typeOfThis AstFactory_Type) pkg_rhino.Node {
+func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_createThisVariableReference_4988(typeOfThis AstFactory_Type) pkg_rhino.Node {
 	_ = typeOfThis
-	this_.priv_FunctionContext_recordAsyncThisReplacementWasDone_4983(typeOfThis)
+	this_.priv_FunctionContext_recordAsyncThisReplacementWasDone_4984(typeOfThis)
 	return this_.outer_.astFactory.CreateName_2_string_AstFactory_Type(("$jscomp$async$this$" + j2gort.StrValString(this_.asyncThisAndArgumentsContext.GetRewriteAsyncFunctions_LexicalContextBase().uniqueId)), typeOfThis)
 }
 
 // Java method: FunctionContext.createNewTargetVariableReference(com.google.javascript.jscomp.AstFactory.Type typeOfNewTarget)
-func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_createNewTargetVariableReference_4988(typeOfNewTarget AstFactory_Type) pkg_rhino.Node {
+func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_createNewTargetVariableReference_4989(typeOfNewTarget AstFactory_Type) pkg_rhino.Node {
 	_ = typeOfNewTarget
-	this_.priv_FunctionContext_recordAsyncNewTargetReplacementWasDone_4986(typeOfNewTarget)
+	this_.priv_FunctionContext_recordAsyncNewTargetReplacementWasDone_4987(typeOfNewTarget)
 	return this_.outer_.astFactory.CreateName_2_string_AstFactory_Type(("$jscomp$async$new$target$" + j2gort.StrValString(this_.asyncThisAndArgumentsContext.GetRewriteAsyncFunctions_LexicalContextBase().uniqueId)), typeOfNewTarget)
 }
 
 // Java method: FunctionContext.createWrapperArrowFunction(com.google.javascript.jscomp.RewriteAsyncFunctions.SuperPropertyWrapperInfo wrapperInfo)
-func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_createWrapperArrowFunction_4989(wrapperInfo *RewriteAsyncFunctions_SuperPropertyWrapperInfo) pkg_rhino.Node {
+func (this_ *RewriteAsyncFunctions_FunctionContext) priv_FunctionContext_createWrapperArrowFunction_4990(wrapperInfo *RewriteAsyncFunctions_SuperPropertyWrapperInfo) pkg_rhino.Node {
 	_ = wrapperInfo
 	var superDotProperty pkg_rhino.Node = wrapperInfo.firstInstanceOfSuperDotProperty.CloneTree_0()
 	_ = superDotProperty
@@ -856,7 +856,7 @@ func (this_ *RewriteAsyncFunctions_FunctionContext) Visit(t *NodeTraversal, n pk
 	_ = t
 	_ = n
 	if (this_.GetRewriteAsyncFunctions_LexicalContextBase().contextRootNode == n) && this_.GetRewriteAsyncFunctions_LexicalContextBase().contextRootNode.IsAsyncFunction() {
-		this_.outer_.priv_RewriteAsyncFunctions_convertAsyncFunction_4972(t, this_)
+		this_.outer_.priv_RewriteAsyncFunctions_convertAsyncFunction_4973(t, this_)
 	} else if this_.asyncThisAndArgumentsContext != nil {
 		switch n.TokenSwitchOrd_() {
 		case int32(32) /* Token.NAME */ :
@@ -865,14 +865,14 @@ func (this_ *RewriteAsyncFunctions_FunctionContext) Visit(t *NodeTraversal, n pk
 				if this_.outer_.compiler.GetLifeCycleStage().IsNormalized() {
 					n.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME(), true)
 				}
-				this_.asyncThisAndArgumentsContext.priv_FunctionContext_recordAsyncArgumentsReplacementWasDone_4985()
+				this_.asyncThisAndArgumentsContext.priv_FunctionContext_recordAsyncArgumentsReplacementWasDone_4986()
 				this_.outer_.compiler.ReportChangeToChangeScope(this_.GetRewriteAsyncFunctions_LexicalContextBase().contextRootNode)
 			}
 		case int32(37) /* Token.THIS */ :
-			n.ReplaceWith(this_.asyncThisAndArgumentsContext.priv_FunctionContext_createThisVariableReference_4987(AstFactory_S_Type_1_Node(n)))
+			n.ReplaceWith(this_.asyncThisAndArgumentsContext.priv_FunctionContext_createThisVariableReference_4988(AstFactory_S_Type_1_Node(n)))
 			this_.outer_.compiler.ReportChangeToChangeScope(this_.GetRewriteAsyncFunctions_LexicalContextBase().contextRootNode)
 		case int32(135) /* Token.NEW_TARGET */ :
-			n.ReplaceWith(this_.asyncThisAndArgumentsContext.priv_FunctionContext_createNewTargetVariableReference_4988(AstFactory_S_Type_1_Node(n)))
+			n.ReplaceWith(this_.asyncThisAndArgumentsContext.priv_FunctionContext_createNewTargetVariableReference_4989(AstFactory_S_Type_1_Node(n)))
 			this_.outer_.compiler.ReportChangeToChangeScope(this_.GetRewriteAsyncFunctions_LexicalContextBase().contextRootNode)
 		case int32(110) /* Token.SUPER */ :
 			{
@@ -885,9 +885,9 @@ func (this_ *RewriteAsyncFunctions_FunctionContext) Visit(t *NodeTraversal, n pk
 				}
 				var superDotProperty pkg_rhino.Node = parent
 				_ = superDotProperty
-				var superPropertyWrapperInfo *RewriteAsyncFunctions_SuperPropertyWrapperInfo = this_.asyncThisAndArgumentsContext.priv_FunctionContext_getOrCreateSuperPropertyWrapperInfo_4984(superDotProperty)
+				var superPropertyWrapperInfo *RewriteAsyncFunctions_SuperPropertyWrapperInfo = this_.asyncThisAndArgumentsContext.priv_FunctionContext_getOrCreateSuperPropertyWrapperInfo_4985(superDotProperty)
 				_ = superPropertyWrapperInfo
-				var getPropReplacement pkg_rhino.Node = superPropertyWrapperInfo.priv_SuperPropertyWrapperInfo_createWrapperFunctionCallNode_4975()
+				var getPropReplacement pkg_rhino.Node = superPropertyWrapperInfo.priv_SuperPropertyWrapperInfo_createWrapperFunctionCallNode_4976()
 				_ = getPropReplacement
 				var grandparent pkg_rhino.Node = superDotProperty.GetParent()
 				_ = grandparent
@@ -896,11 +896,11 @@ func (this_ *RewriteAsyncFunctions_FunctionContext) Visit(t *NodeTraversal, n pk
 					var thisAlias pkg_rhino.Node = this_.outer_.astFactory.CreateThisAliasReferenceForEs6Class(("$jscomp$async$this$" + j2gort.StrValString(this_.asyncThisAndArgumentsContext.GetRewriteAsyncFunctions_LexicalContextBase().uniqueId)), NodeUtil_GetEnclosingClass(this_.asyncThisAndArgumentsContext.GetContextRootNode())).Srcref(superDotProperty)
 					_ = thisAlias
 					thisAlias.InsertAfter(superDotProperty)
-					this_.asyncThisAndArgumentsContext.priv_FunctionContext_recordAsyncThisReplacementWasDone_4983(AstFactory_S_Type_1_Node(thisAlias))
+					this_.asyncThisAndArgumentsContext.priv_FunctionContext_recordAsyncThisReplacementWasDone_4984(AstFactory_S_Type_1_Node(thisAlias))
 				} else if grandparent.IsTaggedTemplateLit() && (grandparent.GetFirstChild() == superDotProperty) {
 					var thisAlias_2 pkg_rhino.Node = this_.outer_.astFactory.CreateThisAliasReferenceForEs6Class(("$jscomp$async$this$" + j2gort.StrValString(this_.asyncThisAndArgumentsContext.GetRewriteAsyncFunctions_LexicalContextBase().uniqueId)), NodeUtil_GetEnclosingClass(this_.asyncThisAndArgumentsContext.GetContextRootNode())).Srcref(superDotProperty)
 					_ = thisAlias_2
-					this_.asyncThisAndArgumentsContext.priv_FunctionContext_recordAsyncThisReplacementWasDone_4983(AstFactory_S_Type_1_Node(thisAlias_2))
+					this_.asyncThisAndArgumentsContext.priv_FunctionContext_recordAsyncThisReplacementWasDone_4984(AstFactory_S_Type_1_Node(thisAlias_2))
 					getPropReplacement = this_.outer_.astFactory.CreateCallWithUnknownType(this_.outer_.astFactory.CreateGetPropWithUnknownType(getPropReplacement, "bind"), []pkg_rhino.Node{thisAlias_2})
 					grandparent.PutBooleanProp(pkg_rhino.StaticGet_Node_FREE_CALL(), true)
 				}

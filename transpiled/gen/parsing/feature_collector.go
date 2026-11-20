@@ -83,11 +83,11 @@ func (this_ *FeatureCollector) VisitScript(script pkg_rhino.Node) {
 	var emptyContext j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList()
 	_ = emptyContext
 	emptyContext.Add_1(j2gort.BoxNullableVal(StaticGet_FeatureCollector_FeatureContext_NONE()))
-	this_.priv_FeatureCollector_visitRecursive_6856(emptyContext, script)
+	this_.priv_FeatureCollector_visitRecursive_6857(emptyContext, script)
 }
 
 // Java method: FeatureCollector.visitRecursive(java.util.List<com.google.javascript.jscomp.parsing.FeatureCollector.FeatureContext> contextStack, com.google.javascript.rhino.Node node)
-func (this_ *FeatureCollector) priv_FeatureCollector_visitRecursive_6856(contextStack j2gort.Ext_java_util_List, node pkg_rhino.Node) {
+func (this_ *FeatureCollector) priv_FeatureCollector_visitRecursive_6857(contextStack j2gort.Ext_java_util_List, node pkg_rhino.Node) {
 	_ = contextStack
 	_ = node
 	var newContext FeatureCollector_FeatureContext = this_.VisitSingleNode(contextStack, node)
@@ -97,7 +97,7 @@ func (this_ *FeatureCollector) priv_FeatureCollector_visitRecursive_6856(context
 		var child pkg_rhino.Node = node.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			this_.priv_FeatureCollector_visitRecursive_6856(contextStack, child)
+			this_.priv_FeatureCollector_visitRecursive_6857(contextStack, child)
 		}
 	}
 	contextStack.Remove_1_int32((contextStack.Size() - int32(1)))
@@ -110,12 +110,12 @@ func (this_ *FeatureCollector) VisitSingleNode(contextStack j2gort.Ext_java_util
 	if !(contextStack.Size() >= int32(1)) {
 		j2gort.CheckStateStr(false, "The provided feature context stack was empty. It must have at least one element.")
 	}
-	this_.priv_FeatureCollector_recordScriptFeatures_6858(contextStack, node)
+	this_.priv_FeatureCollector_recordScriptFeatures_6859(contextStack, node)
 	return FeatureCollector_ContextFor(contextStack, node)
 }
 
 // Java method: FeatureCollector.recordScriptFeatures(java.util.List<com.google.javascript.jscomp.parsing.FeatureCollector.FeatureContext> contextStack, com.google.javascript.rhino.Node node)
-func (this_ *FeatureCollector) priv_FeatureCollector_recordScriptFeatures_6858(contextStack j2gort.Ext_java_util_List, node pkg_rhino.Node) {
+func (this_ *FeatureCollector) priv_FeatureCollector_recordScriptFeatures_6859(contextStack j2gort.Ext_java_util_List, node pkg_rhino.Node) {
 	_ = contextStack
 	_ = node
 	var parentContext FeatureCollector_FeatureContext = j2gort.Cast[FeatureCollector_FeatureContext](contextStack.GetLast())
@@ -123,16 +123,16 @@ func (this_ *FeatureCollector) priv_FeatureCollector_recordScriptFeatures_6858(c
 	switch node.TokenSwitchOrd_() {
 	case int32(73) /* Token.FUNCTION */ :
 		if node.IsAsyncGeneratorFunction() {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_GENERATORS())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_GENERATORS())
 		}
 		if node.IsArrowFunction() {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_ARROW_FUNCTIONS())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_ARROW_FUNCTIONS())
 		}
 		if node.IsAsyncFunction() {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS())
 		}
 		if node.IsGeneratorFunction() {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_GENERATORS())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_GENERATORS())
 		}
 		{
 			var iifeCond_1 bool
@@ -159,7 +159,7 @@ func (this_ *FeatureCollector) priv_FeatureCollector_recordScriptFeatures_6858(c
 			}
 			return re_3 == ae_4
 		}() {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_SHORTHAND_OBJECT_PROPERTIES())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_SHORTHAND_OBJECT_PROPERTIES())
 		}
 	case int32(134) /* Token.DEFAULT_VALUE */ :
 		{
@@ -174,11 +174,11 @@ func (this_ *FeatureCollector) priv_FeatureCollector_recordScriptFeatures_6858(c
 				iifeCond_1 = re_5 == ae_6
 			}
 			if iifeCond_1 {
-				this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_DEFAULT_PARAMETERS())
+				this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_DEFAULT_PARAMETERS())
 			}
 		}
 	case int32(95) /* Token.GETTER_DEF */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_GETTER())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_GETTER())
 		{
 			var iifeCond_1 bool
 			{
@@ -191,16 +191,16 @@ func (this_ *FeatureCollector) priv_FeatureCollector_recordScriptFeatures_6858(c
 				iifeCond_1 = re_7 == ae_8
 			}
 			if iifeCond_1 {
-				this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER())
+				this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER())
 			}
 		}
 		if node.IsPrivateIdentifier() {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_PRIVATE_ELEMENTS())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_PRIVATE_ELEMENTS())
 		}
 	case int32(42) /* Token.REGEXP */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_SYNTAX())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_SYNTAX())
 	case int32(96) /* Token.SETTER_DEF */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_SETTER())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_SETTER())
 		{
 			var iifeCond_1 bool
 			{
@@ -213,11 +213,11 @@ func (this_ *FeatureCollector) priv_FeatureCollector_recordScriptFeatures_6858(c
 				iifeCond_1 = re_9 == ae_10
 			}
 			if iifeCond_1 {
-				this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER())
+				this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER())
 			}
 		}
 		if node.IsPrivateIdentifier() {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_PRIVATE_ELEMENTS())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_PRIVATE_ELEMENTS())
 		}
 	case int32(90) /* Token.BLOCK */ :
 		{
@@ -232,7 +232,7 @@ func (this_ *FeatureCollector) priv_FeatureCollector_recordScriptFeatures_6858(c
 				iifeCond_1 = re_11 == ae_12
 			}
 			if iifeCond_1 {
-				this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_CLASS_STATIC_BLOCK())
+				this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_CLASS_STATIC_BLOCK())
 			}
 		}
 	case int32(88) /* Token.EMPTY */ :
@@ -248,7 +248,7 @@ func (this_ *FeatureCollector) priv_FeatureCollector_recordScriptFeatures_6858(c
 				iifeCond_1 = re_13 == ae_14
 			}
 			if iifeCond_1 {
-				this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_OPTIONAL_CATCH_BINDING())
+				this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_OPTIONAL_CATCH_BINDING())
 			}
 		}
 	case int32(125) /* Token.ITER_REST */ :
@@ -264,27 +264,27 @@ func (this_ *FeatureCollector) priv_FeatureCollector_recordScriptFeatures_6858(c
 				iifeCond_1 = re_15 == ae_16
 			}
 			if iifeCond_1 {
-				this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_REST_PARAMETERS())
+				this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_REST_PARAMETERS())
 			} else {
-				this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_PATTERN_REST())
+				this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_PATTERN_REST())
 			}
 		}
 	case int32(127) /* Token.ITER_SPREAD */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_SPREAD_EXPRESSIONS())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_SPREAD_EXPRESSIONS())
 	case int32(126) /* Token.OBJECT_REST */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_PATTERN_REST())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_PATTERN_REST())
 	case int32(128) /* Token.OBJECT_SPREAD */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_LITERALS_WITH_SPREAD())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_LITERALS_WITH_SPREAD())
 	case int32(34) /* Token.BIGINT */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_BIGINT())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_BIGINT())
 	case int32(18) /* Token.EXPONENT */, int32(63) /* Token.ASSIGN_EXPONENT */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_EXPONENT_OP())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_EXPONENT_OP())
 	case int32(130) /* Token.TAGGED_TEMPLATELIT */, int32(131) /* Token.TEMPLATELIT */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_TEMPLATE_LITERALS())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_TEMPLATE_LITERALS())
 	case int32(135) /* Token.NEW_TARGET */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_NEW_TARGET())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_NEW_TARGET())
 	case int32(129) /* Token.COMPUTED_PROP */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_COMPUTED_PROPERTIES())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_COMPUTED_PROPERTIES())
 		var isGetter bool = node.GetBooleanProp(pkg_rhino.StaticGet_Node_COMPUTED_PROP_GETTER())
 		_ = isGetter
 		var isSetter bool = node.GetBooleanProp(pkg_rhino.StaticGet_Node_COMPUTED_PROP_SETTER())
@@ -300,77 +300,77 @@ func (this_ *FeatureCollector) priv_FeatureCollector_recordScriptFeatures_6858(c
 		}
 		_ = isClassMember
 		if isGetter {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_GETTER())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_GETTER())
 		} else if isSetter {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_SETTER())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_SETTER())
 		}
 		if (isGetter || isSetter) && isClassMember {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER())
 		}
 	case int32(29) /* Token.OPTCHAIN_GETPROP */, int32(31) /* Token.OPTCHAIN_CALL */, int32(30) /* Token.OPTCHAIN_GETELEM */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_OPTIONAL_CHAINING())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_OPTIONAL_CHAINING())
 	case int32(70) /* Token.COALESCE */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_NULL_COALESCE_OP())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_NULL_COALESCE_OP())
 	case int32(124) /* Token.DYNAMIC_IMPORT */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT())
 	case int32(64) /* Token.ASSIGN_OR */, int32(65) /* Token.ASSIGN_AND */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_LOGICAL_ASSIGNMENT())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_LOGICAL_ASSIGNMENT())
 	case int32(66) /* Token.ASSIGN_COALESCE */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_NULL_COALESCE_OP())
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_LOGICAL_ASSIGNMENT())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_NULL_COALESCE_OP())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_LOGICAL_ASSIGNMENT())
 	case int32(112) /* Token.FOR_OF */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_FOR_OF())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_FOR_OF())
 	case int32(113) /* Token.FOR_AWAIT_OF */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_FOR_AWAIT_OF())
-		this_.priv_FeatureCollector_maybeAddTopLevelAwait_6859(contextStack)
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_FOR_AWAIT_OF())
+		this_.priv_FeatureCollector_maybeAddTopLevelAwait_6860(contextStack)
 	case int32(116) /* Token.IMPORT */, int32(120) /* Token.EXPORT */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_MODULES())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_MODULES())
 	case int32(97) /* Token.CONST */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS())
 	case int32(111) /* Token.LET */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS())
 	case int32(105) /* Token.CLASS */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_CLASSES())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_CLASSES())
 	case int32(107) /* Token.MEMBER_FUNCTION_DEF */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_MEMBER_DECLARATIONS())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_MEMBER_DECLARATIONS())
 		if node.IsPrivateIdentifier() {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_PRIVATE_ELEMENTS())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_PRIVATE_ELEMENTS())
 		}
 	case int32(108) /* Token.MEMBER_FIELD_DEF */ :
 		if node.IsPrivateIdentifier() {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_PRIVATE_ELEMENTS())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_PRIVATE_ELEMENTS())
 		} else {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_PUBLIC_CLASS_FIELDS())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_PUBLIC_CLASS_FIELDS())
 		}
 	case int32(44) /* Token.IN */ :
 		if (node.GetFirstChild() != 0) && node.GetFirstChild().IsPrivateIdentifier() {
-			this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_PRIVATE_ELEMENTS())
+			this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_PRIVATE_ELEMENTS())
 		}
 	case int32(109) /* Token.COMPUTED_FIELD_DEF */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_PUBLIC_CLASS_FIELDS())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_PUBLIC_CLASS_FIELDS())
 	case int32(110) /* Token.SUPER */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_SUPER())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_SUPER())
 	case int32(102) /* Token.ARRAY_PATTERN */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_DESTRUCTURING())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_DESTRUCTURING())
 	case int32(103) /* Token.OBJECT_PATTERN */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_DESTRUCTURING())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_DESTRUCTURING())
 	case int32(115) /* Token.AWAIT */ :
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS())
-		this_.priv_FeatureCollector_maybeAddTopLevelAwait_6859(contextStack)
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS())
+		this_.priv_FeatureCollector_maybeAddTopLevelAwait_6860(contextStack)
 	default:
 	}
 }
 
 // Java method: FeatureCollector.maybeAddTopLevelAwait(java.util.List<com.google.javascript.jscomp.parsing.FeatureCollector.FeatureContext> contextStack)
-func (this_ *FeatureCollector) priv_FeatureCollector_maybeAddTopLevelAwait_6859(contextStack j2gort.Ext_java_util_List) {
+func (this_ *FeatureCollector) priv_FeatureCollector_maybeAddTopLevelAwait_6860(contextStack j2gort.Ext_java_util_List) {
 	_ = contextStack
 	if !(contextStack.Contains(j2gort.BoxNullableVal(StaticGet_FeatureCollector_FeatureContext_FUNCTION()))) {
-		this_.priv_FeatureCollector_addScriptFeature_6860(pkg_parser.StaticGet_FeatureSet_Feature_TOP_LEVEL_AWAIT())
+		this_.priv_FeatureCollector_addScriptFeature_6861(pkg_parser.StaticGet_FeatureSet_Feature_TOP_LEVEL_AWAIT())
 	}
 }
 
 // Java method: FeatureCollector.addScriptFeature(com.google.javascript.jscomp.parsing.parser.FeatureSet.Feature x)
-func (this_ *FeatureCollector) priv_FeatureCollector_addScriptFeature_6860(x *pkg_parser.FeatureSet_Feature) {
+func (this_ *FeatureCollector) priv_FeatureCollector_addScriptFeature_6861(x *pkg_parser.FeatureSet_Feature) {
 	_ = x
 	this_.scriptFeatures = this_.scriptFeatures.With_1_FeatureSet_Feature(x)
 }

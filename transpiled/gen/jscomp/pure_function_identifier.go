@@ -242,7 +242,7 @@ func InitPureFunctionIdentifier(this_ *PureFunctionIdentifier, compiler Abstract
 }
 
 // Java method: PureFunctionIdentifier.putFunctionSummary(com.google.javascript.rhino.Node fn, com.google.javascript.jscomp.PureFunctionIdentifier.AmbiguatedFunctionSummary summary)
-func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_putFunctionSummary_4605(fn pkg_rhino.Node, summary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
+func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_putFunctionSummary_4606(fn pkg_rhino.Node, summary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
 	_ = fn
 	_ = summary
 	var list *PureFunctionIdentifier_SummaryList = this_.summariesForAllNamesOfFunctionByNode.Get(fn)
@@ -266,7 +266,7 @@ func (this_ *PureFunctionIdentifier) Process_3(externs pkg_rhino.Node, root pkg_
 		j2gort.CheckStateStr(false, "PureFunctionIdentifier::process may only be called once per instance.")
 	}
 	this_.hasProcessed = true
-	this_.priv_PureFunctionIdentifier_populateDatastructuresForAnalysisTraversal_4610(references)
+	this_.priv_PureFunctionIdentifier_populateDatastructuresForAnalysisTraversal_4611(references)
 	NodeTraversal_Traverse(this_.compiler, externs, NewPureFunctionIdentifier_ExternFunctionAnnotationAnalyzer(this_))
 	sc_ := NewSyntacticScopeCreator_1(this_.compiler)
 	defer func() {
@@ -291,14 +291,14 @@ func (this_ *PureFunctionIdentifier) Process_3(externs pkg_rhino.Node, root pkg_
 		(&ntb_).Traverse(root)
 	}
 
-	this_.priv_PureFunctionIdentifier_propagateSideEffects_4612()
-	this_.priv_PureFunctionIdentifier_validateArtificialPurity_4606()
-	this_.priv_PureFunctionIdentifier_markPureFunctionCalls_4613()
+	this_.priv_PureFunctionIdentifier_propagateSideEffects_4613()
+	this_.priv_PureFunctionIdentifier_validateArtificialPurity_4607()
+	this_.priv_PureFunctionIdentifier_markPureFunctionCalls_4614()
 	this_.summariesByPropName.Clear()
 }
 
 // Java method: PureFunctionIdentifier.validateArtificialPurity()
-func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_validateArtificialPurity_4606() {
+func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_validateArtificialPurity_4607() {
 	if !(this_.validateArtificialPurity) {
 		return
 	}
@@ -425,7 +425,7 @@ func PureFunctionIdentifier_IsDefinitelyRValue(rvalue pkg_rhino.Node) bool {
 }
 
 // Java method: PureFunctionIdentifier.appendSummariesForCalleeNode(com.google.javascript.rhino.Node callee, int outCount)
-func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_appendSummariesForCalleeNode_4607(callee pkg_rhino.Node, outCount int32) int32 {
+func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_appendSummariesForCalleeNode_4608(callee pkg_rhino.Node, outCount int32) int32 {
 	_ = callee
 	_ = outCount
 	if callee.IsFunction() {
@@ -436,7 +436,7 @@ func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_appendSummaries
 		}
 		var addCount int32 = summariesForFunction.Size()
 		_ = addCount
-		this_.priv_PureFunctionIdentifier_ensureScratchSummariesCapacity_4608((outCount + addCount))
+		this_.priv_PureFunctionIdentifier_ensureScratchSummariesCapacity_4609((outCount + addCount))
 		var out []*PureFunctionIdentifier_AmbiguatedFunctionSummary = this_.scratchSummaries
 		_ = out
 		{
@@ -459,17 +459,17 @@ func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_appendSummaries
 		}
 		return outCount
 	}
-	this_.priv_PureFunctionIdentifier_ensureScratchSummariesCapacity_4608((outCount + int32(1)))
+	this_.priv_PureFunctionIdentifier_ensureScratchSummariesCapacity_4609((outCount + int32(1)))
 	{
 		a_9 := this_.scratchSummaries
 		i_10 := outCount
-		a_9[i_10] = this_.priv_PureFunctionIdentifier_summaryForReference_4614(callee)
+		a_9[i_10] = this_.priv_PureFunctionIdentifier_summaryForReference_4615(callee)
 	}
 	return (outCount + int32(1))
 }
 
 // Java method: PureFunctionIdentifier.ensureScratchSummariesCapacity(int minCap)
-func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_ensureScratchSummariesCapacity_4608(minCap int32) {
+func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_ensureScratchSummariesCapacity_4609(minCap int32) {
 	_ = minCap
 	if minCap > int32(len(this_.scratchSummaries)) {
 		this_.scratchSummaries = func() []*PureFunctionIdentifier_AmbiguatedFunctionSummary {
@@ -487,7 +487,7 @@ func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_ensureScratchSu
 }
 
 // Java method: PureFunctionIdentifier.collectSummariesForCallee(com.google.javascript.rhino.Node invocation)
-func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_collectSummariesForCallee_4609(invocation pkg_rhino.Node) int32 {
+func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_collectSummariesForCallee_4610(invocation pkg_rhino.Node) int32 {
 	_ = invocation
 	if !(NodeUtil_IsInvocation(invocation)) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(invocation))
@@ -523,21 +523,21 @@ func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_collectSummarie
 			var len_ int32 = callees.Size()
 			_ = len_
 			for ; i < len_; i = i + 1 {
-				outCount = this_.priv_PureFunctionIdentifier_appendSummariesForCalleeNode_4607(callees.Get(i), outCount)
+				outCount = this_.priv_PureFunctionIdentifier_appendSummariesForCalleeNode_4608(callees.Get(i), outCount)
 			}
 		}
 		return outCount
 	}
 	if PureFunctionIdentifier_IsInvocationViaCallOrApply(invocation) {
 		this_.lastInvocationArgsMatchParams = false
-		return this_.priv_PureFunctionIdentifier_appendSummariesForCalleeNode_4607(invocation.GetFirstFirstChild(), int32(0))
+		return this_.priv_PureFunctionIdentifier_appendSummariesForCalleeNode_4608(invocation.GetFirstFirstChild(), int32(0))
 	}
 	this_.lastInvocationArgsMatchParams = !(invocation.IsTaggedTemplateLit())
 	var target pkg_rhino.Node = invocation.GetFirstChild()
 	_ = target
 	switch target.TokenSwitchOrd_() {
 	case int32(73) /* Token.FUNCTION */, int32(26) /* Token.GETPROP */, int32(29) /* Token.OPTCHAIN_GETPROP */, int32(32) /* Token.NAME */ :
-		return this_.priv_PureFunctionIdentifier_appendSummariesForCalleeNode_4607(target, int32(0))
+		return this_.priv_PureFunctionIdentifier_appendSummariesForCalleeNode_4608(target, int32(0))
 	default:
 	}
 	var callees_2 *OptimizeCalls_NodeList = this_.scratchCallees
@@ -562,14 +562,14 @@ func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_collectSummarie
 		var len__2 int32 = callees_2.Size()
 		_ = len__2
 		for ; i_2 < len__2; i_2 = i_2 + 1 {
-			outCount_2 = this_.priv_PureFunctionIdentifier_appendSummariesForCalleeNode_4607(callees_2.Get(i_2), outCount_2)
+			outCount_2 = this_.priv_PureFunctionIdentifier_appendSummariesForCalleeNode_4608(callees_2.Get(i_2), outCount_2)
 		}
 	}
 	return outCount_2
 }
 
 // Java method: PureFunctionIdentifier.populateDatastructuresForAnalysisTraversal(com.google.javascript.jscomp.OptimizeCalls.ReferenceMap referenceMap)
-func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_populateDatastructuresForAnalysisTraversal_4610(referenceMap *OptimizeCalls_ReferenceMap) {
+func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_populateDatastructuresForAnalysisTraversal_4611(referenceMap *OptimizeCalls_ReferenceMap) {
 	_ = referenceMap
 	{
 		cur_16 := referenceMap.names.IterEntries()
@@ -607,7 +607,7 @@ func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_populateDatastr
 			var refs_3 *OptimizeCalls_NodeList = cur_18.Value()
 			_ = refs_3
 			if !(refs_3.IsEmpty()) {
-				this_.priv_PureFunctionIdentifier_populateFunctionDefinitions_4611(j2gort.CheckNotNullPtr(this_.summariesByName.Get(cur_18.Key())), refs_3)
+				this_.priv_PureFunctionIdentifier_populateFunctionDefinitions_4612(j2gort.CheckNotNullPtr(this_.summariesByName.Get(cur_18.Key())), refs_3)
 			}
 		}
 	}
@@ -617,15 +617,15 @@ func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_populateDatastr
 			var refs_4 *OptimizeCalls_NodeList = cur_19.Value()
 			_ = refs_4
 			if !(refs_4.IsEmpty()) {
-				this_.priv_PureFunctionIdentifier_populateFunctionDefinitions_4611(j2gort.CheckNotNullPtr(this_.summariesByPropName.Get(cur_19.Key())), refs_4)
+				this_.priv_PureFunctionIdentifier_populateFunctionDefinitions_4612(j2gort.CheckNotNullPtr(this_.summariesByPropName.Get(cur_19.Key())), refs_4)
 			}
 		}
 	}
-	this_.priv_PureFunctionIdentifier_putFunctionSummary_4605(StaticGet_PureFunctionIdentifier_IMPLICIT_PURE_FN(), PureFunctionIdentifier_AmbiguatedFunctionSummary_CreateInGraph(j2gort.AsIface[pkg_graph.DiGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]](this_.reverseCallGraph), "<implicit pure class ctor"))
+	this_.priv_PureFunctionIdentifier_putFunctionSummary_4606(StaticGet_PureFunctionIdentifier_IMPLICIT_PURE_FN(), PureFunctionIdentifier_AmbiguatedFunctionSummary_CreateInGraph(j2gort.AsIface[pkg_graph.DiGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]](this_.reverseCallGraph), "<implicit pure class ctor"))
 }
 
 // Java method: PureFunctionIdentifier.populateFunctionDefinitions(com.google.javascript.jscomp.PureFunctionIdentifier.AmbiguatedFunctionSummary summaryForName, com.google.javascript.jscomp.OptimizeCalls.NodeList references)
-func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_populateFunctionDefinitions_4611(summaryForName *PureFunctionIdentifier_AmbiguatedFunctionSummary, references *OptimizeCalls_NodeList) {
+func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_populateFunctionDefinitions_4612(summaryForName *PureFunctionIdentifier_AmbiguatedFunctionSummary, references *OptimizeCalls_NodeList) {
 	_ = summaryForName
 	_ = references
 	var invalid bool = false
@@ -690,10 +690,10 @@ func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_populateFunctio
 				var rvalue_2 pkg_rhino.Node = rvalueLeaves.Get(i_2)
 				_ = rvalue_2
 				if rvalue_2.IsFunction() {
-					this_.priv_PureFunctionIdentifier_putFunctionSummary_4605(rvalue_2, summaryForName)
+					this_.priv_PureFunctionIdentifier_putFunctionSummary_4606(rvalue_2, summaryForName)
 				} else if NodeUtil_IsUndefined(rvalue_2) {
 				} else {
-					var rvalueSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary = this_.priv_PureFunctionIdentifier_summaryForReference_4614(rvalue_2)
+					var rvalueSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary = this_.priv_PureFunctionIdentifier_summaryForReference_4615(rvalue_2)
 					_ = rvalueSummary
 					this_.reverseCallGraph.Connect_3_DiGraph_DiGraphNode_any_any__any_DiGraph_DiGraphNode_any_any_(rvalueSummary.graphNode, allocPooledVia_PureFunctionIdentifier_SideEffectPropagation_ForAlias(&this_.slab_SideEffectPropagation), summaryForName.graphNode)
 				}
@@ -703,12 +703,12 @@ func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_populateFunctio
 }
 
 // Java method: PureFunctionIdentifier.propagateSideEffects()
-func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_propagateSideEffects_4612() {
+func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_propagateSideEffects_4613() {
 	pkg_graph.FixedPointGraphTraversal_NewTraversal[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation](lambdaSingleton_pure_function_identifier_8).ComputeFixedPoint_1(j2gort.AsIface[pkg_graph.DiGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]](this_.reverseCallGraph))
 }
 
 // Java method: PureFunctionIdentifier.markPureFunctionCalls()
-func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_markPureFunctionCalls_4613() {
+func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_markPureFunctionCalls_4614() {
 	var flags *pkg_rhino.Node_SideEffectFlags = this_.reusableFlags
 	_ = flags
 	{
@@ -719,7 +719,7 @@ func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_markPureFunctio
 		for ; callIdx < callCount; callIdx = callIdx + 1 {
 			var callNode pkg_rhino.Node = this_.allFunctionCalls.Get(callIdx)
 			_ = callNode
-			var summaryCount int32 = this_.priv_PureFunctionIdentifier_collectSummariesForCallee_4609(callNode)
+			var summaryCount int32 = this_.priv_PureFunctionIdentifier_collectSummariesForCallee_4610(callNode)
 			_ = summaryCount
 			var calleeSummaries []*PureFunctionIdentifier_AmbiguatedFunctionSummary = this_.scratchSummaries
 			_ = calleeSummaries
@@ -813,7 +813,7 @@ func PureFunctionIdentifier_IsCallOrTaggedTemplateLit(invocation pkg_rhino.Node)
 }
 
 // Java method: PureFunctionIdentifier.summaryForReference(com.google.javascript.rhino.Node nameRef)
-func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_summaryForReference_4614(nameRef pkg_rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_summaryForReference_4615(nameRef pkg_rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	_ = nameRef
 	switch nameRef.TokenSwitchOrd_() {
 	case int32(32) /* Token.NAME */ :
@@ -827,7 +827,7 @@ func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_summaryForRefer
 }
 
 // Java method: PureFunctionIdentifier.getPropertyKind(java.lang.String name)
-func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_getPropertyKind_4615(name string) *AccessorSummary_PropertyAccessKind {
+func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_getPropertyKind_4616(name string) *AccessorSummary_PropertyAccessKind {
 	_ = name
 	if this_.assumeGettersArePure {
 		return StaticGet_AccessorSummary_PropertyAccessKind_NORMAL()
@@ -1015,14 +1015,14 @@ func (this_ *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) Visit_3(tr
 			var count int32 = summaries.Size()
 			_ = count
 			for ; i < count; i = i + 1 {
-				this_.priv_ExternFunctionAnnotationAnalyzer_updateSideEffectsForExternFunction_4619(node, summaries.Get(i))
+				this_.priv_ExternFunctionAnnotationAnalyzer_updateSideEffectsForExternFunction_4620(node, summaries.Get(i))
 			}
 		}
 	}
 }
 
 // Java method: ExternFunctionAnnotationAnalyzer.updateSideEffectsForExternFunction(com.google.javascript.rhino.Node externFunction, com.google.javascript.jscomp.PureFunctionIdentifier.AmbiguatedFunctionSummary summary)
-func (this_ *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) priv_ExternFunctionAnnotationAnalyzer_updateSideEffectsForExternFunction_4619(externFunction pkg_rhino.Node, summary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
+func (this_ *PureFunctionIdentifier_ExternFunctionAnnotationAnalyzer) priv_ExternFunctionAnnotationAnalyzer_updateSideEffectsForExternFunction_4620(externFunction pkg_rhino.Node, summary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
 	_ = externFunction
 	_ = summary
 	if !(externFunction.IsFunction()) {
@@ -1112,7 +1112,7 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) ShouldTraverse_3(trave
 	_ = traversal
 	_ = node
 	_ = parent
-	this_.priv_FunctionBodyAnalyzer_addToCatchDepthIfTryBlock_4627(node, int32(1))
+	this_.priv_FunctionBodyAnalyzer_addToCatchDepthIfTryBlock_4628(node, int32(1))
 	return true
 }
 
@@ -1121,7 +1121,7 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) Visit_3(traversal *Nod
 	_ = traversal
 	_ = node
 	_ = parent
-	this_.priv_FunctionBodyAnalyzer_addToCatchDepthIfTryBlock_4627(node, int32(-1))
+	this_.priv_FunctionBodyAnalyzer_addToCatchDepthIfTryBlock_4628(node, int32(-1))
 	if NodeUtil_IsInvocation(node) {
 		this_.outer_.allFunctionCalls.Add(node)
 	}
@@ -1141,14 +1141,14 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) Visit_3(traversal *Nod
 			var count int32 = summaries.Size()
 			_ = count
 			for ; i < count; i = i + 1 {
-				this_.priv_FunctionBodyAnalyzer_updateSideEffectsForNode_4620(j2gort.CheckNotNullPtr(summaries.Get(i)), traversal, node)
+				this_.priv_FunctionBodyAnalyzer_updateSideEffectsForNode_4621(j2gort.CheckNotNullPtr(summaries.Get(i)), traversal, node)
 			}
 		}
 	}
 }
 
 // Java method: FunctionBodyAnalyzer.updateSideEffectsForNode(com.google.javascript.jscomp.PureFunctionIdentifier.AmbiguatedFunctionSummary encloserSummary, com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node node)
-func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_updateSideEffectsForNode_4620(encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary, traversal *NodeTraversal, node pkg_rhino.Node) {
+func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_updateSideEffectsForNode_4621(encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary, traversal *NodeTraversal, node pkg_rhino.Node) {
 	_ = encloserSummary
 	_ = traversal
 	_ = node
@@ -1178,28 +1178,28 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnaly
 			NodeUtil_VisitLhsNodesInNode(node, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_25 any) {
 				lhsNode := j2gort.CastNode[pkg_rhino.Node](lp_25)
 				_ = lhsNode
-				this_.priv_FunctionBodyAnalyzer_visitLhsNode_4624(encloserSummary, traversal.GetScope(), lhsNode, rhsLocality)
+				this_.priv_FunctionBodyAnalyzer_visitLhsNode_4625(encloserSummary, traversal.GetScope(), lhsNode, rhsLocality)
 			}))
 		case int32(71) /* Token.INC */, int32(72) /* Token.DEC */, int32(24) /* Token.DELPROP */ :
-			this_.priv_FunctionBodyAnalyzer_visitLhsNode_4624(encloserSummary, traversal.GetScope(), node.GetOnlyChild(), StaticGet_PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL())
+			this_.priv_FunctionBodyAnalyzer_visitLhsNode_4625(encloserSummary, traversal.GetScope(), node.GetOnlyChild(), StaticGet_PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL())
 		case int32(113) /* Token.FOR_AWAIT_OF */ :
-			this_.priv_FunctionBodyAnalyzer_deprecatedSetSideEffectsForControlLoss_4622(encloserSummary)
+			this_.priv_FunctionBodyAnalyzer_deprecatedSetSideEffectsForControlLoss_4623(encloserSummary)
 			fallthrough
 		case int32(112) /* Token.FOR_OF */ :
 			NodeUtil_VisitLhsNodesInNode(node, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_26 any) {
 				lhsNode := j2gort.CastNode[pkg_rhino.Node](lp_26)
 				_ = lhsNode
-				this_.priv_FunctionBodyAnalyzer_visitLhsNode_4624(encloserSummary, traversal.GetScope(), lhsNode, StaticGet_PureFunctionIdentifier_RHS_IS_NEVER_LOCAL())
+				this_.priv_FunctionBodyAnalyzer_visitLhsNode_4625(encloserSummary, traversal.GetScope(), lhsNode, StaticGet_PureFunctionIdentifier_RHS_IS_NEVER_LOCAL())
 			}))
-			this_.priv_FunctionBodyAnalyzer_checkIteratesImpureIterable_4621(node, encloserSummary)
+			this_.priv_FunctionBodyAnalyzer_checkIteratesImpureIterable_4622(node, encloserSummary)
 		case int32(81) /* Token.FOR_IN */ :
 			NodeUtil_VisitLhsNodesInNode(node, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_27 any) {
 				lhsNode := j2gort.CastNode[pkg_rhino.Node](lp_27)
 				_ = lhsNode
-				this_.priv_FunctionBodyAnalyzer_visitLhsNode_4624(encloserSummary, traversal.GetScope(), lhsNode, StaticGet_PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL())
+				this_.priv_FunctionBodyAnalyzer_visitLhsNode_4625(encloserSummary, traversal.GetScope(), lhsNode, StaticGet_PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL())
 			}))
 		case int32(31) /* Token.OPTCHAIN_CALL */, int32(28) /* Token.CALL */, int32(23) /* Token.NEW */, int32(130) /* Token.TAGGED_TEMPLATELIT */ :
-			this_.priv_FunctionBodyAnalyzer_visitCall_4625(encloserSummary, traversal.GetScope(), node)
+			this_.priv_FunctionBodyAnalyzer_visitCall_4626(encloserSummary, traversal.GetScope(), node)
 		case int32(104) /* Token.DESTRUCTURING_LHS */ :
 			if NodeUtil_IsAnyFor(node.GetParent()) {
 				break
@@ -1207,7 +1207,7 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnaly
 			NodeUtil_VisitLhsNodesInNode(node.GetParent(), j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_28 any) {
 				lhsNode := j2gort.CastNode[pkg_rhino.Node](lp_28)
 				_ = lhsNode
-				this_.priv_FunctionBodyAnalyzer_visitLhsNode_4624(encloserSummary, traversal.GetScope(), lhsNode, StaticGet_PureFunctionIdentifier_RHS_IS_NEVER_LOCAL())
+				this_.priv_FunctionBodyAnalyzer_visitLhsNode_4625(encloserSummary, traversal.GetScope(), lhsNode, StaticGet_PureFunctionIdentifier_RHS_IS_NEVER_LOCAL())
 			}))
 		case int32(32) /* Token.NAME */ :
 			if NodeUtil_IsNameDeclaration(node.GetParent()) {
@@ -1222,33 +1222,33 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnaly
 				}
 			}
 		case int32(43) /* Token.THROW */ :
-			this_.priv_FunctionBodyAnalyzer_recordThrowsBasedOnContext_4623(encloserSummary)
+			this_.priv_FunctionBodyAnalyzer_recordThrowsBasedOnContext_4624(encloserSummary)
 		case int32(114) /* Token.YIELD */ :
-			this_.priv_FunctionBodyAnalyzer_checkIteratesImpureIterable_4621(node, encloserSummary)
-			this_.priv_FunctionBodyAnalyzer_deprecatedSetSideEffectsForControlLoss_4622(encloserSummary)
+			this_.priv_FunctionBodyAnalyzer_checkIteratesImpureIterable_4622(node, encloserSummary)
+			this_.priv_FunctionBodyAnalyzer_deprecatedSetSideEffectsForControlLoss_4623(encloserSummary)
 		case int32(115) /* Token.AWAIT */ :
-			this_.priv_FunctionBodyAnalyzer_deprecatedSetSideEffectsForControlLoss_4622(encloserSummary)
+			this_.priv_FunctionBodyAnalyzer_deprecatedSetSideEffectsForControlLoss_4623(encloserSummary)
 		case int32(126) /* Token.OBJECT_REST */, int32(128) /* Token.OBJECT_SPREAD */ :
 			if !(this_.outer_.assumeGettersArePure) {
 				encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(node)
 			}
 		case int32(125) /* Token.ITER_REST */, int32(127) /* Token.ITER_SPREAD */ :
-			this_.priv_FunctionBodyAnalyzer_checkIteratesImpureIterable_4621(node, encloserSummary)
+			this_.priv_FunctionBodyAnalyzer_checkIteratesImpureIterable_4622(node, encloserSummary)
 		case int32(100) /* Token.STRING_KEY */ :
 			if node.GetParent().IsObjectPattern() {
-				if this_.outer_.priv_PureFunctionIdentifier_getPropertyKind_4615(node.GetString()).HasGetter() {
+				if this_.outer_.priv_PureFunctionIdentifier_getPropertyKind_4616(node.GetString()).HasGetter() {
 					encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(node)
 				}
 			}
 		case int32(29) /* Token.OPTCHAIN_GETPROP */, int32(26) /* Token.GETPROP */ :
-			if this_.outer_.priv_PureFunctionIdentifier_getPropertyKind_4615(node.GetString()).HasGetterOrSetter() {
+			if this_.outer_.priv_PureFunctionIdentifier_getPropertyKind_4616(node.GetString()).HasGetterOrSetter() {
 				encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(node)
 			}
 		case int32(124) /* Token.DYNAMIC_IMPORT */ :
 			encloserSummary.SetMutatesGlobalStateAndAllOtherFlags(node)
 		default:
 			if NodeUtil_IsCompoundAssignmentOp(node) {
-				this_.priv_FunctionBodyAnalyzer_visitLhsNode_4624(encloserSummary, traversal.GetScope(), node.GetFirstChild(), StaticGet_PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL())
+				this_.priv_FunctionBodyAnalyzer_visitLhsNode_4625(encloserSummary, traversal.GetScope(), node.GetFirstChild(), StaticGet_PureFunctionIdentifier_RHS_IS_ALWAYS_LOCAL())
 				break
 			}
 			if this_.outer_.compiler.GetAstAnalyzer().NodeTypeMayHaveSideEffects(node) {
@@ -1259,7 +1259,7 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnaly
 }
 
 // Java method: FunctionBodyAnalyzer.checkIteratesImpureIterable(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.PureFunctionIdentifier.AmbiguatedFunctionSummary encloserSummary)
-func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_checkIteratesImpureIterable_4621(node pkg_rhino.Node, encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
+func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_checkIteratesImpureIterable_4622(node pkg_rhino.Node, encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
 	_ = node
 	_ = encloserSummary
 	if !(NodeUtil_IteratesImpureIterable(node)) {
@@ -1269,13 +1269,13 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnaly
 }
 
 // Java method: FunctionBodyAnalyzer.deprecatedSetSideEffectsForControlLoss(com.google.javascript.jscomp.PureFunctionIdentifier.AmbiguatedFunctionSummary encloserSummary)
-func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_deprecatedSetSideEffectsForControlLoss_4622(encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
+func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_deprecatedSetSideEffectsForControlLoss_4623(encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
 	_ = encloserSummary
-	this_.priv_FunctionBodyAnalyzer_recordThrowsBasedOnContext_4623(encloserSummary)
+	this_.priv_FunctionBodyAnalyzer_recordThrowsBasedOnContext_4624(encloserSummary)
 }
 
 // Java method: FunctionBodyAnalyzer.recordThrowsBasedOnContext(com.google.javascript.jscomp.PureFunctionIdentifier.AmbiguatedFunctionSummary encloserSummary)
-func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_recordThrowsBasedOnContext_4623(encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
+func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_recordThrowsBasedOnContext_4624(encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary) {
 	_ = encloserSummary
 	if this_.functionScopeStack.GetLast().catchDepth == int32(0) {
 		encloserSummary.SetThrows(this_.functionScopeStack.GetLast().root)
@@ -1301,7 +1301,7 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) EnterScope(t *NodeTrav
 	if !(this_.outer_.summariesForAllNamesOfFunctionByNode.ContainsKey(function)) {
 		var summary *PureFunctionIdentifier_AmbiguatedFunctionSummary = PureFunctionIdentifier_AmbiguatedFunctionSummary_CreateInGraph(j2gort.AsIface[pkg_graph.DiGraph[*PureFunctionIdentifier_AmbiguatedFunctionSummary, *PureFunctionIdentifier_SideEffectPropagation]](this_.outer_.reverseCallGraph), "<anonymous>")
 		_ = summary
-		this_.outer_.priv_PureFunctionIdentifier_putFunctionSummary_4605(function, summary)
+		this_.outer_.priv_PureFunctionIdentifier_putFunctionSummary_4606(function, summary)
 	}
 }
 
@@ -1388,7 +1388,7 @@ func PureFunctionIdentifier_FunctionBodyAnalyzer_IsVarDeclaredInSameContainerSco
 }
 
 // Java method: FunctionBodyAnalyzer.visitLhsNode(com.google.javascript.jscomp.PureFunctionIdentifier.AmbiguatedFunctionSummary encloserSummary, com.google.javascript.jscomp.Scope scope, com.google.javascript.rhino.Node lhs, java.util.function.Predicate<com.google.javascript.rhino.Node> hasLocalRhs)
-func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_visitLhsNode_4624(encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary, scope *Scope, lhs pkg_rhino.Node, hasLocalRhs j2gort.Ext_java_util_function_Predicate) {
+func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_visitLhsNode_4625(encloserSummary *PureFunctionIdentifier_AmbiguatedFunctionSummary, scope *Scope, lhs pkg_rhino.Node, hasLocalRhs j2gort.Ext_java_util_function_Predicate) {
 	_ = encloserSummary
 	_ = scope
 	_ = lhs
@@ -1432,7 +1432,7 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnaly
 }
 
 // Java method: FunctionBodyAnalyzer.visitCall(com.google.javascript.jscomp.PureFunctionIdentifier.AmbiguatedFunctionSummary callerInfo, com.google.javascript.jscomp.Scope scope, com.google.javascript.rhino.Node invocation)
-func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_visitCall_4625(callerInfo *PureFunctionIdentifier_AmbiguatedFunctionSummary, scope *Scope, invocation pkg_rhino.Node) {
+func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_visitCall_4626(callerInfo *PureFunctionIdentifier_AmbiguatedFunctionSummary, scope *Scope, invocation pkg_rhino.Node) {
 	_ = callerInfo
 	_ = scope
 	_ = invocation
@@ -1442,7 +1442,7 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnaly
 	if invocation.IsNew() && !(this_.outer_.astAnalyzer.ConstructorCallHasSideEffects(invocation)) {
 		return
 	}
-	var summaryCount int32 = this_.outer_.priv_PureFunctionIdentifier_collectSummariesForCallee_4609(invocation)
+	var summaryCount int32 = this_.outer_.priv_PureFunctionIdentifier_collectSummariesForCallee_4610(invocation)
 	_ = summaryCount
 	if summaryCount == int32(0) {
 		callerInfo.SetMutatesGlobalStateAndAllOtherFlags(pkg_rhino.Node(0))
@@ -1470,13 +1470,13 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnaly
 }
 
 // Java method: FunctionBodyAnalyzer.argumentsMatchParameters(com.google.javascript.rhino.Node invocation)
-func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_argumentsMatchParameters_4626(invocation pkg_rhino.Node) bool {
+func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_argumentsMatchParameters_4627(invocation pkg_rhino.Node) bool {
 	_ = invocation
 	return ((!(invocation.IsTaggedTemplateLit()) && !(PureFunctionIdentifier_IsInvocationViaCallOrApply(invocation))) && (this_.outer_.compiler.GetCodingConvention().DescribeCachingCall(invocation) == nil))
 }
 
 // Java method: FunctionBodyAnalyzer.addToCatchDepthIfTryBlock(com.google.javascript.rhino.Node n, int delta)
-func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_addToCatchDepthIfTryBlock_4627(n pkg_rhino.Node, delta int32) {
+func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnalyzer_addToCatchDepthIfTryBlock_4628(n pkg_rhino.Node, delta int32) {
 	_ = n
 	_ = delta
 	var parent pkg_rhino.Node = n.GetParent()
@@ -1662,13 +1662,13 @@ func allocPooledVia_PureFunctionIdentifier_SideEffectPropagation_ForInvocation(s
 }
 
 // Java method: SideEffectPropagation.holdsLocalValue(com.google.javascript.rhino.Node expr)
-func (this_ *PureFunctionIdentifier_SideEffectPropagation) priv_SideEffectPropagation_holdsLocalValue_4629(expr pkg_rhino.Node) bool {
+func (this_ *PureFunctionIdentifier_SideEffectPropagation) priv_SideEffectPropagation_holdsLocalValue_4630(expr pkg_rhino.Node) bool {
 	_ = expr
 	return (NodeUtil_EvaluatesToLocalValue(expr) || (expr.IsName() && this_.callerEntry.IsLocalVar(j2gort.CastPtr[Var](this_.callScope.GetVar(expr.GetString())), this_.callScope)))
 }
 
 // Java method: SideEffectPropagation.mutatedArgumentsAreLocal(long mutatedParamMask)
-func (this_ *PureFunctionIdentifier_SideEffectPropagation) priv_SideEffectPropagation_mutatedArgumentsAreLocal_4630(mutatedParamMask int64) bool {
+func (this_ *PureFunctionIdentifier_SideEffectPropagation) priv_SideEffectPropagation_mutatedArgumentsAreLocal_4631(mutatedParamMask int64) bool {
 	_ = mutatedParamMask
 	if !(this_.argumentsMatchParameters) {
 		return NodeUtil_AllArgsUnescapedLocal(this_.invocation)
@@ -1682,7 +1682,7 @@ func (this_ *PureFunctionIdentifier_SideEffectPropagation) priv_SideEffectPropag
 			if arg.IsSpread() {
 				return false
 			}
-			if ((index >= int32(64)) || ((mutatedParamMask & (javalang.Shl64(int64(1), int(index)))) != int64(int32(0)))) && !(this_.priv_SideEffectPropagation_holdsLocalValue_4629(arg)) {
+			if ((index >= int32(64)) || ((mutatedParamMask & (javalang.Shl64(int64(1), int(index)))) != int64(int32(0)))) && !(this_.priv_SideEffectPropagation_holdsLocalValue_4630(arg)) {
 				return false
 			}
 		}
@@ -1691,10 +1691,10 @@ func (this_ *PureFunctionIdentifier_SideEffectPropagation) priv_SideEffectPropag
 }
 
 // Java method: SideEffectPropagation.receiverIsLocal()
-func (this_ *PureFunctionIdentifier_SideEffectPropagation) priv_SideEffectPropagation_receiverIsLocal_4631() bool {
+func (this_ *PureFunctionIdentifier_SideEffectPropagation) priv_SideEffectPropagation_receiverIsLocal_4632() bool {
 	var callee pkg_rhino.Node = this_.invocation.GetFirstChild()
 	_ = callee
-	return ((!(PureFunctionIdentifier_IsInvocationViaCallOrApply(this_.invocation)) && NodeUtil_IsNormalOrOptChainGetProp(callee)) && this_.priv_SideEffectPropagation_holdsLocalValue_4629(callee.GetFirstChild()))
+	return ((!(PureFunctionIdentifier_IsInvocationViaCallOrApply(this_.invocation)) && NodeUtil_IsNormalOrOptChainGetProp(callee)) && this_.priv_SideEffectPropagation_holdsLocalValue_4630(callee.GetFirstChild()))
 }
 
 // Java static method: SideEffectPropagation.calleeAndCallerShareThis(com.google.javascript.rhino.Node invocation)
@@ -1734,7 +1734,7 @@ func (this_ *PureFunctionIdentifier_SideEffectPropagation) Propagate(callee *Pur
 	var initialCallerParamMask int64 = caller.mutatedParamMask
 	_ = initialCallerParamMask
 	if this_.callerIsAlias {
-		caller.priv_AmbiguatedFunctionSummary_setMask_4633(callee.bitmask)
+		caller.priv_AmbiguatedFunctionSummary_setMask_4634(callee.bitmask)
 		r_36 := caller
 		r_36.mutatedParamMask = (r_36.mutatedParamMask | callee.mutatedParamMask)
 	} else if callee.MutatesGlobalState() {
@@ -1743,14 +1743,14 @@ func (this_ *PureFunctionIdentifier_SideEffectPropagation) Propagate(callee *Pur
 		if this_.propagateThrows && callee.FunctionThrows() {
 			caller.SetThrows(this_.invocation)
 		}
-		if callee.MutatesArguments() && !(this_.priv_SideEffectPropagation_mutatedArgumentsAreLocal_4630(callee.mutatedParamMask)) {
+		if callee.MutatesArguments() && !(this_.priv_SideEffectPropagation_mutatedArgumentsAreLocal_4631(callee.mutatedParamMask)) {
 			caller.SetMutatesGlobalStateAndAllOtherFlags(this_.invocation)
 		}
 		if callee.MutatesThis() {
 			if this_.invocation.IsNew() {
 			} else if this_.calleeThisEqualsCallerThis {
 				caller.SetMutatesThis(this_.invocation)
-			} else if this_.priv_SideEffectPropagation_receiverIsLocal_4631() {
+			} else if this_.priv_SideEffectPropagation_receiverIsLocal_4632() {
 			} else {
 				caller.SetMutatesGlobalStateAndAllOtherFlags(this_.invocation)
 			}
@@ -1830,20 +1830,20 @@ func PureFunctionIdentifier_AmbiguatedFunctionSummary_CreateInGraph(graph pkg_gr
 }
 
 // Java method: AmbiguatedFunctionSummary.setMask(int mask)
-func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) priv_AmbiguatedFunctionSummary_setMask_4633(mask int32) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
+func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) priv_AmbiguatedFunctionSummary_setMask_4634(mask int32) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	_ = mask
 	this_.bitmask = (this_.bitmask | mask)
 	return this_
 }
 
 // Java method: AmbiguatedFunctionSummary.getMask(int mask)
-func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) priv_AmbiguatedFunctionSummary_getMask_4634(mask int32) bool {
+func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) priv_AmbiguatedFunctionSummary_getMask_4635(mask int32) bool {
 	_ = mask
 	return ((this_.bitmask & mask) != int32(0))
 }
 
 // Java method: AmbiguatedFunctionSummary.maybeCollectImpureDebuggingReason(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node debuggingReason)
-func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) priv_AmbiguatedFunctionSummary_maybeCollectImpureDebuggingReason_4635(debuggingReason pkg_rhino.Node) {
+func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) priv_AmbiguatedFunctionSummary_maybeCollectImpureDebuggingReason_4636(debuggingReason pkg_rhino.Node) {
 	_ = debuggingReason
 	if !(this_.collectImpureDebuggingReason) || (debuggingReason == 0) {
 		return
@@ -1856,52 +1856,52 @@ func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) priv_AmbiguatedFu
 
 // Java method: AmbiguatedFunctionSummary.mutatesThis()
 func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) MutatesThis() bool {
-	return this_.priv_AmbiguatedFunctionSummary_getMask_4634(int32(4))
+	return this_.priv_AmbiguatedFunctionSummary_getMask_4635(int32(4))
 }
 
 // Java method: AmbiguatedFunctionSummary.setMutatesThis(com.google.javascript.rhino.Node debuggingReason)
 func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesThis(debuggingReason pkg_rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	_ = debuggingReason
-	this_.priv_AmbiguatedFunctionSummary_maybeCollectImpureDebuggingReason_4635(debuggingReason)
-	return this_.priv_AmbiguatedFunctionSummary_setMask_4633(int32(4))
+	this_.priv_AmbiguatedFunctionSummary_maybeCollectImpureDebuggingReason_4636(debuggingReason)
+	return this_.priv_AmbiguatedFunctionSummary_setMask_4634(int32(4))
 }
 
 // Java method: AmbiguatedFunctionSummary.functionThrows()
 func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) FunctionThrows() bool {
-	return this_.priv_AmbiguatedFunctionSummary_getMask_4634(int32(1))
+	return this_.priv_AmbiguatedFunctionSummary_getMask_4635(int32(1))
 }
 
 // Java method: AmbiguatedFunctionSummary.setThrows(com.google.javascript.rhino.Node debuggingReason)
 func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetThrows(debuggingReason pkg_rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	_ = debuggingReason
-	this_.priv_AmbiguatedFunctionSummary_maybeCollectImpureDebuggingReason_4635(debuggingReason)
-	return this_.priv_AmbiguatedFunctionSummary_setMask_4633(int32(1))
+	this_.priv_AmbiguatedFunctionSummary_maybeCollectImpureDebuggingReason_4636(debuggingReason)
+	return this_.priv_AmbiguatedFunctionSummary_setMask_4634(int32(1))
 }
 
 // Java method: AmbiguatedFunctionSummary.mutatesGlobalState()
 func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) MutatesGlobalState() bool {
-	return this_.priv_AmbiguatedFunctionSummary_getMask_4634(int32(2))
+	return this_.priv_AmbiguatedFunctionSummary_getMask_4635(int32(2))
 }
 
 // Java method: AmbiguatedFunctionSummary.setMutatesGlobalStateAndAllOtherFlags(com.google.javascript.rhino.Node debuggingReason)
 func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesGlobalStateAndAllOtherFlags(debuggingReason pkg_rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	_ = debuggingReason
-	this_.priv_AmbiguatedFunctionSummary_maybeCollectImpureDebuggingReason_4635(debuggingReason)
+	this_.priv_AmbiguatedFunctionSummary_maybeCollectImpureDebuggingReason_4636(debuggingReason)
 	this_.mutatedParamMask = ^(int64(0))
-	return this_.priv_AmbiguatedFunctionSummary_setMask_4633((((int32(1) | int32(4)) | int32(8)) | int32(2)))
+	return this_.priv_AmbiguatedFunctionSummary_setMask_4634((((int32(1) | int32(4)) | int32(8)) | int32(2)))
 }
 
 // Java method: AmbiguatedFunctionSummary.mutatesArguments()
 func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) MutatesArguments() bool {
-	return this_.priv_AmbiguatedFunctionSummary_getMask_4634(int32(8))
+	return this_.priv_AmbiguatedFunctionSummary_getMask_4635(int32(8))
 }
 
 // Java method: AmbiguatedFunctionSummary.setMutatesArguments(com.google.javascript.rhino.Node debuggingReason)
 func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesArguments(debuggingReason pkg_rhino.Node) *PureFunctionIdentifier_AmbiguatedFunctionSummary {
 	_ = debuggingReason
-	this_.priv_AmbiguatedFunctionSummary_maybeCollectImpureDebuggingReason_4635(debuggingReason)
+	this_.priv_AmbiguatedFunctionSummary_maybeCollectImpureDebuggingReason_4636(debuggingReason)
 	this_.mutatedParamMask = ^(int64(0))
-	return this_.priv_AmbiguatedFunctionSummary_setMask_4633(int32(8))
+	return this_.priv_AmbiguatedFunctionSummary_setMask_4634(int32(8))
 }
 
 // Java method: AmbiguatedFunctionSummary.setMutatesArgumentAt(int paramIndex, com.google.javascript.rhino.Node debuggingReason)
@@ -1911,7 +1911,7 @@ func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesArgumen
 	if !(paramIndex >= int32(0)) {
 		j2gort.CheckArgumentMsg(false, j2gort.ValueOfInt(paramIndex))
 	}
-	this_.priv_AmbiguatedFunctionSummary_maybeCollectImpureDebuggingReason_4635(debuggingReason)
+	this_.priv_AmbiguatedFunctionSummary_maybeCollectImpureDebuggingReason_4636(debuggingReason)
 	var paramBit int64
 	_ = paramBit
 	if paramIndex < int32(64) {
@@ -1920,7 +1920,7 @@ func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetMutatesArgumen
 		paramBit = ^(int64(0))
 	}
 	this_.mutatedParamMask = (this_.mutatedParamMask | paramBit)
-	return this_.priv_AmbiguatedFunctionSummary_setMask_4633(int32(8))
+	return this_.priv_AmbiguatedFunctionSummary_setMask_4634(int32(8))
 }
 
 // Java method: AmbiguatedFunctionSummary.hasNoFlagsSet()
@@ -1935,11 +1935,11 @@ func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) SetCollectImpureD
 
 // Java method: AmbiguatedFunctionSummary.toString()
 func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) String() string {
-	return j2gort.Ext_com_google_common_base_MoreObjects_S_ToStringHelper_1_Class(j2gort.GetObjectClass(this_)).Add_2_string_any("name", j2gort.BoxString(this_.name)).Add_2_string_int32("graphNode", javalang.ObjectHashCode(j2gort.CheckNotNull(this_.graphNode))).Add_2_string_any("sideEffects", j2gort.BoxString(this_.priv_AmbiguatedFunctionSummary_sideEffectsToString_4648())).String()
+	return j2gort.Ext_com_google_common_base_MoreObjects_S_ToStringHelper_1_Class(j2gort.GetObjectClass(this_)).Add_2_string_any("name", j2gort.BoxString(this_.name)).Add_2_string_int32("graphNode", javalang.ObjectHashCode(j2gort.CheckNotNull(this_.graphNode))).Add_2_string_any("sideEffects", j2gort.BoxString(this_.priv_AmbiguatedFunctionSummary_sideEffectsToString_4649())).String()
 }
 
 // Java method: AmbiguatedFunctionSummary.sideEffectsToString()
-func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) priv_AmbiguatedFunctionSummary_sideEffectsToString_4648() string {
+func (this_ *PureFunctionIdentifier_AmbiguatedFunctionSummary) priv_AmbiguatedFunctionSummary_sideEffectsToString_4649() string {
 	var status []string = []string{}
 	_ = status
 	if this_.MutatesThis() {

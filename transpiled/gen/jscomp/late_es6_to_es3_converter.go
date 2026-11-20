@@ -87,7 +87,7 @@ func clinitSlow_LateEs6ToEs3Converter() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_LateEs6ToEs3Converter, &clinitDone_LateEs6ToEs3Converter)
-	static_LateEs6ToEs3Converter_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7250([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_COMPUTED_PROPERTIES(), pkg_parser.StaticGet_FeatureSet_Feature_MEMBER_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_TEMPLATE_LITERALS()})
+	static_LateEs6ToEs3Converter_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7251([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_COMPUTED_PROPERTIES(), pkg_parser.StaticGet_FeatureSet_Feature_MEMBER_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_TEMPLATE_LITERALS()})
 }
 
 func (this_ *LateEs6ToEs3Converter) initFields_LateEs6ToEs3Converter() {
@@ -165,10 +165,10 @@ func (this_ *LateEs6ToEs3Converter) Visit_3(t *NodeTraversal, n pkg_rhino.Node, 
 			}
 		}
 	case int32(47) /* Token.OBJECTLIT */ :
-		this_.priv_LateEs6ToEs3Converter_visitObject_3738(t, n)
+		this_.priv_LateEs6ToEs3Converter_visitObject_3739(t, n)
 	case int32(107) /* Token.MEMBER_FUNCTION_DEF */ :
 		if parent.IsObjectLit() {
-			this_.priv_LateEs6ToEs3Converter_visitMemberFunctionDefInObjectLit_3737(n)
+			this_.priv_LateEs6ToEs3Converter_visitMemberFunctionDefInObjectLit_3738(n)
 		}
 	case int32(130) /* Token.TAGGED_TEMPLATELIT */ :
 		this_.templateLiteralConverter.VisitTaggedTemplateLiteral(t, n, this_.templateLitInsertionPoint)
@@ -181,7 +181,7 @@ func (this_ *LateEs6ToEs3Converter) Visit_3(t *NodeTraversal, n pkg_rhino.Node, 
 }
 
 // Java method: LateEs6ToEs3Converter.visitMemberFunctionDefInObjectLit(com.google.javascript.rhino.Node n)
-func (this_ *LateEs6ToEs3Converter) priv_LateEs6ToEs3Converter_visitMemberFunctionDefInObjectLit_3737(n pkg_rhino.Node) {
+func (this_ *LateEs6ToEs3Converter) priv_LateEs6ToEs3Converter_visitMemberFunctionDefInObjectLit_3738(n pkg_rhino.Node) {
 	_ = n
 	var name string = n.GetString()
 	_ = name
@@ -196,7 +196,7 @@ func (this_ *LateEs6ToEs3Converter) priv_LateEs6ToEs3Converter_visitMemberFuncti
 }
 
 // Java method: LateEs6ToEs3Converter.visitObject(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node obj)
-func (this_ *LateEs6ToEs3Converter) priv_LateEs6ToEs3Converter_visitObject_3738(t *NodeTraversal, obj pkg_rhino.Node) {
+func (this_ *LateEs6ToEs3Converter) priv_LateEs6ToEs3Converter_visitObject_3739(t *NodeTraversal, obj pkg_rhino.Node) {
 	_ = t
 	_ = obj
 	{
@@ -204,7 +204,7 @@ func (this_ *LateEs6ToEs3Converter) priv_LateEs6ToEs3Converter_visitObject_3738(
 		_ = child
 		for ; child != 0; child = child.GetNext() {
 			if child.IsComputedProp() {
-				this_.priv_LateEs6ToEs3Converter_visitObjectWithComputedProperty_3739(t, obj)
+				this_.priv_LateEs6ToEs3Converter_visitObjectWithComputedProperty_3740(t, obj)
 				return
 			}
 		}
@@ -212,7 +212,7 @@ func (this_ *LateEs6ToEs3Converter) priv_LateEs6ToEs3Converter_visitObject_3738(
 }
 
 // Java method: LateEs6ToEs3Converter.visitObjectWithComputedProperty(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node obj)
-func (this_ *LateEs6ToEs3Converter) priv_LateEs6ToEs3Converter_visitObjectWithComputedProperty_3739(t *NodeTraversal, obj pkg_rhino.Node) {
+func (this_ *LateEs6ToEs3Converter) priv_LateEs6ToEs3Converter_visitObjectWithComputedProperty_3740(t *NodeTraversal, obj pkg_rhino.Node) {
 	_ = t
 	_ = obj
 	if !(obj.IsObjectLit()) {

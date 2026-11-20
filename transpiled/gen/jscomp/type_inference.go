@@ -196,15 +196,28 @@ func (this_ *TypeInference) NeedsNodeAnnotations() bool {
 	return this_.compiler.IsDebugLoggingEnabled()
 }
 
-// Java method: TypeInference.isLatticeEqual(com.google.javascript.jscomp.LinkedFlowScope a, com.google.javascript.jscomp.LinkedFlowScope b)
-func (this_ *TypeInference) IsLatticeEqual(a *LinkedFlowScope, b *LinkedFlowScope) bool {
+// Java method: TypeInference.isSameLattice(com.google.javascript.jscomp.LinkedFlowScope a, com.google.javascript.jscomp.LinkedFlowScope b)
+func (this_ *TypeInference) IsSameLattice(a *LinkedFlowScope, b *LinkedFlowScope) bool {
 	_ = a
 	_ = b
-	return ((a == b) || a.EqualsLinkedFlowScope(b))
+	return (a == b)
+}
+
+// Java method: TypeInference.compareLattice(com.google.javascript.jscomp.LinkedFlowScope a, com.google.javascript.jscomp.LinkedFlowScope b)
+func (this_ *TypeInference) CompareLattice(a *LinkedFlowScope, b *LinkedFlowScope) int32 {
+	_ = a
+	_ = b
+	if a == b {
+		return int32(0)
+	}
+	if a.EqualsLinkedFlowScope(b) {
+		return int32(1)
+	}
+	return int32(2)
 }
 
 // Java method: TypeInference.inferDeclarativelyUnboundVarsWithoutTypes(com.google.javascript.jscomp.LinkedFlowScope flow)
-func (this_ *TypeInference) priv_TypeInference_inferDeclarativelyUnboundVarsWithoutTypes_5510(flow *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_inferDeclarativelyUnboundVarsWithoutTypes_5511(flow *LinkedFlowScope) *LinkedFlowScope {
 	_ = flow
 	var scope *TypedScope = flow.GetSyntacticScope()
 	_ = scope
@@ -217,17 +230,17 @@ func (this_ *TypeInference) priv_TypeInference_inferDeclarativelyUnboundVarsWith
 			rawElem_2 := cur_1.Next()
 			var_ := j2gort.CastPtr[TypedVar](rawElem_2)
 			_ = var_
-			if this_.priv_TypeInference_isUnflowable_5585(var_) {
+			if this_.priv_TypeInference_isUnflowable_5586(var_) {
 				continue
 			}
-			flow = flow.InferSlotTypeLinked(var_.GetName(), this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE()))
+			flow = flow.InferSlotTypeLinked(var_.GetName(), this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE()))
 		}
 	}
 	return flow
 }
 
 // Java method: TypeInference.inferParameters(com.google.javascript.jscomp.LinkedFlowScope entryFlowScope)
-func (this_ *TypeInference) priv_TypeInference_inferParameters_5511(entryFlowScope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_inferParameters_5512(entryFlowScope *LinkedFlowScope) *LinkedFlowScope {
 	_ = entryFlowScope
 	var functionNode pkg_rhino.Node = this_.containerScope.GetRootNode_0()
 	_ = functionNode
@@ -260,14 +273,13 @@ func (this_ *TypeInference) priv_TypeInference_inferParameters_5511(entryFlowSco
 			if (iifeArgumentNode != 0) && iifeArgumentNode.IsSpread() {
 				iifeArgumentNode = pkg_rhino.Node(0)
 			}
-			var inferredType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(astParam)
+			var inferredType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(astParam)
 			_ = inferredType
-			var parameter pkg_rhino.FunctionType_Parameter
+			var parameter pkg_rhino.FunctionType_Parameter = (pkg_rhino.FunctionType_Parameter{})
 			_ = parameter
 			if paramIdx < paramLen {
-				parameter = parameterTypes[func() int32 { old_3 := paramIdx; nw_4 := old_3 + 1; paramIdx = nw_4; return old_3 }()]
-			} else {
-				parameter = (pkg_rhino.FunctionType_Parameter{})
+				parameter = parameterTypes[paramIdx]
+				paramIdx = paramIdx + 1
 			}
 			if iifeArgumentNode != 0 {
 				if !(j2gort.IfaceEquals[pkg_rhino.JSType](iifeArgumentNode.GetJSType(), nil)) {
@@ -282,19 +294,19 @@ func (this_ *TypeInference) priv_TypeInference_inferParameters_5511(entryFlowSco
 			_ = defaultValue
 			if astParam.IsDefaultValue() {
 				defaultValue = astParam.GetSecondChild()
-				entryFlowScope = this_.priv_TypeInference_traverse_5515(defaultValue, entryFlowScope)
+				entryFlowScope = this_.priv_TypeInference_traverse_5516(defaultValue, entryFlowScope)
 				astParam = astParam.GetFirstChild()
 			} else if astParam.IsRest() {
 				astParam = astParam.GetOnlyChild()
 				inferredType = pkg_rhino.ToIface_JSType(this_.registry.CreateTemplatizedType_2_ObjectType_JSType(this_.registry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE()), []pkg_rhino.JSType{inferredType}))
 			}
 			if defaultValue != 0 {
-				inferredType = this_.registry.CreateUnionType_2(inferredType.RestrictByNotUndefined(), this_.priv_TypeInference_getJSType_5586(defaultValue))
+				inferredType = this_.registry.CreateUnionType_2(inferredType.RestrictByNotUndefined(), this_.priv_TypeInference_getJSType_5587(defaultValue))
 			}
 			if astParam.IsDestructuringPattern() {
-				entryFlowScope = this_.priv_TypeInference_updateDestructuringParameter_5512(astParam, inferredType, entryFlowScope)
+				entryFlowScope = this_.priv_TypeInference_updateDestructuringParameter_5513(astParam, inferredType, entryFlowScope)
 			} else {
-				entryFlowScope = this_.priv_TypeInference_updateNamedParameter_5513(astParam, (defaultValue != 0), inferredType, entryFlowScope)
+				entryFlowScope = this_.priv_TypeInference_updateNamedParameter_5514(astParam, (defaultValue != 0), inferredType, entryFlowScope)
 			}
 			if iifeArgumentNode != 0 {
 				iifeArgumentNode = iifeArgumentNode.GetNext()
@@ -307,11 +319,11 @@ func (this_ *TypeInference) priv_TypeInference_inferParameters_5511(entryFlowSco
 }
 
 // Java method: TypeInference.updateDestructuringParameter(com.google.javascript.rhino.Node pattern, com.google.javascript.rhino.jstype.JSType inferredType, com.google.javascript.jscomp.LinkedFlowScope entryFlowScope)
-func (this_ *TypeInference) priv_TypeInference_updateDestructuringParameter_5512(pattern pkg_rhino.Node, inferredType pkg_rhino.JSType, entryFlowScope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_updateDestructuringParameter_5513(pattern pkg_rhino.Node, inferredType pkg_rhino.JSType, entryFlowScope *LinkedFlowScope) *LinkedFlowScope {
 	_ = pattern
 	_ = inferredType
 	_ = entryFlowScope
-	entryFlowScope = this_.priv_TypeInference_traverseDestructuringPatternHelper_5536(pattern, entryFlowScope, inferredType, NewLambda_TypeInference_TypeDeclaringCallback(func(scope *LinkedFlowScope, lvalue pkg_rhino.Node, type_ pkg_rhino.JSType) *LinkedFlowScope {
+	entryFlowScope = this_.priv_TypeInference_traverseDestructuringPatternHelper_5537(pattern, entryFlowScope, inferredType, NewLambda_TypeInference_TypeDeclaringCallback(func(scope *LinkedFlowScope, lvalue pkg_rhino.Node, type_ pkg_rhino.JSType) *LinkedFlowScope {
 		_ = scope
 		_ = lvalue
 		_ = type_
@@ -323,7 +335,7 @@ func (this_ *TypeInference) priv_TypeInference_updateDestructuringParameter_5512
 			lvalue.SetJSType(type_)
 		}
 		if lvalue.GetParent().IsDefaultValue() {
-			scope = this_.priv_TypeInference_updateScopeForAssignment_5528(scope, lvalue, type_, StaticGet_TypeInference_AssignmentType_ASSIGN())
+			scope = this_.priv_TypeInference_updateScopeForAssignment_5529(scope, lvalue, type_, StaticGet_TypeInference_AssignmentType_ASSIGN())
 		}
 		return scope
 	}))
@@ -331,7 +343,7 @@ func (this_ *TypeInference) priv_TypeInference_updateDestructuringParameter_5512
 }
 
 // Java method: TypeInference.updateNamedParameter(com.google.javascript.rhino.Node paramName, boolean hasDefaultValue, com.google.javascript.rhino.jstype.JSType inferredType, com.google.javascript.jscomp.LinkedFlowScope entryFlowScope)
-func (this_ *TypeInference) priv_TypeInference_updateNamedParameter_5513(paramName pkg_rhino.Node, hasDefaultValue bool, inferredType pkg_rhino.JSType, entryFlowScope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_updateNamedParameter_5514(paramName pkg_rhino.Node, hasDefaultValue bool, inferredType pkg_rhino.JSType, entryFlowScope *LinkedFlowScope) *LinkedFlowScope {
 	_ = paramName
 	_ = hasDefaultValue
 	_ = inferredType
@@ -343,7 +355,7 @@ func (this_ *TypeInference) priv_TypeInference_updateNamedParameter_5513(paramNa
 	if var_.IsTypeInferred() {
 		var_.SetType(inferredType)
 	} else if hasDefaultValue {
-		entryFlowScope = this_.priv_TypeInference_redeclareSimpleVar_5584(entryFlowScope, paramName, inferredType)
+		entryFlowScope = this_.priv_TypeInference_redeclareSimpleVar_5585(entryFlowScope, paramName, inferredType)
 	}
 	return entryFlowScope
 }
@@ -355,9 +367,9 @@ func (this_ *TypeInference) CreateInitialEstimateLattice() *LinkedFlowScope {
 
 // Java method: TypeInference.createEntryLattice()
 func (this_ *TypeInference) CreateEntryLattice() *LinkedFlowScope {
-	var entryScope *LinkedFlowScope = this_.priv_TypeInference_inferDeclarativelyUnboundVarsWithoutTypes_5510(LinkedFlowScope_CreateEntryLattice_3(Upcast_CompilerInputProvider(this_.compiler), this_.containerScope, this_.flowScopePool))
+	var entryScope *LinkedFlowScope = this_.priv_TypeInference_inferDeclarativelyUnboundVarsWithoutTypes_5511(LinkedFlowScope_CreateEntryLattice_3(Upcast_CompilerInputProvider(this_.compiler), this_.containerScope, this_.flowScopePool))
 	_ = entryScope
-	return this_.priv_TypeInference_inferParameters_5511(entryScope)
+	return this_.priv_TypeInference_inferParameters_5512(entryScope)
 }
 
 // Java method: TypeInference.flowThrough(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope input)
@@ -378,14 +390,14 @@ func (this_ *TypeInference) FlowThrough(n pkg_rhino.Node, input *LinkedFlowScope
 	}
 	var output *LinkedFlowScope = input.WithSyntacticScopeLinked(syntacticBlockScope)
 	_ = output
-	output = this_.priv_TypeInference_inferDeclarativelyUnboundVarsWithoutTypes_5510(output)
-	output = this_.priv_TypeInference_traverse_5515(n, output)
-	this_.priv_TypeInference_updateModuleScope_5514(module, syntacticBlockScope)
+	output = this_.priv_TypeInference_inferDeclarativelyUnboundVarsWithoutTypes_5511(output)
+	output = this_.priv_TypeInference_traverse_5516(n, output)
+	this_.priv_TypeInference_updateModuleScope_5515(module, syntacticBlockScope)
 	return output
 }
 
 // Java method: TypeInference.updateModuleScope(com.google.javascript.jscomp.modules.Module module, com.google.javascript.jscomp.TypedScope syntacticBlockScope)
-func (this_ *TypeInference) priv_TypeInference_updateModuleScope_5514(module *Module, syntacticBlockScope *TypedScope) {
+func (this_ *TypeInference) priv_TypeInference_updateModuleScope_5515(module *Module, syntacticBlockScope *TypedScope) {
 	_ = module
 	_ = syntacticBlockScope
 	if module == nil {
@@ -479,110 +491,110 @@ func (this_ *TypeInference) CreateFlowBrancher(source pkg_rhino.Node, output *Li
 }
 
 // Java method: TypeInference.traverse(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverse_5515(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverse_5516(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	var isTypeable bool = true
 	_ = isTypeable
 	switch n.TokenSwitchOrd_() {
 	case int32(51) /* Token.ASSIGN */ :
-		scope = this_.priv_TypeInference_traverseAssign_5526(n, scope)
+		scope = this_.priv_TypeInference_traverseAssign_5527(n, scope)
 	case int32(32) /* Token.NAME */ :
-		scope = this_.priv_TypeInference_traverseName_5537(n, scope)
+		scope = this_.priv_TypeInference_traverseName_5538(n, scope)
 	case int32(29) /* Token.OPTCHAIN_GETPROP */, int32(31) /* Token.OPTCHAIN_CALL */, int32(30) /* Token.OPTCHAIN_GETELEM */ :
-		scope = this_.priv_TypeInference_traverseOptChain_5573(n, scope)
+		scope = this_.priv_TypeInference_traverseOptChain_5574(n, scope)
 	case int32(26) /* Token.GETPROP */ :
-		scope = this_.priv_TypeInference_traverseGetProp_5570(n, scope)
+		scope = this_.priv_TypeInference_traverseGetProp_5571(n, scope)
 	case int32(105) /* Token.CLASS */ :
-		scope = this_.priv_TypeInference_traverseClass_5542(n, scope)
+		scope = this_.priv_TypeInference_traverseClass_5543(n, scope)
 	case int32(65) /* Token.ASSIGN_AND */, int32(64) /* Token.ASSIGN_OR */ :
-		scope = this_.priv_TypeInference_traverseShortCircuitingBinOpAssignment_5578(n, scope)
+		scope = this_.priv_TypeInference_traverseShortCircuitingBinOpAssignment_5579(n, scope)
 	case int32(69) /* Token.AND */ :
-		scope = this_.priv_TypeInference_traverseAnd_5563(n, scope).GetJoinedFlowScope()
+		scope = this_.priv_TypeInference_traverseAnd_5564(n, scope).GetJoinedFlowScope()
 	case int32(68) /* Token.OR */ :
-		scope = this_.priv_TypeInference_traverseOr_5577(n, scope).GetJoinedFlowScope()
+		scope = this_.priv_TypeInference_traverseOr_5578(n, scope).GetJoinedFlowScope()
 	case int32(66) /* Token.ASSIGN_COALESCE */, int32(70) /* Token.COALESCE */ :
-		scope = this_.priv_TypeInference_traverseNullishCoalesce_5549(n, scope)
+		scope = this_.priv_TypeInference_traverseNullishCoalesce_5550(n, scope)
 	case int32(67) /* Token.HOOK */ :
-		scope = this_.priv_TypeInference_traverseHook_5548(n, scope)
+		scope = this_.priv_TypeInference_traverseHook_5549(n, scope)
 	case int32(47) /* Token.OBJECTLIT */ :
-		scope = this_.priv_TypeInference_traverseObjectLiteral_5545(n, scope)
+		scope = this_.priv_TypeInference_traverseObjectLiteral_5546(n, scope)
 	case int32(28) /* Token.CALL */ :
-		scope = this_.priv_TypeInference_traverseCall_5519(n, scope)
+		scope = this_.priv_TypeInference_traverseCall_5520(n, scope)
 	case int32(23) /* Token.NEW */ :
-		scope = this_.priv_TypeInference_traverseNew_5561(n, scope)
+		scope = this_.priv_TypeInference_traverseNew_5562(n, scope)
 	case int32(135) /* Token.NEW_TARGET */ :
-		this_.priv_TypeInference_traverseNewTarget_5522(n)
+		this_.priv_TypeInference_traverseNewTarget_5523(n)
 	case int32(58) /* Token.ASSIGN_ADD */, int32(13) /* Token.ADD */ :
-		scope = this_.priv_TypeInference_traverseAdd_5546(n, scope)
+		scope = this_.priv_TypeInference_traverseAdd_5547(n, scope)
 	case int32(21) /* Token.POS */ :
-		scope = this_.priv_TypeInference_traverseUnaryPlus_5539(n, scope)
+		scope = this_.priv_TypeInference_traverseUnaryPlus_5540(n, scope)
 	case int32(22) /* Token.NEG */, int32(20) /* Token.BITNOT */, int32(72) /* Token.DEC */, int32(71) /* Token.INC */ :
-		scope = this_.priv_TypeInference_traverseBigIntCompatibleUnaryOperator_5540(n, scope)
+		scope = this_.priv_TypeInference_traverseBigIntCompatibleUnaryOperator_5541(n, scope)
 	case int32(46) /* Token.ARRAYLIT */ :
-		scope = this_.priv_TypeInference_traverseArrayLiteral_5544(n, scope)
+		scope = this_.priv_TypeInference_traverseArrayLiteral_5545(n, scope)
 	case int32(37) /* Token.THIS */ :
 		n.SetJSType(scope.GetTypeOfThis())
 	case int32(55) /* Token.ASSIGN_LSH */, int32(56) /* Token.ASSIGN_RSH */, int32(61) /* Token.ASSIGN_DIV */, int32(62) /* Token.ASSIGN_MOD */, int32(54) /* Token.ASSIGN_BITAND */, int32(53) /* Token.ASSIGN_BITXOR */, int32(52) /* Token.ASSIGN_BITOR */, int32(60) /* Token.ASSIGN_MUL */, int32(59) /* Token.ASSIGN_SUB */, int32(63) /* Token.ASSIGN_EXPONENT */ :
-		scope = this_.priv_TypeInference_traverseAssignOp_5527(n, scope)
+		scope = this_.priv_TypeInference_traverseAssignOp_5528(n, scope)
 	case int32(57) /* Token.ASSIGN_URSH */ :
-		scope = this_.priv_TypeInference_traverseAssignUnsignedRightShift_5518(n, scope)
+		scope = this_.priv_TypeInference_traverseAssignUnsignedRightShift_5519(n, scope)
 	case int32(3) /* Token.BITAND */, int32(2) /* Token.BITXOR */, int32(1) /* Token.BITOR */, int32(10) /* Token.LSH */, int32(11) /* Token.RSH */, int32(14) /* Token.SUB */, int32(15) /* Token.MUL */, int32(16) /* Token.DIV */, int32(17) /* Token.MOD */, int32(18) /* Token.EXPONENT */ :
-		scope = this_.priv_TypeInference_traverseBigIntCompatibleBinaryOperator_5541(n, scope)
+		scope = this_.priv_TypeInference_traverseBigIntCompatibleBinaryOperator_5542(n, scope)
 	case int32(12) /* Token.URSH */ :
-		scope = this_.priv_TypeInference_traverseUnsignedRightShift_5517(n, scope)
+		scope = this_.priv_TypeInference_traverseUnsignedRightShift_5518(n, scope)
 	case int32(50) /* Token.COMMA */ :
-		scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
-		n.SetJSType(this_.priv_TypeInference_getJSType_5586(n.GetLastChild()))
+		scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
+		n.SetJSType(this_.priv_TypeInference_getJSType_5587(n.GetLastChild()))
 	case int32(131) /* Token.TEMPLATELIT */, int32(25) /* Token.TYPEOF */ :
-		scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
-		n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE()))
+		scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
+		n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE()))
 	case int32(132) /* Token.TEMPLATELIT_SUB */, int32(43) /* Token.THROW */, int32(127) /* Token.ITER_SPREAD */, int32(128) /* Token.OBJECT_SPREAD */, int32(116) /* Token.IMPORT */, int32(117) /* Token.IMPORT_SPECS */, int32(119) /* Token.IMPORT_STAR */ :
-		scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
+		scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
 		isTypeable = false
 	case int32(118) /* Token.IMPORT_SPEC */ :
-		this_.priv_TypeInference_traverseImportSpec_5538(scope, n)
+		this_.priv_TypeInference_traverseImportSpec_5539(scope, n)
 		isTypeable = false
 	case int32(130) /* Token.TAGGED_TEMPLATELIT */ :
-		scope = this_.priv_TypeInference_traverseTaggedTemplateLit_5520(n, scope)
+		scope = this_.priv_TypeInference_traverseTaggedTemplateLit_5521(n, scope)
 	case int32(24) /* Token.DELPROP */, int32(6) /* Token.LT */, int32(7) /* Token.LE */, int32(8) /* Token.GT */, int32(9) /* Token.GE */, int32(19) /* Token.NOT */, int32(4) /* Token.EQ */, int32(5) /* Token.NE */, int32(40) /* Token.SHEQ */, int32(41) /* Token.SHNE */, int32(45) /* Token.INSTANCEOF */, int32(44) /* Token.IN */ :
-		scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
-		n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE()))
+		scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
+		n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE()))
 	case int32(27) /* Token.GETELEM */ :
-		scope = this_.priv_TypeInference_traverseGetElem_5565(n, scope)
+		scope = this_.priv_TypeInference_traverseGetElem_5566(n, scope)
 	case int32(93) /* Token.EXPR_RESULT */ :
-		scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
+		scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
 		if n.GetFirstChild().IsGetProp() {
 			var getprop pkg_rhino.Node = n.GetFirstChild()
 			_ = getprop
-			var ownerType pkg_rhino.ObjectType = pkg_rhino.ObjectType_Cast(this_.priv_TypeInference_getJSType_5586(getprop.GetFirstChild()).RestrictByNotNullOrUndefined())
+			var ownerType pkg_rhino.ObjectType = pkg_rhino.ObjectType_Cast(this_.priv_TypeInference_getJSType_5587(getprop.GetFirstChild()).RestrictByNotNullOrUndefined())
 			_ = ownerType
 			if ownerType != nil && !ownerType.IsJavaNil_() {
-				this_.priv_TypeInference_ensurePropertyDeclaredHelper_5532(getprop, ownerType, scope)
+				this_.priv_TypeInference_ensurePropertyDeclaredHelper_5533(getprop, ownerType, scope)
 			}
 		}
 		isTypeable = false
 	case int32(75) /* Token.SWITCH */ :
-		scope = this_.priv_TypeInference_traverse_5515(n.GetFirstChild(), scope)
+		scope = this_.priv_TypeInference_traverse_5516(n.GetFirstChild(), scope)
 		isTypeable = false
 	case int32(0) /* Token.RETURN */ :
-		scope = this_.priv_TypeInference_traverseReturn_5523(n, scope)
+		scope = this_.priv_TypeInference_traverseReturn_5524(n, scope)
 		isTypeable = false
 	case int32(114) /* Token.YIELD */ :
 		if n.IsYieldAll() {
-			scope = this_.priv_TypeInference_traverseYieldAll_5524(n, scope)
+			scope = this_.priv_TypeInference_traverseYieldAll_5525(n, scope)
 		} else {
-			scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
-			n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()))
+			scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
+			n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()))
 		}
 	case int32(84) /* Token.VAR */, int32(111) /* Token.LET */, int32(97) /* Token.CONST */ :
-		scope = this_.priv_TypeInference_traverseDeclaration_5533(n, scope)
+		scope = this_.priv_TypeInference_traverseDeclaration_5534(n, scope)
 		isTypeable = false
 	case int32(86) /* Token.CATCH */ :
-		scope = this_.priv_TypeInference_traverseCatch_5525(n, scope)
+		scope = this_.priv_TypeInference_traverseCatch_5526(n, scope)
 		isTypeable = false
 	case int32(101) /* Token.CAST */ :
-		scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
+		scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
 		var info *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 		_ = info
 		j2gort.CheckNotNullPtr(info)
@@ -592,19 +604,19 @@ func (this_ *TypeInference) priv_TypeInference_traverse_5515(n pkg_rhino.Node, s
 			n.SetJSType(pkg_rhino.Upcast_JSType(this_.unknownType))
 		}
 	case int32(110) /* Token.SUPER */ :
-		this_.priv_TypeInference_traverseSuper_5521(n, scope)
+		this_.priv_TypeInference_traverseSuper_5522(n, scope)
 	case int32(115) /* Token.AWAIT */ :
-		scope = this_.priv_TypeInference_traverseAwait_5581(n, scope)
+		scope = this_.priv_TypeInference_traverseAwait_5582(n, scope)
 	case int32(87) /* Token.VOID */ :
-		n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE()))
-		scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
+		n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE()))
+		scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
 	case int32(120) /* Token.EXPORT */ :
-		scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
+		scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
 		if n.GetBooleanProp(pkg_rhino.StaticGet_Node_EXPORT_DEFAULT()) {
 			var defaultExport *TypedVar = TypeInference_GetDeclaredVar(scope, "*default*")
 			_ = defaultExport
 			if defaultExport.IsTypeInferred() {
-				defaultExport.SetType(this_.priv_TypeInference_getJSType_5586(n.GetOnlyChild()))
+				defaultExport.SetType(this_.priv_TypeInference_getJSType_5587(n.GetOnlyChild()))
 			}
 		}
 		isTypeable = false
@@ -613,7 +625,7 @@ func (this_ *TypeInference) priv_TypeInference_traverse_5515(n pkg_rhino.Node, s
 	case int32(89) /* Token.ROOT */, int32(94) /* Token.SCRIPT */, int32(123) /* Token.MODULE_BODY */, int32(91) /* Token.SWITCH_BODY */, int32(73) /* Token.FUNCTION */, int32(49) /* Token.PARAM_LIST */, int32(90) /* Token.BLOCK */, int32(88) /* Token.EMPTY */, int32(74) /* Token.IF */, int32(78) /* Token.WHILE */, int32(79) /* Token.DO */, int32(80) /* Token.FOR */, int32(81) /* Token.FOR_IN */, int32(112) /* Token.FOR_OF */, int32(113) /* Token.FOR_AWAIT_OF */, int32(82) /* Token.BREAK */, int32(83) /* Token.CONTINUE */, int32(48) /* Token.TRY */, int32(76) /* Token.CASE */, int32(77) /* Token.DEFAULT_CASE */, int32(85) /* Token.WITH */, int32(98) /* Token.DEBUGGER */, int32(121) /* Token.EXPORT_SPECS */, int32(92) /* Token.LABEL */ :
 		isTypeable = false
 	case int32(124) /* Token.DYNAMIC_IMPORT */ :
-		this_.priv_TypeInference_traverseDynamicImport_5582(n, scope)
+		this_.priv_TypeInference_traverseDynamicImport_5583(n, scope)
 	case int32(39) /* Token.TRUE */, int32(38) /* Token.FALSE */, int32(35) /* Token.STRINGLIT */, int32(33) /* Token.NUMBER */, int32(34) /* Token.BIGINT */, int32(36) /* Token.NULL */, int32(42) /* Token.REGEXP */, int32(133) /* Token.TEMPLATELIT_STRING */ :
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Type inference doesn't know to handle token "+j2gort.StrVal(n.GetToken()))))
@@ -625,14 +637,14 @@ func (this_ *TypeInference) priv_TypeInference_traverse_5515(n pkg_rhino.Node, s
 }
 
 // Java method: TypeInference.initializeEnhancedForScope(com.google.javascript.rhino.Node source, com.google.javascript.jscomp.LinkedFlowScope output)
-func (this_ *TypeInference) priv_TypeInference_initializeEnhancedForScope_5516(source pkg_rhino.Node, output *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_initializeEnhancedForScope_5517(source pkg_rhino.Node, output *LinkedFlowScope) *LinkedFlowScope {
 	_ = source
 	_ = output
 	var item pkg_rhino.Node = source.GetFirstChild()
 	_ = item
 	var obj pkg_rhino.Node = item.GetNext()
 	_ = obj
-	var informed *LinkedFlowScope = this_.priv_TypeInference_traverse_5515(obj, output)
+	var informed *LinkedFlowScope = this_.priv_TypeInference_traverse_5516(obj, output)
 	_ = informed
 	var assignmentType TypeInference_AssignmentType = TypeInference_AssignmentType(0)
 	_ = assignmentType
@@ -649,9 +661,9 @@ func (this_ *TypeInference) priv_TypeInference_initializeEnhancedForScope_5516(s
 	_ = newType
 	switch source.TokenSwitchOrd_() {
 	case int32(81) /* Token.FOR_IN */ :
-		var iterKeyType pkg_rhino.JSType = this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
+		var iterKeyType pkg_rhino.JSType = this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
 		_ = iterKeyType
-		var objType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(obj).Autobox()
+		var objType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(obj).Autobox()
 		_ = objType
 		var objIndexType pkg_rhino.JSType = objType.GetTemplateTypeMap().GetResolvedTemplateType(this_.registry.GetObjectIndexKey())
 		_ = objIndexType
@@ -664,70 +676,70 @@ func (this_ *TypeInference) priv_TypeInference_initializeEnhancedForScope_5516(s
 		}
 		newType = iterKeyType
 	case int32(112) /* Token.FOR_OF */ :
-		newType = JsIterables_MaybeBoxIterableOrAsyncIterable(this_.priv_TypeInference_getJSType_5586(obj), this_.registry).OrElse(pkg_rhino.Upcast_JSType(this_.unknownType))
+		newType = JsIterables_MaybeBoxIterableOrAsyncIterable(this_.priv_TypeInference_getJSType_5587(obj), this_.registry).OrElse(pkg_rhino.Upcast_JSType(this_.unknownType))
 	case int32(113) /* Token.FOR_AWAIT_OF */ :
-		var iterableType pkg_rhino.JSType = JsIterables_MaybeBoxIterableOrAsyncIterable(this_.priv_TypeInference_getJSType_5586(obj), this_.registry).OrElse(pkg_rhino.Upcast_JSType(this_.unknownType))
+		var iterableType pkg_rhino.JSType = JsIterables_MaybeBoxIterableOrAsyncIterable(this_.priv_TypeInference_getJSType_5587(obj), this_.registry).OrElse(pkg_rhino.Upcast_JSType(this_.unknownType))
 		_ = iterableType
 		newType = Promises_GetResolvedType(this_.registry, iterableType)
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalArgumentException](j2gort.ConstructShimThrowable("java.lang.IllegalArgumentException", "Unexpected source node "+j2gort.StrVal(source))))
 	}
 	if item.IsDestructuringPattern() {
-		informed = this_.priv_TypeInference_traverseDestructuringPattern_5535(item, informed, newType, assignmentType)
+		informed = this_.priv_TypeInference_traverseDestructuringPattern_5536(item, informed, newType, assignmentType)
 	} else {
-		informed = this_.priv_TypeInference_traverse_5515(item, informed)
-		informed = this_.priv_TypeInference_updateScopeForAssignment_5528(informed, item, newType, assignmentType)
+		informed = this_.priv_TypeInference_traverse_5516(item, informed)
+		informed = this_.priv_TypeInference_updateScopeForAssignment_5529(informed, item, newType, assignmentType)
 	}
 	return informed
 }
 
 // Java method: TypeInference.traverseUnsignedRightShift(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseUnsignedRightShift_5517(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseUnsignedRightShift_5518(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
-	scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
-	if (TypeInference_GetBigIntPresence(this_.priv_TypeInference_getJSType_5586(n.GetFirstChild())) != StaticGet_TypeInference_BigIntPresence_NO_BIGINT()) || (TypeInference_GetBigIntPresence(this_.priv_TypeInference_getJSType_5586(n.GetLastChild())) != StaticGet_TypeInference_BigIntPresence_NO_BIGINT()) {
-		n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE()))
+	scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
+	if (TypeInference_GetBigIntPresence(this_.priv_TypeInference_getJSType_5587(n.GetFirstChild())) != StaticGet_TypeInference_BigIntPresence_NO_BIGINT()) || (TypeInference_GetBigIntPresence(this_.priv_TypeInference_getJSType_5587(n.GetLastChild())) != StaticGet_TypeInference_BigIntPresence_NO_BIGINT()) {
+		n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE()))
 	} else {
-		n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()))
+		n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()))
 	}
 	return scope
 }
 
 // Java method: TypeInference.traverseAssignUnsignedRightShift(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseAssignUnsignedRightShift_5518(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseAssignUnsignedRightShift_5519(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	var left pkg_rhino.Node = n.GetFirstChild()
 	_ = left
-	scope = this_.priv_TypeInference_traverseUnsignedRightShift_5517(n, scope)
-	return this_.priv_TypeInference_updateScopeForAssignment_5529(scope, left, this_.priv_TypeInference_getJSType_5586(n), pkg_rhino.Node(0), StaticGet_TypeInference_AssignmentType_ASSIGN())
+	scope = this_.priv_TypeInference_traverseUnsignedRightShift_5518(n, scope)
+	return this_.priv_TypeInference_updateScopeForAssignment_5530(scope, left, this_.priv_TypeInference_getJSType_5587(n), pkg_rhino.Node(0), StaticGet_TypeInference_AssignmentType_ASSIGN())
 }
 
 // Java method: TypeInference.traverseCall(com.google.javascript.rhino.Node callNode, com.google.javascript.jscomp.LinkedFlowScope originalScope)
-func (this_ *TypeInference) priv_TypeInference_traverseCall_5519(callNode pkg_rhino.Node, originalScope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseCall_5520(callNode pkg_rhino.Node, originalScope *LinkedFlowScope) *LinkedFlowScope {
 	_ = callNode
 	_ = originalScope
 	if !(callNode.IsCall() || callNode.IsOptChainCall()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(callNode))
 	}
-	var scopeAfterChildren *LinkedFlowScope = this_.priv_TypeInference_traverseChildren_5564(callNode, originalScope)
+	var scopeAfterChildren *LinkedFlowScope = this_.priv_TypeInference_traverseChildren_5565(callNode, originalScope)
 	_ = scopeAfterChildren
-	var scopeAfterExecution *LinkedFlowScope = this_.priv_TypeInference_setCallNodeTypeAfterChildrenTraversed_5550(callNode, scopeAfterChildren)
+	var scopeAfterExecution *LinkedFlowScope = this_.priv_TypeInference_setCallNodeTypeAfterChildrenTraversed_5551(callNode, scopeAfterChildren)
 	_ = scopeAfterExecution
-	return this_.priv_TypeInference_tightenTypesAfterAssertions_5552(scopeAfterExecution, callNode)
+	return this_.priv_TypeInference_tightenTypesAfterAssertions_5553(scopeAfterExecution, callNode)
 }
 
 // Java method: TypeInference.traverseTaggedTemplateLit(com.google.javascript.rhino.Node tagTempLitNode, com.google.javascript.jscomp.LinkedFlowScope originalScope)
-func (this_ *TypeInference) priv_TypeInference_traverseTaggedTemplateLit_5520(tagTempLitNode pkg_rhino.Node, originalScope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseTaggedTemplateLit_5521(tagTempLitNode pkg_rhino.Node, originalScope *LinkedFlowScope) *LinkedFlowScope {
 	_ = tagTempLitNode
 	_ = originalScope
 	if !(tagTempLitNode.IsTaggedTemplateLit()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(tagTempLitNode))
 	}
-	var scopeAfterChildren *LinkedFlowScope = this_.priv_TypeInference_traverseChildren_5564(tagTempLitNode, originalScope)
+	var scopeAfterChildren *LinkedFlowScope = this_.priv_TypeInference_traverseChildren_5565(tagTempLitNode, originalScope)
 	_ = scopeAfterChildren
-	var scopeAfterExecution *LinkedFlowScope = this_.priv_TypeInference_setCallNodeTypeAfterChildrenTraversed_5550(tagTempLitNode, scopeAfterChildren)
+	var scopeAfterExecution *LinkedFlowScope = this_.priv_TypeInference_setCallNodeTypeAfterChildrenTraversed_5551(tagTempLitNode, scopeAfterChildren)
 	_ = scopeAfterExecution
 	if j2gort.IfaceEquals[pkg_rhino.JSType](tagTempLitNode.GetJSType(), nil) {
 		tagTempLitNode.SetJSType(pkg_rhino.Upcast_JSType(this_.unknownType))
@@ -736,7 +748,7 @@ func (this_ *TypeInference) priv_TypeInference_traverseTaggedTemplateLit_5520(ta
 }
 
 // Java method: TypeInference.traverseSuper(com.google.javascript.rhino.Node superNode, com.google.javascript.jscomp.LinkedFlowScope currentScope)
-func (this_ *TypeInference) priv_TypeInference_traverseSuper_5521(superNode pkg_rhino.Node, currentScope *LinkedFlowScope) {
+func (this_ *TypeInference) priv_TypeInference_traverseSuper_5522(superNode pkg_rhino.Node, currentScope *LinkedFlowScope) {
 	_ = superNode
 	_ = currentScope
 	var superNodeType pkg_rhino.ObjectType = nil
@@ -773,7 +785,7 @@ func (this_ *TypeInference) priv_TypeInference_traverseSuper_5521(superNode pkg_
 }
 
 // Java method: TypeInference.traverseNewTarget(com.google.javascript.rhino.Node newTargetNode)
-func (this_ *TypeInference) priv_TypeInference_traverseNewTarget_5522(newTargetNode pkg_rhino.Node) {
+func (this_ *TypeInference) priv_TypeInference_traverseNewTarget_5523(newTargetNode pkg_rhino.Node) {
 	_ = newTargetNode
 	var scope *TypedScope = this_.containerScope
 	_ = scope
@@ -803,10 +815,10 @@ func (this_ *TypeInference) priv_TypeInference_traverseNewTarget_5522(newTargetN
 }
 
 // Java method: TypeInference.traverseReturn(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseReturn_5523(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseReturn_5524(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
-	scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
+	scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
 	var retValue pkg_rhino.Node = n.GetFirstChild()
 	_ = retValue
 	if retValue != 0 {
@@ -824,11 +836,11 @@ func (this_ *TypeInference) priv_TypeInference_traverseReturn_5523(n pkg_rhino.N
 }
 
 // Java method: TypeInference.traverseYieldAll(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseYieldAll_5524(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseYieldAll_5525(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
-	scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
-	var innerType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(n.GetFirstChild())
+	scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
+	var innerType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(n.GetFirstChild())
 	_ = innerType
 	var yieldAllResult pkg_rhino.JSType = JsIterables_GetReturnElementType(innerType, this_.registry)
 	_ = yieldAllResult
@@ -837,7 +849,7 @@ func (this_ *TypeInference) priv_TypeInference_traverseYieldAll_5524(n pkg_rhino
 }
 
 // Java method: TypeInference.traverseCatch(com.google.javascript.rhino.Node catchNode, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseCatch_5525(catchNode pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseCatch_5526(catchNode pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = catchNode
 	_ = scope
 	var catchTarget pkg_rhino.Node = catchNode.GetFirstChild()
@@ -851,11 +863,11 @@ func (this_ *TypeInference) priv_TypeInference_traverseCatch_5525(catchNode pkg_
 			type_ = pkg_rhino.Upcast_JSType(this_.unknownType)
 			name.SetJSType(pkg_rhino.Upcast_JSType(this_.unknownType))
 		}
-		return this_.priv_TypeInference_redeclareSimpleVar_5584(scope, name, type_)
+		return this_.priv_TypeInference_redeclareSimpleVar_5585(scope, name, type_)
 	} else if catchTarget.IsDestructuringPattern() {
 		var pattern pkg_rhino.Node = catchNode.GetFirstChild()
 		_ = pattern
-		return this_.priv_TypeInference_traverseDestructuringPattern_5535(pattern, scope, pkg_rhino.Upcast_JSType(this_.unknownType), StaticGet_TypeInference_AssignmentType_DECLARATION())
+		return this_.priv_TypeInference_traverseDestructuringPattern_5536(pattern, scope, pkg_rhino.Upcast_JSType(this_.unknownType), StaticGet_TypeInference_AssignmentType_DECLARATION())
 	} else {
 		if !(catchTarget.IsEmpty()) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(catchTarget))
@@ -865,7 +877,7 @@ func (this_ *TypeInference) priv_TypeInference_traverseCatch_5525(catchNode pkg_
 }
 
 // Java method: TypeInference.traverseAssign(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseAssign_5526(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseAssign_5527(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	var target pkg_rhino.Node = n.GetFirstChild()
@@ -873,28 +885,28 @@ func (this_ *TypeInference) priv_TypeInference_traverseAssign_5526(n pkg_rhino.N
 	var value pkg_rhino.Node = n.GetLastChild()
 	_ = value
 	if target.IsDestructuringPattern() {
-		scope = this_.priv_TypeInference_traverse_5515(value, scope)
-		var valueType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(value)
+		scope = this_.priv_TypeInference_traverse_5516(value, scope)
+		var valueType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(value)
 		_ = valueType
 		n.SetJSType(valueType)
-		return this_.priv_TypeInference_traverseDestructuringPattern_5535(target, scope, valueType, StaticGet_TypeInference_AssignmentType_ASSIGN())
+		return this_.priv_TypeInference_traverseDestructuringPattern_5536(target, scope, valueType, StaticGet_TypeInference_AssignmentType_ASSIGN())
 	} else {
-		scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
-		var valueType_2 pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(value)
+		scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
+		var valueType_2 pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(value)
 		_ = valueType_2
 		n.SetJSType(valueType_2)
-		return this_.priv_TypeInference_updateScopeForAssignment_5528(scope, target, valueType_2, StaticGet_TypeInference_AssignmentType_ASSIGN())
+		return this_.priv_TypeInference_updateScopeForAssignment_5529(scope, target, valueType_2, StaticGet_TypeInference_AssignmentType_ASSIGN())
 	}
 }
 
 // Java method: TypeInference.traverseAssignOp(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseAssignOp_5527(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseAssignOp_5528(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	var left pkg_rhino.Node = n.GetFirstChild()
 	_ = left
-	scope = this_.priv_TypeInference_traverseBigIntCompatibleBinaryOperator_5541(n, scope)
-	return this_.priv_TypeInference_updateScopeForAssignment_5529(scope, left, this_.priv_TypeInference_getJSType_5586(n), pkg_rhino.Node(0), StaticGet_TypeInference_AssignmentType_ASSIGN())
+	scope = this_.priv_TypeInference_traverseBigIntCompatibleBinaryOperator_5542(n, scope)
+	return this_.priv_TypeInference_updateScopeForAssignment_5530(scope, left, this_.priv_TypeInference_getJSType_5587(n), pkg_rhino.Node(0), StaticGet_TypeInference_AssignmentType_ASSIGN())
 }
 
 // Java static method: TypeInference.isInExternFile(com.google.javascript.rhino.Node n)
@@ -929,15 +941,15 @@ func TypeInference_AddMissingInterfaceProperties(constructor pkg_rhino.JSType) {
 	var proto pkg_rhino.ObjectType = f.GetPrototype()
 	_ = proto
 	{
-		cur_5 := j2gort.NewIterCursor(j2gort.CheckNotNull(f.GetImplementedInterfaces()))
-		for cur_5.HasNext() {
-			rawElem_6 := cur_5.Next()
-			interf := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_6)
+		cur_3 := j2gort.NewIterCursor(j2gort.CheckNotNull(f.GetImplementedInterfaces()))
+		for cur_3.HasNext() {
+			rawElem_4 := cur_3.Next()
+			interf := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_4)
 			_ = interf
 			{
-				cur_7 := j2gort.NewIterCursor(j2gort.CheckNotNull(interf.GetObjectTypeBase().GetPropertyNames()))
-				for cur_7.HasNext() {
-					pname := cur_7.NextStr()
+				cur_5 := j2gort.NewIterCursor(j2gort.CheckNotNull(interf.GetObjectTypeBase().GetPropertyNames()))
+				for cur_5.HasNext() {
+					pname := cur_5.NextStr()
 					_ = pname
 					if !(proto.GetObjectTypeBase().HasProperty_1_string(pname)) {
 						proto.GetObjectTypeBase().DefineDeclaredProperty_3_string_JSType_Node(pname, interf.GetObjectTypeBase().GetPropertyType_1_string(pname), pkg_rhino.Node(0))
@@ -949,16 +961,16 @@ func TypeInference_AddMissingInterfaceProperties(constructor pkg_rhino.JSType) {
 }
 
 // Java method: TypeInference.updateScopeForAssignment(com.google.javascript.jscomp.LinkedFlowScope scope, com.google.javascript.rhino.Node target, com.google.javascript.rhino.jstype.JSType resultType, com.google.javascript.jscomp.TypeInference.AssignmentType type)
-func (this_ *TypeInference) priv_TypeInference_updateScopeForAssignment_5528(scope *LinkedFlowScope, target pkg_rhino.Node, resultType pkg_rhino.JSType, type_ TypeInference_AssignmentType) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_updateScopeForAssignment_5529(scope *LinkedFlowScope, target pkg_rhino.Node, resultType pkg_rhino.JSType, type_ TypeInference_AssignmentType) *LinkedFlowScope {
 	_ = scope
 	_ = target
 	_ = resultType
 	_ = type_
-	return this_.priv_TypeInference_updateScopeForAssignment_5529(scope, target, resultType, target, type_)
+	return this_.priv_TypeInference_updateScopeForAssignment_5530(scope, target, resultType, target, type_)
 }
 
 // Java method: TypeInference.updateScopeForAssignment(com.google.javascript.jscomp.LinkedFlowScope scope, com.google.javascript.rhino.Node target, com.google.javascript.rhino.jstype.JSType resultType, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node updateNode, com.google.javascript.jscomp.TypeInference.AssignmentType type)
-func (this_ *TypeInference) priv_TypeInference_updateScopeForAssignment_5529(scope *LinkedFlowScope, target pkg_rhino.Node, resultType pkg_rhino.JSType, updateNode pkg_rhino.Node, type_ TypeInference_AssignmentType) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_updateScopeForAssignment_5530(scope *LinkedFlowScope, target pkg_rhino.Node, resultType pkg_rhino.JSType, updateNode pkg_rhino.Node, type_ TypeInference_AssignmentType) *LinkedFlowScope {
 	_ = scope
 	_ = target
 	_ = resultType
@@ -995,9 +1007,9 @@ func (this_ *TypeInference) priv_TypeInference_updateScopeForAssignment_5529(sco
 		var isVarTypeBetter bool = (((isVarDeclaration && !(resultType.GetJSTypeBase().IsNullType())) && !(resultType.GetJSTypeBase().IsVoidType())) && !(isTypelessConstDecl))
 		_ = isVarTypeBetter
 		if isVarTypeBetter {
-			scope = this_.priv_TypeInference_redeclareSimpleVar_5584(scope, target, varType)
+			scope = this_.priv_TypeInference_redeclareSimpleVar_5585(scope, target, varType)
 		} else {
-			scope = this_.priv_TypeInference_redeclareSimpleVar_5584(scope, target, resultType)
+			scope = this_.priv_TypeInference_redeclareSimpleVar_5585(scope, target, resultType)
 		}
 		if updateNode != 0 {
 			updateNode.SetJSType(resultType)
@@ -1051,14 +1063,14 @@ func (this_ *TypeInference) priv_TypeInference_updateScopeForAssignment_5529(sco
 		if updateNode != 0 {
 			updateNode.SetJSType(resultType)
 		}
-		this_.priv_TypeInference_ensurePropertyDefined_5530(target, resultType, scope)
+		this_.priv_TypeInference_ensurePropertyDefined_5531(target, resultType, scope)
 	default:
 	}
 	return scope
 }
 
 // Java method: TypeInference.ensurePropertyDefined(com.google.javascript.rhino.Node getprop, com.google.javascript.rhino.jstype.JSType rightType, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_ensurePropertyDefined_5530(getprop pkg_rhino.Node, rightType pkg_rhino.JSType, scope *LinkedFlowScope) {
+func (this_ *TypeInference) priv_TypeInference_ensurePropertyDefined_5531(getprop pkg_rhino.Node, rightType pkg_rhino.JSType, scope *LinkedFlowScope) {
 	_ = getprop
 	_ = rightType
 	_ = scope
@@ -1066,11 +1078,11 @@ func (this_ *TypeInference) priv_TypeInference_ensurePropertyDefined_5530(getpro
 	_ = propName
 	var obj pkg_rhino.Node = getprop.GetFirstChild()
 	_ = obj
-	var nodeType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(obj)
+	var nodeType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(obj)
 	_ = nodeType
 	var objectType pkg_rhino.ObjectType = pkg_rhino.ObjectType_Cast(nodeType.RestrictByNotNullOrUndefined())
 	_ = objectType
-	var propCreationInConstructor bool = (obj.IsThis() && this_.priv_TypeInference_getJSType_5586(this_.containerScope.GetRootNode_0()).GetJSTypeBase().IsConstructor())
+	var propCreationInConstructor bool = (obj.IsThis() && this_.priv_TypeInference_getJSType_5587(this_.containerScope.GetRootNode_0()).GetJSTypeBase().IsConstructor())
 	_ = propCreationInConstructor
 	if objectType == nil || objectType.IsJavaNil_() {
 		this_.registry.RegisterPropertyOnType(propName, nodeType)
@@ -1093,13 +1105,13 @@ func (this_ *TypeInference) priv_TypeInference_ensurePropertyDefined_5530(getpro
 				return
 			}
 		}
-		if this_.priv_TypeInference_ensurePropertyDeclaredHelper_5532(getprop, objectType, scope) {
+		if this_.priv_TypeInference_ensurePropertyDeclaredHelper_5533(getprop, objectType, scope) {
 			return
 		}
 		if !(objectType.GetObjectTypeBase().IsPropertyTypeDeclared_1_string(propName)) {
 			if objectType.GetObjectTypeBase().HasProperty_1_string(propName) || !(objectType.IsInstanceType()) {
 				if "prototype" == propName {
-					this_.priv_TypeInference_defineDeclaredProperty_5531(objectType, propName, rightType, getprop)
+					this_.priv_TypeInference_defineDeclaredProperty_5532(objectType, propName, rightType, getprop)
 				} else {
 					objectType.GetObjectTypeBase().DefineInferredProperty_3_string_JSType_Node(propName, rightType, getprop)
 				}
@@ -1113,7 +1125,7 @@ func (this_ *TypeInference) priv_TypeInference_ensurePropertyDefined_5530(getpro
 }
 
 // Java method: TypeInference.defineDeclaredProperty(com.google.javascript.rhino.jstype.ObjectType objectType, java.lang.String propName, com.google.javascript.rhino.jstype.JSType rightType, com.google.javascript.rhino.Node getprop)
-func (this_ *TypeInference) priv_TypeInference_defineDeclaredProperty_5531(objectType pkg_rhino.ObjectType, propName string, rightType pkg_rhino.JSType, getprop pkg_rhino.Node) bool {
+func (this_ *TypeInference) priv_TypeInference_defineDeclaredProperty_5532(objectType pkg_rhino.ObjectType, propName string, rightType pkg_rhino.JSType, getprop pkg_rhino.Node) bool {
 	_ = objectType
 	_ = propName
 	_ = rightType
@@ -1130,7 +1142,7 @@ func (this_ *TypeInference) priv_TypeInference_defineDeclaredProperty_5531(objec
 }
 
 // Java method: TypeInference.ensurePropertyDeclaredHelper(com.google.javascript.rhino.Node getprop, com.google.javascript.rhino.jstype.ObjectType objectType, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_ensurePropertyDeclaredHelper_5532(getprop pkg_rhino.Node, objectType pkg_rhino.ObjectType, scope *LinkedFlowScope) bool {
+func (this_ *TypeInference) priv_TypeInference_ensurePropertyDeclaredHelper_5533(getprop pkg_rhino.Node, objectType pkg_rhino.ObjectType, scope *LinkedFlowScope) bool {
 	_ = getprop
 	_ = objectType
 	_ = scope
@@ -1149,7 +1161,7 @@ func (this_ *TypeInference) priv_TypeInference_ensurePropertyDeclaredHelper_5532
 				_ = var_
 				if (var_ != nil) && !(var_.IsTypeInferred()) {
 					if (j2gort.CheckNotNullString(propName) == "prototype") || (!(objectType.GetObjectTypeBase().HasOwnProperty_1_string(propName)) && (!(objectType.IsInstanceType()) || (var_.IsExtern() && !(objectType.GetObjectTypeBase().IsNativeObjectType())))) {
-						return this_.priv_TypeInference_defineDeclaredProperty_5531(objectType, propName, var_.GetType(), getprop)
+						return this_.priv_TypeInference_defineDeclaredProperty_5532(objectType, propName, var_.GetType(), getprop)
 					}
 				}
 			}
@@ -1159,54 +1171,54 @@ func (this_ *TypeInference) priv_TypeInference_ensurePropertyDeclaredHelper_5532
 }
 
 // Java method: TypeInference.traverseDeclaration(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseDeclaration_5533(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseDeclaration_5534(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	{
 		var declarationChild pkg_rhino.Node = n.GetFirstChild()
 		_ = declarationChild
 		for ; declarationChild != 0; declarationChild = declarationChild.GetNext() {
-			scope = this_.priv_TypeInference_traverseDeclarationChild_5534(declarationChild, scope)
+			scope = this_.priv_TypeInference_traverseDeclarationChild_5535(declarationChild, scope)
 		}
 	}
 	return scope
 }
 
 // Java method: TypeInference.traverseDeclarationChild(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseDeclarationChild_5534(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseDeclarationChild_5535(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	if n.IsName() {
-		return this_.priv_TypeInference_traverseName_5537(n, scope)
+		return this_.priv_TypeInference_traverseName_5538(n, scope)
 	}
 	if !(n.IsDestructuringLhs()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
 	}
-	scope = this_.priv_TypeInference_traverse_5515(n.GetSecondChild(), scope)
-	return this_.priv_TypeInference_traverseDestructuringPattern_5535(n.GetFirstChild(), scope, this_.priv_TypeInference_getJSType_5586(n.GetSecondChild()), StaticGet_TypeInference_AssignmentType_DECLARATION())
+	scope = this_.priv_TypeInference_traverse_5516(n.GetSecondChild(), scope)
+	return this_.priv_TypeInference_traverseDestructuringPattern_5536(n.GetFirstChild(), scope, this_.priv_TypeInference_getJSType_5587(n.GetSecondChild()), StaticGet_TypeInference_AssignmentType_DECLARATION())
 }
 
 // Java method: TypeInference.traverseDestructuringPattern(com.google.javascript.rhino.Node pattern, com.google.javascript.jscomp.LinkedFlowScope scope, com.google.javascript.rhino.jstype.JSType patternType, com.google.javascript.jscomp.TypeInference.AssignmentType assignmentType)
-func (this_ *TypeInference) priv_TypeInference_traverseDestructuringPattern_5535(pattern pkg_rhino.Node, scope *LinkedFlowScope, patternType pkg_rhino.JSType, assignmentType TypeInference_AssignmentType) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseDestructuringPattern_5536(pattern pkg_rhino.Node, scope *LinkedFlowScope, patternType pkg_rhino.JSType, assignmentType TypeInference_AssignmentType) *LinkedFlowScope {
 	_ = pattern
 	_ = scope
 	_ = patternType
 	_ = assignmentType
-	return this_.priv_TypeInference_traverseDestructuringPatternHelper_5536(pattern, scope, patternType, NewLambda_TypeInference_TypeDeclaringCallback(func(flowScope *LinkedFlowScope, targetNode pkg_rhino.Node, targetType pkg_rhino.JSType) *LinkedFlowScope {
+	return this_.priv_TypeInference_traverseDestructuringPatternHelper_5537(pattern, scope, patternType, NewLambda_TypeInference_TypeDeclaringCallback(func(flowScope *LinkedFlowScope, targetNode pkg_rhino.Node, targetType pkg_rhino.JSType) *LinkedFlowScope {
 		_ = flowScope
 		_ = targetNode
 		_ = targetType
 		if targetType != nil && !targetType.IsJavaNil_() {
 			targetType = targetType
 		} else {
-			targetType = this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
+			targetType = this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 		}
-		return this_.priv_TypeInference_updateScopeForAssignment_5528(flowScope, targetNode, targetType, assignmentType)
+		return this_.priv_TypeInference_updateScopeForAssignment_5529(flowScope, targetNode, targetType, assignmentType)
 	}))
 }
 
 // Java method: TypeInference.traverseDestructuringPatternHelper(com.google.javascript.rhino.Node pattern, com.google.javascript.jscomp.LinkedFlowScope scope, com.google.javascript.rhino.jstype.JSType patternType, com.google.javascript.jscomp.TypeInference.TypeDeclaringCallback declarer)
-func (this_ *TypeInference) priv_TypeInference_traverseDestructuringPatternHelper_5536(pattern pkg_rhino.Node, scope *LinkedFlowScope, patternType pkg_rhino.JSType, declarer TypeInference_TypeDeclaringCallback) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseDestructuringPatternHelper_5537(pattern pkg_rhino.Node, scope *LinkedFlowScope, patternType pkg_rhino.JSType, declarer TypeInference_TypeDeclaringCallback) *LinkedFlowScope {
 	_ = pattern
 	_ = scope
 	_ = patternType
@@ -1216,32 +1228,32 @@ func (this_ *TypeInference) priv_TypeInference_traverseDestructuringPatternHelpe
 	}
 	j2gort.CheckNotNullIface(patternType)
 	{
-		cur_8 := j2gort.NewIterCursor(j2gort.CheckNotNull(DestructuredTarget_CreateAllNonEmptyTargetsInPattern_3_JSTypeRegistry_JSType_Node(this_.registry, patternType, pattern)))
-		for cur_8.HasNext() {
-			rawElem_9 := cur_8.Next()
-			target := j2gort.CastPtr[DestructuredTarget](rawElem_9)
+		cur_6 := j2gort.NewIterCursor(j2gort.CheckNotNull(DestructuredTarget_CreateAllNonEmptyTargetsInPattern_3_JSTypeRegistry_JSType_Node(this_.registry, patternType, pattern)))
+		for cur_6.HasNext() {
+			rawElem_7 := cur_6.Next()
+			target := j2gort.CastPtr[DestructuredTarget](rawElem_7)
 			_ = target
 			if target.HasComputedProperty() {
-				scope = this_.priv_TypeInference_traverse_5515(target.GetComputedProperty().GetFirstChild(), scope)
+				scope = this_.priv_TypeInference_traverse_5516(target.GetComputedProperty().GetFirstChild(), scope)
 			}
 			var targetNode pkg_rhino.Node = target.GetNode()
 			_ = targetNode
 			if targetNode.IsDestructuringPattern() {
 				if target.HasDefaultValue() {
-					this_.priv_TypeInference_traverse_5515(target.GetDefaultValue(), scope)
+					this_.priv_TypeInference_traverse_5516(target.GetDefaultValue(), scope)
 				}
 				var targetType pkg_rhino.JSType = target.InferType()
 				_ = targetType
 				if targetType != nil && !targetType.IsJavaNil_() {
 					targetType = targetType
 				} else {
-					targetType = this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
+					targetType = this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 				}
-				scope = this_.priv_TypeInference_traverseDestructuringPatternHelper_5536(targetNode, scope, targetType, declarer)
+				scope = this_.priv_TypeInference_traverseDestructuringPatternHelper_5537(targetNode, scope, targetType, declarer)
 			} else {
-				scope = this_.priv_TypeInference_traverse_5515(targetNode, scope)
+				scope = this_.priv_TypeInference_traverse_5516(targetNode, scope)
 				if target.HasDefaultValue() {
-					this_.priv_TypeInference_traverse_5515(target.GetDefaultValue(), scope)
+					this_.priv_TypeInference_traverse_5516(target.GetDefaultValue(), scope)
 				}
 				scope = declarer.DeclareTypeInScope(scope, targetNode, target.InferType())
 			}
@@ -1252,7 +1264,7 @@ func (this_ *TypeInference) priv_TypeInference_traverseDestructuringPatternHelpe
 }
 
 // Java method: TypeInference.traverseName(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseName_5537(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseName_5538(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	var varName string = n.GetString()
@@ -1262,8 +1274,8 @@ func (this_ *TypeInference) priv_TypeInference_traverseName_5537(n pkg_rhino.Nod
 	var type_ pkg_rhino.JSType = n.GetJSType()
 	_ = type_
 	if value != 0 {
-		scope = this_.priv_TypeInference_traverse_5515(value, scope)
-		return this_.priv_TypeInference_updateScopeForAssignment_5528(scope, n, this_.priv_TypeInference_getJSType_5586(value), StaticGet_TypeInference_AssignmentType_DECLARATION())
+		scope = this_.priv_TypeInference_traverse_5516(value, scope)
+		return this_.priv_TypeInference_updateScopeForAssignment_5529(scope, n, this_.priv_TypeInference_getJSType_5587(value), StaticGet_TypeInference_AssignmentType_DECLARATION())
 	}
 	if NodeUtil_IsNameDeclaration(n.GetParent()) && TypeInference_IsPossibleMixinApplication(n, pkg_rhino.Node(0)) {
 		TypeInference_AddMissingInterfaceProperties(type_)
@@ -1274,9 +1286,9 @@ func (this_ *TypeInference) priv_TypeInference_traverseName_5537(n pkg_rhino.Nod
 		if type_ != nil && !type_.IsJavaNil_() {
 			resultType = type_
 		} else {
-			resultType = this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
+			resultType = this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 		}
-		scope = this_.priv_TypeInference_updateScopeForAssignment_5528(scope, n, resultType, StaticGet_TypeInference_AssignmentType_DECLARATION())
+		scope = this_.priv_TypeInference_updateScopeForAssignment_5529(scope, n, resultType, StaticGet_TypeInference_AssignmentType_DECLARATION())
 		type_ = resultType
 	} else {
 		var var_ pkg_rhino.StaticTypedSlot = scope.GetLinkedSlot(varName)
@@ -1284,7 +1296,7 @@ func (this_ *TypeInference) priv_TypeInference_traverseName_5537(n pkg_rhino.Nod
 		if var_ != nil && !var_.IsJavaNil_() {
 			var isInferred bool = var_.IsTypeInferred()
 			_ = isInferred
-			var unflowable bool = (isInferred && this_.priv_TypeInference_isUnflowable_5585(TypeInference_GetDeclaredVar(scope, varName)))
+			var unflowable bool = (isInferred && this_.priv_TypeInference_isUnflowable_5586(TypeInference_GetDeclaredVar(scope, varName)))
 			_ = unflowable
 			var maybeOuterVar *TypedVar
 			_ = maybeOuterVar
@@ -1308,14 +1320,14 @@ func (this_ *TypeInference) priv_TypeInference_traverseName_5537(n pkg_rhino.Nod
 }
 
 // Java method: TypeInference.traverseImportSpec(com.google.javascript.jscomp.LinkedFlowScope scope, com.google.javascript.rhino.Node spec)
-func (this_ *TypeInference) priv_TypeInference_traverseImportSpec_5538(scope *LinkedFlowScope, spec pkg_rhino.Node) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseImportSpec_5539(scope *LinkedFlowScope, spec pkg_rhino.Node) *LinkedFlowScope {
 	_ = scope
 	_ = spec
 	var exportedName pkg_rhino.Node = spec.GetFirstChild()
 	_ = exportedName
 	var localName pkg_rhino.Node = spec.GetSecondChild()
 	_ = localName
-	scope = this_.priv_TypeInference_traverse_5515(localName, scope)
+	scope = this_.priv_TypeInference_traverse_5516(localName, scope)
 	exportedName.SetJSType(localName.GetJSType())
 	return scope
 }
@@ -1372,67 +1384,67 @@ func TypeInference_GetBigIntPresence(type_ pkg_rhino.JSType) TypeInference_BigIn
 }
 
 // Java method: TypeInference.traverseUnaryPlus(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseUnaryPlus_5539(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseUnaryPlus_5540(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
-	scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
-	var bigintPresenceInOperand TypeInference_BigIntPresence = TypeInference_GetBigIntPresence(this_.priv_TypeInference_getJSType_5586(n.GetFirstChild()))
+	scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
+	var bigintPresenceInOperand TypeInference_BigIntPresence = TypeInference_GetBigIntPresence(this_.priv_TypeInference_getJSType_5587(n.GetFirstChild()))
 	_ = bigintPresenceInOperand
 	if bigintPresenceInOperand != StaticGet_TypeInference_BigIntPresence_NO_BIGINT() {
-		n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE()))
+		n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE()))
 	} else {
-		n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()))
+		n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()))
 	}
 	return scope
 }
 
 // Java method: TypeInference.traverseBigIntCompatibleUnaryOperator(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseBigIntCompatibleUnaryOperator_5540(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseBigIntCompatibleUnaryOperator_5541(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
-	scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
-	switch (TypeInference_GetBigIntPresence(this_.priv_TypeInference_getJSType_5586(n.GetFirstChild()))).Ordinal() {
+	scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
+	switch (TypeInference_GetBigIntPresence(this_.priv_TypeInference_getJSType_5587(n.GetFirstChild()))).Ordinal() {
 	case int32(1) /* BigIntPresence.ALL_BIGINT */ :
-		n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_BIGINT_TYPE()))
+		n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_BIGINT_TYPE()))
 	case int32(0) /* BigIntPresence.NO_BIGINT */ :
-		n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()))
+		n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()))
 	case int32(2) /* BigIntPresence.BIGINT_OR_NUMBER */, int32(3) /* BigIntPresence.BIGINT_OR_OTHER */ :
-		n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER()))
+		n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER()))
 	}
 	return scope
 }
 
 // Java method: TypeInference.traverseBigIntCompatibleBinaryOperator(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseBigIntCompatibleBinaryOperator_5541(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseBigIntCompatibleBinaryOperator_5542(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
-	scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
-	var leftBigIntPresence TypeInference_BigIntPresence = TypeInference_GetBigIntPresence(this_.priv_TypeInference_getJSType_5586(n.GetFirstChild()))
+	scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
+	var leftBigIntPresence TypeInference_BigIntPresence = TypeInference_GetBigIntPresence(this_.priv_TypeInference_getJSType_5587(n.GetFirstChild()))
 	_ = leftBigIntPresence
-	var rightBigIntPresence TypeInference_BigIntPresence = TypeInference_GetBigIntPresence(this_.priv_TypeInference_getJSType_5586(n.GetLastChild()))
+	var rightBigIntPresence TypeInference_BigIntPresence = TypeInference_GetBigIntPresence(this_.priv_TypeInference_getJSType_5587(n.GetLastChild()))
 	_ = rightBigIntPresence
 	if leftBigIntPresence != rightBigIntPresence {
-		n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE()))
+		n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE()))
 	} else {
 		switch (leftBigIntPresence).Ordinal() {
 		case int32(0) /* BigIntPresence.NO_BIGINT */ :
-			n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()))
+			n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()))
 		case int32(1) /* BigIntPresence.ALL_BIGINT */ :
-			n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_BIGINT_TYPE()))
+			n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_BIGINT_TYPE()))
 		case int32(2) /* BigIntPresence.BIGINT_OR_NUMBER */ :
-			n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER()))
+			n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_BIGINT_NUMBER()))
 		case int32(3) /* BigIntPresence.BIGINT_OR_OTHER */ :
-			n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE()))
+			n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE()))
 		}
 	}
 	return scope
 }
 
 // Java method: TypeInference.traverseClass(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseClass_5542(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseClass_5543(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
-	scope = this_.priv_TypeInference_traverse_5515(n.GetSecondChild(), scope)
+	scope = this_.priv_TypeInference_traverse_5516(n.GetSecondChild(), scope)
 	var classMembers pkg_rhino.Node = NodeUtil_GetClassMembers(n)
 	_ = classMembers
 	{
@@ -1440,7 +1452,7 @@ func (this_ *TypeInference) priv_TypeInference_traverseClass_5542(n pkg_rhino.No
 		_ = member
 		for ; member != 0; member = member.GetNext() {
 			if member.IsComputedProp() || member.IsComputedFieldDef() {
-				scope = this_.priv_TypeInference_traverse_5515(member.GetFirstChild(), scope)
+				scope = this_.priv_TypeInference_traverse_5516(member.GetFirstChild(), scope)
 			}
 		}
 	}
@@ -1448,14 +1460,14 @@ func (this_ *TypeInference) priv_TypeInference_traverseClass_5542(n pkg_rhino.No
 		var member_2 pkg_rhino.Node = classMembers.GetFirstChild()
 		_ = member_2
 		for ; member_2 != 0; member_2 = member_2.GetNext() {
-			scope = this_.priv_TypeInference_traverseClassMemberRhs_5543(member_2, scope)
+			scope = this_.priv_TypeInference_traverseClassMemberRhs_5544(member_2, scope)
 		}
 	}
 	return scope
 }
 
 // Java method: TypeInference.traverseClassMemberRhs(com.google.javascript.rhino.Node member, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseClassMemberRhs_5543(member pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseClassMemberRhs_5544(member pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = member
 	_ = scope
 	switch member.TokenSwitchOrd_() {
@@ -1467,7 +1479,7 @@ func (this_ *TypeInference) priv_TypeInference_traverseClassMemberRhs_5543(membe
 			_ = computedFieldDefTypedScope
 			var computedFieldDefFlowScope *LinkedFlowScope = scope.WithSyntacticScopeLinked(computedFieldDefTypedScope)
 			_ = computedFieldDefFlowScope
-			var rhsScope *LinkedFlowScope = this_.priv_TypeInference_traverse_5515(rhs, computedFieldDefFlowScope).WithSyntacticScopeLinked(scope.GetSyntacticScope())
+			var rhsScope *LinkedFlowScope = this_.priv_TypeInference_traverse_5516(rhs, computedFieldDefFlowScope).WithSyntacticScopeLinked(scope.GetSyntacticScope())
 			_ = rhsScope
 			if member.IsStaticMember() {
 				return rhsScope
@@ -1504,16 +1516,16 @@ func TypeInference_GetRhsOfField(fieldNode pkg_rhino.Node) pkg_rhino.Node {
 }
 
 // Java method: TypeInference.traverseArrayLiteral(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseArrayLiteral_5544(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseArrayLiteral_5545(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
-	scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
-	n.SetJSType(pkg_rhino.ToIface_JSType(this_.registry.CreateTemplatizedType_2_ObjectType_JSType(this_.registry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE()), []pkg_rhino.JSType{this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())})))
+	scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
+	n.SetJSType(pkg_rhino.ToIface_JSType(this_.registry.CreateTemplatizedType_2_ObjectType_JSType(this_.registry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE()), []pkg_rhino.JSType{this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())})))
 	return scope
 }
 
 // Java method: TypeInference.traverseObjectLiteral(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseObjectLiteral_5545(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseObjectLiteral_5546(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	var type_ pkg_rhino.JSType = n.GetJSType()
@@ -1526,11 +1538,11 @@ func (this_ *TypeInference) priv_TypeInference_traverseObjectLiteral_5545(n pkg_
 		_ = name
 		for ; name != 0; name = name.GetNext() {
 			{
-				ba_10 := spreadOperatorSeen
-				bb_11 := name.IsSpread()
-				spreadOperatorSeen = ba_10 || bb_11
+				ba_8 := spreadOperatorSeen
+				bb_9 := name.IsSpread()
+				spreadOperatorSeen = ba_8 || bb_9
 			}
-			scope = this_.priv_TypeInference_traverseChildren_5564(name, scope)
+			scope = this_.priv_TypeInference_traverseChildren_5565(name, scope)
 		}
 	}
 	var objectType pkg_rhino.ObjectType = pkg_rhino.ObjectType_Cast(type_)
@@ -1618,14 +1630,14 @@ func (this_ *TypeInference) priv_TypeInference_traverseObjectLiteral_5545(n pkg_
 }
 
 // Java method: TypeInference.traverseAdd(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseAdd_5546(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseAdd_5547(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	var left pkg_rhino.Node = n.GetFirstChild()
 	_ = left
 	var right pkg_rhino.Node = left.GetNext()
 	_ = right
-	scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
+	scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
 	var leftType pkg_rhino.JSType = left.GetJSType()
 	_ = leftType
 	var rightType pkg_rhino.JSType = right.GetJSType()
@@ -1638,32 +1650,32 @@ func (this_ *TypeInference) priv_TypeInference_traverseAdd_5546(n pkg_rhino.Node
 		var rightIsUnknown bool = rightType.GetJSTypeBase().IsUnknownType()
 		_ = rightIsUnknown
 		if (!(leftIsUnknown) && leftType.GetJSTypeBase().IsString()) || (!(rightIsUnknown) && rightType.GetJSTypeBase().IsString()) {
-			type_ = this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
+			type_ = this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
 		} else if (TypeInference_GetBigIntPresence(leftType) != StaticGet_TypeInference_BigIntPresence_NO_BIGINT()) || (TypeInference_GetBigIntPresence(rightType) != StaticGet_TypeInference_BigIntPresence_NO_BIGINT()) {
-			return this_.priv_TypeInference_traverseBigIntCompatibleBinaryOperator_5541(n, scope)
+			return this_.priv_TypeInference_traverseBigIntCompatibleBinaryOperator_5542(n, scope)
 		} else if leftIsUnknown || rightIsUnknown {
 			type_ = pkg_rhino.Upcast_JSType(this_.unknownType)
-		} else if this_.priv_TypeInference_isAddedAsNumber_5547(leftType) && this_.priv_TypeInference_isAddedAsNumber_5547(rightType) {
-			type_ = this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
+		} else if this_.priv_TypeInference_isAddedAsNumber_5548(leftType) && this_.priv_TypeInference_isAddedAsNumber_5548(rightType) {
+			type_ = this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
 		} else {
-			type_ = this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_NUMBER_STRING())
+			type_ = this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_NUMBER_STRING())
 		}
 	}
 	n.SetJSType(type_)
 	if n.IsAssignAdd() {
-		scope = this_.priv_TypeInference_updateScopeForAssignment_5529(scope, left, type_, pkg_rhino.Node(0), StaticGet_TypeInference_AssignmentType_ASSIGN())
+		scope = this_.priv_TypeInference_updateScopeForAssignment_5530(scope, left, type_, pkg_rhino.Node(0), StaticGet_TypeInference_AssignmentType_ASSIGN())
 	}
 	return scope
 }
 
 // Java method: TypeInference.isAddedAsNumber(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *TypeInference) priv_TypeInference_isAddedAsNumber_5547(type_ pkg_rhino.JSType) bool {
+func (this_ *TypeInference) priv_TypeInference_isAddedAsNumber_5548(type_ pkg_rhino.JSType) bool {
 	_ = type_
 	return type_.GetJSTypeBase().IsSubtypeOf_1(this_.numberAdditionSupertype)
 }
 
 // Java method: TypeInference.traverseHook(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseHook_5548(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseHook_5549(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	var condition pkg_rhino.Node = n.GetFirstChild()
@@ -1672,13 +1684,13 @@ func (this_ *TypeInference) priv_TypeInference_traverseHook_5548(n pkg_rhino.Nod
 	_ = trueNode
 	var falseNode pkg_rhino.Node = n.GetLastChild()
 	_ = falseNode
-	scope = this_.priv_TypeInference_traverse_5515(condition, scope)
+	scope = this_.priv_TypeInference_traverse_5516(condition, scope)
 	var trueScope *LinkedFlowScope = j2gort.CastPtr[LinkedFlowScope](this_.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(condition, pkg_jscomptype.ToIface_FlowScope(scope), pkg_rhino.StaticGet_Outcome_TRUE()))
 	_ = trueScope
 	var falseScope *LinkedFlowScope = j2gort.CastPtr[LinkedFlowScope](this_.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(condition, pkg_jscomptype.ToIface_FlowScope(scope), pkg_rhino.StaticGet_Outcome_FALSE()))
 	_ = falseScope
-	this_.priv_TypeInference_traverse_5515(trueNode, trueScope)
-	this_.priv_TypeInference_traverse_5515(falseNode, falseScope)
+	this_.priv_TypeInference_traverse_5516(trueNode, trueScope)
+	this_.priv_TypeInference_traverse_5516(falseNode, falseScope)
 	var trueType pkg_rhino.JSType = trueNode.GetJSType()
 	_ = trueType
 	var falseType pkg_rhino.JSType = falseNode.GetJSType()
@@ -1692,7 +1704,7 @@ func (this_ *TypeInference) priv_TypeInference_traverseHook_5548(n pkg_rhino.Nod
 }
 
 // Java method: TypeInference.traverseNullishCoalesce(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseNullishCoalesce_5549(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseNullishCoalesce_5550(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	if !(n.IsNullishCoalesce() || n.IsAssignNullishCoalesce()) {
@@ -1702,10 +1714,10 @@ func (this_ *TypeInference) priv_TypeInference_traverseNullishCoalesce_5549(n pk
 	_ = left
 	var right pkg_rhino.Node = n.GetLastChild()
 	_ = right
-	scope = this_.priv_TypeInference_traverse_5515(left, scope)
+	scope = this_.priv_TypeInference_traverse_5516(left, scope)
 	var rightScope *LinkedFlowScope = j2gort.CastPtr[LinkedFlowScope](this_.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(left, pkg_jscomptype.ToIface_FlowScope(scope), pkg_rhino.StaticGet_Outcome_NULLISH()))
 	_ = rightScope
-	var scopeAfterTraverseRight *LinkedFlowScope = this_.priv_TypeInference_traverse_5515(right, rightScope)
+	var scopeAfterTraverseRight *LinkedFlowScope = this_.priv_TypeInference_traverse_5516(right, rightScope)
 	_ = scopeAfterTraverseRight
 	var leftType pkg_rhino.JSType = left.GetJSType()
 	_ = leftType
@@ -1720,7 +1732,7 @@ func (this_ *TypeInference) priv_TypeInference_traverseNullishCoalesce_5549(n pk
 			type_ = this_.registry.CreateUnionType_2(leftType.RestrictByNotNullOrUndefined(), rightType)
 			scope = this_.Join(scope, scopeAfterTraverseRight)
 			if n.IsAssignNullishCoalesce() {
-				scope = this_.priv_TypeInference_updateScopeForAssignment_5528(scope, left, type_, StaticGet_TypeInference_AssignmentType_ASSIGN())
+				scope = this_.priv_TypeInference_updateScopeForAssignment_5529(scope, left, type_, StaticGet_TypeInference_AssignmentType_ASSIGN())
 			}
 		}
 	}
@@ -1729,32 +1741,32 @@ func (this_ *TypeInference) priv_TypeInference_traverseNullishCoalesce_5549(n pk
 }
 
 // Java method: TypeInference.setCallNodeTypeAfterChildrenTraversed(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scopeAfterChildren)
-func (this_ *TypeInference) priv_TypeInference_setCallNodeTypeAfterChildrenTraversed_5550(n pkg_rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_setCallNodeTypeAfterChildrenTraversed_5551(n pkg_rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scopeAfterChildren
 	if (n.IsCall() && NodeUtil_IsExpressionResultUsed(n)) && ModuleImportResolver_IsGoogModuleDependencyCall(n) {
 		var calleeNode pkg_rhino.Node = n.GetFirstChild()
 		_ = calleeNode
 		if calleeNode.MatchesQualifiedName_1_string("goog.requireDynamic") {
-			n.SetJSType(Promises_WrapInIThenable(this_.registry, this_.priv_TypeInference_getGoogModuleDependencyCallResultType_5551(n)))
+			n.SetJSType(Promises_WrapInIThenable(this_.registry, this_.priv_TypeInference_getGoogModuleDependencyCallResultType_5552(n)))
 		} else {
-			n.SetJSType(this_.priv_TypeInference_getGoogModuleDependencyCallResultType_5551(n))
+			n.SetJSType(this_.priv_TypeInference_getGoogModuleDependencyCallResultType_5552(n))
 		}
 		return scopeAfterChildren
 	}
 	var left pkg_rhino.Node = n.GetFirstChild()
 	_ = left
-	var functionType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(left).RestrictByNotNullOrUndefined()
+	var functionType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(left).RestrictByNotNullOrUndefined()
 	_ = functionType
 	if left.IsSuper() {
-		return this_.priv_TypeInference_traverseInstantiation_5562(n, functionType, scopeAfterChildren)
+		return this_.priv_TypeInference_traverseInstantiation_5563(n, functionType, scopeAfterChildren)
 	} else if functionType.GetJSTypeBase().IsFunctionType() {
 		var fnType *pkg_rhino.FunctionType = functionType.ToMaybeFunctionType()
 		_ = fnType
 		n.SetJSType(fnType.GetReturnType())
-		this_.priv_TypeInference_backwardsInferenceFromCallSite_5554(n, fnType, scopeAfterChildren)
-	} else if functionType.GetJSTypeBase().EqualsJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_CHECKED_UNKNOWN_TYPE())) {
-		n.SetJSType(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_CHECKED_UNKNOWN_TYPE()))
+		this_.priv_TypeInference_backwardsInferenceFromCallSite_5555(n, fnType, scopeAfterChildren)
+	} else if functionType.GetJSTypeBase().EqualsJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_CHECKED_UNKNOWN_TYPE())) {
+		n.SetJSType(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_CHECKED_UNKNOWN_TYPE()))
 	} else if !(j2gort.IfaceEquals[pkg_rhino.JSType](left.GetJSType(), nil)) && left.GetJSType().GetJSTypeBase().IsUnknownType() {
 		n.SetJSType(pkg_rhino.Upcast_JSType(this_.unknownType))
 	}
@@ -1762,7 +1774,7 @@ func (this_ *TypeInference) priv_TypeInference_setCallNodeTypeAfterChildrenTrave
 }
 
 // Java method: TypeInference.getGoogModuleDependencyCallResultType(com.google.javascript.rhino.Node callNode)
-func (this_ *TypeInference) priv_TypeInference_getGoogModuleDependencyCallResultType_5551(callNode pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *TypeInference) priv_TypeInference_getGoogModuleDependencyCallResultType_5552(callNode pkg_rhino.Node) pkg_rhino.JSType {
 	_ = callNode
 	var moduleId string = callNode.GetSecondChild().GetString()
 	_ = moduleId
@@ -1798,7 +1810,7 @@ func (this_ *TypeInference) priv_TypeInference_getGoogModuleDependencyCallResult
 }
 
 // Java method: TypeInference.tightenTypesAfterAssertions(com.google.javascript.jscomp.LinkedFlowScope scope, com.google.javascript.rhino.Node callNode)
-func (this_ *TypeInference) priv_TypeInference_tightenTypesAfterAssertions_5552(scope *LinkedFlowScope, callNode pkg_rhino.Node) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_tightenTypesAfterAssertions_5553(scope *LinkedFlowScope, callNode pkg_rhino.Node) *LinkedFlowScope {
 	_ = scope
 	_ = callNode
 	var left pkg_rhino.Node = callNode.GetFirstChild()
@@ -1821,7 +1833,7 @@ func (this_ *TypeInference) priv_TypeInference_tightenTypesAfterAssertions_5552(
 	switch (assertionFunctionSpec.GetAssertionKind()).Ordinal() {
 	case int32(0) /* AssertionKind.TRUTHY */ :
 		scope = j2gort.CastPtr[LinkedFlowScope](this_.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(assertedNode, pkg_jscomptype.ToIface_FlowScope(scope), pkg_rhino.StaticGet_Outcome_TRUE()))
-		var truthyType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(assertedNode).RestrictByNotNullOrUndefined()
+		var truthyType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(assertedNode).RestrictByNotNullOrUndefined()
 		_ = truthyType
 		callNode.SetJSType(truthyType)
 	case int32(1) /* AssertionKind.MATCHES_RETURN_TYPE */ :
@@ -1834,7 +1846,7 @@ func (this_ *TypeInference) priv_TypeInference_tightenTypesAfterAssertions_5552(
 		} else {
 			assertedType = pkg_rhino.Upcast_JSType(this_.unknownType)
 		}
-		var type_ pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(assertedNode)
+		var type_ pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(assertedNode)
 		_ = type_
 		var narrowed pkg_rhino.JSType = nil
 		_ = narrowed
@@ -1845,14 +1857,14 @@ func (this_ *TypeInference) priv_TypeInference_tightenTypesAfterAssertions_5552(
 		}
 		callNode.SetJSType(narrowed)
 		if assertedNode.IsQualifiedName() && type_.GetJSTypeBase().DiffersFrom(narrowed) {
-			scope = this_.priv_TypeInference_narrowScope_5553(scope, assertedNode, narrowed)
+			scope = this_.priv_TypeInference_narrowScope_5554(scope, assertedNode, narrowed)
 		}
 	}
 	return scope
 }
 
 // Java method: TypeInference.narrowScope(com.google.javascript.jscomp.LinkedFlowScope scope, com.google.javascript.rhino.Node node, com.google.javascript.rhino.jstype.JSType narrowed)
-func (this_ *TypeInference) priv_TypeInference_narrowScope_5553(scope *LinkedFlowScope, node pkg_rhino.Node, narrowed pkg_rhino.JSType) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_narrowScope_5554(scope *LinkedFlowScope, node pkg_rhino.Node, narrowed pkg_rhino.JSType) *LinkedFlowScope {
 	_ = scope
 	_ = node
 	_ = narrowed
@@ -1863,27 +1875,27 @@ func (this_ *TypeInference) priv_TypeInference_narrowScope_5553(scope *LinkedFlo
 		if scope.HasGlobalFunctionScope() {
 			return scope
 		}
-		return scope.InferQualifiedSlotLinked(node, node.GetQualifiedName(), this_.priv_TypeInference_getJSType_5586(node), narrowed, false)
+		return scope.InferQualifiedSlotLinked(node, node.GetQualifiedName(), this_.priv_TypeInference_getJSType_5587(node), narrowed, false)
 	}
-	return this_.priv_TypeInference_redeclareSimpleVar_5584(scope, node, narrowed)
+	return this_.priv_TypeInference_redeclareSimpleVar_5585(scope, node, narrowed)
 }
 
 // Java method: TypeInference.backwardsInferenceFromCallSite(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.FunctionType fnType, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_backwardsInferenceFromCallSite_5554(n pkg_rhino.Node, fnType *pkg_rhino.FunctionType, scope *LinkedFlowScope) {
+func (this_ *TypeInference) priv_TypeInference_backwardsInferenceFromCallSite_5555(n pkg_rhino.Node, fnType *pkg_rhino.FunctionType, scope *LinkedFlowScope) {
 	_ = n
 	_ = fnType
 	_ = scope
-	var updatedFnType bool = this_.priv_TypeInference_inferTemplatedTypesForCall_5560(n, fnType, scope)
+	var updatedFnType bool = this_.priv_TypeInference_inferTemplatedTypesForCall_5561(n, fnType, scope)
 	_ = updatedFnType
 	if updatedFnType {
 		fnType = n.GetFirstChild().GetJSType().ToMaybeFunctionType()
 	}
-	this_.priv_TypeInference_updateTypeOfArguments_5556(n, fnType)
-	this_.priv_TypeInference_updateBind_5555(n)
+	this_.priv_TypeInference_updateTypeOfArguments_5557(n, fnType)
+	this_.priv_TypeInference_updateBind_5556(n)
 }
 
 // Java method: TypeInference.updateBind(com.google.javascript.rhino.Node n)
-func (this_ *TypeInference) priv_TypeInference_updateBind_5555(n pkg_rhino.Node) {
+func (this_ *TypeInference) priv_TypeInference_updateBind_5556(n pkg_rhino.Node) {
 	_ = n
 	var bind *CodingConvention_Bind = this_.compiler.GetCodingConvention().DescribeFunctionBind(n, true)
 	_ = bind
@@ -1892,13 +1904,13 @@ func (this_ *TypeInference) priv_TypeInference_updateBind_5555(n pkg_rhino.Node)
 	}
 	var target pkg_rhino.Node = bind.target
 	_ = target
-	var callTargetFn *pkg_rhino.FunctionType = this_.priv_TypeInference_getJSType_5586(target).RestrictByNotNullOrUndefined().ToMaybeFunctionType()
+	var callTargetFn *pkg_rhino.FunctionType = this_.priv_TypeInference_getJSType_5587(target).RestrictByNotNullOrUndefined().ToMaybeFunctionType()
 	_ = callTargetFn
 	if callTargetFn == nil {
 		return
 	}
 	if (bind.thisValue != 0) && target.IsFunction() {
-		var thisType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(bind.thisValue)
+		var thisType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(bind.thisValue)
 		_ = thisType
 		if (!(j2gort.IfaceEquals[pkg_rhino.ObjectType](thisType.GetJSTypeBase().ToObjectType(), nil)) && !(thisType.GetJSTypeBase().IsUnknownType())) && callTargetFn.GetTypeOfThis().GetJSTypeBase().IsUnknownType() {
 			var fb_ pkg_rhino.FunctionType_Builder
@@ -1911,7 +1923,7 @@ func (this_ *TypeInference) priv_TypeInference_updateBind_5555(n pkg_rhino.Node)
 	}
 	var returnType pkg_rhino.JSType = pkg_rhino.ToIface_JSType(callTargetFn.GetBindReturnType((bind.GetBoundParameterCount() + int32(1))))
 	_ = returnType
-	var bindType *pkg_rhino.FunctionType = this_.priv_TypeInference_getJSType_5586(n.GetFirstChild()).ToMaybeFunctionType()
+	var bindType *pkg_rhino.FunctionType = this_.priv_TypeInference_getJSType_5587(n.GetFirstChild()).ToMaybeFunctionType()
 	_ = bindType
 	if (bindType != nil) && (n.GetFirstChild() != target) {
 		var fb_1_ pkg_rhino.FunctionType_Builder
@@ -1925,7 +1937,7 @@ func (this_ *TypeInference) priv_TypeInference_updateBind_5555(n pkg_rhino.Node)
 }
 
 // Java method: TypeInference.updateTypeOfArguments(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.FunctionType fnType)
-func (this_ *TypeInference) priv_TypeInference_updateTypeOfArguments_5556(n pkg_rhino.Node, fnType *pkg_rhino.FunctionType) {
+func (this_ *TypeInference) priv_TypeInference_updateTypeOfArguments_5557(n pkg_rhino.Node, fnType *pkg_rhino.FunctionType) {
 	_ = n
 	_ = fnType
 	if !(NodeUtil_IsInvocation(n)) {
@@ -1951,10 +1963,11 @@ func (this_ *TypeInference) priv_TypeInference_updateTypeOfArguments_5556(n pkg_
 		var iArgument pkg_rhino.Node = NodeUtil_InvocationArgFromCursor(argCursor, isTaggedTemplate)
 		_ = iArgument
 		argCursor = NodeUtil_NextInvocationArgCursor(argCursor, isTaggedTemplate)
-		var iArgumentType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(iArgument)
+		var iArgumentType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(iArgument)
 		_ = iArgumentType
-		var iParameter pkg_rhino.FunctionType_Parameter = parameters[func() int32 { old_12 := paramIdx; nw_13 := old_12 + 1; paramIdx = nw_13; return old_12 }()]
+		var iParameter pkg_rhino.FunctionType_Parameter = parameters[paramIdx]
 		_ = iParameter
+		paramIdx = paramIdx + 1
 		var iParameterType pkg_rhino.JSType
 		_ = iParameterType
 		if !(j2gort.IfaceEquals[pkg_rhino.JSType](iParameter.GetJSType(), nil)) {
@@ -1992,13 +2005,13 @@ func (this_ *TypeInference) priv_TypeInference_updateTypeOfArguments_5556(n pkg_
 			_ = argJsdoc
 			var declared bool = (((argJsdoc != nil) && argJsdoc.ContainsDeclaration()) || NodeUtil_FunctionHasInlineJsdocs(iArgument))
 			_ = declared
-			iArgument.SetJSType(pkg_rhino.ToIface_JSType(this_.priv_TypeInference_matchFunction_5557(restrictedParameter, argFnType, declared)))
+			iArgument.SetJSType(pkg_rhino.ToIface_JSType(this_.priv_TypeInference_matchFunction_5558(restrictedParameter, argFnType, declared)))
 		}
 	}
 }
 
 // Java method: TypeInference.matchFunction(com.google.javascript.rhino.jstype.FunctionType expectedType, com.google.javascript.rhino.jstype.FunctionType currentType, boolean declared)
-func (this_ *TypeInference) priv_TypeInference_matchFunction_5557(expectedType *pkg_rhino.FunctionType, currentType *pkg_rhino.FunctionType, declared bool) *pkg_rhino.FunctionType {
+func (this_ *TypeInference) priv_TypeInference_matchFunction_5558(expectedType *pkg_rhino.FunctionType, currentType *pkg_rhino.FunctionType, declared bool) *pkg_rhino.FunctionType {
 	_ = expectedType
 	_ = currentType
 	_ = declared
@@ -2018,15 +2031,15 @@ func (this_ *TypeInference) priv_TypeInference_matchFunction_5557(expectedType *
 }
 
 // Java method: TypeInference.buildTypeVariables(java.util.Map<com.google.javascript.rhino.jstype.TemplateType,com.google.javascript.rhino.jstype.JSType> inferredTypes)
-func (this_ *TypeInference) priv_TypeInference_buildTypeVariables_5558(inferredTypes j2gort.Ext_java_util_Map) j2gort.Ext_java_util_Map {
+func (this_ *TypeInference) priv_TypeInference_buildTypeVariables_5559(inferredTypes j2gort.Ext_java_util_Map) j2gort.Ext_java_util_Map {
 	_ = inferredTypes
 	var typeVars j2gort.Ext_java_util_Map = j2gort.NewExt_java_util_LinkedHashMap()
 	_ = typeVars
 	{
-		cur_14 := j2gort.NewMapEntryCursor(inferredTypes)
-		for cur_14.NextEntry() {
-			if !(j2gort.CastPtr[pkg_rhino.TemplateType](cur_14.GetKey()).IsTypeTransformation()) {
-				j2gort.MapPutStr(typeVars, j2gort.CastPtr[pkg_rhino.TemplateType](cur_14.GetKey()).GetReferenceName(), j2gort.AsIface[pkg_rhino.JSType](cur_14.GetValue()))
+		cur_10 := j2gort.NewMapEntryCursor(inferredTypes)
+		for cur_10.NextEntry() {
+			if !(j2gort.CastPtr[pkg_rhino.TemplateType](cur_10.GetKey()).IsTypeTransformation()) {
+				j2gort.MapPutStr(typeVars, j2gort.CastPtr[pkg_rhino.TemplateType](cur_10.GetKey()).GetReferenceName(), j2gort.AsIface[pkg_rhino.JSType](cur_10.GetValue()))
 			}
 		}
 	}
@@ -2034,7 +2047,7 @@ func (this_ *TypeInference) priv_TypeInference_buildTypeVariables_5558(inferredT
 }
 
 // Java method: TypeInference.evaluateTypeTransformations(com.google.javascript.rhino.jstype.TemplateTypeMap templateMap, java.util.Map<com.google.javascript.rhino.jstype.TemplateType,com.google.javascript.rhino.jstype.JSType> inferredTypes, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_evaluateTypeTransformations_5559(templateMap *pkg_rhino.TemplateTypeMap, inferredTypes j2gort.Ext_java_util_Map, scope *LinkedFlowScope) j2gort.Ext_java_util_Map {
+func (this_ *TypeInference) priv_TypeInference_evaluateTypeTransformations_5560(templateMap *pkg_rhino.TemplateTypeMap, inferredTypes j2gort.Ext_java_util_Map, scope *LinkedFlowScope) j2gort.Ext_java_util_Map {
 	_ = templateMap
 	_ = inferredTypes
 	_ = scope
@@ -2055,7 +2068,7 @@ func (this_ *TypeInference) priv_TypeInference_evaluateTypeTransformations_5559(
 			if type_.IsTypeTransformation() {
 				if ttlObj == nil {
 					ttlObj = NewTypeTransformation(this_.compiler, pkg_rhino.ToIface_StaticTypedScope(scope.GetSyntacticScope()))
-					typeVars = this_.priv_TypeInference_buildTypeVariables_5558(inferredTypes)
+					typeVars = this_.priv_TypeInference_buildTypeVariables_5559(inferredTypes)
 					result = j2gort.NewExt_java_util_LinkedHashMap()
 				}
 				var transformedType pkg_rhino.JSType = ttlObj.Eval_2(type_.GetTypeTransformation(), j2gort.Ext_com_google_common_collect_ImmutableMap_CopyOf_1_Ext_java_util_Map(typeVars))
@@ -2069,7 +2082,7 @@ func (this_ *TypeInference) priv_TypeInference_evaluateTypeTransformations_5559(
 }
 
 // Java method: TypeInference.inferTemplatedTypesForCall(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.FunctionType fnType, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_inferTemplatedTypesForCall_5560(n pkg_rhino.Node, fnType *pkg_rhino.FunctionType, scope *LinkedFlowScope) bool {
+func (this_ *TypeInference) priv_TypeInference_inferTemplatedTypesForCall_5561(n pkg_rhino.Node, fnType *pkg_rhino.FunctionType, scope *LinkedFlowScope) bool {
 	_ = n
 	_ = fnType
 	_ = scope
@@ -2080,9 +2093,9 @@ func (this_ *TypeInference) priv_TypeInference_inferTemplatedTypesForCall_5560(n
 	if keyCount == int32(0) {
 		return false
 	}
-	var val_15 InvocationTemplateTypeMatcher
-	InitInvocationTemplateTypeMatcher(&val_15, this_.registry, fnType, scope.GetTypeOfThis(), n)
-	var matcher *InvocationTemplateTypeMatcher = &val_15
+	var val_11 InvocationTemplateTypeMatcher
+	InitInvocationTemplateTypeMatcher(&val_11, this_.registry, fnType, scope.GetTypeOfThis(), n)
+	var matcher *InvocationTemplateTypeMatcher = &val_11
 	_ = matcher
 	matcher.RunMatch()
 	var inferenceMap *pkg_rhino.TemplateTypeMap = nil
@@ -2123,7 +2136,7 @@ func (this_ *TypeInference) priv_TypeInference_inferTemplatedTypesForCall_5560(n
 			}
 		}
 		if hasTypeTransformation {
-			var typeTransformations j2gort.Ext_java_util_Map = this_.priv_TypeInference_evaluateTypeTransformations_5559(fnTemplateMap, inferred, scope)
+			var typeTransformations j2gort.Ext_java_util_Map = this_.priv_TypeInference_evaluateTypeTransformations_5560(fnTemplateMap, inferred, scope)
 			_ = typeTransformations
 			if typeTransformations != nil {
 				inferred.PutAll(typeTransformations)
@@ -2153,19 +2166,19 @@ func (this_ *TypeInference) priv_TypeInference_inferTemplatedTypesForCall_5560(n
 }
 
 // Java method: TypeInference.traverseNew(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseNew_5561(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseNew_5562(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
-	scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
+	scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
 	var constructor pkg_rhino.Node = n.GetFirstChild()
 	_ = constructor
 	var constructorType pkg_rhino.JSType = constructor.GetJSType()
 	_ = constructorType
-	return this_.priv_TypeInference_traverseInstantiation_5562(n, constructorType, scope)
+	return this_.priv_TypeInference_traverseInstantiation_5563(n, constructorType, scope)
 }
 
 // Java method: TypeInference.traverseInstantiation(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.JSType ctorType, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseInstantiation_5562(n pkg_rhino.Node, ctorType pkg_rhino.JSType, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseInstantiation_5563(n pkg_rhino.Node, ctorType pkg_rhino.JSType, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = ctorType
 	_ = scope
@@ -2178,18 +2191,18 @@ func (this_ *TypeInference) priv_TypeInference_traverseInstantiation_5562(n pkg_
 	_ = ctorFnType
 	var functionType *pkg_rhino.FunctionType
 	_ = functionType
-	ok_16 := (ctorFnType == nil)
-	if ok_16 {
-		functionType, ok_16 = j2gort.TryCast[*pkg_rhino.FunctionType](ctorType)
+	ok_12 := (ctorFnType == nil)
+	if ok_12 {
+		functionType, ok_12 = j2gort.TryCast[*pkg_rhino.FunctionType](ctorType)
 	}
-	if ok_16 {
+	if ok_12 {
 		ctorFnType = functionType
 	}
 	if (ctorFnType == nil) || !(ctorFnType.IsConstructor()) {
 		n.SetJSType(pkg_rhino.Upcast_JSType(this_.unknownType))
 		return scope
 	}
-	this_.priv_TypeInference_backwardsInferenceFromCallSite_5554(n, ctorFnType, scope)
+	this_.priv_TypeInference_backwardsInferenceFromCallSite_5555(n, ctorFnType, scope)
 	var instantiatedType pkg_rhino.ObjectType = ctorFnType.GetInstanceType()
 	_ = instantiatedType
 	if j2gort.IfaceEquals[pkg_rhino.JSType](ctorFnType, this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_OBJECT_FUNCTION_TYPE())) {
@@ -2211,69 +2224,69 @@ func (this_ *TypeInference) priv_TypeInference_traverseInstantiation_5562(n pkg_
 }
 
 // Java method: TypeInference.traverseAnd(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseAnd_5563(n pkg_rhino.Node, scope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
+func (this_ *TypeInference) priv_TypeInference_traverseAnd_5564(n pkg_rhino.Node, scope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
 	_ = n
 	_ = scope
 	var left pkg_rhino.Node = n.GetFirstChild()
 	_ = left
-	var leftOutcome *TypeInference_BooleanOutcomePair = this_.priv_TypeInference_traverseWithinShortCircuitingBinOp_5580(left, scope)
+	var leftOutcome *TypeInference_BooleanOutcomePair = this_.priv_TypeInference_traverseWithinShortCircuitingBinOp_5581(left, scope)
 	_ = leftOutcome
-	return this_.priv_TypeInference_traverseShortCircuitingBinOp_5579(n, left, leftOutcome)
+	return this_.priv_TypeInference_traverseShortCircuitingBinOp_5580(n, left, leftOutcome)
 }
 
 // Java method: TypeInference.traverseChildren(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseChildren_5564(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseChildren_5565(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	{
 		var el pkg_rhino.Node = n.GetFirstChild()
 		_ = el
 		for ; el != 0; el = el.GetNext() {
-			scope = this_.priv_TypeInference_traverse_5515(el, scope)
+			scope = this_.priv_TypeInference_traverse_5516(el, scope)
 		}
 	}
 	return scope
 }
 
 // Java method: TypeInference.traverseGetElem(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope originalScope)
-func (this_ *TypeInference) priv_TypeInference_traverseGetElem_5565(n pkg_rhino.Node, originalScope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseGetElem_5566(n pkg_rhino.Node, originalScope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = originalScope
-	var executedScope *LinkedFlowScope = this_.priv_TypeInference_traverseChildren_5564(n, originalScope)
+	var executedScope *LinkedFlowScope = this_.priv_TypeInference_traverseChildren_5565(n, originalScope)
 	_ = executedScope
-	return this_.priv_TypeInference_setGetElemNodeTypeAfterChildrenTraversed_5566(n, executedScope)
+	return this_.priv_TypeInference_setGetElemNodeTypeAfterChildrenTraversed_5567(n, executedScope)
 }
 
 // Java method: TypeInference.setGetElemNodeTypeAfterChildrenTraversed(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scopeAfterChildren)
-func (this_ *TypeInference) priv_TypeInference_setGetElemNodeTypeAfterChildrenTraversed_5566(n pkg_rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_setGetElemNodeTypeAfterChildrenTraversed_5567(n pkg_rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scopeAfterChildren
 	if !(n.IsGetElem() || n.IsOptChainGetElem()) {
 		j2gort.CheckArgument(false)
 	}
-	this_.priv_TypeInference_inferGetElemType_5567(n)
-	scopeAfterChildren = this_.priv_TypeInference_tightenTypeAfterDereference_5575(n.GetFirstChild(), scopeAfterChildren)
+	this_.priv_TypeInference_inferGetElemType_5568(n)
+	scopeAfterChildren = this_.priv_TypeInference_tightenTypeAfterDereference_5576(n.GetFirstChild(), scopeAfterChildren)
 	return scopeAfterChildren
 }
 
 // Java method: TypeInference.inferGetElemType(com.google.javascript.rhino.Node n)
-func (this_ *TypeInference) priv_TypeInference_inferGetElemType_5567(n pkg_rhino.Node) {
+func (this_ *TypeInference) priv_TypeInference_inferGetElemType_5568(n pkg_rhino.Node) {
 	_ = n
-	var objType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(n.GetFirstChild()).RestrictByNotNullOrUndefined()
+	var objType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(n.GetFirstChild()).RestrictByNotNullOrUndefined()
 	_ = objType
 	var indexKey pkg_rhino.Node = n.GetLastChild()
 	_ = indexKey
-	var indexType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(indexKey)
+	var indexType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(indexKey)
 	_ = indexType
 	var inferredType pkg_rhino.JSType = nil
 	_ = inferredType
 	base_indexType_ := indexType.GetJSTypeBase()
 	if base_indexType_.IsKnownSymbolValueType() {
-		inferredType = this_.priv_TypeInference_dereferenceKnownSymbolProp_5568(objType, indexType.ToMaybeKnownSymbolType())
+		inferredType = this_.priv_TypeInference_dereferenceKnownSymbolProp_5569(objType, indexType.ToMaybeKnownSymbolType())
 	} else if base_indexType_.IsSymbolValueType() {
 		inferredType = pkg_rhino.Upcast_JSType(this_.unknownType)
 	} else {
-		inferredType = this_.priv_TypeInference_dereferenceIndexSignature_5569(objType)
+		inferredType = this_.priv_TypeInference_dereferenceIndexSignature_5570(objType)
 	}
 	n.SetJSType(func() pkg_rhino.JSType {
 		if inferredType != nil && !inferredType.IsJavaNil_() {
@@ -2284,7 +2297,7 @@ func (this_ *TypeInference) priv_TypeInference_inferGetElemType_5567(n pkg_rhino
 }
 
 // Java method: TypeInference.dereferenceKnownSymbolProp(com.google.javascript.rhino.jstype.JSType obj, com.google.javascript.rhino.jstype.KnownSymbolType indexSymbol)
-func (this_ *TypeInference) priv_TypeInference_dereferenceKnownSymbolProp_5568(obj pkg_rhino.JSType, indexSymbol *pkg_rhino.KnownSymbolType) pkg_rhino.JSType {
+func (this_ *TypeInference) priv_TypeInference_dereferenceKnownSymbolProp_5569(obj pkg_rhino.JSType, indexSymbol *pkg_rhino.KnownSymbolType) pkg_rhino.JSType {
 	_ = obj
 	_ = indexSymbol
 	var key pkg_rhino.Property_Key = pkg_rhino.NewProperty_SymbolKey(indexSymbol)
@@ -2332,7 +2345,7 @@ func (this_ *TypeInference) priv_TypeInference_dereferenceKnownSymbolProp_5568(o
 }
 
 // Java method: TypeInference.dereferenceIndexSignature(com.google.javascript.rhino.jstype.JSType obj)
-func (this_ *TypeInference) priv_TypeInference_dereferenceIndexSignature_5569(obj pkg_rhino.JSType) pkg_rhino.JSType {
+func (this_ *TypeInference) priv_TypeInference_dereferenceIndexSignature_5570(obj pkg_rhino.JSType) pkg_rhino.JSType {
 	_ = obj
 	if !(obj.GetJSTypeBase().IsUnionType()) {
 		var typeMap *pkg_rhino.TemplateTypeMap = obj.GetTemplateTypeMap()
@@ -2370,15 +2383,15 @@ func (this_ *TypeInference) priv_TypeInference_dereferenceIndexSignature_5569(ob
 }
 
 // Java method: TypeInference.traverseGetProp(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseGetProp_5570(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseGetProp_5571(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
-	scope = this_.priv_TypeInference_traverseChildren_5564(n, scope)
-	return this_.priv_TypeInference_setGetPropNodeTypeAfterChildrenTraversed_5571(n, scope)
+	scope = this_.priv_TypeInference_traverseChildren_5565(n, scope)
+	return this_.priv_TypeInference_setGetPropNodeTypeAfterChildrenTraversed_5572(n, scope)
 }
 
 // Java method: TypeInference.setGetPropNodeTypeAfterChildrenTraversed(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scopeAfterChildren)
-func (this_ *TypeInference) priv_TypeInference_setGetPropNodeTypeAfterChildrenTraversed_5571(n pkg_rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_setGetPropNodeTypeAfterChildrenTraversed_5572(n pkg_rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scopeAfterChildren
 	if !(n.IsGetProp() || n.IsOptChainGetProp()) {
@@ -2386,21 +2399,21 @@ func (this_ *TypeInference) priv_TypeInference_setGetPropNodeTypeAfterChildrenTr
 	}
 	var objNode pkg_rhino.Node = n.GetFirstChild()
 	_ = objNode
-	n.SetJSType(this_.priv_TypeInference_getPropertyType_5576(objNode.GetJSType(), n.GetString(), n, scopeAfterChildren))
-	return this_.priv_TypeInference_tightenTypeAfterDereference_5575(n.GetFirstChild(), scopeAfterChildren)
+	n.SetJSType(this_.priv_TypeInference_getPropertyType_5577(objNode.GetJSType(), n.GetString(), n, scopeAfterChildren))
+	return this_.priv_TypeInference_tightenTypeAfterDereference_5576(n.GetFirstChild(), scopeAfterChildren)
 }
 
 // Java method: TypeInference.setOptChainNodeTypeAfterChildrenTraversed(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scopeAfterChildren)
-func (this_ *TypeInference) priv_TypeInference_setOptChainNodeTypeAfterChildrenTraversed_5572(n pkg_rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_setOptChainNodeTypeAfterChildrenTraversed_5573(n pkg_rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scopeAfterChildren
 	switch n.TokenSwitchOrd_() {
 	case int32(29) /* Token.OPTCHAIN_GETPROP */ :
-		return this_.priv_TypeInference_setGetPropNodeTypeAfterChildrenTraversed_5571(n, scopeAfterChildren)
+		return this_.priv_TypeInference_setGetPropNodeTypeAfterChildrenTraversed_5572(n, scopeAfterChildren)
 	case int32(30) /* Token.OPTCHAIN_GETELEM */ :
-		return this_.priv_TypeInference_setGetElemNodeTypeAfterChildrenTraversed_5566(n, scopeAfterChildren)
+		return this_.priv_TypeInference_setGetElemNodeTypeAfterChildrenTraversed_5567(n, scopeAfterChildren)
 	case int32(31) /* Token.OPTCHAIN_CALL */ :
-		return this_.priv_TypeInference_setCallNodeTypeAfterChildrenTraversed_5550(n, scopeAfterChildren)
+		return this_.priv_TypeInference_setCallNodeTypeAfterChildrenTraversed_5551(n, scopeAfterChildren)
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Illegal token inside finishTraversingOptChain")))
 	}
@@ -2408,7 +2421,7 @@ func (this_ *TypeInference) priv_TypeInference_setOptChainNodeTypeAfterChildrenT
 }
 
 // Java method: TypeInference.traverseOptChain(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseOptChain_5573(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseOptChain_5574(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	if !(NodeUtil_IsOptChainNode(n)) {
@@ -2417,18 +2430,18 @@ func (this_ *TypeInference) priv_TypeInference_traverseOptChain_5573(n pkg_rhino
 	if NodeUtil_IsEndOfOptChainSegment(n) {
 		var startOfChain pkg_rhino.Node = NodeUtil_GetStartOfOptChainSegment(n)
 		_ = startOfChain
-		var val_17 TypeInference_OptChainInfo
-		InitTypeInference_OptChainInfo(&val_17, n, startOfChain)
-		var optChainInfo *TypeInference_OptChainInfo = &val_17
+		var val_13 TypeInference_OptChainInfo
+		InitTypeInference_OptChainInfo(&val_13, n, startOfChain)
+		var optChainInfo *TypeInference_OptChainInfo = &val_13
 		_ = optChainInfo
 		this_.optChainArrayDeque.AddFirst(optChainInfo)
 	}
-	var lhsScope *LinkedFlowScope = this_.priv_TypeInference_traverse_5515(n.GetFirstChild(), scope)
+	var lhsScope *LinkedFlowScope = this_.priv_TypeInference_traverse_5516(n.GetFirstChild(), scope)
 	_ = lhsScope
 	if n.IsOptionalChainStart() {
 		{
-			r_18 := this_.optChainArrayDeque.PeekFirst()
-			r_18.unconditionalScope = lhsScope
+			r_14 := this_.optChainArrayDeque.PeekFirst()
+			r_14.unconditionalScope = lhsScope
 		}
 	}
 	var aboutToExecuteScope *LinkedFlowScope = lhsScope
@@ -2436,10 +2449,10 @@ func (this_ *TypeInference) priv_TypeInference_traverseOptChain_5573(n pkg_rhino
 	var nextChild pkg_rhino.Node = n.GetSecondChild()
 	_ = nextChild
 	for nextChild != 0 {
-		aboutToExecuteScope = this_.priv_TypeInference_traverse_5515(nextChild, aboutToExecuteScope)
+		aboutToExecuteScope = this_.priv_TypeInference_traverse_5516(nextChild, aboutToExecuteScope)
 		nextChild = nextChild.GetNext()
 	}
-	var executedScope *LinkedFlowScope = this_.priv_TypeInference_setOptChainNodeTypeAfterChildrenTraversed_5572(n, aboutToExecuteScope)
+	var executedScope *LinkedFlowScope = this_.priv_TypeInference_setOptChainNodeTypeAfterChildrenTraversed_5573(n, aboutToExecuteScope)
 	_ = executedScope
 	if j2gort.IfaceEquals[pkg_rhino.JSType](n.GetJSType(), nil) {
 		n.SetJSType(pkg_rhino.Upcast_JSType(this_.unknownType))
@@ -2457,19 +2470,19 @@ func (this_ *TypeInference) priv_TypeInference_traverseOptChain_5573(n pkg_rhino
 		}
 		var startNode pkg_rhino.Node = j2gort.CheckNotNullNode(startOfChain_2.GetFirstChild())
 		_ = startNode
-		return this_.priv_TypeInference_updateTypeWhenEndOfOptChain_5574(n, startNode, currentChain, executedScope)
+		return this_.priv_TypeInference_updateTypeWhenEndOfOptChain_5575(n, startNode, currentChain, executedScope)
 	} else {
 		return executedScope
 	}
 }
 
 // Java method: TypeInference.updateTypeWhenEndOfOptChain(com.google.javascript.rhino.Node optChain, com.google.javascript.rhino.Node startNode, com.google.javascript.jscomp.TypeInference.OptChainInfo currentChain, com.google.javascript.jscomp.LinkedFlowScope executedScope)
-func (this_ *TypeInference) priv_TypeInference_updateTypeWhenEndOfOptChain_5574(optChain pkg_rhino.Node, startNode pkg_rhino.Node, currentChain *TypeInference_OptChainInfo, executedScope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_updateTypeWhenEndOfOptChain_5575(optChain pkg_rhino.Node, startNode pkg_rhino.Node, currentChain *TypeInference_OptChainInfo, executedScope *LinkedFlowScope) *LinkedFlowScope {
 	_ = optChain
 	_ = startNode
 	_ = currentChain
 	_ = executedScope
-	var startType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(startNode)
+	var startType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(startNode)
 	_ = startType
 	base_startType_ := startType.GetJSTypeBase()
 	if base_startType_.IsUnknownType() {
@@ -2500,16 +2513,16 @@ func TypeInference_InferPropertyTypesToMatchConstraint(type_ pkg_rhino.JSType, c
 }
 
 // Java method: TypeInference.tightenTypeAfterDereference(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_tightenTypeAfterDereference_5575(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_tightenTypeAfterDereference_5576(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	if n.IsQualifiedName() {
-		var type_ pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(n)
+		var type_ pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(n)
 		_ = type_
 		var narrowed pkg_rhino.JSType = type_.RestrictByNotNullOrUndefined()
 		_ = narrowed
 		if !(type_.GetJSTypeBase().EqualsJSType(narrowed)) {
-			scope = this_.priv_TypeInference_narrowScope_5553(scope, n, narrowed)
+			scope = this_.priv_TypeInference_narrowScope_5554(scope, n, narrowed)
 		}
 	}
 	return scope
@@ -2555,7 +2568,7 @@ func TypeInference_GetGetPropRootName(n pkg_rhino.Node) string {
 }
 
 // Java method: TypeInference.getPropertyType(com.google.javascript.rhino.jstype.JSType objType, java.lang.String propName, com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_getPropertyType_5576(objType pkg_rhino.JSType, propName string, n pkg_rhino.Node, scope *LinkedFlowScope) pkg_rhino.JSType {
+func (this_ *TypeInference) priv_TypeInference_getPropertyType_5577(objType pkg_rhino.JSType, propName string, n pkg_rhino.Node, scope *LinkedFlowScope) pkg_rhino.JSType {
 	_ = objType
 	_ = propName
 	_ = n
@@ -2619,45 +2632,45 @@ func (this_ *TypeInference) priv_TypeInference_getPropertyType_5576(objType pkg_
 	if propertyType == nil || propertyType.IsJavaNil_() {
 		return pkg_rhino.Upcast_JSType(this_.unknownType)
 	} else if propertyType.GetJSTypeBase().EqualsJSType(pkg_rhino.Upcast_JSType(this_.unknownType)) && isLocallyInferred {
-		return this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_CHECKED_UNKNOWN_TYPE())
+		return this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_CHECKED_UNKNOWN_TYPE())
 	} else {
 		return propertyType
 	}
 }
 
 // Java method: TypeInference.traverseOr(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseOr_5577(n pkg_rhino.Node, scope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
+func (this_ *TypeInference) priv_TypeInference_traverseOr_5578(n pkg_rhino.Node, scope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
 	_ = n
 	_ = scope
 	var left pkg_rhino.Node = n.GetFirstChild()
 	_ = left
-	var leftOutcome *TypeInference_BooleanOutcomePair = this_.priv_TypeInference_traverseWithinShortCircuitingBinOp_5580(left, scope)
+	var leftOutcome *TypeInference_BooleanOutcomePair = this_.priv_TypeInference_traverseWithinShortCircuitingBinOp_5581(left, scope)
 	_ = leftOutcome
-	return this_.priv_TypeInference_traverseShortCircuitingBinOp_5579(n, left, leftOutcome)
+	return this_.priv_TypeInference_traverseShortCircuitingBinOp_5580(n, left, leftOutcome)
 }
 
 // Java method: TypeInference.traverseShortCircuitingBinOpAssignment(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseShortCircuitingBinOpAssignment_5578(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseShortCircuitingBinOpAssignment_5579(n pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = n
 	_ = scope
 	var left pkg_rhino.Node = n.GetFirstChild()
 	_ = left
 	var nIsAnd bool = n.IsAssignAnd()
 	_ = nIsAnd
-	var leftOutcome *TypeInference_BooleanOutcomePair = this_.priv_TypeInference_traverseWithinShortCircuitingBinOp_5580(left, scope)
+	var leftOutcome *TypeInference_BooleanOutcomePair = this_.priv_TypeInference_traverseWithinShortCircuitingBinOp_5581(left, scope)
 	_ = leftOutcome
-	var outcome *TypeInference_BooleanOutcomePair = this_.priv_TypeInference_traverseShortCircuitingBinOp_5579(n, left, leftOutcome)
+	var outcome *TypeInference_BooleanOutcomePair = this_.priv_TypeInference_traverseShortCircuitingBinOp_5580(n, left, leftOutcome)
 	_ = outcome
 	var outcomeJoinedFlowScope *LinkedFlowScope = outcome.GetJoinedFlowScope()
 	_ = outcomeJoinedFlowScope
 	if leftOutcome.toBooleanOutcomes == pkg_rhino.BooleanLiteralSet_Get(!(nIsAnd)) {
 		return outcomeJoinedFlowScope
 	}
-	return this_.priv_TypeInference_updateScopeForAssignment_5528(outcomeJoinedFlowScope, n.GetFirstChild(), n.GetJSType(), StaticGet_TypeInference_AssignmentType_ASSIGN())
+	return this_.priv_TypeInference_updateScopeForAssignment_5529(outcomeJoinedFlowScope, n.GetFirstChild(), n.GetJSType(), StaticGet_TypeInference_AssignmentType_ASSIGN())
 }
 
 // Java method: TypeInference.traverseShortCircuitingBinOp(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node left, com.google.javascript.jscomp.TypeInference.BooleanOutcomePair leftOutcome)
-func (this_ *TypeInference) priv_TypeInference_traverseShortCircuitingBinOp_5579(n pkg_rhino.Node, left pkg_rhino.Node, leftOutcome *TypeInference_BooleanOutcomePair) *TypeInference_BooleanOutcomePair {
+func (this_ *TypeInference) priv_TypeInference_traverseShortCircuitingBinOp_5580(n pkg_rhino.Node, left pkg_rhino.Node, leftOutcome *TypeInference_BooleanOutcomePair) *TypeInference_BooleanOutcomePair {
 	_ = n
 	_ = left
 	_ = leftOutcome
@@ -2672,7 +2685,7 @@ func (this_ *TypeInference) priv_TypeInference_traverseShortCircuitingBinOp_5579
 	_ = leftType
 	var rightScope *LinkedFlowScope = j2gort.CastPtr[LinkedFlowScope](this_.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(left, pkg_jscomptype.ToIface_FlowScope(leftOutcome.GetOutcomeFlowScope(left.GetToken(), nIsAnd)), pkg_rhino.Outcome_ForBoolean(nIsAnd)))
 	_ = rightScope
-	var rightOutcome *TypeInference_BooleanOutcomePair = this_.priv_TypeInference_traverseWithinShortCircuitingBinOp_5580(right, rightScope)
+	var rightOutcome *TypeInference_BooleanOutcomePair = this_.priv_TypeInference_traverseWithinShortCircuitingBinOp_5581(right, rightScope)
 	_ = rightOutcome
 	var rightType pkg_rhino.JSType = right.GetJSType()
 	_ = rightType
@@ -2689,9 +2702,9 @@ func (this_ *TypeInference) priv_TypeInference_traverseShortCircuitingBinOp_5579
 			type_ = leftType.GetLeastSupertype(rightType)
 			outcome = NewTypeInference_BooleanOutcomePair(this_, TypeInference_JoinBooleanOutcomes(nIsAnd, leftOutcome.toBooleanOutcomes, rightOutcome.toBooleanOutcomes), TypeInference_JoinBooleanOutcomes(nIsAnd, leftOutcome.booleanValues, rightOutcome.booleanValues), leftOutcome.GetJoinedFlowScope(), rightOutcome.GetJoinedFlowScope())
 		}
-		if (outcome.booleanValues == pkg_rhino.StaticGet_BooleanLiteralSet_EMPTY()) && this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE()).GetJSTypeBase().IsSubtypeOf_1(type_) {
+		if (outcome.booleanValues == pkg_rhino.StaticGet_BooleanLiteralSet_EMPTY()) && this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE()).GetJSTypeBase().IsSubtypeOf_1(type_) {
 			if type_.GetJSTypeBase().IsUnionType() {
-				type_ = type_.ToMaybeUnionType().GetRestrictedUnion(this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE()))
+				type_ = type_.ToMaybeUnionType().GetRestrictedUnion(this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE()))
 			}
 		}
 	} else {
@@ -2703,36 +2716,36 @@ func (this_ *TypeInference) priv_TypeInference_traverseShortCircuitingBinOp_5579
 }
 
 // Java method: TypeInference.traverseWithinShortCircuitingBinOp(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseWithinShortCircuitingBinOp_5580(n pkg_rhino.Node, scope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
+func (this_ *TypeInference) priv_TypeInference_traverseWithinShortCircuitingBinOp_5581(n pkg_rhino.Node, scope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
 	_ = n
 	_ = scope
 	switch n.TokenSwitchOrd_() {
 	case int32(69) /* Token.AND */ :
-		return this_.priv_TypeInference_traverseAnd_5563(n, scope)
+		return this_.priv_TypeInference_traverseAnd_5564(n, scope)
 	case int32(68) /* Token.OR */ :
-		return this_.priv_TypeInference_traverseOr_5577(n, scope)
+		return this_.priv_TypeInference_traverseOr_5578(n, scope)
 	default:
-		scope = this_.priv_TypeInference_traverse_5515(n, scope)
-		return this_.priv_TypeInference_newBooleanOutcomePair_5583(n.GetJSType(), scope)
+		scope = this_.priv_TypeInference_traverse_5516(n, scope)
+		return this_.priv_TypeInference_newBooleanOutcomePair_5584(n.GetJSType(), scope)
 	}
 	panic("unreachable switch expression")
 }
 
 // Java method: TypeInference.traverseAwait(com.google.javascript.rhino.Node await, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseAwait_5581(await pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseAwait_5582(await pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = await
 	_ = scope
-	scope = this_.priv_TypeInference_traverseChildren_5564(await, scope)
+	scope = this_.priv_TypeInference_traverseChildren_5565(await, scope)
 	var expr pkg_rhino.Node = await.GetFirstChild()
 	_ = expr
-	var exprType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5586(expr)
+	var exprType pkg_rhino.JSType = this_.priv_TypeInference_getJSType_5587(expr)
 	_ = exprType
 	await.SetJSType(Promises_GetResolvedType(this_.registry, exprType))
 	return scope
 }
 
 // Java method: TypeInference.traverseDynamicImport(com.google.javascript.rhino.Node dynamicImport, com.google.javascript.jscomp.LinkedFlowScope scope)
-func (this_ *TypeInference) priv_TypeInference_traverseDynamicImport_5582(dynamicImport pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_traverseDynamicImport_5583(dynamicImport pkg_rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	_ = dynamicImport
 	_ = scope
 	var templateType pkg_rhino.JSType = this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
@@ -2768,8 +2781,8 @@ func (this_ *TypeInference) priv_TypeInference_traverseDynamicImport_5582(dynami
 					templateType = exportNamespaceType
 				}
 			} else {
-				var moduleName pkg_rhino.Node = NodeUtil_FindPreorder(scriptNode, j2gort.NewNodeLambda_Ext_com_google_common_base_Predicate(func(rawNode_19 uint32) bool {
-					node := pkg_rhino.Node(rawNode_19)
+				var moduleName pkg_rhino.Node = NodeUtil_FindPreorder(scriptNode, j2gort.NewNodeLambda_Ext_com_google_common_base_Predicate(func(rawNode_15 uint32) bool {
+					node := pkg_rhino.Node(rawNode_15)
 					_ = node
 					return node.MatchesQualifiedName_1_string(targetPath.ToModuleName())
 				}), j2gort.Ext_com_google_common_base_Predicates_AlwaysTrue())
@@ -2781,7 +2794,7 @@ func (this_ *TypeInference) priv_TypeInference_traverseDynamicImport_5582(dynami
 		}
 	}
 	dynamicImport.SetJSType(pkg_rhino.ToIface_JSType(this_.registry.CreateTemplatizedType_2_ObjectType_JSType(this_.registry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_PROMISE_TYPE()), []pkg_rhino.JSType{templateType})))
-	return this_.priv_TypeInference_traverseChildren_5564(dynamicImport, scope)
+	return this_.priv_TypeInference_traverseChildren_5565(dynamicImport, scope)
 }
 
 // Java static method: TypeInference.joinBooleanOutcomes(boolean isAnd, com.google.javascript.rhino.jstype.BooleanLiteralSet left, com.google.javascript.rhino.jstype.BooleanLiteralSet right)
@@ -2794,22 +2807,24 @@ func TypeInference_JoinBooleanOutcomes(isAnd bool, left pkg_rhino.BooleanLiteral
 }
 
 // Java method: TypeInference.newBooleanOutcomePair(com.google.javascript.rhino.jstype.JSType jsType, com.google.javascript.jscomp.LinkedFlowScope flowScope)
-func (this_ *TypeInference) priv_TypeInference_newBooleanOutcomePair_5583(jsType pkg_rhino.JSType, flowScope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
+func (this_ *TypeInference) priv_TypeInference_newBooleanOutcomePair_5584(jsType pkg_rhino.JSType, flowScope *LinkedFlowScope) *TypeInference_BooleanOutcomePair {
 	_ = jsType
 	_ = flowScope
 	if jsType == nil || jsType.IsJavaNil_() {
 		return NewTypeInference_BooleanOutcomePair(this_, pkg_rhino.StaticGet_BooleanLiteralSet_BOTH(), pkg_rhino.StaticGet_BooleanLiteralSet_BOTH(), flowScope, flowScope)
 	}
-	return NewTypeInference_BooleanOutcomePair(this_, jsType.GetPossibleToBooleanOutcomes(), func() pkg_rhino.BooleanLiteralSet {
-		if this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE()).GetJSTypeBase().IsSubtypeOf_1(jsType) {
-			return pkg_rhino.StaticGet_BooleanLiteralSet_BOTH()
-		}
-		return pkg_rhino.StaticGet_BooleanLiteralSet_EMPTY()
-	}(), flowScope, flowScope)
+	var boolOutcomes pkg_rhino.BooleanLiteralSet = pkg_rhino.BooleanLiteralSet(0)
+	_ = boolOutcomes
+	if this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE()).GetJSTypeBase().IsSubtypeOf_1(jsType) {
+		boolOutcomes = pkg_rhino.StaticGet_BooleanLiteralSet_BOTH()
+	} else {
+		boolOutcomes = pkg_rhino.StaticGet_BooleanLiteralSet_EMPTY()
+	}
+	return NewTypeInference_BooleanOutcomePair(this_, jsType.GetPossibleToBooleanOutcomes(), boolOutcomes, flowScope, flowScope)
 }
 
 // Java method: TypeInference.redeclareSimpleVar(com.google.javascript.jscomp.LinkedFlowScope scope, com.google.javascript.rhino.Node nameNode, com.google.javascript.rhino.jstype.JSType varType)
-func (this_ *TypeInference) priv_TypeInference_redeclareSimpleVar_5584(scope *LinkedFlowScope, nameNode pkg_rhino.Node, varType pkg_rhino.JSType) *LinkedFlowScope {
+func (this_ *TypeInference) priv_TypeInference_redeclareSimpleVar_5585(scope *LinkedFlowScope, nameNode pkg_rhino.Node, varType pkg_rhino.JSType) *LinkedFlowScope {
 	_ = scope
 	_ = nameNode
 	_ = varType
@@ -2819,22 +2834,22 @@ func (this_ *TypeInference) priv_TypeInference_redeclareSimpleVar_5584(scope *Li
 	var varName string = nameNode.GetString()
 	_ = varName
 	if varType == nil || varType.IsJavaNil_() {
-		varType = this_.priv_TypeInference_getNativeType_5587(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
+		varType = this_.priv_TypeInference_getNativeType_5588(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	}
-	if this_.priv_TypeInference_isUnflowable_5585(TypeInference_GetDeclaredVar(scope, varName)) {
+	if this_.priv_TypeInference_isUnflowable_5586(TypeInference_GetDeclaredVar(scope, varName)) {
 		return scope
 	}
 	return scope.InferSlotTypeLinked(varName, varType)
 }
 
 // Java method: TypeInference.isUnflowable(com.google.javascript.jscomp.TypedVar v)
-func (this_ *TypeInference) priv_TypeInference_isUnflowable_5585(v *TypedVar) bool {
+func (this_ *TypeInference) priv_TypeInference_isUnflowable_5586(v *TypedVar) bool {
 	_ = v
 	return ((((v != nil) && v.IsLocal()) && v.IsMarkedEscaped()) && (j2gort.CastPtr[TypedScope](j2gort.CastPtr[TypedScope](v.GetScope()).GetClosestContainerScope()) == this_.containerScope))
 }
 
 // Java method: TypeInference.getJSType(com.google.javascript.rhino.Node n)
-func (this_ *TypeInference) priv_TypeInference_getJSType_5586(n pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *TypeInference) priv_TypeInference_getJSType_5587(n pkg_rhino.Node) pkg_rhino.JSType {
 	_ = n
 	var jsType pkg_rhino.JSType = n.GetJSType()
 	_ = jsType
@@ -2846,7 +2861,7 @@ func (this_ *TypeInference) priv_TypeInference_getJSType_5586(n pkg_rhino.Node) 
 }
 
 // Java method: TypeInference.getNativeType(com.google.javascript.rhino.jstype.JSTypeNative typeId)
-func (this_ *TypeInference) priv_TypeInference_getNativeType_5587(typeId pkg_rhino.JSTypeNative) pkg_rhino.JSType {
+func (this_ *TypeInference) priv_TypeInference_getNativeType_5588(typeId pkg_rhino.JSTypeNative) pkg_rhino.JSType {
 	_ = typeId
 	return this_.registry.GetNativeType(typeId)
 }
@@ -2990,14 +3005,14 @@ func (this_ *TypeInference_ReusableFlowBrancher) BranchFlow(branch ControlFlowGr
 	switch (branch).Ordinal() {
 	case int32(0) /* Branch.ON_TRUE */ :
 		if NodeUtil_IsEnhancedFor(this_.source) {
-			return this_.outer_.priv_TypeInference_initializeEnhancedForScope_5516(this_.source, this_.output)
+			return this_.outer_.priv_TypeInference_initializeEnhancedForScope_5517(this_.source, this_.output)
 		}
 		fallthrough
 	case int32(1) /* Branch.ON_FALSE */ :
 		if this_.condition == 0 {
 			if this_.source.IsCase() {
 				this_.condition = this_.source
-				this_.conditionFlowScope = this_.outer_.priv_TypeInference_traverse_5515(this_.condition.GetFirstChild(), this_.output)
+				this_.conditionFlowScope = this_.outer_.priv_TypeInference_traverse_5516(this_.condition.GetFirstChild(), this_.output)
 			} else {
 				this_.condition = NodeUtil_GetConditionExpression(this_.source)
 				if this_.condition == 0 {
@@ -3008,31 +3023,19 @@ func (this_ *TypeInference_ReusableFlowBrancher) BranchFlow(branch ControlFlowGr
 		if this_.condition.IsAnd() || this_.condition.IsOr() {
 			if this_.conditionOutcomes == nil {
 				if this_.condition.IsAnd() {
-					this_.conditionOutcomes = this_.outer_.priv_TypeInference_traverseAnd_5563(this_.condition, this_.output)
+					this_.conditionOutcomes = this_.outer_.priv_TypeInference_traverseAnd_5564(this_.condition, this_.output)
 				} else {
-					this_.conditionOutcomes = this_.outer_.priv_TypeInference_traverseOr_5577(this_.condition, this_.output)
+					this_.conditionOutcomes = this_.outer_.priv_TypeInference_traverseOr_5578(this_.condition, this_.output)
 				}
 			}
-			return j2gort.CastPtr[LinkedFlowScope](this_.outer_.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(this_.condition, pkg_jscomptype.ToIface_FlowScope(this_.conditionOutcomes.GetOutcomeFlowScope(this_.condition.GetToken(), (branch == StaticGet_ControlFlowGraph_Branch_ON_TRUE()))), pkg_rhino.Outcome_ForBoolean(func() bool {
-				re_20 := branch
-				ae_21 := StaticGet_ControlFlowGraph_Branch_ON_TRUE()
-				if re_20 == 0 {
-					j2gort.ThrowNPE()
-				}
-				return re_20 == ae_21
-			}())))
+			var isTrueBranch bool = (branch == StaticGet_ControlFlowGraph_Branch_ON_TRUE())
+			_ = isTrueBranch
+			return j2gort.CastPtr[LinkedFlowScope](this_.outer_.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(this_.condition, pkg_jscomptype.ToIface_FlowScope(this_.conditionOutcomes.GetOutcomeFlowScope(this_.condition.GetToken(), isTrueBranch)), pkg_rhino.Outcome_ForBoolean(isTrueBranch)))
 		}
 		if this_.conditionFlowScope == nil {
-			this_.conditionFlowScope = this_.outer_.priv_TypeInference_traverse_5515(this_.condition, this_.output)
+			this_.conditionFlowScope = this_.outer_.priv_TypeInference_traverse_5516(this_.condition, this_.output)
 		}
-		return j2gort.CastPtr[LinkedFlowScope](this_.outer_.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(this_.condition, pkg_jscomptype.ToIface_FlowScope(this_.conditionFlowScope), pkg_rhino.Outcome_ForBoolean(func() bool {
-			re_22 := branch
-			ae_23 := StaticGet_ControlFlowGraph_Branch_ON_TRUE()
-			if re_22 == 0 {
-				j2gort.ThrowNPE()
-			}
-			return re_22 == ae_23
-		}())))
+		return j2gort.CastPtr[LinkedFlowScope](this_.outer_.reverseInterpreter.GetPreciserScopeKnowingConditionOutcome(this_.condition, pkg_jscomptype.ToIface_FlowScope(this_.conditionFlowScope), pkg_rhino.Outcome_ForBoolean((branch == StaticGet_ControlFlowGraph_Branch_ON_TRUE()))))
 	default:
 		return this_.output
 	}

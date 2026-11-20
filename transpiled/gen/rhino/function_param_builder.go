@@ -147,12 +147,12 @@ func (this_ *FunctionParamBuilder) Reset() {
 }
 
 // Java method: FunctionParamBuilder.flushPureUnknownRequired()
-func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_flushPureUnknownRequired_8953() {
+func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_flushPureUnknownRequired_8954() {
 	var count int32 = this_.pureUnknownRequiredCount
 	_ = count
 	if count > int32(0) {
 		this_.pureUnknownRequiredCount = int32(0)
-		var list j2gort.Ext_java_util_ArrayList = this_.priv_FunctionParamBuilder_ensureParameters_8954()
+		var list j2gort.Ext_java_util_ArrayList = this_.priv_FunctionParamBuilder_ensureParameters_8955()
 		_ = list
 		var p FunctionType_Parameter = this_.registry.GetUnknownRequiredParameter()
 		_ = p
@@ -167,7 +167,7 @@ func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_flushPureUnknownReq
 }
 
 // Java method: FunctionParamBuilder.ensureParameters()
-func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_ensureParameters_8954() j2gort.Ext_java_util_ArrayList {
+func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_ensureParameters_8955() j2gort.Ext_java_util_ArrayList {
 	var list j2gort.Ext_java_util_ArrayList = this_.parameters
 	_ = list
 	if list == nil {
@@ -199,21 +199,21 @@ func (this_ *FunctionParamBuilder) AddRequiredParam(type_ JSType) bool {
 			this_.pureUnknownRequiredCount = this_.pureUnknownRequiredCount + 1
 			return true
 		}
-		this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8953()
-		this_.priv_FunctionParamBuilder_newParameter_8962(type_, false, false)
+		this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8954()
+		this_.priv_FunctionParamBuilder_newParameter_8963(type_, false, false)
 		return true
 	}
-	if this_.priv_FunctionParamBuilder_hasOptionalOrVarArgs_8963() {
+	if this_.priv_FunctionParamBuilder_hasOptionalOrVarArgs_8964() {
 		return false
 	}
-	this_.priv_FunctionParamBuilder_newParameter_8962(type_, false, false)
+	this_.priv_FunctionParamBuilder_newParameter_8963(type_, false, false)
 	return true
 }
 
 // Java method: FunctionParamBuilder.addRequiredParams(com.google.javascript.rhino.jstype.JSType[] types)
 func (this_ *FunctionParamBuilder) AddRequiredParams(types []JSType) bool {
 	_ = types
-	if this_.priv_FunctionParamBuilder_hasOptionalOrVarArgs_8963() {
+	if this_.priv_FunctionParamBuilder_hasOptionalOrVarArgs_8964() {
 		return false
 	}
 	for _, el_1 := range j2gort.CheckNotNullSlice(types) {
@@ -230,8 +230,8 @@ func (this_ *FunctionParamBuilder) AddOptionalParam(type_ JSType) bool {
 	if this_.HasVarArgs() {
 		return false
 	}
-	this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8953()
-	this_.priv_FunctionParamBuilder_newParameter_8962(this_.registry.CreateOptionalType(type_), true, false)
+	this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8954()
+	this_.priv_FunctionParamBuilder_newParameter_8963(this_.registry.CreateOptionalType(type_), true, false)
 	return true
 }
 
@@ -241,11 +241,11 @@ func (this_ *FunctionParamBuilder) AddOptionalParams(types []JSType) bool {
 	if this_.HasVarArgs() {
 		return false
 	}
-	this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8953()
+	this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8954()
 	for _, el_2 := range j2gort.CheckNotNullSlice(types) {
 		type_ := el_2
 		_ = type_
-		this_.priv_FunctionParamBuilder_newParameter_8962(this_.registry.CreateOptionalType(type_), true, false)
+		this_.priv_FunctionParamBuilder_newParameter_8963(this_.registry.CreateOptionalType(type_), true, false)
 	}
 	return true
 }
@@ -256,33 +256,33 @@ func (this_ *FunctionParamBuilder) AddVarArgs(type_ JSType) bool {
 	if this_.HasVarArgs() {
 		return false
 	}
-	this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8953()
-	this_.priv_FunctionParamBuilder_newParameter_8962(type_, false, true)
+	this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8954()
+	this_.priv_FunctionParamBuilder_newParameter_8963(type_, false, true)
 	return true
 }
 
 // Java method: FunctionParamBuilder.newParameterFrom(com.google.javascript.rhino.jstype.FunctionType.Parameter n)
 func (this_ *FunctionParamBuilder) NewParameterFrom(n FunctionType_Parameter) {
 	_ = n
-	this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8953()
-	this_.priv_FunctionParamBuilder_ensureParameters_8954().Add_1(j2gort.BoxNullableVal(n))
+	this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8954()
+	this_.priv_FunctionParamBuilder_ensureParameters_8955().Add_1(j2gort.BoxNullableVal(n))
 }
 
 // Java method: FunctionParamBuilder.newOptionalParameterFrom(com.google.javascript.rhino.jstype.FunctionType.Parameter p)
 func (this_ *FunctionParamBuilder) NewOptionalParameterFrom(p FunctionType_Parameter) {
 	_ = p
-	this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8953()
+	this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8954()
 	var isOptional bool = (p.IsOptional() || !(p.IsVariadic()))
 	_ = isOptional
 	if isOptional != p.IsOptional() {
-		this_.priv_FunctionParamBuilder_newParameter_8962(p.GetJSType(), isOptional, p.IsVariadic())
+		this_.priv_FunctionParamBuilder_newParameter_8963(p.GetJSType(), isOptional, p.IsVariadic())
 	} else {
-		this_.priv_FunctionParamBuilder_ensureParameters_8954().Add_1(j2gort.BoxNullableVal(p))
+		this_.priv_FunctionParamBuilder_ensureParameters_8955().Add_1(j2gort.BoxNullableVal(p))
 	}
 }
 
 // Java method: FunctionParamBuilder.newParameter(com.google.javascript.rhino.jstype.JSType type, boolean isOptional, boolean isVariadic)
-func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_newParameter_8962(type_ JSType, isOptional bool, isVariadic bool) {
+func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_newParameter_8963(type_ JSType, isOptional bool, isVariadic bool) {
 	_ = type_
 	_ = isOptional
 	_ = isVariadic
@@ -293,11 +293,11 @@ func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_newParameter_8962(t
 	} else {
 		parameter = FunctionType_Parameter_Create(type_, isOptional, isVariadic)
 	}
-	this_.priv_FunctionParamBuilder_ensureParameters_8954().Add_1(j2gort.BoxNullableVal(parameter))
+	this_.priv_FunctionParamBuilder_ensureParameters_8955().Add_1(j2gort.BoxNullableVal(parameter))
 }
 
 // Java method: FunctionParamBuilder.hasOptionalOrVarArgs()
-func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_hasOptionalOrVarArgs_8963() bool {
+func (this_ *FunctionParamBuilder) priv_FunctionParamBuilder_hasOptionalOrVarArgs_8964() bool {
 	if this_.pureUnknownRequiredCount > int32(0) {
 		return false
 	}
@@ -351,7 +351,7 @@ func (this_ *FunctionParamBuilder) BuildArray() []FunctionType_Parameter {
 
 // Java method: FunctionParamBuilder.build()
 func (this_ *FunctionParamBuilder) Build() j2gort.Ext_com_google_common_collect_ImmutableList {
-	this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8953()
+	this_.priv_FunctionParamBuilder_flushPureUnknownRequired_8954()
 	var list j2gort.Ext_java_util_ArrayList = this_.parameters
 	_ = list
 	if (list == nil) || list.IsEmpty() {

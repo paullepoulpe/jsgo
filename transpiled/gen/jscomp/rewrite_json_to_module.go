@@ -129,7 +129,7 @@ func (this_ *RewriteJsonToModule) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 		if !(n.HasOneChild()) {
 			this_.compiler.Report_1(JSError_Make_3(n, StaticGet_RewriteJsonToModule_JSON_UNEXPECTED_TOKEN(), []string{}))
 		} else {
-			this_.priv_RewriteJsonToModule_visitScript_5028(t, n)
+			this_.priv_RewriteJsonToModule_visitScript_5029(t, n)
 		}
 		return
 	case int32(47) /* Token.OBJECTLIT */, int32(46) /* Token.ARRAYLIT */, int32(33) /* Token.NUMBER */, int32(39) /* Token.TRUE */, int32(38) /* Token.FALSE */, int32(36) /* Token.NULL */, int32(35) /* Token.STRINGLIT */ :
@@ -151,7 +151,7 @@ func (this_ *RewriteJsonToModule) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 }
 
 // Java method: RewriteJsonToModule.visitScript(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *RewriteJsonToModule) priv_RewriteJsonToModule_visitScript_5028(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *RewriteJsonToModule) priv_RewriteJsonToModule_visitScript_5029(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if !(n.HasOneChild()) || !(n.GetFirstChild().IsExprResult()) {
@@ -192,7 +192,7 @@ func (this_ *RewriteJsonToModule) priv_RewriteJsonToModule_visitScript_5028(t *N
 						if !(j2gort.CheckNotNullString(entryName) == "browser") {
 							j2gort.CheckStateStr(false, entryName)
 						}
-						this_.priv_RewriteJsonToModule_processBrowserFieldAdvancedUsage_5029(dirName, entry)
+						this_.priv_RewriteJsonToModule_processBrowserFieldAdvancedUsage_5030(dirName, entry)
 					}
 				}
 			}
@@ -202,7 +202,7 @@ func (this_ *RewriteJsonToModule) priv_RewriteJsonToModule_visitScript_5028(t *N
 }
 
 // Java method: RewriteJsonToModule.processBrowserFieldAdvancedUsage(java.lang.String dirName, com.google.javascript.rhino.Node entry)
-func (this_ *RewriteJsonToModule) priv_RewriteJsonToModule_processBrowserFieldAdvancedUsage_5029(dirName string, entry pkg_rhino.Node) {
+func (this_ *RewriteJsonToModule) priv_RewriteJsonToModule_processBrowserFieldAdvancedUsage_5030(dirName string, entry pkg_rhino.Node) {
 	_ = dirName
 	_ = entry
 	{

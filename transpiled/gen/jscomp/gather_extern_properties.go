@@ -119,12 +119,12 @@ func (this_ *GatherExternProperties) Visit_3(t *NodeTraversal, n pkg_rhino.Node,
 	var jsDocInfo *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 	_ = jsDocInfo
 	if (jsDocInfo != nil) && (this_.mode).FieldGet_check() {
-		this_.priv_GatherExternProperties_gatherPropertiesFromJSDocInfo_3020(jsDocInfo)
+		this_.priv_GatherExternProperties_gatherPropertiesFromJSDocInfo_3021(jsDocInfo)
 	}
 }
 
 // Java method: GatherExternProperties.gatherPropertiesFromJSDocInfo(com.google.javascript.rhino.JSDocInfo jsDocInfo)
-func (this_ *GatherExternProperties) priv_GatherExternProperties_gatherPropertiesFromJSDocInfo_3020(jsDocInfo *pkg_rhino.JSDocInfo) {
+func (this_ *GatherExternProperties) priv_GatherExternProperties_gatherPropertiesFromJSDocInfo_3021(jsDocInfo *pkg_rhino.JSDocInfo) {
 	_ = jsDocInfo
 	{
 		var i int32 = int32(0)
@@ -132,30 +132,30 @@ func (this_ *GatherExternProperties) priv_GatherExternProperties_gatherPropertie
 		var count int32 = jsDocInfo.GetTypeNodeCount()
 		_ = count
 		for ; i < count; i = i + 1 {
-			this_.priv_GatherExternProperties_gatherPropertiesFromJsTypeExpressionNode_3021(jsDocInfo.GetTypeNodeAt(i))
+			this_.priv_GatherExternProperties_gatherPropertiesFromJsTypeExpressionNode_3022(jsDocInfo.GetTypeNodeAt(i))
 		}
 	}
 }
 
 // Java method: GatherExternProperties.gatherPropertiesFromJsTypeExpressionNode(com.google.javascript.rhino.Node jsTypeExpressionNode)
-func (this_ *GatherExternProperties) priv_GatherExternProperties_gatherPropertiesFromJsTypeExpressionNode_3021(jsTypeExpressionNode pkg_rhino.Node) {
+func (this_ *GatherExternProperties) priv_GatherExternProperties_gatherPropertiesFromJsTypeExpressionNode_3022(jsTypeExpressionNode pkg_rhino.Node) {
 	_ = jsTypeExpressionNode
 	switch jsTypeExpressionNode.TokenSwitchOrd_() {
 	case int32(161) /* Token.LB */ :
-		this_.priv_GatherExternProperties_gatherPropertiesFromJsDocRecordType_3022(jsTypeExpressionNode)
+		this_.priv_GatherExternProperties_gatherPropertiesFromJsDocRecordType_3023(jsTypeExpressionNode)
 	default:
 		{
 			var child pkg_rhino.Node = jsTypeExpressionNode.GetFirstChild()
 			_ = child
 			for ; child != 0; child = child.GetNext() {
-				this_.priv_GatherExternProperties_gatherPropertiesFromJsTypeExpressionNode_3021(child)
+				this_.priv_GatherExternProperties_gatherPropertiesFromJsTypeExpressionNode_3022(child)
 			}
 		}
 	}
 }
 
 // Java method: GatherExternProperties.gatherPropertiesFromJsDocRecordType(com.google.javascript.rhino.Node jsDocRecordNode)
-func (this_ *GatherExternProperties) priv_GatherExternProperties_gatherPropertiesFromJsDocRecordType_3022(jsDocRecordNode pkg_rhino.Node) {
+func (this_ *GatherExternProperties) priv_GatherExternProperties_gatherPropertiesFromJsDocRecordType_3023(jsDocRecordNode pkg_rhino.Node) {
 	_ = jsDocRecordNode
 	if !(jsDocRecordNode.RawToken_() == uint8(161)) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(jsDocRecordNode))
@@ -185,7 +185,7 @@ func (this_ *GatherExternProperties) priv_GatherExternProperties_gatherPropertie
 			}
 			this_.externProperties.Add(fieldName)
 			if fieldTypeNode != 0 {
-				this_.priv_GatherExternProperties_gatherPropertiesFromJsTypeExpressionNode_3021(fieldTypeNode)
+				this_.priv_GatherExternProperties_gatherPropertiesFromJsTypeExpressionNode_3022(fieldTypeNode)
 			}
 		}
 	}

@@ -123,7 +123,7 @@ func InitProcessClosureProvidesAndRequires(this_ *ProcessClosureProvidesAndRequi
 }
 
 // Java method: ProcessClosureProvidesAndRequires.putProvidedName(java.lang.String ns, com.google.javascript.jscomp.ProcessClosureProvidesAndRequires.ProvidedName pn)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_putProvidedName_4477(ns string, pn *ProcessClosureProvidesAndRequires_ProvidedName) {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_putProvidedName_4478(ns string, pn *ProcessClosureProvidesAndRequires_ProvidedName) {
 	_ = ns
 	_ = pn
 	j2gort.MapPutStr(this_.providedNames, ns, j2gort.PtrToAny(pn))
@@ -191,7 +191,7 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 }
 
 // Java method: ProcessClosureProvidesAndRequires.containsProvidedNameHash(int h)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_containsProvidedNameHash_4478(h int32) bool {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_containsProvidedNameHash_4479(h int32) bool {
 	_ = h
 	var table []int32 = this_.providedNameHashes
 	_ = table
@@ -233,7 +233,7 @@ func (this_ *ProcessClosureProvidesAndRequires) CollectProvidedNames(externs pkg
 	_ = externs
 	_ = root
 	if this_.providedNames.IsEmpty() {
-		this_.priv_ProcessClosureProvidesAndRequires_putProvidedName_4477("goog", NewProcessClosureProvidesAndRequires_ProvidedNameBuilder(this_).SetNamespace("goog").SetNode(pkg_rhino.Node(0)).SetChunk(nil).Build())
+		this_.priv_ProcessClosureProvidesAndRequires_putProvidedName_4478("goog", NewProcessClosureProvidesAndRequires_ProvidedNameBuilder(this_).SetNamespace("goog").SetNode(pkg_rhino.Node(0)).SetChunk(nil).Build())
 		NodeTraversal_TraverseRoots(this_.compiler, NewProcessClosureProvidesAndRequires_CollectDefinitions(this_), externs, root)
 	}
 	return this_.providedNames
@@ -254,7 +254,7 @@ func (this_ *ProcessClosureProvidesAndRequires) RewriteProvidesAndRequires(exter
 			rawElem_6 := cur_5.Next()
 			pn := j2gort.CastPtr[ProcessClosureProvidesAndRequires_ProvidedName](rawElem_6)
 			_ = pn
-			pn.priv_ProvidedName_replace_4511(this_.preserveGoogProvidesAndRequires, this_.providedNames)
+			pn.priv_ProvidedName_replace_4512(this_.preserveGoogProvidesAndRequires, this_.providedNames)
 		}
 	}
 	for _, closureRequire := range this_.requiresToBeRemoved {
@@ -275,7 +275,7 @@ func (this_ *ProcessClosureProvidesAndRequires) RewriteProvidesAndRequires(exter
 }
 
 // Java method: ProcessClosureProvidesAndRequires.visitGoogMethodCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node parent, com.google.javascript.rhino.Node n, java.lang.String methodName)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_visitGoogMethodCall_4482(t *NodeTraversal, parent pkg_rhino.Node, n pkg_rhino.Node, methodName string) {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_visitGoogMethodCall_4483(t *NodeTraversal, parent pkg_rhino.Node, n pkg_rhino.Node, methodName string) {
 	_ = t
 	_ = parent
 	_ = n
@@ -296,23 +296,23 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 			}
 		}
 	case "require", "requireType":
-		if this_.priv_ProcessClosureProvidesAndRequires_isValidPrimitiveCall_4483(t, n) {
-			this_.priv_ProcessClosureProvidesAndRequires_processRequireCall_4484(n, parent)
+		if this_.priv_ProcessClosureProvidesAndRequires_isValidPrimitiveCall_4484(t, n) {
+			this_.priv_ProcessClosureProvidesAndRequires_processRequireCall_4485(n, parent)
 		}
 	case "provide":
-		if this_.priv_ProcessClosureProvidesAndRequires_isValidPrimitiveCall_4483(t, n) {
-			this_.priv_ProcessClosureProvidesAndRequires_processProvideCall_4486(t, n, parent)
+		if this_.priv_ProcessClosureProvidesAndRequires_isValidPrimitiveCall_4484(t, n) {
+			this_.priv_ProcessClosureProvidesAndRequires_processProvideCall_4487(t, n, parent)
 		}
 	case "forwardDeclare":
-		if this_.priv_ProcessClosureProvidesAndRequires_isValidPrimitiveCall_4483(t, n) {
-			this_.priv_ProcessClosureProvidesAndRequires_processForwardDeclare_4491(n, parent)
+		if this_.priv_ProcessClosureProvidesAndRequires_isValidPrimitiveCall_4484(t, n) {
+			this_.priv_ProcessClosureProvidesAndRequires_processForwardDeclare_4492(n, parent)
 		}
 	default:
 	}
 }
 
 // Java method: ProcessClosureProvidesAndRequires.isValidPrimitiveCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_isValidPrimitiveCall_4483(t *NodeTraversal, n pkg_rhino.Node) bool {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_isValidPrimitiveCall_4484(t *NodeTraversal, n pkg_rhino.Node) bool {
 	_ = t
 	_ = n
 	if this_.compiler.GetOptions().ShouldPreserveGoogModule() {
@@ -322,10 +322,10 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 }
 
 // Java method: ProcessClosureProvidesAndRequires.processRequireCall(com.google.javascript.rhino.Node call, com.google.javascript.rhino.Node parent)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_processRequireCall_4484(call pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_processRequireCall_4485(call pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = call
 	_ = parent
-	if !(this_.priv_ProcessClosureProvidesAndRequires_verifyOnlyArgumentIsString_4492(call)) {
+	if !(this_.priv_ProcessClosureProvidesAndRequires_verifyOnlyArgumentIsString_4493(call)) {
 		return
 	}
 	if !(this_.preserveGoogProvidesAndRequires) {
@@ -334,23 +334,23 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 }
 
 // Java method: ProcessClosureProvidesAndRequires.processLegacyModuleCall(java.lang.String namespace, com.google.javascript.rhino.Node googModuleCall, com.google.javascript.jscomp.JSChunk chunk)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_processLegacyModuleCall_4485(namespace string, googModuleCall pkg_rhino.Node, chunk *JSChunk) {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_processLegacyModuleCall_4486(namespace string, googModuleCall pkg_rhino.Node, chunk *JSChunk) {
 	_ = namespace
 	_ = googModuleCall
 	_ = chunk
-	this_.priv_ProcessClosureProvidesAndRequires_registerAnyProvidedPrefixes_4493(namespace, googModuleCall, chunk)
-	this_.priv_ProcessClosureProvidesAndRequires_putProvidedName_4477(namespace, NewProcessClosureProvidesAndRequires_ProvidedNameBuilder(this_).SetNamespace(namespace).SetNode(googModuleCall).SetChunk(chunk).SetExplicit(true).SetFromLegacyModule(true).Build())
+	this_.priv_ProcessClosureProvidesAndRequires_registerAnyProvidedPrefixes_4494(namespace, googModuleCall, chunk)
+	this_.priv_ProcessClosureProvidesAndRequires_putProvidedName_4478(namespace, NewProcessClosureProvidesAndRequires_ProvidedNameBuilder(this_).SetNamespace(namespace).SetNode(googModuleCall).SetChunk(chunk).SetExplicit(true).SetFromLegacyModule(true).Build())
 }
 
 // Java method: ProcessClosureProvidesAndRequires.processProvideCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call, com.google.javascript.rhino.Node parent)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_processProvideCall_4486(t *NodeTraversal, call pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_processProvideCall_4487(t *NodeTraversal, call pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = call
 	_ = parent
 	if !(call.IsCall()) {
 		j2gort.CheckState(false)
 	}
-	if !(this_.priv_ProcessClosureProvidesAndRequires_verifyOnlyArgumentIsString_4492(call)) {
+	if !(this_.priv_ProcessClosureProvidesAndRequires_verifyOnlyArgumentIsString_4493(call)) {
 		return
 	}
 	var left pkg_rhino.Node = call.GetFirstChild()
@@ -370,13 +370,13 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 			previouslyProvided.AddProvide(parent, t.GetChunk(), true, this_.chunkGraph)
 		}
 	} else {
-		this_.priv_ProcessClosureProvidesAndRequires_registerAnyProvidedPrefixes_4493(ns, parent, t.GetChunk())
-		this_.priv_ProcessClosureProvidesAndRequires_putProvidedName_4477(ns, NewProcessClosureProvidesAndRequires_ProvidedNameBuilder(this_).SetNamespace(ns).SetNode(parent).SetChunk(t.GetChunk()).SetExplicit(true).SetHasImplicitInitialization(isImplicitlyInitialized).Build())
+		this_.priv_ProcessClosureProvidesAndRequires_registerAnyProvidedPrefixes_4494(ns, parent, t.GetChunk())
+		this_.priv_ProcessClosureProvidesAndRequires_putProvidedName_4478(ns, NewProcessClosureProvidesAndRequires_ProvidedNameBuilder(this_).SetNamespace(ns).SetNode(parent).SetChunk(t.GetChunk()).SetExplicit(true).SetHasImplicitInitialization(isImplicitlyInitialized).Build())
 	}
 }
 
 // Java method: ProcessClosureProvidesAndRequires.handleStubDefinition(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node exprResult)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_handleStubDefinition_4487(t *NodeTraversal, exprResult pkg_rhino.Node) {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_handleStubDefinition_4488(t *NodeTraversal, exprResult pkg_rhino.Node) {
 	_ = t
 	_ = exprResult
 	if !(t.InGlobalHoistScope()) {
@@ -384,7 +384,7 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 	}
 	var isExternStub bool = exprResult.IsFromExterns()
 	_ = isExternStub
-	var isTypedefStub bool = this_.priv_ProcessClosureProvidesAndRequires_isTypedefStubDeclaration_4489(exprResult)
+	var isTypedefStub bool = this_.priv_ProcessClosureProvidesAndRequires_isTypedefStubDeclaration_4490(exprResult)
 	_ = isTypedefStub
 	var isValidTypedefStubDefinition bool = (isTypedefStub && !(this_.hasRewritingOccurred))
 	_ = isValidTypedefStubDefinition
@@ -393,31 +393,31 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 		_ = target
 		var h int32 = target.HashQualifiedName()
 		_ = h
-		if (h != int32(0)) && this_.priv_ProcessClosureProvidesAndRequires_containsProvidedNameHash_4478(h) {
+		if (h != int32(0)) && this_.priv_ProcessClosureProvidesAndRequires_containsProvidedNameHash_4479(h) {
 			var name string = target.GetQualifiedName()
 			_ = name
 			if name != j2gort.NullString {
 				var pn *ProcessClosureProvidesAndRequires_ProvidedName = j2gort.CastPtr[ProcessClosureProvidesAndRequires_ProvidedName](j2gort.MapGetStr(this_.providedNames, name))
 				_ = pn
 				if pn != nil {
-					pn.priv_ProvidedName_addDefinition_4509(exprResult, t.GetChunk(), this_.chunkGraph)
+					pn.priv_ProvidedName_addDefinition_4510(exprResult, t.GetChunk(), this_.chunkGraph)
 				}
 			}
 		}
 	}
 	if isTypedefStub {
-		this_.priv_ProcessClosureProvidesAndRequires_checkNestedTypedefProvide_4488(exprResult)
+		this_.priv_ProcessClosureProvidesAndRequires_checkNestedTypedefProvide_4489(exprResult)
 	}
 }
 
 // Java method: ProcessClosureProvidesAndRequires.checkNestedTypedefProvide(com.google.javascript.rhino.Node exprResult)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_checkNestedTypedefProvide_4488(exprResult pkg_rhino.Node) {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_checkNestedTypedefProvide_4489(exprResult pkg_rhino.Node) {
 	_ = exprResult
 	var target pkg_rhino.Node = exprResult.GetFirstChild()
 	_ = target
 	var h int32 = target.HashQualifiedName()
 	_ = h
-	if (h == int32(0)) || !(this_.priv_ProcessClosureProvidesAndRequires_containsProvidedNameHash_4478(h)) {
+	if (h == int32(0)) || !(this_.priv_ProcessClosureProvidesAndRequires_containsProvidedNameHash_4479(h)) {
 		return
 	}
 	var name string = target.GetQualifiedName()
@@ -434,14 +434,14 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 	_ = parent
 	var parentDefinition pkg_rhino.Node = parent.GetCandidateDefinition()
 	_ = parentDefinition
-	if ((parentDefinition == 0) || !(javalang.ObjectsEquals(j2gort.CheckNotNull(parentDefinition.GetStaticSourceFile()), exprResult.GetStaticSourceFile()))) || this_.priv_ProcessClosureProvidesAndRequires_isTypedefStubDeclaration_4489(parentDefinition) {
+	if ((parentDefinition == 0) || !(javalang.ObjectsEquals(j2gort.CheckNotNull(parentDefinition.GetStaticSourceFile()), exprResult.GetStaticSourceFile()))) || this_.priv_ProcessClosureProvidesAndRequires_isTypedefStubDeclaration_4490(parentDefinition) {
 		return
 	}
 	this_.compiler.Report_1(JSError_Make_3(exprResult, StaticGet_ProcessClosureProvidesAndRequires_TYPEDEF_CHILD_OF_PROVIDE(), []string{name, parentName}))
 }
 
 // Java method: ProcessClosureProvidesAndRequires.isTypedefStubDeclaration(com.google.javascript.rhino.Node statement)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_isTypedefStubDeclaration_4489(statement pkg_rhino.Node) bool {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_isTypedefStubDeclaration_4490(statement pkg_rhino.Node) bool {
 	_ = statement
 	if !(statement.IsExprResult()) {
 		return false
@@ -452,7 +452,7 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 }
 
 // Java method: ProcessClosureProvidesAndRequires.handleCandidateProvideDefinition(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_handleCandidateProvideDefinition_4490(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_handleCandidateProvideDefinition_4491(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = n
 	_ = parent
@@ -485,7 +485,7 @@ iifeSwitch_1:
 			_ = target
 			var h int32 = target.HashQualifiedName()
 			_ = h
-			if (h == int32(0)) || !(this_.priv_ProcessClosureProvidesAndRequires_containsProvidedNameHash_4478(h)) {
+			if (h == int32(0)) || !(this_.priv_ProcessClosureProvidesAndRequires_containsProvidedNameHash_4479(h)) {
 				name = j2gort.NullString
 				break iifeSwitch_1
 			}
@@ -508,12 +508,12 @@ iifeSwitch_1:
 	var pn *ProcessClosureProvidesAndRequires_ProvidedName = j2gort.CastPtr[ProcessClosureProvidesAndRequires_ProvidedName](j2gort.MapGetStr(this_.providedNames, name))
 	_ = pn
 	if pn != nil {
-		pn.priv_ProvidedName_addDefinition_4509(parent, t.GetChunk(), this_.chunkGraph)
+		pn.priv_ProvidedName_addDefinition_4510(parent, t.GetChunk(), this_.chunkGraph)
 	}
 }
 
 // Java method: ProcessClosureProvidesAndRequires.processForwardDeclare(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_processForwardDeclare_4491(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_processForwardDeclare_4492(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	var convention CodingConvention = this_.compiler.GetCodingConvention()
@@ -533,7 +533,7 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 }
 
 // Java method: ProcessClosureProvidesAndRequires.verifyOnlyArgumentIsString(com.google.javascript.rhino.Node call)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_verifyOnlyArgumentIsString_4492(call pkg_rhino.Node) bool {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_verifyOnlyArgumentIsString_4493(call pkg_rhino.Node) bool {
 	_ = call
 	var arg pkg_rhino.Node = call.GetSecondChild()
 	_ = arg
@@ -541,7 +541,7 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 }
 
 // Java method: ProcessClosureProvidesAndRequires.registerAnyProvidedPrefixes(java.lang.String ns, com.google.javascript.rhino.Node node, com.google.javascript.jscomp.JSChunk chunk)
-func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_registerAnyProvidedPrefixes_4493(ns string, node pkg_rhino.Node, chunk *JSChunk) {
+func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRequires_registerAnyProvidedPrefixes_4494(ns string, node pkg_rhino.Node, chunk *JSChunk) {
 	_ = ns
 	_ = node
 	_ = chunk
@@ -554,7 +554,7 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 		if j2gort.MapContainsKeyStr(this_.providedNames, prefixNs) {
 			j2gort.CastPtr[ProcessClosureProvidesAndRequires_ProvidedName](j2gort.MapGetStr(this_.providedNames, prefixNs)).AddProvide(node, chunk, false, this_.chunkGraph)
 		} else {
-			this_.priv_ProcessClosureProvidesAndRequires_putProvidedName_4477(prefixNs, NewProcessClosureProvidesAndRequires_ProvidedNameBuilder(this_).SetNamespace(prefixNs).SetNode(node).SetChunk(chunk).SetExplicit(false).Build())
+			this_.priv_ProcessClosureProvidesAndRequires_putProvidedName_4478(prefixNs, NewProcessClosureProvidesAndRequires_ProvidedNameBuilder(this_).SetNamespace(prefixNs).SetNode(node).SetChunk(chunk).SetExplicit(false).Build())
 		}
 	}
 }
@@ -654,7 +654,7 @@ func (this_ *ProcessClosureProvidesAndRequires_CollectDefinitions) ShouldTravers
 		var maybeLegacyNamespaceCall pkg_rhino.Node = googModuleCall.GetNext()
 		_ = maybeLegacyNamespaceCall
 		if (maybeLegacyNamespaceCall != 0) && NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(maybeLegacyNamespaceCall) {
-			this_.outer_.priv_ProcessClosureProvidesAndRequires_processLegacyModuleCall_4485(closureNamespace, googModuleCall, t.GetChunk())
+			this_.outer_.priv_ProcessClosureProvidesAndRequires_processLegacyModuleCall_4486(closureNamespace, googModuleCall, t.GetChunk())
 		}
 		return false
 	}
@@ -674,13 +674,13 @@ func (this_ *ProcessClosureProvidesAndRequires_CollectDefinitions) Visit_3(t *No
 			var name pkg_rhino.Node = left.GetFirstChild()
 			_ = name
 			if name.MatchesName_1_string("goog") {
-				this_.outer_.priv_ProcessClosureProvidesAndRequires_visitGoogMethodCall_4482(t, parent, n, left.GetString())
+				this_.outer_.priv_ProcessClosureProvidesAndRequires_visitGoogMethodCall_4483(t, parent, n, left.GetString())
 			}
 		}
 	case int32(51) /* Token.ASSIGN */, int32(32) /* Token.NAME */ :
-		this_.outer_.priv_ProcessClosureProvidesAndRequires_handleCandidateProvideDefinition_4490(t, n, parent)
+		this_.outer_.priv_ProcessClosureProvidesAndRequires_handleCandidateProvideDefinition_4491(t, n, parent)
 	case int32(93) /* Token.EXPR_RESULT */ :
-		this_.outer_.priv_ProcessClosureProvidesAndRequires_handleStubDefinition_4487(t, n)
+		this_.outer_.priv_ProcessClosureProvidesAndRequires_handleStubDefinition_4488(t, n)
 	default:
 	}
 }
@@ -880,7 +880,7 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) AddProvide(node pkg
 		}
 		this_.explicitNode = node
 	}
-	this_.priv_ProvidedName_updateMinimumChunk_4510(chunk, chunkGraph)
+	this_.priv_ProvidedName_updateMinimumChunk_4511(chunk, chunkGraph)
 }
 
 // Java method: ProvidedName.isExplicitlyProvided()
@@ -899,7 +899,7 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) IsFromLegacyModule(
 }
 
 // Java method: ProvidedName.hasCandidateDefinition()
-func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_hasCandidateDefinition_4505() bool {
+func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_hasCandidateDefinition_4506() bool {
 	return (this_.candidateDefinition != 0)
 }
 
@@ -919,7 +919,7 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) GetNamespace() stri
 }
 
 // Java method: ProvidedName.addDefinition(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.JSChunk chunk, com.google.javascript.jscomp.JSChunkGraph chunkGraph)
-func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_addDefinition_4509(node pkg_rhino.Node, chunk *JSChunk, chunkGraph *JSChunkGraph) {
+func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_addDefinition_4510(node pkg_rhino.Node, chunk *JSChunk, chunkGraph *JSChunkGraph) {
 	_ = node
 	_ = chunk
 	_ = chunkGraph
@@ -931,12 +931,12 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_a
 	}
 	if (this_.candidateDefinition == 0) || !(node.IsExprResult()) {
 		this_.candidateDefinition = node
-		this_.priv_ProvidedName_updateMinimumChunk_4510(chunk, chunkGraph)
+		this_.priv_ProvidedName_updateMinimumChunk_4511(chunk, chunkGraph)
 	}
 }
 
 // Java method: ProvidedName.updateMinimumChunk(com.google.javascript.jscomp.JSChunk newChunk, com.google.javascript.jscomp.JSChunkGraph chunkGraph)
-func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_updateMinimumChunk_4510(newChunk *JSChunk, chunkGraph *JSChunkGraph) {
+func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_updateMinimumChunk_4511(newChunk *JSChunk, chunkGraph *JSChunkGraph) {
 	_ = newChunk
 	_ = chunkGraph
 	if this_.minimumChunk == nil {
@@ -951,7 +951,7 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_u
 }
 
 // Java method: ProvidedName.replace(boolean preserveGoogProvidesAndRequires, java.util.Map<java.lang.String,com.google.javascript.jscomp.ProcessClosureProvidesAndRequires.ProvidedName> providedNames)
-func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_replace_4511(preserveGoogProvidesAndRequires bool, providedNames j2gort.Ext_java_util_Map) {
+func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_replace_4512(preserveGoogProvidesAndRequires bool, providedNames j2gort.Ext_java_util_Map) {
 	_ = preserveGoogProvidesAndRequires
 	_ = providedNames
 	if !(!(this_.IsFromLegacyModule())) {
@@ -961,7 +961,7 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_r
 		this_.replacementNode = this_.candidateDefinition
 		return
 	}
-	if this_.priv_ProvidedName_hasCandidateDefinition_4505() && (this_.explicitNode != 0) {
+	if this_.priv_ProvidedName_hasCandidateDefinition_4506() && (this_.explicitNode != 0) {
 		this_.replacementNode = this_.candidateDefinition
 		if this_.candidateDefinition.IsExprResult() {
 			var exprNode pkg_rhino.Node = this_.candidateDefinition.GetOnlyChild()
@@ -970,7 +970,7 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_r
 				var nameNode pkg_rhino.Node = exprNode.GetFirstChild()
 				_ = nameNode
 				if nameNode.IsName() {
-					this_.priv_ProvidedName_convertProvideAssignmentToVarDeclaration_4512(exprNode, nameNode)
+					this_.priv_ProvidedName_convertProvideAssignmentToVarDeclaration_4513(exprNode, nameNode)
 				} else {
 					this_.candidateDefinition.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_NAMESPACE(), true)
 				}
@@ -978,7 +978,7 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_r
 		}
 	} else {
 		if !(this_.hasImplicitInitialization) {
-			this_.priv_ProvidedName_createNamespaceInitialization_4513(this_.priv_ProvidedName_createDeclarationNode_4514(this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{})), providedNames)
+			this_.priv_ProvidedName_createNamespaceInitialization_4514(this_.priv_ProvidedName_createDeclarationNode_4515(this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{})), providedNames)
 		}
 	}
 	if this_.explicitNode != 0 {
@@ -991,7 +991,7 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_r
 }
 
 // Java method: ProvidedName.convertProvideAssignmentToVarDeclaration(com.google.javascript.rhino.Node assignNode, com.google.javascript.rhino.Node nameNode)
-func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_convertProvideAssignmentToVarDeclaration_4512(assignNode pkg_rhino.Node, nameNode pkg_rhino.Node) {
+func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_convertProvideAssignmentToVarDeclaration_4513(assignNode pkg_rhino.Node, nameNode pkg_rhino.Node) {
 	_ = assignNode
 	_ = nameNode
 	if !(assignNode.IsAssign()) {
@@ -1014,7 +1014,7 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_c
 }
 
 // Java method: ProvidedName.createNamespaceInitialization(com.google.javascript.rhino.Node replacement, java.util.Map<java.lang.String,com.google.javascript.jscomp.ProcessClosureProvidesAndRequires.ProvidedName> providedNames)
-func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_createNamespaceInitialization_4513(replacement pkg_rhino.Node, providedNames j2gort.Ext_java_util_Map) {
+func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_createNamespaceInitialization_4514(replacement pkg_rhino.Node, providedNames j2gort.Ext_java_util_Map) {
 	_ = replacement
 	_ = providedNames
 	this_.replacementNode = replacement
@@ -1037,20 +1037,20 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_c
 }
 
 // Java method: ProvidedName.createDeclarationNode(com.google.javascript.rhino.Node value)
-func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_createDeclarationNode_4514(value pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_createDeclarationNode_4515(value pkg_rhino.Node) pkg_rhino.Node {
 	_ = value
 	if !(value.IsObjectLit() || value.IsCast()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(value))
 	}
 	if j2gort.JStrIndexOfCp(this_.namespace, int32(uint16(46))) == int32(-1) {
-		return this_.priv_ProvidedName_makeVarDeclNode_4515(value)
+		return this_.priv_ProvidedName_makeVarDeclNode_4516(value)
 	} else {
-		return this_.priv_ProvidedName_makeAssignmentExprNode_4516(value)
+		return this_.priv_ProvidedName_makeAssignmentExprNode_4517(value)
 	}
 }
 
 // Java method: ProvidedName.makeVarDeclNode(com.google.javascript.rhino.Node value)
-func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_makeVarDeclNode_4515(value pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_makeVarDeclNode_4516(value pkg_rhino.Node) pkg_rhino.Node {
 	_ = value
 	var name pkg_rhino.Node = pkg_rhino.IR_Name(this_.namespace)
 	_ = name
@@ -1061,41 +1061,41 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_m
 	if this_.compiler.GetCodingConvention().IsConstant(this_.namespace) {
 		name.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME(), true)
 	}
-	if !(this_.priv_ProvidedName_hasCandidateDefinition_4505()) {
+	if !(this_.priv_ProvidedName_hasCandidateDefinition_4506()) {
 		decl.SetJSDocInfo(NodeUtil_CreateConstantJsDoc())
 	}
 	if !(ProcessClosureProvidesAndRequires_IsNamespacePlaceholder(decl)) {
 		j2gort.CheckState(false)
 	}
-	this_.priv_ProvidedName_setSourceInfo_4517(decl)
+	this_.priv_ProvidedName_setSourceInfo_4518(decl)
 	return decl
 }
 
 // Java method: ProvidedName.makeAssignmentExprNode(com.google.javascript.rhino.Node value)
-func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_makeAssignmentExprNode_4516(value pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_makeAssignmentExprNode_4517(value pkg_rhino.Node) pkg_rhino.Node {
 	_ = value
 	var lhs pkg_rhino.Node = this_.astFactory.CreateQNameWithUnknownType_1_string(this_.namespace).SrcrefTree(this_.firstNode)
 	_ = lhs
 	var decl pkg_rhino.Node = pkg_rhino.IR_ExprResult(this_.astFactory.CreateAssign_2_Node_Node(lhs, value))
 	_ = decl
 	decl.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_NAMESPACE(), true)
-	if !(this_.priv_ProvidedName_hasCandidateDefinition_4505()) {
+	if !(this_.priv_ProvidedName_hasCandidateDefinition_4506()) {
 		decl.GetFirstChild().SetJSDocInfo(NodeUtil_CreateConstantJsDoc())
 	}
 	if !(ProcessClosureProvidesAndRequires_IsNamespacePlaceholder(decl)) {
 		j2gort.CheckState(false)
 	}
-	this_.priv_ProvidedName_setSourceInfo_4517(decl)
+	this_.priv_ProvidedName_setSourceInfo_4518(decl)
 	lhs.GetFirstChild().MakeNonIndexableRecursive()
 	return decl
 }
 
 // Java method: ProvidedName.setSourceInfo(com.google.javascript.rhino.Node newNode)
-func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_setSourceInfo_4517(newNode pkg_rhino.Node) {
+func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_setSourceInfo_4518(newNode pkg_rhino.Node) {
 	_ = newNode
 	var sourceInfoNode pkg_rhino.Node = this_.firstNode
 	_ = sourceInfoNode
-	var provideStringNode pkg_rhino.Node = this_.priv_ProvidedName_getProvideStringNode_4518()
+	var provideStringNode pkg_rhino.Node = this_.priv_ProvidedName_getProvideStringNode_4519()
 	_ = provideStringNode
 	if provideStringNode != 0 {
 		var firstCharIndex int32 = (j2gort.JStrLastIndexOfCp(this_.namespace, int32(uint16(46))) + int32(1))
@@ -1108,7 +1108,7 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_s
 }
 
 // Java method: ProvidedName.getProvideStringNode()
-func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_getProvideStringNode_4518() pkg_rhino.Node {
+func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) priv_ProvidedName_getProvideStringNode_4519() pkg_rhino.Node {
 	if this_.firstNode.HasChildren() && NodeUtil_IsExprCall(this_.firstNode) {
 		return this_.firstNode.GetFirstChild().GetLastChild()
 	} else {

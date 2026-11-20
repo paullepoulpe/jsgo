@@ -129,14 +129,14 @@ func (this_ *Es6TemplateLiterals) VisitTaggedTemplateLiteral(t *NodeTraversal, n
 	_ = insertBefore
 	var templateLit pkg_rhino.Node = n.GetLastChild()
 	_ = templateLit
-	var siteObject pkg_rhino.Node = this_.priv_Es6TemplateLiterals_createCookedStringArray_2796(templateLit)
+	var siteObject pkg_rhino.Node = this_.priv_Es6TemplateLiterals_createCookedStringArray_2797(templateLit)
 	_ = siteObject
 	var callTemplateTagArgCreator pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = callTemplateTagArgCreator
 	if (Es6TemplateLiterals_CookedAndRawStringsSame(templateLit)) {
 		callTemplateTagArgCreator = this_.astFactory.CreateCall(this_.astFactory.CreateQName_2_StaticScope_RuntimeJsLibManager_JsLibField(this_.namespace, this_.createTemplateTagFirstArg), AstFactory_S_Type_1_Node(siteObject), []pkg_rhino.Node{siteObject.CloneTree_0()})
 	} else {
-		var raw pkg_rhino.Node = this_.priv_Es6TemplateLiterals_createRawStringArray_2795(templateLit)
+		var raw pkg_rhino.Node = this_.priv_Es6TemplateLiterals_createRawStringArray_2796(templateLit)
 		_ = raw
 		callTemplateTagArgCreator = this_.astFactory.CreateCall(this_.astFactory.CreateQName_2_StaticScope_RuntimeJsLibManager_JsLibField(this_.namespace, this_.createTemplateTagFirstArgWithRaw), AstFactory_S_Type_1_Node(siteObject), []pkg_rhino.Node{siteObject.CloneTree_0(), raw})
 	}
@@ -173,7 +173,7 @@ func (this_ *Es6TemplateLiterals) VisitTaggedTemplateLiteral(t *NodeTraversal, n
 }
 
 // Java method: Es6TemplateLiterals.createRawStringArray(com.google.javascript.rhino.Node n)
-func (this_ *Es6TemplateLiterals) priv_Es6TemplateLiterals_createRawStringArray_2795(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6TemplateLiterals) priv_Es6TemplateLiterals_createRawStringArray_2796(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var array pkg_rhino.Node = this_.astFactory.CreateArraylit_1_Node([]pkg_rhino.Node{})
 	_ = array
@@ -190,7 +190,7 @@ func (this_ *Es6TemplateLiterals) priv_Es6TemplateLiterals_createRawStringArray_
 }
 
 // Java method: Es6TemplateLiterals.createCookedStringArray(com.google.javascript.rhino.Node n)
-func (this_ *Es6TemplateLiterals) priv_Es6TemplateLiterals_createCookedStringArray_2796(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6TemplateLiterals) priv_Es6TemplateLiterals_createCookedStringArray_2797(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var templateArrayType *pkg_colors.Color
 	_ = templateArrayType

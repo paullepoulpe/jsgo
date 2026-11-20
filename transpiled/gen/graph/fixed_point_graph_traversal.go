@@ -156,14 +156,14 @@ func (this_ *FixedPointGraphTraversal[N, E]) ComputeFixedPoint_1(graph DiGraph[N
 					}
 				}
 			}
-			this_.priv_FixedPointGraphTraversal_runWorkQueueFixedPoint_6342(graph, &workQueue)
+			this_.priv_FixedPointGraphTraversal_runWorkQueueFixedPoint_6343(graph, &workQueue)
 			return
 		}
 	}
 	var workSet *j2gort.Ext_java_util_LinkedHashSet = j2gort.NewExt_java_util_LinkedHashSet_1_int32(graph.GetNodeCount())
 	_ = workSet
 	workSet.AddAll_1(graph.GetNodes())
-	this_.priv_FixedPointGraphTraversal_runWorkSetFixedPoint_6343(graph, workSet)
+	this_.priv_FixedPointGraphTraversal_runWorkSetFixedPoint_6344(graph, workSet)
 }
 
 // Java method: FixedPointGraphTraversal.computeFixedPoint(com.google.javascript.jscomp.graph.DiGraph<N,E> graph, N entry)
@@ -187,14 +187,14 @@ func (this_ *FixedPointGraphTraversal[N, E]) ComputeFixedPoint_2_DiGraph_any_any
 			_ = workQueue
 			entryNode.SetInDfaQueue(true)
 			workQueue.AddLast(entryNode)
-			this_.priv_FixedPointGraphTraversal_runWorkQueueFixedPoint_6342(graph, &workQueue)
+			this_.priv_FixedPointGraphTraversal_runWorkQueueFixedPoint_6343(graph, &workQueue)
 			return
 		}
 	}
 	var workSet *j2gort.Ext_java_util_LinkedHashSet = j2gort.NewExt_java_util_LinkedHashSet_1_int32(int32(4))
 	_ = workSet
 	workSet.Add_1(entryNode)
-	this_.priv_FixedPointGraphTraversal_runWorkSetFixedPoint_6343(graph, workSet)
+	this_.priv_FixedPointGraphTraversal_runWorkSetFixedPoint_6344(graph, workSet)
 }
 
 // Java method: FixedPointGraphTraversal.computeFixedPoint(com.google.javascript.jscomp.graph.DiGraph<N,E> graph, java.util.Set<N> entrySet)
@@ -257,7 +257,7 @@ func (this_ *FixedPointGraphTraversal[N, E]) ComputeFixedPoint_2_DiGraph_any_any
 				}
 			}
 			if ok {
-				this_.priv_FixedPointGraphTraversal_runWorkQueueFixedPoint_6342(graph, &workQueue)
+				this_.priv_FixedPointGraphTraversal_runWorkQueueFixedPoint_6343(graph, &workQueue)
 				return
 			}
 			for !(workQueue.IsEmpty()) {
@@ -298,11 +298,11 @@ func (this_ *FixedPointGraphTraversal[N, E]) ComputeFixedPoint_2_DiGraph_any_any
 			workSet.Add_1(j2gort.AsIface[DiGraph_DiGraphNode[N, E]](graph.GetNode(n_2)))
 		}
 	}
-	this_.priv_FixedPointGraphTraversal_runWorkSetFixedPoint_6343(graph, workSet)
+	this_.priv_FixedPointGraphTraversal_runWorkSetFixedPoint_6344(graph, workSet)
 }
 
 // Java method: FixedPointGraphTraversal.runWorkQueueFixedPoint(com.google.javascript.jscomp.graph.DiGraph<N,E> graph, java.util.ArrayDeque<com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E>> workQueue)
-func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_runWorkQueueFixedPoint_6342(graph DiGraph[N, E], workQueue *j2gort.Deque[DiGraph_DiGraphNode[N, E]]) {
+func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_runWorkQueueFixedPoint_6343(graph DiGraph[N, E], workQueue *j2gort.Deque[DiGraph_DiGraphNode[N, E]]) {
 	_ = graph
 	_ = workQueue
 	var cycleCount int64 = int64(int32(0))
@@ -321,7 +321,7 @@ func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_runWo
 			var node DiGraph_DiGraphNode[N, E] = workQueue.RemoveFirst()
 			_ = node
 			node.SetInDfaQueue(false)
-			this_.priv_FixedPointGraphTraversal_visitNodeQueue_6344(node, workQueue)
+			this_.priv_FixedPointGraphTraversal_visitNodeQueue_6345(node, workQueue)
 		}
 		if !(cycleCount != maxIterations) {
 			j2gort.CheckStateStr(false, "Fixed point computation not halting")
@@ -330,7 +330,7 @@ func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_runWo
 }
 
 // Java method: FixedPointGraphTraversal.runWorkSetFixedPoint(com.google.javascript.jscomp.graph.DiGraph<N,E> graph, java.util.LinkedHashSet<com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E>> workSet)
-func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_runWorkSetFixedPoint_6343(graph DiGraph[N, E], workSet *j2gort.Ext_java_util_LinkedHashSet) {
+func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_runWorkSetFixedPoint_6344(graph DiGraph[N, E], workSet *j2gort.Ext_java_util_LinkedHashSet) {
 	_ = graph
 	_ = workSet
 	var cycleCount int64 = int64(int32(0))
@@ -340,7 +340,7 @@ func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_runWo
 	var maxIterations int64 = max(((nodeCount * nodeCount) * nodeCount), int64(100))
 	_ = maxIterations
 	for ; !(workSet.IsEmpty()) && (cycleCount < maxIterations); cycleCount = cycleCount + 1 {
-		this_.priv_FixedPointGraphTraversal_visitNode_6345(j2gort.AsIface[DiGraph_DiGraphNode[N, E]](workSet.GetFirst()), workSet)
+		this_.priv_FixedPointGraphTraversal_visitNode_6346(j2gort.AsIface[DiGraph_DiGraphNode[N, E]](workSet.GetFirst()), workSet)
 	}
 	if !(cycleCount != maxIterations) {
 		j2gort.CheckStateStr(false, "Fixed point computation not halting")
@@ -348,7 +348,7 @@ func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_runWo
 }
 
 // Java method: FixedPointGraphTraversal.visitNodeQueue(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E> node, java.util.ArrayDeque<com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E>> workQueue)
-func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_visitNodeQueue_6344(node DiGraph_DiGraphNode[N, E], workQueue *j2gort.Deque[DiGraph_DiGraphNode[N, E]]) {
+func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_visitNodeQueue_6345(node DiGraph_DiGraphNode[N, E], workQueue *j2gort.Deque[DiGraph_DiGraphNode[N, E]]) {
 	_ = node
 	_ = workQueue
 	switch (this_.traversalDirection).Ordinal() {
@@ -401,7 +401,7 @@ func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_visit
 }
 
 // Java method: FixedPointGraphTraversal.visitNode(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E> node, java.util.LinkedHashSet<com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,E>> workSet)
-func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_visitNode_6345(node DiGraph_DiGraphNode[N, E], workSet *j2gort.Ext_java_util_LinkedHashSet) {
+func (this_ *FixedPointGraphTraversal[N, E]) priv_FixedPointGraphTraversal_visitNode_6346(node DiGraph_DiGraphNode[N, E], workSet *j2gort.Ext_java_util_LinkedHashSet) {
 	_ = node
 	_ = workSet
 	workSet.Remove_1_any(node)

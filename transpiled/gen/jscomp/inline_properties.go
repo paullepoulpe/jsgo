@@ -104,11 +104,11 @@ func InitInlineProperties(this_ *InlineProperties, compiler AbstractCompiler) {
 	this_.initFields_InlineProperties()
 	this_.compiler = compiler
 	this_.registry = compiler.GetColorRegistry()
-	this_.priv_InlineProperties_invalidateExternProperties_3358()
+	this_.priv_InlineProperties_invalidateExternProperties_3359()
 }
 
 // Java method: InlineProperties.invalidateExternProperties()
-func (this_ *InlineProperties) priv_InlineProperties_invalidateExternProperties_3358() {
+func (this_ *InlineProperties) priv_InlineProperties_invalidateExternProperties_3359() {
 	{
 		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.compiler.GetExternProperties()))
 		for cur_1.HasNext() {
@@ -120,7 +120,7 @@ func (this_ *InlineProperties) priv_InlineProperties_invalidateExternProperties_
 }
 
 // Java method: InlineProperties.getColor(com.google.javascript.rhino.Node n)
-func (this_ *InlineProperties) priv_InlineProperties_getColor_3359(n pkg_rhino.Node) *pkg_colors.Color {
+func (this_ *InlineProperties) priv_InlineProperties_getColor_3360(n pkg_rhino.Node) *pkg_colors.Color {
 	_ = n
 	var color *pkg_colors.Color = n.GetColor()
 	_ = color
@@ -259,7 +259,7 @@ func (this_ *InlineProperties_GatherCandidates) Visit_3(t *NodeTraversal, n pkg_
 	if n.IsGetProp() {
 		propName = n.GetString()
 		if parent.IsAssign() {
-			invalidatingPropRef = !(this_.priv_GatherCandidates_maybeRecordCandidateGetpropDefinition_3361(t, n, parent))
+			invalidatingPropRef = !(this_.priv_GatherCandidates_maybeRecordCandidateGetpropDefinition_3362(t, n, parent))
 		} else if NodeUtil_IsLValue(n) {
 			invalidatingPropRef = true
 		} else if parent.IsDelProp() {
@@ -273,7 +273,7 @@ func (this_ *InlineProperties_GatherCandidates) Visit_3(t *NodeTraversal, n pkg_
 	} else if n.IsMemberFieldDef() {
 		propName = n.GetString()
 		if n.HasChildren() {
-			invalidatingPropRef = !(this_.priv_GatherCandidates_maybeRecordCandidateClassFieldDefinition_3360(n))
+			invalidatingPropRef = !(this_.priv_GatherCandidates_maybeRecordCandidateClassFieldDefinition_3361(n))
 		} else {
 			invalidatingPropRef = true
 		}
@@ -285,12 +285,12 @@ func (this_ *InlineProperties_GatherCandidates) Visit_3(t *NodeTraversal, n pkg_
 	}
 	if invalidatingPropRef {
 		j2gort.CheckNotNullString(propName)
-		this_.priv_GatherCandidates_invalidateProperty_3362(propName)
+		this_.priv_GatherCandidates_invalidateProperty_3363(propName)
 	}
 }
 
 // Java method: GatherCandidates.maybeRecordCandidateClassFieldDefinition(com.google.javascript.rhino.Node n)
-func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_maybeRecordCandidateClassFieldDefinition_3360(n pkg_rhino.Node) bool {
+func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_maybeRecordCandidateClassFieldDefinition_3361(n pkg_rhino.Node) bool {
 	_ = n
 	if !(n.IsMemberFieldDef()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
@@ -304,9 +304,9 @@ func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_maybeRecor
 	var c *pkg_colors.Color = nil
 	_ = c
 	if n.IsStaticMember() {
-		c = this_.outer_.priv_InlineProperties_getColor_3359(classNode)
+		c = this_.outer_.priv_InlineProperties_getColor_3360(classNode)
 	} else {
-		var possibleInstances []*pkg_colors.Color = this_.outer_.priv_InlineProperties_getColor_3359(classNode).GetInstanceColorsArray()
+		var possibleInstances []*pkg_colors.Color = this_.outer_.priv_InlineProperties_getColor_3360(classNode).GetInstanceColorsArray()
 		_ = possibleInstances
 		if int32(len(possibleInstances)) == int32(0) {
 			c = pkg_colors.StaticGet_StandardColors_UNKNOWN()
@@ -314,11 +314,11 @@ func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_maybeRecor
 			c = pkg_colors.Color_CreateUnion_1_Color(possibleInstances)
 		}
 	}
-	return this_.priv_GatherCandidates_maybeStoreCandidateValue_3363(c, propName, value)
+	return this_.priv_GatherCandidates_maybeStoreCandidateValue_3364(c, propName, value)
 }
 
 // Java method: GatherCandidates.maybeRecordCandidateGetpropDefinition(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_maybeRecordCandidateGetpropDefinition_3361(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) bool {
+func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_maybeRecordCandidateGetpropDefinition_3362(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) bool {
 	_ = t
 	_ = n
 	_ = parent
@@ -332,32 +332,32 @@ func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_maybeRecor
 	var value pkg_rhino.Node = parent.GetLastChild()
 	_ = value
 	if src.IsThis() {
-		if this_.priv_GatherCandidates_inConstructor_3364(t) {
-			return this_.priv_GatherCandidates_maybeStoreCandidateValue_3363(this_.outer_.priv_InlineProperties_getColor_3359(src), propName, value)
+		if this_.priv_GatherCandidates_inConstructor_3365(t) {
+			return this_.priv_GatherCandidates_maybeStoreCandidateValue_3364(this_.outer_.priv_InlineProperties_getColor_3360(src), propName, value)
 		}
 		return false
 	} else if (t.InGlobalHoistScope() && src.IsGetProp()) && (j2gort.CheckNotNullString(src.GetString()) == "prototype") {
-		var instanceType *pkg_colors.Color = this_.outer_.priv_InlineProperties_getColor_3359(src)
+		var instanceType *pkg_colors.Color = this_.outer_.priv_InlineProperties_getColor_3360(src)
 		_ = instanceType
-		return this_.priv_GatherCandidates_maybeStoreCandidateValue_3363(instanceType, propName, value)
+		return this_.priv_GatherCandidates_maybeStoreCandidateValue_3364(instanceType, propName, value)
 	} else if t.InGlobalHoistScope() {
-		var targetType *pkg_colors.Color = this_.outer_.priv_InlineProperties_getColor_3359(src)
+		var targetType *pkg_colors.Color = this_.outer_.priv_InlineProperties_getColor_3360(src)
 		_ = targetType
 		if (targetType != nil) && targetType.IsConstructor() {
-			return this_.priv_GatherCandidates_maybeStoreCandidateValue_3363(targetType, propName, value)
+			return this_.priv_GatherCandidates_maybeStoreCandidateValue_3364(targetType, propName, value)
 		}
 	}
 	return false
 }
 
 // Java method: GatherCandidates.invalidateProperty(java.lang.String propName)
-func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_invalidateProperty_3362(propName string) {
+func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_invalidateProperty_3363(propName string) {
 	_ = propName
 	this_.outer_.props.Put(propName, StaticGet_InlineProperties_INVALIDATED())
 }
 
 // Java method: GatherCandidates.maybeStoreCandidateValue(com.google.javascript.jscomp.colors.Color color, java.lang.String propName, com.google.javascript.rhino.Node value)
-func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_maybeStoreCandidateValue_3363(color *pkg_colors.Color, propName string, value pkg_rhino.Node) bool {
+func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_maybeStoreCandidateValue_3364(color *pkg_colors.Color, propName string, value pkg_rhino.Node) bool {
 	_ = color
 	_ = propName
 	_ = value
@@ -370,7 +370,7 @@ func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_maybeStore
 }
 
 // Java method: GatherCandidates.inConstructor(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_inConstructor_3364(t *NodeTraversal) bool {
+func (this_ *InlineProperties_GatherCandidates) priv_GatherCandidates_inConstructor_3365(t *NodeTraversal) bool {
 	_ = t
 	var root pkg_rhino.Node = t.GetEnclosingFunction()
 	_ = root
@@ -442,7 +442,7 @@ func (this_ *InlineProperties_ReplaceCandidates) Visit_3(t *NodeTraversal, n pkg
 		_ = propName
 		var info *InlineProperties_PropertyInfo = this_.outer_.props.Get(propName)
 		_ = info
-		if ((info != nil) && (info != StaticGet_InlineProperties_INVALIDATED())) && this_.priv_ReplaceCandidates_isMatchingType_3365(target, info.color) {
+		if ((info != nil) && (info != StaticGet_InlineProperties_INVALIDATED())) && this_.priv_ReplaceCandidates_isMatchingType_3366(target, info.color) {
 			var replacement pkg_rhino.Node = info.value.CloneTree_0()
 			_ = replacement
 			if this_.outer_.compiler.GetAstAnalyzer().MayHaveSideEffects(n.GetFirstChild()) {
@@ -455,11 +455,11 @@ func (this_ *InlineProperties_ReplaceCandidates) Visit_3(t *NodeTraversal, n pkg
 }
 
 // Java method: ReplaceCandidates.isMatchingType(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.colors.Color src)
-func (this_ *InlineProperties_ReplaceCandidates) priv_ReplaceCandidates_isMatchingType_3365(n pkg_rhino.Node, src *pkg_colors.Color) bool {
+func (this_ *InlineProperties_ReplaceCandidates) priv_ReplaceCandidates_isMatchingType_3366(n pkg_rhino.Node, src *pkg_colors.Color) bool {
 	_ = n
 	_ = src
 	src = InlineProperties_RemoveNullAndUndefinedIfUnion(src)
-	var dest *pkg_colors.Color = InlineProperties_RemoveNullAndUndefinedIfUnion(this_.outer_.priv_InlineProperties_getColor_3359(n))
+	var dest *pkg_colors.Color = InlineProperties_RemoveNullAndUndefinedIfUnion(this_.outer_.priv_InlineProperties_getColor_3360(n))
 	_ = dest
 	if dest.IsInvalidating() {
 		return false
@@ -467,11 +467,11 @@ func (this_ *InlineProperties_ReplaceCandidates) priv_ReplaceCandidates_isMatchi
 	if dest.IsUnion() || src.IsUnion() {
 		return false
 	}
-	return this_.priv_ReplaceCandidates_hasInSupertypesList_3366(dest, src)
+	return this_.priv_ReplaceCandidates_hasInSupertypesList_3367(dest, src)
 }
 
 // Java method: ReplaceCandidates.hasInSupertypesList(com.google.javascript.jscomp.colors.Color subCtor, com.google.javascript.jscomp.colors.Color superCtor)
-func (this_ *InlineProperties_ReplaceCandidates) priv_ReplaceCandidates_hasInSupertypesList_3366(subCtor *pkg_colors.Color, superCtor *pkg_colors.Color) bool {
+func (this_ *InlineProperties_ReplaceCandidates) priv_ReplaceCandidates_hasInSupertypesList_3367(subCtor *pkg_colors.Color, superCtor *pkg_colors.Color) bool {
 	_ = subCtor
 	_ = superCtor
 	defer func() {
@@ -497,7 +497,7 @@ func (this_ *InlineProperties_ReplaceCandidates) priv_ReplaceCandidates_hasInSup
 			for ; i < n; i = i + 1 {
 				var immediateSupertype *pkg_colors.Color = supertypes[i]
 				_ = immediateSupertype
-				if !(immediateSupertype.IsUnion()) && this_.priv_ReplaceCandidates_hasInSupertypesList_3366(immediateSupertype, superCtor) {
+				if !(immediateSupertype.IsUnion()) && this_.priv_ReplaceCandidates_hasInSupertypesList_3367(immediateSupertype, superCtor) {
 					return true
 				}
 			}

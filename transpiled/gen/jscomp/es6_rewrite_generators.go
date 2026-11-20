@@ -375,7 +375,7 @@ func InitEs6RewriteGenerators_SingleGeneratorFunctionTranspiler(this_ *Es6Rewrit
 }
 
 // Java method: SingleGeneratorFunctionTranspiler.hoistVarNode(com.google.javascript.rhino.Node node)
-func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2660(node pkg_rhino.Node) {
+func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2661(node pkg_rhino.Node) {
 	_ = node
 	if !(node.IsVar()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -384,7 +384,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) priv_Single
 }
 
 // Java method: SingleGeneratorFunctionTranspiler.hoistFunctionDeclarationNode(com.google.javascript.rhino.Node node)
-func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) priv_SingleGeneratorFunctionTranspiler_hoistFunctionDeclarationNode_2661(node pkg_rhino.Node) {
+func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) priv_SingleGeneratorFunctionTranspiler_hoistFunctionDeclarationNode_2662(node pkg_rhino.Node) {
 	_ = node
 	if !(node.IsFunction()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
@@ -393,7 +393,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) priv_Single
 }
 
 // Java method: SingleGeneratorFunctionTranspiler.isTranspiledAsyncFunction(com.google.javascript.rhino.Node generatorFunction)
-func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) priv_SingleGeneratorFunctionTranspiler_isTranspiledAsyncFunction_2662(generatorFunction pkg_rhino.Node) bool {
+func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) priv_SingleGeneratorFunctionTranspiler_isTranspiledAsyncFunction_2663(generatorFunction pkg_rhino.Node) bool {
 	_ = generatorFunction
 	if generatorFunction.GetParent().IsCall() && (generatorFunction.GetPrevious() != 0) {
 		var callTarget pkg_rhino.Node = generatorFunction.GetParent().GetFirstChild()
@@ -427,7 +427,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) Transpile()
 	_ = generatorBody
 	var changeScopeNode pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = changeScopeNode
-	if this_.priv_SingleGeneratorFunctionTranspiler_isTranspiledAsyncFunction_2662(generatorFunction) {
+	if this_.priv_SingleGeneratorFunctionTranspiler_isTranspiledAsyncFunction_2663(generatorFunction) {
 		var callTarget pkg_rhino.Node = generatorFunction.GetPrevious()
 		_ = callTarget
 		if !(callTarget.IsGetProp() || callTarget.IsName()) {
@@ -467,7 +467,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) Transpile()
 	}
 	this_.outer_.compiler.ReportChangeToChangeScope(program)
 	NodeTraversal_Traverse(this_.outer_.compiler, this_.originalGeneratorBody, NewEs6RewriteGenerators_YieldNodeMarker())
-	var shouldAddFinalJump bool = !(this_.priv_SingleGeneratorFunctionTranspiler_isEndOfBlockUnreachable_2684(this_.originalGeneratorBody))
+	var shouldAddFinalJump bool = !(this_.priv_SingleGeneratorFunctionTranspiler_isEndOfBlockUnreachable_2685(this_.originalGeneratorBody))
 	_ = shouldAddFinalJump
 	for this_.originalGeneratorBody.HasChildren() {
 		this_.TranspileStatement_1(this_.originalGeneratorBody.RemoveFirstChild())
@@ -550,7 +550,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileUn
 		if !(!(j2gort.CheckNotNullString(functionName) == "") && !(javalang.StringStartsWith(j2gort.CheckNotNullString(functionName), "$jscomp$generator$function"))) {
 			j2gort.CheckState(false)
 		}
-		this_.priv_SingleGeneratorFunctionTranspiler_hoistFunctionDeclarationNode_2661(n)
+		this_.priv_SingleGeneratorFunctionTranspiler_hoistFunctionDeclarationNode_2662(n)
 		return
 	}
 	this_.context.TranspileUnmarkedBlock(func() pkg_rhino.Node {
@@ -1024,7 +1024,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) TranspileSw
 			if !(body.HasChildren()) || (canSkipUnmarkedCases && !(body.IsGeneratorMarker())) {
 				continue
 			}
-			canSkipUnmarkedCases = this_.priv_SingleGeneratorFunctionTranspiler_isEndOfBlockUnreachable_2684(body)
+			canSkipUnmarkedCases = this_.priv_SingleGeneratorFunctionTranspiler_isEndOfBlockUnreachable_2685(body)
 			var generatedCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case = this_.context.CreateCase()
 			_ = generatedCase
 			generatedCase.caseBlock.Srcref(body)
@@ -1066,7 +1066,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) FindYield(n
 }
 
 // Java method: SingleGeneratorFunctionTranspiler.isEndOfBlockUnreachable(com.google.javascript.rhino.Node block)
-func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) priv_SingleGeneratorFunctionTranspiler_isEndOfBlockUnreachable_2684(block pkg_rhino.Node) bool {
+func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) priv_SingleGeneratorFunctionTranspiler_isEndOfBlockUnreachable_2685(block pkg_rhino.Node) bool {
 	_ = block
 	if !(block.IsBlock()) {
 		j2gort.CheckState(false)
@@ -1076,7 +1076,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler) priv_Single
 	}
 	switch block.GetLastChild().TokenSwitchOrd_() {
 	case int32(90) /* Token.BLOCK */ :
-		return this_.priv_SingleGeneratorFunctionTranspiler_isEndOfBlockUnreachable_2684(block.GetLastChild())
+		return this_.priv_SingleGeneratorFunctionTranspiler_isEndOfBlockUnreachable_2685(block.GetLastChild())
 	case int32(0) /* Token.RETURN */, int32(43) /* Token.THROW */, int32(83) /* Token.CONTINUE */, int32(82) /* Token.BREAK */ :
 		return true
 	default:
@@ -1656,7 +1656,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 }
 
 // Java method: TranspilationContext.addCatchFinallyCases(com.google.javascript.jscomp.Es6RewriteGenerators.SingleGeneratorFunctionTranspiler.TranspilationContext.@org.jspecify.annotations.Nullable Case catchCase, com.google.javascript.jscomp.Es6RewriteGenerators.SingleGeneratorFunctionTranspiler.TranspilationContext.@org.jspecify.annotations.Nullable Case finallyCase)
-func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) priv_TranspilationContext_addCatchFinallyCases_2710(catchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
+func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) priv_TranspilationContext_addCatchFinallyCases_2711(catchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
 	_ = catchCase
 	_ = finallyCase
 	if finallyCase != nil {
@@ -1672,7 +1672,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 }
 
 // Java method: TranspilationContext.getNextCatchCase()
-func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) priv_TranspilationContext_getNextCatchCase_2711() *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case {
+func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) priv_TranspilationContext_getNextCatchCase_2712() *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case {
 	{
 		cur_34 := this_.catchCases.Iter()
 		for cur_34.HasNext() {
@@ -1689,7 +1689,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 }
 
 // Java method: TranspilationContext.getNextFinallyCase()
-func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) priv_TranspilationContext_getNextFinallyCase_2712() *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case {
+func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) priv_TranspilationContext_getNextFinallyCase_2713() *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case {
 	if this_.finallyCases.IsEmpty() {
 		return nil
 	} else {
@@ -1698,7 +1698,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 }
 
 // Java method: TranspilationContext.removeCatchFinallyCases(com.google.javascript.jscomp.Es6RewriteGenerators.SingleGeneratorFunctionTranspiler.TranspilationContext.@org.jspecify.annotations.Nullable Case catchCase, com.google.javascript.jscomp.Es6RewriteGenerators.SingleGeneratorFunctionTranspiler.TranspilationContext.@org.jspecify.annotations.Nullable Case finallyCase)
-func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) priv_TranspilationContext_removeCatchFinallyCases_2713(catchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
+func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext) priv_TranspilationContext_removeCatchFinallyCases_2714(catchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case, finallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case) {
 	_ = catchCase
 	_ = finallyCase
 	if catchCase != nil {
@@ -1738,7 +1738,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 	_ = catchCase
 	_ = finallyCase
 	_ = sourceNode
-	this_.priv_TranspilationContext_addCatchFinallyCases_2710(catchCase, finallyCase)
+	this_.priv_TranspilationContext_addCatchFinallyCases_2711(catchCase, finallyCase)
 	var methodName string = j2gort.NullString
 	_ = methodName
 	var args j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList()
@@ -1781,11 +1781,11 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 	_ = catchCase
 	_ = endCase
 	_ = sourceNode
-	this_.priv_TranspilationContext_removeCatchFinallyCases_2713(catchCase, nil)
+	this_.priv_TranspilationContext_removeCatchFinallyCases_2714(catchCase, nil)
 	var args j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList()
 	_ = args
 	args.Add_1(j2gort.BoxNode(endCase.GetNumber(sourceNode)))
-	var nextCatchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case = this_.priv_TranspilationContext_getNextCatchCase_2711()
+	var nextCatchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case = this_.priv_TranspilationContext_getNextCatchCase_2712()
 	_ = nextCatchCase
 	if nextCatchCase != nil {
 		args.Add_1(j2gort.BoxNode(nextCatchCase.GetNumber(sourceNode)))
@@ -1820,11 +1820,11 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 	if !(exceptionName.IsName()) {
 		j2gort.CheckState(false)
 	}
-	this_.priv_TranspilationContext_addCatchFinallyCases_2710(nil, finallyCase)
-	var nextCatchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case = this_.priv_TranspilationContext_getNextCatchCase_2711()
+	this_.priv_TranspilationContext_addCatchFinallyCases_2711(nil, finallyCase)
+	var nextCatchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case = this_.priv_TranspilationContext_getNextCatchCase_2712()
 	_ = nextCatchCase
 	if this_.catchNames.Add(exceptionName.GetString()) {
-		this_.outer_.priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2660(pkg_rhino.IR_Var_1(exceptionName.CloneNode_0()).Srcref(exceptionName))
+		this_.outer_.priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2661(pkg_rhino.IR_Var_1(exceptionName.CloneNode_0()).Srcref(exceptionName))
 	}
 	var args j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList()
 	_ = args
@@ -1862,7 +1862,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 	_ = finallyCase
 	_ = sourceNode
 	if finallyCase != nil {
-		this_.priv_TranspilationContext_removeCatchFinallyCases_2713(nil, finallyCase)
+		this_.priv_TranspilationContext_removeCatchFinallyCases_2714(nil, finallyCase)
 		this_.WriteJumpTo(finallyCase, sourceNode)
 	}
 }
@@ -1872,10 +1872,10 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 	_ = catchCase
 	_ = finallyCase
 	_ = sourceNode
-	this_.priv_TranspilationContext_removeCatchFinallyCases_2713(catchCase, finallyCase)
-	var nextCatchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case = this_.priv_TranspilationContext_getNextCatchCase_2711()
+	this_.priv_TranspilationContext_removeCatchFinallyCases_2714(catchCase, finallyCase)
+	var nextCatchCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case = this_.priv_TranspilationContext_getNextCatchCase_2712()
 	_ = nextCatchCase
-	var nextFinallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case = this_.priv_TranspilationContext_getNextFinallyCase_2712()
+	var nextFinallyCase *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_Case = this_.priv_TranspilationContext_getNextFinallyCase_2713()
 	_ = nextFinallyCase
 	var args j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList()
 	_ = args
@@ -2272,9 +2272,9 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 		this_.VisitArguments(n)
 	} else if n.IsVar() {
 		if parent.IsVanillaFor() {
-			this_.priv_UnmarkedNodeTranspiler_visitVanillaForLoopVar_2738(n)
+			this_.priv_UnmarkedNodeTranspiler_visitVanillaForLoopVar_2739(n)
 		} else if parent.IsForIn() {
-			this_.priv_UnmarkedNodeTranspiler_visitForInLoopVar_2739(n)
+			this_.priv_UnmarkedNodeTranspiler_visitForInLoopVar_2740(n)
 		} else {
 			this_.VisitVarStatement(n)
 		}
@@ -2332,7 +2332,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 	if !(this_.outer_.thisReferenceFound) {
 		var var_ pkg_rhino.Node = pkg_rhino.IR_Var_2(newThis.CloneNode_0().Srcref(n), n).Srcref(this_.outer_.outer_.newGeneratorHoistBlock)
 		_ = var_
-		this_.outer_.outer_.priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2660(var_)
+		this_.outer_.outer_.priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2661(var_)
 		this_.outer_.thisReferenceFound = true
 	}
 }
@@ -2346,7 +2346,7 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 	if !(this_.outer_.argumentsReferenceFound) {
 		var var_ pkg_rhino.Node = pkg_rhino.IR_Var_2(newArguments.CloneNode_0(), n).Srcref(this_.outer_.outer_.newGeneratorHoistBlock)
 		_ = var_
-		this_.outer_.outer_.priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2660(var_)
+		this_.outer_.outer_.priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2661(var_)
 		this_.outer_.argumentsReferenceFound = true
 	}
 }
@@ -2354,31 +2354,31 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 // Java method: UnmarkedNodeTranspiler.visitVarStatement(com.google.javascript.rhino.Node varStatement)
 func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) VisitVarStatement(varStatement pkg_rhino.Node) {
 	_ = varStatement
-	var commaExpression pkg_rhino.Node = this_.priv_UnmarkedNodeTranspiler_extractAssignmentsToCommaExpression_2740(varStatement)
+	var commaExpression pkg_rhino.Node = this_.priv_UnmarkedNodeTranspiler_extractAssignmentsToCommaExpression_2741(varStatement)
 	_ = commaExpression
 	if commaExpression == 0 {
 		varStatement.Detach()
 	} else {
 		varStatement.ReplaceWith(this_.outer_.outer_.outer_.astFactory.ExprResult(commaExpression))
 	}
-	this_.outer_.outer_.priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2660(varStatement)
+	this_.outer_.outer_.priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2661(varStatement)
 }
 
 // Java method: UnmarkedNodeTranspiler.visitVanillaForLoopVar(com.google.javascript.rhino.Node varDeclaration)
-func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) priv_UnmarkedNodeTranspiler_visitVanillaForLoopVar_2738(varDeclaration pkg_rhino.Node) {
+func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) priv_UnmarkedNodeTranspiler_visitVanillaForLoopVar_2739(varDeclaration pkg_rhino.Node) {
 	_ = varDeclaration
-	var commaExpression pkg_rhino.Node = this_.priv_UnmarkedNodeTranspiler_extractAssignmentsToCommaExpression_2740(varDeclaration)
+	var commaExpression pkg_rhino.Node = this_.priv_UnmarkedNodeTranspiler_extractAssignmentsToCommaExpression_2741(varDeclaration)
 	_ = commaExpression
 	if commaExpression == 0 {
 		varDeclaration.ReplaceWith(pkg_rhino.IR_Empty())
 	} else {
 		varDeclaration.ReplaceWith(commaExpression)
 	}
-	this_.outer_.outer_.priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2660(varDeclaration)
+	this_.outer_.outer_.priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2661(varDeclaration)
 }
 
 // Java method: UnmarkedNodeTranspiler.visitForInLoopVar(com.google.javascript.rhino.Node varDeclaration)
-func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) priv_UnmarkedNodeTranspiler_visitForInLoopVar_2739(varDeclaration pkg_rhino.Node) {
+func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) priv_UnmarkedNodeTranspiler_visitForInLoopVar_2740(varDeclaration pkg_rhino.Node) {
 	_ = varDeclaration
 	var varName pkg_rhino.Node = varDeclaration.GetOnlyChild()
 	_ = varName
@@ -2388,11 +2388,11 @@ func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_Transpilatio
 	var clonedVarName pkg_rhino.Node = varName.CloneNode_0().SetJSDocInfo(nil)
 	_ = clonedVarName
 	varDeclaration.ReplaceWith(clonedVarName)
-	this_.outer_.outer_.priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2660(varDeclaration)
+	this_.outer_.outer_.priv_SingleGeneratorFunctionTranspiler_hoistVarNode_2661(varDeclaration)
 }
 
 // Java method: UnmarkedNodeTranspiler.extractAssignmentsToCommaExpression(com.google.javascript.rhino.Node varDeclaration)
-func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) priv_UnmarkedNodeTranspiler_extractAssignmentsToCommaExpression_2740(varDeclaration pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6RewriteGenerators_SingleGeneratorFunctionTranspiler_TranspilationContext_UnmarkedNodeTranspiler) priv_UnmarkedNodeTranspiler_extractAssignmentsToCommaExpression_2741(varDeclaration pkg_rhino.Node) pkg_rhino.Node {
 	_ = varDeclaration
 	var assignments []pkg_rhino.Node = []pkg_rhino.Node{}
 	_ = assignments

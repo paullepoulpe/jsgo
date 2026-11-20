@@ -370,7 +370,7 @@ func (this_ *Export_BuilderBase) Build() *Export {
 	var e *Export = this_.self_.AutoBuild()
 	_ = e
 	if e.ModuleMetadata().GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module() {
-		this_.priv_Builder_validateEsModule_6774(e)
+		this_.priv_Builder_validateEsModule_6775(e)
 	} else if e.ModuleMetadata().GetModuleMetadataMap_ModuleMetadataBase().IsGoogModule() {
 		Export_Builder_ValidateGoogModule(e)
 	} else {
@@ -380,7 +380,7 @@ func (this_ *Export_BuilderBase) Build() *Export {
 }
 
 // Java method: Builder.validateEsModule(com.google.javascript.jscomp.modules.Export e)
-func (this_ *Export_BuilderBase) priv_Builder_validateEsModule_6774(e *Export) {
+func (this_ *Export_BuilderBase) priv_Builder_validateEsModule_6775(e *Export) {
 	_ = e
 	if !(e.ClosureNamespace() == j2gort.NullString) {
 		j2gort.CheckState(false)

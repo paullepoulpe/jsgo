@@ -111,9 +111,9 @@ func InitDotFormatter_4(this_ *DotFormatter, n pkg_rhino.Node, cfg ControlFlowGr
 	this_.cfg = cfg
 	this_.builder = builder
 	this_.printAnnotations = printAnnotations
-	this_.priv_DotFormatter_formatPreamble_2463()
-	this_.priv_DotFormatter_traverseNodes_2461(n)
-	this_.priv_DotFormatter_formatConclusion_2464()
+	this_.priv_DotFormatter_formatPreamble_2464()
+	this_.priv_DotFormatter_traverseNodes_2462(n)
+	this_.priv_DotFormatter_formatConclusion_2465()
 }
 
 // Java static method: DotFormatter.toDot(com.google.javascript.rhino.Node n)
@@ -221,7 +221,7 @@ func DotFormatter_NewInstanceForTesting() *DotFormatter {
 }
 
 // Java method: DotFormatter.traverseNodes(com.google.javascript.rhino.Node parent)
-func (this_ *DotFormatter) priv_DotFormatter_traverseNodes_2461(parent pkg_rhino.Node) {
+func (this_ *DotFormatter) priv_DotFormatter_traverseNodes_2462(parent pkg_rhino.Node) {
 	_ = parent
 	var keyParent int32 = this_.Key(parent)
 	_ = keyParent
@@ -236,7 +236,7 @@ func (this_ *DotFormatter) priv_DotFormatter_traverseNodes_2461(parent pkg_rhino
 			this_.builder.Append_1_any(" -> ")
 			this_.builder.Append_1_any(j2gort.BoxString(DotFormatter_FormatNodeName(j2gort.ValueOfInt(keyChild))))
 			this_.builder.Append_1_any(" [weight=1];\n")
-			this_.priv_DotFormatter_traverseNodes_2461(child)
+			this_.priv_DotFormatter_traverseNodes_2462(child)
 		}
 	}
 	if (this_.cfg != nil && !this_.cfg.IsJavaNil_()) && this_.cfg.HasNode(parent) {
@@ -345,13 +345,13 @@ func DotFormatter_FormatNodeName(key *j2gort.BoxInt) string {
 }
 
 // Java method: DotFormatter.formatPreamble()
-func (this_ *DotFormatter) priv_DotFormatter_formatPreamble_2463() {
+func (this_ *DotFormatter) priv_DotFormatter_formatPreamble_2464() {
 	this_.builder.Append_1_any("digraph AST {\n")
 	this_.builder.Append_1_any("  ")
 	this_.builder.Append_1_any("node [color=lightblue2, style=filled];\n")
 }
 
 // Java method: DotFormatter.formatConclusion()
-func (this_ *DotFormatter) priv_DotFormatter_formatConclusion_2464() {
+func (this_ *DotFormatter) priv_DotFormatter_formatConclusion_2465() {
 	this_.builder.Append_1_any("}\n")
 }

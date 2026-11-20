@@ -120,7 +120,7 @@ func InitJSTypeColorIdHasher(this_ *JSTypeColorIdHasher, registry *pkg_rhino.JST
 }
 
 // Java method: JSTypeColorIdHasher.ensureCapacity(int additional)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_ensureCapacity_7774(additional int32) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_ensureCapacity_7775(additional int32) {
 	_ = additional
 	var needed int32 = (this_.scratchLen + additional)
 	_ = needed
@@ -147,9 +147,9 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_ensureCapacity_7774(a
 }
 
 // Java method: JSTypeColorIdHasher.putInt(int v)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putInt_7775(v int32) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putInt_7776(v int32) {
 	_ = v
-	this_.priv_JSTypeColorIdHasher_ensureCapacity_7774(int32(4))
+	this_.priv_JSTypeColorIdHasher_ensureCapacity_7775(int32(4))
 	var buf []int8 = this_.scratchBytes
 	_ = buf
 	var pos int32 = this_.scratchLen
@@ -178,14 +178,14 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putInt_7775(v int32) 
 }
 
 // Java method: JSTypeColorIdHasher.putUtf8(java.lang.String s)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putUtf8_7776(s string) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putUtf8_7777(s string) {
 	_ = s
 	var sLen int32 = j2gort.JStrLen(s)
 	_ = sLen
 	if sLen == int32(0) {
 		return
 	}
-	this_.priv_JSTypeColorIdHasher_ensureCapacity_7774((sLen * int32(3)))
+	this_.priv_JSTypeColorIdHasher_ensureCapacity_7775((sLen * int32(3)))
 	var buf []int8 = this_.scratchBytes
 	_ = buf
 	var pos int32 = this_.scratchLen
@@ -365,11 +365,11 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 		var fnType *pkg_rhino.FunctionType = type_.ToMaybeFunctionType()
 		_ = fnType
 		if fnType.HasInstanceType() {
-			this_.priv_JSTypeColorIdHasher_putInt_7775(int32(-1937018661))
+			this_.priv_JSTypeColorIdHasher_putInt_7776(int32(-1937018661))
 		}
 	}
 	if base_type__.HasReferenceName() {
-		this_.priv_JSTypeColorIdHasher_putReferenceNameType_7778(type_)
+		this_.priv_JSTypeColorIdHasher_putReferenceNameType_7779(type_)
 	} else {
 		var ownProps j2gort.Ext_java_util_Set = type_.GetOwnPropertyNames()
 		_ = ownProps
@@ -381,7 +381,7 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 				for cur_57.HasNext() {
 					prop := cur_57.NextStr()
 					_ = prop
-					this_.priv_JSTypeColorIdHasher_putUtf8_7776(prop)
+					this_.priv_JSTypeColorIdHasher_putUtf8_7777(prop)
 				}
 			}
 		} else {
@@ -392,7 +392,7 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 				var i int32 = int32(0)
 				_ = i
 				for ; i < int32(len(sortedProps)); i = i + 1 {
-					this_.priv_JSTypeColorIdHasher_putUtf8_7776(sortedProps[i])
+					this_.priv_JSTypeColorIdHasher_putUtf8_7777(sortedProps[i])
 				}
 			}
 		}
@@ -401,21 +401,21 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 }
 
 // Java method: JSTypeColorIdHasher.putReferenceNameType(com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putReferenceNameType_7778(type_ pkg_rhino.ObjectType) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putReferenceNameType_7779(type_ pkg_rhino.ObjectType) {
 	_ = type_
-	this_.priv_JSTypeColorIdHasher_putUtf8_7776(type_.GetReferenceName())
+	this_.priv_JSTypeColorIdHasher_putUtf8_7777(type_.GetReferenceName())
 	var sourceRef pkg_rhino.JSType_WithSourceRef = JSTypeColorIdHasher_SourceRefFor(type_)
 	_ = sourceRef
 	if sourceRef == nil || sourceRef.IsJavaNil_() {
-		this_.priv_JSTypeColorIdHasher_putInt_7775(int32(1712056194))
+		this_.priv_JSTypeColorIdHasher_putInt_7776(int32(1712056194))
 		return
 	}
 	var moduleId string = sourceRef.GetGoogModuleId()
 	_ = moduleId
 	if moduleId == j2gort.NullString {
-		this_.priv_JSTypeColorIdHasher_putInt_7775(int32(630441471))
+		this_.priv_JSTypeColorIdHasher_putInt_7776(int32(630441471))
 	} else {
-		this_.priv_JSTypeColorIdHasher_putUtf8_7776(moduleId)
+		this_.priv_JSTypeColorIdHasher_putUtf8_7777(moduleId)
 	}
 }
 

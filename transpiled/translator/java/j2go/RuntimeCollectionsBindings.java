@@ -27678,9 +27678,9 @@ public final class RuntimeCollectionsBindings {
         const (
         \tslabSmallChunkSize = 16
         \tslabChunkSize      = 256
-        \tslabPoolMaxBytes   = 384 << 20
-        \tslabSmallPoolMaxB  = 48 << 20
-        \tslabGlobalMaxBytes = 1280 << 20
+        \tslabPoolMaxBytes   = 256 << 20
+        \tslabSmallPoolMaxB  = 24 << 20
+        \tslabGlobalMaxBytes = 768 << 20
         \tslabTrimMinBytes   = 96 << 20
         \tslabMinEvictBytes  = 256 << 10
         )
@@ -27907,9 +27907,9 @@ public final class RuntimeCollectionsBindings {
         \tpooledSliceMaxShift        = 22
         \tpooledSliceMaxCap          = 1 << pooledSliceMaxShift               // 4194304
         \tpooledSliceTiers           = pooledSliceMaxShift - pooledSliceMinShift + 1 // 20
-        \tpooledSliceTierBudgetBytes = 16 << 20                               // 16 MB max per tier per type
-        \tpooledSliceTierMaxCount    = 262144
-        \tpooledSliceGlobalMaxBytes  = 256 << 20                              // 256 MB strict global cap across all slice pools
+        \tpooledSliceTierBudgetBytes = 4 << 20                                // 4 MB max per tier per type
+        \tpooledSliceTierMaxCount    = 65536
+        \tpooledSliceGlobalMaxBytes  = 64 << 20                               // 64 MB strict global cap across all slice pools
         \tpooledSliceMinEvictBytes   = 256 << 10
         )
 
@@ -28043,9 +28043,7 @@ public final class RuntimeCollectionsBindings {
         \t\tsliceBytes := int64(tierCap) * int64(elemBytes)
         \t\tvar maxKeep int
         \t\tif sliceBytes <= 1<<20 {
-        \t\t\tmaxKeep = min(pooledSliceTierMaxCount, max(4, int(int64(pooledSliceTierBudgetBytes)/sliceBytes)))
-        \t\t} else {
-        \t\t\tmaxKeep = 4
+        \t\t\tmaxKeep = min(pooledSliceTierMaxCount, max(2, int(int64(pooledSliceTierBudgetBytes)/sliceBytes)))
         \t\t}
         \t\tp.tiers[i].maxKeep = maxKeep
         \t\tp.tiers[i].sliceBytes = sliceBytes

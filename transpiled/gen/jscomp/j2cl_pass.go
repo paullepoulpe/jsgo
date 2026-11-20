@@ -103,7 +103,7 @@ func (this_ *J2clPass) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 		var val_1 J2clPass_ClassStaticFunctionsInliner
 		val_1.outer_ = this_
 		InitJ2clPass_ClassStaticFunctionsInliner(&val_1, root, inlinings)
-		(&val_1).priv_ClassStaticFunctionsInliner_run_3497()
+		(&val_1).priv_ClassStaticFunctionsInliner_run_3498()
 	}
 }
 
@@ -254,13 +254,13 @@ func InitJ2clPass_ClassStaticFunctionsInliner(this_ *J2clPass_ClassStaticFunctio
 }
 
 // Java method: ClassStaticFunctionsInliner.run()
-func (this_ *J2clPass_ClassStaticFunctionsInliner) priv_ClassStaticFunctionsInliner_run_3497() {
+func (this_ *J2clPass_ClassStaticFunctionsInliner) priv_ClassStaticFunctionsInliner_run_3498() {
 	NodeTraversal_Traverse(this_.outer_.compiler, this_.root, NewJ2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector(this_))
 	NodeTraversal_Traverse(this_.outer_.compiler, this_.root, NewJ2clPass_ClassStaticFunctionsInliner_StaticCallInliner(this_))
 }
 
 // Java method: ClassStaticFunctionsInliner.findMatchingSpecsForFile(java.lang.String sourceFileName)
-func (this_ *J2clPass_ClassStaticFunctionsInliner) priv_ClassStaticFunctionsInliner_findMatchingSpecsForFile_3498(sourceFileName string) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *J2clPass_ClassStaticFunctionsInliner) priv_ClassStaticFunctionsInliner_findMatchingSpecsForFile_3499(sourceFileName string) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = sourceFileName
 	var matchingSpecs []*J2clPass_InlineSpec = []*J2clPass_InlineSpec{}
 	_ = matchingSpecs
@@ -424,7 +424,7 @@ func (this_ *J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) ShouldT
 	_ = n
 	_ = parent
 	if n.IsScript() {
-		this_.currFileInlineSpecs = j2gort.ImmListToSliceNullable[*J2clPass_InlineSpec](this_.outer_.priv_ClassStaticFunctionsInliner_findMatchingSpecsForFile_3498(n.GetSourceFileName()))
+		this_.currFileInlineSpecs = j2gort.ImmListToSliceNullable[*J2clPass_InlineSpec](this_.outer_.priv_ClassStaticFunctionsInliner_findMatchingSpecsForFile_3499(n.GetSourceFileName()))
 		return len(this_.currFileInlineSpecs) != 0
 	}
 	return true

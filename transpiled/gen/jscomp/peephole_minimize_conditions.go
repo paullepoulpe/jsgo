@@ -120,33 +120,33 @@ func (this_ *PeepholeMinimizeConditions) OptimizeSubtree(node pkg_rhino.Node) pk
 	_ = node
 	switch node.TokenSwitchOrd_() {
 	case int32(43) /* Token.THROW */, int32(0) /* Token.RETURN */ :
-		var result pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_tryRemoveRedundantExit_4240(node)
+		var result pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_tryRemoveRedundantExit_4241(node)
 		_ = result
 		if result != node {
 			return result
 		}
-		return this_.priv_PeepholeMinimizeConditions_tryReplaceExitWithBreak_4239(node)
+		return this_.priv_PeepholeMinimizeConditions_tryReplaceExitWithBreak_4240(node)
 	case int32(19) /* Token.NOT */ :
-		this_.priv_PeepholeMinimizeConditions_tryMinimizeCondition_4248(node.GetFirstChild())
-		return this_.priv_PeepholeMinimizeConditions_tryMinimizeNot_4243(node)
+		this_.priv_PeepholeMinimizeConditions_tryMinimizeCondition_4249(node.GetFirstChild())
+		return this_.priv_PeepholeMinimizeConditions_tryMinimizeNot_4244(node)
 	case int32(74) /* Token.IF */ :
-		this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4250(node.GetFirstChild())
-		return this_.priv_PeepholeMinimizeConditions_tryMinimizeIf_4246(node)
+		this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4251(node.GetFirstChild())
+		return this_.priv_PeepholeMinimizeConditions_tryMinimizeIf_4247(node)
 	case int32(93) /* Token.EXPR_RESULT */ :
-		this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4250(node.GetFirstChild())
-		return this_.priv_PeepholeMinimizeConditions_tryMinimizeExprResult_4244(node)
+		this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4251(node.GetFirstChild())
+		return this_.priv_PeepholeMinimizeConditions_tryMinimizeExprResult_4245(node)
 	case int32(67) /* Token.HOOK */ :
-		this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4250(node.GetFirstChild())
-		return this_.priv_PeepholeMinimizeConditions_tryMinimizeHook_4245(node)
+		this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4251(node.GetFirstChild())
+		return this_.priv_PeepholeMinimizeConditions_tryMinimizeHook_4246(node)
 	case int32(78) /* Token.WHILE */, int32(79) /* Token.DO */ :
-		this_.priv_PeepholeMinimizeConditions_tryMinimizeCondition_4248(NodeUtil_GetConditionExpression(node))
+		this_.priv_PeepholeMinimizeConditions_tryMinimizeCondition_4249(NodeUtil_GetConditionExpression(node))
 		return node
 	case int32(80) /* Token.FOR */ :
-		this_.priv_PeepholeMinimizeConditions_tryJoinForCondition_4237(node)
-		this_.priv_PeepholeMinimizeConditions_tryMinimizeCondition_4248(NodeUtil_GetConditionExpression(node))
+		this_.priv_PeepholeMinimizeConditions_tryJoinForCondition_4238(node)
+		this_.priv_PeepholeMinimizeConditions_tryMinimizeCondition_4249(NodeUtil_GetConditionExpression(node))
 		return node
 	case int32(90) /* Token.BLOCK */ :
-		return this_.priv_PeepholeMinimizeConditions_tryReplaceIf_4238(node)
+		return this_.priv_PeepholeMinimizeConditions_tryReplaceIf_4239(node)
 	default:
 		return node
 	}
@@ -154,7 +154,7 @@ func (this_ *PeepholeMinimizeConditions) OptimizeSubtree(node pkg_rhino.Node) pk
 }
 
 // Java method: PeepholeMinimizeConditions.tryJoinForCondition(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryJoinForCondition_4237(n pkg_rhino.Node) {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryJoinForCondition_4238(n pkg_rhino.Node) {
 	_ = n
 	if !(this_.late) {
 		return
@@ -197,7 +197,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryJoin
 }
 
 // Java method: PeepholeMinimizeConditions.tryReplaceIf(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryReplaceIf_4238(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryReplaceIf_4239(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var next pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = next
@@ -292,7 +292,7 @@ func PeepholeMinimizeConditions_StatementMustExitParent(n pkg_rhino.Node) bool {
 }
 
 // Java method: PeepholeMinimizeConditions.tryReplaceExitWithBreak(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryReplaceExitWithBreak_4239(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryReplaceExitWithBreak_4240(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var result pkg_rhino.Node = n.GetFirstChild()
 	_ = result
@@ -329,7 +329,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryRepl
 }
 
 // Java method: PeepholeMinimizeConditions.tryRemoveRedundantExit(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryRemoveRedundantExit_4240(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryRemoveRedundantExit_4241(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var exitExpr pkg_rhino.Node = n.GetFirstChild()
 	_ = exitExpr
@@ -398,7 +398,7 @@ func PeepholeMinimizeConditions_GetExceptionHandler(n pkg_rhino.Node) pkg_rhino.
 }
 
 // Java method: PeepholeMinimizeConditions.tryMinimizeNot(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMinimizeNot_4243(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMinimizeNot_4244(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsNot()) {
 		j2gort.CheckArgument(false)
@@ -439,7 +439,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 }
 
 // Java method: PeepholeMinimizeConditions.tryMinimizeExprResult(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMinimizeExprResult_4244(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMinimizeExprResult_4245(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var originalExpr pkg_rhino.Node = n.GetFirstChild()
 	_ = originalExpr
@@ -451,15 +451,15 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 	var mNode *MinimizedCondition_MeasuredNode = minCond.getMinimizedWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode, StaticGet_MinimizedCondition_MinimizationStyle_ALLOW_LEADING_NOT())
 	_ = mNode
 	if mNode.IsNot() {
-		this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalExpr, mNode.withoutNotWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode))
+		this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalExpr, mNode.withoutNotWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode))
 	} else {
-		this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalExpr, mNode)
+		this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalExpr, mNode)
 	}
 	return n
 }
 
 // Java method: PeepholeMinimizeConditions.tryMinimizeHook(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMinimizeHook_4245(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMinimizeHook_4246(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var originalCond pkg_rhino.Node = n.GetFirstChild()
 	_ = originalCond
@@ -492,7 +492,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 			this_.ReportChangeToEnclosingScope(replacement)
 			this_.MarkFunctionsDeleted(n)
 			if replacement.IsNot() {
-				return this_.priv_PeepholeMinimizeConditions_tryMinimizeNot_4243(replacement)
+				return this_.priv_PeepholeMinimizeConditions_tryMinimizeNot_4244(replacement)
 			} else {
 				return replacement
 			}
@@ -504,19 +504,19 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 		var mNode *MinimizedCondition_MeasuredNode = minCond.getMinimizedWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode, StaticGet_MinimizedCondition_MinimizationStyle_ALLOW_LEADING_NOT())
 		_ = mNode
 		if mNode.IsNot() {
-			this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, mNode.withoutNotWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode))
+			this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, mNode.withoutNotWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode))
 			thenBranch.Detach()
 			n.AddChildToBack(thenBranch)
 			this_.ReportChangeToEnclosingScope(n)
 		} else {
-			this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, mNode)
+			this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, mNode)
 		}
 	}
 	return n
 }
 
 // Java method: PeepholeMinimizeConditions.tryMinimizeIf(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMinimizeIf_4246(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMinimizeIf_4247(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -544,11 +544,11 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 			var expr pkg_rhino.Node = PeepholeMinimizeConditions_GetBlockExpression(thenBranch)
 			_ = expr
 			if !(this_.late) && PeepholeMinimizeConditions_IsPropertyAssignmentInExpression(expr) {
-				this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, unnegatedCond)
+				this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, unnegatedCond)
 				return n
 			}
 			if (shortCond != nil) && shortCond.IsNot() {
-				var replacementCond pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, shortCond.withoutNotWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode)).Detach()
+				var replacementCond pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, shortCond.withoutNotWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode)).Detach()
 				_ = replacementCond
 				var or pkg_rhino.Node = pkg_rhino.IR_Or(replacementCond, expr.RemoveFirstChild()).Srcref(n)
 				_ = or
@@ -566,10 +566,10 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 				shortLowerThanAnd = PeepholeMinimizeConditions_IsLowerPrecedence(originalCond, StaticGet_PeepholeMinimizeConditions_AND_PRECEDENCE())
 			}
 			if shortLowerThanAnd && PeepholeMinimizeConditions_IsLowerPrecedence(expr.GetFirstChild(), StaticGet_PeepholeMinimizeConditions_AND_PRECEDENCE()) {
-				this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, shortCond)
+				this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, shortCond)
 				return n
 			}
-			var replacementCond_2 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, shortCond).Detach()
+			var replacementCond_2 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, shortCond).Detach()
 			_ = replacementCond_2
 			var and pkg_rhino.Node = pkg_rhino.IR_And(replacementCond_2, expr.RemoveFirstChild()).Srcref(n)
 			_ = and
@@ -597,7 +597,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 						unnegatedLowerThanAnd = PeepholeMinimizeConditions_IsLowerPrecedence(originalCond, StaticGet_PeepholeMinimizeConditions_AND_PRECEDENCE())
 					}
 					if (innerElseBranch == 0) && !(unnegatedLowerThanAnd && PeepholeMinimizeConditions_IsLowerPrecedence(innerCond, StaticGet_PeepholeMinimizeConditions_AND_PRECEDENCE())) {
-						var replacementCond_3 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, unnegatedCond).Detach()
+						var replacementCond_3 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, unnegatedCond).Detach()
 						_ = replacementCond_3
 						n.DetachChildren()
 						n.AddChildToBack(pkg_rhino.IR_And(replacementCond_3, innerCond.Detach()).Srcref(originalCond))
@@ -608,12 +608,12 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 				}
 			}
 		}
-		this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, unnegatedCond)
+		this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, unnegatedCond)
 		return n
 	}
-	this_.priv_PeepholeMinimizeConditions_tryRemoveRepeatedStatements_4247(n)
+	this_.priv_PeepholeMinimizeConditions_tryRemoveRepeatedStatements_4248(n)
 	if ((shortCond != nil) && shortCond.IsNot()) && !(PeepholeMinimizeConditions_ConsumesDanglingElse(elseBranch)) {
-		this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, shortCond.withoutNotWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode))
+		this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, shortCond.withoutNotWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode))
 		thenBranch.Detach()
 		n.AddChildToBack(thenBranch)
 		this_.ReportChangeToEnclosingScope(n)
@@ -624,7 +624,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 		_ = thenExpr
 		var elseExpr pkg_rhino.Node = PeepholeMinimizeConditions_GetBlockReturnExpression(elseBranch)
 		_ = elseExpr
-		var replacementCond_4 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, shortCond).Detach()
+		var replacementCond_4 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, shortCond).Detach()
 		_ = replacementCond_4
 		thenExpr.Detach()
 		elseExpr.Detach()
@@ -648,7 +648,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 				var lhs pkg_rhino.Node = thenOp.GetFirstChild()
 				_ = lhs
 				if (this_.AreNodesEqualForInlining(lhs, elseOp.GetFirstChild()) && !(this_.MayEffectMutableState(lhs))) && (!(this_.MayHaveSideEffects(originalCond)) || (thenOp.IsAssign() && thenOp.GetFirstChild().IsName())) {
-					var replacementCond_5 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, shortCond).Detach()
+					var replacementCond_5 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, shortCond).Detach()
 					_ = replacementCond_5
 					var assignName pkg_rhino.Node = thenOp.RemoveFirstChild()
 					_ = assignName
@@ -669,7 +669,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 				}
 			}
 		}
-		var replacementCond_6 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, shortCond).Detach()
+		var replacementCond_6 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, shortCond).Detach()
 		_ = replacementCond_6
 		thenOp.Detach()
 		elseOp.Detach()
@@ -704,7 +704,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 			_ = thenExpr_3
 			var elseExpr_3 pkg_rhino.Node = elseAssign.GetLastChild().Detach()
 			_ = elseExpr_3
-			var replacementCond_7 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, shortCond).Detach()
+			var replacementCond_7 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, shortCond).Detach()
 			_ = replacementCond_7
 			var hookNode_2 pkg_rhino.Node = pkg_rhino.IR_Hook(replacementCond_7, thenExpr_3, elseExpr_3).Srcref(n)
 			_ = hookNode_2
@@ -735,7 +735,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 			}
 			var elseExpr_4 pkg_rhino.Node = name2.RemoveFirstChild()
 			_ = elseExpr_4
-			var replacementCond_8 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, shortCond).Detach()
+			var replacementCond_8 pkg_rhino.Node = this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, shortCond).Detach()
 			_ = replacementCond_8
 			var hookNode_3 pkg_rhino.Node = pkg_rhino.IR_Hook(replacementCond_8, thenExpr_4, elseExpr_4).Srcref(n)
 			_ = hookNode_3
@@ -746,12 +746,12 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMini
 			return var__2
 		}
 	}
-	this_.priv_PeepholeMinimizeConditions_replaceNode_4249(originalCond, unnegatedCond)
+	this_.priv_PeepholeMinimizeConditions_replaceNode_4250(originalCond, unnegatedCond)
 	return n
 }
 
 // Java method: PeepholeMinimizeConditions.tryRemoveRepeatedStatements(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryRemoveRepeatedStatements_4247(n pkg_rhino.Node) {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryRemoveRepeatedStatements_4248(n pkg_rhino.Node) {
 	_ = n
 	if !(this_.IsASTNormalized()) {
 		return
@@ -945,19 +945,19 @@ func PeepholeMinimizeConditions_IsPropertyAssignmentInExpression(n pkg_rhino.Nod
 }
 
 // Java method: PeepholeMinimizeConditions.tryMinimizeCondition(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMinimizeCondition_4248(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_tryMinimizeCondition_4249(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
-	n = this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4250(n)
+	n = this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4251(n)
 	if !(MinimizedCondition_IsMinimizable(n)) {
 		return n
 	}
 	var minCond *MinimizedCondition = minimizedConditionFromConditionNodeWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode, &this_.slab_MinimizedCondition, n)
 	_ = minCond
-	return this_.priv_PeepholeMinimizeConditions_replaceNode_4249(n, minCond.getMinimizedWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode, StaticGet_MinimizedCondition_MinimizationStyle_PREFER_UNNEGATED()))
+	return this_.priv_PeepholeMinimizeConditions_replaceNode_4250(n, minCond.getMinimizedWithSlab_(&this_.slab_MinimizedCondition_MeasuredNode, StaticGet_MinimizedCondition_MinimizationStyle_PREFER_UNNEGATED()))
 }
 
 // Java method: PeepholeMinimizeConditions.replaceNode(com.google.javascript.rhino.Node original, com.google.javascript.jscomp.MinimizedCondition.@org.jspecify.annotations.Nullable MeasuredNode measuredNodeReplacement)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_replaceNode_4249(original pkg_rhino.Node, measuredNodeReplacement *MinimizedCondition_MeasuredNode) pkg_rhino.Node {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_replaceNode_4250(original pkg_rhino.Node, measuredNodeReplacement *MinimizedCondition_MeasuredNode) pkg_rhino.Node {
 	_ = original
 	_ = measuredNodeReplacement
 	if (measuredNodeReplacement != nil) && measuredNodeReplacement.WillChange(original) {
@@ -970,7 +970,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_replace
 }
 
 // Java method: PeepholeMinimizeConditions.performConditionSubstitutions(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_performConditionSubstitutions_4250(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_performConditionSubstitutions_4251(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -980,8 +980,8 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_perform
 		_ = left
 		var right pkg_rhino.Node = n.GetLastChild()
 		_ = right
-		left = this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4250(left)
-		right = this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4250(right)
+		left = this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4251(left)
+		right = this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4251(right)
 		var rightVal pkg_base.Tri = this_.GetSideEffectFreeBooleanValue(right)
 		_ = rightVal
 		if this_.GetSideEffectFreeBooleanValue(right) != pkg_base.StaticGet_Tri_UNKNOWN() {
@@ -1014,8 +1014,8 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_perform
 		_ = trueNode
 		var falseNode pkg_rhino.Node = n.GetLastChild()
 		_ = falseNode
-		trueNode = this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4250(trueNode)
-		falseNode = this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4250(falseNode)
+		trueNode = this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4251(trueNode)
+		falseNode = this_.priv_PeepholeMinimizeConditions_performConditionSubstitutions_4251(falseNode)
 		var replacement_2 pkg_rhino.Node = pkg_rhino.Node(0)
 		_ = replacement_2
 		var trueNodeVal pkg_base.Tri = this_.GetSideEffectFreeBooleanValue(trueNode)
@@ -1057,7 +1057,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_perform
 			} else {
 				equivalentResult = int32(0)
 			}
-			return this_.priv_PeepholeMinimizeConditions_maybeReplaceChildWithNumber_4251(n, equivalentResult)
+			return this_.priv_PeepholeMinimizeConditions_maybeReplaceChildWithNumber_4252(n, equivalentResult)
 		}
 		return n
 	}
@@ -1065,7 +1065,7 @@ func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_perform
 }
 
 // Java method: PeepholeMinimizeConditions.maybeReplaceChildWithNumber(com.google.javascript.rhino.Node n, int num)
-func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_maybeReplaceChildWithNumber_4251(n pkg_rhino.Node, num int32) pkg_rhino.Node {
+func (this_ *PeepholeMinimizeConditions) priv_PeepholeMinimizeConditions_maybeReplaceChildWithNumber_4252(n pkg_rhino.Node, num int32) pkg_rhino.Node {
 	_ = n
 	_ = num
 	var newNode pkg_rhino.Node = pkg_rhino.IR_Number(float64(num))

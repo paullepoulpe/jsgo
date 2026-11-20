@@ -142,13 +142,13 @@ func (this_ *ReplaceMessages) GetMsgProtectionPass() CompilerPass {
 }
 
 // Java method: ReplaceMessages.getMsgOptionsFromDefinition(com.google.javascript.jscomp.JsMessageDefinition definition)
-func (this_ *ReplaceMessages) priv_ReplaceMessages_getMsgOptionsFromDefinition_4881(definition JsMessageDefinition) *ReplaceMessages_MsgOptions {
+func (this_ *ReplaceMessages) priv_ReplaceMessages_getMsgOptionsFromDefinition_4882(definition JsMessageDefinition) *ReplaceMessages_MsgOptions {
 	_ = definition
 	return NewReplaceMessages_MsgOptions(false, definition.ShouldEscapeLessThan(), definition.ShouldUnescapeHtmlEntities())
 }
 
 // Java method: ReplaceMessages.createMsgPropertiesNode(com.google.javascript.jscomp.JsMessage message, com.google.javascript.jscomp.ReplaceMessages.MsgOptions msgOptions)
-func (this_ *ReplaceMessages) priv_ReplaceMessages_createMsgPropertiesNode_4882(message *JsMessage, msgOptions *ReplaceMessages_MsgOptions) pkg_rhino.Node {
+func (this_ *ReplaceMessages) priv_ReplaceMessages_createMsgPropertiesNode_4883(message *JsMessage, msgOptions *ReplaceMessages_MsgOptions) pkg_rhino.Node {
 	_ = message
 	_ = msgOptions
 	var val_1 ReplaceMessages_QuotedKeyObjectLitBuilder
@@ -156,7 +156,7 @@ func (this_ *ReplaceMessages) priv_ReplaceMessages_createMsgPropertiesNode_4882(
 	InitReplaceMessages_QuotedKeyObjectLitBuilder(&val_1)
 	var msgPropsBuilder *ReplaceMessages_QuotedKeyObjectLitBuilder = &val_1
 	_ = msgPropsBuilder
-	msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4900("key", message.GetKey())
+	msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4901("key", message.GetKey())
 	if msgOptions.IsIcuTemplate() && !(message.CanonicalPlaceholderNames().IsEmpty()) {
 		var namesArrayLit pkg_rhino.Node = this_.astFactory.CreateArraylit_1_Node([]pkg_rhino.Node{})
 		_ = namesArrayLit
@@ -168,31 +168,31 @@ func (this_ *ReplaceMessages) priv_ReplaceMessages_createMsgPropertiesNode_4882(
 				namesArrayLit.AddChildToBack(this_.astFactory.CreateString(name))
 			}
 		}
-		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addNode_4901("icu_placeholder_names", namesArrayLit)
+		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addNode_4902("icu_placeholder_names", namesArrayLit)
 	}
 	var altId string = message.GetAlternateId()
 	_ = altId
 	if altId != j2gort.NullString {
-		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4900("alt_id", altId)
+		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4901("alt_id", altId)
 	}
 	var meaning string = message.GetMeaning()
 	_ = meaning
 	if meaning != j2gort.NullString {
-		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4900("meaning", meaning)
+		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4901("meaning", meaning)
 	}
 	if msgOptions.IsIcuTemplate() {
-		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4900("msg_text", message.AsIcuMessageString_0())
-		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4900("isIcuTemplate", "")
+		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4901("msg_text", message.AsIcuMessageString_0())
+		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4901("isIcuTemplate", "")
 	} else {
-		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4900("msg_text", message.AsJsMessageString_0())
+		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4901("msg_text", message.AsJsMessageString_0())
 	}
 	if msgOptions.EscapeLessThan() {
-		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4900("escapeLessThan", "")
+		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4901("escapeLessThan", "")
 	}
 	if msgOptions.UnescapeHtmlEntities() {
-		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4900("unescapeHtmlEntities", "")
+		msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_addString_4901("unescapeHtmlEntities", "")
 	}
-	return msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_build_4902()
+	return msgPropsBuilder.priv_QuotedKeyObjectLitBuilder_build_4903()
 }
 
 // Java method: ReplaceMessages.getReplacementCompletionPass()
@@ -231,7 +231,7 @@ func ReplaceMessages_ExtractPlaceholderValuesMapOrThrow(valuesObjLit pkg_rhino.N
 }
 
 // Java method: ReplaceMessages.lookupMessage(com.google.javascript.rhino.Node callNode, com.google.javascript.jscomp.MessageBundle bundle, com.google.javascript.jscomp.JsMessage message)
-func (this_ *ReplaceMessages) priv_ReplaceMessages_lookupMessage_4884(callNode pkg_rhino.Node, bundle MessageBundle, message *JsMessage) *JsMessage {
+func (this_ *ReplaceMessages) priv_ReplaceMessages_lookupMessage_4885(callNode pkg_rhino.Node, bundle MessageBundle, message *JsMessage) *JsMessage {
 	_ = callNode
 	_ = bundle
 	_ = message
@@ -270,7 +270,7 @@ func (this_ *ReplaceMessages) GetFullReplacementPass() CompilerPass {
 }
 
 // Java method: ReplaceMessages.createNodeForGenderedMsgString(com.google.javascript.jscomp.JsMessage message, java.util.Map<java.lang.String,com.google.javascript.rhino.Node> placeholderMap, com.google.javascript.jscomp.ReplaceMessages.MsgOptions options, com.google.javascript.rhino.Node nodeToReplace)
-func (this_ *ReplaceMessages) priv_ReplaceMessages_createNodeForGenderedMsgString_4886(message *JsMessage, placeholderMap j2gort.Ext_java_util_Map, options *ReplaceMessages_MsgOptions, nodeToReplace pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ReplaceMessages) priv_ReplaceMessages_createNodeForGenderedMsgString_4887(message *JsMessage, placeholderMap j2gort.Ext_java_util_Map, options *ReplaceMessages_MsgOptions, nodeToReplace pkg_rhino.Node) pkg_rhino.Node {
 	_ = message
 	_ = placeholderMap
 	_ = options
@@ -294,7 +294,7 @@ func (this_ *ReplaceMessages) priv_ReplaceMessages_createNodeForGenderedMsgStrin
 			placeholderMapIds.Put(placeholderName, placeholderId)
 		}
 	}
-	var hookExpression pkg_rhino.Node = this_.priv_ReplaceMessages_createHookExpressionForGenderedMsg_4888(type_, message, options, nodeToReplace, &placeholderMapIds)
+	var hookExpression pkg_rhino.Node = this_.priv_ReplaceMessages_createHookExpressionForGenderedMsg_4889(type_, message, options, nodeToReplace, &placeholderMapIds)
 	_ = hookExpression
 	if placeholderMap.IsEmpty() {
 		return hookExpression
@@ -318,7 +318,7 @@ func (this_ *ReplaceMessages) priv_ReplaceMessages_createNodeForGenderedMsgStrin
 }
 
 // Java method: ReplaceMessages.createConditionForGrammaticalGender(com.google.javascript.jscomp.AstFactory.Type type, com.google.javascript.jscomp.JsMessage.GrammaticalGenderCase grammaticalGender, com.google.javascript.rhino.Node nodeToReplace)
-func (this_ *ReplaceMessages) priv_ReplaceMessages_createConditionForGrammaticalGender_4887(type_ AstFactory_Type, grammaticalGender JsMessage_GrammaticalGenderCase, nodeToReplace pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ReplaceMessages) priv_ReplaceMessages_createConditionForGrammaticalGender_4888(type_ AstFactory_Type, grammaticalGender JsMessage_GrammaticalGenderCase, nodeToReplace pkg_rhino.Node) pkg_rhino.Node {
 	_ = type_
 	_ = grammaticalGender
 	_ = nodeToReplace
@@ -348,7 +348,7 @@ func (this_ *ReplaceMessages) priv_ReplaceMessages_createConditionForGrammatical
 }
 
 // Java method: ReplaceMessages.createHookExpressionForGenderedMsg(com.google.javascript.jscomp.AstFactory.Type type, com.google.javascript.jscomp.JsMessage msg, com.google.javascript.jscomp.ReplaceMessages.MsgOptions options, com.google.javascript.rhino.Node nodeToReplace, java.util.Map<java.lang.String,java.lang.String> placeholderMapIds)
-func (this_ *ReplaceMessages) priv_ReplaceMessages_createHookExpressionForGenderedMsg_4888(type_ AstFactory_Type, msg *JsMessage, options *ReplaceMessages_MsgOptions, nodeToReplace pkg_rhino.Node, placeholderMapIds *j2gort.OrderedMap[string, string]) pkg_rhino.Node {
+func (this_ *ReplaceMessages) priv_ReplaceMessages_createHookExpressionForGenderedMsg_4889(type_ AstFactory_Type, msg *JsMessage, options *ReplaceMessages_MsgOptions, nodeToReplace pkg_rhino.Node, placeholderMapIds *j2gort.OrderedMap[string, string]) pkg_rhino.Node {
 	_ = type_
 	_ = msg
 	_ = options
@@ -391,9 +391,9 @@ func (this_ *ReplaceMessages) priv_ReplaceMessages_createHookExpressionForGender
 					continue
 				}
 			}
-			var condition pkg_rhino.Node = this_.priv_ReplaceMessages_createConditionForGrammaticalGender_4887(type_, grammaticalGender, nodeToReplace)
+			var condition pkg_rhino.Node = this_.priv_ReplaceMessages_createConditionForGrammaticalGender_4888(type_, grammaticalGender, nodeToReplace)
 			_ = condition
-			var currentHook pkg_rhino.Node = pkg_rhino.IR_Hook(condition, this_.priv_ReplaceMessages_buildMessageNode_4889(j2gort.AsIface[j2gort.Ext_java_util_List](msg.GetGenderedMessageParts(grammaticalGender)), options, nodeToReplace, placeholderNodeProvider, true), this_.astFactory.CreateString(""))
+			var currentHook pkg_rhino.Node = pkg_rhino.IR_Hook(condition, this_.priv_ReplaceMessages_buildMessageNode_4890(j2gort.AsIface[j2gort.Ext_java_util_List](msg.GetGenderedMessageParts(grammaticalGender)), options, nodeToReplace, placeholderNodeProvider, true), this_.astFactory.CreateString(""))
 			_ = currentHook
 			currentHook.SetColor(nodeToReplace.GetColor())
 			if placeholderHook.GetParent() != 0 {
@@ -407,12 +407,12 @@ func (this_ *ReplaceMessages) priv_ReplaceMessages_createHookExpressionForGender
 			}
 		}
 	}
-	placeholderHook.GetParent().GetLastChild().ReplaceWith(this_.priv_ReplaceMessages_buildMessageNode_4889(j2gort.AsIface[j2gort.Ext_java_util_List](msg.GetGenderedMessageParts(StaticGet_JsMessage_GrammaticalGenderCase_OTHER())), options, nodeToReplace, placeholderNodeProvider, true))
+	placeholderHook.GetParent().GetLastChild().ReplaceWith(this_.priv_ReplaceMessages_buildMessageNode_4890(j2gort.AsIface[j2gort.Ext_java_util_List](msg.GetGenderedMessageParts(StaticGet_JsMessage_GrammaticalGenderCase_OTHER())), options, nodeToReplace, placeholderNodeProvider, true))
 	return hookHead
 }
 
 // Java method: ReplaceMessages.buildMessageNode(java.util.List<com.google.javascript.jscomp.JsMessage.Part> msgParts, com.google.javascript.jscomp.ReplaceMessages.MsgOptions options, com.google.javascript.rhino.Node nodeToReplace, com.google.javascript.jscomp.ReplaceMessages.PlaceholderNodeProvider placeholderNodeProvider, boolean isGenderedMsg)
-func (this_ *ReplaceMessages) priv_ReplaceMessages_buildMessageNode_4889(msgParts j2gort.Ext_java_util_List, options *ReplaceMessages_MsgOptions, nodeToReplace pkg_rhino.Node, placeholderNodeProvider ReplaceMessages_PlaceholderNodeProvider, isGenderedMsg bool) pkg_rhino.Node {
+func (this_ *ReplaceMessages) priv_ReplaceMessages_buildMessageNode_4890(msgParts j2gort.Ext_java_util_List, options *ReplaceMessages_MsgOptions, nodeToReplace pkg_rhino.Node, placeholderNodeProvider ReplaceMessages_PlaceholderNodeProvider, isGenderedMsg bool) pkg_rhino.Node {
 	_ = msgParts
 	_ = options
 	_ = nodeToReplace
@@ -448,7 +448,7 @@ func (this_ *ReplaceMessages) priv_ReplaceMessages_buildMessageNode_4889(msgPart
 					partNode = valueNode.CloneTree_0()
 				}
 			} else {
-				partNode = this_.priv_ReplaceMessages_createNodeForMsgString_4892(options, msgPart.GetString())
+				partNode = this_.priv_ReplaceMessages_createNodeForMsgString_4893(options, msgPart.GetString())
 			}
 			if message == 0 {
 				message = partNode
@@ -463,40 +463,40 @@ func (this_ *ReplaceMessages) priv_ReplaceMessages_buildMessageNode_4889(msgPart
 }
 
 // Java method: ReplaceMessages.constructStringExprNode(com.google.javascript.jscomp.JsMessage message, java.util.Map<java.lang.String,com.google.javascript.rhino.Node> placeholderMap, com.google.javascript.jscomp.ReplaceMessages.MsgOptions options, com.google.javascript.rhino.Node nodeToReplace)
-func (this_ *ReplaceMessages) priv_ReplaceMessages_constructStringExprNode_4890(message *JsMessage, placeholderMap j2gort.Ext_java_util_Map, options *ReplaceMessages_MsgOptions, nodeToReplace pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ReplaceMessages) priv_ReplaceMessages_constructStringExprNode_4891(message *JsMessage, placeholderMap j2gort.Ext_java_util_Map, options *ReplaceMessages_MsgOptions, nodeToReplace pkg_rhino.Node) pkg_rhino.Node {
 	_ = message
 	_ = placeholderMap
 	_ = options
 	_ = nodeToReplace
 	if !(message.GetGenderedMessageVariants().IsEmpty()) {
-		return this_.priv_ReplaceMessages_createNodeForGenderedMsgString_4886(message, placeholderMap, options, nodeToReplace)
+		return this_.priv_ReplaceMessages_createNodeForGenderedMsgString_4887(message, placeholderMap, options, nodeToReplace)
 	} else {
-		return this_.priv_ReplaceMessages_constructNonGenderedMsgNode_4891(message, placeholderMap, options, nodeToReplace)
+		return this_.priv_ReplaceMessages_constructNonGenderedMsgNode_4892(message, placeholderMap, options, nodeToReplace)
 	}
 }
 
 // Java method: ReplaceMessages.constructNonGenderedMsgNode(com.google.javascript.jscomp.JsMessage message, java.util.Map<java.lang.String,com.google.javascript.rhino.Node> placeholderMap, com.google.javascript.jscomp.ReplaceMessages.MsgOptions options, com.google.javascript.rhino.Node nodeToReplace)
-func (this_ *ReplaceMessages) priv_ReplaceMessages_constructNonGenderedMsgNode_4891(message *JsMessage, placeholderMap j2gort.Ext_java_util_Map, options *ReplaceMessages_MsgOptions, nodeToReplace pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ReplaceMessages) priv_ReplaceMessages_constructNonGenderedMsgNode_4892(message *JsMessage, placeholderMap j2gort.Ext_java_util_Map, options *ReplaceMessages_MsgOptions, nodeToReplace pkg_rhino.Node) pkg_rhino.Node {
 	_ = message
 	_ = placeholderMap
 	_ = options
 	_ = nodeToReplace
 	if placeholderMap.IsEmpty() {
 		if options.IsIcuTemplate() {
-			return this_.priv_ReplaceMessages_createNodeForMsgString_4892(options, message.AsIcuMessageString_0())
+			return this_.priv_ReplaceMessages_createNodeForMsgString_4893(options, message.AsIcuMessageString_0())
 		} else if message.JsPlaceholderNames().IsEmpty() {
-			return this_.priv_ReplaceMessages_createNodeForMsgString_4892(options, message.AsJsMessageString_0())
+			return this_.priv_ReplaceMessages_createNodeForMsgString_4893(options, message.AsJsMessageString_0())
 		} else {
 			var icuMsgString string = message.AsIcuMessageString_0()
 			_ = icuMsgString
 			if ReplaceMessages_IsStartOfIcuMessage(icuMsgString) {
-				return this_.priv_ReplaceMessages_createNodeForMsgString_4892(options, icuMsgString)
+				return this_.priv_ReplaceMessages_createNodeForMsgString_4893(options, icuMsgString)
 			} else {
 				panic(NewJsMessageVisitor_MalformedException("The translated message has placeholders, but the definition in the JS code does not.", nodeToReplace))
 			}
 		}
 	}
-	return this_.priv_ReplaceMessages_buildMessageNode_4889(j2gort.AsIface[j2gort.Ext_java_util_List](message.GetParts()), options, nodeToReplace, func() ReplaceMessages_PlaceholderNodeProvider {
+	return this_.priv_ReplaceMessages_buildMessageNode_4890(j2gort.AsIface[j2gort.Ext_java_util_List](message.GetParts()), options, nodeToReplace, func() ReplaceMessages_PlaceholderNodeProvider {
 		bound_16 := placeholderMap
 		return NewLambda_ReplaceMessages_PlaceholderNodeProvider(func(mrp0_ string) pkg_rhino.Node {
 			return j2gort.CastNode[pkg_rhino.Node](bound_16.Get(j2gort.BoxString(mrp0_)))
@@ -505,7 +505,7 @@ func (this_ *ReplaceMessages) priv_ReplaceMessages_constructNonGenderedMsgNode_4
 }
 
 // Java method: ReplaceMessages.createNodeForMsgString(com.google.javascript.jscomp.ReplaceMessages.MsgOptions options, java.lang.String s)
-func (this_ *ReplaceMessages) priv_ReplaceMessages_createNodeForMsgString_4892(options *ReplaceMessages_MsgOptions, s string) pkg_rhino.Node {
+func (this_ *ReplaceMessages) priv_ReplaceMessages_createNodeForMsgString_4893(options *ReplaceMessages_MsgOptions, s string) pkg_rhino.Node {
 	_ = options
 	_ = s
 	if options.EscapeLessThan() {
@@ -743,17 +743,17 @@ func (this_ *ReplaceMessages_MsgProtectionPass) Process_2(externs pkg_rhino.Node
 // Java method: MsgProtectionPass.processIcuTemplateDefinition(com.google.javascript.jscomp.IcuTemplateDefinition definition)
 func (this_ *ReplaceMessages_MsgProtectionPass) ProcessIcuTemplateDefinition(definition IcuTemplateDefinition) {
 	_ = definition
-	this_.priv_MsgProtectionPass_performMessageProtection_4898(NewReplaceMessages_MsgProtectionData(definition.GetMessage(), definition.GetMessageNode(), definition.GetTemplateTextNode(), pkg_rhino.Node(0), StaticGet_ReplaceMessages_ICU_MSG_OPTIONS()))
+	this_.priv_MsgProtectionPass_performMessageProtection_4899(NewReplaceMessages_MsgProtectionData(definition.GetMessage(), definition.GetMessageNode(), definition.GetTemplateTextNode(), pkg_rhino.Node(0), StaticGet_ReplaceMessages_ICU_MSG_OPTIONS()))
 }
 
 // Java method: MsgProtectionPass.processJsMessageDefinition(com.google.javascript.jscomp.JsMessageDefinition definition)
 func (this_ *ReplaceMessages_MsgProtectionPass) ProcessJsMessageDefinition(definition JsMessageDefinition) {
 	_ = definition
-	this_.priv_MsgProtectionPass_performMessageProtection_4898(NewReplaceMessages_MsgProtectionData(definition.GetMessage(), definition.GetMessageNode(), definition.GetTemplateTextNode(), definition.GetPlaceholderValuesNode(), this_.outer_.priv_ReplaceMessages_getMsgOptionsFromDefinition_4881(definition)))
+	this_.priv_MsgProtectionPass_performMessageProtection_4899(NewReplaceMessages_MsgProtectionData(definition.GetMessage(), definition.GetMessageNode(), definition.GetTemplateTextNode(), definition.GetPlaceholderValuesNode(), this_.outer_.priv_ReplaceMessages_getMsgOptionsFromDefinition_4882(definition)))
 }
 
 // Java method: MsgProtectionPass.performMessageProtection(com.google.javascript.jscomp.ReplaceMessages.MsgProtectionData msgProtectionData)
-func (this_ *ReplaceMessages_MsgProtectionPass) priv_MsgProtectionPass_performMessageProtection_4898(msgProtectionData *ReplaceMessages_MsgProtectionData) {
+func (this_ *ReplaceMessages_MsgProtectionPass) priv_MsgProtectionPass_performMessageProtection_4899(msgProtectionData *ReplaceMessages_MsgProtectionData) {
 	_ = msgProtectionData
 	var message *JsMessage = msgProtectionData.Message()
 	_ = message
@@ -772,9 +772,9 @@ func (this_ *ReplaceMessages_MsgProtectionPass) priv_MsgProtectionPass_performMe
 	_ = googGetMsg
 	var protectionFunctionName string = "__jscomp_define_msg__"
 	_ = protectionFunctionName
-	var newCallee pkg_rhino.Node = this_.priv_MsgProtectionPass_createProtectionFunctionCallee_4899(protectionFunctionName).Srcref(googGetMsg)
+	var newCallee pkg_rhino.Node = this_.priv_MsgProtectionPass_createProtectionFunctionCallee_4900(protectionFunctionName).Srcref(googGetMsg)
 	_ = newCallee
-	var msgPropertiesNode pkg_rhino.Node = this_.outer_.priv_ReplaceMessages_createMsgPropertiesNode_4882(message, msgOptions).SrcrefTree(originalMessageString)
+	var msgPropertiesNode pkg_rhino.Node = this_.outer_.priv_ReplaceMessages_createMsgPropertiesNode_4883(message, msgOptions).SrcrefTree(originalMessageString)
 	_ = msgPropertiesNode
 	var newCallNode pkg_rhino.Node = this_.outer_.astFactory.CreateCall(newCallee, AstFactory_S_Type_1_Node(callNode), []pkg_rhino.Node{msgPropertiesNode}).Srcref(callNode)
 	_ = newCallNode
@@ -800,7 +800,7 @@ func (this_ *ReplaceMessages_MsgProtectionPass) priv_MsgProtectionPass_performMe
 }
 
 // Java method: MsgProtectionPass.createProtectionFunctionCallee(java.lang.String protectionFunctionName)
-func (this_ *ReplaceMessages_MsgProtectionPass) priv_MsgProtectionPass_createProtectionFunctionCallee_4899(protectionFunctionName string) pkg_rhino.Node {
+func (this_ *ReplaceMessages_MsgProtectionPass) priv_MsgProtectionPass_createProtectionFunctionCallee_4900(protectionFunctionName string) pkg_rhino.Node {
 	_ = protectionFunctionName
 	var callee pkg_rhino.Node = this_.outer_.astFactory.CreateNameWithUnknownType(protectionFunctionName)
 	_ = callee
@@ -815,7 +815,7 @@ func (this_ *ReplaceMessages_MsgProtectionPass) ProcessMessageFallback(callNode 
 	_ = message2
 	var originalCallee pkg_rhino.Node = j2gort.CheckNotNullNode(callNode.GetFirstChild())
 	_ = originalCallee
-	var fallbackCallee pkg_rhino.Node = this_.priv_MsgProtectionPass_createProtectionFunctionCallee_4899("__jscomp_msg_fallback__").Srcref(originalCallee)
+	var fallbackCallee pkg_rhino.Node = this_.priv_MsgProtectionPass_createProtectionFunctionCallee_4900("__jscomp_msg_fallback__").Srcref(originalCallee)
 	_ = fallbackCallee
 	var originalFirstArg pkg_rhino.Node = j2gort.CheckNotNullNode(originalCallee.GetNext())
 	_ = originalFirstArg
@@ -886,14 +886,14 @@ func InitReplaceMessages_QuotedKeyObjectLitBuilder(this_ *ReplaceMessages_Quoted
 }
 
 // Java method: QuotedKeyObjectLitBuilder.addString(java.lang.String key, java.lang.String value)
-func (this_ *ReplaceMessages_QuotedKeyObjectLitBuilder) priv_QuotedKeyObjectLitBuilder_addString_4900(key string, value string) *ReplaceMessages_QuotedKeyObjectLitBuilder {
+func (this_ *ReplaceMessages_QuotedKeyObjectLitBuilder) priv_QuotedKeyObjectLitBuilder_addString_4901(key string, value string) *ReplaceMessages_QuotedKeyObjectLitBuilder {
 	_ = key
 	_ = value
-	return this_.priv_QuotedKeyObjectLitBuilder_addNode_4901(key, this_.outer_.astFactory.CreateString(value))
+	return this_.priv_QuotedKeyObjectLitBuilder_addNode_4902(key, this_.outer_.astFactory.CreateString(value))
 }
 
 // Java method: QuotedKeyObjectLitBuilder.addNode(java.lang.String key, com.google.javascript.rhino.Node node)
-func (this_ *ReplaceMessages_QuotedKeyObjectLitBuilder) priv_QuotedKeyObjectLitBuilder_addNode_4901(key string, node pkg_rhino.Node) *ReplaceMessages_QuotedKeyObjectLitBuilder {
+func (this_ *ReplaceMessages_QuotedKeyObjectLitBuilder) priv_QuotedKeyObjectLitBuilder_addNode_4902(key string, node pkg_rhino.Node) *ReplaceMessages_QuotedKeyObjectLitBuilder {
 	_ = key
 	_ = node
 	if !(!(this_.keyToValueNodeMap.ContainsKey(key))) {
@@ -904,7 +904,7 @@ func (this_ *ReplaceMessages_QuotedKeyObjectLitBuilder) priv_QuotedKeyObjectLitB
 }
 
 // Java method: QuotedKeyObjectLitBuilder.build()
-func (this_ *ReplaceMessages_QuotedKeyObjectLitBuilder) priv_QuotedKeyObjectLitBuilder_build_4902() pkg_rhino.Node {
+func (this_ *ReplaceMessages_QuotedKeyObjectLitBuilder) priv_QuotedKeyObjectLitBuilder_build_4903() pkg_rhino.Node {
 	var result pkg_rhino.Node = this_.outer_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{})
 	_ = result
 	{
@@ -998,7 +998,7 @@ func (this_ *ReplaceMessages_ReplacementCompletionPass) VisitMsgDefinition(prote
 		_ = originalMsg
 		var nodeToReplace pkg_rhino.Node = protectedJsMessage.definitionNode
 		_ = nodeToReplace
-		var translatedMsg *JsMessage = this_.outer_.priv_ReplaceMessages_lookupMessage_4884(protectedJsMessage.definitionNode, this_.outer_.bundle, originalMsg)
+		var translatedMsg *JsMessage = this_.outer_.priv_ReplaceMessages_lookupMessage_4885(protectedJsMessage.definitionNode, this_.outer_.bundle, originalMsg)
 		_ = translatedMsg
 		var msgToUse *JsMessage = nil
 		_ = msgToUse
@@ -1015,7 +1015,7 @@ func (this_ *ReplaceMessages_ReplacementCompletionPass) VisitMsgDefinition(prote
 		_ = msgOptions
 		var placeholderMap j2gort.Ext_java_util_Map = j2gort.AsIface[j2gort.Ext_java_util_Map](ReplaceMessages_ExtractPlaceholderValuesMapOrThrow(protectedJsMessage.substitutionsNode))
 		_ = placeholderMap
-		var finalMsgConstructionExpression pkg_rhino.Node = this_.outer_.priv_ReplaceMessages_constructStringExprNode_4890(msgToUse, placeholderMap, msgOptions, nodeToReplace)
+		var finalMsgConstructionExpression pkg_rhino.Node = this_.outer_.priv_ReplaceMessages_constructStringExprNode_4891(msgToUse, placeholderMap, msgOptions, nodeToReplace)
 		_ = finalMsgConstructionExpression
 		finalMsgConstructionExpression.SrcrefTreeIfMissing(nodeToReplace)
 		nodeToReplace.ReplaceWith(finalMsgConstructionExpression)
@@ -1024,7 +1024,7 @@ func (this_ *ReplaceMessages_ReplacementCompletionPass) VisitMsgDefinition(prote
 }
 
 // Java method: ReplacementCompletionPass.visitMsgFallback(com.google.javascript.jscomp.ReplaceMessages.ProtectedMsgFallback protectedMsgFallback)
-func (this_ *ReplaceMessages_ReplacementCompletionPass) priv_ReplacementCompletionPass_visitMsgFallback_4904(protectedMsgFallback *ReplaceMessages_ProtectedMsgFallback) {
+func (this_ *ReplaceMessages_ReplacementCompletionPass) priv_ReplacementCompletionPass_visitMsgFallback_4905(protectedMsgFallback *ReplaceMessages_ProtectedMsgFallback) {
 	_ = protectedMsgFallback
 	var valueNodeToUse pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = valueNodeToUse
@@ -1288,9 +1288,9 @@ func (this_ *ReplaceMessages_FullReplacementPass) ProcessMessageFallback(callNod
 	_ = callNode
 	_ = message1
 	_ = message2
-	var isFirstMessageTranslated bool = (this_.outer_.priv_ReplaceMessages_lookupMessage_4884(callNode, this_.outer_.bundle, message1) != nil)
+	var isFirstMessageTranslated bool = (this_.outer_.priv_ReplaceMessages_lookupMessage_4885(callNode, this_.outer_.bundle, message1) != nil)
 	_ = isFirstMessageTranslated
-	var isSecondMessageTranslated bool = (this_.outer_.priv_ReplaceMessages_lookupMessage_4884(callNode, this_.outer_.bundle, message2) != nil)
+	var isSecondMessageTranslated bool = (this_.outer_.priv_ReplaceMessages_lookupMessage_4885(callNode, this_.outer_.bundle, message2) != nil)
 	_ = isSecondMessageTranslated
 	var replacementNode pkg_rhino.Node
 	_ = replacementNode
@@ -1310,17 +1310,17 @@ func (this_ *ReplaceMessages_FullReplacementPass) ProcessMessageFallback(callNod
 // Java method: FullReplacementPass.processIcuTemplateDefinition(com.google.javascript.jscomp.IcuTemplateDefinition definition)
 func (this_ *ReplaceMessages_FullReplacementPass) ProcessIcuTemplateDefinition(definition IcuTemplateDefinition) {
 	_ = definition
-	this_.priv_FullReplacementPass_processFullReplacement_4909(NewReplaceMessages_FullReplacementMsgData(definition.GetMessage(), definition.GetMessageNode(), StaticGet_ReplaceMessages_ICU_MSG_OPTIONS(), j2gort.Ext_com_google_common_collect_ImmutableMap_Of_0()))
+	this_.priv_FullReplacementPass_processFullReplacement_4910(NewReplaceMessages_FullReplacementMsgData(definition.GetMessage(), definition.GetMessageNode(), StaticGet_ReplaceMessages_ICU_MSG_OPTIONS(), j2gort.Ext_com_google_common_collect_ImmutableMap_Of_0()))
 }
 
 // Java method: FullReplacementPass.processJsMessageDefinition(com.google.javascript.jscomp.JsMessageDefinition definition)
 func (this_ *ReplaceMessages_FullReplacementPass) ProcessJsMessageDefinition(definition JsMessageDefinition) {
 	_ = definition
-	this_.priv_FullReplacementPass_processFullReplacement_4909(NewReplaceMessages_FullReplacementMsgData(definition.GetMessage(), definition.GetMessageNode(), this_.outer_.priv_ReplaceMessages_getMsgOptionsFromDefinition_4881(definition), definition.GetPlaceholderValueMap()))
+	this_.priv_FullReplacementPass_processFullReplacement_4910(NewReplaceMessages_FullReplacementMsgData(definition.GetMessage(), definition.GetMessageNode(), this_.outer_.priv_ReplaceMessages_getMsgOptionsFromDefinition_4882(definition), definition.GetPlaceholderValueMap()))
 }
 
 // Java method: FullReplacementPass.processFullReplacement(com.google.javascript.jscomp.ReplaceMessages.FullReplacementMsgData fullReplacementMsgData)
-func (this_ *ReplaceMessages_FullReplacementPass) priv_FullReplacementPass_processFullReplacement_4909(fullReplacementMsgData *ReplaceMessages_FullReplacementMsgData) {
+func (this_ *ReplaceMessages_FullReplacementPass) priv_FullReplacementPass_processFullReplacement_4910(fullReplacementMsgData *ReplaceMessages_FullReplacementMsgData) {
 	_ = fullReplacementMsgData
 	var message *JsMessage = fullReplacementMsgData.Message()
 	_ = message
@@ -1330,7 +1330,7 @@ func (this_ *ReplaceMessages_FullReplacementPass) priv_FullReplacementPass_proce
 	_ = options
 	var placeholderValueMap j2gort.Ext_com_google_common_collect_ImmutableMap = fullReplacementMsgData.PlaceholderValueMap()
 	_ = placeholderValueMap
-	var replacement *JsMessage = this_.outer_.priv_ReplaceMessages_lookupMessage_4884(msgNode, this_.outer_.bundle, message)
+	var replacement *JsMessage = this_.outer_.priv_ReplaceMessages_lookupMessage_4885(msgNode, this_.outer_.bundle, message)
 	_ = replacement
 	if replacement == nil {
 		if this_.outer_.strictReplacement {
@@ -1357,7 +1357,7 @@ func (this_ *ReplaceMessages_FullReplacementPass) priv_FullReplacementPass_proce
 				}
 			}
 		}()
-		newValue = this_.outer_.priv_ReplaceMessages_constructStringExprNode_4890(replacement, j2gort.AsIface[j2gort.Ext_java_util_Map](placeholderValueMap), options, msgNode)
+		newValue = this_.outer_.priv_ReplaceMessages_constructStringExprNode_4891(replacement, j2gort.AsIface[j2gort.Ext_java_util_Map](placeholderValueMap), options, msgNode)
 	}()
 	if newValue != msgNode {
 		newValue.SrcrefTreeIfMissing(msgNode)
@@ -1768,7 +1768,7 @@ func (this_ *ReplaceMessages__Anon_77) Visit_3(t *NodeTraversal, n pkg_rhino.Nod
 		var protectedMsgFallback *ReplaceMessages_ProtectedMsgFallback = ReplaceMessages_ProtectedMsgFallback_FromAstNode(n)
 		_ = protectedMsgFallback
 		if protectedMsgFallback != nil {
-			this_.outer_.priv_ReplacementCompletionPass_visitMsgFallback_4904(protectedMsgFallback)
+			this_.outer_.priv_ReplacementCompletionPass_visitMsgFallback_4905(protectedMsgFallback)
 		}
 	}
 }

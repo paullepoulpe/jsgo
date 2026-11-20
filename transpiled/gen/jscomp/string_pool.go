@@ -412,7 +412,7 @@ func (this_ *StringPool_Builder) Put(string_ string) int32 {
 	_ = newSize
 	this_.size = newSize
 	if (javalang.Shl32(newSize, int(int32(2)))) > (int32(len(tbl)) * int32(3)) {
-		tbl = this_.priv_Builder_rehash_7827(javalang.Shl32(int32(len(tbl)), int(int32(1))))
+		tbl = this_.priv_Builder_rehash_7828(javalang.Shl32(int32(len(tbl)), int(int32(1))))
 		mask = (int32(len(tbl)) - int32(1))
 		slot = (hash & mask)
 		for tbl[slot] != int64(0) {
@@ -428,7 +428,7 @@ func (this_ *StringPool_Builder) Put(string_ string) int32 {
 }
 
 // Java method: Builder.rehash(int newCap)
-func (this_ *StringPool_Builder) priv_Builder_rehash_7827(newCap int32) []int64 {
+func (this_ *StringPool_Builder) priv_Builder_rehash_7828(newCap int32) []int64 {
 	_ = newCap
 	var oldTbl []int64 = this_.table
 	_ = oldTbl

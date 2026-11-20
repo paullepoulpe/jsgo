@@ -124,18 +124,18 @@ func (this_ *ProductionCoverageInstrumentationCallback) Visit_3(traversal *NodeT
 	switch node.TokenSwitchOrd_() {
 	case int32(73) /* Token.FUNCTION */ :
 		this_.functionNameStack.Pop()
-		this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6524(node.GetLastChild(), fileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_FUNCTION())
+		this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6525(node.GetLastChild(), fileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_FUNCTION())
 	case int32(74) /* Token.IF */ :
 		var ifTrueNode pkg_rhino.Node = node.GetSecondChild()
 		_ = ifTrueNode
-		this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6524(ifTrueNode, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH())
+		this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6525(ifTrueNode, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH())
 		if node.GetChildCount() == int32(2) {
-			this_.priv_ProductionCoverageInstrumentationCallback_addElseBlock_6526(node)
+			this_.priv_ProductionCoverageInstrumentationCallback_addElseBlock_6527(node)
 		}
 		var ifFalseNode pkg_rhino.Node = node.GetLastChild()
 		_ = ifFalseNode
 		if NodeUtil_IsEmptyBlock(ifFalseNode) || (ifFalseNode.HasChildren() && !(ifFalseNode.GetFirstChild().IsIf())) {
-			this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6524(ifFalseNode, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT())
+			this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6525(ifFalseNode, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT())
 		}
 	case int32(75) /* Token.SWITCH */ :
 		var hasDefaultCase bool = false
@@ -147,10 +147,10 @@ func (this_ *ProductionCoverageInstrumentationCallback) Visit_3(traversal *NodeT
 			_ = c
 			for ; c != 0; c = c.GetNext() {
 				if c.IsDefaultCase() {
-					this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6524(c.GetLastChild(), sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT())
+					this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6525(c.GetLastChild(), sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT())
 					hasDefaultCase = true
 				} else {
-					this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6524(c.GetLastChild(), sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH())
+					this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6525(c.GetLastChild(), sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH())
 				}
 			}
 		}
@@ -161,40 +161,40 @@ func (this_ *ProductionCoverageInstrumentationCallback) Visit_3(traversal *NodeT
 			var defaultCase pkg_rhino.Node = pkg_rhino.IR_DefaultCase(defaultBlock).SrcrefTreeIfMissing(node)
 			_ = defaultCase
 			switchBody.AddChildToBack(defaultCase)
-			this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6524(defaultBlock, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT())
+			this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6525(defaultBlock, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT())
 		}
 	case int32(67) /* Token.HOOK */ :
 		var ifTernaryIsTrueExpression pkg_rhino.Node = node.GetSecondChild()
 		_ = ifTernaryIsTrueExpression
 		var ifTernaryIsFalseExpression pkg_rhino.Node = node.GetLastChild()
 		_ = ifTernaryIsFalseExpression
-		this_.priv_ProductionCoverageInstrumentationCallback_addInstrumentationNodeWithComma_6523(ifTernaryIsTrueExpression, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH())
-		this_.priv_ProductionCoverageInstrumentationCallback_addInstrumentationNodeWithComma_6523(ifTernaryIsFalseExpression, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH())
+		this_.priv_ProductionCoverageInstrumentationCallback_addInstrumentationNodeWithComma_6524(ifTernaryIsTrueExpression, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH())
+		this_.priv_ProductionCoverageInstrumentationCallback_addInstrumentationNodeWithComma_6524(ifTernaryIsFalseExpression, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH())
 		this_.compiler.ReportChangeToEnclosingScope(node)
 	case int32(68) /* Token.OR */, int32(69) /* Token.AND */, int32(70) /* Token.COALESCE */ :
 		var secondExpression pkg_rhino.Node = node.GetLastChild()
 		_ = secondExpression
-		this_.priv_ProductionCoverageInstrumentationCallback_addInstrumentationNodeWithComma_6523(secondExpression, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH())
+		this_.priv_ProductionCoverageInstrumentationCallback_addInstrumentationNodeWithComma_6524(secondExpression, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH())
 		this_.compiler.ReportChangeToEnclosingScope(node)
 	default:
 		if NodeUtil_IsLoopStructure(node) {
 			var blockNode pkg_rhino.Node = NodeUtil_GetLoopCodeBlock(node)
 			_ = blockNode
 			j2gort.CheckNotNullNode(blockNode)
-			this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6524(blockNode, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH())
+			this_.priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6525(blockNode, sourceFileName, functionName, StaticGet_ProductionCoverageInstrumentationCallback_Type_BRANCH())
 		}
 	}
 }
 
 // Java method: ProductionCoverageInstrumentationCallback.addInstrumentationNodeWithComma(com.google.javascript.rhino.Node originalNode, java.lang.String fileName, java.lang.String functionName, com.google.javascript.jscomp.instrumentation.ProductionCoverageInstrumentationCallback.Type type)
-func (this_ *ProductionCoverageInstrumentationCallback) priv_ProductionCoverageInstrumentationCallback_addInstrumentationNodeWithComma_6523(originalNode pkg_rhino.Node, fileName string, functionName string, type_ ProductionCoverageInstrumentationCallback_Type) {
+func (this_ *ProductionCoverageInstrumentationCallback) priv_ProductionCoverageInstrumentationCallback_addInstrumentationNodeWithComma_6524(originalNode pkg_rhino.Node, fileName string, functionName string, type_ ProductionCoverageInstrumentationCallback_Type) {
 	_ = originalNode
 	_ = fileName
 	_ = functionName
 	_ = type_
 	var cloneOfOriginal pkg_rhino.Node = originalNode.CloneTree_0()
 	_ = cloneOfOriginal
-	var newInstrumentationNode pkg_rhino.Node = this_.priv_ProductionCoverageInstrumentationCallback_newInstrumentationNode_6525(cloneOfOriginal, fileName, functionName, type_)
+	var newInstrumentationNode pkg_rhino.Node = this_.priv_ProductionCoverageInstrumentationCallback_newInstrumentationNode_6526(cloneOfOriginal, fileName, functionName, type_)
 	_ = newInstrumentationNode
 	var childOfInstrumentationNode pkg_rhino.Node = newInstrumentationNode.RemoveFirstChild()
 	_ = childOfInstrumentationNode
@@ -204,17 +204,17 @@ func (this_ *ProductionCoverageInstrumentationCallback) priv_ProductionCoverageI
 }
 
 // Java method: ProductionCoverageInstrumentationCallback.instrumentBlockNode(com.google.javascript.rhino.Node block, java.lang.String fileName, java.lang.String fnName, com.google.javascript.jscomp.instrumentation.ProductionCoverageInstrumentationCallback.Type type)
-func (this_ *ProductionCoverageInstrumentationCallback) priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6524(block pkg_rhino.Node, fileName string, fnName string, type_ ProductionCoverageInstrumentationCallback_Type) {
+func (this_ *ProductionCoverageInstrumentationCallback) priv_ProductionCoverageInstrumentationCallback_instrumentBlockNode_6525(block pkg_rhino.Node, fileName string, fnName string, type_ ProductionCoverageInstrumentationCallback_Type) {
 	_ = block
 	_ = fileName
 	_ = fnName
 	_ = type_
-	block.AddChildToFront(this_.priv_ProductionCoverageInstrumentationCallback_newInstrumentationNode_6525(block, fileName, fnName, type_))
+	block.AddChildToFront(this_.priv_ProductionCoverageInstrumentationCallback_newInstrumentationNode_6526(block, fileName, fnName, type_))
 	this_.compiler.ReportChangeToEnclosingScope(block)
 }
 
 // Java method: ProductionCoverageInstrumentationCallback.newInstrumentationNode(com.google.javascript.rhino.Node node, java.lang.String fileName, java.lang.String fnName, com.google.javascript.jscomp.instrumentation.ProductionCoverageInstrumentationCallback.Type type)
-func (this_ *ProductionCoverageInstrumentationCallback) priv_ProductionCoverageInstrumentationCallback_newInstrumentationNode_6525(node pkg_rhino.Node, fileName string, fnName string, type_ ProductionCoverageInstrumentationCallback_Type) pkg_rhino.Node {
+func (this_ *ProductionCoverageInstrumentationCallback) priv_ProductionCoverageInstrumentationCallback_newInstrumentationNode_6526(node pkg_rhino.Node, fileName string, fnName string, type_ ProductionCoverageInstrumentationCallback_Type) pkg_rhino.Node {
 	_ = node
 	_ = fileName
 	_ = fnName
@@ -227,7 +227,7 @@ func (this_ *ProductionCoverageInstrumentationCallback) priv_ProductionCoverageI
 		lineNo = node.GetParent().GetLineno()
 		columnNo = node.GetParent().GetCharno()
 	}
-	var encodedParam string = this_.parameterMapping.priv_ParameterMapping_getEncodedParam_6528(fileName, fnName, type_, lineNo, columnNo)
+	var encodedParam string = this_.parameterMapping.priv_ParameterMapping_getEncodedParam_6529(fileName, fnName, type_, lineNo, columnNo)
 	_ = encodedParam
 	var prop pkg_rhino.Node = pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Name(this_.instrumentationArrayName), "push")
 	_ = prop
@@ -239,7 +239,7 @@ func (this_ *ProductionCoverageInstrumentationCallback) priv_ProductionCoverageI
 }
 
 // Java method: ProductionCoverageInstrumentationCallback.addElseBlock(com.google.javascript.rhino.Node node)
-func (this_ *ProductionCoverageInstrumentationCallback) priv_ProductionCoverageInstrumentationCallback_addElseBlock_6526(node pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ProductionCoverageInstrumentationCallback) priv_ProductionCoverageInstrumentationCallback_addElseBlock_6527(node pkg_rhino.Node) pkg_rhino.Node {
 	_ = node
 	var defaultBlock pkg_rhino.Node = pkg_rhino.IR_Block_0()
 	_ = defaultBlock
@@ -249,7 +249,7 @@ func (this_ *ProductionCoverageInstrumentationCallback) priv_ProductionCoverageI
 
 // Java method: ProductionCoverageInstrumentationCallback.getInstrumentationMapping()
 func (this_ *ProductionCoverageInstrumentationCallback) GetInstrumentationMapping() *VariableMap {
-	return this_.parameterMapping.priv_ParameterMapping_getParamMappingAsVariableMap_6530()
+	return this_.parameterMapping.priv_ParameterMapping_getParamMappingAsVariableMap_6531()
 }
 
 // Java enum: com.google.javascript.jscomp.instrumentation.ProductionCoverageInstrumentationCallback.Type
@@ -422,7 +422,7 @@ func InitProductionCoverageInstrumentationCallback_ParameterMapping(this_ *Produ
 }
 
 // Java method: ParameterMapping.getEncodedParam(java.lang.String fileName, java.lang.String functionName, com.google.javascript.jscomp.instrumentation.ProductionCoverageInstrumentationCallback.Type type, int lineNo, int colNo)
-func (this_ *ProductionCoverageInstrumentationCallback_ParameterMapping) priv_ParameterMapping_getEncodedParam_6528(fileName string, functionName string, type_ ProductionCoverageInstrumentationCallback_Type, lineNo int32, colNo int32) string {
+func (this_ *ProductionCoverageInstrumentationCallback_ParameterMapping) priv_ParameterMapping_getEncodedParam_6529(fileName string, functionName string, type_ ProductionCoverageInstrumentationCallback_Type, lineNo int32, colNo int32) string {
 	_ = fileName
 	_ = functionName
 	_ = type_
@@ -474,7 +474,7 @@ func (this_ *ProductionCoverageInstrumentationCallback_ParameterMapping) priv_Pa
 	var encodedParam string = sb.String()
 	_ = encodedParam
 	if !(j2gort.MapContainsKeyStr(this_.paramValueEncodings, encodedParam)) {
-		var uniqueIdentifier int64 = this_.priv_ParameterMapping_generateUniqueIdentifier_6529()
+		var uniqueIdentifier int64 = this_.priv_ParameterMapping_generateUniqueIdentifier_6530()
 		_ = uniqueIdentifier
 		if uniqueIdentifier > int64(int32(2147483647)) {
 			panic(j2gort.AsIface[javalang.IArithmeticException](j2gort.ConstructShimThrowable("java.lang.ArithmeticException", "Unique Identifier exceeds value of Integer.MAX_VALUE, could not encode with Base 64 VLQ")))
@@ -502,13 +502,13 @@ func (this_ *ProductionCoverageInstrumentationCallback_ParameterMapping) priv_Pa
 }
 
 // Java method: ParameterMapping.generateUniqueIdentifier()
-func (this_ *ProductionCoverageInstrumentationCallback_ParameterMapping) priv_ParameterMapping_generateUniqueIdentifier_6529() int64 {
+func (this_ *ProductionCoverageInstrumentationCallback_ParameterMapping) priv_ParameterMapping_generateUniqueIdentifier_6530() int64 {
 	this_.nextUniqueIdentifier = this_.nextUniqueIdentifier + 1
 	return this_.nextUniqueIdentifier
 }
 
 // Java method: ParameterMapping.getParamMappingAsVariableMap()
-func (this_ *ProductionCoverageInstrumentationCallback_ParameterMapping) priv_ParameterMapping_getParamMappingAsVariableMap_6530() *VariableMap {
+func (this_ *ProductionCoverageInstrumentationCallback_ParameterMapping) priv_ParameterMapping_getParamMappingAsVariableMap_6531() *VariableMap {
 	var gson *j2gort.Ext_com_google_gson_Gson = j2gort.NewExt_com_google_gson_GsonBuilder().DisableHtmlEscaping().Create()
 	_ = gson
 	j2gort.MapPutStr(this_.paramValueEncodings, gson.ToJson_1_any(j2gort.AsIface[j2gort.Ext_java_util_Set](this_.fileNameToIndex.LiveKeySet())), " FileNames")

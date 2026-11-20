@@ -115,7 +115,7 @@ func (this_ *CheckConstPrivateProperties) Process_2(externs pkg_rhino.Node, root
 }
 
 // Java method: CheckConstPrivateProperties.reportMissingConst(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_reportMissingConst_6559(t *NodeTraversal) {
+func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_reportMissingConst_6560(t *NodeTraversal) {
 	_ = t
 	for _, n := range this_.candidates {
 		_ = n
@@ -137,7 +137,7 @@ func (this_ *CheckConstPrivateProperties) Visit_3(t *NodeTraversal, n pkg_rhino.
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(94) /* Token.SCRIPT */ :
-		this_.priv_CheckConstPrivateProperties_reportMissingConst_6559(t)
+		this_.priv_CheckConstPrivateProperties_reportMissingConst_6560(t)
 	case int32(27) /* Token.GETELEM */, int32(26) /* Token.GETPROP */ :
 		var propNode pkg_rhino.Node = pkg_rhino.Node(0)
 		_ = propNode
@@ -148,25 +148,25 @@ func (this_ *CheckConstPrivateProperties) Visit_3(t *NodeTraversal, n pkg_rhino.
 		} else {
 			return
 		}
-		if this_.priv_CheckConstPrivateProperties_isCandidatePropertyDefinition_6561(n) {
+		if this_.priv_CheckConstPrivateProperties_isCandidatePropertyDefinition_6562(n) {
 			this_.candidates = append(this_.candidates, propNode)
-		} else if this_.priv_CheckConstPrivateProperties_isModificationOp_6563(n) {
+		} else if this_.priv_CheckConstPrivateProperties_isModificationOp_6564(n) {
 			this_.modified.Add(propNode.GetString())
 		}
 	case int32(73) /* Token.FUNCTION */ :
 		var info *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(n)
 		_ = info
 		if (info != nil) && (info.IsConstructor() || info.IsInterface()) {
-			this_.priv_CheckConstPrivateProperties_recordConstructorOrInterface_6560(n)
+			this_.priv_CheckConstPrivateProperties_recordConstructorOrInterface_6561(n)
 		}
 	case int32(105) /* Token.CLASS */ :
-		this_.priv_CheckConstPrivateProperties_recordConstructorOrInterface_6560(n)
+		this_.priv_CheckConstPrivateProperties_recordConstructorOrInterface_6561(n)
 	default:
 	}
 }
 
 // Java method: CheckConstPrivateProperties.recordConstructorOrInterface(com.google.javascript.rhino.Node n)
-func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_recordConstructorOrInterface_6560(n pkg_rhino.Node) {
+func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_recordConstructorOrInterface_6561(n pkg_rhino.Node) {
 	_ = n
 	var className string = NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n))
 	_ = className
@@ -176,7 +176,7 @@ func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_recor
 }
 
 // Java method: CheckConstPrivateProperties.isCandidatePropertyDefinition(com.google.javascript.rhino.Node n)
-func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_isCandidatePropertyDefinition_6561(n pkg_rhino.Node) bool {
+func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_isCandidatePropertyDefinition_6562(n pkg_rhino.Node) bool {
 	_ = n
 	if !(NodeUtil_IsLhsOfAssign(n)) {
 		return false
@@ -188,11 +188,11 @@ func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_isCan
 	}
 	var info *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(n)
 	_ = info
-	return (((((((info != nil) && (info.GetVisibility() == pkg_rhino.StaticGet_JSDocInfo_Visibility_PRIVATE())) && !(info.IsConstant())) && !(info.HasTypedefType())) && !(info.HasEnumParameterType())) && !(info.IsInterface())) && !(this_.priv_CheckConstPrivateProperties_isFunctionProperty_6562(n)))
+	return (((((((info != nil) && (info.GetVisibility() == pkg_rhino.StaticGet_JSDocInfo_Visibility_PRIVATE())) && !(info.IsConstant())) && !(info.HasTypedefType())) && !(info.HasEnumParameterType())) && !(info.IsInterface())) && !(this_.priv_CheckConstPrivateProperties_isFunctionProperty_6563(n)))
 }
 
 // Java method: CheckConstPrivateProperties.isFunctionProperty(com.google.javascript.rhino.Node n)
-func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_isFunctionProperty_6562(n pkg_rhino.Node) bool {
+func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_isFunctionProperty_6563(n pkg_rhino.Node) bool {
 	_ = n
 	if n.IsGetElem() {
 		return false
@@ -203,7 +203,7 @@ func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_isFun
 }
 
 // Java method: CheckConstPrivateProperties.isModificationOp(com.google.javascript.rhino.Node n)
-func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_isModificationOp_6563(n pkg_rhino.Node) bool {
+func (this_ *CheckConstPrivateProperties) priv_CheckConstPrivateProperties_isModificationOp_6564(n pkg_rhino.Node) bool {
 	_ = n
 	return (NodeUtil_IsLValue(n) || n.GetParent().IsDelProp())
 }

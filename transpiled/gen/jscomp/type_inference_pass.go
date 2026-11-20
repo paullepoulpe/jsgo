@@ -182,10 +182,10 @@ func (this_ *TypeInferencePass) InferAllScopes(inferenceRoot pkg_rhino.Node) *Ty
 }
 
 // Java method: TypeInferencePass.inferScope(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.TypedScope scope)
-func (this_ *TypeInferencePass) priv_TypeInferencePass_inferScope_5594(n pkg_rhino.Node, scope *TypedScope) {
+func (this_ *TypeInferencePass) priv_TypeInferencePass_inferScope_5595(n pkg_rhino.Node, scope *TypedScope) {
 	_ = n
 	_ = scope
-	var cfg ControlFlowGraph[pkg_rhino.Node] = this_.priv_TypeInferencePass_computeCfg_5595(n)
+	var cfg ControlFlowGraph[pkg_rhino.Node] = this_.priv_TypeInferencePass_computeCfg_5596(n)
 	_ = cfg
 	var usedReusable bool = false
 	_ = usedReusable
@@ -240,7 +240,7 @@ func (this_ *TypeInferencePass) priv_TypeInferencePass_inferScope_5594(n pkg_rhi
 }
 
 // Java method: TypeInferencePass.computeCfg(com.google.javascript.rhino.Node n)
-func (this_ *TypeInferencePass) priv_TypeInferencePass_computeCfg_5595(n pkg_rhino.Node) ControlFlowGraph[pkg_rhino.Node] {
+func (this_ *TypeInferencePass) priv_TypeInferencePass_computeCfg_5596(n pkg_rhino.Node) ControlFlowGraph[pkg_rhino.Node] {
 	_ = n
 	return ControlFlowAnalysis_ComputeCfgDirect(this_.compiler, n, false, true)
 }
@@ -364,7 +364,7 @@ func (this_ *TypeInferencePass_SecondScopeBuildingCallback) EnterScope(t *NodeTr
 	var scope *TypedScope = t.GetTypedScope()
 	_ = scope
 	if scope.IsCfgRootScope() && !(scope.IsModuleScope()) {
-		this_.outer_.priv_TypeInferencePass_inferScope_5594(t.GetCurrentNode(), scope)
+		this_.outer_.priv_TypeInferencePass_inferScope_5595(t.GetCurrentNode(), scope)
 	}
 }
 

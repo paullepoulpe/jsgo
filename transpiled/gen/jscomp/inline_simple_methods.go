@@ -146,7 +146,7 @@ func InlineSimpleMethods_IsEmptyMethod(fn pkg_rhino.Node) bool {
 }
 
 // Java method: InlineSimpleMethods.allDefinitionsEquivalent(java.util.Set<com.google.javascript.rhino.Node> definitions)
-func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_allDefinitionsEquivalent_3367(definitions j2gort.Ext_java_util_Set) bool {
+func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_allDefinitionsEquivalent_3368(definitions j2gort.Ext_java_util_Set) bool {
 	_ = definitions
 	var first pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = first
@@ -166,7 +166,7 @@ func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_allDefinitionsEquival
 }
 
 // Java method: InlineSimpleMethods.anyDefinitionsNotInlineable(java.util.Set<com.google.javascript.rhino.Node> definitions)
-func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_anyDefinitionsNotInlineable_3368(definitions j2gort.Ext_java_util_Set) bool {
+func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_anyDefinitionsNotInlineable_3369(definitions j2gort.Ext_java_util_Set) bool {
 	_ = definitions
 	{
 		cur_2 := j2gort.NewIterCursor(j2gort.CheckNotNull(definitions))
@@ -190,7 +190,7 @@ func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_anyDefinitionsNotInli
 }
 
 // Java method: InlineSimpleMethods.inlinePropertyReturn(com.google.javascript.rhino.Node call, com.google.javascript.rhino.Node returnedValue)
-func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_inlinePropertyReturn_3369(call pkg_rhino.Node, returnedValue pkg_rhino.Node) {
+func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_inlinePropertyReturn_3370(call pkg_rhino.Node, returnedValue pkg_rhino.Node) {
 	_ = call
 	_ = returnedValue
 	var getProp pkg_rhino.Node = returnedValue.CloneTree_0()
@@ -201,7 +201,7 @@ func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_inlinePropertyReturn_
 }
 
 // Java method: InlineSimpleMethods.inlineConstReturn(com.google.javascript.rhino.Node call, com.google.javascript.rhino.Node returnedValue)
-func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_inlineConstReturn_3370(call pkg_rhino.Node, returnedValue pkg_rhino.Node) {
+func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_inlineConstReturn_3371(call pkg_rhino.Node, returnedValue pkg_rhino.Node) {
 	_ = call
 	_ = returnedValue
 	var retValue pkg_rhino.Node = returnedValue.CloneTree_0()
@@ -211,7 +211,7 @@ func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_inlineConstReturn_337
 }
 
 // Java method: InlineSimpleMethods.inlineEmptyMethod(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node parent, com.google.javascript.rhino.Node call)
-func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_inlineEmptyMethod_3371(t *NodeTraversal, parent pkg_rhino.Node, call pkg_rhino.Node) {
+func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_inlineEmptyMethod_3372(t *NodeTraversal, parent pkg_rhino.Node, call pkg_rhino.Node) {
 	_ = t
 	_ = parent
 	_ = call
@@ -228,7 +228,7 @@ func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_inlineEmptyMethod_337
 }
 
 // Java method: InlineSimpleMethods.argsMayHaveSideEffects(com.google.javascript.rhino.Node call)
-func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_argsMayHaveSideEffects_3372(call pkg_rhino.Node) bool {
+func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_argsMayHaveSideEffects_3373(call pkg_rhino.Node) bool {
 	_ = call
 	{
 		var currentChild pkg_rhino.Node = call.GetSecondChild()
@@ -243,18 +243,18 @@ func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_argsMayHaveSideEffect
 }
 
 // Java method: InlineSimpleMethods.addPossibleSignature(java.lang.String name, com.google.javascript.rhino.Node node)
-func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_addPossibleSignature_3373(name string, node pkg_rhino.Node) {
+func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_addPossibleSignature_3374(name string, node pkg_rhino.Node) {
 	_ = name
 	_ = node
 	if (node != 0) && node.IsFunction() {
-		this_.priv_InlineSimpleMethods_addSignature_3374(name, node)
+		this_.priv_InlineSimpleMethods_addSignature_3375(name, node)
 	} else {
 		this_.nonInlineableProperties.Add(name)
 	}
 }
 
 // Java method: InlineSimpleMethods.addSignature(java.lang.String name, com.google.javascript.rhino.Node function)
-func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_addSignature_3374(name string, function pkg_rhino.Node) {
+func (this_ *InlineSimpleMethods) priv_InlineSimpleMethods_addSignature_3375(name string, function pkg_rhino.Node) {
 	_ = name
 	_ = function
 	if this_.nonInlineableProperties.Contains(name) {
@@ -344,27 +344,27 @@ func (this_ *InlineSimpleMethods_InlineTrivialAccessors) Visit_4(t *NodeTraversa
 	if (definitions == nil) || definitions.IsEmpty() {
 		return
 	}
-	if (definitions.Size() > int32(1)) && !(this_.outer_.priv_InlineSimpleMethods_allDefinitionsEquivalent_3367(definitions)) {
+	if (definitions.Size() > int32(1)) && !(this_.outer_.priv_InlineSimpleMethods_allDefinitionsEquivalent_3368(definitions)) {
 		this_.outer_.nonInlineableProperties.Add(callName)
 		return
 	}
-	if this_.outer_.priv_InlineSimpleMethods_anyDefinitionsNotInlineable_3368(definitions) {
+	if this_.outer_.priv_InlineSimpleMethods_anyDefinitionsNotInlineable_3369(definitions) {
 		this_.outer_.nonInlineableProperties.Add(callName)
 		return
 	}
 	var firstDefinition pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](j2gort.AsIface[j2gort.Ext_java_util_Iterator](definitions.Iterator()).Next())
 	_ = firstDefinition
-	if !(this_.outer_.priv_InlineSimpleMethods_argsMayHaveSideEffects_3372(callNode)) && !(NodeUtil_ReferencesSuper(callNode)) {
+	if !(this_.outer_.priv_InlineSimpleMethods_argsMayHaveSideEffects_3373(callNode)) && !(NodeUtil_ReferencesSuper(callNode)) {
 		var returned pkg_rhino.Node = InlineSimpleMethods_ReturnedExpression(firstDefinition)
 		_ = returned
 		if returned != 0 {
 			if InlineSimpleMethods_IsPropertyTree(returned) && !(firstDefinition.IsArrowFunction()) {
-				this_.outer_.priv_InlineSimpleMethods_inlinePropertyReturn_3369(callNode, returned)
+				this_.outer_.priv_InlineSimpleMethods_inlinePropertyReturn_3370(callNode, returned)
 			} else if NodeUtil_IsLiteralValue(returned, false) && !(this_.outer_.astAnalyzer.MayHaveSideEffects(callNode.GetFirstChild())) {
-				this_.outer_.priv_InlineSimpleMethods_inlineConstReturn_3370(callNode, returned)
+				this_.outer_.priv_InlineSimpleMethods_inlineConstReturn_3371(callNode, returned)
 			}
 		} else if InlineSimpleMethods_IsEmptyMethod(firstDefinition) && !(this_.outer_.astAnalyzer.MayHaveSideEffects(callNode.GetFirstChild())) {
-			this_.outer_.priv_InlineSimpleMethods_inlineEmptyMethod_3371(t, parent, callNode)
+			this_.outer_.priv_InlineSimpleMethods_inlineEmptyMethod_3372(t, parent, callNode)
 		}
 	}
 }
@@ -434,10 +434,10 @@ func (this_ *InlineSimpleMethods_GatherSignatures) Visit_3(t *NodeTraversal, n p
 			return
 		}
 		if j2gort.CheckNotNullString(name) == "prototype" {
-			this_.priv_GatherSignatures_processPrototypeParent_3376(parent)
+			this_.priv_GatherSignatures_processPrototypeParent_3377(parent)
 		} else {
 			if parent.IsAssign() && n.IsFirstChildOf(parent) {
-				this_.outer_.priv_InlineSimpleMethods_addPossibleSignature_3373(name, n.GetNext())
+				this_.outer_.priv_InlineSimpleMethods_addPossibleSignature_3374(name, n.GetNext())
 			}
 		}
 	case int32(47) /* Token.OBJECTLIT */, int32(106) /* Token.CLASS_MEMBERS */ :
@@ -447,7 +447,7 @@ func (this_ *InlineSimpleMethods_GatherSignatures) Visit_3(t *NodeTraversal, n p
 			for ; key != 0; key = key.GetNext() {
 				switch key.TokenSwitchOrd_() {
 				case int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(108) /* Token.MEMBER_FIELD_DEF */, int32(100) /* Token.STRING_KEY */ :
-					this_.outer_.priv_InlineSimpleMethods_addPossibleSignature_3373(key.GetString(), key.GetFirstChild())
+					this_.outer_.priv_InlineSimpleMethods_addPossibleSignature_3374(key.GetString(), key.GetFirstChild())
 				case int32(96) /* Token.SETTER_DEF */, int32(95) /* Token.GETTER_DEF */ :
 					this_.outer_.nonInlineableProperties.Add(key.GetString())
 				case int32(129) /* Token.COMPUTED_PROP */, int32(128) /* Token.OBJECT_SPREAD */, int32(109) /* Token.COMPUTED_FIELD_DEF */, int32(90) /* Token.BLOCK */ :
@@ -465,7 +465,7 @@ func (this_ *InlineSimpleMethods_GatherSignatures) Visit_3(t *NodeTraversal, n p
 }
 
 // Java method: GatherSignatures.processPrototypeParent(com.google.javascript.rhino.Node n)
-func (this_ *InlineSimpleMethods_GatherSignatures) priv_GatherSignatures_processPrototypeParent_3376(n pkg_rhino.Node) {
+func (this_ *InlineSimpleMethods_GatherSignatures) priv_GatherSignatures_processPrototypeParent_3377(n pkg_rhino.Node) {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(26) /* Token.GETPROP */, int32(27) /* Token.GETELEM */ :
@@ -476,7 +476,7 @@ func (this_ *InlineSimpleMethods_GatherSignatures) priv_GatherSignatures_process
 		if (name != j2gort.NullString) && grandparent.IsAssign() {
 			var assignee pkg_rhino.Node = grandparent.GetSecondChild()
 			_ = assignee
-			this_.outer_.priv_InlineSimpleMethods_addPossibleSignature_3373(name, assignee)
+			this_.outer_.priv_InlineSimpleMethods_addPossibleSignature_3374(name, assignee)
 		}
 	default:
 	}

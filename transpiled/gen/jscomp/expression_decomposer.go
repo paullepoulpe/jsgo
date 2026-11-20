@@ -179,7 +179,7 @@ func (this_ *ExpressionDecomposer) MaybeExposeExpression(expression pkg_rhino.No
 	var i int32 = int32(0)
 	_ = i
 	for StaticGet_ExpressionDecomposer_DecompositionType_DECOMPOSABLE() == this_.CanExposeExpression(expression) {
-		if !(this_.priv_ExpressionDecomposer_exposeExpression_2816(expression)) {
+		if !(this_.priv_ExpressionDecomposer_exposeExpression_2817(expression)) {
 			panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "exposeExpression exposed nothing for:\n"+j2gort.StrValString(expression.ToStringTree()))))
 		}
 		i = i + 1
@@ -190,20 +190,20 @@ func (this_ *ExpressionDecomposer) MaybeExposeExpression(expression pkg_rhino.No
 }
 
 // Java method: ExpressionDecomposer.exposeExpression(com.google.javascript.rhino.Node expression)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_exposeExpression_2816(expression pkg_rhino.Node) bool {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_exposeExpression_2817(expression pkg_rhino.Node) bool {
 	_ = expression
-	this_.priv_ExpressionDecomposer_rewriteAllContainingOptionalChains_2818(expression)
+	this_.priv_ExpressionDecomposer_rewriteAllContainingOptionalChains_2819(expression)
 	var expressionRoot pkg_rhino.Node = ExpressionDecomposer_FindExpressionRoot(expression)
 	_ = expressionRoot
 	j2gort.CheckNotNullNode(expressionRoot)
 	if !(NodeUtil_IsStatement(expressionRoot)) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(expressionRoot))
 	}
-	return this_.priv_ExpressionDecomposer_exposeExpression_2817(expressionRoot, expression)
+	return this_.priv_ExpressionDecomposer_exposeExpression_2818(expressionRoot, expression)
 }
 
 // Java method: ExpressionDecomposer.exposeExpression(com.google.javascript.rhino.Node expressionRoot, com.google.javascript.rhino.Node subExpression)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_exposeExpression_2817(expressionRoot pkg_rhino.Node, subExpression pkg_rhino.Node) bool {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_exposeExpression_2818(expressionRoot pkg_rhino.Node, subExpression pkg_rhino.Node) bool {
 	_ = expressionRoot
 	_ = subExpression
 	var exposedSomething bool = false
@@ -237,14 +237,14 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_exposeExpression_28
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(expressionParent))
 		}
 		if expressionParent.IsAssign() {
-			if this_.priv_ExpressionDecomposer_isSafeAssign_2835(expressionParent, state.sideEffects) {
+			if this_.priv_ExpressionDecomposer_isSafeAssign_2836(expressionParent, state.sideEffects) {
 			} else if !(expressionToExpose.IsFirstChildOf(expressionParent)) {
 				var left pkg_rhino.Node = expressionParent.GetFirstChild()
 				_ = left
 				switch left.TokenSwitchOrd_() {
 				case int32(102) /* Token.ARRAY_PATTERN */, int32(103) /* Token.OBJECT_PATTERN */ :
 				case int32(27) /* Token.GETELEM */, int32(26) /* Token.GETPROP */ :
-					exposedSomething = (this_.priv_ExpressionDecomposer_decomposeSubExpressions_2820(left.GetFirstChild(), pkg_rhino.Node(0), state) || exposedSomething)
+					exposedSomething = (this_.priv_ExpressionDecomposer_decomposeSubExpressions_2821(left.GetFirstChild(), pkg_rhino.Node(0), state) || exposedSomething)
 				default:
 					panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Expected a property access or destructuring pattern: "+j2gort.StrValString(left.ToStringTree()))))
 				}
@@ -253,18 +253,18 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_exposeExpression_28
 			var callee pkg_rhino.Node = expressionParent.GetFirstChild()
 			_ = callee
 			if callee != expressionToExpose {
-				exposedSomething = (this_.priv_ExpressionDecomposer_decomposeSubExpressions_2820(callee.GetNext(), expressionToExpose, state) || exposedSomething)
+				exposedSomething = (this_.priv_ExpressionDecomposer_decomposeSubExpressions_2821(callee.GetNext(), expressionToExpose, state) || exposedSomething)
 			}
-			if this_.priv_ExpressionDecomposer_isExpressionTreeUnsafe_2836(callee, state.sideEffects) && (lastExposedSubexpression != callee.GetFirstChild()) {
+			if this_.priv_ExpressionDecomposer_isExpressionTreeUnsafe_2837(callee, state.sideEffects) && (lastExposedSubexpression != callee.GetFirstChild()) {
 				{
 					r_4 := state
 					r_4.sideEffects = true
 				}
-				this_.priv_ExpressionDecomposer_rewriteCallExpression_2824(expressionParent, state)
+				this_.priv_ExpressionDecomposer_rewriteCallExpression_2825(expressionParent, state)
 				exposedSomething = true
 			}
 		} else {
-			exposedSomething = (this_.priv_ExpressionDecomposer_decomposeSubExpressions_2820(expressionParent.GetFirstChild(), expressionToExpose, state) || exposedSomething)
+			exposedSomething = (this_.priv_ExpressionDecomposer_decomposeSubExpressions_2821(expressionParent.GetFirstChild(), expressionToExpose, state) || exposedSomething)
 		}
 		lastExposedSubexpression = expressionToExpose
 		expressionToExpose = expressionParent
@@ -276,18 +276,18 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_exposeExpression_28
 		_ = parent
 		var needResult bool = !(parent.IsExprResult())
 		_ = needResult
-		this_.priv_ExpressionDecomposer_extractConditional_2821(nodeWithNonconditionalParent, exprInjectionPoint, needResult)
+		this_.priv_ExpressionDecomposer_extractConditional_2822(nodeWithNonconditionalParent, exprInjectionPoint, needResult)
 		exposedSomething = true
 	}
 	return exposedSomething
 }
 
 // Java method: ExpressionDecomposer.rewriteAllContainingOptionalChains(com.google.javascript.rhino.Node subExpression)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_rewriteAllContainingOptionalChains_2818(subExpression pkg_rhino.Node) {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_rewriteAllContainingOptionalChains_2819(subExpression pkg_rhino.Node) {
 	_ = subExpression
 	var optChainRewriterBuilder *OptionalChainRewriter_Builder = OptionalChainRewriter_S_Builder(this_.compiler).SetTmpVarNameCreator(func() OptionalChainRewriter_TmpVarNameCreator {
 		bound_5 := this_
-		return NewLambda_OptionalChainRewriter_TmpVarNameCreator(func() string { return bound_5.priv_ExpressionDecomposer_getTempConstantValueName_2829() })
+		return NewLambda_OptionalChainRewriter_TmpVarNameCreator(func() string { return bound_5.priv_ExpressionDecomposer_getTempConstantValueName_2830() })
 	}()).SetScope(this_.scope)
 	_ = optChainRewriterBuilder
 	var rewriters j2gort.Deque[*OptionalChainRewriter]
@@ -321,7 +321,7 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_rewriteAllContainin
 // Java method: ExpressionDecomposer.moveExpression(com.google.javascript.rhino.Node expression)
 func (this_ *ExpressionDecomposer) MoveExpression(expression pkg_rhino.Node) {
 	_ = expression
-	var resultName string = this_.priv_ExpressionDecomposer_getResultValueName_2828()
+	var resultName string = this_.priv_ExpressionDecomposer_getResultValueName_2829()
 	_ = resultName
 	var injectionPoint pkg_rhino.Node = ExpressionDecomposer_FindInjectionPoint(expression)
 	_ = injectionPoint
@@ -364,7 +364,7 @@ func ExpressionDecomposer_FindNonconditionalParent(subExpression pkg_rhino.Node,
 }
 
 // Java method: ExpressionDecomposer.decomposeSubExpressions(com.google.javascript.rhino.Node n, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node stopNode, com.google.javascript.jscomp.ExpressionDecomposer.DecompositionState state)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_decomposeSubExpressions_2820(n pkg_rhino.Node, stopNode pkg_rhino.Node, state *ExpressionDecomposer_DecompositionState) bool {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_decomposeSubExpressions_2821(n pkg_rhino.Node, stopNode pkg_rhino.Node, state *ExpressionDecomposer_DecompositionState) bool {
 	_ = n
 	_ = stopNode
 	_ = state
@@ -373,10 +373,10 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_decomposeSubExpress
 	}
 	var decomposedSomething bool = false
 	_ = decomposedSomething
-	decomposedSomething = (this_.priv_ExpressionDecomposer_decomposeSubExpressions_2820(n.GetNext(), stopNode, state) || decomposedSomething)
+	decomposedSomething = (this_.priv_ExpressionDecomposer_decomposeSubExpressions_2821(n.GetNext(), stopNode, state) || decomposedSomething)
 	if NodeUtil_MayBeObjectLitKey(n) || n.IsComputedProp() {
 		if n.IsComputedProp() {
-			decomposedSomething = (this_.priv_ExpressionDecomposer_decomposeSubExpressions_2820(n.GetSecondChild(), stopNode, state) || decomposedSomething)
+			decomposedSomething = (this_.priv_ExpressionDecomposer_decomposeSubExpressions_2821(n.GetSecondChild(), stopNode, state) || decomposedSomething)
 		}
 		n = n.GetFirstChild()
 	} else if n.IsTemplateLitSub() {
@@ -385,14 +385,14 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_decomposeSubExpress
 	} else if !(pkg_rhino.IR_MayBeExpression(n)) {
 		return decomposedSomething
 	}
-	if this_.priv_ExpressionDecomposer_isExpressionTreeUnsafe_2836(n, state.sideEffects) {
+	if this_.priv_ExpressionDecomposer_isExpressionTreeUnsafe_2837(n, state.sideEffects) {
 		{
 			r_8 := state
 			r_8.sideEffects = true
 		}
 		{
 			r_9 := state
-			r_9.extractBeforeStatement = this_.priv_ExpressionDecomposer_extractExpression_2823(n, state.extractBeforeStatement)
+			r_9.extractBeforeStatement = this_.priv_ExpressionDecomposer_extractExpression_2824(n, state.extractBeforeStatement)
 		}
 		decomposedSomething = true
 	}
@@ -400,13 +400,13 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_decomposeSubExpress
 }
 
 // Java method: ExpressionDecomposer.extractConditional(com.google.javascript.rhino.Node expr, com.google.javascript.rhino.Node injectionPoint, boolean needResult)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_extractConditional_2821(expr pkg_rhino.Node, injectionPoint pkg_rhino.Node, needResult bool) pkg_rhino.Node {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_extractConditional_2822(expr pkg_rhino.Node, injectionPoint pkg_rhino.Node, needResult bool) pkg_rhino.Node {
 	_ = expr
 	_ = injectionPoint
 	_ = needResult
 	var parent pkg_rhino.Node = expr.GetParent()
 	_ = parent
-	var tempName string = this_.priv_ExpressionDecomposer_getTempValueName_2826()
+	var tempName string = this_.priv_ExpressionDecomposer_getTempValueName_2827()
 	_ = tempName
 	var first pkg_rhino.Node = expr.GetFirstChild()
 	_ = first
@@ -433,7 +433,7 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_extractConditional_
 		cond = ExpressionDecomposer_BuildResultExpression(first, needResult, tempName)
 		falseExpr.AddChildToFront(this_.astFactory.ExprResult(ExpressionDecomposer_BuildResultExpression(last, needResult, tempName)))
 	case int32(70) /* Token.COALESCE */ :
-		var tempNameAssign string = this_.priv_ExpressionDecomposer_getTempValueName_2826()
+		var tempNameAssign string = this_.priv_ExpressionDecomposer_getTempValueName_2827()
 		_ = tempNameAssign
 		var tempVarNodeAssign pkg_rhino.Node = this_.astFactory.CreateSingleVarNameDeclaration_1(tempNameAssign).SrcrefTreeIfMissing(expr)
 		_ = tempVarNodeAssign
@@ -486,13 +486,13 @@ func ExpressionDecomposer_BuildResultExpression(expr pkg_rhino.Node, needResult 
 }
 
 // Java method: ExpressionDecomposer.isConstantNameNode(com.google.javascript.rhino.Node n)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isConstantNameNode_2822(n pkg_rhino.Node) bool {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isConstantNameNode_2823(n pkg_rhino.Node) bool {
 	_ = n
 	return (n.IsName() && (NodeUtil_IsConstantVar(n, this_.scope) || ((this_.knownConstantFunctionsSet != nil) && this_.knownConstantFunctionsSet.Contains(n.GetString()))))
 }
 
 // Java method: ExpressionDecomposer.extractExpression(com.google.javascript.rhino.Node expr, com.google.javascript.rhino.Node injectionPoint)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_extractExpression_2823(expr pkg_rhino.Node, injectionPoint pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_extractExpression_2824(expr pkg_rhino.Node, injectionPoint pkg_rhino.Node) pkg_rhino.Node {
 	_ = expr
 	_ = injectionPoint
 	if !(!(NodeUtil_IsLogicalAssignmentOp(expr))) {
@@ -512,8 +512,8 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_extractExpression_2
 			_ = next
 			for ; n != 0; n = next {
 				next = n.GetNext()
-				if !(n.IsStringLit()) && !(this_.priv_ExpressionDecomposer_isConstantNameNode_2822(n)) {
-					var extractedNode pkg_rhino.Node = this_.priv_ExpressionDecomposer_extractExpression_2823(n, injectionPoint)
+				if !(n.IsStringLit()) && !(this_.priv_ExpressionDecomposer_isConstantNameNode_2823(n)) {
+					var extractedNode pkg_rhino.Node = this_.priv_ExpressionDecomposer_extractExpression_2824(n, injectionPoint)
 					_ = extractedNode
 					if firstExtractedNode == 0 {
 						firstExtractedNode = extractedNode
@@ -522,7 +522,7 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_extractExpression_2
 			}
 		}
 	}
-	var tempName string = this_.priv_ExpressionDecomposer_getTempConstantValueName_2829()
+	var tempName string = this_.priv_ExpressionDecomposer_getTempConstantValueName_2830()
 	_ = tempName
 	var replacementValueNode pkg_rhino.Node = pkg_rhino.IR_Name(tempName).CopyTypeFrom(expr).Srcref(expr)
 	_ = replacementValueNode
@@ -585,7 +585,7 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_extractExpression_2
 }
 
 // Java method: ExpressionDecomposer.rewriteCallExpression(com.google.javascript.rhino.Node call, com.google.javascript.jscomp.ExpressionDecomposer.DecompositionState state)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_rewriteCallExpression_2824(call pkg_rhino.Node, state *ExpressionDecomposer_DecompositionState) {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_rewriteCallExpression_2825(call pkg_rhino.Node, state *ExpressionDecomposer_DecompositionState) {
 	_ = call
 	_ = state
 	if !(call.IsCall()) {
@@ -607,7 +607,7 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_rewriteCallExpressi
 			fnCallType = this_.unknownType
 		}
 	}
-	var getVarNode pkg_rhino.Node = this_.priv_ExpressionDecomposer_extractExpression_2823(first, state.extractBeforeStatement)
+	var getVarNode pkg_rhino.Node = this_.priv_ExpressionDecomposer_extractExpression_2824(first, state.extractBeforeStatement)
 	_ = getVarNode
 	{
 		r_10 := state
@@ -633,7 +633,7 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_rewriteCallExpressi
 	} else if origThisValue.IsSuper() {
 		receiverNode = this_.astFactory.CreateThis(AstFactory_S_Type_1_Node(origThisValue)).Srcref(origThisValue)
 	} else {
-		var thisVarNode pkg_rhino.Node = this_.priv_ExpressionDecomposer_extractExpression_2823(origThisValue, state.extractBeforeStatement)
+		var thisVarNode pkg_rhino.Node = this_.priv_ExpressionDecomposer_extractExpression_2824(origThisValue, state.extractBeforeStatement)
 		_ = thisVarNode
 		{
 			r_11 := state
@@ -655,7 +655,7 @@ func (this_ *ExpressionDecomposer) SetTempNamePrefix(prefix string) {
 }
 
 // Java method: ExpressionDecomposer.getTempValueName()
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_getTempValueName_2826() string {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_getTempValueName_2827() string {
 	return (j2gort.StrValString(this_.tempNamePrefix) + "$jscomp$" + j2gort.StrValString(j2gort.CastString(this_.safeNameIdSupplier.Get())))
 }
 
@@ -666,17 +666,17 @@ func (this_ *ExpressionDecomposer) SetResultNamePrefix(prefix string) {
 }
 
 // Java method: ExpressionDecomposer.getResultValueName()
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_getResultValueName_2828() string {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_getResultValueName_2829() string {
 	return (j2gort.StrValString(this_.resultNamePrefix) + "$jscomp$" + j2gort.StrValString(j2gort.CastString(this_.safeNameIdSupplier.Get())))
 }
 
 // Java method: ExpressionDecomposer.getTempConstantValueName()
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_getTempConstantValueName_2829() string {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_getTempConstantValueName_2830() string {
 	return (j2gort.StrValString(this_.tempConstPrefix) + j2gort.StrValString(j2gort.CastString(this_.safeNameIdSupplier.Get())))
 }
 
 // Java method: ExpressionDecomposer.isTempConstantValueName(com.google.javascript.rhino.Node name)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isTempConstantValueName_2830(name pkg_rhino.Node) bool {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isTempConstantValueName_2831(name pkg_rhino.Node) bool {
 	_ = name
 	return (name.IsName() && javalang.StringStartsWith(j2gort.CheckNotNullString(name.GetString()), j2gort.CheckNotNullString(this_.tempConstPrefix)))
 }
@@ -763,13 +763,13 @@ func (this_ *ExpressionDecomposer) CanExposeExpression(subExpression pkg_rhino.N
 	var expressionRoot pkg_rhino.Node = ExpressionDecomposer_FindExpressionRoot(subExpression)
 	_ = expressionRoot
 	if expressionRoot != 0 {
-		return this_.priv_ExpressionDecomposer_isSubexpressionMovable_2832(expressionRoot, subExpression)
+		return this_.priv_ExpressionDecomposer_isSubexpressionMovable_2833(expressionRoot, subExpression)
 	}
 	return StaticGet_ExpressionDecomposer_DecompositionType_UNDECOMPOSABLE()
 }
 
 // Java method: ExpressionDecomposer.isSubexpressionMovable(com.google.javascript.rhino.Node expressionRoot, com.google.javascript.rhino.Node subExpression)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isSubexpressionMovable_2832(expressionRoot pkg_rhino.Node, subExpression pkg_rhino.Node) ExpressionDecomposer_DecompositionType {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isSubexpressionMovable_2833(expressionRoot pkg_rhino.Node, subExpression pkg_rhino.Node) ExpressionDecomposer_DecompositionType {
 	_ = expressionRoot
 	_ = subExpression
 	var requiresDecomposition bool = false
@@ -810,18 +810,18 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isSubexpressionMova
 					requiresDecomposition = true
 				}
 			} else {
-				if this_.priv_ExpressionDecomposer_isSafeAssign_2835(parent, seenSideEffects) {
+				if this_.priv_ExpressionDecomposer_isSafeAssign_2836(parent, seenSideEffects) {
 				} else {
 					var direction ExpressionDecomposer_EvaluationDirection = ExpressionDecomposer_GetEvaluationDirection(parent)
 					_ = direction
 					{
-						var n pkg_rhino.Node = this_.priv_ExpressionDecomposer_getFirstEvaluatedChild_2833(parent, direction)
+						var n pkg_rhino.Node = this_.priv_ExpressionDecomposer_getFirstEvaluatedChild_2834(parent, direction)
 						_ = n
-						for ; n != 0; n = this_.priv_ExpressionDecomposer_getNextEvaluatedSibling_2834(n, direction) {
+						for ; n != 0; n = this_.priv_ExpressionDecomposer_getNextEvaluatedSibling_2835(n, direction) {
 							if n == child {
 								break
 							}
-							if this_.priv_ExpressionDecomposer_isExpressionTreeUnsafe_2836(n, seenSideEffects) {
+							if this_.priv_ExpressionDecomposer_isExpressionTreeUnsafe_2837(n, seenSideEffects) {
 								seenSideEffects = true
 								requiresDecomposition = true
 							}
@@ -856,7 +856,7 @@ func ExpressionDecomposer_GetEvaluationDirection(node pkg_rhino.Node) Expression
 }
 
 // Java method: ExpressionDecomposer.getFirstEvaluatedChild(com.google.javascript.rhino.Node parent, com.google.javascript.jscomp.ExpressionDecomposer.EvaluationDirection direction)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_getFirstEvaluatedChild_2833(parent pkg_rhino.Node, direction ExpressionDecomposer_EvaluationDirection) pkg_rhino.Node {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_getFirstEvaluatedChild_2834(parent pkg_rhino.Node, direction ExpressionDecomposer_EvaluationDirection) pkg_rhino.Node {
 	_ = parent
 	_ = direction
 	if direction == StaticGet_ExpressionDecomposer_EvaluationDirection_FORWARD() {
@@ -867,7 +867,7 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_getFirstEvaluatedCh
 }
 
 // Java method: ExpressionDecomposer.getNextEvaluatedSibling(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.ExpressionDecomposer.EvaluationDirection direction)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_getNextEvaluatedSibling_2834(node pkg_rhino.Node, direction ExpressionDecomposer_EvaluationDirection) pkg_rhino.Node {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_getNextEvaluatedSibling_2835(node pkg_rhino.Node, direction ExpressionDecomposer_EvaluationDirection) pkg_rhino.Node {
 	_ = node
 	_ = direction
 	if direction == StaticGet_ExpressionDecomposer_EvaluationDirection_FORWARD() {
@@ -878,7 +878,7 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_getNextEvaluatedSib
 }
 
 // Java method: ExpressionDecomposer.isSafeAssign(com.google.javascript.rhino.Node n, boolean seenSideEffects)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isSafeAssign_2835(n pkg_rhino.Node, seenSideEffects bool) bool {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isSafeAssign_2836(n pkg_rhino.Node, seenSideEffects bool) bool {
 	_ = n
 	_ = seenSideEffects
 	if n.IsAssign() {
@@ -888,9 +888,9 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isSafeAssign_2835(n
 		case int32(32) /* Token.NAME */ :
 			return true
 		case int32(26) /* Token.GETPROP */ :
-			return !(this_.priv_ExpressionDecomposer_isExpressionTreeUnsafe_2836(lhs.GetFirstChild(), seenSideEffects))
+			return !(this_.priv_ExpressionDecomposer_isExpressionTreeUnsafe_2837(lhs.GetFirstChild(), seenSideEffects))
 		case int32(27) /* Token.GETELEM */ :
-			return (!(this_.priv_ExpressionDecomposer_isExpressionTreeUnsafe_2836(lhs.GetFirstChild(), seenSideEffects)) && !(this_.priv_ExpressionDecomposer_isExpressionTreeUnsafe_2836(lhs.GetLastChild(), seenSideEffects)))
+			return (!(this_.priv_ExpressionDecomposer_isExpressionTreeUnsafe_2837(lhs.GetFirstChild(), seenSideEffects)) && !(this_.priv_ExpressionDecomposer_isExpressionTreeUnsafe_2837(lhs.GetLastChild(), seenSideEffects)))
 		default:
 		}
 	}
@@ -898,11 +898,11 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isSafeAssign_2835(n
 }
 
 // Java method: ExpressionDecomposer.isExpressionTreeUnsafe(com.google.javascript.rhino.Node tree, boolean followingSideEffectsExist)
-func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isExpressionTreeUnsafe_2836(tree pkg_rhino.Node, followingSideEffectsExist bool) bool {
+func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isExpressionTreeUnsafe_2837(tree pkg_rhino.Node, followingSideEffectsExist bool) bool {
 	_ = tree
 	_ = followingSideEffectsExist
 	if tree.IsSpread() {
-		if this_.priv_ExpressionDecomposer_isTempConstantValueName_2830(tree.GetOnlyChild()) {
+		if this_.priv_ExpressionDecomposer_isTempConstantValueName_2831(tree.GetOnlyChild()) {
 			return false
 		}
 	}
@@ -917,7 +917,7 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_isExpressionTreeUns
 			} else {
 				callee = tree
 			}
-			if tree.IsFirstChildOf(parent) && (this_.priv_ExpressionDecomposer_isTempConstantValueName_2830(callee) || j2gort.SetContainsStr(this_.knownConstantFunctions, callee.GetQualifiedName())) {
+			if tree.IsFirstChildOf(parent) && (this_.priv_ExpressionDecomposer_isTempConstantValueName_2831(callee) || j2gort.SetContainsStr(this_.knownConstantFunctions, callee.GetQualifiedName())) {
 				return false
 			}
 		}

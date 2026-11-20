@@ -82,30 +82,30 @@ func (this_ *Es6RenameTypeReferences) Visit_3(t *NodeTraversal, n pkg_rhino.Node
 			var count int32 = info.GetTypeNodeCount()
 			_ = count
 			for ; i < count; i = i + 1 {
-				this_.priv_Es6RenameTypeReferences_renameTypeNodeRecursive_2574(t, info.GetTypeNodeAt(i))
+				this_.priv_Es6RenameTypeReferences_renameTypeNodeRecursive_2575(t, info.GetTypeNodeAt(i))
 			}
 		}
 	}
 }
 
 // Java method: Es6RenameTypeReferences.renameTypeNodeRecursive(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *Es6RenameTypeReferences) priv_Es6RenameTypeReferences_renameTypeNodeRecursive_2574(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *Es6RenameTypeReferences) priv_Es6RenameTypeReferences_renameTypeNodeRecursive_2575(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if n.IsStringLit() {
-		this_.priv_Es6RenameTypeReferences_renameTypeReference_2575(t, n)
+		this_.priv_Es6RenameTypeReferences_renameTypeReference_2576(t, n)
 	}
 	{
 		var child pkg_rhino.Node = n.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			this_.priv_Es6RenameTypeReferences_renameTypeNodeRecursive_2574(t, child)
+			this_.priv_Es6RenameTypeReferences_renameTypeNodeRecursive_2575(t, child)
 		}
 	}
 }
 
 // Java method: Es6RenameTypeReferences.renameTypeReference(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *Es6RenameTypeReferences) priv_Es6RenameTypeReferences_renameTypeReference_2575(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *Es6RenameTypeReferences) priv_Es6RenameTypeReferences_renameTypeReference_2576(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if !(n.IsStringLit()) {
@@ -126,11 +126,11 @@ func (this_ *Es6RenameTypeReferences) priv_Es6RenameTypeReferences_renameTypeRef
 		rootName = j2gort.JStrSub(fullName, int32(0), endPos)
 		rest = j2gort.JStrSubFrom(fullName, endPos)
 	}
-	this_.priv_Es6RenameTypeReferences_renameReference_2576(t, n, rootName, rest)
+	this_.priv_Es6RenameTypeReferences_renameReference_2577(t, n, rootName, rest)
 }
 
 // Java method: Es6RenameTypeReferences.renameReference(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, java.lang.String oldName, java.lang.@org.jspecify.annotations.Nullable String rest)
-func (this_ *Es6RenameTypeReferences) priv_Es6RenameTypeReferences_renameReference_2576(t *NodeTraversal, n pkg_rhino.Node, oldName string, rest string) {
+func (this_ *Es6RenameTypeReferences) priv_Es6RenameTypeReferences_renameReference_2577(t *NodeTraversal, n pkg_rhino.Node, oldName string, rest string) {
 	_ = t
 	_ = n
 	_ = oldName

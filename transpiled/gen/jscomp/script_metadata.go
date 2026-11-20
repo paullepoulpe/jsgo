@@ -285,13 +285,13 @@ func (this_ *ScriptMetadata_FillerCallback) Visit_3(nodeTraversal *NodeTraversal
 	_ = nodeTraversal
 	_ = n
 	_ = parent
-	this_.priv_FillerCallback_updateSupportsRequireAlias_7991(n)
-	this_.priv_FillerCallback_maybeCollectRequirelikeAlias_7992(n)
-	this_.priv_FillerCallback_maybeCollectNames_7994(n)
+	this_.priv_FillerCallback_updateSupportsRequireAlias_7992(n)
+	this_.priv_FillerCallback_maybeCollectRequirelikeAlias_7993(n)
+	this_.priv_FillerCallback_maybeCollectNames_7995(n)
 }
 
 // Java method: FillerCallback.updateSupportsRequireAlias(com.google.javascript.rhino.Node n)
-func (this_ *ScriptMetadata_FillerCallback) priv_FillerCallback_updateSupportsRequireAlias_7991(n pkg_rhino.Node) {
+func (this_ *ScriptMetadata_FillerCallback) priv_FillerCallback_updateSupportsRequireAlias_7992(n pkg_rhino.Node) {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(123) /* Token.MODULE_BODY */ :
@@ -309,7 +309,7 @@ func (this_ *ScriptMetadata_FillerCallback) priv_FillerCallback_updateSupportsRe
 }
 
 // Java method: FillerCallback.maybeCollectRequirelikeAlias(com.google.javascript.rhino.Node n)
-func (this_ *ScriptMetadata_FillerCallback) priv_FillerCallback_maybeCollectRequirelikeAlias_7992(n pkg_rhino.Node) {
+func (this_ *ScriptMetadata_FillerCallback) priv_FillerCallback_maybeCollectRequirelikeAlias_7993(n pkg_rhino.Node) {
 	_ = n
 	if !(NodeUtil_IsNameDeclaration(n)) {
 		return
@@ -321,7 +321,7 @@ func (this_ *ScriptMetadata_FillerCallback) priv_FillerCallback_maybeCollectRequ
 	}
 	var requirelikeCall pkg_rhino.Node = aliasNode.GetFirstChild()
 	_ = requirelikeCall
-	if !(this_.priv_FillerCallback_isRequirelikeCall_7993(requirelikeCall)) {
+	if !(this_.priv_FillerCallback_isRequirelikeCall_7994(requirelikeCall)) {
 		return
 	}
 	var alias string = aliasNode.GetOriginalName()
@@ -335,7 +335,7 @@ func (this_ *ScriptMetadata_FillerCallback) priv_FillerCallback_maybeCollectRequ
 }
 
 // Java method: FillerCallback.isRequirelikeCall(com.google.javascript.rhino.Node call)
-func (this_ *ScriptMetadata_FillerCallback) priv_FillerCallback_isRequirelikeCall_7993(call pkg_rhino.Node) bool {
+func (this_ *ScriptMetadata_FillerCallback) priv_FillerCallback_isRequirelikeCall_7994(call pkg_rhino.Node) bool {
 	_ = call
 	if (((call == 0) || !(call.IsCall())) || (call.GetChildCount() != int32(2))) || !(call.GetSecondChild().IsStringLit()) {
 		return false
@@ -346,7 +346,7 @@ func (this_ *ScriptMetadata_FillerCallback) priv_FillerCallback_isRequirelikeCal
 }
 
 // Java method: FillerCallback.maybeCollectNames(com.google.javascript.rhino.Node n)
-func (this_ *ScriptMetadata_FillerCallback) priv_FillerCallback_maybeCollectNames_7994(n pkg_rhino.Node) {
+func (this_ *ScriptMetadata_FillerCallback) priv_FillerCallback_maybeCollectNames_7995(n pkg_rhino.Node) {
 	_ = n
 	if n.IsName() {
 		this_.toFill.namesInUse.Add(n.GetString())

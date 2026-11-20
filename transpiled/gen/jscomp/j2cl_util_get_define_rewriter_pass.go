@@ -150,7 +150,7 @@ func (this_ *J2clUtilGetDefineRewriterPass) Process_2(externs pkg_rhino.Node, ro
 	var checkGetDefineCalls *J2clUtilGetDefineRewriterPass_CheckGetDefineCalls = NewJ2clUtilGetDefineRewriterPass_CheckGetDefineCalls(this_)
 	_ = checkGetDefineCalls
 	NodeTraversal_Traverse(this_.compiler, root, checkGetDefineCalls)
-	checkGetDefineCalls.priv_CheckGetDefineCalls_validateRegisteredDefines_3514()
+	checkGetDefineCalls.priv_CheckGetDefineCalls_validateRegisteredDefines_3515()
 	NodeTraversal_Traverse(this_.compiler, root, this_)
 }
 
@@ -160,12 +160,12 @@ func (this_ *J2clUtilGetDefineRewriterPass) Visit_3(t *NodeTraversal, n pkg_rhin
 	_ = n
 	_ = parent
 	if J2clUtilGetDefineRewriterPass_IsUtilGetDefineCall(n) {
-		this_.priv_J2clUtilGetDefineRewriterPass_rewriteUtilGetDefine_3512(t, n)
+		this_.priv_J2clUtilGetDefineRewriterPass_rewriteUtilGetDefine_3513(t, n)
 	}
 }
 
 // Java method: J2clUtilGetDefineRewriterPass.rewriteUtilGetDefine(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node callNode)
-func (this_ *J2clUtilGetDefineRewriterPass) priv_J2clUtilGetDefineRewriterPass_rewriteUtilGetDefine_3512(t *NodeTraversal, callNode pkg_rhino.Node) {
+func (this_ *J2clUtilGetDefineRewriterPass) priv_J2clUtilGetDefineRewriterPass_rewriteUtilGetDefine_3513(t *NodeTraversal, callNode pkg_rhino.Node) {
 	_ = t
 	_ = callNode
 	var firstExpr pkg_rhino.Node = callNode.GetSecondChild()
@@ -177,7 +177,7 @@ func (this_ *J2clUtilGetDefineRewriterPass) priv_J2clUtilGetDefineRewriterPass_r
 	} else {
 		secondExpr = pkg_rhino.IR_NullNode()
 	}
-	var replacement pkg_rhino.Node = this_.priv_J2clUtilGetDefineRewriterPass_getDefineReplacement_3513(firstExpr, secondExpr)
+	var replacement pkg_rhino.Node = this_.priv_J2clUtilGetDefineRewriterPass_getDefineReplacement_3514(firstExpr, secondExpr)
 	_ = replacement
 	replacement.SrcrefTreeIfMissing(callNode)
 	callNode.ReplaceWith(replacement)
@@ -185,7 +185,7 @@ func (this_ *J2clUtilGetDefineRewriterPass) priv_J2clUtilGetDefineRewriterPass_r
 }
 
 // Java method: J2clUtilGetDefineRewriterPass.getDefineReplacement(com.google.javascript.rhino.Node firstExpr, com.google.javascript.rhino.Node secondExpr)
-func (this_ *J2clUtilGetDefineRewriterPass) priv_J2clUtilGetDefineRewriterPass_getDefineReplacement_3513(firstExpr pkg_rhino.Node, secondExpr pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *J2clUtilGetDefineRewriterPass) priv_J2clUtilGetDefineRewriterPass_getDefineReplacement_3514(firstExpr pkg_rhino.Node, secondExpr pkg_rhino.Node) pkg_rhino.Node {
 	_ = firstExpr
 	_ = secondExpr
 	var defineName string = firstExpr.GetString()
@@ -299,7 +299,7 @@ func (this_ *J2clUtilGetDefineRewriterPass_CheckGetDefineCalls) Visit_3(t *NodeT
 }
 
 // Java method: CheckGetDefineCalls.validateRegisteredDefines()
-func (this_ *J2clUtilGetDefineRewriterPass_CheckGetDefineCalls) priv_CheckGetDefineCalls_validateRegisteredDefines_3514() {
+func (this_ *J2clUtilGetDefineRewriterPass_CheckGetDefineCalls) priv_CheckGetDefineCalls_validateRegisteredDefines_3515() {
 	{
 		cur_1 := this_.defineNameToAddSystemPropertyCall.IterEntries()
 		for cur_1.NextEntry() {

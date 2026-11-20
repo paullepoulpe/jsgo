@@ -117,7 +117,7 @@ func (this_ *MakeDeclaredNamesUnique) EnterScope(t *NodeTraversal) {
 
 	}
 	this_.renamerStack.Push(renamer)
-	this_.priv_MakeDeclaredNamesUnique_findDeclaredNames_3835(t, declarationRoot)
+	this_.priv_MakeDeclaredNamesUnique_findDeclaredNames_3836(t, declarationRoot)
 }
 
 // Java method: MakeDeclaredNamesUnique.exitScope(com.google.javascript.jscomp.NodeTraversal t)
@@ -145,20 +145,20 @@ func (this_ *MakeDeclaredNamesUnique) Visit_3(t *NodeTraversal, n pkg_rhino.Node
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(32) /* Token.NAME */, int32(119) /* Token.IMPORT_STAR */ :
-		this_.priv_MakeDeclaredNamesUnique_visitNameOrImportStar_3833(t, n, parent)
+		this_.priv_MakeDeclaredNamesUnique_visitNameOrImportStar_3834(t, n, parent)
 	default:
 	}
 }
 
 // Java method: MakeDeclaredNamesUnique.visitNameOrImportStar(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *MakeDeclaredNamesUnique) priv_MakeDeclaredNamesUnique_visitNameOrImportStar_3833(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *MakeDeclaredNamesUnique) priv_MakeDeclaredNamesUnique_visitNameOrImportStar_3834(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = n
 	_ = parent
 	if n.IsName() && NodeUtil_IsNonlocalModuleExportName(n) {
 		return
 	}
-	var newName string = this_.priv_MakeDeclaredNamesUnique_getReplacementName_3834(n.GetString())
+	var newName string = this_.priv_MakeDeclaredNamesUnique_getReplacementName_3835(n.GetString())
 	_ = newName
 	if newName == j2gort.NullString {
 		return
@@ -189,7 +189,7 @@ func (this_ *MakeDeclaredNamesUnique) priv_MakeDeclaredNamesUnique_visitNameOrIm
 }
 
 // Java method: MakeDeclaredNamesUnique.getReplacementName(java.lang.String oldName)
-func (this_ *MakeDeclaredNamesUnique) priv_MakeDeclaredNamesUnique_getReplacementName_3834(oldName string) string {
+func (this_ *MakeDeclaredNamesUnique) priv_MakeDeclaredNamesUnique_getReplacementName_3835(oldName string) string {
 	_ = oldName
 	{
 		cur_1 := this_.renamerStack.Iter()
@@ -208,7 +208,7 @@ func (this_ *MakeDeclaredNamesUnique) priv_MakeDeclaredNamesUnique_getReplacemen
 }
 
 // Java method: MakeDeclaredNamesUnique.findDeclaredNames(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *MakeDeclaredNamesUnique) priv_MakeDeclaredNamesUnique_findDeclaredNames_3835(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *MakeDeclaredNamesUnique) priv_MakeDeclaredNamesUnique_findDeclaredNames_3836(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	if !(NodeUtil_CreatesScope(n) || n.IsScript()) {
@@ -455,7 +455,7 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter) EnterScope(t *Nod
 			var_ := cur_5.Next()
 
 			_ = var_
-			var variableInfo *MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo = this_.priv_ContextualRenameInverter_createDeclaredVariableInfo_3845(var_)
+			var variableInfo *MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo = this_.priv_ContextualRenameInverter_createDeclaredVariableInfo_3846(var_)
 			_ = variableInfo
 			declaredVariablesBuilder = append(declaredVariablesBuilder, j2gort.CheckNotNullElem(variableInfo))
 			this_.variablesStackedByName.PushVariableInfo(ToIface_MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo(variableInfo))
@@ -467,7 +467,7 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter) EnterScope(t *Nod
 }
 
 // Java method: ContextualRenameInverter.createDeclaredVariableInfo(com.google.javascript.jscomp.Var var)
-func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter) priv_ContextualRenameInverter_createDeclaredVariableInfo_3845(var_ *Var) *MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo {
+func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter) priv_ContextualRenameInverter_createDeclaredVariableInfo_3846(var_ *Var) *MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo {
 	_ = var_
 	var currentName string = var_.GetName()
 	_ = currentName
@@ -515,7 +515,7 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter) ExitScope(t *Node
 			if !(oldStackTop == declaredVariableInfo || ((oldStackTop == nil || oldStackTop.IsJavaNil_()) && (declaredVariableInfo == nil || declaredVariableInfo.IsJavaNil_()))) {
 				j2gort.CheckStateFmt(false, "Declared variable \"%s\" was not the top of the name stack", j2gort.BoxString(variableName))
 			}
-			declaredVariableInfo.priv_DeclaredVariableInfo_tryToInvertName_3853()
+			declaredVariableInfo.priv_DeclaredVariableInfo_tryToInvertName_3854()
 		}
 	}
 	if this_.scopeContextStack.IsEmpty() {
@@ -551,7 +551,7 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter) Visit_3(t *NodeTr
 }
 
 // Java method: ContextualRenameInverter.createUndeclaredVariableInfo(java.lang.String name)
-func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter) priv_ContextualRenameInverter_createUndeclaredVariableInfo_3846(name string) MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo {
+func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter) priv_ContextualRenameInverter_createUndeclaredVariableInfo_3847(name string) MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo {
 	_ = name
 	return ToIface_MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo(allocPooled_MakeDeclaredNamesUnique_ContextualRenameInverter_UndeclaredVariableInfo(&this_.slab_UndeclaredVariableInfo, name))
 }
@@ -775,7 +775,7 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableIn
 }
 
 // Java method: DeclaredVariableInfo.tryToInvertName()
-func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo) priv_DeclaredVariableInfo_tryToInvertName_3853() {
+func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter_DeclaredVariableInfo) priv_DeclaredVariableInfo_tryToInvertName_3854() {
 	if this_.renamingInfo != nil {
 		this_.name = this_.renamingInfo.AttemptRename()
 		this_.renamingInfo = nil
@@ -934,13 +934,13 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackM
 	_ = info
 	var name string = info.GetName()
 	_ = name
-	var variableInfoStack j2gort.Ext_java_util_Deque = this_.priv_VariableInfoStackMap_getVariableInfoStack_3857(name)
+	var variableInfoStack j2gort.Ext_java_util_Deque = this_.priv_VariableInfoStackMap_getVariableInfoStack_3858(name)
 	_ = variableInfoStack
 	variableInfoStack.Push(info)
 }
 
 // Java method: VariableInfoStackMap.getVariableInfoStack(java.lang.String name)
-func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap) priv_VariableInfoStackMap_getVariableInfoStack_3857(name string) j2gort.Ext_java_util_Deque {
+func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap) priv_VariableInfoStackMap_getVariableInfoStack_3858(name string) j2gort.Ext_java_util_Deque {
 	_ = name
 	var stack j2gort.Ext_java_util_Deque = this_.mapOfStacks.Get(name)
 	_ = stack
@@ -954,12 +954,12 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackM
 // Java method: VariableInfoStackMap.getOrCreateCurrentVariableInfo(java.lang.String name)
 func (this_ *MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfoStackMap) GetOrCreateCurrentVariableInfo(name string) MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo {
 	_ = name
-	var variableInfoStack j2gort.Ext_java_util_Deque = this_.priv_VariableInfoStackMap_getVariableInfoStack_3857(name)
+	var variableInfoStack j2gort.Ext_java_util_Deque = this_.priv_VariableInfoStackMap_getVariableInfoStack_3858(name)
 	_ = variableInfoStack
 	var variableInfo MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo = nil
 	_ = variableInfo
 	if variableInfoStack.IsEmpty() {
-		variableInfo = this_.outer_.priv_ContextualRenameInverter_createUndeclaredVariableInfo_3846(name)
+		variableInfo = this_.outer_.priv_ContextualRenameInverter_createUndeclaredVariableInfo_3847(name)
 		variableInfoStack.Push(variableInfo)
 	} else {
 		variableInfo = j2gort.AsIface[MakeDeclaredNamesUnique_ContextualRenameInverter_VariableInfo](variableInfoStack.Peek())
@@ -1353,7 +1353,7 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) createForChildScopeW
 }
 
 // Java method: ContextualRenamer.hasLocalDeclaration(java.lang.String name)
-func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) priv_ContextualRenamer_hasLocalDeclaration_3862(name string) bool {
+func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) priv_ContextualRenamer_hasLocalDeclaration_3863(name string) bool {
 	_ = name
 	var c int32 = this_.declCount
 	_ = c
@@ -1385,7 +1385,7 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) priv_ContextualRenam
 }
 
 // Java method: ContextualRenamer.putLocalDeclaration(java.lang.String name, java.lang.@org.jspecify.annotations.Nullable String newName)
-func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) priv_ContextualRenamer_putLocalDeclaration_3863(name string, newName string) {
+func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) priv_ContextualRenamer_putLocalDeclaration_3864(name string, newName string) {
 	_ = name
 	_ = newName
 	var c int32 = this_.declCount
@@ -1465,10 +1465,10 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) AddDeclaredName(name
 			}
 			if !(iifeCond_1) {
 				if this_.global {
-					this_.priv_ContextualRenamer_reserveName_3864(name)
+					this_.priv_ContextualRenamer_reserveName_3865(name)
 				} else {
-					if !(this_.priv_ContextualRenamer_hasLocalDeclaration_3862(name)) {
-						var id int32 = this_.priv_ContextualRenamer_incrementNameCount_3865(name)
+					if !(this_.priv_ContextualRenamer_hasLocalDeclaration_3863(name)) {
+						var id int32 = this_.priv_ContextualRenamer_incrementNameCount_3866(name)
 						_ = id
 						var newName string = j2gort.NullString
 						_ = newName
@@ -1483,9 +1483,9 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) AddDeclaredName(name
 							}()) >= int32(0) {
 								newName = this_.nameUsage.GetUniqueName(name, nextId)
 							}
-							this_.priv_ContextualRenamer_reserveName_3864(newName)
+							this_.priv_ContextualRenamer_reserveName_3865(newName)
 						}
-						this_.priv_ContextualRenamer_putLocalDeclaration_3863(name, newName)
+						this_.priv_ContextualRenamer_putLocalDeclaration_3864(name, newName)
 					}
 				}
 			}
@@ -1552,13 +1552,13 @@ func MakeDeclaredNamesUnique_ContextualRenamer_FormatUniqueName(name string, id 
 }
 
 // Java method: ContextualRenamer.reserveName(java.lang.String name)
-func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) priv_ContextualRenamer_reserveName_3864(name string) {
+func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) priv_ContextualRenamer_reserveName_3865(name string) {
 	_ = name
 	this_.nameUsage.Reserve(name)
 }
 
 // Java method: ContextualRenamer.incrementNameCount(java.lang.String name)
-func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) priv_ContextualRenamer_incrementNameCount_3865(name string) int32 {
+func (this_ *MakeDeclaredNamesUnique_ContextualRenamerBase) priv_ContextualRenamer_incrementNameCount_3866(name string) int32 {
 	_ = name
 	return this_.nameUsage.AddOne(name)
 }
@@ -1870,7 +1870,7 @@ func (this_ *MakeDeclaredNamesUnique_InlineRenamer) AddDeclaredName(name string,
 	_ = c
 	if c == int32(0) {
 		this_.declName0 = name
-		this_.declRep0 = this_.priv_InlineRenamer_getUniqueName_3871(name)
+		this_.declRep0 = this_.priv_InlineRenamer_getUniqueName_3872(name)
 		this_.declCount = int32(1)
 	} else if c == int32(1) {
 		{
@@ -1883,7 +1883,7 @@ func (this_ *MakeDeclaredNamesUnique_InlineRenamer) AddDeclaredName(name string,
 			}
 			if !(iifeCond_1) {
 				this_.declName1 = name
-				this_.declRep1 = this_.priv_InlineRenamer_getUniqueName_3871(name)
+				this_.declRep1 = this_.priv_InlineRenamer_getUniqueName_3872(name)
 				this_.declCount = int32(2)
 			}
 		}
@@ -1905,7 +1905,7 @@ func (this_ *MakeDeclaredNamesUnique_InlineRenamer) AddDeclaredName(name string,
 				_ = n1
 				var r1 string = this_.declRep1
 				_ = r1
-				var newName string = this_.priv_InlineRenamer_getUniqueName_3871(name)
+				var newName string = this_.priv_InlineRenamer_getUniqueName_3872(name)
 				_ = newName
 				this_.declName0 = j2gort.NullString
 				this_.declRep0 = j2gort.NullString
@@ -1919,12 +1919,12 @@ func (this_ *MakeDeclaredNamesUnique_InlineRenamer) AddDeclaredName(name string,
 			}
 		}
 	} else if !(this_.declarations.ContainsKey(name)) {
-		this_.declarations.Put(name, this_.priv_InlineRenamer_getUniqueName_3871(name))
+		this_.declarations.Put(name, this_.priv_InlineRenamer_getUniqueName_3872(name))
 	}
 }
 
 // Java method: InlineRenamer.getUniqueName(java.lang.String name)
-func (this_ *MakeDeclaredNamesUnique_InlineRenamer) priv_InlineRenamer_getUniqueName_3871(name string) string {
+func (this_ *MakeDeclaredNamesUnique_InlineRenamer) priv_InlineRenamer_getUniqueName_3872(name string) string {
 	_ = name
 	if j2gort.CheckNotNullString(name) == "" {
 		return name

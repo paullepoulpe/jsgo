@@ -178,7 +178,7 @@ func (this_ *CheckEnums) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg_
 		var jsdoc *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(n)
 		_ = jsdoc
 		if (jsdoc != nil) && jsdoc.HasEnumParameterType() {
-			this_.priv_CheckEnums_checkNamingAndAssignmentUsage_6565(t, n)
+			this_.priv_CheckEnums_checkNamingAndAssignmentUsage_6566(t, n)
 			CheckEnums_CheckDuplicateEnumValues(t, n)
 			CheckEnums_CheckEnumTypeAndInitializerValues(t, n, jsdoc)
 		}
@@ -232,20 +232,20 @@ func CheckEnums_CheckStringEnumInitializerValues(t *NodeTraversal, enumNode pkg_
 }
 
 // Java method: CheckEnums.checkNamingAndAssignmentUsage(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node objLit)
-func (this_ *CheckEnums) priv_CheckEnums_checkNamingAndAssignmentUsage_6565(t *NodeTraversal, objLit pkg_rhino.Node) {
+func (this_ *CheckEnums) priv_CheckEnums_checkNamingAndAssignmentUsage_6566(t *NodeTraversal, objLit pkg_rhino.Node) {
 	_ = t
 	_ = objLit
 	{
 		var child pkg_rhino.Node = objLit.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			this_.priv_CheckEnums_checkName_6566(t, child)
+			this_.priv_CheckEnums_checkName_6567(t, child)
 		}
 	}
 }
 
 // Java method: CheckEnums.checkName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node prop)
-func (this_ *CheckEnums) priv_CheckEnums_checkName_6566(t *NodeTraversal, prop pkg_rhino.Node) {
+func (this_ *CheckEnums) priv_CheckEnums_checkName_6567(t *NodeTraversal, prop pkg_rhino.Node) {
 	_ = t
 	_ = prop
 	if prop.IsComputedProp() {
